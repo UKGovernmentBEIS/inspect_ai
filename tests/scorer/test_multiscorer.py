@@ -99,3 +99,23 @@ def test_blend_scorer() -> None:
     # normal eval
     log = eval(tasks=task, model="mockllm/model")[0]
     check_log(log, ["a_count", "e_count", "rand_score"], ["mean", "stderr"])
+
+
+# test that ScoreEvents capture scorer name + args (and are unique-per-task)
+def test_score_event_scorer_metadata() -> None:
+    from inspect_ai.event._score import ScoreEvent
+
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target=["2", "2.0", "Two"])],
+        scorer=[rand_score(), rand_score(), another_rand_score()],
+    )
+
+    log = eval(tasks=task, model="mockllm/model")[0]
+    assert log.samples is not None
+    score_events = [e for e in log.samples[0].events if isinstance(e, ScoreEvent)]
+
+    # one ScoreEvent per scorer, with disambiguated names
+    scorer_names = [e.scorer for e in score_events]
+    assert scorer_names == ["rand_score", "rand_score1", "another_rand_score"]
+    # scorer_args populated (empty dict for these no-arg scorers — not None)
+    assert all(e.scorer_args == {} for e in score_events)

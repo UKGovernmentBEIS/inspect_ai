@@ -1,5 +1,6 @@
 ---
-title: "inspect_ai.util"
+reference: inspect_ai.util
+description: Miscellaneous utility functions.
 ---
 
 ## Store
@@ -8,42 +9,53 @@ title: "inspect_ai.util"
 ### store
 ### store_as
 ### StoreModel
+### store_from_events
+### store_from_events_as
 
 ## Limits
 
 ### message_limit
-### token_limit
+### turn_limit
+### cost_limit
 ### time_limit
 ### working_limit
+### token_limit
+### TokenLimit
 ### apply_limits
 ### sample_limits
 ### SampleLimits
 ### Limit
 ### LimitExceededError
+### suspend_token_limit
 
 ## Concurrency
 
 ### concurrency
 ### subprocess
 ### ExecResult
+### AdaptiveConcurrency
 
 ## Display
 
 ### display_counter
 ### display_type
 ### DisplayType
-### input_screen
 
 ## Utilities
 
 ### span
+### current_span_id
+### span_id_provider
 ### collect
-### resource
 ### throttle
 ### background
 ### trace_action
 ### trace_message
-
+### materialize_media
+### media_resolver
+### resource
+### download
+### gdrive_download
 
 ## Sandbox
 
@@ -52,8 +64,37 @@ title: "inspect_ai.util"
 ### sandbox_default
 ### SandboxEnvironment
 ### SandboxConnection
+### SandboxUnavailableError
 ### sandboxenv
 ### sandbox_service
+### override_sandbox_output_limit
+### ExecRemoteProcess
+### ExecRemoteStreamingOptions
+### ExecRemoteAwaitableOptions
+### ExecOutput
+### ExecStdout
+### ExecStderr
+### ExecCompleted
+
+## Intervention
+
+### notify
+### request_input
+### InputRequest
+### InputResult
+### InputResult
+
+## Checkpointing
+
+### checkpointer
+### Checkpointer
+### CheckpointConfig
+### CheckpointSampleConfig
+### CheckpointTrigger
+### TimeInterval
+### TokenInterval
+### TurnInterval
+### Manual
 
 ## Registry
 
@@ -64,6 +105,7 @@ title: "inspect_ai.util"
 
 ## JSON
 
+### StrEnum
 ### JSONType
 ### JSONSchema
 ### json_schema
@@ -83,3 +125,4 @@ title: "inspect_ai.util"
 ### ComposeService
 ### ComposeBuild
 ### ComposeHealthcheck
+

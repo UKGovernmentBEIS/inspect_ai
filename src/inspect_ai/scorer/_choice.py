@@ -16,8 +16,12 @@ def _choices_are_shuffled(choices: Choices) -> bool:
 
 
 def _score_target(target: Target, choices: Choices) -> tuple[list[int], list[str]]:
+    # Filter out separator characters (e.g. "A,B" or "A, B") so that only
+    # actual answer letters/digits are mapped to choice indices.
     target_positions = [
-        answer_index(target_character) for target_character in target.text
+        answer_index(target_character)
+        for target_character in target.text
+        if target_character not in (",", " ")
     ]
 
     choice_positions = [i for i, choice in enumerate(choices) if choice.correct is True]

@@ -3,7 +3,22 @@ from inspect_ai.dataset import Sample
 from inspect_ai.model import ModelOutput, get_model
 from inspect_ai.scorer import match
 from inspect_ai.solver import generate, use_tools
-from inspect_ai.tool import ToolDef
+from inspect_ai.tool import ToolDef, tool
+
+
+@tool(prompt="Use this tool when addition is required.")
+def prompted_addition():
+    async def execute(x: int, y: int) -> int:
+        """
+        Add two numbers.
+
+        Args:
+            x (int): First number.
+            y (int): Second number.
+        """
+        return x + y
+
+    return execute
 
 
 def test_tool_def() -> None:
@@ -37,3 +52,13 @@ def test_tool_def() -> None:
 
     log = eval(task, model=model)[0]
     assert log.status == "success"
+
+
+def test_tool_def_does_not_duplicate_prompt_text() -> None:
+    tool = prompted_addition()
+
+    first = ToolDef(tool)
+    second = ToolDef(tool)
+
+    assert first.description == second.description
+    assert second.description.count("Use this tool when addition is required.") == 1

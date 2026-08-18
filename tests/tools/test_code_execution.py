@@ -96,7 +96,7 @@ def test_mistral_code_execution_python() -> None:
 @skip_if_no_google
 @flaky_retry(max_retries=3)
 def test_google_code_execution() -> None:
-    check_code_execution("google/gemini-3-pro-preview")
+    check_code_execution("google/gemini-3.1-pro-preview")
 
 
 @pytest.mark.slow
@@ -108,6 +108,7 @@ def test_google_code_execution_python() -> None:
 
 
 @skip_if_no_openai
+@flaky_retry(max_retries=3)
 def test_openai_code_execution() -> None:
     check_code_execution("openai/gpt-5-mini")
 
@@ -252,7 +253,7 @@ def test_normalize_config_empty_dict_options() -> None:
 )
 def test_normalize_config_disable_each_provider(provider: str) -> None:
     """Test that each provider can be individually disabled."""
-    result = _normalize_config({provider: False})  # type: ignore[arg-type, misc]
+    result = _normalize_config({provider: False})  # type: ignore[arg-type]
 
     assert provider not in result
     all_providers = {"openai", "anthropic", "google", "grok", "python"}

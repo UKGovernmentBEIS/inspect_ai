@@ -1,6 +1,6 @@
 from inspect_ai._util.content import ContentText
 from inspect_ai.model import ChatMessage, ChatMessageTool, ChatMessageUser, ContentImage
-from inspect_ai.model._model import tool_result_images_as_user_message
+from inspect_ai.model._model import tool_result_media_as_user_message
 
 
 # see bug description in https://github.com/UKGovernmentBEIS/inspect_ai/pull/1217
@@ -54,7 +54,7 @@ def test_multiple_tool_responses_remain_adjacent_when_not_at_end_of_list():
 
 def execute_and_assert(input_messages: list[ChatMessage], expected: list[ChatMessage]):
     # transform the messages
-    transformed = tool_result_images_as_user_message(input_messages)
+    transformed = tool_result_media_as_user_message(input_messages, (ContentImage,))
 
     # compare based on content (as id can't be known in advance)
     assert all([t.content == e.content] for t, e in zip(transformed, expected))

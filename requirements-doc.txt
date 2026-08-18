@@ -1,0 +1,9 @@
+click>=8.2.0
+griffe>=2
+jupyter
+markdown
+nbclient
+panflute
+pyyaml
+quarto-cli>=1.9.36
+types-PyYAML

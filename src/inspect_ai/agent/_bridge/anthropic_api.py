@@ -14,8 +14,9 @@ if TYPE_CHECKING:
 
 async def inspect_anthropic_api_request(
     json_data: dict[str, Any],
-    web_search: WebSearchProviders,
-    code_execution: CodeExecutionProviders,
+    headers: dict[str, str] | None,
+    web_search: WebSearchProviders | None,
+    code_execution: CodeExecutionProviders | None,
     bridge: AgentBridge,
     *,
     beta: bool = False,
@@ -25,5 +26,5 @@ async def inspect_anthropic_api_request(
     from .anthropic_api_impl import inspect_anthropic_api_request_impl
 
     return await inspect_anthropic_api_request_impl(
-        json_data, web_search, code_execution, bridge, beta=beta
+        json_data, headers, web_search, code_execution, bridge, beta=beta
     )

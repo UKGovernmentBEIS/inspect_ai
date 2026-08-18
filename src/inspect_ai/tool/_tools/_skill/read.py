@@ -2,7 +2,6 @@ from pathlib import Path
 from typing import Any, Sequence
 
 import yaml
-from jsonschema import Draft7Validator
 
 from .types import Skill
 
@@ -157,6 +156,8 @@ def _validate_frontmatter(frontmatter: dict[str, Any]) -> None:
     Raises:
         SkillParsingError: If validation fails.
     """
+    from jsonschema import Draft7Validator
+
     schema = _skill_schema()
     validator = Draft7Validator(schema)
     errors = list(validator.iter_errors(frontmatter))

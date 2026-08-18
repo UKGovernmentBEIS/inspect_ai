@@ -1,11 +1,16 @@
 """Tests for ComposeConfig support in Docker sandbox."""
 
 import os
+from pathlib import Path
 
 import pytest
 from test_helpers.utils import skip_if_no_docker
 
 from inspect_ai.util import ComposeConfig, ComposeService
+from inspect_ai.util._sandbox.docker.config import (
+    auto_compose_dir,
+    is_auto_compose_file,
+)
 from inspect_ai.util._sandbox.docker.docker import DockerSandboxEnvironment
 from inspect_ai.util._sandbox.docker.util import ComposeProject
 
@@ -34,7 +39,10 @@ async def test_compose_project_create_with_compose_config(request) -> None:
     try:
         # Verify the project was created with a valid config path
         assert project.config is not None
-        assert project.config.endswith(".compose.yaml")
+        # Auto-compose files are now stored in the central directory
+        assert is_auto_compose_file(project.config)
+        assert Path(project.config).parent == auto_compose_dir()
+        assert project.config.endswith(".yaml")
         assert os.path.exists(project.config)
 
         # Verify the generated YAML contains expected content

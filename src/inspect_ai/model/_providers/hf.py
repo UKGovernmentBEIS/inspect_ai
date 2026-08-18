@@ -18,6 +18,7 @@ from typing import Any, Literal, Protocol, cast
 import anyio
 import numpy as np
 import torch  # type: ignore
+import transformers  # type: ignore
 from torch import Tensor  # type: ignore
 from transformers import (  # type: ignore
     AutoModelForCausalLM,
@@ -36,11 +37,14 @@ from inspect_ai._util.content import (
     ContentVideo,
 )
 from inspect_ai._util.trace import trace_action
+from inspect_ai.model._reasoning import emulate_reasoning_history
 from inspect_ai.tool import ToolChoice, ToolInfo
+from inspect_ai.util._json import JSON_SCHEMA_EXTENDED_FIELDS, json_schema_dump
 
 from .._chat_message import ChatMessage, ChatMessageAssistant
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI
+from .._model_info import MODEL_INFO_LOOKUP_API_KEY
 from .._model_output import (
     ChatCompletionChoice,
     Logprob,
@@ -55,6 +59,17 @@ logger = getLogger(__name__)
 
 
 HF_TOKEN = "HF_TOKEN"
+
+
+def hub_token(api_key: str | None) -> str | None:
+    """Token to pass to the Hub, or `None` to let `huggingface_hub` resolve one.
+
+    Resolves `MODEL_INFO_LOOKUP_API_KEY` to `None`. Sending the placeholder as a
+    token makes the Hub treat the request as unauthenticated (and rate limit it
+    as such), and passing any token at all stops `huggingface_hub` falling back
+    to `HF_TOKEN` or the token cached by `huggingface-cli login`.
+    """
+    return None if api_key == MODEL_INFO_LOOKUP_API_KEY else api_key
 
 
 class HuggingFaceAPI(ModelAPI):
@@ -92,11 +107,36 @@ class HuggingFaceAPI(ModelAPI):
         tokenizer_path = collect_model_arg("tokenizer_path")
         self.batch_size = collect_model_arg("batch_size")
         self.chat_template = collect_model_arg("chat_template")
+        self.use_chat_template = collect_model_arg("use_chat_template")
         self.tokenizer_call_args = collect_model_arg("tokenizer_call_args")
         self.enable_thinking = collect_model_arg("enable_thinking")
         if self.tokenizer_call_args is None:
             self.tokenizer_call_args = {}
         self.hidden_states = collect_model_arg("hidden_states")
+        do_sample = collect_model_arg("do_sample")
+        self.do_sample: bool = do_sample if do_sample is not None else True
+        trust_remote_code = collect_model_arg("trust_remote_code")
+        if trust_remote_code is None:
+            trust_remote_code = False
+        if not isinstance(trust_remote_code, bool):
+            raise ValueError("trust_remote_code must be a bool")
+
+        # select the transformers auto-class used to load the model. Some
+        # architectures (e.g. the Mistral 3 series and other image-text-to-text
+        # models) are not registered with AutoModelForCausalLM and must be
+        # loaded with a different class such as AutoModelForImageTextToText.
+        auto_model_class = collect_model_arg("auto_model_class")
+        if auto_model_class is not None:
+            if not isinstance(auto_model_class, str):
+                raise ValueError("auto_model_class must be a str")
+            model_loader = getattr(transformers, auto_model_class, None)
+            if model_loader is None:
+                raise ValueError(
+                    f"auto_model_class '{auto_model_class}' is not a valid "
+                    "transformers class"
+                )
+        else:
+            model_loader = AutoModelForCausalLM
 
         # device
         if device:
@@ -110,24 +150,48 @@ class HuggingFaceAPI(ModelAPI):
 
         # model
         if model_path:
-            self.model: Any = AutoModelForCausalLM.from_pretrained(
-                model_path, device_map=self.device, token=self.api_key, **model_args
+            self.model: Any = model_loader.from_pretrained(
+                model_path,
+                device_map=self.device,
+                token=hub_token(self.api_key),
+                trust_remote_code=trust_remote_code,
+                **model_args,
             )
         else:
-            self.model = AutoModelForCausalLM.from_pretrained(
-                model_name, device_map=self.device, token=self.api_key, **model_args
+            self.model = model_loader.from_pretrained(
+                model_name,
+                device_map=self.device,
+                token=hub_token(self.api_key),
+                trust_remote_code=trust_remote_code,
+                **model_args,
             )
 
         # tokenizer
         if tokenizer:
-            self.tokenizer = AutoTokenizer.from_pretrained(tokenizer)  # type: ignore[no-untyped-call]
+            self.tokenizer = AutoTokenizer.from_pretrained(  # type: ignore[no-untyped-call]
+                tokenizer,
+                token=hub_token(self.api_key),
+                trust_remote_code=trust_remote_code,
+            )
         elif model_path:
             if tokenizer_path:
-                self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)  # type: ignore[no-untyped-call]
+                self.tokenizer = AutoTokenizer.from_pretrained(  # type: ignore[no-untyped-call]
+                    tokenizer_path,
+                    token=hub_token(self.api_key),
+                    trust_remote_code=trust_remote_code,
+                )
             else:
-                self.tokenizer = AutoTokenizer.from_pretrained(model_path)  # type: ignore[no-untyped-call]
+                self.tokenizer = AutoTokenizer.from_pretrained(  # type: ignore[no-untyped-call]
+                    model_path,
+                    token=hub_token(self.api_key),
+                    trust_remote_code=trust_remote_code,
+                )
         else:
-            self.tokenizer = AutoTokenizer.from_pretrained(model_name)  # type: ignore[no-untyped-call]
+            self.tokenizer = AutoTokenizer.from_pretrained(  # type: ignore[no-untyped-call]
+                model_name,
+                token=hub_token(self.api_key),
+                trust_remote_code=trust_remote_code,
+            )
         # LLMs generally don't have a pad token and we need one for batching
         self.tokenizer.pad_token = self.tokenizer.eos_token
         self.tokenizer.padding_side = "left"
@@ -135,7 +199,7 @@ class HuggingFaceAPI(ModelAPI):
     @override
     def close(self) -> None:
         self.model = None
-        self.tokenizer = None
+        self.tokenizer = None  # type: ignore[assignment]
         gc.collect()
 
     async def generate(
@@ -147,7 +211,7 @@ class HuggingFaceAPI(ModelAPI):
     ) -> ModelOutput:
         # create handler
         handler: ChatAPIHandler | None = (
-            HFHandler(self.model_name) if len(tools) > 0 else None
+            HFHandler(self.model_name, self.model_family()) if len(tools) > 0 else None
         )
 
         # create chat
@@ -155,7 +219,7 @@ class HuggingFaceAPI(ModelAPI):
 
         assert isinstance(self.tokenizer_call_args, dict)
         # prepare tokenizer
-        tokenizer = functools.partial(
+        tokenizer = functools.partial(  # type: ignore[misc]
             self.tokenizer,
             return_tensors="pt",
             padding=True,
@@ -163,7 +227,7 @@ class HuggingFaceAPI(ModelAPI):
         )
 
         # prepare generator
-        kwargs: dict[str, Any] = dict(do_sample=True)
+        kwargs: dict[str, Any] = dict(do_sample=self.do_sample)
         if config.max_tokens is not None:
             kwargs["max_new_tokens"] = config.max_tokens
         if config.temperature is not None:
@@ -264,34 +328,87 @@ class HuggingFaceAPI(ModelAPI):
     def hf_chat(self, messages: list[ChatMessage], tools: list[ToolInfo]) -> str:
         # convert to hf format
         tools_list = []
-        hf_messages = copy.deepcopy(messages)
+        hf_messages = copy.deepcopy(emulate_reasoning_history(messages))
         if len(tools) > 0:
             tools_list = [
-                json.loads(tool.model_dump_json(exclude_none=True, indent=2))
+                json_schema_dump(tool, exclude=JSON_SCHEMA_EXTENDED_FIELDS)
                 for tool in tools
             ]
-            if "mistral" in self.model_name.lower():
+            family = self.model_family().lower()
+            if "mistral" in family:
                 hf_messages = shorten_tool_id(hf_messages)
                 tools_list = tools_to_mistral_format(tools_list)
-            elif "qwen" in self.model_name.lower():
+            elif "qwen" in family:
                 hf_messages = inspect_tools_to_string(hf_messages)
 
         hf_messages = message_content_to_string(hf_messages)
+        chat_template = (
+            self.chat_template
+            if isinstance(self.chat_template, str)
+            else self.tokenizer.chat_template
+        )
+        if self.use_chat_template is False:
+            chat_template = None
+
         # apply chat template
-        if self.tokenizer.chat_template is not None:
-            chat = self.tokenizer.apply_chat_template(
-                hf_messages,
-                add_generation_prompt=True,
-                tokenize=False,
-                tools=tools_list if len(tools_list) > 0 else None,
-                enable_thinking=self.enable_thinking,  # not all models use this, check if it is supported
+        if chat_template is not None:
+            chat = self._apply_chat_template(
+                hf_messages=hf_messages,
+                tools_list=tools_list,
+                chat_template=chat_template,
             )
         else:
             chat = ""
             for message in hf_messages:
                 chat += f"{message.role}: {message.content}\n"
         # return
-        return cast(str, chat)
+        return chat
+
+    def _apply_chat_template(
+        self,
+        hf_messages: list[ChatMessage],
+        tools_list: list[dict[str, Any]],
+        chat_template: str | None,
+    ) -> str:
+        template_args: dict[str, Any] = dict(
+            add_generation_prompt=True,
+            tokenize=False,
+            tools=tools_list if len(tools_list) > 0 else None,
+            enable_thinking=self.enable_thinking,
+        )
+
+        if chat_template is not None:
+            try:
+                return cast(
+                    str,
+                    self.tokenizer.apply_chat_template(
+                        hf_messages,  # type: ignore[arg-type]
+                        chat_template=chat_template,
+                        **template_args,
+                    ),
+                )
+            except TypeError:
+                # Back-compat for tokenizers that don't accept `chat_template=` kwarg.
+                original_template = self.tokenizer.chat_template
+                try:
+                    self.tokenizer.chat_template = chat_template
+                    return cast(
+                        str,
+                        self.tokenizer.apply_chat_template(
+                            hf_messages,  # type: ignore[arg-type]
+                            **template_args,
+                        ),
+                    )
+                finally:
+                    self.tokenizer.chat_template = original_template
+
+        return cast(
+            str,
+            self.tokenizer.apply_chat_template(
+                hf_messages,  # type: ignore[arg-type]
+                **template_args,
+            ),
+        )
 
 
 def message_content_to_string(messages: list[ChatMessage]) -> list[ChatMessage]:
@@ -565,7 +682,7 @@ def extract_logprobs(
             token_str = tokenizer.convert_ids_to_tokens(tok.item())
             top_logprobs.append(
                 TopLogprob(
-                    token=token_str,
+                    token=token_str,  # type: ignore[arg-type]
                     logprob=val,
                     bytes=list(map(ord, token_str)),
                 )

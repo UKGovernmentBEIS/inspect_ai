@@ -33,18 +33,19 @@ def test_parse_task_spec_invalid():
 
 
 @pytest.mark.parametrize(
-    "record,target,expected",
+    "record,target,is_choices,expected",
     [
-        ({"answer": "B"}, "answer", "B"),
-        ({"label": 0}, "label", "A"),
-        ({"label": 1}, "label", "B"),
-        ({"label": 25}, "label", "Z"),
-        ({"value": "test"}, "literal:test", "test"),
-        ({"value": "ignore"}, "literal:custom", "custom"),
+        ({"answer": "B"}, "answer", False, "B"),
+        ({"label": 0}, "label", True, "A"),
+        ({"label": 1}, "label", True, "B"),
+        ({"label": 25}, "label", True, "Z"),
+        ({"label": 2}, "label", False, "2"),
+        ({"value": "test"}, "literal:test", False, "test"),
+        ({"value": "ignore"}, "literal:custom", False, "custom"),
     ],
 )
-def test_sanitize_target(record, target, expected):
-    result = _sanitize_target(record, target)
+def test_sanitize_target(record, target, is_choices, expected):
+    result = _sanitize_target(record, target, is_choices)
     assert result == expected
 
 

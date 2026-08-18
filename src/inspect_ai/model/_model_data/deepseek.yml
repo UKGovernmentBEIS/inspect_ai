@@ -1,6 +1,29 @@
 DeepSeek:
   display_name: DeepSeek
   models:
+    deepseek-v4-pro:
+      display_name: "V4 Pro"
+      release_date: 2026-04-24
+      context_length: 1048576
+      output_tokens: 393216
+      reasoning: True
+      # Thinking is on by default; effort scale is low/high/max with a
+      # default of high. https://api-docs.deepseek.com/guides/thinking_mode
+      reasoning_effort_default: high
+    deepseek-v4-flash:
+      display_name: "V4 Flash"
+      release_date: 2026-04-24
+      context_length: 1048576
+      output_tokens: 393216
+      reasoning: True
+      reasoning_effort_default: high
+      versions:
+        DeepSeek-V4-Flash-0731:
+          release_date: 2026-07-31
+          snapshot: "0731"
+    # deepseek-chat and deepseek-reasoner were retired from the DeepSeek API
+    # on 2026-07-24 (requests were routed to deepseek-v4-flash during the
+    # transition window). Entries retained for historical log analysis.
     deepseek-chat:
       display_name: "V3"
       release_date: 2024-12-26
@@ -15,7 +38,10 @@ DeepSeek:
       release_date: 2025-02-17
       context_length: 65536
       reasoning: True
+      # DeepSeek-R1 has no `reasoning_effort` scale: thinking is always on.
+      # https://api-docs.deepseek.com/guides/reasoning_model
+      reasoning_effort_default: fixed
       versions:
         DeepSeek-R1-0528:
-          rlease_date: 2025-05-28
+          release_date: 2025-05-28
           snapshot: "0528"

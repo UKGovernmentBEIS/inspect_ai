@@ -40,7 +40,9 @@ from ._chat_message import (
 )
 from ._compaction import (
     Compact,
+    CompactionAuto,
     CompactionEdit,
+    CompactionNative,
     CompactionStrategy,
     CompactionSummary,
     CompactionTrim,
@@ -51,30 +53,39 @@ from ._generate_config import (
     BatchConfig,
     GenerateConfig,
     GenerateConfigArgs,
+    ImageOutput,
+    OutputModality,
     ResponseSchema,
 )
 from ._google_convert import messages_from_google, model_output_from_google
+from ._message_ids import stable_message_ids
 from ._model import (
     GenerateFilter,
     GenerateInput,
     Model,
     ModelAPI,
     ModelName,
+    RetryDecision,
     get_model,
+    model_roles,
 )
 from ._model_call import ModelCall
 from ._model_config import ModelConfig
-from ._model_data.model_data import ModelInfo
-from ._model_info import get_model_info, set_model_info
+from ._model_data.model_data import ModelCost, ModelInfo
+from ._model_info import get_model_info, set_model_cost, set_model_info
 from ._model_output import (
     ChatCompletionChoice,
     Logprob,
     Logprobs,
+    ModelFallback,
     ModelOutput,
     ModelUsage,
+    StopCategory,
+    StopDetails,
     StopReason,
     TopLogprob,
 )
+from ._model_role import ModelRole
 from ._openai_convert import (
     messages_from_openai,
     messages_from_openai_responses,
@@ -93,6 +104,8 @@ __all__ = [
     "GenerateConfigArgs",
     "GenerateFilter",
     "GenerateInput",
+    "ImageOutput",
+    "OutputModality",
     "ResponseSchema",
     "CachePolicy",
     "ContentAudio",
@@ -121,23 +134,32 @@ __all__ = [
     "model_output_from_anthropic",
     "model_output_from_google",
     "messages_to_openai",
+    "stable_message_ids",
     "ModelCall",
+    "ModelCost",
     "ModelOutput",
     "ModelConversation",
     "compaction",
     "Compact",
     "CompactionStrategy",
+    "CompactionAuto",
     "CompactionEdit",
     "CompactionSummary",
     "CompactionTrim",
+    "CompactionNative",
     "Logprobs",
     "Logprob",
     "TopLogprob",
     "Model",
     "ModelAPI",
     "ModelName",
+    "ModelRole",
+    "RetryDecision",
     "ModelConfig",
+    "ModelFallback",
     "ModelUsage",
+    "StopCategory",
+    "StopDetails",
     "StopReason",
     "call_tools",
     "execute_tools",
@@ -151,7 +173,9 @@ __all__ = [
     "cache_size",
     "get_model",
     "get_model_info",
+    "set_model_cost",
     "set_model_info",
+    "model_roles",
     "ModelInfo",
     "modelapi",
     "Citation",

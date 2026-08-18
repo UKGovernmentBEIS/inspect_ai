@@ -22,8 +22,10 @@ from inspect_ai.util._json import JSONSchema
 from .util import (
     apply_message_ids,
     bridge_generate,
+    clear_generation_params,
     resolve_generate_config,
     resolve_inspect_model,
+    validate_bridge_media,
 )
 
 if TYPE_CHECKING:
@@ -39,6 +41,7 @@ logger = getLogger(__name__)
 
 async def inspect_completions_api_request(
     json_data: dict[str, Any],
+    headers: dict[str, str] | None,
     bridge: AgentBridge,
 ) -> "ChatCompletion":
     validate_openai_client("agent bridge")
@@ -54,15 +57,19 @@ async def inspect_completions_api_request(
     )
 
     bridge_model_name = str(json_data["model"])
-    model = resolve_inspect_model(bridge_model_name)
+    model = resolve_inspect_model(bridge_model_name, bridge.model_aliases, bridge.model)
     model_name = model.api.model_name
 
     # convert openai messages to inspect messages
     openai_messages: list[ChatCompletionMessageParam] = json_data["messages"]
     messages = await messages_from_openai(openai_messages, model_name)
+    await validate_bridge_media(bridge, messages)
 
     # extract generate config (hoist instructions into system_message)
     config = generate_config_from_openai_completions(json_data)
+    if not bridge.forward_generation_config:
+        clear_generation_params(config)
+    config.extra_headers = headers
     if config.system_message is not None:
         messages.insert(0, ChatMessageSystem(content=config.system_message))
         config.system_message = None
@@ -89,7 +96,7 @@ async def inspect_completions_api_request(
         messages.append(c_message)
 
     # update state if we have more messages than the last generation
-    bridge._track_state(messages, output)
+    await bridge._track_state(messages, output)
 
     # inspect completion to openai completion
     return ChatCompletion(

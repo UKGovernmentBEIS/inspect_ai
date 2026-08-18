@@ -1,0 +1,9 @@
+{
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@excalidraw/utils": "^0.1.2",
+    "canvas-5-polyfill": "^0.1.5",
+    "jsdom": "^24.0.0"
+  }
+}

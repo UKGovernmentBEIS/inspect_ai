@@ -133,6 +133,7 @@ class CacheEntry:
         self.tool_choice = tool_choice
         self.tools = tools
         self.policy = policy
+        self.key = _cache_key(self)
 
 
 def _cache_key(entry: CacheEntry) -> str:
@@ -142,6 +143,7 @@ def _cache_key(entry: CacheEntry) -> str:
             exclude=set(
                 [
                     "max_connections",
+                    "adaptive_connections",
                     "max_retries",
                     "timeout",
                     "cache",
@@ -195,8 +197,18 @@ def cache_store(
     entry: CacheEntry,
     output: ModelOutput,
 ) -> bool:
-    """Cache a value in the cache directory."""
-    filename = cache_path(model=entry.model) / _cache_key(entry)
+    """Cache a value in the cache directory.
+
+    Outputs stopped by a provider content filter are never cached: refusal
+    retry loops (e.g. `react()`'s `retry_refusals`) re-call generate with
+    identical inputs, so a cached refusal would be replayed on every retry
+    instead of giving the model a fresh attempt.
+    """
+    if any(choice.stop_reason == "content_filter" for choice in output.choices):
+        trace("Not caching content_filter output: %s", entry.key)
+        return False
+
+    filename = cache_path(model=entry.model) / entry.key
 
     try:
         filename.parent.mkdir(parents=True, exist_ok=True)
@@ -213,7 +225,7 @@ def cache_store(
 
 def cache_fetch(entry: CacheEntry) -> ModelOutput | None:
     """Fetch a value from the cache directory."""
-    filename = cache_path(model=entry.model) / _cache_key(entry)
+    filename = cache_path(model=entry.model) / entry.key
     try:
         trace("Fetching from cache: %s", filename)
 

@@ -46,7 +46,6 @@ def mock_injector():
     return AsyncMock()
 
 
-@pytest.mark.asyncio
 async def test_chooses_sandbox_requiring_fewest_injections(mock_sandboxes):
     """Test that it selects the sandbox needing the fewest injections."""
     # Setup: create detectors that return different results for each sandbox
@@ -111,7 +110,6 @@ async def test_chooses_sandbox_requiring_fewest_injections(mock_sandboxes):
         sandbox_environments_context_var.reset(token)
 
 
-@pytest.mark.asyncio
 async def test_returns_immediately_if_no_injections_needed(mock_sandboxes):
     """Test that it returns immediately when a sandbox needs no injections."""
     detector = AsyncMock()
@@ -138,7 +136,6 @@ async def test_returns_immediately_if_no_injections_needed(mock_sandboxes):
         sandbox_environments_context_var.reset(token)
 
 
-@pytest.mark.asyncio
 async def test_targets_named_sandbox_correctly(mock_sandboxes):
     """Test that it correctly targets the named sandbox."""
     detector = AsyncMock(return_value=False)  # needs injection
@@ -174,7 +171,6 @@ async def test_targets_named_sandbox_correctly(mock_sandboxes):
         sandbox_environments_context_var.reset(token)
 
 
-@pytest.mark.asyncio
 async def test_no_injection_when_already_satisfied(mock_sandbox):
     """Test that no injection occurs when detector already returns True."""
     detector = AsyncMock(return_value=True)  # already satisfied
@@ -194,7 +190,6 @@ async def test_no_injection_when_already_satisfied(mock_sandbox):
         sandbox_environments_context_var.reset(token)
 
 
-@pytest.mark.asyncio
 async def test_mixed_satisfied_and_unsatisfied_requirements(mock_sandbox):
     """Test mixed scenario: some requirements satisfied, others need injection."""
     detector1 = AsyncMock(return_value=True)  # already satisfied
@@ -226,7 +221,6 @@ async def test_mixed_satisfied_and_unsatisfied_requirements(mock_sandbox):
         sandbox_environments_context_var.reset(token)
 
 
-@pytest.mark.asyncio
 async def test_runtime_error_when_injection_fails(mock_sandbox):
     """Test RuntimeError when detector still returns False after injection."""
     detector = AsyncMock(return_value=False)  # always returns False
@@ -246,7 +240,6 @@ async def test_runtime_error_when_injection_fails(mock_sandbox):
         sandbox_environments_context_var.reset(token)
 
 
-@pytest.mark.asyncio
 async def test_process_lookup_error_when_no_sandboxes():
     """Test ProcessLookupError when no sandboxes are available."""
     detector = AsyncMock(return_value=False)
@@ -265,7 +258,6 @@ async def test_process_lookup_error_when_no_sandboxes():
         sandbox_environments_context_var.reset(token)
 
 
-@pytest.mark.asyncio
 async def test_injector_exception_propagation(mock_sandbox):
     """Test that exceptions from injector functions are propagated."""
     detector = AsyncMock(return_value=False)
@@ -283,7 +275,6 @@ async def test_injector_exception_propagation(mock_sandbox):
         sandbox_environments_context_var.reset(token)
 
 
-@pytest.mark.asyncio
 async def test_handles_single_injectable_and_list_input(mock_sandbox):
     """Test that single injectable and list input produce identical results."""
     # Create separate detectors and injectors for each test to avoid state interference

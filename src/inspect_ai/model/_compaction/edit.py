@@ -1,9 +1,14 @@
-from typing import Literal, cast
+from typing import Any, Literal, cast
 
 from shortuuid import uuid
 from typing_extensions import override
 
-from inspect_ai._util.content import Content, ContentReasoning, ContentText
+from inspect_ai._util.content import (
+    Content,
+    ContentReasoning,
+    ContentText,
+    ContentToolUse,
+)
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -11,7 +16,9 @@ from inspect_ai.model._chat_message import (
     ChatMessageUser,
 )
 from inspect_ai.model._model import Model
+from inspect_ai.model._trim import strip_citations
 from inspect_ai.tool import ToolCall
+from inspect_ai.tool._tool_info import ToolInfo
 
 from .memory import clear_memory_content
 from .types import CompactionStrategy
@@ -60,15 +67,28 @@ class CompactionEdit(CompactionStrategy):
                 should never be cleared. Useful for preserving important
                 context.
         """
-        super().__init__(threshold, memory)
+        super().__init__(type="edit", threshold=threshold, memory=memory)
         self.keep_thinking_turns = keep_thinking_turns
         self.keep_tool_uses = keep_tool_uses
         self.keep_tool_inputs = keep_tool_inputs
         self.exclude_tools = exclude_tools
 
     @override
+    def _repr_params_(self) -> dict[str, Any]:
+        params = super()._repr_params_()
+        params.update(
+            {
+                "keep_thinking_turns": self.keep_thinking_turns,
+                "keep_tool_uses": self.keep_tool_uses,
+                "keep_tool_inputs": self.keep_tool_inputs,
+                "exclude_tools": self.exclude_tools,
+            }
+        )
+        return params
+
+    @override
     async def compact(
-        self, messages: list[ChatMessage], model: Model
+        self, model: Model, messages: list[ChatMessage], tools: list[ToolInfo]
     ) -> tuple[list[ChatMessage], ChatMessageUser | None]:
         """Compact messages by editing the history.
 
@@ -76,8 +96,9 @@ class CompactionEdit(CompactionStrategy):
         Tool results receive placeholder to indicate they were removed.
 
         Args:
+            model: Target model for compaction.
             messages: Full message history
-            model: Target model for compation.
+            tools: Available tools
 
         Returns: Compacted messages and None (no summary message appended).
         """
@@ -97,34 +118,82 @@ class CompactionEdit(CompactionStrategy):
                     if assistant_turn_count > keep_thinking_turns:
                         result[i] = _clear_reasoning(msg)
 
-        # Phase 2: Collect clearable tool pairs
-        # Each pair is (assistant_idx, tool_call, tool_msg_idx)
-        tool_pairs: list[tuple[int, ToolCall, int]] = []
+        # Phase 2: Collect ALL tool uses (both client-side and server-side)
+        # They share a single budget for keep_tool_uses
+        #
+        # Client-side: ("client", assistant_idx, tool_call, tool_msg_idx)
+        # Server-side: ("server", msg_idx, content_idx, ContentToolUse)
+        all_tool_uses: list[
+            tuple[str, int, ToolCall, int] | tuple[str, int, int, ContentToolUse]
+        ] = []
+
         for i, msg in enumerate(result):
-            if isinstance(msg, ChatMessageAssistant) and msg.tool_calls:
-                for tc in msg.tool_calls:
-                    # Skip excluded tools
-                    if self.exclude_tools and tc.function in self.exclude_tools:
-                        continue
-                    # Find matching tool message
-                    tool_msg_idx = _find_tool_message(result, tc.id, i)
-                    if tool_msg_idx is not None:
-                        tool_pairs.append((i, tc, tool_msg_idx))
+            if isinstance(msg, ChatMessageAssistant):
+                # Collect client-side tool calls
+                if msg.tool_calls:
+                    for tc in msg.tool_calls:
+                        # Skip tool_search - the result carries tool definitions
+                        # (context), not a result that is safe to clear
+                        if tc.function == TOOL_SEARCH_NAME:
+                            continue
+                        # Skip excluded tools
+                        if self.exclude_tools and tc.function in self.exclude_tools:
+                            continue
+                        # Find matching tool message
+                        tool_msg_idx = _find_tool_message(result, tc.id, i)
+                        if tool_msg_idx is not None:
+                            all_tool_uses.append(("client", i, tc, tool_msg_idx))
 
-        # Keep most recent pairs, clear oldest
-        if self.keep_tool_uses > 0 and len(tool_pairs) > self.keep_tool_uses:
-            pairs_to_clear = tool_pairs[: -self.keep_tool_uses]
+                # Collect server-side tool uses (ContentToolUse)
+                if isinstance(msg.content, list):
+                    for content_idx, content in enumerate(msg.content):
+                        if isinstance(content, ContentToolUse):
+                            # Skip mcp_list_tools - provides tool context, not results
+                            if content.name == MCP_LIST_TOOLS_NAME:
+                                continue
+                            # Skip excluded tools
+                            if self.exclude_tools and (
+                                content.tool_type in self.exclude_tools
+                                or content.name in self.exclude_tools
+                            ):
+                                continue
+                            all_tool_uses.append(("server", i, content_idx, content))
+
+        # Keep most recent tool uses, clear oldest (shared budget)
+        if self.keep_tool_uses > 0 and len(all_tool_uses) > self.keep_tool_uses:
+            tool_uses_to_clear = all_tool_uses[: -self.keep_tool_uses]
         elif self.keep_tool_uses == 0:
-            pairs_to_clear = tool_pairs
+            tool_uses_to_clear = all_tool_uses
         else:
-            pairs_to_clear = []
+            tool_uses_to_clear = []
 
-        # Phase 3: Apply clearing (process in reverse to preserve indices)
-        for assistant_idx, tool_call, tool_idx in reversed(pairs_to_clear):
+        # Phase 3: Apply clearing
+        # Separate into client and server for processing
+        client_to_clear = [
+            (t[1], t[2], t[3])
+            for t in tool_uses_to_clear
+            if t[0] == "client" and isinstance(t[2], ToolCall)
+        ]
+        server_to_clear = [
+            (t[1], t[2], t[3])
+            for t in tool_uses_to_clear
+            if t[0] == "server" and isinstance(t[3], ContentToolUse)
+        ]
+
+        # Clear server-side tools first. Both index lists were captured by the single
+        # enumeration in Phase 2, and clearing a client-side tool use with
+        # keep_tool_inputs=False deletes a message, which invalidates every index at or
+        # after it. Server-side clearing replaces messages without changing the list
+        # length, so applying it before the client-side pass keeps both sets of indices
+        # valid (the client-side pass already guards itself by iterating in reverse).
+        result = _apply_server_tool_clearing(result, server_to_clear)
+
+        # Clear client-side tools (process in reverse to preserve indices)
+        for assistant_idx, tool_call, tool_idx in reversed(client_to_clear):
             if self.keep_tool_inputs:
                 # Just clear the result content
                 result[tool_idx] = result[tool_idx].model_copy(
-                    update={"id": uuid(), "content": "(Tool result removed)"}
+                    update={"id": uuid(), "content": TOOL_RESULT_REMOVED}
                 )
             else:
                 # Remove tool message entirely
@@ -139,17 +208,83 @@ class CompactionEdit(CompactionStrategy):
         if self.memory:
             result = clear_memory_content(result)
 
+        # Phase 5: Strip citations (they reference server-side tool results that may be removed)
+        result = strip_citations(result)
+
+        # Strip any trailing assistant messages — some APIs (e.g. Anthropic)
+        # require the conversation to end with a user message.
+        while result and result[-1].role == "assistant":
+            result.pop()
+
         return result, None
 
 
+# Placeholder used when tool results are removed during compaction
+TOOL_RESULT_REMOVED = "(Tool result removed)"
+"""Placeholder text used when tool results are cleared during compaction.
+
+This constant is used to mark tool results that have been removed to reduce
+context length while preserving the structure of tool calls in message history.
+"""
+
+# MCP tool that provides tool context (should not be cleared during compaction)
+MCP_LIST_TOOLS_NAME = "mcp_list_tools"
+"""Name of the MCP tool that lists available tools.
+
+This tool provides context about available tools and should not be cleared
+during compaction, as it doesn't contain results but rather tool definitions.
+"""
+
+# Client-resolved tool-discovery tool (e.g. codex-cli). Its result carries
+# discovered tool definitions (context), not a clearable result.
+TOOL_SEARCH_NAME = "tool_search"
+
+
+def is_result_cleared(content: ContentToolUse) -> bool:
+    """Check if a tool use result has been cleared during compaction.
+
+    Args:
+        content: The ContentToolUse to check.
+
+    Returns:
+        True if the result field equals TOOL_RESULT_REMOVED, indicating
+        the result was cleared to reduce context length.
+    """
+    return content.result == TOOL_RESULT_REMOVED
+
+
 def _clear_reasoning(msg: ChatMessageAssistant) -> ChatMessageAssistant:
-    """Remove ContentReasoning from message content."""
+    """Remove ContentReasoning from message content.
+
+    Provider-specific replay anchors are preserved: the Google provider uses
+    ``ContentReasoning(redacted=True, internal={"gemini_function_call_id": ...})``
+    as a positional anchor that links a function_call to the thought_signature
+    Gemini's verifier requires on the next turn. Stripping the anchor would
+    orphan the matching tool call and break replay with 400 INVALID_ARGUMENT.
+    """
     if isinstance(msg.content, str):
         return msg  # No reasoning in string content
-    new_content = [c for c in msg.content if not isinstance(c, ContentReasoning)]
+    new_content = [
+        c
+        for c in msg.content
+        if not isinstance(c, ContentReasoning) or _is_replay_anchor(c)
+    ]
     if not new_content:
         return msg.model_copy(update={"id": uuid(), "content": ""})
     return msg.model_copy(update={"id": uuid(), "content": new_content})
+
+
+def _is_replay_anchor(content: ContentReasoning) -> bool:
+    """True if a reasoning block carries provider-specific replay-critical state.
+
+    Provider-specific keys this recognizes:
+    - ``gemini_function_call_id`` (Google): redacted reasoning that anchors a
+      function_call to its thought_signature for next-turn replay.
+    """
+    return (
+        isinstance(content.internal, dict)
+        and "gemini_function_call_id" in content.internal
+    )
 
 
 def _find_tool_message(
@@ -189,3 +324,43 @@ def _replace_tool_call_with_text(
             "content": new_content,
         }
     )
+
+
+def _apply_server_tool_clearing(
+    messages: list[ChatMessage],
+    tool_uses_to_clear: list[tuple[int, int, ContentToolUse]],
+) -> list[ChatMessage]:
+    """Apply clearing to specified server-side tool uses.
+
+    Args:
+        messages: The message list to modify
+        tool_uses_to_clear: List of (msg_idx, content_idx, ContentToolUse) to clear
+    """
+    if not tool_uses_to_clear:
+        return messages
+
+    # Make a shallow copy of messages since we'll be modifying some
+    result = list(messages)
+
+    # Group by message index for efficient updates
+    updates_by_msg: dict[int, list[tuple[int, ContentToolUse]]] = {}
+    for msg_idx, content_idx, tool_use in tool_uses_to_clear:
+        if msg_idx not in updates_by_msg:
+            updates_by_msg[msg_idx] = []
+        updates_by_msg[msg_idx].append((content_idx, tool_use))
+
+    # Apply clearing
+    for msg_idx, content_updates in updates_by_msg.items():
+        msg = cast(ChatMessageAssistant, result[msg_idx])
+        content_list = list(msg.content) if isinstance(msg.content, list) else []
+
+        for content_idx, tool_use in content_updates:
+            # Create new ContentToolUse with cleared result
+            cleared_tool_use = tool_use.model_copy(
+                update={"result": TOOL_RESULT_REMOVED}
+            )
+            content_list[content_idx] = cleared_tool_use
+
+        result[msg_idx] = msg.model_copy(update={"id": uuid(), "content": content_list})
+
+    return result

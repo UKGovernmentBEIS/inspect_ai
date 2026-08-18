@@ -3,9 +3,17 @@ import pathlib
 import pytest
 from test_helpers.utils import skip_if_no_openai
 
+from inspect_ai._cli import score as score_cli
 from inspect_ai._cli.score import score
 from inspect_ai._eval.score import ScoreAction
-from inspect_ai.log._file import read_eval_log_async
+from inspect_ai.log import read_eval_log_async, write_eval_log_async
+from inspect_ai.log._edit import (
+    MetadataEdit,
+    ProvenanceData,
+    TagsEdit,
+    edit_eval_log,
+)
+from inspect_ai.log._recorders import create_recorder_for_location
 
 LOGS_DIR = pathlib.Path(__file__).parents[1] / "scorer/logs"
 LOG_SCORED = (
@@ -25,16 +33,17 @@ LOG_UNSCORED = (
     ],
 )
 @pytest.mark.parametrize(
-    ("log_file", "action", "scorer", "expected_scores"),
+    ("log_file", "action", "scorer", "expected_scores", "metric"),
     [
         pytest.param(
-            LOG_UNSCORED, None, None, {"match": {"num_metrics": 2}}, id="unscored"
+            LOG_UNSCORED, None, None, {"match": {"num_metrics": 2}}, None, id="unscored"
         ),
         pytest.param(
             LOG_UNSCORED,
             "overwrite",
             None,
             {"match": {"num_metrics": 2}},
+            None,
             id="unscored-overwrite",
         ),
         pytest.param(
@@ -42,6 +51,7 @@ LOG_UNSCORED = (
             "append",
             ("f1", ("stop_words=[roasted]",)),
             {"f1": {"num_metrics": 2, "stop_words": ["roasted"]}},
+            None,
             id="unscored-append",
         ),
         pytest.param(
@@ -52,6 +62,7 @@ LOG_UNSCORED = (
                 "match": {"num_metrics": 2},
                 "f1": {"num_metrics": 2, "stop_words": ["woah"]},
             },
+            None,
             id="scored-append",
         ),
         pytest.param(
@@ -59,7 +70,16 @@ LOG_UNSCORED = (
             "overwrite",
             ("f1", ("stop_words=[clowns]",)),
             {"f1": {"num_metrics": 2, "stop_words": ["clowns"]}},
+            None,
             id="scored-overwrite",
+        ),
+        pytest.param(
+            LOG_UNSCORED,
+            None,
+            None,
+            {"match": {"num_metrics": 1}},
+            ("accuracy",),
+            id="unscored-metric",
         ),
     ],
 )
@@ -71,6 +91,7 @@ async def test_score(
     scorer: tuple[str, tuple[str, ...]] | None,
     expected_scores: dict[str, dict[str, int]],
     stream: bool,
+    metric: tuple[str, ...] | None,
 ):
     output_file = tmp_path / "scored.eval"
     await score(
@@ -82,6 +103,7 @@ async def test_score(
         overwrite=True,
         scorer=scorer[0] if scorer else None,
         s=scorer[1] if scorer else None,
+        metric=metric,
         stream=stream,
     )
     scored_log = await read_eval_log_async(output_file)
@@ -93,3 +115,116 @@ async def test_score(
         assert len(scores[name].metrics.items()) == expected["num_metrics"]
         if expected_stop_words := expected.get("stop_words"):
             assert scores[name].params["stop_words"] == expected_stop_words
+
+
+@pytest.mark.anyio
+async def test_score_stream_preserves_log_updates(
+    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    input_file = tmp_path / LOG_SCORED.name
+    output_file = tmp_path / "rescored.eval"
+
+    log = await read_eval_log_async(str(LOG_SCORED))
+    log = edit_eval_log(
+        log,
+        [
+            TagsEdit(tags_add=["qa_reviewed"]),
+            MetadataEdit(metadata_set={"reviewer": "alice"}),
+        ],
+        ProvenanceData(author="alice", reason="qa"),
+    )
+    await write_eval_log_async(log, str(input_file))
+
+    monkeypatch.setattr(score_cli, "init_eval_context", lambda *args, **kwargs: None)
+    monkeypatch.setattr(score_cli, "print_results", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        score_cli, "resolve_scorers", lambda *args, **kwargs: [object()]
+    )
+
+    async def fake_score_async(
+        *, log, scorers, metrics, model, model_roles, action, copy, samples
+    ):
+        assert samples is not None
+        return log
+
+    monkeypatch.setattr(score_cli, "score_async", fake_score_async)
+
+    await score(
+        log_dir="",
+        log_file=str(input_file),
+        action="overwrite",
+        log_level=None,
+        output_file=str(output_file),
+        overwrite=True,
+        scorer="match",
+        s=(),
+        metric=None,
+        stream=True,
+    )
+
+    rescored_log = await read_eval_log_async(output_file)
+    assert rescored_log.log_updates == log.log_updates
+    assert rescored_log.tags == log.tags
+    assert rescored_log.metadata == log.metadata
+
+
+@pytest.mark.anyio
+async def test_score_stream_flushes_periodically(
+    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    output_file = tmp_path / "rescored.eval"
+    flush_counts: list[int] = []
+
+    class FlushTrackingRecorder:
+        def __init__(self, recorder):
+            self.recorder = recorder
+            self.flush_count = 0
+
+        def __getattr__(self, name):
+            return getattr(self.recorder, name)
+
+        async def flush(self, eval):
+            self.flush_count += 1
+            flush_counts.append(self.flush_count)
+            await self.recorder.flush(eval)
+
+    def create_recorder(location: str, log_dir: str):
+        recorder = create_recorder_for_location(location, log_dir)
+        if pathlib.Path(location) == output_file:
+            return FlushTrackingRecorder(recorder)
+        return recorder
+
+    monkeypatch.setattr(
+        "inspect_ai._cli.score.create_recorder_for_location", create_recorder
+    )
+    monkeypatch.setattr(score_cli, "init_eval_context", lambda *args, **kwargs: None)
+    monkeypatch.setattr(score_cli, "print_results", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        score_cli, "resolve_scorers", lambda *args, **kwargs: [object()]
+    )
+
+    async def fake_score_async(
+        *, log, scorers, metrics, model, model_roles, action, copy, samples
+    ):
+        assert samples is not None
+        for idx in range(10):
+            async with samples(idx):
+                pass
+        return log
+
+    monkeypatch.setattr(score_cli, "score_async", fake_score_async)
+
+    await score(
+        log_dir="",
+        log_file=str(LOG_SCORED),
+        action="overwrite",
+        log_level=None,
+        output_file=str(output_file),
+        overwrite=True,
+        scorer="match",
+        s=(),
+        metric=None,
+        stream=3,
+    )
+
+    assert flush_counts == [1, 2, 3]

@@ -1,30 +1,42 @@
+from functools import partial
 from logging import getLogger
-from typing import IO, Any, Literal, get_args
+from typing import IO, Any, get_args
 
 import ijson  # type: ignore
 from ijson import IncompleteJSONError
 from ijson.backends.python import UnexpectedSymbol  # type: ignore
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from pydantic_core import from_json
 from typing_extensions import override
 
-from inspect_ai._util.constants import LOG_SCHEMA_VERSION, get_deserializing_context
+from inspect_ai._util.asyncfiles import AsyncFilesystem
+from inspect_ai._util.atomic_write import atomic_write_bytes
+from inspect_ai._util.constants import (
+    LOG_SCHEMA_VERSION,
+    get_deserializing_context,
+)
 from inspect_ai._util.error import EvalError
-from inspect_ai._util.file import FileSystem, absolute_file_path, file, filesystem
+from inspect_ai._util.file import absolute_file_path, file, filesystem, local_path
+from inspect_ai._util.json import is_ijson_nan_inf_error
 from inspect_ai._util.trace import trace_action
 
+from .._config_update import ConfigUpdate
+from .._edit import LogUpdate
 from .._log import (
     EvalLog,
     EvalPlan,
     EvalResults,
     EvalSample,
     EvalSampleReductions,
+    EvalSampleSummary,
     EvalSpec,
     EvalStats,
+    EvalStatus,
     sort_samples,
 )
+from .._resolve import rebind_sample_timelines, resolve_sample_events_data
 from .eval import _s3_bucket_and_key, _write_s3_conditional
-from .file import FileRecorder
+from .file import FileRecorder, write_local_snapshot
 
 logger = getLogger(__name__)
 
@@ -41,18 +53,28 @@ class JSONRecorder(FileRecorder):
         return first_bytes[:1] == b"{"
 
     @override
-    def default_log_buffer(self, sample_count: int) -> int:
-        # we write the entire file in one shot and the files can
-        # get fairly large (> 100MB) so we are a bit more sparing
-        # for remote filesystem writes
-        if self.is_local():
-            return 10
+    def default_log_buffer(self, sample_count: int, high_throughput: bool) -> int:
+        if high_throughput:
+            # High-throughput: flush ~10 times over the run
+            return max(10, sample_count // 10)
         else:
-            return 100
+            # we write the entire file in one shot and the files can
+            # get fairly large (> 100MB) so we are a bit more sparing
+            # for remote filesystem writes
+            if self.is_local():
+                return 10
+            else:
+                return 100
 
     class JSONLogFile(BaseModel):
         file: str
         data: EvalLog
+        # Per-sample summaries cached as samples are logged. Computing a
+        # summary is expensive for large samples (thin_data runs
+        # textwrap.shorten / JSON size probes over full-size fields), and
+        # `sample_summaries` is polled by the control channel — recomputing
+        # over the whole in-memory log on every request stalls the event loop.
+        summaries: list[EvalSampleSummary] = Field(default_factory=list)
 
     def __init__(
         self,
@@ -91,29 +113,74 @@ class JSONRecorder(FileRecorder):
         log.data.plan = plan
 
     @override
-    async def log_sample(self, eval: EvalSpec, sample: EvalSample) -> None:
+    async def log_sample(
+        self, eval: EvalSpec, sample: EvalSample, *, write_through: bool = False
+    ) -> None:
+        # write_through is ignored: the .json format holds the whole log in
+        # memory for its lifetime by design, so there is no cheaper local
+        # tier to write into (no regression, no benefit).
         log = self.data[self._log_file_key(eval)]
         if log.data.samples is None:
             log.data.samples = []
         log.data.samples.append(sample)
+        log.summaries.append(sample.summary())
+
+    @override
+    async def sample_summaries(self, eval: EvalSpec) -> list[EvalSampleSummary] | None:
+        log = self.data.get(self._log_file_key(eval))
+        if log is None:
+            return None
+        return list(log.summaries)
+
+    @override
+    async def buffered_sample(
+        self, eval: EvalSpec, id: str | int, epoch: int
+    ) -> EvalSample | None:
+        # The whole in-memory log (full samples, events included) is retained
+        # until log_finish, so this is gap-free and ahead of disk for the entire
+        # run — the counterpart to sample_summaries for whole samples.
+        log = self.data.get(self._log_file_key(eval))
+        if log is None or log.data.samples is None:
+            return None
+        for sample in log.data.samples:
+            if sample.id == id and sample.epoch == epoch:
+                return sample
+        return None
+
+    @override
+    async def log_config_update(self, eval: EvalSpec, update: ConfigUpdate) -> None:
+        # accumulate on the in-memory log; it hits disk at the next flush /
+        # log_finish like everything else in this format (weaker crash
+        # durability than .eval, consistent with the format's general story)
+        log = self.data[self._log_file_key(eval)]
+        if log.data.config_updates is None:
+            log.data.config_updates = []
+        log.data.config_updates.append(update)
 
     @override
     async def log_finish(
         self,
         eval: EvalSpec,
-        status: Literal["started", "success", "cancelled", "error"],
+        status: EvalStatus,
         stats: EvalStats,
         results: EvalResults | None,
         reductions: list[EvalSampleReductions] | None,
         error: EvalError | None = None,
         header_only: bool = False,
         invalidated: bool = False,
+        log_updates: list[LogUpdate] | None = None,
+        config_updates: list[ConfigUpdate] | None = None,
     ) -> EvalLog:
         log = self.data[self._log_file_key(eval)]
         log.data.status = status
         log.data.stats = stats
         log.data.results = results
         log.data.invalidated = invalidated
+        log.data.log_updates = log_updates
+        # None means "not supplied" — keep the updates accumulated mid-run
+        if config_updates is not None:
+            log.data.config_updates = config_updates
+        log.data.recompute_tags_and_metadata()
         if error:
             log.data.error = error
         if reductions:
@@ -124,17 +191,31 @@ class JSONRecorder(FileRecorder):
         # stop tracking this data
         del self.data[self._log_file_key(eval)]
 
+        # resolve condensed events data (input_refs/call_refs -> input/call)
+        # so callers see fully populated ModelEvent.input fields
+        if log.data.samples:
+            log.data.samples = [
+                rebind_sample_timelines(resolve_sample_events_data(s))
+                for s in log.data.samples
+            ]
+
         # return the log
         return log.data
 
     @override
     async def flush(self, eval: EvalSpec) -> None:
         log = self.data[self._log_file_key(eval)]
-        await self.write_log(log.file, log.data)
+        # intermediate snapshot: skip fsync (see _write_log_impl)
+        await self._write_log_impl(log.file, log.data, fsync=False)
 
     @override
     @classmethod
-    async def read_log(cls, location: str, header_only: bool = False) -> EvalLog:
+    async def read_log(
+        cls,
+        location: str,
+        header_only: bool = False,
+        exclude_fields: set[str] | None = None,
+    ) -> EvalLog:
         fs = filesystem(location)
 
         if header_only:
@@ -151,11 +232,7 @@ class JSONRecorder(FileRecorder):
             # invalid character (or Unexpected symbol) then we move on and and parse w/ pydantic
             # (which does support NaN and Inf by default)
             except (ValueError, IncompleteJSONError, UnexpectedSymbol) as ex:
-                if (
-                    str(ex).find("Invalid JSON character") != -1
-                    or str(ex).find("invalid char in json text") != -1
-                    or str(ex).find("Unexpected symbol") != -1
-                ):
+                if is_ijson_nan_inf_error(ex):
                     pass
                 else:
                     raise ValueError(f"Unable to read log file: {location}") from ex
@@ -163,7 +240,7 @@ class JSONRecorder(FileRecorder):
         # full reads (and fallback to streaming reads if they encounter invalid json characters)
         if fs.is_s3():
             # read content and get ETag such that they always match
-            content, etag = await _s3_read_with_etag(location, fs)
+            content, etag = await _s3_read_with_etag(location)
             raw_data = from_json(content)
         else:
             with file(location, "r") as f:
@@ -187,9 +264,41 @@ class JSONRecorder(FileRecorder):
     @override
     @classmethod
     async def write_log(
-        cls, location: str, log: EvalLog, if_match_etag: str | None = None
+        cls,
+        location: str,
+        log: EvalLog,
+        if_match_etag: str | None = None,
+        header_only: bool = False,
     ) -> None:
+        await cls._write_log_impl(location, log, if_match_etag, header_only, fsync=True)
+
+    @classmethod
+    async def _write_log_impl(
+        cls,
+        location: str,
+        log: EvalLog,
+        if_match_etag: str | None = None,
+        header_only: bool = False,
+        *,
+        fsync: bool,
+    ) -> None:
+        """Write the log, controlling durability of the local write.
+
+        The public ``write_log`` always passes ``fsync=True`` (a caller
+        writing a log expects it durable); intermediate ``flush()`` passes
+        ``fsync=False`` for a skippable snapshot (see
+        ``write_local_snapshot``).
+        """
         from inspect_ai.log._file import eval_log_json
+
+        if header_only:
+            # header_only contract: do not let sample-level state from the
+            # in-memory log reach disk. JSON has no in-place header swap, so
+            # read the on-disk samples and reductions and graft them onto
+            # the in-memory header before serializing. If the file doesn't
+            # exist yet, clear samples / reductions so the result is truly
+            # header-only.
+            log = await cls._merge_disk_samples_for_header_only(location, log)
 
         # sort samples before writing as they can come in out of order
         if log.samples:
@@ -198,19 +307,53 @@ class JSONRecorder(FileRecorder):
         fs = filesystem(location)
         if fs.is_s3() and if_match_etag:
             # Use S3 conditional write
-            await cls._write_log_s3_conditional(location, log, if_match_etag, fs)
+            await cls._write_log_s3_conditional(location, log, if_match_etag)
         else:
             # Standard write
-            # get log as bytes
+            # get log as bytes (serialized on the event loop: the pydantic
+            # log object may be mutated by concurrent coroutines, whereas
+            # the resulting bytes are immutable and safe to hand to a thread)
             log_bytes = eval_log_json(log)
 
             with trace_action(logger, "Log Write", location):
-                with file(location, "wb") as f:
-                    f.write(log_bytes)
+                if fs.is_local():
+                    await write_local_snapshot(
+                        location,
+                        fsync,
+                        partial(
+                            atomic_write_bytes, local_path(location), log_bytes, fsync
+                        ),
+                    )
+                else:
+                    with file(location, "wb") as f:
+                        f.write(log_bytes)
+
+    @classmethod
+    async def _merge_disk_samples_for_header_only(
+        cls, location: str, log: EvalLog
+    ) -> EvalLog:
+        """Return a copy of `log` whose samples come from the on-disk file.
+
+        If the target doesn't exist, returns a copy with samples and
+        reductions cleared so the resulting write is genuinely header-only.
+        """
+        fs = filesystem(location)
+        if not fs.exists(location):
+            return log.model_copy(
+                update={"samples": None, "reductions": None}, deep=False
+            )
+        existing = await cls.read_log(location, header_only=False)
+        return log.model_copy(
+            update={
+                "samples": existing.samples,
+                "reductions": existing.reductions,
+            },
+            deep=False,
+        )
 
     @classmethod
     async def _write_log_s3_conditional(
-        cls, location: str, log: EvalLog, etag: str, fs: FileSystem
+        cls, location: str, log: EvalLog, etag: str
     ) -> None:
         """Perform S3 conditional write using aioboto3."""
         from inspect_ai.log._file import eval_log_json
@@ -220,7 +363,16 @@ class JSONRecorder(FileRecorder):
         # get log as bytes
         log_bytes = eval_log_json(log)
 
-        await _write_s3_conditional(fs, bucket, key, log_bytes, etag, location, logger)
+        async with AsyncFilesystem() as async_fs:
+            await _write_s3_conditional(
+                async_fs,
+                bucket,
+                key,
+                log_bytes,
+                etag,
+                location,
+                logger,
+            )
 
 
 def _validate_version(ver: int) -> None:
@@ -251,49 +403,59 @@ def _parse_json_log(raw_data: Any, header_only: bool) -> EvalLog:
     return log
 
 
-async def _s3_read_with_etag(location: str, fs: FileSystem) -> tuple[str, str]:
+async def _s3_read_with_etag(
+    location: str,
+) -> tuple[str, str]:
     """
     Read S3 file content and get ETag in a single operation.
 
     Returns:
         (content, etag) - etag is guaranteed to match content
     """
-    import aioboto3
-
     bucket, key = _s3_bucket_and_key(location)
 
-    session = aioboto3.Session()
-    async with session.client(
-        "s3",
-        endpoint_url=fs.fs.client_kwargs.get("endpoint_url"),
-        region_name=fs.fs.client_kwargs.get("region_name"),
-    ) as s3_client:
+    async with AsyncFilesystem() as async_fs:
+        s3_client = await async_fs.s3_client_async()
         response = await s3_client.get_object(Bucket=bucket, Key=key)
         content = await response["Body"].read()
         content = content.decode("utf-8")
         etag = response["ETag"].strip('"')  # S3 returns ETag with quotes
 
-    return content, etag
+        return content, etag
+
+
+def _scan_header_keys(f: IO[bytes]) -> tuple[int | None, str]:
+    """Stream a JSON eval log's top-level keys, stopping at ``samples``.
+
+    Reads only as far as the start of the (potentially huge) ``samples`` array
+    and returns ``(version, last_header_field)`` — the log version and the name
+    of the last header field seen. The second pass stops re-parsing once it has
+    consumed ``last_header_field``, so it never has to materialize ``samples``.
+    Consumes ``f``; callers re-parsing the same handle must ``seek(0)`` after.
+    """
+    version: int | None = None
+    last_header_field = "stats"
+
+    for prefix, event, value in ijson.parse(f):
+        if (prefix, event) == ("version", "number"):
+            version = value
+        elif event == "map_key" and prefix == "":
+            # Stop at the top-level `samples` key, which can be enormous. Break
+            # *before* recording it: `samples` must not become last_header_field
+            # or the second pass would have to materialize the whole array to
+            # reach it. last_header_field stays the last real header field.
+            if value == "samples":
+                break
+            last_header_field = value
+
+    return version, last_header_field
 
 
 def _read_header_streaming(log_file: str) -> EvalLog:
     with file(log_file, "rb") as f:
         # Do low-level parsing to get the version number and also
         # detect the presence of results or error sections
-        version: int | None = None
-        has_results = False
-        has_error = False
-
-        for prefix, event, value in ijson.parse(f):
-            if (prefix, event) == ("version", "number"):
-                version = value
-            elif (prefix, event) == ("results", "start_map"):
-                has_results = True
-            elif (prefix, event) == ("error", "start_map"):
-                has_error = True
-            elif prefix == "samples":
-                # Break as soon as we hit samples as that can be very large
-                break
+        version, last_header_field = _scan_header_keys(f)
 
         if version is None:
             raise ValueError("Unable to read version of log format.")
@@ -304,35 +466,37 @@ def _read_header_streaming(log_file: str) -> EvalLog:
         # Rewind the file to the beginning to re-parse the contents of fields
         f.seek(0)
 
-        # Parse the log file, stopping before parsing samples
+        # Parse all header fields, stopping before samples
         invalidated = False
-        status: Literal["started", "success", "cancelled", "error"] | None = None
+        status: EvalStatus | None = None
         eval: EvalSpec | None = None
         plan: EvalPlan | None = None
         results: EvalResults | None = None
         stats: EvalStats | None = None
         error: EvalError | None = None
+        log_updates: list[LogUpdate] | None = None
+        config_updates: list[ConfigUpdate] | None = None
         for k, v in ijson.kvitems(f, ""):
             if k == "status":
-                assert v in get_args(
-                    Literal["started", "success", "cancelled", "error"]
-                )
+                assert v in get_args(EvalStatus)
                 status = v
             elif k == "invalidated":
                 invalidated = v
-            if k == "eval":
-                eval = EvalSpec(**v)
+            elif k == "eval":
+                eval = EvalSpec.model_validate(v, context=get_deserializing_context())
             elif k == "plan":
-                plan = EvalPlan(**v)
+                plan = EvalPlan.model_validate(v, context=get_deserializing_context())
             elif k == "results":
-                results = EvalResults(**v)
+                results = EvalResults.model_validate(v)
             elif k == "stats":
-                stats = EvalStats(**v)
-                if not has_error:
-                    # Exit before parsing samples
-                    break
+                stats = EvalStats.model_validate(v)
             elif k == "error":
-                error = EvalError(**v)
+                error = EvalError.model_validate(v)
+            elif k == "log_updates":
+                log_updates = [LogUpdate.model_validate(u) for u in v]
+            elif k == "config_updates":
+                config_updates = [ConfigUpdate.model_validate(u) for u in v]
+            if k == last_header_field:
                 break
 
     assert status, "Must encounter a 'status'"
@@ -343,11 +507,13 @@ def _read_header_streaming(log_file: str) -> EvalLog:
     return EvalLog(
         eval=eval,
         plan=plan,
-        results=results if has_results else None,
+        results=results,
         stats=stats,
         status=status,
         invalidated=invalidated,
+        log_updates=log_updates,
+        config_updates=config_updates,
         version=version,
-        error=error if has_error else None,
+        error=error,
         location=log_file,
     )

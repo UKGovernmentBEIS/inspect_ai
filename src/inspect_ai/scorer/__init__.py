@@ -4,6 +4,7 @@ from ._answer import AnswerPattern, answer
 from ._choice import choice
 from ._classification import exact, f1
 from ._match import includes, match
+from ._math import math
 from ._metric import (
     CORRECT,
     INCORRECT,
@@ -21,73 +22,94 @@ from ._metric import (
     value_to_float,
 )
 from ._metrics.accuracy import accuracy
+from ._metrics.aggregate import aggregate
+from ._metrics.categorical import categorical, frequency
 from ._metrics.grouped import grouped
+from ._metrics.krippendorff import krippendorff_alpha
 from ._metrics.mean import mean
+from ._metrics.perplexity import perplexity_per_seq, perplexity_per_token
 from ._metrics.std import bootstrap_stderr, std, stderr, var
 from ._model import model_graded_fact, model_graded_qa
 from ._multi import multi_scorer
 from ._pattern import pattern
+from ._perplexity import perplexity
+from ._precomputed import precomputed_scores
 from ._reducer import (
     ScoreReducer,
     ScoreReducers,
     at_least,
+    collect_score,
     max_score,
     mean_score,
     median_score,
     mode_score,
     pass_at,
+    pass_k,
     score_reducer,
 )
 from ._score import score
 from ._scorer import Scorer, scorer
 from ._target import Target
+from ._target_perplexity import target_perplexity
 
 __all__ = [
-    "includes",
-    "match",
-    "model_graded_qa",
-    "model_graded_fact",
-    "answer",
-    "choice",
-    "pattern",
-    "f1",
-    "exact",
     "AnswerPattern",
-    "Scorer",
-    "Target",
-    "scorer",
-    "accuracy",
-    "bootstrap_stderr",
-    "std",
-    "stderr",
-    "mean",
-    "grouped",
-    "var",
-    "Metric",
-    "MetricProtocol",
-    "metric",
-    "Score",
-    "SampleScore",
-    "score",
-    "Value",
-    "ValueToFloat",
-    "value_to_float",
     "CORRECT",
     "INCORRECT",
-    "PARTIAL",
+    "Metric",
+    "MetricProtocol",
     "NOANSWER",
-    "UNCHANGED",
+    "PARTIAL",
+    "SampleScore",
+    "Score",
     "ScoreEdit",
-    "multi_scorer",
     "ScoreReducer",
     "ScoreReducers",
-    "score_reducer",
-    "mode_score",
+    "Scorer",
+    "Target",
+    "UNCHANGED",
+    "Value",
+    "ValueToFloat",
+    "accuracy",
+    "aggregate",
+    "answer",
+    "at_least",
+    "bootstrap_stderr",
+    "categorical",
+    "choice",
+    "collect_score",
+    "exact",
+    "f1",
+    "frequency",
+    "grouped",
+    "includes",
+    "krippendorff_alpha",
+    "match",
+    "math",
+    "max_score",
+    "mean",
     "mean_score",
     "median_score",
-    "max_score",
-    "at_least",
+    "metric",
+    "mode_score",
+    "model_graded_fact",
+    "model_graded_qa",
+    "multi_scorer",
     "pass_at",
+    "pass_k",
+    "pattern",
+    "perplexity",
+    "perplexity_per_seq",
+    "perplexity_per_token",
+    "precomputed_scores",
+    "score",
+    "score_reducer",
+    "scorer",
+    "std",
+    "stderr",
+    "target_perplexity",
+    "value_to_float",
+    "var",
 ]
 _BOOTSTRAP_RENAME_VERSION = "0.3.58"
 _PROVENANCE_DATA_VERSION = "0.3.154"

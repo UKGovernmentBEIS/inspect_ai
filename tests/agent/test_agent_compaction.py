@@ -3,6 +3,7 @@
 from inspect_ai import Task, eval
 from inspect_ai.agent import react
 from inspect_ai.dataset import Sample
+from inspect_ai.event import CompactionEvent
 from inspect_ai.log import EvalLog
 from inspect_ai.model import (
     ChatMessageAssistant,
@@ -102,6 +103,26 @@ def test_react_compaction_edit_reduces_input() -> None:
     # (system + user + 4*(assistant + tool) + continue prompts)
     # With compaction, should be much less
     assert max_count < 15, f"Expected compaction to limit messages, got {max_count}"
+
+
+def test_react_compaction_params_logged() -> None:
+    """Verify compaction parameters are fully serialized in eval log."""
+    log = run_react_with_compaction(
+        compaction=CompactionEdit(threshold=500, keep_tool_uses=1, memory=False),
+    )
+
+    assert log.status == "success"
+
+    # Check plan step params contains compaction as a dict with full params
+    compaction_params = log.plan.steps[0].params["compaction"]
+    assert isinstance(compaction_params, dict)
+    assert compaction_params["type"] == "edit"
+    assert compaction_params["threshold"] == 500
+    assert compaction_params["keep_tool_uses"] == 1
+    assert compaction_params["memory"] is False
+    assert compaction_params["keep_thinking_turns"] == 1
+    assert compaction_params["keep_tool_inputs"] is True
+    assert compaction_params["exclude_tools"] is None
 
 
 def test_react_compaction_trim_reduces_input() -> None:
@@ -257,3 +278,58 @@ def test_react_compaction_clears_memory_content() -> None:
         assert not is_monotonic or len(model_events) <= 2, (
             "Expected compaction to occur or memory call to be found"
         )
+
+
+def test_compaction_event_emitted() -> None:
+    """Verify CompactionEvent is emitted when compaction occurs."""
+    log = run_react_with_compaction(
+        compaction=CompactionEdit(threshold=500, keep_tool_uses=1, memory=False),
+        tool_calls=4,
+    )
+
+    assert log.status == "success"
+    assert log.samples
+
+    # Find CompactionEvent in the sample events
+    compaction_events = [
+        e for e in log.samples[0].events if isinstance(e, CompactionEvent)
+    ]
+
+    # Compaction should have triggered at least once
+    assert len(compaction_events) >= 1, "Expected at least one CompactionEvent"
+
+    # Verify CompactionEvent fields
+    event = compaction_events[0]
+    assert event.event == "compaction"
+    assert event.source == "inspect"
+    assert event.tokens_before is not None
+    assert event.tokens_after is not None
+    assert event.tokens_before > event.tokens_after, (
+        "Compaction should reduce token count"
+    )
+    assert event.metadata is not None
+    assert "strategy" in event.metadata
+    assert event.metadata["strategy"] == "CompactionEdit"
+
+
+def test_react_threads_checkpointer_into_compaction() -> None:
+    """React wires the session checkpointer into the compaction handler.
+
+    The handler registers its state under the 'compaction' track key when a
+    strategy is configured, and registers nothing when compaction is off.
+    Guards the one-line threading that the round-trip tests can't see.
+    """
+    from test_helpers.checkpoint import RecordingCheckpointer
+
+    from inspect_ai.agent._react import _agent_compact
+
+    model = get_model("mockllm/model")
+
+    cp = RecordingCheckpointer()
+    compact = _agent_compact(CompactionEdit(threshold=500), [], None, model, cp)
+    assert compact is not None
+    assert "compaction" in cp.callbacks
+
+    cp_off = RecordingCheckpointer()
+    assert _agent_compact(None, [], None, model, cp_off) is None
+    assert "compaction" not in cp_off.callbacks

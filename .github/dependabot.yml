@@ -1,6 +1,15 @@
 version: 2
 updates:
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    groups:
+      github-actions:
+        patterns:
+          - "*"
   - package-ecosystem: pip
+    versioning-strategy: lockfile-only
     directory: "/"
     schedule:
       interval: daily
@@ -22,3 +31,5 @@ updates:
         versions: [">=2024.12.0"]
       - dependency-name: "click"
         versions: [">=8.2.0"]
+      - dependency-name: "griffe"
+        versions: [">=1.15.0"]

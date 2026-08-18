@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 import re
+from functools import partial
+from itertools import chain
 from os import PathLike
 from pathlib import Path
 from re import Pattern
 from typing import TYPE_CHECKING, Sequence, TypeAlias, cast
 
+from inspect_ai._util._async import run_coroutine, tg_collect
+from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.error import pip_dependency_error
 from inspect_ai._util.file import FileInfo, filesystem
 from inspect_ai._util.version import verify_required_version
@@ -47,19 +51,28 @@ def verify_prerequisites() -> None:
 def resolve_logs(
     logs: LogPaths | EvalLog | Sequence[EvalLog] | None = None,
 ) -> list[str] | list[EvalLog]:
+    """Resolve log inputs into a list of log file paths or EvalLog objects.
+
+    Args:
+        logs: Log path(s), directory, EvalLog, or sequence of logs/paths.
+            If `None`, defaults to listing logs in the log directory via `list_eval_logs()`.
+            If an empty sequence (e.g. `[]`), returns an empty list `[]`.
+            If a string path (including `""`), resolves as a path rather than falling back to `list_eval_logs()`.
+
+    Returns:
+        List of log file paths or EvalLog objects.
+    """
     # Handle EvalLog inputs (pass through as list)
     if isinstance(logs, EvalLog):
         return [logs]
-    if (
-        isinstance(logs, Sequence)
-        and not isinstance(logs, str)
-        and len(logs) > 0
-        and isinstance(logs[0], EvalLog)
-    ):
-        return cast(list[EvalLog], list(logs))
+    if isinstance(logs, Sequence) and not isinstance(logs, str):
+        if len(logs) == 0:
+            return []
+        if isinstance(logs[0], EvalLog):
+            return cast(list[EvalLog], list(logs))
 
-    # Handle path-based inputs (including falsy for default)
-    path_logs: LogPaths = list_eval_logs() if not logs else cast(LogPaths, logs)
+    # Handle path-based inputs (default to list_eval_logs() when None)
+    path_logs: LogPaths = list_eval_logs() if logs is None else cast(LogPaths, logs)
 
     # normalize to list of str
     path_logs = (
@@ -77,16 +90,20 @@ def resolve_logs(
     ]
 
     # expand directories
-    log_paths: list[FileInfo] = []
-    for log_str in logs_str:
-        fs = filesystem(log_str)
-        info = fs.info(log_str)
+    async def expand_log(log_str: str) -> list[FileInfo]:
+        async with AsyncFilesystem() as async_fs:
+            info = await async_fs.info(log_str)
         if info.type == "directory":
-            log_paths.extend(
-                [fi for fi in fs.ls(info.name, recursive=True) if fi.type == "file"]
-            )
+            fs = filesystem(log_str)
+            return [fi for fi in fs.ls(info.name, recursive=True) if fi.type == "file"]
         else:
-            log_paths.append(info)
+            return [info]
+
+    log_paths = list(
+        chain.from_iterable(
+            run_coroutine(tg_collect([partial(expand_log, s) for s in logs_str]))
+        )
+    )
 
     log_files = log_files_from_ls(log_paths, sort=False)
     return [log_file.name for log_file in log_files]
@@ -176,9 +193,9 @@ def records_to_pandas(records: list[dict[str, ColumnType]]) -> "pd.DataFrame":
                 # If mixed types (not all str/bytes), convert to string
                 if len(types) > 1 and not types.issubset({"str", "bytes"}):
                     df[col] = df[col].apply(
-                        lambda x: str(x)
-                        if x is not None and not isinstance(x, str)
-                        else x
+                        lambda x: (
+                            str(x) if x is not None and not isinstance(x, str) else x
+                        )
                     )
 
     table = pa.Table.from_pandas(df)

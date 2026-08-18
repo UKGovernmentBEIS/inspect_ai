@@ -481,3 +481,38 @@ def test_agent_no_return_type_as_tool():
     tool_def = ToolDef(tool)
     assert tool_def.name == "agent_no_return_type"
     assert "value" in tool_def.parameters.properties
+
+
+def test_handoff_react_respects_name():
+    """Test that handoff uses react's name parameter for tool naming."""
+    from inspect_ai.agent._react import react
+
+    my_agent = react(
+        name="custom_agent",
+        description="A custom agent",
+        tools=[],
+    )
+
+    tool = handoff(my_agent)
+    tool_def = ToolDef(tool)
+
+    # Should be transfer_to_custom_agent, not transfer_to_react
+    assert tool_def.name == "transfer_to_custom_agent"
+
+
+def test_handoff_multiple_react_agents_unique_names():
+    """Test that multiple react agents with different names create unique tool names."""
+    from inspect_ai.agent._react import react
+
+    agent_a = react(name="agent_a", description="Agent A", tools=[])
+    agent_b = react(name="agent_b", description="Agent B", tools=[])
+
+    tool_a = handoff(agent_a)
+    tool_b = handoff(agent_b)
+
+    tool_def_a = ToolDef(tool_a)
+    tool_def_b = ToolDef(tool_b)
+
+    assert tool_def_a.name == "transfer_to_agent_a"
+    assert tool_def_b.name == "transfer_to_agent_b"
+    assert tool_def_a.name != tool_def_b.name

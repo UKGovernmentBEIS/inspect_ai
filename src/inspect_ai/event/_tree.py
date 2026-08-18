@@ -1,21 +1,21 @@
 from dataclasses import dataclass, field
 from logging import getLogger
-from typing import Iterable, Sequence, TypeAlias, Union
+from typing import Callable, Iterable, Sequence, TypeAlias, TypeVar, Union, overload
 
 from ._event import Event
 from ._span import SpanBeginEvent, SpanEndEvent
 
 logger = getLogger(__name__)
 
-EventNode: TypeAlias = Union["SpanNode", Event]
+EventTreeNode: TypeAlias = Union["EventTreeSpan", Event]
 """Node in an event tree."""
 
-EventTree: TypeAlias = list[EventNode]
+EventTree: TypeAlias = list[EventTreeNode]
 """Tree of events (has invividual events and event spans)."""
 
 
 @dataclass
-class SpanNode:
+class EventTreeSpan:
     """Event tree node representing a span of events."""
 
     id: str
@@ -36,7 +36,7 @@ class SpanNode:
     end: SpanEndEvent | None = None
     """Span end event (if any)."""
 
-    children: list[EventNode] = field(default_factory=list)
+    children: list[EventTreeNode] = field(default_factory=list)
     """Children in the span."""
 
 
@@ -58,18 +58,18 @@ def event_tree(events: Sequence[Event]) -> EventTree:
     # arrive in the file. A single forward scan guarantees that the order of
     # `children` inside every span reflects the order in which things appeared
     # in the transcript.
-    nodes: dict[str, SpanNode] = {
-        ev.id: SpanNode(
+    nodes: dict[str, EventTreeSpan] = {
+        ev.id: EventTreeSpan(
             id=ev.id, parent_id=ev.parent_id, type=ev.type, name=ev.name, begin=ev
         )
         for ev in events
         if isinstance(ev, SpanBeginEvent)
     }
 
-    roots: list[EventNode] = []
+    roots: list[EventTreeNode] = []
 
     # Where should an event with `span_id` go?
-    def bucket(span_id: str | None) -> list[EventNode]:
+    def bucket(span_id: str | None) -> list[EventTreeNode]:
         if span_id and span_id in nodes:
             return nodes[span_id].children
         return roots  # root level
@@ -91,17 +91,19 @@ def event_tree(events: Sequence[Event]) -> EventTree:
     return roots
 
 
-def event_sequence(tree: EventTree) -> Iterable[Event]:
+def event_sequence(tree: EventTree | EventTreeSpan) -> Iterable[Event]:
     """Flatten a span forest back into a properly ordered seqeunce.
 
     Args:
-        tree: Event tree
+        tree: Event tree or EventTreeSpan.
 
     Returns:
         Sequence of events.
     """
+    if isinstance(tree, EventTreeSpan):
+        tree = [tree]
     for item in tree:
-        if isinstance(item, SpanNode):
+        if isinstance(item, EventTreeSpan):
             yield item.begin
             yield from event_sequence(item.children)
             if item.end:
@@ -110,17 +112,68 @@ def event_sequence(tree: EventTree) -> Iterable[Event]:
             yield item
 
 
-def walk_node_spans(tree: EventTree) -> Iterable[SpanNode]:
+T = TypeVar("T")
+
+
+def _walk_all(tree: EventTree) -> Iterable[EventTreeNode]:
+    """Recursively yield every node in an event tree."""
     for item in tree:
-        if not isinstance(item, SpanNode):
-            continue
         yield item
-        yield from walk_node_spans(item.children)
+        if isinstance(item, EventTreeSpan):
+            yield from _walk_all(item.children)
+
+
+@overload
+def event_tree_walk(tree: EventTree) -> Iterable[EventTreeNode]: ...
+
+
+@overload
+def event_tree_walk(tree: EventTree, filter: type[T]) -> Iterable[T]: ...  # type: ignore[overload-overlap]
+
+
+@overload
+def event_tree_walk(tree: EventTree, filter: tuple[type[T], ...]) -> Iterable[T]: ...
+
+
+@overload
+def event_tree_walk(
+    tree: EventTree, filter: Callable[[EventTreeNode], bool]
+) -> Iterable[EventTreeNode]: ...
+
+
+def event_tree_walk(
+    tree: EventTree,
+    filter: type[T]
+    | tuple[type[T], ...]
+    | Callable[[EventTreeNode], bool]
+    | None = None,
+) -> Iterable[T] | Iterable[EventTreeNode]:
+    """Walk an event tree yielding nodes matching a filter.
+
+    Args:
+        tree: Event tree to walk.
+        filter: A type, tuple of types (passed to `isinstance`), a
+            predicate function, or None to yield all nodes.
+
+    Yields:
+        Matching nodes (or all nodes if no filter), in tree order.
+    """
+    all_nodes = _walk_all(tree)
+    if filter is None:
+        return all_nodes
+    elif callable(filter) and not isinstance(filter, type):
+        return (item for item in all_nodes if filter(item))
+    else:
+        return (item for item in all_nodes if isinstance(item, filter))
+
+
+def walk_node_spans(tree: EventTree) -> Iterable[EventTreeSpan]:
+    return event_tree_walk(tree, EventTreeSpan)
 
 
 def _print_event_tree(tree: EventTree, indent: str = "") -> None:
     for item in tree:
-        if isinstance(item, SpanNode):
+        if isinstance(item, EventTreeSpan):
             print(f"{indent}span ({item.type}): {item.name}")
             _print_event_tree(item.children, f"{indent}  ")
         else:

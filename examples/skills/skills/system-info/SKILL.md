@@ -1,21 +1,18 @@
 ---
 name: system-info
-description: Get detailed system information including OS, kernel, CPU, and memory details
+description: Retrieve detailed Linux system information including OS distribution, kernel version, CPU model and core count, memory usage, and uptime. Use when the user asks about system specs, hardware details, RAM, processor info, kernel version, or needs a host inventory summary.
 ---
 
 # System Information Skill
 
-Use this skill to gather comprehensive system information about the Linux host.
+Gathers comprehensive system information about the Linux host.
 
-## Quick Start
+## Suggested Workflow
 
-Run the included script for a complete system overview:
+1. Run `./scripts/sysinfo.sh` for structured output covering OS, CPU, memory, and uptime.
+2. Use individual commands below for specific details or when the script is unavailable.
 
-```bash
-./scripts/sysinfo.sh
-```
-
-## Manual Commands
+## Commands Reference
 
 ### Operating System
 - `cat /etc/os-release` - Distribution name and version
@@ -37,6 +34,6 @@ Run the included script for a complete system overview:
 
 ## Tips
 
-- The `sysinfo.sh` script provides structured output suitable for parsing
+- The `sysinfo.sh` script outputs structured text (distribution, kernel, CPU model, cores, memory, uptime) suitable for parsing
 - Use `lscpu` for the most readable CPU information
 - Memory values in `/proc/meminfo` are in kilobytes

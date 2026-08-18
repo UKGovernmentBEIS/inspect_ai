@@ -1,7 +1,7 @@
-import asyncio
-
+import anyio
 import pytest
 
+from inspect_ai._util._async import tg_collect
 from inspect_ai.util._limit import (
     LimitExceededError,
     check_message_limit,
@@ -163,10 +163,10 @@ async def test_limits_across_async_contexts():
             for i in range(11):
                 check_message_limit(i, raise_for_equal=False)
                 # Yield to the event loop to allow other coroutines to run.
-                await asyncio.sleep(0)
+                await anyio.sleep(0)
             with pytest.raises(LimitExceededError) as exc_info:
                 check_message_limit(11, raise_for_equal=False)
                 assert exc_info.value.value == 11
 
     # This will result in 3 distinct "trees" each with 1 root node.
-    await asyncio.gather(*(async_task() for _ in range(3)))
+    await tg_collect([async_task for _ in range(3)])

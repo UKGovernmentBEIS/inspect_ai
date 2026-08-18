@@ -1,6 +1,5 @@
 """Tests for Google GenAI model API conversion functions."""
 
-import pytest
 from google.genai.types import (
     Candidate,
     Content,
@@ -27,7 +26,6 @@ from inspect_ai.model._chat_message import (
 from inspect_ai.model._model_output import ModelOutput
 
 
-@pytest.mark.asyncio
 async def test_messages_from_google_basic() -> None:
     """Test basic Content list conversion to ChatMessage list."""
     contents = [
@@ -56,7 +54,6 @@ async def test_messages_from_google_basic() -> None:
     assert result[1].content[0].text == "I'm doing well, thank you!"
 
 
-@pytest.mark.asyncio
 async def test_messages_from_google_with_system_instruction() -> None:
     """Test conversion with system instruction."""
     contents = [
@@ -76,7 +73,6 @@ async def test_messages_from_google_with_system_instruction() -> None:
     assert isinstance(result[1], ChatMessageUser)
 
 
-@pytest.mark.asyncio
 async def test_messages_from_google_with_tool_calls() -> None:
     """Test Content with function calls conversion."""
     contents = [
@@ -108,7 +104,6 @@ async def test_messages_from_google_with_tool_calls() -> None:
     assert message.tool_calls[0].arguments == {"location": "San Francisco"}
 
 
-@pytest.mark.asyncio
 async def test_messages_from_google_with_tool_response() -> None:
     """Test Content with function response conversion (tool message)."""
     contents = [
@@ -134,7 +129,6 @@ async def test_messages_from_google_with_tool_response() -> None:
     assert "Sunny" in message.content
 
 
-@pytest.mark.asyncio
 async def test_messages_from_google_with_reasoning() -> None:
     """Test Content with thought parts (reasoning) conversion."""
     contents = [
@@ -165,7 +159,6 @@ async def test_messages_from_google_with_reasoning() -> None:
     assert message.content[1].text == "The answer is 42."
 
 
-@pytest.mark.asyncio
 async def test_messages_from_google_dict_input() -> None:
     """Test conversion from dict representation of Content."""
     contents: list[ContentDict] = [
@@ -185,7 +178,6 @@ async def test_messages_from_google_dict_input() -> None:
     assert result[0].content[0].text == "Hello from dict"
 
 
-@pytest.mark.asyncio
 async def test_model_output_from_google_basic() -> None:
     """Test basic GenerateContentResponse conversion to ModelOutput."""
     response = GenerateContentResponse(
@@ -220,7 +212,6 @@ async def test_model_output_from_google_basic() -> None:
     assert result.usage.total_tokens == 30
 
 
-@pytest.mark.asyncio
 async def test_model_output_from_google_with_tool_calls() -> None:
     """Test GenerateContentResponse with tool calls conversion."""
     response = GenerateContentResponse(
@@ -259,7 +250,6 @@ async def test_model_output_from_google_with_tool_calls() -> None:
     assert message.tool_calls[0].function == "search"
 
 
-@pytest.mark.asyncio
 async def test_model_output_from_google_with_reasoning() -> None:
     """Test GenerateContentResponse with reasoning (thought parts) conversion."""
     response = GenerateContentResponse(
@@ -298,7 +288,76 @@ async def test_model_output_from_google_with_reasoning() -> None:
     assert has_text
 
 
-@pytest.mark.asyncio
+async def test_model_output_from_google_with_cached_content() -> None:
+    """Check cached content is surfaced as `input_tokens_cache_read`.
+
+    Gemini returns `cached_content_token_count` when implicit or explicit
+    context caching applies. That count must be surfaced as
+    `input_tokens_cache_read` and excluded from `input_tokens`, matching the
+    convention used by the OpenAI and Anthropic providers.
+    """
+    response = GenerateContentResponse(
+        candidates=[
+            Candidate(
+                content=Content(
+                    role="model",
+                    parts=[Part(text="cached reply")],
+                ),
+                finish_reason=FinishReason.STOP,
+                index=0,
+            )
+        ],
+        usage_metadata=GenerateContentResponseUsageMetadata(
+            prompt_token_count=1000,
+            cached_content_token_count=800,
+            candidates_token_count=25,
+            total_token_count=1025,
+        ),
+        model_version="gemini-2.5-pro",
+    )
+
+    result = await model_output_from_google(response)
+
+    assert result.usage is not None
+    # prompt_token_count (1000) includes the cached portion; fresh input is 200
+    assert result.usage.input_tokens == 200
+    assert result.usage.input_tokens_cache_read == 800
+    assert result.usage.output_tokens == 25
+    assert result.usage.total_tokens == 1025
+
+
+async def test_model_output_from_google_without_cached_content() -> None:
+    """Check `input_tokens_cache_read` stays None when no caching occurred.
+
+    When no caching occurred, `input_tokens_cache_read` stays None so the
+    field doesn't appear in serialized usage for non-caching models.
+    """
+    response = GenerateContentResponse(
+        candidates=[
+            Candidate(
+                content=Content(
+                    role="model",
+                    parts=[Part(text="fresh")],
+                ),
+                finish_reason=FinishReason.STOP,
+                index=0,
+            )
+        ],
+        usage_metadata=GenerateContentResponseUsageMetadata(
+            prompt_token_count=100,
+            candidates_token_count=10,
+            total_token_count=110,
+        ),
+        model_version="gemini-2.5-flash",
+    )
+
+    result = await model_output_from_google(response)
+
+    assert result.usage is not None
+    assert result.usage.input_tokens == 100
+    assert result.usage.input_tokens_cache_read is None
+
+
 async def test_model_output_from_google_dict_input() -> None:
     """Test conversion from dict representation of GenerateContentResponse."""
     response_dict = {
@@ -330,7 +389,6 @@ async def test_model_output_from_google_dict_input() -> None:
     assert isinstance(message.content[0], ContentText)
 
 
-@pytest.mark.asyncio
 async def test_model_output_from_google_max_tokens_stop_reason() -> None:
     """Test GenerateContentResponse with max_tokens finish reason."""
     response = GenerateContentResponse(
@@ -358,7 +416,6 @@ async def test_model_output_from_google_max_tokens_stop_reason() -> None:
     assert result.choices[0].stop_reason == "max_tokens"
 
 
-@pytest.mark.asyncio
 async def test_model_output_from_google_model_override() -> None:
     """Test model name override parameter."""
     response = GenerateContentResponse(
@@ -386,7 +443,6 @@ async def test_model_output_from_google_model_override() -> None:
     assert result.model == "custom-model-name"
 
 
-@pytest.mark.asyncio
 async def test_messages_from_google_with_model_tag() -> None:
     """Test that model parameter is passed to assistant messages."""
     contents = [
@@ -404,7 +460,6 @@ async def test_messages_from_google_with_model_tag() -> None:
     assert message.model == "gemini-2.0-flash-exp"
 
 
-@pytest.mark.asyncio
 async def test_messages_from_google_mixed_content() -> None:
     """Test Content with mixed content types."""
     contents = [
@@ -443,7 +498,6 @@ async def test_messages_from_google_mixed_content() -> None:
     assert message.tool_calls[0].function == "tool1"
 
 
-@pytest.mark.asyncio
 async def test_messages_from_google_with_role_tool() -> None:
     """Test Content with role='tool' (official SDK pattern for function responses)."""
     contents = [
@@ -469,7 +523,6 @@ async def test_messages_from_google_with_role_tool() -> None:
     assert "Sunny" in message.content
 
 
-@pytest.mark.asyncio
 async def test_messages_from_google_mixed_user_content() -> None:
     """Test user Content with BOTH text and function response (mixed parts)."""
     contents = [
@@ -513,7 +566,6 @@ async def test_messages_from_google_mixed_user_content() -> None:
     assert "follow-up" in result[2].content[0].text
 
 
-@pytest.mark.asyncio
 async def test_messages_from_google_multiple_tool_responses_in_user() -> None:
     """Test user Content with multiple function responses interleaved with text."""
     contents = [

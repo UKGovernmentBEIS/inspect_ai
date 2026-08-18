@@ -1,5 +1,6 @@
 ---
-title: inspect_ai
+reference: inspect_ai
+description: Tasks, evaluation, and scoring.
 ---
 
 ## Evaluation
@@ -16,6 +17,15 @@ title: inspect_ai
 ### Epochs
 ### TaskInfo
 ### Tasks
+### TaskSource
+### SampleSource
+### enqueue_task
+### enqueue_sample
+
+## Scanning
+
+### Scanners
+### ScannerConfig
 
 ## View
 
@@ -24,3 +34,4 @@ title: inspect_ai
 ## Decorators
 
 ### task
+### task_source

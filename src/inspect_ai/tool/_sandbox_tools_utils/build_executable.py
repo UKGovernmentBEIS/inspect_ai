@@ -23,8 +23,8 @@ BUILD WORKFLOW:
 2. Repository mounted at /inspect_ai, this script executed inside container
 3. Source copied to /tmp/inspect_sandbox_tools-copy for safe building
 4. Package installed via pip to ensure all dependencies available
-5. PyInstaller creates single-file executable with StaticX for portability
-6. Final executable placed at /inspect_ai/src/inspect_ai/binaries/<filename>
+5. PyInstaller creates a --onedir bundle, which is tarred into the artifact
+6. Final tar artifact placed at /inspect_ai/src/inspect_ai/binaries/<filename>
 
 The volume mount ensures the built executable persists back to the host system.
 """
@@ -60,7 +60,6 @@ class BuildArgs:
     """Strongly typed representation of command line arguments."""
 
     output_filename: str
-    no_staticx: bool
     archive_viewer: bool
 
 
@@ -75,12 +74,11 @@ def main() -> None:
 
     The build module handles all PyInstaller-specific concerns including:
     - PyInstaller availability verification
-    - Browser dependency staging (if enabled)
-    - Executable creation with PyInstaller
-    - StaticX application for maximum portability
+    - --onedir bundle creation with PyInstaller
+    - Packaging the bundle tree into a tar artifact
 
-    The result is a portable executable that includes everything needed
-    to run on any compatible Linux system.
+    The result is a tar of a --onedir bundle that includes everything needed
+    to run on matching-libc Linux systems compatible with the build image.
     """
     args = _parse_args()
 
@@ -109,7 +107,6 @@ def main() -> None:
         entrypoint=entrypoint,
         output_path=output_path,
         output_filename=args.output_filename,
-        no_staticx=args.no_staticx,
         archive_viewer=args.archive_viewer,
     )
 
@@ -121,12 +118,7 @@ def _parse_args() -> BuildArgs:
     )
     parser.add_argument(
         "output_filename",
-        help="Executable filename (e.g., 'inspect-sandbox-tools-amd64-v667-dev'),",
-    )
-    parser.add_argument(
-        "--no-staticx",
-        action="store_true",
-        help="Skip staticx processing (reduces portability but faster build)",
+        help="Artifact filename (e.g., 'inspect-sandbox-tools-amd64-v667-dev'),",
     )
     parser.add_argument(
         "--archive-viewer",
@@ -139,7 +131,6 @@ def _parse_args() -> BuildArgs:
     # Convert the untyped Namespace to strongly typed BuildArgs
     return BuildArgs(
         output_filename=args.output_filename,
-        no_staticx=args.no_staticx,
         archive_viewer=args.archive_viewer,
     )
 

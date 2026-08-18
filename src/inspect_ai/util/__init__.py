@@ -1,26 +1,54 @@
+from inspect_ai._util.download import download, gdrive_download
+from inspect_ai._util.images import (
+    MediaKind,
+    MediaResolverFunc,
+    UnresolvedMediaError,
+    materialize_media,
+    media_resolver,
+)
+from inspect_ai._util.logger import warn_once
 from inspect_ai._util.registry import (
     RegistryInfo,
     RegistryType,
     registry_create,
     registry_info,
 )
+from inspect_ai._util.strenum import StrEnum
 from inspect_ai._util.trace import trace_action, trace_message
 from inspect_ai.util._limit import (
     Limit,
     LimitExceededError,
     LimitScope,
     SampleLimits,
+    TokenLimit,
     apply_limits,
+    cost_limit,
     message_limit,
     sample_limits,
+    suspend_token_limit,
+    suspend_turn_limit,
     time_limit,
     token_limit,
+    turn_limit,
     working_limit,
 )
 
 from ._background import background
+from ._checkpoint import (
+    CheckpointConfig,
+    Checkpointer,
+    CheckpointSampleConfig,
+    CheckpointTrigger,
+    Manual,
+    ResumeReport,
+    TimeInterval,
+    TokenInterval,
+    TurnInterval,
+    checkpointer,
+    current_checkpointer,
+)
 from ._collect import collect
-from ._concurrency import concurrency
+from ._concurrency import AdaptiveConcurrency, concurrency
 from ._console import input_screen
 from ._display import DisplayType, display_counter, display_type
 from ._early_stopping import (
@@ -28,7 +56,9 @@ from ._early_stopping import (
     EarlyStopping,
     EarlyStoppingSummary,
 )
+from ._input import InputOutcome, InputRequest, InputResult, request_input
 from ._json import JSONSchema, JSONType, json_schema
+from ._notify import notify
 from ._panel import InputPanel, input_panel
 from ._resource import resource
 from ._sandbox import (
@@ -36,6 +66,13 @@ from ._sandbox import (
     ComposeConfig,
     ComposeHealthcheck,
     ComposeService,
+    ExecCompleted,
+    ExecOutput,
+    ExecRemoteAwaitableOptions,
+    ExecRemoteProcess,
+    ExecRemoteStreamingOptions,
+    ExecStderr,
+    ExecStdout,
     OutputLimitExceededError,
     SandboxConnection,
     SandboxEnvironment,
@@ -44,8 +81,10 @@ from ._sandbox import (
     SandboxEnvironments,
     SandboxEnvironmentSpec,
     SandboxEnvironmentType,
+    SandboxUnavailableError,
     is_compose_yaml,
     is_dockerfile,
+    override_sandbox_output_limit,
     parse_compose_yaml,
     sandbox,
     sandbox_default,
@@ -53,8 +92,8 @@ from ._sandbox import (
     sandbox_with,
     sandboxenv,
 )
-from ._span import span
-from ._store import Store, store
+from ._span import SpanIdProvider, current_span_id, span, span_id_provider
+from ._store import Store, store, store_from_events, store_from_events_as
 from ._store_model import StoreModel, store_as
 from ._subprocess import (
     ExecResult,
@@ -64,6 +103,11 @@ from ._subtask import Subtask, subtask
 from ._throttle import throttle
 
 __all__ = [
+    "media_resolver",
+    "materialize_media",
+    "MediaKind",
+    "MediaResolverFunc",
+    "UnresolvedMediaError",
     "apply_limits",
     "sample_limits",
     "SampleLimits",
@@ -72,21 +116,30 @@ __all__ = [
     "ComposeHealthcheck",
     "ComposeService",
     "ExecResult",
+    "AdaptiveConcurrency",
     "concurrency",
+    "download",
+    "gdrive_download",
     "DisplayType",
     "display_counter",
     "display_type",
+    "InputOutcome",
     "InputPanel",
+    "InputRequest",
+    "InputResult",
     "input_panel",
     "input_screen",
     "is_compose_yaml",
     "is_dockerfile",
     "JSONType",
     "JSONSchema",
+    "StrEnum",
     "json_schema",
     "Limit",
     "message_limit",
+    "notify",
     "OutputLimitExceededError",
+    "override_sandbox_output_limit",
     "parse_compose_yaml",
     "resource",
     "subprocess",
@@ -98,6 +151,7 @@ __all__ = [
     "SandboxEnvironments",
     "SandboxEnvironmentSpec",
     "SandboxEnvironmentType",
+    "SandboxUnavailableError",
     "SandboxConnection",
     "sandboxenv",
     "sandbox",
@@ -106,24 +160,54 @@ __all__ = [
     "sandbox_service",
     "Store",
     "store",
+    "store_from_events",
+    "store_from_events_as",
     "StoreModel",
     "store_as",
     "span",
+    "current_span_id",
+    "span_id_provider",
+    "SpanIdProvider",
     "collect",
     "Subtask",
     "subtask",
     "throttle",
     "background",
+    "cost_limit",
+    "suspend_token_limit",
+    "suspend_turn_limit",
     "token_limit",
+    "TokenLimit",
+    "turn_limit",
     "time_limit",
     "working_limit",
     "trace_action",
     "trace_message",
+    "warn_once",
     "RegistryInfo",
     "RegistryType",
     "registry_create",
     "registry_info",
+    "request_input",
     "EarlyStopping",
     "EarlyStop",
     "EarlyStoppingSummary",
+    "ExecCompleted",
+    "ExecOutput",
+    "ExecRemoteAwaitableOptions",
+    "ExecRemoteProcess",
+    "ExecRemoteStreamingOptions",
+    "ExecStderr",
+    "ExecStdout",
+    "checkpointer",
+    "current_checkpointer",
+    "Checkpointer",
+    "CheckpointConfig",
+    "CheckpointSampleConfig",
+    "CheckpointTrigger",
+    "Manual",
+    "ResumeReport",
+    "TimeInterval",
+    "TokenInterval",
+    "TurnInterval",
 ]

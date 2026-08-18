@@ -25,6 +25,12 @@ async def install_skills(
     Returns:
         List of `SkillInfo` with skill names, descriptions, and locations.
     """
+    # resolve and validate skills before sandbox setup
+    from .validate import check_unique_skill_names
+
+    resolved_skills = read_skills(skills)
+    check_unique_skill_names(resolved_skills)
+
     # resolve sandbox
     sbox = sandbox if isinstance(sandbox, SandboxEnvironment) else sandbox_env(sandbox)
 
@@ -73,7 +79,7 @@ async def install_skills(
 
     # install skills
     skills_info: list[SkillInfo] = []
-    for skill in read_skills(skills):
+    for skill in resolved_skills:
         # determine root skill dir
         skill_dir = skills_dir / skill.name
 

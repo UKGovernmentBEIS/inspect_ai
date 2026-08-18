@@ -13,9 +13,9 @@ from .appdirs import inspect_data_dir
 logger = getLogger(__name__)
 
 EXTENSION_COMMAND_OPEN_SAMPLE = "open_sample"
-EXTENSION_COMMAND_VERSIONS = {"inspect.openLogViewer": Version(0, 3, 61)}
 EXTENSION_COMMAND_VERSIONS = {
-    f"inspect.openLogViewer:{EXTENSION_COMMAND_OPEN_SAMPLE}": Version(0, 3, 62)
+    "inspect.openLogViewer": Version(0, 3, 61),
+    f"inspect.openLogViewer:{EXTENSION_COMMAND_OPEN_SAMPLE}": Version(0, 3, 62),
 }
 
 
@@ -61,7 +61,7 @@ def has_vscode_version(required_version: Version) -> bool:
     if current_version is None:
         return False
     else:
-        return current_version.is_compatible(required_version)
+        return current_version >= required_version
 
 
 def vs_code_commands_dir() -> Path | None:

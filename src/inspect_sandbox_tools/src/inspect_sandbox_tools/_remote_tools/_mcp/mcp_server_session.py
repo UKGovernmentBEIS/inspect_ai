@@ -1,8 +1,11 @@
 import asyncio
+import json
+import os
 import sys
 from asyncio.subprocess import Process
 from typing import Literal, TextIO
 
+import psutil
 import pydantic
 from mcp import (
     ErrorData,
@@ -12,6 +15,36 @@ from mcp import (
     StdioServerParameters,
 )
 from mcp.types import JSONRPCMessage, JSONRPCNotification
+
+from inspect_sandbox_tools._util.process_tree import (
+    process_group_members,
+    terminate_process_tree,
+)
+
+# Maximum line length for reading MCP server stdout via asyncio.StreamReader.
+#
+# asyncio.StreamReader defaults to a 64KB line limit. A single JSON-RPC response
+# line longer than the limit makes readline() raise ValueError ("Separator is not
+# found, and chunk exceed the limit"), which previously killed the reader task and
+# hung every pending request until the client timed out. MCP tool responses
+# routinely exceed 64KB once wrapped in the JSON-RPC envelope (a base64 screenshot,
+# a large file read, or verbose command output), so the 64KB default is too small
+# to be safe as a floor.
+#
+# Default to a generous limit so realistic large responses just work; override with
+# INSPECT_MCP_READLINE_LIMIT_BYTES. We size this comfortably above the host-side
+# read_file cap (100 MiB) with headroom for the JSON-RPC envelope and base64
+# expansion: a 100 MiB binary payload base64-encodes to ~133 MiB before the envelope
+# is added, so a limit of exactly 100 MiB would still reject a cap-sized read.
+# (This is a ceiling, not a reservation — memory grows only with the actual line
+# length.) Even so, an over-limit line is now handled gracefully rather than hanging
+# the session — see _stdout_reader.
+_DEFAULT_READLINE_LIMIT = 256 * 1024 * 1024  # 256 MiB
+_READLINE_LIMIT: int = (
+    int(os.environ["INSPECT_MCP_READLINE_LIMIT_BYTES"])
+    if "INSPECT_MCP_READLINE_LIMIT_BYTES" in os.environ
+    else _DEFAULT_READLINE_LIMIT
+)
 
 
 class MCPServerSession:
@@ -34,6 +67,8 @@ class MCPServerSession:
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=errlog,
+                limit=_READLINE_LIMIT,
+                start_new_session=True,
             ),
             server_params.encoding,
             server_params.encoding_error_handler,
@@ -49,6 +84,8 @@ class MCPServerSession:
         self._encoding = encoding
         self._encoding_error_handler = encoding_error_handler
         self._terminated = False
+        self._retired = False
+        self._known_descendants: list[psutil.Process] = []
         self._requests = dict[
             str | int, asyncio.Future[JSONRPCResponse | JSONRPCError]
         ]()
@@ -59,6 +96,19 @@ class MCPServerSession:
     ) -> JSONRPCResponse | JSONRPCError:
         assert self._process.stdin, "Opened process is missing stdin"
         self._assert_not_terminated()
+
+        # If the reader task has already exited (EOF on the server's stdout, or a
+        # fatal read error such as an oversized line), no future will ever be
+        # resolved. Fail fast with a clear error instead of hanging until the
+        # client's timeout.
+        if self._reader.done():
+            reader_exc = None
+            if not self._reader.cancelled():
+                reader_exc = self._reader.exception()
+            raise RuntimeError(
+                "MCP server stdout reader is no longer running; the server "
+                "connection is closed and cannot service requests."
+            ) from reader_exc
 
         request_id = request.id
         assert request_id not in self._requests, (
@@ -86,6 +136,7 @@ class MCPServerSession:
     async def terminate(self, timeout: int = 30) -> None:
         self._assert_not_terminated()
         self._terminated = True
+        self._remember_descendants()
 
         self._reader.cancel()
         try:
@@ -97,8 +148,37 @@ class MCPServerSession:
             self._process.terminate()
             await asyncio.wait_for(self._process.wait(), timeout)
         except (asyncio.TimeoutError, asyncio.CancelledError):
-            # Force kill if taking too long
             self._process.kill()
+        finally:
+            self._retired = True
+
+    async def shutdown(self, timeout: int = 30) -> None:
+        """Forcefully terminate this server-owned MCP process during shutdown."""
+        if not self._terminated:
+            self._terminated = True
+            self._reader.cancel()
+            try:
+                await asyncio.wait_for(self._reader, 1.0)
+            except (asyncio.TimeoutError, asyncio.CancelledError):
+                pass
+
+        if not self._retired:
+            self._remember_descendants()
+        known_descendants = [*self._known_descendants]
+        try:
+            await terminate_process_tree(
+                self._process,
+                timeout=timeout,
+                process_group=not self._retired,
+                known_descendants=known_descendants,
+            )
+        finally:
+            self._known_descendants.clear()
+
+    def _remember_descendants(self) -> None:
+        pid = getattr(self._process, "pid", None)
+        if pid is not None:
+            self._known_descendants.extend(process_group_members(pid, exclude_pid=pid))
 
     def _bytes_from_json_message(
         self, message: JSONRPCRequest | JSONRPCNotification
@@ -132,6 +212,8 @@ class MCPServerSession:
         # TODO: I'm honestly unclear if we can recover from an error like this
         #
         for request_id, future in self._requests.items():
+            if future.done():
+                continue
             future.set_result(
                 JSONRPCError(
                     jsonrpc="2.0",
@@ -147,7 +229,23 @@ class MCPServerSession:
         try:
             buffer = ""
             while True:
-                line_bytes = await self._process.stdout.readline()
+                try:
+                    line_bytes = await self._process.stdout.readline()
+                except ValueError as exc:
+                    # asyncio.StreamReader.readline() raises ValueError (re-raised
+                    # from an internal LimitOverrunError, which it does not surface
+                    # directly) when a line exceeds the reader's `limit` with no
+                    # newline yet; it clears its own buffer in the process. Treat it
+                    # as a fatal, diagnosable read error: re-raise to the handler
+                    # below, which fails every pending request rather than hanging
+                    # them until timeout. With the default 256 MiB limit this should
+                    # be unreachable for real responses; raise
+                    # INSPECT_MCP_READLINE_LIMIT_BYTES if needed.
+                    raise RuntimeError(
+                        "MCP server response line exceeded the read limit of "
+                        f"{_READLINE_LIMIT} bytes. Set INSPECT_MCP_READLINE_LIMIT_BYTES "
+                        "higher if responses are legitimately larger than this."
+                    ) from exc
                 if not line_bytes:  # EOF
                     break
 
@@ -156,23 +254,50 @@ class MCPServerSession:
                 buffer = lines.pop()
 
                 for line in lines:
+                    if not line.strip():
+                        continue
                     try:
                         message = JSONRPCMessage.model_validate_json(line)
-                    except pydantic.ValidationError as exc:
-                        self._send_exception_somewhere(exc)
+                    except (pydantic.ValidationError, json.JSONDecodeError):
+                        # Skip non-JSON lines (e.g. debug output, shell traces).
+                        # This matches the MCP SDK's stdio_client behavior.
                         continue
 
-                    assert isinstance(message.root, JSONRPCResponse | JSONRPCError), (
-                        f"No unsolicited messages supported: {message}"
-                    )
+                    # Drop unsolicited server->client messages (notifications and
+                    # server-initiated requests). This session is a request/response
+                    # proxy and does not forward them to the client. Crucially we must
+                    # ignore them rather than crash the reader task: a server that
+                    # emits e.g. `notifications/tools/list_changed` after initialize
+                    # (legal for any server advertising listChanged) would otherwise
+                    # kill this loop and hang every pending request until timeout.
+                    if not isinstance(message.root, JSONRPCResponse | JSONRPCError):
+                        continue
                     self._resolve_request(message.root)
 
         except asyncio.CancelledError:
-            pass
+            # The reader was cancelled (e.g. by terminate()). Resolve any
+            # still-pending requests with an error so callers parked on
+            # `await future` are told the session is going away instead of
+            # hanging forever until their own timeout.
+            self._send_exception_somewhere(
+                RuntimeError("MCP server session terminated with requests pending.")
+            )
         except Exception as exc:
-            # not much good can come of this
+            # The reader task is dying and cannot deliver any more responses.
+            # Fail every pending request with this exception instead of leaving
+            # them to hang until the client's timeout (which also poisons the
+            # session for all subsequent requests). See _send_exception_somewhere.
             print(f"Exception processing stdout: {exc}", file=sys.stderr)
-            raise
+            self._send_exception_somewhere(exc)
+        else:
+            # Clean EOF: the server closed stdout without answering pending
+            # requests. Don't leave them to hang — fail them with a clear error.
+            if self._requests:
+                self._send_exception_somewhere(
+                    RuntimeError(
+                        "MCP server closed its stdout (EOF) with requests pending."
+                    )
+                )
 
     def _assert_not_terminated(self) -> None:
         assert not self._terminated, "process must not be terminated"

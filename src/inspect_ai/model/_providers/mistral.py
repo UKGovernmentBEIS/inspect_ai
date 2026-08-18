@@ -3,8 +3,15 @@ import json
 import os
 from typing import Any, Literal
 
-from mistralai import (
-    AudioChunk,
+from mistralai.client import Mistral
+from mistralai.client.errors import SDKError
+from mistralai.client.models import (
+    AssistantMessage as MistralAssistantMessage,
+)
+from mistralai.client.models import (
+    ChatCompletionChoice as MistralChatCompletionChoice,
+)
+from mistralai.client.models import (
     ContentChunk,
     DocumentURLChunk,
     FileChunk,
@@ -12,34 +19,26 @@ from mistralai import (
     FunctionName,
     ImageURL,
     ImageURLChunk,
-    Mistral,
     ReferenceChunk,
     TextChunk,
     ThinkChunk,
 )
-from mistralai.models import (
-    AssistantMessage as MistralAssistantMessage,
-)
-from mistralai.models import (
-    ChatCompletionChoice as MistralChatCompletionChoice,
-)
-from mistralai.models import Function as MistralFunction
-from mistralai.models import (
+from mistralai.client.models import Function as MistralFunction
+from mistralai.client.models import (
     JSONSchema as MistralJSONSchema,
 )
-from mistralai.models import (
+from mistralai.client.models import (
     ResponseFormat as MistralResponseFormat,
 )
-from mistralai.models import SDKError
-from mistralai.models import SystemMessage as MistralSystemMessage
-from mistralai.models import Tool as MistralTool
-from mistralai.models import ToolCall as MistralToolCall
-from mistralai.models import (
+from mistralai.client.models import SystemMessage as MistralSystemMessage
+from mistralai.client.models import Tool as MistralTool
+from mistralai.client.models import ToolCall as MistralToolCall
+from mistralai.client.models import (
     ToolChoice as MistralToolChoice,
 )
-from mistralai.models import ToolMessage as MistralToolMessage
-from mistralai.models import UserMessage as MistralUserMessage
-from mistralai.models.chatcompletionresponse import (
+from mistralai.client.models import ToolMessage as MistralToolMessage
+from mistralai.client.models import UserMessage as MistralUserMessage
+from mistralai.client.models.chatcompletionresponse import (
     ChatCompletionResponse as MistralChatCompletionResponse,
 )
 from shortuuid import uuid
@@ -53,19 +52,21 @@ from inspect_ai._util.content import (
     ContentText,
 )
 from inspect_ai._util.http import is_retryable_http_status
-from inspect_ai._util.images import file_as_data_uri
+from inspect_ai._util.images import inline_media_data_uri, provider_image_data_uri
+from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.model._reasoning import parse_content_with_reasoning
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
+from inspect_ai.util._json import json_schema_dump
 
-from ..._util.httpx import httpx_should_retry
+from ..._util.httpx import httpx_classify_retry
 from .._call_tools import parse_tool_call
 from .._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
 )
 from .._generate_config import GenerateConfig
-from .._model import ModelAPI
-from .._model_call import ModelCall
+from .._model import ModelAPI, RetryDecision
+from .._model_call import ModelCall, as_error_response
 from .._model_output import (
     ChatCompletionChoice,
     ModelOutput,
@@ -74,6 +75,7 @@ from .._model_output import (
 )
 from .mistral_conversation import (
     mistral_conversation_generate,
+    mistral_reasoning_effort,
 )
 from .util import (
     environment_prerequisite_error,
@@ -123,7 +125,7 @@ class MistralAPI(ModelAPI):
         # track use of conversation api
         if conversation_api is not None:
             self.conversation_api = conversation_api
-        elif "voxtral" in model_name:  # no audio in conversation api
+        elif "voxtral" in self.model_family().lower():  # no audio in conversation api
             self.conversation_api = False
         else:
             self.conversation_api = True
@@ -192,8 +194,13 @@ class MistralAPI(ModelAPI):
                 tool_choice=(
                     mistral_chat_tool_choice(tool_choice) if len(tools) > 0 else None
                 ),
-                http_headers={HttpxHooks.REQUEST_ID_HEADER: request_id},
+                http_headers={HttpxHooks.REQUEST_ID_HEADER: request_id}
+                | (config.extra_headers or {}),
             )
+            if config.reasoning_effort is not None:
+                request["reasoning_effort"] = mistral_reasoning_effort(
+                    config.reasoning_effort
+                )
             if config.temperature is not None:
                 request["temperature"] = config.temperature
             if config.top_p is not None:
@@ -215,30 +222,27 @@ class MistralAPI(ModelAPI):
                     ),
                 )
 
-            # prepare response for inclusion in model call
-            response: dict[str, Any] = {}
+            # prepare request for inclusion in model call
+            req = request.copy()
+            req.update(messages=[message.model_dump() for message in req["messages"]])
+            if req.get("tools", None) is not None:
+                req["tools"] = [tool.model_dump() for tool in req["tools"]]
 
-            def model_call() -> ModelCall:
-                req = request.copy()
-                req.update(
-                    messages=[message.model_dump() for message in req["messages"]]
-                )
-                if req.get("tools", None) is not None:
-                    req["tools"] = [tool.model_dump() for tool in req["tools"]]
-
-                return ModelCall.create(
-                    request=req,
-                    response=response,
-                    time=http_hooks.end_request(request_id),
-                )
+            model_call = set_active_model_event_call(req, None)
 
             # send request
             try:
                 completion = await client.chat.complete_async(**request)
-                response = completion.model_dump()
+
+                model_call.set_response(
+                    completion.model_dump(), http_hooks.end_request(request_id)
+                )
             except SDKError as ex:
+                model_call.set_error(
+                    as_error_response(ex.body), http_hooks.end_request(request_id)
+                )
                 if ex.status_code == 400:
-                    return self.handle_bad_request(ex), model_call()
+                    return self.handle_bad_request(ex), model_call
                 else:
                     raise ex
 
@@ -248,7 +252,7 @@ class MistralAPI(ModelAPI):
                 )
 
             # return model output (w/ tool calls if they exist)
-            choices = completion_choices_from_response(completion, tools)
+            choices = await completion_choices_from_response(completion, tools)
             return ModelOutput(
                 model=completion.model,
                 choices=choices,
@@ -262,11 +266,7 @@ class MistralAPI(ModelAPI):
                     ),
                     total_tokens=completion.usage.total_tokens,
                 ),
-            ), model_call()
-
-    @override
-    def emulate_reasoning_history(self) -> bool:
-        return False
+            ), model_call
 
     def service_model_name(self) -> str:
         """Model name without any service prefix."""
@@ -277,17 +277,26 @@ class MistralAPI(ModelAPI):
         return f"mistral/{self.service_model_name()}"
 
     @override
-    def should_retry(self, ex: Exception) -> bool:
+    def should_retry(self, ex: Exception) -> bool | RetryDecision:
         if isinstance(ex, SDKError):
-            return is_retryable_http_status(ex.status_code)
-        elif httpx_should_retry(ex):
-            return True
-        else:
-            return False
+            if not is_retryable_http_status(ex.status_code):
+                return RetryDecision.no()
+            if ex.status_code == 429:
+                return RetryDecision.rate_limit()
+            return RetryDecision.transient()
+        decision = httpx_classify_retry(ex)
+        return decision if decision is not None else RetryDecision.no()
 
     @override
     def connection_key(self) -> str:
-        return str(self.api_key)
+        """Scope adaptive concurrency per (key, model).
+
+        A pool shared across models lets the faster model's signals push the
+        adaptive limit past the slower model's actual ceiling (cram-down).
+        Per-model scoping avoids that, at the cost of slight over-fragmentation
+        when models actually share an upstream rate-limit budget.
+        """
+        return f"{self.initial_api_key}:{self.model_name}"
 
     @override
     def is_auth_failure(self, ex: Exception) -> bool:
@@ -335,9 +344,7 @@ def mistral_function(tool: ToolInfo) -> MistralFunction:
     return MistralFunction(
         name=tool.name,
         description=tool.description,
-        parameters=tool.parameters.model_dump(
-            exclude={"additionalProperties"}, exclude_none=True
-        ),
+        parameters=json_schema_dump(tool.parameters, exclude={"additionalProperties"}),
     )
 
 
@@ -474,11 +481,15 @@ async def mistral_content_chunk(content: Content) -> ContentChunk:
     if isinstance(content, ContentText):
         return TextChunk(text=content.text or NO_CONTENT)
     elif isinstance(content, ContentImage):
-        # resolve image to url
-        image_url = await file_as_data_uri(content.image)
+        image_url = inline_media_data_uri(content.image, "image")
 
         # return chunk
-        return ImageURLChunk(image_url=ImageURL(url=image_url, detail=content.detail))
+        return ImageURLChunk(
+            image_url=ImageURL(
+                url=image_url,
+                detail="high" if content.detail == "original" else content.detail,
+            )
+        )
     elif isinstance(content, ContentReasoning):
         return ThinkChunk(thinking=[TextChunk(text=content.reasoning)])
     else:
@@ -515,12 +526,12 @@ def chat_tool_call(tool_call: MistralToolCall, tools: list[ToolInfo]) -> ToolCal
         return ToolCall(id, tool_call.function.name, tool_call.function.arguments)
 
 
-def completion_choice(
+async def completion_choice(
     model: str, choice: MistralChatCompletionChoice, tools: list[ToolInfo]
 ) -> ChatCompletionChoice:
     message = choice.message
     if message:
-        completion = completion_content(message.content or "")
+        completion = await completion_content(message.content or "")
         return ChatCompletionChoice(
             message=ChatMessageAssistant(
                 content=completion,
@@ -542,14 +553,19 @@ def completion_choice(
         )
 
 
-def completion_content(content: str | list[ContentChunk]) -> str | list[Content]:
+async def completion_content(
+    content: str | list[ContentChunk],
+) -> str | list[Content]:
     if isinstance(content, str):
         return content
     else:
-        return [item for c in content for item in completion_content_chunks(c)]
+        completion: list[Content] = []
+        for chunk in content:
+            completion.extend(await completion_content_chunks(chunk))
+        return completion
 
 
-def completion_content_chunks(content: ContentChunk) -> list[Content]:
+async def completion_content_chunks(content: ContentChunk) -> list[Content]:
     if isinstance(content, ReferenceChunk):
         raise TypeError("ReferenceChunk content is not supported by Inspect.")
     elif isinstance(content, TextChunk):
@@ -567,14 +583,24 @@ def completion_content_chunks(content: ContentChunk) -> list[Content]:
         return [ContentText(text=f"file: {content.file_id}")]
     elif isinstance(content, ImageURLChunk):
         if isinstance(content.image_url, str):
-            return [ContentImage(image=content.image_url)]
+            return [
+                ContentImage(image=await provider_image_data_uri(content.image_url))
+            ]
         else:
+            detail: Literal["auto", "low", "high"]
             match content.image_url.detail:
-                case "low" | "high":
-                    detail: Literal["auto", "low", "high"] = content.image_url.detail
+                case "low":
+                    detail = "low"
+                case "high":
+                    detail = "high"
                 case _:
                     detail = "auto"
-            return [ContentImage(image=content.image_url.url, detail=detail)]
+            return [
+                ContentImage(
+                    image=await provider_image_data_uri(content.image_url.url),
+                    detail=detail,
+                )
+            ]
     elif isinstance(content, ThinkChunk):
         return [
             ContentReasoning(
@@ -583,29 +609,33 @@ def completion_content_chunks(content: ContentChunk) -> list[Content]:
                 )
             )
         ]
-    elif isinstance(content, AudioChunk):
-        raise TypeError("AudioChunk content is not supported by Inspect.")
+    else:
+        raise TypeError(f"{type(content)} content is not supported by Inspect.")
 
 
-def completion_choices_from_response(
+async def completion_choices_from_response(
     response: MistralChatCompletionResponse, tools: list[ToolInfo]
 ) -> list[ChatCompletionChoice]:
     if response.choices is None:
         return []
     else:
-        return [
-            completion_choice(response.model, choice, tools)
-            for choice in response.choices
-        ]
+        choices: list[ChatCompletionChoice] = []
+        for choice in response.choices:
+            choices.append(await completion_choice(response.model, choice, tools))
+        return choices
 
 
+# Note: Mistral chat completions carry no response-level refusal category or
+# explanation, so there is no ChatCompletionChoice.stop_details to populate here.
 def choice_stop_reason(choice: MistralChatCompletionChoice) -> StopReason:
     match choice.finish_reason:
         case "stop":
             return "stop"
         case "length":
             return "max_tokens"
-        case "model_length" | "tool_calls":
-            return choice.finish_reason
+        case "model_length":
+            return "model_length"
+        case "tool_calls":
+            return "tool_calls"
         case _:
             return "unknown"

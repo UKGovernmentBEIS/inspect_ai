@@ -126,6 +126,34 @@ def test_fail_on_pct_errors_continue_on_fail():
     assert log.status == "success"
 
 
+def test_fail_on_pct_errors_with_epochs():
+    # 2 samples * 10 epochs = 20 sample-runs total. Sample 1 fails in every
+    # epoch (10 errors = 50%) which is below the 60% threshold (12 errors).
+    # Regression: the mid-run threshold was previously computed against
+    # len(task.dataset) (=2) instead of len(sliced) * epochs (=20), so the
+    # eval aborted after the 2nd error.
+    task = Task(
+        dataset=[Sample(input="hi", target="hi") for _ in range(2)],
+        solver=[failing_solver(lambda state: state.sample_id == 1), generate()],
+        epochs=10,
+        fail_on_error=0.6,
+    )
+    log = eval(task, model="mockllm/model")[0]
+    assert log.status == "success"
+    assert log.results.completed_samples == 10
+
+
+def test_fail_on_pct_errors_with_limit():
+    # 10-sample dataset sliced to 4 via --limit, only sample 1 fails
+    # (1 error / 4 runs = 25%) which is below the 50% threshold.
+    task = create_failing_task(
+        samples=10, fail_on_error=0.5, fail=lambda state: state.sample_id == 1
+    )
+    log = eval(task, model="mockllm/model", limit=4)[0]
+    assert log.status == "success"
+    assert log.results.completed_samples == 3
+
+
 def test_fail_on_error_override():
     task = create_failing_task(
         samples=10, fail_on_error=0.7, fail=lambda state: state.sample_id < 7

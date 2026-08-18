@@ -1,4 +1,5 @@
 import base64
+import re
 from logging import getLogger
 from typing import Any, Literal, Tuple, Union, cast
 
@@ -14,11 +15,19 @@ from inspect_ai._util.content import (
     ContentText,
 )
 from inspect_ai._util.error import PrerequisiteError, pip_dependency_error
-from inspect_ai._util.images import file_as_data
+from inspect_ai._util.images import inline_media_data
+from inspect_ai._util.logger import warn_once
 from inspect_ai._util.version import verify_required_version
+from inspect_ai.log._samples import set_active_model_event_call
+from inspect_ai.model._reasoning import reasoning_to_think_tag
 from inspect_ai.tool import ToolChoice, ToolInfo
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_choice import ToolFunction
+from inspect_ai.util._json import (
+    JSON_SCHEMA_EXTENDED_FIELDS,
+    JSONSchema,
+    json_schema_dump,
+)
 
 from .._chat_message import (
     ChatMessage,
@@ -28,9 +37,16 @@ from .._chat_message import (
     ChatMessageUser,
 )
 from .._generate_config import GenerateConfig
-from .._model import ModelAPI
-from .._model_call import ModelCall
-from .._model_output import ChatCompletionChoice, ModelOutput, ModelUsage
+from .._model import ModelAPI, RetryDecision
+from .._model_call import ModelCall, as_error_response
+from .._model_output import (
+    ChatCompletionChoice,
+    ModelOutput,
+    ModelUsage,
+    StopCategory,
+    StopDetails,
+    collect_stop_details,
+)
 from .util import (
     model_base_url,
 )
@@ -247,6 +263,29 @@ class ConverseClientConverseRequest(BaseModel):
     additionalModelResponseFieldPaths: list[str] = []
 
 
+def _lock_object_additional_properties(schema: JSONSchema) -> None:
+    """Set `additionalProperties: false` on object nodes only.
+
+    Bedrock's structured-output grammar compiler requires objects to forbid
+    extra properties, but rejects `additionalProperties` on `anyOf` nodes (how
+    optional/union fields are expressed). Setting it only on objects keeps
+    optional fields working. This matches the object-only handling in the
+    OpenAI and Anthropic SDKs; it is done locally here rather than via the
+    shared `set_additional_properties_false` (which stamps every node) because
+    only Bedrock's compiler is strict enough to reject the looser shape.
+    """
+    if schema.type == "object" or schema.properties:
+        schema.additionalProperties = False
+    if schema.items:
+        _lock_object_additional_properties(schema.items)
+    if schema.properties:
+        for prop_schema in schema.properties.values():
+            _lock_object_additional_properties(prop_schema)
+    if schema.anyOf:
+        for any_schema in schema.anyOf:
+            _lock_object_additional_properties(any_schema)
+
+
 class BedrockAPI(ModelAPI):
     def __init__(
         self,
@@ -270,8 +309,23 @@ class BedrockAPI(ModelAPI):
                 "ERROR: The bedrock provider does not work with the trio async backend."
             )
 
-        # save model_args
-        self.model_args = model_args
+        # extract timeout settings from model_args (coerce CLI strings to int)
+        self.read_timeout: int = int(str(model_args.pop("read_timeout", 60)))
+        self.connect_timeout: int = int(str(model_args.pop("connect_timeout", 60)))
+
+        # save model_args (filter out inference params that shouldn't go to session.client)
+        _CLIENT_EXCLUDED_KEYS = {
+            "max_tokens",
+            "temperature",
+            "top_p",
+            "top_k",
+            "stop_seqs",
+            "reasoning_tokens",
+            "reasoning_effort",
+        }
+        self.model_args = {
+            k: v for k, v in model_args.items() if k not in _CLIENT_EXCLUDED_KEYS
+        }
 
         # import aioboto3 on demand
         try:
@@ -294,39 +348,60 @@ class BedrockAPI(ModelAPI):
 
     @override
     def max_tokens(self) -> int | None:
-        if "llama3-70" in self.model_name or "llama3-8" in self.model_name:
+        family = self.model_family().lower()
+        if any(
+            name in family
+            for name in ("llama3-70", "llama3-8", "llama-3-70", "llama-3-8")
+        ):
             return 2048
 
-        if "llama3" in self.model_name or "claude3" in self.model_name:
+        if any(name in family for name in ("llama3", "llama-3", "claude3", "claude-3")):
             return 4096
 
-        elif "mistral-large" in self.model_name:
+        elif "mistral-large" in family:
             return 8192
 
         # Other models will just the default
         else:
             return DEFAULT_MAX_TOKENS
 
+    # Bedrock returns AWS-specific error codes; the throttling-family codes
+    # are documented as the 429 equivalent and indicate true capacity
+    # throttling. The infra-family codes (RequestTimeout, ServiceUnavailable)
+    # are retryable but represent AWS-side issues, not client over-saturation —
+    # so they're classified as transient (pause scale-up, don't scale down).
+    _BEDROCK_THROTTLE_CODES = frozenset(
+        [
+            "ThrottlingException",
+            "RequestLimitExceeded",
+            "Throttling",
+            "RequestThrottled",
+            "TooManyRequestsException",
+            "ProvisionedThroughputExceededException",
+        ]
+    )
+    _BEDROCK_TRANSIENT_CODES = frozenset(
+        [
+            "TransactionInProgressException",
+            "RequestTimeout",
+            "ServiceUnavailable",
+            "ServiceUnavailableException",
+        ]
+    )
+
     @override
-    def should_retry(self, ex: Exception) -> bool:
+    def should_retry(self, ex: Exception) -> bool | RetryDecision:
         from botocore.exceptions import ClientError
 
-        # Look for an explicit throttle exception
         if isinstance(ex, ClientError):
             error_code = ex.response.get("Error", {}).get("Code", "")
-            return error_code in [
-                "ThrottlingException",
-                "RequestLimitExceeded",
-                "Throttling",
-                "RequestThrottled",
-                "TooManyRequestsException",
-                "ProvisionedThroughputExceededException",
-                "TransactionInProgressException",
-                "RequestTimeout",
-                "ServiceUnavailable",
-            ]
-        else:
-            return False
+            if error_code in self._BEDROCK_THROTTLE_CODES:
+                # AWS doesn't include Retry-After on ThrottlingException — fall
+                # back to the controller's configured cooldown floor.
+                return RetryDecision.rate_limit()
+            if error_code in self._BEDROCK_TRANSIENT_CODES:
+                return RetryDecision.transient()
+        return RetryDecision.no()
 
     @override
     def collapse_user_messages(self) -> bool:
@@ -365,13 +440,6 @@ class BedrockAPI(ModelAPI):
         return f"{provider}/{name}" if provider else name
 
     @override
-    def emulate_reasoning_history(self) -> bool:
-        # claude needs reasoning history emulation because the reasoning signature doesn't
-        # make it all the way through the converse api (so when we try to replay it there is
-        # an error from claude indicating the signature was missing)
-        return self.is_claude()
-
-    @override
     def is_auth_failure(self, ex: Exception) -> bool:
         from botocore.exceptions import ClientError
 
@@ -385,10 +453,130 @@ class BedrockAPI(ModelAPI):
         return False
 
     def is_gpt_oss(self) -> bool:
-        return "gpt-oss" in self.model_name
+        return "gpt-oss" in self.model_family().lower()
 
     def is_claude(self) -> bool:
-        return "claude" in self.model_name
+        return "claude" in self.model_family().lower()
+
+    def is_nova(self) -> bool:
+        return "nova" in self.model_family().lower()
+
+    def _is_claude_4_x(self, x: int) -> bool:
+        # bedrock model ids look like
+        # `anthropic.claude-opus-4-7-20260101-v1:0` or
+        # `eu.anthropic.claude-opus-4-7-...` for cross-region inference profiles.
+        return (
+            re.search(r"claude-[a-zA-Z]+-4-" + str(x), self.model_family()) is not None
+        )
+
+    def is_claude_3(self) -> bool:
+        return (
+            self.is_claude()
+            and re.search(r"claude-3-[a-zA-Z]", self.model_family()) is not None
+        )
+
+    def is_claude_3_5(self) -> bool:
+        return self.is_claude() and "claude-3-5-" in self.model_family()
+
+    def is_claude_4_0(self) -> bool:
+        """Mirrors `is_claude_4_0` in the native anthropic provider.
+
+        Claude 4.0 ids carry a release date where later minors carry a minor
+        version (`anthropic.claude-opus-4-20250514-v1:0` vs
+        `anthropic.claude-sonnet-4-6-20260101-v1:0`), so they must be matched
+        on the date form or the "unrecognised future minor" fallbacks below
+        misclassify them as 4.6+/4.7+ and emit adaptive thinking on a model
+        that only accepts `budget_tokens`.
+        """
+        return self._is_claude_4_x(0) or (
+            re.search(r"claude-[a-zA-Z]+-4[-@]20\d{6}", self.model_family()) is not None
+        )
+
+    def is_claude_4_6_or_later(self) -> bool:
+        """Mirrors `is_claude_frontier` in the native anthropic provider.
+
+        Claude 4.6 was the first Claude on which Bedrock supports adaptive
+        thinking (`{"thinking": {"type": "adaptive"}}` + `output_config`).
+        Assume future unrecognised claude-4 minor versions keep adaptive.
+        """
+        if not self.is_claude():
+            return False
+        if self._is_claude_4_x(6) or self._is_claude_4_x(7):
+            return True
+        # future claude 4 minor not yet recognised
+        if re.search(r"claude-[a-zA-Z]+-4-", self.model_family()):
+            recognised = self.is_claude_4_0() or any(
+                self._is_claude_4_x(x) for x in (1, 5, 6, 7)
+            )
+            if not recognised:
+                return True
+        return False
+
+    def is_claude_4_7_or_later(self) -> bool:
+        # mirrors the gating used in the native anthropic provider:
+        # claude 4.7+ runs adaptive-thinking-only and rejects temperature /
+        # top_p / top_k. assume future minor versions of claude 4 keep the
+        # 4.7 capability set unless a specific older minor is matched.
+        if not self.is_claude():
+            return False
+        if self._is_claude_4_x(7):
+            return True
+        # claude 5 (e.g. anthropic.claude-opus-5, anthropic.claude-fable-5)
+        # shares the 4.7+ capability set (adaptive-thinking-only, no sampling
+        # params). names with a digit before the trailing -5 (claude-haiku-4-5)
+        # do not match.
+        if re.search(r"claude-[a-zA-Z]+-5", self.model_family()):
+            return True
+        # future claude 4 minor not yet recognised
+        if re.search(r"claude-[a-zA-Z]+-4-", self.model_family()):
+            recognised = self.is_claude_4_0() or any(
+                self._is_claude_4_x(x) for x in (1, 5, 6)
+            )
+            if not recognised:
+                return True
+        return False
+
+    def is_thinking_model(self) -> bool:
+        """Mirrors the native anthropic provider — claude-3 / claude-3.5 don't think."""
+        return self.is_claude() and not self.is_claude_3() and not self.is_claude_3_5()
+
+    def is_using_thinking(self, config: GenerateConfig) -> bool:
+        """Mirrors anthropic.is_using_thinking for Bedrock.
+
+        Thinking is active when the model supports thinking AND either
+        `reasoning_tokens` is set or `reasoning_effort` resolves to a non-None
+        adaptive effort.
+        """
+        if not self.is_thinking_model():
+            return False
+        if config.reasoning_tokens is not None:
+            return True
+        return self.effort_from_reasoning_effort(config) is not None
+
+    def effort_from_reasoning_effort(self, config: GenerateConfig) -> str | None:
+        """Mirrors anthropic.effort_from_reasoning_effort for Bedrock.
+
+        Returns a `low|medium|high|xhigh|max` effort string when
+        `reasoning_effort` is set on a Claude model that supports adaptive
+        thinking (4.6+). Otherwise None.
+        """
+        if (
+            config.reasoning_effort is not None
+            and config.reasoning_effort != "none"
+            and self.is_claude_4_6_or_later()
+        ):
+            match config.reasoning_effort:
+                case "low" | "minimal":
+                    return "low"
+                case "medium":
+                    return "medium"
+                case "high":
+                    return "high"
+                case "xhigh":
+                    return "xhigh" if self.is_claude_4_7_or_later() else "high"
+                case "max":
+                    return "max"
+        return None
 
     async def generate(
         self,
@@ -406,6 +594,8 @@ class BedrockAPI(ModelAPI):
             service_name="bedrock-runtime",
             endpoint_url=self.base_url,
             config=Config(
+                read_timeout=self.read_timeout,
+                connect_timeout=self.connect_timeout,
                 retries=dict(mode="adaptive"),
                 user_agent_extra=self._http_hooks.user_agent_extra(request_id),
             ),
@@ -421,15 +611,47 @@ class BedrockAPI(ModelAPI):
                 )
 
             # Resolve the input messages into converse messages
-            system, messages = await converse_messages(input)
+            system, messages = await converse_messages(
+                input, emulate_reasoning=self.is_claude()
+            )
+
+            # Claude 4.7+ runs adaptive-thinking-only and rejects sampling
+            # parameters; other thinking-enabled Claude models also reject
+            # sampling params while thinking is on. Mirror the gating used
+            # in the native anthropic provider (see anthropic.py L773-L775).
+            # See issues #3765, #3766.
+            forbid_sampling_params = self.is_claude_4_7_or_later() or (
+                self.is_claude() and self.is_using_thinking(config)
+            )
 
             # additional model request fields
-            additionalModelRequestFields: dict[str, Any] = {}
-            if config.top_k:
-                additionalModelRequestFields["top_k"] = config.top_k
-            additionalModelRequestFields = (
-                additionalModelRequestFields | self.reasoning_config(config)
+            additionalModelRequestFields = self._additional_model_request_fields(
+                config, forbid_sampling_params
             )
+            reasoning_cfg = self.reasoning_config(config)
+            additionalModelRequestFields = additionalModelRequestFields | reasoning_cfg
+
+            # Nova with reasoning at "high" effort requires maxTokens to be unset.
+            # Lower effort levels ("low", "medium") still accept maxTokens, so we
+            # must only omit it for the "high" case. See issue #3767.
+            nova_high_effort_reasoning = (
+                self.is_nova()
+                and reasoning_cfg.get("reasoningConfig", {}).get("maxReasoningEffort")
+                == "high"
+            )
+
+            # Gate temperature / top_p for adaptive-thinking-only models.
+            if forbid_sampling_params and config.temperature is not None:
+                warn_once(logger, self._sampling_param_warning("temperature"))
+                inference_temperature: float | None = None
+            else:
+                inference_temperature = config.temperature
+
+            if forbid_sampling_params and config.top_p is not None:
+                warn_once(logger, self._sampling_param_warning("top_p"))
+                inference_top_p: float | None = None
+            else:
+                inference_top_p = config.top_p
 
             # Make the request
             request = ConverseClientConverseRequest(
@@ -437,23 +659,20 @@ class BedrockAPI(ModelAPI):
                 messages=messages,
                 system=system,
                 inferenceConfig=ConverseInferenceConfig(
-                    maxTokens=config.max_tokens,
-                    temperature=config.temperature,
-                    topP=config.top_p,
+                    maxTokens=None if nova_high_effort_reasoning else config.max_tokens,
+                    temperature=inference_temperature,
+                    topP=inference_top_p,
                     stopSequences=config.stop_seqs,
                 ),
                 additionalModelRequestFields=additionalModelRequestFields,
                 toolConfig=tool_config,
             )
 
-            def model_call(response: dict[str, Any] = {}) -> ModelCall:
-                return ModelCall.create(
-                    request=replace_bytes_with_placeholder(
-                        request.model_dump(exclude_none=True)
-                    ),
-                    response=response,
-                    time=self._http_hooks.end_request(request_id),
-                )
+            model_call = set_active_model_event_call(
+                request=replace_bytes_with_placeholder(
+                    request.model_dump(exclude_none=True)
+                ),
+            )
 
             try:
                 # Process the reponse
@@ -462,18 +681,29 @@ class BedrockAPI(ModelAPI):
                 )
                 converse_response = ConverseResponse(**response)
 
+                model_call.set_response(
+                    response, self._http_hooks.end_request(request_id)
+                )
+
             except ClientError as ex:
+                model_call.set_error(
+                    as_error_response(ex.response),
+                    self._http_hooks.end_request(request_id),
+                )
                 # Look for an explicit validation exception
                 if ex.response["Error"]["Code"] == "ValidationException":
                     response = ex.response["Error"]["Message"].lower()
                     if "too many input tokens" in response or "is too long" in response:
-                        return ModelOutput.from_content(
-                            model=self.model_name,
-                            content=response,
-                            stop_reason="model_length",
+                        return (
+                            ModelOutput.from_content(
+                                model=self.model_name,
+                                content=response,
+                                stop_reason="model_length",
+                            ),
+                            model_call,
                         )
                     else:
-                        return ex, model_call()
+                        return ex, model_call
                 else:
                     raise ex
 
@@ -481,26 +711,155 @@ class BedrockAPI(ModelAPI):
         output = model_output_from_response(self.model_name, converse_response, tools)
 
         # return
-        return output, model_call(response)
+        return output, model_call
+
+    def _sampling_param_warning(self, parameter: str) -> str:
+        return (
+            f"bedrock model '{self.model_name}' does not support the "
+            f"'{parameter}' parameter (adaptive thinking only)."
+        )
+
+    def _additional_model_request_fields(
+        self, config: GenerateConfig, forbid_sampling_params: bool
+    ) -> dict[str, Any]:
+        fields: dict[str, Any] = {}
+
+        if config.top_k:
+            if forbid_sampling_params:
+                warn_once(logger, self._sampling_param_warning("top_k"))
+            elif self.is_nova():
+                fields["inferenceConfig"] = {"topK": config.top_k}
+            else:
+                fields["top_k"] = config.top_k
+
+        if config.response_schema is not None:
+            schema_format = self._output_config_format(config)
+            if schema_format is not None:
+                fields.setdefault("output_config", {})["format"] = schema_format
+            else:
+                warn_once(
+                    logger,
+                    f"bedrock model '{self.model_name}' does not support "
+                    "structured output (response_schema); ignoring it.",
+                )
+
+        return fields
+
+    def _output_config_format(self, config: GenerateConfig) -> dict[str, Any] | None:
+        """Build `output_config.format` from `config.response_schema`.
+
+        Claude on Bedrock honours `output_config.format`, the Converse-API
+        analogue of the native Anthropic provider's `output_format`. Other
+        Bedrock models don't support it, so None is returned for them (and for
+        a config carrying no schema) and the caller warns rather than silently
+        dropping the user's schema.
+
+        `output_config` is also where reasoning writes `effort`, and the two
+        field dicts are combined with a shallow union in `generate()`. Both
+        producers therefore emit the format entry so that neither wins the
+        union at the other's expense. See issue #4097 and PR #4020.
+        """
+        if config.response_schema is None or not self.is_claude():
+            return None
+
+        schema = config.response_schema.json_schema.model_copy(deep=True)
+        _lock_object_additional_properties(schema)
+        return {
+            "type": "json_schema",
+            "schema": json_schema_dump(schema, exclude=JSON_SCHEMA_EXTENDED_FIELDS),
+        }
 
     def reasoning_config(self, config: GenerateConfig) -> dict[str, Any]:
         if self.is_gpt_oss():
             if config.reasoning_effort is not None:
                 return {"reasoning_effort": config.reasoning_effort}
         elif self.is_claude():
-            if config.reasoning_tokens is not None:
+            return self._claude_reasoning_config(config)
+        elif self.is_nova():
+            if config.reasoning_effort is not None:
                 return {
-                    "reasoning_config": {
+                    "reasoningConfig": {
                         "type": "enabled",
-                        "budget_tokens": config.reasoning_tokens,
+                        "maxReasoningEffort": config.reasoning_effort,
                     }
                 }
 
         return {}
 
+    def _claude_reasoning_config(self, config: GenerateConfig) -> dict[str, Any]:
+        """Build the Claude `additionalModelRequestFields` for thinking + effort.
+
+        Mirrors the native anthropic provider (see `anthropic.py` ~L800-L825):
+
+        - Adaptive thinking (`{"thinking": {"type": "adaptive"},
+          "output_config": {"effort": ...}}`) on Claude 4.6+ whenever
+          `reasoning_effort` resolves to an adaptive effort.
+        - Budgeted thinking (`{"thinking": {"type": "enabled",
+          "budget_tokens": N}}`) on pre-4.6 Claude when `reasoning_tokens`
+          is set.
+        - Claude 4.7+ deprecates manual `budget_tokens` thinking; if
+          `reasoning_tokens` is set on 4.7+, promote to adaptive with
+          `effort="high"`.
+        - `config.effort` independently emits `output_config.effort` with
+          the same version-gated `max`/`xhigh` -> `high` demotions used by
+          the native anthropic provider.
+
+        Claude 4.0 ids are budget-only and never emit adaptive thinking; they
+        carry a date rather than a minor version, so `is_claude_4_0` matches
+        them explicitly (see `is_claude_4_6_or_later`).
+
+        Whenever an `output_config` is emitted it also carries the structured
+        output `format`, since `output_config` is shared with
+        `_additional_model_request_fields` and the two are shallow-merged.
+
+        The wrapper key is `"thinking"` (not `"reasoning_config"`).
+        AWS Bedrock's Anthropic passthrough expects `"thinking"`; the prior
+        `"reasoning_config"` wrapper was silently ignored. See issue #3765.
+        """
+        fields: dict[str, Any] = {}
+
+        # effort (independent of thinking)
+        if config.effort is not None:
+            effort = config.effort
+            if effort == "max" and not self.is_claude_4_6_or_later():
+                effort = "high"
+            if effort == "xhigh" and not self.is_claude_4_7_or_later():
+                effort = "high"
+            fields["output_config"] = {"effort": effort}
+
+        # thinking
+        if self.is_using_thinking(config):
+            reasoning_effort = self.effort_from_reasoning_effort(config)
+            if reasoning_effort is not None:
+                # adaptive: claude 4.6+ with reasoning_effort
+                fields["thinking"] = {"type": "adaptive"}
+                # reasoning_effort takes precedence over effort (matches
+                # anthropic.py L815-L816)
+                fields["output_config"] = {"effort": reasoning_effort}
+            elif config.reasoning_tokens is not None:
+                if self.is_claude_4_7_or_later():
+                    # 4.7+ rejects budget_tokens thinking; promote to adaptive.
+                    fields["thinking"] = {"type": "adaptive"}
+                    fields.setdefault("output_config", {"effort": "high"})
+                else:
+                    fields["thinking"] = {
+                        "type": "enabled",
+                        "budget_tokens": config.reasoning_tokens,
+                    }
+
+        # `generate()` shallow-merges these fields over the ones built by
+        # `_additional_model_request_fields()`, so an `output_config` carrying
+        # only `effort` would replace the structured-output entry wholesale.
+        if "output_config" in fields:
+            schema_format = self._output_config_format(config)
+            if schema_format is not None:
+                fields["output_config"]["format"] = schema_format
+
+        return fields
+
 
 async def converse_messages(
-    messages: list[ChatMessage],
+    messages: list[ChatMessage], emulate_reasoning: bool = False
 ) -> Tuple[list[ConverseSystemContent] | None, list[ConverseMessage]]:
     # Split up system messages and input messages
     system_messages: list[ChatMessage] = []
@@ -513,7 +872,7 @@ async def converse_messages(
 
     # input messages
     non_system: list[ConverseMessage] = await as_converse_chat_messages(
-        non_system_messages
+        non_system_messages, emulate_reasoning
     )
 
     # system messages
@@ -559,6 +918,9 @@ def model_output_from_response(
             content=content, tool_calls=tool_calls, model=model, source="generate"
         ),
         stop_reason=message_stop_reason(response.stopReason),
+        stop_details=collect_stop_details(
+            "bedrock", logger, lambda: bedrock_stop_details(response)
+        ),
     )
 
     # Compute usage
@@ -608,6 +970,67 @@ def message_stop_reason(
             return "unknown"
 
 
+def _bedrock_guardrail_assessments(trace: dict[str, Any]) -> list[dict[str, Any]]:
+    """Flatten guardrail input/output assessments from a Converse `trace`."""
+    guardrail = trace.get("guardrail")
+    if not isinstance(guardrail, dict):
+        return []
+    assessments: list[dict[str, Any]] = []
+    # inputAssessment: {guardrailId: assessment}
+    input_assessment = guardrail.get("inputAssessment")
+    if isinstance(input_assessment, dict):
+        assessments.extend(v for v in input_assessment.values() if isinstance(v, dict))
+    # outputAssessments: {guardrailId: [assessment, ...]}
+    output_assessments = guardrail.get("outputAssessments")
+    if isinstance(output_assessments, dict):
+        for value in output_assessments.values():
+            if isinstance(value, list):
+                assessments.extend(a for a in value if isinstance(a, dict))
+            elif isinstance(value, dict):
+                assessments.append(value)
+    return assessments
+
+
+def bedrock_stop_details(response: ConverseResponse) -> StopDetails | None:
+    """Extract guardrail/content-filter detail from a Converse response.
+
+    The guardrail `trace` is only populated when a guardrail was configured with
+    tracing enabled; otherwise there is no per-category detail to report.
+    """
+    if response.stopReason not in ("guardrail_intervened", "content_filtered"):
+        return None
+    trace = response.trace or {}
+    categories: list[StopCategory] = []
+    for assessment in _bedrock_guardrail_assessments(trace):
+        # content policy: harm categories with a confidence level
+        content_policy = assessment.get("contentPolicy")
+        if isinstance(content_policy, dict):
+            for f in content_policy.get("filters", []) or []:
+                if isinstance(f, dict) and (
+                    f.get("action") == "BLOCKED" or f.get("detected")
+                ):
+                    confidence = f.get("confidence")
+                    categories.append(
+                        StopCategory(
+                            category=str(f.get("type", "unknown")),
+                            level=str(confidence) if confidence else None,
+                        )
+                    )
+        # topic policy: named denied topics
+        topic_policy = assessment.get("topicPolicy")
+        if isinstance(topic_policy, dict):
+            for t in topic_policy.get("topics", []) or []:
+                if isinstance(t, dict) and (
+                    t.get("action") == "BLOCKED" or t.get("detected")
+                ):
+                    name = t.get("name")
+                    if name:
+                        categories.append(StopCategory(category=str(name)))
+    if not categories:
+        return None
+    return StopDetails(type=response.stopReason, categories=categories)
+
+
 def as_converse_system_messages(
     messages: list[ChatMessage],
 ) -> list[ConverseSystemContent]:
@@ -617,18 +1040,18 @@ def as_converse_system_messages(
 
 
 async def as_converse_chat_messages(
-    messages: list[ChatMessage],
+    messages: list[ChatMessage], emulate_reasoning: bool = False
 ) -> list[ConverseMessage]:
     result: list[ConverseMessage] = []
     for message in messages:
-        converse_message = await converse_chat_message(message)
+        converse_message = await converse_chat_message(message, emulate_reasoning)
         if converse_message is not None:
             result.extend(converse_message)
     return collapse_consecutive_messages(result)
 
 
 async def converse_chat_message(
-    message: ChatMessage,
+    message: ChatMessage, emulate_reasoning: bool = False
 ) -> list[ConverseMessage] | None:
     if isinstance(message, ChatMessageSystem):
         raise ValueError("System messages should be processed separately for Converse")
@@ -641,24 +1064,35 @@ async def converse_chat_message(
         ]
     elif isinstance(message, ChatMessageAssistant):
         if message.tool_calls:
-            # The assistant is calling tools, process those
-            results: list[ConverseMessage] = []
+            # The assistant is calling tools. Preserve any text/reasoning the
+            # model emitted in the same turn (mirroring the native Anthropic
+            # provider) rather than dropping it, then append the toolUse blocks
+            # in a single assistant message. The Converse API accepts text and
+            # toolUse content blocks side by side.
+            content: list[ConverseMessageContent] = []
+            if message.content:
+                content = [
+                    c
+                    for c in await converse_contents(message.content, emulate_reasoning)
+                    if c.text != NO_CONTENT
+                ]
             for tool_call in message.tool_calls:
-                tool_use = ConverseToolUse(
-                    toolUseId=tool_call.id,
-                    name=tool_call.function,
-                    input=tool_call.arguments,
+                content.append(
+                    ConverseMessageContent(
+                        toolUse=ConverseToolUse(
+                            toolUseId=tool_call.id,
+                            name=tool_call.function,
+                            input=tool_call.arguments,
+                        )
+                    )
                 )
-                m = ConverseMessage(
-                    role="assistant", content=[ConverseMessageContent(toolUse=tool_use)]
-                )
-                results.append(m)
-            return results
+            return [ConverseMessage(role="assistant", content=content)]
         else:
             # Simple assistant message
             return [
                 ConverseMessage(
-                    role="assistant", content=await converse_contents(message.content)
+                    role="assistant",
+                    content=await converse_contents(message.content, emulate_reasoning),
                 )
             ]
     elif isinstance(message, ChatMessageTool):
@@ -686,7 +1120,7 @@ async def converse_chat_message(
                 if c.type == "text":
                     tool_result_content.append(ConverseToolResultContent(text=c.text))
                 elif c.type == "image":
-                    image_data, image_type = await file_as_data(c.image)
+                    image_data, image_type = inline_media_data(c.image, "image")
                     tool_result_content.append(
                         ConverseToolResultContent(
                             image=ConverseImage(
@@ -717,7 +1151,7 @@ async def converse_chat_message(
 
 
 async def converse_contents(
-    content: list[Content] | str,
+    content: list[Content] | str, emulate_reasoning: bool = False
 ) -> list[ConverseMessageContent]:
     if isinstance(content, str):
         return [ConverseMessageContent(text=content)]
@@ -725,7 +1159,7 @@ async def converse_contents(
         result: list[ConverseMessageContent] = []
         for c in content:
             if c.type == "image":
-                image_data, image_type = await file_as_data(c.image)
+                image_data, image_type = inline_media_data(c.image, "image")
                 result.append(
                     ConverseMessageContent(
                         image=ConverseImage(
@@ -737,13 +1171,19 @@ async def converse_contents(
             elif c.type == "text":
                 result.append(ConverseMessageContent(text=c.text))
             elif c.type == "reasoning":
-                result.append(
-                    ConverseMessageContent(
-                        reasoningContent=ConverseReasoningContent(
-                            reasoningText=ConverseReasoningText(text=c.reasoning)
+                # claude needs emulation because signatures aren't propagated
+                if emulate_reasoning:
+                    result.append(
+                        ConverseMessageContent(text=reasoning_to_think_tag(c))
+                    )
+                else:
+                    result.append(
+                        ConverseMessageContent(
+                            reasoningContent=ConverseReasoningContent(
+                                reasoningText=ConverseReasoningText(text=c.reasoning)
+                            )
                         )
                     )
-                )
             else:
                 raise RuntimeError(f"Unsupported content type {c.type}")
 
@@ -821,8 +1261,9 @@ def converse_tools(tools: list[ToolInfo]) -> list[ConverseTool] | None:
             name=tool.name,
             description=tool.description,
             inputSchema={
-                "json": tool.parameters.model_dump(
-                    exclude_none=True, exclude={"additionalProperties"}
+                "json": json_schema_dump(
+                    tool.parameters,
+                    exclude={"additionalProperties"},
                 )
             },
         )

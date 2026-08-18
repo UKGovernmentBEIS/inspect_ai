@@ -8,7 +8,7 @@ from pydantic import JsonValue
 from pydantic_core import to_jsonable_python
 from typing_extensions import override
 
-from inspect_ai._util.text import truncate_lines
+from inspect_ai._util.text import truncate_lines, truncate_string_to_bytes
 from inspect_ai.util._subprocess import ExecResult
 
 from .environment import (
@@ -17,11 +17,22 @@ from .environment import (
     SandboxEnvironment,
     SandboxEnvironmentConfigType,
 )
+from .limits import OutputLimitExceededError, SandboxEnvironmentLimits
 from .service import SERVICES_DIR
+
+
+class SandboxTimeoutError(TimeoutError):
+    """Raised when a sandbox operation times out."""
+
+    def __init__(self, message: str, truncated_output: str | None = None) -> None:
+        super().__init__(message)
+        self.truncated_output = truncated_output
+        """Partial command output captured before the timeout, if available."""
 
 
 class SandboxEnvironmentProxy(SandboxEnvironment):
     def __init__(self, sandbox: SandboxEnvironment) -> None:
+        super().__init__()
         self._sandbox = sandbox
         self._events = True
 
@@ -31,7 +42,7 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
         cmd: list[str],
         input: str | bytes | None = None,
         cwd: str | None = None,
-        env: dict[str, str] = {},
+        env: dict[str, str] | None = None,
         user: str | None = None,
         timeout: int | None = None,
         timeout_retry: bool = True,
@@ -50,7 +61,7 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
             cmd=cmd,
             input=input,
             cwd=cwd,
-            env=env,
+            env=env or {},
             user=user,
             timeout=timeout,
             timeout_retry=timeout_retry,
@@ -59,7 +70,12 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
             params["concurrency"] = concurrency
 
         # make call
-        result = await self._sandbox.exec(**params)
+        try:
+            result = await self._sandbox.exec(**params)
+        except TimeoutError as ex:
+            raise SandboxTimeoutError(
+                str(ex), truncated_output=getattr(ex, "truncated_output", None)
+            ) from ex
 
         # skip sandbox service events
         if any(SERVICES_DIR in c for c in cmd):
@@ -96,8 +112,30 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
                 )
             )
 
+        # verify output size
+        SandboxEnvironmentProxy.verify_exec_result_size(result)
+
         # return result
         return result
+
+    @staticmethod
+    def verify_exec_result_size(exec_result: ExecResult[str]) -> None:
+        """Verify the size of the output streams in an ``ExecResult``.
+
+        Raises:
+            OutputLimitExceededError: If an output stream exceeds the limit.
+        """
+        limit = SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE
+        stdout_truncated = truncate_string_to_bytes(exec_result.stdout, limit)
+        stderr_truncated = truncate_string_to_bytes(exec_result.stderr, limit)
+        if not stdout_truncated and not stderr_truncated:
+            return
+        stdout = stdout_truncated.output if stdout_truncated else exec_result.stdout
+        stderr = stderr_truncated.output if stderr_truncated else exec_result.stderr
+        raise OutputLimitExceededError(
+            limit_str=SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE_STR,
+            truncated_output=f"{stdout}{stderr}",
+        )
 
     @override
     async def write_file(self, file: str, contents: str | bytes) -> None:
@@ -107,7 +145,10 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
         timestamp = datetime.now(timezone.utc)
 
         # make call
-        await self._sandbox.write_file(file, contents)
+        try:
+            await self._sandbox.write_file(file, contents)
+        except TimeoutError as ex:
+            raise SandboxTimeoutError(str(ex)) from ex
 
         # yield event
         if self._events:
@@ -135,10 +176,13 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
         timestamp = datetime.now(timezone.utc)
 
         # make call
-        if text is True:
-            output: str | bytes = await self._sandbox.read_file(file, True)
-        else:
-            output = await self._sandbox.read_file(file, False)
+        try:
+            if text is True:
+                output: str | bytes = await self._sandbox.read_file(file, True)
+            else:
+                output = await self._sandbox.read_file(file, False)
+        except TimeoutError as ex:
+            raise SandboxTimeoutError(str(ex)) from ex
 
         # yield event
         if self._events:

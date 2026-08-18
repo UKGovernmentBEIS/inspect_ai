@@ -65,12 +65,15 @@ disallow_untyped_decorators = true
 extra_checks = true
 disable_error_code = "unused-ignore"
 
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+
 [tool.check-wheel-contents]
 ignore = ["W002", "W009"]
 
 [project]
 name = "inspect_sandbox_tools"
-version = "1.2.0"
+version = "1.2.1"
 description = "Sandbox container tool code for inspect_ai"
 authors = [{ name = "UK AI Security Institute" }]
 readme = "README.md"
@@ -93,7 +96,9 @@ dependencies = [
     "aiohttp",
     "httpx",
     "jsonrpcserver",
-    "mcp",
+    # mcp_server_session.py uses mcp 1.x-only APIs (JSONRPCMessage.model_validate_json
+    # and .root); keep below 2.x until that code is ported to the 2.x API
+    "mcp>=1.10.0,<2",
     "packaging",
     "pydantic",
     "returns",
@@ -115,6 +120,13 @@ dev = [
     "towncrier",
     "types-psutil",
     "pytest",
+    "pytest-asyncio",
+    "pytest-dotenv",
+    # Provider SDKs the model-proxy tests point at the proxy to exercise it
+    # end-to-end (dummy keys + mock bridge service; no real API access).
+    "anthropic",
+    "openai",
+    "google-genai",
 ]
 
 dist = ["twine", "build"]

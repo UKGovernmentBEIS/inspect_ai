@@ -28,7 +28,8 @@ RUN apt-get update && \
       # A command-line tool for taking screenshots.
       scrot \
       # A suite for image manipulation — needed for scaling images.
-      imagemagick && \
+      imagemagick \
+      sudo && \
     apt-get clean
 
 # Userland apt-get'able apps

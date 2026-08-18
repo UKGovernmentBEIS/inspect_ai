@@ -1,5 +1,6 @@
 ---
 title: Tool Basics
+llms-description: Tools extend the capabilities of models by registering Python functions for them to call. How to create custom tools.
 ---
 
 ## Overview
@@ -36,7 +37,7 @@ Tools exposed by MCP servers can be easily integrated into Inspect. Learn more i
 
 - [Standard Tools](tools-standard.qmd) describes Inspect's built-in tools for code execution, text editing computer use, web search, and web browsing.
 
-- [MCP Tools](tools-mcp.qmd) covers how to intgrate tools from the growing list of [Model Context Protocol](https://modelcontextprotocol.io/introduction) providers.
+- [MCP Tools](tools-mcp.qmd) covers how to integrate tools from the growing list of [Model Context Protocol](https://modelcontextprotocol.io/introduction) providers.
 
 - [Custom Tools](tools-custom.qmd) provides details on more advanced custom tool features including sandboxing, error handling, and dynamic tool definitions. 
 

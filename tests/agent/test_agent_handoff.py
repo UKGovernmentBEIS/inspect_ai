@@ -207,7 +207,11 @@ def test_agent_handoff_tool_event():
     )
     assert tool_event
     model_event = next(
-        (event for event in reversed(log.samples[0].events) if event.event == "model")
+        (
+            event
+            for event in reversed(log.samples[0].events)
+            if event.event == "model" and event.model == "mockllm/model"
+        )
     )
     assert model_event
     assert model_event.input[0].text == "What time is it?"

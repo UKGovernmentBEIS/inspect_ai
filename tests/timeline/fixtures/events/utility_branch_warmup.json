@@ -1,0 +1,267 @@
+{
+  "description": "A branch (reroll trajectory) whose direct content contains a warmup call. Branches are trajectories like any span: both implementations must process a branch's own events, wrapping the warmup as a utility span inside the branch.",
+  "events": [
+    {
+      "event": "span_begin",
+      "uuid": "sb-solvers",
+      "id": "solvers",
+      "name": "solvers",
+      "type": "solvers",
+      "parent_id": null,
+      "timestamp": "2026-01-01T00:00:01Z"
+    },
+    {
+      "event": "span_begin",
+      "uuid": "sb-bridge",
+      "id": "bridge",
+      "name": "bridge",
+      "type": "agent",
+      "parent_id": "solvers",
+      "timestamp": "2026-01-01T00:00:02Z"
+    },
+    {
+      "event": "model",
+      "uuid": "m1",
+      "span_id": "bridge",
+      "timestamp": "2026-01-01T00:00:03Z",
+      "completed": "2026-01-01T00:00:03Z",
+      "model": "mockllm/model",
+      "input": [
+        {
+          "role": "system",
+          "content": "You are the main assistant."
+        },
+        {
+          "role": "user",
+          "content": "go"
+        }
+      ],
+      "tools": [],
+      "tool_choice": "none",
+      "config": {},
+      "output": {
+        "model": "mockllm/model",
+        "choices": [
+          {
+            "message": {
+              "role": "assistant",
+              "content": "",
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "function": "search",
+                  "arguments": {
+                    "query": "1 + 1"
+                  }
+                }
+              ]
+            },
+            "stop_reason": "tool_calls"
+          }
+        ],
+        "usage": {
+          "input_tokens": 5,
+          "output_tokens": 1,
+          "total_tokens": 6
+        }
+      }
+    },
+    {
+      "event": "tool",
+      "uuid": "t1",
+      "span_id": "bridge",
+      "timestamp": "2026-01-01T00:00:04Z",
+      "completed": "2026-01-01T00:00:04Z",
+      "id": "call_1",
+      "function": "search",
+      "arguments": {
+        "query": "1 + 1"
+      },
+      "result": "found it",
+      "events": []
+    },
+    {
+      "event": "span_begin",
+      "uuid": "sb-br1",
+      "id": "br1",
+      "name": "branch 1",
+      "type": "branch",
+      "parent_id": "bridge",
+      "timestamp": "2026-01-01T00:00:05Z"
+    },
+    {
+      "event": "branch",
+      "uuid": "b1",
+      "span_id": "br1",
+      "timestamp": "2026-01-01T00:00:06Z",
+      "from_anchor": "a1"
+    },
+    {
+      "event": "model",
+      "uuid": "w1",
+      "span_id": "br1",
+      "timestamp": "2026-01-01T00:00:07Z",
+      "completed": "2026-01-01T00:00:07Z",
+      "model": "mockllm/model",
+      "input": [
+        {
+          "role": "system",
+          "content": "You are the main assistant."
+        },
+        {
+          "role": "user",
+          "content": "warmup"
+        }
+      ],
+      "tools": [],
+      "tool_choice": "none",
+      "config": {
+        "max_tokens": 1
+      },
+      "output": {
+        "model": "mockllm/model",
+        "choices": [
+          {
+            "message": {
+              "role": "assistant",
+              "content": "w"
+            },
+            "stop_reason": "stop"
+          }
+        ],
+        "usage": {
+          "input_tokens": 5,
+          "output_tokens": 1,
+          "total_tokens": 6
+        }
+      }
+    },
+    {
+      "event": "model",
+      "uuid": "m2",
+      "span_id": "br1",
+      "timestamp": "2026-01-01T00:00:08Z",
+      "completed": "2026-01-01T00:00:08Z",
+      "model": "mockllm/model",
+      "input": [
+        {
+          "role": "system",
+          "content": "You are the main assistant."
+        },
+        {
+          "role": "user",
+          "content": "go"
+        }
+      ],
+      "tools": [],
+      "tool_choice": "none",
+      "config": {},
+      "output": {
+        "model": "mockllm/model",
+        "choices": [
+          {
+            "message": {
+              "role": "assistant",
+              "content": "ok"
+            },
+            "stop_reason": "stop"
+          }
+        ],
+        "usage": {
+          "input_tokens": 5,
+          "output_tokens": 1,
+          "total_tokens": 6
+        }
+      }
+    },
+    {
+      "event": "span_end",
+      "uuid": "se-br1",
+      "id": "br1",
+      "timestamp": "2026-01-01T00:00:09Z"
+    },
+    {
+      "event": "model",
+      "uuid": "m3",
+      "span_id": "bridge",
+      "timestamp": "2026-01-01T00:00:10Z",
+      "completed": "2026-01-01T00:00:10Z",
+      "model": "mockllm/model",
+      "input": [
+        {
+          "role": "system",
+          "content": "You are the main assistant."
+        },
+        {
+          "role": "user",
+          "content": "go"
+        }
+      ],
+      "tools": [],
+      "tool_choice": "none",
+      "config": {},
+      "output": {
+        "model": "mockllm/model",
+        "choices": [
+          {
+            "message": {
+              "role": "assistant",
+              "content": "ok"
+            },
+            "stop_reason": "stop"
+          }
+        ],
+        "usage": {
+          "input_tokens": 5,
+          "output_tokens": 1,
+          "total_tokens": 6
+        }
+      }
+    },
+    {
+      "event": "span_end",
+      "uuid": "se-bridge",
+      "id": "bridge",
+      "timestamp": "2026-01-01T00:00:11Z"
+    },
+    {
+      "event": "span_end",
+      "uuid": "se-solvers",
+      "id": "solvers",
+      "timestamp": "2026-01-01T00:00:12Z"
+    }
+  ],
+  "expected": {
+    "init": null,
+    "agent": {
+      "id": "bridge",
+      "name": "main",
+      "event_uuids": [
+        "m1",
+        "t1",
+        "m3"
+      ],
+      "children": [],
+      "branches": [
+        {
+          "branched_from": "a1",
+          "event_uuids": [
+            "b1",
+            "m2"
+          ],
+          "children": [
+            {
+              "id": "utility-w1",
+              "name": "utility",
+              "utility": true,
+              "event_uuids": [
+                "w1"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "scoring": null
+  }
+}

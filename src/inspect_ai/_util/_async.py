@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import inspect
 import os
 import sys
@@ -76,6 +77,51 @@ async def tg_collect(
             raise ex.exceptions[0] from None
 
 
+class Wake:
+    """One-shot wake signal that can be re-armed (set on completion / injection).
+
+    Safe under cooperative scheduling: the only await is on ``wait()``; the
+    re-arm assignment afterwards runs without a yield point, so a concurrent
+    ``set()`` can't be lost between waking and re-arming.
+    """
+
+    def __init__(self) -> None:
+        self._event = anyio.Event()
+
+    def set(self) -> None:
+        self._event.set()
+
+    async def wait(self) -> None:
+        await self._event.wait()
+        self._event = anyio.Event()
+
+
+class aexit_shielded_when(contextlib.AbstractAsyncContextManager[Any]):
+    """Wrap an async context manager so its `__aexit__` runs shielded when `shield()` is True.
+
+    Lets a caller keep `async with X:` syntax while making the inner CM's
+    teardown uninterruptible under a still-cancelled enclosing scope. `shield`
+    is a callable so it can read state that is only set inside the `async with`
+    body (e.g. a `cancelled_error` local that's `None` at construction time
+    and assigned later).
+    """
+
+    def __init__(
+        self,
+        inner: contextlib.AbstractAsyncContextManager[Any],
+        shield: Callable[[], bool],
+    ) -> None:
+        self._inner = inner
+        self._shield = shield
+
+    async def __aenter__(self) -> Any:
+        return await self._inner.__aenter__()
+
+    async def __aexit__(self, exc_type: Any, exc_value: Any, traceback: Any) -> Any:
+        with anyio.CancelScope(shield=self._shield()):
+            return await self._inner.__aexit__(exc_type, exc_value, traceback)
+
+
 async def coro_print_exceptions(
     context: str,
     func: Callable[[Unpack[PosArgsT]], Awaitable[Any]],
@@ -110,28 +156,71 @@ def init_nest_asyncio() -> None:
 
 
 def run_coroutine(coroutine: Coroutine[None, None, T]) -> T:
+    from inspect_ai._util.asyncfiles import AsyncFilesystem
     from inspect_ai._util.platform import running_in_notebook
 
-    if current_async_backend() == "trio":
-        raise RuntimeError("run_coroutine cannot be used with trio")
+    async def _run_with_async_filesystem() -> T:
+        async with AsyncFilesystem():
+            return await coroutine
 
     if running_in_notebook():
+        if current_async_backend() == "trio":
+            raise RuntimeError(
+                "run_coroutine cannot be used from within a running trio task"
+            )
         init_nest_asyncio()
-        return asyncio.run(coroutine)
-    else:
+        return asyncio.run(_run_with_async_filesystem())
+
+    backend = current_async_backend()
+    if backend == "trio":
+        # trio has no nest_asyncio equivalent so we cannot re-enter the
+        # running loop from sync code (callers should use the _async variant)
+        raise RuntimeError(
+            "run_coroutine cannot be used from within a running trio task"
+        )
+    if backend is None:
         try:
-            # this will throw if there is no running loop
+            # sniffio can report no backend from synchronous callbacks even
+            # though an asyncio loop is active.
             asyncio.get_running_loop()
-
-            # initialize nest_asyncio then we are clear to run
-            init_nest_asyncio()
-
         except RuntimeError:
-            # No running event loop so we are clear to run. Exit the exception handler
-            # and run it.
-            pass
+            # No running event loop, so start one on the configured backend.
+            return _anyio_run_released(_run_with_async_filesystem)
+    # Running asyncio loop -- re-enter it via nest_asyncio.
+    init_nest_asyncio()
+    return asyncio.run(_run_with_async_filesystem())
 
-        return asyncio.run(coroutine)
+
+def _anyio_run_released(func: Callable[[], Awaitable[T]]) -> T:
+    """Run `func` on a fresh event loop, then release anyio's per-loop state.
+
+    Without the release step, every call leaks its entire return value.
+    Here's why: anyio keeps per-event-loop state in a global
+    WeakKeyDictionary, `anyio.lowlevel._run_vars`, where the key is the loop
+    itself. Weak keys normally guarantee cleanup — once nothing else
+    references the loop, its entry disappears. But when `func` uses anyio's
+    threadpool, anyio stores the run's root task in that entry, and a task
+    always references the loop it ran on. So the entry's value points back at
+    its own key: the dictionary keeps the task alive, the task keeps the loop
+    alive, and the "weak" entry becomes immortal — along with the task's
+    result, which is our coroutine's return value. Popping the dead loop's
+    entry after the run breaks the cycle so everything can be collected.
+    """
+    from anyio.lowlevel import _run_vars
+
+    loop: asyncio.AbstractEventLoop | None = None
+
+    async def capture_loop_and_run() -> T:
+        nonlocal loop
+        if current_async_backend() == "asyncio":
+            loop = asyncio.get_running_loop()
+        return await func()
+
+    try:
+        return anyio.run(capture_loop_and_run, backend=configured_async_backend())
+    finally:
+        if loop is not None:
+            _run_vars.pop(loop, None)
 
 
 def current_async_backend() -> Literal["asyncio", "trio"] | None:

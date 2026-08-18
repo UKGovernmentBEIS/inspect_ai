@@ -1,17 +1,29 @@
+import tempfile
 from random import randint
 from typing import Generator
 
 import anyio
 import pytest
 from test_helpers.limits import check_limit_event, find_limit_event
-from test_helpers.utils import skip_if_no_docker, skip_if_no_openai, sleep_for_solver
+from test_helpers.utils import (
+    flaky_retry,
+    skip_if_no_docker,
+    skip_if_no_openai,
+    sleep_for_solver,
+)
 
 from inspect_ai import Task, eval
+from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.dataset import Sample
 from inspect_ai.log._log import EvalLog
 from inspect_ai.model._chat_message import ChatMessageUser
 from inspect_ai.model._model import Model, get_model
-from inspect_ai.model._model_output import ModelOutput, ModelUsage
+from inspect_ai.model._model_data.model_data import ModelCost, ModelInfo
+from inspect_ai.model._model_info import clear_model_info_cache, set_model_info
+from inspect_ai.model._model_output import (
+    ModelOutput,
+    ModelUsage,
+)
 from inspect_ai.scorer import match
 from inspect_ai.scorer._metric import Score
 from inspect_ai.scorer._metrics import mean
@@ -20,7 +32,14 @@ from inspect_ai.scorer._target import Target
 from inspect_ai.solver import Generate, TaskState, solver
 from inspect_ai.solver._solver import Solver, generate
 from inspect_ai.util._concurrency import concurrency
-from inspect_ai.util._limit import sample_limits
+from inspect_ai.util._limit import TokenLimit, sample_limits
+
+
+@pytest.fixture(autouse=True)
+def _clear_model_info() -> Generator[None, None, None]:
+    clear_model_info_cache()
+    yield
+    clear_model_info_cache()
 
 
 @solver
@@ -217,6 +236,140 @@ def test_token_limit_does_not_apply_to_scorer():
     assert log.status == "success"
 
 
+def test_output_token_limit():
+    output = ModelOutput.from_content(model="mockllm", content="Hello")
+    output.usage = ModelUsage(input_tokens=10, output_tokens=2, total_tokens=12)
+    model = get_model("mockllm/model", custom_outputs=repeat_forever(output))
+    task = Task(
+        dataset=[Sample(input="Say Hello", target="Hello")],
+        solver=looping_solver(),
+        scorer=match(),
+        token_limit=TokenLimit(tokens=5, type="output"),
+    )
+
+    log = eval(task, model=model)[0]
+    usage = log.stats.model_usage["mockllm/model"]
+    # total tokens exceed 5 on the first generation: only output tokens are
+    # metered, so the limit trips on the 3rd generation (6 output tokens)
+    assert usage.output_tokens == 6
+    assert usage.total_tokens == 36
+    check_limit_event(log, "token")
+    # the config records the decomposed (limit, type) pair
+    assert log.eval.config.token_limit == 5
+    assert log.eval.config.token_limit_type == "output"
+
+
+def test_output_token_limit_string_form():
+    output = ModelOutput.from_content(model="mockllm", content="Hello")
+    output.usage = ModelUsage(input_tokens=10, output_tokens=2, total_tokens=12)
+    model = get_model("mockllm/model", custom_outputs=repeat_forever(output))
+    task = Task(
+        dataset=[Sample(input="Say Hello", target="Hello")],
+        solver=looping_solver(),
+        scorer=match(),
+    )
+
+    log = eval(task, model=model, token_limit="output:5")[0]
+    check_limit_event(log, "token")
+    assert log.eval.config.token_limit == 5
+    assert log.eval.config.token_limit_type == "output"
+
+
+def test_formula_token_limit():
+    output = ModelOutput.from_content(model="mockllm", content="Hello")
+    output.usage = ModelUsage(input_tokens=100, output_tokens=2, total_tokens=102)
+    model = get_model("mockllm/model", custom_outputs=repeat_forever(output))
+    task = Task(
+        dataset=[Sample(input="Say Hello", target="Hello")],
+        solver=looping_solver(),
+        scorer=match(),
+        # meters input*0.1 + output; per generation = 10 + 2 = 12
+        token_limit=TokenLimit(tokens=20, type="(input * 0.1) + output"),
+    )
+
+    log = eval(task, model=model)[0]
+    # gen 1: 12 (<=20); gen 2: 24 (>20) -> trips
+    check_limit_event(log, "token")
+    assert log.eval.config.token_limit == 20
+    assert log.eval.config.token_limit_type == "(input * 0.1) + output"
+
+
+def test_token_limit_type_absent_for_int_limit():
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=repeat_forever(mock_model_output(tokens=7)),
+    )
+    task = Task(
+        dataset=[Sample(input="Say Hello", target="Hello")],
+        solver=looping_solver(),
+        scorer=match(),
+        token_limit=10,
+    )
+
+    log = eval(task, model=model)[0]
+    assert log.eval.config.token_limit == 10
+    assert log.eval.config.token_limit_type is None
+    # serialized config omits the type field entirely (old-log compatibility)
+    assert "token_limit_type" not in log.eval.config.model_dump_json(exclude_none=True)
+
+
+def test_turn_limit():
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=repeat_forever(mock_model_output(tokens=1)),
+    )
+    turn_limit = 2
+    task = Task(
+        dataset=[Sample(input="Say Hello", target="Hello")],
+        solver=looping_solver(),
+        scorer=match(),
+        turn_limit=turn_limit,
+    )
+
+    log = eval(task, model=model)[0]
+    # turn_limit(2) allows 2 generations; the 3rd records the turn and exceeds.
+    total_generations = sum(
+        usage.total_tokens for usage in log.stats.model_usage.values()
+    )
+    assert total_generations == 3
+    check_limit_event(log, "turn")
+    # The limit which halted the sample is recorded on the sample.
+    assert log.samples
+    assert log.samples[0].limit is not None
+    assert log.samples[0].limit.type == "turn"
+    assert log.samples[0].limit.limit == turn_limit
+
+
+def test_turn_limit_does_not_apply_to_scorer():
+    @scorer(metrics=[mean()])
+    def generating_scorer(model: Model) -> Scorer:
+        async def score(state: TaskState, target: Target) -> Score:
+            # Many generations in the scorer must not count against the turn limit.
+            for _ in range(5):
+                await model.generate("Hello")
+            return Score(value=1)
+
+        return score
+
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[mock_model_output(tokens=1) for _ in range(5)],
+    )
+    task = Task(
+        dataset=[Sample(input="Say Hello only.", target="Hello")],
+        solver=[],  # No solvers; straight to scorer.
+        scorer=generating_scorer(model=model),
+        # The turn limit should only apply to the solvers, not the scorer.
+        turn_limit=1,
+    )
+
+    log = eval(task, model=model)[0]
+
+    assert find_limit_event(log) is None
+    assert log.status == "success"
+    assert log.samples[0].scores["generating_scorer"].value == 1
+
+
 def test_time_limit():
     log = eval(Task(solver=sleep_for_solver(3)), model="mockllm/model", time_limit=2)[0]
     check_limit_event(log, "time")
@@ -234,6 +387,7 @@ def test_time_limit_scorer():
 
 
 @skip_if_no_openai
+@flaky_retry(max_retries=3)
 def test_sample_limits_available_to_scorer():
     def check_limits() -> None:
         limits = sample_limits()
@@ -363,3 +517,288 @@ def mock_model_output(tokens: int) -> ModelOutput:
 def repeat_forever(output: ModelOutput) -> Generator[ModelOutput, None, None]:
     while True:
         yield output
+
+
+def test_cost_limit() -> None:
+    set_model_info(
+        "model",
+        ModelInfo(
+            cost=ModelCost(
+                input=1000.0,
+                output=1000.0,
+                input_cache_write=0.0,
+                input_cache_read=0.0,
+            )
+        ),
+    )
+    # 3 input + 4 output = 7 total tokens per call
+    # Cost = (3 * 1000 + 4 * 1000) / 1M = $0.007 per call
+    # Cost limit of $0.01 allows 1 call ($0.007) but not 2 ($0.014)
+    output = ModelOutput.from_content(model="mockllm/model", content="Hello")
+    output.usage = ModelUsage(input_tokens=3, output_tokens=4, total_tokens=7)
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=repeat_forever(output),
+    )
+    task = Task(
+        dataset=[Sample(input="Say Hello", target="Hello")],
+        solver=looping_solver(),
+        scorer=match(),
+    )
+    log = eval(
+        task,
+        model=model,
+        cost_limit=0.01,
+    )[0]
+    check_limit_event(log, "cost")
+
+
+def test_cost_limit_without_cost_data_errors() -> None:
+    with pytest.raises(PrerequisiteError, match="Missing cost data for"):
+        eval(
+            Task(
+                dataset=[Sample(input="hi")],
+                solver=[],
+            ),
+            model="mockllm/model",
+            cost_limit=1.0,
+        )
+
+
+def test_model_without_cost_data_errors() -> None:
+    # Register model info without cost data
+    set_model_info("model", ModelInfo())
+    with pytest.raises(
+        PrerequisiteError,
+        match="Missing cost data for",
+    ):
+        eval(
+            Task(
+                dataset=[Sample(input="hi")],
+                solver=[],
+            ),
+            model="mockllm/model",
+            cost_limit=1.0,
+        )
+
+
+def test_cost_data_without_cost_limit_tracks_cost() -> None:
+    set_model_info(
+        "model",
+        ModelInfo(
+            cost=ModelCost(
+                input=1000.0,
+                output=1000.0,
+                input_cache_write=0.0,
+                input_cache_read=0.0,
+            )
+        ),
+    )
+    output = ModelOutput.from_content(model="mockllm/model", content="Hello")
+    output.usage = ModelUsage(input_tokens=3, output_tokens=4, total_tokens=7)
+    model = get_model("mockllm/model", custom_outputs=[output])
+    task = Task(
+        dataset=[Sample(input="Say Hello", target="Hello")],
+        solver=[generate()],
+        scorer=match(),
+    )
+    log = eval(
+        task,
+        model=model,
+    )[0]
+    assert log.status == "success"
+    # (3 * 1000 + 4 * 1000) / 1_000_000 = 0.007
+    usage = list(log.stats.model_usage.values())[0]
+    assert usage.total_cost == pytest.approx(0.007)
+    assert find_limit_event(log) is None
+
+
+def test_cost_data_keyed_by_full_model_string_tracks_cost() -> None:
+    # Regression for routed providers (together, hf-inference-providers, custom
+    # routed providers): set_model_info / set_model_cost / --model-cost-config key
+    # cost under the user-facing model string, which differs from canonical_name()
+    # when the provider strips a route prefix. mockllm reproduces the mismatch:
+    # str(model) is "mockllm/model" but canonical_name() is "model", so registering
+    # under the full string must still be found when recording usage.
+    set_model_info(
+        "mockllm/model",
+        ModelInfo(
+            cost=ModelCost(
+                input=1000.0,
+                output=1000.0,
+                input_cache_write=0.0,
+                input_cache_read=0.0,
+            )
+        ),
+    )
+    output = ModelOutput.from_content(model="mockllm/model", content="Hello")
+    output.usage = ModelUsage(input_tokens=3, output_tokens=4, total_tokens=7)
+    model = get_model("mockllm/model", custom_outputs=[output])
+    task = Task(
+        dataset=[Sample(input="Say Hello", target="Hello")],
+        solver=[generate()],
+        scorer=match(),
+    )
+    log = eval(
+        task,
+        model=model,
+    )[0]
+    assert log.status == "success"
+    # (3 * 1000 + 4 * 1000) / 1_000_000 = 0.007
+    usage = list(log.stats.model_usage.values())[0]
+    assert usage.total_cost == pytest.approx(0.007)
+    assert find_limit_event(log) is None
+
+
+def test_two_models_both_with_cost_data_tracks_cost() -> None:
+    set_model_info(
+        "model",
+        ModelInfo(
+            cost=ModelCost(
+                input=1000.0,
+                output=1000.0,
+                input_cache_write=0.0,
+                input_cache_read=0.0,
+            )
+        ),
+    )
+    set_model_info(
+        "model2",
+        ModelInfo(
+            cost=ModelCost(
+                input=2000.0,
+                output=2000.0,
+                input_cache_write=0.0,
+                input_cache_read=0.0,
+            )
+        ),
+    )
+    output1 = ModelOutput.from_content(model="mockllm/model", content="Hello")
+    output1.usage = ModelUsage(input_tokens=3, output_tokens=4, total_tokens=7)
+    output2 = ModelOutput.from_content(model="mockllm/model2", content="Hello")
+    output2.usage = ModelUsage(input_tokens=3, output_tokens=4, total_tokens=7)
+    task = Task(
+        dataset=[Sample(input="Say Hello", target="Hello")],
+        solver=[generate()],
+        scorer=match(),
+    )
+    logs = eval(
+        task,
+        model=[
+            get_model("mockllm/model", custom_outputs=[output1]),
+            get_model("mockllm/model2", custom_outputs=[output2]),
+        ],
+    )
+    assert len(logs) == 2
+    for log in logs:
+        assert log.status == "success"
+        assert find_limit_event(log) is None
+    # (3 * 1000 + 4 * 1000) / 1_000_000 = 0.007
+    cost1 = list(logs[0].stats.model_usage.values())[0].total_cost
+    assert cost1 == pytest.approx(0.007)
+    # (3 * 2000 + 4 * 2000) / 1_000_000 = 0.014
+    cost2 = list(logs[1].stats.model_usage.values())[0].total_cost
+    assert cost2 == pytest.approx(0.014)
+
+
+def test_task_level_cost_limit_without_cost_data_errors() -> None:
+    with pytest.raises(PrerequisiteError, match="Missing cost data for"):
+        eval(
+            Task(
+                dataset=[Sample(input="hi")],
+                solver=[],
+                cost_limit=1.0,
+            ),
+            model="mockllm/model",
+        )
+
+
+def test_task_level_cost_limit() -> None:
+    set_model_info(
+        "model",
+        ModelInfo(
+            cost=ModelCost(
+                input=1000.0,
+                output=1000.0,
+                input_cache_write=0.0,
+                input_cache_read=0.0,
+            )
+        ),
+    )
+    # 3 input + 4 output = 7 total tokens per call
+    # Cost = (3 * 1000 + 4 * 1000) / 1M = $0.007 per call
+    # Cost limit of $0.01 allows 1 call ($0.007) but not 2 ($0.014)
+    output = ModelOutput.from_content(model="mockllm/model", content="Hello")
+    output.usage = ModelUsage(input_tokens=3, output_tokens=4, total_tokens=7)
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=repeat_forever(output),
+    )
+    task = Task(
+        dataset=[Sample(input="Say Hello", target="Hello")],
+        solver=looping_solver(),
+        scorer=match(),
+        cost_limit=0.01,
+    )
+    log = eval(task, model=model)[0]
+    check_limit_event(log, "cost")
+
+
+def test_model_cost_config_file() -> None:
+    # register model info without cost, then use config file to add cost
+    set_model_info("model", ModelInfo())
+    config_yaml = (
+        "model:\n"
+        "    input: 1000.0\n"
+        "    output: 1000.0\n"
+        "    input_cache_write: 0.0\n"
+        "    input_cache_read: 0.0\n"
+    )
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+        f.write(config_yaml)
+        config_path = f.name
+
+    output = ModelOutput.from_content(model="mockllm/model", content="Hello")
+    output.usage = ModelUsage(input_tokens=3, output_tokens=4, total_tokens=7)
+    model = get_model("mockllm/model", custom_outputs=[output])
+    task = Task(
+        dataset=[Sample(input="Say Hello", target="Hello")],
+        solver=[generate()],
+        scorer=match(),
+    )
+    log = eval(
+        task,
+        model=model,
+        model_cost_config=config_path,
+    )[0]
+    assert log.status == "success"
+    usage = list(log.stats.model_usage.values())[0]
+    assert usage.total_cost == pytest.approx(0.007)
+
+
+def test_model_cost_config_dict() -> None:
+    # register model info without cost, then use dict to add cost
+    set_model_info("model", ModelInfo())
+    output = ModelOutput.from_content(model="mockllm/model", content="Hello")
+    output.usage = ModelUsage(input_tokens=3, output_tokens=4, total_tokens=7)
+    model = get_model("mockllm/model", custom_outputs=[output])
+    task = Task(
+        dataset=[Sample(input="Say Hello", target="Hello")],
+        solver=[generate()],
+        scorer=match(),
+    )
+    log = eval(
+        task,
+        model=model,
+        model_cost_config={
+            "model": ModelCost(
+                input=1000.0,
+                output=1000.0,
+                input_cache_write=0.0,
+                input_cache_read=0.0,
+            )
+        },
+    )[0]
+    assert log.status == "success"
+    usage = list(log.stats.model_usage.values())[0]
+    assert usage.total_cost == pytest.approx(0.007)

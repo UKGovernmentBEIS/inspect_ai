@@ -3,15 +3,26 @@ import os
 import re
 from asyncio.subprocess import Process as AsyncIOProcess
 
+import psutil
+
+from ..._util.process_tree import process_group_members, terminate_process_tree
 from ..._util.pseudo_terminal import PseudoTerminal, PseudoTerminalIO
 from ..._util.timeout_event import TimeoutEvent
+from ..._util.user_switch import get_home_dir, make_preexec
 from .tool_types import InteractResult
+
+# Keep accumulated PTY output bounded even if the command writes indefinitely.
+_DEFAULT_MAX_BASH_SESSION_RESPONSE_BYTES = 10 * 1024**2
 
 
 class Process:
     @classmethod
-    async def create(cls) -> "Process":
+    async def create(cls, user: str | None = None) -> "Process":
         pty = await PseudoTerminal.create()
+
+        env = {**os.environ, "TERM": "dumb"}
+        if user is not None:
+            env["HOME"] = get_home_dir(user)
 
         return cls(
             await asyncio.create_subprocess_exec(
@@ -20,8 +31,9 @@ class Process:
                 stdin=pty.subprocess_fd,
                 stdout=pty.subprocess_fd,
                 stderr=pty.subprocess_fd,
-                env={**os.environ, "TERM": "dumb"},
+                env=env,
                 start_new_session=True,
+                preexec_fn=make_preexec(user),
             ),
             pty,
         )
@@ -30,16 +42,27 @@ class Process:
         self._process = process
         self._pty = pty
         self._terminated = False
-        self._output_data: list[str] = []
+        self._output_data = bytearray()
+        self._dropped_output_bytes = 0
+        self._output_limit = _bash_session_output_limit(None)
         self._read_task = asyncio.create_task(self._read_loop())
         self._send_data_event = TimeoutEvent()
         self._idle_timeout = 0.0
+        self._known_descendants: list[psutil.Process] = []
+        self._retired = False
 
     async def interact(
-        self, input_text: str | None, wait_for_output: int, idle_timeout: float
+        self,
+        input_text: str | None,
+        wait_for_output: int,
+        idle_timeout: float,
+        max_output_bytes: int | None,
     ) -> InteractResult:
         self._assert_not_terminated()
         self._send_data_event.clear()
+
+        self._output_limit = _bash_session_output_limit(max_output_bytes)
+        self._trim_output_data()
 
         self._idle_timeout = idle_timeout
         if input_text:
@@ -53,17 +76,16 @@ class Process:
         )
         await self._send_data_event.wait()
 
-        # This isn't 100% correct. Just like the stream chunks could split a
-        # utf-8 character, it could also split these control sequences. The
-        # downside is just that a control sequence could be left in the output.
-        output = strip_control_characters("".join(self._output_data))
+        output = strip_control_characters(self._format_output())
         self._output_data.clear()
+        self._dropped_output_bytes = 0
 
         return output
 
     async def terminate(self, timeout: int = 30) -> None:
         self._assert_not_terminated()
         self._terminated = True
+        self._remember_descendants()
         self._pty.writer.write(b"exit\n")
         try:
             await asyncio.wait_for(self._pty.writer.drain(), timeout=timeout)
@@ -86,15 +108,64 @@ class Process:
         # Clean up the timeout handler
         self._send_data_event.cancel()
 
-        # Ensure the process is terminated
         try:
             self._process.terminate()
             await asyncio.wait_for(self._process.wait(), timeout=timeout)
         except (TimeoutError, asyncio.TimeoutError):
             self._process.kill()
             await self._process.wait()
+        except ProcessLookupError:
+            pass
 
+        self._retired = True
         self._pty.cleanup()
+
+    async def shutdown(self, timeout: int = 30) -> None:
+        """Forcefully terminate this server-owned shell during server shutdown."""
+        if not self._retired:
+            self._remember_descendants()
+        if not self._terminated:
+            self._terminated = True
+            self._pty.writer.write(b"exit\n")
+            try:
+                await asyncio.wait_for(self._pty.writer.drain(), timeout=timeout)
+            except (
+                BrokenPipeError,
+                ConnectionResetError,
+                TimeoutError,
+                asyncio.TimeoutError,
+            ):
+                pass
+
+            if self._read_task:
+                self._read_task.cancel()
+                try:
+                    await self._read_task
+                except asyncio.CancelledError:
+                    pass
+
+            self._send_data_event.cancel()
+        known_descendants = [*self._known_descendants]
+        try:
+            await terminate_process_tree(
+                self._process,
+                timeout=timeout,
+                process_group=not self._retired,
+                known_descendants=known_descendants,
+            )
+        finally:
+            self._known_descendants.clear()
+            self._pty.cleanup()
+
+    def _remember_descendants(self) -> None:
+        pid = self._process.pid
+        if pid is None:
+            return
+        try:
+            self._known_descendants.extend(psutil.Process(pid).children(recursive=True))
+        except psutil.NoSuchProcess:
+            pass
+        self._known_descendants.extend(process_group_members(pid, exclude_pid=pid))
 
     async def _read_loop(self) -> None:
         """Read decoded data from the PTY and process it."""
@@ -110,12 +181,47 @@ class Process:
             pass
 
     def _receive_data(self, new_data: str) -> None:
-        self._output_data.append(new_data)
+        self._output_data.extend(new_data.encode("utf-8", errors="replace"))
+        self._trim_output_data()
 
-        if sum(len(data) for data in self._output_data) >= 4096:
+        if self._dropped_output_bytes or len(self._output_data) >= 4096:
             self._send_data_event.set()
         else:
             self._send_data_event.start_timer(self._idle_timeout)
+
+    def _trim_output_data(self) -> None:
+        if len(self._output_data) <= self._output_limit:
+            return
+
+        dropped_bytes = len(self._output_data) - self._output_limit
+        del self._output_data[:dropped_bytes]
+        self._dropped_output_bytes += dropped_bytes
+
+    def _format_output(self) -> str:
+        if not self._dropped_output_bytes:
+            return self._output_data.decode("utf-8", errors="replace")
+
+        output_bytes = bytes(self._output_data)
+        omitted_bytes = self._dropped_output_bytes
+        for _ in range(10):
+            notice = _truncation_notice(self._output_limit, omitted_bytes)
+            notice_bytes = notice.encode("utf-8")
+            if len(notice_bytes) >= self._output_limit:
+                return _short_truncation_notice(
+                    self._output_limit, omitted_bytes
+                ).decode("ascii")
+
+            tail_budget = self._output_limit - len(notice_bytes)
+            tail = output_bytes[-tail_budget:].decode("utf-8", errors="ignore")
+            retained_bytes = len(tail.encode("utf-8"))
+            updated_omitted_bytes = (
+                self._dropped_output_bytes + len(output_bytes) - retained_bytes
+            )
+            if updated_omitted_bytes == omitted_bytes:
+                return f"{notice}{tail}"
+            omitted_bytes = updated_omitted_bytes
+
+        raise RuntimeError("Unable to format bounded bash_session output")
 
     def _assert_not_terminated(self) -> None:
         assert not self._terminated, "process must not be terminated"
@@ -146,3 +252,39 @@ def strip_control_characters(text: str) -> str:
     clean_text = re.sub(r"[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]", "", clean_text)
 
     return clean_text
+
+
+def _bash_session_output_limit(max_output_bytes: int | None) -> int:
+    if max_output_bytes is None or max_output_bytes <= 0:
+        max_output_bytes = _DEFAULT_MAX_BASH_SESSION_RESPONSE_BYTES
+
+    return max(1, max_output_bytes)
+
+
+def _human_readable_size(size_bytes: int) -> str:
+    if size_bytes >= 1024**3 and size_bytes % 1024**3 == 0:
+        return f"{size_bytes // 1024**3} GiB"
+    if size_bytes >= 1024**2 and size_bytes % 1024**2 == 0:
+        return f"{size_bytes // 1024**2} MiB"
+    if size_bytes >= 1024 and size_bytes % 1024 == 0:
+        return f"{size_bytes // 1024} KiB"
+    return f"{size_bytes} bytes"
+
+
+def _truncation_notice(output_limit: int, omitted_bytes: int) -> str:
+    return (
+        "\n[inspect_sandbox_tools: bash_session output exceeded "
+        f"{_human_readable_size(output_limit)}; showing the tail; "
+        f"{omitted_bytes} bytes omitted]\n"
+    )
+
+
+def _short_truncation_notice(output_limit: int, omitted_bytes: int) -> bytes:
+    notices = (
+        f"[{omitted_bytes} bytes omitted]\n".encode("ascii"),
+        b"[output truncated]\n",
+    )
+    for notice in notices:
+        if len(notice) <= output_limit:
+            return notice
+    return b"!" * output_limit

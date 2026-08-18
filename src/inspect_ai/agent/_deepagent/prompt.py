@@ -1,0 +1,234 @@
+"""System prompt assembly for deepagent().
+
+Composes layered system prompts from string constants and dynamic
+content (subagent list, memory/plan configuration, user instructions).
+"""
+
+from inspect_ai.agent._types import PARALLEL_TOOLS_PROMPT
+
+from .subagent import Subagent
+
+SUBAGENT_SUBMIT_PROMPT = """
+When you have completed the task, call the {submit}() tool to report your
+findings. The parent agent that dispatched you cannot see your conversation
+history or tool calls — the content you pass to {submit}() is the only
+information that will be returned. Include all relevant findings, evidence,
+and conclusions in your submission.
+""".strip()
+
+CORE_BEHAVIOR = f"""
+Complete tasks autonomously using your available tools. Act rather than
+narrate intent — don't say what you plan to do, just do it.
+
+Keep going until the task is fully resolved. Don't stop at the first
+attempt if it doesn't work — diagnose what went wrong and try a
+different approach. If a tool call fails or returns unexpected results,
+consider why it failed before retrying. If you find yourself repeating
+the same action without progress, stop and reassess your approach.
+
+Be concise and direct. Avoid preamble, unnecessary explanation, and
+restating what you've already done. When you need information, use
+your tools rather than making assumptions.
+
+{PARALLEL_TOOLS_PROMPT}
+
+Plan when the task is complex or multi-step. Break large tasks into
+smaller pieces and track your progress. Verify your work before
+finishing — check against the original requirements, not against your
+own output. Confirm the task is actually solved, not just that your
+steps ran without errors.
+
+Cross-check important results from other agents before acting on
+them — they can miss context or return incomplete findings.
+
+Use reasonable defaults rather than asking clarifying questions for
+every detail. Only ask when genuinely blocked or when the task is
+fundamentally ambiguous.
+""".strip()
+
+MEMORY_INSTRUCTIONS = """
+Check your memory at the start of your work to recover any earlier
+progress or context. Use the memory tool to persist important
+intermediate results, findings, and status as you go. This protects
+against context window limits and ensures progress is not lost. Record
+key findings rather than trying to remember everything. Update or
+remove stale entries to keep memory organized.
+
+Use the todo_write tool to track high-level task decomposition. Mark steps
+in progress as you start them and completed as you finish. If your
+understanding changes mid-task, update the plan before continuing.
+Only commit to work you will actually do — label anything else as
+optional next steps and exclude it from the plan. Before finishing,
+reconcile every TODO item: mark each as completed, no longer relevant,
+or blocked (with a reason and what you tried).
+""".strip()
+
+MEMORY_ONLY_INSTRUCTIONS = """
+Check your memory at the start of your work to recover any earlier
+progress or context. Use the memory tool to persist important
+intermediate results, findings, and status as you go. This protects
+against context window limits and ensures progress is not lost. Record
+key findings rather than trying to remember everything. Update or
+remove stale entries to keep memory organized.
+""".strip()
+
+PLAN_ONLY_INSTRUCTIONS = """
+Use the todo_write tool to track high-level task decomposition. Mark steps
+in progress as you start them and completed as you finish. If your
+understanding changes mid-task, update the plan before continuing.
+Only commit to work you will actually do — label anything else as
+optional next steps and exclude it from the plan. Before finishing,
+reconcile every TODO item: mark each as completed, no longer relevant,
+or blocked (with a reason and what you tried).
+""".strip()
+
+
+def build_subagent_dispatch(subagents: list[Subagent], background: bool = True) -> str:
+    """Generate system prompt section describing available subagents.
+
+    Args:
+        subagents: List of configured subagents.
+        background: Whether background dispatch is enabled (adds guidance on
+            the ``background`` parameter and the lifecycle tools).
+
+    Returns:
+        Prompt text listing subagents and delegation guidance.
+    """
+    lines = [
+        "You can delegate work to specialized subagents using the agent tool.",
+        "",
+        "Available subagents:",
+    ]
+    for sa in subagents:
+        lines.append(f"- **{sa.name}**: {sa.description}")
+    lines.append("")
+    lines.append(
+        "Delegate when the work is complex, independent, or would benefit "
+        "from an isolated context. Do the work directly when it's a simple "
+        "lookup, a single tool call, or when the result depends on your "
+        "current conversation state."
+    )
+    lines.append("")
+    has_forked = any(sa.fork for sa in subagents)
+    if has_forked:
+        lines.append(
+            "When delegating to non-forked subagents, include all necessary "
+            "context in the prompt — they cannot see your conversation "
+            "history. Forked subagents already have your full conversation "
+            "context. Be specific about what information you need back."
+        )
+    else:
+        lines.append(
+            "When delegating, include all necessary context in the prompt — "
+            "the subagent cannot see your conversation history. Be specific "
+            "about what information you need back."
+        )
+    if background:
+        lines.append("")
+        lines.append(
+            "You can dispatch a subagent in the background with "
+            "`background=True` on the agent tool — the call returns an "
+            "`AGENT-N` handle immediately while the subagent runs in parallel "
+            "with your work. While waiting, do useful independent work in the "
+            "parent context. Use `agent_status(id)` for a quick non-blocking "
+            'peek. Use `agent_wait([ids], mode="any"|"all", timeout=...)` '
+            "when you actually need a result before continuing — prefer one "
+            "`agent_wait` over a polling loop of `agent_status` calls. Use "
+            "`agent_cancel(id)` when a background agent is no longer useful. "
+            "If you may have lost track of background agents — for example "
+            "after a long stretch of work or after context compaction — call "
+            "`agent_list()` to recover their state."
+        )
+    return "\n".join(lines)
+
+
+def build_system_prompt(
+    *,
+    subagents: list[Subagent] | None = None,
+    memory: bool = True,
+    todo_write: bool = True,
+    instructions: str | None = None,
+    background: bool = True,
+) -> str:
+    """Assemble the deepagent system prompt from layers.
+
+    Args:
+        subagents: Configured subagents (omit section if None or empty).
+        memory: Whether the memory tool is enabled.
+        todo_write: Whether the todo_write tool is enabled.
+        instructions: User-provided instructions appended at the end.
+        background: Whether background dispatch is enabled.
+
+    Returns:
+        Assembled system prompt string.
+    """
+    sections: list[str] = [CORE_BEHAVIOR]
+
+    if subagents:
+        sections.append(build_subagent_dispatch(subagents, background))
+
+    if memory and todo_write:
+        sections.append(MEMORY_INSTRUCTIONS)
+    elif memory:
+        sections.append(MEMORY_ONLY_INSTRUCTIONS)
+    elif todo_write:
+        sections.append(PLAN_ONLY_INSTRUCTIONS)
+
+    if instructions:
+        sections.append(instructions)
+
+    return "\n\n".join(sections)
+
+
+def expand_prompt_placeholders(
+    prompt: str,
+    *,
+    subagents: list[Subagent] | None = None,
+    memory: bool = True,
+    todo_write: bool = True,
+    instructions: str | None = None,
+    background: bool = True,
+) -> str:
+    """Expand named placeholders in a custom prompt.
+
+    Supports the following placeholders (all optional — if a placeholder
+    is not present in the template, that content is simply not included):
+
+    - ``{core_behavior}`` — core behavioral expectations
+    - ``{subagent_dispatch}`` — subagent names, roles, delegation guidance
+    - ``{memory_instructions}`` — memory/plan coordination guidance
+    - ``{instructions}`` — user-provided instructions
+
+    Args:
+        prompt: Custom prompt template with optional placeholders.
+        subagents: Configured subagents.
+        memory: Whether the memory tool is enabled.
+        todo_write: Whether the todo_write tool is enabled.
+        instructions: User-provided instructions.
+        background: Whether background dispatch is enabled.
+
+    Returns:
+        Prompt with placeholders expanded.
+    """
+    result = prompt
+    result = result.replace("{core_behavior}", CORE_BEHAVIOR)
+
+    if subagents:
+        result = result.replace(
+            "{subagent_dispatch}", build_subagent_dispatch(subagents, background)
+        )
+    else:
+        result = result.replace("{subagent_dispatch}", "")
+
+    if memory and todo_write:
+        result = result.replace("{memory_instructions}", MEMORY_INSTRUCTIONS)
+    elif memory:
+        result = result.replace("{memory_instructions}", MEMORY_ONLY_INSTRUCTIONS)
+    elif todo_write:
+        result = result.replace("{memory_instructions}", PLAN_ONLY_INSTRUCTIONS)
+    else:
+        result = result.replace("{memory_instructions}", "")
+
+    result = result.replace("{instructions}", instructions or "")
+
+    return result

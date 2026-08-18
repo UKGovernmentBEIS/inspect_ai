@@ -182,6 +182,18 @@ class SGLangAPI(OpenAICompatibleAPI):
         return self.server_process.poll() is None
 
     @override
+    def connection_key(self) -> str:
+        """Scope max_connections per SGLang endpoint.
+
+        Override the OpenAI-compatible default (which keys by api_key) since
+        SGLang is a local server: the rate-limit boundary is the endpoint
+        URL, not the credential (which defaults to the literal `"inspectai"`
+        for all instances). Without this override two SGLang servers on
+        different hosts/ports would collapse to one concurrency slot.
+        """
+        return self.base_url or "sglang"
+
+    @override
     def collapse_user_messages(self) -> bool:
         return True
 

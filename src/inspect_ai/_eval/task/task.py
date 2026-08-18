@@ -2,12 +2,25 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from logging import getLogger
-from typing import TYPE_CHECKING, Any, Awaitable, Callable, Sequence, cast, overload
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Awaitable,
+    Callable,
+    NamedTuple,
+    Sequence,
+    cast,
+    overload,
+)
 
 from inspect_ai.util._early_stopping import EarlyStopping
 
 if TYPE_CHECKING:
     from inspect_ai.scorer._scorers import Scorers
+    from inspect_ai.util._checkpoint.config import (
+        OnCheckpointCallback,
+        OnResumeCallback,
+    )
 
 from pydantic import BaseModel
 from typing_extensions import TypedDict, Unpack
@@ -38,13 +51,17 @@ from inspect_ai.scorer._reducer import ScoreReducers, create_reducers
 from inspect_ai.solver import Plan, Solver, generate
 from inspect_ai.solver._chain import chain
 from inspect_ai.solver._task_state import TaskState
+from inspect_ai.util._checkpoint.config import CheckpointConfig, normalize_checkpoint
+from inspect_ai.util._limit import TokenLimit, token_limit_fields
 from inspect_ai.util._sandbox.environment import (
     SandboxEnvironmentSpec,
     SandboxEnvironmentType,
     resolve_sandbox_environment,
 )
+from inspect_ai.viewer import ViewerConfig
 
 from .epochs import Epochs
+from .sample_source import SampleSource
 
 logger = getLogger(__name__)
 
@@ -64,7 +81,7 @@ class Task:
 
     def __init__(
         self,
-        dataset: Dataset | Sequence[Sample] | None = None,
+        dataset: Dataset | Sequence[Sample] | SampleSource | None = None,
         setup: Solver | list[Solver] | None = None,
         solver: Solver | Agent | list[Solver] = generate(),
         cleanup: Callable[[TaskState], Awaitable[None]] | None = None,
@@ -76,25 +93,34 @@ class Task:
         config: GenerateConfig = GenerateConfig(),
         model_roles: dict[str, str | Model] | None = None,
         sandbox: SandboxEnvironmentType | None = None,
+        checkpoint: CheckpointConfig | bool | None = None,
+        on_checkpoint: OnCheckpointCallback | None = None,
+        on_resume: OnResumeCallback | None = None,
         approval: str | ApprovalPolicyConfig | list[ApprovalPolicy] | None = None,
         epochs: int | Epochs | None = None,
         fail_on_error: bool | float | None = None,
         continue_on_fail: bool | None = None,
+        score_on_error: bool | None = None,
         message_limit: int | None = None,
-        token_limit: int | None = None,
+        token_limit: int | str | TokenLimit | None = None,
+        turn_limit: int | None = None,
         time_limit: int | None = None,
         working_limit: int | None = None,
+        cost_limit: float | None = None,
         early_stopping: "EarlyStopping" | None = None,
         display_name: str | None = None,
         name: str | None = None,
         version: int | str = 0,
         metadata: dict[str, Any] | None = None,
+        tags: list[str] | None = None,
+        viewer: ViewerConfig | None = None,
         **kwargs: Unpack[TaskDeprecatedArgs],
     ) -> None:
         """Create a task.
 
         Args:
-            dataset: Dataset to evaluate
+            dataset: Dataset to evaluate, or a `SampleSource` that generates
+                samples dynamically while the task runs.
             setup: Setup step (always run even when the main `solver` is replaced).
             solver: Solver or list of solvers. Defaults to generate(), a normal call to the model.
             cleanup: Optional cleanup function for task. Called after
@@ -106,6 +132,26 @@ class Task:
             config: Model generation config for default model (does not apply to model roles)
             model_roles: Named roles for use in `get_model()`.
             sandbox: Sandbox environment type (or optionally a str or tuple with a shorthand spec)
+            checkpoint: Checkpoint configuration for this task. `True` (or a
+                `CheckpointConfig`) enables checkpointing with the default
+                trigger (every 500k tokens) unless overridden; `None` (default)
+                inherits from the eval/CLI level; `False` vetoes checkpointing
+                for this task, overriding an eval-set/CLI `--checkpoint` enable.
+                When enabled, an eval-level `checkpoint` overrides this task's
+                config, which overrides any sample-level `checkpoint`.
+            on_checkpoint: Callback invoked before each checkpoint snapshot is
+                taken, so state it flushes to the sandbox/store is captured by
+                that checkpoint. May fire many times (including the final
+                checkpoint on clean completion); must be idempotent.
+            on_resume: Callback invoked after a sample is restored on resume,
+                before the agent resumes. Receives the TaskState and the resume
+                ``attempt`` ('resume' or 'resume_for_scoring'). At call time
+                ``state.store``, the transcript, and the sandbox are restored,
+                but ``state.messages``/``state.output`` are NOT yet restored
+                (the agent restores those itself) — use ``state.store``/sandbox,
+                not ``state.messages``. May return a ``ResumeReport`` (or a
+                ``str`` shorthand, or ``None``) surfaced to the agent via
+                ``checkpointer().restored``.
             approval: Tool use approval policies.
                 Either a path to an approval policy config file, an ApprovalPolicyConfig, or a list of approval policies. Defaults to no approval policy.
             epochs: Epochs to repeat samples for and optional score
@@ -116,12 +162,20 @@ class Task:
                 eval if a count of samples fails.
             continue_on_fail: `True` to continue running and only fail at the end if the `fail_on_error` condition is met.
                 `False` to fail eval immediately when the `fail_on_error` condition is met (default).
+            score_on_error: `True` to score samples that error rather than failing the eval mid-run.
+                Errors still count toward the `fail_on_error` threshold for marking the eval log
+                as 'error'. Only takes effect after retries (if any) are exhausted.
             message_limit: Limit on total messages used for each sample.
-            token_limit: Limit on total tokens used for each sample.
+            token_limit: Limit on tokens used for each sample. An `int` (or a
+                `TokenLimit` with type "all") limits total tokens; a `TokenLimit`
+                with a `type` limits by output tokens or an arithmetic formula over `input`/`output`. Also accepts strings like "500k", "1m", "output:1m", or "(input*0.1)+output:1m".
+            turn_limit: Limit on total turns (model generations) used for each sample.
             time_limit: Limit on clock time (in seconds) for samples.
             working_limit: Limit on working time (in seconds) for sample. Working
                 time includes model generation, tool calls, etc. but does not include
                 time spent waiting on retries or shared resources.
+            cost_limit: Limit on total cost (in dollars) for each sample.
+                Requires model cost data via set_model_cost() or --model-cost-config.
             early_stopping: Early stopping callbacks.
             name: Task name. If not specified is automatically
                 determined based on the registered name of the task.
@@ -129,6 +183,9 @@ class Task:
             version: Version of task (to distinguish evolutions
                 of the task spec or breaking changes to it)
             metadata:  Additional metadata to associate with the task.
+            tags: Tags to associate with the task.
+            viewer: Log viewer configuration for this task (controls how
+                scanner results are rendered in the sidebar).
             **kwargs: Deprecated arguments.
         """
         # handle deprecated args
@@ -155,31 +212,41 @@ class Task:
                     f"DEPRECATED: the '{arg}' parameter is deprecated (please use the '{newarg}' parameter instead)",
                 )
 
-        self.dataset = resolve_dataset(dataset)
+        resolved_dataset = resolve_dataset_or_source(dataset)
+        self.dataset = resolved_dataset.dataset
+        self.sample_source = resolved_dataset.sample_source
         self.setup = setup
         self.solver = resolve_solver(solver)
         self.cleanup = cleanup
+        self.on_checkpoint = on_checkpoint
+        self.on_resume = on_resume
         self.scorer = resolve_scorer_metrics(resolve_scorer(scorer), metrics)
         self.metrics = metrics
         self.model = resolve_model(model)
         self.config = config
         self.model_roles = resolve_model_roles(model_roles)
         self.sandbox = resolve_sandbox_environment(sandbox)
+        self.checkpoint = normalize_checkpoint(checkpoint)
         self.approval = resolve_approval(approval)
         epochs = resolve_epochs(epochs)
         self.epochs = epochs.epochs if epochs else None
         self.epochs_reducer = epochs.reducer if epochs else None
         self.fail_on_error = fail_on_error
         self.continue_on_fail = continue_on_fail
+        self.score_on_error = score_on_error
         self.message_limit = message_limit
-        self.token_limit = token_limit
+        self.token_limit, self.token_limit_type = token_limit_fields(token_limit)
+        self.turn_limit = turn_limit
         self.time_limit = time_limit
         self.working_limit = working_limit
+        self.cost_limit = cost_limit
         self.early_stopping = early_stopping
         self.version = version
         self._display_name = display_name
         self._name = name
         self.metadata = metadata
+        self.tags = tags
+        self.viewer = viewer
 
     @property
     def name(self) -> str:
@@ -219,7 +286,7 @@ class Task:
 def task_with(
     task: Task,
     *,
-    dataset: Dataset | Sequence[Sample] | None | NotGiven = NOT_GIVEN,
+    dataset: Dataset | Sequence[Sample] | SampleSource | None | NotGiven = NOT_GIVEN,
     setup: Solver | list[Solver] | None | NotGiven = NOT_GIVEN,
     solver: Solver | Agent | list[Solver] | NotGiven = NOT_GIVEN,
     cleanup: Callable[[TaskState], Awaitable[None]] | None | NotGiven = NOT_GIVEN,
@@ -232,6 +299,9 @@ def task_with(
     config: GenerateConfig | NotGiven = NOT_GIVEN,
     model_roles: dict[str, str | Model] | NotGiven = NOT_GIVEN,
     sandbox: SandboxEnvironmentType | None | NotGiven = NOT_GIVEN,
+    checkpoint: CheckpointConfig | bool | None | NotGiven = NOT_GIVEN,
+    on_checkpoint: OnCheckpointCallback | None | NotGiven = NOT_GIVEN,
+    on_resume: OnResumeCallback | None | NotGiven = NOT_GIVEN,
     approval: str
     | ApprovalPolicyConfig
     | list[ApprovalPolicy]
@@ -240,14 +310,19 @@ def task_with(
     epochs: int | Epochs | None | NotGiven = NOT_GIVEN,
     fail_on_error: bool | float | None | NotGiven = NOT_GIVEN,
     continue_on_fail: bool | None | NotGiven = NOT_GIVEN,
+    score_on_error: bool | None | NotGiven = NOT_GIVEN,
     message_limit: int | None | NotGiven = NOT_GIVEN,
-    token_limit: int | None | NotGiven = NOT_GIVEN,
+    token_limit: int | str | TokenLimit | None | NotGiven = NOT_GIVEN,
+    turn_limit: int | None | NotGiven = NOT_GIVEN,
     time_limit: int | None | NotGiven = NOT_GIVEN,
     working_limit: int | None | NotGiven = NOT_GIVEN,
+    cost_limit: float | None | NotGiven = NOT_GIVEN,
     early_stopping: EarlyStopping | None | NotGiven = NOT_GIVEN,
     name: str | None | NotGiven = NOT_GIVEN,
     version: int | str | NotGiven = NOT_GIVEN,
     metadata: dict[str, Any] | None | NotGiven = NOT_GIVEN,
+    tags: list[str] | None | NotGiven = NOT_GIVEN,
+    viewer: ViewerConfig | None | NotGiven = NOT_GIVEN,
 ) -> Task:
     """Task adapted with alternate values for one or more options.
 
@@ -257,7 +332,8 @@ def task_with(
 
     Args:
         task: Task to adapt
-        dataset: Dataset to evaluate
+        dataset: Dataset to evaluate, or a `SampleSource` that generates
+            samples dynamically while the task runs.
         setup: Setup step (always run even when the main `solver` is replaced).
         solver: Solver or list of solvers. Defaults to generate(), a normal call to the model.
         cleanup: Optional cleanup function for task. Called after
@@ -269,6 +345,26 @@ def task_with(
         config: Model generation config for default model (does not apply to model roles)
         model_roles: Named roles for use in `get_model()`.
         sandbox: Sandbox environment type (or optionally a str or tuple with a shorthand spec)
+        checkpoint: Checkpoint configuration for this task. `True` (or a
+            `CheckpointConfig`) enables checkpointing with the default
+            trigger (every 500k tokens) unless overridden; `None` (default)
+            inherits from the eval/CLI level; `False` vetoes checkpointing
+            for this task, overriding an eval-set/CLI `--checkpoint` enable.
+            When enabled, an eval-level `checkpoint` overrides this task's
+            config, which overrides any sample-level `checkpoint`.
+        on_checkpoint: Callback invoked before each checkpoint snapshot is
+            taken, so state it flushes to the sandbox/store is captured by
+            that checkpoint. May fire many times (including the final
+            checkpoint on clean completion); must be idempotent.
+        on_resume: Callback invoked after a sample is restored on resume,
+            before the agent resumes. Receives the TaskState and the resume
+            ``attempt`` ('resume' or 'resume_for_scoring'). At call time
+            ``state.store``, the transcript, and the sandbox are restored,
+            but ``state.messages``/``state.output`` are NOT yet restored
+            (the agent restores those itself) — use ``state.store``/sandbox,
+            not ``state.messages``. May return a ``ResumeReport`` (or a
+            ``str`` shorthand, or ``None``) surfaced to the agent via
+            ``checkpointer().restored``.
         approval: Tool use approval policies.
             Either a path to an approval policy config file, an ApprovalPolicyConfig, or a list of approval policies. Defaults to no approval policy.
         epochs: Epochs to repeat samples for and optional score
@@ -279,12 +375,22 @@ def task_with(
             eval if a count of samples fails.
         continue_on_fail: `True` to continue running and only fail at the end if the `fail_on_error` condition is met.
             `False` to fail eval immediately when the `fail_on_error` condition is met (default).
+        score_on_error: `True` to score samples that error rather than failing the eval mid-run.
+            Errors still count toward the `fail_on_error` threshold for marking the eval log
+            as 'error'. Only takes effect after retries (if any) are exhausted.
         message_limit: Limit on total messages used for each sample.
-        token_limit: Limit on total tokens used for each sample.
+        token_limit: Limit on tokens used for each sample. An `int` (or a
+            `TokenLimit` with type "all") limits total tokens; a `TokenLimit`
+            with a `type` limits by output tokens or an arithmetic formula over
+            `input`/`output`. Also accepts strings like "500k", "1m",
+            "output:1m", or "(input*0.1)+output:1m".
+        turn_limit: Limit on total turns (model generations) used for each sample.
         time_limit: Limit on clock time (in seconds) for samples.
         working_limit: Limit on working time (in seconds) for sample. Working
             time includes model generation, tool calls, etc. but does not include
             time spent waiting on retries or shared resources.
+        cost_limit: Limit on total cost (in dollars) for each sample.
+            Requires model cost data via set_model_cost() or --model-cost-config.
         early_stopping: Early stopping callbacks.
         name: Task name. If not specified is automatically
             determined based on the name of the task directory (or "task")
@@ -293,18 +399,27 @@ def task_with(
         version: Version of task (to distinguish evolutions
             of the task spec or breaking changes to it)
         metadata:  Additional metadata to associate with the task.
+        tags: Tags to associate with the task.
+        viewer: Log viewer configuration for this task (controls how
+            scanner results are rendered in the sidebar).
 
     Returns:
         Task: Passed `task` with modifications.
     """
     if not isinstance(dataset, NotGiven):
-        task.dataset = resolve_dataset(dataset)
+        resolved_dataset = resolve_dataset_or_source(dataset)
+        task.dataset = resolved_dataset.dataset
+        task.sample_source = resolved_dataset.sample_source
     if not isinstance(setup, NotGiven):
         task.setup = setup
     if not isinstance(solver, NotGiven):
         task.solver = resolve_solver(solver)
     if not isinstance(cleanup, NotGiven):
         task.cleanup = cleanup
+    if not isinstance(on_checkpoint, NotGiven):
+        task.on_checkpoint = on_checkpoint
+    if not isinstance(on_resume, NotGiven):
+        task.on_resume = on_resume
     if not isinstance(scorer, NotGiven):
         task.scorer = resolve_scorer(scorer)
     if not isinstance(metrics, NotGiven):
@@ -317,6 +432,8 @@ def task_with(
         task.model_roles = resolve_model_roles(model_roles)
     if not isinstance(sandbox, NotGiven):
         task.sandbox = resolve_sandbox_environment(sandbox)
+    if not isinstance(checkpoint, NotGiven):
+        task.checkpoint = normalize_checkpoint(checkpoint)
     if not isinstance(approval, NotGiven):
         task.approval = resolve_approval(approval)
     if not isinstance(epochs, NotGiven):
@@ -327,14 +444,20 @@ def task_with(
         task.fail_on_error = fail_on_error
     if not isinstance(continue_on_fail, NotGiven):
         task.continue_on_fail = continue_on_fail
+    if not isinstance(score_on_error, NotGiven):
+        task.score_on_error = score_on_error
     if not isinstance(message_limit, NotGiven):
         task.message_limit = message_limit
     if not isinstance(token_limit, NotGiven):
-        task.token_limit = token_limit
+        task.token_limit, task.token_limit_type = token_limit_fields(token_limit)
+    if not isinstance(turn_limit, NotGiven):
+        task.turn_limit = turn_limit
     if not isinstance(time_limit, NotGiven):
         task.time_limit = time_limit
     if not isinstance(working_limit, NotGiven):
         task.working_limit = working_limit
+    if not isinstance(cost_limit, NotGiven):
+        task.cost_limit = cost_limit
     if not isinstance(early_stopping, NotGiven):
         task.early_stopping = early_stopping
     if not isinstance(version, NotGiven):
@@ -343,6 +466,10 @@ def task_with(
         task._name = name
     if not isinstance(metadata, NotGiven):
         task.metadata = metadata
+    if not isinstance(tags, NotGiven):
+        task.tags = tags
+    if not isinstance(viewer, NotGiven):
+        task.viewer = viewer
 
     # return modified task
     return task
@@ -398,6 +525,31 @@ def resolve_epochs(epochs: int | Epochs | None) -> Epochs | None:
     if epochs is not None and epochs.epochs < 1:
         raise ValueError("epochs must be a positive integer.")
     return epochs
+
+
+class ResolvedDataset(NamedTuple):
+    """A task's dataset plus the `SampleSource` that seeded it (if any)."""
+
+    dataset: Dataset
+    sample_source: SampleSource | None
+
+
+def resolve_dataset_or_source(
+    dataset: Dataset | Sequence[Sample] | SampleSource | None,
+) -> ResolvedDataset:
+    """Resolve a task's `dataset` argument, which may be a `SampleSource`.
+
+    A `SampleSource` contributes its (possibly empty) `initial_samples()` as
+    the task's up-front dataset — the empty-dataset check doesn't apply since
+    the source can produce samples while the task runs. Consumers that treat
+    a dataset as the complete sample set (e.g. `slice_dataset` validating
+    `--sample-id`) learn that more samples may be produced at runtime via
+    their `dynamic` flag, passed by callers that hold the task.
+    """
+    if isinstance(dataset, SampleSource):
+        return ResolvedDataset(MemoryDataset(list(dataset.initial_samples())), dataset)
+    else:
+        return ResolvedDataset(resolve_dataset(dataset), None)
 
 
 def resolve_dataset(dataset: Dataset | Sequence[Sample] | None) -> Dataset:

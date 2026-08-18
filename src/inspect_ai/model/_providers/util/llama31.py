@@ -8,6 +8,7 @@ from typing_extensions import override
 
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_info import ToolInfo
+from inspect_ai.util._json import json_schema_dump
 
 from ..._call_tools import parse_tool_call, tool_parse_error_message
 from ..._chat_message import (
@@ -22,7 +23,7 @@ logger = getLogger(__name__)
 
 
 # Llama 3.1 handler is based primarily on the tool calling conventions used by Ollama:
-# (https://github.com/ollama/ollama/blob/main/server/testdata/tools/llama3-groq-tool-use.out)
+# (https://github.com/ollama/ollama/blob/6b04cad7e816d1a119559e092d59f4fbaa6c3a0b/tools/testdata/llama3-groq-tool-use.out)
 #
 # We initially tried the conventions promoted in the Llama 3.1 model card but
 # this had severe problems with not formatting the function calls correctly
@@ -38,7 +39,7 @@ class Llama31Handler(ChatAPIHandler):
     ) -> list[ChatMessage]:
         # JSON schema for available tools
         available_tools = "\n\n".join(
-            [tool.model_dump_json(exclude_none=True, indent=2) for tool in tools]
+            [json.dumps(json_schema_dump(tool), indent=2) for tool in tools]
         )
 
         # tool prompt

@@ -1,4 +1,9 @@
+import asyncio
+import pwd
+
+from ..._util.common_types import ToolException
 from ..._util.session_controller import SessionController
+from ..._util.user_switch import is_current_user
 from ._session import Session
 from .tool_types import BashRestartResult, InteractResult
 
@@ -8,8 +13,23 @@ DEFAULT_SESSION_NAME = "BashSession"
 class Controller(SessionController[Session]):
     """BashSessionController provides support for isolated inspect subtask sessions."""
 
-    async def new_session(self) -> str:
-        return await self.create_new_session(DEFAULT_SESSION_NAME, Session.create)
+    async def new_session(
+        self, user: str | None = None, can_switch_user: bool = False
+    ) -> str:
+        if user is not None and is_current_user(user):
+            user = None
+        if user is not None and not can_switch_user:
+            raise ToolException(
+                f"Cannot switch to user {user!r}: server is not running as root"
+            )
+        if user is not None:
+            try:
+                pwd.getpwnam(user)
+            except KeyError:
+                raise RuntimeError(f"User {user!r} not found in /etc/passwd") from None
+        return await self.create_new_session(
+            DEFAULT_SESSION_NAME, lambda: Session.create(user=user)
+        )
 
     async def interact(
         self,
@@ -17,10 +37,25 @@ class Controller(SessionController[Session]):
         input_text: str | None,
         wait_for_output: int,
         idle_timeout: float,
+        max_output_bytes: int | None,
     ) -> InteractResult:
         return await self.session_for_name(session_name).interact(
-            input_text, wait_for_output, idle_timeout
+            input_text, wait_for_output, idle_timeout, max_output_bytes
         )
 
     async def restart(self, session_name: str, timeout: int = 30) -> BashRestartResult:
         return await self.session_for_name(session_name).restart(timeout)
+
+    async def shutdown(self) -> None:
+        """Terminate every bash session owned by this server."""
+        with self._lock:
+            sessions = list(self._sessions.values())
+            self._sessions.clear()
+
+        results = await asyncio.gather(
+            *(session.shutdown(timeout=30) for session in sessions),
+            return_exceptions=True,
+        )
+        errors = [result for result in results if isinstance(result, Exception)]
+        if errors:
+            raise RuntimeError("; ".join(str(error) for error in errors))

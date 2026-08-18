@@ -12,6 +12,7 @@ from test_helpers.utils import (
     skip_if_no_google,
     skip_if_no_grok,
     skip_if_no_mistral,
+    skip_if_no_moonshot,
     skip_if_no_openai,
 )
 
@@ -103,6 +104,11 @@ async def check_thinking_compaction(
         )
         messages.append(output2.message)
 
+        # Execute any tool calls from output2 (model may call tools again)
+        if output2.message.tool_calls:
+            result2 = await execute_tools(messages, tools)
+            messages.extend(result2.messages)
+
     # Step 4: Add thank you message
     messages.append(ChatMessageUser(content="Thank you for the suggestions!"))
 
@@ -113,14 +119,26 @@ async def check_thinking_compaction(
         keep_tool_uses=10,  # Keep tool uses
     )
     # Set the model so CompactionEdit can check compact_reasoning_history()
-    compacted_messages, _ = await strategy.compact(messages, model)
+    compacted_messages, _ = await strategy.compact(model, messages, [])
 
-    # Verify thinking was removed (only if provider supports it)
+    # Verify visible reasoning was removed (only if provider supports it).
+    # Provider-specific replay anchors (e.g. Google's redacted ContentReasoning
+    # blocks carrying internal["gemini_function_call_id"]) survive compaction
+    # because they hold the thought_signature bytes the verifier requires on
+    # the next turn — they are not "thinking text" in the user-visible sense
+    # and should not count toward this assertion.
     thinking_turns = 0
     if model.api.compact_reasoning_history():
         for msg in compacted_messages:
             if isinstance(msg, ChatMessageAssistant) and isinstance(msg.content, list):
-                if any([isinstance(c, ContentReasoning) for c in msg.content]):
+                if any(
+                    isinstance(c, ContentReasoning)
+                    and not (
+                        isinstance(c.internal, dict)
+                        and "gemini_function_call_id" in c.internal
+                    )
+                    for c in msg.content
+                ):
                     thinking_turns += 1
     assert thinking_turns == 1, "Thinking blocks should have been removed"
 
@@ -145,17 +163,29 @@ async def check_thinking_compaction(
 
 @skip_if_no_openai
 @pytest.mark.slow
-@pytest.mark.asyncio
 async def test_thinking_compaction_openai() -> None:
+    # medium (not low) effort: at low, gpt-5-mini sometimes performs no
+    # reasoning at all on this prompt, leaving nothing to compact
     await check_thinking_compaction(
         "openai/gpt-5-mini",
-        GenerateConfig(reasoning_effort="low"),
+        GenerateConfig(reasoning_effort="medium"),
+    )
+
+
+@skip_if_no_openai
+@pytest.mark.slow
+async def test_thinking_compaction_openai_gpt_5_6() -> None:
+    # gpt-5.6 treats effort as a ceiling and skips reasoning on trivial
+    # prompts (sol emits zero reasoning tokens through xhigh); luna at high
+    # is the cheapest 5.6 combination that reliably produces thinking
+    await check_thinking_compaction(
+        "openai/gpt-5.6-luna",
+        GenerateConfig(reasoning_effort="high"),
     )
 
 
 @skip_if_no_anthropic
 @pytest.mark.slow
-@pytest.mark.asyncio
 async def test_thinking_compaction_anthropic() -> None:
     await check_thinking_compaction(
         "anthropic/claude-sonnet-4-5",
@@ -165,22 +195,21 @@ async def test_thinking_compaction_anthropic() -> None:
 
 @skip_if_no_google
 @pytest.mark.slow
-@pytest.mark.asyncio
 async def test_thinking_compaction_google() -> None:
     # Note: Google doesn't support thinking compaction (compact_reasoning_history returns False)
     # This test verifies the behavior is handled gracefully
     await check_thinking_compaction(
-        "google/gemini-3-pro-preview",
+        "google/gemini-3.1-pro-preview",
         GenerateConfig(reasoning_effort="low"),
     )
 
 
 @skip_if_no_mistral
 @pytest.mark.slow
-@pytest.mark.asyncio
 async def test_thinking_compaction_mistral() -> None:
+    # Mistral's effort scale is high/none, so "low" is submitted as "high"
     await check_thinking_compaction(
-        "mistral/magistral-small-2506",
+        "mistral/mistral-medium-latest",
         GenerateConfig(reasoning_effort="low"),
         conversation_api=False,
     )
@@ -188,9 +217,40 @@ async def test_thinking_compaction_mistral() -> None:
 
 @skip_if_no_grok
 @pytest.mark.slow
-@pytest.mark.asyncio
 async def test_thinking_compaction_grok() -> None:
     await check_thinking_compaction(
         "grok/grok-3-mini",
         GenerateConfig(reasoning_effort="low"),
+    )
+
+
+@skip_if_no_grok
+@pytest.mark.slow
+async def test_thinking_compaction_grok_4_5() -> None:
+    # grok-4.5 reasoning cannot be disabled, so thinking is reliably present
+    # even at low effort
+    await check_thinking_compaction(
+        "grok/grok-4.5",
+        GenerateConfig(reasoning_effort="low"),
+    )
+
+
+@skip_if_no_grok
+@pytest.mark.slow
+async def test_thinking_compaction_grok_4_6() -> None:
+    # grok-4.6 reasoning cannot be disabled, so thinking is reliably present
+    # even at low effort
+    await check_thinking_compaction(
+        "grok/grok-4.6",
+        GenerateConfig(reasoning_effort="low"),
+    )
+
+
+@skip_if_no_moonshot
+@pytest.mark.slow
+async def test_thinking_compaction_moonshot() -> None:
+    # kimi-k3 thinking is always on, so reasoning is reliably present
+    await check_thinking_compaction(
+        "moonshot/kimi-k3",
+        GenerateConfig(reasoning_effort="max"),
     )

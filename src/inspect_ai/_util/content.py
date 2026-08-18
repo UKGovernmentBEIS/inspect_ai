@@ -42,7 +42,7 @@ class ContentReasoning(ContentBase):
     """Reasoning content."""
 
     summary: str | None = Field(default=None)
-    """Reasoning summary."""
+    """Reasoning summary or readable reasoning text, if available."""
 
     signature: str | None = Field(default=None)
     """Signature for reasoning content (used by some models to ensure that reasoning content is not modified for replay)"""
@@ -94,11 +94,14 @@ class ContentImage(ContentBase):
     image: str
     """Either a URL of the image or the base64 encoded image data."""
 
-    detail: Literal["auto", "low", "high"] = Field(default="auto")
+    detail: Literal["auto", "low", "high", "original"] = Field(default="auto")
     """Specifies the detail level of the image.
 
     Currently only supported for OpenAI. Learn more in the    [Vision guide](https://platform.openai.com/docs/guides/vision/low-or-high-fidelity-image-understanding).
     """
+
+
+ContentAudioFormat = Literal["wav", "mp3"]
 
 
 class ContentAudio(ContentBase):
@@ -110,8 +113,11 @@ class ContentAudio(ContentBase):
     audio: str
     """Audio file path or base64 encoded data URL."""
 
-    format: Literal["wav", "mp3"]
+    format: ContentAudioFormat
     """Format of audio data ('mp3' or 'wav')"""
+
+
+ContentVideoFormat = Literal["mp4", "mpeg", "mov"]
 
 
 class ContentVideo(ContentBase):
@@ -123,7 +129,7 @@ class ContentVideo(ContentBase):
     video: str
     """Video file path or base64 encoded data URL."""
 
-    format: Literal["mp4", "mpeg", "mov"]
+    format: ContentVideoFormat
     """Format of video data ('mp4', 'mpeg', or 'mov')"""
 
 
@@ -141,6 +147,15 @@ class ContentDocument(ContentBase):
 
     mime_type: str = Field(default_factory=str)
     """Document mime type (automatically determined from 'document' if not specified)."""
+
+    citations: bool = Field(default=False)
+    """Enable model-generated citations for text or PDF documents.
+
+    Anthropic requires citations on all citation-capable documents in a request;
+    the provider enables them on every text or PDF document when any document
+    enables them. Image citations are unsupported. Providers without document-
+    citation support ignore this field.
+    """
 
     @model_validator(mode="before")
     @classmethod

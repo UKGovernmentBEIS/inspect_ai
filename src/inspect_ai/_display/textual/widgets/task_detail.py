@@ -1,7 +1,7 @@
+import math
 import re
 from dataclasses import dataclass
 
-import numpy as np
 from textual.app import ComposeResult
 from textual.containers import Center, Grid, Horizontal
 from textual.reactive import Reactive, reactive
@@ -241,7 +241,7 @@ class TaskMetrics(Widget):
             )
 
     def _metric_value(self, val: float) -> str:
-        if np.isnan(val):
+        if math.isnan(val):
             return " n/a "
         else:
             return f"{val:.3f}"

@@ -1,14 +1,14 @@
 import fnmatch
 import sys
 from dataclasses import dataclass
-from pathlib import Path
-from typing import Any, Generator
+from typing import Any, Generator, cast
 
 from pydantic import BaseModel, Field, model_validator
 
 from inspect_ai._util.config import read_config_object
+from inspect_ai._util.file import exists
 from inspect_ai._util.format import format_function_call
-from inspect_ai._util.registry import registry_create, registry_lookup
+from inspect_ai._util.registry import create_registry_object, registry_lookup
 from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.tool._tool_call import ToolCall, ToolCallView
 from inspect_ai.util._resource import resource
@@ -132,6 +132,17 @@ def approver_from_config(policy_config: str) -> Approver:
     return policy_approver(policies)
 
 
+def read_approval_policies(file: str) -> list[ApprovalPolicy]:
+    """Read approval policies from a JSON or YAML config file.
+
+    Args:
+        file: JSON or YAML config file with approval policies.
+    """
+    if not exists(file):
+        raise FileNotFoundError(f"Approval policy file not found: {file}")
+    return approval_policies_from_config(file)
+
+
 def approval_policies_from_config(
     policy_config: str | ApprovalPolicyConfig,
 ) -> list[ApprovalPolicy]:
@@ -139,7 +150,7 @@ def approval_policies_from_config(
     def create_approval_policy(
         name: str, tools: str | list[str], params: dict[str, Any] = {}
     ) -> ApprovalPolicy:
-        approver = registry_create("approver", name, **params)
+        approver = cast(Approver, create_registry_object("approver", name, params))
         return ApprovalPolicy(approver, tools)
 
     # map config -> policy
@@ -148,7 +159,7 @@ def approval_policies_from_config(
 
     # resolve config if its a string
     if isinstance(policy_config, str):
-        if Path(policy_config).exists():
+        if exists(policy_config):
             policy_config = read_policy_config(policy_config)
         elif registry_lookup("approver", policy_config):
             policy_config = ApprovalPolicyConfig(

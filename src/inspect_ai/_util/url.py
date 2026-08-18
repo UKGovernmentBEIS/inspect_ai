@@ -6,7 +6,10 @@ def is_http_url(url: str) -> bool:
 
 
 def is_data_uri(url: str) -> bool:
-    pattern = r"^data:([^;]+);base64,.*"
+    # Match any data: URI with a base64 payload. Per RFC 2397 the media type is
+    # optional (e.g. "data:;base64,...") and may carry parameters such as
+    # ";charset=utf-8", so only require the ";base64," marker before the data.
+    pattern = r"^data:[^,]*;base64,"
     return re.match(pattern, url) is not None
 
 
@@ -21,6 +24,6 @@ def data_uri_mime_type(data_url: str) -> str | None:
 
 
 def data_uri_to_base64(data_uri: str) -> str:
-    pattern = r"^data:[^,]+,"
+    pattern = r"^data:[^,]*,"
     stripped_uri = re.sub(pattern, "", data_uri)
     return stripped_uri

@@ -2,9 +2,32 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 import yaml
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, PrivateAttr, ValidationError
 
 from inspect_ai._util.dateutil import UtcDate
+
+
+class ModelCost(BaseModel):
+    """Model cost in $/million tokens."""
+
+    input: float
+    """Price per million input tokens."""
+
+    output: float
+    """Price per million output tokens."""
+
+    input_cache_write: float
+    """Price per million input tokens written to cache.
+
+    Record the provider's default-TTL rate here (for Anthropic, the 5-minute
+    rate). Providers that bill longer cache TTLs at a higher rate (e.g.
+    Anthropic's 1-hour writes at 2x base input) are adjusted at cost
+    computation time based on the configured TTL — do not pre-bake a
+    longer-TTL rate into this field or it will be double-applied.
+    """
+
+    input_cache_read: float
+    """Price per million input tokens read from cache."""
 
 
 class BaseModelDefinition(BaseModel):
@@ -15,7 +38,10 @@ class BaseModelDefinition(BaseModel):
     knowledge_cutoff_date: Optional[UtcDate] = None
     context_length: Optional[int] = None
     output_tokens: Optional[int] = None
+    input_tokens: Optional[int] = None
     reasoning: Optional[bool] = None
+    reasoning_effort_default: Optional[str] = None
+    family: Optional[str] = None
     snapshot: Optional[str] = None
     aliases: Optional[List[str]] = None
 
@@ -67,7 +93,11 @@ def create_model_info(
         release_date=data_source.release_date or model_def.release_date,
         context_length=data_source.context_length or model_def.context_length,
         output_tokens=data_source.output_tokens or model_def.output_tokens,
+        _input_tokens=data_source.input_tokens or model_def.input_tokens,
         reasoning=data_source.reasoning or model_def.reasoning,
+        reasoning_effort_default=data_source.reasoning_effort_default
+        or model_def.reasoning_effort_default,
+        family=data_source.family or model_def.family,
     )
 
 
@@ -81,7 +111,7 @@ class ModelInfo(BaseModel):
     """Model name (e.g. Gemini 2.5 Flash)."""
 
     snapshot: str | None = Field(default=None)
-    """A snapshot (version) string, if available (e.g. “latest” or “20240229”).."""
+    """A snapshot (version) string, if available (e.g. "latest" or "20240229")."""
 
     release_date: UtcDate | None = Field(default=None)
     """The mode's release date."""
@@ -97,6 +127,52 @@ class ModelInfo(BaseModel):
 
     reasoning: bool | None = Field(default=None)
     """Is this a reasoning model."""
+
+    reasoning_effort_default: str | None = Field(default=None)
+    """Documented provider default for `reasoning_effort` on this model.
+
+    Sourced from the provider's published documentation. May be one of the
+    standard effort values (`minimal`, `low`, `medium`, `high`, `xhigh`, `max`)
+    or a sentinel such as `adaptive` (Anthropic Claude 4.6+, where the model
+    selects effort per-request) or `fixed` (models without an effort scale,
+    e.g. DeepSeek-R1 and Mistral Magistral). `None` means undocumented.
+
+    Inspect does not send this value automatically — it is metadata used to
+    generate the per-model defaults table in the docs.
+    """
+
+    family: str | None = Field(default=None)
+    """Reference model name used for capability and request-shape detection.
+
+    When set (typically via :func:`set_model_info`), provider capability
+    checks match against this string instead of the configured model name.
+    Use this to make a model with a custom alias behave like a known family.
+    This value does not change the model identifier sent to the provider.
+    """
+
+    cost: ModelCost | None = Field(default=None)
+    """Cost per million tokens for this model."""
+
+    _input_tokens: int | None = PrivateAttr(default=None)
+    """Private attribute for explicit input_tokens override from YAML."""
+
+    def __init__(self, _input_tokens: int | None = None, **data: object) -> None:
+        super().__init__(**data)
+        self._input_tokens = _input_tokens
+
+    @property
+    def input_tokens(self) -> int | None:
+        """Effective input capacity in tokens.
+
+        Returns the explicit input_tokens value if set in model data,
+        otherwise falls back to context_length.
+
+        This provides a single property callers can use without needing
+        to know about context_length vs input capacity differences.
+        """
+        if self._input_tokens is not None:
+            return self._input_tokens
+        return self.context_length
 
 
 def read_model_info() -> dict[str, ModelInfo]:

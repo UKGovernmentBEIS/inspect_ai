@@ -2,13 +2,19 @@
 
 import asyncio
 import json
+from contextlib import asynccontextmanager
 from typing import Any, AsyncGenerator, AsyncIterator
 
 import pytest
 from aiohttp import ClientSession
 from anthropic import AsyncAnthropic
 from anthropic.types import ToolParam
-from inspect_ai.agent._bridge.sandbox.proxy import AsyncHTTPServer
+from google import genai
+from inspect_sandbox_tools._agent_bridge.proxy import (
+    PROVIDER_ERROR_KEY,
+    AsyncHTTPServer,
+    model_proxy_server,
+)
 from openai import AsyncOpenAI
 from openai.types.responses import (
     FunctionToolParam,
@@ -373,7 +379,7 @@ async def test_model_proxy_openai_sdk_models_list(
         }
 
     # Use OpenAI SDK
-    client = AsyncOpenAI(base_url=f"{base_url}/v1")
+    client = AsyncOpenAI(base_url=f"{base_url}/v1", api_key="test")
 
     models = await client.models.list()
     model_ids = [model.id for model in models.data]
@@ -426,7 +432,7 @@ async def test_model_proxy_openai_sdk_chat_completion(
         }
 
     # Use OpenAI SDK
-    client = AsyncOpenAI(base_url=f"{base_url}/v1")
+    client = AsyncOpenAI(base_url=f"{base_url}/v1", api_key="test")
 
     response = await client.chat.completions.create(
         model="gpt-3.5-turbo",
@@ -543,7 +549,7 @@ async def test_model_proxy_openai_sdk_streaming(
             }
 
     # Use OpenAI SDK with streaming
-    client = AsyncOpenAI(base_url=f"{base_url}/v1")
+    client = AsyncOpenAI(base_url=f"{base_url}/v1", api_key="test")
 
     # Test streaming response
     stream = await client.chat.completions.create(
@@ -610,7 +616,7 @@ async def test_model_proxy_openai_sdk_error_handling(
         }
 
     # Use OpenAI SDK
-    client = AsyncOpenAI(base_url=f"{base_url}/v1")
+    client = AsyncOpenAI(base_url=f"{base_url}/v1", api_key="test")
 
     # Test successful request
     response = await client.chat.completions.create(
@@ -635,7 +641,7 @@ async def test_model_proxy_openai_sdk_error_handling(
 @pytest.fixture
 async def proxy_server() -> AsyncGenerator[tuple[AsyncHTTPServer, str], None]:
     """Fixture to create and start the actual model proxy server for testing."""
-    from inspect_ai.agent._bridge.sandbox.proxy import model_proxy_server
+    from inspect_sandbox_tools._agent_bridge.proxy import model_proxy_server
 
     # Mock the bridge service
     async def mock_bridge_service(
@@ -903,7 +909,7 @@ async def test_model_proxy_responses_non_streaming(
     _server, base_url = proxy_server
 
     # Use OpenAI client
-    client = AsyncOpenAI(base_url=f"{base_url}/v1")
+    client = AsyncOpenAI(base_url=f"{base_url}/v1", api_key="test")
 
     # Make request using the OpenAI client
     response = await client.responses.create(
@@ -924,6 +930,105 @@ async def test_model_proxy_responses_non_streaming(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("path", "invalid_body", "valid_body"),
+    [
+        ("/v1/responses", {}, {"model": "gpt-4o", "input": "Hello"}),
+        ("/v1/responses", [], {"model": "gpt-4o", "input": "Hello"}),
+        (
+            "/v1/responses",
+            {"model": []},
+            {"model": "gpt-4o", "input": "Hello"},
+        ),
+        (
+            "/v1/chat/completions",
+            {},
+            {"model": "gpt-4o", "messages": [{"role": "user", "content": "Hello"}]},
+        ),
+        (
+            "/v1/chat/completions",
+            [],
+            {"model": "gpt-4o", "messages": [{"role": "user", "content": "Hello"}]},
+        ),
+        (
+            "/v1/chat/completions",
+            {"model": []},
+            {"model": "gpt-4o", "messages": [{"role": "user", "content": "Hello"}]},
+        ),
+    ],
+)
+async def test_openai_proxy_rejects_missing_model_without_crashing(
+    proxy_server: tuple[AsyncHTTPServer, str],
+    path: str,
+    invalid_body: Any,
+    valid_body: dict[str, Any],
+) -> None:
+    """Reject malformed requests before they reach the bridge service."""
+    _server, base_url = proxy_server
+
+    async with ClientSession() as session:
+        async with session.post(f"{base_url}{path}", json=invalid_body) as response:
+            assert response.status == 400
+            body = await response.json()
+            assert body["error"]["type"] == "invalid_request_error"
+            assert body["error"]["param"] == "model"
+
+        async with session.post(f"{base_url}{path}", json=valid_body) as response:
+            assert response.status == 200
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("path", "param", "invalid_body", "valid_body"),
+    [
+        (
+            "/v1/responses",
+            "input",
+            {"model": "gpt-4o"},
+            {"model": "gpt-4o", "input": "Hello"},
+        ),
+        (
+            "/v1/responses",
+            "input",
+            {"model": "gpt-4o", "input": None},
+            {"model": "gpt-4o", "input": "Hello"},
+        ),
+        (
+            "/v1/chat/completions",
+            "messages",
+            {"model": "gpt-4o"},
+            {"model": "gpt-4o", "messages": [{"role": "user", "content": "Hello"}]},
+        ),
+        (
+            "/v1/chat/completions",
+            "messages",
+            {"model": "gpt-4o", "messages": None},
+            {"model": "gpt-4o", "messages": [{"role": "user", "content": "Hello"}]},
+        ),
+    ],
+)
+async def test_openai_proxy_rejects_missing_content_without_crashing(
+    proxy_server: tuple[AsyncHTTPServer, str],
+    path: str,
+    param: str,
+    invalid_body: dict[str, Any],
+    valid_body: dict[str, Any],
+) -> None:
+    """A valid model but missing messages/input is still a bad request, not a crash."""
+    _server, base_url = proxy_server
+
+    async with ClientSession() as session:
+        async with session.post(f"{base_url}{path}", json=invalid_body) as response:
+            assert response.status == 400
+            body = await response.json()
+            assert body["error"]["type"] == "invalid_request_error"
+            assert body["error"]["param"] == param
+
+        async with session.post(f"{base_url}{path}", json=valid_body) as response:
+            assert response.status == 200
+
+
+@pytest.mark.asyncio
 async def test_model_proxy_responses_streaming(
     proxy_server: tuple[AsyncHTTPServer, str],
 ) -> None:
@@ -931,7 +1036,7 @@ async def test_model_proxy_responses_streaming(
     _server, base_url = proxy_server
 
     # Use OpenAI client
-    client = AsyncOpenAI(base_url=f"{base_url}/v1")
+    client = AsyncOpenAI(base_url=f"{base_url}/v1", api_key="test")
 
     # Stream response using the OpenAI client
     # Collect events
@@ -974,7 +1079,7 @@ async def test_model_proxy_responses_with_tool_calls(
     _server, base_url = proxy_server
 
     # Use OpenAI client
-    client = AsyncOpenAI(base_url=f"{base_url}/v1")
+    client = AsyncOpenAI(base_url=f"{base_url}/v1", api_key="test")
 
     # Make request with tools
     response = await client.responses.create(
@@ -1016,7 +1121,7 @@ async def test_model_proxy_responses_streaming_with_tool_calls(
     _server, base_url = proxy_server
 
     # Use OpenAI client
-    client = AsyncOpenAI(base_url=f"{base_url}/v1")
+    client = AsyncOpenAI(base_url=f"{base_url}/v1", api_key="test")
 
     # Stream response with tools
     # Collect events
@@ -1077,7 +1182,7 @@ async def test_model_proxy_responses_web_search(
     _server, base_url = proxy_server
 
     # Use OpenAI client
-    client = AsyncOpenAI(base_url=f"{base_url}/v1")
+    client = AsyncOpenAI(base_url=f"{base_url}/v1", api_key="test")
 
     # Make request that triggers web search response
     response = await client.responses.create(
@@ -1104,7 +1209,7 @@ async def test_model_proxy_responses_computer_tool(
     _server, base_url = proxy_server
 
     # Use OpenAI client
-    client = AsyncOpenAI(base_url=f"{base_url}/v1")
+    client = AsyncOpenAI(base_url=f"{base_url}/v1", api_key="test")
 
     # Make request that triggers computer tool response
     response = await client.responses.create(
@@ -1137,7 +1242,7 @@ async def test_model_proxy_responses_reasoning(
     _server, base_url = proxy_server
 
     # Use OpenAI client
-    client = AsyncOpenAI(base_url=f"{base_url}/v1")
+    client = AsyncOpenAI(base_url=f"{base_url}/v1", api_key="test")
 
     # Make request that triggers reasoning response
     response = await client.responses.create(
@@ -1173,7 +1278,7 @@ async def test_model_proxy_responses_mcp_call(
     _server, base_url = proxy_server
 
     # Use OpenAI client
-    client = AsyncOpenAI(base_url=f"{base_url}/v1")
+    client = AsyncOpenAI(base_url=f"{base_url}/v1", api_key="test")
 
     # Make request that triggers MCP call response
     response = await client.responses.create(
@@ -1206,7 +1311,7 @@ async def test_model_proxy_responses_mcp_list_tools(
     _server, base_url = proxy_server
 
     # Use OpenAI client
-    client = AsyncOpenAI(base_url=f"{base_url}/v1")
+    client = AsyncOpenAI(base_url=f"{base_url}/v1", api_key="test")
 
     # Make request that triggers MCP list tools response
     response = await client.responses.create(
@@ -1233,7 +1338,7 @@ async def test_model_proxy_responses_streaming_reasoning(
     _server, base_url = proxy_server
 
     # Use OpenAI client
-    client = AsyncOpenAI(base_url=f"{base_url}/v1")
+    client = AsyncOpenAI(base_url=f"{base_url}/v1", api_key="test")
 
     # Stream response with reasoning
     events = []
@@ -1301,7 +1406,7 @@ async def test_model_proxy_responses_streaming_reasoning(
 @pytest.fixture
 async def proxy_server_anthropic() -> AsyncGenerator[tuple[AsyncHTTPServer, str], None]:
     """Fixture to create and start the model proxy server for Anthropic testing."""
-    from inspect_ai.agent._bridge.sandbox.proxy import model_proxy_server
+    from inspect_sandbox_tools._agent_bridge.proxy import model_proxy_server
 
     # Mock the bridge service for Anthropic
     async def mock_bridge_service_anthropic(
@@ -1489,7 +1594,7 @@ async def test_anthropic_messages_non_streaming(
     _server, base_url = proxy_server_anthropic
 
     # Use Anthropic client
-    client = AsyncAnthropic(base_url=base_url)
+    client = AsyncAnthropic(base_url=base_url, api_key="test")
 
     # Make request
     response = await client.messages.create(
@@ -1508,6 +1613,54 @@ async def test_anthropic_messages_non_streaming(
 
 
 @pytest.mark.asyncio
+async def test_anthropic_proxy_rejects_missing_model_without_crashing(
+    proxy_server_anthropic: tuple[AsyncHTTPServer, str],
+) -> None:
+    """Return an Anthropic error while keeping the proxy available."""
+    _server, base_url = proxy_server_anthropic
+
+    async with ClientSession() as session:
+        async with session.post(
+            f"{base_url}/v1/messages",
+            json={"messages": [], "max_tokens": 16},
+        ) as response:
+            assert response.status == 400
+            body = await response.json()
+            assert body["type"] == "error"
+            assert body["error"]["type"] == "invalid_request_error"
+
+        async with session.post(
+            f"{base_url}/v1/messages",
+            json={"model": "claude-test", "messages": [], "max_tokens": 16},
+        ) as response:
+            assert response.status == 200
+
+
+@pytest.mark.asyncio
+async def test_anthropic_proxy_rejects_missing_messages_without_crashing(
+    proxy_server_anthropic: tuple[AsyncHTTPServer, str],
+) -> None:
+    """A valid model but missing messages is still a bad request, not a crash."""
+    _server, base_url = proxy_server_anthropic
+
+    async with ClientSession() as session:
+        async with session.post(
+            f"{base_url}/v1/messages",
+            json={"model": "claude-test", "max_tokens": 16},
+        ) as response:
+            assert response.status == 400
+            body = await response.json()
+            assert body["type"] == "error"
+            assert body["error"]["type"] == "invalid_request_error"
+
+        async with session.post(
+            f"{base_url}/v1/messages",
+            json={"model": "claude-test", "messages": [], "max_tokens": 16},
+        ) as response:
+            assert response.status == 200
+
+
+@pytest.mark.asyncio
 async def test_anthropic_messages_streaming(
     proxy_server_anthropic: tuple[AsyncHTTPServer, str],
 ) -> None:
@@ -1515,7 +1668,7 @@ async def test_anthropic_messages_streaming(
     _server, base_url = proxy_server_anthropic
 
     # Use Anthropic client
-    client = AsyncAnthropic(base_url=base_url)
+    client = AsyncAnthropic(base_url=base_url, api_key="test")
 
     # Stream response
     collected_text = ""
@@ -1559,7 +1712,7 @@ async def test_anthropic_messages_with_tool_use(
     _server, base_url = proxy_server_anthropic
 
     # Use Anthropic client
-    client = AsyncAnthropic(base_url=base_url)
+    client = AsyncAnthropic(base_url=base_url, api_key="test")
 
     # Define tool
     tools: list[ToolParam] = [
@@ -1611,7 +1764,7 @@ async def test_anthropic_messages_streaming_with_tool_use(
     _server, base_url = proxy_server_anthropic
 
     # Use Anthropic client
-    client = AsyncAnthropic(base_url=base_url)
+    client = AsyncAnthropic(base_url=base_url, api_key="test")
 
     # Define tool
     tools: list[ToolParam] = [
@@ -1680,7 +1833,7 @@ async def test_anthropic_messages_with_thinking(
     _server, base_url = proxy_server_anthropic
 
     # Use Anthropic client
-    client = AsyncAnthropic(base_url=base_url)
+    client = AsyncAnthropic(base_url=base_url, api_key="test")
 
     # Make request that triggers thinking
     response = await client.messages.create(
@@ -1713,7 +1866,7 @@ async def test_anthropic_messages_streaming_with_thinking(
     _server, base_url = proxy_server_anthropic
 
     # Use Anthropic client
-    client = AsyncAnthropic(base_url=base_url)
+    client = AsyncAnthropic(base_url=base_url, api_key="test")
 
     # Stream response with thinking
     thinking_text = ""
@@ -1766,7 +1919,7 @@ async def test_anthropic_messages_content_array_format(
     _server, base_url = proxy_server_anthropic
 
     # Use Anthropic client
-    client = AsyncAnthropic(base_url=base_url)
+    client = AsyncAnthropic(base_url=base_url, api_key="test")
 
     # Make request with content array format
     response = await client.messages.create(
@@ -1796,7 +1949,7 @@ async def test_anthropic_messages_web_search_tool(
     _server, base_url = proxy_server_anthropic
 
     # Use Anthropic client
-    client = AsyncAnthropic(base_url=base_url)
+    client = AsyncAnthropic(base_url=base_url, api_key="test")
 
     # Make request that triggers web search
     response = await client.messages.create(
@@ -1830,7 +1983,7 @@ async def test_anthropic_messages_mcp_tool(
     _server, base_url = proxy_server_anthropic
 
     # Use Anthropic client
-    client = AsyncAnthropic(base_url=base_url)
+    client = AsyncAnthropic(base_url=base_url, api_key="test")
 
     # Make request that triggers MCP tool
     response = await client.messages.create(
@@ -1861,7 +2014,7 @@ async def test_anthropic_messages_streaming_web_search(
     _server, base_url = proxy_server_anthropic
 
     # Use Anthropic client
-    client = AsyncAnthropic(base_url=base_url)
+    client = AsyncAnthropic(base_url=base_url, api_key="test")
 
     # Stream response with web search
     collected_text = ""
@@ -1908,7 +2061,7 @@ async def test_anthropic_messages_streaming_mcp_tool(
     _server, base_url = proxy_server_anthropic
 
     # Use Anthropic client
-    client = AsyncAnthropic(base_url=base_url)
+    client = AsyncAnthropic(base_url=base_url, api_key="test")
 
     # Stream response with MCP tool
     collected_text = ""
@@ -1949,3 +2102,726 @@ async def test_anthropic_messages_streaming_mcp_tool(
     # Verify the content
     assert "mcp" in collected_text.lower()
     assert '"param": "value"' in collected_json or '"param":"value"' in collected_json
+
+
+# ============ Google generateContent API Tests ============
+
+
+@pytest.fixture
+async def proxy_server_google() -> AsyncGenerator[tuple[AsyncHTTPServer, str], None]:
+    """Fixture to create and start the model proxy server for Google testing."""
+    from inspect_sandbox_tools._agent_bridge.proxy import model_proxy_server
+
+    # Mock the bridge service for Google
+    async def mock_bridge_service_google(
+        method: str, json_data: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Mock implementation of call_bridge_model_service_async for Google."""
+        if method == "generate_google":
+            # Get the contents from the request
+            contents = json_data.get("contents", [])
+            tools = json_data.get("tools", [])
+
+            # Check for special test triggers
+            last_user_text = ""
+            if contents:
+                for content in reversed(contents):
+                    if content.get("role") == "user":
+                        parts = content.get("parts", [])
+                        for part in parts:
+                            if "text" in part:
+                                last_user_text = part["text"]
+                                break
+                        if last_user_text:
+                            break
+
+            # Generate different responses based on content
+            if "test_thinking" in last_user_text:
+                # Return a thinking response
+                return {
+                    "candidates": [
+                        {
+                            "content": {
+                                "role": "model",
+                                "parts": [
+                                    {
+                                        "text": "Let me analyze this problem carefully.",
+                                        "thought": True,
+                                    },
+                                    {"text": "The answer is 42."},
+                                ],
+                            },
+                            "finishReason": "STOP",
+                        }
+                    ],
+                    "usageMetadata": {
+                        "promptTokenCount": 20,
+                        "candidatesTokenCount": 50,
+                        "totalTokenCount": 70,
+                        "thoughtsTokenCount": 30,
+                    },
+                }
+            elif "test_web_search" in last_user_text:
+                # Return a web search function call response
+                return {
+                    "candidates": [
+                        {
+                            "content": {
+                                "role": "model",
+                                "parts": [
+                                    {"text": "I'll search for that information."},
+                                    {
+                                        "functionCall": {
+                                            "name": "web_search",
+                                            "args": {"query": "latest AI news"},
+                                        }
+                                    },
+                                ],
+                            },
+                            "finishReason": "STOP",
+                        }
+                    ],
+                    "usageMetadata": {
+                        "promptTokenCount": 20,
+                        "candidatesTokenCount": 15,
+                        "totalTokenCount": 35,
+                    },
+                }
+            elif tools and "weather" in last_user_text.lower():
+                # Return a tool use response
+                return {
+                    "candidates": [
+                        {
+                            "content": {
+                                "role": "model",
+                                "parts": [
+                                    {"text": "I'll check the weather for you."},
+                                    {
+                                        "functionCall": {
+                                            "name": "get_weather",
+                                            "args": {"location": "San Francisco"},
+                                        }
+                                    },
+                                ],
+                            },
+                            "finishReason": "STOP",
+                        }
+                    ],
+                    "usageMetadata": {
+                        "promptTokenCount": 25,
+                        "candidatesTokenCount": 20,
+                        "totalTokenCount": 45,
+                    },
+                }
+            else:
+                # Default text response
+                response_text = (
+                    f"You said: {last_user_text}" if last_user_text else "Hello!"
+                )
+                return {
+                    "candidates": [
+                        {
+                            "content": {
+                                "role": "model",
+                                "parts": [{"text": response_text}],
+                            },
+                            "finishReason": "STOP",
+                        }
+                    ],
+                    "usageMetadata": {
+                        "promptTokenCount": 10,
+                        "candidatesTokenCount": 15,
+                        "totalTokenCount": 25,
+                    },
+                }
+        else:
+            raise ValueError(f"Unknown method: {method}")
+
+    # Create server with mocked bridge service
+    server = await model_proxy_server(
+        port=0,
+        call_bridge_model_service_async=mock_bridge_service_google,
+    )
+
+    # Start server manually (not using start() which blocks)
+    server.server = await asyncio.start_server(
+        server._handle_client, server.host, server.port
+    )
+
+    # Get the actual port that was assigned
+    port = server.server.sockets[0].getsockname()[1]
+    base_url = f"http://127.0.0.1:{port}"
+
+    try:
+        yield server, base_url
+    finally:
+        # Clean up
+        if server.server:
+            server.server.close()
+            await server.server.wait_closed()
+
+
+@pytest.mark.asyncio
+async def test_google_generate_content_non_streaming(
+    proxy_server_google: tuple[AsyncHTTPServer, str],
+) -> None:
+    """Test Google generateContent API non-streaming endpoint."""
+    _server, base_url = proxy_server_google
+
+    # Use Google client
+    client = genai.Client(api_key="test", http_options={"base_url": base_url})
+
+    # Make request
+    response = await client.aio.models.generate_content(
+        model="gemini-2.0-flash",
+        contents=[{"role": "user", "parts": [{"text": "Hello, Gemini!"}]}],
+    )
+
+    # Verify response structure
+    assert response.candidates is not None
+    assert len(response.candidates) == 1
+    candidate = response.candidates[0]
+    assert candidate.content.role == "model"
+    parts = candidate.content.parts
+    assert len(parts) == 1
+    assert parts[0].text == "You said: Hello, Gemini!"
+    assert candidate.finish_reason == "STOP"
+
+    # Verify usage metadata
+    assert response.usage_metadata is not None
+    assert response.usage_metadata.total_token_count == 25
+
+
+@pytest.mark.asyncio
+async def test_google_proxy_rejects_missing_model_without_crashing(
+    proxy_server_google: tuple[AsyncHTTPServer, str],
+) -> None:
+    """Return a Google-style error when the model path segment is empty."""
+    _server, base_url = proxy_server_google
+
+    async with ClientSession() as session:
+        async with session.post(
+            f"{base_url}/v1beta/models/:generateContent",
+            json={"contents": []},
+        ) as response:
+            assert response.status == 400
+            body = await response.json()
+            assert body["error"]["status"] == "INVALID_ARGUMENT"
+
+        async with session.post(
+            f"{base_url}/v1beta/models/gemini-test:generateContent",
+            json={"contents": []},
+        ) as response:
+            assert response.status == 200
+
+
+@pytest.mark.asyncio
+async def test_google_generate_content_streaming(
+    proxy_server_google: tuple[AsyncHTTPServer, str],
+) -> None:
+    """Test Google generateContent API streaming endpoint."""
+    _server, base_url = proxy_server_google
+
+    # Use Google client
+    client = genai.Client(api_key="test", http_options={"base_url": base_url})
+
+    # Stream response
+    collected_text = ""
+    chunks = []
+
+    # Use generate_content_stream for streaming
+    async for chunk in await client.aio.models.generate_content_stream(
+        model="gemini-2.0-flash",
+        contents=[{"role": "user", "parts": [{"text": "Hello streaming!"}]}],
+    ):
+        chunks.append(chunk)
+        # Collect text from the chunk
+        if chunk.candidates:
+            for part in chunk.candidates[0].content.parts:
+                if part.text:
+                    collected_text += part.text
+
+    # Verify we received chunks
+    assert len(chunks) > 0
+
+    # Verify the streamed text
+    assert "You said: Hello streaming!" in collected_text
+
+
+@pytest.mark.asyncio
+async def test_google_generate_content_with_function_calling(
+    proxy_server_google: tuple[AsyncHTTPServer, str],
+) -> None:
+    """Test Google generateContent API with function calling."""
+    _server, base_url = proxy_server_google
+
+    # Use Google client
+    client = genai.Client(api_key="test", http_options={"base_url": base_url})
+
+    # Make request with tools
+    response = await client.aio.models.generate_content(
+        model="gemini-2.0-flash",
+        contents=[
+            {
+                "role": "user",
+                "parts": [{"text": "What's the weather in San Francisco?"}],
+            }
+        ],
+        config=genai.types.GenerateContentConfig(
+            tools=[
+                {
+                    "function_declarations": [
+                        {
+                            "name": "get_weather",
+                            "description": "Get the current weather",
+                            "parameters": {
+                                "type": "object",
+                                "properties": {
+                                    "location": {"type": "string"},
+                                },
+                                "required": ["location"],
+                            },
+                        }
+                    ]
+                }
+            ],
+        ),
+    )
+
+    # Verify response structure
+    assert response.candidates is not None
+    candidate = response.candidates[0]
+    parts = candidate.content.parts
+    assert len(parts) == 2
+
+    # First part should be text
+    assert parts[0].text
+    assert "weather" in parts[0].text.lower()
+
+    # Second part should be function call
+    assert parts[1].function_call is not None
+    function_call = parts[1].function_call
+    assert function_call.name == "get_weather"
+    assert function_call.args["location"] == "San Francisco"
+
+
+@pytest.mark.asyncio
+async def test_google_generate_content_streaming_with_function_calling(
+    proxy_server_google: tuple[AsyncHTTPServer, str],
+) -> None:
+    """Test Google generateContent API streaming with function calling."""
+    _server, base_url = proxy_server_google
+
+    # Use Google client
+    client = genai.Client(api_key="test", http_options={"base_url": base_url})
+
+    # Stream response with tools
+    collected_text = ""
+    function_call_name = ""
+    function_call_args = {}
+    chunks = []
+
+    async for chunk in await client.aio.models.generate_content_stream(
+        model="gemini-2.0-flash",
+        contents=[
+            {
+                "role": "user",
+                "parts": [{"text": "What's the weather in San Francisco?"}],
+            }
+        ],
+        config=genai.types.GenerateContentConfig(
+            tools=[
+                {
+                    "function_declarations": [
+                        {
+                            "name": "get_weather",
+                            "description": "Get the current weather",
+                            "parameters": {
+                                "type": "object",
+                                "properties": {
+                                    "location": {"type": "string"},
+                                },
+                                "required": ["location"],
+                            },
+                        }
+                    ]
+                }
+            ],
+        ),
+    ):
+        chunks.append(chunk)
+        # Collect text and function calls from the chunk
+        if chunk.candidates:
+            for part in chunk.candidates[0].content.parts:
+                if part.text:
+                    collected_text += part.text
+                elif part.function_call:
+                    function_call_name = part.function_call.name
+                    function_call_args = part.function_call.args
+
+    # Verify we received chunks
+    assert len(chunks) > 0
+
+    # Verify the streamed content
+    assert "weather" in collected_text.lower()
+    assert function_call_name == "get_weather"
+    assert function_call_args["location"] == "San Francisco"
+
+
+@pytest.mark.asyncio
+async def test_google_generate_content_with_thinking(
+    proxy_server_google: tuple[AsyncHTTPServer, str],
+) -> None:
+    """Test Google generateContent API with thinking/reasoning."""
+    _server, base_url = proxy_server_google
+
+    # Use Google client
+    client = genai.Client(api_key="test", http_options={"base_url": base_url})
+
+    # Make request with thinking configuration
+    response = await client.aio.models.generate_content(
+        model="gemini-2.5-flash-thinking",
+        contents=[
+            {
+                "role": "user",
+                "parts": [{"text": "test_thinking: Solve this complex problem"}],
+            }
+        ],
+        config=genai.types.GenerateContentConfig(
+            thinking_config=genai.types.ThinkingConfig(thinking_budget=1024),
+        ),
+    )
+
+    # Verify response structure
+    assert response.candidates is not None
+    candidate = response.candidates[0]
+    parts = candidate.content.parts
+
+    # Should have thought part and answer part
+    assert len(parts) == 2
+
+    # First part should be thought
+    thought_part = parts[0]
+    assert thought_part.text == "Let me analyze this problem carefully."
+    assert thought_part.thought is True
+
+    # Second part should be answer
+    answer_part = parts[1]
+    assert answer_part.text == "The answer is 42."
+
+    # Verify usage metadata includes thinking tokens
+    assert response.usage_metadata is not None
+    assert response.usage_metadata.thoughts_token_count == 30
+
+
+@pytest.mark.asyncio
+async def test_google_generate_content_streaming_with_thinking(
+    proxy_server_google: tuple[AsyncHTTPServer, str],
+) -> None:
+    """Test Google generateContent API streaming with thinking/reasoning."""
+    _server, base_url = proxy_server_google
+
+    # Use Google client
+    client = genai.Client(api_key="test", http_options={"base_url": base_url})
+
+    # Stream response with thinking
+    thought_text = ""
+    answer_text = ""
+    chunks = []
+
+    async for chunk in await client.aio.models.generate_content_stream(
+        model="gemini-2.5-flash-thinking",
+        contents=[
+            {
+                "role": "user",
+                "parts": [{"text": "test_thinking: Solve this problem"}],
+            }
+        ],
+        config=genai.types.GenerateContentConfig(
+            thinking_config=genai.types.ThinkingConfig(thinking_budget=1024),
+        ),
+    ):
+        chunks.append(chunk)
+        # Collect text from the chunk, separating thoughts from answers
+        if chunk.candidates:
+            for part in chunk.candidates[0].content.parts:
+                if part.text:
+                    if hasattr(part, "thought") and part.thought:
+                        thought_text += part.text
+                    else:
+                        answer_text += part.text
+
+    # Verify we received chunks
+    assert len(chunks) > 0
+
+    # Verify the streamed text
+    assert "Let me analyze this problem carefully." in thought_text
+    assert "The answer is 42." in answer_text
+
+
+@pytest.mark.asyncio
+async def test_google_generate_content_web_search_tool(
+    proxy_server_google: tuple[AsyncHTTPServer, str],
+) -> None:
+    """Test Google generateContent API with web search tool."""
+    _server, base_url = proxy_server_google
+
+    # Use Google client
+    client = genai.Client(api_key="test", http_options={"base_url": base_url})
+
+    # Make request with web search tool
+    response = await client.aio.models.generate_content(
+        model="gemini-2.0-flash",
+        contents=[
+            {
+                "role": "user",
+                "parts": [{"text": "test_web_search: Find latest AI news"}],
+            }
+        ],
+        config=genai.types.GenerateContentConfig(
+            tools=[{"google_search": {}}],
+        ),
+    )
+
+    # Verify response structure
+    assert response.candidates is not None
+    candidate = response.candidates[0]
+    parts = candidate.content.parts
+
+    # Should have text and function call for web_search
+    assert len(parts) == 2
+    assert parts[1].function_call is not None
+    function_call = parts[1].function_call
+    assert function_call.name == "web_search"
+    assert function_call.args["query"] == "latest AI news"
+
+
+@pytest.mark.asyncio
+async def test_google_generate_content_streaming_web_search(
+    proxy_server_google: tuple[AsyncHTTPServer, str],
+) -> None:
+    """Test Google generateContent API streaming with web search."""
+    _server, base_url = proxy_server_google
+
+    # Use Google client
+    client = genai.Client(api_key="test", http_options={"base_url": base_url})
+
+    # Stream response with web search
+    collected_text = ""
+    function_call_name = ""
+    function_call_args = {}
+    chunks = []
+
+    async for chunk in await client.aio.models.generate_content_stream(
+        model="gemini-2.0-flash",
+        contents=[
+            {
+                "role": "user",
+                "parts": [{"text": "test_web_search: Find latest AI news"}],
+            }
+        ],
+        config=genai.types.GenerateContentConfig(
+            tools=[{"google_search": {}}],
+        ),
+    ):
+        chunks.append(chunk)
+        # Collect text and function calls from the chunk
+        if chunk.candidates:
+            for part in chunk.candidates[0].content.parts:
+                if part.text:
+                    collected_text += part.text
+                elif part.function_call:
+                    function_call_name = part.function_call.name
+                    function_call_args = part.function_call.args
+
+    # Verify we received chunks
+    assert len(chunks) > 0
+
+    # Verify the streamed content
+    assert "search" in collected_text.lower()
+    assert function_call_name == "web_search"
+    assert function_call_args["query"] == "latest AI news"
+
+
+# ---------- Forwarded provider errors ----------
+
+
+@asynccontextmanager
+async def _proxy_with_service(mock_service: Any) -> AsyncGenerator[str, None]:
+    """Start a proxy backed by a mock bridge service; yield its base URL."""
+    server = await model_proxy_server(
+        port=0, call_bridge_model_service_async=mock_service
+    )
+    server.server = await asyncio.start_server(
+        server._handle_client, server.host, server.port
+    )
+    port = server.server.sockets[0].getsockname()[1]
+    try:
+        yield f"http://127.0.0.1:{port}"
+    finally:
+        if server.server:
+            server.server.close()
+            await server.server.wait_closed()
+
+
+def _error_service(status: int | None, message: str) -> Any:
+    """A mock bridge service that always returns a forwarded provider error."""
+
+    async def mock_service(method: str, **params: Any) -> dict[str, Any]:
+        return {PROVIDER_ERROR_KEY: {"status": status, "message": message}}
+
+    return mock_service
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("path", "body", "status", "message", "assert_body"),
+    [
+        (
+            "/v1/responses",
+            {"model": "gpt-4o", "input": "hi"},
+            503,
+            "upstream unavailable",
+            lambda b: (
+                b["error"]["type"] == "api_error"
+                and b["error"]["message"] == "upstream unavailable"
+            ),
+        ),
+        (
+            "/v1/chat/completions",
+            {"model": "gpt-4o", "messages": [{"role": "user", "content": "hi"}]},
+            429,
+            "rate limited",
+            lambda b: b["error"]["message"] == "rate limited",
+        ),
+        (
+            "/v1/messages",
+            {
+                "model": "claude-x",
+                "max_tokens": 8,
+                "messages": [{"role": "user", "content": "hi"}],
+            },
+            400,
+            "Could not process image",
+            lambda b: (
+                b["type"] == "error"
+                and b["error"]["type"] == "invalid_request_error"
+                and b["error"]["message"] == "Could not process image"
+            ),
+        ),
+        (
+            "/v1beta/models/gemini-2.5-pro:generateContent",
+            {"contents": [{"role": "user", "parts": [{"text": "hi"}]}]},
+            500,
+            "internal error",
+            lambda b: (
+                b["error"]["code"] == 500
+                and b["error"]["status"] == "INTERNAL"
+                and b["error"]["message"] == "internal error"
+            ),
+        ),
+    ],
+)
+async def test_provider_error_forwarded_non_streaming(
+    path: str,
+    body: dict[str, Any],
+    status: int,
+    message: str,
+    assert_body: Any,
+) -> None:
+    """A forwarded provider error becomes a provider-dialect HTTP error, not a crash."""
+    async with _proxy_with_service(_error_service(status, message)) as base_url:
+        async with ClientSession() as session:
+            async with session.post(f"{base_url}{path}", json=body) as response:
+                assert response.status == status
+                assert assert_body(await response.json())
+
+
+@pytest.mark.asyncio
+async def test_provider_error_status_none_defaults_to_400() -> None:
+    """A forwarded error with no HTTP status (e.g. our own translation error)."""
+    body = {"model": "gpt-4o", "messages": [{"role": "user", "content": "hi"}]}
+    async with _proxy_with_service(_error_service(None, "bad tool")) as base_url:
+        async with ClientSession() as session:
+            async with session.post(
+                f"{base_url}/v1/chat/completions", json=body
+            ) as response:
+                assert response.status == 400
+                assert (await response.json())["error"]["message"] == "bad tool"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", [529, 520])
+async def test_provider_error_non_standard_status_forwarded_faithfully(
+    status: int,
+) -> None:
+    """A non-standard HTTP status (e.g. Anthropic 529 overloaded) survives.
+
+    `HTTPStatus(529)` raises ValueError, so an unguarded reason-phrase lookup in
+    the response writer would be caught and downgraded to a generic 500. The
+    status must reach the client unchanged.
+    """
+    body = {
+        "model": "claude-x",
+        "max_tokens": 8,
+        "messages": [{"role": "user", "content": "hi"}],
+    }
+    async with _proxy_with_service(_error_service(status, "overloaded")) as base_url:
+        async with ClientSession() as session:
+            async with session.post(f"{base_url}/v1/messages", json=body) as response:
+                assert response.status == status
+                assert (await response.json())["error"]["message"] == "overloaded"
+
+
+@pytest.mark.asyncio
+async def test_proxy_survives_provider_error() -> None:
+    """After forwarding a provider error the proxy stays up for the next request."""
+    calls = {"n": 0}
+
+    async def mock_service(method: str, **params: Any) -> dict[str, Any]:
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return {PROVIDER_ERROR_KEY: {"status": 400, "message": "boom"}}
+        return {
+            "id": "msg_1",
+            "type": "message",
+            "role": "assistant",
+            "content": [{"type": "text", "text": "ok"}],
+            "model": "claude-x",
+            "stop_reason": "end_turn",
+            "stop_sequence": None,
+            "usage": {"input_tokens": 1, "output_tokens": 1},
+        }
+
+    body = {
+        "model": "claude-x",
+        "max_tokens": 8,
+        "messages": [{"role": "user", "content": "hi"}],
+    }
+    async with _proxy_with_service(mock_service) as base_url:
+        async with ClientSession() as session:
+            async with session.post(f"{base_url}/v1/messages", json=body) as first:
+                assert first.status == 400
+            async with session.post(f"{base_url}/v1/messages", json=body) as second:
+                assert second.status == 200
+                assert (await second.json())["content"][0]["text"] == "ok"
+
+
+@pytest.mark.asyncio
+async def test_anthropic_streaming_provider_error_emits_sse_error() -> None:
+    """The Anthropic streaming path forwards the error as an SSE error event."""
+    body = {
+        "model": "claude-x",
+        "max_tokens": 8,
+        "stream": True,
+        "messages": [{"role": "user", "content": "hi"}],
+    }
+    async with _proxy_with_service(_error_service(429, "overloaded")) as base_url:
+        async with ClientSession() as session:
+            async with session.post(f"{base_url}/v1/messages", json=body) as response:
+                assert response.status == 200
+                text = await response.text()
+    assert "event: message_start" in text
+    assert "event: error" in text
+    assert "rate_limit_error" in text
+    assert "overloaded" in text

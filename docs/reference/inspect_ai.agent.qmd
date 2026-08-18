@@ -1,11 +1,21 @@
 ---
-title: "inspect_ai.agent"
+reference: inspect_ai.agent
+description: Agent scaffolds and protocol.
 ---
 
 ## Agents
 
 ### react
 ### human_cli
+
+## Deep Agent
+
+### deepagent
+### subagent
+### Subagent
+### research
+### plan
+### general
 
 ## Execution
 
@@ -28,6 +38,12 @@ title: "inspect_ai.agent"
 ### last_message
 ### remove_tools
 ### MessageFilter
+
+## Channel
+
+### agent_channel
+### AgentChannel
+### AgentInterrupted
 
 ## Protocol
 

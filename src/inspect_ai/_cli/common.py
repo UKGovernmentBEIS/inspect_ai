@@ -1,5 +1,6 @@
 import functools
 import os
+import sys
 from typing import Any, Callable, Literal, cast
 
 import click
@@ -20,7 +21,7 @@ from .util import parse_cli_args
 class CommonOptions(TypedDict):
     log_level: str
     log_dir: str
-    display: Literal["full", "conversation", "rich", "plain", "none"]
+    display: Literal["full", "conversation", "rich", "plain", "log", "none"]
     no_ansi: bool | None
     traceback_locals: bool
     env: tuple[str, ...] | None
@@ -134,9 +135,11 @@ def process_common_options(options: CommonOptions) -> None:
         import debugpy  # type: ignore
 
         debugpy.listen(options["debug_port"])
-        print("Waiting for debugger attach")
+        # diagnostics go to stderr so they can't pollute machine-readable
+        # stdout (e.g. the NDJSON stream of `inspect eval --json`)
+        print("Waiting for debugger attach", file=sys.stderr)
         debugpy.wait_for_client()
-        print("Debugger attached")
+        print("Debugger attached", file=sys.stderr)
 
 
 def clean_log_dir(

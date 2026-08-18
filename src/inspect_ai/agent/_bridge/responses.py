@@ -13,8 +13,9 @@ if TYPE_CHECKING:
 
 async def inspect_responses_api_request(
     json_data: dict[str, Any],
-    web_search: WebSearchProviders,
-    code_execution: CodeExecutionProviders,
+    headers: dict[str, str] | None,
+    web_search: WebSearchProviders | None,
+    code_execution: CodeExecutionProviders | None,
     bridge: AgentBridge,
 ) -> "Response":
     validate_openai_client("agent bridge")
@@ -22,5 +23,5 @@ async def inspect_responses_api_request(
     from .responses_impl import inspect_responses_api_request_impl
 
     return await inspect_responses_api_request_impl(
-        json_data, web_search, code_execution, bridge
+        json_data, headers, web_search, code_execution, bridge
     )

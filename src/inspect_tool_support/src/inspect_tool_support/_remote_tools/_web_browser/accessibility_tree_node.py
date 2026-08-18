@@ -239,7 +239,7 @@ class AccessibilityTreeNode:
             (closest_parent := self._closest_non_ignored_parent)
             and closest_parent.bounds
             and self.bounds
-            and (closest_parent.role == "link" or closest_parent.role == "button")
+            and (closest_parent.role in ("link", "button"))
             and closest_parent.name
             and self.bounds.within(closest_parent.bounds)
         ):

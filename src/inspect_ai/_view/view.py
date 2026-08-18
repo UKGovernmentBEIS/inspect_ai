@@ -14,9 +14,8 @@ from inspect_ai._util.constants import (
 from inspect_ai._util.dotenv import init_dotenv
 from inspect_ai._util.error import exception_message
 from inspect_ai._util.logger import init_logger
-from inspect_ai._view.server import view_server
 
-from .fastapi_prereqs import verify_fastapi_prerequisites
+from .network import resolve_viewer_network_policy
 from .notify import view_data_dir
 
 logger = logging.getLogger(__name__)
@@ -30,6 +29,9 @@ def view(
     authorization: str | None = None,
     log_level: str | None = None,
     fs_options: dict[str, Any] = {},
+    trusted_origins: tuple[str, ...] = (),
+    trusted_hosts: tuple[str, ...] = (),
+    unsafe_allow_unauthenticated: bool = False,
 ) -> None:
     """Run the Inspect View server.
 
@@ -44,38 +46,41 @@ def view(
         fs_options: Additional arguments to pass through to the filesystem provider
             (e.g. `S3FileSystem`). Use `{"anon": True }` if you are accessing a
             public S3 bucket with no credentials.
+        trusted_origins: Exact browser origins allowed to use the viewer.
+        trusted_hosts: Additional exact HTTP authorities allowed for non-browser
+            clients.
+        unsafe_allow_unauthenticated: Allow a non-loopback bind without request
+            authorization.
     """
     init_dotenv()
     init_logger(log_level)
 
     # initialize the log_dir
-    log_dir = log_dir if log_dir else os.getenv("INSPECT_LOG_DIR", "./logs")
+    if not log_dir:
+        log_dir = os.getenv("INSPECT_LOG_DIR", "./logs")
+
+    network_policy = resolve_viewer_network_policy(
+        bind_host=host,
+        port=port,
+        trusted_hosts=trusted_hosts,
+        trusted_origins=trusted_origins,
+        authorization=authorization,
+        unsafe_allow_unauthenticated=unsafe_allow_unauthenticated,
+    )
 
     # acquire the requested port
     view_acquire_port(view_data_dir(), port)
 
-    # run server
-    if os.getenv("INSPECT_VIEW_FASTAPI_SERVER"):
-        verify_fastapi_prerequisites()
-        from .fastapi_server import view_server as fastapi_view_server
+    from .fastapi_server import view_server
 
-        fastapi_view_server(
-            log_dir=log_dir,
-            recursive=recursive,
-            host=host,
-            port=port,
-            authorization=authorization,
-            fs_options=fs_options,
-        )
-    else:
-        view_server(
-            log_dir=log_dir,
-            recursive=recursive,
-            host=host,
-            port=port,
-            authorization=authorization,
-            fs_options=fs_options,
-        )
+    view_server(
+        log_dir=log_dir,
+        recursive=recursive,
+        host=host,
+        port=port,
+        network_policy=network_policy,
+        fs_options=fs_options,
+    )
 
 
 def view_port_pid_file(app_dir: Path, port: int) -> Path:

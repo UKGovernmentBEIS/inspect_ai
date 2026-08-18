@@ -1,7 +1,7 @@
 """Score editing functionality."""
 
 from inspect_ai.event._score_edit import ScoreEditEvent
-from inspect_ai.event._tree import EventTree, SpanNode, event_tree, walk_node_spans
+from inspect_ai.event._tree import EventTree, EventTreeSpan, event_tree, walk_node_spans
 from inspect_ai.scorer._metric import Score, ScoreEdit
 
 from ._log import EvalLog
@@ -24,7 +24,10 @@ def edit_score(
         score_name: Name of the score to edit. If the score does not exist,
             a new score will be created with this name.
         edit: The edit to apply to the score. When creating a new score,
-            the 'value' field must be provided (cannot be UNCHANGED).
+            the 'value' field must be provided (cannot be UNCHANGED). A metadata
+            dict on the edit replaces `Score.metadata` rather than merging into
+            it -- carry over any scorer-recorded keys you want to keep (the
+            pre-edit dict remains available via `Score.history`).
         recompute_metrics: Whether to recompute aggregate metrics after editing
         epoch: Epoch number of the sample to edit (required when there are multiple epochs)
 
@@ -123,7 +126,7 @@ def edit_score(
         _recompute_metrics(log)
 
 
-def _find_scorers_span(tree: EventTree) -> SpanNode | None:
+def _find_scorers_span(tree: EventTree) -> EventTreeSpan | None:
     last_scorers_node = None
     for node in walk_node_spans(tree):
         if node.type == "scorers" and node.name == "scorers":

@@ -1,0 +1,793 @@
+import sqlite3
+from collections.abc import Iterator
+
+import pytest
+
+from inspect_ai._util.hash import mm3_hash
+from inspect_ai._util.json import to_json_str_safe
+from inspect_ai.event import InfoEvent, ModelEvent
+from inspect_ai.log._log import EvalSample, EventsData
+from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
+from inspect_ai.log._recorders.streaming import materialize_streaming_sample
+from inspect_ai.log._recorders.types import SampleEvent
+from inspect_ai.model import (
+    ChatMessage,
+    ChatMessageUser,
+    GenerateConfig,
+    ModelCall,
+    ModelOutput,
+)
+
+
+def _model(
+    uuid: str,
+    completion: str,
+    pending: bool | None = None,
+    call: ModelCall | None = None,
+    input: list[ChatMessage] | None = None,
+) -> ModelEvent:
+    return ModelEvent(
+        uuid=uuid,
+        model="mockllm/model",
+        input=input
+        if input is not None
+        else [ChatMessageUser(id="input-message", content="question")],
+        tools=[],
+        tool_choice="none",
+        config=GenerateConfig(),
+        output=ModelOutput.from_content("mockllm/model", completion),
+        pending=pending,
+        call=call,
+    )
+
+
+def test_open_sample_history_latest_payload_first_insert_order(tmp_path):
+    db = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
+    first = _model("event-1", "pending", pending=True)
+    other = InfoEvent(uuid="event-2", data="middle")
+    latest = _model("event-1", "complete", pending=None)
+
+    db.log_events(
+        [
+            SampleEvent(id="sample", epoch=1, event=first),
+            SampleEvent(id="sample", epoch=1, event=other),
+            SampleEvent(id="sample", epoch=1, event=latest),
+        ]
+    )
+
+    with db.open_sample_history("sample", 1) as history:
+        rows = history.raw_event_rows
+
+    assert [row.event_id for row in rows] == ["event-1", "event-2"]
+    assert rows[0].event["output"]["completion"] == "complete"
+    assert rows[0].event.get("pending") is None
+    assert rows[1].event["data"] == "middle"
+
+
+def test_open_sample_history_tail_preserves_logical_order(tmp_path):
+    db = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
+    first = _model("event-1", "pending", pending=True)
+    other = InfoEvent(uuid="event-2", data="middle")
+    latest = _model("event-1", "complete", pending=None)
+
+    db.log_events(
+        [
+            SampleEvent(id="sample", epoch=1, event=first),
+            SampleEvent(id="sample", epoch=1, event=other),
+            SampleEvent(id="sample", epoch=1, event=latest),
+        ]
+    )
+
+    with db.open_sample_history("sample", 1) as history:
+        full_rows = history.raw_event_rows
+
+    with db.open_sample_history_tail("sample", 1, 2) as history:
+        tail_rows = history.raw_event_rows
+
+    assert [row.event_id for row in full_rows] == ["event-1", "event-2"]
+    assert [row.event_id for row in tail_rows] == ["event-1", "event-2"]
+    assert tail_rows[0].event["output"]["completion"] == "complete"
+    assert tail_rows[1].event["data"] == "middle"
+
+
+@pytest.mark.parametrize("event_id_literal", ["NULL", "''"])
+def test_open_sample_history_blank_event_id_is_unique(tmp_path, event_id_literal):
+    db = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
+    with db._get_connection(write=True) as conn:
+        conn.executemany(
+            f"""
+            INSERT INTO events (event_id, sample_id, sample_epoch, data)
+            VALUES ({event_id_literal}, ?, ?, ?)
+            """,
+            [
+                ("sample", 1, to_json_str_safe({"event": "info", "data": "first"})),
+                ("sample", 1, to_json_str_safe({"event": "info", "data": "second"})),
+            ],
+        )
+
+    with db.open_sample_history("sample", 1) as history:
+        rows = history.raw_event_rows
+
+    assert [row.event["data"] for row in rows] == ["first", "second"]
+    assert len({row.event_id for row in rows}) == 2
+    assert all(row.event_id for row in rows)
+
+
+def test_get_events_synthesizes_missing_event_id(tmp_path):
+    db = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
+    with db._get_connection(write=True) as conn:
+        conn.execute(
+            """
+            INSERT INTO events (event_id, sample_id, sample_epoch, data)
+            VALUES (NULL, ?, ?, ?)
+            """,
+            ("sample", 1, to_json_str_safe({"event": "info", "data": "legacy"})),
+        )
+
+        rows = list(db._get_events(conn, "sample", 1))
+
+    assert [row.event["data"] for row in rows] == ["legacy"]
+    assert rows[0].event_id
+
+
+def test_sample_has_event_uses_logical_event_id_and_epoch(tmp_path):
+    db = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
+    with db._get_connection(write=True) as conn:
+        conn.executemany(
+            """
+            INSERT INTO events (event_id, sample_id, sample_epoch, data)
+            VALUES (?, ?, ?, ?)
+            """,
+            [
+                ("event-1", "sample", 1, "not json"),
+                ("", "sample", 1, "blank event id"),
+                ("event-2", "sample", 2, "wrong epoch"),
+            ],
+        )
+        fallback_row = conn.execute(
+            """
+            SELECT id FROM events
+            WHERE sample_id = ? AND sample_epoch = ? AND event_id = ''
+            """,
+            ("sample", 1),
+        ).fetchone()
+
+    assert fallback_row is not None
+    assert db.sample_has_event("sample", 1, "event-1")
+    assert db.sample_has_event("sample", 1, str(fallback_row["id"]))
+    assert not db.sample_has_event("sample", 1, "missing")
+    assert not db.sample_has_event("sample", 1, "event-2")
+
+
+def test_sample_event_count_counts_logical_events_without_materializing_json(tmp_path):
+    db = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
+    with db._get_connection(write=True) as conn:
+        conn.executemany(
+            """
+            INSERT INTO events (event_id, sample_id, sample_epoch, data)
+            VALUES (?, ?, ?, ?)
+            """,
+            [
+                ("event-1", "sample", 1, "not json"),
+                ("event-1", "sample", 1, "still not json"),
+                (None, "sample", 1, "also not json"),
+                ("", "sample", 1, "not json either"),
+                ("event-other-epoch", "sample", 2, "not json"),
+            ],
+        )
+
+    assert db.sample_event_count("sample", 1) == 3
+
+
+def test_sample_history_translates_buffer_pool_refs_to_eval_positions(tmp_path):
+    db = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
+    first = _model("event-1", "first")
+    second = _model("event-2", "second")
+
+    db.log_events(
+        [
+            SampleEvent(id="sample", epoch=1, event=first),
+            SampleEvent(id="sample", epoch=1, event=second),
+        ]
+    )
+
+    with db.open_sample_history("sample", 1) as history:
+        events = list(history.iter_events())
+        events_data = history.events_data
+
+    sample = EvalSample(
+        id="sample",
+        epoch=1,
+        input="question",
+        target="answer",
+        events=events,
+        events_data=events_data,
+    )
+
+    assert isinstance(events_data, dict)
+    assert set(events_data.keys()) == set(EventsData.__annotations__.keys())
+    model_events = [event for event in sample.events if event.event == "model"]
+    assert len(model_events) == 2
+    assert model_events[0].input_refs is not None
+    assert model_events[1].input_refs is not None
+    assert len(events_data["messages"]) == 1
+    assert events_data["messages"][0].content == "question"
+    assert model_events[0].input_refs == [(0, 1)]
+    assert model_events[1].input_refs == [(0, 1)]
+    assert all(
+        end <= len(sample.events_data["messages"])
+        for start, end in model_events[0].input_refs
+    )
+    assert all(
+        end <= len(sample.events_data["messages"])
+        for start, end in model_events[1].input_refs
+    )
+
+
+def test_log_events_restores_pool_indices_when_transaction_rolls_back(
+    tmp_path, monkeypatch
+):
+    db = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
+    event = _model(
+        "event-1",
+        "answer",
+        call=ModelCall(
+            request={"messages": [{"role": "user", "content": "question"}]},
+            response={},
+        ),
+    )
+    original_condense_event = db._condense_event
+
+    def fail_after_condense(conn, sample_event):
+        original_condense_event(conn, sample_event)
+        raise RuntimeError("forced rollback")
+
+    monkeypatch.setattr(db, "_condense_event", fail_after_condense)
+    with pytest.raises(RuntimeError, match="forced rollback"):
+        db.log_events([SampleEvent(id="sample", epoch=1, event=event)])
+
+    monkeypatch.setattr(db, "_condense_event", original_condense_event)
+    db.log_events([SampleEvent(id="sample", epoch=1, event=event)])
+
+    with db.open_sample_history("sample", 1) as history:
+        assert len(history.message_pool) == 1
+        assert len(history.call_pool) == 1
+        materialized = materialize_streaming_sample(
+            EvalSample(id="sample", epoch=1, input="question", target="answer"),
+            history,
+        )
+
+    model_event = materialized.events[0]
+    assert isinstance(model_event, ModelEvent)
+    assert model_event.input_refs is None
+    assert model_event.input[0].content == "question"
+    assert model_event.call is not None
+    assert model_event.call.call_refs is None
+    assert model_event.call.request["messages"] == [
+        {"role": "user", "content": "question"}
+    ]
+
+
+def test_log_events_keeps_pool_indices_when_sync_fails_after_commit(
+    tmp_path, monkeypatch
+):
+    db = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
+
+    def model_event(uuid: str, content: str) -> ModelEvent:
+        return _model(uuid, f"answer {content}").model_copy(
+            update={"input": [ChatMessageUser(id=f"{uuid}-input", content=content)]}
+        )
+
+    db.log_events(
+        [SampleEvent(id="sample", epoch=1, event=model_event("event-1", "a"))]
+    )
+
+    original_sync = db._sync
+
+    def fail_sync():
+        raise RuntimeError("sync failed")
+
+    monkeypatch.setattr(db, "_sync", fail_sync)
+    with pytest.raises(RuntimeError, match="sync failed"):
+        db.log_events(
+            [SampleEvent(id="sample", epoch=1, event=model_event("event-2", "b"))]
+        )
+
+    monkeypatch.setattr(db, "_sync", original_sync)
+    db.log_events(
+        [SampleEvent(id="sample", epoch=1, event=model_event("event-3", "c"))]
+    )
+
+    with db.open_sample_history("sample", 1) as history:
+        materialized = materialize_streaming_sample(
+            EvalSample(id="sample", epoch=1, input="question", target="answer"),
+            history,
+        )
+
+    inputs = [
+        event.input[0].content
+        for event in materialized.events
+        if isinstance(event, ModelEvent)
+    ]
+    assert inputs == ["a", "b", "c"]
+
+
+def test_open_sample_history_defers_remove_samples_until_release(tmp_path):
+    db = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
+    db.log_events([SampleEvent(id="sample", epoch=1, event=InfoEvent(data="hello"))])
+
+    with db.open_sample_history("sample", 1) as history:
+        db.remove_samples([("sample", 1)])
+        assert [event["data"] for event in history.iter_events()] == ["hello"]
+        with db._get_connection() as conn:
+            assert list(db._get_events(conn, "sample", 1))
+
+    with db._get_connection() as conn:
+        assert not list(db._get_events(conn, "sample", 1))
+
+
+def test_cleanup_defers_while_sample_history_is_open(tmp_path):
+    db = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
+    db.log_events([SampleEvent(id="sample", epoch=1, event=InfoEvent(data="hello"))])
+
+    with db.open_sample_history("sample", 1) as history:
+        db.cleanup()
+        assert db.db_path.exists()
+        assert [event["data"] for event in history.iter_events()] == ["hello"]
+
+    assert not db.db_path.exists()
+
+
+def test_sample_history_event_rows_are_private(tmp_path):
+    db = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
+    db.log_events([SampleEvent(id="sample", epoch=1, event=_model("event-1", "first"))])
+
+    with db.open_sample_history("sample", 1) as history:
+        assert not hasattr(history, "events")
+        assert history.raw_event_rows
+
+
+def test_open_sample_history_releases_write_lock_after_snapshot(tmp_path):
+    db = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
+    db.log_events([SampleEvent(id="sample", epoch=1, event=InfoEvent(data="hello"))])
+
+    with db.open_sample_history("sample", 1) as history:
+        conn = sqlite3.connect(db.db_path, timeout=0)
+        try:
+            conn.execute("PRAGMA busy_timeout=0")
+            try:
+                conn.execute("BEGIN IMMEDIATE")
+                lock_available = True
+            except sqlite3.OperationalError as exc:
+                assert "locked" in str(exc)
+                lock_available = False
+        finally:
+            conn.close()
+
+        assert lock_available is True
+        assert [event["data"] for event in history.iter_events()] == ["hello"]
+
+
+def test_sample_history_read_methods_use_deferred_transactions(
+    tmp_path, monkeypatch
+) -> None:
+    statements: list[str] = []
+    original_connect = sqlite3.connect
+
+    class RecordingConnection(sqlite3.Connection):
+        def execute(self, sql, *args, **kwargs):
+            statements.append(str(sql))
+            return super().execute(sql, *args, **kwargs)
+
+    def connect(*args, **kwargs):
+        kwargs["factory"] = RecordingConnection
+        return original_connect(*args, **kwargs)
+
+    # patch before constructing the db so its persistent per-thread connection
+    # records statements; reads reuse that connection rather than opening anew
+    monkeypatch.setattr(sqlite3, "connect", connect)
+
+    db = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
+    db.log_events([SampleEvent(id="sample", epoch=1, event=InfoEvent(data="hello"))])
+
+    # only capture statements issued by the read methods exercised below
+    statements.clear()
+
+    assert db.sample_event_count("sample", 1) == 1
+    assert db.sample_attachment("sample", 1, "missing") is None
+    with db.open_sample_history_tail("sample", 1, 1):
+        pass
+    with db.open_sample_history_from("sample", 1, 0):
+        pass
+    with db.open_sample_history("sample", 1):
+        pass
+
+    begin_statements = [
+        statement.strip().upper()
+        for statement in statements
+        if statement.strip().upper().startswith("BEGIN")
+    ]
+    assert begin_statements == ["BEGIN", "BEGIN", "BEGIN", "BEGIN", "BEGIN"]
+
+
+def test_open_sample_history_from_honors_limit(tmp_path):
+    db = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
+    db.log_events(
+        [
+            SampleEvent(
+                id="sample", epoch=1, event=InfoEvent(uuid=f"event-{i}", data=i)
+            )
+            for i in range(5)
+        ]
+    )
+
+    # limit caps the page read from `start` (page-sized cursor reads)
+    with db.open_sample_history_from("sample", 1, 1, limit=2) as history:
+        rows = history.raw_event_rows
+    assert [row.event["data"] for row in rows] == [1, 2]
+
+    # limit=None reads through the end (the prior behavior)
+    with db.open_sample_history_from("sample", 1, 1) as history:
+        rows = history.raw_event_rows
+    assert [row.event["data"] for row in rows] == [1, 2, 3, 4]
+
+    # a limit past the end is harmless
+    with db.open_sample_history_from("sample", 1, 4, limit=10) as history:
+        rows = history.raw_event_rows
+    assert [row.event["data"] for row in rows] == [4]
+
+
+def test_page_scoped_history_loads_only_referenced_pool_entries(tmp_path):
+    db = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
+    msg_a = ChatMessageUser(id="msg-a", content="question one")
+    msg_b = ChatMessageUser(id="msg-b", content="question two")
+    db.log_events(
+        [
+            SampleEvent(
+                id="sample", epoch=1, event=_model("event-1", "a", input=[msg_a])
+            ),
+            SampleEvent(
+                id="sample", epoch=1, event=_model("event-2", "b", input=[msg_b])
+            ),
+        ]
+    )
+
+    # the page's events reference only pool position 1
+    with db.open_sample_history_from("sample", 1, 1) as history:
+        assert [row.event_id for row in history.raw_event_rows] == ["event-2"]
+        assert set(history.message_pool) == {1}
+        assert history.message_pool[1].content == "question two"
+
+    with db.open_sample_history_tail("sample", 1, 1) as history:
+        assert [row.event_id for row in history.raw_event_rows] == ["event-2"]
+        assert set(history.message_pool) == {1}
+
+    # full-history reads still carry the complete pool
+    with db.open_sample_history("sample", 1) as history:
+        assert set(history.message_pool) == {0, 1}
+        assert len(history.events_data["messages"]) == 2
+
+
+def test_page_scoped_history_rejects_events_data(tmp_path):
+    db = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
+    msg_a = ChatMessageUser(id="msg-a", content="question one")
+    msg_b = ChatMessageUser(id="msg-b", content="question two")
+    db.log_events(
+        [
+            SampleEvent(
+                id="sample", epoch=1, event=_model("event-1", "a", input=[msg_a])
+            ),
+            SampleEvent(
+                id="sample", epoch=1, event=_model("event-2", "b", input=[msg_b])
+            ),
+        ]
+    )
+
+    with db.open_sample_history_from("sample", 1, 1) as history:
+        with pytest.raises(RuntimeError, match="page-scoped"):
+            _ = history.events_data
+
+    # a page referencing a contiguous pool prefix (positions 0..k) is
+    # indistinguishable from a full pool by its keys, but must still raise
+    with db.open_sample_history_from("sample", 1, 0, 1) as history:
+        assert set(history.message_pool) == {0}
+        with pytest.raises(RuntimeError, match="page-scoped"):
+            _ = history.events_data
+
+
+def test_page_scoped_history_loads_only_referenced_attachments(tmp_path):
+    db = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
+    big_first = "a" * 200
+    big_second = "b" * 200
+    db.log_events(
+        [
+            SampleEvent(
+                id="sample", epoch=1, event=InfoEvent(uuid="info-1", data=big_first)
+            ),
+            SampleEvent(
+                id="sample", epoch=1, event=InfoEvent(uuid="info-2", data=big_second)
+            ),
+        ]
+    )
+
+    with db.open_sample_history_from("sample", 1, 1) as history:
+        assert set(history.attachments) == {mm3_hash(big_second)}
+
+    with db.open_sample_history("sample", 1) as history:
+        assert set(history.attachments) == {mm3_hash(big_first), mm3_hash(big_second)}
+
+
+def test_page_scoped_history_materializes_pool_entry_attachments(tmp_path):
+    """A page read resolves attachments referenced from its pool entries.
+
+    Large message content is stored as an attachment *inside* the pooled
+    message, so page-scoped attachment collection must walk the loaded pool
+    entries, not just the event rows.
+    """
+    from inspect_ai.log._recorders.buffer.transcript_history_provider import (
+        BufferTranscriptHistoryProvider,
+    )
+
+    db = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
+    big_content = "b" * 200
+    msg_a = ChatMessageUser(id="msg-a", content="short question")
+    msg_b = ChatMessageUser(id="msg-b", content=big_content)
+    db.log_events(
+        [
+            SampleEvent(
+                id="sample", epoch=1, event=_model("event-1", "a", input=[msg_a])
+            ),
+            SampleEvent(
+                id="sample", epoch=1, event=_model("event-2", "b", input=[msg_b])
+            ),
+        ]
+    )
+
+    with db.open_sample_history_from("sample", 1, 1) as history:
+        assert mm3_hash(big_content) in history.attachments
+
+    events = BufferTranscriptHistoryProvider(db, "sample", 1).events_from(1, 1)
+    assert len(events) == 1
+    model_event = events[0]
+    assert isinstance(model_event, ModelEvent)
+    assert model_event.input_refs is None
+    assert model_event.input[0].content == big_content
+
+
+def test_page_scoped_history_loads_referenced_call_pool_entries(tmp_path):
+    db = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
+
+    def call(content: str) -> ModelCall:
+        return ModelCall(
+            request={"messages": [{"role": "user", "content": content}]},
+            response={},
+        )
+
+    db.log_events(
+        [
+            SampleEvent(
+                id="sample", epoch=1, event=_model("event-1", "a", call=call("one"))
+            ),
+            SampleEvent(
+                id="sample", epoch=1, event=_model("event-2", "b", call=call("two"))
+            ),
+        ]
+    )
+
+    with db.open_sample_history_from("sample", 1, 1) as history:
+        assert set(history.call_pool) == {1}
+        assert history.call_pool[1] == {"role": "user", "content": "two"}
+
+    with db.open_sample_history("sample", 1) as history:
+        assert set(history.call_pool) == {0, 1}
+
+
+def test_read_only_connection_does_not_recreate_deleted_db(tmp_path):
+    """A read-only buffer reader cannot resurrect a deleted database.
+
+    A reader that doesn't own the buffer (eg. an out-of-process viewer) races
+    the owner: the eval can tear the buffer down while a read is in flight. A
+    plain sqlite connect after deletion silently re-creates an empty database
+    file, which makes `running_tasks()` (a filename glob) report the finished
+    task as still running. `read_only=True` opens with `mode=ro`, which fails
+    instead of creating.
+    """
+    import os
+
+    db = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
+    db.log_events([SampleEvent(id="sample", epoch=1, event=InfoEvent(data="hello"))])
+    db_path = db.db_path
+
+    # a read-only instance reads normally while the db exists
+    ro = SampleBufferDatabase(
+        str(tmp_path / "test.eval"), create=False, read_only=True, db_dir=tmp_path
+    )
+    with ro.open_sample_history("sample", 1) as history:
+        assert [event["data"] for event in history.iter_events()] == ["hello"]
+
+    # the race: an instance constructed while the file existed (connections
+    # are lazy, so none is open yet), with the deletion landing before its
+    # first read
+    racing = SampleBufferDatabase(
+        str(tmp_path / "test.eval"), create=False, read_only=True, db_dir=tmp_path
+    )
+    db._close_all_connections()
+    ro._close_all_connections()
+    for suffix in ("", "-wal", "-shm"):
+        p = f"{db_path}{suffix}"
+        if os.path.exists(p):
+            os.unlink(p)
+
+    # the read-only reader fails rather than re-creating the file
+    with pytest.raises(sqlite3.OperationalError):
+        with racing.open_sample_history("sample", 1):
+            pass
+    assert not os.path.exists(db_path), "read-only connect re-created the db file"
+
+
+def test_writable_connection_recreates_missing_parent_dir(tmp_path):
+    """A writable buffer re-creates its log directory if a sibling removed it.
+
+    Buffers that share a log directory live in one samplebuffer subdir, and
+    cleanup_sample_buffer_db() rmdir's that subdir whenever it is momentarily
+    empty. A sibling buffer initializing in the same subdir can therefore find
+    its parent directory gone between its own mkdir and connect (or when reusing
+    a persistent connection). The writable connect must re-create the directory
+    and succeed rather than raising "unable to open database file".
+    """
+    import os
+
+    db = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
+    db_path = db.db_path
+    subdir = db_path.parent
+
+    # simulate a sibling's cleanup emptying and removing the shared subdir
+    db._close_all_connections()
+    for suffix in ("", "-wal", "-shm"):
+        p = f"{db_path}{suffix}"
+        if os.path.exists(p):
+            os.unlink(p)
+    subdir.rmdir()
+    assert not subdir.exists()
+
+    # a writable connect re-creates the directory and succeeds
+    conn = db._open_connection()
+    try:
+        assert subdir.exists()
+    finally:
+        conn.close()
+
+
+def test_read_only_connection_does_not_recreate_missing_parent_dir(tmp_path):
+    """Read-only connections must not resurrect a removed log directory.
+
+    The mirror of the writable case: a reader racing the buffer's teardown must
+    fail cleanly (so callers can degrade) rather than re-create the directory and
+    open an empty database that makes a finished task look running.
+    """
+    import os
+
+    db = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
+    db.log_events([SampleEvent(id="sample", epoch=1, event=InfoEvent(data="hello"))])
+    db_path = db.db_path
+    subdir = db_path.parent
+
+    ro = SampleBufferDatabase(
+        str(tmp_path / "test.eval"), create=False, read_only=True, db_dir=tmp_path
+    )
+
+    db._close_all_connections()
+    ro._close_all_connections()
+    for suffix in ("", "-wal", "-shm"):
+        p = f"{db_path}{suffix}"
+        if os.path.exists(p):
+            os.unlink(p)
+    subdir.rmdir()
+
+    with pytest.raises(sqlite3.OperationalError):
+        ro._open_connection()
+    assert not subdir.exists(), "read-only connect re-created the log directory"
+
+
+def test_read_only_is_incompatible_with_create(tmp_path):
+    with pytest.raises(ValueError, match="read_only"):
+        SampleBufferDatabase(str(tmp_path / "test.eval"), read_only=True)
+
+
+def test_missing_database_error_includes_location(tmp_path):
+    """Opening a non-existent buffer (create=False) names the missing location."""
+    location = str(tmp_path / "missing.eval")
+    with pytest.raises(FileNotFoundError) as exc_info:
+        SampleBufferDatabase(location, create=False, db_dir=tmp_path)
+    assert "missing.eval" in str(exc_info.value)
+    assert "{location}" not in str(exc_info.value)
+
+
+def test_provider_translates_store_failures_to_domain_error(tmp_path):
+    """BufferTranscriptHistoryProvider raises the protocol's domain error.
+
+    Consumers of TranscriptHistoryProvider are storage-agnostic: a backing
+    store torn down mid-read (deleted db file, used-after-cleanup) surfaces
+    as TranscriptHistoryUnavailableError — never as sqlite3 exceptions or the
+    buffer's own RuntimeError.
+    """
+    import os
+
+    from inspect_ai.log import TranscriptHistoryUnavailableError
+    from inspect_ai.log._recorders.buffer.transcript_history_provider import (
+        BufferTranscriptHistoryProvider,
+    )
+
+    db = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
+    db.log_events([SampleEvent(id="sample", epoch=1, event=InfoEvent(data="hello"))])
+
+    # deleted file (read-only reader, lazily unconnected): OperationalError →
+    # domain error
+    racing = SampleBufferDatabase(
+        str(tmp_path / "test.eval"), create=False, read_only=True, db_dir=tmp_path
+    )
+    provider = BufferTranscriptHistoryProvider(racing, "sample", 1)
+    db_path = db.db_path
+    db._close_all_connections()
+    for suffix in ("", "-wal", "-shm"):
+        p = f"{db_path}{suffix}"
+        if os.path.exists(p):
+            os.unlink(p)
+    with pytest.raises(TranscriptHistoryUnavailableError):
+        _ = provider.event_count
+    with pytest.raises(TranscriptHistoryUnavailableError):
+        provider.events_from(0, 10)
+
+    # used-after-cleanup (the buffer's RuntimeError) → domain error too
+    racing._close_all_connections()
+    with pytest.raises(TranscriptHistoryUnavailableError):
+        provider.events_from(0, 10)
+
+
+def test_pool_ref_registry_covers_all_ref_fields() -> None:
+    """``POOL_REF_FIELDS`` must register every ``*_refs`` field on event models.
+
+    Page-scoped buffer reads load only the pool positions collected via the
+    registry; a pool-ref field missing from it would make those reads silently
+    drop the entries it references (``_expand_refs`` skips absent positions).
+    This walks every pydantic model reachable from the ``Event`` union and
+    fails when the ``*_refs`` fields found don't match the registry exactly.
+    """
+    from typing import get_args
+
+    from pydantic import BaseModel
+
+    from inspect_ai.event._event import Event
+    from inspect_ai.event._pool import POOL_REF_FIELDS
+
+    def nested_models(annotation: object) -> Iterator[type[BaseModel]]:
+        if isinstance(annotation, type) and issubclass(annotation, BaseModel):
+            yield annotation
+        for arg in get_args(annotation):
+            yield from nested_models(arg)
+
+    found: set[tuple[str, ...]] = set()
+
+    def walk(
+        model: type[BaseModel], path: tuple[str, ...], seen: frozenset[type]
+    ) -> None:
+        if model in seen:
+            return
+        seen |= {model}
+        for name, field in model.model_fields.items():
+            if name.endswith("_refs"):
+                found.add(path + (name,))
+            for nested in nested_models(field.annotation):
+                walk(nested, path + (name,), seen)
+
+    for event_type in get_args(Event):
+        walk(event_type, (), frozenset())
+
+    registered = {field.path for field in POOL_REF_FIELDS}
+    assert found == registered, (
+        "Pool-ref fields on the event models don't match POOL_REF_FIELDS in "
+        "inspect_ai.event._pool. Register new *_refs fields there (with "
+        "condense/resolve support) so page-scoped buffer reads load their "
+        f"pool entries. Found on models: {sorted(found)}; "
+        f"registered: {sorted(registered)}"
+    )

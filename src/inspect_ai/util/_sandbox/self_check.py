@@ -1,11 +1,15 @@
+import random
+import string
 from typing import Any, Callable, Coroutine, Generic, Optional, Type, TypeVar
-from unittest import mock
+
+import anyio
 
 from inspect_ai.util import (
     OutputLimitExceededError,
     SandboxEnvironment,
     SandboxEnvironmentLimits,
 )
+from inspect_ai.util._sandbox.limits import override_max_read_file_size
 
 # If you're wondering these tests are not using pytest fixtures,
 # see the discussion https://github.com/UKGovernmentBEIS/inspect_ai/pull/347
@@ -66,10 +70,20 @@ async def self_check(sandbox_env: SandboxEnvironment) -> dict[str, bool | str]:
         test_write_binary_file_exists,
         test_exec_output,
         test_exec_stderr,
+        test_exec_output_utf,
+        test_exec_stderr_utf,
         test_exec_returncode,
         test_exec_timeout,
+        test_exec_timeout_not_raised_on_fast_signal_death,
+        test_exec_timeout_kills_process,
+        test_exec_timeout_kills_child_processes,
         test_exec_permission_error,
         test_exec_env_vars,
+        test_exec_input_text,
+        test_exec_input_shell_special,
+        test_exec_input_binary,
+        test_exec_input_large,
+        test_exec_large_command,
         test_exec_as_user,
         test_exec_as_nonexistent_user,
         test_cwd_unspecified,
@@ -127,7 +141,8 @@ async def test_read_and_write_large_file_binary(
     sandbox_env: SandboxEnvironment,
 ) -> None:
     file_name = "test_read_and_write_large_file_binary.file"
-    long_bytes = b"\xc3" * 5_000_000
+    # Catches transport size limits. The k8s sandbox blew up at 28 MiB.
+    long_bytes = b"\xc3" * (50 * 1024 * 1024)
     await sandbox_env.write_file(file_name, long_bytes)
     written_file_bytes = await sandbox_env.read_file(file_name, text=False)
     assert long_bytes == written_file_bytes, "Large binary content should match"
@@ -222,12 +237,12 @@ async def test_read_file_nonsense_name(
 async def test_read_file_limit(sandbox_env: SandboxEnvironment) -> None:
     file_name = "large.file"
     await sandbox_env.write_file(file_name, "a" * 2048)  # 2 KiB
-    # Patch limit down to 1KiB for the test to save us from writing a 100 MiB file.
-    with mock.patch.object(SandboxEnvironmentLimits, "MAX_READ_FILE_SIZE", 1024):
+    with override_max_read_file_size(1024):
+        expected_limit = SandboxEnvironmentLimits.MAX_READ_FILE_SIZE_STR
         with Raises(OutputLimitExceededError) as e_info:
             await sandbox_env.read_file(file_name, text=True)
     assert e_info is not None, "OutputLimitExceededError should be raised"
-    assert "limit of 100 MiB was exceeded" in str(e_info.value), (
+    assert f"limit of {expected_limit} was exceeded" in str(e_info.value), (
         f"OutputLimitExceededError should mention the limit, got {e_info.value=}"
     )
     await _cleanup_file(sandbox_env, file_name)
@@ -399,6 +414,51 @@ async def test_exec_stderr(sandbox_env: SandboxEnvironment) -> None:
     )
 
 
+# Non-ASCII output (valid UTF-8) must decode correctly on stdout/stderr.
+# ExecResult fields are str, so the bytes a command emits should round-trip as
+# the equivalent text. Catches implementations that surface the raw transport
+# encoding instead of decoding it (e.g. latin-1 mojibake).
+_UTF8_OUTPUT = "café résumé €100 中文 😀"
+
+
+def _utf8_octal_escapes() -> str:
+    # Octal escapes for each UTF-8 byte of _UTF8_OUTPUT, e.g. r"\303\251...".
+    # 3-digit zero-padded so an adjacent digit can't extend the escape.
+    return "".join(f"\\{b:03o}" for b in _UTF8_OUTPUT.encode("utf-8"))
+
+
+async def test_exec_output_utf(sandbox_env: SandboxEnvironment) -> None:
+    # Write the file byte-by-byte from ASCII-only octal escapes, then cat it, so
+    # the *command* carries no non-ASCII bytes. Interpolating _UTF8_OUTPUT into
+    # the command instead would let a symmetric transport bug hide: the same
+    # wrong encode going in and wrong decode coming out cancel, and the round
+    # trip passes while both directions are broken. Generating the bytes inside
+    # the sandbox exercises only the output-decode path.
+    octal = _utf8_octal_escapes()
+    file_name = "test_exec_output_utf.file"
+    exec_result = await sandbox_env.exec(
+        ["sh", "-c", f"printf '{octal}' > {file_name} && cat {file_name}"]
+    )
+    assert exec_result.stdout == _UTF8_OUTPUT, (
+        f"non-ASCII stdout should round-trip; expected {_UTF8_OUTPUT.encode('UTF-8')!r}, "
+        f"got {exec_result.stdout.encode('UTF-8')!r}"
+    )
+    await _cleanup_file(sandbox_env, file_name)
+
+
+async def test_exec_stderr_utf(sandbox_env: SandboxEnvironment) -> None:
+    octal = _utf8_octal_escapes()
+    file_name = "test_exec_stderr_utf.file"
+    exec_result = await sandbox_env.exec(
+        ["sh", "-c", f"printf '{octal}' > {file_name} && cat {file_name} >&2"]
+    )
+    assert exec_result.stderr == _UTF8_OUTPUT, (
+        f"non-ASCII stderr should round-trip; expected {_UTF8_OUTPUT.encode('UTF-8')!r}, "
+        f"got {exec_result.stderr.encode('UTF-8')!r}"
+    )
+    await _cleanup_file(sandbox_env, file_name)
+
+
 async def test_exec_returncode(sandbox_env: SandboxEnvironment) -> None:
     exec_result = await sandbox_env.exec(["sh", "-c", "echo foo; exit 70"])
     assert exec_result.returncode == 70, (
@@ -409,6 +469,85 @@ async def test_exec_returncode(sandbox_env: SandboxEnvironment) -> None:
 async def test_exec_timeout(sandbox_env: SandboxEnvironment) -> None:
     with Raises(TimeoutError):
         await sandbox_env.exec(["sleep", "4"], timeout=2)
+
+
+async def test_exec_timeout_not_raised_on_fast_signal_death(
+    sandbox_env: SandboxEnvironment,
+) -> None:
+    # a command that dies from SIGTERM immediately (exit 143) should NOT
+    # be misinterpreted as a timeout when the timeout is much longer.
+    # this guards against false positives from OOM kills, external
+    # signals, etc.
+    result = await sandbox_env.exec(["sh", "-c", "kill -TERM $$"], timeout=30)
+    assert result.returncode == 143, (
+        f"Expected exit 143 from self-SIGTERM, got {result.returncode}"
+    )
+
+
+async def test_exec_timeout_kills_process(sandbox_env: SandboxEnvironment) -> None:
+    # use a unique random marker so we can find the process later via ps,
+    # avoiding PID reuse issues and conflicts with other test runs
+    unique_marker = "timeout_test_" + "".join(
+        random.choices(string.ascii_lowercase + string.digits, k=16)
+    )
+
+    # The trailing "; :" prevents the shell from exec-optimizing into
+    # `sleep 30` (which would strip the marker from the process cmdline,
+    # making ps unable to detect a leaked process).
+    with Raises(TimeoutError):
+        await sandbox_env.exec(
+            ["sh", "-c", f"echo '{unique_marker}' > /dev/null && sleep 30; :"],
+            timeout=2,
+        )
+
+    # give cleanup a moment to complete
+    await anyio.sleep(5)
+
+    # the process containing our unique marker must not still be running.
+    # use ps + grep so we don't depend on pgrep being installed; the
+    # `grep -v grep` filter excludes the grep process itself.
+    result = await sandbox_env.exec(
+        ["sh", "-c", f"ps aux | grep '{unique_marker}' | grep -v grep"]
+    )
+    assert not result.success or result.stdout.strip() == "", (
+        f"Process with marker '{unique_marker}' should have been killed after timeout, "
+        f"but it's still running. ps output: [{result.stdout}]"
+    )
+
+
+async def test_exec_timeout_kills_child_processes(
+    sandbox_env: SandboxEnvironment,
+) -> None:
+    # spawn a backgrounded child sleep with its own marker, then wait on
+    # a parent sleep with a different marker. when the timeout fires, BOTH
+    # processes must be killed (not just the parent).
+    parent_marker = "timeout_parent_" + "".join(
+        random.choices(string.ascii_lowercase + string.digits, k=16)
+    )
+    child_marker = "timeout_child_" + "".join(
+        random.choices(string.ascii_lowercase + string.digits, k=16)
+    )
+
+    with Raises(TimeoutError):
+        await sandbox_env.exec(
+            [
+                "sh",
+                "-c",
+                f"sleep 30 # {child_marker} & sleep 30 # {parent_marker}",
+            ],
+            timeout=2,
+        )
+
+    await anyio.sleep(5)
+
+    for marker in (parent_marker, child_marker):
+        result = await sandbox_env.exec(
+            ["sh", "-c", f"ps aux | grep '{marker}' | grep -v grep"]
+        )
+        assert not result.success or result.stdout.strip() == "", (
+            f"Process with marker '{marker}' should have been killed after timeout, "
+            f"but it's still running. ps output: [{result.stdout}]"
+        )
 
 
 async def test_exec_permission_error(sandbox_env: SandboxEnvironment) -> None:
@@ -427,6 +566,82 @@ async def test_exec_env_vars(sandbox_env: SandboxEnvironment) -> None:
     )
     assert exec_result.stdout == "chonko zamboodle\nzeddle_zom\n", (
         f"env var not passed to script; got {exec_result.stdout=}"
+    )
+
+
+async def test_exec_input_text(sandbox_env: SandboxEnvironment) -> None:
+    # Catches implementations that silently drop the input parameter.
+    content = "hello\nworld\n"
+    result = await sandbox_env.exec(["cat"], input=content)
+    assert result.success, f"cat failed: stderr=[{result.stderr}]"
+    assert result.stdout == content, (
+        f"stdin not forwarded; got {result.stdout=!r}, expected {content=!r}"
+    )
+
+    # Empty-string input is non-None and must still be handled
+    # (catches `if input:` truthiness bugs).
+    empty_result = await sandbox_env.exec(["cat"], input="")
+    assert empty_result.success, (
+        f"cat failed on empty input: stderr=[{empty_result.stderr}]"
+    )
+    assert empty_result.stdout == "", (
+        f"empty input should produce empty stdout, got {empty_result.stdout=!r}"
+    )
+
+
+async def test_exec_input_shell_special(sandbox_env: SandboxEnvironment) -> None:
+    # Catches implementations that embed input into a shell command without
+    # proper escaping: variable expansion, command substitution, quoting,
+    # backslashes, newlines must all round-trip verbatim.
+    content = "$HOME `whoami` 'single' \"double\" \\backslash\nnewline\n"
+    result = await sandbox_env.exec(["cat"], input=content)
+    assert result.success, f"cat failed: stderr=[{result.stderr}]"
+    assert result.stdout == content, (
+        f"stdin should round-trip verbatim; got {result.stdout=!r}, expected {content=!r}"
+    )
+
+
+async def test_exec_input_binary(sandbox_env: SandboxEnvironment) -> None:
+    # Bytes (including invalid UTF-8 and NULs) must round-trip unchanged.
+    # Use a file as the sink because ExecResult.stdout is decoded as str.
+    file_name = "test_exec_input_binary.file"
+    payload = b"\xc3\x28\x00\xff\x01\x02bytes"
+    result = await sandbox_env.exec(["sh", "-c", f"cat > {file_name}"], input=payload)
+    assert result.success, f"cat failed: stderr=[{result.stderr}]"
+    written = await sandbox_env.read_file(file_name, text=False)
+    assert written == payload, (
+        f"binary stdin should round-trip; got {written!r}, expected {payload!r}"
+    )
+    await _cleanup_file(sandbox_env, file_name)
+
+
+async def test_exec_input_large(sandbox_env: SandboxEnvironment) -> None:
+    # Catches command-line / pipe / transport size limits. The k8s
+    # sandbox blew up at 28 MiB.
+    size = 50 * 1024 * 1024
+    payload = "a" * size
+    result = await sandbox_env.exec(["wc", "-c"], input=payload)
+    assert result.success, f"wc failed: stderr=[{result.stderr}]"
+    reported = int(result.stdout.strip().split()[0])
+    assert reported == size, (
+        f"wc -c reported {reported} bytes from stdin, expected {size}"
+    )
+
+
+async def test_exec_large_command(sandbox_env: SandboxEnvironment) -> None:
+    # Command analogue of test_exec_input_large: stresses the argv/command
+    # transport, not stdin. Many medium args rather than one giant one — a single
+    # argv element is capped at MAX_ARG_STRLEN (128 KiB) regardless of ARG_MAX, so
+    # a ~1 MiB arg fails with E2BIG. printf %s cycles over every arg, so stdout is
+    # the args concatenated.
+    chunk = "x" * (64 * 1024)
+    n = 16  # ~1 MiB total argv, under a typical 2 MiB ARG_MAX
+    result = await sandbox_env.exec(["printf", "%s", *([chunk] * n)])
+    assert result.success, f"printf failed: stderr=[{result.stderr}]"
+    expected = chunk * n
+    assert result.stdout == expected, (
+        f"large command arguments should round-trip; "
+        f"got {len(result.stdout)} bytes, expected {len(expected)}"
     )
 
 

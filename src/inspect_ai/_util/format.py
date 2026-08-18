@@ -30,10 +30,15 @@ def format_value(value: object, width: int) -> str:
 
 
 def format_progress_time(time: float, pad_hours: bool = True) -> str:
-    minutes, seconds = divmod(time, 60)
+    # Truncate sub-second elapsed time before splitting into H:MM:SS. The
+    # ".0f" format specs round, so a fractional component >= x.5 (e.g. 59.9s)
+    # would otherwise render an impossible ":60" in the seconds (or minutes)
+    # field of a live clock.
+    total_seconds = int(time)
+    minutes, seconds = divmod(total_seconds, 60)
     hours, minutes = divmod(minutes, 60)
-    hours_fmt = f"{hours:2.0f}" if pad_hours else f"{hours:.0f}"
-    return f"{hours_fmt}:{minutes:02.0f}:{seconds:02.0f}"
+    hours_fmt = f"{hours:2d}" if pad_hours else f"{hours:d}"
+    return f"{hours_fmt}:{minutes:02d}:{seconds:02d}"
 
 
 def format_template(

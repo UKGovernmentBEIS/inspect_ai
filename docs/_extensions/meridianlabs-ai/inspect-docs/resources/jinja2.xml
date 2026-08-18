@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE language SYSTEM "language.dtd">
+
+<language name="Jinja2" version="1.0" kateversion="2.4" section="Markup" extensions="*.jinja;*.jinja2;*.j2" author="Per Myren (progrper@gmail.com)" license="LGPL" priority="5">
+
+<highlighting>
+
+<list name="keywords">
+    <item>extends</item>
+    <item>include</item>
+    <item>import</item>
+    <item>set</item>
+    <item>from</item>
+    <item>in</item>
+    <item>as</item>
+    <item>is</item>
+    <item>scoped</item>
+    <item>not</item>
+    <item>recursive</item>
+    <item>ignore</item>
+    <item>missing</item>
+    <item>with</item>
+    <item>without</item>
+    <item>context</item>
+    <item>pluralize</item>
+    <item>do</item>
+    <item>continue</item>
+    <item>break</item>
+</list>
+
+<list name="blocktags">
+    <item>for</item>
+    <item>block</item>
+    <item>if</item>
+    <item>else</item>
+    <item>elif</item>
+    <item>macro</item>
+    <item>filter</item>
+    <item>call</item>
+    <item>raw</item>
+    <item>trans</item>
+    <item>with</item>
+    <item>autoescape</item>
+</list>
+
+<list name="blockdividers">
+    <item>else</item>
+    <item>elif</item>
+</list>
+
+<list name="endblocktags">
+    <item>end</item> <!-- jinja-simplesyntax extension -->
+    <item>endfor</item>
+    <item>endblock</item>
+    <item>endif</item>
+    <item>endmacro</item>
+    <item>endfilter</item>
+    <item>endcall</item>
+    <item>endraw</item>
+    <item>endtrans</item>
+    <item>endwith</item>
+    <item>endautoescape</item>
+</list>
+
+<contexts>
+
+<context name="Start" attribute="Normal Text" lineEndContext="#stay">
+    <IncludeRules context="FindJinja" />
+</context>
+
+<context name="FindJinja" attribute="Normal Text" lineEndContext="#stay">
+    <Detect2Chars attribute="Print delimiter" context="PrintExpression" char="{" char1="{" />
+    <Detect2Chars attribute="Block delimiter" context="Block" char="{" char1="%" />
+    <DetectChar char="%" attribute="Line statement prefix" firstNonSpace="true" context="LineStatement" />
+    <Detect2Chars attribute="Comment delimiter" context="JinjaSingleLineComment" char="#" char1="#" />
+    <Detect2Chars attribute="Comment delimiter" context="JinjaComment" char="{" char1="#" beginRegion="jinjacomment" />
+</context>
+
+
+
+<context name="PrintExpression" attribute="Normal Text" lineEndContext="#stay">
+    <Detect2Chars attribute="Print delimiter" context="#pop#pop" char="}" char1="}" />
+    <DetectChar attribute="Filter separator" context="#stay" char="|" />
+    <IncludeRules context="##Python" />
+</context>
+
+
+<context name="Block" attribute="Normal Text" lineEndContext="#stay">
+    <Detect2Chars attribute="Block delimiter" context="#pop#pop" char="%" char1="}" />
+    <keyword context="#stay" attribute="Keyword" String="keywords" />
+    <keyword context="#stay" attribute="Keyword" String="blockdividers" endRegion="jinjablock" beginRegion="jinjablock" />
+    <keyword context="#stay" attribute="Keyword" String="blocktags" beginRegion="jinjablock" />
+    <keyword context="#stay" attribute="Keyword" String="endblocktags" endRegion="jinjablock" />
+    <IncludeRules context="##Python" />
+</context>
+
+<context name="LineStatement" attribute="Normal Text" lineEndContext="#pop#pop">
+    <keyword context="#stay" attribute="Keyword" String="keywords" />
+    <keyword context="#stay" attribute="Keyword" String="blockdividers" endRegion="jinjablock" beginRegion="jinjablock" />
+    <keyword context="#stay" attribute="Keyword" String="blocktags" beginRegion="jinjablock" />
+    <keyword context="#stay" attribute="Keyword" String="endblocktags" endRegion="jinjablock" />
+    <IncludeRules context="##Python" />
+</context>
+
+<context name="JinjaComment" attribute="Comment" lineEndContext="#stay">
+    <Detect2Chars attribute="Comment delimiter" context="#pop#pop" char="#" char1="}" endRegion="jinjacomment" />
+</context>
+
+<context name="JinjaSingleLineComment" attribute="Comment" lineEndContext="#pop#pop">
+</context>
+
+</contexts>
+
+<itemDatas>
+    <itemData name="Normal Text" defStyleNum="dsNormal" />
+    <itemData name="Block delimiter" defStyleNum="dsOthers" />
+    <itemData name="Print delimiter" defStyleNum="dsOthers" />
+    <itemData name="Filter separator" defStyleNum="dsOthers" />
+    <itemData name="Line statement prefix" defStyleNum="dsOthers" />
+    <itemData name="Keyword" defStyleNum="dsKeyword" />
+    <itemData name="Comment delimiter" defStyleNum="dsComment" />
+    <itemData name="Comment" defStyleNum="dsComment" />
+</itemDatas>
+
+</highlighting>
+<general>
+    <comments>
+        <comment name="singleLine" start="##" />
+        <comment name="multiLine" start="{#" end="#}" region="jinjacomment" />
+    </comments>
+</general>
+</language>

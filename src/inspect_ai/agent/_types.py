@@ -10,8 +10,11 @@ You are part of a multi-agent system designed to make agent coordination and exe
 """
 
 
-DEFAULT_ASSISTANT_PROMPT = """
-You are a helpful assistant attempting to submit the best possible answer. You have several tools available to help with finding the answer. You will see the result of tool calls right after sending the message. If you need to perform multiple actions, you can always send more messages with additional tool calls. Do some reasoning before your actions, describing what tool calls you are going to use and how they fit into your plan.
+PARALLEL_TOOLS_PROMPT = "Prioritize parallel tool calls: when operations are independent, run them in one response — e.g. reading several files or running several searches at once — rather than one at a time. Only sequence calls when one depends on another's result."
+
+
+DEFAULT_ASSISTANT_PROMPT = f"""
+You are a helpful assistant attempting to submit the best possible answer. You have several tools available to help with finding the answer. You will see the result of tool calls right after sending the message. {PARALLEL_TOOLS_PROMPT} Do some reasoning before your actions, describing what tool calls you are going to use and how they fit into your plan.
 """
 
 DEFAULT_SUBMIT_PROMPT = """
@@ -55,7 +58,7 @@ Please proceed to the next step using your best judgement.
 AgentContinue: TypeAlias = Callable[[AgentState], Awaitable[bool | str | AgentState]]
 """Function called to determine whether the agent should continue.
 
-Returns `True` to continue (with no additional messages inserted),
+Returns `True` to continue with a default continue message inserted,
 return `False` to stop. Returns `str` to continue with an additional
 custom user message inserted. Returns `AgentState` to continue with
 the specified state.

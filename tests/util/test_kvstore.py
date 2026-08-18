@@ -135,6 +135,36 @@ def test_kvstore_multiple_rotations(db_path: Path) -> None:
         assert store.get("key4") == "value4"
 
 
+def test_kvstore_list_by_prefix(store: KVStore) -> None:
+    with store:
+        store.put("a:1", "v1")
+        store.put("a:2", "v2")
+        store.put("b:1", "v3")
+
+        results = store.list_by_prefix("a:")
+        assert len(results) == 2
+        assert {k for k, _ in results} == {"a:1", "a:2"}
+        # Should not include "b:1"
+        assert all(k.startswith("a:") for k, _ in results)
+
+
+def test_kvstore_list_by_prefix_empty(store: KVStore) -> None:
+    with store:
+        store.put("a:1", "v1")
+        assert store.list_by_prefix("z:") == []
+
+
+def test_kvstore_list_by_prefix_special_chars(store: KVStore) -> None:
+    with store:
+        store.put("100%_done:1", "v1")
+        store.put("100%_done:2", "v2")
+        store.put("100x:1", "v3")
+
+        results = store.list_by_prefix("100%_done:")
+        assert len(results) == 2
+        assert {k for k, _ in results} == {"100%_done:1", "100%_done:2"}
+
+
 def test_kvstore_using_store_without_context_manager() -> None:
     with pytest.raises(AttributeError):
         store = KVStore("test.db")

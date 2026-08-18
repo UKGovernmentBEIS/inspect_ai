@@ -58,5 +58,6 @@ def record_approval(
             decision=approval.decision,
             modified=approval.modified,
             explanation=approval.explanation,
+            metadata=approval.metadata,
         )
     )

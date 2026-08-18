@@ -1,0 +1,3 @@
+[submodule "src/inspect_ai/_view/ts-mono"]
+	path = src/inspect_ai/_view/ts-mono
+	url = https://github.com/meridianlabs-ai/ts-mono.git

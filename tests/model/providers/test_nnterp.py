@@ -1,0 +1,155 @@
+import importlib
+import sys
+from types import ModuleType
+from unittest.mock import MagicMock
+
+import pytest
+from test_helpers.utils import skip_if_no_nnterp
+
+from inspect_ai.model import (
+    ChatMessageUser,
+    GenerateConfig,
+    get_model,
+)
+from inspect_ai.model._chat_message import ChatMessage
+
+
+def test_nnterp_explicit_api_key_reaches_huggingface_loaders(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict = {}
+
+    class FakeStandardizedTransformer:
+        def __init__(self, *args, **kwargs) -> None:
+            captured.update(kwargs)
+            self.tokenizer = MagicMock()
+
+    fake_nnterp = ModuleType("nnterp")
+    fake_nnterp.StandardizedTransformer = FakeStandardizedTransformer  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "nnterp", fake_nnterp)
+
+    fake_torch = ModuleType("torch")
+    fake_torch.float16 = object()  # type: ignore[attr-defined]
+    fake_torch.Tensor = object  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "torch", fake_torch)
+
+    module_name = "inspect_ai.model._providers.nnterp"
+    previous_module = sys.modules.pop(module_name, None)
+    try:
+        provider_module = importlib.import_module(module_name)
+        provider_module.NNterpAPI(
+            model_name="private/model",
+            api_key="hf-test-token",
+            tokenizer_kwargs={"padding_side": "right"},
+        )
+    finally:
+        sys.modules.pop(module_name, None)
+        if previous_module is not None:
+            sys.modules[module_name] = previous_module
+
+    assert captured["token"] == "hf-test-token"
+    assert captured["tokenizer_kwargs"] == {
+        "padding_side": "right",
+        "token": "hf-test-token",
+    }
+
+
+@pytest.fixture
+def model():
+    return get_model(
+        "nnterp/openai-community/gpt2",
+        config=GenerateConfig(
+            max_tokens=5,
+            temperature=0.01,
+        ),
+    )
+
+
+@pytest.fixture
+def model_with_logprobs():
+    return get_model(
+        "nnterp/openai-community/gpt2",
+        config=GenerateConfig(
+            max_tokens=5,
+            temperature=0.01,
+            logprobs=True,
+            top_logprobs=3,
+        ),
+    )
+
+
+@pytest.mark.anyio
+@skip_if_no_nnterp
+async def test_nnterp_api(model) -> None:
+    """Test basic NNterp provider functionality."""
+    message = ChatMessageUser(content="Hello world")
+    response = await model.generate(input=[message])
+    assert response.usage is not None
+    assert response.usage.input_tokens > 0
+    assert len(response.completion) >= 1
+
+
+@pytest.mark.anyio
+@skip_if_no_nnterp
+async def test_nnterp_api_with_logprobs(model_with_logprobs) -> None:
+    """Test NNterp provider with logprobs enabled."""
+    message = ChatMessageUser(content="Hello world")
+    response = await model_with_logprobs.generate(input=[message])
+
+    # Verify logprobs are returned
+    assert response.choices[0].logprobs is not None
+    assert response.choices[0].logprobs.content is not None
+    assert len(response.choices[0].logprobs.content) > 0
+
+    # Verify logprob structure
+    first_logprob = response.choices[0].logprobs.content[0]
+    assert first_logprob.token is not None
+    assert first_logprob.logprob is not None
+    assert first_logprob.top_logprobs is not None
+    assert len(first_logprob.top_logprobs) == 3  # We requested top 3
+
+
+@pytest.mark.anyio
+@skip_if_no_nnterp
+async def test_nnterp_multiple_messages() -> None:
+    """Test NNterp provider with multiple chat messages."""
+    from inspect_ai.model import ChatMessageSystem
+
+    model = get_model(
+        "nnterp/openai-community/gpt2",
+        config=GenerateConfig(max_tokens=5, temperature=0.01),
+    )
+
+    messages: list[ChatMessage] = [
+        ChatMessageSystem(content="You are a helpful assistant."),
+        ChatMessageUser(content="Hello"),
+    ]
+
+    response = await model.generate(input=messages)
+    assert len(response.completion) >= 1
+    assert response.choices[0].message.content is not None
+
+
+@pytest.mark.anyio
+@skip_if_no_nnterp
+async def test_nnterp_api_with_hidden_states() -> None:
+    """Test NNterp provider with hidden states extraction enabled."""
+    model = get_model(
+        "nnterp/openai-community/gpt2",
+        config=GenerateConfig(max_tokens=3, temperature=0.01),
+        hidden_states=True,
+    )
+
+    message = ChatMessageUser(content="Hello")
+    response = await model.generate(input=[message])
+
+    # Verify hidden states are returned in metadata
+    assert response.metadata is not None
+    assert "hidden_states" in response.metadata
+    hidden_states = response.metadata["hidden_states"]
+
+    # hidden_states should be a tuple of (num_tokens, num_layers, ...)
+    assert len(hidden_states) > 0  # At least one token generated
+    # Each token should have hidden states for each layer
+    first_token_hidden_states = hidden_states[0]
+    assert len(first_token_hidden_states) > 0  # Should have multiple layers

@@ -1,3 +1,4 @@
+import math
 import random
 import re
 import string
@@ -14,11 +15,33 @@ def truncate_text(text: str, max_length: int) -> str:
     return textwrap.shorten(text, width=max_length, placeholder="...")
 
 
+def is_finite_number(s: str) -> bool:
+    """Does `s` parse as a finite float?
+
+    Recognises ordinary float syntax (including signs, decimals, and
+    exponents, e.g. ``-5``, ``3.14``, ``1e3``). ``nan`` and ``inf`` are
+    rejected so callers can safely pass the result to ``float`` and use
+    it in arithmetic.
+    """
+    try:
+        return math.isfinite(float(s))
+    except ValueError:
+        return False
+
+
 def strip_punctuation(s: str) -> str:
     return s.strip(string.whitespace + string.punctuation)
 
 
 def strip_numeric_punctuation(s: str) -> str:
+    # un-escape LaTeX-escaped currency/formatting symbols (e.g. "\$20" -> "$20").
+    # Models frequently escape these inside LaTeX math mode, since a bare "$"
+    # would otherwise open/close a math expression. Without this, "\$20" is
+    # left as "\20" below (the backslash isn't a stripped character), which
+    # fails to parse as a number and is silently rejected as a non-numeric
+    # token by callers such as match(numeric=True).
+    s = re.sub(r"\\([$,£,€*_])", r"\1", s)
+
     # strip $, €, £, and ,
     # *,_ to string formatting characters sometimes added by LLMs
     stripped = re.sub(r"[$,£,€,*,_]", "", s)
@@ -105,13 +128,13 @@ def truncate_bytes(input: bytes, max_bytes: int) -> TruncatedOutput | None:
 
     # Split bytes in half
     half_bytes = max_bytes // 2
-    start_portion = input[:half_bytes]
-    end_portion = input[-(max_bytes - half_bytes) :]
+    start_portion = input[:half_bytes].decode("utf-8", errors="ignore")
+    end_portion = input[-(max_bytes - half_bytes) :].decode("utf-8", errors="ignore")
 
     # Combine portions
-    result_bytes = start_portion + end_portion
+    result = start_portion + end_portion
 
-    return TruncatedOutput(result_bytes.decode("utf-8", errors="replace"), len(input))
+    return TruncatedOutput(result, len(input))
 
 
 def str_to_float(s: str) -> float:
@@ -192,7 +215,11 @@ def str_to_float(s: str) -> float:
     # Calculate the base value (whole number + fraction if present)
     base_value = 0.0
 
-    if base_part:
+    if base_part in ("-", "+"):
+        if not fraction_char and not exponent_part:
+            raise ValueError(f"Value could not be parsed as a float: {s}")
+        base_value = 0.0 if fraction_char else (-1.0 if base_part == "-" else 1.0)
+    elif base_part:
         # find the first valid float (LLMs may include additional spurious output)
         match = re.match(r"^([+-]?\d+(?:\.\d+)?)", base_part)
         if match is None:
@@ -206,8 +233,8 @@ def str_to_float(s: str) -> float:
 
     if fraction_char:
         fraction_value = fraction_map[fraction_char]
-        if base_value < 0:
-            # For negative values, subtract the fraction (e.g., -2½ = -2.5)
+        if base_value < 0 or base_part == "-":
+            # For negative values, subtract the fraction (e.g., -2½ = -2.5, -½ = -0.5)
             base_value -= fraction_value
         else:
             # For zero or positive values, add the fraction
@@ -248,6 +275,11 @@ def truncate(text: str, length: int, overflow: str = "...", pad: bool = True) ->
         return text + (" " * (length - len(text))) if pad else text
 
     overflow_length = len(overflow)
+    if length < overflow_length:
+        # Not enough room for the overflow indicator; clip to length so the
+        # result never grows past it (a negative slice index would otherwise
+        # keep most of the text and still append the indicator).
+        return text[: max(0, length)]
     truncated = text[: length - overflow_length] + overflow
 
     return truncated
@@ -257,7 +289,7 @@ def truncate_lines(
     text: str, max_lines: int = 100, max_characters: int | None = 100 * 100
 ) -> tuple[str, int | None]:
     if max_characters is not None:
-        text = truncate(text, max_characters)
+        text = truncate(text, max_characters, pad=False)
     lines = text.splitlines()
     if len(lines) > max_lines:
         output = "\n".join(lines[0:max_lines])

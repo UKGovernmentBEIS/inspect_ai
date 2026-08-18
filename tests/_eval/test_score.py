@@ -7,6 +7,7 @@ import pydantic
 import pytest
 from test_helpers.utils import skip_if_no_openai
 
+from inspect_ai import score
 from inspect_ai._eval.score import (
     ScoreAction,
     _get_updated_events,
@@ -24,7 +25,7 @@ from inspect_ai.log import (
     EvalSample,
     Transcript,
 )
-from inspect_ai.log._file import read_eval_log_async
+from inspect_ai.log._file import read_eval_log, read_eval_log_async
 from inspect_ai.log._transcript import init_transcript
 from inspect_ai.model import ChatCompletionChoice, GenerateConfig, ModelOutput
 from inspect_ai.model._chat_message import (
@@ -434,3 +435,416 @@ async def test_score(
                     }
                 )
             assert scores_passed_to_scorer == expected_scores_passed_to_scorer
+
+
+@skip_if_no_openai
+def test_score_append_with_unavailable_metrics():
+    """Test that score_async(action="append") works with unavailable metrics.
+
+    Regression test for https://github.com/UKGovernmentBEIS/inspect_ai/issues/3238.
+    When the original eval's metrics come from external packages that are not
+    installed, append should still succeed because it doesn't recreate them.
+    """
+    from inspect_ai.log._log import EvalMetricDefinition
+
+    log = read_eval_log(LOG_SCORED)
+
+    # Inject a metric that would fail registry_create (simulating an external package)
+    log.eval.metrics = [
+        EvalMetricDefinition(name="fake_package/nonexistent_metric"),
+    ]
+
+    # Resolve an f1 scorer to append
+    f1_scorers = resolve_scorers(log, "f1", {})
+
+    # This should succeed — append should not try to recreate original metrics
+    scored_log = score(log=log, scorers=f1_scorers, action="append")
+
+    assert scored_log.results is not None
+    scores = {score.name: score for score in scored_log.results.scores}
+    # Original "match" scores should be preserved from log.results.scores
+    assert "match" in scores
+    # New "f1" scores should be appended
+    assert "f1" in scores
+
+
+def test_score_append_preserves_existing_reductions():
+    """score(action="append") must keep pre-existing scorers' reductions.
+
+    Regression test for https://github.com/UKGovernmentBEIS/inspect_ai/issues/4764.
+    The reductions computed during an append pass only cover the scorers run in
+    that pass, so they must be appended to log.reductions rather than replacing
+    it -- otherwise every pre-existing scorer's reductions are silently dropped
+    even though results.scores still retains their entries.
+    """
+    log = read_eval_log(LOG_SCORED)
+
+    # The fixture already carries a reduction for its original "match" scorer.
+    original_reducers = [r.scorer for r in (log.reductions or [])]
+    assert "match" in original_reducers
+
+    f1_scorers = resolve_scorers(log, "f1", {})
+    # f1 never calls a model, so name mockllm to keep this running without an
+    # API key (score() otherwise resolves the header model and would raise).
+    scored_log = score(
+        log=log, scorers=f1_scorers, action="append", model="mockllm/model"
+    )
+
+    reducers = [r.scorer for r in (scored_log.reductions or [])]
+    # Original reduction preserved and the new scorer's reduction appended.
+    assert "match" in reducers
+    assert "f1" in reducers
+
+
+@pytest.mark.anyio
+async def test_score_preserves_model_usage_in_score_event():
+    """Test that model_usage from sample is correctly captured in ScoreEvent when re-scoring."""
+    from inspect_ai._eval.score import _run_score_task
+    from inspect_ai.log import EvalLog
+    from inspect_ai.log._log import (
+        EvalConfig,
+        EvalDataset,
+        EvalPlan,
+        EvalPlanStep,
+        EvalSpec,
+    )
+    from inspect_ai.model._model import ModelUsage
+
+    # Create a sample with model_usage set
+    sample_model_usage = {
+        "openai/gpt-4": ModelUsage(
+            input_tokens=100,
+            output_tokens=50,
+            total_tokens=150,
+        )
+    }
+    sample = EvalSample(
+        id="test-1",
+        epoch=1,
+        input="What is 2+2?",
+        target="4",
+        messages=[ChatMessageUser(role="user", content="What is 2+2?")],
+        output=ModelOutput(
+            choices=[
+                ChatCompletionChoice(
+                    message=ChatMessageAssistant(role="assistant", content="4")
+                )
+            ]
+        ),
+        model_usage=sample_model_usage,
+    )
+
+    # Create minimal log header
+    log_header = EvalLog(
+        version=2,
+        status="success",
+        eval=EvalSpec(
+            created="2025-01-01T00:00:00Z",
+            task="test_task",
+            task_id="test",
+            run_id="test-run",
+            dataset=EvalDataset(),
+            model="mockllm/model",
+            config=EvalConfig(),
+        ),
+        plan=EvalPlan(
+            name="test",
+            steps=[EvalPlanStep(solver="generate")],
+            config=GenerateConfig(),
+        ),
+    )
+
+    # Simple scorer that returns a score
+    @scorer(metrics=[accuracy()])
+    def simple_scorer(threshold: float = 0.5) -> Scorer:
+        async def score(state: TaskState, target: Target) -> Score:
+            return Score(value=1.0 if state.output.completion == target.text else 0.0)
+
+        return score
+
+    # Run the scoring
+    from inspect_ai.model._model import get_model
+
+    results, _ = await _run_score_task(
+        log_header=log_header,
+        sample=sample,
+        scorers=[simple_scorer(threshold=0.75)],
+        model=get_model("mockllm/model"),
+        model_roles={},
+        action="append",
+    )
+
+    # Check that the ScoreEvent in the sample's events has the correct model_usage
+    score_events = [e for e in sample.events if isinstance(e, ScoreEvent)]
+    assert len(score_events) == 1
+    assert score_events[0].model_usage == sample_model_usage
+    assert score_events[0].scorer == "simple_scorer"
+    assert score_events[0].scorer_args == {"threshold": 0.75}
+
+
+@pytest.mark.anyio
+async def test_score_model_roles_override():
+    """score_async() model_roles overrides merge over roles reconstructed from the log."""
+    from inspect_ai.log import EvalLog
+    from inspect_ai.log._log import (
+        EvalConfig,
+        EvalDataset,
+        EvalPlan,
+        EvalPlanStep,
+        EvalSpec,
+    )
+    from inspect_ai.model._model import get_model
+    from inspect_ai.model._model_config import ModelConfig
+
+    @scorer(metrics=[accuracy()])
+    def judge_model_scorer() -> Scorer:
+        async def score(state: TaskState, target: Target) -> Score:
+            judge = get_model(role="judge")
+            return Score(value=1.0, answer=str(judge))
+
+        return score
+
+    sample = EvalSample(
+        id="test-1",
+        epoch=1,
+        input="q",
+        target="a",
+        messages=[ChatMessageUser(role="user", content="q")],
+        output=ModelOutput(
+            choices=[
+                ChatCompletionChoice(
+                    message=ChatMessageAssistant(role="assistant", content="a")
+                )
+            ]
+        ),
+    )
+
+    log = EvalLog(
+        version=2,
+        status="success",
+        eval=EvalSpec(
+            created="2025-01-01T00:00:00Z",
+            task="test_task",
+            task_id="test",
+            run_id="test-run",
+            dataset=EvalDataset(),
+            model="mockllm/model",
+            model_roles={"judge": ModelConfig(model="mockllm/log-judge")},
+            config=EvalConfig(),
+        ),
+        plan=EvalPlan(
+            name="test",
+            steps=[EvalPlanStep(solver="generate")],
+            config=GenerateConfig(),
+        ),
+        samples=[sample],
+    )
+
+    # no override -> judge role resolved from log header
+    scored = await score_async(
+        log=log, scorers=[judge_model_scorer()], action="overwrite"
+    )
+    assert scored.samples is not None
+    assert scored.samples[0].scores is not None
+    assert scored.samples[0].scores["judge_model_scorer"].answer == "mockllm/log-judge"
+
+    # override -> caller-supplied judge wins over the log-derived one
+    override = get_model("mockllm/override-judge")
+    scored = await score_async(
+        log=log,
+        scorers=[judge_model_scorer()],
+        model_roles={"judge": override},
+        action="overwrite",
+    )
+    assert scored.samples is not None
+    assert scored.samples[0].scores is not None
+    assert (
+        scored.samples[0].scores["judge_model_scorer"].answer
+        == "mockllm/override-judge"
+    )
+
+
+@pytest.mark.anyio
+async def test_score_resolves_attachments_for_scorer_state_and_transcript() -> None:
+    from inspect_ai._eval.score import _run_score_task
+    from inspect_ai.log import EvalLog
+    from inspect_ai.log._log import (
+        EvalConfig,
+        EvalDataset,
+        EvalPlan,
+        EvalPlanStep,
+        EvalSpec,
+    )
+    from inspect_ai.log._transcript import transcript
+    from inspect_ai.model._model import get_model
+
+    input_ref = "attachment://input-ref"
+    message_ref = "attachment://message-ref"
+    event_ref = "attachment://event-ref"
+
+    sample = EvalSample(
+        id="test-1",
+        epoch=1,
+        input=[ChatMessageUser(content=input_ref)],
+        target="target",
+        messages=[ChatMessageUser(content=message_ref)],
+        output=ModelOutput(
+            choices=[ChatCompletionChoice(message=ChatMessageAssistant(content="done"))]
+        ),
+        events=[
+            ModelEvent(
+                model="mockllm/model",
+                role="assistant",
+                input=[ChatMessageUser(content=event_ref)],
+                output=ModelOutput(
+                    choices=[
+                        ChatCompletionChoice(
+                            message=ChatMessageAssistant(content="done")
+                        )
+                    ]
+                ),
+                tools=[],
+                tool_choice="none",
+                config=GenerateConfig(),
+            )
+        ],
+        attachments={
+            "input-ref": "resolved input",
+            "message-ref": "resolved message",
+            "event-ref": "resolved event",
+        },
+    )
+    log_header = EvalLog(
+        version=2,
+        status="success",
+        eval=EvalSpec(
+            created="2025-01-01T00:00:00Z",
+            task="t",
+            task_id="t",
+            run_id="r",
+            dataset=EvalDataset(),
+            model="mockllm/model",
+            config=EvalConfig(),
+        ),
+        plan=EvalPlan(
+            name="t", steps=[EvalPlanStep(solver="generate")], config=GenerateConfig()
+        ),
+    )
+
+    seen: dict[str, str] = {}
+
+    @scorer(metrics=[accuracy()])
+    def attachment_scorer() -> Scorer:
+        async def score(state: TaskState, target: Target) -> Score:
+            assert isinstance(state.input, list)
+            seen["input"] = state.input[0].text
+            seen["messages"] = state.messages[0].text
+
+            model_events = [
+                event for event in transcript().events if isinstance(event, ModelEvent)
+            ]
+            seen["transcript"] = model_events[0].input[0].text
+            return Score(value=1.0)
+
+        return score
+
+    await _run_score_task(
+        log_header=log_header,
+        sample=sample,
+        scorers=[attachment_scorer()],
+        model=get_model("mockllm/model"),
+        model_roles={},
+        action="append",
+    )
+
+    assert seen == {
+        "input": "resolved input",
+        "messages": "resolved message",
+        "transcript": "resolved event",
+    }
+
+    assert isinstance(sample.input, list)
+    assert sample.input[0].content == input_ref
+    assert sample.messages[0].content == message_ref
+    assert isinstance(sample.events[0], ModelEvent)
+    assert sample.events[0].input[0].content == event_ref
+    assert sample.attachments == {
+        "input-ref": "resolved input",
+        "message-ref": "resolved message",
+        "event-ref": "resolved event",
+    }
+
+
+async def test_score_restores_sample_timelines() -> None:
+    """Re-scoring should expose stored ``sample.timelines`` to scorers.
+
+    During a live eval, solvers populate ``transcript().timelines`` via
+    ``add_timeline()``; those timelines are persisted to ``sample.timelines``.
+    When re-scoring a completed log, ``_run_score_task`` rebuilds the
+    transcript from ``sample.events`` — this verifies it also restores
+    ``sample.timelines`` so timeline-dependent scorers (e.g.
+    ``inspect_scout.@scanner(timeline=True)``) work on re-score.
+    """
+    from inspect_ai._eval.score import _run_score_task
+    from inspect_ai.event import Timeline, TimelineSpan
+    from inspect_ai.log import EvalLog
+    from inspect_ai.log._log import (
+        EvalConfig,
+        EvalDataset,
+        EvalPlan,
+        EvalPlanStep,
+        EvalSpec,
+    )
+    from inspect_ai.log._transcript import transcript
+    from inspect_ai.model._model import get_model
+
+    stored = Timeline(
+        name="target", description="", root=TimelineSpan(id="root-span", name="root")
+    )
+    sample = EvalSample(
+        id="test-1",
+        epoch=1,
+        input="x",
+        target="y",
+        messages=[ChatMessageUser(role="user", content="x")],
+        output=ModelOutput(
+            choices=[ChatCompletionChoice(message=ChatMessageAssistant(content="y"))]
+        ),
+        timelines=[stored],
+    )
+    log_header = EvalLog(
+        version=2,
+        status="success",
+        eval=EvalSpec(
+            created="2025-01-01T00:00:00Z",
+            task="t",
+            task_id="t",
+            run_id="r",
+            dataset=EvalDataset(),
+            model="mockllm/model",
+            config=EvalConfig(),
+        ),
+        plan=EvalPlan(
+            name="t", steps=[EvalPlanStep(solver="generate")], config=GenerateConfig()
+        ),
+    )
+
+    seen: list[str] = []
+
+    @scorer(metrics=[accuracy()])
+    def timeline_scorer() -> Scorer:
+        async def score(state: TaskState, target: Target) -> Score:
+            seen.extend(tl.name for tl in transcript().timelines)
+            return Score(value=1.0)
+
+        return score
+
+    await _run_score_task(
+        log_header=log_header,
+        sample=sample,
+        scorers=[timeline_scorer()],
+        model=get_model("mockllm/model"),
+        model_roles={},
+        action="append",
+    )
+    assert seen == ["target"]

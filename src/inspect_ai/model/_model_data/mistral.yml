@@ -1,19 +1,49 @@
 mistral:
   display_name: Mistral
   models:
+    mistral-medium-2604:
+      display_name: Mistral Medium 3.5
+      release_date: 2026-04-29
+      context_length: 262144
+      reasoning: True
+      # Thinking is off unless requested: reasoning_effort accepts "high"
+      # (thinking chunk before the answer) and "none" (the default).
+      # https://docs.mistral.ai/capabilities/reasoning/
+      reasoning_effort_default: none
+      aliases:
+        - mistral-medium-3-5
+        - mistral-medium-3.5
+    mistral-small-2603:
+      display_name: Mistral Small 4
+      release_date: 2026-03-16
+      context_length: 262144
+      reasoning: True
+      reasoning_effort_default: none
+    mistral-large-2512:
+      display_name: Mistral Large 3
+      release_date: 2025-12-04
+      context_length: 262144
     mistral-medium-2505:
       display_name: Mistral Medium 3
       release_date: 2025-05-07
       context_length: 131072
+    # The Magistral models were deprecated in late 2025 and retired from the
+    # API (requests redirect to Mistral Medium 3.5 / Mistral Small 4, which
+    # use the reasoning_effort parameter instead of always-on thinking).
+    # Entries retained for historical log analysis.
     magistral-medium-2506:
       display_name: Magistral Medium 3
       release_date: 2025-05-07
       reasoning: True
+      # Magistral had no `reasoning_effort` scale: reasoning was always on
+      # and the model thought until done.
+      reasoning_effort_default: fixed
       context_length: 40960
     magistral-small-2506:
       display_name: Magistral Small
       release_date: 2025-06-10
       reasoning: True
+      reasoning_effort_default: fixed
       context_length: 40960
     mistral-small-2506:
       display_name: Mistral Small 3.2

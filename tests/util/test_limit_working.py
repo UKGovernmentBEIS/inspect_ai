@@ -24,7 +24,7 @@ from inspect_ai.util._limit import (
 @pytest.fixture
 def mock_time() -> Generator[_MockTime, None, None]:
     mock = _MockTime()
-    with patch("time.monotonic", side_effect=mock.get_time):
+    with patch("anyio.current_time", side_effect=mock.get_time):
         yield mock
 
 
@@ -287,7 +287,7 @@ def check_working_limit_interrupts_sandbox_exec(sandbox: str):
                 ModelOutput.for_tool_call(
                     model="mockllm/model",
                     tool_name="bash",
-                    tool_arguments={"cmd": "sleep 100"},
+                    tool_arguments={"command": "sleep 100"},
                 )
             ],
         ),

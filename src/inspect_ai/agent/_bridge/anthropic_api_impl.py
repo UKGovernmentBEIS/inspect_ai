@@ -16,8 +16,10 @@ from anthropic.types import (
     SearchResultBlockParam,
     TextBlockParam,
     ToolChoiceParam,
+    ToolReferenceBlockParam,
     Usage,
     WebSearchTool20250305Param,
+    WebSearchTool20260209Param,
 )
 from anthropic.types import StopReason as AnthropicStopReason
 from anthropic.types.beta import (
@@ -38,6 +40,7 @@ from inspect_ai.model._chat_message import (
 )
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._internal import CONTENT_INTERNAL_TAG, parse_content_with_internal
+from inspect_ai.model._model import ModelName
 from inspect_ai.model._model_output import ModelUsage, StopReason
 from inspect_ai.model._providers._anthropic_citations import to_inspect_citation
 from inspect_ai.model._providers.anthropic import (
@@ -45,6 +48,7 @@ from inspect_ai.model._providers.anthropic import (
     anthropic_extra_body_fields,
     assistant_message_blocks,
     content_and_tool_calls_from_assistant_content_blocks,
+    is_bash_tool,
     is_code_execution_tool,
     is_computer_tool,
     is_text_editor_tool,
@@ -64,6 +68,7 @@ from inspect_ai.tool._tools._code_execution import (
     code_execution,
 )
 from inspect_ai.tool._tools._computer._computer import computer
+from inspect_ai.tool._tools._execute import bash
 from inspect_ai.tool._tools._text_editor import text_editor
 from inspect_ai.tool._tools._web_search._web_search import (
     WebSearchProviders,
@@ -74,8 +79,12 @@ from .types import AgentBridge
 from .util import (
     apply_message_ids,
     bridge_generate,
+    clear_generation_params,
+    relax_tool_choice_for_withheld,
     resolve_generate_config,
     resolve_inspect_model,
+    validate_bridge_media,
+    withheld_bridge_tool,
 )
 
 logger = getLogger(__name__)
@@ -83,38 +92,57 @@ logger = getLogger(__name__)
 
 async def inspect_anthropic_api_request_impl(
     json_data: dict[str, Any],
-    web_search: WebSearchProviders,
-    code_execution: CodeExecutionProviders,
+    headers: dict[str, str] | None,
+    web_search: WebSearchProviders | None,
+    code_execution: CodeExecutionProviders | None,
     bridge: AgentBridge,
     *,
     beta: bool = False,
 ) -> Message | BetaMessage:
     # resolve model
     bridge_model_name = str(json_data["model"])
-    model = resolve_inspect_model(bridge_model_name)
+    model = resolve_inspect_model(bridge_model_name, bridge.model_aliases, bridge.model)
 
     # tools
     anthropic_tools: list[ToolParamDef] | None = json_data.get("tools", None)
     anthropic_mcp_servers: list[BetaRequestMCPServerURLDefinitionParam] | None = (
         json_data.get("mcp_servers", None)
     )
+    # validate computer use compatibility
+    has_computer_use = any(is_computer_tool(tool) for tool in anthropic_tools or [])
+    if has_computer_use and ModelName(model).api != "anthropic":
+        raise RuntimeError(
+            f"computer use with the Anthropic agent bridge requires an "
+            f"Anthropic model, got '{ModelName(model)}'"
+        )
+
     tools = tools_from_anthropic_tools(
-        anthropic_tools, anthropic_mcp_servers, web_search, code_execution
+        anthropic_tools,
+        anthropic_mcp_servers,
+        web_search,
+        code_execution,
+        bridge.allow_remote_mcp,
     )
 
     # tool choice
     anthropic_tool_choice: ToolChoiceParam | None = json_data.get("tool_choice", None)
-    tool_choice = tool_choice_from_anthropic_tool_choice(anthropic_tool_choice)
+    tool_choice = relax_tool_choice_for_withheld(
+        tool_choice_from_anthropic_tool_choice(anthropic_tool_choice), tools
+    )
 
     # convert to inspect messages
     input: list[MessageParam] = json_data["messages"]
     debug_log("SCAFFOLD INPUT", input)
 
     messages = await messages_from_anthropic_input(input, tools)
+    await validate_bridge_media(bridge, messages)
     debug_log("INSPECT MESSAGES", messages)
 
     # extract generate config (hoist instructions into system_message)
     config = generate_config_from_anthropic(json_data)
+    if not bridge.forward_generation_config:
+        clear_generation_params(config)
+    config.extra_headers = headers
     if config.system_message is not None:
         messages.insert(0, ChatMessageSystem(content=config.system_message))
         config.system_message = None
@@ -135,7 +163,7 @@ async def inspect_anthropic_api_request_impl(
     debug_log("INSPECT OUTPUT", output.message)
 
     # update state if we have more messages than the last generation
-    bridge._track_state(messages, output)
+    await bridge._track_state(messages, output)
 
     # return message (use beta message type if request came from beta endpoint)
     message_class = BetaMessage if beta else Message
@@ -161,11 +189,23 @@ def debug_log(caption: str, o: Any) -> None:
     pass
 
 
+def anthropic_system_to_text(value: Any) -> str:
+    """Flatten an Anthropic ``system`` value (``str`` or ``list[TextBlockParam]``) to text."""
+    if isinstance(value, str):
+        return value
+    return "\n\n".join(
+        str(b.get("text", ""))
+        for b in value
+        if isinstance(b, dict) and b.get("type") == "text"
+    )
+
+
 def generate_config_from_anthropic(json_data: dict[str, Any]) -> GenerateConfig:
     config = GenerateConfig()
     config.max_tokens = json_data.get("max_tokens", None)
     config.stop_seqs = json_data.get("stop_sequences", None) or None
-    config.system_message = json_data.get("system", None)
+    if (system := json_data.get("system")) is not None:
+        config.system_message = anthropic_system_to_text(system)
     config.temperature = json_data.get("temperature", None)
     config.top_k = json_data.get("top_k", None)
     config.top_p = json_data.get("top_p", None)
@@ -174,6 +214,16 @@ def generate_config_from_anthropic(json_data: dict[str, Any]) -> GenerateConfig:
     if thinking:
         if thinking.get("type", None) == "enabled":
             config.reasoning_tokens = thinking.get("budget_tokens", None)
+
+    # `output_config.effort` carries the reasoning depth for adaptive thinking
+    # (Claude 4.6+ clients send `thinking: {"type": "adaptive"}` and convey the
+    # depth here rather than via `budget_tokens`). Forward it so the served model
+    # keeps the requested effort instead of silently dropping it.
+    output_config = json_data.get("output_config", None)
+    if output_config:
+        effort = output_config.get("effort", None)
+        if effort is not None:
+            config.effort = effort
 
     tool_choice = json_data.get("tool_choice", {})
     if tool_choice.get("disable_parallel_tool_use", None) is True:
@@ -193,8 +243,9 @@ def generate_config_from_anthropic(json_data: dict[str, Any]) -> GenerateConfig:
 def tools_from_anthropic_tools(
     anthropic_tools: list[ToolParamDef] | None,
     anthropic_mcp_servers: list[BetaRequestMCPServerURLDefinitionParam] | None,
-    web_search_providers: WebSearchProviders,
-    code_execution_providers: CodeExecutionProviders,
+    web_search_providers: WebSearchProviders | None,
+    code_execution_providers: CodeExecutionProviders | None,
+    allow_remote_mcp: bool,
 ) -> list[ToolInfo | Tool]:
     tools: list[ToolInfo | Tool] = []
 
@@ -214,20 +265,40 @@ def tools_from_anthropic_tools(
         elif is_computer_tool(anthropic_tool):
             tools.append(computer())
         elif is_web_search_tool(anthropic_tool):
-            tools.append(
-                web_search(
-                    resolve_web_search_providers(anthropic_tool, web_search_providers)
+            if web_search_providers is None:
+                withheld_bridge_tool("web_search")
+            else:
+                tools.append(
+                    web_search(
+                        resolve_web_search_providers(
+                            anthropic_tool, web_search_providers
+                        )
+                    )
                 )
-            )
         elif is_web_fetch_tool(anthropic_tool):
-            # web fetch tool is collapsed into web_search for inspect
-            pass
+            # Inspect has no standalone fetch tool: on Anthropic, fetch rides
+            # along with a granted web_search (the provider emits both), so a
+            # declaration of it maps to nothing of its own. A client that
+            # declares fetch *without* search therefore gets no web tool even
+            # when search is granted — mapping it to web_search would hand it
+            # the search capability it didn't ask for.
+            if web_search_providers is None:
+                withheld_bridge_tool("web_fetch")
         elif is_code_execution_tool(anthropic_tool):
-            tools.append(code_execution(providers=code_execution_providers))
+            if code_execution_providers is None:
+                withheld_bridge_tool("code_execution")
+            else:
+                tools.append(code_execution(providers=code_execution_providers))
+        elif is_bash_tool(anthropic_tool):
+            tools.append(bash())
         else:
             raise RuntimeError(
                 f"ToolParam of type {anthropic_tool['type']} not supported by agent bridge."
             )
+
+    if anthropic_mcp_servers and not allow_remote_mcp:
+        withheld_bridge_tool("mcp_servers")
+        anthropic_mcp_servers = None
 
     for mcp_server in anthropic_mcp_servers or []:
         # allowed tools (default is 'all')
@@ -274,7 +345,8 @@ def tools_from_anthropic_tools(
 
 
 def resolve_web_search_providers(
-    tool_param: WebSearchTool20250305Param, web_search: WebSearchProviders
+    tool_param: WebSearchTool20250305Param | WebSearchTool20260209Param,
+    web_search: WebSearchProviders,
 ) -> WebSearchProviders:
     # pass through anthropic options if there is no special anthropic config
     anthropic_options = web_search.get("anthropic", False)
@@ -375,18 +447,23 @@ async def messages_from_anthropic_input(
                         continue
                     if c["type"] == "tool_result":
                         flush_pending_user_content()
-                        content = (
-                            c["content"]
-                            if isinstance(c["content"], str)
-                            else [content_block_to_content(b) for b in c["content"]]
-                        )
+                        content_value = c.get("content")
+                        if content_value is None:
+                            content: str | list[Content] = ""
+                        elif isinstance(content_value, str):
+                            content = content_value
+                        else:
+                            content = [
+                                content_block_to_content(b) for b in content_value
+                            ]
                         messages.append(
                             ChatMessageTool(
                                 tool_call_id=c["tool_use_id"],
                                 function=tool_names.get(c["tool_use_id"], None),
                                 content=content,
                                 error=ToolCallError(
-                                    type="unknown", message=str(c["content"])
+                                    type="unknown",
+                                    message=str(content_value) if content_value else "",
                                 )
                                 if c.get("is_error", False) is True
                                 else None,
@@ -399,9 +476,14 @@ async def messages_from_anthropic_input(
                     ):
                         pending_user_content.append(c)
                     else:
-                        raise RuntimeError("Unexpected input parameter: {c}")
+                        raise RuntimeError(f"Unexpected input parameter: {c}")
 
                 flush_pending_user_content()
+
+        elif param["role"] == "system":
+            messages.append(
+                ChatMessageSystem(content=anthropic_system_to_text(param["content"]))
+            )
 
         else:
             raise RuntimeError(f"Unexpected message role: {param['role']}")
@@ -413,7 +495,8 @@ def content_block_to_content(
     block: TextBlockParam
     | ImageBlockParam
     | DocumentBlockParam
-    | SearchResultBlockParam,
+    | SearchResultBlockParam
+    | ToolReferenceBlockParam,
 ) -> Content:
     if block["type"] == "text":
         text = block["text"]
@@ -441,8 +524,10 @@ def content_block_to_content(
     elif block["type"] == "document":
         source = block["source"]
         if source["type"] == "text":
+            data = base64.b64encode(source["data"].encode("utf-8")).decode("ascii")
             return ContentDocument(
-                document=source["data"], mime_type=source["media_type"]
+                document=as_data_uri(source["media_type"], data),
+                mime_type=source["media_type"],
             )
         elif source["type"] == "url":
             return ContentDocument(document=source["url"])
@@ -468,7 +553,7 @@ def base_64_data(data: str | IO[bytes] | PathLike[str]) -> str:
     if isinstance(data, str):
         return data
     else:
-        raise RuntimeError("Unsupported image content type: {data}")
+        raise RuntimeError(f"Unsupported image content type: {data}")
 
 
 def anthropic_stop_reason(stop_reason: StopReason) -> AnthropicStopReason:

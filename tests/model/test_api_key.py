@@ -3,10 +3,12 @@ import os
 import pytest
 from test_helpers.utils import (
     skip_if_no_anthropic,
+    skip_if_no_deepseek,
     skip_if_no_google,
     skip_if_no_grok,
     skip_if_no_groq,
     skip_if_no_mistral,
+    skip_if_no_moonshot,
     skip_if_no_openai,
     skip_if_no_together,
 )
@@ -37,7 +39,6 @@ async def test_openai_api_key():
     await check_explicit_api_key("openai/gpt-4", "OPENAI_API_KEY")
 
 
-@pytest.mark.asyncio
 @skip_if_no_grok
 async def test_grok_api_key():
     await check_explicit_api_key("grok/grok-3-mini", "GROK_API_KEY")
@@ -46,9 +47,7 @@ async def test_grok_api_key():
 @pytest.mark.anyio
 @skip_if_no_anthropic
 async def test_anthropic_api_key():
-    await check_explicit_api_key(
-        "anthropic/claude-3-7-sonnet-latest", "ANTHROPIC_API_KEY"
-    )
+    await check_explicit_api_key("anthropic/claude-sonnet-4-6", "ANTHROPIC_API_KEY")
 
 
 @pytest.mark.anyio
@@ -66,6 +65,16 @@ async def test_mistral_api_key():
 @pytest.mark.anyio
 @skip_if_no_together
 async def test_together_api_key():
-    await check_explicit_api_key(
-        "together/meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo", "TOGETHER_API_KEY"
-    )
+    await check_explicit_api_key("together/MiniMaxAI/MiniMax-M2.7", "TOGETHER_API_KEY")
+
+
+@pytest.mark.anyio
+@skip_if_no_moonshot
+async def test_moonshot_api_key():
+    await check_explicit_api_key("moonshot/kimi-k3", "MOONSHOT_API_KEY")
+
+
+@pytest.mark.anyio
+@skip_if_no_deepseek
+async def test_deepseek_api_key():
+    await check_explicit_api_key("deepseek/deepseek-v4-flash", "DEEPSEEK_API_KEY")

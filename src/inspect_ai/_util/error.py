@@ -1,4 +1,5 @@
 import sys
+from asyncio import CancelledError
 from importlib.metadata import version
 from types import TracebackType
 from typing import Callable
@@ -19,6 +20,20 @@ class EvalError(BaseModel):
 
     traceback_ansi: str
     """Error traceback with ANSI color codes."""
+
+
+# Backend cancellation exceptions are recorded as their repr, e.g.
+# "CancelledError('Cancelled via cancel scope ...')" (asyncio) or
+# "Cancelled()" (trio). A sample cancelled because a sibling failed or the
+# eval was torn down for a retry isn't a genuine error.
+_CANCELLED_EXC_NAMES = ("CancelledError", "Cancelled")
+
+
+def is_cancellation_message(message: str | None) -> bool:
+    """Whether an error message is a backend cancellation exception repr."""
+    return message is not None and any(
+        message.startswith(f"{name}(") for name in _CANCELLED_EXC_NAMES
+    )
 
 
 def pip_dependency_error(feature: str, dependencies: list[str]) -> Exception:
@@ -78,6 +93,15 @@ def exception_hook() -> Callable[..., None]:
     ) -> None:
         if isinstance(exception, PrerequisiteError):
             print(f"\n{exception.message}\n")
+        elif isinstance(exception, (CancelledError, KeyboardInterrupt)):
+            # User-initiated interruption (Ctrl-C → SIGINT, or an inner
+            # CancelledError re-raised from the task group to preserve
+            # structured concurrency). The per-task display panel
+            # already printed a friendly "Task interrupted" footer; a
+            # traceback here just confuses the user. Exit with the
+            # conventional SIGINT code so shells / supervisors see the
+            # interrupt for what it is.
+            sys.exit(130)
         elif not isinstance(exception, SilentException):
             sys_handler(exception_type, exception, traceback)
         else:

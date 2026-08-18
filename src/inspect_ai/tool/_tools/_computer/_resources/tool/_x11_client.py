@@ -223,6 +223,35 @@ class X11Client:
     async def screenshot(self) -> ToolResult:
         return await self._screenshot()
 
+    async def open_web_browser(self) -> ToolResult:
+        """Open the web browser (Firefox) in full screen view."""
+        await run(f"{self._display_prefix}firefox-esr --new-window >/dev/null 2>&1 &")
+        # Wait for a visible Firefox window to appear, then activate it
+        await run(f"{self.xdotool} search --sync --onlyvisible --class firefox-esr")
+        await self._activate_browser()
+        await run(f"{self.xdotool} key F11")
+        await asyncio.sleep(1)
+        return await self.screenshot()
+
+    async def navigate(self, url: str) -> ToolResult:
+        """Navigate to a URL in the browser."""
+        await self._activate_browser()
+        await run(f"{self.xdotool} key ctrl+l")
+        await asyncio.sleep(0.5)
+        await self.type(url)
+        await run(f"{self.xdotool} key Return")
+        await asyncio.sleep(1)
+        return await self.screenshot()
+
+    async def _activate_browser(self) -> None:
+        """Find and activate the most recent Firefox window."""
+        _, stdout, _ = await run(
+            f"{self.xdotool} search --onlyvisible --class firefox-esr"
+        )
+        window_id = stdout.strip().splitlines()[-1] if stdout.strip() else ""
+        if window_id:
+            await run(f"{self.xdotool} windowactivate --sync {window_id}")
+
     async def zoom(self, region: list[int]) -> ToolResult:
         """Take a zoomed screenshot of a specified region at native resolution."""
         if (

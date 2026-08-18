@@ -4,6 +4,7 @@ from contextvars import ContextVar
 from logging import getLogger
 from typing import Any, Awaitable, Callable, Iterator, NamedTuple, NoReturn, cast
 
+import anyio
 from shortuuid import uuid
 
 from inspect_ai._util.constants import SANDBOX_SETUP_TIMEOUT
@@ -15,6 +16,7 @@ from .environment import (
     SandboxConnection,
     SandboxEnvironment,
     SandboxEnvironmentConfigType,
+    SandboxUnavailableError,
 )
 from .registry import registry_find_sandboxenv
 
@@ -118,9 +120,18 @@ async def sandbox_with(
 
 
 async def _is_file_readable(environment: SandboxEnvironment, file: str) -> bool:
+    # Lightweight check — avoids transferring file contents (Linux/macOS).
     try:
-        # TODO: This is gross. We actually read the file contents just to see if
-        # it's readable.
+        result = await environment.exec(["test", "-r", file])
+        if result.success:
+            return True
+    except Exception:
+        # Catch broadly because sandbox providers may raise a variety of
+        # provider-specific exceptions that we can't predict here.
+        pass
+
+    # Fallback: read the file. Cross-platform but transfers full contents.
+    try:
         await environment.read_file(file, False)
         return True
     # allow exception types known to be raised from read_file
@@ -147,7 +158,13 @@ def sandbox_file_detector(file: str, on_path: bool = False) -> Detector:
     """
 
     async def detect_on_path(sandbox: SandboxEnvironment) -> bool:
-        return (await sandbox.exec(["which", file])).success
+        try:
+            return (await sandbox.exec(["which", file])).success
+        except SandboxUnavailableError:
+            # Treat an unavailable sandbox as no match so discovery can continue
+            # with the remaining sandboxes. Suppress only SandboxUnavailableError;
+            # other exceptions retain their previous behavior.
+            return False
 
     async def detect_file(sandbox: SandboxEnvironment) -> bool:
         return await _is_file_readable(sandbox, file)
@@ -158,6 +175,7 @@ def sandbox_file_detector(file: str, on_path: bool = False) -> Detector:
 async def sandbox_with_injection(
     injectables: SandboxInjectable | list[SandboxInjectable],
     name: str | None = None,
+    target: SandboxEnvironment | None = None,
 ) -> SandboxEnvironment:
     """Get a SandboxEnvironment that satisfies all the given injection requirements.
 
@@ -165,6 +183,7 @@ async def sandbox_with_injection(
         injectables: Single SandboxInjectable or list of SandboxInjectables.
             Each injectable is a (detector, injector) tuple.
         name: Optional sandbox environment name.
+        target: Optional sandbox instance to inject into directly.
 
     Returns:
         SandboxEnvironment instance that satisfies all injection requirements.
@@ -177,21 +196,30 @@ async def sandbox_with_injection(
     if isinstance(injectables, tuple):
         injectables = [injectables]
 
-    target_sandbox, needed_injections = (
+    if target is not None:
+        target_sandbox = target
+    elif name:
         # Named sandbox: inject directly into the specified sandbox
-        (sb := sandbox(name), await _get_needed_injections(sb, injectables))
-        if name
+        target_sandbox = sandbox(name)
+    else:
         # Unnamed sandbox: find best candidate (fewest injections needed)
-        else await _get_injection_target(injectables)
-    )
+        target_sandbox, _ = await _get_injection_target(injectables)
 
-    for detector, injector in needed_injections:
-        await injector(target_sandbox)
-        # Verify injection succeeded
-        if not await detector(target_sandbox):
-            raise RuntimeError(
-                "Injection failed - detector still returns False after injection"
-            )
+    # belt and suspenders in case subclasses forget to call __init__
+    if not hasattr(target_sandbox, "_inject_lock"):
+        target_sandbox._inject_lock = anyio.Lock()
+
+    async with target_sandbox._inject_lock:
+        # refresh the needed injections
+        needed_injections = await _get_needed_injections(target_sandbox, injectables)
+
+        for detector, injector in needed_injections:
+            await injector(target_sandbox)
+            # Verify injection succeeded
+            if not await detector(target_sandbox):
+                raise RuntimeError(
+                    "Injection failed - detector still returns False after injection"
+                )
 
     return target_sandbox
 
@@ -318,7 +346,7 @@ async def setup_sandbox_environment(
     # execute and then remove setup script (don't retry it on timeout
     # in case it is not idempotent)
     try:
-        await env.exec(["chmod", "+x", setup_file], timeout=30)
+        await env.exec(["chmod", "+x", setup_file], timeout=120)
         timeout = int(
             os.environ.get("INSPECT_SANDBOX_SETUP_TIMEOUT", SANDBOX_SETUP_TIMEOUT)
         )
@@ -329,7 +357,7 @@ async def setup_sandbox_environment(
             raise RuntimeError(
                 f"Failed to execute setup script for sample: {result.stderr}"
             )
-        await env.exec(["rm", setup_file], timeout=30)
+        await env.exec(["rm", setup_file], timeout=120)
     except TimeoutError:
         raise RuntimeError("Timed out executing setup command in sandbox")
 

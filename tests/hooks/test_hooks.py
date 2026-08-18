@@ -12,11 +12,17 @@ from inspect_ai._util.registry import _registry, registry_info, registry_lookup
 from inspect_ai.dataset._dataset import Sample
 from inspect_ai.hooks._hooks import (
     ApiKeyOverride,
+    BeforeModelGenerate,
     Hooks,
+    ModelRetry,
     ModelUsageData,
     RunEnd,
     RunStart,
+    SampleAttemptEnd,
+    SampleAttemptStart,
     SampleEnd,
+    SampleEvent,
+    SampleInit,
     SampleStart,
     TaskEnd,
     TaskStart,
@@ -36,18 +42,30 @@ class MockHooks(Hooks):
         self.run_end_events: list[RunEnd] = []
         self.task_start_events: list[TaskStart] = []
         self.task_end_events: list[TaskEnd] = []
+        self.sample_init_events: list[SampleInit] = []
         self.sample_start_events: list[SampleStart] = []
+        self.sample_attempt_start_events: list[SampleAttemptStart] = []
+        self.sample_attempt_end_events: list[SampleAttemptEnd] = []
+        self.sample_event_events: list[SampleEvent] = []
         self.sample_end_events: list[SampleEnd] = []
         self.model_usage_events: list[ModelUsageData] = []
+        self.model_retry_events: list[ModelRetry] = []
+        self.before_model_generate_events: list[BeforeModelGenerate] = []
 
     def assert_no_events(self) -> None:
         assert not self.run_start_events
         assert not self.run_end_events
         assert not self.task_start_events
         assert not self.task_end_events
+        assert not self.sample_init_events
         assert not self.sample_start_events
+        assert not self.sample_attempt_start_events
+        assert not self.sample_attempt_end_events
+        assert not self.sample_event_events
         assert not self.sample_end_events
         assert not self.model_usage_events
+        assert not self.model_retry_events
+        assert not self.before_model_generate_events
 
     def enabled(self) -> bool:
         return self.should_enable
@@ -64,14 +82,32 @@ class MockHooks(Hooks):
     async def on_task_end(self, data: TaskEnd) -> None:
         self.task_end_events.append(data)
 
+    async def on_sample_init(self, data: SampleInit) -> None:
+        self.sample_init_events.append(data)
+
     async def on_sample_start(self, data: SampleStart) -> None:
         self.sample_start_events.append(data)
+
+    async def on_sample_attempt_start(self, data: SampleAttemptStart) -> None:
+        self.sample_attempt_start_events.append(data)
+
+    async def on_sample_attempt_end(self, data: SampleAttemptEnd) -> None:
+        self.sample_attempt_end_events.append(data)
+
+    async def on_sample_event(self, data: SampleEvent) -> None:
+        self.sample_event_events.append(data)
 
     async def on_sample_end(self, data: SampleEnd) -> None:
         self.sample_end_events.append(data)
 
     async def on_model_usage(self, data: ModelUsageData) -> None:
         self.model_usage_events.append(data)
+
+    async def on_model_retry(self, data: ModelRetry) -> None:
+        self.model_retry_events.append(data)
+
+    async def on_before_model_generate(self, data: BeforeModelGenerate) -> None:
+        self.before_model_generate_events.append(data)
 
     def override_api_key(self, data: ApiKeyOverride) -> str | None:
         return f"mocked-{data.env_var_name}-{data.value}"
@@ -136,9 +172,32 @@ def test_can_subscribe_to_events(mock_hooks: MockHooks) -> None:
     assert len(mock_hooks.run_end_events) == 1
     assert len(mock_hooks.task_start_events) == 1
     assert len(mock_hooks.task_end_events) == 1
+    assert len(mock_hooks.sample_init_events) == 1
     assert len(mock_hooks.sample_start_events) == 1
+    assert len(mock_hooks.sample_attempt_start_events) == 1
+    assert len(mock_hooks.sample_attempt_end_events) == 1
     assert len(mock_hooks.sample_end_events) == 1
     assert len(mock_hooks.model_usage_events) == 1
+    assert len(mock_hooks.before_model_generate_events) == 1
+    before_gen = mock_hooks.before_model_generate_events[0]
+    assert before_gen.model_name is not None
+    assert len(before_gen.input) > 0
+    assert before_gen.sample_id is not None
+    assert before_gen.task_name is not None
+
+
+def test_task_start_carries_plan_including_setup_steps(
+    mock_hooks: MockHooks,
+) -> None:
+    task = Task(dataset=[Sample("sample_1")], setup=_setup_marker_solver())
+
+    eval(task, model="mockllm/model")
+
+    assert len(mock_hooks.task_start_events) == 1
+    steps = [step.solver for step in mock_hooks.task_start_events[0].plan.steps]
+    # resolve_plan unrolls setup onto the front, ahead of the solver
+    assert "_setup_marker_solver" in steps[0]
+    assert len(steps) > 1
 
 
 def test_can_subscribe_to_events_with_multiple_hooks(
@@ -155,9 +214,46 @@ def test_can_subscribe_to_events_with_multiple_hooks(
         assert len(h.run_end_events) == 1
         assert len(h.task_start_events) == 1
         assert len(h.task_end_events) == 1
+        assert len(h.sample_init_events) == 1
         assert len(h.sample_start_events) == 1
+        assert len(h.sample_attempt_start_events) == 1
+        assert len(h.sample_attempt_end_events) == 1
         assert len(h.sample_end_events) == 1
         assert len(h.model_usage_events) == 1
+        assert len(h.before_model_generate_events) == 1
+
+
+def test_model_retry_hook(mock_hooks: MockHooks) -> None:
+    import anyio
+
+    from inspect_ai.hooks._hooks import emit_model_retry
+
+    anyio.run(emit_model_retry, "mockllm/model", 2, 1.5)
+
+    assert len(mock_hooks.model_retry_events) == 1
+    retry = mock_hooks.model_retry_events[0]
+    assert retry.model_name == "mockllm/model"
+    assert retry.attempt == 2
+    assert retry.wait_time == 1.5
+    # no active sample in this context, so eval/sample ids are None
+    assert retry.sample_id is None
+    assert retry.eval_id is None
+    # cause not provided, so it defaults to None
+    assert retry.exception_type is None
+    assert retry.status_code is None
+
+
+def test_model_retry_hook_carries_cause(mock_hooks: MockHooks) -> None:
+    import anyio
+
+    from inspect_ai.hooks._hooks import emit_model_retry
+
+    anyio.run(emit_model_retry, "mockllm/model", 1, 0.5, "RateLimitError", 429)
+
+    assert len(mock_hooks.model_retry_events) == 1
+    retry = mock_hooks.model_retry_events[0]
+    assert retry.exception_type == "RateLimitError"
+    assert retry.status_code == 429
 
 
 def test_hooks_on_multiple_tasks(mock_hooks: MockHooks) -> None:
@@ -173,7 +269,10 @@ def test_hooks_on_multiple_tasks(mock_hooks: MockHooks) -> None:
     assert len(mock_hooks.run_end_events) == 1
     assert len(mock_hooks.task_start_events) == 2
     assert len(mock_hooks.task_end_events) == 2
+    assert len(mock_hooks.sample_init_events) == 2
     assert len(mock_hooks.sample_start_events) == 2
+    assert len(mock_hooks.sample_attempt_start_events) == 2
+    assert len(mock_hooks.sample_attempt_end_events) == 2
     assert len(mock_hooks.sample_end_events) == 2
 
 
@@ -189,7 +288,10 @@ def test_hooks_with_multiple_samples(mock_hooks: MockHooks) -> None:
     assert len(mock_hooks.run_end_events) == 1
     assert len(mock_hooks.task_start_events) == 1
     assert len(mock_hooks.task_end_events) == 1
+    assert len(mock_hooks.sample_init_events) == 2
     assert len(mock_hooks.sample_start_events) == 2
+    assert len(mock_hooks.sample_attempt_start_events) == 2
+    assert len(mock_hooks.sample_attempt_end_events) == 2
     assert len(mock_hooks.sample_end_events) == 2
 
 
@@ -200,7 +302,10 @@ def test_hooks_with_multiple_epochs(mock_hooks: MockHooks) -> None:
         epochs=3,
     )
 
+    assert len(mock_hooks.sample_init_events) == 3
     assert len(mock_hooks.sample_start_events) == 3
+    assert len(mock_hooks.sample_attempt_start_events) == 3
+    assert len(mock_hooks.sample_attempt_end_events) == 3
     assert len(mock_hooks.sample_end_events) == 3
 
 
@@ -211,9 +316,154 @@ def test_hooks_with_sample_retries(mock_hooks: MockHooks) -> None:
         retry_on_error=10,
     )
 
-    # Will succeed on 3rd attempt, but just 1 sample start and end event.
+    # _fail_n_times_solver(2) fails once, succeeds on 2nd attempt.
+    # Sample-level hooks fire once regardless of retries.
+    assert len(mock_hooks.sample_init_events) == 1
     assert len(mock_hooks.sample_start_events) == 1
     assert len(mock_hooks.sample_end_events) == 1
+
+    # Attempt-level hooks fire once per attempt.
+    assert len(mock_hooks.sample_attempt_start_events) == 2
+    assert len(mock_hooks.sample_attempt_end_events) == 2
+
+    # UUID should be consistent across all hooks
+    init_id = mock_hooks.sample_init_events[0].sample_id
+    assert mock_hooks.sample_start_events[0].sample_id == init_id
+    assert mock_hooks.sample_end_events[0].sample_id == init_id
+    for start_evt in mock_hooks.sample_attempt_start_events:
+        assert start_evt.sample_id == init_id
+    for end_evt in mock_hooks.sample_attempt_end_events:
+        assert end_evt.sample_id == init_id
+
+
+def test_hooks_sample_uuid_stable_across_multiple_retries(
+    mock_hooks: MockHooks,
+) -> None:
+    eval(
+        Task(dataset=[Sample("sample_1")], solver=_fail_n_times_solver(5)),
+        model="mockllm/model",
+        retry_on_error=10,
+    )
+
+    assert len(mock_hooks.sample_init_events) == 1
+    assert len(mock_hooks.sample_end_events) == 1
+
+    # _fail_n_times_solver(5) fails 4 times, succeeds on 5th → 5 attempts
+    assert len(mock_hooks.sample_attempt_start_events) == 5
+    assert len(mock_hooks.sample_attempt_end_events) == 5
+
+    init_id = mock_hooks.sample_init_events[0].sample_id
+    assert mock_hooks.sample_start_events[0].sample_id == init_id
+    assert mock_hooks.sample_end_events[0].sample_id == init_id
+    # All mid-sample events also carry the same UUID
+    for sample_evt in mock_hooks.sample_event_events:
+        assert sample_evt.sample_id == init_id
+    for start_evt in mock_hooks.sample_attempt_start_events:
+        assert start_evt.sample_id == init_id
+    for end_evt in mock_hooks.sample_attempt_end_events:
+        assert end_evt.sample_id == init_id
+
+
+def test_hooks_sample_uuid_stable_on_retry_then_fail(
+    mock_hooks: MockHooks,
+) -> None:
+    eval(
+        Task(dataset=[Sample("sample_1")], solver=_fail_n_times_solver(10)),
+        model="mockllm/model",
+        retry_on_error=3,
+    )
+
+    assert len(mock_hooks.sample_init_events) == 1
+    assert len(mock_hooks.sample_end_events) == 1
+
+    # _fail_n_times_solver(10) with retry_on_error=3 → 4 attempts, all fail
+    assert len(mock_hooks.sample_attempt_start_events) == 4
+    assert len(mock_hooks.sample_attempt_end_events) == 4
+
+    init_id = mock_hooks.sample_init_events[0].sample_id
+    assert mock_hooks.sample_start_events[0].sample_id == init_id
+    assert mock_hooks.sample_end_events[0].sample_id == init_id
+    for start_evt in mock_hooks.sample_attempt_start_events:
+        assert start_evt.sample_id == init_id
+    for end_evt in mock_hooks.sample_attempt_end_events:
+        assert end_evt.sample_id == init_id
+
+
+def test_hooks_sample_uuid_stable_multiple_samples_with_retries(
+    mock_hooks: MockHooks,
+) -> None:
+    eval(
+        Task(
+            dataset=[Sample("s1"), Sample("s2")],
+            solver=_fail_n_times_solver(2),
+        ),
+        model="mockllm/model",
+        retry_on_error=5,
+    )
+
+    assert len(mock_hooks.sample_init_events) == 2
+    assert len(mock_hooks.sample_end_events) == 2
+    # The two samples have different UUIDs
+    init_ids = {evt.sample_id for evt in mock_hooks.sample_init_events}
+    assert len(init_ids) == 2
+    # Each init UUID appears in the end events
+    end_ids = {evt.sample_id for evt in mock_hooks.sample_end_events}
+    assert init_ids == end_ids
+
+    # Attempt hooks are properly paired
+    starts = [(e.sample_id, e.attempt) for e in mock_hooks.sample_attempt_start_events]
+    ends = [(e.sample_id, e.attempt) for e in mock_hooks.sample_attempt_end_events]
+    assert starts == ends
+
+
+def test_attempt_hooks_with_retries_then_success(mock_hooks: MockHooks) -> None:
+    eval(
+        Task(dataset=[Sample("sample_1")], solver=_fail_n_times_solver(3)),
+        model="mockllm/model",
+        retry_on_error=10,
+    )
+
+    # _fail_n_times_solver(3) fails twice, succeeds on 3rd call → 3 attempts
+    assert len(mock_hooks.sample_attempt_start_events) == 3
+    assert len(mock_hooks.sample_attempt_end_events) == 3
+
+    # attempt numbers are sequential and 1-based
+    for i, start_evt in enumerate(mock_hooks.sample_attempt_start_events):
+        assert start_evt.attempt == i + 1
+    for i, end_evt in enumerate(mock_hooks.sample_attempt_end_events):
+        assert end_evt.attempt == i + 1
+
+    # first two attempts failed and will be retried
+    for end_evt in mock_hooks.sample_attempt_end_events[:2]:
+        assert end_evt.error is not None
+        assert end_evt.will_retry is True
+
+    # last attempt succeeded
+    last = mock_hooks.sample_attempt_end_events[2]
+    assert last.error is None
+    assert last.will_retry is False
+
+
+def test_attempt_hooks_retries_exhausted(mock_hooks: MockHooks) -> None:
+    eval(
+        Task(dataset=[Sample("sample_1")], solver=_fail_n_times_solver(100)),
+        model="mockllm/model",
+        retry_on_error=2,
+    )
+
+    # 3 total attempts: original + 2 retries, all fail
+    assert len(mock_hooks.sample_attempt_start_events) == 3
+    assert len(mock_hooks.sample_attempt_end_events) == 3
+
+    # first two: error with will_retry=True
+    for evt in mock_hooks.sample_attempt_end_events[:2]:
+        assert evt.error is not None
+        assert evt.will_retry is True
+
+    # last: error with will_retry=False (retries exhausted)
+    last = mock_hooks.sample_attempt_end_events[2]
+    assert last.error is not None
+    assert last.will_retry is False
 
 
 def test_hooks_with_error_and_no_retries(mock_hooks: MockHooks) -> None:
@@ -224,8 +474,16 @@ def test_hooks_with_error_and_no_retries(mock_hooks: MockHooks) -> None:
     )
 
     # Will fail on first attempt without any retries.
+    assert len(mock_hooks.sample_init_events) == 1
     assert len(mock_hooks.sample_start_events) == 1
+    assert len(mock_hooks.sample_attempt_start_events) == 1
+    assert len(mock_hooks.sample_attempt_end_events) == 1
     assert len(mock_hooks.sample_end_events) == 1
+
+    end = mock_hooks.sample_attempt_end_events[0]
+    assert end.attempt == 1
+    assert end.error is not None
+    assert end.will_retry is False
 
 
 def test_hooks_with_error_passes_exception_to_run_end(mock_hooks: MockHooks) -> None:
@@ -351,6 +609,76 @@ def test_required_hooks_when_one_missing(
     assert "missing: {'fake'}" in str(exc_info.value)
 
 
+def test_sample_events_are_emitted(mock_hooks: MockHooks) -> None:
+    eval(Task(dataset=[Sample("sample_1")]), model="mockllm/model")
+
+    # A basic eval should produce at least one sample event (e.g. SampleInitEvent,
+    # ModelEvent, ScoreEvent, etc.)
+    assert len(mock_hooks.sample_event_events) > 0
+
+    # All events should reference the same sample/run/eval ids
+    first = mock_hooks.sample_event_events[0]
+    for evt in mock_hooks.sample_event_events:
+        assert evt.run_id == first.run_id
+        assert evt.eval_id == first.eval_id
+        assert evt.sample_id == first.sample_id
+
+
+def test_sample_events_with_multiple_samples(mock_hooks: MockHooks) -> None:
+    eval(
+        Task(dataset=[Sample("sample_1"), Sample("sample_2")]),
+        model="mockllm/model",
+    )
+
+    # Events should be emitted for both samples
+    sample_ids = {evt.sample_id for evt in mock_hooks.sample_event_events}
+    assert len(sample_ids) == 2
+
+
+def test_sample_events_with_multiple_hooks(
+    mock_hooks: MockHooks, hooks_2: MockHooks
+) -> None:
+    eval(Task(dataset=[Sample("sample_1")]), model="mockllm/model")
+
+    # Both hooks should receive the same sample events
+    assert len(mock_hooks.sample_event_events) > 0
+    assert len(mock_hooks.sample_event_events) == len(hooks_2.sample_event_events)
+
+
+def test_sample_events_arrive_before_sample_end(mock_hooks: MockHooks) -> None:
+    """Verify that all sample events are drained before sample_end fires."""
+    eval(Task(dataset=[Sample("sample_1")]), model="mockllm/model")
+
+    assert len(mock_hooks.sample_event_events) > 0
+    assert len(mock_hooks.sample_end_events) == 1
+
+    # The sample_end event should share the same sample_id as the sample events
+    end_sample_id = mock_hooks.sample_end_events[0].sample_id
+    for evt in mock_hooks.sample_event_events:
+        assert evt.sample_id == end_sample_id
+
+
+def test_no_attempt_end_without_attempt_start(mock_hooks: MockHooks) -> None:
+    """Verify that attempt_end is NOT emitted when a failure occurs before attempt_start."""
+    with patch(
+        "inspect_ai.hooks._hooks.emit_sample_start",
+        side_effect=RuntimeError("simulated pre-attempt failure"),
+    ):
+        eval(
+            Task(dataset=[Sample("sample_1")]),
+            model="mockllm/model",
+        )
+
+    # sample_init should still have been emitted (it happens before the patched call)
+    assert len(mock_hooks.sample_init_events) == 1
+
+    # attempt_start should NOT have been emitted (failure happened before it)
+    assert len(mock_hooks.sample_attempt_start_events) == 0
+
+    # attempt_end must NOT be emitted without a matching attempt_start
+    assert len(mock_hooks.sample_attempt_end_events) == 0
+
+
 T = TypeVar("T", bound=Hooks)
 
 
@@ -366,6 +694,16 @@ def _create_mock_hooks(name: str, hooks_class: Type[T]) -> Generator[T, None, No
     finally:
         # Remove the hook from the registry to avoid conflicts in other tests.
         del _registry[f"hooks:{name}"]
+
+
+@solver
+def _setup_marker_solver() -> Solver:
+    """No-op setup step, so the plan has a setup entry to find."""
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        return state
+
+    return solve
 
 
 @solver

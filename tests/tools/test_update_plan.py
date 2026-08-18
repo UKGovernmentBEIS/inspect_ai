@@ -1,6 +1,5 @@
 """Tests for update_plan tool."""
 
-import pytest
 from test_helpers.tool_call_utils import get_tool_event
 
 from inspect_ai import Task, eval
@@ -10,7 +9,6 @@ from inspect_ai.solver import generate, use_tools
 from inspect_ai.tool import update_plan
 
 
-@pytest.mark.asyncio
 async def test_update_plan_basic() -> None:
     """Test basic plan update."""
     tool = update_plan()

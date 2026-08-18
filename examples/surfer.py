@@ -3,8 +3,11 @@ from textwrap import dedent
 from pydantic import Field
 from shortuuid import uuid
 
+from inspect_ai import Task, task
+from inspect_ai.agent import react
+from inspect_ai.dataset import Sample
 from inspect_ai.model import ChatMessage, ChatMessageSystem, ChatMessageUser, get_model
-from inspect_ai.tool import Tool, tool, web_browser
+from inspect_ai.tool import Tool, tool, web_search
 from inspect_ai.util import StoreModel, store_as
 
 
@@ -16,8 +19,8 @@ class WebSurferState(StoreModel):
 def web_surfer(instance: str | None = None) -> Tool:
     """Stateful web surfer tool for researching topics.
 
-    The web_surfer tool builds on the web_browser tool to complete sequences of
-    web_browser actions in service of researching a topic. Input can either
+    The web_surfer tool builds on the web_search() tool to complete sequences of
+    web search actions in service of researching a topic. Input can either
     be requests to do research or questions about previous research.
     """
     instance = instance if instance is not None else uuid()
@@ -52,11 +55,11 @@ def web_surfer(instance: str | None = None) -> Tool:
                 You are a helpful assistant that can use a web browser to
                 answer questions. You don't need to answer the questions with
                 a single web browser request, rather, you can perform searches,
-                follow links, backtrack, and otherwise use the browser to its
+                follow links, backtrack, and otherwise use the web to its
                 fullest capability to help answer the question.
 
                 In some cases questions will be about your previous web searches,
-                in those cases you don't always need to use the web browser tool
+                in those cases you don't always need to use the web search tool
                 but can answer by consulting previous conversation messages.
                 """)
                 )
@@ -65,9 +68,9 @@ def web_surfer(instance: str | None = None) -> Tool:
         # append the latest question
         surfer_state.messages.append(ChatMessageUser(content=input))
 
-        # run tool loop with web browser
+        # run tool loop with web search
         messages, output = await get_model().generate_loop(
-            surfer_state.messages, tools=web_browser(instance=instance)
+            surfer_state.messages, tools=[web_search()]
         )
 
         # update state
@@ -77,3 +80,11 @@ def web_surfer(instance: str | None = None) -> Tool:
         return output.completion
 
     return execute
+
+
+@task
+def surfer() -> Task:
+    return Task(
+        dataset=[Sample(input="What were the scores of last night's NHL games?")],
+        solver=react(tools=[web_search()]),
+    )

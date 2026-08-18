@@ -1,159 +1,156 @@
 project:
-   type: website
-   resources: 
-      - CNAME
-      - llms.txt
-   pre-render: 
-      - reference/filter/sidebar.py
-   post-render: 
-      - scripts/post-render.sh
+  type: meridianlabs-ai/inspect-docs
+  resources:
+    - CNAME
+    - listing/
 
-metadata-files: 
-  - reference/_sidebar.yml  
-
-filters:
-  - at: pre-quarto
-    path: reference/filter/interlink.lua
- 
-website:
-   title: "Inspect"
-   favicon: favicon.svg
-   bread-crumbs: true
-   page-navigation: true
-   repo-url: https://github.com/UKGovernmentBEIS/inspect_ai
-   site-url: https://inspect.aisi.org.uk/
-   repo-actions: [issue]
-   twitter-card:
-      title: "Inspect"
-      description: "Open-source framework for large language model evaluations"
-      image: /images/inspect.png
-      card-style: summary_large_image
-   open-graph: 
-      title: "Inspect"
-      description: "Open-source framework for large language model evaluations"
-      image: /images/inspect.png
-   navbar:
-      title: "Inspect AI"
-      background: light
-      search: true
-      logo: images/aisi-logo.svg  
-      left:      
-          - text: "User Guide"
+inspect-docs:
+  title: Inspect
+  description: Open-source framework for large language model evaluations
+  image: /images/inspect.png
+  logo: images/aisi-logo.svg
+  favicon: favicon.svg
+  url: https://inspect.aisi.org.uk
+  module: inspect_ai
+  repo: UKGovernmentBEIS/inspect_ai
+  org: UK AI Security Institute
+  org_url: https://aisi.gov.uk
+  twitter: AISecurityInst
+  sidebar:
+    collapse-level: 1
+  navbar:
+    left:
+      - text: "User Guide"
+        menu:
+          - text: Basics
             href: index.qmd
-          - text: "Reference"
-            href: reference/index.qmd
-          - text: "Extensions"
-            href: extensions/index.qmd
-          - text: "Evals"
-            href: evals/index.qmd
-      right: 
-          - text: "Changelog"
-            href: CHANGELOG.md
-          - icon: github
-            href: https://github.com/UKGovernmentBEIS/inspect_ai
-      
-   sidebar:
-      - title: Guide
-        style: docked
-        contents:
-         - section: "Basics"
-           contents:
-               - text: "Welcome"
-                 href: index.qmd
-               - tutorial.qmd
-               - options.qmd
-               - log-viewer.qmd
-               - text: "VS Code"
-                 href: vscode.qmd
-
-         - section: "Components"
-           contents: 
-               - tasks.qmd
-               - datasets.qmd
-               - solvers.qmd
-               - scorers.qmd
-
-         - section: "Models"
-           contents:
-               - models.qmd
-               - text: "Providers"
-                 href: providers.qmd
-               - caching.qmd
-               - models-batch.qmd
-               - compaction.qmd
-               - multimodal.qmd
-               - reasoning.qmd
-               - structured.qmd
-
-         - section: "Tools"
-           contents:
-               - tools.qmd
-               - tools-standard.qmd
-               - text: "MCP Tools"
-                 href: tools-mcp.qmd
-               - tools-custom.qmd
-               - sandboxing.qmd
-               - approval.qmd
-
-         - section: "Agents"
-           contents:
-               - agents.qmd
-               - react-agent.qmd
-               - multi-agent.qmd
-               - agent-custom.qmd
-               - agent-bridge.qmd
-               - human-agent.qmd
-
-         - section: "Analysis"
-           contents:
-               - eval-logs.qmd
-               - dataframe.qmd
-             
-         - section: "Advanced"
-           contents:
-               - eval-sets.qmd
-               - text: "Errors & Limits"
-                 href: errors-and-limits.qmd
-               - typing.qmd
-               - tracing.qmd
-               - parallelism.qmd
-               - interactivity.qmd
-               - early-stopping.qmd
-               - extensions.qmd
-
-   page-footer: 
-      left: 
-         - text: UK AI Security Institute
-           href: https://aisi.gov.uk/
-      center: 
-         - text: Code
-           href: https://github.com/UKGovernmentBEIS/inspect_ai
-         - text: Changelog
-           href: https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/CHANGELOG.md
-         - text: License
-           href: https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/LICENSE 
-         - text: Issues
-           href: https://github.com/UKGovernmentBEIS/inspect_ai/issues
-       
-      right:
-         - icon: twitter
-           href: https://x.com/AISecurityInst
-           aria-label: UK AI Security Institute Twitter
-         - icon: github
-           href: https://github.com/UKGovernmentBEIS/inspect_ai/
-           aria-label: Inspect on GitHub
-      
-toc-depth: 2
-number-sections: true
-number-depth: 2
+          - text: Components
+            href: tasks.qmd
+          - text: Models
+            href: models.qmd
+          - text: Scoring
+            href: scoring.qmd
+          - text: Agents
+            href: agents.qmd
+          - text: Tools
+            href: tools.qmd
+          - text: Running
+            href: running.qmd
+          - text: Analysis
+            href: analysis.qmd
+          - text: Extensions
+            href: extensions.qmd
+      - text: "Reference"
+        href: reference/index.qmd
+      - text: "Extensions"
+        href: extensions/index.qmd
+      - text: "Evals"
+        href: evals/index.qmd
+  navigation:
+    - text: Basics
+      contents:
+        - text: Welcome
+          href: index.qmd
+        - href: tutorial.qmd
+        - href: options.qmd
+        - href: log-viewer.qmd
+        - text: VS Code
+          href: vscode.qmd
+    - text: Components
+      contents:
+        - href: tasks.qmd
+        - href: datasets.qmd
+        - href: solvers.qmd
+        - href: scorers.qmd
+    - text: Models
+      contents:
+        - href: models.qmd
+        - text: Providers
+          href: providers.qmd
+        - href: caching.qmd
+        - text: Concurrency
+          href: models-concurrency.qmd
+        - href: compaction.qmd
+        - href: fallbacks.qmd
+        - href: multimodal.qmd
+        - href: reasoning.qmd
+        - href: structured.qmd
+        - href: models-batch.qmd
+    - text: Scoring
+      href: scoring.qmd
+      contents:
+        - href: standard-scorers.qmd
+        - href: custom-scorers.qmd
+        - text: Model Grading
+          href: model-graded.qmd
+        - text: Scoring Metrics
+          href: metrics.qmd
+        - href: multiple-scorers.qmd
+        - href: scoring-workflow.qmd
+        - href: perplexity.qmd
+    - text: Agents
+      contents:
+        - href: agents.qmd
+        - href: react-agent.qmd
+        - href: deepagent.qmd
+        - text: Checkpointing
+          href: checkpointing.qmd
+        - text: Intervention
+          href: intervention.qmd
+        - href: multi-agent.qmd
+        - href: agent-custom.qmd
+        - href: agent-bridge.qmd
+        - href: human-agent.qmd
+    - text: Tools
+      contents:
+        - href: tools.qmd
+        - href: tools-standard.qmd
+        - text: MCP Tools
+          href: tools-mcp.qmd
+        - href: tools-custom.qmd
+        - href: sandboxing.qmd
+        - href: approval.qmd
+    - text: Running
+      href: running.qmd
+      contents:
+        - href: eval-sets.qmd
+        - href: parallelism.qmd
+        - href: handling-errors.qmd
+        - href: setting-limits.qmd
+        - href: control-channel.qmd
+        - href: early-stopping.qmd
+        - href: task-source.qmd
+        - href: sample-source.qmd
+        - href: tracing.qmd
+    - text: Analysis
+      href: analysis.qmd
+      contents:
+        - href: eval-logs.qmd
+        - text: Dataframes
+          href: dataframe.qmd
+        - href: scanners.qmd
+        - href: inspect-viz.qmd
+        - href: task-views.qmd
+    - text: Extensions
+      href: extensions.qmd
+      contents:
+        - text: Model APIs
+          href: extensions-model-api.qmd
+        - text: Components
+          href: extensions-components.qmd
+        - text: Sandboxes
+          href: extensions-sandboxes.qmd
+        - text: Approvers
+          href: extensions-approvers.qmd
+        - text: Hooks
+          href: extensions-hooks.qmd
+        - text: Filesystems
+          href: extensions-filesystems.qmd
 
 format:
-   html:
-     theme: [cosmo, theme.scss]
-     toc: true
-     toc-depth: 3
-     number-sections: false
-     code-annotations: select
+  inspect-docs-html:
+    code-annotations: select
+    css: styles.css
 
-execute: 
+execute:
   enabled: false

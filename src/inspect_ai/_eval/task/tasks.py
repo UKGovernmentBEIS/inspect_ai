@@ -2,6 +2,7 @@ from typing import Callable, TypeAlias
 
 from .resolved import ResolvedTask
 from .task import PreviousTask, Task, TaskInfo
+from .task_source import TaskSource
 
 Tasks: TypeAlias = (
     str
@@ -11,9 +12,12 @@ Tasks: TypeAlias = (
     | Task
     | Callable[..., Task]
     | type[Task]
+    | TaskSource
+    | Callable[..., TaskSource]
     | list[str]
     | list[PreviousTask]
     | list[ResolvedTask]
+    | list[PreviousTask | ResolvedTask]
     | list[TaskInfo]
     | list[Task]
     | list[Callable[..., Task]]

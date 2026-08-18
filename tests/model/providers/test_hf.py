@@ -1,3 +1,8 @@
+import importlib
+import sys
+from types import ModuleType, SimpleNamespace
+from unittest.mock import MagicMock
+
 import pytest
 from test_helpers.utils import (
     skip_if_github_action,
@@ -10,6 +15,7 @@ from inspect_ai.model import (
     GenerateConfig,
     get_model,
 )
+from inspect_ai.model._model_info import MODEL_INFO_LOOKUP_API_KEY
 
 
 @pytest.fixture
@@ -44,8 +50,6 @@ def model_with_stop_seqs():
         chat_template=DEFAULT_CHAT_TEMPLATE,
         tokenizer_call_args={"truncation": True, "max_length": 10},
     )
-    # Chat template is not propagated by default from get_model to the model's tokenizer.
-    model.api.tokenizer.chat_template = DEFAULT_CHAT_TEMPLATE
     return model
 
 
@@ -85,3 +89,234 @@ async def test_hf_api_fails(model) -> None:
             await model.generate(input=[message])
     finally:
         model.config.temperature = temp_before
+
+
+@skip_if_no_transformers
+@skip_if_no_accelerate
+def test_hf_trust_remote_code_default_false(monkeypatch) -> None:
+    """trust_remote_code must default to False on both model and tokenizer calls."""
+    from inspect_ai.model._providers.hf import HuggingFaceAPI
+
+    calls: list[dict] = []
+
+    def fake_from_pretrained(*args, **kwargs):
+        calls.append({"args": args, "kwargs": kwargs})
+        return MagicMock()
+
+    monkeypatch.setattr(
+        "transformers.AutoModelForCausalLM.from_pretrained", fake_from_pretrained
+    )
+    monkeypatch.setattr(
+        "transformers.AutoTokenizer.from_pretrained", fake_from_pretrained
+    )
+
+    HuggingFaceAPI(model_name="EleutherAI/pythia-70m")
+
+    assert len(calls) == 2
+    for call in calls:
+        assert call["kwargs"].get("trust_remote_code") is False
+
+
+@skip_if_no_transformers
+@skip_if_no_accelerate
+def test_hf_trust_remote_code_explicit_true(monkeypatch) -> None:
+    """An explicit trust_remote_code=True must reach both from_pretrained calls."""
+    from inspect_ai.model._providers.hf import HuggingFaceAPI
+
+    calls: list[dict] = []
+
+    def fake_from_pretrained(*args, **kwargs):
+        calls.append({"args": args, "kwargs": kwargs})
+        return MagicMock()
+
+    monkeypatch.setattr(
+        "transformers.AutoModelForCausalLM.from_pretrained", fake_from_pretrained
+    )
+    monkeypatch.setattr(
+        "transformers.AutoTokenizer.from_pretrained", fake_from_pretrained
+    )
+
+    HuggingFaceAPI(model_name="EleutherAI/pythia-70m", trust_remote_code=True)
+
+    assert len(calls) == 2
+    for call in calls:
+        assert call["kwargs"].get("trust_remote_code") is True
+    # trust_remote_code must be consumed, not also smuggled through **model_args
+    # (it must appear exactly once per call, not duplicated as a positional/extra kwarg)
+    for call in calls:
+        kwargs = call["kwargs"]
+        # only the explicit kwarg we passed; no duplicate via passthrough
+        assert sum(1 for k in kwargs if k == "trust_remote_code") == 1
+
+
+@pytest.mark.parametrize(
+    "model_args",
+    [
+        {},
+        {"tokenizer": "custom-tokenizer"},
+        {"model_path": "local-model"},
+        {"model_path": "local-model", "tokenizer_path": "custom-tokenizer"},
+    ],
+)
+@pytest.mark.parametrize(
+    ("api_key", "expected_token"),
+    [
+        ("hf-test-token", "hf-test-token"),
+        # the model info lookup placeholder is not a credential and must not be
+        # sent to the Hub: passing it makes the request unauthenticated and
+        # stops huggingface_hub falling back to HF_TOKEN or the cached login
+        (MODEL_INFO_LOOKUP_API_KEY, None),
+    ],
+)
+def test_hf_api_key_reaches_model_and_tokenizer(
+    monkeypatch: pytest.MonkeyPatch,
+    model_args: dict[str, str],
+    api_key: str,
+    expected_token: str | None,
+) -> None:
+    model_calls: list[dict] = []
+    tokenizer_calls: list[dict] = []
+
+    class FakeAutoModelForCausalLM:
+        @staticmethod
+        def from_pretrained(*args, **kwargs):
+            model_calls.append({"args": args, "kwargs": kwargs})
+            return MagicMock()
+
+    class FakeAutoTokenizer:
+        @staticmethod
+        def from_pretrained(*args, **kwargs):
+            tokenizer_calls.append({"args": args, "kwargs": kwargs})
+            return MagicMock()
+
+    fake_transformers = ModuleType("transformers")
+    fake_transformers.AutoModelForCausalLM = FakeAutoModelForCausalLM  # type: ignore[attr-defined]
+    fake_transformers.AutoTokenizer = FakeAutoTokenizer  # type: ignore[attr-defined]
+    fake_transformers.PreTrainedTokenizerBase = object  # type: ignore[attr-defined]
+    fake_transformers.set_seed = lambda seed: None  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "transformers", fake_transformers)
+
+    fake_torch = ModuleType("torch")
+    fake_torch.Tensor = object  # type: ignore[attr-defined]
+    fake_torch.backends = SimpleNamespace(  # type: ignore[attr-defined]
+        mps=SimpleNamespace(is_available=lambda: False)
+    )
+    fake_torch.cuda = SimpleNamespace(is_available=lambda: False)  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "torch", fake_torch)
+
+    module_name = "inspect_ai.model._providers.hf"
+    previous_module = sys.modules.pop(module_name, None)
+    try:
+        provider_module = importlib.import_module(module_name)
+        provider_module.HuggingFaceAPI(
+            model_name="private/model",
+            api_key=api_key,
+            **model_args,
+        )
+    finally:
+        sys.modules.pop(module_name, None)
+        if previous_module is not None:
+            sys.modules[module_name] = previous_module
+
+    assert model_calls[0]["kwargs"]["token"] == expected_token
+    assert tokenizer_calls[0]["kwargs"]["token"] == expected_token
+
+
+@skip_if_no_transformers
+@skip_if_no_accelerate
+def test_hf_trust_remote_code_rejects_non_bool(monkeypatch) -> None:
+    """Non-bool trust_remote_code (e.g. a string from a malformed config) must be rejected."""
+    from inspect_ai.model._providers.hf import HuggingFaceAPI
+
+    monkeypatch.setattr(
+        "transformers.AutoModelForCausalLM.from_pretrained",
+        lambda *a, **k: MagicMock(),
+    )
+    monkeypatch.setattr(
+        "transformers.AutoTokenizer.from_pretrained", lambda *a, **k: MagicMock()
+    )
+
+    with pytest.raises(ValueError, match="trust_remote_code must be a bool"):
+        HuggingFaceAPI(model_name="EleutherAI/pythia-70m", trust_remote_code="true")
+
+
+@skip_if_no_transformers
+@skip_if_no_accelerate
+def test_hf_disable_chat_template() -> None:
+    model = get_model(
+        "hf/EleutherAI/pythia-70m",
+        config=GenerateConfig(
+            max_tokens=1,
+            seed=42,
+            temperature=0.01,
+        ),
+        chat_template="{% for message in messages %}[{{ message.role }}] {{ message.content }}{% endfor %}",
+        use_chat_template=False,
+    )
+    message = ChatMessageUser(content="Lorem ipsum dolor")
+    chat = model.api.hf_chat([message], [])  # type: ignore[attr-defined]
+    assert chat == "user: Lorem ipsum dolor\n"
+
+
+@skip_if_no_transformers
+@skip_if_no_accelerate
+def test_hf_auto_model_class_selects_alternate_loader(monkeypatch) -> None:
+    """auto_model_class must load the model via the named transformers class.
+
+    Architectures such as the Mistral 3 series are not registered with
+    AutoModelForCausalLM and must be loaded with e.g.
+    AutoModelForImageTextToText.
+    """
+    # unused-ignore is listed because the ignore is environment-dependent:
+    # it fires only when transformers is not installed.
+    import transformers  # type: ignore[import-not-found,import-untyped,unused-ignore]
+
+    from inspect_ai.model._providers.hf import HuggingFaceAPI
+
+    causal_calls: list[dict] = []
+    alternate_calls: list[dict] = []
+
+    def fake_causal(*args, **kwargs):
+        causal_calls.append({"args": args, "kwargs": kwargs})
+        return MagicMock()
+
+    class FakeAltModel:
+        @staticmethod
+        def from_pretrained(*args, **kwargs):
+            alternate_calls.append({"args": args, "kwargs": kwargs})
+            return MagicMock()
+
+    monkeypatch.setattr(
+        "transformers.AutoModelForCausalLM.from_pretrained", fake_causal
+    )
+    monkeypatch.setattr(
+        "transformers.AutoTokenizer.from_pretrained", lambda *a, **k: MagicMock()
+    )
+    monkeypatch.setattr(transformers, "FakeAltModel", FakeAltModel, raising=False)
+
+    HuggingFaceAPI(model_name="EleutherAI/pythia-70m", auto_model_class="FakeAltModel")
+
+    # the alternate class loads the model; the default is not used
+    assert len(alternate_calls) == 1
+    assert len(causal_calls) == 0
+
+
+@skip_if_no_transformers
+@skip_if_no_accelerate
+def test_hf_auto_model_class_rejects_unknown(monkeypatch) -> None:
+    """An auto_model_class that is not a transformers attribute must be rejected."""
+    from inspect_ai.model._providers.hf import HuggingFaceAPI
+
+    monkeypatch.setattr(
+        "transformers.AutoModelForCausalLM.from_pretrained",
+        lambda *a, **k: MagicMock(),
+    )
+    monkeypatch.setattr(
+        "transformers.AutoTokenizer.from_pretrained", lambda *a, **k: MagicMock()
+    )
+
+    with pytest.raises(ValueError, match="not a valid"):
+        HuggingFaceAPI(
+            model_name="EleutherAI/pythia-70m",
+            auto_model_class="NoSuchAutoModelClass",
+        )

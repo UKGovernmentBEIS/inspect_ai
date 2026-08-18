@@ -1,8 +1,6 @@
 from logging import getLogger
 from typing import cast
 
-import numpy as np
-
 from .._metric import (
     Metric,
     SampleScore,
@@ -35,7 +33,14 @@ def bootstrap_stderr(
     """
 
     def metric(scores: list[SampleScore]) -> float:
+        import numpy as np
+
         values = [to_float(score.score.value) for score in scores]
+        if not values:
+            # No scores to resample; return 0 rather than nan (and avoid the
+            # numpy empty-slice warnings from the resampling loop), mirroring
+            # the insufficient-data guards in stderr()/std()/var().
+            return 0.0
         std = np.std(
             [
                 np.mean(np.random.choice(values, len(values), replace=True))
@@ -73,6 +78,8 @@ def stderr(
         For details, see Appendix A of https://arxiv.org/pdf/2411.00640.
         The version here uses a finite cluster correction (unlike the paper)
         """
+        import numpy as np
+
         assert cluster is not None
         cluster_list = []
         value_list = []
@@ -88,21 +95,26 @@ def stderr(
             value_list.append(to_float(sample_score.score.value))
         clusters = np.array(cluster_list)
         values = np.array(value_list)
-        mean = float(np.mean(values))
 
         # Convert to numpy arrays and get unique clusters
         unique_clusters = np.unique(clusters)
         cluster_count = len(unique_clusters)
 
-        # Compute clustered variance using NumPy operations
+        # The finite-cluster correction divides by (cluster_count - 1), so
+        # mirror the non-clustered path's n < 2 guard and return 0 rather
+        # than NaN/inf when there is only a single cluster.
+        if cluster_count < 2:
+            return 0.0
+
+        mean = float(np.mean(values))
+
+        # sum_i sum_j (s_i - mean)(s_j - mean) over a cluster is the square
+        # of that cluster's deviation sum. Computing the identity directly
+        # avoids materialising a k-by-k outer product for every cluster.
         clustered_variance = 0.0
         for cluster_id in unique_clusters:
-            # get a data vector for this cluster
             cluster_data = values[clusters == cluster_id]
-            # this computes X' \Omega X = \sum_i \sum_j (s_{i,c} - mean) * (s_{j,c} - mean)
-            clustered_variance += np.outer(
-                cluster_data - mean, cluster_data - mean
-            ).sum()
+            clustered_variance += ((cluster_data - mean).sum()) ** 2
 
         # Multiply by C / (C - 1) to unbias the variance estimate
         standard_error = np.sqrt(
@@ -112,6 +124,8 @@ def stderr(
         return cast(float, standard_error)
 
     def metric(scores: list[SampleScore]) -> float:
+        import numpy as np
+
         values = [to_float(score.score.value) for score in scores]
         n = len(values)
 
@@ -151,6 +165,8 @@ def std(to_float: ValueToFloat = value_to_float()) -> Metric:
     """
 
     def metric(scores: list[SampleScore]) -> float:
+        import numpy as np
+
         values = [to_float(score.score.value) for score in scores]
         n = len(values)
 
@@ -185,6 +201,8 @@ def var(to_float: ValueToFloat = value_to_float()) -> Metric:
     """
 
     def metric(scores: list[SampleScore]) -> float:
+        import numpy as np
+
         values = [to_float(score.score.value) for score in scores]
         n = len(values)
         # variance is calculated by dividing by n-ddof so ensure

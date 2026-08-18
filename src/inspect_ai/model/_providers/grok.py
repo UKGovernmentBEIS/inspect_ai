@@ -38,8 +38,8 @@ from inspect_ai._util.content import (
     ContentToolUse,
 )
 from inspect_ai._util.error import PrerequisiteError
-from inspect_ai._util.images import file_as_data_uri
-from inspect_ai._util.url import is_http_url
+from inspect_ai._util.images import inline_media_data_uri
+from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.model._chat_message import (
     ChatMessage,
@@ -48,31 +48,53 @@ from inspect_ai.model._chat_message import (
     ChatMessageTool,
     ChatMessageUser,
 )
-from inspect_ai.model._model import ModelAPI
+from inspect_ai.model._model import ModelAPI, RetryDecision
 from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.model._providers.util.util import model_base_url
+from inspect_ai.model._retry import batch_admin_retry_config
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
 from inspect_ai.tool._mcp._remote import is_mcp_server_tool
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_choice import ToolChoice, ToolFunction
 from inspect_ai.tool._tool_info import ToolInfo
-from inspect_ai.util._json import json_schema_to_base_model
+from inspect_ai.util._json import json_schema_dump, json_schema_to_base_model
 
-from .._generate_config import GenerateConfig
+from .._generate_config import GenerateConfig, normalized_batch_config
 from .._model_output import (
     ChatCompletionChoice,
     Logprob,
     Logprobs,
     ModelUsage,
+    StopDetails,
     StopReason,
     TopLogprob,
 )
+from ._grok_batch import GrokBatcher
 
 XAI_API_KEY = "XAI_API_KEY"
 XAI_BASE_URL = "XAI_BASE_URL"
 GROK_API_KEY = "GROK_API_KEY"
 GROK_BASE_URL = "GROK_BASE_URL"
+
+# xAI model-name tokens for non-generative models (image/video generation,
+# embeddings) that must never be treated as a "latest" frontier chat model
+# by is_latest().
+_NON_GENERATIVE_TOKENS = (
+    "image",
+    "imagine",
+    "embedding",
+    "tts",
+)
+
+
+def _sdk_supports_xhigh_effort() -> bool:
+    """Whether the installed xai_sdk can express reasoning_effort="xhigh".
+
+    The gRPC ReasoningEffort enum gained EFFORT_XHIGH in xai_sdk 1.18
+    (shipped alongside grok-4.6); older SDKs reject "xhigh" client-side.
+    """
+    return "EFFORT_XHIGH" in chat_pb2.ReasoningEffort.keys()
 
 
 class GrokAPI(ModelAPI):
@@ -84,6 +106,7 @@ class GrokAPI(ModelAPI):
         config: GenerateConfig = GenerateConfig(),
         streaming: bool = False,
         disable_retry: bool = False,
+        service_tier: str | None = None,
         **model_args: Any,
     ) -> None:
         super().__init__(
@@ -93,6 +116,14 @@ class GrokAPI(ModelAPI):
             api_key_vars=[XAI_API_KEY, GROK_API_KEY],
             config=config,
         )
+
+        # raise if we are using trio (gRPC is asyncio-only)
+        from inspect_ai._util._async import current_async_backend
+
+        if current_async_backend() == "trio":
+            raise PrerequisiteError(
+                "ERROR: The grok provider does not work with the trio async backend."
+            )
 
         # resolve api key
         if self.api_key is None:
@@ -112,6 +143,14 @@ class GrokAPI(ModelAPI):
         # save model args
         self.streaming = streaming
         self.disable_retry = disable_retry
+        # fail fast when the SDK can't express service_tier rather than
+        # TypeError-ing on every generate
+        if service_tier is not None and not hasattr(usage_pb2, "ServiceTier"):
+            raise PrerequisiteError(
+                "ERROR: The service_tier model arg requires xai_sdk >= 1.17 "
+                "(pip install --upgrade xai-sdk)."
+            )
+        self.service_tier = service_tier
         if self.disable_retry:
             # retrying may be disabled so we can accurately track waiting time
             # (challenging to track GRPC internal retries w/o monkey patching).
@@ -124,23 +163,60 @@ class GrokAPI(ModelAPI):
             ]
         self.model_args = model_args
 
+        # initialize batcher
+        self._batcher: GrokBatcher | None = None
+        self._batch_client: AsyncClient | None = None
+
         # create client
         self.initialize()
 
     def is_grok_2(self) -> bool:
-        return "grok-2" in self.model_name
+        return "grok-2" in self.model_family()
 
     def is_grok_3(self) -> bool:
-        return "grok-3" in self.model_name
+        return "grok-3" in self.model_family()
 
     def is_grok_3_mini(self) -> bool:
-        return "grok-3-mini" in self.model_name
+        return "grok-3-mini" in self.model_family()
 
     def is_grok_4(self) -> bool:
-        return "grok-4" in self.model_name
+        return "grok-4" in self.model_family()
+
+    def is_grok_4_original(self) -> bool:
+        """The original grok-4 release (deprecated 2026-05-15).
+
+        Distinct from grok-4-fast / grok-4-1 / grok-4.20 / grok-4.3, which all
+        contain "grok-4" in their name but accept `reasoning_effort`. The
+        original grok-4 has reasoning but does NOT accept the parameter — the
+        xAI API returns an error when it's set.
+        https://docs.x.ai/developers/model-capabilities/text/reasoning
+        """
+        family = self.model_family()
+        return (
+            family == "grok-4"
+            or family == "grok-4-latest"
+            or family.startswith("grok-4-0709")
+        )
 
     def is_at_least_grok_4(self) -> bool:
+        """Grok 4 or greater, including future versions and codename models."""
         return not self.is_grok_2() and not self.is_grok_3()
+
+    def is_latest(self) -> bool:
+        """Detect an xAI predeployment/codename model as the current frontier.
+
+        xAI sometimes exposes pre-release models under internal code names
+        (e.g. `sherlock-think`) that match none of the known naming
+        conventions. Treat any such unrecognized name as the latest model so it
+        gets frontier behavior. Mirrors OpenAI's `is_latest_model()` and
+        Anthropic's `is_claude_latest()`.
+        """
+        name = self.model_family().lower()
+        if any(token in name for token in _NON_GENERATIVE_TOKENS):
+            return False
+        # known family naming — future grok versions are already covered by
+        # is_at_least_grok_4() and the DB-miss branch of input_tokens_name()
+        return "grok" not in name
 
     def model_client(self) -> AsyncClient:
         return AsyncClient(
@@ -154,9 +230,14 @@ class GrokAPI(ModelAPI):
     async def count_text_tokens(self, text: str) -> int:
         async with self.model_client() as client:
             tokens = await client.tokenize.tokenize_text(
-                text=text, model=self.model_name
+                text=text, model=self.service_model_name()
             )
             return len(tokens)
+
+    @override
+    async def aclose(self) -> None:
+        if self._batch_client:
+            await self._batch_client.close()
 
     async def generate(
         self,
@@ -165,82 +246,109 @@ class GrokAPI(ModelAPI):
         tool_choice: ToolChoice,
         config: GenerateConfig,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
-        async with self.model_client() as client:
-            # set start time
-            start_time = time.monotonic()
+        # Batch mode is request-scoped via GenerateConfig, so resolve lazily here.
+        self._resolve_batcher(config)
 
-            # setup request and response for ModelCall
-            request: dict[str, Any] = {}
-            response: dict[str, Any] = {}
+        # set start time
+        start_time = time.monotonic()
 
-            def model_call() -> ModelCall:
-                return ModelCall.create(
-                    request=request,
-                    response=response,
-                    filter=_grok_media_filter,
-                    time=time.monotonic() - start_time,
+        # prepare input for chat call
+        grok_messages = await _grok_messages(input)
+        grok_tools = [self._grok_tool(tool) for tool in tools]
+        grok_tool_choice = (
+            self._grok_tool_choice(tool_choice) if len(tools) > 0 else None
+        )
+        grok_params = self._grok_params(config)
+
+        request = dict(
+            model=self.service_model_name(),
+            messages=[MessageToDict(m) for m in grok_messages],
+            tools=[MessageToDict(t) for t in grok_tools],
+            tool_choice=MessageToDict(grok_tool_choice)
+            if isinstance(grok_tool_choice, chat_pb2.ToolChoice)
+            else grok_tool_choice,
+            **grok_params,
+        )
+        if self._batcher and config.response_schema is not None:
+            schema_model = json_schema_to_base_model(config.response_schema.json_schema)
+            # Batch queue payloads are dict-shaped; encode full schema here so the
+            # batcher can rehydrate protobuf ResponseFormat before submission.
+            request["response_format"] = MessageToDict(
+                chat_pb2.ResponseFormat(
+                    format_type=chat_pb2.FormatType.FORMAT_TYPE_JSON_SCHEMA,
+                    schema=json.dumps(schema_model.model_json_schema()),
                 )
+            )
 
-            try:
-                # prepare input for chat call
-                grok_messages = await _grok_messages(input)
-                grok_tools = [self._grok_tool(tool) for tool in tools]
-                grok_tool_choice = (
-                    self._grok_tool_choice(tool_choice) if len(tools) > 0 else None
-                )
-                grok_params = self._grok_params(config)
+        model_call = set_active_model_event_call(
+            request=request,
+            filter=_grok_media_filter,
+        )
 
-                # update request (convert proto to dict)
-                request = dict(
-                    model=self.model_name,
-                    messages=[MessageToDict(m) for m in grok_messages],
-                    tools=[MessageToDict(t) for t in grok_tools],
-                    tool_choice=MessageToDict(grok_tool_choice)
-                    if isinstance(grok_tool_choice, chat_pb2.ToolChoice)
-                    else grok_tool_choice,
-                    **grok_params,
-                )
-
-                # chat call
-                chat = client.chat.create(
-                    model=self.model_name,
-                    messages=grok_messages,
-                    tools=grok_tools,
-                    tool_choice=grok_tool_choice,
-                    **grok_params,
-                )
-
-                # handle structured output
-                if config.response_schema is not None:
-                    chat_response, _ = await chat.parse(
-                        json_schema_to_base_model(config.response_schema.json_schema)
+        try:
+            if self._batcher:
+                # Batch requests carry response_format/schema to xAI; parse() is only
+                # used in the direct path below.
+                chat_response = await self._batcher.generate_for_request(request)
+            else:
+                async with self.model_client() as client:
+                    # chat call
+                    chat = client.chat.create(
+                        model=self.service_model_name(),
+                        messages=grok_messages,
+                        tools=grok_tools,
+                        tool_choice=grok_tool_choice,
+                        **grok_params,
                     )
-                # stream the reponse for improved connectivity for long requests
-                else:
-                    if self.streaming:
+
+                    # handle structured output
+                    if config.response_schema is not None:
+                        chat_response, _ = await chat.parse(
+                            json_schema_to_base_model(
+                                config.response_schema.json_schema
+                            )
+                        )
+                    # stream the reponse for improved connectivity for long requests
+                    elif self.streaming:
                         async for chat_response, _ in chat.stream():
                             pass
                     else:
                         chat_response = await chat.sample()
 
-                # update response
-                response = MessageToDict(chat_response._proto)
+            model_call.set_response(
+                MessageToDict(chat_response._proto), time.monotonic() - start_time
+            )
 
-                # return
-                return self._model_output_from_response(
-                    chat_response, tools
-                ), model_call()
-            except grpc.RpcError as ex:
-                if ex.code() == grpc.StatusCode.PERMISSION_DENIED:
-                    handled = self._handle_grpc_permission_denied(ex)
-                    if handled:
-                        return handled, model_call()
-                    else:
-                        raise ex
-                elif ex.code() == grpc.StatusCode.INVALID_ARGUMENT:
-                    return self._handle_grpc_bad_request(ex), model_call()
+            # return
+            return self._model_output_from_response(chat_response, tools), model_call
+        except grpc.RpcError as ex:
+            model_call.set_error(
+                {"error": {"code": str(ex.code()), "details": ex.details()}},
+                time.monotonic() - start_time,
+            )
+            if ex.code() == grpc.StatusCode.PERMISSION_DENIED:
+                handled = self._handle_grpc_permission_denied(ex)
+                if handled:
+                    return handled, model_call
                 else:
                     raise ex
+            elif ex.code() == grpc.StatusCode.INVALID_ARGUMENT:
+                return self._handle_grpc_bad_request(ex), model_call
+            else:
+                raise ex
+
+    def _resolve_batcher(self, config: GenerateConfig) -> None:
+        if self._batcher or not (batch_config := normalized_batch_config(config.batch)):
+            return
+
+        if not self._batch_client:
+            self._batch_client = self.model_client()
+
+        self._batcher = GrokBatcher(
+            self._batch_client,
+            batch_config,
+            batch_admin_retry_config(self.model_name, config, self.should_retry),
+        )
 
     def is_auth_failure(self, ex: Exception) -> bool:
         return (
@@ -248,16 +356,32 @@ class GrokAPI(ModelAPI):
             and ex.code() == grpc.StatusCode.UNAUTHENTICATED
         )
 
-    def should_retry(self, ex: BaseException) -> bool:
+    @override
+    def connection_key(self) -> str:
+        """Scope adaptive concurrency per (key, model).
+
+        A pool shared across models lets the faster model's signals push the
+        adaptive limit past the slower model's actual ceiling (cram-down).
+        Per-model scoping avoids that, at the cost of slight over-fragmentation
+        when models actually share an upstream rate-limit budget.
+        """
+        return f"{self.initial_api_key}:{self.service_model_name()}"
+
+    def should_retry(self, ex: BaseException) -> bool | RetryDecision:
         if isinstance(ex, grpc.RpcError):
-            return ex.code() in {
+            code = ex.code()
+            # RESOURCE_EXHAUSTED is the gRPC equivalent of HTTP 429 — the only
+            # one that indicates rate-limiting. UNKNOWN / UNAVAILABLE /
+            # DEADLINE_EXCEEDED are infrastructure transients.
+            if code == grpc.StatusCode.RESOURCE_EXHAUSTED:
+                return RetryDecision.rate_limit()
+            if code in {
                 grpc.StatusCode.UNKNOWN,
                 grpc.StatusCode.UNAVAILABLE,
                 grpc.StatusCode.DEADLINE_EXCEEDED,
-                grpc.StatusCode.RESOURCE_EXHAUSTED,
-            }
-        else:
-            return False
+            }:
+                return RetryDecision.transient()
+        return RetryDecision.no()
 
     @override
     def retry_wait(self) -> WaitBaseT | None:
@@ -269,11 +393,24 @@ class GrokAPI(ModelAPI):
     @override
     def canonical_name(self) -> str:
         """Canonical model name for model info database lookup."""
-        return f"grok/{self.model_name}"
+        return f"grok/{self.service_model_name()}"
 
     @override
-    def emulate_reasoning_history(self) -> bool:
-        return False
+    def input_tokens_name(self) -> str:
+        """Model name used for looking up model input tokens (context window)."""
+        from inspect_ai.model._model_info import _get_model_info_direct
+
+        # Codename/predeployment models (is_latest() folds into
+        # is_at_least_grok_4()) and grok-named models not yet in the model-info
+        # database (future versions, unknown snapshots) alias to the current
+        # frontier so the context window / compaction match. Bump when a newer
+        # frontier ships. Mirrors the other providers' input_tokens_name().
+        if (
+            self.is_at_least_grok_4()
+            and _get_model_info_direct(self.canonical_name()) is None
+        ):
+            return "grok/grok-4.6"
+        return super().input_tokens_name()
 
     def _handle_grpc_bad_request(self, ex: grpc.RpcError) -> ModelOutput | Exception:
         details = ex.details() or ""
@@ -288,7 +425,11 @@ class GrokAPI(ModelAPI):
         details = ex.details() or ""
         if "safety_check" in details.lower():
             return ModelOutput.from_content(
-                model=self.model_name, content=details, stop_reason="content_filter"
+                model=self.model_name,
+                content=details,
+                stop_reason="content_filter",
+                # xAI has no structured category; surface the error text as explanation
+                stop_details=StopDetails(type="refusal", explanation=details),
             )
         else:
             return None
@@ -330,7 +471,7 @@ class GrokAPI(ModelAPI):
             return tool(
                 name=tool_info.name,
                 description=tool_info.description,
-                parameters=tool_info.parameters.model_dump(exclude_none=True),
+                parameters=json_schema_dump(tool_info.parameters),
             )
 
     def _grok_params(self, config: GenerateConfig) -> dict[str, Any]:
@@ -363,17 +504,33 @@ class GrokAPI(ModelAPI):
             # we'll call chat.parse() above w/ the schema
             gconfig["response_format"] = "json_object"
 
-        # note that grok-3-mini is the only model which supports a reasoning effort parameter
-        if config.reasoning_effort is not None and self.is_grok_3_mini():
+        # grok-3-mini and grok-4-or-later variants (4-fast, 4.1, 4.20, 4.3,
+        # 4.5, 4.6, plus future/codename models) accept reasoning_effort. The
+        # *original* grok-4 reasons but rejects the parameter and must be
+        # excluded.
+        if config.reasoning_effort is not None and (
+            self.is_grok_3_mini()
+            or (self.is_at_least_grok_4() and not self.is_grok_4_original())
+        ):
             match config.reasoning_effort:
-                case "none":
-                    raise ValueError(
-                        "Grok models do not support 'none' for reasoning effort."
-                    )
                 case "minimal" | "low":
                     gconfig["reasoning_effort"] = "low"
-                case "medium" | "high" | "xhigh":
+                case "medium":
+                    gconfig["reasoning_effort"] = "medium"
+                case "high":
                     gconfig["reasoning_effort"] = "high"
+                case "xhigh" | "max":
+                    # passthrough is safe: the service downgrades xhigh to
+                    # high on models that don't support it
+                    if _sdk_supports_xhigh_effort() and not self.is_grok_3_mini():
+                        gconfig["reasoning_effort"] = "xhigh"
+                    else:
+                        gconfig["reasoning_effort"] = "high"
+
+        # batch requests are processed on xAI's own batch tier, so a
+        # synchronous processing tier doesn't apply there
+        if self.service_tier is not None and not self._batcher:
+            gconfig["service_tier"] = self.service_tier
 
         # return encrypted reasoning blocks
         gconfig["use_encrypted_content"] = True
@@ -541,8 +698,9 @@ def _logprobs_from_grok_logprobs(grok_logprobs: chat_pb2.LogProbs) -> Logprobs |
 
 
 def _model_usage_from_sampling_usage(usage: usage_pb2.SamplingUsage) -> ModelUsage:
+    cached = usage.cached_prompt_text_tokens or 0
     return ModelUsage(
-        input_tokens=usage.prompt_tokens,
+        input_tokens=usage.prompt_tokens - cached,
         output_tokens=usage.completion_tokens,
         total_tokens=usage.total_tokens,
         input_tokens_cache_read=usage.cached_prompt_text_tokens,
@@ -564,7 +722,8 @@ async def _grok_message(message: ChatMessage) -> chat_pb2.Message:
             return await _grok_assistant_message(message)
         case ChatMessageTool():
             return tool_result(
-                f"Error: {message.error.message}" if message.error else message.text
+                f"Error: {message.error.message}" if message.error else message.text,
+                tool_call_id=message.tool_call_id,
             )
 
 
@@ -640,16 +799,14 @@ async def _grok_content_item(content: Content) -> chat_pb2.Content:
                 detail = "DETAIL_AUTO"
             case "low":
                 detail = "DETAIL_LOW"
-            case "high":
+            case "high" | "original":
                 detail = "DETAIL_HIGH"
             case _:
                 detail = "DETAIL_AUTO"
 
         return chat_pb2.Content(
             image_url={
-                "image_url": content.image
-                if is_http_url(content.image)
-                else await file_as_data_uri(content.image),
+                "image_url": inline_media_data_uri(content.image, "image"),
                 "detail": detail,
             }
         )

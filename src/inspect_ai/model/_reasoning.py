@@ -1,15 +1,98 @@
+import base64
+import html
 import json
 import re
 from logging import getLogger
-from typing import Annotated, Any, Literal, NamedTuple, Union
+from typing import Literal, NamedTuple
 
-from pydantic import BaseModel, Field, TypeAdapter, ValidationError
+from pydantic import JsonValue
 
 from inspect_ai._util.content import (
+    Content,
     ContentReasoning,
+    ContentText,
 )
+from inspect_ai.model._chat_message import ChatMessage, ChatMessageAssistant
 
 logger = getLogger(__name__)
+
+
+# Fixed effort -> token budget table used to bridge `reasoning_effort` onto
+# providers that only accept an explicit token budget (Anthropic Claude 3.7-4.5,
+# Google Gemini 2.5). Magnitudes mirror the existing Anthropic max_tokens-sizing
+# table in anthropic.py (with `minimal` added) and clear Anthropic's 1024-token
+# API floor across the board.
+_EFFORT_TO_TOKENS: dict[str, int] = {
+    "minimal": 2048,
+    "low": 4096,
+    "medium": 10000,
+    "high": 16000,
+    "xhigh": 32000,
+    "max": 32000,
+}
+
+
+def effort_to_reasoning_tokens(
+    effort: Literal["none", "minimal", "low", "medium", "high", "xhigh", "max"]
+    | str
+    | None,
+) -> int | None:
+    """Translate a `reasoning_effort` value into a token budget.
+
+    Returns None for `None` and `"none"` (no reasoning requested). Returns the
+    mapped int for any supported effort level.
+    """
+    if effort is None or effort == "none":
+        return None
+    return _EFFORT_TO_TOKENS.get(effort)
+
+
+def clamp_reasoning_effort_to_low_medium_high(
+    effort: Literal["none", "minimal", "low", "medium", "high", "xhigh", "max"]
+    | str
+    | None,
+) -> Literal["low", "medium", "high"] | None:
+    """Clamp a `reasoning_effort` value to the `low`/`medium`/`high` tier.
+
+    Used by providers that pass effort through to upstream APIs which only
+    accept the three-level scale. Returns None for `None` and `"none"`.
+    """
+    if effort is None or effort == "none":
+        return None
+    match effort:
+        case "minimal" | "low":
+            return "low"
+        case "medium":
+            return "medium"
+        case "high" | "xhigh" | "max":
+            return "high"
+    return None
+
+
+def clamp_reasoning_effort_to_minimal_low_medium_high(
+    effort: Literal["none", "minimal", "low", "medium", "high", "xhigh", "max"]
+    | str
+    | None,
+) -> Literal["minimal", "low", "medium", "high"] | None:
+    """Clamp a `reasoning_effort` value to the `minimal`/`low`/`medium`/`high` tier.
+
+    Used by providers that pass effort through to upstream APIs which accept
+    `minimal` in addition to the three-level scale (Perplexity); only the
+    top-end values (`xhigh`/`max`) are clamped down to `high`. Returns None for
+    `None` and `"none"`.
+    """
+    if effort is None or effort == "none":
+        return None
+    match effort:
+        case "minimal":
+            return "minimal"
+        case "low":
+            return "low"
+        case "medium":
+            return "medium"
+        case "high" | "xhigh" | "max":
+            return "high"
+    return None
 
 
 class ReasoningCapsule(NamedTuple):
@@ -17,6 +100,7 @@ class ReasoningCapsule(NamedTuple):
     signature: str | None = None
     redacted: bool = False
     summary: str | None = None
+    internal: JsonValue | None = None
 
 
 def parse_content_with_reasoning(content: str) -> tuple[str, ReasoningCapsule | None]:
@@ -29,7 +113,7 @@ def parse_content_with_reasoning(content: str) -> tuple[str, ReasoningCapsule | 
     """
     # Match <think> tag with any attributes
     pattern = r"<think([^>]*)>(.*?)</think>"
-    match = re.search(pattern, content, re.DOTALL)
+    match = _find_nested_think_block(content) or re.search(pattern, content, re.DOTALL)
 
     if match:
         attrs_str = match.group(1)
@@ -38,9 +122,15 @@ def parse_content_with_reasoning(content: str) -> tuple[str, ReasoningCapsule | 
         # Parse attributes from opening tag
         signature = _parse_attr(attrs_str, "signature")
         redacted = _parse_attr(attrs_str, "redacted") == "true"
+        internal = _parse_internal_attr(attrs_str)
 
         # Extract nested <summary> tag from content
         reasoning, summary = _parse_summary(reasoning)
+        if redacted and signature and signature.startswith("rs_"):
+            # Redacted reasoning bodies carry opaque provider payloads such as
+            # encrypted_content. Some text scaffolds wrap long lines; whitespace
+            # inserted there is not part of the payload.
+            reasoning = re.sub(r"\s+", "", reasoning)
 
         # Remove the matched <think>...</think> from the input
         start, end = match.span()
@@ -52,16 +142,56 @@ def parse_content_with_reasoning(content: str) -> tuple[str, ReasoningCapsule | 
                 signature=signature,
                 redacted=redacted,
                 summary=summary,
+                internal=internal,
             ),
         )
     else:
         return content, None
 
 
+def _find_nested_think_block(content: str) -> re.Match[str] | None:
+    start: int | None = None
+    depth = 0
+    pattern = re.compile(r"<think([^>]*)>(.*)</think>", re.DOTALL)
+
+    for match in re.finditer(r"<think([^>]*)>|</think>", content, re.DOTALL):
+        tag = match.group(0)
+        if tag.startswith("<think"):
+            if start is None:
+                start = match.start()
+                depth = 1
+            else:
+                depth += 1
+        elif start is not None:
+            depth -= 1
+            if depth == 0:
+                return pattern.search(content, start, match.end())
+
+    return None
+
+
 def _parse_attr(attrs_str: str, name: str) -> str | None:
-    """Extract attribute value from attributes string."""
+    """Extract attribute value from attributes string.
+
+    Values are HTML-unescaped to invert the escaping done by
+    `reasoning_to_think_tag`. Plain values without entities are
+    unchanged.
+    """
     match = re.search(rf'{name}="([^"]*)"', attrs_str)
-    return match.group(1) if match else None
+    return html.unescape(match.group(1)) if match else None
+
+
+def _parse_internal_attr(attrs_str: str) -> JsonValue | None:
+    """Extract and JSON-decode the internal attribute value (base64-encoded JSON)."""
+    raw = _parse_attr(attrs_str, "internal")
+    if raw is None:
+        return None
+    try:
+        decoded = base64.b64decode(raw).decode("utf-8")
+        result: JsonValue = json.loads(decoded)
+        return result
+    except (json.JSONDecodeError, ValueError, UnicodeDecodeError):
+        return None
 
 
 def _parse_summary(content: str) -> tuple[str, str | None]:
@@ -84,9 +214,18 @@ def reasoning_to_think_tag(reasoning: "ContentReasoning") -> str:
     """
     attribs = ""
     if reasoning.signature is not None:
-        attribs = f'{attribs} signature="{reasoning.signature}"'
+        # HTML-escape so signatures containing quotes, '<', '>', or '&'
+        # (e.g. OpenRouter's reasoning-details JSON payload) survive the
+        # attribute round-trip. Plain signatures are unchanged.
+        signature = html.escape(reasoning.signature, quote=True)
+        attribs = f'{attribs} signature="{signature}"'
     if reasoning.redacted:
         attribs = f'{attribs} redacted="true"'
+    if reasoning.internal is not None:
+        # Base64 encode the JSON for safe embedding in an attribute
+        internal_json = json.dumps(reasoning.internal)
+        internal_b64 = base64.b64encode(internal_json.encode("utf-8")).decode("ascii")
+        attribs = f'{attribs} internal="{internal_b64}"'
 
     inner = ""
     if reasoning.summary is not None:
@@ -96,100 +235,19 @@ def reasoning_to_think_tag(reasoning: "ContentReasoning") -> str:
     return f"<think{attribs}>\n{inner}\n</think>"
 
 
-OPENROUTER_REASONING_DETAILS_SIGNATURE = "reasoning-details://"
+def emulate_reasoning_history(messages: list[ChatMessage]) -> list[ChatMessage]:
+    emulated_messages: list[ChatMessage] = []
+    for message in messages:
+        if isinstance(message, ChatMessageAssistant) and isinstance(
+            message.content, list
+        ):
+            content: list[Content] = []
+            for c in message.content:
+                if isinstance(c, ContentReasoning):
+                    content.append(ContentText(text=reasoning_to_think_tag(c)))
+                else:
+                    content.append(c)
+            message = message.model_copy(update={"content": content})
 
-
-class ReasoningDetailBase(BaseModel):
-    id: str | None = Field(default=None)
-    format: str | None = Field(default=None)
-    index: int | None = Field(default=None)
-
-
-class ReasoningDetailSummary(ReasoningDetailBase):
-    type: Literal["reasoning.summary"]
-    summary: str
-
-
-class ReasoningDetailEncrypted(ReasoningDetailBase):
-    type: Literal["reasoning.encrypted"]
-    data: str
-
-
-class ReasoningDetailText(ReasoningDetailBase):
-    type: Literal["reasoning.text"]
-    text: str
-    signature: str | None = Field(default=None)
-
-
-ReasoningDetail = Annotated[
-    Union[ReasoningDetailSummary, ReasoningDetailEncrypted, ReasoningDetailText],
-    Field(discriminator="type"),
-]
-
-
-# openrouter uses reasoning_details
-# https://openrouter.ai/docs/guides/best-practices/reasoning-tokens#responses-api-shape
-def openrouter_reasoning_details_to_reasoning(
-    reasoning_details: list[dict[str, Any]],
-) -> ContentReasoning:
-    # store the full data structure in the signature for replay
-    details_json = json.dumps(reasoning_details)
-    signature = f"{OPENROUTER_REASONING_DETAILS_SIGNATURE}{details_json}"
-
-    # attempt to parse out the details
-    try:
-        adapter = TypeAdapter(list[ReasoningDetail])
-        details = adapter.validate_python(reasoning_details)
-    except ValidationError as ex:
-        logger.warning(
-            f"Error parsing OpenRouter reasoning details: {ex}\n\n{details_json}"
-        )
-        return ContentReasoning(reasoning=details_json, signature=signature)
-
-    # collect reasoning fields from details
-    reasoning: str | None = None
-    summary: str | None = None
-    redacted: bool = False
-    for detail in details:
-        match detail.type:
-            case "reasoning.summary":
-                summary = detail.summary
-            case "reasoning.text":
-                reasoning = detail.text
-            case "reasoning.encrypted":
-                reasoning = detail.data
-                redacted = True
-
-    # resolve reasoning
-    if reasoning is None:
-        # summary becomes reasoning if there is no reasoning
-        if summary is not None:
-            reasoning = summary
-            summary = None
-        # otherwise this an unepxected state
-        else:
-            logger.warning(
-                f"Error parsing OpenRouter reasoning details: Reasoning content not provided.\n\n{details_json}"
-            )
-            return ContentReasoning(reasoning=details_json, signature=signature)
-
-    # return reasoning
-    return ContentReasoning(
-        reasoning=reasoning, summary=summary, redacted=redacted, signature=signature
-    )
-
-
-def reasoning_to_openrouter_reasoning_details(
-    content: ContentReasoning,
-) -> dict[str, Any] | None:
-    if content.signature and content.signature.startswith(
-        OPENROUTER_REASONING_DETAILS_SIGNATURE
-    ):
-        return {
-            "reasoning_details": json.loads(
-                content.signature.replace(OPENROUTER_REASONING_DETAILS_SIGNATURE, "", 1)
-            )
-        }
-
-    # default to no handling
-    return None
+        emulated_messages.append(message)
+    return emulated_messages

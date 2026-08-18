@@ -1,7 +1,7 @@
 """Memory tool for managing persistent information in /memories directory."""
 
-from pathlib import Path
-from typing import Literal
+import posixpath
+from typing import Any, Callable, Literal
 
 from pydantic import Field
 
@@ -18,8 +18,13 @@ class MemoryStore(StoreModel):
     dirs: list[str] = Field(default_factory=list)
 
 
-@tool
-def memory(*, initial_data: dict[str, str] | None = None) -> Tool:
+@tool(parallel=True)
+def memory(
+    *,
+    initial_data: dict[str, str] | None = None,
+    readonly: bool = False,
+    instance: str | None = None,
+) -> Tool:
     """Memory tool for managing persistent information.
 
     The description for the memory tool is based on the documentation for the Claude
@@ -31,10 +36,27 @@ def memory(*, initial_data: dict[str, str] | None = None) -> Tool:
             "/memories/file.txt"). Values are resolved via resource(), supporting
             inline strings, file paths, or remote resources (s3://, https://).
             Seeding happens once on first tool execution.
+        readonly: If True, only the view command is available. Write operations
+            (create, str_replace, insert, delete, rename) are not exposed.
+        instance: Optional instance name for the memory store. Enables multiple
+            independent memory tools within a single sample (each with its own
+            files and seeding), rather than sharing one store.
 
     Returns:
         Memory tool for file operations in /memories directory.
     """
+
+    def _seed(store: MemoryStore) -> None:
+        if not store.seeding_complete:
+            if initial_data:
+                for seed_path, value in initial_data.items():
+                    _create(store, seed_path, resource(value))
+            store.seeding_complete = True
+
+    if readonly:
+        result = _readonly_execute(_seed, instance)
+        result.initial_data = initial_data  # type: ignore[attr-defined]
+        return result
 
     async def execute(
         command: Literal["view", "create", "str_replace", "insert", "delete", "rename"],
@@ -50,15 +72,14 @@ def memory(*, initial_data: dict[str, str] | None = None) -> Tool:
     ) -> str:
         """Memory tool for managing persistent information.
 
-        IMPORTANT: ALWAYS VIEW YOUR MEMORY DIRECTORY BEFORE DOING ANYTHING ELSE.
+        View your memory directory at the start of your work to recover
+        any earlier progress. As you work, record important findings,
+        intermediate results, and status to memory — your context window
+        may be compacted at any point, so information not saved to memory
+        can be lost.
 
-        MEMORY PROTOCOL:
-        1. Use the `view` command of your `memory` tool to check for earlier progress.
-        2. ... (work on the task) ...
-            - As you make progress, record status / progress / thoughts etc in your memory.
-        ASSUME INTERRUPTION: Your context window might be reset at any moment, so you risk losing any progress that is not recorded in your memory directory.
-
-        Note: when editing your memory folder, always try to keep its content up-to-date, coherent and organized. You can rename or delete files that are no longer relevant. Do not create new files unless necessary.
+        Keep memory organized: update or remove stale entries rather than
+        accumulating. Do not create new files unless necessary.
 
         Args:
             command: Command to execute (view, create, str_replace, insert, delete,
@@ -89,12 +110,8 @@ def memory(*, initial_data: dict[str, str] | None = None) -> Tool:
         Returns:
             Result message string
         """
-        store = store_as(MemoryStore)
-        if not store.seeding_complete:
-            if initial_data:
-                for seed_path, value in initial_data.items():
-                    _create(store, seed_path, resource(value))
-            store.seeding_complete = True
+        store = store_as(MemoryStore, instance=instance)
+        _seed(store)
 
         match command:
             case "view":
@@ -112,46 +129,68 @@ def memory(*, initial_data: dict[str, str] | None = None) -> Tool:
             case _:
                 raise ToolError(f"Unknown command: {command}")
 
+    execute.initial_data = initial_data  # type: ignore[attr-defined]
     return execute
 
 
+def _readonly_execute(
+    _seed: "Callable[[MemoryStore], None]",
+    instance: str | None,
+) -> "Callable[..., Any]":
+    async def execute_readonly(
+        command: Literal["view"],
+        path: str | None = None,
+        view_range: list[int] | None = None,
+    ) -> str:
+        """Read-only memory tool for viewing persistent information.
+
+        This is a read-only view of the memory directory. Use the
+        `view` command to browse files and directories.
+
+        Args:
+            command: Command to execute (view only).
+            path: Path to file or directory in /memories, e.g.
+                `/memories/file.txt` or `/memories/dir`.
+            view_range: Optional line range when viewing a file,
+                e.g. [11, 12] shows lines 11 and 12. Indexing
+                starts at 1. Use [start_line, -1] to show from
+                start_line to end of file.
+
+        Returns:
+            Result message string
+        """
+        store = store_as(MemoryStore, instance=instance)
+        _seed(store)
+        return _view(store, path, view_range)
+
+    return execute_readonly
+
+
 def _validate_path(path: str) -> str:
-    """Validate path starts with /memories and has no traversal."""
+    """Canonicalize a /memories path and verify it stays under the root."""
     if not path:
         raise ToolError("Path cannot be empty")
+    if "\x00" in path:
+        raise ToolError(f"Invalid path: {path!r} contains a null byte")
 
-    # Normalize separators
     path = path.replace("\\", "/")
-
-    # Must start with /memories
     if not path.startswith("/memories"):
         raise ToolError(
             f"Invalid path: all paths must start with /memories, got {path}"
         )
 
-    try:
-        # Convert to pathlib Path and resolve (eliminates .., symlinks, etc)
-        resolved = Path(path).resolve()
-        base = Path("/memories").resolve()
-
-        # Verify resolved path is within /memories
-        resolved.relative_to(base)
-    except ValueError:
-        raise ToolError(f"Invalid path: {path} resolves outside /memories directory")
-
-    # Remove trailing slash except for /memories itself
-    if path != "/memories" and path.endswith("/"):
-        path = path.rstrip("/")
-
-    return path
+    norm = posixpath.normpath(path)
+    if norm != "/memories" and not norm.startswith("/memories/"):
+        raise ToolError(f"Invalid path: {path} escapes /memories directory")
+    return norm
 
 
 def _path_exists(store: MemoryStore, path: str) -> bool:
-    return path in store.files or path in store.dirs
+    return path == "/memories" or path in store.files or path in store.dirs
 
 
 def _is_dir(store: MemoryStore, path: str) -> bool:
-    return path in store.dirs
+    return path == "/memories" or path in store.dirs
 
 
 def _read_file(store: MemoryStore, path: str) -> str:

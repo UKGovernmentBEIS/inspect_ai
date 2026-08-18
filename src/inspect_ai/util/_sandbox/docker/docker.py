@@ -2,8 +2,11 @@ import base64
 import errno
 import json
 import os
+import posixpath
 import shlex
+import stat
 import tempfile
+import time
 from logging import getLogger
 from pathlib import Path, PurePosixPath
 from typing import Literal, NamedTuple, Union, overload
@@ -23,7 +26,6 @@ from ..environment import (
 )
 from ..limits import (
     SandboxEnvironmentLimits,
-    verify_exec_result_size,
     verify_read_file_size,
 )
 from ..registry import sandboxenv
@@ -45,12 +47,16 @@ from .compose import (
     compose_pull,
     compose_services,
     compose_up,
+    docker_image_exists_locally,
 )
+from .failure import InjectedWrapper, classify_exec_failure
 from .internal import build_internal_image, is_internal_image
 from .prereqs import validate_prereqs
 from .util import ComposeProject, task_project_name
 
 logger = getLogger(__name__)
+
+_READ_FILE_STAGING_CANARY_BYTES = 32
 
 
 @sandboxenv(name="docker")
@@ -58,6 +64,10 @@ class DockerSandboxEnvironment(SandboxEnvironment):
     @classmethod
     def config_files(cls) -> list[str]:
         return COMPOSE_FILES + [DOCKERFILE]
+
+    @classmethod
+    def is_docker_compatible(cls) -> bool:
+        return True
 
     @classmethod
     def default_concurrency(cls) -> int | None:
@@ -87,7 +97,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
             await compose_build(project)
 
             # cleanup images created during build
-            await compose_cleanup_images(project, timeout=60)
+            await compose_cleanup_images(project, timeout=300)
 
             services = await compose_services(project)
             for name, service in services.items():
@@ -108,15 +118,17 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                     service.get("build", None) is None
                     and service.get("x-local", None) is None
                 ):
+                    # skip the pull if the image is already available locally
+                    # (avoids noisy errors for images loaded via 'docker load')
+                    if image and await docker_image_exists_locally(image):
+                        print(f"Service {name}: using local image '{image}'.")
+                        continue
                     pull_result = await compose_pull(name, project)
                     if not pull_result.success:
                         image = service.get("image", "(unknown)")
                         logger.error(
                             f"Failed to pull docker image '{image}' from remote registry. If this is a locally built image add 'x-local: true' to the the service definition to prevent this error."
                         )
-
-            # provide some space above task display
-            print("")
 
         except BaseException as ex:
             await project_cleanup_shutdown(True)
@@ -278,7 +290,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         cmd: list[str],
         input: str | bytes | None = None,
         cwd: str | None = None,
-        env: dict[str, str] = {},
+        env: dict[str, str] | None = None,
         user: str | None = None,
         timeout: int | None = None,
         timeout_retry: bool = True,
@@ -300,30 +312,80 @@ class DockerSandboxEnvironment(SandboxEnvironment):
 
         # Forward environment commands to docker compose exec so they
         # will be available to the bash command
-        if len(env.items()) > 0:
+        if env:
             for key, value in env.items():
                 args.append("--env")
                 args.append(f"{key}={value}")
 
+        # wrap with in-container `timeout` so the actual process tree
+        # is killed when the timeout fires (docker exec detaches on
+        # signal rather than forwarding it, so a host-level timeout
+        # alone leaves orphaned processes inside the container).
+        in_container_cmd = cmd
+        if timeout is not None:
+            in_container_cmd = ["timeout", "-k", "5s", f"{timeout}s", *cmd]
+
+        # add a buffer to the host timeout so the in-container timeout
+        # fires first under normal conditions. the in-container timeout
+        # takes up to {timeout + 5}s to complete (timeout + SIGKILL grace),
+        # so add 10s for slack and daemon round-trip. the existing host
+        # timeout retry mechanism in compose_command only fires on host
+        # TimeoutError (genuine daemon hangs); when the in-container
+        # timeout fires we get exit 124 returned cleanly and no retry.
+        host_timeout = timeout + 10 if timeout is not None else None
+
+        start_time = time.monotonic()
         exec_result = await compose_exec(
-            args + [self._service] + cmd,
+            args + [self._service] + in_container_cmd,
             project=self._project,
-            timeout=timeout,
+            timeout=host_timeout,
             timeout_retry=timeout_retry,
             input=input,
             output_limit=SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE,
             concurrency=concurrency,
         )
-        verify_exec_result_size(exec_result)
-        if exec_result.returncode == 126 and "permission denied" in exec_result.stdout:
-            raise PermissionError(f"Permission denied executing command: {exec_result}")
+
+        # in-container timeout fired. the docker CLI returned cleanly
+        # — this is NOT a daemon hang — so fail hard with a TimeoutError
+        # rather than returning the exit code. exit codes vary by
+        # implementation:
+        #   124: GNU timeout, command killed by SIGTERM (the normal case)
+        #   137: SIGKILL escalation via -k (command ignored SIGTERM)
+        #   143: BusyBox timeout, command killed by SIGTERM (128 + 15)
+        #
+        # 137 and 143 are ambiguous: OOM kills also produce 137, and
+        # any SIGTERM from any source produces 143. we use wall-clock
+        # time to disambiguate these from actual timeouts.
+        elapsed = time.monotonic() - start_time
+        if timeout is not None and exec_result.returncode in (124, 137, 143):
+            if exec_result.returncode == 124 or elapsed >= timeout:
+                # preserve the partial output captured before the timeout so it can
+                # be surfaced to the caller via SandboxTimeoutError.truncated_output
+                timeout_error = TimeoutError(
+                    f"Command timed out after {timeout} seconds"
+                )
+                partial_output = (exec_result.stdout or "") + (exec_result.stderr or "")
+                if partial_output:
+                    setattr(timeout_error, "truncated_output", partial_output)
+                raise timeout_error
+            # else: signal-death exit code but too fast to be a timeout
+            # (e.g. OOM kill) — fall through and return the ExecResult
+
+        failure = classify_exec_failure(
+            exec_result,
+            wrapper=InjectedWrapper(binary=in_container_cmd[0], target=cmd[0])
+            if in_container_cmd is not cmd and cmd
+            else None,
+        )
+        if failure is not None:
+            raise failure
 
         return exec_result
 
     @override
     async def write_file(self, file: str, contents: str | bytes) -> None:
         # defualt timeout for write_file operations
-        TIMEOUT = 180
+        TIMEOUT = 600
 
         # resolve relative file paths
         file = self.container_file(file)
@@ -387,49 +449,83 @@ class DockerSandboxEnvironment(SandboxEnvironment):
 
     @override
     async def read_file(self, file: str, text: bool = True) -> Union[str, bytes]:
-        # Write the contents to a temp file
+        original_file = file
+        if _is_directory_alias(file):
+            raise _is_directory_error(original_file)
+
+        # resolve relative file paths
+        file = self.container_file(file)
+
+        # Copy the contents to a host temp file
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as temp_dir:
-            # resolve relative file paths
-            original_file = file
-            file = self.container_file(file)
+            temp_root = Path(temp_dir).resolve(strict=True)
+            dest_fd, dest_file = tempfile.mkstemp(dir=temp_root, prefix="read-")
+            # Keep an existing regular destination so directory copies fail, while
+            # detecting sources (such as sockets) that Docker silently skips.
+            staging_canary = os.urandom(_READ_FILE_STAGING_CANARY_BYTES)
+            with os.fdopen(dest_fd, "wb") as f:
+                f.write(staging_canary)
+            dest_path = Path(dest_file)
+            _validate_staged_read_file(temp_root, dest_path, original_file)
 
             # copy the file
-            dest_file = os.path.join(temp_dir, os.path.basename(file))
             try:
                 await compose_cp(
                     src=f"{self._service}:{file}",
-                    dest=os.path.basename(dest_file),
+                    dest=dest_path.name,
                     project=self._project,
-                    cwd=os.path.dirname(dest_file),
+                    cwd=temp_root,
                     output_limit=SandboxEnvironmentLimits.MAX_READ_FILE_SIZE,
+                    # A failed copy may replace the destination with a symlink.
+                    # Never retry against a path previously exposed to Docker.
+                    timeout_retry=False,
                 )
             except RuntimeError as ex:
                 # extract the message and normalise case
                 message = str(ex).lower()
 
                 # FileNotFoundError
-                if "could not find the file" in message:
+                if (
+                    "could not find the file" in message
+                    or "no such file or directory" in message
+                ):
                     raise FileNotFoundError(
                         errno.ENOENT, "No such file or directory.", original_file
-                    )
+                    ) from ex
 
                 # PermissionError
                 elif "permission denied" in message:
                     raise PermissionError(
                         errno.EACCES, "Permission denied.", original_file
-                    )
-                else:
-                    raise ex
+                    ) from ex
 
-            verify_read_file_size(dest_file)
+                # IsADirectoryError
+                elif "cannot copy directory" in message or "is a directory" in message:
+                    raise _is_directory_error(original_file) from ex
+                else:
+                    raise
+
+            _validate_staged_read_file(temp_root, dest_path, original_file)
 
             # read and return w/ appropriate encoding
-            if text:
-                with open(dest_file, "r", newline="", encoding="utf-8") as f:
-                    return f.read()
-            else:
-                with open(dest_file, "rb") as f:
-                    return f.read()
+            try:
+                if _staged_read_file_matches_canary(dest_path, staging_canary):
+                    raise OSError(
+                        errno.EINVAL,
+                        "Docker read_file did not produce a regular file.",
+                        original_file,
+                    )
+                verify_read_file_size(str(dest_path))
+                if text:
+                    with open(dest_path, "r", newline="", encoding="utf-8") as f:
+                        return f.read()
+                else:
+                    with open(dest_path, "rb") as f:
+                        return f.read()
+            except PermissionError as ex:
+                raise PermissionError(
+                    errno.EACCES, "Permission denied.", original_file
+                ) from ex
 
     @override
     async def connection(self, *, user: str | None = None) -> SandboxConnection:
@@ -488,6 +584,43 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         if not path.is_absolute():
             path = Path(self._working_dir) / path
         return path.as_posix()
+
+
+def _is_directory_alias(file: str) -> bool:
+    return posixpath.basename(file.rstrip("/")) in (".", "..")
+
+
+def _is_directory_error(file: str) -> IsADirectoryError:
+    return IsADirectoryError(errno.EISDIR, "Is a directory.", file)
+
+
+def _staged_read_file_matches_canary(dest_path: Path, canary: bytes) -> bool:
+    if dest_path.stat().st_size != len(canary):
+        return False
+    with dest_path.open("rb") as f:
+        return f.read() == canary
+
+
+def _validate_staged_read_file(
+    temp_root: Path, dest_path: Path, original_file: str
+) -> None:
+    if dest_path.parent.resolve(strict=True) != temp_root:
+        raise RuntimeError("Docker read_file staging path escaped its temporary root.")
+
+    try:
+        mode = dest_path.lstat().st_mode
+    except FileNotFoundError as ex:
+        raise RuntimeError("Docker read_file staging file is missing.") from ex
+
+    if not stat.S_ISREG(mode):
+        raise OSError(
+            errno.EINVAL,
+            "Docker read_file did not produce a regular file.",
+            original_file,
+        )
+
+    if dest_path.resolve(strict=True).parent != temp_root:
+        raise RuntimeError("Docker read_file staging file escaped its temporary root.")
 
 
 async def container_working_dir(

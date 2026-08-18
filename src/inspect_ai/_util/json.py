@@ -1,6 +1,7 @@
 import re
 from copy import deepcopy
 from typing import (
+    TYPE_CHECKING,
     Any,
     Literal,
     Mapping,
@@ -15,8 +16,80 @@ from jsonpointer import (  # type: ignore  # jsonpointer is already a dependency
 from pydantic import BaseModel, Field, JsonValue
 from pydantic_core import PydanticSerializationError, to_json, to_jsonable_python
 
+if TYPE_CHECKING:
+    from ijson import IncompleteJSONError  # type: ignore[import-untyped]
+    from ijson.backends.python import UnexpectedSymbol  # type: ignore[import-untyped]
+
 # Pre-compile regex to quickly find paths ending in an index for json_changes (e.g., /items/0)
 _ARRAY_INDEX_RE = re.compile(r"^(.*)/(\d+)$")
+
+
+def is_ijson_nan_inf_error(
+    ex: "ValueError | IncompleteJSONError | UnexpectedSymbol",
+) -> bool:
+    """Check if an ijson exception is due to NaN/Inf values.
+
+    ijson doesn't support NaN and Inf which are valid in Python's JSON
+    (and supported by pydantic). This helper identifies these errors so
+    callers can fall back to standard json.load.
+
+    Args:
+        ex: Exception from ijson parsing (ValueError, IncompleteJSONError,
+            or UnexpectedSymbol).
+
+    Returns:
+        True if the exception is due to NaN/Inf parsing issues.
+    """
+    error_msg = str(ex).lower()
+    return (
+        "invalid json character" in error_msg
+        or "invalid char in json text" in error_msg
+        or "unexpected symbol" in error_msg
+        # yajl2 rejects the leading minus of -Infinity before seeing the token
+        or "a digit is required after the minus sign" in error_msg
+    )
+
+
+def is_ijson_int_overflow_error(
+    ex: "ValueError | IncompleteJSONError | UnexpectedSymbol",
+) -> bool:
+    """Check if an ijson exception is due to an integer larger than 2**63 - 1.
+
+    The ijson C backend (yajl2_c) with use_float=True parses integers into a
+    C long long and raises "integer overflow" for anything bigger, even though
+    such integers are valid JSON and parse fine with the stdlib json module.
+    This helper identifies these errors so callers can fall back to json.load.
+
+    Args:
+        ex: Exception from ijson parsing (ValueError, IncompleteJSONError,
+            or UnexpectedSymbol).
+
+    Returns:
+        True if the exception is due to integer overflow.
+    """
+    return "integer overflow" in str(ex).lower()
+
+
+def get_ijson_backend() -> Any:
+    """Return an ijson module compatible with the current async backend.
+
+    The default yajl2_c C backend implements ``parse_async`` with
+    asyncio-specific yields, which crash under trio. Fall back to the
+    pure-Python backend when running under trio so that async readers
+    (e.g. ``read_eval_log_async(..., exclude_fields=...)``) work there.
+    """
+    import ijson  # type: ignore[import-untyped]
+    import sniffio
+
+    try:
+        if sniffio.current_async_library() == "trio":
+            import ijson.backends.python as ijson_py  # type: ignore[import-untyped]
+
+            return ijson_py
+    except sniffio.AsyncLibraryNotFoundError:
+        pass
+    return ijson
+
 
 JSONType = Literal["string", "integer", "number", "boolean", "array", "object", "null"]
 """Valid types within JSON schema."""
@@ -44,6 +117,7 @@ _IncEx: TypeAlias = (
 def to_json_safe(
     x: Any,
     exclude: _IncEx | None = None,
+    indent: int | None = 2,
 ) -> bytes:
     normalized = jsonable_python(x)
 
@@ -59,7 +133,7 @@ def to_json_safe(
     try:
         return to_json(
             value=normalized,
-            indent=2,
+            indent=indent,
             exclude_none=True,
             fallback=lambda _x: None,
             exclude=exclude,
@@ -68,7 +142,11 @@ def to_json_safe(
         if "surrogates not allowed" in str(ex):
             cleaned = clean_utf8_json(normalized)
             return to_json(
-                cleaned, indent=2, exclude_none=True, fallback=lambda _x: None
+                cleaned,
+                indent=indent,
+                exclude_none=True,
+                fallback=lambda _x: None,
+                exclude=exclude,
             )
         raise
 
@@ -102,10 +180,13 @@ def python_type_to_json_type(python_type: str | None) -> JSONType:
             )
 
 
+JsonChangeOp = Literal["remove", "add", "replace", "move", "test", "copy"]
+
+
 class JsonChange(BaseModel):
     """Describes a change to data using JSON Patch format."""
 
-    op: Literal["remove", "add", "replace", "move", "test", "copy"]
+    op: JsonChangeOp
     """Change operation."""
 
     path: str
@@ -259,7 +340,8 @@ def json_changes(
         # Update shadow state if the structure changed due to an 'add' or 'remove' op
         if container and op["op"] in ("add", "remove"):
             assert rel_path is not None  # Shouldn't be since container is set
-            _apply_fast_list_op(shadow_state[container], op, rel_path)
+            if isinstance(shadow_state[container], list):
+                _apply_fast_list_op(shadow_state[container], op, rel_path)
 
         # Build Result
         change = JsonChange(**op)

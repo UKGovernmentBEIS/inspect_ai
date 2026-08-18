@@ -9,11 +9,15 @@ enabling portability across different sandbox types (Docker, Modal, K8s, etc.).
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any, Callable, TypeGuard, cast
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, model_validator
+
+from inspect_ai.util._sandbox.environment import SandboxEnvironment
+from inspect_ai.util._sandbox.registry import registry_find_sandboxenv
 
 COMPOSE_FILES = [
     "compose.yaml",
@@ -24,8 +28,17 @@ COMPOSE_FILES = [
 
 DOCKERFILE = "Dockerfile"
 
+# Legacy auto-compose filename (written to working directory)
+AUTO_COMPOSE_YAML = ".compose.yaml"
 
-def is_compose_yaml(file: str) -> bool:
+# Central directory for auto-compose files
+AUTO_COMPOSE_SUBDIR = "docker-compose"
+
+# Pattern for auto-compose filenames (e.g., "foo-compose.yaml", ".compose.yaml")
+COMPOSE_PATTERN = re.compile(r"[-.]compose\.yaml$")
+
+
+def is_compose_yaml(file: Any) -> TypeGuard[str]:
     """Check if a path is a Docker Compose file.
 
     Args:
@@ -33,12 +46,33 @@ def is_compose_yaml(file: str) -> bool:
 
     Returns:
         True if the path is a compose file (compose.yaml, compose.yml,
-        docker-compose.yaml, or docker-compose.yml), False otherwise.
+        docker-compose.yaml, docker-compose.yml), an auto-generated
+        compose file (.compose.yaml or in the auto-compose directory),
+        or False otherwise.
     """
-    return Path(file).name in COMPOSE_FILES
+    if isinstance(file, str):
+        path = Path(file)
+
+        # Standard compose files
+        if path.name in COMPOSE_FILES:
+            return True
+
+        # compose-alike files (e.g., ".compose.yaml", "foo-compose.yaml")
+        if COMPOSE_PATTERN.search(path.name):
+            return True
+
+        # New auto-compose files (in central directory)
+        # Use lazy import to avoid circular dependency with docker/config.py
+        from inspect_ai._util.appdirs import inspect_data_dir
+
+        auto_compose_dir = inspect_data_dir(AUTO_COMPOSE_SUBDIR)
+        if path.parent == auto_compose_dir and path.suffix == ".yaml":
+            return True
+
+    return False
 
 
-def is_dockerfile(file: str) -> bool:
+def is_dockerfile(file: Any) -> TypeGuard[str]:
     """Check if a path is a Dockerfile.
 
     Args:
@@ -48,8 +82,21 @@ def is_dockerfile(file: str) -> bool:
         True if the path is a Dockerfile (Dockerfile, name.Dockerfile,
         or Dockerfile.name), False otherwise.
     """
-    path = Path(file)
-    return path.stem == DOCKERFILE or path.suffix == f".{DOCKERFILE}"
+    if isinstance(file, str):
+        path = Path(file)
+        return path.stem == DOCKERFILE or path.suffix == f".{DOCKERFILE}"
+    else:
+        return False
+
+
+def _coerce_cpus(v: Any) -> str | None:
+    """Accept numeric cpus values (e.g. ``cpus: 1``) and coerce to string."""
+    return str(v) if v is not None else None
+
+
+def _coerce_restart(v: Any) -> Any:
+    """YAML 1.1 resolves bare ``no`` to False; Compose means the string "no"."""
+    return "no" if v is False else v
 
 
 class ComposeModel(BaseModel):
@@ -113,7 +160,7 @@ class ComposeBuild(ComposeModel):
 class ComposeResources(ComposeModel):
     """Resource limits/reservations for a compose service."""
 
-    cpus: str | None = Field(default=None)
+    cpus: Annotated[str | None, BeforeValidator(_coerce_cpus)] = Field(default=None)
     """CPU limit (e.g., '0.5', '2')."""
 
     memory: str | None = Field(default=None)
@@ -142,7 +189,7 @@ class ComposeDeviceReservation(ComposeModel):
 class ComposeResourceReservations(ComposeModel):
     """Resource reservations including devices."""
 
-    cpus: str | None = Field(default=None)
+    cpus: Annotated[str | None, BeforeValidator(_coerce_cpus)] = Field(default=None)
     """Reserved CPU (e.g., '0.5', '2')."""
 
     memory: str | None = Field(default=None)
@@ -208,6 +255,9 @@ class ComposeService(ComposeModel):
     volumes: list[str] | None = Field(default=None)
     """Volume mounts."""
 
+    devices: list[str] | None = Field(default=None)
+    """Device mappings (e.g. ``["/dev/kvm"]`` or ``["/dev/snd:/dev/snd"]``)."""
+
     networks: list[str] | dict[str, Any] | None = Field(default=None)
     """Networks to connect to."""
 
@@ -223,6 +273,50 @@ class ComposeService(ComposeModel):
     init: bool | None = Field(default=None)
     """Run an init process inside the container."""
 
+    privileged: bool | None = Field(default=None)
+    """Run the container in privileged mode."""
+
+    shm_size: str | int | None = Field(default=None)
+    """Size of ``/dev/shm`` (e.g. ``1g``, ``256m``, or bytes as int)."""
+
+    ulimits: dict[str, int | dict[str, int]] | None = Field(default=None)
+    """Per-container ulimits (e.g. ``nofile: {soft: 20000, hard: 40000}``)."""
+
+    depends_on: list[str] | dict[str, Any] | None = Field(default=None)
+    """Service startup dependencies. Short (list) or long (dict) form per Compose spec."""
+
+    pull_policy: str | None = Field(default=None)
+    """Image pull policy (e.g. ``always``, ``never``, ``missing``, ``build``)."""
+
+    platform: str | None = Field(default=None)
+    """Target platform for the container (e.g. ``linux/amd64``)."""
+
+    extra_hosts: list[str] | dict[str, str] | None = Field(default=None)
+    """Extra ``/etc/hosts`` entries. List (``"host:ip"``) or mapping form per Compose spec."""
+
+    cap_add: list[str] | None = Field(default=None)
+    """Linux capabilities to add (e.g. ``["SYS_PTRACE"]``)."""
+
+    cap_drop: list[str] | None = Field(default=None)
+    """Linux capabilities to drop (e.g. ``["ALL"]``)."""
+
+    security_opt: list[str] | None = Field(default=None)
+    """Container security options (e.g. ``["seccomp=unconfined"]``)."""
+
+    tmpfs: str | list[str] | None = Field(default=None)
+    """Paths mounted as a tmpfs. Single path or list of paths."""
+
+    restart: Annotated[str | None, BeforeValidator(_coerce_restart)] = Field(
+        default=None
+    )
+    """Restart policy (e.g. ``no``, ``always``, ``on-failure``, ``unless-stopped``)."""
+
+    stdin_open: bool | None = Field(default=None)
+    """Keep stdin open (``docker run -i``)."""
+
+    tty: bool | None = Field(default=None)
+    """Allocate a pseudo-TTY (``docker run -t``)."""
+
     deploy: ComposeDeploy | None = Field(default=None)
     """Deployment configuration including resources."""
 
@@ -231,6 +325,9 @@ class ComposeService(ComposeModel):
 
     mem_reservation: str | None = Field(default=None)
     """Memory reservation (shortcut for deploy.resources.reservations.memory)."""
+
+    memswap_limit: str | int | None = Field(default=None)
+    """Total memory + swap limit (e.g. ``20g``, ``256m``, or bytes as int)."""
 
     cpus: float | None = Field(default=None)
     """CPU limit (shortcut for deploy.resources.limits.cpus)."""
@@ -306,3 +403,25 @@ def parse_compose_yaml(
         )
 
     return config
+
+
+def is_docker_compatible_config(config: BaseModel | str | None) -> bool:
+    if isinstance(config, str):
+        return is_dockerfile(config) or is_compose_yaml(config)
+    elif isinstance(config, ComposeConfig):
+        return True
+    else:
+        return False
+
+
+def is_docker_compatible_sandbox_type(
+    sandbox_type: type[SandboxEnvironment] | str,
+) -> bool:
+    if isinstance(sandbox_type, str):
+        sandbox_type = registry_find_sandboxenv(sandbox_type)
+
+    is_docker_compatible_fn = cast(
+        Callable[..., bool], getattr(sandbox_type, "is_docker_compatible")
+    )
+
+    return is_docker_compatible_fn()

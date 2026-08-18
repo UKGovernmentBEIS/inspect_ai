@@ -43,6 +43,7 @@ for _ in range(1000):
 # e.g. systemd-run --user --scope -p MemoryMax=200M pytest tests/tools/test_max_exec_output.py --capture=no --runslow
 @skip_if_no_docker
 @pytest.mark.slow
+@pytest.mark.flaky
 def test_max_exec_output():
     task = Task(
         dataset=[

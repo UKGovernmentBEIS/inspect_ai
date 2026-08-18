@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -27,3 +27,6 @@ class Approval(BaseModel):
 
     explanation: str | None = Field(default=None)
     """Explanation for decision."""
+
+    metadata: dict[str, Any] | None = Field(default=None)
+    """Additional approval metadata."""

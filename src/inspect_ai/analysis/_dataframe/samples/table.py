@@ -5,7 +5,7 @@ import multiprocessing as mp
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from copy import deepcopy
 from dataclasses import dataclass
-from functools import lru_cache
+from functools import lru_cache, partial
 from itertools import chain
 from typing import (
     TYPE_CHECKING,
@@ -18,13 +18,14 @@ from typing import (
     overload,
 )
 
+from inspect_ai._util._async import run_coroutine, tg_collect
 from inspect_ai._util.hash import mm3_hash
 from inspect_ai._util.platform import running_in_notebook
 from inspect_ai.analysis._dataframe.progress import import_progress, no_progress
 from inspect_ai.event._event import Event
 from inspect_ai.log._file import (
-    read_eval_log,
-    read_eval_log_sample_summaries,
+    read_eval_log_async,
+    read_eval_log_sample_summaries_async,
 )
 from inspect_ai.log._log import EvalLog, EvalSample, EvalSampleSummary
 from inspect_ai.model._chat_message import ChatMessage
@@ -63,6 +64,7 @@ def samples_df(
     strict: Literal[True] = True,
     parallel: bool | int = False,
     quiet: bool | None = None,
+    exclude_fields: set[str] | None = None,
 ) -> "pd.DataFrame": ...
 
 
@@ -74,6 +76,7 @@ def samples_df(
     strict: Literal[False] = False,
     parallel: bool | int = False,
     quiet: bool | None = None,
+    exclude_fields: set[str] | None = None,
 ) -> tuple["pd.DataFrame", list[ColumnError]]: ...
 
 
@@ -84,6 +87,7 @@ def samples_df(
     strict: bool = True,
     parallel: bool | int = False,
     quiet: bool | None = None,
+    exclude_fields: set[str] | None = None,
 ) -> "pd.DataFrame" | tuple["pd.DataFrame", list[ColumnError]]:
     """Read a dataframe containing samples from a set of evals.
 
@@ -104,6 +108,9 @@ def samples_df(
           do not read in parallel.
        quiet: If `True`, do not show any output or progress. Defaults to `False`
           for terminal environments, and `True` for notebooks.
+       exclude_fields: Set of EvalSample field names to skip when loading
+          samples (e.g. {"messages", "events", "store", "attachments"}).
+          Ignored for .json format logs (only applies to .eval logs).
 
     Returns:
        For `strict`, a Pandas `DataFrame` with information for the specified logs.
@@ -122,6 +129,7 @@ def samples_df(
         strict=strict,
         progress=not quiet,
         parallel=parallel,
+        exclude_fields=exclude_fields,
     )
 
 
@@ -148,6 +156,7 @@ def _read_samples_df(
     detail: MessagesDetail | EventsDetail | None = None,
     progress: bool = True,
     parallel: bool | int = False,
+    exclude_fields: set[str] | None = None,
 ) -> "pd.DataFrame" | tuple["pd.DataFrame", list[ColumnError]]:
     import pandas as pd
 
@@ -184,6 +193,7 @@ def _read_samples_df(
                         strict=strict,
                         detail=detail,
                         progress=False,
+                        exclude_fields=exclude_fields,
                     ): idx
                     for idx, log_path in enumerate(log_paths)
                 }
@@ -235,6 +245,7 @@ def _read_samples_df(
             strict=strict,
             detail=detail,
             progress=progress,
+            exclude_fields=exclude_fields,
         )
 
 
@@ -246,6 +257,7 @@ def _read_samples_df_serial(
     strict: bool = True,
     detail: MessagesDetail | EventsDetail | None = None,
     progress: bool = True,
+    exclude_fields: set[str] | None = None,
 ) -> "pd.DataFrame" | tuple["pd.DataFrame", list[ColumnError]]:
     # split columns by type
     columns_eval: list[Column] = []
@@ -305,8 +317,10 @@ def _read_samples_df_serial(
         p.reset(description=f"reading {entity}s", completed=0, total=total_samples)
 
         # read samples
-        for eval_id, eval_log in zip(evals_table[EVAL_ID].to_list(), eval_logs):
-            # get samples (in-memory if available, else full log or summaries from disk)
+        async def read_samples_async(
+            eval_id: str, eval_log: EvalLog
+        ) -> Iterable[EvalSample | EvalSampleSummary]:
+            # get samples (in-memory, full log, or summaries from disk)
             if (
                 is_eval_logs
                 and eval_log.samples is not None
@@ -314,14 +328,28 @@ def _read_samples_df_serial(
             ):
                 samples: Iterable[EvalSample | EvalSampleSummary] = eval_log.samples
             elif require_full_samples:
-                full_log = read_eval_log(eval_log.location, resolve_attachments=True)
+                full_log = await read_eval_log_async(
+                    eval_log.location,
+                    resolve_attachments=True,
+                    exclude_fields=exclude_fields,
+                )
                 samples = full_log.samples or []
             else:
-                samples = (
-                    summary
-                    for summary in read_eval_log_sample_summaries(eval_log.location)
-                )
+                samples = await read_eval_log_sample_summaries_async(eval_log.location)
+            p.update()
+            return samples
 
+        eval_ids = evals_table[EVAL_ID].to_list() if EVAL_ID in evals_table else []
+        log_samples = run_coroutine(
+            tg_collect(
+                [
+                    partial(read_samples_async, eval_id, eval_log)
+                    for eval_id, eval_log in zip(eval_ids, eval_logs)
+                ]
+            )
+        )
+
+        for samples, eval_id, eval_log in zip(log_samples, eval_ids, eval_logs):
             for sample in samples:
                 if strict:
                     record = import_record(
@@ -343,7 +371,7 @@ def _read_samples_df_serial(
                 # record with ids
                 record = ids | record
 
-                # if there are detail columns then we blow out these records w/ detail
+                # if there are detail columns then blow out w/ detail
                 if detail is not None:
                     # filter detail records
                     assert isinstance(sample, EvalSample)
@@ -364,11 +392,17 @@ def _read_samples_df_serial(
                     for index, item in enumerate(detail_items):
                         if strict:
                             detail_record = import_record(
-                                eval_log, item, columns_detail, strict=True
+                                eval_log,
+                                item,
+                                columns_detail,
+                                strict=True,
                             )
                         else:
                             detail_record, errors = import_record(
-                                eval_log, item, columns_detail, strict=False
+                                eval_log,
+                                item,
+                                columns_detail,
+                                strict=False,
                             )
                             all_errors.extend(errors)
 
@@ -390,7 +424,6 @@ def _read_samples_df_serial(
 
                 # record sample record
                 sample_records.append(record)
-                p.update()
 
     # normalize records and produce samples table
     samples_table = records_to_pandas(sample_records)

@@ -3,7 +3,7 @@ from typing import Any
 
 from inspect_ai.solver._task_state import TaskState
 
-from ._metric import CORRECT, INCORRECT, Score
+from ._metric import CORRECT, INCORRECT, NOANSWER, Score
 from ._metrics import accuracy, stderr
 from ._scorer import Scorer, scorer
 from ._target import Target
@@ -33,12 +33,21 @@ def match_first(
 def match_all_groups(
     matches: tuple[str | Any, ...], target: Target, ignore_case: bool
 ) -> str | None:
+    matched_any = False
     for match in matches:
         if not isinstance(match, str):
             continue
 
+        matched_any = True
         if not match_target(match, target, ignore_case):
             return None
+
+    # If no capture group actually produced a string (e.g. every group is an
+    # unmatched optional group and is therefore `None`), then nothing was
+    # extracted from the output and we must not report a match. Returning
+    # `target.text` here would spuriously score the sample as correct.
+    if not matched_any:
+        return None
 
     return target.text
 
@@ -98,7 +107,7 @@ def pattern(pattern: str, ignore_case: bool = True, match_all: bool = False) -> 
         else:
             # didn't find the scoring pattern
             return Score(
-                value=INCORRECT,
+                value=NOANSWER,
                 explanation="Scoring pattern not matched in output: "
                 + f"{state.output.completion}",
             )

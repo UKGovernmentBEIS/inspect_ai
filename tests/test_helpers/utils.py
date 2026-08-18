@@ -6,28 +6,75 @@ import os
 import signal
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from random import random
 from types import FrameType
-from typing import Callable, Generator, Sequence, TypeVar
+from typing import Awaitable, Callable, Generator, ParamSpec, Sequence, TypeVar
 
 import anyio
 import pytest
+from _pytest.outcomes import OutcomeException, Skipped, XFailed
 
 from inspect_ai import Task, eval, task
-from inspect_ai._util._async import configured_async_backend
-from inspect_ai._util.entrypoints import clear_entry_points_state
+from inspect_ai._util.entrypoints import clear_entry_points_state, ensure_entry_points
 from inspect_ai.dataset import Sample
 from inspect_ai.model import ChatMessage, ModelName, ModelOutput
 from inspect_ai.scorer import match
 from inspect_ai.solver import Generate, TaskState, generate, solver
+from inspect_ai.util._concurrency import (
+    AdaptiveConcurrency,
+    AdaptiveConcurrencyController,
+    get_or_create_semaphore,
+)
 
 F = TypeVar("F", bound=Callable)
+P = ParamSpec("P")
+R = TypeVar("R")
+
+
+def _rearm_pytest_timeout() -> None:
+    """Re-arm pytest-timeout's signal timer for the next retry attempt.
+
+    When pytest-timeout uses the signal method, SIGALRM fires once and is
+    consumed. We need to re-arm it so the next retry attempt also has a
+    timeout. We read the original timeout from the SIGALRM handler that
+    pytest-timeout installed and re-arm with the same duration.
+    """
+    if not hasattr(signal, "SIGALRM"):
+        return
+    # If the current SIGALRM handler is a python function (not SIG_DFL/SIG_IGN),
+    # pytest-timeout is active. Re-arm the timer with the same timeout by reading
+    # the remaining time — but since it already fired, we need to get the original
+    # timeout from the handler's closure.
+    try:
+        # pytest_timeout stores the settings on the item in the handler closure.
+        # The simplest reliable approach: look at the current handler and re-arm
+        # using setitimer. We get the timeout from the handler's closure.
+        handler = signal.getsignal(signal.SIGALRM)
+        if (
+            callable(handler)
+            and hasattr(handler, "__closure__")
+            and handler.__closure__
+        ):
+            for cell in handler.__closure__:
+                try:
+                    val = cell.cell_contents
+                    if hasattr(val, "timeout"):
+                        signal.setitimer(signal.ITIMER_REAL, val.timeout)
+                        return
+                except ValueError:
+                    continue
+    except (ImportError, Exception):
+        pass
 
 
 def flaky_retry(max_retries: int) -> Callable[[F], F]:
     """
     Decorator to retry flaky tests up to max_retries times.
+
+    Deliberate test outcomes -- ``pytest.skip()`` and ``pytest.xfail()`` --
+    are re-raised immediately rather than retried.
 
     **Use with discretion and as a last resort.** This decorator should only be used
     for tests that require specific model behavior to trigger the code under test,
@@ -55,12 +102,18 @@ def flaky_retry(max_retries: int) -> Callable[[F], F]:
                 for attempt in range(max_retries + 1):
                     try:
                         return await func(*args, **kwargs)
-                    except Exception as e:
+                    except (Skipped, XFailed):
+                        # pytest.skip()/xfail() are deliberate outcomes, not
+                        # flakiness -- honor them without retrying
+                        raise
+                    except (Exception, OutcomeException) as e:
                         last_exception = e
                         if attempt < max_retries:
+                            _rearm_pytest_timeout()
                             continue
                         raise last_exception
 
+            async_wrapper._flaky_retry = True  # type: ignore[attr-defined]
             return async_wrapper  # type: ignore
 
         @functools.wraps(func)
@@ -69,13 +122,41 @@ def flaky_retry(max_retries: int) -> Callable[[F], F]:
             for attempt in range(max_retries + 1):
                 try:
                     return func(*args, **kwargs)
-                except Exception as e:
+                except (Skipped, XFailed):
+                    # pytest.skip()/xfail() are deliberate outcomes, not
+                    # flakiness -- honor them without retrying
+                    raise
+                except (Exception, OutcomeException) as e:
                     last_exception = e
                     if attempt < max_retries:
+                        _rearm_pytest_timeout()
                         continue
                     raise last_exception
 
+        wrapper._flaky_retry = True  # type: ignore[attr-defined]
         return wrapper  # type: ignore
+
+    return decorator
+
+
+def with_timeout(
+    seconds: float,
+) -> Callable[[Callable[P, Awaitable[R]]], Callable[P, Awaitable[R]]]:
+    """Decorator that enforces a per-call timeout on an async test function.
+
+    Cancels the coroutine via ``anyio.fail_after`` at the next checkpoint,
+    raising ``TimeoutError``. Async-only — all tests that need timeout
+    enforcement in this repo are async.
+    """
+
+    def decorator(func: Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[R]]:
+        @functools.wraps(func)
+        async def async_wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
+            with anyio.fail_after(seconds):
+                return await func(*args, **kwargs)
+
+        async_wrapper._has_default_timeout = True  # type: ignore[attr-defined]
+        return async_wrapper
 
     return decorator
 
@@ -95,6 +176,7 @@ def skip_if_env_var(var: str, exists=True):
 
 
 def skip_if_no_groq(func):
+    func._needs_flaky_retry = True
     return pytest.mark.api(skip_if_env_var("GROQ_API_KEY", exists=False)(func))
 
 
@@ -107,14 +189,6 @@ def skip_if_no_package(package):
 
 def skip_if_no_mcp_package(func):
     return skip_if_no_package("mcp")(func)
-
-
-def skip_if_no_mcp_fetch_package(func):
-    return skip_if_no_package("mcp_server_fetch")(func)
-
-
-def skip_if_no_mcp_git_package(func):
-    return skip_if_no_package("mcp_server_git")(func)
 
 
 def skip_if_no_vllm(func):
@@ -133,7 +207,12 @@ def skip_if_no_transformer_lens(func):
     return skip_if_no_package("transformer_lens")(func)
 
 
+def skip_if_no_nnterp(func):
+    return skip_if_no_package("nnterp")(func)
+
+
 def skip_if_no_openai(func):
+    func._needs_flaky_retry = True
     return pytest.mark.api(
         pytest.mark.skipif(
             importlib.util.find_spec("openai") is None
@@ -144,6 +223,7 @@ def skip_if_no_openai(func):
 
 
 def skip_if_no_openai_azure(func):
+    func._needs_flaky_retry = True
     return pytest.mark.skipif(
         importlib.util.find_spec("openai") is None
         or os.environ.get("AZUREAI_OPENAI_API_KEY") is None
@@ -152,7 +232,22 @@ def skip_if_no_openai_azure(func):
     )(func)
 
 
+def skip_if_no_openai_bedrock(func):
+    func._needs_flaky_retry = True
+    return pytest.mark.api(
+        pytest.mark.skipif(
+            importlib.util.find_spec("openai") is None
+            or (
+                os.environ.get("BEDROCK_OPENAI_API_KEY") is None
+                and os.environ.get("AWS_BEARER_TOKEN_BEDROCK") is None
+            ),
+            reason="Test requires the OpenAI package and a Bedrock bearer key (BEDROCK_OPENAI_API_KEY or AWS_BEARER_TOKEN_BEDROCK)",
+        )(func)
+    )
+
+
 def skip_if_no_mistral_azure(func):
+    func._needs_flaky_retry = True
     return pytest.mark.skipif(
         importlib.util.find_spec("mistral") is None
         or os.environ.get("AZUREAI_MISTRAL_BASE_URL") is None,
@@ -165,21 +260,33 @@ def skip_if_no_openai_package(func):
 
 
 def skip_if_no_openai_reasoning_summaries(func):
+    func._needs_flaky_retry = True
     return pytest.mark.api(
         skip_if_env_var("ENABLE_OPENAI_REASONING_SUMMARIES", exists=False)(func)
     )
 
 
 def skip_if_no_anthropic(func):
+    func._needs_flaky_retry = True
     return pytest.mark.api(skip_if_env_var("ANTHROPIC_API_KEY", exists=False)(func))
 
 
+def skip_if_no_anthropic_package(func):
+    return skip_if_no_package("anthropic")(func)
+
+
 def skip_if_no_google(func):
+    func._needs_flaky_retry = True
     return pytest.mark.api(skip_if_env_var("GOOGLE_API_KEY", exists=False)(func))
 
 
 def skip_if_no_mistral(func):
-    return pytest.mark.api(skip_if_env_var("MISTRAL_API_KEY", exists=False)(func))
+    # the mistralai SDK uses asyncio.to_thread internally, so always skip
+    # live Mistral tests under trio
+    func._needs_flaky_retry = True
+    return pytest.mark.api(
+        skip_if_env_var("MISTRAL_API_KEY", exists=False)(skip_if_trio(func))
+    )
 
 
 def skip_if_no_mistral_package(func):
@@ -187,34 +294,55 @@ def skip_if_no_mistral_package(func):
 
 
 def skip_if_no_grok(func):
-    return pytest.mark.api(skip_if_env_var("GROK_API_KEY", exists=False)(func))
+    # gRPC is asyncio-only, so always skip under trio
+    func._needs_flaky_retry = True
+    return pytest.mark.api(
+        skip_if_env_var("GROK_API_KEY", exists=False)(skip_if_trio(func))
+    )
 
 
 def skip_if_no_cloudflare(func):
+    func._needs_flaky_retry = True
     return pytest.mark.api(skip_if_env_var("CLOUDFLARE_API_KEY", exists=False)(func))
 
 
 def skip_if_no_together(func):
+    func._needs_flaky_retry = True
     return pytest.mark.api(skip_if_env_var("TOGETHER_API_KEY", exists=False)(func))
 
 
 def skip_if_no_openrouter(func):
+    func._needs_flaky_retry = True
     return pytest.mark.api(skip_if_env_var("OPENROUTER_API_KEY", exists=False)(func))
 
 
 def skip_if_no_together_base_url(func):
+    func._needs_flaky_retry = True
     return pytest.mark.api(skip_if_env_var("TOGETHER_BASE_URL", exists=False)(func))
 
 
 def skip_if_no_fireworks(func):
+    func._needs_flaky_retry = True
     return pytest.mark.api(skip_if_env_var("FIREWORKS_API_KEY", exists=False)(func))
 
 
+def skip_if_no_moonshot(func):
+    func._needs_flaky_retry = True
+    return pytest.mark.api(skip_if_env_var("MOONSHOT_API_KEY", exists=False)(func))
+
+
+def skip_if_no_deepseek(func):
+    func._needs_flaky_retry = True
+    return pytest.mark.api(skip_if_env_var("DEEPSEEK_API_KEY", exists=False)(func))
+
+
 def skip_if_no_sambanova(func):
+    func._needs_flaky_retry = True
     return pytest.mark.api(skip_if_env_var("SAMBANOVA_API_KEY", exists=False)(func))
 
 
 def skip_if_no_perplexity(func):
+    func._needs_flaky_retry = True
     missing_requirements = []
     if importlib.util.find_spec("openai") is None:
         missing_requirements.append("openai package")
@@ -234,24 +362,29 @@ def skip_if_no_perplexity_package(func):
 
 
 def skip_if_no_azureai(func):
+    func._needs_flaky_retry = True
     return pytest.mark.api(skip_if_env_var("AZUREAI_API_KEY", exists=False)(func))
 
 
 def skip_if_no_llama_cpp_python(func):
+    func._needs_flaky_retry = True
     return pytest.mark.api(
         skip_if_env_var("ENABLE_LLAMA_CPP_PYTHON_TESTS", exists=False)(func)
     )
 
 
 def skip_if_no_bedrock(func):
+    func._needs_flaky_retry = True
     return pytest.mark.api(skip_if_env_var("ENABLE_BEDROCK_TESTS", exists=False)(func))
 
 
 def skip_if_no_vertex(func):
+    func._needs_flaky_retry = True
     return pytest.mark.api(skip_if_env_var("ENABLE_VERTEX_TESTS", exists=False)(func))
 
 
 def skip_if_no_hf_token(func):
+    func._needs_flaky_retry = True
     return pytest.mark.api(skip_if_env_var("HF_TOKEN", exists=False)(func))
 
 
@@ -273,16 +406,38 @@ def skip_if_no_docker(func):
     except FileNotFoundError:
         is_docker_installed = False
 
+    func._needs_flaky_retry = True
     return pytest.mark.skipif(
         not is_docker_installed, reason="Test doesn't work without Docker installed."
     )(func)
 
 
 def skip_if_async_backend(backend):
-    return pytest.mark.skipif(
-        configured_async_backend() == backend,
-        reason=f"Test not compatible with {backend} async backend.",
-    )
+    """Skip the given backend variant of an anyio test.
+
+    This is a runtime check using sniffio so it works correctly with anyio's
+    parametrised [asyncio]/[trio] variants (unlike pytest.mark.skipif which
+    evaluates at collection time before the backend is known).
+
+    For sync functions this is a no-op — they never run under an async backend.
+    """
+    import inspect
+
+    import sniffio
+
+    def decorator(func):
+        if not inspect.iscoroutinefunction(func):
+            return func
+
+        @functools.wraps(func)
+        async def wrapper(*args, **kwargs):
+            if sniffio.current_async_library() == backend:
+                pytest.skip(f"Test not compatible with {backend} async backend.")
+            return await func(*args, **kwargs)
+
+        return wrapper
+
+    return decorator
 
 
 def skip_if_trio(func):
@@ -396,13 +551,32 @@ def identity_solver(arg: int = 0):
 
 
 def ensure_test_package_installed():
-    try:
-        clear_entry_points_state()
-        import inspect_package  # type: ignore # noqa: F401
-    except ImportError:
-        subprocess.check_call(
-            [sys.executable, "-m", "pip", "install", "--no-deps", "tests/test_package"]
-        )
+    lock_path = Path(tempfile.gettempdir()) / "inspect-test-package-install.lock"
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    with lock_path.open("w") as lock_file:
+        if os.name == "posix":
+            import fcntl
+
+            fcntl.flock(lock_file, fcntl.LOCK_EX)
+        try:
+            clear_entry_points_state()
+            if importlib.util.find_spec("inspect_package") is None:
+                raise ImportError
+        except ImportError:
+            subprocess.check_call(
+                [
+                    sys.executable,
+                    "-m",
+                    "pip",
+                    "install",
+                    "--no-deps",
+                    "tests/test_package",
+                ]
+            )
+        finally:
+            if os.name == "posix":
+                fcntl.flock(lock_file, fcntl.LOCK_UN)
+    ensure_entry_points("inspect_package")
 
 
 @contextlib.contextmanager
@@ -418,3 +592,19 @@ def keyboard_interrupt(seconds: int) -> Generator[None, None, None]:
     finally:
         signal.alarm(0)
         signal.signal(signal.SIGALRM, original_handler)
+
+
+async def register_adaptive_controller(
+    name: str = "openai/gpt-4", max: int = 100, start: int = 50
+) -> AdaptiveConcurrencyController:
+    """Register an adaptive connection controller in the concurrency registry.
+
+    Mirrors what a model's first generate does, so control-channel and
+    adaptive-connections tests can exercise controller-backed paths without a
+    real model. Caller is responsible for registry reset (init_concurrency).
+    """
+    ctrl = await get_or_create_semaphore(
+        name, 10, None, True, AdaptiveConcurrency(min=1, max=max, start=start)
+    )
+    assert isinstance(ctrl, AdaptiveConcurrencyController)
+    return ctrl

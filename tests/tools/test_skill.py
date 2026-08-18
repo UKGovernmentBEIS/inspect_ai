@@ -32,6 +32,32 @@ description: {description}
 """
 
 
+class TestSkillNameUniqueness:
+    def test_duplicate_names_in_skill_tool(self) -> None:
+        """skill() rejects duplicate skill names."""
+        sk1 = Skill(name="pdf", description="First.", instructions="1.")
+        sk2 = Skill(name="pdf", description="Second.", instructions="2.")
+        with pytest.raises(ValueError, match="Duplicate skill name"):
+            skill([sk1, sk2])
+
+    async def test_duplicate_names_in_install_skills(self) -> None:
+        """install_skills() rejects duplicate skill names before sandbox setup."""
+        from inspect_ai.tool._tools._skill.install import install_skills
+
+        sk1 = Skill(name="pdf", description="First.", instructions="1.")
+        sk2 = Skill(name="pdf", description="Second.", instructions="2.")
+        # Should fail with ValueError, not ProcessLookupError (no sandbox)
+        with pytest.raises(ValueError, match="Duplicate skill name"):
+            await install_skills([sk1, sk2])
+
+    def test_unique_names_accepted(self) -> None:
+        """skill() accepts unique skill names."""
+        sk1 = Skill(name="pdf", description="PDF.", instructions="1.")
+        sk2 = Skill(name="xlsx", description="Excel.", instructions="2.")
+        tool = skill([sk1, sk2])
+        assert tool is not None
+
+
 class TestSkillParsing:
     def test_valid_skill_minimal(self, tmp_path: Path) -> None:
         """Test parsing a valid skill with only SKILL.md."""
@@ -497,7 +523,7 @@ def test_skill_end_to_end() -> None:
 
     result = eval(
         task,
-        model="openai/gpt-5.1-codex",
+        model="openai/gpt-5.3-codex",
     )[0]
 
     assert result.status == "success", f"Eval failed with status: {result.status}"

@@ -1,11 +1,20 @@
 from datetime import datetime, timezone
+from pathlib import Path
 
+import pytest
 from test_helpers.utils import run_example
 
 from inspect_ai import Task, eval
 from inspect_ai.dataset import Sample
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.log import EvalSample
+from inspect_ai.model import (
+    CachePolicy,
+    ChatMessageUser,
+    GenerateConfig,
+    ModelOutput,
+)
+from inspect_ai.model._cache import CacheEntry, cache_fetch, cache_store
 from inspect_ai.solver import generate
 
 
@@ -14,7 +23,13 @@ def test_cache_examples():
     assert all(log.status == "success" for log in logs)
 
 
-def test_cache():
+def test_cache(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    # The miss-then-hit assertion below requires a cache no other test can
+    # touch: under pytest-xdist a concurrent worker (e.g. test_cache_examples
+    # exercising expiry policies) can evict entries from the shared cache dir
+    # between the two evals.
+    monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path))
+
     # helper to check for cache hit
     def sample_cache_hit(sample: EvalSample) -> bool:
         return (
@@ -42,3 +57,39 @@ def test_cache():
     # first eval should miss the cache and the second should hit it
     check_eval_with_cache(False)
     check_eval_with_cache(True)
+
+
+def test_cache_skips_content_filter(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path))
+
+    def cache_entry() -> CacheEntry:
+        return CacheEntry(
+            base_url=None,
+            config=GenerateConfig(),
+            input=[ChatMessageUser(content="Hello")],
+            model="mockllm/model",
+            policy=CachePolicy(),
+            tool_choice=None,
+            tools=[],
+        )
+
+    # a content_filter refusal is not stored (a cached refusal would be
+    # replayed on every refusal-retry with identical inputs)
+    refusal = ModelOutput.from_content(
+        model="mockllm/model", content="refused", stop_reason="content_filter"
+    )
+    assert cache_store(entry=cache_entry(), output=refusal) is False
+    assert cache_fetch(cache_entry()) is None
+
+    # other non-"stop" reasons still cache (the guard is content_filter-specific)
+    truncated = ModelOutput.from_content(
+        model="mockllm/model", content="partial", stop_reason="max_tokens"
+    )
+    assert cache_store(entry=cache_entry(), output=truncated) is True
+
+    # a normal completion under the same key is stored and fetched
+    completion = ModelOutput.from_content(model="mockllm/model", content="Hi")
+    assert cache_store(entry=cache_entry(), output=completion) is True
+    fetched = cache_fetch(cache_entry())
+    assert fetched is not None
+    assert fetched.completion == "Hi"

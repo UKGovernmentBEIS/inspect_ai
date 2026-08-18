@@ -1,15 +1,20 @@
+import json
+
 from test_helpers.utils import skip_if_no_openai
 
 from inspect_ai import Task, eval
+from inspect_ai._util.constants import NO_CONTENT
 from inspect_ai._util.content import ContentReasoning, ContentText
 from inspect_ai.dataset import Sample
-from inspect_ai.model import GenerateConfig, get_model
+from inspect_ai.model import GenerateConfig, ModelOutput, get_model
 from inspect_ai.model._chat_message import ChatMessageAssistant
 from inspect_ai.model._openai_responses import (
+    MESSAGE_ID,
+    MESSAGE_PHASE,
     _openai_input_items_from_chat_message_assistant,
 )
 from inspect_ai.model._providers.openai_compatible import ModelInfo
-from inspect_ai.solver import generate, user_message
+from inspect_ai.solver import generate, use_tools, user_message
 
 
 def get_responses_model(config: GenerateConfig = GenerateConfig()):
@@ -67,37 +72,163 @@ def test_openai_responses_no_store():
     assert log.status == "success"
 
 
-def test_multiple_consecutive_reasoning_blocks_filtering():
-    """Test that multiple consecutive ContentReasoning blocks are all preserved."""
+@skip_if_no_openai
+async def test_openai_responses_metadata_round_trip():
+    """Request metadata sent via extra_body is echoed back as ModelOutput.metadata."""
+    model = get_responses_model(
+        config=GenerateConfig(
+            max_tokens=50,
+            extra_body={"metadata": {"foo": "bar"}},
+        )
+    )
+    output = await model.generate("This is a test string. What are you?")
+    assert output.metadata == {"foo": "bar"}
 
-    class O1EarlyModelInfo(ModelInfo):
-        def is_o1_early(self):
-            return True
 
-    message = ChatMessageAssistant(
-        content=[
-            ContentText(text="First text"),
-            ContentReasoning(reasoning="First reasoning", signature="r1"),
-            ContentReasoning(reasoning="Second reasoning", signature="r2"),
-            ContentReasoning(reasoning="Third reasoning", signature="r3"),
-            ContentText(text="Second text"),
-        ],
-        model="test",
-        source="generate",
+def test_image_generation_call_output():
+    """Test that ImageGenerationCall produces ContentImage."""
+    from openai.types.responses.response_output_item import ImageGenerationCall
+
+    from inspect_ai._util.content import ContentImage
+    from inspect_ai.model._openai_responses import _process_response_output_items
+
+    outputs = [
+        ImageGenerationCall(
+            id="img_123",
+            result="base64encodeddata",
+            status="completed",
+            type="image_generation_call",
+        )
+    ]
+    content, tool_calls, logprobs, has_tool_calls = _process_response_output_items(
+        outputs, []
+    )
+    assert len(content) == 1
+    assert isinstance(content[0], ContentImage)
+    assert "base64,base64encodeddata" in content[0].image
+
+
+def test_image_generation_call_incomplete():
+    """Test that incomplete ImageGenerationCall produces no content."""
+    from openai.types.responses.response_output_item import ImageGenerationCall
+
+    from inspect_ai.model._openai_responses import _process_response_output_items
+
+    outputs = [
+        ImageGenerationCall(
+            id="img_456",
+            result=None,
+            status="in_progress",
+            type="image_generation_call",
+        )
+    ]
+    content, tool_calls, logprobs, has_tool_calls = _process_response_output_items(
+        outputs, []
+    )
+    assert len(content) == 0
+
+
+def test_oversized_tool_call_arguments_truncated_for_replay():
+    """Oversized arguments are truncated in the verbatim replay cache.
+
+    OpenAI rejects input `arguments` strings longer than 1,048,576 chars
+    (it imposes no such limit on output), so caching an oversized string
+    verbatim would 400 every subsequent request.
+    """
+    from openai.types.responses import ResponseFunctionToolCall
+
+    from inspect_ai.model._assistant_internal import init_sample_assistant_internal
+    from inspect_ai.model._openai_responses import (
+        _MAX_FUNCTION_CALL_ARGUMENTS,
+        _process_response_output_items,
+        _tool_call_items_from_assistant_message,
+        assistant_internal,
     )
 
-    # test that when using o-series we still collapse
-    items = _openai_input_items_from_chat_message_assistant(message, O1EarlyModelInfo())
-    reasoning_items = [item for item in items if item.get("type") == "reasoning"]
-    assert len(reasoning_items) == 1
-    assert reasoning_items[0]["id"] == "r3"
+    init_sample_assistant_internal()
 
-    # test that when not using o-series we don't collapse
-    items = _openai_input_items_from_chat_message_assistant(message)
-    reasoning_items = [item for item in items if item.get("type") == "reasoning"]
-    assert len(reasoning_items) == 3
-    ids = {item["id"] for item in reasoning_items}
-    assert ids == {"r1", "r2", "r3"}
+    raw_arguments = '{"command":"' + ("x" * 2_000_000) + '","}malformed'
+    outputs = [
+        ResponseFunctionToolCall(
+            type="function_call",
+            id="fc_1",
+            call_id="call_1",
+            name="bash",
+            arguments=raw_arguments,
+        )
+    ]
+    _content, tool_calls, _logprobs, has_tool_calls = _process_response_output_items(
+        outputs, []
+    )
+
+    assert has_tool_calls
+    assert tool_calls[0].parse_error is not None
+    assert tool_calls[0].arguments == {}
+    cached = assistant_internal().tool_calls["call_1"]
+    assert len(cached["arguments"]) <= _MAX_FUNCTION_CALL_ARGUMENTS
+
+    items = _tool_call_items_from_assistant_message(
+        ChatMessageAssistant(content="", tool_calls=tool_calls)
+    )
+    assert len(items[0]["arguments"]) <= _MAX_FUNCTION_CALL_ARGUMENTS
+
+
+def test_tool_call_arguments_within_limit_cached_verbatim():
+    from openai.types.responses import ResponseFunctionToolCall
+
+    from inspect_ai.model._assistant_internal import init_sample_assistant_internal
+    from inspect_ai.model._openai_responses import (
+        _process_response_output_items,
+        assistant_internal,
+    )
+
+    init_sample_assistant_internal()
+
+    raw_arguments = '{"command": "ls"}'
+    outputs = [
+        ResponseFunctionToolCall(
+            type="function_call",
+            id="fc_1",
+            call_id="call_1",
+            name="bash",
+            arguments=raw_arguments,
+        )
+    ]
+    _process_response_output_items(outputs, [])
+
+    assert assistant_internal().tool_calls["call_1"]["arguments"] == raw_arguments
+
+
+def test_oversized_tool_call_arguments_truncated_on_cache_miss():
+    """Valid-but-oversized arguments are truncated in the cache-miss fallback.
+
+    When a tool call isn't in the assistant_internal replay cache (e.g. a
+    message history constructed outside this sample), its arguments are
+    re-serialized from the parsed dict — which for valid oversized JSON
+    regenerates the oversized string.
+    """
+    from inspect_ai.model._assistant_internal import init_sample_assistant_internal
+    from inspect_ai.model._openai_responses import (
+        _MAX_FUNCTION_CALL_ARGUMENTS,
+        _tool_call_items_from_assistant_message,
+    )
+    from inspect_ai.tool._tool_call import ToolCall
+
+    init_sample_assistant_internal()
+
+    message = ChatMessageAssistant(
+        content="",
+        tool_calls=[
+            ToolCall(
+                id="call_1",
+                function="bash",
+                arguments={"command": "x" * 2_000_000},
+            )
+        ],
+    )
+    items = _tool_call_items_from_assistant_message(message)
+
+    assert len(items[0]["arguments"]) <= _MAX_FUNCTION_CALL_ARGUMENTS
 
 
 def test_non_consecutive_reasoning_blocks_filtering():
@@ -144,6 +275,201 @@ def test_mixed_reasoning_blocks_filtering():
     assert ids == {"r1", "r2", "r3", "r4", "r5"}
 
 
+async def test_responses_api_invalid_prompt_content_filter():
+    """Test that invalid_prompt error in responses API returns content_filter."""
+    from unittest.mock import AsyncMock, MagicMock
+
+    from openai._types import NOT_GIVEN
+    from openai.types.responses import Response, ResponseError
+
+    from inspect_ai.model._providers.openai_responses import generate_responses
+    from inspect_ai.model._providers.util.hooks import HttpxHooks
+
+    # Create a mock Response with an invalid_prompt error
+    mock_response = Response.model_construct(
+        id="resp_test",
+        created_at=0.0,
+        model="gpt-4o",
+        object="response",
+        output=[],
+        tools=[],
+        error=ResponseError(
+            code="invalid_prompt",
+            message="Prompt was blocked by content filter",
+        ),
+        status="failed",
+    )
+
+    # Mock the client
+    client = MagicMock()
+    client.responses = MagicMock()
+    client.responses.create = AsyncMock(return_value=mock_response)
+
+    # Mock http_hooks
+    http_hooks = MagicMock(spec=HttpxHooks)
+    http_hooks.start_request = MagicMock(return_value="req_1")
+    http_hooks.end_request = MagicMock(return_value=None)
+
+    # Mock model_info
+    model_info = MagicMock()
+    model_info.is_o_series.return_value = False
+    model_info.is_gpt.return_value = True
+    model_info.is_gpt_5.return_value = False
+
+    result = await generate_responses(
+        client=client,
+        http_hooks=http_hooks,
+        model_name="gpt-4o",
+        input=[],
+        tools=[],
+        tool_choice=None,
+        config=GenerateConfig(),
+        background=None,
+        service_tier=None,
+        prompt_cache_key=NOT_GIVEN,
+        prompt_cache_retention=NOT_GIVEN,
+        safety_identifier=NOT_GIVEN,
+        responses_store=None,
+        synthesize_phase=False,
+        model_info=model_info,
+        batcher=None,
+    )
+    output, model_call = result
+    assert isinstance(output, ModelOutput)
+    assert output.stop_reason == "content_filter"
+    assert "blocked by content filter" in output.completion
+
+
+async def _generate_responses_with_mock(
+    mock_response,
+    config: GenerateConfig = GenerateConfig(),
+    background: bool | None = None,
+    capture_request: dict | None = None,
+):
+    """Run generate_responses() against a mocked client returning mock_response."""
+    from unittest.mock import AsyncMock, MagicMock
+
+    from openai._types import NOT_GIVEN
+
+    from inspect_ai.model._providers.openai_responses import generate_responses
+    from inspect_ai.model._providers.util.hooks import HttpxHooks
+
+    client = MagicMock()
+    client.responses = MagicMock()
+    client.responses.create = AsyncMock(return_value=mock_response)
+
+    http_hooks = MagicMock(spec=HttpxHooks)
+    http_hooks.start_request = MagicMock(return_value="req_1")
+    http_hooks.end_request = MagicMock(return_value=None)
+
+    model_info = MagicMock()
+    model_info.is_o_series.return_value = False
+    model_info.is_gpt.return_value = True
+    model_info.is_gpt_5.return_value = False
+
+    result = await generate_responses(
+        client=client,
+        http_hooks=http_hooks,
+        model_name="gpt-4o",
+        input=[],
+        tools=[],
+        tool_choice="auto",
+        config=config,
+        background=background,
+        service_tier=None,
+        prompt_cache_key=NOT_GIVEN,
+        prompt_cache_retention=NOT_GIVEN,
+        safety_identifier=NOT_GIVEN,
+        responses_store=None,
+        synthesize_phase=False,
+        model_info=model_info,
+        batcher=None,
+    )
+    if capture_request is not None:
+        capture_request.update(client.responses.create.call_args.kwargs)
+    return result
+
+
+async def test_responses_api_metadata_surfaced():
+    """Response-level metadata is surfaced as ModelOutput.metadata."""
+    from openai.types.responses import Response
+
+    mock_response = Response.model_construct(
+        id="resp_test",
+        created_at=0.0,
+        model="gpt-4o",
+        object="response",
+        output=[],
+        tools=[],
+        metadata={"safeguards": "flagged"},
+        status="completed",
+    )
+    output, _ = await _generate_responses_with_mock(mock_response)
+    assert isinstance(output, ModelOutput)
+    assert output.metadata == {"safeguards": "flagged"}
+
+
+async def test_responses_api_no_metadata():
+    """ModelOutput.metadata is None when the response carries no metadata."""
+    from openai.types.responses import Response
+
+    mock_response = Response.model_construct(
+        id="resp_test",
+        created_at=0.0,
+        model="gpt-4o",
+        object="response",
+        output=[],
+        tools=[],
+        status="completed",
+    )
+    output, _ = await _generate_responses_with_mock(mock_response)
+    assert isinstance(output, ModelOutput)
+    assert output.metadata is None
+
+
+def _completed_mock_response():
+    from openai.types.responses import Response
+
+    return Response.model_construct(
+        id="resp_test",
+        created_at=0.0,
+        model="gpt-5.6-sol",
+        object="response",
+        output=[],
+        tools=[],
+        status="completed",
+    )
+
+
+async def test_responses_api_pro_mode_defaults_to_background() -> None:
+    request: dict = {}
+    await _generate_responses_with_mock(
+        _completed_mock_response(),
+        config=GenerateConfig(reasoning_mode="pro"),
+        capture_request=request,
+    )
+    assert request["background"] is True
+
+
+async def test_responses_api_pro_mode_respects_explicit_background() -> None:
+    request: dict = {}
+    await _generate_responses_with_mock(
+        _completed_mock_response(),
+        config=GenerateConfig(reasoning_mode="pro"),
+        background=False,
+        capture_request=request,
+    )
+    assert request["background"] is False
+
+
+async def test_responses_api_no_background_by_default() -> None:
+    request: dict = {}
+    await _generate_responses_with_mock(
+        _completed_mock_response(), capture_request=request
+    )
+    assert "background" not in request
+
+
 def test_fix_function_tool_parameters_string_to_dict():
     """Test that string parameters in FunctionTool are parsed to dicts."""
     from openai.types.responses import FunctionTool, Response
@@ -173,3 +499,1511 @@ def test_fix_function_tool_parameters_string_to_dict():
 
     dumped = response.model_dump()
     assert dumped["tools"][0]["parameters"] == {"type": "object", "properties": {}}
+
+
+def test_chat_messages_from_compact_response():
+    """Test that chat_messages_from_compact_response correctly converts compaction response."""
+    from openai.types.responses import CompactedResponse, ResponseCompactionItem
+    from openai.types.responses.response_usage import (
+        InputTokensDetails,
+        OutputTokensDetails,
+        ResponseUsage,
+    )
+
+    from inspect_ai._util.content import ContentData
+    from inspect_ai.model._chat_message import ChatMessageUser
+    from inspect_ai.model._openai_responses import chat_messages_from_compact_response
+
+    # Create a mock CompactedResponse with a ResponseCompactionItem
+    compaction_item = ResponseCompactionItem(
+        id="comp_123",
+        encrypted_content="encrypted_data_here",
+        type="compaction",
+    )
+
+    response = CompactedResponse(
+        id="resp_abc",
+        created_at=1234567890,
+        object="response.compaction",
+        output=[compaction_item],
+        usage=ResponseUsage(
+            input_tokens=100,
+            output_tokens=50,
+            total_tokens=150,
+            input_tokens_details=InputTokensDetails(
+                cached_tokens=0, cache_write_tokens=0
+            ),
+            output_tokens_details=OutputTokensDetails(reasoning_tokens=0),
+        ),
+    )
+
+    result = chat_messages_from_compact_response(response)
+
+    # Verify the result is a list with a single ChatMessageUser
+    assert len(result) == 1
+    assert isinstance(result[0], ChatMessageUser)
+
+    # Verify the content has the compaction metadata
+    content = result[0].content
+    assert isinstance(content, list)
+    assert len(content) == 1
+    assert isinstance(content[0], ContentData)
+
+    metadata = content[0].data
+    assert metadata["compaction_metadata"]["type"] == "openai_compact"
+    assert metadata["compaction_metadata"]["id"] == "comp_123"
+    assert metadata["compaction_metadata"]["encrypted_content"] == "encrypted_data_here"
+
+
+def test_chat_messages_from_compact_response_no_compaction_item():
+    """Test that chat_messages_from_compact_response raises on missing compaction item."""
+    import pytest
+    from openai.types.responses import CompactedResponse
+    from openai.types.responses.response_usage import (
+        InputTokensDetails,
+        OutputTokensDetails,
+        ResponseUsage,
+    )
+
+    from inspect_ai.model._openai_responses import chat_messages_from_compact_response
+
+    # Create a CompactedResponse without a ResponseCompactionItem
+    response = CompactedResponse(
+        id="resp_abc",
+        created_at=1234567890,
+        object="response.compaction",
+        output=[],  # No compaction item
+        usage=ResponseUsage(
+            input_tokens=100,
+            output_tokens=50,
+            total_tokens=150,
+            input_tokens_details=InputTokensDetails(
+                cached_tokens=0, cache_write_tokens=0
+            ),
+            output_tokens_details=OutputTokensDetails(reasoning_tokens=0),
+        ),
+    )
+
+    with pytest.raises(ValueError, match="No ResponseCompactionItem found"):
+        chat_messages_from_compact_response(response)
+
+
+def test_model_usage_from_compact_response():
+    """Test that model_usage_from_compact_response correctly extracts usage."""
+    from openai.types.responses import CompactedResponse, ResponseCompactionItem
+    from openai.types.responses.response_usage import (
+        InputTokensDetails,
+        OutputTokensDetails,
+        ResponseUsage,
+    )
+
+    from inspect_ai.model._openai_responses import model_usage_from_compact_response
+
+    compaction_item = ResponseCompactionItem(
+        id="comp_123",
+        encrypted_content="encrypted_data_here",
+        type="compaction",
+    )
+
+    response = CompactedResponse(
+        id="resp_abc",
+        created_at=1234567890,
+        object="response.compaction",
+        output=[compaction_item],
+        usage=ResponseUsage(
+            input_tokens=100,
+            output_tokens=50,
+            total_tokens=150,
+            input_tokens_details=InputTokensDetails(
+                cached_tokens=0, cache_write_tokens=0
+            ),
+            output_tokens_details=OutputTokensDetails(reasoning_tokens=0),
+        ),
+    )
+
+    usage = model_usage_from_compact_response(response)
+
+    assert usage is not None
+    assert usage.input_tokens == 100
+    assert usage.output_tokens == 50
+    assert usage.total_tokens == 150
+
+
+def test_extract_compaction_from_content_data():
+    """Test that compaction metadata is correctly extracted from ContentData."""
+    from inspect_ai._util.content import ContentData, ContentText
+    from inspect_ai.model._openai_responses import _extract_compaction_from_content_data
+
+    # Test with compaction metadata
+    content_with_compaction = [
+        ContentText(text="Some text"),
+        ContentData(
+            data={
+                "compaction_metadata": {
+                    "type": "openai_compact",
+                    "id": "comp_456",
+                    "encrypted_content": "encrypted_stuff",
+                }
+            }
+        ),
+    ]
+
+    result = _extract_compaction_from_content_data(content_with_compaction)
+    assert result is not None
+    assert result["type"] == "compaction"
+    assert result["id"] == "comp_456"
+    assert result["encrypted_content"] == "encrypted_stuff"
+
+
+def test_extract_compaction_from_content_data_no_compaction():
+    """Test that None is returned when no compaction metadata present."""
+    from inspect_ai._util.content import ContentText
+    from inspect_ai.model._openai_responses import _extract_compaction_from_content_data
+
+    # Test without compaction metadata
+    content_without_compaction = [
+        ContentText(text="Some text"),
+    ]
+
+    result = _extract_compaction_from_content_data(content_without_compaction)
+    assert result is None
+
+    # Test with string content
+    result = _extract_compaction_from_content_data("Just a string")
+    assert result is None
+
+
+def test_chat_messages_from_compact_response_mixed_items():
+    """Test that chat_messages_from_compact_response handles mixed items correctly."""
+    from openai.types.responses import (
+        CompactedResponse,
+        ResponseCompactionItem,
+        ResponseOutputMessage,
+        ResponseOutputText,
+    )
+    from openai.types.responses.response_usage import (
+        InputTokensDetails,
+        OutputTokensDetails,
+        ResponseUsage,
+    )
+
+    from inspect_ai._util.content import ContentData
+    from inspect_ai.model._chat_message import ChatMessageAssistant, ChatMessageUser
+    from inspect_ai.model._openai_responses import chat_messages_from_compact_response
+
+    # Create a CompactedResponse with compaction item followed by an output message
+    compaction_item = ResponseCompactionItem(
+        id="comp_123",
+        encrypted_content="encrypted_data_here",
+        type="compaction",
+    )
+
+    output_message = ResponseOutputMessage(
+        id="msg_456",
+        type="message",
+        role="assistant",
+        status="completed",
+        content=[
+            ResponseOutputText(
+                type="output_text", text="Recent response", annotations=[]
+            )
+        ],
+    )
+
+    response = CompactedResponse(
+        id="resp_abc",
+        created_at=1234567890,
+        object="response.compaction",
+        output=[compaction_item, output_message],
+        usage=ResponseUsage(
+            input_tokens=100,
+            output_tokens=50,
+            total_tokens=150,
+            input_tokens_details=InputTokensDetails(
+                cached_tokens=0, cache_write_tokens=0
+            ),
+            output_tokens_details=OutputTokensDetails(reasoning_tokens=0),
+        ),
+    )
+
+    result = chat_messages_from_compact_response(response, model="codex-mini")
+
+    # Verify we get two messages in order: compaction user message, then assistant message
+    assert len(result) == 2
+
+    # First message should be the compaction metadata
+    assert isinstance(result[0], ChatMessageUser)
+    content = result[0].content
+    assert isinstance(content, list)
+    assert isinstance(content[0], ContentData)
+    assert content[0].data["compaction_metadata"]["id"] == "comp_123"
+
+    # Second message should be the assistant message with model and source set
+    assert isinstance(result[1], ChatMessageAssistant)
+    assert result[1].text == "Recent response"
+    assert result[1].model == "codex-mini"
+    assert result[1].source == "generate"
+
+
+def test_chat_messages_from_compact_response_developer_and_user_messages():
+    """Test that developer messages are stripped and user messages are preserved."""
+    from openai.types.responses import (
+        CompactedResponse,
+        ResponseCompactionItem,
+        ResponseOutputMessage,
+        ResponseOutputText,
+    )
+    from openai.types.responses.response_usage import (
+        InputTokensDetails,
+        OutputTokensDetails,
+        ResponseUsage,
+    )
+
+    from inspect_ai._util.content import ContentData, ContentText
+    from inspect_ai.model._chat_message import ChatMessageUser
+    from inspect_ai.model._openai_responses import chat_messages_from_compact_response
+
+    # Create a compact response matching real API output:
+    # developer message, user messages, then compaction item.
+    # Use model_construct to bypass Pydantic validation since the SDK types
+    # restrict role to Literal["assistant"], but the real API returns
+    # developer/user roles in compact responses.
+    developer_msg = ResponseOutputMessage.model_construct(
+        id="msg_dev",
+        type="message",
+        role="developer",
+        status="completed",
+        content=[
+            ResponseOutputText(
+                type="output_text", text="You are a helpful assistant.", annotations=[]
+            )
+        ],
+    )
+
+    user_msg1 = ResponseOutputMessage.model_construct(
+        id="msg_user1",
+        type="message",
+        role="user",
+        status="completed",
+        content=[
+            ResponseOutputText(type="output_text", text="Hello there", annotations=[])
+        ],
+    )
+
+    user_msg2 = ResponseOutputMessage.model_construct(
+        id="msg_user2",
+        type="message",
+        role="user",
+        status="completed",
+        content=[
+            ResponseOutputText(type="output_text", text="How are you?", annotations=[])
+        ],
+    )
+
+    compaction_item = ResponseCompactionItem(
+        id="comp_123",
+        encrypted_content="encrypted_data_here",
+        type="compaction",
+    )
+
+    response = CompactedResponse(
+        id="resp_abc",
+        created_at=1234567890,
+        object="response.compaction",
+        output=[developer_msg, user_msg1, user_msg2, compaction_item],
+        usage=ResponseUsage(
+            input_tokens=100,
+            output_tokens=50,
+            total_tokens=150,
+            input_tokens_details=InputTokensDetails(
+                cached_tokens=0, cache_write_tokens=0
+            ),
+            output_tokens_details=OutputTokensDetails(reasoning_tokens=0),
+        ),
+    )
+
+    result = chat_messages_from_compact_response(response)
+
+    # Developer message should be stripped, user messages preserved,
+    # compaction item becomes ContentData
+    assert len(result) == 3
+
+    # First two should be user messages
+    assert isinstance(result[0], ChatMessageUser)
+    assert isinstance(result[0].content, list)
+    assert isinstance(result[0].content[0], ContentText)
+    assert result[0].content[0].text == "Hello there"
+
+    assert isinstance(result[1], ChatMessageUser)
+    assert isinstance(result[1].content, list)
+    assert isinstance(result[1].content[0], ContentText)
+    assert result[1].content[0].text == "How are you?"
+
+    # Last should be compaction metadata
+    assert isinstance(result[2], ChatMessageUser)
+    assert isinstance(result[2].content, list)
+    assert isinstance(result[2].content[0], ContentData)
+    assert result[2].content[0].data["compaction_metadata"]["id"] == "comp_123"
+
+
+def test_chat_messages_from_compact_response_mixed_roles():
+    """Test compact response with developer, user, compaction, and assistant items."""
+    from openai.types.responses import (
+        CompactedResponse,
+        ResponseCompactionItem,
+        ResponseOutputMessage,
+        ResponseOutputText,
+    )
+    from openai.types.responses.response_usage import (
+        InputTokensDetails,
+        OutputTokensDetails,
+        ResponseUsage,
+    )
+
+    from inspect_ai._util.content import ContentData, ContentText
+    from inspect_ai.model._chat_message import (
+        ChatMessageAssistant,
+        ChatMessageUser,
+    )
+    from inspect_ai.model._openai_responses import chat_messages_from_compact_response
+
+    # Use model_construct for developer/user roles (see note in previous test)
+    developer_msg = ResponseOutputMessage.model_construct(
+        id="msg_dev",
+        type="message",
+        role="developer",
+        status="completed",
+        content=[
+            ResponseOutputText(type="output_text", text="System prompt", annotations=[])
+        ],
+    )
+
+    user_msg = ResponseOutputMessage.model_construct(
+        id="msg_user",
+        type="message",
+        role="user",
+        status="completed",
+        content=[
+            ResponseOutputText(type="output_text", text="User question", annotations=[])
+        ],
+    )
+
+    compaction_item = ResponseCompactionItem(
+        id="comp_456",
+        encrypted_content="encrypted_stuff",
+        type="compaction",
+    )
+
+    assistant_msg = ResponseOutputMessage(
+        id="msg_asst",
+        type="message",
+        role="assistant",
+        status="completed",
+        content=[
+            ResponseOutputText(
+                type="output_text", text="Assistant reply", annotations=[]
+            )
+        ],
+    )
+
+    response = CompactedResponse(
+        id="resp_xyz",
+        created_at=1234567890,
+        object="response.compaction",
+        output=[developer_msg, user_msg, compaction_item, assistant_msg],
+        usage=ResponseUsage(
+            input_tokens=200,
+            output_tokens=100,
+            total_tokens=300,
+            input_tokens_details=InputTokensDetails(
+                cached_tokens=0, cache_write_tokens=0
+            ),
+            output_tokens_details=OutputTokensDetails(reasoning_tokens=0),
+        ),
+    )
+
+    result = chat_messages_from_compact_response(response, model="gpt-4o")
+
+    # developer stripped, user -> ChatMessageUser, compaction -> ContentData,
+    # assistant -> ChatMessageAssistant
+    assert len(result) == 3
+
+    # User message
+    assert isinstance(result[0], ChatMessageUser)
+    assert isinstance(result[0].content, list)
+    assert isinstance(result[0].content[0], ContentText)
+    assert result[0].content[0].text == "User question"
+
+    # Compaction metadata
+    assert isinstance(result[1], ChatMessageUser)
+    assert isinstance(result[1].content, list)
+    assert isinstance(result[1].content[0], ContentData)
+    assert result[1].content[0].data["compaction_metadata"]["id"] == "comp_456"
+
+    # Assistant message
+    assert isinstance(result[2], ChatMessageAssistant)
+    assert result[2].text == "Assistant reply"
+    assert result[2].model == "gpt-4o"
+    assert result[2].source == "generate"
+
+
+def test_phase_round_trip():
+    """Test that the phase field from Codex models is preserved through round-trip."""
+    # Create a message with phase stored in ContentText.internal
+    message = ChatMessageAssistant(
+        content=[
+            ContentText(
+                text="Working on it...",
+                internal={MESSAGE_ID: "msg_1", MESSAGE_PHASE: "commentary"},
+            ),
+            ContentText(
+                text="Here is the answer.",
+                internal={MESSAGE_ID: "msg_2", MESSAGE_PHASE: "final_answer"},
+            ),
+        ],
+        model="test",
+        source="generate",
+    )
+
+    items = _openai_input_items_from_chat_message_assistant(message)
+
+    # Should produce two message items (different message IDs)
+    message_items = [item for item in items if item.get("type") == "message"]
+    assert len(message_items) == 2
+
+    # First message should have phase="commentary"
+    assert message_items[0]["phase"] == "commentary"
+    assert message_items[0]["content"][0]["text"] == "Working on it..."
+
+    # Second message should have phase="final_answer"
+    assert message_items[1]["phase"] == "final_answer"
+    assert message_items[1]["content"][0]["text"] == "Here is the answer."
+
+
+def test_phase_round_trip_no_phase():
+    """Test that messages without phase don't get a phase field."""
+    message = ChatMessageAssistant(
+        content=[
+            ContentText(
+                text="Hello",
+                internal={MESSAGE_ID: "msg_1"},
+            ),
+        ],
+        model="test",
+        source="generate",
+    )
+
+    items = _openai_input_items_from_chat_message_assistant(message)
+    message_items = [item for item in items if item.get("type") == "message"]
+    assert len(message_items) == 1
+    assert "phase" not in message_items[0]
+
+
+def test_phase_round_trip_mixed():
+    """Test messages where some have phase and some don't."""
+    message = ChatMessageAssistant(
+        content=[
+            ContentText(
+                text="No phase here",
+                internal={MESSAGE_ID: "msg_1"},
+            ),
+            ContentText(
+                text="Has phase",
+                internal={MESSAGE_ID: "msg_2", MESSAGE_PHASE: "commentary"},
+            ),
+        ],
+        model="test",
+        source="generate",
+    )
+
+    items = _openai_input_items_from_chat_message_assistant(message)
+    message_items = [item for item in items if item.get("type") == "message"]
+    assert len(message_items) == 2
+
+    # First message: no phase
+    assert "phase" not in message_items[0]
+
+    # Second message: has phase
+    assert message_items[1]["phase"] == "commentary"
+
+
+def test_phase_synthesis_final_answer_opt_in():
+    """Test opt-in synthesis for assistant messages without tool calls."""
+    message = ChatMessageAssistant(
+        content=[ContentText(text="Here is the answer.")],
+        model="test",
+        source="generate",
+    )
+
+    items = _openai_input_items_from_chat_message_assistant(
+        message, synthesize_phase=True
+    )
+    message_items = [item for item in items if item.get("type") == "message"]
+
+    assert len(message_items) == 1
+    assert message_items[0]["phase"] == "final_answer"
+
+
+def test_phase_synthesis_commentary_opt_in_for_tool_calls():
+    """Test opt-in synthesis for assistant messages with tool calls."""
+    from inspect_ai.tool._tool_call import ToolCall
+
+    message = ChatMessageAssistant(
+        content=[ContentText(text="I'll check that.")],
+        tool_calls=[
+            ToolCall(id="call_123", function="lookup", arguments={"query": "phase"})
+        ],
+        model="test",
+        source="generate",
+    )
+
+    items = _openai_input_items_from_chat_message_assistant(
+        message, synthesize_phase=True
+    )
+    message_items = [item for item in items if item.get("type") == "message"]
+
+    assert len(message_items) == 1
+    assert message_items[0]["phase"] == "commentary"
+
+
+def test_phase_synthesis_preserves_explicit_phase():
+    """Test phase synthesis doesn't overwrite existing phase metadata."""
+    message = ChatMessageAssistant(
+        content=[
+            ContentText(
+                text="Still working.",
+                internal={MESSAGE_ID: "msg_1", MESSAGE_PHASE: "commentary"},
+            )
+        ],
+        model="test",
+        source="generate",
+    )
+
+    items = _openai_input_items_from_chat_message_assistant(
+        message, synthesize_phase=True
+    )
+    message_items = [item for item in items if item.get("type") == "message"]
+
+    assert len(message_items) == 1
+    assert message_items[0]["phase"] == "commentary"
+
+
+async def test_openai_responses_phase_model_arg():
+    """Test responses_phase is an OpenAI model arg, not an SDK arg."""
+    from inspect_ai.model._providers.openai import OpenAIAPI
+
+    api = OpenAIAPI(
+        "gpt-4o",
+        api_key="test-key",
+        responses_api=True,
+        responses_phase=True,
+    )
+    try:
+        assert api.responses_phase is True
+        assert "responses_phase" not in api.model_args
+    finally:
+        await api.aclose()
+
+
+def test_web_search_to_tool_use_handles_missing_action() -> None:
+    """Ensure missing web search action does not break tool-use conversion."""
+    from openai.types.responses import ResponseFunctionWebSearch
+
+    from inspect_ai.model._openai_responses import web_search_to_tool_use
+
+    web_search = ResponseFunctionWebSearch.model_construct(
+        type="web_search_call",
+        id="ws_missing_action",
+        action=None,
+        status="completed",
+    )
+
+    content = web_search_to_tool_use(web_search)
+
+    assert content.tool_type == "web_search"
+    assert content.id == "ws_missing_action"
+    assert content.name == "search"
+    assert json.loads(content.arguments) == {"type": "search", "query": ""}
+
+
+def _make_mock_model_info():
+    from unittest.mock import MagicMock
+
+    model_info = MagicMock()
+    model_info.has_reasoning_options.return_value = False
+    model_info.reasoning_only_fallback.return_value = False
+    model_info.is_gpt.return_value = True
+    model_info.is_gpt_5.return_value = False
+    model_info.is_gpt_5_plus.return_value = False
+    model_info.is_gpt_5_pro.return_value = False
+    model_info.is_gpt_5_chat.return_value = False
+    model_info.is_o_series.return_value = False
+    model_info.is_o1.return_value = False
+    model_info.is_o3_mini.return_value = False
+    model_info.is_deep_research.return_value = False
+    model_info.is_codex.return_value = False
+    return model_info
+
+
+def test_completion_params_overrides_store_when_computer_tool_and_store_not_true():
+    from openai._types import NOT_GIVEN
+
+    from inspect_ai.model._generate_config import GenerateConfig
+    from inspect_ai.model._providers.openai_responses import (
+        completion_params_responses,
+    )
+
+    params = completion_params_responses(
+        "gpt-4o",
+        model_info=_make_mock_model_info(),
+        config=GenerateConfig(),
+        service_tier=None,
+        prompt_cache_key=NOT_GIVEN,
+        prompt_cache_retention=NOT_GIVEN,
+        safety_identifier=NOT_GIVEN,
+        responses_store=None,
+        tools=True,
+        tool_params=[],
+        has_computer_tool=True,
+    )
+    assert "store" not in params or params["store"] is not False
+
+
+def test_completion_params_no_error_when_computer_tool_and_store_true():
+    from openai._types import NOT_GIVEN
+
+    from inspect_ai.model._generate_config import GenerateConfig
+    from inspect_ai.model._providers.openai_responses import (
+        completion_params_responses,
+    )
+
+    # Should not raise
+    params = completion_params_responses(
+        "gpt-4o",
+        model_info=_make_mock_model_info(),
+        config=GenerateConfig(),
+        service_tier=None,
+        prompt_cache_key=NOT_GIVEN,
+        prompt_cache_retention=NOT_GIVEN,
+        safety_identifier=NOT_GIVEN,
+        responses_store=True,
+        tools=True,
+        tool_params=[],
+        has_computer_tool=True,
+    )
+    assert "store" not in params or params["store"] is not False
+
+
+def test_image_generation_round_trip():
+    """Test that an image generation call round-trips through assistant message → input items."""
+    from openai.types.responses.response_output_item import ImageGenerationCall
+
+    from inspect_ai._util.content import ContentImage
+    from inspect_ai.model._openai_responses import (
+        _openai_input_items_from_chat_message_assistant,
+        _process_response_output_items,
+        init_sample_openai_assistant_internal,
+    )
+
+    init_sample_openai_assistant_internal()
+
+    # Step 1: Model returns an image generation call
+    b64_data = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk"
+    image_call = ImageGenerationCall(
+        id="img_abc123",
+        result=b64_data,
+        status="completed",
+        type="image_generation_call",
+    )
+    content, tool_calls, logprobs, has_tool_calls = _process_response_output_items(
+        [image_call], []
+    )
+
+    # Verify the image was extracted as ContentImage
+    assert len(content) == 1
+    assert isinstance(content[0], ContentImage)
+    assert content[0].image == f"data:image/png;base64,{b64_data}"
+
+    # Step 2: Build an assistant message with the image content
+    assistant_msg = ChatMessageAssistant(
+        content=content,
+        model="gpt-4o",
+        source="generate",
+    )
+
+    # Step 3: Convert back to input items (simulating the next turn)
+    input_items = _openai_input_items_from_chat_message_assistant(assistant_msg)
+
+    # Verify the image is replayed as a user input_image message
+    image_items = [item for item in input_items if item.get("type") == "message"]
+    assert len(image_items) == 1
+    assert image_items[0]["role"] == "user"
+    img_content = image_items[0]["content"][0]
+    assert img_content["type"] == "input_image"
+    assert img_content["image_url"] == f"data:image/png;base64,{b64_data}"
+
+
+def test_image_generation_round_trip_with_text():
+    """Test round-trip when image is alongside text content."""
+    from openai.types.responses import ResponseOutputMessage, ResponseOutputText
+    from openai.types.responses.response_output_item import ImageGenerationCall
+
+    from inspect_ai._util.content import ContentImage, ContentText
+    from inspect_ai.model._openai_responses import (
+        _openai_input_items_from_chat_message_assistant,
+        _process_response_output_items,
+        init_sample_openai_assistant_internal,
+    )
+
+    init_sample_openai_assistant_internal()
+
+    # Model returns text output + image generation call
+    outputs = [
+        ResponseOutputMessage(
+            id="msg_001",
+            type="message",
+            role="assistant",
+            status="completed",
+            content=[
+                ResponseOutputText(
+                    type="output_text",
+                    text="Here is the image you requested:",
+                    annotations=[],
+                )
+            ],
+        ),
+        ImageGenerationCall(
+            id="img_xyz",
+            result="ZmFrZWltYWdl",
+            status="completed",
+            type="image_generation_call",
+        ),
+    ]
+    content, tool_calls, logprobs, has_tool_calls = _process_response_output_items(
+        outputs, []
+    )
+
+    # Should have text + image
+    texts = [c for c in content if isinstance(c, ContentText)]
+    images = [c for c in content if isinstance(c, ContentImage)]
+    assert len(texts) >= 1
+    assert len(images) == 1
+
+    # Build assistant message and convert back
+    assistant_msg = ChatMessageAssistant(
+        content=content,
+        model="gpt-4o",
+        source="generate",
+    )
+    input_items = _openai_input_items_from_chat_message_assistant(assistant_msg)
+
+    # Should have both an assistant message item and a user image message
+    message_items = [item for item in input_items if item.get("type") == "message"]
+    assistant_msgs = [m for m in message_items if m.get("role") == "assistant"]
+    image_msgs = [
+        m
+        for m in message_items
+        if m.get("role") == "user"
+        and any(c.get("type") == "input_image" for c in m.get("content", []))
+    ]
+    assert len(assistant_msgs) >= 1
+    assert len(image_msgs) == 1
+
+
+def test_openai_responses_tools_deduplicates_image_modalities():
+    """Multiple image entries should produce exactly one image_generation tool."""
+    from inspect_ai.model._generate_config import GenerateConfig, ImageOutput
+    from inspect_ai.model._openai_responses import openai_responses_tools
+
+    config = GenerateConfig(
+        modalities=[
+            "image",
+            ImageOutput(options={"openai": {"quality": "high", "size": "1024x1024"}}),
+        ]
+    )
+    tools = openai_responses_tools([], "gpt-4o", config)
+    image_tools = [t for t in tools if t["type"] == "image_generation"]
+    assert len(image_tools) == 1
+    # Should use the last ImageOutput's options
+    assert image_tools[0]["quality"] == "high"
+    assert image_tools[0]["size"] == "1024x1024"
+
+
+def test_openai_responses_tools_image_modality():
+    """Test that openai_responses_tools adds image_generation tool for image modality."""
+    from inspect_ai.model._generate_config import GenerateConfig, ImageOutput
+    from inspect_ai.model._openai_responses import openai_responses_tools
+
+    # Simple "image" string modality
+    config = GenerateConfig(modalities=["image"])
+    tools = openai_responses_tools([], "gpt-4o", config)
+    assert len(tools) == 1
+    assert tools[0]["type"] == "image_generation"
+
+    # ImageOutput with provider-specific options
+    config = GenerateConfig(
+        modalities=[
+            ImageOutput(
+                options={
+                    "openai": {
+                        "quality": "high",
+                        "size": "1024x1024",
+                        "background": "opaque",
+                    }
+                }
+            )
+        ]
+    )
+    tools = openai_responses_tools([], "gpt-4o", config)
+    assert len(tools) == 1
+    assert tools[0]["type"] == "image_generation"
+    assert tools[0]["quality"] == "high"
+    assert tools[0]["size"] == "1024x1024"
+    assert tools[0]["background"] == "opaque"
+
+    # No modalities → no image tool added
+    config = GenerateConfig()
+    tools = openai_responses_tools([], "gpt-4o", config)
+    assert len(tools) == 0
+
+
+def test_openai_responses_tools_regroups_namespace():
+    """ToolInfos carrying RESPONSES_NAMESPACE are re-grouped into a NamespaceToolParam."""
+    from inspect_ai.model._generate_config import GenerateConfig
+    from inspect_ai.model._openai_responses import (
+        RESPONSES_NAMESPACE,
+        openai_responses_tools,
+    )
+    from inspect_ai.tool._tool_info import ToolInfo
+
+    ns = ("multi_agent_v1", "Multi-agent orchestration tools")
+    tools = openai_responses_tools(
+        [
+            ToolInfo(name="exec_command", description="exec"),
+            ToolInfo(
+                name="spawn_agent",
+                description="spawn",
+                options={RESPONSES_NAMESPACE: ns},
+            ),
+            ToolInfo(
+                name="wait_agent",
+                description="wait",
+                options={RESPONSES_NAMESPACE: ns},
+            ),
+        ],
+        "gpt-5",
+        GenerateConfig(),
+    )
+
+    flat = [t for t in tools if t["type"] == "function"]
+    assert len(flat) == 1
+    assert flat[0]["name"] == "exec_command"
+
+    namespaces = [t for t in tools if t["type"] == "namespace"]
+    assert len(namespaces) == 1
+    assert namespaces[0]["name"] == "multi_agent_v1"
+    assert namespaces[0]["description"] == "Multi-agent orchestration tools"
+    inner = list(namespaces[0]["tools"])
+    assert [t["name"] for t in inner] == ["spawn_agent", "wait_agent"]
+    assert all(t["type"] == "function" for t in inner)
+
+
+def test_reasoning_only_fallback_enabled():
+    """When fallback is enabled and content is reasoning-only, NO_CONTENT text is appended."""
+    model_info = ModelInfo()  # default: has_reasoning_only_fallback() == True
+    message = ChatMessageAssistant(
+        content=[
+            ContentReasoning(reasoning="Some reasoning", signature="r1"),
+        ],
+        model="test",
+        source="generate",
+    )
+
+    items = _openai_input_items_from_chat_message_assistant(message, model_info)
+
+    message_items = [item for item in items if item.get("type") == "message"]
+    assert len(message_items) == 1
+    assert message_items[0]["content"][0]["text"] == NO_CONTENT
+
+
+def test_reasoning_only_fallback_not_triggered_with_text():
+    """Fallback does not trigger when there is real text content alongside reasoning."""
+    model_info = ModelInfo()
+    message = ChatMessageAssistant(
+        content=[
+            ContentReasoning(reasoning="Some reasoning", signature="r1"),
+            ContentText(text="Real output"),
+        ],
+        model="test",
+        source="generate",
+    )
+
+    items = _openai_input_items_from_chat_message_assistant(message, model_info)
+
+    message_items = [item for item in items if item.get("type") == "message"]
+    assert len(message_items) == 1
+    assert message_items[0]["content"][0]["text"] == "Real output"
+
+
+def test_reasoning_only_fallback_not_triggered_without_model_info():
+    """Fallback does not trigger when model_info is None."""
+    message = ChatMessageAssistant(
+        content=[
+            ContentReasoning(reasoning="Some reasoning", signature="r1"),
+        ],
+        model="test",
+        source="generate",
+    )
+
+    items = _openai_input_items_from_chat_message_assistant(message)
+
+    message_items = [item for item in items if item.get("type") == "message"]
+    assert len(message_items) == 0
+
+
+def test_reasoning_only_fallback_not_triggered_on_empty_content():
+    """Fallback does not trigger on empty content list."""
+    model_info = ModelInfo()
+    message = ChatMessageAssistant(
+        content=[],
+        model="test",
+        source="generate",
+    )
+
+    items = _openai_input_items_from_chat_message_assistant(message, model_info)
+
+    assert len(items) == 0
+
+
+def test_reasoning_only_fallback_not_triggered_with_tool_calls():
+    """Fallback does not trigger when reasoning + tool calls but no text."""
+    from inspect_ai.tool._tool_call import ToolCall
+
+    model_info = ModelInfo()
+    message = ChatMessageAssistant(
+        content=[
+            ContentReasoning(reasoning="Let me call the tool", signature="r1"),
+        ],
+        tool_calls=[
+            ToolCall(
+                id="call_123",
+                function="submit",
+                arguments={"answer": "42"},
+                type="function",
+            )
+        ],
+        model="test",
+        source="generate",
+    )
+
+    items = _openai_input_items_from_chat_message_assistant(message, model_info)
+
+    message_items = [item for item in items if item.get("type") == "message"]
+    assert len(message_items) == 0
+
+
+def _todo_write_tool_info():
+    from inspect_ai.tool._tool_def import ToolDef
+    from inspect_ai.tool._tool_info import ToolInfo
+    from inspect_ai.tool._tools._todo_write import todo_write
+
+    td = ToolDef(todo_write())
+    return ToolInfo(name=td.name, description=td.description, parameters=td.parameters)
+
+
+def _update_plan_tool_info():
+    from inspect_ai.tool._tool_def import ToolDef
+    from inspect_ai.tool._tool_info import ToolInfo
+    from inspect_ai.tool._tools._update_plan import update_plan
+
+    td = ToolDef(update_plan())
+    return ToolInfo(name=td.name, description=td.description, parameters=td.parameters)
+
+
+def test_should_swap_todo_write_gating():
+    """The single gate: swap only when not opted out, todo_write present, no update_plan."""
+    from inspect_ai.model._openai_responses import should_swap_todo_write
+
+    todo = _todo_write_tool_info()
+    update_plan = _update_plan_tool_info()
+    assert should_swap_todo_write([todo], GenerateConfig()) is True
+    assert should_swap_todo_write([todo], GenerateConfig(internal_tools=False)) is False
+    # collision with first-party update_plan -> don't swap
+    assert should_swap_todo_write([todo, update_plan], GenerateConfig()) is False
+    # no todo_write -> nothing to swap
+    assert should_swap_todo_write([update_plan], GenerateConfig()) is False
+
+
+def test_non_canonical_todo_write_not_swapped():
+    """A tool merely sharing the todo_write name (different schema) must not be swapped."""
+    from inspect_ai.model._openai_responses import (
+        _process_response_output_items,
+        should_swap_todo_write,
+        substitute_update_plan_tools,
+    )
+    from inspect_ai.tool._tool_info import ToolInfo, ToolParams
+    from inspect_ai.util._json import JSONSchema
+
+    fake = ToolInfo(
+        name="todo_write",
+        description="custom",
+        parameters=ToolParams(properties={"value": JSONSchema(type="string")}),
+    )
+
+    # not gated as swappable, and substitution leaves it (schema) intact
+    assert should_swap_todo_write([fake], GenerateConfig()) is False
+    assert substitute_update_plan_tools([fake], False) == [fake]
+
+    # an update_plan call is NOT hijacked into this tool
+    from openai.types.responses import ResponseFunctionToolCall
+
+    outputs = [
+        ResponseFunctionToolCall(
+            id="fc_fake",
+            call_id="call_fake",
+            name="update_plan",
+            arguments=json.dumps({"plan": [{"step": "x", "status": "pending"}]}),
+            type="function_call",
+        )
+    ]
+    _, tool_calls, _, _ = _process_response_output_items(outputs, [fake])
+    assert tool_calls[0].function == "update_plan"
+
+
+def test_superset_todo_write_not_swapped():
+    """A todo_write whose schema is a superset of canonical (extra fields) is not swapped."""
+    import copy
+
+    from inspect_ai.model._openai_responses import should_swap_todo_write
+    from inspect_ai.tool._tool_info import ToolInfo, ToolParams
+    from inspect_ai.util._json import JSONSchema, json_schema_dump
+
+    canonical = _todo_write_tool_info()
+    params = ToolParams.model_validate(
+        copy.deepcopy(json_schema_dump(canonical.parameters))
+    )
+    params.properties["project"] = JSONSchema(type="string")
+    params.required = list(params.required) + ["project"]
+    superset = ToolInfo(name="todo_write", description="x", parameters=params)
+
+    assert should_swap_todo_write([superset], GenerateConfig()) is False
+
+
+def test_todo_write_with_description_param_not_swapped():
+    """An extra parameter literally named `description` must not be mistaken for metadata."""
+    import copy
+
+    from inspect_ai.model._openai_responses import should_swap_todo_write
+    from inspect_ai.tool._tool_info import ToolInfo, ToolParams
+    from inspect_ai.util._json import JSONSchema, json_schema_dump
+
+    canonical = _todo_write_tool_info()
+    params = ToolParams.model_validate(
+        copy.deepcopy(json_schema_dump(canonical.parameters))
+    )
+    # an extra (optional) top-level parameter whose name collides with schema metadata
+    params.properties["description"] = JSONSchema(type="string", description="extra")
+    with_desc_param = ToolInfo(name="todo_write", description="x", parameters=params)
+
+    assert should_swap_todo_write([with_desc_param], GenerateConfig()) is False
+
+
+def test_redescribed_todo_write_still_swapped():
+    """A structurally identical todo_write with a customized description still swaps."""
+    from inspect_ai.model._openai_responses import should_swap_todo_write
+
+    canonical = _todo_write_tool_info()
+    redescribed = canonical.model_copy(deep=True)
+    redescribed.description = "a customized description"
+    redescribed.parameters.properties["todos"].description = "custom"
+    assert should_swap_todo_write([redescribed], GenerateConfig()) is True
+
+
+def test_outbound_substitutes_update_plan():
+    """When swapping, todo_write is sent as update_plan with the native plan/step schema."""
+    from inspect_ai.model._openai_responses import (
+        openai_responses_tools,
+        should_swap_todo_write,
+        substitute_update_plan_tools,
+    )
+
+    todo = _todo_write_tool_info()
+    config = GenerateConfig()
+    wire = substitute_update_plan_tools([todo], should_swap_todo_write([todo], config))
+    params = openai_responses_tools(wire, "gpt-5", config)
+    names = [p["name"] for p in params if p.get("type") == "function"]
+    assert names == ["update_plan"]
+    update_plan_param = next(p for p in params if p["name"] == "update_plan")
+    props = update_plan_param["parameters"]["properties"]
+    assert "plan" in props and "todos" not in props
+    assert "step" in props["plan"]["items"]["properties"]
+
+
+def test_todo_write_does_not_force_responses_routing():
+    """Fix: todo_write must not count as a native tool (else it would force Responses API)."""
+    from inspect_ai.model._openai_responses import is_native_tool_configured
+
+    todo = _todo_write_tool_info()
+    assert is_native_tool_configured([todo], "gpt-5", GenerateConfig()) is False
+
+
+def test_update_plan_args_round_trip():
+    from inspect_ai.model._openai_responses import (
+        _update_plan_args_from_inspect,
+        _update_plan_args_to_inspect,
+    )
+
+    model_args = {
+        "plan": [
+            {"step": "first", "status": "completed"},
+            {"step": "second", "status": "in_progress"},
+        ],
+        "explanation": "because",
+    }
+    inspect_args = _update_plan_args_to_inspect(model_args)
+    assert inspect_args == {
+        "todos": [
+            {"content": "first", "status": "completed"},
+            {"content": "second", "status": "in_progress"},
+        ],
+        "explanation": "because",
+    }
+    # round trips back to update_plan shape
+    assert _update_plan_args_from_inspect(inspect_args) == model_args
+
+
+def test_update_plan_args_edge_cases():
+    from inspect_ai.model._openai_responses import (
+        _update_plan_args_from_inspect,
+        _update_plan_args_to_inspect,
+    )
+
+    # empty / missing list and absent explanation
+    assert _update_plan_args_to_inspect({"plan": []}) == {"todos": []}
+    assert _update_plan_args_to_inspect({}) == {"todos": []}
+    assert _update_plan_args_from_inspect({"todos": []}) == {"plan": []}
+    assert _update_plan_args_from_inspect({}) == {"plan": []}
+
+
+def test_update_plan_response_parsing():
+    """An update_plan tool call is parsed back to a todo_write ToolCall when present."""
+    from openai.types.responses import ResponseFunctionToolCall
+
+    from inspect_ai.model._openai_responses import _process_response_output_items
+
+    info = _todo_write_tool_info()
+    outputs = [
+        ResponseFunctionToolCall(
+            id="fc_1",
+            call_id="call_1",
+            name="update_plan",
+            arguments=json.dumps(
+                {"plan": [{"step": "do it", "status": "pending"}], "explanation": "go"}
+            ),
+            type="function_call",
+        )
+    ]
+    _, tool_calls, _, has_tool_calls = _process_response_output_items(outputs, [info])
+    assert has_tool_calls
+    assert len(tool_calls) == 1
+    assert tool_calls[0].function == "todo_write"
+    assert tool_calls[0].arguments == {
+        "todos": [{"content": "do it", "status": "pending"}],
+        "explanation": "go",
+    }
+
+
+def test_update_plan_response_parsing_untouched_without_todo_write():
+    """update_plan is left alone if no todo_write tool is present (user's own tool)."""
+    from openai.types.responses import ResponseFunctionToolCall
+
+    from inspect_ai.model._openai_responses import _process_response_output_items
+    from inspect_ai.tool._tool_info import ToolInfo, ToolParams
+
+    other = ToolInfo(name="update_plan", description="x", parameters=ToolParams())
+    outputs = [
+        ResponseFunctionToolCall(
+            id="fc_2",
+            call_id="call_2",
+            name="update_plan",
+            arguments=json.dumps({"plan": []}),
+            type="function_call",
+        )
+    ]
+    _, tool_calls, _, _ = _process_response_output_items(outputs, [other])
+    assert tool_calls[0].function == "update_plan"
+
+
+def test_update_plan_response_parsing_collision_routes_to_real_tool():
+    """With both tools present, an update_plan call routes to the real update_plan."""
+    from openai.types.responses import ResponseFunctionToolCall
+
+    from inspect_ai.model._openai_responses import _process_response_output_items
+
+    tools = [_todo_write_tool_info(), _update_plan_tool_info()]
+    outputs = [
+        ResponseFunctionToolCall(
+            id="fc_3",
+            call_id="call_3",
+            name="update_plan",
+            arguments=json.dumps({"plan": [{"step": "x", "status": "pending"}]}),
+            type="function_call",
+        )
+    ]
+    _, tool_calls, _, _ = _process_response_output_items(outputs, tools)
+    assert tool_calls[0].function == "update_plan"
+    # not remapped to todo_write's field names
+    assert "plan" in tool_calls[0].arguments
+
+
+def test_update_plan_response_parsing_malformed_args_reports_error():
+    """Fix: malformed update_plan args surface a parse error, not a silent empty plan."""
+    from openai.types.responses import ResponseFunctionToolCall
+
+    from inspect_ai.model._openai_responses import _process_response_output_items
+
+    info = _todo_write_tool_info()
+    outputs = [
+        ResponseFunctionToolCall(
+            id="fc_4",
+            call_id="call_4",
+            name="update_plan",
+            arguments='{"plan": [bad json',
+            type="function_call",
+        )
+    ]
+    _, tool_calls, _, _ = _process_response_output_items(outputs, [info])
+    assert tool_calls[0].function == "todo_write"
+    assert tool_calls[0].parse_error is not None
+    assert tool_calls[0].arguments == {}
+
+
+def _todo_write_assistant_message(call_id: str):
+    from inspect_ai.tool._tool_call import ToolCall
+
+    return ChatMessageAssistant(
+        content="",
+        tool_calls=[
+            ToolCall(
+                id=call_id,
+                function="todo_write",
+                arguments={
+                    "todos": [{"content": "do it", "status": "pending"}],
+                    "explanation": "go",
+                },
+                type="function",
+            )
+        ],
+        model="test",
+        source="generate",
+    )
+
+
+def test_update_plan_replay_reconstruction():
+    """When swapping, a todo_write call replays as an update_plan function_call."""
+    from inspect_ai.model._openai_responses import (
+        _openai_input_items_from_chat_message_assistant,
+    )
+
+    message = _todo_write_assistant_message("call_replay_swap")
+    items = _openai_input_items_from_chat_message_assistant(
+        message, swap_todo_write=True
+    )
+    calls = [item for item in items if item.get("type") == "function_call"]
+    assert len(calls) == 1
+    assert calls[0]["name"] == "update_plan"
+    assert json.loads(calls[0]["arguments"]) == {
+        "plan": [{"step": "do it", "status": "pending"}],
+        "explanation": "go",
+    }
+
+
+def test_update_plan_replay_opt_out_keeps_todo_write():
+    """Fix: with the swap off, replay keeps todo_write (no update_plan leaks in)."""
+    from inspect_ai.model._openai_responses import (
+        _openai_input_items_from_chat_message_assistant,
+    )
+
+    message = _todo_write_assistant_message("call_replay_optout")
+    # default swap_todo_write=False
+    items = _openai_input_items_from_chat_message_assistant(message)
+    calls = [item for item in items if item.get("type") == "function_call"]
+    assert len(calls) == 1
+    assert calls[0]["name"] == "todo_write"
+    assert "todos" in json.loads(calls[0]["arguments"])
+
+
+def test_tool_choice_maps_forced_todo_write():
+    """Forced tool_choice tracks the wire name: update_plan when swapped, else todo_write."""
+    from inspect_ai.model._openai_responses import (
+        openai_responses_tool_choice,
+        openai_responses_tools,
+        should_swap_todo_write,
+        substitute_update_plan_tools,
+    )
+    from inspect_ai.tool import ToolFunction
+
+    todo = _todo_write_tool_info()
+
+    # swap active -> forced todo_write is sent as update_plan
+    config = GenerateConfig()
+    wire = substitute_update_plan_tools([todo], should_swap_todo_write([todo], config))
+    params = openai_responses_tools(wire, "gpt-5", config)
+    tc = openai_responses_tool_choice(ToolFunction(name="todo_write"), params)
+    assert tc["type"] == "function" and tc["name"] == "update_plan"
+
+    # opt-out -> forced todo_write stays todo_write
+    config = GenerateConfig(internal_tools=False)
+    wire = substitute_update_plan_tools([todo], should_swap_todo_write([todo], config))
+    params = openai_responses_tools(wire, "gpt-5", config)
+    tc = openai_responses_tool_choice(ToolFunction(name="todo_write"), params)
+    assert tc["name"] == "todo_write"
+
+
+@skip_if_no_openai
+def test_update_plan_live_round_trip():
+    """Live: the tool is sent to OpenAI as update_plan and the call maps back to todo_write.
+
+    Inspects the outbound ModelEvent.call.request to confirm the wire tool name/schema,
+    then the returned call to confirm the reverse mapping. Forcing tool_choice also
+    exercises the tool_choice name mapping end-to-end.
+    """
+    from inspect_ai.event._model import ModelEvent
+    from inspect_ai.tool import ToolFunction
+    from inspect_ai.tool._tools._todo_write import todo_write
+
+    log = eval(
+        Task(
+            dataset=[
+                Sample(
+                    input=(
+                        "Use your planning tool to lay out the steps for building a "
+                        "small command-line todo application."
+                    )
+                )
+            ],
+            solver=[
+                use_tools(todo_write(), tool_choice=ToolFunction(name="todo_write")),
+                # "none" => single generation, no forced-tool loop
+                generate(tool_calls="none"),
+            ],
+        ),
+        model=get_responses_model(),
+    )[0]
+    assert log.status == "success"
+    assert log.samples
+
+    model_event = next(e for e in log.samples[0].events if isinstance(e, ModelEvent))
+
+    # the raw tool definition sent to OpenAI is named update_plan (not todo_write)
+    request_tools = model_event.call.request["tools"]
+    tool_names = [tool["name"] for tool in request_tools]
+    assert "update_plan" in tool_names
+    assert "todo_write" not in tool_names
+    update_plan_tool = next(t for t in request_tools if t["name"] == "update_plan")
+    assert "plan" in update_plan_tool["parameters"]["properties"]
+    assert (
+        "step"
+        in update_plan_tool["parameters"]["properties"]["plan"]["items"]["properties"]
+    )
+
+    # the returned tool call is mapped back to todo_write with inspect's field names
+    tool_calls = model_event.output.message.tool_calls or []
+    todo_call = next((c for c in tool_calls if c.function == "todo_write"), None)
+    assert todo_call is not None, "expected a todo_write tool call"
+    todos = todo_call.arguments.get("todos")
+    assert isinstance(todos, list) and len(todos) > 0
+    assert "content" in todos[0]
+    assert "status" in todos[0]
+
+
+def test_tool_call_replay_drops_empty_text_after_reasoning():
+    """Empty text after smuggled reasoning should not replay as an output message."""
+    from inspect_ai.tool._tool_call import ToolCall
+
+    message = ChatMessageAssistant(
+        content=[
+            ContentReasoning(
+                reasoning="encrypted reasoning",
+                redacted=True,
+                signature="rs_123",
+            ),
+            ContentText(text=""),
+        ],
+        tool_calls=[
+            ToolCall(
+                id="call_123",
+                function="submit",
+                arguments={"answer": "42"},
+                type="function",
+            )
+        ],
+        model="test",
+        source="generate",
+    )
+
+    items = _openai_input_items_from_chat_message_assistant(
+        message, ModelInfo(), synthesize_phase=True
+    )
+
+    assert [item.get("type") for item in items] == ["reasoning", "function_call"]
+    assert items[0]["encrypted_content"] == "encrypted reasoning"
+    assert items[1]["call_id"] == "call_123"
+
+
+def test_visible_cot_encrypted_content_survives_bridge_round_trip():
+    """Visible-CoT reasoning keeps its encrypted_content through the agent bridge.
+
+    A non-redacted reasoning block carries readable CoT plus an encrypted blob
+    stashed in `internal`. The bridge serializes it to a <think> tag, the scaffold
+    echoes that text back, and the bridge parses it again. The blob must survive
+    that text round-trip (in `internal`) and replay upstream as an input reasoning
+    item with empty `content` and the blob in `encrypted_content`.
+    """
+    from inspect_ai.agent._bridge.responses_impl import messages_from_responses_input
+    from inspect_ai.model._openai_responses import REASONING_ENCRYPTED_CONTENT
+    from inspect_ai.model._reasoning import reasoning_to_think_tag
+
+    blob = "gAAAAAB-encrypted-reasoning-blob"
+
+    original = ContentReasoning(
+        reasoning="visible chain of thought",
+        summary="short summary",
+        signature="rs_abc",
+        redacted=False,
+        internal={REASONING_ENCRYPTED_CONTENT: blob},
+    )
+
+    # Bridge -> scaffold (assistant text) -> scaffold echoes it back as input.
+    think_tag = reasoning_to_think_tag(original)
+    responses_input = [
+        {
+            "type": "message",
+            "role": "assistant",
+            "status": "completed",
+            "content": [{"type": "output_text", "text": think_tag, "annotations": []}],
+        }
+    ]
+
+    messages = messages_from_responses_input(responses_input, tools=[])
+    parsed_reasonings = [
+        c
+        for m in messages
+        for c in (m.content if isinstance(m.content, list) else [])
+        if isinstance(c, ContentReasoning)
+    ]
+    assert len(parsed_reasonings) == 1
+    parsed = parsed_reasonings[0]
+
+    # The bridge parse must preserve the encrypted blob in `internal`.
+    assert isinstance(parsed.internal, dict)
+    assert parsed.internal.get(REASONING_ENCRYPTED_CONTENT) == blob
+
+    # Upstream replay: empty content (API rejects non-empty), blob round-tripped.
+    items = _openai_input_items_from_chat_message_assistant(
+        ChatMessageAssistant(content=[parsed], model="test", source="generate")
+    )
+    reasoning_items = [item for item in items if item.get("type") == "reasoning"]
+    assert len(reasoning_items) == 1
+    assert reasoning_items[0]["content"] == []
+    assert reasoning_items[0]["encrypted_content"] == blob

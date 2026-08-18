@@ -75,6 +75,12 @@ def _ensure_server_is_running() -> None:
     if _can_connect_to_socket():
         return  # Server already running and responsive
 
+    # Clean up any stale socket from a previously crashed server before
+    # starting a new one. The server's own startup also does this, but doing
+    # it here avoids a window where a concurrent caller could connect to a
+    # half-started socket and falsely conclude the server is ready.
+    SOCKET_PATH.unlink(missing_ok=True)
+
     # Start server (it will handle socket cleanup on startup)
     subprocess.Popen(
         ["inspect-tool-support", "server"],
@@ -103,8 +109,12 @@ def _can_connect_to_socket() -> bool:
         sock.close()
         return True
     except (OSError, ConnectionRefusedError):
-        # Remove stale socket on connection failure
-        SOCKET_PATH.unlink(missing_ok=True)
+        # Do NOT delete the socket here. The socket file may belong to a server
+        # we just started that has bound its socket but hasn't called listen()
+        # yet. Deleting it at this point would permanently break that server:
+        # it would begin accepting on an FD with no filesystem path, so clients
+        # would never find it. Stale socket cleanup is handled explicitly by
+        # _ensure_server_is_running() before it spawns a new server.
         return False
 
 

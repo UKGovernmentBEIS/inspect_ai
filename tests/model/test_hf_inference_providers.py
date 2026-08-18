@@ -45,3 +45,49 @@ async def test_hf_inference_providers_caching():
 
     # Verify we got the same cached instance
     assert model1 is model2
+
+
+@skip_if_no_openai_package
+def test_hf_token_reported_to_override_hook(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The HF_TOKEN variable (not the derived service var) is offered to hooks."""
+    from inspect_ai.model._providers.hf_inference_providers import (
+        HF_TOKEN,
+        HFInferenceProvidersAPI,
+    )
+
+    seen: list[tuple[str, str]] = []
+
+    def override_api_key(env_var_name: str, value: str) -> str:
+        seen.append((env_var_name, value))
+        return "overridden-key"
+
+    monkeypatch.setenv(HF_TOKEN, "source-key")
+    monkeypatch.setattr(
+        "inspect_ai.hooks._hooks.override_api_key",
+        override_api_key,
+    )
+
+    api = HFInferenceProvidersAPI(model_name="openai/gpt-oss-20b")
+
+    assert seen[0] == (HF_TOKEN, "source-key")
+    assert all(name == HF_TOKEN for name, _ in seen)
+    assert api.api_key == "overridden-key"
+
+
+@skip_if_no_openai_package
+def test_hf_missing_token_raises_prerequisite_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A missing HF_TOKEN (and no override hook) still raises a prerequisite error."""
+    from inspect_ai._util.error import PrerequisiteError
+    from inspect_ai.model._providers.hf_inference_providers import (
+        HF_TOKEN,
+        HFInferenceProvidersAPI,
+    )
+
+    monkeypatch.delenv(HF_TOKEN, raising=False)
+
+    with pytest.raises(PrerequisiteError, match=HF_TOKEN):
+        HFInferenceProvidersAPI(model_name="openai/gpt-oss-20b")

@@ -33,7 +33,7 @@ def tool_with(
        description: Tool description (optional).
        parameters: Parameter descriptions (optional)
        parallel: Does the tool support parallel execution
-          (defaults to True if not specified)
+          (opt-in; defaults to False if not specified)
        viewer: Optional tool call viewer implementation.
        model_input: Optional function that determines how
            tool call results are played back as model input.

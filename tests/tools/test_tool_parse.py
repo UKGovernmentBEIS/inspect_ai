@@ -1,11 +1,16 @@
 from dataclasses import dataclass
 from datetime import date, datetime, time
 from enum import Enum
-from typing import Any, Dict, List, Literal, Optional, Set, TypedDict, Union
+from typing import Any, Dict, List, Literal, Optional, Set, Union
 
 from pydantic import BaseModel, Field
+from test_helpers.tools import addition
+from typing_extensions import TypedDict
 
+from inspect_ai.tool import ToolDef
 from inspect_ai.tool._tool_info import (
+    _parse_tool_info_shared,
+    _tool_info_cache,
     parse_docstring,
     parse_tool_info,
 )
@@ -258,6 +263,26 @@ def test_list_of_dataclasses() -> None:
     )
 
 
+def test_parse_tool_info_tool_description_path_is_isolated() -> None:
+    _tool_info_cache.clear()
+
+    tool = ToolDef(
+        addition(),
+        name="addition_override",
+        description="Override description",
+        parameters={"x": "Override x", "y": "Override y"},
+    ).as_tool()
+
+    info1 = parse_tool_info(tool)
+    info1.description = "mutated"
+    info1.parameters.properties["x"].description = "mutated"
+
+    info2 = parse_tool_info(tool)
+
+    assert info2.description == "Override description"
+    assert info2.parameters.properties["x"].description == "Override x"
+
+
 def test_list_of_pydantic_models() -> None:
     class Product(BaseModel):
         id: int
@@ -409,3 +434,57 @@ def test_optional_fields() -> None:
     assert len(age_prop.anyOf) == 2
     assert any(prop.type == "integer" for prop in age_prop.anyOf)
     assert any(prop.type == "null" for prop in age_prop.anyOf)
+
+
+def test_parse_tool_info_caching() -> None:
+    def cached_func(x: int, y: str = "hello") -> bool:
+        """A cacheable function.
+
+        Args:
+            x: An integer
+            y: A string
+        """
+        return True
+
+    # first call populates cache
+    info1 = parse_tool_info(cached_func)
+    assert id(cached_func) in _tool_info_cache
+
+    # second call should return equivalent result from cache
+    info2 = parse_tool_info(cached_func)
+    assert info1.name == info2.name
+    assert info1.description == info2.description
+    assert list(info1.parameters.properties.keys()) == list(
+        info2.parameters.properties.keys()
+    )
+
+    # mutating one result must not affect subsequent calls
+    info1.description = "MUTATED"
+    info1.parameters.properties["x"].description = "MUTATED"
+    info3 = parse_tool_info(cached_func)
+    assert info3.description == "A cacheable function."
+    assert info3.parameters.properties["x"].description == "An integer"
+
+
+def test_parse_tool_info_shared_returns_cached_object() -> None:
+    _tool_info_cache.clear()
+
+    def cached_func(x: int, y: str = "hello") -> bool:
+        """A cacheable function.
+
+        Args:
+            x: An integer
+            y: A string
+        """
+        return True
+
+    shared1 = _parse_tool_info_shared(cached_func)
+    shared2 = _parse_tool_info_shared(cached_func)
+
+    assert shared1 is shared2
+
+    detached1 = parse_tool_info(cached_func)
+    detached2 = parse_tool_info(cached_func)
+
+    assert detached1 is not detached2
+    assert detached1 == detached2

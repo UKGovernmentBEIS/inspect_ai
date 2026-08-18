@@ -1,4 +1,5 @@
 import os
+from urllib.parse import urlencode
 
 import anyio
 import httpx
@@ -76,26 +77,36 @@ def google_search_provider(
         results: list[ContentText] = []
         search_calls = 0
 
+        async def fetch_pages(links: list[SearchLink]) -> list[ContentText | None]:
+            """Fetch pages concurrently, preserving search rank order.
+
+            Tasks complete in arbitrary order, so each writes to its own slot.
+            """
+            pages: list[ContentText | None] = [None] * len(links)
+
+            async def process_link(link: SearchLink, index: int) -> None:
+                try:
+                    pages[index] = await page_if_relevant(
+                        link.url, query, model, client
+                    )
+                # exceptions fetching pages are very common!
+                except Exception:
+                    pass
+
+            async with anyio.create_task_group() as tg:
+                for idx, lk in enumerate(links):
+                    tg.start_soon(process_link, lk, idx)
+
+            return pages
+
         # Paginate through search results until we have successfully extracted num_results pages or we have reached max_provider_calls
         while len(results) < num_results and search_calls < max_provider_calls:
             async with concurrency("google_web_search", max_connections):
                 links = await _search(query, start_idx=search_calls * 10)
 
-            async with anyio.create_task_group() as tg:
-
-                async def process_link(link: SearchLink) -> None:
-                    try:
-                        if page := await page_if_relevant(
-                            link.url, query, model, client
-                        ):
-                            results.append(page)
-                    # exceptions fetching pages are very common!
-                    except Exception:
-                        pass
-
-                for lk in links:
-                    tg.start_soon(process_link, lk)
-
+            results.extend(
+                page for page in await fetch_pages(links) if page is not None
+            )
             search_calls += 1
 
         return results or None
@@ -108,8 +119,8 @@ def google_search_provider(
             "cx": google_cse_id,
             "start": start_idx,
         }
-        search_url = "https://www.googleapis.com/customsearch/v1?" + "&".join(
-            [f"{key}={value}" for key, value in search_params.items()]
+        search_url = "https://www.googleapis.com/customsearch/v1?" + urlencode(
+            search_params
         )
 
         # retry up to 5 times over a period of up to 1 minute

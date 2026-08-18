@@ -2,6 +2,7 @@ from rich.console import RenderableType
 from rich.text import Text
 
 from inspect_ai._util.retry import http_retries_count
+from inspect_ai.log._refusal import refusal_count
 from inspect_ai.util._concurrency import concurrency_status_display
 from inspect_ai.util._throttle import throttle
 
@@ -26,7 +27,12 @@ def task_resources() -> str:
 
 
 def task_counters(counters: dict[str, str]) -> str:
-    return task_dict(counters | task_http_retries())
+    counters = counters | task_http_retries()
+    refusals = refusal_count()
+    if refusals > 0:
+        counters = counters | {"Refusals": f"{refusals:,}"}
+
+    return task_dict(counters)
 
 
 def task_http_retries() -> dict[str, str]:
@@ -35,3 +41,11 @@ def task_http_retries() -> dict[str, str]:
 
 def task_http_retries_str() -> str:
     return f"HTTP retries: {http_retries_count():,}"
+
+
+def task_refusals_str() -> str:
+    refusals = refusal_count()
+    if refusals > 0:
+        return f"Refusals: {refusals:,}"
+    else:
+        return ""

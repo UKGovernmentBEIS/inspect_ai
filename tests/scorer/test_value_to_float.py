@@ -29,3 +29,15 @@ def test_value_to_float_custom():
 def test_value_to_float_invalid():
     fn = value_to_float()
     assert fn("foo") == 0.0
+
+
+def test_value_to_float_non_finite_strings():
+    # Regression: float("nan") / float("inf") don't raise, so these strings
+    # were converted to non-finite floats and poisoned downstream metrics
+    # (e.g. one Score(value="nan") made accuracy() return NaN). They should
+    # fall through to the unrecognised-string path and return 0.0.
+    fn = value_to_float()
+    assert fn("nan") == 0.0
+    assert fn("NaN") == 0.0
+    assert fn("inf") == 0.0
+    assert fn("-inf") == 0.0

@@ -7,6 +7,7 @@ from typing import (
     Callable,
     Coroutine,
     Iterator,
+    Literal,
     Protocol,
     Type,
     TypeVar,
@@ -35,6 +36,25 @@ class Progress(Protocol):
 class TaskSpec:
     name: str
     model: ModelName
+    agent: str | None
+
+
+CancelType = Literal["abort", "retry", "score", "error"] | None
+"""How a task cancel resolves.
+
+``abort`` and ``retry`` tear the task's cancel scope down (the classic
+user-cancel paths). ``score`` and ``error`` are graceful sample resolutions:
+the scope is left alone — in-flight samples are interrupted with the matching
+``ActiveSample.interrupt`` action, queued samples are abandoned, and the task
+runs to natural completion (see ``inspect_ai._control.cancel.cancel_task``).
+"""
+
+
+@dataclass
+class TaskCancel:
+    can_retry: bool
+    cancel_task: Callable[[CancelType], None]
+    cancel_type: CancelType = None
 
 
 @dataclass
@@ -42,6 +62,7 @@ class TaskProfile:
     name: str
     file: str | None
     model: ModelName
+    agent: str | None
     dataset: str
     scorer: str
     samples: int
@@ -51,6 +72,8 @@ class TaskProfile:
     generate_config: GenerateConfig
     tags: list[str] | None
     log_location: str
+    task_id: str
+    task_cancel: TaskCancel | None
 
 
 @dataclass
@@ -98,6 +121,7 @@ class TaskScreen(contextlib.AbstractContextManager["TaskScreen"]):
         header: str | None = None,
         transient: bool | None = None,
         width: int | None = None,
+        record_event: bool = True,
     ) -> Iterator[Console]:
         yield rich.get_console()
 
@@ -156,3 +180,12 @@ class Display(Protocol):
     def task(self, profile: TaskProfile) -> Iterator[TaskDisplay]: ...
 
     def display_counter(self, caption: str, value: str) -> None: ...
+
+    def update_task_count(self, n: int) -> None:
+        """Add ``n`` to the displayed total task count.
+
+        Called when tasks are injected into a live (TaskSource-driven) run so
+        the "completed / total" denominator reflects the growing set. No-op by
+        default; displays that show a total override this.
+        """
+        return None

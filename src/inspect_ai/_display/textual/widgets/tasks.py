@@ -8,9 +8,11 @@ from textual import on
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, ScrollableContainer
 from textual.css.query import NoMatches
+from textual.geometry import Size
 from textual.reactive import reactive
+from textual.screen import ModalScreen
 from textual.widget import Widget
-from textual.widgets import ProgressBar, Static
+from textual.widgets import Button, Checkbox, Link, ProgressBar, Static
 from typing_extensions import override
 
 from inspect_ai._display.core.results import task_metric
@@ -19,23 +21,28 @@ from inspect_ai._display.textual.widgets.task_detail import TaskDetail
 from inspect_ai._display.textual.widgets.toggle import Toggle
 from inspect_ai._display.textual.widgets.vscode import conditional_vscode_link
 from inspect_ai._util.file import to_uri
+from inspect_ai._util.task import task_display_name
 from inspect_ai._util.vscode import (
     VSCodeCommand,
 )
 
 from ...core.display import (
+    CancelType,
     Progress,
     TaskCancelled,
     TaskDisplay,
     TaskDisplayMetric,
     TaskError,
+    TaskProfile,
     TaskResult,
     TaskSpec,
     TaskWithResult,
 )
 from ...core.progress import (
+    MAX_AGENT_NAME_WIDTH,
     MAX_DESCRIPTION_WIDTH,
     MAX_MODEL_NAME_WIDTH,
+    progress_agent_name,
     progress_count,
     progress_description,
     progress_model_name,
@@ -43,6 +50,21 @@ from ...core.progress import (
 
 MAX_METRIC_WIDTH = 25
 MAX_COUNT_WIDTH = 15
+
+# trailing space added to each name column so adjacent columns aren't flush
+COLUMN_SPACING = 1
+
+
+def _with_spacing(text: Text, content_width: int) -> Text:
+    """Append the inter-column spacer after content has been truncated/padded.
+
+    Adding the spacer here (rather than folding it into the truncation width)
+    ensures content is never shown past its configured max width. A collapsed
+    column (content_width == 0, e.g. no agents) gets no spacer.
+    """
+    if content_width > 0:
+        text.pad_right(COLUMN_SPACING)
+    return text
 
 
 class TasksView(Container):
@@ -74,8 +96,12 @@ class TasksView(Container):
 
     def __init__(self) -> None:
         super().__init__()
-        self.description_width = MAX_DESCRIPTION_WIDTH
-        self.model_name_width = MAX_MODEL_NAME_WIDTH
+        # widths start at 0 and grow to fit content as tasks are added — this
+        # way columns size to the actual names even if init_tasks (which can
+        # also seed them) hasn't run for the current view.
+        self.description_width = 0
+        self.agent_name_width = 0
+        self.model_name_width = 0
         self.sample_count_width = 0
         self.display_metrics = True
 
@@ -83,24 +109,63 @@ class TasksView(Container):
         # clear existing tasks
         self.tasks.remove_children()
 
-        # compute the column widths by looking all of the tasks
+        # compute the column content widths by looking at all of the tasks —
+        # measure the text actually rendered (display name, bare model name) so
+        # columns don't reserve space for stripped package prefixes / model
+        # providers. TaskSpec.name is already normalized via task_display_name,
+        # so use it as-is here. The inter-column spacer is added at render time
+        # (see _with_spacing) so content is never truncated past its max width.
         self.description_width = min(
             max([len(task.name) for task in tasks]), MAX_DESCRIPTION_WIDTH
         )
+        self.agent_name_width = min(
+            max([len(task.agent or "") for task in tasks]), MAX_AGENT_NAME_WIDTH
+        )
         self.model_name_width = min(
-            max([len(str(task.model)) for task in tasks]), MAX_MODEL_NAME_WIDTH
+            max([len(task.model.name) for task in tasks]), MAX_MODEL_NAME_WIDTH
         )
         self.update_progress_widths()
 
     def add_task(self, task: TaskWithResult) -> TaskDisplay:
         self.update_count_width(task.profile.samples)
+        new_description_width = min(
+            max(self.description_width, len(task_display_name(task.profile.name))),
+            MAX_DESCRIPTION_WIDTH,
+        )
+        new_agent_name_width = min(
+            max(self.agent_name_width, len(task.profile.agent or "")),
+            MAX_AGENT_NAME_WIDTH,
+        )
+        new_model_name_width = min(
+            max(self.model_name_width, len(task.profile.model.name)),
+            MAX_MODEL_NAME_WIDTH,
+        )
         task_display = TaskProgressView(
             task,
-            self.description_width,
-            self.model_name_width,
+            new_description_width,
+            new_agent_name_width,
+            new_model_name_width,
             self.sample_count_width,
             self.display_metrics,
         )
+        # Update existing tasks if description width grew
+        if new_description_width > self.description_width:
+            self.description_width = new_description_width
+            for progress_view in self.tasks.query_children(TaskProgressView):
+                progress_view.update_description_width(new_description_width)
+        self.description_width = new_description_width
+        # Update existing tasks if agent name width grew
+        if new_agent_name_width > self.agent_name_width:
+            self.agent_name_width = new_agent_name_width
+            for progress_view in self.tasks.query_children(TaskProgressView):
+                progress_view.update_agent_width(new_agent_name_width)
+        self.agent_name_width = new_agent_name_width
+        # Update existing tasks if model name width grew
+        if new_model_name_width > self.model_name_width:
+            self.model_name_width = new_model_name_width
+            for progress_view in self.tasks.query_children(TaskProgressView):
+                progress_view.update_model_width(new_model_name_width)
+        self.model_name_width = new_model_name_width
         self.tasks.mount(task_display)
         self.tasks.scroll_to_widget(task_display)
         self.update_progress_widths()
@@ -188,6 +253,7 @@ class TaskProgressView(Widget):
         self,
         task: TaskWithResult,
         description_width: int,
+        agent_name_width: int,
         model_name_width: int,
         sample_count_width: int,
         display_metrics: bool,
@@ -196,6 +262,7 @@ class TaskProgressView(Widget):
         self.t = task
 
         self.description_width = description_width
+        self.agent_name_width = agent_name_width
         self.model_name_width = model_name_width
 
         self.progress_bar = ProgressBar(
@@ -219,6 +286,7 @@ class TaskProgressView(Widget):
                 else [],
             ),
         )
+        self.cancel_link = CancelLink(task.profile)
 
     metrics: reactive[list[TaskDisplayMetric] | None] = reactive(None)
     metrics_width: reactive[int | None] = reactive(None)
@@ -231,13 +299,33 @@ class TaskProgressView(Widget):
             yield (self.toggle if self.display_metrics else Static())
             yield TaskStatusIcon()
             yield Static(
-                progress_description(self.t.profile, self.description_width, pad=True),
+                _with_spacing(
+                    progress_description(
+                        self.t.profile, self.description_width, pad=True
+                    ),
+                    self.description_width,
+                ),
+                id="task-description",
                 markup=False,
             )
             yield Static(
-                progress_model_name(
-                    self.t.profile.model, self.model_name_width, pad=True
+                _with_spacing(
+                    progress_agent_name(
+                        self.t.profile.agent, self.agent_name_width, pad=True
+                    ),
+                    self.agent_name_width,
                 ),
+                id="task-agent",
+                markup=False,
+            )
+            yield Static(
+                _with_spacing(
+                    progress_model_name(
+                        self.t.profile.model, self.model_name_width, pad=True
+                    ),
+                    self.model_name_width,
+                ),
+                id="task-model",
                 markup=False,
             )
             yield self.progress_bar
@@ -245,6 +333,7 @@ class TaskProgressView(Widget):
             yield self.metrics_display
             yield Clock()
             yield self.view_log_link
+            yield self.cancel_link
 
         yield self.task_detail
 
@@ -267,6 +356,7 @@ class TaskProgressView(Widget):
             self.query_one(Clock).stop()
         except NoMatches:
             pass
+        self.cancel_link.complete()
         self.task_progress.complete()
 
     def sample_complete(self, complete: int, total: int) -> None:
@@ -275,6 +365,42 @@ class TaskProgressView(Widget):
 
     def update_metrics(self, metrics: list[TaskDisplayMetric]) -> None:
         self.metrics = metrics
+
+    def update_description_width(self, width: int) -> None:
+        self.description_width = width
+        try:
+            desc = self.query_one("#task-description", Static)
+            desc.update(
+                _with_spacing(
+                    progress_description(self.t.profile, width, pad=True), width
+                )
+            )
+        except NoMatches:
+            pass
+
+    def update_agent_width(self, width: int) -> None:
+        self.agent_name_width = width
+        try:
+            agent = self.query_one("#task-agent", Static)
+            agent.update(
+                _with_spacing(
+                    progress_agent_name(self.t.profile.agent, width, pad=True), width
+                )
+            )
+        except NoMatches:
+            pass
+
+    def update_model_width(self, width: int) -> None:
+        self.model_name_width = width
+        try:
+            model = self.query_one("#task-model", Static)
+            model.update(
+                _with_spacing(
+                    progress_model_name(self.t.profile.model, width, pad=True), width
+                )
+            )
+        except NoMatches:
+            pass
 
     def update_metrics_width(self, width: int) -> None:
         self.metrics_width = width
@@ -378,3 +504,175 @@ class TaskProgress(Progress):
     def complete(self) -> None:
         if self.progress_bar.total is not None:
             self.progress_bar.update(progress=self.progress_bar.total)
+
+
+class CancelLink(Link):
+    LABEL = "[Cancel]"
+
+    DEFAULT_CSS = """
+    CancelLink.completed {
+        text-style: none;
+        &:hover { text-style: none; }
+        &:focus { text-style: none; }
+    }
+    """
+
+    def __init__(self, profile: "TaskProfile") -> None:
+        super().__init__(self.LABEL if profile.task_cancel is not None else "")
+        self._profile = profile
+        self._task_cancel = profile.task_cancel
+
+    def on_click(self) -> None:
+        if self._task_cancel is None:
+            return
+        if self._task_cancel.can_retry:
+            self.app.push_screen(
+                CancelDialog(
+                    task_name=self._profile.name,
+                    model_name=str(self._profile.model),
+                ),
+                callback=self._task_cancel.cancel_task,
+            )
+        else:
+            self._task_cancel.cancel_task("abort")
+
+    def action_open_link(self) -> None:
+        return None
+
+    def complete(self) -> None:
+        if self._task_cancel is not None:
+            self._task_cancel = None
+            self.update(" " * len(self.LABEL))
+            if self.has_focus:
+                self.app.set_focus(None)
+            self.add_class("completed")
+            self.can_focus = False
+
+
+class RetryCheckbox(Checkbox):
+    """Checkbox that shows empty box when unchecked and supports multi-line labels."""
+
+    BUTTON_INNER = " "
+
+    DEFAULT_CSS = """
+    RetryCheckbox {
+        height: auto;
+    }
+    """
+
+    def _make_label(self, label: "Text | str") -> Text:  # type: ignore[override]
+        """Allow newlines through instead of truncating to first line.
+
+        Note: in Textual 8.x the parent signature uses Content/ContentText
+        instead of Text/TextType. The override annotation targets the older
+        API (2.x) that CI pins; the runtime branch handles both.
+        """
+        try:
+            from textual.content import Content
+
+            return Content.from_text(label).rstrip()  # type: ignore
+        except (ImportError, AttributeError):
+            return Text.from_markup(label) if isinstance(label, str) else label
+
+    def get_content_height(self, container: Size, viewport: Size, width: int) -> int:
+        label_text = str(self._label) if hasattr(self, "_label") else ""
+        return max(1, label_text.count("\n") + 1)
+
+    def watch_value(self) -> None:
+        self.BUTTON_INNER = "X" if self.value else " "
+        super().watch_value()
+
+
+class CancelDialog(ModalScreen[CancelType]):
+    BINDINGS = [("escape", "dismiss_dialog", "Close")]
+
+    DEFAULT_CSS = """
+    CancelDialog {
+        align: center middle;
+        background: $background 60%;
+    }
+    #cancel-dialog-wrapper {
+        width: 58;
+        height: auto;
+    }
+    #cancel-dialog {
+        width: 100%;
+        height: auto;
+        padding: 1 2;
+        background: $surface;
+        border: solid $foreground 20%;
+        border-title-color: $text;
+        border-title-style: bold;
+    }
+    #cancel-dialog-close {
+        width: 3;
+        height: 1;
+        dock: right;
+        offset: -3 0;
+        color: $text-muted;
+        &:hover { color: $text; }
+    }
+    #cancel-task-info {
+        color: $text-muted;
+        margin-bottom: 1;
+    }
+    #cancel-retry-checkbox {
+        margin: 1 0;
+        max-width: 100%;
+        &:focus > .toggle--label {
+            color: $text;
+            background: transparent;
+            text-style: none;
+        }
+    }
+    #cancel-retry-checkbox > .toggle--button {
+        color: transparent;
+    }
+    #cancel-retry-checkbox.-on > .toggle--button {
+        color: white;
+        text-style: bold;
+    }
+    #cancel-confirm:focus {
+        text-style: none;
+        background-tint: transparent;
+    }
+    #cancel-dialog-buttons {
+        width: 100%;
+        height: auto;
+        align: center middle;
+    }
+    """
+
+    def __init__(self, task_name: str, model_name: str) -> None:
+        super().__init__()
+        self._task_name = task_name
+        self._model_name = model_name
+
+    def compose(self) -> ComposeResult:
+        with Container(id="cancel-dialog-wrapper"):
+            yield Static(
+                "[@click=screen.dismiss_dialog] X [/]", id="cancel-dialog-close"
+            )
+            with Container(id="cancel-dialog") as dialog:
+                dialog.border_title = "Cancel Task"
+                yield Static(
+                    f"{self._task_name}  {self._model_name}", id="cancel-task-info"
+                )
+                yield RetryCheckbox(
+                    "Schedule task for retry\n(completed samples will be re-used)",
+                    id="cancel-retry-checkbox",
+                    value=False,
+                )
+                with Horizontal(id="cancel-dialog-buttons"):
+                    yield Button("Cancel Task", id="cancel-confirm", variant="error")
+
+    def on_mount(self) -> None:
+        self.query_one("#cancel-confirm", Button).focus()
+
+    @on(Button.Pressed, "#cancel-confirm")
+    def handle_cancel(self) -> None:
+        retry = self.query_one("#cancel-retry-checkbox", RetryCheckbox).value
+        self.dismiss("retry" if retry else "abort")
+
+    def action_dismiss_dialog(self) -> None:
+        self.dismiss(None)

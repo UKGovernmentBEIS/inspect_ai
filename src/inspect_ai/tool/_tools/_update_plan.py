@@ -9,7 +9,7 @@ class PlanStep(BaseModel):
     status: str = Field(description="One of: pending, in_progress, completed")
 
 
-@tool
+@tool(parallel=True)
 def update_plan(description: str | None = None) -> Tool:
     """Planning tool to track steps and progress in a longer horizon task.
 

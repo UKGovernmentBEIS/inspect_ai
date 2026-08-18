@@ -1,12 +1,15 @@
 import functools
 import json
+import logging
+import re
 from copy import copy
-from typing import Any, Callable, Literal, cast
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any, Callable, Literal, TypeAlias, cast
 
-import httpx
+if TYPE_CHECKING:
+    from inspect_ai.model._model import RetryDecision
+
 from openai import (
-    DEFAULT_CONNECTION_LIMITS,
-    DEFAULT_TIMEOUT,
     APIConnectionError,
     APIStatusError,
     APITimeoutError,
@@ -43,7 +46,7 @@ from openai.types.completion_usage import CompletionUsage
 from openai.types.shared_params.function_definition import FunctionDefinition
 from pydantic import JsonValue
 
-from inspect_ai._util.constants import BASE_64_DATA_REMOVED
+from inspect_ai._util.constants import BASE_64_DATA_REMOVED, NO_CONTENT
 from inspect_ai._util.content import (
     Content,
     ContentAudio,
@@ -51,9 +54,11 @@ from inspect_ai._util.content import (
     ContentReasoning,
     ContentText,
 )
-from inspect_ai._util.http import is_retryable_http_status
-from inspect_ai._util.images import file_as_data_uri
-from inspect_ai._util.url import is_http_url
+from inspect_ai._util.http import (
+    is_retryable_http_status,
+    parse_retry_after_from_exception,
+)
+from inspect_ai._util.images import as_data_uri, inline_media_data_uri
 from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._internal import (
@@ -61,13 +66,21 @@ from inspect_ai.model._internal import (
     content_internal_tag,
     parse_content_with_internal,
 )
-from inspect_ai.model._model_output import ChatCompletionChoice, Logprobs
-from inspect_ai.model._reasoning import (
+from inspect_ai.model._model_output import (
+    ChatCompletionChoice,
+    Logprob,
+    Logprobs,
+    TopLogprob,
+)
+from inspect_ai.model._openrouter_reasoning import (
     openrouter_reasoning_details_to_reasoning,
+)
+from inspect_ai.model._reasoning import (
     parse_content_with_reasoning,
     reasoning_to_think_tag,
 )
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
+from inspect_ai.util._json import json_schema_dump
 
 from ._chat_message import (
     ChatMessage,
@@ -76,7 +89,17 @@ from ._chat_message import (
     ChatMessageTool,
     ChatMessageUser,
 )
-from ._model_output import ModelOutput, ModelUsage, StopReason, as_stop_reason
+from ._model_output import (
+    ModelOutput,
+    ModelUsage,
+    StopCategory,
+    StopDetails,
+    StopReason,
+    as_stop_reason,
+    collect_stop_details,
+)
+
+logger = logging.getLogger(__name__)
 
 
 class OpenAIResponseError(OpenAIError):
@@ -90,6 +113,62 @@ class OpenAIResponseError(OpenAIError):
 
 # is_o_series etc. have been moved to the OpenAIAPI class
 # in _providers/openai.py to enable proper overriding by subclasses
+def is_gpt_5_model(model_name: str) -> bool:
+    return "gpt-5" in model_name.lower()
+
+
+def is_o_series_model(model_name: str) -> bool:
+    name = model_name.lower()
+    if bool(re.match(r"^o\d+", name)):
+        return True
+    return "gpt" not in name and bool(re.search(r"o\d+", name))
+
+
+_GPT_VERSION_RE = re.compile(r"^gpt-(\d+)(?:\.(\d+))?")
+
+
+def supports_native_max_reasoning_effort(model_name: str) -> bool:
+    """`max` reasoning effort shipped with gpt-5.6; earlier gpt-5.x top out at `xhigh`."""
+    match = _GPT_VERSION_RE.match(model_name.lower())
+    if match is None:
+        return False
+    return (int(match.group(1)), int(match.group(2) or 0)) >= (5, 6)
+
+
+def needs_max_completion_tokens(model_name: str) -> bool:
+    return is_gpt_5_model(model_name) or is_o_series_model(model_name)
+
+
+# OpenAI model-name tokens that identify non-generative models (embeddings,
+# audio, image, moderation). These must never be treated as a "latest"/frontier
+# chat model by is_latest_model().
+_NON_GENERATIVE_TOKENS = (
+    "embedding",
+    "whisper",
+    "dall-e",
+    "tts",
+    "moderation",
+    "image-1",
+    "sora",
+)
+
+
+def is_latest_model(model_name: str) -> bool:
+    """Detect an OpenAI predeployment/codename model as the current frontier.
+
+    OpenAI sometimes exposes pre-release models under internal code names (e.g.
+    `foo-bar-22`) that match none of the known naming conventions. Treat any such
+    unrecognized name as the latest model so it gets frontier behavior. Mirrors
+    the Anthropic provider's `is_claude_latest()`.
+    """
+    name = model_name.lower().removeprefix("openai.")  # bedrock api_model_name prefix
+    if any(token in name for token in _NON_GENERATIVE_TOKENS):
+        return False
+    if is_gpt_5_model(name) or is_o_series_model(name):
+        return False
+    if "gpt" in name or "codex" in name or "deep-research" in name:
+        return False
+    return True
 
 
 def openai_chat_tool_call(tool_call: ToolCall) -> ChatCompletionMessageToolCallUnion:
@@ -120,27 +199,30 @@ async def openai_chat_completion_part(
     if content.type == "text":
         return ChatCompletionContentPartTextParam(type="text", text=content.text)
     elif content.type == "image":
-        # API takes URL or base64 encoded file. If it's a remote file or
-        # data URL leave it alone, otherwise encode it
-        image_url = content.image
+        image_url = inline_media_data_uri(content.image, "image")
         detail = content.detail
-
-        if not is_http_url(image_url):
-            image_url = await file_as_data_uri(image_url)
 
         return ChatCompletionContentPartImageParam(
             type="image_url",
-            image_url=dict(url=image_url, detail=detail),
+            image_url=dict(
+                url=image_url, detail="high" if detail == "original" else detail
+            ),
         )
     elif content.type == "audio":
-        audio_data_uri = await file_as_data_uri(content.audio)
+        audio_data_uri = inline_media_data_uri(
+            content.audio,
+            "audio",
+            mime_type_hint=("audio/mpeg" if content.format == "mp3" else "audio/wav"),
+        )
         audio_data = audio_data_uri.split("base64,")[1]
 
         return ChatCompletionContentPartInputAudioParam(
             type="input_audio", input_audio=dict(data=audio_data, format=content.format)
         )
     elif content.type == "document":
-        document_data_uri = await file_as_data_uri(content.document)
+        document_data_uri = inline_media_data_uri(
+            content.document, "document", mime_type_hint=content.mime_type
+        )
 
         return File(
             type="file",
@@ -231,8 +313,25 @@ async def messages_to_openai(
     return [await openai_chat_message(message, system_role) for message in messages]
 
 
+def fill_empty_assistant_content(
+    messages: list[ChatCompletionMessageParam],
+) -> list[ChatCompletionMessageParam]:
+    """Replace empty assistant message content with NO_CONTENT.
+
+    Some services (e.g. Moonshot, and CloudFlare gateway-hosted models)
+    reject requests that replay an assistant message with empty content.
+    """
+    for message in messages:
+        if message["role"] == "assistant" and not message.get("content"):
+            message["content"] = NO_CONTENT
+    return messages
+
+
 def openai_completion_params(
-    model: str, config: GenerateConfig, tools: bool
+    model: str,
+    config: GenerateConfig,
+    tools: bool,
+    schema_exclude: set[str] | None = None,
 ) -> dict[str, Any]:
     params: dict[str, Any] = dict(model=model)
     if config.max_tokens is not None:
@@ -266,15 +365,24 @@ def openai_completion_params(
             type="json_schema",
             json_schema=dict(
                 name=config.response_schema.name,
-                schema=config.response_schema.json_schema.model_dump(exclude_none=True),
+                schema=json_schema_dump(
+                    config.response_schema.json_schema, exclude=schema_exclude
+                ),
                 description=config.response_schema.description,
                 strict=config.response_schema.strict,
             ),
         )
+    # Build extra_body: user-supplied entries first, then prompt_logprobs.
+    # "metadata" is excluded (never supported for completions as it requires 'store').
+    extra_body: dict[str, Any] = {}
     if config.extra_body:
-        # never supported for completions as requires 'store'
-        config.extra_body.pop("metadata", None)
-        params["extra_body"] = config.extra_body
+        extra_body.update(
+            {k: v for k, v in config.extra_body.items() if k != "metadata"}
+        )
+    if config.prompt_logprobs is not None:
+        extra_body["prompt_logprobs"] = config.prompt_logprobs
+    if extra_body:
+        params["extra_body"] = extra_body
 
     return params
 
@@ -292,7 +400,7 @@ def openai_assistant_content(
     # resolve reasoning handler -- sometimes reasoning should be represented by
     # extra_body (e.g. reasoning_details for openrouter). the reasoning_handler
     # provides a hook for this
-    reasoning_handler = reasoning_handler or reasoning_to_think_tag
+    reasoning_handler = reasoning_handler or default_reasoning_handler
 
     if isinstance(message.content, str):
         return message.content, {}
@@ -303,7 +411,7 @@ def openai_assistant_content(
             if c.type == "reasoning":
                 c_reasoning = reasoning_handler(c)
                 if isinstance(c_reasoning, dict):
-                    extra_body = extra_body | c_reasoning
+                    extra_body = {**extra_body, **c_reasoning}
                 else:
                     content = f"{content}\n{c_reasoning}\n"
 
@@ -313,6 +421,22 @@ def openai_assistant_content(
                     content = f"{content}\n<{content_internal_tag(c.internal)}>\n"
 
     return content, extra_body
+
+
+def default_reasoning_handler(
+    reasoning: ContentReasoning,
+) -> dict[str, JsonValue] | str:
+    # check for an internal field with a source
+    if str(reasoning.internal) in [
+        "reasoning",
+        "reasoning_content",
+        "reasoning_details",
+    ]:
+        extra_body: dict[str, JsonValue] = {}
+        extra_body[str(reasoning.internal)] = reasoning.reasoning
+        return extra_body
+    else:
+        return reasoning_to_think_tag(reasoning)
 
 
 def openai_chat_choices(choices: list[ChatCompletionChoice]) -> list[Choice]:
@@ -361,17 +485,21 @@ def openai_finish_reason(
             return "stop"
 
 
-def openai_chat_tool_param(tool: ToolInfo) -> ChatCompletionToolParam:
+def openai_chat_tool_param(
+    tool: ToolInfo, exclude: set[str] | None = None
+) -> ChatCompletionToolParam:
     function = FunctionDefinition(
         name=tool.name,
         description=tool.description,
-        parameters=tool.parameters.model_dump(exclude_none=True),
+        parameters=json_schema_dump(tool.parameters, exclude=exclude),
     )
     return ChatCompletionFunctionToolParam(type="function", function=function)
 
 
-def openai_chat_tools(tools: list[ToolInfo]) -> list[ChatCompletionToolParam]:
-    return [openai_chat_tool_param(tool) for tool in tools]
+def openai_chat_tools(
+    tools: list[ToolInfo], exclude: set[str] | None = None
+) -> list[ChatCompletionToolParam]:
+    return [openai_chat_tool_param(tool, exclude=exclude) for tool in tools]
 
 
 def openai_chat_tool_choice(
@@ -443,6 +571,8 @@ async def messages_from_openai(
         elif message["role"] == "assistant":
             # resolve content
             refusal: Literal[True] | None = None
+            smuggled_reasoning = None
+            parsed_reasoning_content = False
             asst_content = message.get("content", None)
             if isinstance(asst_content, str):
                 asst_content, smuggled_reasoning = parse_content_with_reasoning(
@@ -459,8 +589,11 @@ async def messages_from_openai(
                             redacted=smuggled_reasoning.redacted,
                             summary=smuggled_reasoning.summary,
                         ),
-                        ContentText(text=asst_content, internal=content_internal),
                     ]
+                    if asst_content:
+                        content.append(
+                            ContentText(text=asst_content, internal=content_internal)
+                        )
                 else:
                     content = asst_content
             elif asst_content is None:
@@ -470,20 +603,40 @@ async def messages_from_openai(
             else:
                 content = []
                 for ac in asst_content:
-                    content.extend(content_from_openai(ac, parse_reasoning=True))
+                    parsed_content = content_from_openai(ac, parse_reasoning=True)
+                    parsed_reasoning_content = parsed_reasoning_content or any(
+                        isinstance(c, ContentReasoning) for c in parsed_content
+                    )
+                    content.extend(parsed_content)
+                if parsed_reasoning_content:
+                    content = [
+                        c
+                        for c in content
+                        if not (isinstance(c, ContentText) and c.text == "")
+                    ]
 
             # resolve reasoning (OpenAI doesn't suport this however OpenAI-compatible
             # interfaces e.g. DeepSeek do include this field so we pluck it out)
-            reasoning = message.get("reasoning_content", None) or message.get(
-                "reasoning", None
+            # note that we already handled <think> tags so we only care about the
+            # other sources
+            parse_result = parse_reasoning_content(
+                message,
+                parse_think=smuggled_reasoning is None and not parsed_reasoning_content,
             )
+            if parse_result is not None:
+                reasoning: ContentReasoning | None = (
+                    content_reasoning_from_openai_reasoning(parse_result[0])
+                )
+            else:
+                reasoning = None
+
             if reasoning is not None:
                 # normalize content to an array
                 if isinstance(content, str):
                     content = [ContentText(text=content, refusal=refusal)]
 
                 # insert reasoning
-                content.insert(0, ContentReasoning(reasoning=str(reasoning)))
+                content.insert(0, reasoning)
 
             # return message
             if "tool_calls" in message:
@@ -591,7 +744,9 @@ def content_from_openai(
             if reasoning:
                 return [
                     ContentReasoning(
+                        internal=reasoning.internal,
                         reasoning=reasoning.reasoning,
+                        summary=reasoning.summary,
                         signature=reasoning.signature,
                         redacted=reasoning.redacted,
                     ),
@@ -611,10 +766,12 @@ def content_from_openai(
             )
         ]
     elif content["type"] == "input_audio":
+        audio_format = content["input_audio"]["format"]
+        mime_type = "audio/mpeg" if audio_format == "mp3" else "audio/wav"
         return [
             ContentAudio(
-                audio=content["input_audio"]["data"],
-                format=content["input_audio"]["format"],
+                audio=as_data_uri(mime_type, content["input_audio"]["data"]),
+                format=audio_format,
             )
         ]
     elif content["type"] == "refusal":
@@ -624,29 +781,65 @@ def content_from_openai(
         raise ValueError(f"Unexpected content type '{content_type}' in message.")
 
 
-REASONING_DETAILS_SIGNATURE = "reasoning-details-"
+CompletionsReasoningSource: TypeAlias = Literal[
+    "think", "reasoning", "reasoning_content", "reasoning_details"
+]
+
+
+@dataclass
+class CompletionsReasoningContent:
+    source: CompletionsReasoningSource
+    reasoning: JsonValue
+
+
+def content_reasoning_from_openai_reasoning(
+    reasoning_content: CompletionsReasoningContent,
+) -> ContentReasoning:
+    if reasoning_content.source == "reasoning_details" and isinstance(
+        reasoning_content.reasoning, list
+    ):
+        return openrouter_reasoning_details_to_reasoning(
+            cast(list[dict[str, Any]], reasoning_content.reasoning)
+        )
+
+    return ContentReasoning(
+        reasoning=str(reasoning_content.reasoning),
+        internal=reasoning_content.source,
+    )
+
+
+ReasoningExtractor: TypeAlias = Callable[
+    [CompletionsReasoningContent], ContentReasoning | None
+]
 
 
 def chat_message_assistant_from_openai(
-    model: str, message: ChatCompletionMessage, tools: list[ToolInfo]
+    model: str,
+    message: ChatCompletionMessage,
+    tools: list[ToolInfo],
+    reasoning_extractor: ReasoningExtractor | None = None,
 ) -> ChatMessageAssistant:
+    # determine message content (might be refusal)
     refusal = getattr(message, "refusal", None)
-    reasoning_details = getattr(message, "reasoning_details", None)
-    reasoning = getattr(message, "reasoning_content", None) or getattr(
-        message, "reasoning", None
-    )
+    msg_content = str(refusal or message.content or "")
 
-    msg_content = refusal or message.content or ""
-    if reasoning_details is not None or reasoning is not None:
-        reasoning = (
-            openrouter_reasoning_details_to_reasoning(reasoning_details)
-            if reasoning_details is not None
-            else ContentReasoning(reasoning=str(reasoning))
-        )
+    # look for reasoning
+    parse_result = parse_reasoning_content(message)
+    if parse_result is not None:
+        reasoning_content, remaining_content = parse_result
+        reasoning: ContentReasoning | None = None
+        if reasoning_extractor is not None:
+            reasoning = reasoning_extractor(reasoning_content)
+        if reasoning is None:
+            reasoning = content_reasoning_from_openai_reasoning(reasoning_content)
+
         content: str | list[Content] = [
             reasoning,
-            ContentText(text=msg_content, refusal=True if refusal else None),
+            ContentText(
+                text=remaining_content or msg_content, refusal=True if refusal else None
+            ),
         ]
+
     elif refusal is not None:
         content = [ContentText(text=msg_content, refusal=True)]
     else:
@@ -660,6 +853,46 @@ def chat_message_assistant_from_openai(
     )
 
 
+def parse_reasoning_content(
+    message: ChatCompletionMessage | ChatCompletionAssistantMessageParam,
+    parse_think: bool = True,
+) -> tuple[CompletionsReasoningContent, str | None] | None:
+    # look in various fields where reasoning lives
+    for source in cast(
+        list[CompletionsReasoningSource],
+        ["reasoning_details", "reasoning_content", "reasoning"],
+    ):
+        if isinstance(message, dict):
+            reasoning = message.get(source, None)
+        else:
+            reasoning = getattr(message, source, None)
+        if reasoning:
+            return (
+                CompletionsReasoningContent(
+                    source=source, reasoning=cast(JsonValue, reasoning)
+                ),
+                None,
+            )
+
+    if not parse_think:
+        return None
+
+    # not found, look for <think> tag
+    content = (
+        message.content
+        if isinstance(message, ChatCompletionMessage)
+        else str(message.get("content") or "")
+    )
+    content_text, reasoning = parse_content_with_reasoning(content or "")
+    if reasoning:
+        return CompletionsReasoningContent(
+            source="think", reasoning=reasoning.reasoning
+        ), content_text
+
+    # no reasoning found
+    return None
+
+
 def model_output_from_openai(
     completion: ChatCompletion,
     choices: list[ChatCompletionChoice],
@@ -669,7 +902,13 @@ def model_output_from_openai(
         choices=choices,
         usage=(
             ModelUsage(
-                input_tokens=completion.usage.prompt_tokens,
+                input_tokens=completion.usage.prompt_tokens
+                - (
+                    completion.usage.prompt_tokens_details.cached_tokens
+                    if completion.usage.prompt_tokens_details is not None
+                    and completion.usage.prompt_tokens_details.cached_tokens is not None
+                    else 0
+                ),
                 output_tokens=completion.usage.completion_tokens,
                 input_tokens_cache_read=(
                     completion.usage.prompt_tokens_details.cached_tokens
@@ -689,38 +928,236 @@ def model_output_from_openai(
     )
 
 
+def openai_stop_details(choice: Any) -> StopDetails | None:
+    """Extract refusal/content-filter detail from an OpenAI-style `Choice`.
+
+    Covers the OpenAI SDK family (OpenAI, Azure OpenAI, DeepSeek, vLLM, LM Studio,
+    Together, Groq). Refusal text comes from `message.refusal`; Azure adds a
+    `content_filter_results` object (a declared field on some SDK versions,
+    otherwise under `model_extra`).
+    """
+    message = getattr(choice, "message", None)
+    explanation = getattr(message, "refusal", None) if message is not None else None
+
+    # Azure content filtering: declared field, else under model_extra (OpenAI SDK)
+    # or additional_properties (azure.ai.inference SDK)
+    filter_results = getattr(choice, "content_filter_results", None)
+    if filter_results is None:
+        extra = getattr(choice, "model_extra", None) or getattr(
+            choice, "additional_properties", None
+        )
+        if isinstance(extra, dict):
+            filter_results = extra.get("content_filter_results")
+
+    # Only categories that actually triggered filtering count — `detected` alone
+    # (e.g. protected-material/jailbreak flagged but not blocked) can appear on a
+    # normal `stop` completion and must not be reported as a stop reason.
+    categories: list[StopCategory] = []
+    if isinstance(filter_results, dict):
+        for name, info in filter_results.items():
+            if isinstance(info, dict) and info.get("filtered"):
+                level = info.get("severity")
+                categories.append(
+                    StopCategory(
+                        category=str(name),
+                        level=str(level) if level is not None else None,
+                    )
+                )
+
+    if not categories and not explanation:
+        return None
+
+    finish_reason = getattr(choice, "finish_reason", None)
+    return StopDetails(
+        type="content_filter" if finish_reason == "content_filter" else "refusal",
+        explanation=explanation,
+        categories=categories,
+    )
+
+
 def chat_choices_from_openai(
-    response: ChatCompletion, tools: list[ToolInfo]
+    response: ChatCompletion,
+    tools: list[ToolInfo],
+    reasoning_extractor: ReasoningExtractor | None = None,
 ) -> list[ChatCompletionChoice]:
     choices = list(response.choices)
     choices.sort(key=lambda c: c.index)
+    # Parse prompt logprobs from the response top level (vLLM places them
+    # there, not inside individual choices).
+    prompt_lps = _parse_prompt_logprobs(response)
     return [
         ChatCompletionChoice(
             message=chat_message_assistant_from_openai(
-                response.model, choice.message, tools
+                response.model, choice.message, tools, reasoning_extractor
             ),
             stop_reason=as_stop_reason(choice.finish_reason),
+            stop_details=collect_stop_details(
+                "openai", logger, functools.partial(openai_stop_details, choice)
+            ),
             logprobs=(
                 Logprobs(**choice.logprobs.model_dump())
                 if choice.logprobs and choice.logprobs.content is not None
                 else None
             ),
+            prompt_logprobs=prompt_lps,
         )
         for choice in choices
     ]
 
 
+def parse_vllm_prompt_logprobs_raw(raw: list[Any]) -> Logprobs | None:
+    """Parse a vLLM prompt_logprobs list into a :class:`Logprobs` object.
+
+    vLLM format: each position is either ``None`` (BOS) or a dict mapping
+    ``token_id -> {decoded_token, logprob, rank}``.  The first entry in
+    each dict is the actual prompt token (by vLLM's insertion-order
+    contract); subsequent entries are the top-N alternatives
+    (when ``prompt_logprobs > 1``).
+
+    This is the shared parsing logic used by both the chat completions
+    path (``_parse_prompt_logprobs``) and the ``vllm-completions`` provider.
+    """
+    result: list[Logprob] = []
+    for entry in raw:
+        # First token has None logprob (no left context)
+        if entry is None:
+            continue
+        if not isinstance(entry, dict):
+            continue
+        items = list(entry.items())
+        if not items:
+            continue
+        # vLLM's Sampler places the actual prompt token as the first dict
+        # entry (by insertion order), followed by top-N alternatives sorted
+        # by logprob.  This contract holds in all vLLM versions through
+        # v0.8.x.  With prompt_logprobs=1 (the common case for perplexity
+        # evals), there is only one entry per position, so ordering is
+        # irrelevant.
+        first_id, first_info = items[0]
+        if not isinstance(first_info, dict):
+            continue
+        # Remaining items are top-N alternatives (only present when
+        # prompt_logprobs > 1).
+        # We use dict["logprob"] (not .get()) so a malformed response
+        # raises KeyError immediately rather than injecting NaN that
+        # silently poisons the perplexity metrics.
+        top_lps: list[TopLogprob] | None = None
+        if len(items) > 1:
+            logger.debug(
+                "prompt_logprobs: position has %d entries; treating first "
+                "entry (token=%r, logprob=%s) as actual prompt token",
+                len(items),
+                first_info.get("decoded_token", str(first_id)),
+                first_info.get("logprob"),
+            )
+            top_lps = [
+                TopLogprob(
+                    token=alt_info.get("decoded_token", str(alt_id)),
+                    logprob=alt_info["logprob"],
+                )
+                for alt_id, alt_info in items[1:]
+                if isinstance(alt_info, dict)
+            ]
+        result.append(
+            Logprob(
+                token=first_info.get("decoded_token", str(first_id)),
+                logprob=first_info["logprob"],
+                top_logprobs=top_lps,
+            )
+        )
+    return Logprobs(content=result) if result else None
+
+
+def _parse_prompt_logprobs(response: Any) -> Logprobs | None:
+    """Parse prompt logprobs from a vLLM chat completions response.
+
+    vLLM places prompt_logprobs at the response top level (not inside choices).
+    This function locates the raw list and delegates to
+    :func:`parse_vllm_prompt_logprobs_raw` for parsing.
+    """
+    raw: list[Any] | None = None
+    if hasattr(response, "prompt_logprobs") and response.prompt_logprobs is not None:
+        raw = response.prompt_logprobs
+    elif hasattr(response, "model_extra") and response.model_extra:
+        raw = response.model_extra.get("prompt_logprobs")
+
+    if not raw:
+        return None
+
+    return parse_vllm_prompt_logprobs_raw(raw)
+
+
+def parse_completion_logprobs(sdk_logprobs: Any) -> Logprobs | None:
+    """Parse ``/v1/completions`` logprobs into :class:`Logprobs`.
+
+    The completions endpoint returns logprobs as parallel arrays::
+
+        {
+            "tokens": [" Paris", "."],
+            "token_logprobs": [-0.595, -0.837],
+            "top_logprobs": [{" Paris": -0.595}, {".": -0.837}]
+        }
+
+    This differs from chat completions which uses a list of objects.
+    """
+    if sdk_logprobs is None:
+        return None
+
+    tokens = getattr(sdk_logprobs, "tokens", None)
+    token_logprobs = getattr(sdk_logprobs, "token_logprobs", None)
+    if not tokens or not token_logprobs:
+        return None
+
+    sdk_top = getattr(sdk_logprobs, "top_logprobs", None)
+
+    result: list[Logprob] = []
+    for i, (token, logprob) in enumerate(zip(tokens, token_logprobs)):
+        if logprob is None:
+            continue
+        top_lps: list[TopLogprob] | None = None
+        if sdk_top and i < len(sdk_top) and sdk_top[i]:
+            top_lps = [TopLogprob(token=t, logprob=lp) for t, lp in sdk_top[i].items()]
+        result.append(Logprob(token=token, logprob=logprob, top_logprobs=top_lps))
+    return Logprobs(content=result) if result else None
+
+
 def openai_should_retry(ex: BaseException) -> bool:
+    return openai_classify_retry(ex) is not None
+
+
+def openai_classify_retry(ex: BaseException) -> "RetryDecision | None":
+    """Classify an OpenAI SDK exception as rate_limit / transient / not retryable.
+
+    Returns None when the exception isn't retryable. Reads `Retry-After` and
+    `x-ratelimit-reset-*` from the response headers when available so the
+    adaptive controller can honor server-suggested wait times.
+    """
+    from inspect_ai.model._model import RetryDecision
+
     if isinstance(ex, RateLimitError):
-        return True
-    elif isinstance(ex, APIStatusError):
-        return is_retryable_http_status(ex.status_code)
-    elif isinstance(ex, OpenAIResponseError):
-        return ex.code in ["rate_limit_exceeded", "server_error"]
-    elif isinstance(ex, APIConnectionError | APITimeoutError):
-        return True
-    else:
-        return False
+        return RetryDecision.rate_limit(
+            retry_after=parse_retry_after_from_exception(ex)
+        )
+    if isinstance(ex, APIStatusError):
+        status = ex.status_code
+        retry_after = parse_retry_after_from_exception(ex)
+        if status == 429:
+            return RetryDecision.rate_limit(retry_after=retry_after)
+        if is_retryable_http_status(status):
+            return RetryDecision.transient(retry_after=retry_after)
+        return None
+    if isinstance(ex, OpenAIResponseError):
+        # OpenAIResponseError is the structured error from the Responses API.
+        # `rate_limit_exceeded` is the explicit rate-limit code; `server_error`
+        # is a generic backend failure (treat as transient).
+        if ex.code == "rate_limit_exceeded":
+            return RetryDecision.rate_limit()
+        if ex.code == "server_error":
+            return RetryDecision.transient()
+        return None
+    if isinstance(ex, APIConnectionError | APITimeoutError):
+        return RetryDecision.transient()
+    return None
 
 
 def openai_handle_bad_request(
@@ -734,18 +1171,33 @@ def openai_handle_bad_request(
 
     # narrow stop_reason
     stop_reason: StopReason | None = None
+    stop_details: StopDetails | None = None
     if e.code == "context_length_exceeded":
         stop_reason = "model_length"
     elif (
         e.code == "invalid_prompt"  # seems to happen for o1/o3
         or e.code == "content_policy_violation"  # seems to happen for vision
         or e.code == "content_filter"  # seems to happen on azure
+        or e.code == "cyber_policy"  # seems to happen for 5.4
+        or (e.type == "invalid_request_error" and "blocked" in e.message)
     ):
         stop_reason = "content_filter"
+        if e.code == "cyber_policy":
+            stop_details = StopDetails(
+                type="refusal",
+                category="cyber",
+                explanation=content,
+                categories=[StopCategory(category="cyber")],
+            )
+        else:
+            stop_details = StopDetails(type="refusal", explanation=content)
 
     if stop_reason:
         return ModelOutput.from_content(
-            model=model_name, content=content, stop_reason=stop_reason
+            model=model_name,
+            content=content,
+            stop_reason=stop_reason,
+            stop_details=stop_details,
         )
     else:
         return e
@@ -769,22 +1221,3 @@ def openai_media_filter(key: JsonValue | None, value: JsonValue) -> JsonValue:
         value = copy(value)
         value.update(data=BASE_64_DATA_REMOVED)
     return value
-
-
-class OpenAIAsyncHttpxClient(httpx.AsyncClient):
-    """Custom async client that uses OpenAI's default settings.
-
-    This ensures proper proxy support and follows OpenAI's recommended configuration.
-    OpenAI has already incorporated timeout improvements for reasoning models in their
-    default transport, so we don't need custom socket options.
-
-    """
-
-    def __init__(self, **kwargs: Any) -> None:
-        # Use OpenAI's default settings which handle proxies correctly
-        # https://github.com/openai/openai-python/commit/347363ed67a6a1611346427bb9ebe4becce53f7e
-        kwargs.setdefault("timeout", DEFAULT_TIMEOUT)
-        kwargs.setdefault("limits", DEFAULT_CONNECTION_LIMITS)
-        kwargs.setdefault("follow_redirects", True)
-
-        super().__init__(**kwargs)

@@ -2,6 +2,7 @@ from pathlib import Path
 from textwrap import dedent
 from typing import Sequence
 
+import anyio
 from pydantic import Field
 
 from inspect_ai.tool._tool import Tool, ToolError, tool
@@ -12,11 +13,17 @@ from .install import install_skills
 from .read import read_skills
 from .types import Skill, SkillInfo
 
+# Per-instance locks serialise the lazy install on the first concurrent
+# call so parallel skill tool calls don't race on file writes/chown/chmod
+# in the sandbox. After install completes, lookups are pure reads.
+_install_locks: dict[str | None, anyio.Lock] = {}
 
-@tool
+
+@tool(parallel=True)
 def skill(
     skills: Sequence[str | Path | Skill],
     *,
+    instance: str | None = None,
     sandbox: str | None = None,
     user: str | None = None,
     dir: str | None = None,
@@ -27,12 +34,18 @@ def skill(
 
     Args:
         skills: Agent skill specifications. Either a directory containing a skill or a full `Skill` specification.
+        instance: Optional instance name for the skill store. Enables
+            multiple independent skill tool instances within a single
+            sample (e.g., different subagents with different skill sets).
         sandbox: Sandbox environment name to copy skills to.
         user: User to write skills files with.
         dir: Directory to install into (defaults to "./skills").
     """
-    # resolve skills
+    from .validate import check_unique_skill_names
+
+    # resolve skills and validate uniqueness
     resolved_skills = read_skills(skills)
+    check_unique_skill_names(resolved_skills)
 
     async def execute(command: str) -> str:
         """Execute a skill within the main conversation.
@@ -40,10 +53,17 @@ def skill(
         Args:
            command: The skill name (no arguments). E.g., "pdf" or "xlsx"
         """
-        # see if we need to install the skills
-        installed = store_as(InstalledSkills)
+        # see if we need to install the skills (double-checked under a
+        # per-instance lock so concurrent first-callers don't both run
+        # install_skills and race on sandbox file writes)
+        installed = store_as(InstalledSkills, instance=instance)
         if installed.skills is None:
-            installed.skills = await install_skills(resolved_skills, sandbox, user, dir)
+            lock = _install_locks.setdefault(instance, anyio.Lock())
+            async with lock:
+                if installed.skills is None:
+                    installed.skills = await install_skills(
+                        resolved_skills, sandbox, user, dir
+                    )
 
         # lookup skill
         skill_info = next((si for si in installed.skills if si.name == command), None)

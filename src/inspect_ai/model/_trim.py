@@ -1,5 +1,9 @@
 from dataclasses import dataclass, field
 
+from shortuuid import uuid
+
+from inspect_ai._util.content import Content, ContentText
+
 from ._chat_message import ChatMessage
 
 
@@ -68,7 +72,8 @@ async def trim_messages(
                 # Some tool_calls were orphaned, update the message
                 msg = msg.model_copy(
                     update={
-                        "tool_calls": valid_tool_calls if valid_tool_calls else None
+                        "id": uuid(),
+                        "tool_calls": valid_tool_calls if valid_tool_calls else None,
                     }
                 )
         sanitized_messages.append(msg)
@@ -78,8 +83,10 @@ async def trim_messages(
     if len(conversation_messages) and conversation_messages[-1].role == "assistant":
         conversation_messages.pop()
 
-    # return trimmed messages
-    return partitioned.system + partitioned.input + conversation_messages
+    # return trimmed messages with citations stripped
+    return strip_citations(
+        partitioned.system + partitioned.input + conversation_messages
+    )
 
 
 @dataclass
@@ -95,6 +102,8 @@ def partition_messages(messages: list[ChatMessage]) -> PartitionedMessages:
     for message in messages:
         if message.role == "system":
             partitioned.system.append(message)
+        elif _is_summary_message(message):
+            partitioned.conversation.append(message)
         elif message.source == "input":
             partitioned.input.append(message)
         else:
@@ -102,7 +111,9 @@ def partition_messages(messages: list[ChatMessage]) -> PartitionedMessages:
 
     # if there are no input messages then take up to the first user message
     if len(partitioned.input) == 0:
-        while partitioned.conversation:
+        while partitioned.conversation and not _is_summary_message(
+            partitioned.conversation[0]
+        ):
             message = partitioned.conversation.pop(0)
             partitioned.input.append(message)
             if message.role == "user":
@@ -110,3 +121,36 @@ def partition_messages(messages: list[ChatMessage]) -> PartitionedMessages:
 
     # all done!
     return partitioned
+
+
+def _is_summary_message(message: ChatMessage) -> bool:
+    return "summary" in (message.metadata or {})
+
+
+def strip_citations(messages: list[ChatMessage]) -> list[ChatMessage]:
+    """Strip citations from all ContentText blocks in messages.
+
+    Citations reference server-side tool results (e.g., web_search) by index.
+    When trimming or compaction removes messages containing those results,
+    citations become dangling references that cause API errors.
+    """
+    result: list[ChatMessage] = []
+    for msg in messages:
+        if isinstance(msg.content, list):
+            new_content: list[Content] = []
+            modified = False
+            for content in msg.content:
+                if isinstance(content, ContentText) and content.citations:
+                    new_content.append(content.model_copy(update={"citations": None}))
+                    modified = True
+                else:
+                    new_content.append(content)
+            if modified:
+                result.append(
+                    msg.model_copy(update={"id": uuid(), "content": new_content})
+                )
+            else:
+                result.append(msg)
+        else:
+            result.append(msg)
+    return result

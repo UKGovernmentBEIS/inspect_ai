@@ -1,0 +1,356 @@
+# Scanners in `eval_set` (and `eval`)
+
+## Goal
+
+Allow callers of `eval_set` (and `eval`) to attach one or more `inspect_scout` scanners that run against each sample's transcript as the sample completes. Scanner results are persisted into a scout-format scan directory under the eval log dir, not embedded in the inspect_ai `EvalLog`.
+
+A central design constraint: **the on-disk scan directory should match scout's standalone-`scout scan` layout exactly.** A scan dir produced by an inspect_ai eval_set must be indistinguishable from one produced by `scout scan`, so scout's tooling — `scan_resume`, `scan_complete`, the viewer, parquet readers — works unchanged. The eval_set-specific behavior is layered on top: lifecycle is driven by the eval_set call boundaries instead of scout's own CLI, and the per-sample dispatch loop runs alongside the eval rather than reading transcripts back from logs.
+
+`inspect_scout` remains an **optional** dependency. Importing inspect_ai must not require inspect_scout. Only callers that pass a non-`None` `scanner` cause scout to be imported.
+
+## User-facing API
+
+A `scanner` parameter on `eval_set`, `eval`, `eval_async`, `eval_retry`, and `eval_retry_async`:
+
+```python
+scanner: EvalScanners | None = None
+```
+
+`EvalScanners` is a TypeAlias accepting:
+
+- `Sequence[Scanner | tuple[str, Scanner]]` — direct scanner construction
+- `dict[str, Scanner]` — named scanners
+- `EvalScannerConfig` — Pydantic model carrying scanners + `tags`/`metadata`/`filter`/`model`/`model_args`/`generate_config`/`model_roles`/`scans`/`name`. A subset of scout's `ScanJob` schema, narrowed to fields that make sense when eval_set is generating the transcripts (drops `transcripts`, `worklist`, `limit`, `shuffle`, `max_processes`, `max_transcripts`, `validation`, `log_level`).
+
+`EvalScannerConfig` is a subset of `ScannerConfig` that contains only the fields relevant for integration in eval.
+
+`EvalScannerConfig.from_file(path)` loads a YAML/JSON file (with `ScannerSpec` references resolved through scout's registry), making it possible to drive scanners from config.
+
+On `eval_retry`, passing `scanner` reuses the original eval's scan dir (`scan_id = eval_log.eval.eval_set_id or eval_log.eval.run_id`) — same `_verify_scanner_config_unchanged` contract as eval_set resume: matching scanner config attaches, divergent config raises `PrerequisiteError`. The internal `scan_id` knob on `eval`/`eval_async` exists for this; callers other than `eval_retry` shouldn't set it.
+
+### CLI
+
+`inspect eval`, `inspect eval-set`, and `inspect eval-retry` accept the same scanner flags (formats mirror `scout scan`):
+
+```
+--scanner SPEC                          # YAML/JSON config OR Python @scanner file OR pkg/name
+--scanner-arg KEY=VALUE                 # scanner args
+--scans                                 # output dir override
+--scan-name / --scan-tags / --scan-metadata
+-F / --scan-filter                      # SQL WHERE per-sample
+--scan-model / --scan-model-base-url
+--scan-model-arg / --scan-model-config
+--scan-model-role
+--scan-generate-config
+```
+
+The shared `scanner_options` click decorator (in `inspect_ai/_cli/eval.py`) defines this option set once; `eval_options` (used by `eval`/`eval-set`) and `eval-retry` apply it. All three commands use the `EvalCommand` (a `SectionedCommand`) so the options appear under a "Scanner Options:" section in `--help`.
+
+CLI flags override equivalent fields in a YAML config.
+
+## Scan-side model
+
+The scanner's `get_model()` is detached from the eval's active model. `_install_scan_model_context` runs *before every scanner dispatch* and unconditionally invokes scout's `init_scan_model_context`, which installs whichever model is set via (in priority order):
+
+1. `EvalScannerConfig.model` / CLI `--scan-model`,
+2. the `SCOUT_SCAN_MODEL` env var,
+3. the `NoModel` sentinel (`inspect_ai.model._providers.none.NoModel`) — its `.generate(...)` raises `PrerequisiteError`.
+
+The detachment is intentional. Scanners typically want a different (often cheaper or smaller) model than the eval; silently inheriting `eval_set(model=...)` or `Task(model=...)` has produced costly surprises. Forcing the user to think about the scan-side model is the goal.
+
+Scanners that never call `get_model()` are unaffected — `NoModel` only raises on use. For scanners that *do* need a model but none is configured, scout's `_scan_one` treats `PrerequisiteError` as scan-fatal (explicit re-raise alongside the generic `except Exception` capture path), so the error propagates out of `scan_eval_sample`. We rewrap it in `_rewrap_no_model_error` to surface the missing scan-side model directly (the underlying message `"No model specified..."` doesn't tell the user the problem is scan-side):
+
+> `Scanner '<name>' tried to use a model but no scan-side model is configured. Set one via EvalScannerConfig(model=...), the CLI flag --scan-model, or the SCOUT_SCAN_MODEL environment variable.`
+
+`raise ... from None` suppresses the noisy NoModel chain so this message stands alone in the user's traceback.
+
+## Scan Directory State
+
+The state of the scan dir on disk is what scout's tooling reads, and it's where the inspect_ai/scout consistency invariant lives.
+
+### Layout
+
+A scan dir matches scout's standard layout:
+
+```
+{log_dir}/scans/scan_id={scan_id}/
+  _scan.json                # ScanSpec — written once at init
+  _summary.json             # whole-scan summary; complete flag
+  _errors.jsonl             # one Error record per failed (scanner, transcript)
+  {scanner_name}.parquet    # per-scanner compacted output
+```
+
+`scan_id` is the eval_set's `eval_set_id` when called from `eval_set`, or the eval's `run_id` when called standalone from `eval()`. The scan dir is created the first time a scanner-bearing call runs against a given log_dir.
+
+Alongside, scout's per-transcript buffer accumulates in a separate location keyed by a hash of the scan dir path:
+
+```
+<scout_scanbuffer>/<hash>/
+  _summary.json             # live, updated per record() call
+  _errors.jsonl             # live, appended per record() call
+  scanner=<name>/<tid>.parquet   # one per (scanner, transcript) pair
+```
+
+`<scout_scanbuffer>` defaults to `inspect_data_dir("scout_scanbuffer")`, overridable via `SCOUT_SCANBUFFER_DIR`. This is scout's existing convention; eval_set inherits it unchanged.
+
+### State at each lifecycle phase
+
+The scan dir's state is well-defined at each phase boundary. The buffer dir's state is also tracked because resume correctness depends on it.
+
+| Phase | scan_dir contents | Buffer dir contents |
+| --- | --- | --- |
+| Before any scanner call | (does not exist) | (does not exist) |
+| After `scan_init` (fresh) | `_scan.json` | `_summary.json` (`complete=False`) |
+| After `scan_init` (attach to existing) | `_scan.json`, prior `_summary.json` flipped to `complete=False`, prior `*.parquet`, prior `_errors.jsonl` | `_summary.json` seeded from scan dir; per-transcript files preserved if previous run was `complete=False`, fresh if `complete=True` |
+| Mid-scan (per-sample work in flight) | `_scan.json` only — `_summary.json`/`_errors.jsonl` not updated mid-flight | `_summary.json` updated per `record()`, `_errors.jsonl` appended per error, `<tid>.parquet` written per (scanner, transcript) |
+| After `scan_finalize` with no scanner errors | `_scan.json`, `_summary.json` (`complete=True`), `_errors.jsonl` (empty), `*.parquet` containing every recorded row | Cleaned up |
+| After `scan_finalize` with scanner errors | `_scan.json`, `_summary.json` (`complete=False`), `_errors.jsonl` (one entry per failure), `*.parquet` | Preserved (so `scan_resume` can pick up failed pairs) |
+| After process kill mid-flight | Whatever the most recent finalize wrote, **plus** `_scan.json` if the kill was after `scan_init` of the current call | Buffer state from the killed call preserved (`complete=False` from `scan_init`) |
+
+### `_summary.json`'s `complete` flag is meaningful
+
+`_summary.json`'s `complete: bool` is the canonical signal for "did the most recent call's `scan_finalize` run, and did it run cleanly?"
+
+To make this signal reliable across calls, `scan_init` flips `complete` to `False` in place when attaching to an existing scan dir. Stats (`scans`, `errors`, `results`, `tokens`, `model_usage`) are preserved — only the boolean is touched. Without this invalidation, a clean `complete=True` from run 1 would survive any subsequent crashed run, masking the gap.
+
+Combined with `scan_finalize`'s `_sync_status_files` rewriting `_summary.json` with `complete = not errors_in_buffer` at every finalize, we get:
+
+- `complete=True` ⇔ the most recent prior call's `scan_finalize` ran AND no scanner errors were captured AND no subsequent call has started.
+- `complete=False` (or summary absent) ⇒ either the most recent call had errors, the most recent call crashed before finalize, or this is a fresh scan dir.
+
+### Scout consistency invariant
+
+The on-disk shape above is **identical** to what `scout scan` produces. Specifically:
+
+- Same `_scan.json` schema (scout's `ScanSpec`).
+- Same `_summary.json` schema (scout's `Summary`).
+- Same `_errors.jsonl` format (scout's `Error` per line).
+- Same compacted parquet schema (scout's `scanner_table` output).
+- Same buffer dir layout (`scanner=<name>/<tid>.parquet`).
+- Same `complete=True ⇒ buffer cleaned` invariant after `sync`.
+- Same snapshot in `_scan.json`'s `transcripts` field (scout's `ScanTranscripts`).
+
+This means:
+
+- `scout scan-resume <scan_dir>` works on an inspect_ai-produced scan dir to retry failed scans.
+- `scout scan-complete <scan_dir>` works to materialize a buffer-only scan that crashed before finalize.
+- The scout viewer reads inspect_ai-produced scan dirs without modification.
+
+The only inspect_ai-specific behavior is *who triggers* `scan_init` / `record` / `sync` and *when* — eval_set's per-sample call boundaries instead of scout's CLI lifecycle. The data shape is unchanged.
+
+## Lifecycle
+
+`scanner: EvalScanners | None` is threaded from the public entry point (`eval_set` or `eval`) down through `eval_async` → `_eval_async_inner` → `eval_run` → `TaskRunOptions` → `task_run` → `task_run_sample`.
+
+The init/finalize bracket lives in a context manager `scan_context(scanner, scan_id, log_dir)`.
+
+`eval_set` wraps its retry loop in `scan_context` keyed on `eval_set_id`. `eval()` wraps its run loop in `scan_context` keyed on `run_id` *only when called standalone* (i.e. when no `eval_set_id` is set) — when called from eval_set, the outer scan_context already brackets the call.
+
+### Per-sample dispatch (eval phase)
+
+In `task_run_sample`, after `log_sample` and before `emit_sample_end`:
+
+`scan_eval_sample` builds a `Transcript` from the `EvalSample`, applies the `EvalScannerConfig.filter` SQL clauses to skip non-matching samples, and dispatches each scanner via scout's `_scan_one`. Records to the buffer via an ephemeral `FileRecorder().attach(scan_dir)`. Concurrent ephemeral instances share the same in-memory `Summary` and lock through scout's `_buffer_states` cache (see [Concurrency](#concurrency)).
+
+### Per-sample resume-scan (reuse path)
+
+When `eval_set` resumes — or when a scanner is added on a later call — some samples come back as `PreviousTask` reuses rather than fresh runs. For these, `task_run_sample` is bypassed; the sample is fetched from the prior log via `sample_source` and short-circuited.
+
+To close the gap (sample logged but never scanned), `task_run` snapshots the set of already-scanned transcript_ids per scanner via `scanned_transcripts_for_resume` and passes it to the reuse path. Inside the reuse branch, `resume_scan_previous_sample` checks the snapshot and dispatches `scan_eval_sample` for any reused sample whose transcript_id is missing — under the same `sample_semaphore` so resume-scan work shares the eval phase's parallelism budget.
+
+The snapshot is non-empty (and the check fires) **only** when `scan_already_clean(scanner, scan_id, log_dir)` is False — i.e., the most recent prior finalize wasn't clean. When the prior scan finalized cleanly, the check is skipped entirely (the file existence + parquet column read) — no per-sample work.
+
+### Routing success-logs through `PreviousTask`
+
+`eval_set` normally short-circuits to return success-logs unchanged when there's nothing pending or failed. When a scanner is configured **and** the prior scan isn't already clean, success-logs are converted to `PreviousTask` wrappers and added to `tasks_to_run` (alongside any pending/failed tasks) so the per-sample reuse path runs for them — picking up unscanned transcripts. When the prior scan is clean, the routing is skipped — pure short-circuit, no scanner work.
+
+This routing must fire whether or not there are also pending/failed tasks in the same call. Otherwise unscanned transcripts in already-completed tasks are silently skipped on every call that has any other work.
+
+## Concurrency
+
+Inspect_ai runs samples concurrently up to `max_samples`. Multiple `scan_eval_sample` calls overlap. Within each call, scanners dispatch sequentially in a simple loop — keeps scout's prompt-cache-warming "lead/follower" pattern intact (the savings only become positive at 3+ scanners per sample, so naive `tg_collect` would lose the benefit).
+
+The contended resource is scout's `_summary.json` (read-modify-write). `RecorderBuffer` shares a single `Summary` object and an `anyio.Lock` per buffer dir across every instance in the process (`_buffer_states`). Mutating the in-memory `Summary` under the lock and persisting it directly — no disk re-read on each record — keeps the read-modify-write race-free while costing only an uncontended-lock acquisition. `cleanup_buffer_dir` drops the cached entry so a future buffer for the same dir re-reads from disk.
+
+The connection-pool semaphore for the eval-side model API is shared with scanner-side calls when both sides are configured with the same model (e.g. `eval_set(model="X")` + `EvalScannerConfig(model="X")`). Scout's per-Model semaphore keys on `connection_key()` so calls from both sides queue through the same limit. With a distinct scan-side model — the recommended default since scanners are detached from the eval's model (see [Scan-side model](#scan-side-model)) — each side gets its own pool.
+
+## Filter semantics
+
+`EvalScannerConfig.filter` is a SQL WHERE clause (or list of them) lifted from scout's `Transcripts.where(...)`. Where scout applies the filter at query time against its database, eval_set applies it per-sample inline before dispatching scanners. The semantics are identical: a sample whose transcript fields don't match is skipped — no parquet row, no entry in the snapshot, no scan attempt.
+
+### How `_sample_matches_filters` evaluates a clause
+
+Per-sample evaluation runs through scout's filter language end-to-end:
+
+1. **Parse + emit** via scout's `condition_from_sql` (parses the user's WHERE clause into a `Condition`) and `condition_as_sql(cond, "sqlite")` (emits parameterized sqlite SQL with double-quoted identifiers and `json_extract` for JSON-path shorthand like `sample_metadata.group = 'a'`). Same parser/emitter scout uses against parquet/sqlite-backed transcripts.
+2. **Build a one-row table** using scout's `TranscriptColumns` schema. `_filter_row` calls inspect_ai's `import_record` twice — once with a synthesized `EvalLog` for eval-level columns (`model`, `task_set`, `eval_metadata`, …), once with the `EvalSample` for sample-level columns (`task_id`, `total_tokens`, `sample_metadata`, …). JSON columns are JSON-encoded by scout's column `value` callbacks so `json_extract` works.
+3. **Run** `SELECT 1 FROM t WHERE {scout_emitted_sql}` against an in-memory sqlite table containing that one row. Filter values bind as `?` parameters; only identifiers are interpolated.
+
+Iterating `TranscriptColumns` (rather than hand-rolling each column) means new columns scout adds flow through automatically.
+
+### Safety properties
+
+- **No injection via filter values.** Scout's emitter parameterizes user-supplied values as `?`. Adversarial filter strings (`error = ''; DROP TABLE t; --`, `UNION SELECT ...`, subqueries) are rejected at parse time — verified with tests.
+- **Identifier escaping.** Column names from `score_*` expansion can contain arbitrary characters (a malicious score name like `evil") CHECK(0=1)) --` would otherwise inject a CHECK constraint into our `CREATE TABLE`). All identifiers are escaped per the SQL standard (`"` → `""`) before interpolation.
+- **Typo'd column refs raise.** sqlite's "double-quoted string literal" compatibility mode would silently turn `"unknown_col" = 'x'` into `'unknown_col' = 'x'` (always False). A regex pre-pass over scout's emitted SQL extracts double-quoted identifiers and raises `OperationalError: no such column: ...` if any aren't in the row's columns.
+
+## Scanner config verification on reattach
+
+When a second `eval_set` call lands on an existing scan dir, `scan_init` runs `_verify_scanner_config_unchanged` before doing anything else. Three checks, ordered cheapest first; any mismatch raises `PrerequisiteError`:
+
+1. **Scanner names** — set equality between prior `_scan.json`'s `scanners` keys and the new run's. Adding/removing a scanner means the new run wants different output than the scan dir holds.
+2. **Per-scanner `ScannerSpec` equality** — full equality on each scanner's `params`, `version`, `file`, `package_version`. Same name + different code/params produces different output for the same transcript; reusing the prior parquet rows would be wrong.
+3. **Eval-set-level config hash** — sha256 of `filter`, `model`, `model_args`, `generate_config`, `model_roles`, `model_base_url`. None of these are in scout's `ScannerSpec`. The hash is stashed in `ScanSpec.metadata[__inspect_scan_config_hash__]` at fresh-init and at every successful reattach.
+
+Why this matters: the `prior_scan_clean` short-circuit (see "Routing success-logs through `PreviousTask`") elides per-sample resume-scan work when the prior finalize was clean, on the assumption "every transcript already has a row." That's only true if the scanner config hasn't changed. Otherwise — the user's example, `filter="error != ''"` → no filter — previously-filtered-out transcripts would be silently left unscanned.
+
+Excluded from the hash by design: `name`, `tags`, `metadata`, `scans`. Those are labels/output-location, not behavior; users updating a tag shouldn't be forced to start fresh. The eval-level model (`eval_set(model=...)`) is also excluded — different model produces different transcript uuids, which already differentiate work in the scan dir naturally; capturing it in the hash would force a fresh `log_dir` for every model swap.
+
+Resolution surface: the error message names which check fired and points at the user's two options — different `log_dir`/`scan_id` for a fresh scan, or revert the change. No override flag; if someone needs one, they can ask.
+
+## Display
+
+### Trailing scan-status line
+
+After `eval` / `eval_set` / `eval_retry` finishes (panel + `Log:` line for `eval`/`eval_retry`, "Completed all tasks…" line for `eval_set`), `print_scan_status(log_dir, scanner)` emits a final plain-text line:
+
+- **Clean run** — `scan complete: <scan_dir>`. One copy-pasteable path.
+- **Errors present** — names the count and prints `scout scan resume <path>` and `scout scan complete <path>` so the user can recover with the same commands they'd use after a direct `scout scan` invocation:
+
+  ```
+  3 scan errors occurred!
+  Resume (retrying errors):   scout scan resume <path>
+  Complete (ignoring errors): scout scan complete <path>
+  ```
+
+The message lives at the CLI/run boundary so it lands AFTER the eval display has flushed — printed in plain text (no rich markup) so it doesn't conflict visually with the eval's panel. The scan dir lookup honors `EvalScannerConfig.scans` (output redirected to a different filesystem still gets a correct path).
+
+### Preserving scanner flags on the suggested `eval-retry` command
+
+When a task is interrupted, `task_interrupted` shows `inspect eval-retry <log>` as a copy-pasteable resume command. The eval/eval-set/eval-retry CLI commands populate a `ContextVar` (`_retry_args_suffix` in `_display/core/results.py`) with a `shlex.join`'d reconstruction of the user's scanner-related flags (via `serialize_scanner_cli_args`). `task_interrupted` appends that suffix so the suggested command resumes against the *same* scan dir with the *same* scanner config — without the suffix, a copy-paste retry would have no scanner and silently leave the scan dir orphaned for this run.
+
+### Textual `Scan` tab
+
+When the eval runs under the Textual app, a `Scan` tab is composed alongside `Tasks` / `Running Samples` / `Console`. It's hidden by default and revealed automatically when `scan_display.is_active()` becomes true (i.e. once `scan_init` has run).
+
+The tab hosts scout's standard scan panel — the same `scan_panel(spec, summary, progress)` renderable scout's standalone `scout scan` command shows. inspect_ai populates it via a push-based state module (`_eval/task/scan_display.py`):
+
+- `scan_init` → `set_active(scan_dir, spec, summary)` once.
+- `scan_eval_sample` → `push_results(summary, scanner)` after every `recorder.record()` (in-memory cumulative summary, no file re-reads).
+- `resume_scan_previous_sample` → `mark_completed(n)` when the short-circuit fires (counts reused samples as done in the progress bar without firing a real scan).
+- The Textual `update_display` tick (1 Hz) reads `get_state()` and rebuilds the panel.
+
+The progress bar's total is computed at the textual app level: `sum(t.profile.samples for t in _app_tasks) * len(spec.scanners)`. Reused samples count via `mark_completed`; freshly-scanned samples count via `push_results`; re-executed samples (different uuid) count via `push_results` too — capped at the total in the display so retries don't render past 100%.
+
+Two fields are stripped from the spec for display purposes (`_display_spec`): `transcripts` (the prior finalize's snapshot is stale during a fresh run) and `options.max_transcripts` (scout's worker-pool knob, not meaningful in the per-sample dispatch model). The on-disk `_scan.json` keeps both fields intact.
+
+## Scout-side changes that landed
+
+These accumulated as the design firmed up; all are merged in scout:
+
+1. `_scan_one` extracted from `_scan_async_inner`'s closure to a module-level function in `_scan.py`.
+2. `Scanners` type alias exported.
+3. `RecorderBuffer` now shares an in-memory `Summary` + `anyio.Lock` per buffer dir across every buffer instance in the process (`_buffer_states` cache). Concurrent ephemeral writers (inspect_ai's per-sample dispatch) coordinate through the lock without re-reading `_summary.json` on each record; `cleanup_buffer_dir` invalidates the cache.
+4. `scanner_table` dedupes by `transcript_id` between buffer files and `extra_inputs`. The buffer's per-transcript file is authoritative for its transcript_id; rows for the same id from `extra_inputs` (the previously-compacted parquet) are dropped. Without this, multi-call `sync` cycles double-count.
+
+## Retry behavior
+
+inspect_ai has four retry mechanisms that each interact differently with scanners. The scan layer's invariant cuts across all of them: **after `scan_finalize`, the parquet's `transcript_id`s equal the union of `sample.uuid` across surviving eval logs.** Live samples have rows; orphans (uuids that no longer correspond to any sample) are swept.
+
+### 1. Sample-level retry — `retry_on_error`
+
+Per-sample retry inside `task_run_sample`. If a sample errors with retries left, the function recurses with `retry_on_error - 1`. The retry happens before `log_sample` and `scan_eval_sample` for the failed attempt would have fired — so failed attempts that will be retried produce no eval log entry and no scan row. Only the *settled* attempt (the one that won't retry, whether it succeeded or exhausted the budget) runs the log + scan block.
+
+The guard in `task_run_sample`:
+
+```python
+if not error or (retry_on_error == 0) or (cancelled_error is not None):
+    ... log_sample + scan_eval_sample ...
+```
+
+Net effect: a sample retried N times produces **exactly one** parquet row, reflecting the final settled outcome (success or exhausted-retry error).
+
+### 2. Task-level retry — `retry_immediate=True`
+
+When `retry_immediate=True`, eval_set's `task_retry_attempts` is forwarded to `run_task_retry_attempts`, which re-queues the whole task on error. Each retry:
+
+- Calls `task_options.logger.reinit()` → fresh `eval_id`, fresh log file.
+- Carries forward succeeded samples via `eval_log_sample_source` — these reuse their original uuid.
+- Filters out errored samples (`if sample.error is not None: return None`) — these get **re-executed** by the eval phase with a brand new `TaskState`, which mints a new `uuid` (`sample_uuid or uuid()` in `TaskState.__init__`).
+
+So a sample that always fails accumulates one parquet row per attempt, each with a distinct `transcript_id`. After all retries:
+
+- `retry_cleanup=True` (default) deletes the older log files; only the latest survives.
+- `scan_finalize` runs the orphan cleanup: scan rows whose transcript_id isn't a uuid in any surviving log are removed.
+
+Result: parquet matches the surviving log — one row per surviving sample. With `retry_cleanup=False`, every log file survives, every uuid stays live, and every row is preserved.
+
+`summary.scans` counts work *performed* across attempts (sum of `record()` calls), not surviving rows. So a 3-attempt always-failing sample has `summary.scans == 3` and `parquet.num_rows == 1` after cleanup. The summary is the historical view; the parquet is the live view.
+
+### 3. eval_set retry — `retry_immediate=False`
+
+The legacy path: tenacity wraps `try_eval` and retries it on `not all_evals_succeeded`. Each retry of `try_eval`:
+
+- Re-discovers logs in `log_dir`.
+- Builds `failed_tasks = as_previous_tasks(failed_resolved_tasks, failed_logs, ...)` — wraps the failed log as a `PreviousTask`.
+- Calls `run_eval(eval_set_id, tasks_to_run)`.
+
+`run_eval` uses the same `eval_log_sample_source` path internally — succeeded samples reuse their uuid, errored samples get re-executed with a fresh uuid. Same shape as the task-level retry, just driven from a different layer.
+
+After all retries, `retry_cleanup` and `scan_finalize` produce the same on-disk shape as `retry_immediate=True`. The two paths converge on the same scan dir invariant.
+
+### 4. Standalone retry — `eval_retry` / `inspect eval-retry`
+
+Operates on a *specific* eval log out-of-band (not within an eval_set retry loop). The user explicitly invokes it on a `.eval` (or `.json`) file, optionally passing `scanner`. When a scanner is passed:
+
+- `eval_retry_async` derives `retry_scan_id = eval_log.eval.eval_set_id or eval_log.eval.run_id` and threads it as `scan_id` into `eval_async`. `_eval_async_inner` honors the override (`scan_id = scan_id or eval_set_id or run_id`), so `scan_init` attaches to the *original* eval's scan dir instead of creating a fresh one keyed on the retry's freshly-minted run_id.
+- The same `_verify_scanner_config_unchanged` check runs as on eval_set resume — divergent scanner config raises before any samples run.
+- A new `.eval` log file is written per retry (matching the existing `eval_retry` behavior — `task_id` stays stable, `run_id`/`eval_id` are fresh). The scan dir's parquet thus accumulates rows from both the original log and each retry log. Re-executed errored samples get fresh uuids per the design principle below, so neither the original errored rows nor the retry's successful rows become orphans at finalize.
+- The trailing `scan complete: <scan_dir>` line (`print_scan_status`) fires from `eval_retry()` after the task display exits, matching `eval`/`eval_set`.
+
+There's no scan-side equivalent to `eval_set`'s `retry_cleanup` for standalone `eval_retry` — the prior log isn't deleted on a successful retry, so all sample uuids stay live.
+
+### Why uuids change for re-executed errored samples
+
+A re-execution is a new sample run with new messages, new model calls, possibly different scores. Reusing the prior uuid would conflate two distinct attempts in any downstream system that keys on transcript_id (scout's compaction, dedup, the viewer). So each fresh execution gets a fresh identity — the asymmetry between succeeded samples (reuse uuid) and errored re-runs (new uuid) follows from this: succeeded samples aren't actually re-executed, just carried forward.
+
+### Orphan cleanup at `scan_finalize`
+
+`_cleanup_orphan_scan_rows` runs between `sync` and the snapshot step. Steps:
+
+1. Walk `list_eval_logs(log_dir)` and read cheap `EvalSampleSummary`s. Collect every `summary.uuid` → `live_tids`.
+2. For each scanner's compacted parquet (`<scan_dir>/<name>.parquet`):
+   - Stream row-group-by-row-group via `ParquetFile.read_row_group(i)` (avoids pyarrow's cross-row-group schema-merge issue with scout's dictionary-encoded output).
+   - Filter via `pc.is_in(transcript_id, value_set=live_tids)`.
+   - Rewrite only if any rows were actually removed.
+3. For each scanner's buffer dir (`<buffer_dir>/scanner=<name>/`):
+   - Unlink `<tid>.parquet` for any tid not in `live_tids`. Covers the `complete=False` case where the buffer survives sync.
+
+The snapshot in `_scan.json` is built from the cleaned compacted parquet, so it also reflects only live transcripts.
+
+### Quick reference
+
+| Scenario | Behavior |
+| --- | --- |
+| Sample retried via `retry_on_error` | One parquet row per sample (final settled attempt only); intermediate retries skip log + scan |
+| Sample re-run by `retry_immediate=True` or eval_set retry | One row per attempt mid-run; orphan cleanup at finalize sweeps rows whose log was deleted by `retry_cleanup` |
+| `retry_cleanup=False` | All attempt logs preserved → all uuids live → no orphans removed → all rows preserved |
+| `eval_retry(scanner=...)` / `inspect eval-retry --scanner …` | Reuses original scan dir via `scan_id = eval_set_id or run_id`. Verifies scanner config unchanged; new log per retry; rows from all logs preserved (no orphan cleanup of historical logs) |
+| Sample's scan errored (parquet `scan_error` populated) | Treated as intentional, not retried by inspect_ai. `scout scan-resume` is the path for retrying captured scan errors |
+| Sample's eval log lands but scan never recorded (crash in window, or scanner added on later call) | Caught on next eval_set call by the per-sample resume-scan in the reuse path |
+| Process killed mid-flight | `_summary.json` at scan_dir reflects whatever the last finalize wrote (or absent); buffer state preserved from the killed call. Next eval_set call's `scan_init` invalidates `complete=False`, runs the per-sample resume-scan check, recovers the gap |
+
+## Out of Scope
+
+- Embedding scanner results into the inspect_ai `EvalLog`.
+- A unified `inspect view` rendering of scan results alongside eval logs.
+- `fail_on_error` integration (per-scanner or eval-wide).
+- Plumbing eval-level model config into scout (scanners configure their own models).
+
+## Future Work
+
+### Periodic writing of scan files from buffer to scan location during eval
+
+When writing logs to s3, eval uses a local buffer and every N samples copies to s3.
+Scan files could be compacted at the same time.
+But that adds significant complexity to resume and reuse scenarios.

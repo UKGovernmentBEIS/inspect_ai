@@ -1,0 +1,62 @@
+# Benchmarks referenced in recent model cards/announcements.
+# Each entry is a list of eval IDs (from evals.json) that appeared.
+# Evals get a `model_cards` array field (e.g., ["claude", "chatgpt", "gemini"]).
+# When a benchmark exists in both inspect_evals and harbor, prefer the
+# inspect_evals ID (don't list the harbor duplicate).
+
+# Claude 4 series model cards & announcements
+claude:
+  - swe_bench              # SWE-bench Verified
+  - swebenchpro_1_0        # SWE-bench Pro
+  - swebench_multilingual_1_0  # SWE-bench Multilingual
+  - terminal_bench_2_0     # Terminal-Bench 2.0
+  - gpqa                   # GPQA Diamond
+  - mmmlu_1_0              # MMMLU
+  - browse_comp            # BrowseComp
+  - lab_bench              # LAB-Bench
+  - osworld                # OSWorld
+  - financeagent_public    # Finance Agent
+  - gdpval                 # GDPval-AA
+  - arc_agi_2_1_0          # ARC-AGI-2
+  - cybergym               # CyberGym
+  - cybench                # Cybench
+  - bbq                    # Bias Benchmark for QA
+  - hle                    # Humanity's Last Exam
+  - tau2                   # Tau2-bench
+  - aider_polyglot_1_0     # Aider Polyglot
+  - mmmu                   # MMMU
+
+# GPT 5 series announcements
+chatgpt:
+  - gdpval                 # GDPval
+  - financeagent_public    # FinanceAgent v1.1
+  - swebenchpro_1_0        # SWE-Bench Pro (Public)
+  - terminal_bench_2_0     # Terminal-Bench 2.0
+  - osworld                # OSWorld-Verified
+  - browse_comp            # BrowseComp
+  - tau2                   # Tau2-bench Telecom
+  - frontierscience        # Frontier Science Research
+  - gpqa                   # GPQA Diamond
+  - arc_agi_2_1_0          # ARC-AGI-2
+  - hle                    # Humanity's Last Exam
+  - swe_bench              # SWE-bench Verified
+  - mmmlu_1_0              # MMMLU
+  - mmmu                   # MMMU
+  - healthbench            # HealthBench
+  - aider_polyglot_1_0     # Aider Polyglot
+  - swe_lancer_diamond_ic  # SWE-Lancer IC Diamond
+  - aime2025               # AIME 2025
+
+# Gemini 3.1 Pro
+gemini:
+  - arc_agi_2_1_0          # ARC-AGI-2
+  - gpqa                   # GPQA Diamond
+  - terminal_bench_2_0     # Terminal-Bench 2.0
+  - swe_bench              # SWE-bench Verified
+  - swebenchpro_1_0        # SWE-bench Pro
+  - livecodebench_1_0      # LiveCodeBench
+  - scicode                # SciCode
+  - gdpval                 # GDPval-AA
+  - tau2                   # Tau2-bench
+  - browse_comp            # BrowseComp
+  - mmmlu_1_0              # MMMLU

@@ -19,9 +19,15 @@ def match(
           output; "exact" requires the output be exactly
           equal to the target (module whitespace, etc.)
        ignore_case: Do case insensitive comparison.
-       numeric: Is this a numeric match? (in this
-          case different punctuation removal rules are
-          used and numbers are normalized before comparison).
+       numeric: Is this a numeric match? When True, currency symbols
+          (`$`, `€`, `£`), thousands separators (`,`), and formatting
+          markers (`*`, `_`) are stripped before numbers are normalized
+          and compared. The percent sign is not stripped: `60%` is
+          ambiguous (it could mean `60` or `0.6`), so an answer of `60%`
+          will not match a numeric target of `60`. To accept a
+          percentage-formatted answer, pass both forms as targets, e.g.
+          `Target(["60", "60%"])`, where the non-numeric `"60%"` is
+          matched as a string.
     """
 
     def check(value: str, target: str) -> tuple[str, bool]:

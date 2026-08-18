@@ -1,0 +1,692 @@
+"""End-to-end tests for deepagent() using mockllm deterministic outputs."""
+
+from inspect_ai import Task, eval
+from inspect_ai.agent import deepagent, subagent
+from inspect_ai.dataset import Sample
+from inspect_ai.event._model import ModelEvent
+from inspect_ai.event._tool import ToolEvent
+from inspect_ai.model import ChatMessageSystem, ModelOutput, get_model
+from inspect_ai.scorer import includes
+
+
+def _eval_deepagent(
+    agent_kwargs: dict,
+    outputs: list[ModelOutput],
+    input: str = "Do the task",
+    target: str = "n/a",
+    message_limit: int = 20,
+) -> dict:
+    """Helper to run a deepagent eval and return results."""
+    agent_kwargs.setdefault("submit", True)
+    da = deepagent(**agent_kwargs)
+    task = Task(
+        dataset=[Sample(input=input, target=target)],
+        solver=da,
+        scorer=includes(),
+        message_limit=message_limit,
+    )
+    model = get_model("mockllm/model", custom_outputs=outputs)
+    log = eval(task, model=model)[0]
+    return {
+        "log": log,
+        "status": log.status,
+        "messages": log.samples[0].messages if log.samples else [],
+        "events": log.samples[0].events if log.samples else [],
+    }
+
+
+def _submit(answer: str = "done") -> ModelOutput:
+    """Helper to create a submit tool call."""
+    return ModelOutput.for_tool_call(
+        model="mockllm/model",
+        tool_name="submit",
+        tool_arguments={"answer": answer},
+    )
+
+
+class TestMultiStepDelegation:
+    def test_research_then_general(self) -> None:
+        """Model delegates to research, then general sequentially."""
+        result = _eval_deepagent(
+            agent_kwargs={},
+            outputs=[
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="agent",
+                    tool_arguments={
+                        "subagent_type": "research",
+                        "prompt": "Find background information.",
+                    },
+                ),
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="submit",
+                    tool_arguments={"answer": "Found relevant background info."},
+                ),
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="agent",
+                    tool_arguments={
+                        "subagent_type": "general",
+                        "prompt": "Execute based on findings.",
+                    },
+                ),
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="submit",
+                    tool_arguments={"answer": "Executed the task successfully."},
+                ),
+                _submit(),
+            ],
+        )
+        assert result["status"] == "success"
+
+
+class TestMemoryIntegration:
+    def test_memory_write_then_delegate(self) -> None:
+        """Model writes to memory, then delegates to subagent."""
+        result = _eval_deepagent(
+            agent_kwargs={},
+            outputs=[
+                # 1. Model writes to memory
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="memory",
+                    tool_arguments={
+                        "command": "create",
+                        "path": "/memories/notes.txt",
+                        "file_text": "Important finding: X=42",
+                    },
+                ),
+                # 2. Model delegates to research
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="agent",
+                    tool_arguments={
+                        "subagent_type": "research",
+                        "prompt": "Check memory for context, then investigate further.",
+                    },
+                ),
+                # 3. Research subagent submits
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="submit",
+                    tool_arguments={"answer": "Found X=42 in memory, confirmed."},
+                ),
+                # 4. Outer agent finishes
+                _submit(),
+            ],
+        )
+        assert result["status"] == "success"
+
+
+class TestTodoWriteIntegration:
+    def test_create_and_update_plan(self) -> None:
+        """Model creates a plan with todo_write, then works through it."""
+        result = _eval_deepagent(
+            agent_kwargs={},
+            outputs=[
+                # 1. Model creates a plan
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="todo_write",
+                    tool_arguments={
+                        "todos": [
+                            {"content": "Research the topic", "status": "in_progress"},
+                            {"content": "Analyze findings", "status": "pending"},
+                        ]
+                    },
+                ),
+                # 2. Model delegates research
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="agent",
+                    tool_arguments={
+                        "subagent_type": "research",
+                        "prompt": "Research the topic.",
+                    },
+                ),
+                # 3. Research submits
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="submit",
+                    tool_arguments={"answer": "Research complete."},
+                ),
+                # 4. Model updates plan
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="todo_write",
+                    tool_arguments={
+                        "todos": [
+                            {"content": "Research the topic", "status": "completed"},
+                            {"content": "Analyze findings", "status": "in_progress"},
+                        ]
+                    },
+                ),
+                # 5. Model submits
+                _submit(),
+            ],
+        )
+        assert result["status"] == "success"
+
+
+class TestSubmitIntegration:
+    def test_submit_answer(self) -> None:
+        """Model does work then submits an answer."""
+        result = _eval_deepagent(
+            agent_kwargs={"submit": True},
+            target="42",
+            outputs=[
+                # 1. Model delegates to research
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="agent",
+                    tool_arguments={
+                        "subagent_type": "research",
+                        "prompt": "Find the answer.",
+                    },
+                ),
+                # 2. Research submits
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="submit",
+                    tool_arguments={"answer": "The answer is 42."},
+                ),
+                # 3. Model submits
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="submit",
+                    tool_arguments={"answer": "42"},
+                ),
+            ],
+        )
+        assert result["status"] == "success"
+
+    def test_subagent_submit_retained_and_not_duplicated(self) -> None:
+        """Subagent submit() is kept in history and not duplicated into content.
+
+        Regression guard for keep_in_messages=True on subagent dispatch: with
+        the old stripping behavior react appends the answer to the submit-bearing
+        assistant message content (mutating the same message the ModelEvent
+        references), so the marker would leak into assistant content below.
+        """
+        marker = "SUBAGENT_FINDINGS_MARKER_42"
+        # Markdown answer (bold + bullets) so the viewer's markdown rendering of
+        # the retained submit can be exercised by eye in `inspect view`.
+        answer = (
+            f"## {marker}\n\n"
+            "Here are the **key findings**:\n\n"
+            "- **A** = 42 (below target)\n"
+            "- **B** = 17 (below target)\n"
+            "- **C** = 91 (healthy)\n\n"
+            "Recommend tuning *A* and *B*."
+        )
+        result = _eval_deepagent(
+            agent_kwargs={"submit": True},
+            outputs=[
+                # 1. Parent dispatches research
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="agent",
+                    tool_arguments={
+                        "subagent_type": "research",
+                        "prompt": "Find the answer.",
+                    },
+                ),
+                # 2. Research subagent submits (markdown answer carrying the marker)
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="submit",
+                    tool_arguments={"answer": answer},
+                ),
+                # 3. Parent submits its own (different) answer
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="submit",
+                    tool_arguments={"answer": "done"},
+                ),
+            ],
+        )
+        assert result["status"] == "success"
+        events = result["events"]
+
+        # The subagent's submit() call is retained as a ToolEvent.
+        submit_results = [
+            str(e.result)
+            for e in events
+            if isinstance(e, ToolEvent) and e.function == "submit"
+        ]
+        assert any(marker in r for r in submit_results), (
+            "subagent submit() was not retained in the transcript"
+        )
+
+        # The answer is not duplicated into any assistant message content.
+        for e in events:
+            if isinstance(e, ModelEvent) and e.output.choices:
+                content = str(e.output.choices[0].message.content)
+                assert marker not in content, (
+                    "submit answer leaked into assistant message content"
+                )
+
+        # The parent still receives the subagent's answer via the agent result.
+        agent_results = [
+            str(e.result)
+            for e in events
+            if isinstance(e, ToolEvent) and e.function == "agent"
+        ]
+        assert any(marker in r for r in agent_results), (
+            "parent did not receive the subagent's answer"
+        )
+
+
+class TestCustomSubagents:
+    def test_user_defined_subagent(self) -> None:
+        """User-defined subagent is dispatched correctly."""
+        custom = subagent(
+            name="analyzer",
+            description="Analyzes data.",
+            prompt="You are a data analyzer.",
+        )
+        result = _eval_deepagent(
+            agent_kwargs={"subagents": [custom]},
+            outputs=[
+                # 1. Model delegates to custom subagent (a single subagent, so
+                # the tool takes no `subagent_type`)
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="agent",
+                    tool_arguments={"prompt": "Analyze this data."},
+                ),
+                # 2. Analyzer submits
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="submit",
+                    tool_arguments={"answer": "Analysis complete."},
+                ),
+                # 3. Outer agent finishes
+                _submit(),
+            ],
+        )
+        assert result["status"] == "success"
+        # Status alone stays "success" when the dispatch fails to parse, which
+        # would leave this test asserting nothing about dispatch.
+        agent_events = [
+            e
+            for e in result["events"]
+            if isinstance(e, ToolEvent) and e.function == "agent"
+        ]
+        assert len(agent_events) == 1
+        assert agent_events[0].error is None
+
+
+class TestInstructionsInPrompt:
+    def test_instructions_in_system_message(self) -> None:
+        """Verify instructions= text appears in the system message."""
+        da = deepagent(instructions="Always respond in French.")
+        task = Task(
+            dataset=[Sample(input="Test", target="n/a")],
+            solver=da,
+            scorer=includes(),
+            message_limit=5,
+        )
+        model = get_model(
+            "mockllm/model",
+            custom_outputs=[
+                ModelOutput.from_content("mockllm/model", "Bonjour."),
+            ],
+        )
+        log = eval(task, model=model)[0]
+        assert log.samples
+        system_msgs = [
+            m for m in log.samples[0].messages if isinstance(m, ChatMessageSystem)
+        ]
+        assert len(system_msgs) > 0
+        assert "Always respond in French." in system_msgs[0].content
+
+
+class TestMemoryKillSwitch:
+    def test_memory_false_no_memory_tool(self) -> None:
+        """memory=False means memory tool is not available."""
+        result = _eval_deepagent(
+            agent_kwargs={"memory": False},
+            outputs=[
+                # Model tries to use memory — should fail
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="memory",
+                    tool_arguments={
+                        "command": "view",
+                        "path": "/memories",
+                    },
+                ),
+                # Model recovers and finishes
+                _submit(),
+            ],
+        )
+        assert result["status"] == "success"
+        # The memory tool call should have produced an error
+        tool_events = [e for e in result["events"] if isinstance(e, ToolEvent)]
+        memory_events = [e for e in tool_events if e.function == "memory"]
+        if memory_events:
+            assert memory_events[0].error is not None
+
+
+class TestFullWorkflow:
+    def test_memory_plan_delegate_submit(self) -> None:
+        """Full lifecycle: memory → plan → delegate → submit."""
+        result = _eval_deepagent(
+            agent_kwargs={"submit": True},
+            target="success",
+            outputs=[
+                # 1. Write context to memory
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="memory",
+                    tool_arguments={
+                        "command": "create",
+                        "path": "/memories/context.txt",
+                        "file_text": "Task requires finding X.",
+                    },
+                ),
+                # 2. Create a plan
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="todo_write",
+                    tool_arguments={
+                        "todos": [
+                            {"content": "Research X", "status": "in_progress"},
+                            {"content": "Synthesize findings", "status": "pending"},
+                        ]
+                    },
+                ),
+                # 3. Delegate to research
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="agent",
+                    tool_arguments={
+                        "subagent_type": "research",
+                        "prompt": "Research X.",
+                    },
+                ),
+                # 4. Research subagent submits
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="submit",
+                    tool_arguments={"answer": "X = success."},
+                ),
+                # 5. Update plan
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="todo_write",
+                    tool_arguments={
+                        "todos": [
+                            {"content": "Research X", "status": "completed"},
+                            {"content": "Synthesize findings", "status": "completed"},
+                        ]
+                    },
+                ),
+                # 6. Submit answer
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="submit",
+                    tool_arguments={"answer": "success"},
+                ),
+            ],
+        )
+        assert result["status"] == "success"
+
+
+class TestPlanSubagent:
+    def test_plan_dispatch(self) -> None:
+        """Delegate to the plan subagent specifically."""
+        result = _eval_deepagent(
+            agent_kwargs={},
+            outputs=[
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="agent",
+                    tool_arguments={
+                        "subagent_type": "plan",
+                        "prompt": "Create a plan for solving this problem.",
+                    },
+                ),
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="submit",
+                    tool_arguments={"answer": "Plan: Step 1, Step 2, Step 3."},
+                ),
+                _submit(),
+            ],
+        )
+        assert result["status"] == "success"
+        tool_events = [e for e in result["events"] if isinstance(e, ToolEvent)]
+        agent_events = [e for e in tool_events if e.function == "agent"]
+        assert len(agent_events) == 1
+        assert agent_events[0].error is None
+
+
+class TestGeneralInheritsParentTools:
+    def test_parent_tool_available_to_general(self) -> None:
+        """A tool passed to deepagent(tools=[...]) is usable by general."""
+        from inspect_ai.tool import think
+
+        result = _eval_deepagent(
+            agent_kwargs={"tools": [think()]},
+            outputs=[
+                # Delegate to general which should have think() available
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="agent",
+                    tool_arguments={
+                        "subagent_type": "general",
+                        "prompt": "Think carefully then answer.",
+                    },
+                ),
+                # General subagent uses think tool
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="think",
+                    tool_arguments={"thought": "Let me consider..."},
+                ),
+                # General subagent submits
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="submit",
+                    tool_arguments={"answer": "Thought it through."},
+                ),
+                # Outer agent finishes
+                _submit(),
+            ],
+        )
+        assert result["status"] == "success"
+
+
+class TestTodoWriteDisabled:
+    def test_todo_write_false(self) -> None:
+        """todo_write=False means todo_write tool is not available."""
+        result = _eval_deepagent(
+            agent_kwargs={"todo_write": False},
+            outputs=[
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="todo_write",
+                    tool_arguments={
+                        "todos": [
+                            {"content": "Step 1", "status": "pending"},
+                        ]
+                    },
+                ),
+                _submit(),
+            ],
+        )
+        assert result["status"] == "success"
+        tool_events = [e for e in result["events"] if isinstance(e, ToolEvent)]
+        tw_events = [e for e in tool_events if e.function == "todo_write"]
+        if tw_events:
+            assert tw_events[0].error is not None
+
+
+class TestMultipleCallsToSameSubagent:
+    def test_research_called_twice(self) -> None:
+        """Model delegates to research twice in one session."""
+        result = _eval_deepagent(
+            agent_kwargs={},
+            outputs=[
+                # First research call
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="agent",
+                    tool_arguments={
+                        "subagent_type": "research",
+                        "prompt": "Research topic A.",
+                    },
+                ),
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="submit",
+                    tool_arguments={"answer": "Found info about A."},
+                ),
+                # Second research call
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="agent",
+                    tool_arguments={
+                        "subagent_type": "research",
+                        "prompt": "Research topic B.",
+                    },
+                ),
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="submit",
+                    tool_arguments={"answer": "Found info about B."},
+                ),
+                # Outer agent finishes
+                _submit(),
+            ],
+        )
+        assert result["status"] == "success"
+        tool_events = [e for e in result["events"] if isinstance(e, ToolEvent)]
+        agent_events = [e for e in tool_events if e.function == "agent"]
+        assert len(agent_events) == 2
+
+
+class TestInterleavedToolUseAndDelegation:
+    def test_mixed_tool_calls(self) -> None:
+        """Model interleaves memory, delegation, and todo_write."""
+        result = _eval_deepagent(
+            agent_kwargs={},
+            outputs=[
+                # 1. Check memory
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="memory",
+                    tool_arguments={"command": "view", "path": "/memories"},
+                ),
+                # 2. Delegate to research
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="agent",
+                    tool_arguments={
+                        "subagent_type": "research",
+                        "prompt": "Find data.",
+                    },
+                ),
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="submit",
+                    tool_arguments={"answer": "Found data."},
+                ),
+                # 3. Save to memory
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="memory",
+                    tool_arguments={
+                        "command": "create",
+                        "path": "/memories/data.txt",
+                        "file_text": "Data found by research agent.",
+                    },
+                ),
+                # 4. Update plan
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="todo_write",
+                    tool_arguments={
+                        "todos": [
+                            {"content": "Find data", "status": "completed"},
+                            {"content": "Process data", "status": "in_progress"},
+                        ]
+                    },
+                ),
+                # 5. Delegate to general
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="agent",
+                    tool_arguments={
+                        "subagent_type": "general",
+                        "prompt": "Process the data.",
+                    },
+                ),
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="submit",
+                    tool_arguments={"answer": "Data processed."},
+                ),
+                # 6. Finish
+                _submit(),
+            ],
+        )
+        assert result["status"] == "success"
+        tool_events = [e for e in result["events"] if isinstance(e, ToolEvent)]
+        tool_names = [e.function for e in tool_events]
+        assert "memory" in tool_names
+        assert "agent" in tool_names
+        assert "todo_write" in tool_names
+
+
+class TestCustomPromptPlaceholders:
+    def test_custom_prompt_reaches_model(self) -> None:
+        """Custom prompt= with placeholders is what the model sees."""
+        da = deepagent(
+            prompt="CUSTOM_START\n\n{core_behavior}\n\n{instructions}\n\nCUSTOM_END",
+            instructions="Special rule: always verify.",
+        )
+        task = Task(
+            dataset=[Sample(input="Test", target="n/a")],
+            solver=da,
+            scorer=includes(),
+            message_limit=5,
+        )
+        model = get_model(
+            "mockllm/model",
+            custom_outputs=[
+                ModelOutput.from_content("mockllm/model", "Done."),
+            ],
+        )
+        log = eval(task, model=model)[0]
+        assert log.samples
+        system_msgs = [
+            m for m in log.samples[0].messages if isinstance(m, ChatMessageSystem)
+        ]
+        assert len(system_msgs) > 0
+        content = system_msgs[0].content
+        assert "CUSTOM_START" in content
+        assert "CUSTOM_END" in content
+        assert "Special rule: always verify." in content
+        assert "Complete tasks autonomously" in content
+
+
+class TestUnknownToolCall:
+    def test_unknown_tool_graceful_error(self) -> None:
+        """Model calls a tool that doesn't exist — should get an error, not crash."""
+        result = _eval_deepagent(
+            agent_kwargs={},
+            outputs=[
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="nonexistent_tool",
+                    tool_arguments={"arg": "value"},
+                ),
+                _submit(),
+            ],
+        )
+        assert result["status"] == "success"

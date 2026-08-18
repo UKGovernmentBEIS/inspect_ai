@@ -19,6 +19,10 @@ def sample_total_tokens(sample: EvalSampleSummary) -> int:
     return total_tokens
 
 
+def sample_total_fallbacks(sample: EvalSampleSummary) -> int:
+    return sum(fallback.count for fallback in sample.model_fallbacks or [])
+
+
 def sample_messages_as_str(sample: EvalSample) -> str:
     return messages_as_str(sample.messages)
 

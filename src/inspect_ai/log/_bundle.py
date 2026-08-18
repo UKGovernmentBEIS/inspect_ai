@@ -4,11 +4,10 @@ import os
 import shutil
 import tempfile
 from contextlib import contextmanager
-from pathlib import Path
 from typing import Any, Callable, Iterator
 
 from inspect_ai._util.error import PrerequisiteError, pip_dependency_error
-from inspect_ai._util.file import filesystem
+from inspect_ai._util.file import absolute_file_path, filesystem
 
 from ._file import log_files_from_ls, write_log_listing
 
@@ -17,7 +16,10 @@ from ._file import log_files_from_ls, write_log_listing
 logger = logging.getLogger(__name__)
 
 
-DIST_DIR = os.path.join(Path(__file__).parent, "..", "_view", "www", "dist")
+def _dist_dir() -> str:
+    from inspect_ai._view._dist import resolve_dist_directory
+
+    return resolve_dist_directory().as_posix()
 
 
 def _push_bundle_to_hf(
@@ -35,7 +37,7 @@ def _push_bundle_to_hf(
         ) from None
 
     api = HfApi()
-    repo_id = repo_id.replace("hf/", "")
+    repo_id = hf_repo_id(repo_id)
 
     api.create_repo(
         repo_id=repo_id,
@@ -51,6 +53,16 @@ def _push_bundle_to_hf(
         repo_type="space",
     )
     display().print(f"View at: https://huggingface.co/spaces/{repo_id}")
+
+
+def is_hf_target(output_dir: str) -> bool:
+    """An 'hf/<user>/<space>' target uploads to a Hugging Face space rather than writing to a filesystem path."""
+    return output_dir.startswith("hf/")
+
+
+def hf_repo_id(output_dir: str) -> str:
+    """Extract the Hugging Face repo id from an 'hf/' output target."""
+    return output_dir.removeprefix("hf/")
 
 
 def _check_hf_space_exists(repo_id: str) -> bool:
@@ -83,20 +95,35 @@ def bundle_log_dir(
             to the filesystem provider (e.g. `S3FileSystem`).
     """
     # resolve the log directory
-    log_dir = log_dir if log_dir else os.getenv("INSPECT_LOG_DIR", "./logs")
+    if not log_dir:
+        log_dir = os.getenv("INSPECT_LOG_DIR", "./logs")
 
     # resolve the output directory
-    output_dir = (
-        output_dir if output_dir else os.getenv("INSPECT_VIEW_BUNDLE_OUTPUT_DIR", "")
-    )
+    if not output_dir:
+        output_dir = os.getenv("INSPECT_VIEW_BUNDLE_OUTPUT_DIR", "")
     if output_dir == "":
         raise PrerequisiteError("You must provide an 'output_dir'")
 
-    # ensure output_dir doesn't exist
-    if output_dir.startswith("hf/"):
-        if _check_hf_space_exists(output_dir.replace("hf/", "")) and not overwrite:
+    # Bundling copies log_dir into output_dir, so an output_dir inside
+    # log_dir would make the bundle part of its own input on the next run.
+    # Skip the check for Hugging Face targets: they are assembled in a temp
+    # dir and uploaded, so there is no local output path to contain — and
+    # resolving 'hf/...' as a relative local path here is what produced the
+    # spurious subdirectory error in #4743.
+    if not is_hf_target(output_dir):
+        log_fs = filesystem(log_dir, fs_options)
+        log_dir_abs = absolute_file_path(log_dir).rstrip(log_fs.sep) + log_fs.sep
+        output_dir_abs = absolute_file_path(output_dir).rstrip(log_fs.sep) + log_fs.sep
+        if output_dir_abs.startswith(log_dir_abs):
             raise PrerequisiteError(
-                f"The HuggingFace space '{output_dir.replace('hf/', '')}' already exists. Choose another output directory or use 'overwrite' to overwrite the directory and contents"
+                f"The output directory '{output_dir}' cannot be a subdirectory of the log directory '{log_dir}'"
+            )
+
+    # ensure output_dir doesn't exist
+    if is_hf_target(output_dir):
+        if _check_hf_space_exists(hf_repo_id(output_dir)) and not overwrite:
+            raise PrerequisiteError(
+                f"The HuggingFace space '{hf_repo_id(output_dir)}' already exists. Choose another output directory or use 'overwrite' to overwrite the directory and contents"
             )
     else:
         if filesystem(output_dir, fs_options).exists(output_dir) and not overwrite:
@@ -108,36 +135,28 @@ def bundle_log_dir(
 
     display().print(f"Creating view bundle in '{output_dir}'")
     with display().progress(total=500) as p:
-        # Work in a temporary working directory
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as working_dir:
-            # copy dist to output_dir
-            copy_dir_contents(DIST_DIR, working_dir)
+            # prepare viewer assets
+            log_dir_name = "logs"
+            _prepare_viewer(
+                working_dir,
+                log_dir=log_dir_name,
+                abs_log_dir=absolute_file_path(log_dir),
+            )
             p.update(25)
 
-            # create a logs dir
-            log_dir_name = "logs"
+            # create a logs dir and copy logs into it
             view_logs_dir = os.path.join(working_dir, log_dir_name)
             os.makedirs(view_logs_dir)
+            copy_log_files(log_dir, view_logs_dir, p.update, fs_options)
             p.update(25)
 
-            # Copy the logs to the log dir
-            copy_log_files(log_dir, view_logs_dir, p.update, fs_options)
-
-            # Always write the log overviews
             write_log_listing(view_logs_dir)
             p.update(25)
 
-            # update the index html to embed the log_dir
-            inject_configuration(
-                os.path.join(working_dir, "index.html"), log_dir=log_dir_name
-            )
-            write_robots_txt(working_dir)
-            p.update(25)
-
-            if output_dir.startswith("hf/"):
+            if is_hf_target(output_dir):
                 _push_bundle_to_hf(working_dir, output_dir, fs_options)
             else:
-                # Now move the contents of the working directory to the output directory
                 move_output(working_dir, output_dir, p.update, fs_options)
             p.complete()
     display().print(f"View bundle '{output_dir}' created")
@@ -160,16 +179,24 @@ def copy_dir_contents(source_dir: str, dest_dir: str) -> None:
             shutil.copy2(src_file_path, dest_file_path)
 
 
-def inject_configuration(html_file: str, log_dir: str) -> None:
+def inject_configuration(
+    html_file: str, log_dir: str, abs_log_dir: str | None = None
+) -> None:
     # update the index html to embed the log_dir
     with open(html_file, "r") as file:
         index_contents = file.read()
 
     # inject the log dir information into the viewer html
     # so it will load directly
+    context: dict[str, str] = {"log_dir": log_dir}
+    if abs_log_dir is not None:
+        context["abs_log_dir"] = abs_log_dir
+    import json
+
+    context_json = json.dumps(context)
     content = index_contents.replace(
         "</head>",
-        f'  <script id="log_dir_context" type="application/json">{{"log_dir": "{log_dir}"}}</script>\n  </head>',
+        f'  <script id="log_dir_context" type="application/json">{context_json}</script>\n  </head>',
     )
 
     # Open the file for writing to save the updated content
@@ -189,6 +216,19 @@ Disallow: /
     # Write the content to the file
     with open(file_path, "w") as f:
         f.write(content)
+
+
+def _prepare_viewer(
+    working_dir: str, log_dir: str, abs_log_dir: str | None = None
+) -> None:
+    """Prepare viewer assets in a working directory."""
+    copy_dir_contents(_dist_dir(), working_dir)
+    inject_configuration(
+        os.path.join(working_dir, "index.html"),
+        log_dir=log_dir,
+        abs_log_dir=abs_log_dir,
+    )
+    write_robots_txt(working_dir)
 
 
 def copy_file_to_bundle(
@@ -312,3 +352,68 @@ def progress_adapter(
             ticks = ticks - tick_value
 
     yield tick
+
+
+def _copy_viewer_to_log_dir(from_dir: str, to_dir: str, output_fs: Any) -> None:
+    """Copy viewer files from a local temp directory into the log directory.
+
+    Unlike move_output, this does not remove existing files in the target
+    directory, so log files are preserved.
+    """
+    for root, _dirs, files in os.walk(from_dir):
+        relative_dir = os.path.relpath(root, from_dir)
+
+        # ensure target subdirectory exists
+        if relative_dir != ".":
+            dir_path = os.path.join(to_dir, relative_dir)
+            if not output_fs.exists(dir_path):
+                output_fs.mkdir(dir_path)
+
+        # copy files
+        for file in files:
+            src = os.path.join(root, file)
+            target = os.path.join(relative_dir, file) if relative_dir != "." else file
+            dest = os.path.join(to_dir, target)
+            output_fs.put_file(src, dest)
+
+
+def embed_log_dir(
+    log_dir: str | None = None,
+    fs_options: dict[str, Any] = {},
+) -> None:
+    r"""Embed a log viewer into a log_dir.
+
+    Places the viewer HTML, assets, listing.json, and robots.txt directly
+    in the log_dir alongside the log files. The viewer is configured with
+    log_dir="." to read logs from the same directory.
+    Requires an HTTP server to function (file:// won't work due to CORS).
+
+    Args:
+        log_dir: (str | None): The log_dir to embed the viewer in.
+        fs_options (dict[str, Any]): Optional. Additional arguments to pass through
+            to the filesystem provider (e.g. `S3FileSystem`).
+    """
+    from inspect_ai._display import display
+
+    # resolve the log directory
+    if not log_dir:
+        log_dir = os.getenv("INSPECT_LOG_DIR", "./logs")
+
+    # resolve paths
+    log_dir = absolute_file_path(log_dir)
+    log_fs = filesystem(log_dir, fs_options)
+
+    # check that log_dir exists
+    if not log_fs.exists(log_dir):
+        raise PrerequisiteError(f"The log directory '{log_dir}' doesn't exist.")
+
+    display().print(f"Embedding viewer in '{log_dir}'")
+
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as working_dir:
+        _prepare_viewer(working_dir, log_dir=".", abs_log_dir=log_dir)
+        write_log_listing(log_dir, output_dir=working_dir)
+        _copy_viewer_to_log_dir(working_dir, log_dir, log_fs)
+
+    if log_fs.is_local():
+        display().print(f"Run: cd '{log_dir}' && python -m RangeHTTPServer")
+        display().print("View: http://localhost:8000/index.html")

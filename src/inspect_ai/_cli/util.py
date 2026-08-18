@@ -5,7 +5,9 @@ import yaml
 from pydantic import ValidationError
 
 from inspect_ai._util.config import resolve_args
+from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.model import GenerateConfig, Model, get_model
+from inspect_ai.util._limit import TokenLimit, parse_token_limit
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 
 
@@ -50,6 +52,91 @@ def int_or_bool_flag_callback(
                 raise click.BadParameter(
                     f"Expected 'true', 'false', or an integer for --{param.name}. Got: {value}"
                 )
+
+    return callback
+
+
+def token_limit_flag_callback(
+    ctx: click.Context, param: click.Parameter, value: Any
+) -> int | TokenLimit | None:
+    """Parse the ``--token-limit`` option (e.g. ``500000``, ``1m``, ``output:1m``)."""
+    if value is None:
+        return None
+    try:
+        return parse_token_limit(str(value))
+    except ValueError as ex:
+        raise click.BadParameter(str(ex)) from ex
+
+
+def ctl_server_flag_callback(
+    ctx: click.Context, param: click.Parameter, value: Any
+) -> bool | str | None:
+    """Parse the ``--ctl-server`` option (mirrors the ``--acp-server`` shape).
+
+    Desired behavior:
+    - Not specified at all -> None (default: control server on, no park)
+    - Specified with no value, or with "true" -> True (on)
+    - Specified with "false" -> False (off)
+    - Specified with "keep" -> "keep" (on + park after the eval)
+
+    The value grammar lives in :func:`resolve_ctl_server` (the same function
+    ``eval()`` / ``eval_set()`` use), so the CLI and the Python API accept
+    exactly the same values; this callback just translates its rejection into
+    a click usage error. Unlike ``--acp-server`` (whose free strings are
+    socket paths), ``--ctl-server`` admits exactly one string value today, so
+    anything else is more likely a typo of ``keep`` than an intentional
+    choice.
+    """
+    source = ctx.get_parameter_source(param.name) if param.name else ""
+    if source == click.core.ParameterSource.DEFAULT:
+        return None
+    if value is None:
+        return True
+
+    from inspect_ai._control.server import resolve_ctl_server
+    from inspect_ai._util.error import PrerequisiteError
+
+    try:
+        ctl = resolve_ctl_server(str(value))
+    except PrerequisiteError as ex:
+        raise click.BadParameter(
+            f"Expected 'true', 'false', or 'keep' for --ctl-server. Got: {value}"
+        ) from ex
+    return "keep" if ctl.keep_alive else ctl.enabled
+
+
+def int_bool_or_str_retry_flag_callback(
+    true_value: Any = True,
+) -> Callable[[click.Context, click.Parameter, Any], Any]:
+    """Variant of :func:`int_bool_or_str_flag_callback` for retry-time flags.
+
+    Distinguishes "user did not pass the flag" (returns ``None`` so the
+    retry path falls back to the logged value) from "user explicitly
+    passed ``--flag=false``" (returns ``False`` so the retry forces the
+    feature off, overriding whatever was in the original log).
+
+    Use this for retry/replay flags where ``None`` must mean "no
+    override" rather than "disabled".
+    """
+
+    def callback(ctx: click.Context, param: click.Parameter, value: Any) -> Any:
+        source = ctx.get_parameter_source(param.name) if param.name else ""
+        if source == click.core.ParameterSource.DEFAULT:
+            # Flag not provided — leave as None so the retry path
+            # replays whatever was in the original log.
+            return None
+        if value is None:
+            # Bare flag, e.g. `--flag` with no value.
+            return true_value
+        lower_val = value.lower()
+        if lower_val in ("true", "yes", "1"):
+            return true_value
+        if lower_val in ("false", "no", "0"):
+            return False
+        try:
+            return int(value)
+        except ValueError:
+            return str(value)
 
     return callback
 
@@ -167,15 +254,171 @@ def parse_model_role_cli_args(
         # if value is a dict, create a model instance
         if isinstance(params, dict):
             model_name = params.pop("model", None)
+            model_args = params.pop("model_args", {})
+            if not isinstance(model_args, dict):
+                raise TypeError("model_args must be a dict")
             try:
                 config = GenerateConfig(**params)
             except ValidationError as e:
                 raise ValueError(
                     f"Invalid config for model role '{role_name}': {e}"
                 ) from e
-            parsed_args[role_name] = get_model(model_name, config=config)
+            # memoize=False so that each role gets a distinct Model instance;
+            # otherwise roles sharing the same model/config/args collapse onto one
+            # cached object and per-role usage is misattributed (see #4450). This
+            # mirrors the string-role path in resolve_model_roles().
+            parsed_args[role_name] = get_model(
+                model_name, config=config, memoize=False, **model_args
+            )
         # else assume it is just a model name and leave it as a string
     return parsed_args
+
+
+def parse_model_spec_cli_args(
+    model_spec: tuple[str, ...] | None,
+) -> list[Model] | None:
+    """Parse model specs from CLI args. Each spec is one YAML or JSON mapping.
+
+    A spec holds `model` (required), `base_url`, `model_args` (native provider
+    arguments), and any generate config field at the top level. This is the
+    shape `--model-role` takes, plus `base_url`. One spec sets the parameters of
+    one model, so an eval can run the same model twice under a different
+    generate config. `--model` cannot do this, because it applies one shared
+    parameter set to every model it names.
+
+    Args:
+        model_spec: Tuple of strings to parse as model specs.
+
+    Returns:
+        One model per spec, in the order given. None if there are no specs.
+
+    Raises:
+        PrerequisiteError: A spec is not a mapping, does not name a model, or
+            holds a field that is neither a model field nor a generate config
+            field. The message names the spec by its position, because a spec
+            can hold a credential.
+
+    Examples:
+        ("{model: openai/gpt-4o}",) -> [<Model>]
+        ("{model: openai/gpt-4o, temperature: 0}",) -> [<Model>]
+        ('{"model": "openai/gpt-4o", "temperature": 0}',) -> [<Model>]
+        ("{model: google/gemini-2.5-pro, model_args: {location: us-east5}}",) -> [<Model>]
+        ("{model: openai/gpt-4o, base_url: http://localhost:8000/v1}",) -> [<Model>]
+        ("{model: openai/gpt-4o, temperature: 0}",
+         "{model: openai/gpt-4o, temperature: 1}") -> [<Model>, <Model>]
+    """
+    if not model_spec:
+        return None
+
+    models: list[Model] = []
+    for index, spec in enumerate(model_spec, start=1):
+        # Name a spec by its position and never by its content. The model args
+        # of a spec can hold an api key, and its extra_headers can hold a token.
+        # An error message reaches a terminal, a CI log, or a bug report.
+        # (model_args_for_log() redacts api keys from model args before a log
+        # records them; extra_headers is recorded verbatim.)
+        label = f"--model-spec #{index}"
+
+        try:
+            params = yaml.safe_load(spec)
+        except yaml.YAMLError:
+            params = None
+        # a field name that YAML did not read as text also breaks the keyword
+        # expansion below
+        if not isinstance(params, dict) or any(
+            not isinstance(field, str) for field in params
+        ):
+            raise PrerequisiteError(
+                f"Invalid {label}: expected a YAML or JSON mapping with text "
+                "field names, e.g. '{model: openai/gpt-4o, temperature: 0}'."
+            )
+
+        model_name = params.pop("model", None)
+        base_url = params.pop("base_url", None)
+        if base_url is not None and not isinstance(base_url, str):
+            raise PrerequisiteError(f"Invalid {label}: base_url must be a string.")
+        model_args = params.pop("model_args", {})
+        if not isinstance(model_args, dict):
+            raise PrerequisiteError(f"Invalid {label}: model_args must be a mapping.")
+
+        # Whatever is left is generate config, which rejects a name it does not
+        # define, so a misspelled option fails instead of running at its
+        # default. Check it before the model name: that way a misspelled 'model'
+        # key reports the name it read rather than a missing model.
+        try:
+            config = GenerateConfig(**params)
+        except ValidationError as e:
+            # keep the field and the reason; the rendered message of pydantic
+            # quotes the offending input beside them
+            detail = "; ".join(
+                ": ".join(
+                    filter(None, [".".join(map(str, error["loc"])), error["msg"]])
+                )
+                for error in e.errors()
+            )
+            raise PrerequisiteError(f"Invalid {label}: {detail}") from e
+
+        # A model role may omit its model to inherit the ambient one, but a spec
+        # exists to state a model. Without a name, get_model() below resolves
+        # INSPECT_EVAL_MODEL, or raises a bare ValueError when that is unset too.
+        if not isinstance(model_name, str):
+            raise PrerequisiteError(f"Invalid {label}: needs a 'model' name.")
+
+        # memoize=False so each spec gets a distinct Model instance; two specs
+        # for one model at the same config would otherwise collapse onto one
+        # cached object (see parse_model_role_cli_args)
+        models.append(
+            get_model(
+                model_name,
+                config=config,
+                base_url=base_url,
+                memoize=False,
+                **model_args,
+            )
+        )
+
+    return models
+
+
+class SectionedCommand(click.Command):
+    """Click command that renders options grouped into named sections.
+
+    Each option can be tagged with a section by calling
+    `mark_section(option_name, section)` after registration. Tagged
+    options render together under a separate header in `--help`;
+    untagged options render under the default "Options" header.
+    """
+
+    SECTIONS: dict[str, set[str]] = {}
+    """Subclasses populate as `{section_title: {option_name, ...}}`."""
+
+    def format_options(
+        self, ctx: click.Context, formatter: click.HelpFormatter
+    ) -> None:
+        # bucket each param into its section (or the default group)
+        default: list[tuple[str, str]] = []
+        sectioned: dict[str, list[tuple[str, str]]] = {
+            title: [] for title in self.SECTIONS
+        }
+
+        for param in self.get_params(ctx):
+            record = param.get_help_record(ctx)
+            if record is None:
+                continue
+            for title, names in self.SECTIONS.items():
+                if param.name in names:
+                    sectioned[title].append(record)
+                    break
+            else:
+                default.append(record)
+
+        if default:
+            with formatter.section("Options"):
+                formatter.write_dl(default)
+        for title, records in sectioned.items():
+            if records:
+                with formatter.section(title):
+                    formatter.write_dl(records)
 
 
 def parse_sandbox(sandbox: str | None) -> SandboxEnvironmentSpec | None:

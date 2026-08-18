@@ -13,6 +13,7 @@ from .extract import (
     sample_input_as_str,
     sample_messages_as_str,
     sample_path_requires_full,
+    sample_total_fallbacks,
     sample_total_tokens,
 )
 
@@ -70,11 +71,14 @@ SampleSummary: list[Column] = [
     SampleColumn("model_usage", path="model_usage"),
     SampleColumn("total_tokens", path=sample_total_tokens),
     SampleColumn("total_time", path="total_time"),
-    SampleColumn("working_time", path="total_time"),
+    SampleColumn("working_time", path="working_time"),
     SampleColumn("message_count", path="message_count", default=None),
+    SampleColumn("turn_count", path="turn_count", default=None),
+    SampleColumn("token_limit_usage", path="token_limit_usage", default=None),
     SampleColumn("error", path="error", default=""),
     SampleColumn("limit", path="limit"),
     SampleColumn("retries", path="retries"),
+    SampleColumn("fallbacks", path=sample_total_fallbacks),
 ]
 """Sample summary columns."""
 

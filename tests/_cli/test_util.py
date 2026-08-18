@@ -4,8 +4,11 @@ import pytest
 
 from inspect_ai._cli.util import (
     parse_model_role_cli_args,
+    parse_model_spec_cli_args,
 )
-from inspect_ai.model import Model
+from inspect_ai._util.error import PrerequisiteError
+from inspect_ai.model import GenerateConfig, Model, get_model
+from inspect_ai.model._util import resolve_model_roles
 
 
 @dataclass
@@ -62,6 +65,15 @@ test_cases = [
             ModelRoleParameters(role_name="grader", parsed_type=str),
         ],
     ),
+    # YAML inline format with model_args
+    ModelRoleTestCase(
+        cli_args=(
+            "critic={model: mockllm/model, temperature: 0.2, model_args: {custom_outputs: null}}",
+        ),
+        params=[
+            ModelRoleParameters(role_name="critic", temperature=0.2, parsed_type=Model),
+        ],
+    ),
     # Model roles should use default model if no model is specified
     ModelRoleTestCase(
         cli_args=(
@@ -101,23 +113,183 @@ def test_parse_model_role_cli_args(monkeypatch, test_case):
 
 
 @pytest.mark.parametrize(
-    ("args", "expected_substring"),
+    ("args", "expected_error", "expected_substring"),
     [
         (
             ("grader={model: mockllm/model, temperature: 0.5, max_tokens: 1000",),
+            ValueError,
             "Could not parse model role arguments",
         ),  # invalid yaml format - missing closing brace
         (
             ("grader={model: mockllm/model, temperature: oops, max_tokens: 1000}",),
+            ValueError,
             "Invalid config",
         ),  # invalid temperature value
+        (
+            ("grader={model: mockllm/model, model_args: not_a_dict}",),
+            TypeError,
+            "model_args must be a dict",
+        ),  # model_args is not a dict
     ],
 )
-def test_parse_model_role_cli_invalid_args_raises_error(args, expected_substring):
-    with pytest.raises(ValueError) as e:
+def test_parse_model_role_cli_invalid_args_raises_error(
+    args, expected_error, expected_substring
+):
+    with pytest.raises(expected_error) as e:
         parse_model_role_cli_args(args)
     assert expected_substring in str(e.value)
 
 
+def test_parse_model_role_cli_args_without_model_args():
+    """Verify YAML config without model_args parses correctly."""
+    result = parse_model_role_cli_args(
+        ("critic={model: mockllm/model, temperature: 0.3}",)
+    )
+    assert "critic" in result
+    assert isinstance(result["critic"], Model)
+    assert result["critic"].config.temperature == 0.3
+
+
 def test_parse_no_model_role_cli_args():
     assert parse_model_role_cli_args(None) == {}
+
+
+def test_parse_model_role_cli_args_distinct_instance_per_role(
+    no_model_copyreg_reducer,
+) -> None:
+    """Dict-form roles sharing model/config must get distinct Model instances (#4450).
+
+    get_model() memoizes by default, so without memoize=False every role with
+    identical model/config/args received the same cached Model object;
+    resolve_model_roles() then stamped the role in place and the last role won,
+    collapsing per-role usage onto it. Uses none/none because mockllm is exempt
+    from memoization and can't exercise this path.
+    """
+    roles = ("auditor", "target", "judge")
+    raw = parse_model_role_cli_args(tuple(f"{r}={{model: none/none}}" for r in roles))
+
+    assert raw["auditor"] is not raw["target"]
+    assert raw["target"] is not raw["judge"]
+    assert raw["auditor"] is not raw["judge"]
+
+    resolved = resolve_model_roles(raw)
+    assert resolved is not None
+    assert {name: model.role for name, model in resolved.items()} == {
+        r: r for r in roles
+    }
+
+
+def test_parse_model_spec_cli_args_one_model_per_spec():
+    """The same model named twice yields two models with their own config.
+
+    This is what --model spelled as a list cannot do: it applies one shared
+    config to every model it names.
+    """
+    models = parse_model_spec_cli_args(
+        (
+            "{model: mockllm/model, temperature: 0.25}",
+            '{"model": "mockllm/model", "temperature": 0.75}',
+        )
+    )
+    assert models is not None
+    assert [str(model) for model in models] == ["mockllm/model", "mockllm/model"]
+    assert [model.config.temperature for model in models] == [0.25, 0.75]
+    assert models[0] is not models[1]
+
+
+def test_parse_model_spec_cli_args_applies_args_and_base_url():
+    """A spec takes the same `model_args` field as --model-role, plus base_url."""
+    models = parse_model_spec_cli_args(
+        (
+            "{model: mockllm/model, model_args: {custom_outputs: null}, "
+            "base_url: http://localhost:9999/v1, max_tokens: 1000}",
+        )
+    )
+    assert models is not None
+    assert models[0].model_args == {"custom_outputs": None}
+    assert models[0].api.base_url == "http://localhost:9999/v1"
+    assert models[0].config.max_tokens == 1000
+
+
+@pytest.mark.parametrize("model_spec", [None, ()])
+def test_parse_no_model_spec_cli_args(model_spec):
+    assert parse_model_spec_cli_args(model_spec) is None
+
+
+@pytest.mark.parametrize(
+    ("spec", "expected_substring"),
+    [
+        ("mockllm/model", "expected a YAML or JSON mapping"),
+        # a spec names its own model rather than falling back to the ambient one
+        ("{temperature: 0.5}", "needs a 'model' name"),
+        # a misspelled 'model' key reports the name it read, not a missing model
+        ("{modle: mockllm/model}", "Unknown GenerateConfig field(s): modle"),
+        # a non-string key must not reach the keyword expansion
+        ("{model: mockllm/model, 1: 2}", "text field names"),
+        ("{model: mockllm/model, model_args: nope}", "model_args must be a mapping"),
+        # a non-string base_url would fail obscurely at request time
+        ("{model: mockllm/model, base_url: 8000}", "base_url must be a string"),
+        (
+            "{model: mockllm/model, temperature: oops}",
+            "temperature: Input should be a valid number",
+        ),
+        # GenerateConfig rejects a field it does not define, so a misspelled
+        # generate config field does not quietly fall back to the default
+        (
+            "{model: mockllm/model, temprature: 0.5}",
+            "Unknown GenerateConfig field(s): temprature",
+        ),
+        # the fields are flat, so a nested 'config' is not a generate config
+        (
+            "{model: mockllm/model, config: {temperature: 0.5}}",
+            "Unknown GenerateConfig field(s): config",
+        ),
+    ],
+)
+def test_parse_model_spec_cli_invalid_args_raises_error(spec, expected_substring):
+    with pytest.raises(PrerequisiteError) as e:
+        parse_model_spec_cli_args((spec,))
+    assert expected_substring in e.value.message
+
+
+@pytest.mark.parametrize(
+    "spec",
+    [
+        "{model: mockllm/model, model_args: {api_key: sk-SECRET}",  # unparseable
+        "{model: mockllm/model, model_args: {api_key: sk-SECRET}, typo: 1}",  # unknown
+        "{model: mockllm/model, extra_headers: {k: sk-SECRET}, typo: 1}",  # unknown
+        "{extra_headers: {k: sk-SECRET}}",  # no model name
+    ],
+)
+def test_parse_model_spec_cli_error_omits_spec_contents(spec):
+    """An error must name the spec by position, not echo it.
+
+    A spec can hold a credential in `model_args` or `extra_headers`, and an
+    error message reaches a terminal or a CI log. Pydantic renders the offending
+    input beside its message and only truncates it, so whether a credential
+    survives depends on where it sits in the mapping.
+    """
+    with pytest.raises(PrerequisiteError) as e:
+        parse_model_spec_cli_args((spec,))
+    assert "sk-SECRET" not in e.value.message
+    assert "--model-spec #1" in e.value.message
+
+
+def test_parse_model_role_cli_args_does_not_alias_memoized_model(
+    no_model_copyreg_reducer,
+) -> None:
+    """A dict-form role must not return (and role-stamp) a memoized Model instance.
+
+    Without memoize=False, a role whose model/config matched an existing
+    get_model() call returned that cached instance, so resolve_model_roles()
+    stamped a role onto the model other callers (including the main eval
+    model) were using — misattributing their usage to the role.
+    """
+    config = GenerateConfig(temperature=0.101)
+    memoized = get_model("none/none", config=config)
+
+    raw = parse_model_role_cli_args(("judge={model: none/none, temperature: 0.101}",))
+    resolve_model_roles(raw)
+
+    assert raw["judge"] is not memoized
+    assert memoized.role is None

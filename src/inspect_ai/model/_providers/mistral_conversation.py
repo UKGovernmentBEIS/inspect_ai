@@ -1,9 +1,13 @@
 import json
-from typing import Any, Callable, Literal, Sequence
+from collections.abc import Callable
+from typing import Any, Literal, Sequence
 
-from mistralai import (
+from mistralai.client import Mistral
+from mistralai.client.errors import SDKError
+from mistralai.client.models import (
     CodeInterpreterTool,
     CompletionArgs,
+    ConversationRequestTool,
     ConversationResponse,
     DocumentURLChunk,
     Function,
@@ -13,23 +17,18 @@ from mistralai import (
     ImageURL,
     ImageURLChunk,
     InputEntries,
+    JSONSchema,
     MessageInputEntry,
     MessageOutputContentChunks,
     MessageOutputEntry,
-    Mistral,
+    ResponseFormat,
     TextChunk,
     ThinkChunk,
     ToolExecutionEntry,
     ToolReferenceChunk,
-    Tools,
     WebSearchTool,
 )
-from mistralai.models import (
-    JSONSchema,
-    ResponseFormat,
-    SDKError,
-)
-from mistralai.types import UNSET
+from mistralai.client.types import UNSET
 
 from inspect_ai._util.citation import Citation, UrlCitation
 from inspect_ai._util.constants import NO_CONTENT
@@ -41,12 +40,13 @@ from inspect_ai._util.content import (
     ContentText,
     ContentToolUse,
 )
-from inspect_ai._util.images import file_as_data_uri
-from inspect_ai._util.url import is_http_url
+from inspect_ai._util.images import inline_media_data_uri, provider_image_data_uri
+from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.model._providers.util.util import split_system_messages
 from inspect_ai.tool import ToolChoice, ToolFunction, ToolInfo
 from inspect_ai.tool._tool_call import ToolCall
+from inspect_ai.util._json import json_schema_dump
 
 from .._chat_message import (
     ChatMessage,
@@ -87,31 +87,34 @@ async def mistral_conversation_generate(
         tools=mistral_conversation_tools(tools) if len(tools) > 0 else UNSET,
         completion_args=completion_args,
         store=False,
-        http_headers={HttpxHooks.REQUEST_ID_HEADER: request_id},
+        http_headers={HttpxHooks.REQUEST_ID_HEADER: request_id}
+        | (config.extra_headers or {}),
     )
 
-    # prepare response for inclusion in model call
-    response: dict[str, Any] = {}
-
-    def model_call() -> ModelCall:
-        return ModelCall.create(
-            request=request,
-            response=response,
-            time=http_hooks.end_request(request_id),
-        )
+    model_call = set_active_model_event_call(
+        request=request,
+    )
 
     # send request
     try:
         conv_response = await client.beta.conversations.start_async(**request)
-        response = conv_response.model_dump()
+
+        model_call.set_response(
+            conv_response.model_dump(), http_hooks.end_request(request_id)
+        )
     except SDKError as ex:
+        model_call.set_error(
+            {"error": {"message": str(ex)}}, http_hooks.end_request(request_id)
+        )
         if ex.status_code == 400:
-            return handle_bad_request(ex), model_call()
+            return handle_bad_request(ex), model_call
         else:
             raise ex
 
     # return model output (w/ tool calls if they exist)
-    choices = completion_choices_from_conversation_response(model, conv_response, tools)
+    choices = await completion_choices_from_conversation_response(
+        model, conv_response, tools
+    )
     return ModelOutput(
         model=model,
         choices=choices,
@@ -125,13 +128,31 @@ async def mistral_conversation_generate(
             ),
             total_tokens=conv_response.usage.total_tokens or 0,
         ),
-    ), model_call()
+    ), model_call
+
+
+def mistral_reasoning_effort(
+    effort: str,
+) -> Literal["none", "high"]:
+    """Map Inspect reasoning_effort onto Mistral's two-level scale.
+
+    Mistral reasoning models (Mistral Medium 3.5+ and Mistral Small 4+) accept
+    only "high" (emit a thinking chunk before the answer) and "none" (no
+    thinking); thinking is off when the parameter is omitted. The retired
+    Magistral models' prompt_mode control is gone from the API.
+    https://docs.mistral.ai/capabilities/reasoning/
+    """
+    return "none" if effort == "none" else "high"
 
 
 def mistral_conversation_completion_args(
     config: GenerateConfig, tool_choice: ToolChoice | None
 ) -> CompletionArgs:
     completion_args = CompletionArgs()
+    if config.reasoning_effort is not None:
+        completion_args.reasoning_effort = mistral_reasoning_effort(
+            config.reasoning_effort
+        )
     if config.stop_seqs is not None:
         completion_args.stop = config.stop_seqs
     if config.presence_penalty is not None:
@@ -171,8 +192,8 @@ def mistral_conversation_completion_args(
     return completion_args
 
 
-def mistral_conversation_tools(tools: list[ToolInfo]) -> list[Tools]:
-    conversation_tools: list[Tools] = []
+def mistral_conversation_tools(tools: list[ToolInfo]) -> list[ConversationRequestTool]:
+    conversation_tools: list[ConversationRequestTool] = []
     for tool in tools:
         if is_internal_web_search_tool(tool):
             conversation_tools.append(WebSearchTool(type="web_search"))
@@ -185,8 +206,8 @@ def mistral_conversation_tools(tools: list[ToolInfo]) -> list[Tools]:
                     function=Function(
                         name=tool.name,
                         description=tool.description,
-                        parameters=tool.parameters.model_dump(
-                            exclude={"additionalProperties"}, exclude_none=True
+                        parameters=json_schema_dump(
+                            tool.parameters, exclude={"additionalProperties"}
                         ),
                     ),
                 )
@@ -323,21 +344,22 @@ async def mistral_content_chunk(
     if isinstance(content, ContentText):
         return TextChunk(text=content.text or NO_CONTENT)
     elif isinstance(content, ContentImage):
-        # resolve image to url
-        image_url = await file_as_data_uri(content.image)
-        return ImageURLChunk(image_url=ImageURL(url=image_url, detail=content.detail))
+        image_url = inline_media_data_uri(content.image, "image")
+        return ImageURLChunk(
+            image_url=ImageURL(
+                url=image_url,
+                detail="high" if content.detail == "original" else content.detail,
+            )
+        )
     elif isinstance(content, ContentReasoning):
         return ThinkChunk(thinking=[TextChunk(text=content.reasoning)])
     elif isinstance(content, ContentDocument):
-        if is_http_url(content.document):
-            return DocumentURLChunk(
-                document_url=content.document, document_name=content.filename
-            )
-        else:
-            file_data_uri = await file_as_data_uri(content.document)
-            return DocumentURLChunk(
-                document_url=file_data_uri, document_name=content.filename
-            )
+        file_data_uri = inline_media_data_uri(
+            content.document, "document", mime_type_hint=content.mime_type
+        )
+        return DocumentURLChunk(
+            document_url=file_data_uri, document_name=content.filename
+        )
 
     else:
         raise ValueError(
@@ -345,7 +367,7 @@ async def mistral_content_chunk(
         )
 
 
-def completion_choices_from_conversation_response(
+async def completion_choices_from_conversation_response(
     model: str, response: ConversationResponse, tools: list[ToolInfo]
 ) -> list[ChatCompletionChoice]:
     content: list[Content] = []
@@ -384,14 +406,14 @@ def completion_choices_from_conversation_response(
                                 break
                         # append content
                         content.append(
-                            content_from_mistral_content_chunk(
+                            await content_from_mistral_content_chunk(
                                 c, citations if len(citations) > 0 else None
                             )
                         )
                     elif isinstance(c, ToolReferenceChunk):
                         pass  # already scooped up by lookahead
                     elif isinstance(c, ImageURLChunk | ThinkChunk):
-                        content.append(content_from_mistral_content_chunk(c))
+                        content.append(await content_from_mistral_content_chunk(c))
                     else:
                         raise ValueError(
                             f"Unexpected content type from mistral: {type(c)}"
@@ -442,7 +464,7 @@ def completion_choices_from_conversation_response(
     ]
 
 
-def content_from_mistral_content_chunk(
+async def content_from_mistral_content_chunk(
     chunk: TextChunk | ImageURLChunk | ThinkChunk,
     citations: Sequence[Citation] | None = None,
 ) -> Content:
@@ -451,10 +473,13 @@ def content_from_mistral_content_chunk(
             return ContentText(text=chunk.text, citations=citations)
         case ImageURLChunk():
             if isinstance(chunk.image_url, str):
-                return ContentImage(image=chunk.image_url, detail="auto")
+                return ContentImage(
+                    image=await provider_image_data_uri(chunk.image_url),
+                    detail="auto",
+                )
             else:
                 return ContentImage(
-                    image=chunk.image_url.url,
+                    image=await provider_image_data_uri(chunk.image_url.url),
                     detail=chunk.image_url.detail  # type: ignore[arg-type]
                     if isinstance(chunk.image_url.detail, str)
                     else "auto",

@@ -1,3 +1,5 @@
+import pytest
+
 from inspect_ai import Task, eval
 from inspect_ai.dataset import Sample
 from inspect_ai.log import EvalLog
@@ -112,6 +114,23 @@ def test_basic_agent_custom_text():
     assert model_event
     assert model_event.tools[1].name == AGENT_SUBMIT_TOOL_NAME
     assert model_event.tools[1].description == AGENT_SUBMIT_TOOL_DESCRIPTION
+
+
+def test_basic_agent_empty_string_submit():
+    # an empty-string submission must be treated as a submission (and end the
+    # loop) rather than being ignored as falsy and looping to message_limit
+    task = Task(
+        dataset=[Sample(input="What is ''.strip()?", target="")],
+        solver=basic_agent(tools=[addition()], message_limit=20),
+        scorer=includes(),
+    )
+    log = eval(task, mockllm_model([""]))[0]
+    assert log.status == "success"
+    assert log.samples
+    model_events = sum(
+        1 for event in log.samples[0].transcript.events if event.event == "model"
+    )
+    assert model_events == 1
 
 
 def test_basic_agent_retries():
@@ -233,6 +252,28 @@ def test_basic_agent_respects_token_limit():
 
     assert log.status == "success"
     assert sum(usage.total_tokens for usage in log.stats.model_usage.values()) == 14
+
+
+def test_basic_agent_accepts_string_token_limit():
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target=["2", "2.0", "Two"])],
+        solver=basic_agent(token_limit="output:5"),
+        scorer=includes(),
+    )
+    model_output = ModelOutput.from_content(model="mockllm", content="hello")
+    model_output.usage = ModelUsage(input_tokens=10, output_tokens=3, total_tokens=13)
+    model = get_model("mockllm/model", custom_outputs=[model_output] * 5)
+
+    log = eval(task, model)[0]
+
+    # the limit (5 output tokens) trips on the 2nd generation (6 output tokens)
+    assert log.status == "success"
+    assert sum(usage.output_tokens for usage in log.stats.model_usage.values()) == 6
+
+
+def test_basic_agent_rejects_invalid_string_token_limit():
+    with pytest.raises(ValueError):
+        basic_agent(token_limit="xyz")
 
 
 def test_basic_agent_respects_message_limit():

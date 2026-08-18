@@ -15,6 +15,11 @@ class InteractParams(BashBaseParams):
     within this period, the function will return an empty string.
     """
     idle_timeout: float
+    max_output_bytes: int | None = None
+    """
+    Maximum response size allowed by the host. The sandbox keeps the returned
+    shell output below this value before JSON-RPC serialization.
+    """
     input: str | None = None
 
 
@@ -28,6 +33,14 @@ class BashParams(RootModel[InteractParams | RestartParams]):
 
 class NewSessionResult(BaseModel):
     session_name: str
+
+
+class NewSessionParams(BaseModel):
+    """Parameters for bash_session_new_session."""
+
+    user: str | None = None
+    """User to run the bash session as (requires server running as root)."""
+    model_config = {"extra": "forbid"}
 
 
 BashRestartResult: TypeAlias = str

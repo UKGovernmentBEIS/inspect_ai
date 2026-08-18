@@ -2,26 +2,45 @@ from inspect_ai._util.deprecation import relocated_module_attribute
 from inspect_ai._util.error import EvalError, WriteConflictError
 
 from ._bundle import bundle_log_dir
-from ._condense import condense_sample, resolve_sample_attachments
+from ._condense import (
+    condense_events,
+    condense_sample,
+    expand_events,
+    resolve_sample_attachments,
+)
+from ._config_update import (
+    ConfigUpdate,
+    ConfigValueChange,
+    effective_eval_config,
+    effective_generate_config,
+)
 from ._convert import convert_eval_logs
 from ._edit import (
+    LogEdit,
+    LogUpdate,
+    MetadataEdit,
     ProvenanceData,
+    TagsEdit,
+    edit_eval_log,
     invalidate_samples,
     uninvalidate_samples,
 )
 from ._file import (
     EvalLogInfo,
     list_eval_logs,
+    list_eval_logs_async,
     read_eval_log,
     read_eval_log_async,
     read_eval_log_sample,
     read_eval_log_sample_summaries,
     read_eval_log_samples,
+    read_eval_log_samples_by_id,
     write_eval_log,
     write_eval_log_async,
     write_log_dir_manifest,
 )
 from ._log import (
+    ConnectionLimitChange,
     EvalConfig,
     EvalDataset,
     EvalLog,
@@ -29,6 +48,7 @@ from ._log import (
     EvalPlan,
     EvalPlanStep,
     EvalResults,
+    EvalRetryError,
     EvalRevision,
     EvalSample,
     EvalSampleLimit,
@@ -38,17 +58,32 @@ from ._log import (
     EvalScore,
     EvalSpec,
     EvalStats,
+    EvalStatus,
+    EventsData,
 )
 from ._metric import recompute_metrics
+from ._recover import (
+    RecoverableEvalLog,
+    RecoveryNotAvailable,
+    recover_eval_log,
+    recoverable_eval_logs,
+)
+from ._resolve import resolve_sample_events_data
 from ._retry import retryable_eval_logs
 from ._score import edit_score
 from ._transcript import (
     Transcript,
+    TranscriptHistory,
+    TranscriptHistoryUnavailableError,
     transcript,
 )
 
 __all__ = [
     "WriteConflictError",
+    "ConfigUpdate",
+    "ConfigValueChange",
+    "effective_eval_config",
+    "effective_generate_config",
     "EvalConfig",
     "EvalError",
     "EvalDataset",
@@ -57,6 +92,7 @@ __all__ = [
     "EvalPlan",
     "EvalPlanStep",
     "EvalResults",
+    "EvalRetryError",
     "EvalRevision",
     "EvalSample",
     "EvalSampleLimit",
@@ -66,18 +102,27 @@ __all__ = [
     "EvalScore",
     "EvalSpec",
     "EvalStats",
+    "EvalStatus",
     "EvalLogInfo",
     "Transcript",
+    "TranscriptHistory",
+    "TranscriptHistoryUnavailableError",
     "transcript",
     "convert_eval_logs",
     "list_eval_logs",
+    "list_eval_logs_async",
     "read_eval_log",
     "read_eval_log_async",
     "read_eval_log_sample",
-    "read_eval_log_samples",
     "read_eval_log_sample_summaries",
+    "read_eval_log_samples",
+    "read_eval_log_samples_by_id",
     "condense_sample",
+    "condense_events",
+    "EventsData",
+    "expand_events",
     "resolve_sample_attachments",
+    "resolve_sample_events_data",
     "write_eval_log",
     "write_eval_log_async",
     "write_log_dir_manifest",
@@ -86,8 +131,18 @@ __all__ = [
     "edit_score",
     "recompute_metrics",
     "ProvenanceData",
+    "LogEdit",
+    "LogUpdate",
+    "MetadataEdit",
+    "TagsEdit",
+    "edit_eval_log",
     "invalidate_samples",
     "uninvalidate_samples",
+    "recover_eval_log",
+    "recoverable_eval_logs",
+    "RecoverableEvalLog",
+    "RecoveryNotAvailable",
+    "ConnectionLimitChange",
 ]
 
 

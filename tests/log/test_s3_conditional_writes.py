@@ -188,6 +188,37 @@ def test_s3_etag_changes_after_modification(sample_log, mock_s3):
     assert log2.eval.metadata["version"] == 2  # content has changed
 
 
+@pytest.mark.parametrize("format", ["json", "eval"])
+def test_etag_consistent_between_full_and_header_only_read(sample_log, mock_s3, format):
+    """Test that ETag format is consistent between full read and header-only read.
+
+    Reproduces a bug where header_only=True returns ETag with surrounding quotes
+    (e.g. '"abc123"') while header_only=False returns it without quotes ('abc123').
+    """
+    log_path = f"s3://test-bucket/test_etag_consistency.{format}"
+    write_eval_log(sample_log, log_path)
+
+    full_log = read_eval_log(log_path, header_only=False)
+    header_log = read_eval_log(log_path, header_only=True)
+
+    assert full_log.etag is not None
+    assert header_log.etag is not None
+
+    # ETags should be identical — no surrounding quotes on either
+    assert full_log.etag == header_log.etag, (
+        f"ETag mismatch: full read returned {full_log.etag!r}, "
+        f"header-only read returned {header_log.etag!r}"
+    )
+
+    # Neither should have surrounding quotes
+    assert not full_log.etag.startswith('"'), (
+        f"Full read ETag has surrounding quotes: {full_log.etag!r}"
+    )
+    assert not header_log.etag.startswith('"'), (
+        f"Header-only read ETag has surrounding quotes: {header_log.etag!r}"
+    )
+
+
 def test_conditional_write_without_etag_succeeds(sample_log, mock_s3):
     """Test that write without if_match_etag always succeeds (backward compatibility)."""
     log_path = "s3://test-bucket/test_unconditional.json"

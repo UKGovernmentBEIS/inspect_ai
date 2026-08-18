@@ -3,8 +3,10 @@ from typing import Any
 import pytest
 from test_helpers.utils import (
     skip_if_no_anthropic,
+    skip_if_no_deepseek,
     skip_if_no_grok,
     skip_if_no_groq,
+    skip_if_no_moonshot,
     skip_if_no_openai,
     skip_if_no_together,
     skip_if_trio,
@@ -33,35 +35,30 @@ async def check_stop_reason(model_name, **model_args: Any):
     assert response.choices[0].stop_reason == "max_tokens"
 
 
-@pytest.mark.asyncio
 @skip_if_no_groq
 @skip_if_trio
 async def test_groq_stop_reason() -> None:
     await check_stop_reason("groq/openai/gpt-oss-20b")
 
 
-@pytest.mark.asyncio
 @skip_if_no_openai
 @skip_if_trio
 async def test_openai_stop_reason() -> None:
     await check_stop_reason("openai/gpt-3.5-turbo")
 
 
-@pytest.mark.asyncio
 @skip_if_no_openai
 @skip_if_trio
 async def test_openai_responses_stop_reason() -> None:
     await check_stop_reason("openai/gpt-4o-mini", responses_api=True)
 
 
-@pytest.mark.asyncio
 @skip_if_no_anthropic
 @skip_if_trio
 async def test_anthropic_stop_reason() -> None:
-    await check_stop_reason("anthropic/claude-3-haiku-20240307")
+    await check_stop_reason("anthropic/claude-haiku-4-5")
 
 
-@pytest.mark.asyncio
 @pytest.mark.flaky
 @skip_if_no_grok
 @skip_if_trio
@@ -69,8 +66,23 @@ async def test_grok_stop_reason() -> None:
     await check_stop_reason("grok/grok-3-mini")
 
 
-@pytest.mark.asyncio
 @skip_if_no_together
 @skip_if_trio
 async def test_together_stop_reason() -> None:
-    await check_stop_reason("together/meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo")
+    await check_stop_reason("together/MiniMaxAI/MiniMax-M2.7")
+
+
+@skip_if_no_moonshot
+@skip_if_trio
+async def test_moonshot_stop_reason() -> None:
+    # K3 thinking is always on, so the max_tokens check exercises a
+    # reasoning-only truncated response.
+    await check_stop_reason("moonshot/kimi-k3")
+
+
+@skip_if_no_deepseek
+@skip_if_trio
+async def test_deepseek_stop_reason() -> None:
+    # V4 thinking is on by default, so the max_tokens check exercises a
+    # reasoning-only truncated response.
+    await check_stop_reason("deepseek/deepseek-v4-flash")
