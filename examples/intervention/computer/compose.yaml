@@ -2,6 +2,8 @@ services:
   default:
     image: aisiuk/inspect-computer-tool
     init: true
+    # network_mode is omitted to permit Internet access for this general-purpose
+    # agent and to support the VNC port mappings.
     # Dynamically assign loopback host ports for vnc and novnc
     ports:
       - "127.0.0.1::5900"
