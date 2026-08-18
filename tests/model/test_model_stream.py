@@ -7,12 +7,14 @@ boundaries, partial-output snapshots on the pending event, and the pending
 event's progress record (design/ctl/generate-progress.md layer 2).
 """
 
+import json
 from typing import Any, Callable, Coroutine
 
 import anyio
 import pytest
 import tenacity
 from tenacity.wait import WaitBaseT
+from test_helpers.utils import skip_if_no_anthropic, skip_if_no_google
 
 from inspect_ai._util.content import ContentReasoning, ContentText
 from inspect_ai._util.registry import _registry
@@ -38,7 +40,7 @@ from inspect_ai.model._stream import (
     report_model_stream_restart,
     report_model_stream_start,
 )
-from inspect_ai.tool import ToolChoice, ToolInfo
+from inspect_ai.tool import ToolChoice, ToolDef, ToolInfo
 
 
 class TransientError(Exception):
@@ -581,3 +583,66 @@ async def test_generate_loop_forwards_on_stream() -> None:
     assert [e.text for e in collector.events if isinstance(e, StreamTextEvent)] == [
         "streamed"
     ]
+
+
+# live provider tests (--runapi): on_stream against real APIs. Passing
+# on_stream must by itself enable streaming — no `streaming` model arg.
+
+
+@skip_if_no_anthropic
+async def test_anthropic_on_stream_live() -> None:
+    collector = Collector()
+    model = get_model("anthropic/claude-haiku-4-5")
+    # max_tokens below the auto-streaming threshold (8192) and no thinking:
+    # only the on_stream callback can be what turns streaming on
+    output = await model.generate(
+        "Reply with one short sentence about the sea.",
+        config=GenerateConfig(max_tokens=1024),
+        on_stream=collector,
+    )
+    streamed = "".join(
+        e.text for e in collector.events if isinstance(e, StreamTextEvent)
+    )
+    assert streamed
+    assert streamed == output.completion
+
+
+@skip_if_no_anthropic
+async def test_anthropic_on_stream_tool_call_live() -> None:
+    async def add(x: int, y: int) -> int:
+        return x + y
+
+    collector = Collector()
+    model = get_model("anthropic/claude-haiku-4-5")
+    output = await model.generate(
+        "Use the add tool to compute 5 + 3.",
+        tools=[
+            ToolDef(
+                add,
+                name="add",
+                description="Add two numbers.",
+                parameters={"x": "first number", "y": "second number"},
+            )
+        ],
+        config=GenerateConfig(max_tokens=1024),
+        on_stream=collector,
+    )
+    assert output.message.tool_calls
+    tool_events = [e for e in collector.events if isinstance(e, StreamToolCallEvent)]
+    assert any(e.function == "add" for e in tool_events)
+    arguments = json.loads("".join(e.arguments for e in tool_events))
+    assert arguments == {"x": 5, "y": 3}
+
+
+@skip_if_no_google
+async def test_google_on_stream_live() -> None:
+    collector = Collector()
+    model = get_model("google/gemini-3.1-flash-lite")
+    output = await model.generate(
+        "Reply with one short sentence about the sea.", on_stream=collector
+    )
+    streamed = "".join(
+        e.text for e in collector.events if isinstance(e, StreamTextEvent)
+    )
+    assert streamed
+    assert streamed == output.completion
