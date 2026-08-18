@@ -172,15 +172,15 @@ async def _extract_tools_tree(
     cached in the binaries dir so we decompress at most once per artifact.
     """
     gz_tmp = f"{SANDBOX_TOOLS_DIR}.pkg.tgz"
-    # Stage as the extracting user so the later `rm` owns the file: /var/tmp is
-    # sticky, so deleting another user's file there requires CAP_FOWNER.
-    await sandbox.write_file(gz_tmp, gz_bytes, user=user)
+    await sandbox.write_file(gz_tmp, gz_bytes)
     # -o (--no-same-owner) so extraction as root does not chown to the archive's
     # uids, which fails in capability-dropped sandboxes lacking CAP_CHOWN.
     result = await sandbox.exec(
         ["tar", "xzof", gz_tmp, "-C", SANDBOX_TOOLS_DIR], user=user
     )
-    await sandbox.exec(["rm", "-f", gz_tmp], user=user)
+    # Remove as the default user (the one write_file wrote as): /var/tmp is
+    # sticky, so deleting another user's file there requires CAP_FOWNER.
+    await sandbox.exec(["rm", "-f", gz_tmp])
     if result.success:
         return
 
@@ -191,11 +191,11 @@ async def _extract_tools_tree(
         f"tar xzf failed ({result.stderr.strip()}); retrying with uncompressed tar",
     )
     tar_tmp = f"{SANDBOX_TOOLS_DIR}.pkg.tar"
-    await sandbox.write_file(tar_tmp, _uncompressed_tar_bytes(name, gz_bytes), user=user)
+    await sandbox.write_file(tar_tmp, _uncompressed_tar_bytes(name, gz_bytes))
     result = await sandbox.exec(
         ["tar", "xof", tar_tmp, "-C", SANDBOX_TOOLS_DIR], user=user
     )
-    await sandbox.exec(["rm", "-f", tar_tmp], user=user)
+    await sandbox.exec(["rm", "-f", tar_tmp])
     if not result.success:
         raise RuntimeError(f"Failed to extract sandbox tools: {result.stderr}")
 

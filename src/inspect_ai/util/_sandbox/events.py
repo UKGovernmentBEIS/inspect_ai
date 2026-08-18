@@ -146,9 +146,13 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
 
         timestamp = datetime.now(timezone.utc)
 
-        # make call
+        # make call (pass user only when requested so providers that predate
+        # the parameter keep working)
         try:
-            await self._sandbox.write_file(file, contents, user=user)
+            if user is None:
+                await self._sandbox.write_file(file, contents)
+            else:
+                await self._sandbox.write_file(file, contents, user=user)
         except TimeoutError as ex:
             raise SandboxTimeoutError(str(ex)) from ex
 

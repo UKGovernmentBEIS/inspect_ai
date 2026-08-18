@@ -193,7 +193,8 @@ class SandboxEnvironment(abc.ABC):
           contents: Text or binary file contents.
           user: Optional username or UID to write the file as, so the file
             (and any created parent directories) are owned by that user.
-            Defaults to the sandbox's default user.
+            Defaults to the sandbox's default user. Support is
+            provider-specific.
 
         Raises:
           TimeoutError: If the operation times out.
