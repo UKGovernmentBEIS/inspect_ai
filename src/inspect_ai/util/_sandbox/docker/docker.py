@@ -48,6 +48,7 @@ from .compose import (
     compose_pull,
     compose_services,
     compose_up,
+    compose_verify_prebuilt_images,
     docker_image_exists_locally,
 )
 from .diagnostics import sandbox_unavailable_diagnostics, service_dead
@@ -96,7 +97,10 @@ class DockerSandboxEnvironment(SandboxEnvironment):
             project_record_auto_compose(project)
 
             # build containers which are out of date
-            await compose_build(project)
+            if os.environ.get("INSPECT_SANDBOX_NO_BUILD", "").lower() in ("1", "true"):
+                await compose_verify_prebuilt_images(project)
+            else:
+                await compose_build(project)
 
             # cleanup images created during build
             await compose_cleanup_images(project, timeout=300)

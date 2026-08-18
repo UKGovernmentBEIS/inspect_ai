@@ -185,6 +185,24 @@ async def compose_pull(
     )
 
 
+async def compose_verify_prebuilt_images(project: ComposeProject) -> None:
+    services = await compose_services(project)
+    missing: list[str] = []
+    for name, service in services.items():
+        if "build" not in service:
+            continue
+        image = service.get("image")
+        if not image:
+            missing.append(f"{name} (no explicit image)")
+        elif not await docker_image_exists_locally(image):
+            missing.append(f"{name} ({image})")
+    if missing:
+        raise PrerequisiteError(
+            "Sandbox builds are disabled (INSPECT_SANDBOX_NO_BUILD is set) and these services' "
+            f"images are not present in the Docker image store: {', '.join(missing)}"
+        )
+
+
 async def docker_image_exists_locally(image: str) -> bool:
     """Check whether a docker image is already present in the local daemon."""
     result = await subprocess(
