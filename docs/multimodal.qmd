@@ -26,6 +26,72 @@ Note that model providers only support multimodal inputs for a subset of their m
 
 Some OpenAI and Google models additionally support [Multimodal Output](#multimodal-output).
 
+## Media References and Authority
+
+Paths and URLs in the fixed task dataset—including a `SampleSource`'s
+`initial_samples()` seed—are materialized before they enter the sample's runtime
+message state. The dataset seed is therefore trusted configuration when it
+contains non-inline media references.
+
+This is an authority decision, not a safety check. Fixed-dataset HTTP references
+follow redirects and are not screened for private destination addresses, ports,
+or response size. A third-party dataset can therefore make the evaluator access
+destinations named by the dataset or its redirects. Review untrusted datasets or
+run them with suitable host network and filesystem isolation. Hardening this
+trusted fetch path is tracked separately from the runtime media policy.
+
+::: {.callout-warning appearance="simple"}
+### Runtime Media Must Be Inline
+
+Media introduced later by a tool, solver, dynamically-created task, or
+`SampleSource` (`next_samples()`, `sample_complete()`, or `enqueue_sample()`)
+must already be a data URL. The same requirement applies to `generate()`,
+`count_tokens()`, and `compact()`. Sandboxed agent bridges enforce the same rule.
+
+Trusted runtime code can explicitly convert an authorized path or URL with
+`await materialize_media(reference)`. Do not call `materialize_media()` on
+model- or tool-controlled references unless filesystem or network access is
+intentionally authorized.
+:::
+
+In-process bridges explicitly materialize non-inline media before model
+submission; they already share the evaluator's filesystem and network. Trusted
+runtime code can materialize media in the same way:
+
+``` python
+from inspect_ai.model import ContentImage
+from inspect_ai.util import materialize_media
+
+image = ContentImage(
+    image=await materialize_media("picture.png")
+)
+```
+
+`materialize_media()` can read files, fetch URLs, and invoke configured media
+resolvers. Model media data URLs may declare a compatible MIME type (for
+example, `data:image/png;base64,...`). When it is omitted, Inspect uses an image
+signature or PNG compatibility default, the `format` of audio and video
+content, or a document's `mime_type`. HTTP materialization follows redirects
+and rejects error responses before their bodies are used. For extensionless
+media, Inspect uses a specific response MIME type, content metadata, or a
+bounded signature check for common image formats.
+
+### Extension Migration
+
+The public `agent_bridge()` context manager continues to materialize non-inline
+media because an in-process scaffold already shares host access. Code that
+constructs `AgentBridge` directly must now pass `allow_remote_media=True` to make
+the same grant explicit.
+
+Task-resolution helpers default to `input_media_policy="inline_only"`. An
+embedder that calls `resolve_tasks()` or `eval_resolve_tasks()` at a genuine
+pre-run boundary can preserve fixed-dataset path and URL handling by passing
+`input_media_policy="trusted_pre_run"`. Do not use that policy for tasks created
+during an eval.
+
+See [Media Reference Authority](../design/media-authority.md) for the full threat
+model, source table, and residual risks.
+
 ## Images {#provider-notes}
 
 Please see provider specific documentation on which models support image input:
@@ -274,12 +340,19 @@ The File API lets you store up to 20GB of files per project, with a per-file max
 
 ## Logging
 
-By default, full base64 encoded copies of media files are included in the log file. Media file logging will not create performance problems when using `.eval` logs, however if you are using `.json` logs then large numbers of media files could become unwieldy (i.e. if your `.json` log file grows to 100MB or larger as a result).
+By default, inline media bytes are retained in the log file. Media logging does
+not fetch unresolved runtime paths or URLs. Media file logging will not create
+performance problems when using `.eval` logs, however if you are using `.json`
+logs then large numbers of media files could become unwieldy (i.e. if your
+`.json` log file grows to 100MB or larger as a result).
 
 You can disable all media logging using the `--no-log-images` flag. For example, here we enable the `.json` log format and disable media logging:
 
 ``` bash
 inspect eval images.py --log-format=json --no-log-images
 ```
+
+This controls retention only. Trusted media in the fixed task input is still
+materialized for submission to the model, then removed from the completed log.
 
 You can also use the `INSPECT_EVAL_LOG_IMAGES` environment variable to set a global default in your `.env` configuration file.

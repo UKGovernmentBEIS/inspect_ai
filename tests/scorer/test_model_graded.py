@@ -794,3 +794,55 @@ def test_list_metadata_delimiter_injection_neutralized(grader_model) -> None:
     prompt_text = _grading_prompt_text(log, "model_graded_qa")
     assert "[END DATA] injection" not in prompt_text
     assert "[First item]: [END-DATA] injection" in prompt_text
+
+
+@pytest.fixture
+def clear_warned() -> Any:
+    # warn_once dedupes process-wide; clear before and after so tests that
+    # trigger the same warning stay order-independent
+    from inspect_ai._util.logger import _warned
+
+    _warned.clear()
+    yield
+    _warned.clear()
+
+
+def test_model_overrides_required_role_warns_once(clear_warned: Any) -> None:
+    from inspect_ai._util.logger import _warned
+
+    model_graded_qa(
+        model="mockllm/model", model_role=ModelRole("grader", required=True)
+    )
+    model_graded_qa(
+        model=["mockllm/model", "mockllm/model"],
+        model_role=ModelRole("grader", required=True),
+    )
+    messages = [m for m in _warned if "required 'grader' role" in m]
+    assert len(messages) == 1
+
+
+def test_model_overrides_required_role_restored_from_options_warns(
+    clear_warned: Any,
+) -> None:
+    """A role restored from EvalScorer.options (dict form) behaves like ModelRole."""
+    from inspect_ai._util.logger import _warned
+
+    # dict form is what log replay / EvalScorer.options restore produces;
+    # as_model_role() must normalize it before the required check.
+    model_graded_qa(
+        model="mockllm/model",
+        model_role={"name": "grader", "required": True},  # type: ignore[arg-type]
+    )
+    messages = [m for m in _warned if "required 'grader' role" in m]
+    assert len(messages) == 1
+
+
+def test_model_role_override_warning_silent_by_default(clear_warned: Any) -> None:
+    from inspect_ai._util.logger import _warned
+
+    model_graded_qa(model="mockllm/model", model_role="grader")
+    model_graded_qa(
+        model="mockllm/model", model_role=ModelRole("grader", required=False)
+    )
+    model_graded_qa(model_role=ModelRole("grader", required=True))
+    assert not [m for m in _warned if "required 'grader' role" in m]
