@@ -141,6 +141,16 @@ def caplog(caplog: pytest.LogCaptureFixture) -> Iterator[pytest.LogCaptureFixtur
     pass vacuously. Attaching caplog's handler directly to the ``inspect_ai``
     logger captures in every ordering, without mutating any inspect logging
     config. See meta-tests in ``tests/test_conftest_caplog.py``.
+
+    Caution: never wrap code that may run the process's first ``eval()`` in
+    ``caplog.at_level(..., logger="inspect_ai")`` — ``at_level`` snapshots the
+    level on entry and force-restores it on exit, wiping out the capture level
+    ``init_logger()`` set mid-block (the memoized handler guard means it is
+    never repaired), which silently drops sub-WARNING inspect records for the
+    rest of the process. ``at_level`` on ``inspect_ai.*`` *module* loggers is
+    fine (``init_logger()`` never sets those levels), and is usually
+    unnecessary anyway: this handler attachment captures WARNING+ records
+    without any level change.
     """
     dedupe = _DedupeRecordsFilter()
     caplog.handler.addFilter(dedupe)

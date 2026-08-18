@@ -23,6 +23,10 @@ def _warning_messages(caplog: pytest.LogCaptureFixture) -> list[str]:
     ]
 
 
+def _mismatch_warnings(caplog: pytest.LogCaptureFixture) -> list[str]:
+    return [msg for msg in _warning_messages(caplog) if "mismatch" in msg.lower()]
+
+
 class TestModelEnvironmentMismatch:
     """Tests for model/environment variable conflict detection."""
 
@@ -85,13 +89,18 @@ class TestModelEnvironmentMismatch:
             scorer=match(),
         )
 
-        # Should log warning during evaluation setup
-        with caplog.at_level(logging.WARNING, logger="inspect_ai"):
-            try:
-                eval(task, model="openai/azure/gpt-35-turbo", limit=1)
-            except Exception:
-                # We're only checking for warnings during setup, not execution success
-                pass
+        # Should log warning during evaluation setup. Deliberately NOT wrapped
+        # in caplog.at_level(..., logger="inspect_ai"): eval() calls
+        # init_logger(), which sets that logger's capture level once per
+        # process, and at_level's exit would stomp it back to the pre-block
+        # value for the rest of the process. No level change is needed anyway:
+        # by the time the warning is emitted init_logger has enabled WARNING,
+        # and the conftest caplog override captures it from there.
+        try:
+            eval(task, model="openai/azure/gpt-35-turbo", limit=1)
+        except Exception:
+            # We're only checking for warnings during setup, not execution success
+            pass
 
         output = "\n".join(_warning_messages(caplog)).lower()
 
@@ -129,9 +138,7 @@ class TestModelEnvironmentMismatch:
                 pass
 
         # Verify no mismatch warnings were logged
-        mismatch_warnings = [
-            msg for msg in _warning_messages(caplog) if "mismatch" in msg.lower()
-        ]
+        mismatch_warnings = _mismatch_warnings(caplog)
         assert not mismatch_warnings, (
             f"Should not log mismatch warning for matching config. Got: {mismatch_warnings}"
         )
@@ -162,9 +169,7 @@ class TestModelEnvironmentMismatch:
                 pass
 
         # Should not warn about case differences
-        mismatch_warnings = [
-            msg for msg in _warning_messages(caplog) if "mismatch" in msg.lower()
-        ]
+        mismatch_warnings = _mismatch_warnings(caplog)
         assert not mismatch_warnings, (
             f"Should not warn about case-only differences. Got: {mismatch_warnings}"
         )
@@ -217,9 +222,7 @@ class TestModelEnvironmentMismatch:
                 pass  # Ignore other errors, we're checking for warnings
 
         # Verify no mismatch warnings
-        mismatch_warnings = [
-            msg for msg in _warning_messages(caplog) if "mismatch" in msg.lower()
-        ]
+        mismatch_warnings = _mismatch_warnings(caplog)
         assert not mismatch_warnings, (
             f"Should not check mismatches for non-Azure providers. Got: {mismatch_warnings}"
         )
