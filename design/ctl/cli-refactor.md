@@ -414,10 +414,13 @@ implementation time:
   retired the per-knob version table in favor of the strict-mutations floor,
   and `_gate_knob_support` became `_gate_strict_floor` (in `_config.py`, as
   designed for its predecessor).
-- **`_failure` is not a leaf.** The envelope helpers now emit through the
-  sanitizing `_echo` / `_echo_raw` wrappers, so `_failure → _render`
-  (and `_group → _render`) are real edges; `_render` and `_knobs` are the
-  leaves. The graph stays acyclic — `_render` imports only `_knobs`.
+- **`_failure` is not a leaf, and everything emits through `_render`.** The
+  envelope helpers (and every other layer) now emit through the sanitizing
+  `_echo` / `_echo_raw` wrappers, so `_failure → _render`,
+  `_group → _render`, and `_http → _render` are real edges the diagram above
+  lacks, and `_model` no longer skips `_render` (it sanitizes reason lines).
+  `_render` and `_knobs` are the leaves. The graph stays acyclic — `_render`
+  imports only `_knobs`.
 - **Symbols added since the design** were placed by the same caller-count
   rule: the requeue machinery (`_requeue_pairs`, bulk/errored runners) in
   `_sample.py`; the terse-mode helpers (`_terse_option`, `_use_terse`,
@@ -429,9 +432,13 @@ implementation time:
 - **One test changed beyond imports/patch targets.** The structural
   click-echo scan (`test_no_direct_click_echo_outside_the_wrappers`) read
   the single module's source via `inspect.getsource`; after the split that
-  would have scanned only the 39-line `__init__.py` and passed vacuously,
-  so it now walks every `*.py` file in the package (and asserts the package
-  is actually split). Its assertions are unchanged.
+  would have scanned only the docstring-and-registration `__init__.py` and
+  passed vacuously, so it now walks every `*.py` file in the package (and
+  asserts the package is actually split). The `_echo` / `_echo_raw`
+  exemption is scoped to `_render.py`, where the wrappers live — in the
+  monolith a shadowing same-named function was impossible, in a package a
+  per-module shadow would otherwise pass the scan. Its assertions are
+  unchanged.
 - **Two commits, not per-module commits.** A pure-rename commit
   (`ctl.py → ctl/__init__.py`, 100% similarity) followed by one split
   commit. Move-fidelity was verified mechanically instead of per-commit

@@ -7106,7 +7106,8 @@ def test_no_direct_click_echo_outside_the_wrappers() -> None:
     offenders: list[str] = []
 
     class Visitor(ast.NodeVisitor):
-        def __init__(self) -> None:
+        def __init__(self, module: str) -> None:
+            self.module = module
             self.stack: list[str] = []
 
         def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
@@ -7118,7 +7119,13 @@ def test_no_direct_click_echo_outside_the_wrappers() -> None:
 
         def visit_Call(self, node: ast.Call) -> None:
             func = node.func
-            in_wrapper = self.stack[-1:] in (["_echo"], ["_echo_raw"])
+            # the sanitizing wrappers live in _render.py alone; a same-named
+            # function in any other module would be an unsanitized shadow, so
+            # the exemption is module-scoped, not name-scoped
+            in_wrapper = self.module == "_render.py" and self.stack[-1:] in (
+                ["_echo"],
+                ["_echo_raw"],
+            )
             direct_output = (
                 isinstance(func, ast.Attribute)
                 and func.attr in ("echo", "secho", "echo_via_pager")
@@ -7132,14 +7139,12 @@ def test_no_direct_click_echo_outside_the_wrappers() -> None:
                 )
             self.generic_visit(node)
 
-        module = "?"
-
     package_dir = Path(ctl_package.__file__).parent
-    module_files = sorted(package_dir.glob("*.py"))
+    module_files = sorted(package_dir.rglob("*.py"))
     assert len(module_files) > 1, "expected the ctl package's split modules"
     for module_file in module_files:
-        tree = ast.parse(module_file.read_text())
-        visitor = Visitor()
-        visitor.module = module_file.name
-        visitor.visit(tree)
+        tree = ast.parse(
+            module_file.read_text(encoding="utf-8"), filename=str(module_file)
+        )
+        Visitor(module_file.name).visit(tree)
     assert not offenders, f"direct output calls outside _echo/_echo_raw: {offenders}"
