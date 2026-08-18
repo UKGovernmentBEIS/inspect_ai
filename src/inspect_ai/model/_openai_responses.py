@@ -147,7 +147,7 @@ from inspect_ai._util.images import file_as_data_uri
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.text import truncate_string_to_bytes
 from inspect_ai._util.url import is_http_url
-from inspect_ai.model._call_tools import _object_with_trailing_quotes, parse_tool_call
+from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -1880,17 +1880,17 @@ def _responses_call_to_inspect(
 
     Reverses the todo_write->update_plan swap (only when a todo_write tool is present and no
     first-party update_plan tool is — so we never hijack a user's own update_plan), then
-    falls back to the name-only alias mechanism. Arguments that parse_tool_call() will
-    recover (a complete object trailed by stray quotes) are mapped here too, so recovery
-    doesn't hand back an un-mapped plan. Arguments it cannot recover are passed through
-    with the mapped name so parse_tool_call() reports the parse error rather than silently
-    producing an empty plan.
+    falls back to the name-only alias mechanism. Malformed arguments — including ones
+    parse_tool_call() will itself recover (a complete object trailed by stray quotes) — are
+    passed through with the mapped name rather than mapped here, so any resulting error
+    surfaces at the tool (e.g. "Required parameter todos not provided") rather than at the
+    parse.
     """
     if name == UPDATE_PLAN_NAME and _tools_swap_todo_write(tools):
         try:
             args = json.loads(arguments) if arguments else {}
         except json.JSONDecodeError:
-            args = _object_with_trailing_quotes(arguments) if arguments else None
+            args = None
         if isinstance(args, dict):
             return TODO_WRITE_NAME, json.dumps(_update_plan_args_to_inspect(args))
         return TODO_WRITE_NAME, arguments

@@ -1,23 +1,12 @@
 """Tests for update_plan tool."""
 
-import json
-
 from test_helpers.tool_call_utils import get_tool_event
 
 from inspect_ai import Task, eval
 from inspect_ai.dataset import Sample
 from inspect_ai.model import ModelOutput, get_model
-from inspect_ai.model._openai_responses import _responses_call_to_inspect
 from inspect_ai.solver import generate, use_tools
-from inspect_ai.tool import ToolInfo, update_plan
-from inspect_ai.tool._tool_def import ToolDef
-from inspect_ai.tool._tools._todo_write import todo_write
-
-
-def _todo_write_tool_info() -> ToolInfo:
-    # the swap only engages for a tool whose schema matches canonical todo_write()
-    td = ToolDef(todo_write())
-    return ToolInfo(name=td.name, description=td.description, parameters=td.parameters)
+from inspect_ai.tool import update_plan
 
 
 async def test_update_plan_basic() -> None:
@@ -32,34 +21,6 @@ async def test_update_plan_basic() -> None:
         explanation="Making progress",
     )
     assert result == "Plan updated"
-
-
-def test_update_plan_args_mapped_when_trailed_by_stray_quotes() -> None:
-    # parse_tool_call() recovers a complete object trailed by stray quotes, so the
-    # plan->todos mapping has to run on it too, or the recovered call arrives with
-    # update_plan's shape under todo_write's name
-    name, arguments = _responses_call_to_inspect(
-        "update_plan",
-        '{"plan": [{"step": "Analyze", "status": "pending"}]}""',
-        [_todo_write_tool_info()],
-    )
-
-    assert name == "todo_write"
-    assert json.loads(arguments) == {
-        "todos": [{"content": "Analyze", "status": "pending"}]
-    }
-
-
-def test_update_plan_args_passed_through_when_unrecoverable() -> None:
-    # arguments that stay malformed are still handed over untouched so that
-    # parse_tool_call() reports the parse error
-    malformed = '{"plan": [{"step": "Analyze"'
-    name, arguments = _responses_call_to_inspect(
-        "update_plan", malformed, [_todo_write_tool_info()]
-    )
-
-    assert name == "todo_write"
-    assert arguments == malformed
 
 
 def test_update_plan_via_mockllm() -> None:
