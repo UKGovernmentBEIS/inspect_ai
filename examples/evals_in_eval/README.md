@@ -2,6 +2,8 @@
 
 This example demonstrates running Inspect evals (in Docker containers) inside an Inspect eval. The example involves installing Inspect AI itself in a container and instructing [Claude Code](https://docs.anthropic.com/en/docs/claude-code) as an Inspect agent to run evals.
 
+The Compose configuration intentionally permits outbound Internet access because the nested Docker daemon must pull sandbox images for the inner evaluations.
+
 > [!NOTE] The correct way to run an eval in an eval is to shell out a subprocess that has the eval you want to run. That protects many error conditions you would run into if you tried to run an eval in an eval. This is global state, background tasks (e.g. batch jobs), and contention for the UI.
 
 The example includes the following source files:

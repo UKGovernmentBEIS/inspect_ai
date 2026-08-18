@@ -1,4 +1,7 @@
 services:
+  # Both services intentionally use Compose's default network. They must
+  # communicate with each other, and the nested Docker daemon requires Internet
+  # access to pull sandbox images used by the inner evaluations.
   default:
     build:
       context: .
@@ -16,7 +19,7 @@ services:
     image: docker:dind
     privileged: true
     environment:
-      # Disable TLS for simplicity (internal network only)
+      # Disable TLS for the connection confined to this Compose network
       - DOCKER_TLS_CERTDIR=
     healthcheck:
       test: ["CMD", "docker", "info"]
