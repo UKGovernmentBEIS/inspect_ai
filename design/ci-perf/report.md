@@ -245,12 +245,7 @@ one-off 45s tail saving has a half-life of about two weeks.
    (9,446 passed / 3,799 skipped / 0 failed in both). CPU utilisation goes
    from 1.43 to 2.57 cores busy. The scheduled slow-test suite in
    `meridianlabs-ai/actions` already runs `-n logical`. Expected: `test` exec
-   445 → ~330s, Build wall 485 → ~370s. Safe fix, prepared and validated;
-   **could not be pushed** (proposal 3). Diff:
-   ```diff
-   -        run: uv run pytest -rA --doctest-modules --color=yes -n auto --timeout=900 …
-   +        run: uv run pytest -rA --doctest-modules --color=yes -n logical --timeout=900 …
-   ```
+   445 → ~330s, Build wall 485 → ~370s. Safe fix, prepared and validated.
    Risk to weigh: meridianlabs-ai/inspect_ai#232 (silent xdist worker deaths,
    OOM among the hypotheses) is still open, and more workers means more memory.
    Measured: peak summed resident set of the pytest process tree, sampled at
@@ -258,7 +253,8 @@ one-off 45s tail saving has a half-life of about two weeks.
    because the peak is set by individual heavy tests rather than by per-worker
    baseline. That is 49% of the runner's 15GB. Timing was reproduced: two
    independent 2-worker runs gave 449.3s and 445.7s.
-   Status: new, ready to open.
+   Status: **PR opened #4935** (a maintainer took over this branch past the
+   token limits in proposal 3 and applied the prepared diff).
 
 2. **Finish the `blob:none` rollout** on the last four full-history
    checkouts (`check-version-bump`, `slow-tool-tests-dev`,
@@ -268,16 +264,8 @@ one-off 45s tail saving has a half-life of about two weeks.
    805–1105s runs. Both history-reading steps stay correct under a lazy
    fetch: `git show origin/<base>:…/sandbox_tools_version.txt` pulls one
    blob, and `_check_main_divergence` pulls only the injectable-source blobs
-   it diffs. Safe fix, prepared; **could not be pushed** (proposal 3). Diff —
-   the same three lines under each of those four `actions/checkout@v7` blocks:
-   ```diff
-            fetch-depth: 0
-            fetch-tags: true
-   +        filter: "blob:none"
-            submodules: true
-   ```
-   (`check-version-bump` has no `submodules: true`; the filter goes after
-   `fetch-tags` there too.) Status: new, ready to open.
+   it diffs. Safe fix, prepared. Status: **PR opened #4935** (applied with
+   proposal 1 by the maintainer takeover).
 
 3. **Fix the scheduled run's credentials.** The marvin token is a
    fine-grained PAT and hits two separate walls:
@@ -294,11 +282,14 @@ one-off 45s tail saving has a half-life of about two weeks.
      problem, not a settings toggle.
 
    Until both are fixed, an unattended run can push branches to the fork and
-   nothing else. This run's report PR was therefore opened against the fork
-   ([meridianlabs-ai/inspect_ai#255](https://github.com/meridianlabs-ai/inspect_ai/pull/255)).
-   Fix: mint a GitHub App token (or a classic PAT with `repo` + `workflow`)
-   for the scheduled workflow. Structural (credentials). Status: new —
-   **blocking everything else this skill produces**.
+   nothing else. This run originally opened its report PR against the fork
+   ([meridianlabs-ai/inspect_ai#255](https://github.com/meridianlabs-ai/inspect_ai/pull/255),
+   now closed); a maintainer then took over the branch, applied proposals 1
+   and 2, and opened #4935 upstream. Fix: mint a classic PAT with
+   `public_repo` + `workflow` scopes (fine-grained PATs cannot cross owners)
+   for the scheduled workflow. Structural (credentials). Status: maintainer
+   is minting the token — **until it lands, unattended runs still cannot
+   ship anything upstream on their own**.
 
 4. **Runner pool size for burst absorption.** Queue is 3s median and 287s
    median inside the 02:00 UTC burst; execution fixes cannot touch that. With
@@ -369,5 +360,6 @@ one-off 45s tail saving has a half-life of about two weeks.
 
 ## PRs opened by this skill
 
-See `prs.md`. This run opened one PR (this report); the two safe fixes it
-prepared are blocked on proposal 3.
+See `prs.md`. This run's report and both prepared safe fixes shipped
+together in #4935 after a maintainer took over the branch (proposal 3
+explains why the run couldn't ship them itself).
