@@ -7,20 +7,56 @@ where the model parameter conflicts with environment variable settings.
 Related to issue #2705: https://github.com/UKGovernmentBEIS/inspect_ai/issues/2705
 """
 
+import logging
+from contextlib import contextmanager
+from typing import Iterator
+
 import pytest
 
 from inspect_ai import eval
 from inspect_ai.model import get_model
 
 
+@contextmanager
+def capture_inspect_warnings() -> Iterator[list[str]]:
+    """Collect inspect_ai WARNING messages straight off the `inspect_ai` logger.
+
+    Neither `caplog` nor `capsys` is reliable here once anything else in the
+    process has run an eval: `init_logger()` sets `propagate = False` on the
+    `inspect_ai` logger (so records never reach the root logger `caplog`
+    attaches to), and `display="none"` calls `rich.reconfigure(quiet=True)`
+    (so the rich console that `LogHandler` renders to drops everything
+    `capsys` would have seen). Our own handler on the `inspect_ai` logger is
+    independent of both globals.
+    """
+    messages: list[str] = []
+
+    class Collector(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            messages.append(record.getMessage())
+
+    logger = logging.getLogger("inspect_ai")
+    handler = Collector(level=logging.WARNING)
+    logger.addHandler(handler)
+
+    # only touch the level if warnings would otherwise be filtered out, and
+    # restore it only if nothing else (e.g. init_logger) changed it meanwhile
+    saved_level = logger.level
+    lowered = not logger.isEnabledFor(logging.WARNING)
+    if lowered:
+        logger.setLevel(logging.WARNING)
+    try:
+        yield messages
+    finally:
+        logger.removeHandler(handler)
+        if lowered and logger.level == logging.WARNING:
+            logger.setLevel(saved_level)
+
+
 class TestModelEnvironmentMismatch:
     """Tests for model/environment variable conflict detection."""
 
-    def test_azure_model_url_mismatch_logs_warning(
-        self, monkeypatch, mocker, capsys, caplog
-    ):
-        import logging
-
+    def test_azure_model_url_mismatch_logs_warning(self, monkeypatch, mocker):
         # Test that using model=openai/azure/o3 with AZUREAI_OPENAI_BASE_URL pointing to o4-mini logs a mismatch warning.
         # Set up environment variable pointing to o4-mini
         monkeypatch.setenv(
@@ -34,41 +70,26 @@ class TestModelEnvironmentMismatch:
         mocker.patch("inspect_ai.model._providers.openai.DefaultAsyncHttpxClient")
 
         # Call get_model to trigger the mismatch warning
-        caplog.clear()
-        with caplog.at_level(logging.WARNING):
+        with capture_inspect_warnings() as warnings:
             try:
                 get_model("openai/azure/o3", memoize=False)
             except Exception:
                 # Ignore other exceptions; we just want the warning output
                 pass
 
-        # Check both caplog (for isolated runs) and capsys (for full suite runs)
-        warning_messages = [
-            r.message.lower() for r in caplog.records if r.levelname == "WARNING"
-        ]
-        captured = capsys.readouterr()
-        output = (captured.out + captured.err).lower()
+        warning_messages = [msg.lower() for msg in warnings]
 
-        # The warning should appear in EITHER caplog OR capsys
-        has_mismatch = (
-            any("mismatch" in msg for msg in warning_messages) or "mismatch" in output
+        assert any("mismatch" in msg for msg in warning_messages), (
+            f"Expected 'mismatch' in warnings. Got: {warning_messages}"
         )
-        has_o3 = any("o3" in msg for msg in warning_messages) or "o3" in output
-        has_o4_mini = (
-            any("o4-mini" in msg for msg in warning_messages) or "o4-mini" in output
+        assert any("o3" in msg for msg in warning_messages), (
+            f"Expected 'o3' in warnings. Got: {warning_messages}"
+        )
+        assert any("o4-mini" in msg for msg in warning_messages), (
+            f"Expected 'o4-mini' in warnings. Got: {warning_messages}"
         )
 
-        assert has_mismatch, (
-            f"Expected 'mismatch' in warnings. caplog: {warning_messages}, capsys: {output}"
-        )
-        assert has_o3, (
-            f"Expected 'o3' in warnings. caplog: {warning_messages}, capsys: {output}"
-        )
-        assert has_o4_mini, (
-            f"Expected 'o4-mini' in warnings. caplog: {warning_messages}, capsys: {output}"
-        )
-
-    def test_azure_model_url_mismatch_with_eval(self, monkeypatch, mocker, capsys):
+    def test_azure_model_url_mismatch_with_eval(self, monkeypatch, mocker):
         # Test that eval() logs warning about model/URL mismatch.
 
         from inspect_ai import Task
@@ -95,21 +116,18 @@ class TestModelEnvironmentMismatch:
         )
 
         # Should log warning during evaluation setup
-        try:
-            eval(task, model="openai/azure/gpt-35-turbo", limit=1)
-        except Exception:
-            # We're only checking for warnings during setup, not execution success
-            pass
+        with capture_inspect_warnings() as warnings:
+            try:
+                eval(task, model="openai/azure/gpt-35-turbo", limit=1)
+            except Exception:
+                # We're only checking for warnings during setup, not execution success
+                pass
 
-        # Capture stdout/stderr where Rich console outputs
-        captured = capsys.readouterr()
-        output = captured.out + captured.err
+        output = "\n".join(warnings).lower()
 
-        # Check for mismatch warning in output
-        assert "mismatch" in output.lower(), (
-            f"Expected 'mismatch' in output. Got: {output}"
-        )
-        assert "gpt-35-turbo" in output.lower() or "gpt-4-mini" in output.lower(), (
+        # Check for mismatch warning in the logged warnings
+        assert "mismatch" in output, f"Expected 'mismatch' in output. Got: {output}"
+        assert "gpt-35-turbo" in output or "gpt-4-mini" in output, (
             f"Expected model names in output. Got: {output}"
         )
 
@@ -266,7 +284,7 @@ class TestModelEnvironmentMismatch:
             "Should not check mismatches for non-Azure providers"
         )
 
-    def test_warning_message_contains_both_models(self, monkeypatch, mocker, capsys):
+    def test_warning_message_contains_both_models(self, monkeypatch, mocker):
         # Test that the warning message includes both the requested and actual models.
 
         monkeypatch.setenv(
@@ -279,25 +297,20 @@ class TestModelEnvironmentMismatch:
         mocker.patch("inspect_ai.model._providers.openai.AsyncAzureOpenAI")
         mocker.patch("inspect_ai.model._providers.openai.DefaultAsyncHttpxClient")
 
-        try:
-            # Disable memoization to ensure fresh model creation
-            get_model("openai/azure/o3", memoize=False)
-        except Exception:
-            # Might fail for other reasons, but should still have logged warning
-            pass
+        with capture_inspect_warnings() as warnings:
+            try:
+                # Disable memoization to ensure fresh model creation
+                get_model("openai/azure/o3", memoize=False)
+            except Exception:
+                # Might fail for other reasons, but should still have logged warning
+                pass
 
-        # Capture stdout/stderr where Rich console outputs
-        captured = capsys.readouterr()
-        output = captured.out + captured.err
+        output = "\n".join(warnings).lower()
 
-        # Check for mismatch warning in output
-        assert "mismatch" in output.lower(), (
-            f"Expected 'mismatch' in output. Got: {output}"
-        )
-        assert "o3" in output.lower(), f"Expected 'o3' in output. Got: {output}"
-        assert "o4-mini" in output.lower(), (
-            f"Expected 'o4-mini' in output. Got: {output}"
-        )
+        # Check for mismatch warning in the logged warnings
+        assert "mismatch" in output, f"Expected 'mismatch' in output. Got: {output}"
+        assert "o3" in output, f"Expected 'o3' in output. Got: {output}"
+        assert "o4-mini" in output, f"Expected 'o4-mini' in output. Got: {output}"
 
 
 class TestModelParameterValidation:
