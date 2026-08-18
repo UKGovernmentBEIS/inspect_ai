@@ -106,7 +106,8 @@ Precedents this design follows:
 ### 1. Throughput registry (`src/inspect_ai/model/_throughput.py`)
 
 A process-global registry keyed by full model name (`provider/model`, same
-key as `model_usage`), holding one `ModelThroughput` record per model:
+key as `model_usage`; see §2 "Key discipline" for how each feed obtains
+this key), holding one `ModelThroughput` record per model:
 
 ```python
 @dataclass
@@ -182,18 +183,45 @@ off at once;
 `backoff_ratio ÷ retry_waits_active ≈ 1` means the affected generates are
 spending essentially all their time asleep), and `retry_waits_active`
 (count of active samples whose current generate is sleeping in a retry
-wait, derived by scanning active samples' `retry_wait` fields — bounded by
-sample count, cheap; `ActiveSample.retry_wait` is a single shared slot per
-sample, so parallel generates within one sample count as one).
+wait, derived by scanning active samples' `retry_wait` fields and matching
+on the qualified-name field stamped alongside the display name, per §2 —
+bounded by sample count, cheap; `ActiveSample.retry_wait` is a single
+shared slot per sample, so parallel generates within one sample count as
+one).
 
 ### 2. Instrumentation points
 
-All three feeds attach where the model name is already in hand; none add
-work on the hot path beyond an O(1) registry update.
+None of the feeds add work on the hot path beyond an O(1) registry update.
+
+**Key discipline.** The registry key is the qualified `provider/model`
+string, but only the token feed naturally holds it
+(`record_and_check_model_usage` computes `f"{model}"` as its dict key). The
+other feeds hold the provider-*stripped* name: `get_model()` strips the
+prefix before constructing the `ModelAPI`, so `ModelAPI.model_name` — and
+everything derived from it (`model_retry_config()`'s strings, `HttpHooks`
+construction sites, `ActiveSampleRetryWait.model`) — is bare. Feeding the
+registry those strings would split every model into two rows (tokens under
+`anthropic/claude-sonnet-5`; retries, backoff, and active waits under
+`claude-sonnet-5`), divorcing `backoff_ratio`/`retries_per_minute` from the
+tok/s they contextualize. Normalizing at the registry boundary can't repair
+this (two providers can serve the same bare name), so the qualified key is
+threaded explicitly — and every *displayed* string stays bare, leaving
+existing trace retry lines and the ctl `retry_wait` activity view unchanged:
+
+- `get_model()` stamps the qualified name onto the constructed `ModelAPI`
+  (a `qualified_model_name` attribute, `None`-defaulted on the base class,
+  set right after construction) — the same `provider/model` string that
+  `Model.__str__`/`ModelName` derive. Feeds living at the ModelAPI layer
+  read the stamp; feeds at the `Model` layer use `str(self)` directly.
+- `model_retry_config()` — and its batcher wrapper
+  `batch_admin_retry_config()` — gain an optional
+  `qualified_model_name: str | None` parameter beside the existing
+  display-oriented `model_name`; `Model`'s three call sites (generate,
+  compact, count_tokens) pass `str(self)`, batchers pass the stamp.
 
 - **Tokens** — `record_and_check_model_usage()` (`model/_model.py`) calls
   `record_generate(model, usage)` next to the existing `set_model_usage`
-  calls. Scope notes:
+  calls, with the qualified key it already computes. Scope notes:
   - *Cache hits are already excluded.* The cache-hit path returns before
     the usage-recording call (`_model.py` ~L1344 early return; cached usage
     goes through `emit_model_cache_usage` instead), which is the behavior
@@ -208,24 +236,41 @@ work on the hot path beyond an O(1) registry update.
     small asymmetry to note in the endpoint docs; count_tokens traffic is
     negligible in practice.
 - **Retry counts** — `report_http_retry()` (`_util/retry.py`) gains an
-  optional `model: str | None = None` parameter and forwards to
-  `record_retry()` when set. Call sites that know the model pass it:
-  `Model.should_retry` (`model/_model.py`), the `_retry_predicate` path for
-  batchers (`model/_retry.py`), and `HttpHooks.update_request_time`
-  (`_providers/util/hooks.py`, which providers construct per-`ModelAPI` and
-  can carry the model name). Sites without model context (e.g.
-  `_util/asyncfiles.py`, which isn't model traffic at all) keep counting
-  only toward the legacy global scalar. The existing double-count
-  protections (chatapi's count-once-per-episode `before_sleep`, the
-  `_retry_predicate` handling for batchers) are unchanged — this parameter
-  rides the existing single funnel rather than adding a second one.
+  optional `model: str | None = None` parameter (always the qualified name)
+  and forwards to `record_retry()` when set. Four call sites pass it:
+  - `Model.should_retry` (`model/_model.py`) — passes `str(self)`.
+  - the `_retry_predicate` path for batchers (`model/_retry.py`) — passes
+    the `qualified_model_name` threaded into `model_retry_config()`.
+  - `HttpHooks.update_request_time` (`_providers/util/hooks.py`) — hooks
+    are constructed in provider `__init__`s, *before* `get_model()` stamps
+    the instance, so `HttpHooks` takes the owning `ModelAPI` (or a lazy
+    accessor) and reads `qualified_model_name` at report time, falling
+    back to unattributed when absent.
+  - chatapi's `_log_and_report_before_sleep`
+    (`_providers/util/chatapi.py`) — the *sole* reporter for
+    chatapi-internal retries (its count-once-per-episode `before_sleep`
+    fires even when attempt 2 succeeds, which `Model.should_retry` never
+    sees), so omitting it would leave chatapi-provider 429s invisible to
+    the registry. `chat_api_request` gains the qualified name alongside
+    the bare `model_name` it already threads for logging.
+
+  Sites without model context (e.g. `_util/asyncfiles.py`, which isn't
+  model traffic at all) keep counting only toward the legacy global scalar.
+  The existing double-count protections (chatapi's once-per-episode timing,
+  the `_retry_predicate` handling for batchers) are unchanged — this
+  parameter rides the existing single funnel rather than adding a second
+  one.
 - **Retry wait** — `model_retry_config()`'s `on_before_sleep`
-  (`model/_retry.py`) calls `record_retry_wait(model_name,
+  (`model/_retry.py`) calls `record_retry_wait(qualified_model_name,
   rs.upcoming_sleep)` alongside the existing
-  `report_active_sample_retry_wait()`. This is scheduled backoff; SDK-internal
-  waits invisible to tenacity are already reconciled into sample waiting
-  time and are out of scope for the per-model figure (noted in the endpoint
-  docs so the `backoff_ratio` isn't over-read).
+  `report_active_sample_retry_wait()`, which in turn stamps the qualified
+  name into a new `ActiveSampleRetryWait.qualified_model` field so the
+  `retry_waits_active` scan (§1) matches registry keys — the existing
+  `model` field, and what the ctl activity view displays, stays bare. This
+  is scheduled backoff; SDK-internal waits invisible to tenacity are
+  already reconciled into sample waiting time and are out of scope for the
+  per-model figure (noted in the endpoint docs so the `backoff_ratio`
+  isn't over-read).
 
 ### 3. ctl surface (primary)
 
@@ -270,10 +315,12 @@ reads, no unbounded rows. Per the version-skew rules in
 404 from an older server renders with the documented "older inspect —
 restart the eval" guidance rather than as an error.
 
-**CLI**: `inspect ctl model throughput [--window SECONDS] [--json]
-[--terse]`, following the existing `_NounGroup` / `_json_option` /
-`_render_table` conventions in `_cli/ctl.py`. Human table (one row per
-model):
+**CLI**: `inspect ctl model throughput [--window SECONDS] [--json]`,
+following the existing `_NounGroup` / `_json_option` / `_render_table`
+conventions in `_cli/ctl.py`. No `--terse`: that flag is scoped to the
+task-scoped mutation verbs, and pure views ignore it (the full block *is*
+the requested output, per `design/ctl/control-channel.md`). Human table
+(one row per model):
 
 ```
 model                          out tok/s   req/min   retries/min   in backoff   backoff (cum)
@@ -297,13 +344,16 @@ trace file unconditionally and appear under `inspect trace http`:
    appends a throughput snippet to the message it already logs:
 
    ```
-   -> anthropic/claude-sonnet-5 retry 7 (retrying in 34 seconds) [RateLimitError 429] [42 out-tok/s, 14 in backoff]
+   -> claude-sonnet-5 retry 7 (retrying in 34 seconds) [RateLimitError 429] [42 out-tok/s, 14 in backoff]
    ```
 
-   This directly answers the issue's "hard to gauge throughput" while
-   watching retries scroll by — every retry line carries the current
-   window rate. Snapshot cost is trivial (single-model bucket sum) and the
-   line only changes when a retry is already happening.
+   The displayed name stays bare, as today (`log_model_retry` receives
+   `self.api.model_name`); the registry snapshot behind the snippet is
+   looked up by the qualified key threaded per §2. This directly answers
+   the issue's "hard to gauge throughput" while watching retries scroll
+   by — every retry line carries the current window rate. Snapshot cost is
+   trivial (single-model bucket sum) and the line only changes when a
+   retry is already happening.
 
 2. **Periodic snapshot line.** A lightweight run-scoped reporter task,
    started on the eval run's task group in `_eval/run.py` — run-scoped, so
