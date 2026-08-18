@@ -218,7 +218,7 @@ async def _execute_tools_impl(
                 # surfacing sandbox unavailability as a failed tool call. Evals
                 # that need it to be terminal can enforce that policy in their
                 # agent logic.
-                tool_error = ToolCallError("unknown", str(ex))
+                tool_error = ToolCallError("sandbox_unavailable", str(ex))
             except PermissionError as ex:
                 err = f"{ex.strerror or str(ex)}."
                 if isinstance(ex.filename, str):

@@ -42,9 +42,9 @@ class SandboxUnavailableError(RuntimeError):
     Callers that surface `ExecResult` output to a model must not present the
     provider's own failure as the command's output.
 
-    Tool calls turn this into a tool error, leaving the sample running.
-    Other callers (scorers, solvers, setup code) receive it as an ordinary
-    exception.
+    Tool calls turn this into a tool error of type `sandbox_unavailable`,
+    leaving the sample running. Other callers (scorers, solvers, setup code)
+    receive it as an ordinary exception.
     """
 
 

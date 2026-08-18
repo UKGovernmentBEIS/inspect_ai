@@ -594,7 +594,10 @@ def test_broken_sandbox_is_reported_as_a_tool_error(destroy: str) -> None:
     # docker's own message as though the command had produced it, which is
     # what made a dead sandbox indistinguishable from a working one.
     assert len(tool_messages) > 1
-    assert all(m.error is not None for m in tool_messages[1:])
+    assert all(
+        m.error is not None and m.error.type == "sandbox_unavailable"
+        for m in tool_messages[1:]
+    )
 
     # the sample itself is untouched: whether an unusable sandbox should end
     # a sample is a separate decision (#4709) and is not taken here
