@@ -6,7 +6,8 @@ from inspect_ai.model import (
     GenerateConfig,
     get_model,
 )
-from inspect_ai.model._model_info import _get_model_info_direct
+from inspect_ai.model._model_data.model_data import ModelInfo
+from inspect_ai.model._model_info import _get_model_info_direct, set_model_info
 from inspect_ai.model._providers.vllm import (
     CONTEXT_WINDOW_MAX_ATTEMPTS,
     VLLMAPI,
@@ -176,9 +177,11 @@ def _vllm_api(model_name: str, client: _FakeClient) -> VLLMAPI:
 def isolated_model_registry(monkeypatch: pytest.MonkeyPatch) -> None:
     """Keep set_model_info() writes out of the process-wide registry."""
     import inspect_ai.model._model_info as _model_info
+    import inspect_ai.model._providers.vllm as _vllm
 
     monkeypatch.setattr(_model_info, "_custom_models", dict(_model_info._custom_models))
     monkeypatch.setattr(_model_info, "_result_cache", {})
+    monkeypatch.setattr(_vllm, "_registered_context_windows", {})
 
 
 @pytest.mark.anyio
@@ -315,3 +318,49 @@ async def test_vllm_disable_chat_template() -> None:
     message = ChatMessageUser(content="Lorem ipsum dolor")
     response = await model.generate(input=[message])
     assert len(response.completion) >= 1
+
+
+@pytest.mark.anyio
+async def test_context_window_keeps_explicit_set_model_info(
+    isolated_model_registry: None,
+) -> None:
+    """An explicit set_model_info() wins over the served window.
+
+    Registering it is the caller stating the window they want, sometimes
+    deliberately below what the server reports.
+    """
+    set_model_info("my/model", ModelInfo(context_length=2048))
+
+    client = _FakeClient(
+        _FakeResponse({"data": [{"id": "my/model", "max_model_len": 4096}]})
+    )
+    api = _vllm_api("my/model", client)
+
+    await api._register_context_window()
+
+    registered = _get_model_info_direct("my/model")
+    assert registered is not None and registered.context_length == 2048
+
+
+@pytest.mark.anyio
+async def test_close_reregisters_context_window(
+    isolated_model_registry: None,
+) -> None:
+    """A restarted server may serve a different max_model_len."""
+    client = _FakeClient(
+        _FakeResponse({"data": [{"id": "my/model", "max_model_len": 4096}]}),
+        _FakeResponse({"data": [{"id": "my/model", "max_model_len": 8192}]}),
+    )
+    api = _vllm_api("my/model", client)
+
+    await api._register_context_window()
+    registered = _get_model_info_direct("my/model")
+    assert registered is not None and registered.context_length == 4096
+
+    api.close()
+    assert api._context_window_registered is False
+
+    await api._register_context_window()
+    assert client.calls == 2
+    registered = _get_model_info_direct("my/model")
+    assert registered is not None and registered.context_length == 8192

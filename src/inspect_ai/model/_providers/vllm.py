@@ -34,7 +34,11 @@ from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model import RetryDecision
 from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._model_data.model_data import ModelInfo
-from inspect_ai.model._model_info import _get_model_info_direct, set_model_info
+from inspect_ai.model._model_info import (
+    _get_custom_model_info,
+    _get_model_info_direct,
+    set_model_info,
+)
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
@@ -56,6 +60,14 @@ CONTEXT_WINDOW_TIMEOUT = 30.0
 
 CONTEXT_WINDOW_MAX_ATTEMPTS = 3
 """Attempts to reach /v1/models before settling for the static catalog."""
+
+_registered_context_windows: dict[str, int] = {}
+"""Context windows registered from a vLLM server, keyed by model info name.
+
+set_model_info() records no provenance, so this is what tells a caller's own
+registration (which wins) apart from one of ours (which a restarted server
+serving a different max_model_len needs to replace).
+"""
 
 logger = logging.getLogger(__name__)
 
@@ -310,6 +322,21 @@ class VLLMAPI(OpenAICompatibleAPI):
                 )
                 if max_model_len:
                     name = self.input_tokens_name()
+                    custom = _get_custom_model_info(name)
+                    if (
+                        custom is not None
+                        and _registered_context_windows.get(name)
+                        != custom.context_length
+                    ):
+                        # an explicit set_model_info() is the caller stating the
+                        # window they want, sometimes deliberately below the
+                        # served one
+                        logger.debug(
+                            f"vLLM server reports max_model_len={max_model_len} for "
+                            f"{name}; keeping the context window registered with "
+                            f"set_model_info()."
+                        )
+                        return
                     # direct (non provider-resolving) lookup: resolving would
                     # instantiate whichever provider shares the model's org
                     # prefix (e.g. "openai/gpt-oss-120b") just for metadata.
@@ -328,6 +355,7 @@ class VLLMAPI(OpenAICompatibleAPI):
                     else:
                         info = ModelInfo(context_length=max_model_len)
                     set_model_info(name, info)
+                    _registered_context_windows[name] = max_model_len
                     if previous is None:
                         # catalog miss: the model would otherwise run with the
                         # 128k default, the scenario from #4215 — worth surfacing
@@ -451,6 +479,9 @@ class VLLMAPI(OpenAICompatibleAPI):
         self._server.process = None
         self._server.loaded_adapters.clear()
         self._server._epoch += 1
+        # a restarted server may be serving a different max_model_len
+        self._context_window_registered = False
+        self._context_window_attempts = 0
 
     # -- ModelAPI overrides --------------------------------------------------
 
