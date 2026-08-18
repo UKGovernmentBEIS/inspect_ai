@@ -16,7 +16,7 @@ way to answer that:
   `src/inspect_ai/_display/core/footer.py`) — a cumulative count with no
   rate, no per-model attribution, and no relation to tokens produced.
 - `inspect trace http` shows individual request/retry lines
-  (`-> model retry 3 (retrying in 20s) [RateLimitError 429]`) but nothing an
+  (`-> model retry 3 (retrying in 20 seconds) [RateLimitError 429]`) but nothing an
   operator can integrate into "output tokens per second right now".
 - `inspect ctl task` shows per-eval `total_tokens` and `http_retries`
   rollups (`_control/state.py:_build_summary`), but not per model, not as a
@@ -122,25 +122,38 @@ class ModelThroughput:
     last_activity: datetime | None = None
     # rolling window: fixed-size ring of time buckets
     buckets: TokenBuckets = field(default_factory=TokenBuckets)
+    # scheduled backoff (start, end) intervals on the monotonic clock,
+    # kept out of the ring — see below
+    backoff_intervals: list[BackoffInterval] = field(default_factory=list)
 ```
 
 `TokenBuckets` is a fixed-length ring (e.g. 60 buckets × 10 s = a 10-minute
 horizon) where each bucket accumulates `{output_tokens, total_tokens,
-requests, retries, retry_wait_seconds}` for its 10-second slice. Bucket
-indexing uses the monotonic clock. Token/request/retry writes are O(1)
-(index by `monotonic() // 10`, zeroing skipped buckets on advance); a
-scheduled backoff of `s` seconds is *spread* across the buckets covering
-`[now, now + s]` (clipped to the horizon) rather than dumped into the
-schedule-time bucket — sleeps reach 30 minutes
-(`wait_exponential_jitter(initial=3, max=30*60)` in `model/_retry.py`), and
-attributing one to a single bucket would swamp any window containing its
-start. That write is O(horizon ÷ bucket size) ≤ 60, only on retry. Reads
-sum at most 60 small structs per model. This bounds memory to a constant
-per model regardless of request rate — a per-request deque would grow with
-throughput, which is exactly the case we care about. Rates over any window
-≤ the horizon are computed at read time (window sum ÷ window seconds,
-clamped to time-since-first-activity so a fresh run doesn't report an
-artificially diluted rate).
+requests, retries}` for its 10-second slice. Bucket indexing uses the
+monotonic clock; writes are O(1) (index by `monotonic() // 10`, zeroing
+skipped buckets on advance). Reads sum at most 60 small structs per model.
+This bounds memory to a constant per model regardless of request rate — a
+per-request deque would grow with throughput, which is exactly the case we
+care about.
+
+Scheduled backoff deliberately stays **out of the ring**. Sleeps reach 30
+minutes (`wait_exponential_jitter(initial=3, max=30*60)` in
+`model/_retry.py`) — attributing one to its schedule-time bucket would
+swamp any window containing its start, but pre-writing it into the buckets
+covering `[now, now + s]` doesn't work either: in a ring, future buckets
+are physically the same slots as the oldest past buckets, so pre-written
+backoff would be zeroed as the advance step reaches those slots (or, if
+advance skipped non-empty slots, stale data would leak into window sums).
+Instead each model keeps a short list of scheduled-backoff `(start, end)`
+intervals (`BackoffInterval`, a NamedTuple): `record_retry_wait` appends
+one — O(1) — and prunes intervals that ended more than a horizon ago;
+reads compute window backoff-seconds as the sum of each interval's overlap
+with `[now − window, now]`. The list is bounded by the number of generates
+concurrently in backoff plus recently-ended waits inside the horizon —
+concurrency-bound, not request-rate-bound. Rates over any window ≤ the
+horizon are computed at read time (window sum ÷ window seconds, clamped to
+time-since-first-activity so a fresh run doesn't report an artificially
+diluted rate).
 
 No lock: writes and reads happen on the eval's single event loop thread
 (control-server handlers included), per the repo's no-speculative-locks
@@ -162,9 +175,10 @@ each run clean.
 
 `ModelThroughputView` (the read-side snapshot) adds the derived fields:
 `output_tokens_per_second`, `requests_per_minute`, `retries_per_minute`,
-`backoff_ratio` (window `retry_wait_seconds` ÷ window seconds — scheduled
-backoff-seconds per wall-clock second, summed across concurrent generates,
-so it exceeds 1.0 whenever more than one generate is backing off at once;
+`backoff_ratio` (window backoff-seconds from the interval overlap ÷ window
+seconds — scheduled backoff per wall-clock second, summed across concurrent
+generates, so it exceeds 1.0 whenever more than one generate is backing
+off at once;
 `backoff_ratio ÷ retry_waits_active ≈ 1` means the affected generates are
 spending essentially all their time asleep), and `retry_waits_active`
 (count of active samples whose current generate is sleeping in a retry
@@ -211,7 +225,7 @@ work on the hot path beyond an O(1) registry update.
   `report_active_sample_retry_wait()`. This is scheduled backoff; SDK-internal
   waits invisible to tenacity are already reconciled into sample waiting
   time and are out of scope for the per-model figure (noted in the endpoint
-  docs so the `waiting_fraction` isn't over-read).
+  docs so the `backoff_ratio` isn't over-read).
 
 ### 3. ctl surface (primary)
 
@@ -247,7 +261,8 @@ envelope:
 rejection (`_control/strict.py`) deliberately doesn't apply to GETs, per
 the "GETs stay tolerant" policy in `design/ctl/control-channel.md`.
 Cheap-shoveling compliance: everything is materialized at write time; the
-read is a bounded sum over ≤ 60 buckets × (number of models), plus one
+read is a bounded sum over ≤ 60 buckets × (number of models), a
+concurrency-bounded pass over each model's backoff intervals, plus one
 bounded pass over active samples for `retry_waits_active`. No storage
 reads, no unbounded rows. Per the version-skew rules in
 `design/ctl/control-channel.md`, a new endpoint needs **no**
@@ -290,15 +305,20 @@ trace file unconditionally and appear under `inspect trace http`:
    window rate. Snapshot cost is trivial (single-model bucket sum) and the
    line only changes when a retry is already happening.
 
-2. **Periodic snapshot line.** A lightweight run-scoped reporter task —
-   started on the eval run's task group in `_eval/run.py` (the same
-   lifetime as the control server; there is no existing run-scoped
-   periodic-task helper, so this is a small new loop, cancelled with the
-   run) — emits one `trace_message(logger, "Throughput", ...)` per model
-   per interval (60 s), *only when that model had a retry in the interval*
-   — quiet runs add zero trace noise. This gives post-mortems a coarse
-   time series (`inspect trace dump --filter throughput`) without a new
-   storage mechanism.
+2. **Periodic snapshot line.** A lightweight run-scoped reporter task,
+   started on the eval run's task group in `_eval/run.py` — run-scoped, so
+   it is cancelled with the run and quiet between runs; the control server
+   itself is entered at a wider scope (`_eval/eval.py`, and per eval-set in
+   `_eval/evalset.py`, where under keep-alive it outlives individual runs),
+   and the reporter deliberately does not share that lifetime. There is no
+   existing run-scoped periodic-task helper, so this is a small new loop.
+   It emits one `[Throughput]` line per model per interval (60 s), logged
+   at the `HTTP` level directly via `logger.log(HTTP, ...)` — not
+   `trace_message()`, which logs at `TRACE`, one notch below, and would not
+   appear under `inspect trace http` — and *only when that model had a
+   retry in the interval*, so quiet runs add zero trace noise. This gives
+   post-mortems a coarse time series (`inspect trace dump --filter
+   throughput`) without a new storage mechanism.
 
 ### 5. Live display footer
 
@@ -335,9 +355,9 @@ retry_waits_active`, for 10 minutes).
 ## Testing
 
 - Unit tests for `TokenBuckets` (advance/zeroing across gaps, window sums,
-  backoff spreading across buckets with horizon clipping, clamping to
-  first-activity) and registry reset — pure functions of an injected
-  clock, no model calls.
+  clamping to first-activity), backoff-interval overlap (partial overlap
+  with the window, pruning past the horizon), and registry reset — pure
+  functions of an injected clock, no model calls.
 - `mockllm`-based test that a generate records into the registry, and a
   regression test that a cache hit does not (guarding the existing
   early-return bypass), extending existing usage-recording tests.
@@ -345,8 +365,10 @@ retry_waits_active`, for 10 minutes).
   hooks tests: forced 429s increment the right model's `rate_limit` bucket
   and `retry_wait_seconds`, and don't double-count through the chatapi
   sub-layer.
-- Control-channel test for `GET /models/throughput` (envelope shape, strict
-  param rejection, empty-registry response) alongside existing server
+- Control-channel test for `GET /models/throughput` (envelope shape,
+  malformed `window` rejected with 422 by FastAPI type validation — strict
+  unknown-param rejection deliberately doesn't apply to GETs, per section
+  3 — and the empty-registry response) alongside existing server
   tests, plus a CLI rendering test following `_cli/ctl.py` test patterns.
 - Reset test: two sequential `eval()`s in one process (keep-alive shape)
   don't leak the first run's throughput into the second.
