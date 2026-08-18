@@ -256,7 +256,9 @@ def scanner_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         envvar="INSPECT_EVAL_SCAN_MODEL_ROLE",
         help=(
             "Named scanner-side model role with model name or YAML/JSON config "
-            "(e.g. --scan-model-role grader=mockllm/model)."
+            "(e.g. --scan-model-role grader=mockllm/model). Bind multiple models "
+            "to a role with a comma-separated list of names or a YAML/JSON list "
+            "of configs."
         ),
     )
     @click.option(
@@ -315,7 +317,7 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         multiple=True,
         type=str,
         envvar="INSPECT_EVAL_MODEL_ROLE",
-        help='Named model role with model name or YAML/JSON config, e.g. --model-role critic=openai/gpt-4o or --model-role grader="{model: mockllm/model, temperature: 0.5}"',
+        help='Named model role with model name or YAML/JSON config, e.g. --model-role critic=openai/gpt-4o or --model-role grader="{model: mockllm/model, temperature: 0.5}". Bind multiple models to a role with a comma-separated list of names or a YAML/JSON list of configs, e.g. --model-role grader=openai/gpt-4o,google/gemini-2.0-flash',
     )
     @click.option(
         "-T",

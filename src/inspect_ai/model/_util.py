@@ -26,7 +26,9 @@ def resolve_model_roles(
                     f"Model role name '{k}' is invalid: names ending in "
                     + "'#<number>' are reserved for representing roles with "
                     + "multiple models. To assign multiple models to a role, "
-                    + "pass a list of models for the role."
+                    + "pass a list of models for the role. (If this role comes "
+                    + "from an eval log written before the suffix was reserved, "
+                    + "rename the role in the log to retry it.)"
                 )
             if isinstance(v, str | Model):
                 resolved_model_roles[k] = _resolve_role_model(k, v)

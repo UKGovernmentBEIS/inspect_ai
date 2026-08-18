@@ -60,6 +60,10 @@ def model_roles_config_grouped(
     also present (the encoder always writes the first model under the bare
     name), so a log written before the reserved suffix existed with a role
     literally named e.g. 'judge#2' -- but no 'judge' -- is left untouched.
+    Two legacy corners remain: a pre-suffix log with *both* 'judge' and a
+    distinct role 'judge#2' is regrouped into one list-valued 'judge' here,
+    and a preserved lone 'judge#2' is still rejected by resolve_model_roles()
+    on eval_retry because its name is now reserved.
     """
     indexed: dict[str, list[tuple[int, ModelConfig]]] = {}
     for k, v in model_config.items():
