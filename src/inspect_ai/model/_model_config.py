@@ -30,7 +30,7 @@ class ModelConfig(BaseModel):
 # EvalSpec schema (and therefore the log viewer types) unchanged while
 # round-tripping lists losslessly for eval_retry/score. resolve_model_roles()
 # rejects user role names matching this pattern so the encoding is unambiguous.
-_INDEXED_ROLE_KEY_PATTERN = re.compile(r"(.+)#(\d+)$")
+INDEXED_ROLE_KEY_PATTERN = re.compile(r"(.+)#(\d+)$")
 
 
 def model_roles_to_model_roles_config(
@@ -54,11 +54,17 @@ def model_roles_to_model_roles_config(
 def model_roles_config_grouped(
     model_config: dict[str, ModelConfig],
 ) -> dict[str, ModelConfig | list[ModelConfig]]:
-    """Regroup indexed keys ('name#N') under their base role name in N order."""
+    """Regroup indexed keys ('name#N') under their base role name in N order.
+
+    An indexed key is only treated as a list member when its base role name is
+    also present (the encoder always writes the first model under the bare
+    name), so a log written before the reserved suffix existed with a role
+    literally named e.g. 'judge#2' -- but no 'judge' -- is left untouched.
+    """
     indexed: dict[str, list[tuple[int, ModelConfig]]] = {}
     for k, v in model_config.items():
-        match = _INDEXED_ROLE_KEY_PATTERN.match(k)
-        if match:
+        match = INDEXED_ROLE_KEY_PATTERN.match(k)
+        if match and match.group(1) in model_config:
             indexed.setdefault(match.group(1), []).append((int(match.group(2)), v))
         else:
             indexed.setdefault(k, []).append((1, v))

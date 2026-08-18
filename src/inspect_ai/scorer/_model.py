@@ -177,22 +177,36 @@ def model_graded_qa(
         scorers = [get_scorer(m, model_role=model_role) for m in model]
         return multi_scorer(scorers, "mode")
 
-    # otherwise create a single scorer -- however, the model_role may be bound
-    # to a list of models (e.g. via the `model_roles` argument to `eval()`),
-    # which is only knowable at scoring time, so fan out to a grader per
-    # role-bound model (majority vote) when that turns out to be the case
+    # otherwise create a single scorer
     single = get_scorer(model, model_role=model_role)
+    if model is not None or model_role is None:
+        return single
+
+    # a model_role is in play, and it may be bound to a list of models (e.g.
+    # via the `model_roles` argument to `eval()`), which is only knowable at
+    # scoring time -- defer resolution and fan out to a grader per role-bound
+    # model (majority vote) when the role turns out to be bound to a list
+    role = as_model_role(model_role)
+
+    # cache the fan-out on the role binding (fixed for the life of a task
+    # context) so scorers aren't rebuilt for every scored sample. no lock:
+    # a concurrent first score builds an identical scorer (benign race)
+    fan_out_models: list[Model] | None = None
+    fan_out: Scorer | None = None
 
     async def score(state: TaskState, target: Target) -> Score | None:
-        if model is None and model_role is not None:
-            role = as_model_role(model_role)
-            role_models = model_roles().get(role.name)
-            if isinstance(role_models, list):
+        nonlocal fan_out_models, fan_out
+        role_models = model_roles().get(role.name)
+        if isinstance(role_models, list):
+            if fan_out is None or role_models is not fan_out_models:
                 # model_role=None because each grader gets an explicit
                 # (role-stamped) model and would otherwise warn when the
                 # role is required
-                scorers = [get_scorer(m, model_role=None) for m in role_models]
-                return await multi_scorer(scorers, "mode")(state, target)
+                fan_out = multi_scorer(
+                    [get_scorer(m, model_role=None) for m in role_models], "mode"
+                )
+                fan_out_models = role_models
+            return await fan_out(state, target)
         return await single(state, target)
 
     return score

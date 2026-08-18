@@ -280,8 +280,11 @@ def parse_model_role_cli_args(
     for role_name, params in parsed_args.items():
         # comma-separated model names (or a YAML list) yield a list of models
         if isinstance(params, list):
+            # strip whitespace and drop empty tokens (e.g. a trailing comma),
+            # mirroring how --model treats comma-separated names
+            items = [p.strip() if isinstance(p, str) else p for p in params]
             resolved_args[role_name] = [
-                resolve_role_value(role_name, param) for param in params
+                resolve_role_value(role_name, param) for param in items if param != ""
             ]
         else:
             resolved_args[role_name] = resolve_role_value(role_name, params)

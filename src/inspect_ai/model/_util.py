@@ -1,19 +1,15 @@
 from __future__ import annotations
 
-import re
 from copy import copy
 from typing import TYPE_CHECKING, Mapping, Sequence
 
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.model._model import Model, get_model
+from inspect_ai.model._model_config import INDEXED_ROLE_KEY_PATTERN
 from inspect_ai.model._model_info import _get_model_info_direct
 
 if TYPE_CHECKING:
     from inspect_ai._eval.task.resolved import ResolvedTask
-
-# 'name#N' keys are how list-valued roles are represented in the eval log
-# (see model_roles_to_model_roles_config), so they can't be used as role names
-_INDEXED_ROLE_PATTERN = re.compile(r".+#\d+$")
 
 
 def resolve_model_roles(
@@ -22,7 +18,10 @@ def resolve_model_roles(
     if model_roles is not None:
         resolved_model_roles: dict[str, Model | list[Model]] = {}
         for k, v in model_roles.items():
-            if _INDEXED_ROLE_PATTERN.match(k):
+            # 'name#N' keys are how list-valued roles are represented in the
+            # eval log (see model_roles_to_model_roles_config), so they can't
+            # be used as role names
+            if INDEXED_ROLE_KEY_PATTERN.match(k):
                 raise PrerequisiteError(
                     f"Model role name '{k}' is invalid: names ending in "
                     + "'#<number>' are reserved for representing roles with "
@@ -38,7 +37,10 @@ def resolve_model_roles(
                         + "(at least one model is required)."
                     )
                 models = [_resolve_role_model(k, m) for m in v]
-                # a single-model list is equivalent to a single model
+                # a single-model list is equivalent to a single model -- it
+                # must collapse here because the log's flat encoding cannot
+                # distinguish a one-element list from a single model, so a
+                # run and its eval_retry would otherwise see different shapes
                 resolved_model_roles[k] = models if len(models) > 1 else models[0]
         return resolved_model_roles
     else:

@@ -41,7 +41,7 @@ from inspect_ai._util.file import filesystem
 from inspect_ai._util.samples import parse_sample_id, parse_samples_limit
 from inspect_ai.log._file import log_file_info
 from inspect_ai.log._log import EvalConfig, EvalLog
-from inspect_ai.model import GenerateConfig, GenerateConfigArgs, Model, get_model
+from inspect_ai.model import GenerateConfig, GenerateConfigArgs, Model
 from inspect_ai.model._cache import CachePolicy
 from inspect_ai.model._generate_config import (  # noqa: F811
     BatchConfig,
@@ -49,7 +49,7 @@ from inspect_ai.model._generate_config import (  # noqa: F811
     OutputModality,
     ResponseSchema,
 )
-from inspect_ai.model._model_config import ModelConfig
+from inspect_ai.model._model_config import ModelConfig, model_config_to_model
 from inspect_ai.scorer._reducer import create_reducers
 from inspect_ai.solver._solver import SolverSpec
 from inspect_ai.util import AdaptiveConcurrency
@@ -1680,16 +1680,10 @@ class RunConfigInput(BaseModel):
 
         # Model roles
         if self.model_roles:
-
-            def role_model(mc: ModelConfig) -> Model:
-                return get_model(
-                    mc.model, config=mc.config, base_url=mc.base_url, **mc.args
-                )
-
             params["model_roles"] = {
-                role: [role_model(m) for m in mc]
+                role: [model_config_to_model(m) for m in mc]
                 if isinstance(mc, list)
-                else role_model(mc)
+                else model_config_to_model(mc)
                 for role, mc in self.model_roles.items()
             }
 

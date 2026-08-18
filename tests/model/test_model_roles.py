@@ -461,6 +461,18 @@ def test_model_roles_list_config_round_trip() -> None:
     assert isinstance(round_tripped[REVIEWER], Model)
 
 
+def test_model_roles_config_grouped_preserves_legacy_indexed_names() -> None:
+    """A lone 'name#N' key (a legal role name in older logs) is not regrouped."""
+    from inspect_ai.model._model_config import (
+        ModelConfig,
+        model_roles_config_grouped,
+    )
+
+    grouped = model_roles_config_grouped({"judge#2": ModelConfig(model=MOCK_A)})
+    assert list(grouped.keys()) == ["judge#2"]
+    assert isinstance(grouped["judge#2"], ModelConfig)
+
+
 def test_model_role_list_get_model_returns_first() -> None:
     log = eval(
         Task(solver=grader_role_solver()),
@@ -506,7 +518,7 @@ def test_model_role_list_eval_set_identity() -> None:
 
 def test_model_role_list_eval_retry() -> None:
     @task
-    def grader_list_role_task():
+    def grader_list_role_task() -> Task:
         return Task(solver=grader_role_solver())
 
     log = eval(

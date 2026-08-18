@@ -36,6 +36,7 @@ from inspect_ai._util.json import to_json_safe
 from inspect_ai.log._condense import resolve_sample_attachments
 from inspect_ai.log._log import EvalSampleSummary
 from inspect_ai.log._resolve import rebind_sample_timelines, resolve_sample_events_data
+from inspect_ai.model._model_config import model_roles_config_grouped
 
 from ._log import EvalLog, EvalMetric, EvalSample, EvalStatus
 from ._recorders import (
@@ -1312,8 +1313,13 @@ def to_overview(header: EvalLog) -> LogOverview:
     ):
         primary_metric = next(iter(first_scorer.metrics.values()))
 
+    # regroup indexed keys ('name#N') so a role bound to a list of models
+    # appears as one role (comma-separated names) rather than phantom roles
     model_roles = (
-        {role: cfg.model for role, cfg in header.eval.model_roles.items()}
+        {
+            role: ",".join(mc.model for mc in (cfg if isinstance(cfg, list) else [cfg]))
+            for role, cfg in model_roles_config_grouped(header.eval.model_roles).items()
+        }
         if header.eval.model_roles
         else None
     )

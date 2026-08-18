@@ -301,6 +301,12 @@ def test_parse_model_role_cli_args_comma_separated_list() -> None:
     assert result["grader"] == ["mockllm/model_a", "mockllm/model_b"]
 
 
+def test_parse_model_role_cli_args_comma_list_strips_whitespace() -> None:
+    """Whitespace and empty tokens are dropped, mirroring --model behavior."""
+    result = parse_model_role_cli_args(("grader=mockllm/model_a, mockllm/model_b,",))
+    assert result["grader"] == ["mockllm/model_a", "mockllm/model_b"]
+
+
 def test_parse_model_role_cli_args_yaml_list_of_specs() -> None:
     """A YAML list of model specs for a role parses to a list of models."""
     result = parse_model_role_cli_args(
