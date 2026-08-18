@@ -561,12 +561,14 @@ class BrokenHandler:
 
 
 async def test_stream_handler_exception_logged_and_detached(
-    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A raising handler never fails the model call.
 
     It is logged once and detached for the remainder of the call
-    (display-only contract).
+    (display-only contract). The logger call is asserted directly
+    (not via caplog) because inspect's logging init — run by earlier
+    tests in a full-suite run — stops propagation to caplog's handler.
     """
 
     async def attempt(api: ScriptedStreamAPI) -> ModelOutput:
@@ -574,14 +576,20 @@ async def test_stream_handler_exception_logged_and_detached(
         await report_model_stream_delta(StreamTextEvent(text="b"))
         return api._output("done")
 
+    import inspect_ai.model._stream as stream_module
+
+    warnings: list[tuple[Any, Any]] = []
+    monkeypatch.setattr(
+        stream_module.logger, "warning", lambda *a, **k: warnings.append((a, k))
+    )
+
     handler = BrokenHandler()
-    with caplog.at_level("WARNING", logger="inspect_ai.model._stream"):
-        output = await _scripted_generate([attempt], on_stream=handler)
+    output = await _scripted_generate([attempt], on_stream=handler)
     assert output.completion == "done"
     assert handler.calls == 1
-    warnings = [r for r in caplog.records if "on_stream handler" in r.getMessage()]
     assert len(warnings) == 1
-    assert warnings[0].exc_info is not None
+    assert "on_stream handler" in warnings[0][0][0]
+    assert warnings[0][1].get("exc_info") is True
 
 
 async def test_stream_handler_detach_persists_across_attempts() -> None:
