@@ -19,6 +19,7 @@ import contextlib
 import time
 from contextvars import ContextVar
 from datetime import datetime, timezone
+from logging import getLogger
 from typing import TYPE_CHECKING, Awaitable, Callable, Iterator, Literal, Union
 
 from pydantic import BaseModel, Field
@@ -31,6 +32,8 @@ from ._model_output import ChatCompletionChoice, ModelOutput
 
 if TYPE_CHECKING:
     from inspect_ai.event._model import ModelEvent
+
+logger = getLogger(__name__)
 
 
 class StreamTextEvent(BaseModel):
@@ -129,7 +132,9 @@ class ModelStreamObserver:
     - throttled partial `ModelOutput` snapshots on the pending event, so
       transcript subscribers (inspect view's realtime buffer) render output
       growing while the call is in flight;
-    - the caller's `on_stream` callback.
+    - the caller's `on_stream` callback (display-only: an exception it
+      raises is logged and detaches it for the remainder of the call — see
+      `_deliver` — never failing the model call itself).
 
     The wrapper (not providers) owns retry semantics: `begin_attempt` resets
     per-attempt state and emits a `StreamRetryEvent` boundary to `on_stream`
@@ -184,8 +189,8 @@ class ModelStreamObserver:
         self._attempt += 1
         self._event = event
         self._reset_output_state()
-        if self._attempt > 1 and self._on_stream is not None and self._delivered:
-            await self._on_stream(StreamRetryEvent(attempt=self._attempt))
+        if self._attempt > 1 and self._delivered:
+            await self._deliver(StreamRetryEvent(attempt=self._attempt))
 
     async def output_restarted(self) -> None:
         """A provider-internal retry is regenerating the current attempt's output.
@@ -207,8 +212,8 @@ class ModelStreamObserver:
         if event is not None and event._progress is not None:
             event._progress.output_tokens = None
         self._reset_output_state()
-        if self._on_stream is not None and self._delivered:
-            await self._on_stream(StreamRetryEvent(attempt=max(self._attempt, 1)))
+        if self._delivered:
+            await self._deliver(StreamRetryEvent(attempt=max(self._attempt, 1)))
 
     def _reset_output_state(self) -> None:
         self._tokens_base = 0
@@ -240,10 +245,38 @@ class ModelStreamObserver:
         self._touch_progress()
         self._maybe_flush_partial()
         if self._on_stream is not None:
-            # mark delivered before awaiting: a callback that raises mid-call
-            # may already have consumed the delta
             self._delivered = True
-            await self._on_stream(delta)
+            await self._deliver(delta)
+
+    async def _deliver(self, event: StreamEvent) -> None:
+        """Deliver one event to `on_stream`, detaching the handler if it raises.
+
+        `on_stream` is a display-only side channel, so a handler exception
+        must never fail (or, worse, retry) the paid model call — the same
+        log-and-continue policy the hooks framework applies to observability
+        callbacks. The first exception is logged with its traceback and the
+        handler is detached for the remainder of this generate call (all
+        attempts): after one dropped event the accumulated stream is no
+        longer faithful, so going quiet — the caller falls back to the
+        returned `ModelOutput` — beats delivering a corrupted stream. The
+        next generate call constructs a fresh observer, so a transiently
+        broken handler recovers there. Detaching also turns
+        `model_stream_requested()` False for this call's later attempts
+        (nothing consumes the deltas, so auto-mode providers needn't
+        stream). Only `Exception` is caught — cancellation propagates.
+        """
+        if self._on_stream is None:
+            return
+        try:
+            await self._on_stream(event)
+        except Exception:
+            self._on_stream = None
+            logger.warning(
+                "on_stream handler raised an exception; streaming callbacks "
+                f"are disabled for the remainder of this {self._model} "
+                "generate call",
+                exc_info=True,
+            )
 
     def discard_partial_output(self) -> None:
         """Reset a published partial snapshot the attempt no longer stands by.
@@ -423,7 +456,9 @@ async def report_model_stream_delta(delta: StreamContentEvent) -> None:
     Feeds every consumer at once: progress heartbeat, the partial-output
     snapshot, and the caller's `on_stream` callback (awaited here, so a slow
     consumer applies natural backpressure to the stream read; an exception
-    it raises fails the attempt). No-op when no observer is installed.
+    it raises is logged and detaches the callback for the remainder of the
+    generate call — see `ModelStreamObserver._deliver`). No-op when no
+    observer is installed.
     """
     observer = _model_stream_observer.get()
     if observer is not None:

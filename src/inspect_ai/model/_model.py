@@ -862,7 +862,10 @@ class Model:
             delivers the retry boundary), and the callback is best treated
             as display-only: on retry a `StreamRetryEvent` signals that
             deltas received so far belong to a failed attempt and should
-            be discarded.
+            be discarded. A callback that raises never fails the model
+            call: the exception is logged and the callback is detached
+            for the remainder of that call (the next call tries it
+            again).
 
         Returns:
            ModelOutput

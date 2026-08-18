@@ -101,6 +101,7 @@ async def _scripted_generate(
     script: list[Callable[[ScriptedStreamAPI], Coroutine[Any, Any, ModelOutput]]],
     on_stream: Any = None,
     config: GenerateConfig = GenerateConfig(),
+    cache: bool = False,
 ) -> ModelOutput:
     """Run one generate against ScriptedStreamAPI with `script` installed."""
 
@@ -113,7 +114,9 @@ async def _scripted_generate(
     ScriptedStreamAPI.events = []
     try:
         model = get_model("mockstream/test")
-        return await model.generate("hello", config=config, on_stream=on_stream)
+        return await model.generate(
+            "hello", config=config, cache=cache, on_stream=on_stream
+        )
     finally:
         del _registry["modelapi:mockstream"]
 
@@ -209,6 +212,44 @@ async def test_retry_boundary_delivered_with_current_attempt_number() -> None:
         2,
         3,
     ]
+
+
+async def test_cache_hit_on_retry_still_delivers_boundary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A cache hit on a retry attempt must still deliver the retry boundary.
+
+    A concurrent identical call can populate the cache between attempts;
+    the cache-hit fast path runs no provider call, but the deltas already
+    delivered belong to the failed attempt and must still be invalidated.
+    """
+    cached = ModelOutput.from_content(model="mockstream/test", content="cached")
+    fetches = 0
+
+    def fake_cache_fetch(entry: Any) -> ModelOutput | None:
+        nonlocal fetches
+        fetches += 1
+        return cached if fetches > 1 else None
+
+    monkeypatch.setattr("inspect_ai.model._model.cache_fetch", fake_cache_fetch)
+
+    async def attempt(api: ScriptedStreamAPI) -> ModelOutput:
+        await report_model_stream_delta(StreamTextEvent(text="partial"))
+        raise TransientError()
+
+    collector = Collector()
+    output = await _scripted_generate(
+        [attempt],
+        on_stream=collector,
+        config=GenerateConfig(max_retries=2),
+        cache=True,
+    )
+    assert output.completion == "cached"
+    assert ScriptedStreamAPI.attempts == 1  # attempt 2 was the cache hit
+    assert [type(e) for e in collector.events] == [StreamTextEvent, StreamRetryEvent]
+    boundary = collector.events[-1]
+    assert isinstance(boundary, StreamRetryEvent)
+    assert boundary.attempt == 2
 
 
 async def test_provider_internal_restart_resets_output_and_reannounces() -> None:
@@ -508,17 +549,95 @@ async def test_concurrent_generates_do_not_cross_talk() -> None:
         del _registry["modelapi:mockstreamecho"]
 
 
-async def test_stream_handler_exception_fails_the_generate() -> None:
+class BrokenHandler:
+    """Handler that always raises, counting how often it was invoked."""
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    async def __call__(self, event: StreamEvent) -> None:
+        self.calls += 1
+        raise ValueError("handler bug")
+
+
+async def test_stream_handler_exception_logged_and_detached(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A raising handler never fails the model call.
+
+    It is logged once and detached for the remainder of the call
+    (display-only contract).
+    """
+
+    async def attempt(api: ScriptedStreamAPI) -> ModelOutput:
+        await report_model_stream_delta(StreamTextEvent(text="a"))
+        await report_model_stream_delta(StreamTextEvent(text="b"))
+        return api._output("done")
+
+    handler = BrokenHandler()
+    with caplog.at_level("WARNING", logger="inspect_ai.model._stream"):
+        output = await _scripted_generate([attempt], on_stream=handler)
+    assert output.completion == "done"
+    assert handler.calls == 1
+    warnings = [r for r in caplog.records if "on_stream handler" in r.getMessage()]
+    assert len(warnings) == 1
+    assert warnings[0].exc_info is not None
+
+
+async def test_stream_handler_detach_persists_across_attempts() -> None:
+    """Detach spans the whole generate call.
+
+    A wrapper-level retry neither re-arms the handler nor delivers it a
+    retry boundary.
+    """
+
+    async def attempt_1(api: ScriptedStreamAPI) -> ModelOutput:
+        await report_model_stream_delta(StreamTextEvent(text="a"))
+        raise TransientError()
+
+    async def attempt_2(api: ScriptedStreamAPI) -> ModelOutput:
+        await report_model_stream_delta(StreamTextEvent(text="b"))
+        return api._output("done")
+
+    handler = BrokenHandler()
+    output = await _scripted_generate(
+        [attempt_1, attempt_2],
+        on_stream=handler,
+        config=GenerateConfig(max_retries=2),
+    )
+    assert output.completion == "done"
+    assert handler.calls == 1
+
+
+async def test_stream_handler_rearms_on_next_generate_call() -> None:
+    """Detach is scoped to one generate call: the next call tries again."""
+
+    async def attempt(api: ScriptedStreamAPI) -> ModelOutput:
+        await report_model_stream_delta(StreamTextEvent(text="x"))
+        return api._output("ok")
+
+    handler = BrokenHandler()
+    await _scripted_generate([attempt], on_stream=handler)
+    await _scripted_generate([attempt], on_stream=handler)
+    assert handler.calls == 2
+
+
+async def test_stream_handler_cancellation_propagates() -> None:
+    """Only Exception is swallowed.
+
+    Cancellation raised through the handler (e.g. a sample limit hit
+    inside the await) must propagate.
+    """
+
     async def attempt(api: ScriptedStreamAPI) -> ModelOutput:
         await report_model_stream_delta(StreamTextEvent(text="x"))
         return api._output()
 
-    async def broken_handler(event: StreamEvent) -> None:
-        raise ValueError("handler bug")
+    async def cancelling_handler(event: StreamEvent) -> None:
+        raise FakeCancellation()
 
-    with pytest.raises(Exception) as excinfo:
-        await _scripted_generate([attempt], on_stream=broken_handler)
-    assert "handler bug" in str(excinfo.value)
+    with pytest.raises(FakeCancellation):
+        await _scripted_generate([attempt], on_stream=cancelling_handler)
 
 
 class FakeCancellation(BaseException):
