@@ -1,6 +1,7 @@
 import types
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any, cast
 from unittest.mock import patch
 
@@ -35,7 +36,9 @@ from inspect_ai.log._log import (
 from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
 from inspect_ai.log._recorders.eval import EvalRecorder
 from inspect_ai.log._recorders.recorder import Recorder
+from inspect_ai.log._recorders.types import SampleEvent
 from inspect_ai.model import get_model
+from inspect_ai.solver import generate
 
 
 def _fake_dist(name: str, version: str = "1.0.0") -> types.SimpleNamespace:
@@ -139,6 +142,35 @@ def _eval_spec() -> EvalSpec:
         dataset=EvalDataset(),
         config=EvalConfig(),
     )
+
+
+def test_realtime_sample_buffer_write_failure_stops_eval(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    writes = 0
+
+    def fail_write(_self: SampleBufferDatabase, _events: list[SampleEvent]) -> None:
+        nonlocal writes
+        writes += 1
+        raise OSError("disk full")
+
+    monkeypatch.setattr(SampleBufferDatabase, "log_events", fail_write)
+
+    logs = eval(
+        Task(
+            dataset=[Sample(input="question", target="answer")],
+            solver=generate(),
+        ),
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+        fail_on_error=False,
+        retry_on_error=3,
+    )
+
+    assert logs[0].status == "error"
+    assert logs[0].error is not None
+    assert "Failed to write realtime sample events: disk full" in logs[0].error.message
+    assert writes < 4
 
 
 class _FlushRecorder:

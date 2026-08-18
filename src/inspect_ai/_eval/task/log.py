@@ -77,6 +77,10 @@ if TYPE_CHECKING:
     from inspect_ai.log._transcript import TranscriptHistoryProvider
 
 
+class SampleBufferWriteError(RuntimeError):
+    pass
+
+
 def resolve_revision() -> EvalRevision | None:
     git = git_context()
     return (
@@ -428,7 +432,14 @@ class TaskLogger:
     def log_sample_event(self, id: str | int, epoch: int, event: Event) -> None:
         # log the sample event
         if self._buffer_db is not None:
-            self._buffer_db.log_events([SampleEvent(id=id, epoch=epoch, event=event)])
+            try:
+                self._buffer_db.log_events(
+                    [SampleEvent(id=id, epoch=epoch, event=event)]
+                )
+            except Exception as ex:
+                raise SampleBufferWriteError(
+                    f"Failed to write realtime sample events: {ex}"
+                ) from ex
 
     def remove_sample(self, id: str | int, epoch: int) -> None:
         if self._buffer_db is not None:

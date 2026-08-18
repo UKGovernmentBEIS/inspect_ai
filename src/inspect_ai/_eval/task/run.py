@@ -189,7 +189,12 @@ from .images import (
     sample_without_base64_content,
     state_without_base64_content,
 )
-from .log import TaskLogger, collect_eval_data, plan_to_eval_plan
+from .log import (
+    SampleBufferWriteError,
+    TaskLogger,
+    collect_eval_data,
+    plan_to_eval_plan,
+)
 from .results import eval_results
 from .sample_source import (
     SampleEnqueuer,
@@ -1728,7 +1733,7 @@ async def task_run_sample(
         )
         init_transcript(sample_transcript)
         init_subtask_store(state.store)
-        sample_transcript._subscribe(on_sample_event)
+        sample_transcript._subscribe(on_sample_event, propagate_errors=True)
         if scorers:
             init_scoring_context(scorers, Target(sample.target))
         init_sample_assistant_internal()
@@ -2190,6 +2195,9 @@ async def task_run_sample(
                             error = eval_error(ex, type(ex), ex, ex.__traceback__)
                             transcript()._event(ErrorEvent(error=error))
 
+                    except SampleBufferWriteError:
+                        raise
+
                     except Exception as ex:
                         error, raise_error = handle_error(ex)
 
@@ -2318,6 +2326,9 @@ async def task_run_sample(
                                 error = eval_error(ex, type(ex), ex, ex.__traceback__)
                                 transcript()._event(ErrorEvent(error=error))
 
+                        except SampleBufferWriteError:
+                            raise
+
                         except Exception as ex:
                             if active.interrupt_action is not None:
                                 # Operator-interrupted: log to transcript but
@@ -2340,6 +2351,9 @@ async def task_run_sample(
                                             f"Exception occurred during task cleanup: {ex}",
                                             exc_info=ex,
                                         )
+
+            except SampleBufferWriteError:
+                raise
 
             except Exception as ex:
                 error, raise_error = handle_error(ex)

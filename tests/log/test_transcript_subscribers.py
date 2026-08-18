@@ -3,6 +3,8 @@
 import logging
 from unittest.mock import patch
 
+import pytest
+
 from inspect_ai._util.constants import SKIP_TRANSCRIPT_DISPATCH
 from inspect_ai.event import Event
 from inspect_ai.event._info import InfoEvent
@@ -116,6 +118,18 @@ def test_subscriber_exception_does_not_block_other_subscribers() -> None:
         exc_info=True,
         extra={SKIP_TRANSCRIPT_DISPATCH: True},
     )
+
+
+def test_subscriber_exception_can_propagate() -> None:
+    tr = Transcript()
+
+    def raises(_e: Event) -> None:
+        raise RuntimeError("boom")
+
+    tr._subscribe(raises, propagate_errors=True)
+
+    with pytest.raises(RuntimeError, match="boom"):
+        tr._event(_info("failure"))
 
 
 def test_subscriber_failure_warning_does_not_fan_out() -> None:
