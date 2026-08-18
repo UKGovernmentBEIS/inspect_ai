@@ -1131,6 +1131,10 @@ class Model:
         model_name = ModelName(self)
         key = f"ModelCompact({_connection_pool_key(self.api)})"
 
+        # Local import: model is imported very early and the pause gate is
+        # only consulted per attempt (see wait_generate_dispatch's fast path).
+        from inspect_ai._control.pause import wait_generate_dispatch
+
         async with concurrency(f"{model_name}_compact", 10, key, visible=False):
 
             @retry(
@@ -1148,6 +1152,9 @@ class Model:
             async def _compact(
                 messages: list[ChatMessage],
             ) -> tuple[list[ChatMessage], ModelUsage | None]:
+                # report_sample_waiting_time directly: unlike generate,
+                # compact has no post-call waiting reconciliation to feed
+                await wait_generate_dispatch(self, report_sample_waiting_time)
                 return await self.api.compact(messages, tools, config, instructions)
 
             from inspect_ai.log._samples import cleared_retry_wait
@@ -1255,6 +1262,10 @@ class Model:
             report_sample_waiting_time(waiting_time)
             reported_waiting_time += waiting_time
 
+        # Local import: model is imported very early and the pause gate is
+        # only consulted per attempt (see wait_generate_dispatch's fast path).
+        from inspect_ai._control.pause import wait_generate_dispatch
+
         @retry(
             **model_retry_config(
                 self.api.model_name,
@@ -1268,6 +1279,10 @@ class Model:
             )
         )
         async def generate() -> tuple[ModelOutput, BaseModel]:
+            # report_waiting_time (not report_sample_waiting_time): held time
+            # must also accumulate into this call's reconciliation below
+            await wait_generate_dispatch(self, report_waiting_time)
+
             # type-checker can't see that we made sure tool_choice is not none in the outer frame
             assert tool_choice is not None
 
