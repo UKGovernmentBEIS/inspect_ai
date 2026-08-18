@@ -1231,9 +1231,11 @@ def parse_tool_call(
             recovered = _object_with_trailing_quotes(arguments)
             if recovered is not None:
                 arguments_dict = recovered
+                truncated = truncate_string_to_bytes(arguments, 256)
+                shown = truncated.output if truncated else arguments
                 logger.info(
                     f"Recovered arguments for tool call '{function}' from a "
-                    "complete JSON object trailed by stray quote characters."
+                    f"complete JSON object trailed by stray quote characters: {shown}"
                 )
             else:
                 report_parse_error(ex)

@@ -84,6 +84,13 @@ def test_parse_arguments_with_trailing_quotes():
     assert tool_call.parse_error is None
 
 
+def test_parse_recovered_arguments_logs_arguments(caplog):
+    with caplog.at_level("INFO"):
+        parse_tool_call("id", "testing_tool", '{"param1": "value"}""', [testing_tool])
+
+    assert '{"param1": "value"}""' in caplog.text
+
+
 def test_parse_arguments_with_trailing_quotes_and_whitespace():
     tool_call = parse_tool_call("id", "testing_tool", '{}"\n"', [testing_tool])
 
