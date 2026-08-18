@@ -1,0 +1,376 @@
+# Per-model throughput reporting under HTTP retries
+
+Status: proposed (design only — no implementation yet)
+
+Issue: [meridianlabs-ai/inspect_ai#235](https://github.com/meridianlabs-ai/inspect_ai/issues/235)
+
+## Problem
+
+When a run hits sustained HTTP retries (429s, provider brownouts), the
+operator's real question is not "how many retries have happened?" but "what
+throughput am I actually getting, and is it worth waiting?" Today there is no
+way to answer that:
+
+- The task display footer shows a single process-global retry counter
+  (`HTTP retries: N` from `task_http_retries()` in
+  `src/inspect_ai/_display/core/footer.py`) — a cumulative count with no
+  rate, no per-model attribution, and no relation to tokens produced.
+- `inspect trace http` shows individual request/retry lines
+  (`-> model retry 3 (retrying in 20s) [RateLimitError 429]`) but nothing an
+  operator can integrate into "output tokens per second right now".
+- `inspect ctl task` shows per-eval `total_tokens` and `http_retries`
+  rollups (`_control/state.py:_build_summary`), but not per model, not as a
+  rate, and only per task — not across the run.
+
+The concrete failure mode (from the originating Slack thread): an operator
+watching a heavily-throttled run cannot tell whether effective throughput is
+5% or 80% of normal, so they wait far longer than they would if they knew —
+when the right move was to switch to a smaller run or a different API key.
+
+## Goals
+
+- Measure **effective throughput per model** — headline metric: **output
+  tokens per second over a recent window** — aggregated **across all
+  samples and tasks in the run** (i.e. per process, which is what "a run"
+  is: `eval_set` with `retry_immediate` executes as one `eval()` call).
+- Alongside the rate, report the context needed to interpret it: retry
+  counts by kind (`rate_limit` vs `transient`), seconds of backoff incurred,
+  the rate at which scheduled backoff is accumulating relative to
+  wall-clock, and how many samples currently have a generate sleeping in a
+  retry wait.
+- Surface it where the issue asks:
+  - `inspect ctl` — a new per-model endpoint + CLI view (primary surface,
+    machine- and human-readable, pollable by watchdogs).
+  - the trace file — so `inspect trace http` sessions and post-mortems can
+    gauge throughput, not just count retries.
+  - the live task display footer — a glanceable aggregate.
+
+## Non-goals
+
+- **In-flight token progress** (tokens streamed mid-generate). That is layer
+  2 of `design/ctl/generate-progress.md` (`report_active_model_progress()`),
+  with reserved `tokens`/`last_progress_at` slots already in the ctl
+  activity view. This design counts tokens only at generate completion; the
+  two compose later (a completed-call rate plus in-flight streaming deltas)
+  but neither depends on the other.
+- Cost-per-second or cost-based throttling advice.
+- Cross-process aggregation (an `eval-set` level aggregate is explicitly
+  "Later" in `design/ctl/control-channel.md`). Each process reports its own
+  registry; the `ctl` CLI already fans out per process.
+- Automatic remediation (switching keys, shrinking runs). This design gives
+  the operator the signal; acting on it stays manual (or in user scripts
+  polling the new endpoint).
+
+## Current state (what exists to build on)
+
+Retry accounting today, all fed from `report_http_retry()` in
+`src/inspect_ai/_util/retry.py`:
+
+1. `_http_retries_count` — process-global scalar, **never reset**, rendered
+   in every display mode's footer. Not keyed by model.
+2. `ModelEvent.retries` — per-generation count in the transcript, via
+   `report_active_sample_retry()` (`log/_samples.py`).
+3. `ActiveSample.http_retries` → `EvalState.http_retries` rollup, summed
+   into the `ctl task` row (`_control/state.py`).
+
+Retry *wait* is tracked per active sample (`ActiveSampleRetryWait` in
+`log/_samples.py`: model, attempt, started_at, deadline — set from
+`model_retry_config()`'s `on_before_sleep` in `model/_retry.py`) and shows
+up in the ctl sample activity view as `type: "retry_wait"`. Backoff time is
+also folded into sample waiting time (`_util/working.py`) but only as an
+undifferentiated total.
+
+Token accounting: `record_and_check_model_usage()` (`model/_model.py`)
+accumulates `ModelUsage` into per-sample and per-task-run ContextVar dicts
+keyed by `provider/model`, flushed to `EvalStats.model_usage`. There is a
+per-eval scalar `EvalState.total_tokens` for ctl, but **no process-level
+per-model accumulation and no rate anywhere** (grep for
+tokens-per-second/throughput finds nothing).
+
+Precedents this design follows:
+
+- Process registries keyed by model already exist: adaptive concurrency
+  controllers (`util/_concurrency.py`, exposed via `GET /config` →
+  `adaptive`) and model pause gates (`_control/pause.py`, `_model_gates`).
+- `reset_run_registries()` (`_control/eval_state.py`) is *the* documented
+  reset point for per-run process state ("add new resets here, not at the
+  call sites"). Note the cautionary precedent: `_http_retries_count` is
+  never reset, so in a keep-alive or test process it accumulates across
+  runs — the new registry must not repeat that.
+- ctl endpoint rules: the "cheap shoveling" invariant
+  (`design/ctl/control-channel.md`) and the future-endpoint checklist
+  (`design/ctl/endpoint-cost-audit.md` §"Guidance for future endpoints").
+
+## Design
+
+### 1. Throughput registry (`src/inspect_ai/model/_throughput.py`)
+
+A process-global registry keyed by full model name (`provider/model`, same
+key as `model_usage`), holding one `ModelThroughput` record per model:
+
+```python
+@dataclass
+class ModelThroughput:
+    # cumulative since run start
+    requests: int = 0                  # successful generates recorded
+    output_tokens: int = 0
+    total_tokens: int = 0
+    retries_rate_limit: int = 0
+    retries_transient: int = 0
+    retry_wait_seconds: float = 0.0    # backoff scheduled (sum of sleeps)
+    first_activity: datetime | None = None   # wall-clock (for the envelope)
+    last_activity: datetime | None = None
+    # rolling window: fixed-size ring of time buckets
+    buckets: TokenBuckets = field(default_factory=TokenBuckets)
+```
+
+`TokenBuckets` is a fixed-length ring (e.g. 60 buckets × 10 s = a 10-minute
+horizon) where each bucket accumulates `{output_tokens, total_tokens,
+requests, retries, retry_wait_seconds}` for its 10-second slice. Bucket
+indexing uses the monotonic clock. Token/request/retry writes are O(1)
+(index by `monotonic() // 10`, zeroing skipped buckets on advance); a
+scheduled backoff of `s` seconds is *spread* across the buckets covering
+`[now, now + s]` (clipped to the horizon) rather than dumped into the
+schedule-time bucket — sleeps reach 30 minutes
+(`wait_exponential_jitter(initial=3, max=30*60)` in `model/_retry.py`), and
+attributing one to a single bucket would swamp any window containing its
+start. That write is O(horizon ÷ bucket size) ≤ 60, only on retry. Reads
+sum at most 60 small structs per model. This bounds memory to a constant
+per model regardless of request rate — a per-request deque would grow with
+throughput, which is exactly the case we care about. Rates over any window
+≤ the horizon are computed at read time (window sum ÷ window seconds,
+clamped to time-since-first-activity so a fresh run doesn't report an
+artificially diluted rate).
+
+No lock: writes and reads happen on the eval's single event loop thread
+(control-server handlers included), per the repo's no-speculative-locks
+rule; individual bucket updates don't span awaits.
+
+Module API:
+
+```python
+def record_generate(model: str, usage: ModelUsage) -> None: ...
+def record_retry(model: str, kind: RetryKind) -> None: ...
+def record_retry_wait(model: str, wait_seconds: float) -> None: ...
+def throughput_snapshot(window: int = 60) -> dict[str, ModelThroughputView]: ...
+def init_model_throughput() -> None: ...   # clears the registry
+```
+
+`init_model_throughput()` is wired into `reset_run_registries()`
+(`_control/eval_state.py`) so keep-alive processes and test suites start
+each run clean.
+
+`ModelThroughputView` (the read-side snapshot) adds the derived fields:
+`output_tokens_per_second`, `requests_per_minute`, `retries_per_minute`,
+`backoff_ratio` (window `retry_wait_seconds` ÷ window seconds — scheduled
+backoff-seconds per wall-clock second, summed across concurrent generates,
+so it exceeds 1.0 whenever more than one generate is backing off at once;
+`backoff_ratio ÷ retry_waits_active ≈ 1` means the affected generates are
+spending essentially all their time asleep), and `retry_waits_active`
+(count of active samples whose current generate is sleeping in a retry
+wait, derived by scanning active samples' `retry_wait` fields — bounded by
+sample count, cheap; `ActiveSample.retry_wait` is a single shared slot per
+sample, so parallel generates within one sample count as one).
+
+### 2. Instrumentation points
+
+All three feeds attach where the model name is already in hand; none add
+work on the hot path beyond an O(1) registry update.
+
+- **Tokens** — `record_and_check_model_usage()` (`model/_model.py`) calls
+  `record_generate(model, usage)` next to the existing `set_model_usage`
+  calls. Scope notes:
+  - *Cache hits are already excluded.* The cache-hit path returns before
+    the usage-recording call (`_model.py` ~L1344 early return; cached usage
+    goes through `emit_model_cache_usage` instead), which is the behavior
+    we want — a cache read consumes no provider capacity, and counting it
+    would inflate "provider throughput" exactly when the operator is
+    deciding whether the provider is usable. No gating is needed; add a
+    regression test so a future refactor doesn't start counting hits.
+  - `compact` calls flow through the same function and are counted: they
+    consume provider capacity and produce usage. `count_tokens` does *not*
+    (it returns a bare `int` with no `ModelUsage`), so its successful calls
+    contribute no tokens while its 429s still increment retry counts — a
+    small asymmetry to note in the endpoint docs; count_tokens traffic is
+    negligible in practice.
+- **Retry counts** — `report_http_retry()` (`_util/retry.py`) gains an
+  optional `model: str | None = None` parameter and forwards to
+  `record_retry()` when set. Call sites that know the model pass it:
+  `Model.should_retry` (`model/_model.py`), the `_retry_predicate` path for
+  batchers (`model/_retry.py`), and `HttpHooks.update_request_time`
+  (`_providers/util/hooks.py`, which providers construct per-`ModelAPI` and
+  can carry the model name). Sites without model context (e.g.
+  `_util/asyncfiles.py`, which isn't model traffic at all) keep counting
+  only toward the legacy global scalar. The existing double-count
+  protections (chatapi's count-once-per-episode `before_sleep`, the
+  `_retry_predicate` handling for batchers) are unchanged — this parameter
+  rides the existing single funnel rather than adding a second one.
+- **Retry wait** — `model_retry_config()`'s `on_before_sleep`
+  (`model/_retry.py`) calls `record_retry_wait(model_name,
+  rs.upcoming_sleep)` alongside the existing
+  `report_active_sample_retry_wait()`. This is scheduled backoff; SDK-internal
+  waits invisible to tenacity are already reconciled into sample waiting
+  time and are out of scope for the per-model figure (noted in the endpoint
+  docs so the `waiting_fraction` isn't over-read).
+
+### 3. ctl surface (primary)
+
+**Endpoint**: `GET /models/throughput?window=60` — process scope (per the
+three-scopes URL rule; it sits beside `POST /models/pause`). Response
+envelope:
+
+```json
+{
+  "as_of": "2026-08-18T21:00:00+00:00",
+  "window_seconds": 60,
+  "models": [
+    {
+      "model": "anthropic/claude-sonnet-5",
+      "output_tokens_per_second": 41.7,
+      "requests_per_minute": 12.0,
+      "retries_per_minute": 33.0,
+      "backoff_ratio": 11.2,
+      "retry_waits_active": 14,
+      "cumulative": {
+        "requests": 4310, "output_tokens": 5210044, "total_tokens": 9422108,
+        "retries": {"rate_limit": 812, "transient": 9},
+        "retry_wait_seconds": 14208.5,
+        "first_activity_at": "...", "last_activity_at": "..."
+      }
+    }
+  ]
+}
+```
+
+`window` is a declared, FastAPI-type-validated query param (malformed →
+422) clamped server-side to the bucket horizon; strict unknown-param
+rejection (`_control/strict.py`) deliberately doesn't apply to GETs, per
+the "GETs stay tolerant" policy in `design/ctl/control-channel.md`.
+Cheap-shoveling compliance: everything is materialized at write time; the
+read is a bounded sum over ≤ 60 buckets × (number of models), plus one
+bounded pass over active samples for `retry_waits_active`. No storage
+reads, no unbounded rows. Per the version-skew rules in
+`design/ctl/control-channel.md`, a new endpoint needs **no**
+`CONTROL_API_VERSION` bump; the CLI passes `not_found_missing_route` so a
+404 from an older server renders with the documented "older inspect —
+restart the eval" guidance rather than as an error.
+
+**CLI**: `inspect ctl model throughput [--window SECONDS] [--json]
+[--terse]`, following the existing `_NounGroup` / `_json_option` /
+`_render_table` conventions in `_cli/ctl.py`. Human table (one row per
+model):
+
+```
+model                          out tok/s   req/min   retries/min   in backoff   backoff (cum)
+anthropic/claude-sonnet-5           41.7      12.0          33.0           14          3h 57m
+openai/gpt-5                       310.2      45.0           0.0            0               –
+```
+
+The `ctl task` row also gains a per-task `output_tokens_per_second` derived
+from data it already has (`EvalState.total_tokens` deltas are *not*
+windowed, so this is computed as cumulative tokens ÷ elapsed — labeled as
+such). This is a cheap additive field (no bump; older CLIs ignore it, newer
+CLIs null-guard via the existing `_format_count` blank-≠-0 convention), and
+answers "which of my parallel tasks is starved?" without a second call.
+
+### 4. Trace surface
+
+Two additions, both at the existing `HTTP` log level so they land in the
+trace file unconditionally and appear under `inspect trace http`:
+
+1. **Enrich the retry line.** `log_model_retry()` (`model/_model.py`)
+   appends a throughput snippet to the message it already logs:
+
+   ```
+   -> anthropic/claude-sonnet-5 retry 7 (retrying in 34 seconds) [RateLimitError 429] [42 out-tok/s, 14 in backoff]
+   ```
+
+   This directly answers the issue's "hard to gauge throughput" while
+   watching retries scroll by — every retry line carries the current
+   window rate. Snapshot cost is trivial (single-model bucket sum) and the
+   line only changes when a retry is already happening.
+
+2. **Periodic snapshot line.** A lightweight run-scoped reporter task —
+   started on the eval run's task group in `_eval/run.py` (the same
+   lifetime as the control server; there is no existing run-scoped
+   periodic-task helper, so this is a small new loop, cancelled with the
+   run) — emits one `trace_message(logger, "Throughput", ...)` per model
+   per interval (60 s), *only when that model had a retry in the interval*
+   — quiet runs add zero trace noise. This gives post-mortems a coarse
+   time series (`inspect trace dump --filter throughput`) without a new
+   storage mechanism.
+
+### 5. Live display footer
+
+The retry counter reaches displays via two paths: `task_counters()`
+(`_display/core/footer.py`) feeds the rich and textual footers, while the
+plain and log displays call `task_http_retries_str()` directly. Add an
+aggregate output-rate counter beside the retry count on both paths, shown
+when any retries have occurred this run:
+
+```
+HTTP retries: 821  out tok/s: 352
+```
+
+Aggregate (summed across models) keeps the footer glanceable; per-model
+detail is ctl's job. Gating on retries-observed avoids adding a noisy
+number to healthy runs — and the gate reads the new per-run registry, not
+the never-reset `_http_retries_count` scalar, so a keep-alive process's
+second run starts quiet. The footer is already `@throttle(1)`d, and the
+snapshot is O(models), so render cost is negligible.
+
+## What this changes for the operator
+
+During a throttled run: the footer shows the effective aggregate rate; one
+`inspect ctl model throughput` call shows, per model across every
+sample/task in the run, the recent output-token rate, how much scheduled
+backoff is accumulating per wall-clock second, and how many samples have a
+generate sleeping right now — the "wait vs. switch" decision inputs. After
+the fact, retry lines in the trace carry the rate at the moment of each
+retry, and periodic `[Throughput]` lines give a coarse series. Watchdog
+scripts poll the JSON endpoint (e.g. alert when
+`output_tokens_per_second` stays below a floor, or `backoff_ratio ≈
+retry_waits_active`, for 10 minutes).
+
+## Testing
+
+- Unit tests for `TokenBuckets` (advance/zeroing across gaps, window sums,
+  backoff spreading across buckets with horizon clipping, clamping to
+  first-activity) and registry reset — pure functions of an injected
+  clock, no model calls.
+- `mockllm`-based test that a generate records into the registry, and a
+  regression test that a cache hit does not (guarding the existing
+  early-return bypass), extending existing usage-recording tests.
+- Retry-path test extending `tests/model/test_chatapi_retry.py` /
+  hooks tests: forced 429s increment the right model's `rate_limit` bucket
+  and `retry_wait_seconds`, and don't double-count through the chatapi
+  sub-layer.
+- Control-channel test for `GET /models/throughput` (envelope shape, strict
+  param rejection, empty-registry response) alongside existing server
+  tests, plus a CLI rendering test following `_cli/ctl.py` test patterns.
+- Reset test: two sequential `eval()`s in one process (keep-alive shape)
+  don't leak the first run's throughput into the second.
+
+## Phasing
+
+1. **Registry + instrumentation + ctl endpoint/CLI** — the core of the
+   issue's ask; independently shippable and immediately scriptable.
+2. **Trace enrichment** (retry-line snippet + periodic snapshot).
+3. **Footer aggregate** + `ctl task` per-task rate field.
+
+## Open questions
+
+- **Headline window default**: 60 s reacts fast but is noisy for
+  low-request-rate models; 300 s is smoother. Proposal: default 60 s with
+  `?window=` up to the 600 s horizon, and report `requests` in the window so
+  consumers can judge significance.
+- **Should batch-mode (batcher) token flow be split out?** Batched
+  generates record usage on completion in bursts, which makes short-window
+  rates spiky. Initial answer: no split; document the caveat and let the
+  larger window smooth it.
+- **Roles**: per-role (in addition to per-model) breakdown mirrors
+  `role_usage` and is cheap to add later; omitted initially to keep the
+  endpoint small.
+- **Hooks**: a `ModelThroughputData` hook emission was considered and
+  dropped — `ModelUsageData` + `ModelRetry` hooks already carry the raw
+  events, so external telemetry can compute its own rates.
