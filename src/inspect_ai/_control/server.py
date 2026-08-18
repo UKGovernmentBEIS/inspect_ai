@@ -71,6 +71,7 @@ from inspect_ai._control.pause import (
     pause_task,
     paused_models,
     process_paused,
+    process_paused_now,
     resume_model,
     resume_process,
     resume_task,
@@ -486,10 +487,12 @@ class ControlServer:
             # as is the set of latched models — stamped even when none of a
             # latched model's tasks has registered yet
             paused = process_paused()
+            paused_now = process_paused_now()
             models_paused = paused_models()
             for summary in summaries:
                 summary["keep_alive"] = keep_alive
                 summary["process_paused"] = paused
+                summary["process_paused_now"] = paused_now
                 summary["paused_models"] = models_paused
                 # Advertise the control-API version so HTTP consumers can
                 # gate version-dependent requests (the CLI reads it from the
@@ -715,12 +718,16 @@ class ControlServer:
         # Task-keyed like `config` / `log-flush` / `cancel` (a pause handle
         # must not dangle across a retry). Quiesce semantics: pause stops new
         # samples (and a queued in-run retry attempt) from starting while
-        # in-flight samples finish naturally; resume re-opens the gate.
-        # Idempotent (`changed: false` on a repeat or a finished task),
-        # last-write-wins, `dry_run=true` reports without acting.
+        # in-flight samples finish naturally; `now=true` (the hard pause)
+        # additionally holds in-flight samples at their next model call;
+        # resume re-opens the gate (both strengths). Idempotent (`changed:
+        # false` on a repeat or a finished task), last-write-wins across
+        # strengths, `dry_run=true` reports without acting.
         @app.post("/tasks/{task_id}/pause")
-        async def task_pause(task_id: str, dry_run: bool = False) -> Any:
-            result = await pause_task(task_id, dry_run=dry_run)
+        async def task_pause(
+            task_id: str, now: bool = False, dry_run: bool = False
+        ) -> Any:
+            result = await pause_task(task_id, now=now, dry_run=dry_run)
             if result is None:
                 return JSONResponse(
                     status_code=404,
@@ -1064,13 +1071,15 @@ class ControlServer:
         # process-scoped latch every dispatch point checks, like keep-alive,
         # NOT a fan-out over task pauses): under pause no new eval-set tasks
         # dispatch, no task retry attempts start, and no samples dispatch in
-        # any task; in-flight samples finish naturally. `process resume` does
-        # not clear task-level pauses (independent latches). Never 404s — a
-        # process always exists. Note the state distinction with /release:
-        # resume re-opens a *paused* run; release ends a keep-alive *park*.
+        # any task; in-flight samples finish naturally (`now=true` — the hard
+        # pause — additionally holds them at their next model call). `process
+        # resume` does not clear task-level pauses (independent latches).
+        # Never 404s — a process always exists. Note the state distinction
+        # with /release: resume re-opens a *paused* run; release ends a
+        # keep-alive *park*.
         @app.post("/pause")
-        async def process_pause(dry_run: bool = False) -> Any:
-            return await pause_process(dry_run=dry_run)
+        async def process_pause(now: bool = False, dry_run: bool = False) -> Any:
+            return await pause_process(now=now, dry_run=dry_run)
 
         @app.post("/resume")
         async def process_resume(dry_run: bool = False) -> Any:
@@ -1080,19 +1089,24 @@ class ControlServer:
         # design/ctl/pause-resume.md "Model-scoped latch"): samples, queued
         # retry attempts, and not-yet-started eval-set tasks of tasks whose
         # *primary* model matches all hold, while other models' work
-        # continues. `model` is a query param (not a path segment): model
-        # names contain `/`. Exact-name match against the models this
-        # process could dispatch — an unknown name 404s (a typo'd incident
-        # lever must fail loudly, not latch nothing). Idempotent,
-        # last-write-wins, `dry_run=true` reports without acting.
+        # continues. `now=true` (the hard pause) additionally holds generate
+        # calls to the model at their next attempt — keyed on the model
+        # actually being called, so grader/role calls hold too. `model` is a
+        # query param (not a path segment): model names contain `/`.
+        # Exact-name match against the models this process could dispatch —
+        # an unknown name 404s (a typo'd incident lever must fail loudly,
+        # not latch nothing). Idempotent, last-write-wins, `dry_run=true`
+        # reports without acting.
         @app.post("/models/pause")
-        async def model_pause(model: str | None = None, dry_run: bool = False) -> Any:
+        async def model_pause(
+            model: str | None = None, now: bool = False, dry_run: bool = False
+        ) -> Any:
             if not model:
                 return JSONResponse(
                     status_code=400,
                     content={"error": "model is required"},
                 )
-            result = await pause_model(model, dry_run=dry_run)
+            result = await pause_model(model, now=now, dry_run=dry_run)
             if result is None:
                 return JSONResponse(
                     status_code=404,

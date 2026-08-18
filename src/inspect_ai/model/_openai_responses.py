@@ -1,5 +1,4 @@
 import json
-import mimetypes
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 from functools import reduce
@@ -154,10 +153,9 @@ from inspect_ai._util.content import (
     ContentToolUse,
     ContentVideo,
 )
-from inspect_ai._util.images import as_data_uri, inline_media_data_uri
+from inspect_ai._util.images import inline_media_data_uri
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.text import truncate_string_to_bytes
-from inspect_ai._util.url import is_data_uri
 from inspect_ai.model._agent_message import validate_agent_message
 from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.model._chat_message import (
@@ -800,12 +798,11 @@ def content_from_response_input_content_param(
             image=input.get("image_url", "") or "", detail=input.get("detail", "auto")
         )
     elif is_input_file(input):
-        file_data = input["file_data"]
-        filename = input["filename"]
-        if not is_data_uri(file_data):
-            mime_type, _ = mimetypes.guess_type(filename, strict=False)
-            file_data = as_data_uri(mime_type or "application/octet-stream", file_data)
-        return ContentDocument(document=file_data, filename=filename)
+        # `file_data` must be a resolved `data:` URI (the form the responses
+        # API requires); anything else (a filesystem path, URL, or bare
+        # base64) is preserved as-is so that media validation rejects it
+        # rather than forwarding it disguised as inline data
+        return ContentDocument(document=input["file_data"], filename=input["filename"])
     else:
         raise RuntimeError(f"Unexpected input from responses API: {input}")
 
@@ -1940,9 +1937,11 @@ def _responses_call_to_inspect(
 
     Reverses the todo_write->update_plan swap (only when a todo_write tool is present and no
     first-party update_plan tool is — so we never hijack a user's own update_plan), then
-    falls back to the name-only alias mechanism. Malformed arguments are passed through with
-    the mapped name so parse_tool_call() reports the parse error rather than silently
-    producing an empty plan.
+    falls back to the name-only alias mechanism. Malformed arguments — including ones
+    parse_tool_call() will itself recover (a complete object trailed by stray quotes) — are
+    passed through with the mapped name rather than mapped here, so any resulting error
+    surfaces at the tool (e.g. "Required parameter todos not provided") rather than at the
+    parse.
     """
     if name == UPDATE_PLAN_NAME and _tools_swap_todo_write(tools):
         try:
