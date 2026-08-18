@@ -153,10 +153,10 @@ from inspect_ai._util.content import (
     ContentToolUse,
     ContentVideo,
 )
-from inspect_ai._util.images import file_as_data_uri
+from inspect_ai._util.images import inline_media_data_uri
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.text import truncate_string_to_bytes
-from inspect_ai._util.url import is_http_url
+from inspect_ai.model._agent_message import validate_agent_message
 from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.model._chat_message import (
     ChatMessage,
@@ -284,11 +284,10 @@ def _extract_agent_message_from_internal(
     for item in content:
         if isinstance(item, ContentText) and isinstance(item.internal, dict):
             agent_message = item.internal.get("agent_message")
-            if (
-                isinstance(agent_message, dict)
-                and agent_message.get("type") == "agent_message"
-            ):
-                return cast(ResponseInputItemParam, agent_message)
+            if agent_message is not None:
+                return cast(
+                    ResponseInputItemParam, validate_agent_message(agent_message)
+                )
     return None
 
 
@@ -440,11 +439,7 @@ async def _openai_responses_function_call_output(
                     ResponseInputImageContentParam(
                         type="input_image",
                         detail=c.detail,
-                        image_url=(
-                            c.image
-                            if is_http_url(c.image)
-                            else await file_as_data_uri(c.image)
-                        ),
+                        image_url=inline_media_data_uri(c.image, "image"),
                     )
                 )
         return outputs
@@ -465,11 +460,7 @@ async def _openai_responses_custom_tool_call_output(
                     ResponseInputImageParam(
                         type="input_image",
                         detail=c.detail,
-                        image_url=(
-                            c.image
-                            if is_http_url(c.image)
-                            else await file_as_data_uri(c.image)
-                        ),
+                        image_url=inline_media_data_uri(c.image, "image"),
                     )
                 )
         return outputs
@@ -493,11 +484,7 @@ async def _openai_responses_content_param(
         return ResponseInputImageParam(
             type="input_image",
             detail=content.detail,
-            image_url=(
-                content.image
-                if is_http_url(content.image)
-                else await file_as_data_uri(content.image)
-            ),
+            image_url=inline_media_data_uri(content.image, "image"),
         )
     elif isinstance(content, ContentAudio | ContentVideo | ContentDocument):
         match content:
@@ -513,7 +500,25 @@ async def _openai_responses_content_param(
             case _:
                 raise TypeError(f"Unexpected content type: {type(content)}")
 
-        file_data_uri = await file_as_data_uri(contents)
+        file_data_uri = inline_media_data_uri(
+            contents,
+            "audio"
+            if isinstance(content, ContentAudio)
+            else "video"
+            if isinstance(content, ContentVideo)
+            else "document",
+            mime_type_hint=(
+                ("audio/mpeg" if content.format == "mp3" else "audio/wav")
+                if isinstance(content, ContentAudio)
+                else {
+                    "mp4": "video/mp4",
+                    "mpeg": "video/mpeg",
+                    "mov": "video/quicktime",
+                }[content.format]
+                if isinstance(content, ContentVideo)
+                else content.mime_type
+            ),
+        )
 
         return ResponseInputFileParam(
             type="input_file", file_data=file_data_uri, filename=filename
@@ -793,6 +798,10 @@ def content_from_response_input_content_param(
             image=input.get("image_url", "") or "", detail=input.get("detail", "auto")
         )
     elif is_input_file(input):
+        # `file_data` must be a resolved `data:` URI (the form the responses
+        # API requires); anything else (a filesystem path, URL, or bare
+        # base64) is preserved as-is so that media validation rejects it
+        # rather than forwarding it disguised as inline data
         return ContentDocument(document=input["file_data"], filename=input["filename"])
     else:
         raise RuntimeError(f"Unexpected input from responses API: {input}")
@@ -1485,7 +1494,9 @@ def _openai_input_items_from_chat_message_assistant(
                             "content": [
                                 {
                                     "type": "input_image",
-                                    "image_url": content.image,
+                                    "image_url": inline_media_data_uri(
+                                        content.image, "image"
+                                    ),
                                     "detail": content.detail,
                                 }
                             ],

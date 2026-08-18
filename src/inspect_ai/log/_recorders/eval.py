@@ -964,6 +964,13 @@ class ZipLogFile:
                 # Capture the summary
                 summaries.append(buffered.summary)
 
+                # each write serializes + compresses synchronously on the
+                # event loop, so yield between samples to bound the stall to
+                # one sample rather than the whole batch (in-flight samples
+                # and the control-channel server run in the gaps). The lock
+                # stays held, so `_samples` can't change under the iteration.
+                await anyio.lowlevel.checkpoint()
+
             self._samples.clear()
 
             # write intermediary summaries and add to master list
