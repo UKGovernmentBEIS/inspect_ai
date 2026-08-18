@@ -39,10 +39,6 @@ A bare noun implies `list`: `inspect ctl task` ≡ `inspect ctl task list`, and 
 
 The endpoint is a Unix domain socket under the current user's Inspect data directory. It is not reachable over the network or by other users on the same machine, and it requires no configuration.
 
-::: {.callout-note}
-Earlier releases exposed these operations as flat verbs. Those spellings were kept for a transition window as hidden, deprecated aliases and have now been removed — each maps to a command in the table above: `inspect ctl tasks` → `task list`, `samples` → `sample list`, `sample` → `sample show`, `errors` → `sample errors`, `events` → `sample events`, `flush` → `task log-flush`, `buffer` and `limits` → `config`, `keep` → `process keep`, `release` → `process release`.
-:::
-
 ## Launch Handoff
 
 Right after launching an eval, an empty `inspect ctl task list` is ambiguous: the control endpoint may simply not be bound yet. A script or agent that launches an eval and then drives it with `inspect ctl` should launch with `--json`:
