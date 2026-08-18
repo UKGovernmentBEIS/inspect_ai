@@ -8,6 +8,7 @@ sandbox-limiter registry), the server routes that wrap it, and the CLI rendering
 import asyncio
 from typing import Any, cast
 
+import anyio
 import httpx
 import pytest
 from test_helpers.utils import register_adaptive_controller as _register_controller
@@ -38,15 +39,18 @@ from inspect_ai.util._concurrency import (
 @pytest.fixture(autouse=True)
 def _clear_states():
     from inspect_ai._control.config_record import reset_process_config_updates
+    from inspect_ai.util._limit_overrides import reset_sample_limit_overrides
 
     clear_all_eval_states()
     init_concurrency()  # resets the sandbox and subprocess limiter registries
     reset_generate_config_overrides()
+    reset_sample_limit_overrides()
     reset_process_config_updates()
     yield
     clear_all_eval_states()
     init_concurrency()
     reset_generate_config_overrides()
+    reset_sample_limit_overrides()
     reset_process_config_updates()
 
 
@@ -615,6 +619,435 @@ def test_set_generate_config_override_rejects_out_of_range() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Per-sample limit overrides (time_limit / token_limit / message_limit)
+# ---------------------------------------------------------------------------
+
+
+async def test_sample_limit_overrides_default_view() -> None:
+    register_eval("e1", 5, task_id="t1")
+
+    result = await task_limits("t1")
+    assert result is not None
+    assert result["limits"] == {
+        "time_limit": None,
+        "token_limit": None,
+        "message_limit": None,
+    }
+
+
+async def test_sample_limit_overrides_set_and_clear() -> None:
+    from inspect_ai.util._limit_overrides import sample_limit_override
+
+    register_eval("e1", 5, task_id="t1")
+
+    result = await task_limits(
+        "t1", time_limit=600, token_limit=50_000, message_limit=100
+    )
+    assert result is not None
+    assert result["requested"] == {
+        "time_limit": 600,
+        "token_limit": 50_000,
+        "message_limit": 100,
+    }
+    assert result["limits"] == {
+        "time_limit": 600,
+        "token_limit": 50_000,
+        "message_limit": 100,
+    }
+    # always adjustable — the override layer exists regardless of launch config
+    assert result["warnings"] == []
+    assert sample_limit_override("t1", "token_limit") == 50_000
+
+    # "clear" removes an override (restoring launch config); the others stand
+    result = await task_limits("t1", token_limit="clear")
+    assert result is not None
+    assert result["requested"] == {"token_limit": "clear"}
+    assert result["limits"] == {
+        "time_limit": 600,
+        "token_limit": None,
+        "message_limit": 100,
+    }
+    assert sample_limit_override("t1", "token_limit") is None
+
+    # 0 is a real value, not a clear
+    result = await task_limits("t1", message_limit=0)
+    assert result is not None
+    assert result["limits"]["message_limit"] == 0
+    assert sample_limit_override("t1", "message_limit") == 0
+
+
+async def test_sample_limit_overrides_dry_run_does_not_apply() -> None:
+    from inspect_ai.util._limit_overrides import sample_limit_override
+
+    register_eval("e1", 5, task_id="t1")
+
+    result = await task_limits("t1", token_limit=5000, dry_run=True)
+    assert result is not None
+    assert result["dry_run"] is True
+    assert result["requested"] == {"token_limit": 5000}
+    assert result["limits"]["token_limit"] is None
+    assert sample_limit_override("t1", "token_limit") is None
+
+
+async def test_sample_limit_overrides_scoped_by_task() -> None:
+    """The store is task-keyed — a retune of one task never leaks to another."""
+    from inspect_ai.util._limit_overrides import sample_limit_override
+
+    register_eval("e1", 5, task_id="t1")
+    register_eval("e2", 5, task_id="t2")
+
+    result = await task_limits("t1", token_limit=5000)
+    assert result is not None
+    assert sample_limit_override("t1", "token_limit") == 5000
+    assert sample_limit_override("t2", "token_limit") is None
+    other = await task_limits("t2")
+    assert other is not None
+    assert other["limits"]["token_limit"] is None
+
+
+def test_set_sample_limit_override_rejects_out_of_range() -> None:
+    """A programmatic sign or magnitude bug errors loudly, not becomes an override.
+
+    An unbounded time_limit would overflow the float conversion when a live
+    deadline is re-derived from it, so the store rejects it here (the wire
+    layers reject it earlier for CLI/API callers).
+    """
+    from inspect_ai.util._limit_overrides import (
+        MAX_SAMPLE_LIMIT_OVERRIDE,
+        sample_limit_override,
+        set_sample_limit_override,
+    )
+
+    with pytest.raises(ValueError, match="token_limit"):
+        set_sample_limit_override("t1", "token_limit", -1)
+    with pytest.raises(ValueError, match="time_limit"):
+        set_sample_limit_override("t1", "time_limit", MAX_SAMPLE_LIMIT_OVERRIDE + 1)
+    assert sample_limit_override("t1", "token_limit") is None
+    assert sample_limit_override("t1", "time_limit") is None
+    # the bound itself is a legal value
+    set_sample_limit_override("t1", "message_limit", MAX_SAMPLE_LIMIT_OVERRIDE)
+    assert sample_limit_override("t1", "message_limit") == MAX_SAMPLE_LIMIT_OVERRIDE
+
+
+def test_sample_limit_override_bound_matches_generate_config_bound() -> None:
+    """The two override bounds must stay equal.
+
+    The shared CLI param type (``_IntOrClearType``) validates all override
+    knobs against ``MAX_GENERATE_CONFIG_OVERRIDE`` only, so a divergence
+    would let the CLI accept values the server rejects (or vice versa).
+    The constants live in different layers (util vs model), so parity is
+    pinned here rather than by one importing the other.
+    """
+    from inspect_ai.util._limit_overrides import MAX_SAMPLE_LIMIT_OVERRIDE
+
+    assert MAX_SAMPLE_LIMIT_OVERRIDE == MAX_GENERATE_CONFIG_OVERRIDE
+
+
+def _sample_root_limits() -> "tuple[Any, Any, Any]":
+    """A sample's root limit nodes as the runner creates them (no ceilings)."""
+    from inspect_ai.util._limit import message_limit, time_limit, token_limit
+
+    return time_limit(None), token_limit(None), message_limit(None)
+
+
+def test_sample_limit_override_reaches_inflight_token_check() -> None:
+    """The root token node resolves the override at each check.
+
+    This is the mid-flight contract: a retune reaches samples already inside
+    their limit scopes (whose nodes were created before the override was
+    set), not just samples started afterwards.
+    """
+    from inspect_ai.model._model_output import ModelUsage
+    from inspect_ai.util._limit import (
+        LimitExceededError,
+        check_token_limit,
+        record_model_usage,
+    )
+    from inspect_ai.util._limit_overrides import (
+        sample_limit_override_scope,
+        set_sample_limit_override,
+    )
+
+    time_node, token_node, message_node = _sample_root_limits()
+    with sample_limit_override_scope(
+        "t1", time=time_node, token=token_node, message=message_node
+    ):
+        with token_node:
+            record_model_usage(ModelUsage(input_tokens=80, total_tokens=80))
+            check_token_limit()  # no ceiling configured — nothing to exceed
+
+            set_sample_limit_override("t1", "token_limit", 50)
+            with pytest.raises(LimitExceededError) as exc_info:
+                check_token_limit()
+            assert exc_info.value.type == "token"
+            assert exc_info.value.limit == 50
+            assert token_node.limit == 50
+
+            # clearing restores launch config (unlimited here)
+            set_sample_limit_override("t1", "token_limit", None)
+            check_token_limit()
+            assert token_node.limit is None
+
+
+def test_sample_limit_override_reaches_inflight_message_check() -> None:
+    from inspect_ai.util._limit import LimitExceededError, check_message_limit
+    from inspect_ai.util._limit_overrides import (
+        sample_limit_override_scope,
+        set_sample_limit_override,
+    )
+
+    time_node, token_node, message_node = _sample_root_limits()
+    with sample_limit_override_scope(
+        "t1", time=time_node, token=token_node, message=message_node
+    ):
+        with message_node:
+            check_message_limit(80, raise_for_equal=False)
+
+            set_sample_limit_override("t1", "message_limit", 50)
+            with pytest.raises(LimitExceededError) as exc_info:
+                check_message_limit(80, raise_for_equal=False)
+            assert exc_info.value.type == "message"
+            assert exc_info.value.limit == 50
+
+            set_sample_limit_override("t1", "message_limit", None)
+            check_message_limit(80, raise_for_equal=False)
+
+
+def test_sample_limit_override_does_not_reach_nested_limits() -> None:
+    """Only the sample root resolves the override — agent-opened limits keep theirs."""
+    from inspect_ai.model._model_output import ModelUsage
+    from inspect_ai.util._limit import token_limit
+    from inspect_ai.util._limit_overrides import (
+        sample_limit_override_scope,
+        set_sample_limit_override,
+    )
+
+    time_node, token_node, message_node = _sample_root_limits()
+    with sample_limit_override_scope(
+        "t1", time=time_node, token=token_node, message=message_node
+    ):
+        with token_node:
+            nested = token_limit(1000)
+            with nested:
+                set_sample_limit_override("t1", "token_limit", 50)
+                assert token_node.limit == 50
+                assert nested.limit == 1000
+                nested.record(ModelUsage(input_tokens=60, total_tokens=60))
+                # the nested node's own check is against its own ceiling
+                nested._check_self()
+
+
+async def test_sample_limit_override_retunes_inflight_time_deadline() -> None:
+    """A time retune re-derives the live cancel-scope deadline (set and clear)."""
+    import math
+
+    from inspect_ai.util._limit_overrides import (
+        sample_limit_override_scope,
+        set_sample_limit_override,
+    )
+
+    time_node, token_node, message_node = _sample_root_limits()
+    with sample_limit_override_scope(
+        "t1", time=time_node, token=token_node, message=message_node
+    ):
+        with time_node:
+            assert time_node._cancel_scope.deadline == math.inf
+
+            set_sample_limit_override("t1", "time_limit", 500)
+            assert time_node._cancel_scope.deadline == pytest.approx(
+                time_node._start_time + 500
+            )
+
+            set_sample_limit_override("t1", "time_limit", None)
+            assert time_node._cancel_scope.deadline == math.inf
+
+
+async def test_sample_limit_override_cancels_sample_past_new_deadline() -> None:
+    """Lowering the time limit below the elapsed time cancels the sample now."""
+    from inspect_ai.util._limit import LimitExceededError
+    from inspect_ai.util._limit_overrides import (
+        sample_limit_override_scope,
+        set_sample_limit_override,
+    )
+
+    time_node, token_node, message_node = _sample_root_limits()
+    with pytest.raises(LimitExceededError) as exc_info:
+        with sample_limit_override_scope(
+            "t1", time=time_node, token=token_node, message=message_node
+        ):
+            with time_node:
+                set_sample_limit_override("t1", "time_limit", 0)
+                await anyio.sleep(60)
+                pytest.fail("the retuned deadline should have cancelled the sleep")
+    assert exc_info.value.type == "time"
+    assert exc_info.value.limit == 0
+
+
+async def test_sample_limit_override_after_deadline_fired_keeps_honest_limit() -> None:
+    """A retune landing after the deadline fired must not falsify the outcome.
+
+    A fired cancellation is never rescinded, so the exceeded error must
+    report the limit that actually governed it — and a clear back to an
+    unlimited launch config must not swallow the delivered cancellation
+    (which would let a raw CancelledError escape the limit scope).
+    """
+    from inspect_ai.util._limit import LimitExceededError
+    from inspect_ai.util._limit_overrides import (
+        sample_limit_override_scope,
+        set_sample_limit_override,
+    )
+
+    time_node, token_node, message_node = _sample_root_limits()
+    with pytest.raises(LimitExceededError) as exc_info:
+        with sample_limit_override_scope(
+            "t1", time=time_node, token=token_node, message=message_node
+        ):
+            with time_node:
+                set_sample_limit_override("t1", "time_limit", 0)
+                try:
+                    await anyio.sleep(60)
+                finally:
+                    # the cancellation is unwinding; the operator clears the
+                    # override before __exit__ observes it
+                    set_sample_limit_override("t1", "time_limit", None)
+    assert exc_info.value.type == "time"
+    assert exc_info.value.limit == 0
+
+
+async def test_sample_limit_override_applies_to_new_time_scope() -> None:
+    """A sample started after the retune opens its scope with the override."""
+    from inspect_ai.util._limit_overrides import (
+        sample_limit_override_scope,
+        set_sample_limit_override,
+    )
+
+    set_sample_limit_override("t1", "time_limit", 500)
+    time_node, token_node, message_node = _sample_root_limits()
+    with sample_limit_override_scope(
+        "t1", time=time_node, token=token_node, message=message_node
+    ):
+        with time_node:
+            assert time_node._cancel_scope.deadline == pytest.approx(
+                time_node._start_time + 500
+            )
+
+
+def test_sample_list_token_ceiling_reflects_override() -> None:
+    """`sample list` resolves a retuned token ceiling at read time.
+
+    The override store is keyed by the stable task id while a live sample
+    row carries the per-attempt eval id — the view translates through the
+    eval registry.
+    """
+    from inspect_ai._control.state import _active_sample_summary
+    from inspect_ai.util._limit_overrides import set_sample_limit_override
+
+    class _FakeHistory:
+        last_event = None
+        event_count = 0
+
+    class _FakeTranscript:
+        history = _FakeHistory()
+
+    class _FakeSample:
+        id = "s1"
+
+    class _FakeActive:
+        eval_id = "e1"
+        sample = _FakeSample()
+        epoch = 1
+        started = 1.0
+        completed = 2.0
+        running_time = 1.0
+        total_tokens = 800
+        total_messages = 3
+        total_turns = 1
+        token_limit_usage = 800
+        token_limit = 10_000
+        token_limit_type = "all"
+        retries = None
+        transcript = _FakeTranscript()
+
+    register_eval("e1", 5, task_id="t1")
+    fake = cast(Any, _FakeActive())
+    assert _active_sample_summary(fake)["token_limit_total"] == 10_000
+    # keyed by the stable task id (as the directive writes it), read off a
+    # row that carries only the per-attempt eval id
+    set_sample_limit_override("t1", "token_limit", 5000)
+    assert _active_sample_summary(fake)["token_limit_total"] == 5000
+    # a different task's samples are untouched
+    register_eval("e2", 5, task_id="t2")
+    fake.eval_id = "e2"
+    assert _active_sample_summary(fake)["token_limit_total"] == 10_000
+
+
+@pytest.mark.parametrize("log_samples", [True, False])
+def test_sample_limit_overrides_wired_into_sample_runner(log_samples: bool) -> None:
+    """The runner attaches the override sources to each sample's root limits.
+
+    End-to-end through the real directive: a `task_limits` retune issued
+    while a real sample runs (keyed by the *stable* task id, as an operator
+    PATCH is — NOT the per-attempt eval id the sample runner sees) is
+    visible through the sample's root limit nodes (`sample_limits()`), and
+    the time node's live cancel-scope deadline tracks it. Runs with and
+    without per-sample logging — under --no-log-samples the runner has no
+    per-sample logger, but the control channel is just as targetable.
+    """
+    from inspect_ai import Task
+    from inspect_ai import eval as inspect_eval
+    from inspect_ai.dataset import Sample
+    from inspect_ai.solver import Generate, Solver, TaskState, solver
+
+    observed: dict[str, Any] = {}
+
+    @solver
+    def probe() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            from inspect_ai._control.eval_state import get_eval_state
+            from inspect_ai.log._samples import sample_active
+            from inspect_ai.util._limit import sample_limits
+
+            active = sample_active()
+            assert active is not None
+            eval_state = get_eval_state(active.eval_id)
+            assert eval_state is not None
+            # the stable task id differs from the per-attempt eval id — the
+            # regression this test pins is the runner keying its override
+            # scope by the wrong one
+            observed["distinct_ids"] = eval_state.task_id != active.eval_id
+            result = await task_limits(
+                eval_state.task_id, token_limit=1234, time_limit=600
+            )
+            assert result is not None
+            observed["view"] = result["limits"]
+            limits = sample_limits()
+            observed["token"] = limits.token.limit
+            observed["time"] = limits.time.limit
+            time_node = cast(Any, limits.time)
+            observed["deadline_tracks_override"] = time_node._cancel_scope.deadline == (
+                pytest.approx(time_node._start_time + 600)
+            )
+            return state
+
+        return solve
+
+    log = inspect_eval(
+        Task(dataset=[Sample(input="hi")], solver=probe()),
+        model="mockllm/model",
+        display="none",
+        log_samples=log_samples,
+    )[0]
+    assert log.status == "success"
+    assert observed == {
+        "distinct_ids": True,
+        "view": {"time_limit": 600, "token_limit": 1234, "message_limit": None},
+        "token": 1234,
+        "time": 600,
+        "deadline_tracks_override": True,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Named concurrency keys (--key)
 # ---------------------------------------------------------------------------
 
@@ -1061,6 +1494,66 @@ async def test_retry_overrides_route_patch_and_clear() -> None:
         assert got.json()["retry"]["max_retries"] == 4
 
 
+async def test_sample_limit_overrides_route_patch_and_clear() -> None:
+    from inspect_ai.util._limit_overrides import (
+        MAX_SAMPLE_LIMIT_OVERRIDE,
+        sample_limit_override,
+    )
+
+    register_eval("e1", 5, task_id="t1")
+
+    transport = httpx.ASGITransport(app=_app())
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://localhost"
+    ) as client:
+        patched = await client.patch(
+            "/tasks/t1/config",
+            params={"time_limit": 600, "token_limit": 50000, "message_limit": 100},
+        )
+        assert patched.status_code == 200, patched.text
+        assert patched.json()["limits"] == {
+            "time_limit": 600,
+            "token_limit": 50000,
+            "message_limit": 100,
+        }
+        assert sample_limit_override("t1", "token_limit") == 50000
+
+        # "clear" removes an override; 0 is a real value
+        cleared = await client.patch(
+            "/tasks/t1/config", params={"token_limit": "clear"}
+        )
+        assert cleared.status_code == 200, cleared.text
+        assert cleared.json()["limits"]["token_limit"] is None
+        zeroed = await client.patch("/tasks/t1/config", params={"message_limit": 0})
+        assert zeroed.status_code == 200, zeroed.text
+        assert zeroed.json()["limits"]["message_limit"] == 0
+
+        # negative, non-integer and over-bound values are rejected (an
+        # over-bound time_limit would otherwise overflow the deadline
+        # re-derivation for every live sample)
+        for bad_value in ("-1", "unset", str(MAX_SAMPLE_LIMIT_OVERRIDE + 1)):
+            bad = await client.patch(
+                "/tasks/t1/config", params={"time_limit": bad_value}
+            )
+            assert bad.status_code == 400
+            assert "time_limit" in bad.json()["error"]
+
+        # GET reports the active overrides too
+        got = await client.get("/tasks/t1/config")
+        assert got.status_code == 200, got.text
+        assert got.json()["limits"] == {
+            "time_limit": 600,
+            "token_limit": None,
+            "message_limit": 0,
+        }
+
+        # task-scoped: the process route doesn't carry these knobs (400,
+        # fail closed — a strict-server contract, not a silent drop)
+        rejected = await client.patch("/config", params={"token_limit": 1000})
+        assert rejected.status_code == 400
+        assert "token_limit" in rejected.json()["error"]
+
+
 async def test_limits_route_dry_run() -> None:
     limiter = ResizableLimiter(20)
     register_eval("e1", 5, task_id="t1")
@@ -1377,6 +1870,61 @@ async def test_config_update_clear_records_cleared_change() -> None:
     assert result["persisted"] == {"timeout": True}
     change = live.updates[0].changes[0]
     assert (change.cleared, change.value, change.previous) == (True, None, 120)
+
+
+async def test_config_update_recorded_for_sample_limit_override() -> None:
+    live = _RecordingLive()
+    _register_with_live("e1", "t1", live)
+
+    result = await task_limits("t1", token_limit=5000, author="alice", reason="runaway")
+    assert result is not None
+    assert result["persisted"] == {"token_limit": True}
+    update = live.updates[0]
+    assert update.scope == "task"
+    assert update.provenance.author == "alice"
+    assert update.provenance.reason == "runaway"
+    change = update.changes[0]
+    assert (change.config, change.name) == ("eval", "token_limit")
+    # `previous` None = no prior override (the recording layer falls back to
+    # the log's launch value)
+    assert (change.value, change.previous, change.cleared) == (5000, None, False)
+
+    # an idempotent re-send records nothing
+    live.updates.clear()
+    result = await task_limits("t1", token_limit=5000)
+    assert result is not None
+    assert result["persisted"] is None
+    assert live.updates == []
+
+    # a re-tune records the prior override as `previous`
+    result = await task_limits("t1", token_limit=8000)
+    assert result is not None
+    change = live.updates[0].changes[0]
+    assert (change.value, change.previous) == (8000, 5000)
+
+
+async def test_config_update_sample_limit_clear_records_cleared_change() -> None:
+    from inspect_ai.util._limit_overrides import set_sample_limit_override
+
+    live = _RecordingLive()
+    _register_with_live("e1", "t1", live)
+    set_sample_limit_override("t1", "time_limit", 600)
+
+    result = await task_limits("t1", time_limit="clear")
+    assert result is not None
+    assert result["persisted"] == {"time_limit": True}
+    update = live.updates[0]
+    assert update.scope == "task"
+    change = update.changes[0]
+    assert (change.config, change.name) == ("eval", "time_limit")
+    assert (change.cleared, change.value, change.previous) == (True, None, 600)
+
+    # a clear with no active override records nothing
+    live.updates.clear()
+    result = await task_limits("t1", message_limit="clear")
+    assert result is not None
+    assert result["persisted"] is None
+    assert live.updates == []
 
 
 async def test_config_update_recording_failure_degrades_to_persisted_false() -> None:
@@ -1999,6 +2547,122 @@ def test_print_config_omits_retry_knobs_for_older_server(
     out = capsys.readouterr().out
     assert "timeout" not in out
     assert "max retries" not in out
+
+
+def test_print_config_sample_limit_overrides(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Sample-limit knobs render the live override, or 'launch config' when unset."""
+    from inspect_ai._cli.ctl import _print_config
+
+    _print_config(
+        {
+            "target": {"scope": "task", "task_id": "t1", "task": "demo"},
+            "dry_run": False,
+            "knobs": {
+                "max_sandboxes": {"scope": "process", "providers": []},
+                "max_connections": {"scope": "process", "adaptive": []},
+                "time_limit": {"scope": "task", "override": 600},
+                "token_limit": {"scope": "task", "override": None},
+                "message_limit": {"scope": "task", "override": None},
+            },
+            "requested": None,
+            "warnings": [],
+            "notes": [],
+        },
+        changed=False,
+    )
+    out = capsys.readouterr().out
+    assert "  time limit [task]:          600s (override)" in out
+    assert "  token limit [task]:         launch config" in out
+    assert "  message limit [task]:       launch config" in out
+
+
+def test_print_config_sample_limit_overrides_dry_run_arrows(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A dry-run renders `current → requested`, with `clear` shown as its meaning."""
+    from inspect_ai._cli.ctl import _print_config
+
+    _print_config(
+        {
+            "target": {"scope": "task", "task_id": "t1", "task": "demo"},
+            "dry_run": True,
+            "knobs": {
+                "max_sandboxes": {"scope": "process", "providers": []},
+                "max_connections": {"scope": "process", "adaptive": []},
+                "time_limit": {"scope": "task", "override": 600},
+                "token_limit": {"scope": "task", "override": None},
+                "message_limit": {"scope": "task", "override": None},
+            },
+            "requested": {
+                "time_limit": "clear",
+                "token_limit": 50000,
+                "message_limit": 0,
+            },
+            "warnings": [],
+            "notes": [],
+        },
+        changed=True,
+    )
+    out = capsys.readouterr().out
+    assert "600s (override) → launch config" in out
+    assert "launch config → 50000" in out
+    # 0 is a real requested value, not a clear
+    assert "  message limit [task]:       launch config → 0\n" in out
+
+
+def test_print_config_sample_limits_process_placeholder(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The process view can't show the task-scoped limit knobs — placeholder."""
+    from inspect_ai._cli.ctl import _print_config
+
+    _print_config(
+        {
+            "target": {"scope": "process", "task_id": None, "task": None},
+            "dry_run": False,
+            "knobs": {
+                "max_sandboxes": {"scope": "process", "providers": []},
+                "max_connections": {"scope": "process", "adaptive": []},
+            },
+            "requested": None,
+            "warnings": [],
+            "notes": [],
+        },
+        changed=False,
+    )
+    out = capsys.readouterr().out
+    assert "  time limit [task]:          per task (pass a task to view/set)" in out
+    assert "  token limit [task]:         per task (pass a task to view/set)" in out
+    assert "  message limit [task]:       per task (pass a task to view/set)" in out
+
+
+def test_compose_config_sample_limit_overrides() -> None:
+    """The composed view carries the limit knobs with their task scope."""
+    from inspect_ai._cli.ctl import _compose_config, _DirectiveScope
+
+    scope = _DirectiveScope(
+        socket_path="/tmp/sock",
+        pid=123,
+        task_id="t1",
+        task="demo",
+        header="demo (t1)",
+        siblings=0,
+    )
+    config = _compose_config(
+        scope,
+        {
+            "limits": {"time_limit": None, "token_limit": 5000, "message_limit": None},
+            "warnings": [],
+        },
+        dry_run=False,
+        set_values=True,
+        notes=[],
+    )
+    assert config["knobs"]["token_limit"] == {"scope": "task", "override": 5000}
+    assert config["knobs"]["time_limit"] == {"scope": "task", "override": None}
+    assert config["knobs"]["message_limit"] == {"scope": "task", "override": None}
 
 
 def test_print_config_concurrency_keys_section(
