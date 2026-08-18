@@ -15,8 +15,8 @@ We choose /var/tmp as the injection location since:
 
 We additionally choose a dot-prefixed random hash sub-directory to further
 attempt to prevent LLMs from stumbling on the injected tools. When root is
-available, the extracted tree is later chmod'ed to 0755 so it is root-owned (and
-not writable by other users) while remaining executable by per-user servers.
+available, the extracted tree is later chmod'ed a+rX,go-w so it is root-owned
+(and not writable by other users) while remaining executable by per-user servers.
 """
 
 # Also defined in inspect_ai.tool._sandbox_tools_utils._build_config — keep in sync.
