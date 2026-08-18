@@ -610,6 +610,21 @@ def _reduced_score(value: Value, scores: list[Score]) -> Score:
     )
 
 
+def _unscored_reason(score: Score) -> str | None:
+    """Machine-readable reason a score is unscored, or None.
+
+    Reads the first-class `Score.reason` field where it exists, falling back to
+    the legacy `metadata["unscored_reason"]` convention. Checks `is None` rather
+    than truthiness so an explicitly-set empty reason is not overridden by a
+    stale legacy value.
+    """
+    reason = getattr(score, "reason", None)
+    if reason is not None:
+        return reason if isinstance(reason, str) else None
+    legacy = (score.metadata or {}).get("unscored_reason")
+    return legacy if isinstance(legacy, str) else None
+
+
 def _with_panel_metadata(reduced: Score, scores: list[Score]) -> Score:
     r"""Record the votes behind a reduced panel score in its metadata.
 
@@ -639,7 +654,7 @@ def _with_panel_metadata(reduced: Score, scores: list[Score]) -> Score:
             failures.append(
                 dict(
                     index=index,
-                    reason=(score.metadata or {}).get("unscored_reason"),
+                    reason=_unscored_reason(score),
                     explanation=score.explanation,
                 )
             )
