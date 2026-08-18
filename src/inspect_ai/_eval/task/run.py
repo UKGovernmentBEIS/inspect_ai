@@ -21,6 +21,7 @@ from inspect_ai._control.eval_state import (
     record_samples_added,
     register_eval,
     set_sample_requeue,
+    stable_task_id_for_eval,
 )
 from inspect_ai._control.pause import PauseGatedSemaphore, dispatch_model_name
 from inspect_ai._display import (
@@ -75,7 +76,7 @@ from inspect_ai.log import (
     EvalSample,
     EvalStats,
 )
-from inspect_ai.log._condense import condense_sample
+from inspect_ai.log._condense import condense_sample, resolve_events_attachments
 from inspect_ai.log._file import (
     EvalLogInfo,
     eval_log_json_str,
@@ -167,6 +168,7 @@ from inspect_ai.util._limit import (
 from inspect_ai.util._limit import time_limit as create_time_limit
 from inspect_ai.util._limit import turn_limit as create_turn_limit
 from inspect_ai.util._limit import working_limit as create_working_limit
+from inspect_ai.util._limit_overrides import sample_limit_override_scope
 from inspect_ai.util._sandbox import SandboxTimeoutError
 from inspect_ai.util._sandbox.context import sandbox_connections
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
@@ -180,10 +182,12 @@ from .enqueue import get_task_enqueuer
 from .error import SampleErrorHandler, _should_eval_fail
 from .generate import task_generate
 from .images import (
-    sample_with_base64_content,
+    InputMediaPolicy,
+    TaskInputMediaPlan,
+    capture_task_input_media,
+    materialize_sample_input,
     sample_without_base64_content,
     state_without_base64_content,
-    states_with_base64_content,
 )
 from .log import TaskLogger, collect_eval_data, plan_to_eval_plan
 from .results import eval_results
@@ -384,6 +388,8 @@ class TaskRunOptions:
         default=None
     )
     """Run-level incremental sandbox startup for samples a SampleSource adds."""
+    input_media_policy: InputMediaPolicy = field(default="inline_only")
+    """Authority granted to media references in the sliced seed dataset."""
 
 
 def resolve_plan(task: Task, solver: Solver | None) -> Plan:
@@ -521,11 +527,20 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
     log_model_api = config.log_model_api
     log_samples = config.log_samples is not False
 
+    # Reserve every seed id before slicing so a dynamic sample cannot reclaim
+    # an excluded id and inherit any identity or authority associated with it.
+    seed_ids = {str(sample.id) for sample in task.dataset if sample.id is not None}
+
     # slice dataset (but don't materialize all sample+state pairs upfront --
     # they are created lazily inside run_sample to keep memory at
     # O(concurrent_samples) instead of O(total_samples * epochs))
     dataset = slice_dataset(
         task.dataset, config.limit, config.sample_id, dynamic=sample_feed is not None
+    )
+    input_media_plan = (
+        capture_task_input_media(dataset)
+        if options.input_media_policy == "trusted_pre_run"
+        else {}
     )
     total_samples = len(dataset) * epochs
 
@@ -1002,8 +1017,6 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         sample_uuid: str | None = None,
                     ) -> tuple[Sample, TaskState]:
                         sample = deepcopy(get_sample(sample_index))
-                        if log_images:
-                            sample = await sample_with_base64_content(sample)
                         state = deepcopy(
                             TaskState(
                                 sample_id=sample.id or 0,
@@ -1029,6 +1042,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         task_name=task.name,
                         log_location=profile.log_location,
                         create_sample_state=create_sample_state,
+                        input_media_plan=input_media_plan,
                         sandbox=sandbox,
                         checkpoint=checkpoint,
                         eval_checkpoint=eval_checkpoint,
@@ -1134,9 +1148,9 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                     # numbering, skipping ids already in use; ids are compared
                     # by their str() form (matching ensure_unique_ids, since
                     # log member names and score grouping key on it). the seed
-                    # ids come from sample_ids (captured before the store may
-                    # have been paged to disk) rather than re-reading the store
-                    seen_ids = {str(id) for id in sample_ids}
+                    # ids come from the complete pre-slice seed set, so a
+                    # filtered-out id cannot be reclaimed by a dynamic sample
+                    seen_ids = set(seed_ids)
                     auto_id = store_len
 
                     class AddedSamples(NamedTuple):
@@ -1612,6 +1626,7 @@ async def task_run_sample(
     task_name: str,
     log_location: str,
     create_sample_state: Callable[[str | None], Awaitable[tuple[Sample, TaskState]]],
+    input_media_plan: TaskInputMediaPlan,
     sandbox: SandboxEnvironmentSpec | None,
     checkpoint: CheckpointConfig | None,
     eval_checkpoint: CheckpointConfig | None,
@@ -1834,6 +1849,18 @@ async def task_run_sample(
             limit: EvalSampleLimit | None = None
             sample_summary: EvalSampleSummary | None = None
             attempt_started = False
+            sample_row_started = False
+
+            def make_sample_summary() -> EvalSampleSummary:
+                return EvalSampleSummary(
+                    id=sample_id,
+                    epoch=state.epoch,
+                    uuid=state.uuid,
+                    input=sample.input,
+                    choices=sample.choices,
+                    target=sample.target,
+                    metadata=sample.metadata or {},
+                )
 
             async def emit_attempt_end(will_retry: bool) -> None:
                 if sample_summary is None or not attempt_started:
@@ -1857,6 +1884,39 @@ async def task_run_sample(
             )
 
             try:
+                # Open the realtime sample row before media I/O so a
+                # materialization failure can be logged and retried normally.
+                sample_summary = make_sample_summary()
+                if logger is not None and sample_id in input_media_plan:
+                    await logger.start_sample(sample_summary)
+                    sample_row_started = True
+
+                materialized_sample = await materialize_sample_input(
+                    sample, input_media_plan
+                )
+                sample.input = materialized_sample.input
+                state = deepcopy(
+                    TaskState(
+                        sample_id=state.sample_id,
+                        epoch=state.epoch,
+                        model=state.model,
+                        input=sample.input,
+                        target=state.target,
+                        choices=sample.choices,
+                        messages=sample_messages(sample),
+                        message_limit=state.message_limit,
+                        token_limit=state.token_limit,
+                        token_limit_type=state.token_limit_type,
+                        cost_limit=state.cost_limit,
+                        completed=False,
+                        metadata=state.metadata,
+                        sample_uuid=state.uuid,
+                    )
+                )
+                set_sample_state(state)
+                init_subtask_store(state.store)
+                sample_summary = make_sample_summary()
+
                 # sample init event (remove file bodies as they have content or absolute paths)
                 event_sample = sample.model_copy(
                     update=dict(files={k: "" for k in sample.files.keys()})
@@ -1865,17 +1925,6 @@ async def task_run_sample(
                 )
                 transcript()._event(
                     SampleInitEvent(sample=event_sample, state=state_jsonable(state))
-                )
-
-                # construct sample summary, used by both emit_sample_init and emit_sample_start
-                sample_summary = EvalSampleSummary(
-                    id=sample_id,
-                    epoch=state.epoch,
-                    uuid=state.uuid,
-                    input=sample.input,
-                    choices=sample.choices,
-                    target=sample.target,
-                    metadata=sample.metadata or {},
                 )
 
                 # emit sample init before sandbox creation
@@ -1903,13 +1952,27 @@ async def task_run_sample(
                         start_time = time.monotonic()
                         init_sample_working_time(start_time)
 
-                        # run sample w/ optional limits
+                        # run sample w/ optional limits. This function's
+                        # `task_id` param carries the per-attempt eval id;
+                        # the override store wants the stable task id.
+                        # Resolved through the eval registry rather than
+                        # `logger` — the per-sample logger is None under
+                        # --no-log-samples while the control channel stays
+                        # fully targetable.
+                        override_task_id = stable_task_id_for_eval(task_id)
+                        sample_time_limit = create_time_limit(time_limit)
                         with (
+                            sample_limit_override_scope(
+                                override_task_id,
+                                time=sample_time_limit,
+                                token=state._token_limit,
+                                message=state._message_limit,
+                            ),
                             state._token_limit,
                             state._cost_limit,
                             state._message_limit,
                             create_turn_limit(turn_limit),
-                            create_time_limit(time_limit),
+                            sample_time_limit,
                             create_working_limit(working_limit),
                         ):
 
@@ -2055,7 +2118,7 @@ async def task_run_sample(
 
                             try:
                                 # emit/log sample start
-                                if logger is not None:
+                                if logger is not None and not sample_row_started:
                                     await logger.start_sample(sample_summary)
 
                                 # only emit the sample start once: not on retries
@@ -2294,12 +2357,8 @@ async def task_run_sample(
                 if not error or (retry_on_error == 0) or (cancelled_error is not None):
                     progress(SAMPLE_TOTAL_PROGRESS_UNITS)
 
-                    # if we are logging images then be sure to base64 images injected by solvers
-                    if log_images:
-                        state = (await states_with_base64_content([state]))[0]
-
-                    # otherwise ensure there are no base64 images in sample or messages
-                    else:
+                    # ensure there are no base64 images in sample or messages
+                    if not log_images:
                         sample = sample_without_base64_content(sample)
                         state = state_without_base64_content(state)
 
@@ -2400,6 +2459,7 @@ async def task_run_sample(
             task_name=task_name,
             log_location=log_location,
             create_sample_state=create_sample_state,
+            input_media_plan=input_media_plan,
             sandbox=sandbox,
             checkpoint=checkpoint,
             eval_checkpoint=eval_checkpoint,
@@ -3002,6 +3062,9 @@ def _eval_retry_error_from_sample(sample: EvalSample) -> EvalRetryError:
         if isinstance(events[i], ModelEvent):
             recent_events = list(events[i:])
             break
+    recent_events = resolve_events_attachments(
+        recent_events, sample.attachments, "full"
+    )
     return EvalRetryError(
         message=sample.error.message,
         traceback=sample.error.traceback,
