@@ -19,12 +19,10 @@ model (see "CLI command hierarchy: noun groups" in the design doc):
 - ``process`` — the running Inspect process itself: ``list`` (implied by the
   bare noun), ``anomalies``, ``keep``, ``release``.
 
-The old flat spellings (``tasks``, ``samples``, ``errors``, ``events``,
-``keep``, ``release``, ``flush``, ``buffer``, ``limits``) survive as hidden,
-deprecation-noted aliases for a transition window — thin delegations to the
-new implementations (new behavior and JSON shapes included). The old
-``sample`` command's name is claimed by the group and breaks immediately;
-its error message points at ``sample show``.
+The pre-reorg flat spellings (``tasks``, ``samples``, ``errors``, ``events``,
+``keep``, ``release``, ``flush``, ``buffer``, ``limits``) survived as hidden,
+deprecation-noted aliases for a transition window and have been removed; the
+mapping table in the design doc records each replacement.
 """
 
 from __future__ import annotations
@@ -130,40 +128,29 @@ _KNOB_SCOPE: dict[str, str] = {
     "timeout": "process",
     "attempt_timeout": "process",
     "max_retries": "process",
+    "time_limit": "task",
+    "token_limit": "task",
+    "message_limit": "task",
 }
 
-# Minimum control-API version each knob requires of the *server* process (the
-# `CONTROL_API_VERSION` from `inspect_ai._control` that its inspect embedded
-# at launch). Parallel to `_KNOB_SCOPE`: every knob needs an entry (key-set
-# parity is asserted in `_exec_limits` and pinned by a test). Since-0 knobs
-# are never gated — and every *new* knob is since-0: strict servers
-# (version >= 3, the only ones left in the field) reject unknown mutation
-# params with a 400, so no pre-send gate is needed (see the skew-policy
-# comment in `inspect_ai._control`). The nonzero entries predate strict
-# mutations, when an older server's PATCH handler would silently ignore an
-# unknown knob while applying the rest; `_gate_knob_support` hard-errors
-# those against a pre-strict process before sending, and retires with
-# issue #67.
-_KNOB_SINCE: dict[str, int] = {
-    "max_samples": 0,
-    "max_sandboxes": 0,
-    "max_subprocesses": 1,
-    "max_connections": 0,
-    "key": 2,
-    "log_buffer": 0,
-    "log_shared": 0,
-    "timeout": 4,
-    "attempt_timeout": 4,
-    "max_retries": 4,
-}
+# Minimum control-API version at which the server enforces strict mutations:
+# a PATCH/POST carrying a query param the route doesn't declare is rejected
+# with a 400, atomically, before anything is applied (`_control/strict.py`).
+# From this version on, individual knobs need no client-side version gate —
+# the server itself fails closed on a knob it doesn't know. Below it the
+# tolerant handlers silently ignore unknown params while applying the rest,
+# so the CLI refuses knob mutations outright. See `_gate_strict_floor`.
+_STRICT_SINCE = 3
 
 # Minimum control-API version for the config provenance params (`author` /
-# `reason`, recorded into `EvalLog.config_updates`). Not a knob — the params
-# change nothing — but the CLI sends a *defaulted* author the user never
-# typed, and a strict older server would 400 the whole mutation for it, so
-# the default is included only against servers advertising >= this version
+# `reason`, recorded into `EvalLog.config_updates`). Knobs themselves need no
+# per-knob version gate — a strict server 400s a mutation carrying a knob it
+# doesn't know, atomically (see the skew-policy comment in
+# `inspect_ai._control`) — but the CLI sends a *defaulted* author the user
+# never typed, and a strict older server would 400 the whole mutation for it,
+# so the default is included only against servers advertising >= this version
 # (an explicit --author/--reason against an older server hard-errors before
-# sending, like the legacy knob gates). See `_gate_provenance_support`.
+# sending). See `_gate_provenance_support`.
 _PROVENANCE_SINCE = 5
 
 
@@ -179,11 +166,12 @@ else:
 class _IntOrClearType(_IntOrClearBase):
     """Non-negative integer, or the keyword ``clear`` (restore launch config).
 
-    The retry-override knobs' value domain: every integer >= 0 (up to the
-    server-shared ``MAX_GENERATE_CONFIG_OVERRIDE`` bound) is a real value
-    (``--max-retries 0`` means fail after the first attempt), so clearing an
-    override needs an out-of-band spelling — the literal ``clear``, passed
-    through to the server verbatim.
+    The override knobs' value domain (the retry overrides and the per-sample
+    limit overrides alike): every integer >= 0 (up to the server-shared
+    ``MAX_GENERATE_CONFIG_OVERRIDE`` bound, which ``MAX_SAMPLE_LIMIT_OVERRIDE``
+    matches) is a real value (``--max-retries 0`` means fail after the first
+    attempt), so clearing an override needs an out-of-band spelling — the
+    literal ``clear``, passed through to the server verbatim.
     """
 
     name = "integer or 'clear'"
@@ -340,6 +328,25 @@ def _json_option(what: str) -> Callable[[Callable[..., None]], Callable[..., Non
     )
 
 
+def _now_option(
+    holds: str = "in-flight samples at their next model call",
+) -> Callable[[Callable[..., None]], Callable[..., None]]:
+    """The ``--now`` (hard pause) flag the pause verbs carry.
+
+    ``holds`` names what the scope's hard gate parks (the model scope holds
+    calls *to* the model, role/grader calls included, rather than samples).
+    """
+    return click.option(
+        "--now",
+        is_flag=True,
+        default=False,
+        help=(
+            f"Hard pause: additionally hold {holds} (outstanding calls "
+            "finish; wall-clock time limits keep running while held)."
+        ),
+    )
+
+
 def _terse_option(
     note: str = "",
 ) -> Callable[[Callable[..., None]], Callable[..., None]]:
@@ -486,15 +493,6 @@ def _exit_all_busy(busy_pids: list[int]) -> NoReturn:
     _fail("busy", f"No tasks visible: {_busy_note(busy_pids)}.")
 
 
-def _deprecation_note(old: str, new: str) -> None:
-    """Print (to stderr, keeping ``--json`` stdout parseable) an alias note."""
-    _echo(
-        f"note: `inspect ctl {old}` is now `inspect ctl {new}` — this hidden "
-        "alias will be removed in a future release.",
-        err=True,
-    )
-
-
 # ---------------------------------------------------------------------------
 # task group
 # ---------------------------------------------------------------------------
@@ -608,6 +606,7 @@ def task_cancel_command(
 
 @task_group.command("pause")
 @click.argument("task", required=False)
+@_now_option()
 @click.option(
     "--dry-run",
     is_flag=True,
@@ -617,20 +616,25 @@ def task_cancel_command(
 @_json_option(_MUTATION_ENVELOPE_HELP)
 @_terse_option()
 def task_pause_command(
-    task: str | None, dry_run: bool, as_json: bool, terse: bool | None
+    task: str | None, now: bool, dry_run: bool, as_json: bool, terse: bool | None
 ) -> None:
     """Pause a running task (stop dispatching new work; in-flight finishes).
 
     In-flight samples finish naturally (with scoring and log writes); queued
     samples and a queued retry attempt hold, unstarted — spending none of
-    their time limits — until `inspect ctl task resume`. Non-destructive,
-    idempotent, and reversible; cancel and config changes still work on a
-    paused task. To pause a whole eval-set (every task plus its task/retry
-    dispatch), use `inspect ctl process pause`. TASK (a task-id prefix or
-    name) is required when several tasks run.
+    their time limits — until `inspect ctl task resume`. With `--now` (the
+    hard pause), in-flight samples additionally hold at their next model
+    call: outstanding model calls and batch waits complete, but no new call
+    starts until resume. Note the wall clock keeps running for held samples
+    — a sample held past its time_limit resolves as an ordinary time-limit
+    outcome. Non-destructive, idempotent, and reversible (a plain pause
+    after `--now` downgrades to the soft pause); cancel and config changes
+    still work on a paused task. To pause a whole eval-set (every task plus
+    its task/retry dispatch), use `inspect ctl process pause`. TASK (a
+    task-id prefix or name) is required when several tasks run.
     """
     _run_task_pause_resume(
-        task, verb="pause", dry_run=dry_run, as_json=as_json, terse=terse
+        task, verb="pause", now=now, dry_run=dry_run, as_json=as_json, terse=terse
     )
 
 
@@ -1109,8 +1113,19 @@ def sample_cancel_command(
 
 @sample_group.command("requeue")
 @click.argument("task")
-@click.argument("sample_id")
-@click.argument("epoch", required=False, type=int, default=None)
+@click.argument(
+    "targets", nargs=-1, metavar="[SAMPLE_ID [EPOCH] | SAMPLE_ID EPOCH ...]"
+)
+@click.option(
+    "--errored",
+    is_flag=True,
+    default=False,
+    help=(
+        "Requeue every currently-errored sample of the task (resolved from "
+        "the live listing, so each epoch is explicit — never a default). "
+        "Mutually exclusive with SAMPLE_ID arguments."
+    ),
+)
 @click.option(
     "--dry-run",
     is_flag=True,
@@ -1121,32 +1136,94 @@ def sample_cancel_command(
 @_terse_option()
 def sample_requeue_command(
     task: str,
-    sample_id: str,
-    epoch: int | None,
+    targets: tuple[str, ...],
+    errored: bool,
     dry_run: bool,
     as_json: bool,
     terse: bool | None,
 ) -> None:
-    """Re-run one errored/cancelled sample inside the live run.
+    """Re-run errored/cancelled samples inside the live run.
 
-    The sample goes to the back of the sample queue and re-runs under the
+    Each sample goes to the back of the sample queue and re-runs under the
     task's normal machinery (prior errors ride along as retry history, and a
     checkpointed sample resumes from its checkpoint); the run's final log
     and counters reflect the fresh outcome. Idempotent — requeuing a sample
     whose re-run is already pending, queued, or running is a clean no-op.
     Requeuing a completed sample is an error (re-running or re-scoring a
-    success is out of scope). EPOCH defaults to 1 but is required whenever
-    the task runs more than one epoch (a defaulted epoch would silently
-    requeue a different attempt).
+    success is out of scope).
+
+    Target one sample (`SAMPLE_ID [EPOCH]`), several (`SAMPLE_ID EPOCH`
+    pairs), or every currently-errored sample (`--errored`). A single
+    sample's EPOCH defaults to 1 but is required whenever the task runs
+    more than one epoch (a defaulted epoch would silently requeue a
+    different attempt); with several samples every epoch must be explicit.
+    A sweep reports each sample's result individually (requeued / no-op /
+    rejected) and exits zero once every sample was attempted — branch on the
+    results, not the exit code. Note for scripted sweeps: a single sample
+    target keeps the single-sample `--json` envelope; `--errored` always
+    returns the bulk envelope (even for one sample).
+
+    Example: inspect ctl sample requeue my-task --errored
     """
-    _run_sample_requeue(
-        task,
-        sample_id,
-        epoch,
-        dry_run=dry_run,
-        as_json=as_json,
-        terse=terse,
-    )
+    if errored and targets:
+        raise click.UsageError(
+            "--errored and SAMPLE_ID arguments are mutually exclusive."
+        )
+    if errored:
+        _run_sample_requeue_errored(task, dry_run=dry_run, as_json=as_json, terse=terse)
+        return
+    if not targets:
+        raise click.UsageError(
+            "Pass SAMPLE_ID [EPOCH] (or several SAMPLE_ID EPOCH pairs), or "
+            "--errored to requeue every currently-errored sample."
+        )
+    if len(targets) == 1:
+        _run_sample_requeue(
+            task, targets[0], None, dry_run=dry_run, as_json=as_json, terse=terse
+        )
+        return
+    pairs = _parse_requeue_pairs(targets)
+    if len(pairs) == 1:
+        _run_sample_requeue(
+            task,
+            pairs[0][0],
+            pairs[0][1],
+            dry_run=dry_run,
+            as_json=as_json,
+            terse=terse,
+        )
+    else:
+        _run_sample_requeue_bulk(
+            task, pairs, dry_run=dry_run, as_json=as_json, terse=terse
+        )
+
+
+def _parse_requeue_pairs(targets: tuple[str, ...]) -> list[tuple[str, int]]:
+    """Parse two or more requeue tokens as ``SAMPLE_ID EPOCH`` pairs.
+
+    With several samples every epoch must be explicit — the fail-closed
+    epoch rule (a defaulted epoch resolves to a *different sample*) leaves
+    no safe reading of a bare id list — so an odd token count or a
+    non-integer epoch slot is a usage error.
+    """
+    if len(targets) % 2 != 0:
+        raise click.UsageError(
+            "Requeue targets must be SAMPLE_ID EPOCH pairs — with several "
+            "samples every epoch must be explicit (a defaulted epoch would "
+            "silently requeue a different attempt)."
+        )
+    pairs: list[tuple[str, int]] = []
+    for sample_id, epoch_token in zip(targets[::2], targets[1::2]):
+        try:
+            epoch = int(epoch_token)
+        except ValueError:
+            raise click.UsageError(
+                f"'{epoch_token}' is not an integer EPOCH — pass SAMPLE_ID "
+                "EPOCH pairs (with several samples every epoch must be "
+                "explicit)."
+            ) from None
+        pairs.append((sample_id, epoch))
+    return pairs
 
 
 # ---------------------------------------------------------------------------
@@ -1231,6 +1308,39 @@ def sample_requeue_command(
     help=f"[{_KNOB_SCOPE['log_shared']}] Shared-log event sync interval, in seconds.",
 )
 @click.option(
+    "--time-limit",
+    type=_INT_OR_CLEAR,
+    metavar="SECONDS",
+    default=None,
+    help=(
+        f"[{_KNOB_SCOPE['time_limit']}] Override the per-sample wall-clock "
+        "time limit, in seconds — reaches in-flight samples too ('clear' "
+        "restores launch config)."
+    ),
+)
+@click.option(
+    "--token-limit",
+    type=_INT_OR_CLEAR,
+    metavar="INTEGER",
+    default=None,
+    help=(
+        f"[{_KNOB_SCOPE['token_limit']}] Override the per-sample token limit "
+        "— applies at each sample's next token check, in-flight samples "
+        "included ('clear' restores launch config)."
+    ),
+)
+@click.option(
+    "--message-limit",
+    type=_INT_OR_CLEAR,
+    metavar="INTEGER",
+    default=None,
+    help=(
+        f"[{_KNOB_SCOPE['message_limit']}] Override the per-sample message "
+        "limit — applies at each sample's next message check, in-flight "
+        "samples included ('clear' restores launch config)."
+    ),
+)
+@click.option(
     "--timeout",
     type=_INT_OR_CLEAR,
     metavar="SECONDS",
@@ -1298,6 +1408,9 @@ def config_command(
     key: tuple[str, int] | None,
     log_buffer: int | None,
     log_shared: int | None,
+    time_limit: int | Literal["clear"] | None,
+    token_limit: int | Literal["clear"] | None,
+    message_limit: int | Literal["clear"] | None,
     timeout: int | Literal["clear"] | None,
     attempt_timeout: int | Literal["clear"] | None,
     max_retries: int | Literal["clear"] | None,
@@ -1326,7 +1439,12 @@ def config_command(
     what's already buffered now. `--timeout` / `--attempt-timeout` /
     `--max-retries` set live overrides read by the model retry loop, so a
     change reaches even generate calls already retrying (in-flight API
-    requests still drain first); pass `clear` to remove an override. Applied
+    requests still drain first); pass `clear` to remove an override.
+    `--time-limit` / `--token-limit` / `--message-limit` likewise set live
+    overrides on the task's per-sample limits, read where each sample's
+    limits are checked — so a retune reaches in-flight samples (a lowered
+    time limit cancels a sample already past it) as well as ones not yet
+    started; pass `clear` to restore launch config. Applied
     changes are recorded in each affected eval log (who / when / old → new);
     `--reason` annotates the record with why. TASK
     is required only for setting a task-scoped knob when several tasks run.
@@ -1343,6 +1461,9 @@ def config_command(
         key=key,
         log_buffer=log_buffer,
         log_shared=log_shared,
+        time_limit=time_limit,
+        token_limit=token_limit,
+        message_limit=message_limit,
         timeout=timeout,
         attempt_timeout=attempt_timeout,
         max_retries=max_retries,
@@ -1430,6 +1551,7 @@ def process_release_command(pid: int | None, as_json: bool) -> None:
 
 @process_group.command("pause")
 @click.argument("pid", required=False, type=int)
+@_now_option()
 @click.option(
     "--dry-run",
     is_flag=True,
@@ -1437,18 +1559,28 @@ def process_release_command(pid: int | None, as_json: bool) -> None:
     help="Report what would be paused without doing it.",
 )
 @_json_option(_MUTATION_ENVELOPE_HELP)
-def process_pause_command(pid: int | None, dry_run: bool, as_json: bool) -> None:
+def process_pause_command(
+    pid: int | None, now: bool, dry_run: bool, as_json: bool
+) -> None:
     """Pause a whole running eval or eval-set (stop dispatching new work; in-flight finishes).
 
     One process-scoped latch: no new eval-set tasks dispatch, no task
     retries start, and no samples dispatch in any task; in-flight samples
-    finish naturally. The process, its queue, and this control surface stay
-    alive — watch `inspect ctl task list` for `quiesced` (paused with
-    nothing in flight), after which completed work is flushed and the
-    process can be killed cleanly if needed. Resume with `inspect ctl
-    process resume`. Idempotent and non-destructive.
+    finish naturally. With `--now` (the hard pause), in-flight samples
+    additionally hold at their next model call — model spend stops as soon
+    as outstanding calls complete, at the price of the wall clock running
+    for held samples (a sample held past its time_limit resolves as an
+    ordinary time-limit outcome). The process, its queue, and this control
+    surface stay alive — watch `inspect ctl task list` for `quiesced`
+    (paused with nothing in flight), after which completed work is flushed
+    and the process can be killed cleanly if needed (under `--now`, a
+    nonzero `held` count means samples are mid-flight: killing then
+    forfeits their in-sample progress). Resume with `inspect ctl process
+    resume`. Idempotent and non-destructive.
     """
-    _run_process_pause_resume(pid, verb="pause", dry_run=dry_run, as_json=as_json)
+    _run_process_pause_resume(
+        pid, verb="pause", now=now, dry_run=dry_run, as_json=as_json
+    )
 
 
 @process_group.command("resume")
@@ -1530,6 +1662,12 @@ model_group.hint = lambda token: (
 @model_group.command("pause")
 @click.argument("model")
 @click.argument("pid", required=False, type=int)
+@_now_option(
+    holds=(
+        "generate calls to MODEL at their next attempt — including other "
+        "tasks' role/grader calls to it"
+    )
+)
 @click.option(
     "--dry-run",
     is_flag=True,
@@ -1538,7 +1676,7 @@ model_group.hint = lambda token: (
 )
 @_json_option(_MUTATION_ENVELOPE_HELP)
 def model_pause_command(
-    model: str, pid: int | None, dry_run: bool, as_json: bool
+    model: str, pid: int | None, now: bool, dry_run: bool, as_json: bool
 ) -> None:
     """Pause one model's dispatch (stop starting its tasks' work; in-flight finishes).
 
@@ -1546,12 +1684,17 @@ def model_pause_command(
     retry attempts start, and the eval-set scheduler does not start its
     not-yet-started tasks — which `inspect ctl task pause` cannot reach.
     Everything else keeps running, and in-flight samples (including other
-    tasks' role/grader calls to this model) finish naturally. MODEL is the
-    exact name shown by `inspect ctl task list`; an unknown name is an
-    error. PID is required when several processes run. Idempotent;
-    resume with `inspect ctl model resume`.
+    tasks' role/grader calls to this model) finish naturally. With `--now`
+    (the hard pause), generate calls to MODEL — role/grader calls included
+    — hold at their next attempt instead: the model's spend stops as soon
+    as outstanding calls complete, while the wall clock keeps running for
+    held samples. MODEL is the exact name shown by `inspect ctl task list`;
+    an unknown name is an error. PID is required when several processes
+    run. Idempotent; resume with `inspect ctl model resume`.
     """
-    _run_model_pause_resume(model, pid, verb="pause", dry_run=dry_run, as_json=as_json)
+    _run_model_pause_resume(
+        model, pid, verb="pause", now=now, dry_run=dry_run, as_json=as_json
+    )
 
 
 @model_group.command("resume")
@@ -1575,197 +1718,6 @@ def model_resume_command(
     required when several processes run.
     """
     _run_model_pause_resume(model, pid, verb="resume", dry_run=dry_run, as_json=as_json)
-
-
-# ---------------------------------------------------------------------------
-# hidden deprecated aliases (the old flat spellings)
-# ---------------------------------------------------------------------------
-#
-# Thin delegations to the new implementations: spellings are preserved,
-# output is NOT (the new `{as_of, ...}` envelopes, unconditional task_id,
-# widened unscoped reads all apply through the alias). Each prints a one-line
-# stderr pointer at the new spelling. The old `sample` command is the one
-# spelling that cannot alias — the name is claimed by the group — and its
-# unknown-command error points at `sample show`.
-
-
-@ctl_command.command("tasks", hidden=True)
-@click.option("--json", "as_json", is_flag=True, default=False)
-def tasks_alias(as_json: bool) -> None:
-    """Deprecated alias for `inspect ctl task list`."""
-    _deprecation_note("tasks", "task list")
-    _run_task_list(as_json)
-
-
-@ctl_command.command("samples", hidden=True)
-@click.argument("task", required=False)
-@click.option("--active-since", type=float, default=None)
-@click.option("--content", is_flag=True, default=False)
-@click.option("--json", "as_json", is_flag=True, default=False)
-def samples_alias(
-    task: str | None, active_since: float | None, content: bool, as_json: bool
-) -> None:
-    """Deprecated alias for `inspect ctl sample list`."""
-    _deprecation_note("samples", "sample list")
-    _run_sample_list(task, active_since, as_json, content=content)
-
-
-@ctl_command.command("errors", hidden=True)
-@click.argument("task", required=False)
-@click.option("--content", is_flag=True, default=False)
-@click.option("--json", "as_json", is_flag=True, default=False)
-def errors_alias(task: str | None, content: bool, as_json: bool) -> None:
-    """Deprecated alias for `inspect ctl sample errors`."""
-    _deprecation_note("errors", "sample errors")
-    _run_sample_errors(task, as_json, content=content)
-
-
-@ctl_command.command("events", hidden=True)
-@click.argument("task")
-@click.argument("sample_id")
-@click.argument("epoch", required=False, type=int, default=1)
-@click.option("--since", "cursor", default=None)
-@click.option("--tail", type=int, default=None)
-@click.option("--type", "types", default=None)
-@click.option("--content", is_flag=True, default=False)
-@click.option("--full", is_flag=True, default=False)
-@click.option("--since-time", type=float, default=None)
-@click.option("--until", type=float, default=None)
-@click.option("--json", "as_json", is_flag=True, default=False)
-def events_alias(
-    task: str,
-    sample_id: str,
-    epoch: int,
-    cursor: str | None,
-    tail: int | None,
-    types: str | None,
-    content: bool,
-    full: bool,
-    since_time: float | None,
-    until: float | None,
-    as_json: bool,
-) -> None:
-    """Deprecated alias for `inspect ctl sample events` (--since is --cursor)."""
-    _deprecation_note("events", "sample events")
-    _run_sample_events(
-        task,
-        sample_id,
-        epoch,
-        cursor=cursor,
-        tail=tail,
-        from_start=False,
-        limit=None,
-        types=types,
-        content=content,
-        full=full,
-        since_time=since_time,
-        until=until,
-        as_json=as_json,
-    )
-
-
-# The aliases keep the old `--pid` option but also accept the positional PID
-# the new spelling (and the shared ambiguity error) teaches.
-@ctl_command.command("keep", hidden=True)
-@click.argument("pid_arg", required=False, type=int, metavar="[PID]")
-@click.option("--pid", type=int, default=None)
-@click.option("--json", "as_json", is_flag=True, default=False)
-def keep_alias(pid_arg: int | None, pid: int | None, as_json: bool) -> None:
-    """Deprecated alias for `inspect ctl process keep`."""
-    _deprecation_note("keep", "process keep")
-    _run_keep_alive(pid_arg if pid_arg is not None else pid, keep=True, as_json=as_json)
-
-
-@ctl_command.command("release", hidden=True)
-@click.argument("pid_arg", required=False, type=int, metavar="[PID]")
-@click.option("--pid", type=int, default=None)
-@click.option("--json", "as_json", is_flag=True, default=False)
-def release_alias(pid_arg: int | None, pid: int | None, as_json: bool) -> None:
-    """Deprecated alias for `inspect ctl process release`."""
-    _deprecation_note("release", "process release")
-    _run_keep_alive(
-        pid_arg if pid_arg is not None else pid, keep=False, as_json=as_json
-    )
-
-
-@ctl_command.command("flush", hidden=True)
-@click.argument("task", required=False)
-@click.option("--json", "as_json", is_flag=True, default=False)
-@click.option("--terse/--no-terse", "terse", default=None)
-def flush_alias(task: str | None, as_json: bool, terse: bool | None) -> None:
-    """Deprecated alias for `inspect ctl task log-flush`."""
-    _deprecation_note("flush", "task log-flush")
-    _run_log_flush(task, as_json, terse=terse)
-
-
-@ctl_command.command("buffer", hidden=True)
-@click.argument("task", required=False)
-@click.option("--samples", "log_buffer", type=int, default=None)
-@click.option("--shared", "log_shared", type=int, default=None)
-@click.option("--json", "as_json", is_flag=True, default=False)
-@click.option("--terse/--no-terse", "terse", default=None)
-def buffer_alias(
-    task: str | None,
-    log_buffer: int | None,
-    log_shared: int | None,
-    as_json: bool,
-    terse: bool | None,
-) -> None:
-    """Deprecated alias for `inspect ctl config --log-buffer / --log-shared`."""
-    _deprecation_note("buffer", "config --log-buffer/--log-shared")
-    _run_config(
-        task,
-        max_samples=None,
-        max_sandboxes=None,
-        max_subprocesses=None,
-        max_connections=None,
-        model=None,
-        key=None,
-        log_buffer=log_buffer,
-        log_shared=log_shared,
-        dry_run=False,
-        as_json=as_json,
-        terse=terse,
-    )
-
-
-@ctl_command.command("limits", hidden=True)
-@click.argument("task", required=False)
-@click.option("--max-samples", type=click.IntRange(min=1), default=None)
-@click.option("--max-sandboxes", type=click.IntRange(min=1), default=None)
-@click.option("--max-connections", type=click.IntRange(min=1), default=None)
-@click.option("--model", default=None)
-@click.option("--key", "key", type=(str, click.IntRange(min=1)), default=None)
-@click.option("--dry-run", is_flag=True, default=False)
-@click.option("--json", "as_json", is_flag=True, default=False)
-@click.option("--terse/--no-terse", "terse", default=None)
-def limits_alias(
-    task: str | None,
-    max_samples: int | None,
-    max_sandboxes: int | None,
-    max_connections: int | None,
-    model: str | None,
-    key: tuple[str, int] | None,
-    dry_run: bool,
-    as_json: bool,
-    terse: bool | None,
-) -> None:
-    """Deprecated alias for `inspect ctl config`."""
-    _deprecation_note("limits", "config")
-    _run_config(
-        task,
-        max_samples=max_samples,
-        max_sandboxes=max_sandboxes,
-        max_subprocesses=None,
-        max_connections=max_connections,
-        model=model,
-        key=key,
-        log_buffer=None,
-        log_shared=None,
-        dry_run=dry_run,
-        as_json=as_json,
-        terse=terse,
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -1818,12 +1770,18 @@ class _CtlFailure(click.exceptions.Exit):
         *,
         exception: str | None = None,
         status: int | None = None,
+        missing_route: bool = False,
     ) -> None:
         super().__init__(1)
         self.kind = kind
         self.message = message
         self.exception = exception
         self.status = status
+        # a router 404 (endpoint absent — older server) rather than an
+        # entity 404; classification for callers that must tell the two
+        # apart (e.g. the bulk-requeue sweep aborts on it), not an
+        # envelope field
+        self.missing_route = missing_route
         self._emitted = False
 
     @classmethod
@@ -1854,6 +1812,7 @@ def _fail(
     *,
     exception: str | None = None,
     status: int | None = None,
+    missing_route: bool = False,
 ) -> NoReturn:
     """Echo ``message`` to stderr and raise the matching :class:`_CtlFailure`.
 
@@ -1865,7 +1824,9 @@ def _fail(
     directly instead.
     """
     _echo(message, err=True)
-    raise _CtlFailure(kind, message, exception=exception, status=status)
+    raise _CtlFailure(
+        kind, message, exception=exception, status=status, missing_route=missing_route
+    )
 
 
 class _FailureKind(NamedTuple):
@@ -1953,8 +1914,8 @@ def _envelope_failures(fn: Callable[_P, None]) -> Callable[_P, None]:
     """Wrap a command runner in :func:`_structured_failures`.
 
     Reads the runner's ``as_json`` argument off the bound call, so the
-    wrapper needs no per-runner plumbing and the aliases are covered through
-    their delegation. Every runner must take an ``as_json`` parameter —
+    wrapper needs no per-runner plumbing. Every runner must take an
+    ``as_json`` parameter —
     enforced at decoration time so a missing/renamed parameter fails at
     import rather than silently reverting that command to unstructured
     failures.
@@ -1996,7 +1957,7 @@ def _unreachable_failure(message: str, exc: "_ServerUnreachable") -> _CtlFailure
 
 
 # ---------------------------------------------------------------------------
-# command runners (shared by the canonical commands and the aliases)
+# command runners
 # ---------------------------------------------------------------------------
 
 
@@ -2945,21 +2906,37 @@ def _run_log_flush(task: str | None, as_json: bool, terse: bool | None = None) -
         _echo("\nNo buffered samples to flush.")
 
 
-def _mutation_envelope(
-    target: dict[str, Any], result: dict[str, Any], *, dry_run: bool
-) -> dict[str, Any]:
-    """The uniform ``--json`` mutation result envelope for the cancel verbs.
+class _MutationOutcome(NamedTuple):
+    applied: bool
+    detail: dict[str, Any]
+
+
+def _mutation_outcome(result: dict[str, Any], *, dry_run: bool) -> _MutationOutcome:
+    """The ``applied``/``detail`` semantics every mutation result shape shares.
 
     ``applied`` reports whether the mutation actually landed — false on a
     dry run and on the idempotent already-in-that-state no-op (the server's
     ``changed: false``) — so an agent branches on one field. The server's
     response rides along as ``detail`` (minus the transport-level ``ok``).
+    Both the single-sample envelope and the bulk-requeue per-sample results
+    derive these fields here so the rule cannot drift between them.
     """
+    return _MutationOutcome(
+        applied=bool(result.get("changed")) and not dry_run,
+        detail={k: v for k, v in result.items() if k != "ok"},
+    )
+
+
+def _mutation_envelope(
+    target: dict[str, Any], result: dict[str, Any], *, dry_run: bool
+) -> dict[str, Any]:
+    """The uniform ``--json`` mutation result envelope for the cancel verbs."""
+    outcome = _mutation_outcome(result, dry_run=dry_run)
     return {
         "target": target,
-        "applied": bool(result.get("changed")) and not dry_run,
+        "applied": outcome.applied,
         "dry_run": dry_run,
-        "detail": {k: v for k, v in result.items() if k != "ok"},
+        "detail": outcome.detail,
     }
 
 
@@ -3068,6 +3045,49 @@ def _run_task_cancel(
             _echo(f"Nothing to do: {reason}.")
 
 
+# the hard-pause caveat, shared by the three pause scopes' messages
+_HELD_CAVEAT = (
+    "outstanding calls finish; wall-clock time limits keep running while held"
+)
+
+
+def _pause_prefix(*, now: bool, dry_run: bool, target: str = "") -> str:
+    """The leading clause of a pause confirmation, across scope/strength/dry-run."""
+    if dry_run:
+        return f"Would {'hard-pause' if now else 'pause'} {target}".rstrip()
+    requested = "Hard pause requested" if now else "Pause requested"
+    return f"{requested} for {target}" if target else requested
+
+
+def _pause_confirmation(
+    *,
+    now: bool,
+    dry_run: bool,
+    target: str = "",
+    body: str,
+    no_new: str,
+    hint_hard: str,
+    hint_soft: str,
+) -> str:
+    """Assemble a pause confirmation from its scope-specific prose.
+
+    Owns the skeleton shared by the three pause scopes (prefix — body;
+    no new X start; trailing hint) so their structure can't drift.
+    ``body`` may contain ``{will}`` placeholders, resolved to would/will
+    here so callers don't need the tense. The hints are appended only
+    for real mutations and carry their own leading punctuation (usually
+    ``". "``; the model scope opens with a parenthetical instead).
+    """
+    will = "would" if dry_run else "will"
+    message = (
+        f"{_pause_prefix(now=now, dry_run=dry_run, target=target)} — "
+        f"{body.format(will=will)}; no new {no_new} {will} start"
+    )
+    if dry_run:
+        return message + "."
+    return message + (hint_hard if now else hint_soft)
+
+
 _PAUSE_ROUTE_MISSING = (
     "This process is running an older inspect without the pause/resume "
     "endpoints; restart the eval to pick up the current version."
@@ -3126,6 +3146,7 @@ def _run_task_pause_resume(
     task: str | None,
     *,
     verb: Literal["pause", "resume"],
+    now: bool = False,
     dry_run: bool,
     as_json: bool,
     terse: bool | None = None,
@@ -3137,6 +3158,9 @@ def _run_task_pause_resume(
     ``task cancel`` in the selector-always-required class (the same
     reasoning that gives ``process keep`` / ``release`` the sole-target
     default — the worst case of a wrongly targeted pause is a resume).
+    ``now`` (the hard pause) needs no version gate: an older server rejects
+    the unknown param with a 400 (strict mutations), so it fails loudly
+    rather than silently soft-pausing.
     """
     servers = list_discovered_servers()
     summaries = _fetch_summaries(servers).summaries
@@ -3150,6 +3174,8 @@ def _run_task_pause_resume(
     assert scope.task_id is not None
 
     params: dict[str, Any] = {}
+    if now:
+        params["now"] = True
     if dry_run:
         params["dry_run"] = True
     # idempotent last-write-wins latch, so it may ride the narrated
@@ -3187,29 +3213,39 @@ def _run_task_pause_resume(
             # `dispatched` counts samples past the gate, including ones still
             # initializing their sandbox (which the listing shows as queued)
             dispatched = int(result.get("dispatched", 0) or 0)
-            finishing = (
-                f"{dispatched} dispatched sample{'' if dispatched == 1 else 's'} "
-                f"{'would' if dry_run else 'will'} finish naturally"
-            )
+            noun = f"{dispatched} dispatched sample{'' if dispatched == 1 else 's'}"
+            if now:
+                body = (
+                    f"{noun} {{will}} hold at "
+                    f"{'its' if dispatched == 1 else 'their'} next model call "
+                    f"({_HELD_CAVEAT})"
+                )
+            else:
+                body = f"{noun} {{will}} finish naturally"
             if terse_mode:
+                will = "would" if dry_run else "will"
                 _echo(
                     _terse_line(
                         "pause",
                         target_label,
-                        f"{'dry-run' if dry_run else 'requested'} — {finishing}; "
-                        f"no new samples or retry attempts "
-                        f"{'would' if dry_run else 'will'} start",
+                        f"{'dry-run' if dry_run else 'requested'} — "
+                        f"{body.format(will=will)}; no new samples or retry "
+                        f"attempts {will} start",
                     )
-                )
-            elif dry_run:
-                _echo(
-                    f"Would pause — {finishing}; no new samples or retry "
-                    "attempts would start."
                 )
             else:
                 _echo(
-                    f"Pause requested — {finishing}; no new samples or retry "
-                    "attempts will start. Resume with `inspect ctl task resume`."
+                    _pause_confirmation(
+                        now=now,
+                        dry_run=dry_run,
+                        body=body,
+                        no_new="samples or retry attempts",
+                        hint_hard=(
+                            ". Watch `inspect ctl task list` for the held count;"
+                            " resume with `inspect ctl task resume`."
+                        ),
+                        hint_soft=". Resume with `inspect ctl task resume`.",
+                    )
                 )
         elif terse_mode:
             # independent latches: a task resume does not clear a process
@@ -3254,12 +3290,20 @@ def _run_process_pause_resume(
     pid: int | None,
     *,
     verb: Literal["pause", "resume"],
+    now: bool = False,
     dry_run: bool,
     as_json: bool,
 ) -> None:
-    """Pause or resume a whole process (``POST /pause`` / ``POST /resume``)."""
+    """Pause or resume a whole process (``POST /pause`` / ``POST /resume``).
+
+    ``now`` (the hard pause) needs no version gate: an older server rejects
+    the unknown param with a 400 (strict mutations), so it fails loudly
+    rather than silently soft-pausing.
+    """
     target = _resolve_target_server(pid)
     params: dict[str, Any] = {}
+    if now:
+        params["now"] = True
     if dry_run:
         params["dry_run"] = True
     result = _request_json(
@@ -3284,19 +3328,29 @@ def _run_process_pause_resume(
 
     if result.get("changed"):
         if verb == "pause":
-            if dry_run:
-                _echo(
-                    f"Would pause pid {target.pid} — in-flight samples would "
-                    "finish; no new samples, task retries, or eval-set tasks "
-                    "would start."
+            body = (
+                f"in-flight samples {{will}} hold at their next model call "
+                f"({_HELD_CAVEAT})"
+                if now
+                else "in-flight samples {will} finish"
+            )
+            _echo(
+                _pause_confirmation(
+                    now=now,
+                    dry_run=dry_run,
+                    target=f"pid {target.pid}",
+                    body=body,
+                    no_new="samples, task retries, or eval-set tasks",
+                    hint_hard=(
+                        ". Watch `inspect ctl task list` for the held count; "
+                        "resume with `inspect ctl process resume`."
+                    ),
+                    hint_soft=(
+                        ". Watch `inspect ctl task list` for quiesced; "
+                        "resume with `inspect ctl process resume`."
+                    ),
                 )
-            else:
-                _echo(
-                    f"Pause requested for pid {target.pid} — in-flight samples "
-                    "will finish; no new samples, task retries, or eval-set "
-                    "tasks will start. Watch `inspect ctl task list` for "
-                    "quiesced; resume with `inspect ctl process resume`."
-                )
+            )
         elif dry_run:
             _echo(f"Would resume pid {target.pid}.")
         else:
@@ -3315,6 +3369,7 @@ def _run_model_pause_resume(
     pid: int | None,
     *,
     verb: Literal["pause", "resume"],
+    now: bool = False,
     dry_run: bool,
     as_json: bool,
 ) -> None:
@@ -3325,10 +3380,15 @@ def _run_model_pause_resume(
     against the models the process could dispatch — a client-side resolve
     against the task summaries would wrongly reject a model whose tasks are
     all still queued (not-yet-started eval-set tasks have no summary row),
-    which is precisely the model latch's reason to exist.
+    which is precisely the model latch's reason to exist. ``now`` (the hard
+    pause) needs no version gate: an older server rejects the unknown param
+    with a 400 (strict mutations), so it fails loudly rather than silently
+    soft-pausing.
     """
     target = _resolve_target_server(pid)
     params: dict[str, Any] = {"model": model}
+    if now:
+        params["now"] = True
     if dry_run:
         params["dry_run"] = True
     result = _request_json(
@@ -3363,23 +3423,36 @@ def _run_model_pause_resume(
             # tasks, which have no row to count
             tasks = int(result.get("tasks", 0) or 0)
             dispatched = int(result.get("dispatched", 0) or 0)
-            held = (
+            counts = (
                 f"{tasks} running task{'' if tasks == 1 else 's'}, "
-                f"{dispatched} dispatched sample{'' if dispatched == 1 else 's'} "
-                f"{'would' if dry_run else 'will'} finish naturally"
+                f"{dispatched} dispatched sample{'' if dispatched == 1 else 's'}"
             )
-            if dry_run:
-                _echo(
-                    f"Would pause {model} — {held}; no new samples, retry "
-                    "attempts, or eval-set tasks of this model would start."
+            if now:
+                body = (
+                    f"{counts}; generate calls to it (role/grader calls "
+                    f"included) {{will}} hold at their next attempt "
+                    f"({_HELD_CAVEAT})"
                 )
             else:
-                _echo(
-                    f"Pause requested for {model} — {held}; no new samples, "
-                    "retry attempts, or eval-set tasks of this model will "
-                    "start (other models keep running). Resume with "
-                    "`inspect ctl model resume`."
+                body = f"{counts} {{will}} finish naturally"
+            _echo(
+                _pause_confirmation(
+                    now=now,
+                    dry_run=dry_run,
+                    target=model,
+                    body=body,
+                    no_new="samples, retry attempts, or eval-set tasks of this model",
+                    hint_hard=(
+                        " (other models keep running)."
+                        " Watch `inspect ctl task list` for held counts;"
+                        " resume with `inspect ctl model resume`."
+                    ),
+                    hint_soft=(
+                        " (other models keep running)."
+                        " Resume with `inspect ctl model resume`."
+                    ),
                 )
+            )
         elif dry_run:
             _echo(f"Would resume {model} — its held work would dispatch again.")
         else:
@@ -3569,6 +3642,25 @@ _REQUEUE_ROUTE_MISSING = (
 )
 
 
+def _requeue_resume_clause(result: dict[str, Any]) -> str:
+    """How the requeued sample will re-run (checkpoint resume vs fresh)."""
+    return (
+        "resume from its checkpoint"
+        if result.get("resume_from_checkpoint")
+        else "re-run from the back of the sample queue"
+    )
+
+
+def _requeue_changed_message(
+    label: str, result: dict[str, Any], *, dry_run: bool
+) -> str:
+    """The human line for an accepted (or would-be-accepted) requeue."""
+    resume = _requeue_resume_clause(result)
+    if dry_run:
+        return f"Would requeue {label} — it would {resume}."
+    return f"Requeue accepted for {label} — it will {resume}."
+
+
 @_envelope_failures
 def _run_sample_requeue(
     task: str,
@@ -3579,17 +3671,8 @@ def _run_sample_requeue(
     as_json: bool,
     terse: bool | None = None,
 ) -> None:
-    def resume_clause(result: dict[str, Any]) -> str:
-        return (
-            "resume from its checkpoint"
-            if result.get("resume_from_checkpoint")
-            else "re-run from the back of the sample queue"
-        )
-
     def changed_message(label: str, result: dict[str, Any]) -> str:
-        if dry_run:
-            return f"Would requeue {label} — it would {resume_clause(result)}."
-        return f"Requeue accepted for {label} — it will {resume_clause(result)}."
+        return _requeue_changed_message(label, result, dry_run=dry_run)
 
     def noop_message(label: str, result: dict[str, Any]) -> str:
         reason = _sanitize_line(str(result.get("reason") or "already in that state"))
@@ -3597,8 +3680,8 @@ def _run_sample_requeue(
 
     def terse_changed(result: dict[str, Any]) -> str:
         if dry_run:
-            return f"dry-run — would {resume_clause(result)}"
-        return f"accepted — will {resume_clause(result)}"
+            return f"dry-run — would {_requeue_resume_clause(result)}"
+        return f"accepted — will {_requeue_resume_clause(result)}"
 
     def terse_noop(result: dict[str, Any]) -> str:
         return f"no-op — {result.get('reason') or 'already in that state'}"
@@ -3621,6 +3704,226 @@ def _run_sample_requeue(
 
 
 @_envelope_failures
+def _run_sample_requeue_bulk(
+    task: str,
+    pairs: list[tuple[str, int]],
+    *,
+    dry_run: bool,
+    as_json: bool,
+    terse: bool | None = None,
+) -> None:
+    """Requeue several explicitly-listed ``(sample_id, epoch)`` pairs."""
+    fetched = _fetch_sample_summaries(task)
+    summaries = fetched.summaries
+    if not summaries:
+        if as_json:
+            _echo_raw("null")
+            return
+        _echo_no_running_evals()
+        return
+    target = _resolve_target_eval(summaries, task, busy_pids=fetched.busy_pids)
+    _requeue_pairs(target, pairs, dry_run=dry_run, as_json=as_json, terse=terse)
+
+
+@_envelope_failures
+def _run_sample_requeue_errored(
+    task: str,
+    *,
+    dry_run: bool,
+    as_json: bool,
+    terse: bool | None = None,
+) -> None:
+    """Requeue every sample of the task whose *current* status is ``error``.
+
+    Resolved from the same live listing `sample errors` reads, filtered to
+    the errored status (a retried-and-now-running sample is not swept), so
+    each requeue's epoch comes from the listing — the fail-closed epoch
+    concern never arises. Racing the scheduler is safe: the endpoint's
+    idempotence turns a sample that recovers between the listing and the
+    post into a per-sample no-op.
+    """
+    listing = _list_sample_rows(
+        task, None, statuses=frozenset({"error"}), all_samples=True
+    )
+    if not listing.targets:
+        if as_json:
+            _echo_raw("null")
+            return
+        _echo_no_running_evals()
+        return
+    target = listing.targets[0]
+    pairs: list[tuple[str, int]] = []
+    for row in listing.rows:
+        # a row without an epoch fails loudly rather than defaulting: the
+        # sweep's whole safety claim is that no epoch is ever a default
+        if row.get("epoch") is None:
+            _fail(
+                "invalid_response",
+                f"Sample listing row for '{row.get('sample_id')}' carries no "
+                "epoch — cannot requeue it fail-closed (requeue it "
+                "individually with an explicit EPOCH).",
+            )
+        pairs.append((str(row["sample_id"]), int(row["epoch"])))
+    _requeue_pairs(target, pairs, dry_run=dry_run, as_json=as_json, terse=terse)
+
+
+def _requeue_pairs(
+    target: dict[str, Any],
+    pairs: list[tuple[str, int]],
+    *,
+    dry_run: bool,
+    as_json: bool,
+    terse: bool | None = None,
+) -> None:
+    """Post one requeue per pair and report each sample's result individually.
+
+    The sweep is a client-side loop over the per-sample endpoint (see
+    design/ctl/sample-requeue.md — bulk is deliberately not an endpoint
+    semantic). A per-sample HTTP rejection (409 completed, entity 404, 400)
+    is recorded in its result and the sweep continues; a failure that would
+    fail every remaining post identically (unreachable/busy process, missing
+    route on an older server) aborts the whole command — safe to re-run, the
+    endpoint is idempotent. The command exits zero once every sample was
+    attempted; per-sample outcomes live in the results. The posts run with
+    ``echo_failures=False`` so a recorded rejection is reported exactly once,
+    in the stdout report — otherwise every rejection would also appear as
+    transport stderr narration, doubling the output. That makes this caller
+    responsible for echoing the failures it re-raises (the abort path), since
+    nothing downstream prints them in human mode.
+    """
+
+    def what(sample_id: str) -> str:
+        return f"requeue of sample {sample_id}"
+
+    results: list[dict[str, Any]] = []
+    for sample_id, epoch in pairs:
+        params: dict[str, Any] = {"sample_id": sample_id, "epoch": epoch}
+        if dry_run:
+            params["dry_run"] = True
+        try:
+            result = _request_json(
+                str(target["socket_path"]),
+                f"/evals/{target['eval_id']}/sample/requeue",
+                params=params,
+                what=what(sample_id),
+                not_found=(
+                    f"Sample '{sample_id}' (epoch {epoch}) not found in task "
+                    f"'{target.get('task') or '?'}'."
+                ),
+                not_found_missing_route=_REQUEUE_ROUTE_MISSING,
+                mutate="post",
+                retry_mutation=True,
+                pid=target.get("pid"),
+                echo_failures=False,
+            )
+        except _CtlFailure as exc:
+            if exc.missing_route or exc.kind not in (
+                "not_found",
+                "invalid_request",
+                "http_error",
+            ):
+                _echo(exc.message, err=True)
+                raise
+            results.append(
+                {
+                    "sample_id": sample_id,
+                    "epoch": epoch,
+                    "applied": False,
+                    # the full error-object shape (`{kind, exception, message,
+                    # status}`), matching the top-level error envelope
+                    "error": {
+                        "kind": exc.kind,
+                        "exception": exc.exception,
+                        "message": exc.message,
+                        "status": exc.status,
+                    },
+                }
+            )
+            continue
+        outcome = _mutation_outcome(result, dry_run=dry_run)
+        results.append(
+            {
+                "sample_id": result.get("sample_id", sample_id),
+                "epoch": result.get("epoch", epoch),
+                "applied": outcome.applied,
+                "detail": outcome.detail,
+            }
+        )
+
+    changed = sum(1 for r in results if (r.get("detail") or {}).get("changed"))
+    rejected = sum(1 for r in results if "error" in r)
+    noops = len(results) - changed - rejected
+
+    if as_json:
+        envelope = {
+            "target": {
+                "task_id": target.get("task_id"),
+                "task": target.get("task"),
+            },
+            "dry_run": dry_run,
+            "requested": len(pairs),
+            "applied": sum(1 for r in results if r["applied"]),
+            "results": results,
+        }
+        _echo_raw(json_lib.dumps(envelope, indent=2))
+        return
+
+    use_terse = _use_terse(terse)
+    if not use_terse:
+        _echo(_task_header(target))
+        _echo()
+    if not pairs:
+        # only the errored sweep can arrive with no pairs — the explicit-pairs
+        # caller always passes two or more
+        _echo("(no errored samples to requeue)")
+        return
+    for entry in results:
+        label = f"sample {entry['sample_id']} (epoch {entry['epoch']})"
+        if "error" in entry:
+            # the recorded message stays self-contained, but the transport
+            # prefix restates the label — render just the server detail
+            message = str(entry["error"]["message"])
+            message = message.removeprefix(
+                _failure_prefix("update", what(entry["sample_id"]))
+            )
+            if use_terse:
+                _echo(_terse_line("requeue", label, f"rejected — {message}"))
+            else:
+                _echo(f"Rejected {label} — {message}")
+        elif (entry.get("detail") or {}).get("changed"):
+            if use_terse:
+                terse_outcome = (
+                    f"dry-run — would {_requeue_resume_clause(entry['detail'])}"
+                    if dry_run
+                    else f"accepted — will {_requeue_resume_clause(entry['detail'])}"
+                )
+                _echo(_terse_line("requeue", label, terse_outcome))
+            else:
+                _echo(_requeue_changed_message(label, entry["detail"], dry_run=dry_run))
+        else:
+            reason = str(
+                (entry.get("detail") or {}).get("reason") or "already in that state"
+            )
+            if use_terse:
+                _echo(_terse_line("requeue", label, f"no-op — {reason}"))
+            else:
+                _echo(f"Nothing to do for {label} — {reason}.")
+    if use_terse:
+        return
+    _echo()
+    verb = "Would requeue" if dry_run else "Requeued"
+    notes: list[str] = []
+    if noops:
+        notes.append(f"{noops} no-op{'' if noops == 1 else 's'}")
+    if rejected:
+        notes.append(f"{rejected} rejected")
+    suffix = f" ({', '.join(notes)})" if notes else ""
+    _echo(
+        f"{verb} {changed} of {len(pairs)} sample{'' if len(pairs) == 1 else 's'}{suffix}."
+    )
+
+
+@_envelope_failures
 def _run_process_list(as_json: bool) -> None:
     as_of = time.time()
     servers = list_discovered_servers()
@@ -3639,6 +3942,10 @@ def _run_process_list(as_json: bool) -> None:
             if hosted and hosted[0].get("process_paused") is not None
             else None
         )
+        # the hard (`pause --now`) strength of the process latch; False
+        # against an older server that doesn't report it (soft is the only
+        # strength such a server can hold)
+        paused_now = bool(hosted[0].get("process_paused_now")) if hosted else False
         rows.append(
             {
                 "pid": server.pid,
@@ -3646,6 +3953,7 @@ def _run_process_list(as_json: bool) -> None:
                 "started_at": server.started_at,
                 "keep_alive": keep_alive,
                 "paused": paused,
+                "paused_now": paused_now,
                 "tasks": [
                     {
                         "task_id": t.get("task_id"),
@@ -3674,12 +3982,21 @@ def _run_process_list(as_json: bool) -> None:
             (
                 str(row["pid"]),
                 "?" if keep is None else ("on" if keep else "off"),
-                "?" if paused is None else ("yes" if paused else "no"),
+                _format_process_paused(paused, row["paused_now"]),
                 ", ".join(str(t.get("task") or "?") for t in tasks) or "(starting)",
                 _format_started(row["started_at"]),
             )
         )
     _render_table(("pid", "keep-alive", "paused", "tasks", "started"), table_rows)
+
+
+def _format_process_paused(paused: bool | None, paused_now: bool) -> str:
+    """The process latch cell: unknown / no / yes, with the hard strength marked."""
+    if paused is None:
+        return "?"
+    if not paused:
+        return "no"
+    return "yes (now)" if paused_now else "yes"
 
 
 class _PidAnomalies(NamedTuple):
@@ -3915,6 +4232,9 @@ def _applied_knob_names(
     timeout: int | Literal["clear"] | None,
     attempt_timeout: int | Literal["clear"] | None,
     max_retries: int | Literal["clear"] | None,
+    time_limit: int | Literal["clear"] | None,
+    token_limit: int | Literal["clear"] | None,
+    message_limit: int | Literal["clear"] | None,
 ) -> list[str]:
     """Names of the requested knobs the server reported as adjustable.
 
@@ -3922,10 +4242,12 @@ def _applied_knob_names(
     applied" tail names only knobs that actually landed — a requested knob
     the server reported as not adjustable did NOT apply. The buffer knobs
     self-exclude: their adjustability check (no ``buffer`` view) is exactly
-    the condition that put the caller on the error path. The retry overrides
-    are always adjustable: the override layer exists regardless of any
-    task's launch config, and `_gate_knob_support` has already excluded
-    older servers.
+    the condition that put the caller on the error path. The retry and
+    per-sample limit overrides are always adjustable: the override layers
+    exist regardless of any task's launch config (a strict server too old
+    to know them 400s the whole mutation atomically, and a pre-strict
+    server is refused by `_gate_strict_floor` before the PATCH is sent, so
+    neither reaches this path).
     """
     return [
         name
@@ -3962,6 +4284,9 @@ def _applied_knob_names(
             ("--timeout", timeout, True),
             ("--attempt-timeout", attempt_timeout, True),
             ("--max-retries", max_retries, True),
+            ("--time-limit", time_limit, True),
+            ("--token-limit", token_limit, True),
+            ("--message-limit", message_limit, True),
         )
         if value is not None and adjustable
     ]
@@ -3979,6 +4304,9 @@ def _run_config(
     key: tuple[str, int] | None,
     log_buffer: int | None,
     log_shared: int | None,
+    time_limit: int | Literal["clear"] | None = None,
+    token_limit: int | Literal["clear"] | None = None,
+    message_limit: int | Literal["clear"] | None = None,
     timeout: int | Literal["clear"] | None = None,
     attempt_timeout: int | Literal["clear"] | None = None,
     max_retries: int | Literal["clear"] | None = None,
@@ -4002,6 +4330,9 @@ def _run_config(
                 ("--max-samples", max_samples),
                 ("--log-buffer", log_buffer),
                 ("--log-shared", log_shared),
+                ("--time-limit", time_limit),
+                ("--token-limit", token_limit),
+                ("--message-limit", message_limit),
             )
             if value is not None
         ),
@@ -4036,12 +4367,14 @@ def _run_config(
         "timeout": timeout,
         "attempt_timeout": attempt_timeout,
         "max_retries": max_retries,
+        "time_limit": time_limit,
+        "token_limit": token_limit,
+        "message_limit": message_limit,
     }
-    # a knob missing here would be silently exempt from the version gate —
-    # the exact silent-skew failure `_gate_knob_support` exists to close
+    # a knob missing here would make its set look like a pure read — the
+    # provenance below would be silently dropped from a recorded mutation
     assert knob_values.keys() == _KNOB_SCOPE.keys()
     requested_knobs = [knob for knob, value in knob_values.items() if value is not None]
-    _gate_knob_support(servers, scope.socket_path, requested_knobs)
 
     # provenance rides recorded mutations only — a read records nothing. The
     # author default is resolved client-side — the server has no view of who
@@ -4050,6 +4383,7 @@ def _run_config(
     # hard-error (like --log-buffer with no buffer) rather than silently
     # dropping the values.
     if requested_knobs:
+        _gate_strict_floor(servers, scope.socket_path, requested_knobs)
         author, reason = _gate_provenance_support(
             servers, scope.socket_path, author=author, reason=reason
         )
@@ -4077,6 +4411,9 @@ def _run_config(
         key=key,
         log_buffer=log_buffer,
         log_shared=log_shared,
+        time_limit=time_limit,
+        token_limit=token_limit,
+        message_limit=message_limit,
         timeout=timeout,
         attempt_timeout=attempt_timeout,
         max_retries=max_retries,
@@ -4108,6 +4445,9 @@ def _run_config(
                 timeout=timeout,
                 attempt_timeout=attempt_timeout,
                 max_retries=max_retries,
+                time_limit=time_limit,
+                token_limit=token_limit,
+                message_limit=message_limit,
             )
             message = (
                 f"Task '{scope.task_id}' has no sample buffer in this "
@@ -4246,6 +4586,18 @@ def _compose_config(
             knobs[knob] = {
                 "scope": _KNOB_SCOPE[knob],
                 "override": retry_view.get(knob),
+            }
+    # The per-sample limit overrides (task views only — the knobs are
+    # task-scoped; also absent from an older server's view). `override` is
+    # the live task-wide override, None = launch config applies per sample.
+    limits_view_overrides = limits_view.get("limits")
+    if limits_view_overrides is not None:
+        from inspect_ai.util._limit_overrides import SAMPLE_LIMIT_OVERRIDE_FIELDS
+
+        for limit_knob in SAMPLE_LIMIT_OVERRIDE_FIELDS:
+            knobs[limit_knob] = {
+                "scope": _KNOB_SCOPE[limit_knob],
+                "override": limits_view_overrides.get(limit_knob),
             }
     # `keys: None` (vs an empty list) means the server predates the
     # concurrency view — rendered as unreported rather than empty
@@ -5459,6 +5811,7 @@ def _request_json(
     mutate: Literal["post", "patch"] | None = None,
     retry_mutation: bool = False,
     pid: int | None = None,
+    echo_failures: bool = True,
 ) -> dict[str, Any]:
     """GET (retrying a busy process) or mutate ``path``; return its JSON dict.
 
@@ -5483,8 +5836,27 @@ def _request_json(
     ``pid`` scopes the retry-exhaustion escalation pointer to the target
     process (see :func:`_get_response_with_retry`) — pass it when the caller
     has already resolved one.
+
+    ``echo_failures=False`` suppresses the stderr echo that normally precedes
+    each raised :class:`_CtlFailure` — for callers that catch the failure and
+    render it themselves (the bulk-requeue sweep records per-sample
+    rejections in its stdout report; echoing here too would print every
+    rejection twice). Such callers take over the raiser-echoes contract: any
+    failure they re-raise instead of recording must be echoed first.
     """
     verb = "update" if mutate else "read"
+
+    def fail(
+        kind: _ErrorKind,
+        message: str,
+        *,
+        status: int | None = None,
+        missing_route: bool = False,
+    ) -> NoReturn:
+        if echo_failures:
+            _echo(message, err=True)
+        raise _CtlFailure(kind, message, status=status, missing_route=missing_route)
+
     try:
         if mutate is not None and retry_mutation:
             response = _get_response_with_retry(
@@ -5512,10 +5884,15 @@ def _request_json(
             )
         if response.status_code == 404:
             if not_found_missing_route is not None and not _handler_404(response):
-                _fail("not_found", not_found_missing_route, status=404)
-            _fail("not_found", not_found, status=404)
+                fail(
+                    "not_found",
+                    not_found_missing_route,
+                    status=404,
+                    missing_route=True,
+                )
+            fail("not_found", not_found, status=404)
         if response.status_code == 400:
-            _fail(
+            fail(
                 "invalid_request",
                 f"Invalid request: {_error_detail_from_response(response)}",
                 status=400,
@@ -5523,14 +5900,26 @@ def _request_json(
         response.raise_for_status()
         result = response.json()
     except _ServerUnreachable as exc:
-        message = f"Failed to {verb} {what}: {_unreachable_detail(exc)}"
-        _echo(message, err=True)
+        message = f"{_failure_prefix(verb, what)}{_unreachable_detail(exc)}"
+        if echo_failures:
+            _echo(message, err=True)
         raise _unreachable_failure(message, exc) from exc
     except (httpx.HTTPError, OSError, ValueError) as exc:
-        message = f"Failed to {verb} {what}: {_error_detail(exc)}"
-        _echo(message, err=True)
+        message = f"{_failure_prefix(verb, what)}{_error_detail(exc)}"
+        if echo_failures:
+            _echo(message, err=True)
         raise _CtlFailure.from_exception(message, exc) from exc
     return result if isinstance(result, dict) else {}
+
+
+def _failure_prefix(verb: str, what: str) -> str:
+    """The context prefix :func:`_request_json` puts on failure messages.
+
+    The bulk-requeue human rendering strips this prefix from recorded
+    per-sample errors (the label it restates is already on the line), so the
+    format lives here rather than inline to keep the two sides in lockstep.
+    """
+    return f"Failed to {verb} {what}: "
 
 
 def _handler_404(response: httpx.Response) -> bool:
@@ -5572,38 +5961,38 @@ def _post_flush(
     )
 
 
-def _gate_knob_support(
+def _gate_strict_floor(
     servers: list[DiscoveredControlServer],
     socket_path: str,
     requested_knobs: list[str],
 ) -> None:
-    """Hard-error before a config mutation the server is too old to apply.
+    """Hard-error a config mutation aimed at a pre-strict server.
 
-    ``requested_knobs`` are the knob names set on this invocation. Any knob
-    whose :data:`_KNOB_SINCE` entry exceeds the target process's advertised
-    control-API version fails the command here, *before* the PATCH is sent:
-    an older server's handler silently ignores unknown query params while
-    applying the knobs it does recognize, so a post-hoc warning would arrive
-    after a partial apply. A process with no advertised version (a discovery
-    file that predates the field) is version 0. The version integer is
-    meaningless to users, so the error names the flags and the remedy, not
-    the number. Applies to dry runs too — a dry-run PATCH on an older server
-    would report a success-shaped view that omits the unknown knobs.
+    A strict server (control-API version >= :data:`_STRICT_SINCE`) rejects a
+    mutation carrying any query param it doesn't declare with a 400,
+    atomically, so the CLI can rely on the server itself to fail closed on a
+    knob it doesn't know. A pre-strict server's PATCH handler instead
+    silently ignores unknown params while applying the ones it recognizes —
+    a partial apply behind a success-shaped response (dry runs included: the
+    view just omits the unknown knobs). Below the floor, every knob mutation
+    is refused before the PATCH is sent. Deliberately tableless — no
+    per-knob bookkeeping (unlike the retired `_KNOB_SINCE` table) — at the
+    cost of also refusing mutations a pre-strict server could in fact honor;
+    such processes predate strict mutations entirely and are effectively
+    extinct. A process with no advertised version (a discovery file that
+    predates the field) is version 0. The version integer is meaningless to
+    users, so the error names the flags and the remedy, not the number.
     """
-    gated = [knob for knob in requested_knobs if _KNOB_SINCE[knob] > 0]
-    if not gated:
-        return
     server = next((s for s in servers if str(s.socket_path) == socket_path), None)
     api_version = server.api_version if server is not None else 0
-    unsupported = [knob for knob in gated if _KNOB_SINCE[knob] > api_version]
-    if not unsupported:
+    if api_version >= _STRICT_SINCE:
         return
-    flags = ", ".join("--" + knob.replace("_", "-") for knob in unsupported)
+    flags = ", ".join("--" + knob.replace("_", "-") for knob in requested_knobs)
     target = f"pid {server.pid}" if server is not None else "the target process"
     _echo(
-        f"{flags} not supported — {target} is running an older inspect; "
-        "restart the eval to pick up the current version. No changes were "
-        "applied.",
+        f"Cannot set {flags} — {target} is running an older inspect that "
+        "may silently ignore unrecognized config settings; restart the eval "
+        "to pick up the current version. No changes were applied.",
         err=True,
     )
     raise click.exceptions.Exit(code=1)
@@ -5660,7 +6049,7 @@ def _gate_provenance_support(
     strict server 400s the whole mutation on the unknown params, so there a
     *defaulted* author is silently dropped (a param the user never typed
     must not fail their retune) while an explicit ``--author`` / ``--reason``
-    hard-errors before sending, matching the legacy knob gates.
+    hard-errors before sending.
     """
     server = next((s for s in servers if str(s.socket_path) == socket_path), None)
     api_version = server.api_version if server is not None else 0
@@ -5695,6 +6084,9 @@ def _exec_limits(
     key: tuple[str, int] | None = None,
     log_buffer: int | None = None,
     log_shared: int | None = None,
+    time_limit: int | Literal["clear"] | None = None,
+    token_limit: int | Literal["clear"] | None = None,
+    message_limit: int | Literal["clear"] | None = None,
     timeout: int | Literal["clear"] | None = None,
     attempt_timeout: int | Literal["clear"] | None = None,
     max_retries: int | Literal["clear"] | None = None,
@@ -5714,7 +6106,9 @@ def _exec_limits(
     controllers (a read param, applies to both); ``key`` is the ``(name,
     limit)`` pair for a named ``concurrency()`` registry entry, carried on
     the wire as ``key`` / ``key_limit``. The retry overrides (``timeout`` /
-    ``attempt_timeout`` / ``max_retries``) accept the keyword ``clear`` to
+    ``attempt_timeout`` / ``max_retries``) and the per-sample limit
+    overrides (``time_limit`` / ``token_limit`` / ``message_limit``,
+    task-scoped) accept the keyword ``clear`` to
     remove an override (``0`` is a real value for them). Any settable knob
     that is not ``None`` makes this a mutation: a single-shot PATCH given the
     full mutation budget (see :data:`_MUTATION_TIMEOUT`) — derived here, not
@@ -5734,11 +6128,13 @@ def _exec_limits(
         "timeout": timeout,
         "attempt_timeout": attempt_timeout,
         "max_retries": max_retries,
+        "time_limit": time_limit,
+        "token_limit": token_limit,
+        "message_limit": message_limit,
     }
-    # the settable knobs are exactly the scope and since tables' — a knob
-    # added to one without the others fails loudly here rather than silently
-    # no-opping (or riding past the version gate ungated)
-    assert knob_values.keys() == _KNOB_SCOPE.keys() == _KNOB_SINCE.keys()
+    # the settable knobs are exactly the scope table's — a knob added to one
+    # without the other fails loudly here rather than silently no-opping
+    assert knob_values.keys() == _KNOB_SCOPE.keys()
     set_values = any(value is not None for value in knob_values.values())
     # the key knob rides the wire as two params (key=<name>, key_limit=<n>),
     # so it's excluded from the value passthrough and added explicitly
@@ -5926,7 +6322,7 @@ def _print_config(config: dict[str, Any], *, changed: bool) -> None:
     # config" (no override — each generate call's own config applies); on a
     # dry-run the requested value renders as an arrow, with `clear` shown as
     # its meaning (back to launch config).
-    def _render_retry_knob(knob: str, display: str, unit: str) -> None:
+    def _render_override_knob(knob: str, display: str, unit: str) -> None:
         view = knobs.get(knob)
         if view is None:
             return
@@ -5941,9 +6337,24 @@ def _print_config(config: dict[str, Any], *, changed: bool) -> None:
             rendered += f" → {fmt(proposed)}"
         _echo(_knob_label(display, knob) + rendered)
 
-    _render_retry_knob("timeout", "timeout", "s")
-    _render_retry_knob("attempt_timeout", "attempt timeout", "s")
-    _render_retry_knob("max_retries", "max retries", "")
+    _render_override_knob("timeout", "timeout", "s")
+    _render_override_knob("attempt_timeout", "attempt timeout", "s")
+    _render_override_knob("max_retries", "max retries", "")
+
+    # The per-sample limit overrides — task-scoped, so a process-level view
+    # can't show them: mirror the max_samples placeholder there (keeping the
+    # knobs discoverable), while a task view missing them means an older
+    # server (skipped, like the retry knobs — no value claim to make).
+    process_scope = (config.get("target") or {}).get("scope") == "process"
+    for knob, display, unit in (
+        ("time_limit", "time limit", "s"),
+        ("token_limit", "token limit", ""),
+        ("message_limit", "message limit", ""),
+    ):
+        if knob in knobs:
+            _render_override_knob(knob, display, unit)
+        elif process_scope:
+            _echo(_knob_label(display, knob) + _PER_TASK_PLACEHOLDER)
 
     # The named concurrency() registry entries, addressable via `--key` by the
     # exact name shown. Entries appear lazily on first use, so an empty
@@ -5976,7 +6387,6 @@ def _print_config(config: dict[str, Any], *, changed: bool) -> None:
     # off one task's live logger): mirror the max_samples placeholder so the
     # knobs' existence — and how to see them — stays visible. A *task* view
     # missing them (no live buffer) is reported via warnings instead.
-    process_scope = (config.get("target") or {}).get("scope") == "process"
     if "log_buffer" in knobs:
         log_buffer = knobs.get("log_buffer") or {}
         value = _target(log_buffer.get("value"), "log_buffer")
@@ -6454,10 +6864,12 @@ def _print_human_table(summaries: list[dict[str, Any]]) -> None:
     # `or 0` also covers an older server, which reports neither key.
     any_refusals = any((s.get("refusals") or 0) > 0 for s in summaries)
     any_http_retries = any((s.get("http_retries") or 0) > 0 for s in summaries)
-    # shown only when some task is paused, so a paused run doesn't read as
-    # stalled (the cell names the holding latch; `quiesced` = nothing left
-    # in flight — the safe-to-kill signal)
-    any_paused = any(s.get("paused") for s in summaries)
+    # shown only when some task is paused (or holding samples — a hard model
+    # pause can hold another task's grader calls without any latch source on
+    # that row), so a paused run doesn't read as stalled (the cell names the
+    # holding latch; `quiesced` = nothing left in flight — the safe-to-kill
+    # signal)
+    any_paused = any(s.get("paused") or s.get("held") for s in summaries)
 
     rows = []
     for s in summaries:
@@ -6521,10 +6933,28 @@ def _format_count(value: Any) -> str:
 
 
 def _format_paused(summary: dict[str, Any]) -> str:
-    """The task's paused cell: the holding latch(es), plus quiesced when idle."""
-    paused = "+".join(_paused_sources(summary.get("paused")))
+    """The task's paused cell: the holding latch(es), plus quiesced when idle.
+
+    Hard-holding latches (``pause --now``) render as ``task(now)``, and a
+    nonzero held count (samples parked at their next model call) replaces
+    the quiesced marker — the two can't co-occur (a held sample is still
+    dispatched), and under a hard pause held, not quiesced, is the signal
+    the operator acts on (a kill while ``held > 0`` forfeits in-sample
+    progress). A row can be held with *no* latch sources of its own: the
+    hard model gate keys on the model actually being called, so another
+    task's ``model pause --now`` holds this task's grader/role calls to
+    that model — render the held count alone rather than suppressing it.
+    """
+    held = int(summary.get("held") or 0)
+    now = set(_paused_sources(summary.get("paused_now")))
+    paused = "+".join(
+        f"{source}(now)" if source in now else source
+        for source in _paused_sources(summary.get("paused"))
+    )
     if not paused:
-        return ""
+        return f"({held} held)" if held else ""
+    if held:
+        return f"{paused} ({held} held)"
     return f"{paused} (quiesced)" if summary.get("quiesced") else paused
 
 
@@ -6551,9 +6981,21 @@ def _print_keep_alive_footer(summaries: list[dict[str, Any]]) -> None:
     # either latch holds work the run awaits — so also surface the
     # exit-when-done contradiction when keep-alive is off for a paused row.
     paused = [s for s in summaries if s.get("paused")]
+    # held (`--now`) samples counted across ALL rows, not just paused ones:
+    # a hard model pause holds other tasks' grader calls to that model
+    # without stamping a latch source on their rows
+    held_samples = sum(int(s.get("held") or 0) for s in summaries)
     if paused:
         quiesced = sum(1 for s in paused if s.get("quiesced"))
-        detail = f" ({quiesced} quiesced)" if quiesced else ""
+        details = [
+            part
+            for part in (
+                f"{quiesced} quiesced" if quiesced else "",
+                f"{held_samples} held" if held_samples else "",
+            )
+            if part
+        ]
+        detail = f" ({', '.join(details)})" if details else ""
         # only the latches actually holding a paused task can resume it — a
         # task held solely by the model latch isn't freed by `task resume` or
         # `process resume`, so don't advertise them. Fixed order: task, model,
@@ -6574,6 +7016,15 @@ def _print_keep_alive_footer(summaries: list[dict[str, Any]]) -> None:
                 "note: a paused run never finishes — it will not exit until "
                 "resumed (or cancelled), despite keep-alive being off."
             )
+    elif held_samples:
+        # no paused rows, yet samples are parked at the generate gate (a
+        # hard model pause whose primary tasks have no rows yet) — the
+        # don't-kill-yet warning must still print
+        _echo(
+            f"held: {held_samples} sample{'' if held_samples == 1 else 's'} "
+            "held at the next model call (`pause --now`) — killing now "
+            "forfeits in-sample progress"
+        )
     # latched models whose tasks are all still queued have no paused row
     # above (an unstarted task has no summary) — surface them from the
     # process-level stamp so the latch can't hold work invisibly

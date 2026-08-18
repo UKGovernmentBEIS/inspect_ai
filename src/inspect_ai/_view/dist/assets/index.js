@@ -10585,7 +10585,7 @@ var math_exports = /* @__PURE__ */ __exportAll$1({
 	is_finite: () => is_finite,
 	is_nan: () => is_nan,
 	least: () => least,
-	log: () => log$9,
+	log: () => log$8,
 	log10: () => log10,
 	log1p: () => log1p,
 	log2: () => log2,
@@ -10725,7 +10725,7 @@ function least(...values) {
 * @param {number} value The input number value.
 * @return {number} The base-e log value.
 */
-function log$9(value) {
+function log$8(value) {
 	return Math.log(value);
 }
 /**
@@ -25477,7 +25477,7 @@ var deleteLegacyDatabases = async () => {
 };
 //#endregion
 //#region src/client/database/manager.ts
-var log$8 = createLogger("DatabaseManager");
+var log$7 = createLogger("DatabaseManager");
 /**
 * Manages the (single, per-origin) database connection. Log dirs are query
 * scopes over the unified database, not separate databases.
@@ -25490,18 +25490,18 @@ var DatabaseManager = class {
 	async openDatabase() {
 		if (this.database) return this.database;
 		if (await AppDatabase.checkVersionMismatch()) {
-			log$8.info("Recreating database due to version mismatch");
+			log$7.info("Recreating database due to version mismatch");
 			await Dexie.delete(DB_NAME);
-			log$8.debug(`Deleted old database: ${DB_NAME}`);
+			log$7.debug(`Deleted old database: ${DB_NAME}`);
 		}
 		this.database = new AppDatabase();
 		try {
 			await this.database.open();
-			log$8.debug("Successfully opened database");
+			log$7.debug("Successfully opened database");
 			deleteLegacyDatabases();
 			return this.database;
 		} catch (error) {
-			log$8.error("Failed to open database:", error);
+			log$7.error("Failed to open database:", error);
 			this.database = null;
 			throw error;
 		}
@@ -25518,7 +25518,7 @@ var DatabaseManager = class {
 	*/
 	close() {
 		if (this.database) {
-			log$8.debug("Closing database");
+			log$7.debug("Closing database");
 			this.database.close();
 			this.database = null;
 		}
@@ -25533,7 +25533,7 @@ var DatabaseManager = class {
 };
 //#endregion
 //#region src/client/database/service.ts
-var log$7 = createLogger("DatabaseService");
+var log$6 = createLogger("DatabaseService");
 var newRow$1 = (handle) => ({
 	...handle,
 	depth: "listed",
@@ -25594,13 +25594,13 @@ var DatabaseService = class {
 				cached_at: now
 			} : toLogRecord(newRow$1(handle), void 0, now);
 		});
-		log$7.debug(`Upserting ${records.length} log rows (identity tier)`);
+		log$6.debug(`Upserting ${records.length} log rows (identity tier)`);
 		await db.logs.bulkPut(records);
 	}
 	async readLogs(scope) {
 		try {
 			if (!this.opened()) {
-				log$7.debug("Database not open");
+				log$6.debug("Database not open");
 				return null;
 			}
 			const records = await this.getDb().logs.where("file_path").startsWith(scopePrefix(scope.prefix)).toArray();
@@ -25609,10 +25609,10 @@ var DatabaseService = class {
 				if (a.id != null && b.id != null) return a.id - b.id;
 				return 0;
 			});
-			log$7.debug(`Retrieved ${records.length} log rows`);
+			log$6.debug(`Retrieved ${records.length} log rows`);
 			return records.map(fromLogRecord);
 		} catch (error) {
-			log$7.error("Error retrieving log rows:", error);
+			log$6.error("Error retrieving log rows:", error);
 			return null;
 		}
 	}
@@ -25621,7 +25621,7 @@ var DatabaseService = class {
 			const record = await this.getDb().logs.where("file_path").equals(filePath).first();
 			return record ? fromLogRecord(record) : null;
 		} catch (error) {
-			log$7.error(`Error retrieving log row for ${filePath}:`, error);
+			log$6.error(`Error retrieving log row for ${filePath}:`, error);
 			return null;
 		}
 	}
@@ -25632,7 +25632,7 @@ var DatabaseService = class {
 			for (const record of records) result[record.file_path] = fromLogRecord(record);
 			return result;
 		} catch (error) {
-			log$7.error("Error retrieving log rows:", error);
+			log$6.error("Error retrieving log rows:", error);
 			return {};
 		}
 	}
@@ -25660,7 +25660,7 @@ var DatabaseService = class {
 		await db.logs.bulkPut(records);
 	}
 	async writeLogPreviews(previews) {
-		log$7.debug(`Upserting ${Object.keys(previews).length} log rows (previewed tier)`);
+		log$6.debug(`Upserting ${Object.keys(previews).length} log rows (previewed tier)`);
 		await this.mergeRows(Object.fromEntries(Object.entries(previews).map(([file, preview]) => [file, previewTier(preview)])));
 	}
 	/**
@@ -25674,7 +25674,7 @@ var DatabaseService = class {
 		const db = this.getDb();
 		const now = (/* @__PURE__ */ new Date()).toISOString();
 		const entries = Object.entries(details);
-		log$7.debug(`Ingesting ${entries.length} log details (split)`);
+		log$6.debug(`Ingesting ${entries.length} log details (split)`);
 		await db.transaction("rw", db.logs, db.sample_summaries, async () => {
 			await this.mergeRows(Object.fromEntries(entries.map(([file, { patch }]) => [file, patch])));
 			const files = entries.map(([filePath]) => filePath);
@@ -25694,7 +25694,7 @@ var DatabaseService = class {
 		return ("file" in scope ? db.sample_summaries.where("file_path").equals(scope.file) : db.sample_summaries.where("file_path").startsWith(scopePrefix(scope.prefix))).toArray();
 	}
 	async writeFetchStates(states) {
-		log$7.debug(`Merging retrieval facts into ${Object.keys(states).length} log rows`);
+		log$6.debug(`Merging retrieval facts into ${Object.keys(states).length} log rows`);
 		await this.mergeRows(states);
 	}
 	/**
@@ -25719,7 +25719,7 @@ var DatabaseService = class {
 	/** Remove a deleted file's row and its sample summaries. */
 	async clearCacheForFile(filePath) {
 		const db = this.getDb();
-		log$7.debug(`Clearing cache for file: ${filePath}`);
+		log$6.debug(`Clearing cache for file: ${filePath}`);
 		await Promise.all([db.logs.where("file_path").equals(filePath).delete(), db.sample_summaries.where("file_path").equals(filePath).delete()]);
 	}
 	/**
@@ -25729,7 +25729,7 @@ var DatabaseService = class {
 	*/
 	async clearAllData() {
 		const db = this.getDb();
-		log$7.debug("Clearing all cached data");
+		log$6.debug("Clearing all cached data");
 		await db.transaction("rw", [
 			db.logs,
 			db.sample_summaries,
@@ -25747,7 +25747,7 @@ var DatabaseService = class {
 	async clearScope(scope) {
 		const db = this.getDb();
 		const prefix = scopePrefix(scope.prefix);
-		log$7.debug(`Clearing caches under: ${prefix}`);
+		log$6.debug(`Clearing caches under: ${prefix}`);
 		await db.transaction("rw", [
 			db.logs,
 			db.sample_summaries,
@@ -36873,7 +36873,7 @@ var useCollapsibleIds = (key) => {
 };
 //#endregion
 //#region ../../packages/react/src/hooks/useStatefulScrollPosition.ts
-var log$6 = createLogger("scrolling");
+var log$5 = createLogger("scrolling");
 function useStatefulScrollPosition(elementRef, elementKey, delay = 1e3, scrollable = true) {
 	const [scrollPosition, setScrollPosition] = useProperty("scrollPosition", elementKey);
 	const scrollPositionRef = (0, import_react.useRef)(scrollPosition);
@@ -36882,7 +36882,7 @@ function useStatefulScrollPosition(elementRef, elementKey, delay = 1e3, scrollab
 	}, [scrollPosition]);
 	const handleScrollInner = (0, import_react.useCallback)((e) => {
 		const position = e.target.scrollTop;
-		log$6.debug(`Storing scroll position`, elementKey, position);
+		log$5.debug(`Storing scroll position`, elementKey, position);
 		setScrollPosition(position);
 	}, [elementKey, setScrollPosition]);
 	const handleScroll = (0, import_react.useMemo)(() => debounce$3(handleScrollInner, delay), [handleScrollInner, delay]);
@@ -36899,16 +36899,16 @@ function useStatefulScrollPosition(elementRef, elementKey, delay = 1e3, scrollab
 	(0, import_react.useEffect)(() => {
 		const element = elementRef.current;
 		if (!element || !scrollable) return;
-		log$6.debug(`Restore Scroll Hook`, elementKey);
+		log$5.debug(`Restore Scroll Hook`, elementKey);
 		let pollTimer;
 		const savedPosition = scrollPositionRef.current;
 		if (savedPosition !== void 0) {
-			log$6.debug(`Restoring scroll position`, savedPosition);
+			log$5.debug(`Restoring scroll position`, savedPosition);
 			const tryRestoreScroll = () => {
 				if (element.scrollHeight > element.clientHeight) {
 					if (element.scrollTop !== savedPosition) {
 						element.scrollTop = savedPosition;
-						log$6.debug(`Scroll position restored to ${savedPosition}`);
+						log$5.debug(`Scroll position restored to ${savedPosition}`);
 					}
 					return true;
 				}
@@ -36919,7 +36919,7 @@ function useStatefulScrollPosition(elementRef, elementKey, delay = 1e3, scrollab
 				const maxAttempts = 20;
 				const pollForRender = () => {
 					if (tryRestoreScroll() || attempts >= maxAttempts) {
-						if (attempts >= maxAttempts) log$6.debug(`Failed to restore scroll after ${maxAttempts} attempts`);
+						if (attempts >= maxAttempts) log$5.debug(`Failed to restore scroll after ${maxAttempts} attempts`);
 						return;
 					}
 					attempts++;
@@ -36929,11 +36929,11 @@ function useStatefulScrollPosition(elementRef, elementKey, delay = 1e3, scrollab
 			}
 		}
 		if (element.addEventListener) element.addEventListener("scroll", handleScroll);
-		else log$6.warn("Element has no way to add event listener", element);
+		else log$5.warn("Element has no way to add event listener", element);
 		return () => {
 			if (pollTimer !== void 0) clearTimeout(pollTimer);
 			if (element.removeEventListener) element.removeEventListener("scroll", handleScroll);
-			else log$6.warn("Element has no way to remove event listener", element);
+			else log$5.warn("Element has no way to remove event listener", element);
 		};
 	}, [
 		elementKey,
@@ -39698,23 +39698,23 @@ var u$2 = Array.isArray;
 var d$1 = (t) => u$2(t) || "function" == typeof t?.[Symbol.iterator];
 var f$1 = "[ 	\n\f\r]";
 var v$1 = /<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g;
-var _$1 = /-->/g;
+var _ = /-->/g;
 var m$1 = />/g;
 var p$1 = RegExp(`>|${f$1}(?:([^\\s"'>=/]+)(${f$1}*=${f$1}*(?:[^ \t\n\f\r"'\`<>=]|("|')|))|$)`, "g");
 var g = /'/g;
-var $$1 = /"/g;
+var $ = /"/g;
 var y = /^(?:script|style|textarea|title)$/i;
-var x$2 = (t) => (i, ...s) => ({
+var x$1 = (t) => (i, ...s) => ({
 	_$litType$: t,
 	strings: i,
 	values: s
 });
-var b = x$2(1);
-var w = x$2(2);
-var E$1 = Symbol.for("lit-noChange");
-var A$1 = Symbol.for("lit-nothing");
+var b = x$1(1);
+var w = x$1(2);
+var E = Symbol.for("lit-noChange");
+var A = Symbol.for("lit-nothing");
 var C$1 = /* @__PURE__ */ new WeakMap();
-var P$2 = l$1.createTreeWalker(l$1, 129);
+var P$1 = l$1.createTreeWalker(l$1, 129);
 function V(t, i) {
 	if (!u$2(t) || !t.hasOwnProperty("raw")) throw Error("invalid template strings array");
 	return void 0 !== e$8 ? e$8.createHTML(i) : i;
@@ -39725,7 +39725,7 @@ var N = (t, i) => {
 	for (let i = 0; i < s; i++) {
 		const s = t[i];
 		let a, u, d = -1, f = 0;
-		for (; f < s.length && (c.lastIndex = f, u = c.exec(s), null !== u);) f = c.lastIndex, c === v$1 ? "!--" === u[1] ? c = _$1 : void 0 !== u[1] ? c = m$1 : void 0 !== u[2] ? (y.test(u[2]) && (n = RegExp("</" + u[2], "g")), c = p$1) : void 0 !== u[3] && (c = p$1) : c === p$1 ? ">" === u[0] ? (c = n ?? v$1, d = -1) : void 0 === u[1] ? d = -2 : (d = c.lastIndex - u[2].length, a = u[1], c = void 0 === u[3] ? p$1 : "\"" === u[3] ? $$1 : g) : c === $$1 || c === g ? c = p$1 : c === _$1 || c === m$1 ? c = v$1 : (c = p$1, n = void 0);
+		for (; f < s.length && (c.lastIndex = f, u = c.exec(s), null !== u);) f = c.lastIndex, c === v$1 ? "!--" === u[1] ? c = _ : void 0 !== u[1] ? c = m$1 : void 0 !== u[2] ? (y.test(u[2]) && (n = RegExp("</" + u[2], "g")), c = p$1) : void 0 !== u[3] && (c = p$1) : c === p$1 ? ">" === u[0] ? (c = n ?? v$1, d = -1) : void 0 === u[1] ? d = -2 : (d = c.lastIndex - u[2].length, a = u[1], c = void 0 === u[3] ? p$1 : "\"" === u[3] ? $ : g) : c === $ || c === g ? c = p$1 : c === _ || c === m$1 ? c = v$1 : (c = p$1, n = void 0);
 		const x = c === p$1 && t[i + 1].startsWith("/>") ? " " : "";
 		l += c === v$1 ? s + r$4 : d >= 0 ? (e.push(a), s.slice(0, d) + h$1 + s.slice(d) + o$4 + x) : s + o$4 + (-2 === d ? i : x);
 	}
@@ -39737,11 +39737,11 @@ var S$1 = class S$1 {
 		this.parts = [];
 		let l = 0, a = 0;
 		const u = t.length - 1, d = this.parts, [f, v] = N(t, i);
-		if (this.el = S$1.createElement(f, e), P$2.currentNode = this.el.content, 2 === i || 3 === i) {
+		if (this.el = S$1.createElement(f, e), P$1.currentNode = this.el.content, 2 === i || 3 === i) {
 			const t = this.el.content.firstChild;
 			t.replaceWith(...t.childNodes);
 		}
-		for (; null !== (r = P$2.nextNode()) && d.length < u;) {
+		for (; null !== (r = P$1.nextNode()) && d.length < u;) {
 			if (1 === r.nodeType) {
 				if (r.hasAttributes()) for (const t of r.getAttributeNames()) if (t.endsWith(h$1)) {
 					const i = v[a++], s = r.getAttribute(t).split(o$4), e = /([.?@])?(.*)/.exec(i);
@@ -39750,7 +39750,7 @@ var S$1 = class S$1 {
 						index: l,
 						name: e[2],
 						strings: s,
-						ctor: "." === e[1] ? I : "?" === e[1] ? L : "@" === e[1] ? z$1 : H
+						ctor: "." === e[1] ? I : "?" === e[1] ? L : "@" === e[1] ? z : H
 					}), r.removeAttribute(t);
 				} else t.startsWith(o$4) && (d.push({
 					type: 6,
@@ -39760,7 +39760,7 @@ var S$1 = class S$1 {
 					const t = r.textContent.split(o$4), i = t.length - 1;
 					if (i > 0) {
 						r.textContent = s$5 ? s$5.emptyScript : "";
-						for (let s = 0; s < i; s++) r.append(t[s], c$3()), P$2.nextNode(), d.push({
+						for (let s = 0; s < i; s++) r.append(t[s], c$3()), P$1.nextNode(), d.push({
 							type: 2,
 							index: ++l
 						});
@@ -39786,11 +39786,11 @@ var S$1 = class S$1 {
 		return s.innerHTML = t, s;
 	}
 };
-function M$2(t, i, s = t, e) {
-	if (i === E$1) return i;
+function M$1(t, i, s = t, e) {
+	if (i === E) return i;
 	let h = void 0 !== e ? s._$Co?.[e] : s._$Cl;
 	const o = a(i) ? void 0 : i._$litDirective$;
-	return h?.constructor !== o && (h?._$AO?.(!1), void 0 === o ? h = void 0 : (h = new o(t), h._$AT(t, s, e)), void 0 !== e ? (s._$Co ??= [])[e] = h : s._$Cl = h), void 0 !== h && (i = M$2(t, h._$AS(t, i.values), h, e)), i;
+	return h?.constructor !== o && (h?._$AO?.(!1), void 0 === o ? h = void 0 : (h = new o(t), h._$AT(t, s, e)), void 0 !== e ? (s._$Co ??= [])[e] = h : s._$Cl = h), void 0 !== h && (i = M$1(t, h._$AS(t, i.values), h, e)), i;
 }
 var R = class {
 	constructor(t, i) {
@@ -39804,16 +39804,16 @@ var R = class {
 	}
 	u(t) {
 		const { el: { content: i }, parts: s } = this._$AD, e = (t?.creationScope ?? l$1).importNode(i, !0);
-		P$2.currentNode = e;
-		let h = P$2.nextNode(), o = 0, n = 0, r = s[0];
+		P$1.currentNode = e;
+		let h = P$1.nextNode(), o = 0, n = 0, r = s[0];
 		for (; void 0 !== r;) {
 			if (o === r.index) {
 				let i;
 				2 === r.type ? i = new k(h, h.nextSibling, this, t) : 1 === r.type ? i = new r.ctor(h, r.name, r.strings, this, t) : 6 === r.type && (i = new Z$1(h, this, t)), this._$AV.push(i), r = s[++n];
 			}
-			o !== r?.index && (h = P$2.nextNode(), o++);
+			o !== r?.index && (h = P$1.nextNode(), o++);
 		}
-		return P$2.currentNode = l$1, e;
+		return P$1.currentNode = l$1, e;
 	}
 	p(t) {
 		let i = 0;
@@ -39825,7 +39825,7 @@ var k = class k {
 		return this._$AM?._$AU ?? this._$Cv;
 	}
 	constructor(t, i, s, e) {
-		this.type = 2, this._$AH = A$1, this._$AN = void 0, this._$AA = t, this._$AB = i, this._$AM = s, this.options = e, this._$Cv = e?.isConnected ?? !0;
+		this.type = 2, this._$AH = A, this._$AN = void 0, this._$AA = t, this._$AB = i, this._$AM = s, this.options = e, this._$Cv = e?.isConnected ?? !0;
 	}
 	get parentNode() {
 		let t = this._$AA.parentNode;
@@ -39839,7 +39839,7 @@ var k = class k {
 		return this._$AB;
 	}
 	_$AI(t, i = this) {
-		t = M$2(this, t, i), a(t) ? t === A$1 || null == t || "" === t ? (this._$AH !== A$1 && this._$AR(), this._$AH = A$1) : t !== this._$AH && t !== E$1 && this._(t) : void 0 !== t._$litType$ ? this.$(t) : void 0 !== t.nodeType ? this.T(t) : d$1(t) ? this.k(t) : this._(t);
+		t = M$1(this, t, i), a(t) ? t === A || null == t || "" === t ? (this._$AH !== A && this._$AR(), this._$AH = A) : t !== this._$AH && t !== E && this._(t) : void 0 !== t._$litType$ ? this.$(t) : void 0 !== t.nodeType ? this.T(t) : d$1(t) ? this.k(t) : this._(t);
 	}
 	O(t) {
 		return this._$AA.parentNode.insertBefore(t, this._$AB);
@@ -39848,7 +39848,7 @@ var k = class k {
 		this._$AH !== t && (this._$AR(), this._$AH = this.O(t));
 	}
 	_(t) {
-		this._$AH !== A$1 && a(this._$AH) ? this._$AA.nextSibling.data = t : this.T(l$1.createTextNode(t)), this._$AH = t;
+		this._$AH !== A && a(this._$AH) ? this._$AA.nextSibling.data = t : this.T(l$1.createTextNode(t)), this._$AH = t;
 	}
 	$(t) {
 		const { values: i, _$litType$: s } = t, e = "number" == typeof s ? this._$AC(t) : (void 0 === s.el && (s.el = S$1.createElement(V(s.h, s.h[0]), this.options)), s);
@@ -39887,21 +39887,21 @@ var H = class {
 		return this._$AM._$AU;
 	}
 	constructor(t, i, s, e, h) {
-		this.type = 1, this._$AH = A$1, this._$AN = void 0, this.element = t, this.name = i, this._$AM = e, this.options = h, s.length > 2 || "" !== s[0] || "" !== s[1] ? (this._$AH = Array(s.length - 1).fill(/* @__PURE__ */ new String()), this.strings = s) : this._$AH = A$1;
+		this.type = 1, this._$AH = A, this._$AN = void 0, this.element = t, this.name = i, this._$AM = e, this.options = h, s.length > 2 || "" !== s[0] || "" !== s[1] ? (this._$AH = Array(s.length - 1).fill(/* @__PURE__ */ new String()), this.strings = s) : this._$AH = A;
 	}
 	_$AI(t, i = this, s, e) {
 		const h = this.strings;
 		let o = !1;
-		if (void 0 === h) t = M$2(this, t, i, 0), o = !a(t) || t !== this._$AH && t !== E$1, o && (this._$AH = t);
+		if (void 0 === h) t = M$1(this, t, i, 0), o = !a(t) || t !== this._$AH && t !== E, o && (this._$AH = t);
 		else {
 			const e = t;
 			let n, r;
-			for (t = h[0], n = 0; n < h.length - 1; n++) r = M$2(this, e[s + n], i, n), r === E$1 && (r = this._$AH[n]), o ||= !a(r) || r !== this._$AH[n], r === A$1 ? t = A$1 : t !== A$1 && (t += (r ?? "") + h[n + 1]), this._$AH[n] = r;
+			for (t = h[0], n = 0; n < h.length - 1; n++) r = M$1(this, e[s + n], i, n), r === E && (r = this._$AH[n]), o ||= !a(r) || r !== this._$AH[n], r === A ? t = A : t !== A && (t += (r ?? "") + h[n + 1]), this._$AH[n] = r;
 		}
 		o && !e && this.j(t);
 	}
 	j(t) {
-		t === A$1 ? this.element.removeAttribute(this.name) : this.element.setAttribute(this.name, t ?? "");
+		t === A ? this.element.removeAttribute(this.name) : this.element.setAttribute(this.name, t ?? "");
 	}
 };
 var I = class extends H {
@@ -39909,7 +39909,7 @@ var I = class extends H {
 		super(...arguments), this.type = 3;
 	}
 	j(t) {
-		this.element[this.name] = t === A$1 ? void 0 : t;
+		this.element[this.name] = t === A ? void 0 : t;
 	}
 };
 var L = class extends H {
@@ -39917,16 +39917,16 @@ var L = class extends H {
 		super(...arguments), this.type = 4;
 	}
 	j(t) {
-		this.element.toggleAttribute(this.name, !!t && t !== A$1);
+		this.element.toggleAttribute(this.name, !!t && t !== A);
 	}
 };
-var z$1 = class extends H {
+var z = class extends H {
 	constructor(t, i, s, e, h) {
 		super(t, i, s, e, h), this.type = 5;
 	}
 	_$AI(t, i = this) {
-		if ((t = M$2(this, t, i, 0) ?? A$1) === E$1) return;
-		const s = this._$AH, e = t === A$1 && s !== A$1 || t.capture !== s.capture || t.once !== s.once || t.passive !== s.passive, h = t !== A$1 && (s === A$1 || e);
+		if ((t = M$1(this, t, i, 0) ?? A) === E) return;
+		const s = this._$AH, e = t === A && s !== A || t.capture !== s.capture || t.once !== s.once || t.passive !== s.passive, h = t !== A && (s === A || e);
 		e && this.element.removeEventListener(this.name, this, s), h && this.element.addEventListener(this.name, this, t), this._$AH = t;
 	}
 	handleEvent(t) {
@@ -39941,10 +39941,10 @@ var Z$1 = class {
 		return this._$AM._$AU;
 	}
 	_$AI(t) {
-		M$2(this, t);
+		M$1(this, t);
 	}
 };
-var j$2 = {
+var j$1 = {
 	M: h$1,
 	P: o$4,
 	A: n$5,
@@ -39952,16 +39952,16 @@ var j$2 = {
 	L: N,
 	R,
 	D: d$1,
-	V: M$2,
+	V: M$1,
 	I: k,
 	H,
 	N: L,
-	U: z$1,
+	U: z,
 	B: I,
 	F: Z$1
 };
-var B$1 = t$3.litHtmlPolyfillSupport;
-B$1?.(S$1, k), (t$3.litHtmlVersions ??= []).push("3.3.2");
+var B = t$3.litHtmlPolyfillSupport;
+B?.(S$1, k), (t$3.litHtmlVersions ??= []).push("3.3.2");
 var D = (t, i, s) => {
 	const e = s?.renderBefore ?? i;
 	let h = e._$litPart$;
@@ -39997,7 +39997,7 @@ var i$5 = class extends y$1 {
 		super.disconnectedCallback(), this._$Do?.setConnected(!1);
 	}
 	render() {
-		return E$1;
+		return E;
 	}
 };
 i$5._$litElement$ = !0, i$5["finalized"] = !0, s$4.litElementHydrateSupport?.({ LitElement: i$5 });
@@ -40347,7 +40347,7 @@ var i$4 = class {
 			const s = !!i[t];
 			s === this.st.has(t) || this.nt?.has(t) || (s ? (r.add(t), this.st.add(t)) : (r.remove(t), this.st.delete(t)));
 		}
-		return E$1;
+		return E;
 	}
 });
 //#endregion
@@ -40356,7 +40356,7 @@ var i$4 = class {
 * @license
 * Copyright 2018 Google LLC
 * SPDX-License-Identifier: BSD-3-Clause
-*/ var o = (o) => o ?? A$1;
+*/ var o = (o) => o ?? A;
 //#endregion
 //#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/includes/style-property-map.js
 var StylePropertyMap = class extends i$4 {
@@ -40373,10 +40373,10 @@ var StylePropertyMap = class extends i$4 {
 				this._prevProperties[key] = val;
 			}
 		});
-		return E$1;
+		return E;
 	}
 	render(_styleProps) {
-		return E$1;
+		return E;
 	}
 };
 /**
@@ -40914,13 +40914,13 @@ var VscodeButton$1 = class VscodeButton extends VscElement {
           ?spin=${this.iconSpin}
           spin-duration=${o(this.iconSpinDuration)}
           class="icon"
-        ></vscode-icon>` : A$1;
+        ></vscode-icon>` : A;
 		const iconAfterElem = hasIconAfter ? b`<vscode-icon
           name=${this.iconAfter}
           ?spin=${this.iconAfterSpin}
           spin-duration=${o(this.iconAfterSpinDuration)}
           class="icon-after"
-        ></vscode-icon>` : A$1;
+        ></vscode-icon>` : A;
 		return b`
       <div
         class=${e$3(baseClasses)}
@@ -41149,7 +41149,7 @@ var LabelledCheckboxOrRadioMixin = (superClass) => {
 			if (this._slottedText !== "") this.setAttribute("aria-label", this._slottedText);
 		}
 		_renderLabelAttribute() {
-			return this._slottedText === "" ? b`<span class="label-attr">${this._label}</span>` : b`${A$1}`;
+			return this._slottedText === "" ? b`<span class="label-attr">${this._label}</span>` : b`${A}`;
 		}
 	}
 	__decorate$35([n$4()], LabelledCheckboxOrRadio.prototype, "label", null);
@@ -41532,8 +41532,8 @@ var VscodeCheckbox$1 = class VscodeCheckbox extends LabelledCheckboxOrRadioMixin
         d="M14.431 3.323l-8.47 10-.79-.036-3.35-4.77.818-.574 2.978 4.24 8.051-9.506.764.646z"
       />
     </svg>`;
-		const check = this.checked && !this.indeterminate ? icon : A$1;
-		const indeterminate = this.indeterminate ? b`<span class="indeterminate-icon"></span>` : A$1;
+		const check = this.checked && !this.indeterminate ? icon : A;
+		const indeterminate = this.indeterminate ? b`<span class="indeterminate-icon"></span>` : A;
 		const iconContent = this.toggle ? b`<span class="thumb"></span>` : b`${indeterminate}${check}`;
 		return b`
       <div class="wrapper">
@@ -41871,7 +41871,7 @@ var VscodeCollapsible$1 = class VscodeCollapsible extends VscElement {
         d="M10.072 8.024L5.715 3.667l.618-.62L11 7.716v.618L6.333 13l-.618-.619 4.357-4.357z"
       />
     </svg>`;
-		const descriptionMarkup = this.description ? b`<span class="description">${this.description}</span>` : A$1;
+		const descriptionMarkup = this.description ? b`<span class="description">${this.description}</span>` : A;
 		return b`
       <div class=${e$3(classes)}>
         <div
@@ -42047,8 +42047,8 @@ var VscodeContextMenuItem$1 = class VscodeContextMenuItem extends VscElement {
           ` : b`
             <div class="context-menu-item">
               <a @click=${this.onItemClick}>
-                ${this.label ? b`<span class="label">${this.label}</span>` : A$1}
-                ${this.keybinding ? b`<span class="keybinding">${this.keybinding}</span>` : A$1}
+                ${this.label ? b`<span class="label">${this.label}</span>` : A}
+                ${this.keybinding ? b`<span class="keybinding">${this.keybinding}</span>` : A}
               </a>
             </div>
           `}
@@ -42220,7 +42220,7 @@ var VscodeContextMenu$1 = class VscodeContextMenu extends VscElement {
 		this._selectedClickableItemIndex = -1;
 	}
 	render() {
-		if (!this._show) return b`${A$1}`;
+		if (!this._show) return b`${A}`;
 		const selectedIndex = this._clickableItemIndexes[this._selectedClickableItemIndex];
 		return b`
       <div class="context-menu" tabindex="0">
@@ -42785,7 +42785,7 @@ var checkIcon = w`<svg
     clip-rule="evenodd"
     d="M14.431 3.323l-8.47 10-.79-.036-3.35-4.77.818-.574 2.978 4.24 8.051-9.506.764.646z"
   />
-</svg>`, { I: t$1 } = j$2, i$3 = (o) => o, s$3 = () => document.createComment(""), v = (o, n, e) => {
+</svg>`, { I: t$1 } = j$1, i$3 = (o) => o, s$3 = () => document.createComment(""), v = (o, n, e) => {
 	/**
 	* @license
 	* Copyright 2020 Google LLC
@@ -42808,7 +42808,7 @@ var checkIcon = w`<svg
 		}
 	}
 	return e;
-}, u$1 = (o, t, i = o) => (o._$AI(t, i), o), m = {}, p = (o, t = m) => o._$AH = t, M$1 = (o) => o._$AH, h = (o) => {
+}, u$1 = (o, t, i = o) => (o._$AI(t, i), o), m = {}, p = (o, t = m) => o._$AH = t, M = (o) => o._$AH, h = (o) => {
 	o._$AR(), o._$AA.remove();
 };
 //#endregion
@@ -42842,7 +42842,7 @@ var c$1 = e$4(class extends i$4 {
 		return this.dt(e, s, t).values;
 	}
 	update(s, [t, r, c]) {
-		const d = M$1(s), { values: p$3, keys: a } = this.dt(t, r, c);
+		const d = M(s), { values: p$3, keys: a } = this.dt(t, r, c);
 		if (!Array.isArray(d)) return this.ut = a, p$3;
 		const h$3 = this.ut ??= [], v$2 = [];
 		let m, y, x = 0, j = d.length - 1, k = 0, w = p$3.length - 1;
@@ -42869,7 +42869,7 @@ var c$1 = e$4(class extends i$4 {
 			const e = d[x++];
 			null !== e && h(e);
 		}
-		return this.ut = a, p(s, v$2), E$1;
+		return this.ut = a, p(s, v$2), E;
 	}
 });
 //#endregion
@@ -43695,7 +43695,7 @@ var VscodeScrollable$1 = class VscodeScrollable extends VscElement {
 		})}
           .style=${stylePropertyMap({ zIndex: String(this._scrollbarTrackZ) })}
         ></div>
-        ${this._isDragging ? b`<div class="prevent-interaction"></div>` : A$1}
+        ${this._isDragging ? b`<div class="prevent-interaction"></div>` : A}
         <div
           class=${e$3({
 			"scrollbar-track": true,
@@ -44163,7 +44163,7 @@ var VscodeSelectBase = class extends VscElement {
         @mouseover=${this._onOptionMouseOver}
       >
         ${c$1(list, (op) => op.index, (op, index) => {
-			if (!op.visible) return A$1;
+			if (!op.visible) return A;
 			const active = op.index === this._opts.activeIndex && !op.disabled;
 			const selected = this._opts.getIsIndexSelected(op.index);
 			const optionClasses = {
@@ -44194,8 +44194,8 @@ var VscodeSelectBase = class extends VscElement {
     `;
 	}
 	_renderPlaceholderOption(isListEmpty) {
-		if (!this.combobox) return A$1;
-		if (this._opts.getOptionByLabel(this._opts.filterPattern)) return A$1;
+		if (!this.combobox) return A;
+		if (this._opts.getOptionByLabel(this._opts.filterPattern)) return A;
 		if (this.creatable && this._opts.filterPattern.length > 0) return b`<li
         class=${e$3({
 			option: true,
@@ -44208,22 +44208,22 @@ var VscodeSelectBase = class extends VscElement {
       </li>`;
 		else return isListEmpty ? b`<li class="no-options" @click=${this._onNoOptionsClick}>
             No options
-          </li>` : A$1;
+          </li>` : A;
 	}
 	_renderDescription() {
 		const op = this._opts.getActiveOption();
-		if (!op) return A$1;
+		if (!op) return A;
 		const { description } = op;
-		return description ? b`<div class="description">${description}</div>` : A$1;
+		return description ? b`<div class="description">${description}</div>` : A;
 	}
 	_renderSelectFace() {
-		return b`${A$1}`;
+		return b`${A}`;
 	}
 	_renderComboboxFace() {
-		return b`${A$1}`;
+		return b`${A}`;
 	}
 	_renderDropdownControls() {
-		return b`${A$1}`;
+		return b`${A}`;
 	}
 	_renderDropdown() {
 		const classes = {
@@ -44247,7 +44247,7 @@ var VscodeSelectBase = class extends VscElement {
         @toggle=${this._handleDropdownToggle}
         .style=${stylePropertyMap(dropdownStyles)}
       >
-        ${this.position === "above" ? this._renderDescription() : A$1}
+        ${this.position === "above" ? this._renderDescription() : A}
         <vscode-scrollable
           always-visible
           class="scrollable"
@@ -44259,7 +44259,7 @@ var VscodeSelectBase = class extends VscElement {
         >
           ${this._renderOptions()} ${this._renderDropdownControls()}
         </vscode-scrollable>
-        ${this.position === "below" ? this._renderDescription() : A$1}
+        ${this.position === "below" ? this._renderDescription() : A}
       </div>
     `;
 	}
@@ -44959,7 +44959,7 @@ var VscodeMultiSelect$1 = class VscodeMultiSelect extends VscodeSelectBase {
 		const expanded = this.open ? "true" : "false";
 		return b`
       <div class="combobox-face face">
-        ${this._opts.multiSelect ? this._renderLabel() : A$1}
+        ${this._opts.multiSelect ? this._renderLabel() : A}
         <input
           aria-activedescendant=${activeDescendant}
           aria-autocomplete="list"
@@ -45037,7 +45037,7 @@ var VscodeMultiSelect$1 = class VscodeMultiSelect extends VscodeSelectBase {
               >OK</vscode-button
             >
           </div>
-        ` : b`${A$1}`;
+        ` : b`${A}`;
 	}
 	render() {
 		return b`
@@ -47789,7 +47789,7 @@ var VscodeTableCell$1 = class VscodeTableCell extends VscElement {
       <div class="wrapper">
         ${this.columnLabel ? b`<div class="column-label" role="presentation">
           ${this.columnLabel}
-        </div>` : A$1}
+        </div>` : A}
         <slot></slot>
       </div>
     `;
@@ -49209,7 +49209,7 @@ var VscodeToolbarButton$1 = class VscodeToolbarButton extends VscElement {
         class=${e$3({ checked: this.toggleable && this.checked })}
         @click=${this._handleButtonClick}
       >
-        ${this.icon ? b`<vscode-icon name=${this.icon}></vscode-icon>` : A$1}
+        ${this.icon ? b`<vscode-icon name=${this.icon}></vscode-icon>` : A}
         <slot
           @slotchange=${this._handleSlotChange}
           class=${e$3({
@@ -50676,20 +50676,20 @@ var VscodeTreeItem = VscodeTreeItem_1 = class VscodeTreeItem extends VscElement 
               part="arrow-icon-container"
             >
               ${arrowIcon}
-            </div>` : A$1}
+            </div>` : A}
         <div class=${e$3(iconContainerClasses)} part="icon-container">
           ${this.branch && !this.open ? b`<slot
                 name="icon-branch"
                 @slotchange=${this._handleIconSlotChange}
-              ></slot>` : A$1}
+              ></slot>` : A}
           ${this.branch && this.open ? b`<slot
                 name="icon-branch-opened"
                 @slotchange=${this._handleIconSlotChange}
-              ></slot>` : A$1}
+              ></slot>` : A}
           ${!this.branch ? b`<slot
                 name="icon-leaf"
                 @slotchange=${this._handleIconSlotChange}
-              ></slot>` : A$1}
+              ></slot>` : A}
         </div>
         <div class=${e$3(contentClasses)} part="content">
           <span class="label" part="label">
@@ -50983,10 +50983,13 @@ var ExtendedFindProvider = ({ children }) => {
 	});
 };
 var useExtendedFind = () => {
-	const context = (0, import_react.useContext)(ExtendedFindContext);
+	const context = useExtendedFindOptional();
 	if (!context) throw new Error("useSearch must be used within a SearchProvider");
 	return context;
 };
+/** Null outside an ExtendedFindProvider, for components (e.g. VirtualList)
+*  that integrate with find when available but must not require it. */
+var useExtendedFindOptional = () => (0, import_react.useContext)(ExtendedFindContext);
 //#endregion
 //#region ../../packages/react/src/components/JsonPanel.tsx
 var kMaxStringValueDisplay = 1048576;
@@ -51398,14 +51401,14 @@ var build_exports = /* @__PURE__ */ __exportAll$1({
 	Any: () => Any,
 	Cc: () => Cc,
 	Cf: () => Cf,
-	P: () => P$1,
+	P: () => P,
 	S: () => S,
 	Z: () => Z
 });
 var Any = /[\0-\uD7FF\uE000-\uFFFF]|[\uD800-\uDBFF][\uDC00-\uDFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?:[^\uD800-\uDBFF]|^)[\uDC00-\uDFFF]/;
 var Cc = /[\0-\x1F\x7F-\x9F]/;
 var Cf = /[\xAD\u0600-\u0605\u061C\u06DD\u070F\u0890\u0891\u08E2\u180E\u200B-\u200F\u202A-\u202E\u2060-\u2064\u2066-\u206F\uFEFF\uFFF9-\uFFFB]|\uD804[\uDCBD\uDCCD]|\uD80D[\uDC30-\uDC3F]|\uD82F[\uDCA0-\uDCA3]|\uD834[\uDD73-\uDD7A]|\uDB40[\uDC01\uDC20-\uDC7F]/;
-var P$1 = /[!-#%-\*,-\/:;\?@\[-\]_\{\}\xA1\xA7\xAB\xB6\xB7\xBB\xBF\u037E\u0387\u055A-\u055F\u0589\u058A\u05BE\u05C0\u05C3\u05C6\u05F3\u05F4\u0609\u060A\u060C\u060D\u061B\u061D-\u061F\u066A-\u066D\u06D4\u0700-\u070D\u07F7-\u07F9\u0830-\u083E\u085E\u0964\u0965\u0970\u09FD\u0A76\u0AF0\u0C77\u0C84\u0DF4\u0E4F\u0E5A\u0E5B\u0F04-\u0F12\u0F14\u0F3A-\u0F3D\u0F85\u0FD0-\u0FD4\u0FD9\u0FDA\u104A-\u104F\u10FB\u1360-\u1368\u1400\u166E\u169B\u169C\u16EB-\u16ED\u1735\u1736\u17D4-\u17D6\u17D8-\u17DA\u1800-\u180A\u1944\u1945\u1A1E\u1A1F\u1AA0-\u1AA6\u1AA8-\u1AAD\u1B4E\u1B4F\u1B5A-\u1B60\u1B7D-\u1B7F\u1BFC-\u1BFF\u1C3B-\u1C3F\u1C7E\u1C7F\u1CC0-\u1CC7\u1CD3\u2010-\u2027\u2030-\u2043\u2045-\u2051\u2053-\u205E\u207D\u207E\u208D\u208E\u2308-\u230B\u2329\u232A\u2768-\u2775\u27C5\u27C6\u27E6-\u27EF\u2983-\u2998\u29D8-\u29DB\u29FC\u29FD\u2CF9-\u2CFC\u2CFE\u2CFF\u2D70\u2E00-\u2E2E\u2E30-\u2E4F\u2E52-\u2E5D\u3001-\u3003\u3008-\u3011\u3014-\u301F\u3030\u303D\u30A0\u30FB\uA4FE\uA4FF\uA60D-\uA60F\uA673\uA67E\uA6F2-\uA6F7\uA874-\uA877\uA8CE\uA8CF\uA8F8-\uA8FA\uA8FC\uA92E\uA92F\uA95F\uA9C1-\uA9CD\uA9DE\uA9DF\uAA5C-\uAA5F\uAADE\uAADF\uAAF0\uAAF1\uABEB\uFD3E\uFD3F\uFE10-\uFE19\uFE30-\uFE52\uFE54-\uFE61\uFE63\uFE68\uFE6A\uFE6B\uFF01-\uFF03\uFF05-\uFF0A\uFF0C-\uFF0F\uFF1A\uFF1B\uFF1F\uFF20\uFF3B-\uFF3D\uFF3F\uFF5B\uFF5D\uFF5F-\uFF65]|\uD800[\uDD00-\uDD02\uDF9F\uDFD0]|\uD801\uDD6F|\uD802[\uDC57\uDD1F\uDD3F\uDE50-\uDE58\uDE7F\uDEF0-\uDEF6\uDF39-\uDF3F\uDF99-\uDF9C]|\uD803[\uDD6E\uDEAD\uDED0\uDF55-\uDF59\uDF86-\uDF89]|\uD804[\uDC47-\uDC4D\uDCBB\uDCBC\uDCBE-\uDCC1\uDD40-\uDD43\uDD74\uDD75\uDDC5-\uDDC8\uDDCD\uDDDB\uDDDD-\uDDDF\uDE38-\uDE3D\uDEA9\uDFD4\uDFD5\uDFD7\uDFD8]|\uD805[\uDC4B-\uDC4F\uDC5A\uDC5B\uDC5D\uDCC6\uDDC1-\uDDD7\uDE41-\uDE43\uDE60-\uDE6C\uDEB9\uDF3C-\uDF3E]|\uD806[\uDC3B\uDD44-\uDD46\uDDE2\uDE3F-\uDE46\uDE9A-\uDE9C\uDE9E-\uDEA2\uDF00-\uDF09\uDFE1]|\uD807[\uDC41-\uDC45\uDC70\uDC71\uDEF7\uDEF8\uDF43-\uDF4F\uDFFF]|\uD809[\uDC70-\uDC74]|\uD80B[\uDFF1\uDFF2]|\uD81A[\uDE6E\uDE6F\uDEF5\uDF37-\uDF3B\uDF44]|\uD81B[\uDD6D-\uDD6F\uDE97-\uDE9A\uDFE2]|\uD82F\uDC9F|\uD836[\uDE87-\uDE8B]|\uD839\uDDFF|\uD83A[\uDD5E\uDD5F]/;
+var P = /[!-#%-\*,-\/:;\?@\[-\]_\{\}\xA1\xA7\xAB\xB6\xB7\xBB\xBF\u037E\u0387\u055A-\u055F\u0589\u058A\u05BE\u05C0\u05C3\u05C6\u05F3\u05F4\u0609\u060A\u060C\u060D\u061B\u061D-\u061F\u066A-\u066D\u06D4\u0700-\u070D\u07F7-\u07F9\u0830-\u083E\u085E\u0964\u0965\u0970\u09FD\u0A76\u0AF0\u0C77\u0C84\u0DF4\u0E4F\u0E5A\u0E5B\u0F04-\u0F12\u0F14\u0F3A-\u0F3D\u0F85\u0FD0-\u0FD4\u0FD9\u0FDA\u104A-\u104F\u10FB\u1360-\u1368\u1400\u166E\u169B\u169C\u16EB-\u16ED\u1735\u1736\u17D4-\u17D6\u17D8-\u17DA\u1800-\u180A\u1944\u1945\u1A1E\u1A1F\u1AA0-\u1AA6\u1AA8-\u1AAD\u1B4E\u1B4F\u1B5A-\u1B60\u1B7D-\u1B7F\u1BFC-\u1BFF\u1C3B-\u1C3F\u1C7E\u1C7F\u1CC0-\u1CC7\u1CD3\u2010-\u2027\u2030-\u2043\u2045-\u2051\u2053-\u205E\u207D\u207E\u208D\u208E\u2308-\u230B\u2329\u232A\u2768-\u2775\u27C5\u27C6\u27E6-\u27EF\u2983-\u2998\u29D8-\u29DB\u29FC\u29FD\u2CF9-\u2CFC\u2CFE\u2CFF\u2D70\u2E00-\u2E2E\u2E30-\u2E4F\u2E52-\u2E5D\u3001-\u3003\u3008-\u3011\u3014-\u301F\u3030\u303D\u30A0\u30FB\uA4FE\uA4FF\uA60D-\uA60F\uA673\uA67E\uA6F2-\uA6F7\uA874-\uA877\uA8CE\uA8CF\uA8F8-\uA8FA\uA8FC\uA92E\uA92F\uA95F\uA9C1-\uA9CD\uA9DE\uA9DF\uAA5C-\uAA5F\uAADE\uAADF\uAAF0\uAAF1\uABEB\uFD3E\uFD3F\uFE10-\uFE19\uFE30-\uFE52\uFE54-\uFE61\uFE63\uFE68\uFE6A\uFE6B\uFF01-\uFF03\uFF05-\uFF0A\uFF0C-\uFF0F\uFF1A\uFF1B\uFF1F\uFF20\uFF3B-\uFF3D\uFF3F\uFF5B\uFF5D\uFF5F-\uFF65]|\uD800[\uDD00-\uDD02\uDF9F\uDFD0]|\uD801\uDD6F|\uD802[\uDC57\uDD1F\uDD3F\uDE50-\uDE58\uDE7F\uDEF0-\uDEF6\uDF39-\uDF3F\uDF99-\uDF9C]|\uD803[\uDD6E\uDEAD\uDED0\uDF55-\uDF59\uDF86-\uDF89]|\uD804[\uDC47-\uDC4D\uDCBB\uDCBC\uDCBE-\uDCC1\uDD40-\uDD43\uDD74\uDD75\uDDC5-\uDDC8\uDDCD\uDDDB\uDDDD-\uDDDF\uDE38-\uDE3D\uDEA9\uDFD4\uDFD5\uDFD7\uDFD8]|\uD805[\uDC4B-\uDC4F\uDC5A\uDC5B\uDC5D\uDCC6\uDDC1-\uDDD7\uDE41-\uDE43\uDE60-\uDE6C\uDEB9\uDF3C-\uDF3E]|\uD806[\uDC3B\uDD44-\uDD46\uDDE2\uDE3F-\uDE46\uDE9A-\uDE9C\uDE9E-\uDEA2\uDF00-\uDF09\uDFE1]|\uD807[\uDC41-\uDC45\uDC70\uDC71\uDEF7\uDEF8\uDF43-\uDF4F\uDFFF]|\uD809[\uDC70-\uDC74]|\uD80B[\uDFF1\uDFF2]|\uD81A[\uDE6E\uDE6F\uDEF5\uDF37-\uDF3B\uDF44]|\uD81B[\uDD6D-\uDD6F\uDE97-\uDE9A\uDFE2]|\uD82F\uDC9F|\uD836[\uDE87-\uDE8B]|\uD839\uDDFF|\uD83A[\uDD5E\uDD5F]/;
 var S = /[\$\+<->\^`\|~\xA2-\xA6\xA8\xA9\xAC\xAE-\xB1\xB4\xB8\xD7\xF7\u02C2-\u02C5\u02D2-\u02DF\u02E5-\u02EB\u02ED\u02EF-\u02FF\u0375\u0384\u0385\u03F6\u0482\u058D-\u058F\u0606-\u0608\u060B\u060E\u060F\u06DE\u06E9\u06FD\u06FE\u07F6\u07FE\u07FF\u0888\u09F2\u09F3\u09FA\u09FB\u0AF1\u0B70\u0BF3-\u0BFA\u0C7F\u0D4F\u0D79\u0E3F\u0F01-\u0F03\u0F13\u0F15-\u0F17\u0F1A-\u0F1F\u0F34\u0F36\u0F38\u0FBE-\u0FC5\u0FC7-\u0FCC\u0FCE\u0FCF\u0FD5-\u0FD8\u109E\u109F\u1390-\u1399\u166D\u17DB\u1940\u19DE-\u19FF\u1B61-\u1B6A\u1B74-\u1B7C\u1FBD\u1FBF-\u1FC1\u1FCD-\u1FCF\u1FDD-\u1FDF\u1FED-\u1FEF\u1FFD\u1FFE\u2044\u2052\u207A-\u207C\u208A-\u208C\u20A0-\u20C1\u2100\u2101\u2103-\u2106\u2108\u2109\u2114\u2116-\u2118\u211E-\u2123\u2125\u2127\u2129\u212E\u213A\u213B\u2140-\u2144\u214A-\u214D\u214F\u218A\u218B\u2190-\u2307\u230C-\u2328\u232B-\u2429\u2440-\u244A\u249C-\u24E9\u2500-\u2767\u2794-\u27C4\u27C7-\u27E5\u27F0-\u2982\u2999-\u29D7\u29DC-\u29FB\u29FE-\u2B73\u2B76-\u2BFF\u2CE5-\u2CEA\u2E50\u2E51\u2E80-\u2E99\u2E9B-\u2EF3\u2F00-\u2FD5\u2FF0-\u2FFF\u3004\u3012\u3013\u3020\u3036\u3037\u303E\u303F\u309B\u309C\u3190\u3191\u3196-\u319F\u31C0-\u31E5\u31EF\u3200-\u321E\u322A-\u3247\u3250\u3260-\u327F\u328A-\u32B0\u32C0-\u33FF\u4DC0-\u4DFF\uA490-\uA4C6\uA700-\uA716\uA720\uA721\uA789\uA78A\uA828-\uA82B\uA836-\uA839\uAA77-\uAA79\uAB5B\uAB6A\uAB6B\uFB29\uFBB2-\uFBD2\uFD40-\uFD4F\uFD90\uFD91\uFDC8-\uFDCF\uFDFC-\uFDFF\uFE62\uFE64-\uFE66\uFE69\uFF04\uFF0B\uFF1C-\uFF1E\uFF3E\uFF40\uFF5C\uFF5E\uFFE0-\uFFE6\uFFE8-\uFFEE\uFFFC\uFFFD]|\uD800[\uDD37-\uDD3F\uDD79-\uDD89\uDD8C-\uDD8E\uDD90-\uDD9C\uDDA0\uDDD0-\uDDFC]|\uD802[\uDC77\uDC78\uDEC8]|\uD803[\uDD8E\uDD8F\uDED1-\uDED8]|\uD805\uDF3F|\uD807[\uDFD5-\uDFF1]|\uD81A[\uDF3C-\uDF3F\uDF45]|\uD82F\uDC9C|\uD833[\uDC00-\uDCEF\uDCFA-\uDCFC\uDD00-\uDEB3\uDEBA-\uDED0\uDEE0-\uDEF0\uDF50-\uDFC3]|\uD834[\uDC00-\uDCF5\uDD00-\uDD26\uDD29-\uDD64\uDD6A-\uDD6C\uDD83\uDD84\uDD8C-\uDDA9\uDDAE-\uDDEA\uDE00-\uDE41\uDE45\uDF00-\uDF56]|\uD835[\uDEC1\uDEDB\uDEFB\uDF15\uDF35\uDF4F\uDF6F\uDF89\uDFA9\uDFC3]|\uD836[\uDC00-\uDDFF\uDE37-\uDE3A\uDE6D-\uDE74\uDE76-\uDE83\uDE85\uDE86]|\uD838[\uDD4F\uDEFF]|\uD83B[\uDCAC\uDCB0\uDD2E\uDEF0\uDEF1]|\uD83C[\uDC00-\uDC2B\uDC30-\uDC93\uDCA0-\uDCAE\uDCB1-\uDCBF\uDCC1-\uDCCF\uDCD1-\uDCF5\uDD0D-\uDDAD\uDDE6-\uDE02\uDE10-\uDE3B\uDE40-\uDE48\uDE50\uDE51\uDE60-\uDE65\uDF00-\uDFFF]|\uD83D[\uDC00-\uDED8\uDEDC-\uDEEC\uDEF0-\uDEFC\uDF00-\uDFD9\uDFE0-\uDFEB\uDFF0]|\uD83E[\uDC00-\uDC0B\uDC10-\uDC47\uDC50-\uDC59\uDC60-\uDC87\uDC90-\uDCAD\uDCB0-\uDCBB\uDCC0\uDCC1\uDCD0-\uDCD8\uDD00-\uDE57\uDE60-\uDE6D\uDE70-\uDE7C\uDE80-\uDE8A\uDE8E-\uDEC6\uDEC8\uDECD-\uDEDC\uDEDF-\uDEEA\uDEEF-\uDEF8\uDF00-\uDF92\uDF94-\uDFEF\uDFFA]/;
 var Z = /[ \xA0\u1680\u2000-\u200A\u2028\u2029\u202F\u205F\u3000]/;
 //#endregion
@@ -51875,7 +51878,7 @@ var REBuilder = class {
 	src_Any = Any.source;
 	src_Cc = Cc.source;
 	src_Z = Z.source;
-	src_P = P$1.source;
+	src_P = P.source;
 	src_ZPCc = [
 		this.src_Z,
 		this.src_P,
@@ -52859,7 +52862,7 @@ function isWhiteSpace(code) {
 * Does not support astral characters.
 */
 function isPunctChar(ch) {
-	return P$1.test(ch) || S.test(ch);
+	return P.test(ch) || S.test(ch);
 }
 /** Checks whether a Unicode code point is punctuation or a symbol. */
 function isPunctCharCode(code) {
@@ -54439,7 +54442,7 @@ function blockquote(state, startLine, endLine, silent) {
 	state.blkIndent = oldIndent;
 	return true;
 }
-function hr$1(state, startLine, endLine, silent) {
+function hr(state, startLine, endLine, silent) {
 	const max = state.eMarks[startLine];
 	if (state.sCount[startLine] - state.blkIndent >= 4) return false;
 	let pos = state.bMarks[startLine] + state.tShift[startLine];
@@ -55022,7 +55025,7 @@ var _rules$1 = [
 	],
 	[
 		"hr",
-		hr$1,
+		hr,
 		[
 			"paragraph",
 			"reference",
@@ -62581,7 +62584,7 @@ function selectionParentElement(range) {
 }
 /**
 * Polls until the search term appears in a searchable (non-unsearchable) DOM
-* text node. After Virtuoso scrolls a virtual list item into view, the
+* text node. After the virtual list scrolls an item into view, the
 * onContentReady callback may fire before the content is actually rendered,
 * especially for large scroll distances. This ensures we wait for the text
 * to be present before calling window.find().
@@ -63155,7 +63158,7 @@ var removeSamplesListings = (logDir) => {
 * `set*`/`merge*`/`seed*` primitives) are allowed; the invariant is
 * one-directional (db ⟹ cache).
 */
-var log$5 = createLogger("logsContent");
+var log$4 = createLogger("logsContent");
 var EMPTY_LOGS = [];
 var logsKey = (logDir) => [
 	"log_data",
@@ -63293,7 +63296,7 @@ var namesInScope = (logDir, handles) => {
 	if (misnamed !== void 0) {
 		if (!cacheOnlyScopes.has(prefix)) {
 			cacheOnlyScopes.add(prefix);
-			log$5.warn(`Listing names (e.g. ${misnamed.name}) are outside the log dir's namespace (${prefix}); skipping persistence for this scope.`);
+			log$4.warn(`Listing names (e.g. ${misnamed.name}) are outside the log dir's namespace (${prefix}); skipping persistence for this scope.`);
 		}
 		return false;
 	}
@@ -64197,7 +64200,7 @@ var sequenceChunkStarts = (entryNames, id, epoch, sequence) => {
 	return starts.sort((a, b) => a - b);
 };
 /** Bounds-checked index (an out-of-range index is a coding error). */
-var at$1 = (items, i) => {
+var at = (items, i) => {
 	const item = items[i];
 	if (item === void 0) throw new Error(`Index ${i} out of range (length ${items.length})`);
 	return item;
@@ -64211,7 +64214,7 @@ var chunkIndexOf = (starts, i) => {
 	let hi = starts.length - 1;
 	while (lo < hi) {
 		const mid = lo + hi + 1 >> 1;
-		if (at$1(starts, mid) <= i) lo = mid;
+		if (at(starts, mid) <= i) lo = mid;
 		else hi = mid - 1;
 	}
 	return lo;
@@ -64227,7 +64230,7 @@ var chunkIndexOf = (starts, i) => {
 * chunked logs), and the point is to see the reads in any build. Dial
 * back to `createLogger("chunked")` before the format ships by default.
 */
-var log$4 = {
+var log$3 = {
 	info: (message) => {
 		console.log(`[chunked] ${message}`);
 	},
@@ -64270,7 +64273,7 @@ var ChunkByteStore = class {
 	read(name) {
 		const cached = this.cache.get(name);
 		if (cached) {
-			log$4.debug(`byte-cache hit ${name} (${kb(cached.byteLength)})`);
+			log$3.debug(`byte-cache hit ${name} (${kb(cached.byteLength)})`);
 			this.cache.delete(name);
 			this.cache.set(name, cached);
 			return Promise.resolve(cached);
@@ -64281,14 +64284,14 @@ var ChunkByteStore = class {
 			pending = this.source.readFile(name).then((bytes) => {
 				this.cache.set(name, bytes);
 				this.cachedBytes += bytes.byteLength;
-				log$4.info(`fetch ${name} — ${kb(bytes.byteLength)} in ${(performance.now() - startedAt).toFixed(0)}ms (byte cache ${kb(this.cachedBytes)})`);
+				log$3.info(`fetch ${name} — ${kb(bytes.byteLength)} in ${(performance.now() - startedAt).toFixed(0)}ms (byte cache ${kb(this.cachedBytes)})`);
 				this.evict();
 				return bytes;
 			}).finally(() => {
 				this.inflight.delete(name);
 			});
 			this.inflight.set(name, pending);
-		} else log$4.debug(`fetch dedup ${name} (already in flight)`);
+		} else log$3.debug(`fetch dedup ${name} (already in flight)`);
 		return pending;
 	}
 	evict() {
@@ -64296,7 +64299,7 @@ var ChunkByteStore = class {
 			if (this.cachedBytes <= this.byteBudget || this.cache.size === 1) return;
 			this.cache.delete(name);
 			this.cachedBytes -= bytes.byteLength;
-			log$4.info(`evict ${name} (${kb(bytes.byteLength)}) — over byte budget`);
+			log$3.info(`evict ${name} (${kb(bytes.byteLength)}) — over byte budget`);
 		}
 	}
 	get size() {
@@ -64350,16 +64353,16 @@ var SequenceReader = class SequenceReader {
 	* consumers are events-side, where stats supply the count).
 	*/
 	chunkBounds(chunkIdx) {
-		return [at$1(this.starts, chunkIdx), this.starts[chunkIdx + 1] ?? this.knownCount];
+		return [at(this.starts, chunkIdx), this.starts[chunkIdx + 1] ?? this.knownCount];
 	}
 	loadChunk(chunkIdx) {
-		const start = at$1(this.starts, chunkIdx);
+		const start = at(this.starts, chunkIdx);
 		let pending = this.parsed.get(start);
 		if (!pending) {
 			const name = this.entryNameFor(start);
 			pending = this.bytes.read(name).then((bytes) => {
 				const items = JSON.parse(decoder$1.decode(bytes));
-				log$4.debug(`parse ${name}: ${items.length} items`);
+				log$3.debug(`parse ${name}: ${items.length} items`);
 				return items;
 			}).then((items) => this.transform?.(items, start) ?? items);
 			const inserted = pending;
@@ -64370,7 +64373,7 @@ var SequenceReader = class SequenceReader {
 			for (const key of this.parsed.keys()) {
 				if (this.parsed.size <= PARSED_CHUNK_CAP) break;
 				this.parsed.delete(key);
-				log$4.debug(`parsed-cache evict ${this.entryNameFor(key)} — over ${PARSED_CHUNK_CAP}-chunk cap`);
+				log$3.debug(`parsed-cache evict ${this.entryNameFor(key)} — over ${PARSED_CHUNK_CAP}-chunk cap`);
 			}
 		} else {
 			this.parsed.delete(start);
@@ -64390,7 +64393,7 @@ var SequenceReader = class SequenceReader {
 		const firstChunk = this.chunkIndexOf(lo);
 		const lastChunk = this.chunkIndexOf(hi - 1);
 		const chunks = await Promise.all(Array.from({ length: lastChunk - firstChunk + 1 }, (_, k) => this.loadChunk(firstChunk + k)));
-		const base = at$1(this.starts, firstChunk);
+		const base = at(this.starts, firstChunk);
 		return chunks.flat().slice(lo - base, hi - base);
 	}
 };
@@ -64417,7 +64420,7 @@ var SkeletonIndex = class {
 		this.spans.forEach((span, i) => {
 			this.byBegin.set(span.begin, i);
 			if (span.parent === void 0) this.roots.push(i);
-			else at$1(this.childrenOf, span.parent).push(i);
+			else at(this.childrenOf, span.parent).push(i);
 		});
 		this.spanIds = new Set(this.spans.map((span) => span.id));
 	}
@@ -64436,12 +64439,12 @@ var SkeletonIndex = class {
 		let candidates = this.roots;
 		for (;;) {
 			const hit = candidates.find((i) => {
-				const [lo, hi] = at$1(this.spans, i).extent;
+				const [lo, hi] = at(this.spans, i).extent;
 				return lo <= ordinal && ordinal <= hi;
 			});
 			if (hit === void 0) return stack;
 			stack.push(hit);
-			candidates = at$1(this.childrenOf, hit);
+			candidates = at(this.childrenOf, hit);
 		}
 	}
 	depthAt(ordinal) {
@@ -64449,9 +64452,9 @@ var SkeletonIndex = class {
 	}
 	/** Does an expanded span have anything to show under the current filter? */
 	hasVisibleContents(spanIdx, visibleTypes) {
-		const span = at$1(this.spans, spanIdx);
+		const span = at(this.spans, spanIdx);
 		if (Object.entries(span.children).some(([type, count]) => count > 0 && visibleTypes(type))) return true;
-		return at$1(this.childrenOf, spanIdx).length > 0;
+		return at(this.childrenOf, spanIdx).length > 0;
 	}
 };
 //#endregion
@@ -64460,7 +64463,7 @@ var decoder = new TextDecoder();
 var readJson = async (source, name) => {
 	const startedAt = performance.now();
 	const bytes = await source.readFile(name);
-	log$4.info(`fetch ${name} — ${(bytes.byteLength / 1024).toFixed(1)}KB in ${(performance.now() - startedAt).toFixed(0)}ms (sidecar, uncached)`);
+	log$3.info(`fetch ${name} — ${(bytes.byteLength / 1024).toFixed(1)}KB in ${(performance.now() - startedAt).toFixed(0)}ms (sidecar, uncached)`);
 	return JSON.parse(decoder.decode(bytes));
 };
 /**
@@ -65094,10 +65097,10 @@ var RowSpace = class {
 		let hi = this.chunkRows.length - 1;
 		while (lo < hi) {
 			const mid = lo + hi + 1 >> 1;
-			if (at$1(this.prefix, mid) <= globalIndex) lo = mid;
+			if (at(this.prefix, mid) <= globalIndex) lo = mid;
 			else hi = mid - 1;
 		}
-		const offset = globalIndex - at$1(this.prefix, lo);
+		const offset = globalIndex - at(this.prefix, lo);
 		const row = this.materializedRows.get(lo)?.[offset];
 		if (row !== void 0) return {
 			kind: "row",
@@ -65105,7 +65108,7 @@ var RowSpace = class {
 			globalIndex
 		};
 		const [clo, chi] = this.chunkBounds(lo);
-		const est = Math.max(at$1(this.chunkRows, lo), 1);
+		const est = Math.max(at(this.chunkRows, lo), 1);
 		const estOrdinal = Math.min(chi - 1, clo + Math.floor((offset + .5) / est * (chi - clo)));
 		return {
 			kind: "placeholder",
@@ -65127,10 +65130,10 @@ var RowSpace = class {
 		const rows = this.materializedRows.get(c);
 		if (rows) {
 			const i = rows.findIndex((row) => row.ordinal >= ordinal);
-			return at$1(this.prefix, c) + (i === -1 ? Math.max(rows.length - 1, 0) : i);
+			return at(this.prefix, c) + (i === -1 ? Math.max(rows.length - 1, 0) : i);
 		}
 		const [lo, hi] = this.chunkBounds(c);
-		return at$1(this.prefix, c) + Math.floor((ordinal - lo) / (hi - lo) * at$1(this.chunkRows, c));
+		return at(this.prefix, c) + Math.floor((ordinal - lo) / (hi - lo) * at(this.chunkRows, c));
 	}
 	isMaterialized(chunkIdx) {
 		return this.materializedRows.has(chunkIdx);
@@ -65147,7 +65150,7 @@ var RowSpace = class {
 	}
 	async doMaterialize(chunkIdx, ctx) {
 		const [lo, hi] = this.chunkBounds(chunkIdx);
-		const estimated = at$1(this.chunkRows, chunkIdx);
+		const estimated = at(this.chunkRows, chunkIdx);
 		let start = lo;
 		for (const [a, b] of this.elision) if (a <= start && start <= b) start = b + 1;
 		let rows = [];
@@ -65160,7 +65163,7 @@ var RowSpace = class {
 		this.materializedRows.set(chunkIdx, rows);
 		this.chunkRows[chunkIdx] = rows.length;
 		this.exact[chunkIdx] = true;
-		log$4.info(`materialize events chunk ${chunkIdx} [${lo},${hi}) → ${rows.length} rows (estimate was ${estimated}${start > lo ? `, decode from ${start} past elision` : ""})`);
+		log$3.info(`materialize events chunk ${chunkIdx} [${lo},${hi}) → ${rows.length} rows (estimate was ${estimated}${start > lo ? `, decode from ${start} past elision` : ""})`);
 		this.recompute();
 	}
 	get materializedCount() {
@@ -65459,7 +65462,7 @@ var useChunkedSample = (handle) => useAsyncDataFromQuery({
 });
 //#endregion
 //#region src/log_data/sampleStream.ts
-var log$3 = createLogger("sampleStream");
+var log$2 = createLogger("sampleStream");
 var kNoId = -1;
 var initialStreamState = () => ({
 	eventId: kNoId,
@@ -65542,7 +65545,7 @@ var shouldFinalizeStreamingSample = (sampleDataResponse, completedInLog) => {
 	return !hasSampleDataUpdates(sampleDataResponse.sampleData);
 };
 function processAttachments(sampleData, state) {
-	log$3.debug(`Processing ${sampleData.attachments.length} attachments`);
+	log$2.debug(`Processing ${sampleData.attachments.length} attachments`);
 	Object.values(sampleData.attachments).forEach((v) => {
 		state.attachments[v.hash] = v.content;
 	});
@@ -65564,7 +65567,7 @@ function processCallPool(sampleData, state) {
 	}
 }
 function processEvents(sampleData, state, api, logFile) {
-	log$3.debug(`Processing ${sampleData.events.length} events`);
+	log$2.debug(`Processing ${sampleData.events.length} events`);
 	if (sampleData.events.length === 0) return false;
 	for (const eventData of sampleData.events) {
 		const existingIndex = state.eventMapping[eventData.event_id];
@@ -65947,7 +65950,7 @@ var withAttachmentsResolved = async (items, chunked, label) => {
 	const refs = /* @__PURE__ */ new Set();
 	collectRefs(items, refs);
 	if (refs.size === 0) return items;
-	log$4.info(`resolve ${refs.size} attachment ref${refs.size === 1 ? "" : "s"} for ${label}`);
+	log$3.info(`resolve ${refs.size} attachment ref${refs.size === 1 ? "" : "s"} for ${label}`);
 	const attachments = {};
 	await Promise.all([...refs].map(async (index) => {
 		const [content] = await chunked.attachments.getRange(index, index + 1);
@@ -66890,2740 +66893,1926 @@ var isRenderableImageDocument = (source, declaredMimeType) => {
 	return isRasterImageMimeType(normalizedSource) && normalizedSource === normalizedDeclared;
 };
 //#endregion
-//#region ../../node_modules/.pnpm/react-virtuoso@4.18.11_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-virtuoso/dist/index.mjs
-var we = 0;
-var Pt = 1;
-var Xt = 2;
-var Vn = 4;
-function fn(t) {
-	return () => t;
-}
-function Io(t) {
-	t();
-}
-function re(t, e) {
-	return (n) => t(e(n));
-}
-function mn(t, e) {
-	return () => t(e);
-}
-function So(t, e) {
-	return (n) => t(e, n);
-}
-function _e(t) {
-	return t !== void 0;
-}
-function xo(...t) {
-	return () => {
-		t.map(Io);
-	};
-}
-function Jt() {}
-function ye(t, e) {
-	return e(t), t;
-}
-function vo(t, e) {
-	return e(t);
-}
-function rt(...t) {
-	return t;
-}
-function Y(t, e) {
-	return t(Pt, e);
-}
-function M(t, e) {
-	t(we, e);
-}
-function Ne(t) {
-	t(Xt);
-}
-function it(t) {
-	return t(Vn);
-}
-function z(t, e) {
-	return Y(t, So(e, we));
-}
-function yt(t, e) {
-	const n = t(Pt, (o) => {
-		n(), e(o);
-	});
-	return n;
-}
-function pn(t) {
-	let e, n;
-	return (o) => (r) => {
-		e = r, n && clearTimeout(n), n = setTimeout(() => {
-			o(e);
-		}, t);
-	};
-}
-function Wn(t, e) {
-	return t === e;
-}
-function nt(t = Wn) {
-	let e;
-	return (n) => (o) => {
-		t(e, o) || (e = o, n(o));
-	};
-}
-function P(t) {
-	return (e) => (n) => {
-		t(n) && e(n);
-	};
-}
-function B(t) {
-	return (e) => re(e, t);
-}
-function Bt(t) {
-	return (e) => () => {
-		e(t);
-	};
-}
-function x$1(t, ...e) {
-	const n = To(...e);
-	return ((o, r) => {
-		switch (o) {
-			case Xt:
-				Ne(t);
-				return;
-			case Pt: return Y(t, n(r));
-		}
-	});
-}
-function Ot(t, e) {
-	return (n) => (o) => {
-		n(e = t(e, o));
-	};
-}
-function Ut(t) {
-	return (e) => (n) => {
-		t > 0 ? t-- : e(n);
-	};
-}
-function zt(t) {
-	let e = null, n;
-	return (o) => (r) => {
-		e = r, !n && (n = setTimeout(() => {
-			n = void 0, o(e);
-		}, t));
-	};
-}
-function $(...t) {
-	const e = Array.from({ length: t.length });
-	let n = 0, o = null;
-	const r = 2 ** t.length - 1;
-	return t.forEach((s, i) => {
-		const l = 2 ** i;
-		Y(s, (c) => {
-			const d = n;
-			n |= l, e[i] = c, d !== r && n === r && o && (o(), o = null);
-		});
-	}), (s) => (i) => {
-		const l = () => {
-			s([i].concat(e));
-		};
-		n === r ? l() : o = l;
-	};
-}
-function To(...t) {
-	return (e) => t.reduceRight(vo, e);
-}
-function Co(t) {
-	let e, n;
-	const o = () => e?.();
-	return function(r, s) {
-		switch (r) {
-			case Pt: return s ? n === s ? void 0 : (o(), n = s, e = Y(t, s), e) : (o(), Jt);
-			case Xt:
-				o(), n = null;
-				return;
-		}
-	};
-}
-function T(t) {
-	let e = t;
-	const n = U();
-	return ((o, r) => {
-		switch (o) {
-			case we:
-				e = r;
-				break;
-			case Pt:
-				r(e);
-				break;
-			case Vn: return e;
-		}
-		return n(o, r);
-	});
-}
-function ht(t, e) {
-	return ye(T(e), (n) => z(t, n));
-}
-function U() {
-	const t = [];
-	return ((e, n) => {
-		switch (e) {
-			case we:
-				t.slice().forEach((o) => {
-					o(n);
-				});
-				return;
-			case Xt:
-				t.splice(0);
-				return;
-			case Pt: return t.push(n), () => {
-				const o = t.indexOf(n);
-				o > -1 && t.splice(o, 1);
-			};
-		}
-	});
-}
-function Tt(t) {
-	return ye(U(), (e) => z(t, e));
-}
-var wo = { singleton: !0 };
-function j(t, e = [], n = wo) {
-	const { singleton: o } = n;
-	return {
-		constructor: t,
-		dependencies: e,
-		id: yo(),
-		singleton: o
-	};
-}
-var yo = () => /* @__PURE__ */ Symbol("id");
-function bo(t) {
-	const e = /* @__PURE__ */ new Map(), n = ({ constructor: o, dependencies: r, id: s, singleton: i }) => {
-		if (i && e.has(s)) return e.get(s);
-		const l = o(r.map((c) => n(c)));
-		return i && e.set(s, l), l;
-	};
-	return n(t);
-}
-function at(...t) {
-	const e = U(), n = Array.from({ length: t.length });
-	let o = 0;
-	const r = 2 ** t.length - 1;
-	return t.forEach((s, i) => {
-		const l = 2 ** i;
-		Y(s, (c) => {
-			n[i] = c, o |= l, o === r && M(e, n);
-		});
-	}), function(s, i) {
-		switch (s) {
-			case Xt:
-				Ne(e);
-				return;
-			case Pt: return o === r && i(n), Y(e, i);
-		}
-	};
-}
-function W(t, e = Wn) {
-	return x$1(t, nt(e));
-}
-function Fe(...t) {
-	return function(e, n) {
-		switch (e) {
-			case Xt: return;
-			case Pt: return xo(...t.map((o) => Y(o, n)));
-		}
-	};
-}
-var ft = {
-	/** Detailed debugging information including item measurements */
-	DEBUG: 0,
-	/** General informational messages */
-	INFO: 1,
-	/** Warning messages for potential issues */
-	WARN: 2,
-	/** Error messages for failures (default level) */
-	ERROR: 3
-};
-var Ro = {
-	[ft.DEBUG]: "debug",
-	[ft.ERROR]: "error",
-	[ft.INFO]: "log",
-	[ft.WARN]: "warn"
-};
-var Ho = () => typeof globalThis > "u" ? window : globalThis;
-var Gt = j(() => {
-	const t = T(ft.ERROR);
-	return {
-		log: T((n, o, r = ft.INFO) => {
-			r >= (Ho().VIRTUOSO_LOG_LEVEL ?? it(t)) && console[Ro[r]]("%creact-virtuoso: %c%s %o", "color: #0253b3; font-weight: bold", "color: initial", n, o);
-		}),
-		logLevel: t
-	};
-}, [], { singleton: !0 });
-function Eo(t) {
-	return "self" in t ? t.document.documentElement : t;
-}
-function Pn(t) {
-	const e = Eo(t);
-	return e.ownerDocument.defaultView.getComputedStyle(e).direction === "rtl";
-}
-function _t(t, e) {
-	return Pn(t) ? -e : e;
-}
-function hn(t, e) {
-	return Pn(t) ? -e : e;
-}
-function kt(t, e, n) {
-	return De(t, e, n).callbackRef;
-}
-function De(t, e, n) {
-	const o = import_react.useRef(null);
-	let r = (i) => {};
-	const s = import_react.useMemo(() => typeof ResizeObserver < "u" ? new ResizeObserver((i) => {
-		const l = () => {
-			const c = i[0].target;
-			c.offsetParent !== null && t(c);
-		};
-		n ? l() : requestAnimationFrame(l);
-	}) : null, [t, n]);
-	return r = (i) => {
-		i && e ? (s?.observe(i), o.current = i) : (o.current && s?.unobserve(o.current), o.current = null);
-	}, {
-		callbackRef: r,
-		ref: o
-	};
-}
-function Gn(t, e, n, o, r, s, i, l, c) {
-	return De(import_react.useCallback((m) => {
-		const v = Bo(m.children, e, l ? "offsetWidth" : "offsetHeight", r);
-		let p = m.parentElement;
-		for (; p.dataset.virtuosoScroller === void 0;) p = p.parentElement;
-		const I = p.lastElementChild?.dataset.viewportType === "window";
-		let w;
-		I && (w = p.ownerDocument.defaultView);
-		const R = i ? l ? i.scrollWidth : i.scrollHeight : I ? l ? w.document.documentElement.scrollWidth : w.document.documentElement.scrollHeight : l ? p.scrollWidth : p.scrollHeight, h = i ? l ? i.offsetWidth : i.offsetHeight : I ? l ? w.innerWidth : w.innerHeight : l ? p.offsetWidth : p.offsetHeight, f = i ? l ? _t(i, i.scrollLeft) : i.scrollTop : I ? l ? _t(w, w.scrollX || w.document.documentElement.scrollLeft) : w.scrollY || w.document.documentElement.scrollTop : l ? _t(p, p.scrollLeft) : p.scrollTop;
-		o({
-			scrollHeight: R,
-			scrollTop: Math.max(f, 0),
-			viewportHeight: h
-		}), s?.(l ? gn("column-gap", getComputedStyle(m).columnGap, r) : gn("row-gap", getComputedStyle(m).rowGap, r)), v !== null && t(v);
-	}, [
-		t,
-		e,
-		r,
-		s,
-		i,
-		o,
-		l
-	]), n, c);
-}
-function Bo(t, e, n, o) {
-	const r = t.length;
-	if (r === 0) return null;
-	const s = [];
-	for (let i = 0; i < r; i++) {
-		const l = t.item(i);
-		if (l.dataset.index === void 0) continue;
-		const c = parseInt(l.dataset.index, 10), d = parseFloat(l.dataset.knownSize), m = e(l, n);
-		if (m === 0 && o("Zero-sized element, this should not happen", { child: l }, ft.ERROR), m === d) continue;
-		const v = s[s.length - 1];
-		s.length === 0 || v.size !== m || v.endIndex !== c - 1 ? s.push({
-			endIndex: c,
-			size: m,
-			startIndex: c
-		}) : s[s.length - 1].endIndex++;
-	}
-	return s;
-}
-function gn(t, e, n) {
-	return e !== "normal" && e?.endsWith("px") !== !0 && n(`${t} was not resolved to pixel value correctly`, e, ft.WARN), e === "normal" ? 0 : parseInt(e ?? "0", 10);
-}
-function $e(t, e, n) {
-	const o = import_react.useRef(null), r = import_react.useCallback((c) => {
-		if (!c?.offsetParent) return;
-		const d = c.getBoundingClientRect(), m = d.width;
-		let v, p;
-		if (e) {
-			const I = e.getBoundingClientRect(), w = d.top - I.top;
-			p = I.height - Math.max(0, w), v = w + e.scrollTop;
-		} else {
-			const I = i.current.ownerDocument.defaultView;
-			p = I.innerHeight - Math.max(0, d.top), v = d.top + I.scrollY;
-		}
-		o.current = {
-			listHeight: d.height,
-			offsetTop: v,
-			visibleHeight: p,
-			visibleWidth: m
-		}, t(o.current);
-	}, [t, e]), { callbackRef: s, ref: i } = De(r, !0, n), l = import_react.useCallback(() => {
-		r(i.current);
-	}, [r, i]);
-	return import_react.useEffect(() => {
-		if (e) {
-			e.addEventListener("scroll", l);
-			const d = new ResizeObserver(() => {
-				requestAnimationFrame(l);
-			});
-			return d.observe(e), () => {
-				e.removeEventListener("scroll", l), d.unobserve(e);
-			};
-		}
-		const c = i.current?.ownerDocument.defaultView;
-		return c?.addEventListener("scroll", l), c?.addEventListener("resize", l), () => {
-			c?.removeEventListener("scroll", l), c?.removeEventListener("resize", l);
-		};
-	}, [
-		l,
-		e,
-		i
-	]), s;
-}
-var It = j(() => {
-	const t = U(), e = U(), n = T(0), o = U(), r = T(0), s = U(), i = U(), l = T(0), c = T(0), d = T(0), m = T(0), v = U(), p = U(), I = T(!1), w = T(!1), R = T(!1);
-	return z(x$1(t, B(({ scrollTop: h }) => h)), e), z(x$1(t, B(({ scrollHeight: h }) => h)), i), z(e, r), {
-		deviation: n,
-		fixedFooterHeight: d,
-		fixedHeaderHeight: c,
-		footerHeight: m,
-		headerHeight: l,
-		horizontalDirection: w,
-		scrollBy: p,
-		scrollContainerState: t,
-		scrollHeight: i,
-		scrollingInProgress: I,
-		scrollTo: v,
-		scrollTop: e,
-		skipAnimationFrameInResizeObserver: R,
-		smoothScrollTargetReached: o,
-		statefulScrollTop: r,
-		viewportHeight: s
-	};
-}, [], { singleton: !0 });
-var se = { lvl: 0 };
-function An(t, e) {
-	const n = t.length;
-	if (n === 0) return [];
-	let { index: o, value: r } = e(t[0]);
-	const s = [];
-	for (let i = 1; i < n; i++) {
-		const { index: l, value: c } = e(t[i]);
-		s.push({
-			end: l - 1,
-			start: o,
-			value: r
-		}), o = l, r = c;
-	}
-	return s.push({
-		end: Infinity,
-		start: o,
-		value: r
-	}), s;
-}
-function J(t) {
-	return t === se;
-}
-function ie$2(t, e) {
-	if (!J(t)) return e === t.k ? t.v : e < t.k ? ie$2(t.l, e) : ie$2(t.r, e);
-}
-function Rt(t, e, n = "k") {
-	if (J(t)) return [-Infinity, void 0];
-	if (Number(t[n]) === e) return [t.k, t.v];
-	if (Number(t[n]) < e) {
-		const o = Rt(t.r, e, n);
-		return o[0] === -Infinity ? [t.k, t.v] : o;
-	}
-	return Rt(t.l, e, n);
-}
-function vt(t, e, n) {
-	return J(t) ? Nn(e, n, 1) : e === t.k ? dt(t, {
-		k: e,
-		v: n
-	}) : e < t.k ? In(dt(t, { l: vt(t.l, e, n) })) : In(dt(t, { r: vt(t.r, e, n) }));
-}
-function Yt() {
-	return se;
-}
-function Zt(t, e, n) {
-	if (J(t)) return [];
-	const o = Rt(t, e)[0];
-	return Oo(We(t, o, n));
-}
-function Ve(t, e) {
-	if (J(t)) return se;
-	const { k: n, l: o, r } = t;
-	if (e === n) {
-		if (J(o)) return r;
-		if (J(r)) return o;
-		const [s, i] = _n(o);
-		return xe(dt(t, {
-			k: s,
-			l: Mn(o),
-			v: i
-		}));
-	}
-	return e < n ? xe(dt(t, { l: Ve(o, e) })) : xe(dt(t, { r: Ve(r, e) }));
-}
-function Nt(t) {
-	return J(t) ? [] : [
-		...Nt(t.l),
-		{
-			k: t.k,
-			v: t.v
-		},
-		...Nt(t.r)
-	];
-}
-function We(t, e, n) {
-	if (J(t)) return [];
-	const { k: o, l: r, r: s, v: i } = t;
-	let l = [];
-	return o > e && (l = l.concat(We(r, e, n))), o >= e && o <= n && l.push({
-		k: o,
-		v: i
-	}), o <= n && (l = l.concat(We(s, e, n))), l;
-}
-function xe(t) {
-	const { l: e, lvl: n, r: o } = t;
-	if (o.lvl >= n - 1 && e.lvl >= n - 1) return t;
-	if (n > o.lvl + 1) {
-		if (Be(e)) return Dn(dt(t, { lvl: n - 1 }));
-		if (!J(e) && !J(e.r)) return dt(e.r, {
-			l: dt(e, { r: e.r.l }),
-			lvl: n,
-			r: dt(t, {
-				l: e.r.r,
-				lvl: n - 1
-			})
-		});
-		throw new Error("Unexpected empty nodes");
-	}
-	if (Be(t)) return Pe(dt(t, { lvl: n - 1 }));
-	if (!J(o) && !J(o.l)) {
-		const r = o.l, s = Be(r) ? o.lvl - 1 : o.lvl;
-		return dt(r, {
-			l: dt(t, {
-				lvl: n - 1,
-				r: r.l
-			}),
-			lvl: r.lvl + 1,
-			r: Pe(dt(o, {
-				l: r.r,
-				lvl: s
-			}))
-		});
-	}
-	throw new Error("Unexpected empty nodes");
-}
-function dt(t, e) {
-	return Nn(e.k === void 0 ? t.k : e.k, e.v === void 0 ? t.v : e.v, e.lvl === void 0 ? t.lvl : e.lvl, e.l === void 0 ? t.l : e.l, e.r === void 0 ? t.r : e.r);
-}
-function Mn(t) {
-	return J(t.r) ? t.l : xe(dt(t, { r: Mn(t.r) }));
-}
-function Be(t) {
-	return J(t) || t.lvl > t.r.lvl;
-}
-function _n(t) {
-	return J(t.r) ? [t.k, t.v] : _n(t.r);
-}
-function Nn(t, e, n, o = se, r = se) {
-	return {
-		k: t,
-		l: o,
-		lvl: n,
-		r,
-		v: e
-	};
-}
-function In(t) {
-	return Pe(Dn(t));
-}
-function Dn(t) {
-	const { l: e } = t;
-	return !J(e) && e.lvl === t.lvl ? dt(e, { r: dt(t, { l: e.r }) }) : t;
-}
-function Pe(t) {
-	const { lvl: e, r: n } = t;
-	return !J(n) && !J(n.r) && n.lvl === e && n.r.lvl === e ? dt(n, {
-		l: dt(t, { r: n.l }),
-		lvl: e + 1
-	}) : t;
-}
-function Oo(t) {
-	return An(t, ({ k: e, v: n }) => ({
-		index: e,
-		value: n
-	}));
-}
-function $n(t, e) {
-	return !!(t && t.startIndex === e.startIndex && t.endIndex === e.endIndex);
-}
-function le(t, e) {
-	return !!(t && t[0] === e[0] && t[1] === e[1]);
-}
-var Ue = j(() => ({ recalcInProgress: T(!1) }), [], { singleton: !0 });
-function Un(t, e, n) {
-	return t[Te(t, e, n)];
-}
-function Te(t, e, n, o = 0) {
-	let r = t.length - 1;
-	for (; o <= r;) {
-		const s = Math.floor((o + r) / 2), i = t[s], l = n(i, e);
-		if (l === 0) return s;
-		if (l === -1) {
-			if (r - o < 2) return s - 1;
-			r = s - 1;
-		} else {
-			if (r === o) return s;
-			o = s + 1;
-		}
-	}
-	throw new Error(`Failed binary finding record in array - ${t.join(",")}, searched for ${e}`);
-}
-function ko(t, e, n, o) {
-	const r = Te(t, e, o), s = Te(t, n, o, r);
-	return t.slice(r, s + 1);
-}
-function Ht(t, e) {
-	return Math.round(t.getBoundingClientRect()[e]);
-}
-function be(t) {
-	return !J(t.groupOffsetTree);
-}
-function Ke({ index: t }, e) {
-	return e === t ? 0 : e < t ? -1 : 1;
-}
-function Lo() {
-	return {
-		groupIndices: [],
-		groupOffsetTree: Yt(),
-		lastIndex: 0,
-		lastOffset: 0,
-		lastSize: 0,
-		offsetTree: [],
-		sizeTree: Yt()
-	};
-}
-function zo(t, e) {
-	let n = J(t) ? 0 : Infinity;
-	for (const o of e) {
-		const { endIndex: r, size: s, startIndex: i } = o;
-		if (n = Math.min(n, i), J(t)) {
-			t = vt(t, 0, s);
-			continue;
-		}
-		const l = Zt(t, i - 1, r + 1);
-		if (l.some(Mo(o))) continue;
-		let c = !1, d = !1;
-		for (const { end: m, start: v, value: p } of l) c ? (r >= v || s === p) && (t = Ve(t, v)) : (d = p !== s, c = !0), m > r && r >= v && p !== s && (t = vt(t, r + 1, p));
-		d && (t = vt(t, i, s));
-	}
-	return [t, n];
-}
-function Fo(t) {
-	return t.groupIndex !== void 0;
-}
-function Vo({ offset: t }, e) {
-	return e === t ? 0 : e < t ? -1 : 1;
-}
-function ce(t, e, n) {
-	if (e.length === 0) return 0;
-	const { index: o, offset: r, size: s } = Un(e, t, Ke), i = t - o, l = s * i + (i - 1) * n + r;
-	return l > 0 ? l + n : l;
-}
-function Kn(t, e) {
-	if (!be(e)) return t;
-	let n = 0;
-	for (; e.groupIndices[n] <= t + n;) n++;
-	return t + n;
-}
-function jn(t, e, n) {
-	if (Fo(t)) return e.groupIndices[t.groupIndex] + 1;
-	let r = Kn(t.index === "LAST" ? n : t.index, e);
-	return r = Math.max(0, Math.min(n, r)), r;
-}
-function Wo(t, e, n, o = 0) {
-	return o > 0 && (e = Math.max(e, Un(t, o, Ke).offset)), An(ko(t, e, n, Vo), Ao);
-}
-function Po(t, [e, n, o, r]) {
-	e.length > 0 && o("received item sizes", e, ft.DEBUG);
-	const s = t.sizeTree;
-	let i = s, l = 0;
-	if (n.length > 0 && J(s) && e.length === 2) {
-		const p = e[0].size, I = e[1].size;
-		i = n.reduce((w, R) => vt(vt(w, R, p), R + 1, I), i);
-	} else [i, l] = zo(i, e);
-	if (i === s) return t;
-	const { lastIndex: c, lastOffset: d, lastSize: m, offsetTree: v } = Ge(t.offsetTree, l, i, r);
-	return {
-		groupIndices: n,
-		groupOffsetTree: n.reduce((p, I) => vt(p, I, ce(I, v, r)), Yt()),
-		lastIndex: c,
-		lastOffset: d,
-		lastSize: m,
-		offsetTree: v,
-		sizeTree: i
-	};
-}
-function Go(t) {
-	return Nt(t).map(({ k: e, v: n }, o, r) => {
-		const s = r[o + 1];
-		return {
-			endIndex: s === void 0 ? Infinity : s.k - 1,
-			size: n,
-			startIndex: e
-		};
-	});
-}
-function Sn(t, e) {
-	let n = 0, o = 0;
-	for (; n < t;) n += e[o + 1] - e[o] - 1, o++;
-	return o - (n === t ? 0 : 1);
-}
-function Ge(t, e, n, o) {
-	let r = t, s = 0, i = 0, l = 0, c = 0;
-	if (e === 0) r = [];
-	else {
-		c = Te(r, e - 1, Ke), l = r[c].offset;
-		const m = Rt(n, e - 1);
-		s = m[0], i = m[1], r.length && r[c].size === Rt(n, e)[1] && (c -= 1), r = r.slice(0, c + 1);
-	}
-	for (const { start: d, value: m } of Zt(n, e, Infinity)) {
-		const v = d - s, p = v * i + l + v * o;
-		r.push({
-			index: d,
-			offset: p,
-			size: m
-		}), s = d, l = p, i = m;
-	}
-	return {
-		lastIndex: s,
-		lastOffset: l,
-		lastSize: i,
-		offsetTree: r
-	};
-}
-function Ao(t) {
-	return {
-		index: t.index,
-		value: t
-	};
-}
-function Mo(t) {
-	const { endIndex: e, size: n, startIndex: o } = t;
-	return (r) => r.start === o && (r.end === e || r.end === Infinity) && r.value === n;
-}
-var _o = {
-	offsetHeight: "height",
-	offsetWidth: "width"
-};
-var Lt = j(([{ log: t }, { recalcInProgress: e }]) => {
-	const n = U(), o = U(), r = ht(o, 0), s = U(), i = U(), l = T(0), c = T([]), d = T(void 0), m = T(void 0), v = T(void 0), p = T(void 0), I = T((u, g) => Ht(u, _o[g])), w = T(void 0), R = T(0), h = Lo(), f = ht(x$1(n, $(c, t, R), Ot(Po, h), nt()), h), a = ht(x$1(c, nt(), Ot((u, g) => ({
-		current: g,
-		prev: u.current
-	}), {
-		current: [],
-		prev: []
-	}), B(({ prev: u }) => u)), []);
-	z(x$1(c, P((u) => u.length > 0), $(f, R), B(([u, g, C]) => {
-		const L = u.reduce((O, V, N) => vt(O, V, ce(V, g.offsetTree, C) || N), Yt());
-		return {
-			...g,
-			groupIndices: u,
-			groupOffsetTree: L
-		};
-	})), f), z(x$1(o, $(f), P(([u, { lastIndex: g }]) => u < g), B(([u, { lastIndex: g, lastSize: C }]) => [{
-		endIndex: g,
-		size: C,
-		startIndex: u
-	}])), n), z(d, m);
-	const S = ht(x$1(d, B((u) => u === void 0)), !0);
-	z(x$1(m, P((u) => u !== void 0 && J(it(f).sizeTree)), B((u) => {
-		const g = it(v), C = it(c).length > 0;
-		return g !== void 0 && g !== 0 ? C ? [{
-			endIndex: 0,
-			size: g,
-			startIndex: 0
-		}, {
-			endIndex: 1,
-			size: u,
-			startIndex: 1
-		}] : [] : [{
-			endIndex: 0,
-			size: u,
-			startIndex: 0
-		}];
-	})), n), z(x$1(p, P((u) => u !== void 0 && u.length > 0 && J(it(f).sizeTree)), B((u) => {
-		const g = [];
-		let C = u[0], L = 0;
-		for (let O = 1; O < u.length; O++) {
-			const V = u[O];
-			V !== C && (g.push({
-				endIndex: O - 1,
-				size: C,
-				startIndex: L
-			}), C = V, L = O);
-		}
-		return g.push({
-			endIndex: u.length - 1,
-			size: C,
-			startIndex: L
-		}), g;
-	})), n), z(x$1(c, $(v, m), P(([, u, g]) => u !== void 0 && g !== void 0), B(([u, g, C]) => {
-		const L = [];
-		for (let O = 0; O < u.length; O++) {
-			const V = u[O], N = u[O + 1];
-			L.push({
-				startIndex: V,
-				endIndex: V,
-				size: g
-			}), N !== void 0 && L.push({
-				startIndex: V + 1,
-				endIndex: N - 1,
-				size: C
-			});
-		}
-		return L;
-	})), n);
-	const H = Tt(x$1(n, $(f), Ot(({ sizes: u }, [g, C]) => ({
-		changed: C !== u,
-		sizes: C
-	}), {
-		changed: !1,
-		sizes: h
-	}), B((u) => u.changed)));
-	Y(x$1(l, Ot((u, g) => ({
-		diff: u.prev - g,
-		prev: g
-	}), {
-		diff: 0,
-		prev: 0
-	}), B((u) => u.diff)), (u) => {
-		const { groupIndices: g } = it(f);
-		if (u > 0) M(e, !0), M(s, u + Sn(u, g));
-		else if (u < 0) {
-			const C = it(a);
-			C.length > 0 && (u -= Sn(-u, C)), M(i, u);
-		}
-	}), Y(x$1(l, $(t)), ([u, g]) => {
-		u < 0 && g("`firstItemIndex` prop should not be set to less than zero. If you don't know the total count, just use a very high value", { firstItemIndex: l }, ft.ERROR);
-	});
-	const y = Tt(s);
-	z(x$1(s, $(f), B(([u, g]) => {
-		const C = g.groupIndices.length > 0, L = [], O = g.lastSize;
-		if (C) {
-			const V = ie$2(g.sizeTree, 0);
-			let N = 0, Z = 0;
-			for (; N < u;) {
-				const q = g.groupIndices[Z], Q = g.groupIndices.length === Z + 1 ? Infinity : g.groupIndices[Z + 1] - q - 1;
-				L.push({
-					endIndex: q,
-					size: V,
-					startIndex: q
-				}), L.push({
-					endIndex: q + 1 + Q - 1,
-					size: O,
-					startIndex: q + 1
-				}), Z++, N += Q + 1;
-			}
-			const F = Nt(g.sizeTree);
-			return N !== u && F.shift(), F.reduce((q, { k: Q, v: gt }) => {
-				let lt = q.ranges;
-				return q.prevSize !== 0 && (lt = [...q.ranges, {
-					endIndex: Q + u - 1,
-					size: q.prevSize,
-					startIndex: q.prevIndex
-				}]), {
-					prevIndex: Q + u,
-					prevSize: gt,
-					ranges: lt
-				};
-			}, {
-				prevIndex: u,
-				prevSize: 0,
-				ranges: L
-			}).ranges;
-		}
-		return Nt(g.sizeTree).reduce((V, { k: N, v: Z }) => ({
-			prevIndex: N + u,
-			prevSize: Z,
-			ranges: [...V.ranges, {
-				endIndex: N + u - 1,
-				size: V.prevSize,
-				startIndex: V.prevIndex
-			}]
-		}), {
-			prevIndex: 0,
-			prevSize: O,
-			ranges: []
-		}).ranges;
-	})), n);
-	const k = Tt(x$1(i, $(f, R), B(([u, { offsetTree: g }, C]) => {
-		return ce(-u, g, C);
-	})));
-	return z(x$1(i, $(f, R), B(([u, g, C]) => {
-		if (g.groupIndices.length > 0) {
-			if (J(g.sizeTree)) return g;
-			let V = Yt();
-			const N = it(a);
-			let Z = 0, F = 0, mt = 0;
-			for (; Z < -u;) {
-				mt = N[F];
-				const Q = N[F + 1] - mt - 1;
-				F++, Z += Q + 1;
-			}
-			if (V = Nt(g.sizeTree).reduce((Q, { k: gt, v: lt }) => vt(Q, Math.max(0, gt + u), lt), V), Z !== -u) {
-				const Q = ie$2(g.sizeTree, mt);
-				V = vt(V, 0, Q);
-				const gt = Rt(g.sizeTree, -u + 1)[1];
-				V = vt(V, 1, gt);
-			}
-			return {
-				...g,
-				sizeTree: V,
-				...Ge(g.offsetTree, 0, V, C)
-			};
-		}
-		const O = Nt(g.sizeTree).reduce((V, { k: N, v: Z }) => vt(V, Math.max(0, N + u), Z), Yt());
-		return {
-			...g,
-			sizeTree: O,
-			...Ge(g.offsetTree, 0, O, C)
-		};
-	})), f), {
-		beforeUnshiftWith: y,
-		data: w,
-		defaultItemSize: m,
-		firstItemIndex: l,
-		fixedItemSize: d,
-		fixedGroupSize: v,
-		gap: R,
-		groupIndices: c,
-		heightEstimates: p,
-		itemSize: I,
-		listRefresh: H,
-		shiftWith: i,
-		shiftWithOffset: k,
-		sizeRanges: n,
-		sizes: f,
-		statefulTotalCount: r,
-		totalCount: o,
-		trackItemSizes: S,
-		unshiftWith: s
-	};
-}, rt(Gt, Ue), { singleton: !0 });
-function No(t) {
-	return t.reduce((e, n) => (e.groupIndices.push(e.totalCount), e.totalCount += n + 1, e), {
-		groupIndices: [],
-		totalCount: 0
-	});
-}
-var qn = j(([{ groupIndices: t, sizes: e, totalCount: n }, { headerHeight: o, scrollTop: r }]) => {
-	const s = U(), i = U(), l = Tt(x$1(s, B(No)));
-	return z(x$1(l, B((c) => c.totalCount)), n), z(x$1(l, B((c) => c.groupIndices)), t), z(x$1(at(r, e, o), P(([c, d]) => be(d)), B(([c, d, m]) => Rt(d.groupOffsetTree, Math.max(c - m, 0), "v")[0]), nt(), B((c) => [c])), i), {
-		groupCounts: s,
-		topItemsIndexes: i
-	};
-}, rt(Lt, It));
-var At = j(([{ log: t }]) => {
-	const e = T(!1), n = Tt(x$1(e, P((o) => o), nt()));
-	return Y(e, (o) => {
-		o && it(t)("props updated", {}, ft.DEBUG);
-	}), {
-		didMount: n,
-		propsReady: e
-	};
-}, rt(Gt), { singleton: !0 });
-var Do = typeof document < "u" && "scrollBehavior" in document.documentElement.style;
-function Yn(t) {
-	const e = typeof t == "number" ? { index: t } : { ...t };
-	return e.align || (e.align = "start"), (!e.behavior || !Do) && (e.behavior = "auto"), e.offset === void 0 && (e.offset = 0), e;
-}
-var fe = j(([{ gap: t, listRefresh: e, sizes: n, totalCount: o }, { fixedFooterHeight: r, fixedHeaderHeight: s, footerHeight: i, headerHeight: l, scrollingInProgress: c, scrollTo: d, smoothScrollTargetReached: m, viewportHeight: v }, { log: p }]) => {
-	const I = U(), w = U(), R = T(0);
-	let h = null, f = null, a = null;
-	function S() {
-		h !== null && (h(), h = null), a !== null && (a(), a = null), f && (clearTimeout(f), f = null), M(c, !1);
-	}
-	return z(x$1(I, $(n, v, o, R, l, i, p), $(t, s, r), B(([[H, y, k, u, g, C, L, O], V, N, Z]) => {
-		const F = Yn(H), { align: mt, behavior: q, offset: Q } = F, gt = u - 1, lt = jn(F, y, gt);
-		let St = ce(lt, y.offsetTree, V) + C;
-		mt === "end" ? (St += N + Rt(y.sizeTree, lt)[1] - k + Z, lt === gt && (St += L)) : mt === "center" ? St += (N + Rt(y.sizeTree, lt)[1] - k + Z) / 2 : St -= g, Q !== void 0 && Q !== 0 && (St += Q);
-		const Ft = (pt) => {
-			S(), pt ? (O("retrying to scroll to", { location: H }, ft.DEBUG), M(I, H)) : (M(w, !0), O("list did not change, scroll successful", {}, ft.DEBUG));
-		};
-		if (S(), q === "smooth") {
-			let pt = !1;
-			a = Y(e, (jt) => {
-				pt = pt || jt;
-			}), h = yt(m, () => {
-				Ft(pt);
-			});
-		} else h = yt(x$1(e, $o(150)), Ft);
-		return f = setTimeout(() => {
-			S();
-		}, 1200), M(c, !0), O("scrolling from index to", {
-			behavior: q,
-			index: lt,
-			top: St
-		}, ft.DEBUG), {
-			behavior: q,
-			top: St
-		};
-	})), d), {
-		scrollTargetReached: w,
-		scrollToIndex: I,
-		topListHeight: R
-	};
-}, rt(Lt, It, Gt), { singleton: !0 });
-function $o(t) {
-	return (e) => {
-		const n = setTimeout(() => {
-			e(!1);
-		}, t);
-		return (o) => {
-			o && (e(!0), clearTimeout(n));
-		};
-	};
-}
-function je(t, e) {
-	t === 0 ? e() : requestAnimationFrame(() => {
-		je(t - 1, e);
-	});
-}
-function qe(t, e) {
-	if (t === void 0) return 0;
-	const n = e - 1, o = typeof t == "number" ? t : t.index === "LAST" ? n : t.index;
-	return Math.max(0, Math.min(o, n));
-}
-function Ae(t) {
-	return t === void 0 ? !0 : typeof t == "number" ? t === 0 : t.index === 0 && (t.align === void 0 || t.align === "start") && (t.offset === void 0 || t.offset === 0);
-}
-var me = j(([{ defaultItemSize: t, listRefresh: e, sizes: n }, { scrollTop: o }, { scrollTargetReached: r, scrollToIndex: s }, { didMount: i }]) => {
-	const l = T(!0), c = T(0), d = T(!0);
-	return z(x$1(i, $(c), P(([m, v]) => !Ae(v)), Bt(!1)), l), z(x$1(i, $(c), P(([m, v]) => !Ae(v)), Bt(!1)), d), Y(x$1(at(e, i), $(l, n, t, d), P(([[, m], v, { sizeTree: p }, I, w]) => m && (!J(p) || _e(I)) && !v && !w), $(c)), ([, m]) => {
-		if (m === void 0) {
-			M(l, !0), M(d, !0);
-			return;
-		}
-		yt(r, () => {
-			M(d, !0);
-		}), je(4, () => {
-			yt(o, () => {
-				M(l, !0);
-			}), M(s, m);
-		});
-	}), {
-		initialItemFinalLocationReached: d,
-		initialTopMostItemIndex: c,
-		scrolledToInitialItem: l
-	};
-}, rt(Lt, It, fe, At), { singleton: !0 });
-function Zn(t, e) {
-	return Math.abs(t - e) < 1.01;
-}
-var ue = "up";
-var ne = "down";
-var Uo = "none";
-var Ko = {
-	atBottom: !1,
-	notAtBottomBecause: "NOT_SHOWING_LAST_ITEM",
-	state: {
-		offsetBottom: 0,
-		scrollHeight: 0,
-		scrollTop: 0,
-		viewportHeight: 0
-	}
-};
-var jo = 0;
-var pe = j(([{ footerHeight: t, headerHeight: e, scrollBy: n, scrollContainerState: o, scrollTop: r, viewportHeight: s }]) => {
-	const i = T(!1), l = T(!0), c = U(), d = U(), m = T(4), v = T(jo), p = ht(x$1(Fe(x$1(W(r), Ut(1), Bt(!0)), x$1(W(r), Ut(1), Bt(!1), pn(100))), nt()), !1), I = ht(x$1(Fe(x$1(n, Bt(!0)), x$1(n, Bt(!1), pn(200))), nt()), !1);
-	z(x$1(at(W(r), W(v)), B(([a, S]) => a <= S), nt()), l), z(x$1(l, zt(50)), d);
-	const w = Tt(x$1(at(o, W(s), W(e), W(t), W(m)), Ot((a, [{ scrollHeight: S, scrollTop: H }, y, k, u, g]) => {
-		const C = H + y - S > -g, L = {
-			scrollHeight: S,
-			scrollTop: H,
-			viewportHeight: y
-		};
-		if (C) {
-			let V, N;
-			return H > a.state.scrollTop ? (V = "SCROLLED_DOWN", N = a.state.scrollTop - H) : (V = "SIZE_DECREASED", N = a.state.scrollTop - H || a.scrollTopDelta), {
-				atBottom: !0,
-				atBottomBecause: V,
-				scrollTopDelta: N,
-				state: L
-			};
-		}
-		let O;
-		return L.scrollHeight > a.state.scrollHeight ? O = "SIZE_INCREASED" : y < a.state.viewportHeight ? O = "VIEWPORT_HEIGHT_DECREASING" : H < a.state.scrollTop ? O = "SCROLLING_UPWARDS" : O = "NOT_FULLY_SCROLLED_TO_LAST_ITEM_BOTTOM", {
-			atBottom: !1,
-			notAtBottomBecause: O,
-			state: L
-		};
-	}, Ko), nt((a, S) => a !== void 0 && a.atBottom === S.atBottom))), R = ht(x$1(o, Ot((a, { scrollHeight: S, scrollTop: H, viewportHeight: y }) => {
-		if (!Zn(a.scrollHeight, S)) {
-			const k = S - (H + y) < 1;
-			return a.scrollTop !== H && k ? {
-				changed: !0,
-				jump: a.scrollTop - H,
-				scrollHeight: S,
-				scrollTop: H
-			} : {
-				changed: !0,
-				jump: 0,
-				scrollHeight: S,
-				scrollTop: H
-			};
-		}
-		return {
-			changed: !1,
-			jump: 0,
-			scrollHeight: S,
-			scrollTop: H
-		};
-	}, {
-		changed: !1,
-		jump: 0,
-		scrollHeight: 0,
-		scrollTop: 0
-	}), P((a) => a.changed), B((a) => a.jump)), 0);
-	z(x$1(w, B((a) => a.atBottom)), i), z(x$1(i, zt(50)), c);
-	const h = T(ne);
-	z(x$1(o, B(({ scrollTop: a }) => a), nt(), Ot((a, S) => it(I) ? {
-		direction: a.direction,
-		prevScrollTop: S
-	} : {
-		direction: S < a.prevScrollTop ? ue : ne,
-		prevScrollTop: S
-	}, {
-		direction: ne,
-		prevScrollTop: 0
-	}), B((a) => a.direction)), h), z(x$1(o, zt(50), Bt(Uo)), h);
-	const f = T(0);
-	return z(x$1(p, P((a) => !a), Bt(0)), f), z(x$1(r, zt(100), $(p), P(([a, S]) => S), Ot(([a, S], [H]) => [S, H], [0, 0]), B(([a, S]) => S - a)), f), {
-		atBottomState: w,
-		atBottomStateChange: c,
-		atBottomThreshold: m,
-		atTopStateChange: d,
-		atTopThreshold: v,
-		isAtBottom: i,
-		isAtTop: l,
-		isScrolling: p,
-		lastJumpDueToItemResize: R,
-		scrollDirection: h,
-		scrollVelocity: f
-	};
-}, rt(It));
-var ae = "top";
-var de = "bottom";
-var xn = "none";
-function vn(t, e, n) {
-	return typeof t == "number" ? n === ue && e === ae || n === ne && e === de ? t : 0 : n === ue ? e === ae ? t.main : t.reverse : e === de ? t.main : t.reverse;
-}
-function Tn(t, e) {
-	return typeof t == "number" ? t : t[e] ?? 0;
-}
-var Ye = j(([{ deviation: t, fixedHeaderHeight: e, headerHeight: n, scrollTop: o, viewportHeight: r }]) => {
-	const s = U(), i = T(0), l = T(0), c = T(0);
-	return {
-		increaseViewportBy: l,
-		listBoundary: s,
-		overscan: c,
-		topListHeight: i,
-		visibleRange: ht(x$1(at(W(o), W(r), W(n), W(s, le), W(c), W(i), W(e), W(t), W(l)), B(([m, v, p, [I, w], R, h, f, a, S]) => {
-			const H = m - a, y = h + f, k = Math.max(p - H, 0);
-			let u = xn;
-			const g = Tn(S, ae), C = Tn(S, de);
-			return I -= a, I += p + f, w += p + f, w -= a, I > m + y - g && (u = ue), w < m - k + v + C && (u = ne), u !== xn ? [Math.max(H - p - vn(R, ae, u) - g, 0), H - k - f + v + vn(R, de, u) + C] : null;
-		}), P((m) => m !== null), nt(le)), [0, 0])
-	};
-}, rt(It), { singleton: !0 });
-function qo(t, e, n) {
-	if (be(e)) {
-		const o = Kn(t, e);
-		return [{
-			index: Rt(e.groupOffsetTree, o)[0],
-			offset: 0,
-			size: 0
-		}, {
-			data: n?.[0],
-			index: o,
-			offset: 0,
-			size: 0
-		}];
-	}
-	return [{
-		data: n?.[0],
-		index: t,
-		offset: 0,
-		size: 0
-	}];
-}
-var Oe = {
-	bottom: 0,
-	firstItemIndex: 0,
-	items: [],
-	offsetBottom: 0,
-	offsetTop: 0,
-	top: 0,
-	topItems: [],
-	topListHeight: 0,
-	totalCount: 0
-};
-function ve(t, e, n, o, r, s) {
-	const { lastIndex: i, lastOffset: l, lastSize: c } = r;
-	let d = 0, m = 0;
-	if (t.length > 0) {
-		d = t[0].offset;
-		const R = t[t.length - 1];
-		m = R.offset + R.size;
-	}
-	const v = n - i, p = l + v * c + (v - 1) * o, I = d, w = p - m;
-	return {
-		bottom: m,
-		firstItemIndex: s,
-		items: Cn(t, r, s),
-		offsetBottom: w,
-		offsetTop: d,
-		top: I,
-		topItems: Cn(e, r, s),
-		topListHeight: e.reduce((R, h) => h.size + R, 0),
-		totalCount: n
-	};
-}
-function Xn(t, e, n, o, r, s) {
-	let i = 0;
-	if (n.groupIndices.length > 0) for (const m of n.groupIndices) {
-		if (m - i >= t) break;
-		i++;
-	}
-	const l = t + i, c = qe(e, l);
-	return ve(Array.from({ length: l }).map((m, v) => ({
-		data: s[v + c],
-		index: v + c,
-		offset: 0,
-		size: 0
-	})), [], l, r, n, o);
-}
-function Cn(t, e, n) {
-	if (t.length === 0) return [];
-	if (!be(e)) return t.map((d) => ({
-		...d,
-		index: d.index + n,
-		originalIndex: d.index
-	}));
-	const o = t[0].index, r = t[t.length - 1].index, s = [], i = Zt(e.groupOffsetTree, o, r);
-	let l, c = 0;
-	for (const d of t) {
-		(!l || l.end < d.index) && (l = i.shift(), c = e.groupIndices.indexOf(l.start));
-		let m;
-		d.index === l.start ? m = {
-			index: c,
-			type: "group"
-		} : m = {
-			groupIndex: c,
-			index: d.index - (c + 1) + n
-		}, s.push({
-			...m,
-			data: d.data,
-			offset: d.offset,
-			originalIndex: d.index,
-			size: d.size
-		});
-	}
-	return s;
-}
-function wn(t, e) {
-	return t === void 0 ? 0 : typeof t == "number" ? t : t[e] ?? 0;
-}
-var Kt = j(([{ data: t, firstItemIndex: e, gap: n, sizes: o, totalCount: r }, s, { listBoundary: i, topListHeight: l, visibleRange: c }, { initialTopMostItemIndex: d, scrolledToInitialItem: m }, { topListHeight: v }, p, { didMount: I }, { recalcInProgress: w }]) => {
-	const R = T([]), h = T(0), f = U(), a = T(0);
-	z(s.topItemsIndexes, R);
-	const S = ht(x$1(at(I, w, W(c, le), W(r), W(o), W(d), m, W(R), W(e), W(n), W(a), t), P(([u, g, , C, , , , , , , , L]) => {
-		const O = L !== void 0 && L.length !== C;
-		return u && !g && !O;
-	}), B(([, , [u, g], C, L, O, V, N, Z, F, mt, q]) => {
-		const Q = L, { offsetTree: gt, sizeTree: lt } = Q, St = it(h);
-		if (C === 0) return {
-			...Oe,
-			totalCount: C
-		};
-		if (u === 0 && g === 0) return St === 0 ? {
-			...Oe,
-			totalCount: C
-		} : Xn(St, O, L, Z, F, q || []);
-		if (J(lt)) return St > 0 ? null : ve(qo(qe(O, C), Q, q), [], C, F, Q, Z);
-		const Ft = [];
-		if (N.length > 0) {
-			const D = N[0], K = N[N.length - 1];
-			let st = 0;
-			for (const tt of Zt(lt, D, K)) {
-				const X = tt.value, ct = Math.max(tt.start, D), xt = Math.min(tt.end, K);
-				for (let ut = ct; ut <= xt; ut++) Ft.push({
-					data: q?.[ut],
-					index: ut,
-					offset: st,
-					size: X
-				}), st += X;
-			}
-		}
-		if (!V) return ve([], Ft, C, F, Q, Z);
-		const pt = N.length > 0 ? N[N.length - 1] + 1 : 0, jt = Wo(gt, u, g, pt);
-		if (jt.length === 0) return null;
-		const Qt = C - 1, Et = ye([], (D) => {
-			for (const K of jt) {
-				const st = K.value;
-				let tt = st.offset, X = K.start;
-				const ct = st.size;
-				if (st.offset < u) {
-					X += Math.floor((u - st.offset + F) / (ct + F));
-					const ut = X - K.start;
-					tt += ut * ct + ut * F;
-				}
-				X < pt && (tt += (pt - X) * ct, X = pt);
-				const xt = Math.min(K.end, Qt);
-				for (let ut = X; ut <= xt && !(tt >= g); ut++) D.push({
-					data: q?.[ut],
-					index: ut,
-					offset: tt,
-					size: ct
-				}), tt += ct + F;
-			}
-		}), te = wn(mt, ae), b = wn(mt, de);
-		if (Et.length > 0 && (te > 0 || b > 0)) {
-			const D = Et[0], K = Et[Et.length - 1];
-			if (te > 0 && D.index > pt) {
-				const st = Math.min(te, D.index - pt), tt = [];
-				let X = D.offset;
-				for (let ct = D.index - 1; ct >= D.index - st; ct--) {
-					const ut = Zt(lt, ct, ct)[0]?.value ?? D.size;
-					X -= ut + F, tt.unshift({
-						data: q?.[ct],
-						index: ct,
-						offset: X,
-						size: ut
-					});
-				}
-				Et.unshift(...tt);
-			}
-			if (b > 0 && K.index < Qt) {
-				const st = Math.min(b, Qt - K.index);
-				let tt = K.offset + K.size + F;
-				for (let X = K.index + 1; X <= K.index + st; X++) {
-					const xt = Zt(lt, X, X)[0]?.value ?? K.size;
-					Et.push({
-						data: q?.[X],
-						index: X,
-						offset: tt,
-						size: xt
-					}), tt += xt + F;
+//#region ../../node_modules/.pnpm/@tanstack+virtual-core@3.17.7/node_modules/@tanstack/virtual-core/dist/esm/lazy-measurements.js
+function createLazyMeasurementsView(count, flat, getItemKey) {
+	const cache = new Array(count);
+	return new Proxy(cache, { get(target, prop, receiver) {
+		if (typeof prop === "string") {
+			const c = prop.charCodeAt(0);
+			if (c >= 48 && c <= 57) {
+				const i = +prop;
+				if (Number.isInteger(i) && i >= 0 && i < count) {
+					let v = target[i];
+					if (!v) {
+						const s = flat[i * 2];
+						v = target[i] = {
+							index: i,
+							key: getItemKey(i),
+							start: s,
+							size: flat[i * 2 + 1],
+							end: s + flat[i * 2 + 1],
+							lane: 0
+						};
+					}
+					return v;
 				}
 			}
+			if (prop === "length") return count;
 		}
-		return ve(Et, Ft, C, F, Q, Z);
-	}), P((u) => u !== null), nt()), Oe);
-	z(x$1(t, P(_e), B((u) => u?.length)), r), z(x$1(S, B((u) => u.topListHeight)), v), z(v, l), z(x$1(S, B((u) => [u.top, u.bottom])), i), z(x$1(S, B((u) => u.items)), f);
-	const H = Tt(x$1(S, P(({ items: u }) => u.length > 0), $(r, t), P(([{ items: u }, g]) => u[u.length - 1].originalIndex === g - 1), B(([, u, g]) => [u - 1, g]), nt(le), B(([u]) => u))), y = Tt(x$1(S, zt(200), P(({ items: u, topItems: g }) => u.length > 0 && u[0].originalIndex === g.length), B(({ items: u }) => u[0].index), nt()));
-	return {
-		endReached: H,
-		initialItemCount: h,
-		itemsRendered: f,
-		listState: S,
-		minOverscanItemCount: a,
-		rangeChanged: Tt(x$1(S, P(({ items: u }) => u.length > 0), B(({ items: u }) => {
-			let g = 0, C = u.length - 1;
-			for (; u[g].type === "group" && g < C;) g++;
-			for (; u[C].type === "group" && C > g;) C--;
-			return {
-				endIndex: u[C].index,
-				startIndex: u[g].index
-			};
-		}), nt($n))),
-		startReached: y,
-		topItemsIndexes: R,
-		...p
-	};
-}, rt(Lt, qn, Ye, me, fe, pe, At, Ue), { singleton: !0 });
-var Jn = j(([{ fixedFooterHeight: t, fixedHeaderHeight: e, footerHeight: n, headerHeight: o }, { listState: r }]) => {
-	const s = U(), i = ht(x$1(at(n, t, o, e, r), B(([l, c, d, m, v]) => l + c + d + m + v.offsetBottom + v.bottom)), 0);
-	return z(W(i), s), {
-		totalListHeight: i,
-		totalListHeightChanged: s
-	};
-}, rt(It, Kt), { singleton: !0 });
-var Yo = j(([{ viewportHeight: t }, { totalListHeight: e }]) => {
-	const n = T(!1);
-	return {
-		alignToBottom: n,
-		paddingTopAddition: ht(x$1(at(n, t, e), P(([r]) => r), B(([, r, s]) => Math.max(0, r - s)), zt(0), nt()), 0)
-	};
-}, rt(It, Jn), { singleton: !0 });
-var Qn = j(() => ({ context: T(null) }));
-var Zo = ({ itemBottom: t, itemTop: e, locationParams: { align: n, behavior: o, ...r }, viewportBottom: s, viewportTop: i }) => e < i ? {
-	...r,
-	align: n ?? "start",
-	...o === void 0 ? {} : { behavior: o }
-} : t > s ? {
-	...r,
-	align: n ?? "end",
-	...o === void 0 ? {} : { behavior: o }
-} : null;
-var to$1 = j(([{ gap: t, sizes: e, totalCount: n }, { fixedFooterHeight: o, fixedHeaderHeight: r, headerHeight: s, scrollingInProgress: i, scrollTop: l, viewportHeight: c }, { scrollToIndex: d }]) => {
-	const m = U();
-	return z(x$1(m, $(e, c, n, s, r, o, l), $(t), B(([[v, p, I, w, R, h, f, a], S]) => {
-		const { calculateViewLocation: H = Zo, done: y, ...k } = v, u = jn(v, p, w - 1), g = ce(u, p.offsetTree, S) + R + h, C = g + Rt(p.sizeTree, u)[1], L = a + h, V = H({
-			itemBottom: C,
-			itemTop: g,
-			locationParams: k,
-			viewportBottom: a + I - f,
-			viewportTop: L
-		});
-		return V === null ? y?.() : y && yt(x$1(i, P((N) => !N), Ut(it(i) ? 1 : 2)), y), V;
-	}), P((v) => v !== null)), d), { scrollIntoView: m };
-}, rt(Lt, It, fe, Kt, Gt), { singleton: !0 });
-function yn(t) {
-	return t === !1 ? !1 : t === "smooth" ? "smooth" : "auto";
-}
-var Xo = (t, e) => typeof t == "function" ? yn(t(e)) : e && yn(t);
-var Jo = j(([{ listRefresh: t, totalCount: e, fixedItemSize: n, data: o }, { atBottomState: r, isAtBottom: s }, { scrollToIndex: i }, { scrolledToInitialItem: l }, { didMount: c, propsReady: d }, { log: m }, { scrollingInProgress: v }, { context: p }, { scrollIntoView: I }]) => {
-	const w = T(!1), R = U();
-	let h = null;
-	function f(y) {
-		M(i, {
-			align: "end",
-			behavior: y,
-			index: "LAST"
-		});
-	}
-	Y(x$1(at(x$1(W(e), Ut(1)), c), $(W(w), s, l, v), B(([[y, k], u, g, C, L]) => {
-		let O = k && C, V = "auto";
-		return O && (V = Xo(u, g || L), O = O && V !== !1), {
-			followOutputBehavior: V,
-			shouldFollow: O,
-			totalCount: y
-		};
-	}), P(({ shouldFollow: y }) => y)), ({ followOutputBehavior: y, totalCount: k }) => {
-		h !== null && (h(), h = null), it(n) === void 0 ? h = yt(t, () => {
-			it(m)("following output to ", { totalCount: k }, ft.DEBUG), f(y), h = null;
-		}) : requestAnimationFrame(() => {
-			it(m)("following output to ", { totalCount: k }, ft.DEBUG), f(y);
-		});
-	});
-	function a(y) {
-		const k = yt(r, (u) => {
-			y && !u.atBottom && u.notAtBottomBecause === "SIZE_INCREASED" && h === null && (it(m)("scrolling to bottom due to increased size", {}, ft.DEBUG), f("auto"));
-		});
-		setTimeout(k, 100);
-	}
-	Y(x$1(at(W(w), e, d), P(([y, , k]) => y !== !1 && k), Ot(({ value: y }, [, k]) => ({
-		refreshed: y === k,
-		value: k
-	}), {
-		refreshed: !1,
-		value: 0
-	}), P(({ refreshed: y }) => y), $(w, e)), ([, y]) => {
-		it(l) && a(y !== !1);
-	}), Y(R, () => {
-		a(it(w) !== !1);
-	}), Y(at(W(w), r), ([y, k]) => {
-		y !== !1 && !k.atBottom && k.notAtBottomBecause === "VIEWPORT_HEIGHT_DECREASING" && f("auto");
-	});
-	const S = T(null), H = U();
-	return z(Fe(x$1(W(o), B((y) => y?.length ?? 0)), x$1(W(e))), H), Y(x$1(at(x$1(H, Ut(1)), c), $(W(S), l, v, p), B(([[y, k], u, g, C, L]) => k && g && u?.({
-		context: L,
-		totalCount: y,
-		scrollingInProgress: C
-	})), P((y) => !!y), zt(0)), (y) => {
-		h !== null && (h(), h = null), it(n) === void 0 ? h = yt(t, () => {
-			it(m)("scrolling into view", {}), M(I, y), h = null;
-		}) : requestAnimationFrame(() => {
-			it(m)("scrolling into view", {}), M(I, y);
-		});
-	}), {
-		autoscrollToBottom: R,
-		followOutput: w,
-		scrollIntoViewOnChange: S
-	};
-}, rt(Lt, pe, fe, me, At, Gt, It, Qn, to$1));
-var Qo = j(([{ data: t, firstItemIndex: e, gap: n, sizes: o }, { initialTopMostItemIndex: r }, { initialItemCount: s, listState: i }, { didMount: l }]) => (z(x$1(l, $(s), P(([, c]) => c !== 0), $(r, o, e, n, t), B(([[, c], d, m, v, p, I = []]) => Xn(c, d, m, v, p, I))), i), {}), rt(Lt, me, Kt, At), { singleton: !0 });
-var tr = j(([{ didMount: t }, { scrollTo: e }, { listState: n }]) => {
-	const o = T(0);
-	return Y(x$1(t, $(o), P(([, r]) => r !== 0), B(([, r]) => ({ top: r }))), (r) => {
-		yt(x$1(n, Ut(1), P((s) => s.items.length > 1)), () => {
-			requestAnimationFrame(() => {
-				M(e, r);
-			});
-		});
-	}), { initialScrollTop: o };
-}, rt(At, It, Kt), { singleton: !0 });
-var eo = j(([{ scrollVelocity: t }]) => {
-	const e = T(!1), n = U(), o = T(!1);
-	return z(x$1(t, $(o, e, n), P(([r, s]) => s !== !1 && s !== void 0), B(([r, s, i, l]) => {
-		const { enter: c, exit: d } = s;
-		if (i) {
-			if (d(r, l)) return !1;
-		} else if (c(r, l)) return !0;
-		return i;
-	}), nt()), e), Y(x$1(at(e, t, n), $(o)), ([[r, s, i], l]) => {
-		r && l !== !1 && l !== void 0 && l.change && l.change(s, i);
-	}), {
-		isSeeking: e,
-		scrollSeekConfiguration: o,
-		scrollSeekRangeChanged: n,
-		scrollVelocity: t
-	};
-}, rt(pe), { singleton: !0 });
-var Ze = j(([{ scrollContainerState: t, scrollTo: e }]) => {
-	const n = U(), o = U(), r = U(), s = T(!1), i = T(void 0);
-	return z(x$1(at(n, o), B(([{ scrollTop: l, viewportHeight: c }, { offsetTop: d, listHeight: m }]) => ({
-		scrollHeight: m,
-		scrollTop: Math.max(0, l - d),
-		viewportHeight: c
-	}))), t), z(x$1(e, $(o), B(([l, { offsetTop: c }]) => ({
-		...l,
-		top: l.top + c
-	}))), r), {
-		customScrollParent: i,
-		useWindowScroll: s,
-		windowScrollContainerState: n,
-		windowScrollTo: r,
-		windowViewportRect: o
-	};
-}, rt(It));
-var er = j(([{ sizeRanges: t, sizes: e }, { headerHeight: n, scrollTop: o }, { initialTopMostItemIndex: r }, { didMount: s }, { useWindowScroll: i, windowScrollContainerState: l, windowViewportRect: c }]) => {
-	const d = U(), m = T(void 0), v = T(null), p = T(null);
-	return z(l, v), z(c, p), Y(x$1(d, $(e, o, i, v, p, n)), ([I, w, R, h, f, a, S]) => {
-		const H = Go(w.sizeTree);
-		h && f !== null && a !== null && (R = f.scrollTop - a.offsetTop), R -= S, I({
-			ranges: H,
-			scrollTop: R
-		});
-	}), z(x$1(m, P(_e), B(nr)), r), z(x$1(s, $(m), P(([, I]) => I !== void 0), nt(), B(([, I]) => I.ranges)), t), {
-		getState: d,
-		restoreStateFrom: m
-	};
-}, rt(Lt, It, me, At, Ze));
-function nr(t) {
-	return {
-		align: "start",
-		index: 0,
-		offset: t.scrollTop
-	};
-}
-var or = j(([{ topItemsIndexes: t }]) => {
-	const e = T(0);
-	return z(x$1(e, P((n) => n >= 0), B((n) => Array.from({ length: n }).map((o, r) => r))), t), { topItemCount: e };
-}, rt(Kt));
-function no(t) {
-	let e = !1, n;
-	return (() => (e || (e = !0, n = t()), n));
-}
-var rr = no(() => /iP(ad|od|hone)/i.test(navigator.userAgent) && /WebKit/i.test(navigator.userAgent));
-var oo = j(([{ data: t, defaultItemSize: e, firstItemIndex: n, fixedItemSize: o, fixedGroupSize: r, gap: s, groupIndices: i, heightEstimates: l, itemSize: c, sizeRanges: d, sizes: m, statefulTotalCount: v, totalCount: p, trackItemSizes: I }, { initialItemFinalLocationReached: w, initialTopMostItemIndex: R, scrolledToInitialItem: h }, f, a, S, H, { scrollToIndex: y }, k, { topItemCount: u }, { groupCounts: g }, C]) => {
-	const { listState: L, minOverscanItemCount: O, topItemsIndexes: V, rangeChanged: N, ...Z } = H;
-	return z(N, C.scrollSeekRangeChanged), z(x$1(C.windowViewportRect, B((F) => F.visibleHeight)), f.viewportHeight), {
-		data: t,
-		defaultItemHeight: e,
-		firstItemIndex: n,
-		fixedItemHeight: o,
-		fixedGroupHeight: r,
-		gap: s,
-		groupCounts: g,
-		heightEstimates: l,
-		initialItemFinalLocationReached: w,
-		initialTopMostItemIndex: R,
-		scrolledToInitialItem: h,
-		sizeRanges: d,
-		topItemCount: u,
-		topItemsIndexes: V,
-		totalCount: p,
-		...S,
-		groupIndices: i,
-		itemSize: c,
-		listState: L,
-		minOverscanItemCount: O,
-		scrollToIndex: y,
-		statefulTotalCount: v,
-		trackItemSizes: I,
-		rangeChanged: N,
-		...Z,
-		...C,
-		...f,
-		sizes: m,
-		...a
-	};
-}, rt(Lt, me, It, er, Jo, Kt, fe, j(([{ deviation: t, scrollBy: e, scrollingInProgress: n, scrollTop: o }, { isAtBottom: r, isScrolling: s, lastJumpDueToItemResize: i, scrollDirection: l }, { listState: c }, { beforeUnshiftWith: d, gap: m, shiftWithOffset: v, sizes: p }, { log: I }, { recalcInProgress: w }]) => {
-	const R = Tt(x$1(c, $(i), Ot(([, f, a, S], [{ bottom: H, items: y, offsetBottom: k, totalCount: u }, g]) => {
-		const C = H + k;
-		let L = 0;
-		return a === u && f.length > 0 && y.length > 0 && (y[0].originalIndex === 0 && f[0].originalIndex === 0 || (L = C - S, L !== 0 && (L += g))), [
-			L,
-			y,
-			u,
-			C
-		];
-	}, [
-		0,
-		[],
-		0,
-		0
-	]), P(([f]) => f !== 0), $(o, l, n, r, I, w), P(([, f, a, S, , , H]) => !H && !S && f !== 0 && a === ue), B(([[f], , , , , a]) => (a("Upward scrolling compensation", { amount: f }, ft.DEBUG), f))));
-	function h(f) {
-		f > 0 ? (M(e, {
-			behavior: "auto",
-			top: -f
-		}), M(t, 0)) : (M(t, 0), M(e, {
-			behavior: "auto",
-			top: -f
-		}));
-	}
-	return Y(x$1(R, $(t, s)), ([f, a, S]) => {
-		S && rr() ? M(t, a - f) : h(-f);
-	}), Y(x$1(at(ht(s, !1), t, w), P(([f, a, S]) => !f && !S && a !== 0), B(([f, a]) => a), zt(1)), h), z(x$1(v, B((f) => ({ top: -f }))), e), Y(x$1(d, $(p, m), B(([f, { groupIndices: a, lastSize: S, sizeTree: H }, y]) => {
-		function k(O) {
-			return O * (S + y);
-		}
-		if (a.length === 0) return k(f);
-		let u = 0;
-		const g = ie$2(H, 0);
-		let C = 0, L = 0;
-		for (; C < f;) {
-			C++, u += g;
-			let O = a.length === L + 1 ? Infinity : a[L + 1] - a[L] - 1;
-			C + O > f && (u -= g, O = f - C + 1), C += O, u += k(O), L++;
-		}
-		return u;
-	})), (f) => {
-		M(t, f), requestAnimationFrame(() => {
-			M(e, { top: f }), requestAnimationFrame(() => {
-				M(t, 0), M(w, !1);
-			});
-		});
-	}), { deviation: t };
-}, rt(It, pe, Kt, Lt, Gt, Ue)), or, qn, j(([t, e, n, o, r, s, i, l, c, d, m]) => ({
-	...t,
-	...e,
-	...n,
-	...o,
-	...r,
-	...s,
-	...i,
-	...l,
-	...c,
-	...d,
-	...m
-}), rt(Ye, Qo, At, eo, Jn, tr, Yo, Ze, to$1, Gt, Qn))));
-function lr(t, e) {
-	const n = {}, o = {};
-	let r = 0;
-	const s = t.length;
-	for (; r < s;) o[t[r]] = 1, r += 1;
-	for (const i in e) Object.hasOwn(o, i) || (n[i] = e[i]);
-	return n;
-}
-var Ie = typeof document > "u" ? import_react.useEffect : import_react.useLayoutEffect;
-function Xe(t, e, n) {
-	const o = Object.keys(e.required || {}), r = Object.keys(e.optional || {}), s = Object.keys(e.methods || {}), i = Object.keys(e.events || {}), l = import_react.createContext({});
-	function c(f, a) {
-		f.propsReady !== void 0 && M(f.propsReady, !1);
-		for (const S of o) {
-			const H = f[e.required[S]];
-			M(H, a[S]);
-		}
-		for (const S of r) if (S in a) {
-			const H = f[e.optional[S]];
-			M(H, a[S]);
-		}
-		f.propsReady !== void 0 && M(f.propsReady, !0);
-	}
-	function d(f) {
-		return s.reduce((a, S) => (a[S] = (H) => {
-			const y = f[e.methods[S]];
-			M(y, H);
-		}, a), {});
-	}
-	function m(f) {
-		return i.reduce((a, S) => (a[S] = Co(f[e.events[S]]), a), {});
-	}
-	const v = import_react.forwardRef(function(a, S) {
-		const { children: H, ...y } = a, [k] = import_react.useState(() => ye(bo(t), (C) => {
-			c(C, y);
-		})), [u] = import_react.useState(mn(m, k));
-		Ie(() => {
-			for (const C of i) C in y && Y(u[C], y[C]);
-			return () => {
-				Object.values(u).map(Ne);
-			};
-		}, [
-			y,
-			u,
-			k
-		]), Ie(() => {
-			c(k, y);
-		}), import_react.useImperativeHandle(S, fn(d(k)));
-		const g = n;
-		return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(l.Provider, {
-			value: k,
-			children: n === void 0 ? H : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(g, {
-				...lr([
-					...o,
-					...r,
-					...i
-				], y),
-				children: H
-			})
-		});
-	}), p = (f) => {
-		const a = import_react.useContext(l);
-		return import_react.useCallback((S) => {
-			M(a[f], S);
-		}, [a, f]);
-	}, I = (f) => {
-		const S = import_react.useContext(l)[f], H = import_react.useCallback((y) => Y(S, y), [S]);
-		return import_react.useSyncExternalStore(H, () => it(S), () => it(S));
-	}, w = (f) => {
-		const S = import_react.useContext(l)[f], [H, y] = import_react.useState(mn(it, S));
-		return Ie(() => Y(S, (k) => {
-			k !== H && y(fn(k));
-		}), [S, H]), H;
-	};
-	return {
-		Component: v,
-		useEmitter: (f, a) => {
-			const H = import_react.useContext(l)[f];
-			Ie(() => Y(H, a), [a, H]);
-		},
-		useEmitterValue: parseInt("19.2.8", 10) >= 18 ? I : w,
-		usePublisher: p
-	};
-}
-var Re = import_react.createContext(void 0);
-var ro = import_react.createContext(void 0);
-var ke = "-webkit-sticky";
-var bn = "sticky";
-var Je = no(() => {
-	if (typeof document > "u") return bn;
-	const t = document.createElement("div");
-	return t.style.position = ke, t.style.position === ke ? ke : bn;
-});
-var so = typeof document > "u" ? import_react.useEffect : import_react.useLayoutEffect;
-function Le(t) {
-	return "self" in t;
-}
-function cr(t) {
-	return "body" in t;
-}
-function io(t, e, n, o = Jt, r, s) {
-	const i = import_react.useRef(null), l = import_react.useRef(null), c = import_react.useRef(null), d = import_react.useCallback((p) => {
-		let I, w, R;
-		const h = p.target;
-		if (cr(h) || Le(h)) {
-			const a = Le(h) ? h : h.defaultView;
-			R = s === !0 ? _t(a, a.scrollX) : a.scrollY, I = s === !0 ? a.document.documentElement.scrollWidth : a.document.documentElement.scrollHeight, w = s === !0 ? a.innerWidth : a.innerHeight;
-		} else R = s === !0 ? _t(h, h.scrollLeft) : h.scrollTop, I = s === !0 ? h.scrollWidth : h.scrollHeight, w = s === !0 ? h.offsetWidth : h.offsetHeight;
-		const f = () => {
-			t({
-				scrollHeight: I,
-				scrollTop: Math.max(R, 0),
-				viewportHeight: w
-			});
-		};
-		p.suppressFlushSync === !0 ? f() : import_react_dom.flushSync(f), l.current !== null && (R === l.current || R <= 0 || R === I - w) && (l.current = null, e(!0), c.current && (clearTimeout(c.current), c.current = null));
-	}, [
-		t,
-		e,
-		s
-	]);
-	import_react.useEffect(() => {
-		const p = r ?? i.current;
-		return o(r ?? i.current), d({
-			suppressFlushSync: !0,
-			target: p
-		}), p.addEventListener("scroll", d, { passive: !0 }), () => {
-			o(null), p.removeEventListener("scroll", d);
-		};
-	}, [
-		i,
-		d,
-		n,
-		o,
-		r
-	]);
-	function m(p) {
-		const I = i.current;
-		if (!I || (s === !0 ? "offsetWidth" in I && I.offsetWidth === 0 : "offsetHeight" in I && I.offsetHeight === 0)) return;
-		const w = p.behavior === "smooth";
-		let R, h, f;
-		Le(I) ? (h = Math.max(Ht(I.document.documentElement, s === !0 ? "width" : "height"), s === !0 ? I.document.documentElement.scrollWidth : I.document.documentElement.scrollHeight), R = s === !0 ? I.innerWidth : I.innerHeight, f = s === !0 ? _t(I, I.scrollX) : I.scrollY) : (h = I[s === !0 ? "scrollWidth" : "scrollHeight"], R = Ht(I, s === !0 ? "width" : "height"), f = s === !0 ? _t(I, I.scrollLeft) : I.scrollTop);
-		const a = h - R;
-		if (p.top === void 0) {
-			I.scrollTo(p);
-			return;
-		}
-		const S = Math.ceil(Math.max(Math.min(a, p.top), 0));
-		if (p.top = S, Zn(R, h) || S === f) {
-			t({
-				scrollHeight: h,
-				scrollTop: f,
-				viewportHeight: R
-			}), w && e(!0);
-			return;
-		}
-		w ? (l.current = S, c.current && clearTimeout(c.current), c.current = setTimeout(() => {
-			c.current = null, l.current = null, e(!0);
-		}, 1e3)) : l.current = null, s === !0 && (p = {
-			...p.behavior === void 0 ? {} : { behavior: p.behavior },
-			left: hn(I, S)
-		}), I.scrollTo(p);
-	}
-	function v(p) {
-		s === !0 && (p = {
-			...p.behavior === void 0 ? {} : { behavior: p.behavior },
-			...p.top === void 0 ? {} : { left: hn(i.current, p.top) }
-		}), i.current.scrollBy(p);
-	}
-	return {
-		scrollByCallback: v,
-		scrollerRef: i,
-		scrollToCallback: m
-	};
-}
-function Qe(t) {
-	return t;
-}
-var ar = /* @__PURE__ */ j(([t, e]) => ({
-	...t,
-	...e
-}), rt(oo, /* @__PURE__ */ j(() => {
-	const t = T((l) => `Item ${l}`), e = T((l) => `Group ${l}`), n = T({}), o = T(Qe), r = T("div"), s = T(Jt), i = (l, c = null) => ht(x$1(n, B((d) => d[l]), nt()), c);
-	return {
-		components: n,
-		computeItemKey: o,
-		EmptyPlaceholder: i("EmptyPlaceholder"),
-		FooterComponent: i("Footer"),
-		GroupComponent: i("Group", "div"),
-		groupContent: e,
-		HeaderComponent: i("Header"),
-		HeaderFooterTag: r,
-		ItemComponent: i("Item", "div"),
-		itemContent: t,
-		ListComponent: i("List", "div"),
-		ScrollerComponent: i("Scroller", "div"),
-		scrollerRef: s,
-		ScrollSeekPlaceholder: i("ScrollSeekPlaceholder"),
-		TopItemListComponent: i("TopItemList")
-	};
-})));
-var dr = ({ height: t }) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { height: t } });
-var fr = {
-	overflowAnchor: "none",
-	position: Je(),
-	zIndex: 1
-};
-var lo = { overflowAnchor: "none" };
-var mr = {
-	...lo,
-	display: "inline-block",
-	height: "100%"
-};
-var Rn = /* @__PURE__ */ import_react.memo(function({ showTopList: e = !1 }) {
-	const n = A("listState"), o = Ct("sizeRanges"), r = A("useWindowScroll"), s = A("customScrollParent"), i = Ct("windowScrollContainerState"), l = Ct("scrollContainerState"), c = s || r ? i : l, d = A("itemContent"), m = A("context"), v = A("groupContent"), p = A("trackItemSizes"), I = A("itemSize"), w = A("log"), R = Ct("gap"), h = A("horizontalDirection"), { callbackRef: f } = Gn(o, I, p, e ? Jt : c, w, R, s, h, A("skipAnimationFrameInResizeObserver")), [a, S] = import_react.useState(0);
-	on("deviation", (F) => {
-		a !== F && S(F);
-	});
-	const H = A("EmptyPlaceholder"), y = A("ScrollSeekPlaceholder") ?? dr, k = A("ListComponent"), u = A("ItemComponent"), g = A("GroupComponent"), C = A("computeItemKey"), L = A("isSeeking"), O = A("groupIndices").length > 0, V = A("alignToBottom"), N = A("initialItemFinalLocationReached"), Z = e ? {} : {
-		boxSizing: "border-box",
-		...h ? {
-			display: "inline-block",
-			height: "100%",
-			marginInlineStart: a === 0 ? V ? "auto" : 0 : a,
-			paddingInlineEnd: n.offsetBottom,
-			paddingInlineStart: n.offsetTop,
-			whiteSpace: "nowrap"
-		} : {
-			marginTop: a === 0 ? V ? "auto" : 0 : a,
-			paddingBottom: n.offsetBottom,
-			paddingTop: n.offsetTop
-		},
-		...N ? {} : { visibility: "hidden" }
-	};
-	return !e && n.totalCount === 0 && H !== null && H !== void 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(H, { ...ot(H, m) }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(k, {
-		...ot(k, m),
-		"data-testid": e ? "virtuoso-top-item-list" : "virtuoso-item-list",
-		ref: f,
-		style: Z,
-		children: (e ? n.topItems : n.items).map((F) => {
-			const mt = F.originalIndex, q = C(mt + n.firstItemIndex, F.data, m);
-			return L ? /* @__PURE__ */ (0, import_react.createElement)(y, {
-				...ot(y, m),
-				height: F.size,
-				index: F.index,
-				key: q,
-				type: F.type || "item",
-				...F.type === "group" ? {} : { groupIndex: F.groupIndex }
-			}) : F.type === "group" ? /* @__PURE__ */ (0, import_react.createElement)(g, {
-				...ot(g, m),
-				"data-index": mt,
-				"data-item-index": F.index,
-				"data-known-size": F.size,
-				key: q,
-				style: fr
-			}, v(F.index, m)) : /* @__PURE__ */ (0, import_react.createElement)(u, {
-				...ot(u, m),
-				...co(u, F.data),
-				"data-index": mt,
-				"data-item-group-index": F.groupIndex,
-				"data-item-index": F.index,
-				"data-known-size": F.size,
-				key: q,
-				style: h ? mr : lo
-			}, O ? d(F.index, F.groupIndex, F.data, m) : d(F.index, F.data, m));
-		})
-	});
-});
-var pr = {
-	height: "100%",
-	outline: "none",
-	overflowY: "auto",
-	position: "relative",
-	WebkitOverflowScrolling: "touch"
-};
-var hr = {
-	outline: "none",
-	overflowX: "auto",
-	position: "relative"
-};
-var He = (t) => ({
-	height: "100%",
-	position: "absolute",
-	top: 0,
-	width: "100%",
-	...t ? {
-		display: "flex",
-		flexDirection: "column"
-	} : void 0
-});
-var tn = (t, e, n = 0) => ({
-	...He(t),
-	position: e ? "relative" : "absolute",
-	top: e ? -n : 0
-});
-var gr = {
-	position: Je(),
-	top: 0,
-	width: "100%",
-	zIndex: 1
-};
-function ot(t, e) {
-	if (typeof t != "string") return { context: e };
-}
-function co(t, e) {
-	return { item: typeof t == "string" ? void 0 : e };
-}
-var Ir = /* @__PURE__ */ import_react.memo(function() {
-	const e = A("HeaderComponent"), n = Ct("headerHeight"), o = A("HeaderFooterTag"), r = kt(import_react.useMemo(() => (i) => {
-		n(Ht(i, "height"));
-	}, [n]), !0, A("skipAnimationFrameInResizeObserver")), s = A("context");
-	return e != null ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(o, {
-		ref: r,
-		children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(e, { ...ot(e, s) })
-	}) : null;
-});
-var Sr = /* @__PURE__ */ import_react.memo(function() {
-	const e = A("FooterComponent"), n = Ct("footerHeight"), o = A("HeaderFooterTag"), r = kt(import_react.useMemo(() => (i) => {
-		n(Ht(i, "height"));
-	}, [n]), !0, A("skipAnimationFrameInResizeObserver")), s = A("context");
-	return e != null ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(o, {
-		ref: r,
-		children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(e, { ...ot(e, s) })
-	}) : null;
-});
-function en({ useEmitter: t, useEmitterValue: e, usePublisher: n }) {
-	return import_react.memo(function({ children: s, style: i, context: l, ...c }) {
-		const d = n("scrollContainerState"), m = e("ScrollerComponent"), v = n("smoothScrollTargetReached"), p = e("scrollerRef"), I = e("horizontalDirection") || !1, { scrollByCallback: w, scrollerRef: R, scrollToCallback: h } = io(d, v, m, p, void 0, I);
-		return t("scrollTo", h), t("scrollBy", w), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(m, {
-			"data-testid": "virtuoso-scroller",
-			"data-virtuoso-scroller": !0,
-			ref: R,
-			style: {
-				...I ? hr : pr,
-				...i
-			},
-			tabIndex: 0,
-			...c,
-			...ot(m, l),
-			children: s
-		});
-	});
-}
-function nn({ useEmitter: t, useEmitterValue: e, usePublisher: n }) {
-	return import_react.memo(function({ children: s, style: i, context: l, ...c }) {
-		const d = n("windowScrollContainerState"), m = e("ScrollerComponent"), v = n("smoothScrollTargetReached"), p = e("totalListHeight"), I = e("deviation"), w = e("customScrollParent"), R = import_react.useRef(null), { scrollByCallback: f, scrollerRef: a, scrollToCallback: S } = io(d, v, m, e("scrollerRef"), w);
-		return so(() => (a.current = w ?? R.current?.ownerDocument.defaultView, () => {
-			a.current = null;
-		}), [a, w]), t("windowScrollTo", S), t("scrollBy", f), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(m, {
-			ref: R,
-			"data-virtuoso-scroller": !0,
-			style: {
-				position: "relative",
-				...i,
-				...p === 0 ? void 0 : { height: p + I }
-			},
-			...c,
-			...ot(m, l),
-			children: s
-		});
-	});
-}
-var xr = ({ children: t }) => {
-	const e = import_react.useContext(Re), n = Ct("viewportHeight"), o = Ct("fixedItemHeight"), r = A("alignToBottom"), s = A("horizontalDirection"), l = kt(import_react.useMemo(() => re(n, (c) => Ht(c, s ? "width" : "height")), [n, s]), !0, A("skipAnimationFrameInResizeObserver"));
-	return import_react.useEffect(() => {
-		e && (n(e.viewportHeight), o(e.itemHeight));
-	}, [
-		e,
-		n,
-		o
-	]), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-		"data-viewport-type": "element",
-		ref: l,
-		style: He(r),
-		children: t
-	});
-}, vr = ({ children: t }) => {
-	const e = import_react.useContext(Re), n = Ct("windowViewportRect"), o = Ct("fixedItemHeight"), r = A("customScrollParent"), s = A("useWindowScroll"), i = A("topListHeight"), l = $e(n, r, A("skipAnimationFrameInResizeObserver")), c = A("alignToBottom");
-	return import_react.useEffect(() => {
-		e && (o(e.itemHeight), n({
-			listHeight: 0,
-			offsetTop: 0,
-			visibleHeight: e.viewportHeight,
-			visibleWidth: 100
-		}));
-	}, [
-		e,
-		n,
-		o
-	]), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-		"data-viewport-type": "window",
-		ref: l,
-		style: tn(c, s, i),
-		children: t
-	});
-}, Tr = ({ children: t }) => {
-	const e = A("TopItemListComponent") ?? "div", n = A("headerHeight"), o = {
-		...gr,
-		marginTop: `${n}px`
-	}, r = A("context");
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(e, {
-		style: o,
-		...ot(e, r),
-		children: t
-	});
-}, { Component: uo, useEmitter: on, useEmitterValue: A, usePublisher: Ct } = /* @__PURE__ */ Xe(ar, {
-	optional: {
-		restoreStateFrom: "restoreStateFrom",
-		context: "context",
-		followOutput: "followOutput",
-		scrollIntoViewOnChange: "scrollIntoViewOnChange",
-		itemContent: "itemContent",
-		groupContent: "groupContent",
-		overscan: "overscan",
-		increaseViewportBy: "increaseViewportBy",
-		minOverscanItemCount: "minOverscanItemCount",
-		totalCount: "totalCount",
-		groupCounts: "groupCounts",
-		topItemCount: "topItemCount",
-		firstItemIndex: "firstItemIndex",
-		initialTopMostItemIndex: "initialTopMostItemIndex",
-		components: "components",
-		atBottomThreshold: "atBottomThreshold",
-		atTopThreshold: "atTopThreshold",
-		computeItemKey: "computeItemKey",
-		defaultItemHeight: "defaultItemHeight",
-		fixedGroupHeight: "fixedGroupHeight",
-		fixedItemHeight: "fixedItemHeight",
-		heightEstimates: "heightEstimates",
-		itemSize: "itemSize",
-		scrollSeekConfiguration: "scrollSeekConfiguration",
-		headerFooterTag: "HeaderFooterTag",
-		data: "data",
-		initialItemCount: "initialItemCount",
-		initialScrollTop: "initialScrollTop",
-		alignToBottom: "alignToBottom",
-		useWindowScroll: "useWindowScroll",
-		customScrollParent: "customScrollParent",
-		scrollerRef: "scrollerRef",
-		logLevel: "logLevel",
-		horizontalDirection: "horizontalDirection",
-		skipAnimationFrameInResizeObserver: "skipAnimationFrameInResizeObserver"
-	},
-	methods: {
-		scrollToIndex: "scrollToIndex",
-		scrollIntoView: "scrollIntoView",
-		scrollTo: "scrollTo",
-		scrollBy: "scrollBy",
-		autoscrollToBottom: "autoscrollToBottom",
-		getState: "getState"
-	},
-	events: {
-		isScrolling: "isScrolling",
-		endReached: "endReached",
-		startReached: "startReached",
-		rangeChanged: "rangeChanged",
-		atBottomStateChange: "atBottomStateChange",
-		atTopStateChange: "atTopStateChange",
-		totalListHeightChanged: "totalListHeightChanged",
-		itemsRendered: "itemsRendered",
-		groupIndices: "groupIndices"
-	}
-}, /* @__PURE__ */ import_react.memo(function(e) {
-	const n = A("useWindowScroll"), o = A("topItemsIndexes").length > 0, r = A("customScrollParent"), s = A("context");
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(r || n ? yr : wr, {
-		...e,
-		context: s,
-		children: [o && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Tr, { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Rn, { showTopList: !0 }) }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(r || n ? vr : xr, { children: [
-			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Ir, {}),
-			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Rn, {}),
-			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Sr, {})
-		] })]
-	});
-})), wr = /* @__PURE__ */ en({
-	useEmitter: on,
-	useEmitterValue: A,
-	usePublisher: Ct
-}), yr = /* @__PURE__ */ nn({
-	useEmitter: on,
-	useEmitterValue: A,
-	usePublisher: Ct
-}), es = uo, Rr = /* @__PURE__ */ j(([t, e]) => ({
-	...t,
-	...e
-}), rt(oo, /* @__PURE__ */ j(() => {
-	const t = T((d) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("td", { children: ["Item $", d] })), e = T(null), n = T((d) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("td", {
-		colSpan: 1e3,
-		children: ["Group ", d]
-	})), o = T(null), r = T(null), s = T({}), i = T(Qe), l = T(Jt), c = (d, m = null) => ht(x$1(s, B((v) => v[d]), nt()), m);
-	return {
-		components: s,
-		computeItemKey: i,
-		context: e,
-		EmptyPlaceholder: c("EmptyPlaceholder"),
-		FillerRow: c("FillerRow"),
-		fixedFooterContent: r,
-		fixedHeaderContent: o,
-		itemContent: t,
-		groupContent: n,
-		ScrollerComponent: c("Scroller", "div"),
-		scrollerRef: l,
-		ScrollSeekPlaceholder: c("ScrollSeekPlaceholder"),
-		TableBodyComponent: c("TableBody", "tbody"),
-		TableComponent: c("Table", "table"),
-		TableFooterComponent: c("TableFoot", "tfoot"),
-		TableHeadComponent: c("TableHead", "thead"),
-		TableRowComponent: c("TableRow", "tr"),
-		GroupComponent: c("Group", "tr")
-	};
-}))), Hr = ({ height: t }) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("tr", { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { style: { height: t } }) }), Er = ({ height: t }) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("tr", { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { style: {
-	border: 0,
-	height: t,
-	padding: 0
-} }) }), Br = { overflowAnchor: "none" }, Hn = {
-	position: Je(),
-	zIndex: 2,
-	overflowAnchor: "none"
-}, En = /* @__PURE__ */ import_react.memo(function({ showTopList: e = !1 }) {
-	const n = _("listState"), o = _("computeItemKey"), r = _("firstItemIndex"), s = _("context"), i = _("isSeeking"), l = _("fixedHeaderHeight"), c = _("groupIndices").length > 0, d = _("itemContent"), m = _("groupContent"), v = _("ScrollSeekPlaceholder") ?? Hr, p = _("GroupComponent"), I = _("TableRowComponent"), w = (e ? n.topItems : []).reduce((h, f, a) => (a === 0 ? h.push(f.size) : h.push(h[a - 1] + f.size), h), []);
-	return (e ? n.topItems : n.items).map((h) => {
-		const f = h.originalIndex, a = o(f + r, h.data, s), S = e ? f === 0 ? 0 : w[f - 1] : 0;
-		return i ? /* @__PURE__ */ (0, import_react.createElement)(v, {
-			...ot(v, s),
-			height: h.size,
-			index: h.index,
-			key: a,
-			type: h.type || "item"
-		}) : h.type === "group" ? /* @__PURE__ */ (0, import_react.createElement)(p, {
-			...ot(p, s),
-			"data-index": f,
-			"data-item-index": h.index,
-			"data-known-size": h.size,
-			key: a,
-			style: {
-				...Hn,
-				top: l
-			}
-		}, m(h.index, s)) : /* @__PURE__ */ (0, import_react.createElement)(I, {
-			...ot(I, s),
-			...co(I, h.data),
-			"data-index": f,
-			"data-item-index": h.index,
-			"data-known-size": h.size,
-			"data-item-group-index": h.groupIndex,
-			key: a,
-			style: e ? {
-				...Hn,
-				top: l + S
-			} : Br
-		}, c ? d(h.index, h.groupIndex, h.data, s) : d(h.index, h.data, s));
-	});
-}), Or = /* @__PURE__ */ import_react.memo(function() {
-	const e = _("listState"), n = _("topItemsIndexes").length > 0, o = bt("sizeRanges"), r = _("useWindowScroll"), s = _("customScrollParent"), i = bt("windowScrollContainerState"), l = bt("scrollContainerState"), c = s || r ? i : l, d = _("trackItemSizes"), { callbackRef: p, ref: I } = Gn(o, _("itemSize"), d, c, _("log"), void 0, s, !1, _("skipAnimationFrameInResizeObserver")), [w, R] = import_react.useState(0);
-	rn("deviation", (O) => {
-		w !== O && (I.current.style.marginTop = `${O}px`, R(O));
-	});
-	const h = _("EmptyPlaceholder"), f = _("FillerRow") ?? Er, a = _("TableBodyComponent"), S = _("paddingTopAddition"), H = _("statefulTotalCount"), y = _("context");
-	if (H === 0 && h !== null && h !== void 0) return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(h, { ...ot(h, y) });
-	const k = (n ? e.topItems : []).reduce((O, V) => O + V.size, 0), u = e.offsetTop + S + w - k, g = e.offsetBottom, C = u > 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(f, {
-		context: y,
-		height: u
-	}, "padding-top") : null, L = g > 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(f, {
-		context: y,
-		height: g
-	}, "padding-bottom") : null;
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(a, {
-		"data-testid": "virtuoso-item-list",
-		ref: p,
-		...ot(a, y),
-		children: [
-			C,
-			n && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(En, { showTopList: !0 }),
-			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(En, {}),
-			L
-		]
-	});
-}), kr = ({ children: t }) => {
-	const e = import_react.useContext(Re), n = bt("viewportHeight"), o = bt("fixedItemHeight"), r = kt(import_react.useMemo(() => re(n, (s) => Ht(s, "height")), [n]), !0, _("skipAnimationFrameInResizeObserver"));
-	return import_react.useEffect(() => {
-		e && (n(e.viewportHeight), o(e.itemHeight));
-	}, [
-		e,
-		n,
-		o
-	]), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-		"data-viewport-type": "element",
-		ref: r,
-		style: He(!1),
-		children: t
-	});
-}, Lr = ({ children: t }) => {
-	const e = import_react.useContext(Re), n = bt("windowViewportRect"), o = bt("fixedItemHeight"), r = _("customScrollParent"), s = _("useWindowScroll"), i = $e(n, r, _("skipAnimationFrameInResizeObserver"));
-	return import_react.useEffect(() => {
-		e && (o(e.itemHeight), n({
-			listHeight: 0,
-			offsetTop: 0,
-			visibleHeight: e.viewportHeight,
-			visibleWidth: 100
-		}));
-	}, [
-		e,
-		n,
-		o
-	]), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-		"data-viewport-type": "window",
-		ref: i,
-		style: tn(!1, s),
-		children: t
-	});
-}, { Component: ao, useEmitter: rn, useEmitterValue: _, usePublisher: bt } = /* @__PURE__ */ Xe(Rr, {
-	optional: {
-		restoreStateFrom: "restoreStateFrom",
-		context: "context",
-		followOutput: "followOutput",
-		firstItemIndex: "firstItemIndex",
-		itemContent: "itemContent",
-		groupContent: "groupContent",
-		fixedHeaderContent: "fixedHeaderContent",
-		fixedFooterContent: "fixedFooterContent",
-		overscan: "overscan",
-		increaseViewportBy: "increaseViewportBy",
-		minOverscanItemCount: "minOverscanItemCount",
-		totalCount: "totalCount",
-		topItemCount: "topItemCount",
-		initialTopMostItemIndex: "initialTopMostItemIndex",
-		components: "components",
-		groupCounts: "groupCounts",
-		atBottomThreshold: "atBottomThreshold",
-		atTopThreshold: "atTopThreshold",
-		computeItemKey: "computeItemKey",
-		defaultItemHeight: "defaultItemHeight",
-		fixedGroupHeight: "fixedGroupHeight",
-		fixedItemHeight: "fixedItemHeight",
-		itemSize: "itemSize",
-		scrollSeekConfiguration: "scrollSeekConfiguration",
-		data: "data",
-		initialItemCount: "initialItemCount",
-		initialScrollTop: "initialScrollTop",
-		alignToBottom: "alignToBottom",
-		useWindowScroll: "useWindowScroll",
-		customScrollParent: "customScrollParent",
-		scrollerRef: "scrollerRef",
-		logLevel: "logLevel"
-	},
-	methods: {
-		scrollToIndex: "scrollToIndex",
-		scrollIntoView: "scrollIntoView",
-		scrollTo: "scrollTo",
-		scrollBy: "scrollBy",
-		getState: "getState"
-	},
-	events: {
-		isScrolling: "isScrolling",
-		endReached: "endReached",
-		startReached: "startReached",
-		rangeChanged: "rangeChanged",
-		atBottomStateChange: "atBottomStateChange",
-		atTopStateChange: "atTopStateChange",
-		totalListHeightChanged: "totalListHeightChanged",
-		itemsRendered: "itemsRendered",
-		groupIndices: "groupIndices"
-	}
-}, /* @__PURE__ */ import_react.memo(function(e) {
-	const n = _("useWindowScroll"), o = _("customScrollParent"), r = bt("fixedHeaderHeight"), s = bt("fixedFooterHeight"), i = _("fixedHeaderContent"), l = _("fixedFooterContent"), c = _("context"), d = kt(import_react.useMemo(() => re(r, (a) => Ht(a, "height")), [r]), !0, _("skipAnimationFrameInResizeObserver")), m = kt(import_react.useMemo(() => re(s, (a) => Ht(a, "height")), [s]), !0, _("skipAnimationFrameInResizeObserver")), v = o || n ? Vr : Fr, p = o || n ? Lr : kr, I = _("TableComponent"), w = _("TableHeadComponent"), R = _("TableFooterComponent"), h = i ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(w, {
-		ref: d,
-		style: {
-			position: "sticky",
-			top: 0,
-			zIndex: 2
-		},
-		...ot(w, c),
-		children: i()
-	}, "TableHead") : null, f = l ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(R, {
-		ref: m,
-		style: {
-			bottom: 0,
-			position: "sticky",
-			zIndex: 1
-		},
-		...ot(R, c),
-		children: l()
-	}, "TableFoot") : null;
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(v, {
-		...e,
-		...ot(v, c),
-		children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(p, { children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(I, {
-			style: {
-				borderSpacing: 0,
-				overflowAnchor: "none"
-			},
-			...ot(I, c),
-			children: [
-				h,
-				/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Or, {}, "TableBody"),
-				f
-			]
-		}) })
-	});
-})), Fr = /* @__PURE__ */ en({
-	useEmitter: rn,
-	useEmitterValue: _,
-	usePublisher: bt
-}), Vr = /* @__PURE__ */ nn({
-	useEmitter: rn,
-	useEmitterValue: _,
-	usePublisher: bt
-}), Bn = {
-	bottom: 0,
-	itemHeight: 0,
-	items: [],
-	itemWidth: 0,
-	offsetBottom: 0,
-	offsetTop: 0,
-	top: 0
-}, Wr = {
-	bottom: 0,
-	itemHeight: 0,
-	items: [{ index: 0 }],
-	itemWidth: 0,
-	offsetBottom: 0,
-	offsetTop: 0,
-	top: 0
-}, { ceil: On, floor: Ce, max: oe, min: ze, round: kn } = Math;
-function Ln(t, e, n) {
-	return Array.from({ length: e - t + 1 }).map((o, r) => ({
-		data: n === null ? null : n[r + t],
-		index: r + t
-	}));
-}
-function Pr(t) {
-	return {
-		...Wr,
-		items: t
-	};
-}
-function Se(t, e) {
-	return t !== void 0 && t.width === e.width && t.height === e.height;
-}
-function Gr(t, e) {
-	return t !== void 0 && t.column === e.column && t.row === e.row;
-}
-var Ar = /* @__PURE__ */ j(([{ increaseViewportBy: t, listBoundary: e, overscan: n, visibleRange: o }, { footerHeight: r, headerHeight: s, scrollBy: i, scrollContainerState: l, scrollTo: c, scrollTop: d, smoothScrollTargetReached: m, viewportHeight: v }, p, I, { didMount: w, propsReady: R }, { customScrollParent: h, useWindowScroll: f, windowScrollContainerState: a, windowScrollTo: S, windowViewportRect: H }, y]) => {
-	const k = T(0), u = T(0), g = T(Bn), C = T({
-		height: 0,
-		width: 0
-	}), L = T({
-		height: 0,
-		width: 0
-	}), O = U(), V = U(), N = T(0), Z = T(null), F = T({
-		column: 0,
-		row: 0
-	}), mt = U(), q = U(), Q = T(!1), gt = T(0), lt = T(!0), St = T(!1), Ft = T(!1);
-	Y(x$1(w, $(gt), P(([b, D]) => !Ae(D))), () => {
-		M(lt, !1);
-	}), Y(x$1(at(w, lt, L, C, gt, St), P(([b, D, K, st, , tt]) => b && !D && K.height !== 0 && st.height !== 0 && !tt)), ([, , , , b]) => {
-		if (b === void 0) {
-			M(lt, !0);
-			return;
-		}
-		M(St, !0), je(1, () => {
-			M(O, b);
-		}), yt(x$1(d), () => {
-			M(e, [0, 0]), M(lt, !0);
-		});
-	}), z(x$1(q, P((b) => b != null && b.scrollTop > 0), Bt(0)), u), Y(x$1(w, $(q), P(([, b]) => b != null)), ([, b]) => {
-		b && (M(C, b.viewport), M(L, b.item), M(F, b.gap), b.scrollTop > 0 && (M(Q, !0), yt(x$1(d, Ut(1)), (D) => {
-			M(Q, !1);
-		}), M(c, { top: b.scrollTop })));
-	}), z(x$1(C, B(({ height: b }) => b)), v), z(x$1(at(W(C, Se), W(L, Se), W(F, (b, D) => b !== void 0 && b.column === D.column && b.row === D.row), W(d)), B(([b, D, K, st]) => ({
-		gap: K,
-		item: D,
-		scrollTop: st,
-		viewport: b
-	}))), mt), z(x$1(at(W(k), o, W(F, Gr), W(L, Se), W(C, Se), W(Z), W(u), W(Q), W(lt), W(gt)), P(([, , , , , , , b]) => !b), B(([b, [D, K], st, tt, X, ct, xt, , ut, Vt]) => {
-		const { column: Wt, row: ee } = st, { height: he, width: Ee } = tt, { width: sn } = X;
-		if (xt === 0 && (b === 0 || sn === 0)) return Bn;
-		if (Ee === 0) {
-			const dn = qe(Vt, b);
-			return Pr(Ln(dn, dn + Math.max(xt - 1, 0), ct));
-		}
-		const ge = fo(sn, Ee, Wt);
-		let qt, Mt;
-		ut ? D === 0 && K === 0 && xt > 0 ? (qt = 0, Mt = xt - 1) : (qt = ge * Ce((D + ee) / (he + ee)), Mt = ge * On((K + ee) / (he + ee)) - 1, Mt = ze(b - 1, oe(Mt, ge - 1)), qt = ze(Mt, oe(0, qt))) : (qt = 0, Mt = -1);
-		const ln = Ln(qt, Mt, ct), { bottom: cn, top: un } = zn(X, st, tt, ln), an = On(b / ge);
-		return {
-			bottom: cn,
-			itemHeight: he,
-			items: ln,
-			itemWidth: Ee,
-			offsetBottom: an * he + (an - 1) * ee - cn,
-			offsetTop: un,
-			top: un
-		};
-	})), g), z(x$1(Z, P((b) => b !== null), B((b) => b.length)), k), z(x$1(at(C, L, g, F), P(([b, D, { items: K }]) => K.length > 0 && D.height !== 0 && b.height !== 0), B(([b, D, { items: K }, st]) => {
-		const { bottom: tt, top: X } = zn(b, st, D, K);
-		return [X, tt];
-	}), nt(le)), e);
-	const pt = T(!1);
-	z(x$1(d, $(pt), B(([b, D]) => D || b !== 0)), pt);
-	const jt = Tt(x$1(at(g, k), P(([{ items: b }]) => b.length > 0), $(pt), P(([[b, D], K]) => {
-		const tt = b.items[b.items.length - 1].index === D - 1;
-		return (K || b.bottom > 0 && b.itemHeight > 0 && b.offsetBottom === 0 && b.items.length === D) && tt;
-	}), B(([[, b]]) => b - 1), nt())), Qt = Tt(x$1(W(g), P(({ items: b }) => b.length > 0 && b[0].index === 0), Bt(0), nt())), Et = Tt(x$1(W(g), $(Q), P(([{ items: b }, D]) => b.length > 0 && !D), B(([{ items: b }]) => ({
-		endIndex: b[b.length - 1].index,
-		startIndex: b[0].index
-	})), nt($n), zt(0)));
-	z(Et, I.scrollSeekRangeChanged), z(x$1(O, $(C, L, k, F), B(([b, D, K, st, tt]) => {
-		const X = Yn(b), { align: ct, behavior: xt, offset: ut } = X;
-		let Vt = X.index;
-		Vt === "LAST" && (Vt = st - 1), Vt = oe(0, Vt, ze(st - 1, Vt));
-		let Wt = Me(D, tt, K, Vt);
-		return ct === "end" ? Wt = kn(Wt - D.height + K.height) : ct === "center" && (Wt = kn(Wt - D.height / 2 + K.height / 2)), ut !== void 0 && ut !== 0 && (Wt += ut), {
-			behavior: xt,
-			top: Wt
-		};
-	})), c);
-	const te = ht(x$1(g, B((b) => b.offsetBottom + b.bottom)), 0);
-	return z(x$1(H, B((b) => ({
-		height: b.visibleHeight,
-		width: b.visibleWidth
-	}))), C), {
-		customScrollParent: h,
-		data: Z,
-		deviation: N,
-		footerHeight: r,
-		gap: F,
-		headerHeight: s,
-		increaseViewportBy: t,
-		initialItemCount: u,
-		itemDimensions: L,
-		overscan: n,
-		restoreStateFrom: q,
-		scrollBy: i,
-		scrollContainerState: l,
-		scrollHeight: V,
-		scrollTo: c,
-		scrollToIndex: O,
-		scrollTop: d,
-		smoothScrollTargetReached: m,
-		totalCount: k,
-		useWindowScroll: f,
-		viewportDimensions: C,
-		windowScrollContainerState: a,
-		windowScrollTo: S,
-		windowViewportRect: H,
-		...I,
-		gridState: g,
-		horizontalDirection: Ft,
-		initialTopMostItemIndex: gt,
-		totalListHeight: te,
-		...p,
-		endReached: jt,
-		propsReady: R,
-		rangeChanged: Et,
-		startReached: Qt,
-		stateChanged: mt,
-		stateRestoreInProgress: Q,
-		...y
-	};
-}, rt(Ye, It, pe, eo, At, Ze, Gt));
-function fo(t, e, n) {
-	return oe(1, Ce((t + n) / (Ce(e) + n)));
-}
-function zn(t, e, n, o) {
-	const { height: r } = n;
-	if (r === void 0 || o.length === 0) return {
-		bottom: 0,
-		top: 0
-	};
-	const s = Me(t, e, n, o[0].index);
-	return {
-		bottom: Me(t, e, n, o[o.length - 1].index) + r,
-		top: s
-	};
-}
-function Me(t, e, n, o) {
-	const s = Ce(o / fo(t.width, n.width, e.column)), i = s * n.height + oe(0, s - 1) * e.row;
-	return i > 0 ? i + e.row : i;
-}
-var _r = /* @__PURE__ */ j(([t, e]) => ({
-	...t,
-	...e
-}), rt(Ar, /* @__PURE__ */ j(() => {
-	const t = T((v) => `Item ${v}`), e = T({}), n = T(null), o = T("virtuoso-grid-item"), r = T("virtuoso-grid-list"), s = T(Qe), i = T("div"), l = T(Jt), c = (v, p = null) => ht(x$1(e, B((I) => I[v]), nt()), p), d = T(!1), m = T(!1);
-	return z(W(m), d), {
-		components: e,
-		computeItemKey: s,
-		context: n,
-		FooterComponent: c("Footer"),
-		HeaderComponent: c("Header"),
-		headerFooterTag: i,
-		itemClassName: o,
-		ItemComponent: c("Item", "div"),
-		itemContent: t,
-		listClassName: r,
-		ListComponent: c("List", "div"),
-		readyStateChanged: d,
-		reportReadyState: m,
-		ScrollerComponent: c("Scroller", "div"),
-		scrollerRef: l,
-		ScrollSeekPlaceholder: c("ScrollSeekPlaceholder", "div")
-	};
-}))), Nr = /* @__PURE__ */ import_react.memo(function() {
-	const e = et$1("gridState"), n = et$1("listClassName"), o = et$1("itemClassName"), r = et$1("itemContent"), s = et$1("computeItemKey"), i = et$1("isSeeking"), l = wt("scrollHeight"), c = et$1("ItemComponent"), d = et$1("ListComponent"), m = et$1("ScrollSeekPlaceholder"), v = et$1("context"), p = wt("itemDimensions"), I = wt("gap"), w = et$1("log"), R = et$1("stateRestoreInProgress"), h = wt("reportReadyState"), f = kt(import_react.useMemo(() => (a) => {
-		const S = a.parentElement.parentElement.scrollHeight;
-		l(S);
-		const H = a.firstChild;
-		if (H !== null) {
-			const { height: y, width: k } = H.getBoundingClientRect();
-			p({
-				height: y,
-				width: k
-			});
-		}
-		I({
-			column: Fn("column-gap", getComputedStyle(a).columnGap, w),
-			row: Fn("row-gap", getComputedStyle(a).rowGap, w)
-		});
-	}, [
-		l,
-		p,
-		I,
-		w
-	]), !0, !1);
-	return so(() => {
-		e.itemHeight > 0 && e.itemWidth > 0 && h(!0);
-	}, [e]), R ? null : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(d, {
-		className: n,
-		ref: f,
-		...ot(d, v),
-		"data-testid": "virtuoso-item-list",
-		style: {
-			paddingBottom: e.offsetBottom,
-			paddingTop: e.offsetTop
-		},
-		children: e.items.map((a) => {
-			const S = s(a.index, a.data, v);
-			return i ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(m, {
-				...ot(m, v),
-				height: e.itemHeight,
-				index: a.index,
-				width: e.itemWidth
-			}, S) : /* @__PURE__ */ (0, import_react.createElement)(c, {
-				...ot(c, v),
-				className: o,
-				"data-index": a.index,
-				key: S
-			}, r(a.index, a.data, v));
-		})
-	});
-}), Dr = import_react.memo(function() {
-	const e = et$1("HeaderComponent"), n = wt("headerHeight"), o = et$1("headerFooterTag"), r = kt(import_react.useMemo(() => (i) => {
-		n(Ht(i, "height"));
-	}, [n]), !0, !1), s = et$1("context");
-	return e != null ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(o, {
-		ref: r,
-		children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(e, { ...ot(e, s) })
-	}) : null;
-}), $r = import_react.memo(function() {
-	const e = et$1("FooterComponent"), n = wt("footerHeight"), o = et$1("headerFooterTag"), r = kt(import_react.useMemo(() => (i) => {
-		n(Ht(i, "height"));
-	}, [n]), !0, !1), s = et$1("context");
-	return e != null ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(o, {
-		ref: r,
-		children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(e, { ...ot(e, s) })
-	}) : null;
-}), Ur = ({ children: t }) => {
-	const e = import_react.useContext(ro), n = wt("itemDimensions"), o = wt("viewportDimensions"), r = kt(import_react.useMemo(() => (s) => {
-		o(s.getBoundingClientRect());
-	}, [o]), !0, !1);
-	return import_react.useEffect(() => {
-		e && (o({
-			height: e.viewportHeight,
-			width: e.viewportWidth
-		}), n({
-			height: e.itemHeight,
-			width: e.itemWidth
-		}));
-	}, [
-		e,
-		o,
-		n
-	]), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-		ref: r,
-		style: He(!1),
-		children: t
-	});
-}, Kr = ({ children: t }) => {
-	const e = import_react.useContext(ro), n = wt("windowViewportRect"), o = wt("itemDimensions"), r = et$1("customScrollParent"), s = et$1("useWindowScroll"), i = $e(n, r, !1);
-	return import_react.useEffect(() => {
-		e && (o({
-			height: e.itemHeight,
-			width: e.itemWidth
-		}), n({
-			listHeight: 0,
-			offsetTop: 0,
-			visibleHeight: e.viewportHeight,
-			visibleWidth: e.viewportWidth
-		}));
-	}, [
-		e,
-		n,
-		o
-	]), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-		ref: i,
-		style: tn(!1, s),
-		children: t
-	});
-}, { Component: qr, useEmitter: mo, useEmitterValue: et$1, usePublisher: wt } = /* @__PURE__ */ Xe(_r, {
-	optional: {
-		context: "context",
-		totalCount: "totalCount",
-		overscan: "overscan",
-		itemContent: "itemContent",
-		components: "components",
-		computeItemKey: "computeItemKey",
-		data: "data",
-		initialItemCount: "initialItemCount",
-		scrollSeekConfiguration: "scrollSeekConfiguration",
-		headerFooterTag: "headerFooterTag",
-		listClassName: "listClassName",
-		itemClassName: "itemClassName",
-		useWindowScroll: "useWindowScroll",
-		customScrollParent: "customScrollParent",
-		scrollerRef: "scrollerRef",
-		logLevel: "logLevel",
-		restoreStateFrom: "restoreStateFrom",
-		initialTopMostItemIndex: "initialTopMostItemIndex",
-		increaseViewportBy: "increaseViewportBy"
-	},
-	methods: {
-		scrollTo: "scrollTo",
-		scrollBy: "scrollBy",
-		scrollToIndex: "scrollToIndex"
-	},
-	events: {
-		isScrolling: "isScrolling",
-		endReached: "endReached",
-		startReached: "startReached",
-		rangeChanged: "rangeChanged",
-		atBottomStateChange: "atBottomStateChange",
-		atTopStateChange: "atTopStateChange",
-		stateChanged: "stateChanged",
-		readyStateChanged: "readyStateChanged"
-	}
-}, /* @__PURE__ */ import_react.memo(function({ ...e }) {
-	const n = et$1("useWindowScroll"), o = et$1("customScrollParent"), r = o || n ? Zr : Yr, s = o || n ? Kr : Ur, i = et$1("context");
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(r, {
-		...e,
-		...ot(r, i),
-		children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(s, { children: [
-			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Dr, {}),
-			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Nr, {}),
-			/* @__PURE__ */ (0, import_jsx_runtime.jsx)($r, {})
-		] })
-	});
-})), Yr = /* @__PURE__ */ en({
-	useEmitter: mo,
-	useEmitterValue: et$1,
-	usePublisher: wt
-}), Zr = /* @__PURE__ */ nn({
-	useEmitter: mo,
-	useEmitterValue: et$1,
-	usePublisher: wt
-});
-function Fn(t, e, n) {
-	return e !== "normal" && e?.endsWith("px") !== !0 && n(`${t} was not resolved to pixel value correctly`, e, ft.WARN), e === "normal" ? 0 : parseInt(e ?? "0", 10);
+		return Reflect.get(target, prop, receiver);
+	} });
 }
 //#endregion
-//#region ../../packages/inspect-components/src/virtuoso/useVirtuosoState.ts
-var log$2 = createLogger("scrolling");
-var useVirtuosoState = (virtuosoRef, elementKey, delay = 1e3) => {
-	const [restoreState, setListPosition, clearListPosition] = useProperty("listPosition", elementKey);
-	const [visibleRange = {
-		startIndex: 0,
-		endIndex: 0,
-		totalCount: 0
-	}, setVisibleRange] = useProperty("visibleRange", elementKey);
-	const debouncedFnRef = (0, import_react.useRef)(null);
-	const handleStateChange = (0, import_react.useCallback)((state) => {
-		log$2.debug(`Storing list state: [${elementKey}]`, state);
-		setListPosition(state);
-	}, [elementKey, setListPosition]);
-	(0, import_react.useEffect)(() => {
-		debouncedFnRef.current = debounce$3((isScrolling) => {
-			log$2.debug("List scroll", isScrolling);
-			const element = virtuosoRef.current;
-			if (!element) return;
-			element.getState(handleStateChange);
-		}, delay);
-		return () => {
-			clearListPosition();
-		};
-	}, [
-		delay,
-		elementKey,
-		handleStateChange,
-		clearListPosition,
-		virtuosoRef
-	]);
-	const isScrolling = (0, import_react.useCallback)((scrolling) => {
-		if (!scrolling) return;
-		if (debouncedFnRef.current) debouncedFnRef.current(scrolling);
-	}, []);
-	const stateRef = (0, import_react.useRef)(restoreState);
-	(0, import_react.useEffect)(() => {
-		stateRef.current = restoreState;
-	}, [restoreState]);
-	return {
-		getRestoreState: (0, import_react.useCallback)(() => stateRef.current, []),
-		isScrolling,
-		visibleRange,
-		setVisibleRange
+//#region ../../node_modules/.pnpm/@tanstack+virtual-core@3.17.7/node_modules/@tanstack/virtual-core/dist/esm/utils.js
+function memo$10(getDeps, fn, opts) {
+	let deps = opts.initialDeps ?? [];
+	let result;
+	let isInitial = true;
+	function memoizedFunction() {
+		const newDeps = getDeps();
+		if (!(newDeps.length !== deps.length || newDeps.some((dep, index) => deps[index] !== dep))) return result;
+		deps = newDeps;
+		result = fn(...newDeps);
+		if ((opts == null ? void 0 : opts.onChange) && !(isInitial && opts.skipInitialOnChange)) opts.onChange(result);
+		isInitial = false;
+		return result;
+	}
+	memoizedFunction.updateDeps = (newDeps) => {
+		deps = newDeps;
+	};
+	return memoizedFunction;
+}
+function notUndefined(value, msg) {
+	if (value === void 0) throw new Error(`Unexpected undefined${msg ? `: ${msg}` : ""}`);
+	else return value;
+}
+var approxEqual = (a, b) => Math.abs(a - b) < 1.01;
+var debounce = (targetWindow, fn, ms) => {
+	let timeoutId;
+	return function(...args) {
+		targetWindow.clearTimeout(timeoutId);
+		timeoutId = targetWindow.setTimeout(() => fn.apply(this, args), ms);
 	};
 };
+//#endregion
+//#region ../../node_modules/.pnpm/@tanstack+virtual-core@3.17.7/node_modules/@tanstack/virtual-core/dist/esm/index.js
+var _isIOSResult;
+var isIOSWebKit = () => {
+	if (_isIOSResult !== void 0) return _isIOSResult;
+	if (typeof navigator === "undefined") return _isIOSResult = false;
+	if (/iP(hone|od|ad)/.test(navigator.userAgent)) return _isIOSResult = true;
+	const mtp = navigator.maxTouchPoints;
+	return _isIOSResult = navigator.platform === "MacIntel" && mtp !== void 0 && mtp > 0;
+};
+var getRect = (element) => {
+	const { offsetWidth, offsetHeight } = element;
+	return {
+		width: offsetWidth,
+		height: offsetHeight
+	};
+};
+var defaultKeyExtractor = (index) => index;
+var defaultRangeExtractor = (range) => {
+	const start = Math.max(range.startIndex - range.overscan, 0);
+	const len = Math.min(range.endIndex + range.overscan, range.count - 1) - start + 1;
+	const arr = new Array(len);
+	for (let i = 0; i < len; i++) arr[i] = start + i;
+	return arr;
+};
+var observeElementRect = (instance, cb) => {
+	const element = instance.scrollElement;
+	if (!element) return;
+	const targetWindow = instance.targetWindow;
+	if (!targetWindow) return;
+	const handler = (rect) => {
+		const { width, height } = rect;
+		cb({
+			width: Math.round(width),
+			height: Math.round(height)
+		});
+	};
+	handler(getRect(element));
+	if (!targetWindow.ResizeObserver) return () => {};
+	const observer = new targetWindow.ResizeObserver((entries) => {
+		const run = () => {
+			const entry = entries[0];
+			if (entry == null ? void 0 : entry.borderBoxSize) {
+				const box = entry.borderBoxSize[0];
+				if (box) {
+					handler({
+						width: box.inlineSize,
+						height: box.blockSize
+					});
+					return;
+				}
+			}
+			handler(getRect(element));
+		};
+		instance.options.useAnimationFrameWithResizeObserver ? requestAnimationFrame(run) : run();
+	});
+	observer.observe(element, { box: "border-box" });
+	return () => {
+		observer.unobserve(element);
+	};
+};
+var addEventListenerOptions = { passive: true };
+var supportsScrollend = typeof window == "undefined" ? true : "onscrollend" in window;
+var observeOffset = (instance, cb, readOffset) => {
+	const element = instance.scrollElement;
+	if (!element) return;
+	const targetWindow = instance.targetWindow;
+	if (!targetWindow) return;
+	const registerScrollendEvent = instance.options.useScrollendEvent && supportsScrollend;
+	let offset = 0;
+	const fallback = registerScrollendEvent ? null : debounce(targetWindow, () => cb(offset, false), instance.options.isScrollingResetDelay);
+	const createHandler = (isScrolling) => () => {
+		offset = readOffset(element);
+		fallback?.();
+		cb(offset, isScrolling);
+	};
+	const handler = createHandler(true);
+	const endHandler = createHandler(false);
+	element.addEventListener("scroll", handler, addEventListenerOptions);
+	if (registerScrollendEvent) element.addEventListener("scrollend", endHandler, addEventListenerOptions);
+	return () => {
+		element.removeEventListener("scroll", handler);
+		if (registerScrollendEvent) element.removeEventListener("scrollend", endHandler);
+	};
+};
+var observeElementOffset = (instance, cb) => observeOffset(instance, cb, (el) => {
+	const { horizontal, isRtl } = instance.options;
+	return horizontal ? el.scrollLeft * (isRtl && -1 || 1) : el.scrollTop;
+});
+var measureElement = (element, entry, instance) => {
+	if (instance.options.useCachedMeasurements) {
+		const index = instance.indexFromElement(element);
+		const key = instance.options.getItemKey(index);
+		return instance.itemSizeCache.get(key) ?? instance.options.estimateSize(index);
+	}
+	if (entry == null ? void 0 : entry.borderBoxSize) {
+		const box = entry.borderBoxSize[0];
+		if (box) return Math.round(box[instance.options.horizontal ? "inlineSize" : "blockSize"]);
+	}
+	if (!entry) {
+		const index = instance.indexFromElement(element);
+		const key = instance.options.getItemKey(index);
+		const cachedSize = instance.itemSizeCache.get(key);
+		if (cachedSize !== void 0) return cachedSize;
+	}
+	return element[instance.options.horizontal ? "offsetWidth" : "offsetHeight"];
+};
+var scrollWithAdjustments = (offset, { adjustments = 0, behavior }, instance) => {
+	var _a, _b;
+	(_b = (_a = instance.scrollElement) == null ? void 0 : _a.scrollTo) == null || _b.call(_a, {
+		[instance.options.horizontal ? "left" : "top"]: offset + adjustments,
+		behavior
+	});
+};
+var elementScroll = scrollWithAdjustments;
+var Virtualizer = class {
+	constructor(opts) {
+		this.unsubs = [];
+		this.scrollElement = null;
+		this.targetWindow = null;
+		this.isScrolling = false;
+		this.scrollState = null;
+		this.measurementsCache = [];
+		this._flatMeasurements = null;
+		this.itemSizeCache = /* @__PURE__ */ new Map();
+		this.itemSizeCacheVersion = 0;
+		this.laneAssignments = /* @__PURE__ */ new Map();
+		this.pendingMin = null;
+		this.prevLanes = void 0;
+		this.lanesChangedFlag = false;
+		this.lanesSettling = false;
+		this.pendingScrollAnchor = null;
+		this.scrollRect = null;
+		this.scrollOffset = null;
+		this.scrollDirection = null;
+		this.scrollAdjustments = 0;
+		this._iosDeferredAdjustment = 0;
+		this._iosTouching = false;
+		this._iosJustTouchEnded = false;
+		this._iosTouchEndTimerId = null;
+		this._intendedScrollOffset = null;
+		this.elementsCache = /* @__PURE__ */ new Map();
+		this.now = () => {
+			var _a, _b, _c;
+			return ((_c = (_b = (_a = this.targetWindow) == null ? void 0 : _a.performance) == null ? void 0 : _b.now) == null ? void 0 : _c.call(_b)) ?? Date.now();
+		};
+		this.observer = /* @__PURE__ */ (() => {
+			let _ro = null;
+			const get = () => {
+				if (_ro) return _ro;
+				if (!this.targetWindow || !this.targetWindow.ResizeObserver) return null;
+				return _ro = new this.targetWindow.ResizeObserver((entries) => {
+					entries.forEach((entry) => {
+						const run = () => {
+							const node = entry.target;
+							const index = this.indexFromElement(node);
+							if (!node.isConnected) {
+								this.observer.unobserve(node);
+								for (const [cacheKey, cachedNode] of this.elementsCache) if (cachedNode === node) {
+									this.elementsCache.delete(cacheKey);
+									break;
+								}
+								return;
+							}
+							if (this.shouldMeasureDuringScroll(index)) this.resizeItem(index, this.options.measureElement(node, entry, this));
+						};
+						this.options.useAnimationFrameWithResizeObserver ? requestAnimationFrame(run) : run();
+					});
+				});
+			};
+			return {
+				disconnect: () => {
+					var _a;
+					(_a = get()) == null || _a.disconnect();
+					_ro = null;
+				},
+				observe: (target) => {
+					var _a;
+					return (_a = get()) == null ? void 0 : _a.observe(target, { box: "border-box" });
+				},
+				unobserve: (target) => {
+					var _a;
+					return (_a = get()) == null ? void 0 : _a.unobserve(target);
+				}
+			};
+		})();
+		this.range = null;
+		this.setOptions = (opts2) => {
+			var _a, _b;
+			const merged = {
+				debug: false,
+				initialOffset: 0,
+				overscan: 1,
+				paddingStart: 0,
+				paddingEnd: 0,
+				scrollPaddingStart: 0,
+				scrollPaddingEnd: 0,
+				horizontal: false,
+				getItemKey: defaultKeyExtractor,
+				rangeExtractor: defaultRangeExtractor,
+				onChange: () => {},
+				measureElement,
+				initialRect: {
+					width: 0,
+					height: 0
+				},
+				scrollMargin: 0,
+				gap: 0,
+				indexAttribute: "data-index",
+				initialMeasurementsCache: [],
+				lanes: 1,
+				anchorTo: "start",
+				followOnAppend: false,
+				scrollEndThreshold: 1,
+				isScrollingResetDelay: 150,
+				enabled: true,
+				isRtl: false,
+				useScrollendEvent: false,
+				useAnimationFrameWithResizeObserver: false,
+				laneAssignmentMode: "estimate",
+				useCachedMeasurements: false
+			};
+			for (const key in opts2) {
+				const v = opts2[key];
+				if (v !== void 0) merged[key] = v;
+			}
+			const prevOptions = this.options;
+			let anchor = null;
+			let followOnAppend = null;
+			let edgeKeysChanged = false;
+			if (prevOptions !== void 0 && prevOptions.enabled && merged.enabled && merged.anchorTo === "end" && this.scrollElement !== null) {
+				const prevCount = prevOptions.count;
+				const nextCount = merged.count;
+				const measurements = this.getMeasurements();
+				const prevFirstKey = prevCount > 0 ? ((_a = measurements[0]) == null ? void 0 : _a.key) ?? prevOptions.getItemKey(0) : null;
+				const prevLastKey = prevCount > 0 ? ((_b = measurements[prevCount - 1]) == null ? void 0 : _b.key) ?? prevOptions.getItemKey(prevCount - 1) : null;
+				if (nextCount !== prevCount || prevCount > 0 && nextCount > 0 && (merged.getItemKey(0) !== prevFirstKey || merged.getItemKey(nextCount - 1) !== prevLastKey)) {
+					edgeKeysChanged = true;
+					const item = prevCount > 0 ? this.getVirtualItemForOffset(this.getScrollOffset()) ?? measurements[0] : null;
+					if (item) anchor = [item.key, this.getScrollOffset() - item.start];
+					const behavior = merged.followOnAppend === true ? "auto" : merged.followOnAppend || null;
+					if (behavior && nextCount > prevCount && this.isAtEnd(prevOptions.scrollEndThreshold) && (prevCount === 0 || merged.getItemKey(nextCount - 1) !== prevLastKey)) followOnAppend = behavior;
+				}
+			}
+			this.options = merged;
+			if (edgeKeysChanged) {
+				this.pendingMin = 0;
+				this.itemSizeCacheVersion++;
+			}
+			let anchorResolved = false;
+			let anchorDelta = 0;
+			if (anchor && this.scrollOffset !== null) {
+				const [anchorKey, anchorOffset] = anchor;
+				const newMeasurements = this.getMeasurements();
+				const { count, getItemKey } = this.options;
+				let idx = 0;
+				while (idx < count && getItemKey(idx) !== anchorKey) idx++;
+				if (idx < count) {
+					const anchorItem = newMeasurements[idx];
+					if (anchorItem) {
+						const newOffset = Math.max(0, anchorItem.start + anchorOffset);
+						if (newOffset !== this.scrollOffset) {
+							anchorDelta = newOffset - this.scrollOffset;
+							this.scrollOffset = newOffset;
+							anchorResolved = true;
+						}
+					}
+				}
+			}
+			if (anchorResolved || followOnAppend) this.pendingScrollAnchor = [
+				anchorResolved ? anchor[0] : null,
+				anchorResolved ? anchor[1] : 0,
+				followOnAppend,
+				anchorDelta
+			];
+		};
+		this.notify = (sync) => {
+			var _a, _b;
+			(_b = (_a = this.options).onChange) == null || _b.call(_a, this, sync);
+		};
+		this.maybeNotify = memo$10(() => {
+			this.calculateRange();
+			return [
+				this.isScrolling,
+				this.range ? this.range.startIndex : null,
+				this.range ? this.range.endIndex : null
+			];
+		}, (isScrolling) => {
+			this.notify(isScrolling);
+		}, {
+			key: false,
+			debug: () => this.options.debug,
+			initialDeps: [
+				this.isScrolling,
+				this.range ? this.range.startIndex : null,
+				this.range ? this.range.endIndex : null
+			]
+		});
+		this.cleanup = () => {
+			this.unsubs.filter(Boolean).forEach((d) => d());
+			this.unsubs = [];
+			this.observer.disconnect();
+			if (this.rafId != null && this.targetWindow) {
+				this.targetWindow.cancelAnimationFrame(this.rafId);
+				this.rafId = null;
+			}
+			this.scrollState = null;
+			this._iosDeferredAdjustment = 0;
+			this._iosTouching = false;
+			this._iosJustTouchEnded = false;
+			this.scrollElement = null;
+			this.targetWindow = null;
+		};
+		this._didMount = () => {
+			return () => {
+				this.cleanup();
+			};
+		};
+		this._willUpdate = () => {
+			var _a;
+			const scrollElement = this.options.enabled ? this.options.getScrollElement() : null;
+			if (this.scrollElement !== scrollElement) {
+				this.cleanup();
+				if (!scrollElement) {
+					this.maybeNotify();
+					return;
+				}
+				this.scrollElement = scrollElement;
+				if (this.scrollElement && "ownerDocument" in this.scrollElement) this.targetWindow = this.scrollElement.ownerDocument.defaultView;
+				else this.targetWindow = ((_a = this.scrollElement) == null ? void 0 : _a.window) ?? null;
+				this.elementsCache.forEach((cached) => {
+					this.observer.observe(cached);
+				});
+				this.unsubs.push(this.options.observeElementRect(this, (rect) => {
+					this.scrollRect = rect;
+					this.maybeNotify();
+				}));
+				this.unsubs.push(this.options.observeElementOffset(this, (offset, isScrolling) => {
+					if (isScrolling && this._intendedScrollOffset === null && offset === this.scrollOffset) return;
+					if (this._intendedScrollOffset !== null && Math.abs(offset - this._intendedScrollOffset) < 1.5) offset = this._intendedScrollOffset;
+					this._intendedScrollOffset = null;
+					this.scrollAdjustments = 0;
+					const prevOffset = this.getScrollOffset();
+					this.scrollDirection = isScrolling ? prevOffset === offset ? this.scrollDirection : prevOffset < offset ? "forward" : "backward" : null;
+					this.scrollOffset = offset;
+					this.isScrolling = isScrolling;
+					this._flushIosDeferredIfReady();
+					if (this.scrollState) this.scheduleScrollReconcile();
+					this.maybeNotify();
+				}));
+				if ("addEventListener" in this.scrollElement) {
+					const scrollEl = this.scrollElement;
+					const onTouchStart = () => {
+						this._iosTouching = true;
+						this._iosJustTouchEnded = false;
+						if (this._iosTouchEndTimerId !== null && this.targetWindow != null) {
+							this.targetWindow.clearTimeout(this._iosTouchEndTimerId);
+							this._iosTouchEndTimerId = null;
+						}
+					};
+					const onTouchEnd = () => {
+						this._iosTouching = false;
+						if (!isIOSWebKit() || this.targetWindow == null) return;
+						this._iosJustTouchEnded = true;
+						this._iosTouchEndTimerId = this.targetWindow.setTimeout(() => {
+							this._iosJustTouchEnded = false;
+							this._iosTouchEndTimerId = null;
+							this._flushIosDeferredIfReady();
+						}, 150);
+					};
+					scrollEl.addEventListener("touchstart", onTouchStart, addEventListenerOptions);
+					scrollEl.addEventListener("touchend", onTouchEnd, addEventListenerOptions);
+					this.unsubs.push(() => {
+						scrollEl.removeEventListener("touchstart", onTouchStart);
+						scrollEl.removeEventListener("touchend", onTouchEnd);
+						if (this._iosTouchEndTimerId !== null && this.targetWindow != null) {
+							this.targetWindow.clearTimeout(this._iosTouchEndTimerId);
+							this._iosTouchEndTimerId = null;
+						}
+					});
+				}
+				this._scrollToOffset(this.getScrollOffset(), {
+					adjustments: void 0,
+					behavior: void 0
+				});
+			}
+			const anchor = this.pendingScrollAnchor;
+			this.pendingScrollAnchor = null;
+			if (anchor && this.scrollElement && this.options.enabled) {
+				const [key, _offset, followOnAppend, anchorDelta] = anchor;
+				if (key !== null && !followOnAppend) if (isIOSWebKit() && (this.isScrolling || this._iosTouching || this._iosJustTouchEnded)) {
+					if (anchorDelta !== 0) this._iosDeferredAdjustment += anchorDelta;
+				} else this._scrollToOffset(this.getScrollOffset(), {
+					adjustments: void 0,
+					behavior: void 0
+				});
+				if (followOnAppend) this.scrollToEnd({ behavior: followOnAppend });
+			}
+		};
+		this._flushIosDeferredIfReady = () => {
+			if (this._iosDeferredAdjustment === 0) return;
+			if (this.isScrolling) return;
+			if (this._iosTouching) return;
+			if (this._iosJustTouchEnded) return;
+			const cur = this.getScrollOffset();
+			const max = this.getMaxScrollOffset();
+			if (cur < 0 || cur > max) return;
+			if (this._iosDeferredAdjustment < 0 && cur >= max - 1) {
+				this._iosDeferredAdjustment = 0;
+				return;
+			}
+			const delta = this._iosDeferredAdjustment;
+			this._iosDeferredAdjustment = 0;
+			this._scrollToOffset(cur, {
+				adjustments: this.scrollAdjustments += delta,
+				behavior: void 0
+			});
+		};
+		this.rafId = null;
+		this.getSize = () => {
+			if (!this.options.enabled) {
+				this.scrollRect = null;
+				return 0;
+			}
+			this.scrollRect = this.scrollRect ?? this.options.initialRect;
+			return this.scrollRect[this.options.horizontal ? "width" : "height"];
+		};
+		this.getScrollOffset = () => {
+			if (!this.options.enabled) {
+				this.scrollOffset = null;
+				return 0;
+			}
+			this.scrollOffset = this.scrollOffset ?? (typeof this.options.initialOffset === "function" ? this.options.initialOffset() : this.options.initialOffset);
+			return this.scrollOffset;
+		};
+		this.getMeasurementOptions = memo$10(() => [
+			this.options.count,
+			this.options.paddingStart,
+			this.options.scrollMargin,
+			this.options.getItemKey,
+			this.options.enabled,
+			this.options.lanes,
+			this.options.laneAssignmentMode,
+			this.options.gap
+		], (count, paddingStart, scrollMargin, getItemKey, enabled, lanes, laneAssignmentMode, gap) => {
+			if (this.prevLanes !== void 0 && this.prevLanes !== lanes) this.lanesChangedFlag = true;
+			this.prevLanes = lanes;
+			this.pendingMin = null;
+			return {
+				count,
+				paddingStart,
+				scrollMargin,
+				getItemKey,
+				enabled,
+				lanes,
+				laneAssignmentMode,
+				gap
+			};
+		}, { key: false });
+		this.getMeasurements = memo$10(() => [this.getMeasurementOptions(), this.itemSizeCacheVersion], ({ count, paddingStart, scrollMargin, getItemKey, enabled, lanes, laneAssignmentMode, gap }, _itemSizeCacheVersion) => {
+			const itemSizeCache = this.itemSizeCache;
+			if (!enabled) {
+				this.measurementsCache = [];
+				this.itemSizeCache.clear();
+				this.laneAssignments.clear();
+				return [];
+			}
+			if (this.laneAssignments.size > count) {
+				for (const index of this.laneAssignments.keys()) if (index >= count) this.laneAssignments.delete(index);
+			}
+			if (this.lanesChangedFlag) {
+				this.lanesChangedFlag = false;
+				this.lanesSettling = true;
+				this.measurementsCache = [];
+				this.itemSizeCache.clear();
+				this.laneAssignments.clear();
+				this.pendingMin = null;
+			}
+			if (this.measurementsCache.length === 0 && !this.lanesSettling) {
+				this.measurementsCache = this.options.initialMeasurementsCache;
+				this.measurementsCache.forEach((item) => {
+					this.itemSizeCache.set(item.key, item.size);
+				});
+			}
+			const min = this.lanesSettling ? 0 : this.pendingMin ?? 0;
+			this.pendingMin = null;
+			if (this.lanesSettling && this.measurementsCache.length === count) this.lanesSettling = false;
+			if (lanes === 1) {
+				const need = count * 2;
+				let flat = this._flatMeasurements;
+				if (!flat || flat.length < need) {
+					const next = new Float64Array(need);
+					if (flat && min > 0) next.set(flat.subarray(0, min * 2));
+					flat = next;
+					this._flatMeasurements = flat;
+				}
+				let runningStart;
+				if (min === 0) runningStart = paddingStart + scrollMargin;
+				else {
+					const prevIdx = min - 1;
+					runningStart = flat[prevIdx * 2] + flat[prevIdx * 2 + 1] + gap;
+				}
+				for (let i = min; i < count; i++) {
+					const key = getItemKey(i);
+					const measuredSize = itemSizeCache.get(key);
+					const size = typeof measuredSize === "number" ? measuredSize : this.options.estimateSize(i);
+					flat[i * 2] = runningStart;
+					flat[i * 2 + 1] = size;
+					runningStart += size + gap;
+				}
+				const view = createLazyMeasurementsView(count, flat, getItemKey);
+				this.measurementsCache = view;
+				return view;
+			}
+			const measurements = this.measurementsCache.slice(0, min);
+			const laneLastIndex = new Array(lanes).fill(void 0);
+			const laneEnds = new Float64Array(lanes);
+			let filledLanes = 0;
+			for (let m = 0; m < min; m++) {
+				const item = measurements[m];
+				if (item) {
+					if (laneLastIndex[item.lane] === void 0) filledLanes++;
+					laneLastIndex[item.lane] = m;
+					laneEnds[item.lane] = item.end;
+				}
+			}
+			for (let i = min; i < count; i++) {
+				const key = getItemKey(i);
+				const cachedLane = this.laneAssignments.get(i);
+				let lane;
+				let start;
+				const shouldCacheLane = laneAssignmentMode === "estimate" || itemSizeCache.has(key);
+				if (cachedLane !== void 0 && this.options.lanes > 1) {
+					lane = cachedLane;
+					const prevIndex = laneLastIndex[lane];
+					const prevInLane = prevIndex !== void 0 ? measurements[prevIndex] : void 0;
+					start = prevInLane ? prevInLane.end + gap : paddingStart + scrollMargin;
+				} else if (filledLanes === lanes) {
+					let bestLane = 0;
+					let bestEnd = laneEnds[0];
+					let bestIdx = laneLastIndex[0];
+					for (let l = 1; l < lanes; l++) {
+						const e = laneEnds[l];
+						if (e < bestEnd || e === bestEnd && laneLastIndex[l] < bestIdx) {
+							bestLane = l;
+							bestEnd = e;
+							bestIdx = laneLastIndex[l];
+						}
+					}
+					lane = bestLane;
+					start = bestEnd + gap;
+					if (shouldCacheLane) this.laneAssignments.set(i, lane);
+				} else {
+					lane = i % this.options.lanes;
+					start = paddingStart + scrollMargin;
+					if (shouldCacheLane) this.laneAssignments.set(i, lane);
+				}
+				const measuredSize = itemSizeCache.get(key);
+				const size = typeof measuredSize === "number" ? measuredSize : this.options.estimateSize(i);
+				const end = start + size;
+				measurements[i] = {
+					index: i,
+					start,
+					size,
+					end,
+					key,
+					lane
+				};
+				if (laneLastIndex[lane] === void 0) filledLanes++;
+				laneLastIndex[lane] = i;
+				laneEnds[lane] = end;
+			}
+			this.measurementsCache = measurements;
+			return measurements;
+		}, {
+			key: false,
+			debug: () => this.options.debug
+		});
+		this.calculateRange = memo$10(() => [
+			this.getMeasurements(),
+			this.getSize(),
+			this.getScrollOffset(),
+			this.options.lanes
+		], (measurements, outerSize, scrollOffset, lanes) => {
+			if (measurements.length === 0 || outerSize === 0) {
+				this.range = null;
+				return null;
+			}
+			this.range = calculateRangeImpl(measurements, outerSize, scrollOffset, lanes, lanes === 1 && this._flatMeasurements != null ? this._flatMeasurements : null);
+			return this.range;
+		}, {
+			key: false,
+			debug: () => this.options.debug
+		});
+		this.getVirtualIndexes = memo$10(() => {
+			let startIndex = null;
+			let endIndex = null;
+			const range = this.calculateRange();
+			if (range) {
+				startIndex = range.startIndex;
+				endIndex = range.endIndex;
+			}
+			this.maybeNotify.updateDeps([
+				this.isScrolling,
+				startIndex,
+				endIndex
+			]);
+			return [
+				this.options.rangeExtractor,
+				this.options.overscan,
+				this.options.count,
+				startIndex,
+				endIndex
+			];
+		}, (rangeExtractor, overscan, count, startIndex, endIndex) => {
+			return startIndex === null || endIndex === null ? [] : rangeExtractor({
+				startIndex,
+				endIndex,
+				overscan,
+				count
+			});
+		}, {
+			key: false,
+			debug: () => this.options.debug
+		});
+		this.indexFromElement = (node) => {
+			const attributeName = this.options.indexAttribute;
+			const indexStr = node.getAttribute(attributeName);
+			if (!indexStr) {
+				console.warn(`Missing attribute name '${attributeName}={index}' on measured element.`);
+				return -1;
+			}
+			return parseInt(indexStr, 10);
+		};
+		this.shouldMeasureDuringScroll = (index) => {
+			var _a;
+			if (!this.scrollState || this.scrollState.behavior !== "smooth") return true;
+			const scrollIndex = this.scrollState.index ?? ((_a = this.getVirtualItemForOffset(this.scrollState.lastTargetOffset)) == null ? void 0 : _a.index);
+			if (scrollIndex !== void 0 && this.range) {
+				const bufferSize = Math.max(this.options.overscan, Math.ceil((this.range.endIndex - this.range.startIndex) / 2));
+				const minIndex = Math.max(0, scrollIndex - bufferSize);
+				const maxIndex = Math.min(this.options.count - 1, scrollIndex + bufferSize);
+				return index >= minIndex && index <= maxIndex;
+			}
+			return true;
+		};
+		this.measureElement = (node) => {
+			if (!node) {
+				this.elementsCache.forEach((cached, key2) => {
+					if (!cached.isConnected) {
+						this.observer.unobserve(cached);
+						this.elementsCache.delete(key2);
+					}
+				});
+				return;
+			}
+			const index = this.indexFromElement(node);
+			const key = this.options.getItemKey(index);
+			const prevNode = this.elementsCache.get(key);
+			if (prevNode !== node) {
+				if (prevNode) this.observer.unobserve(prevNode);
+				this.observer.observe(node);
+				this.elementsCache.set(key, node);
+			}
+			if ((!this.isScrolling || this.scrollState) && this.shouldMeasureDuringScroll(index)) this.resizeItem(index, this.options.measureElement(node, void 0, this));
+		};
+		this.resizeItem = (index, size) => {
+			var _a, _b;
+			if (index < 0 || index >= this.options.count) return;
+			let cachedSize;
+			let itemStart;
+			let key;
+			const flat = this._flatMeasurements;
+			if (this.options.lanes === 1 && flat !== null) {
+				key = this.options.getItemKey(index);
+				itemStart = flat[index * 2];
+				cachedSize = flat[index * 2 + 1];
+			} else {
+				const item = this.measurementsCache[index];
+				if (!item) return;
+				key = item.key;
+				itemStart = item.start;
+				cachedSize = item.size;
+			}
+			const itemSize = this.itemSizeCache.get(key) ?? cachedSize;
+			const delta = size - itemSize;
+			if (delta !== 0) {
+				const wasAtEnd = this.options.anchorTo === "end" && ((_a = this.scrollState) == null ? void 0 : _a.behavior) !== "smooth" && this.getVirtualDistanceFromEnd() <= this.options.scrollEndThreshold;
+				const prevTotalSize = wasAtEnd ? this.getTotalSize() : 0;
+				const scrollOffsetWithAdj = this.getScrollOffset() + this.scrollAdjustments;
+				const defaultShouldAdjust = !this.itemSizeCache.has(key) ? itemStart < scrollOffsetWithAdj : itemStart + itemSize <= scrollOffsetWithAdj && this.scrollDirection !== "backward";
+				const shouldAdjustScroll = ((_b = this.scrollState) == null ? void 0 : _b.behavior) !== "smooth" && (this.shouldAdjustScrollPositionOnItemSizeChange !== void 0 ? this.shouldAdjustScrollPositionOnItemSizeChange(this.measurementsCache[index] ?? {
+					index,
+					key,
+					start: itemStart,
+					size: cachedSize,
+					end: itemStart + cachedSize,
+					lane: 0
+				}, delta, this) : defaultShouldAdjust);
+				if (this.pendingMin === null || index < this.pendingMin) this.pendingMin = index;
+				this.itemSizeCache.set(key, size);
+				this.itemSizeCacheVersion++;
+				let adjustedSync = false;
+				if (wasAtEnd) adjustedSync = this.applyScrollAdjustment(this.getTotalSize() - prevTotalSize);
+				else if (shouldAdjustScroll) adjustedSync = this.applyScrollAdjustment(delta);
+				this.notify(adjustedSync);
+			}
+		};
+		this.getVirtualItems = memo$10(() => [this.getVirtualIndexes(), this.getMeasurements()], (indexes, measurements) => {
+			const virtualItems = [];
+			for (let k = 0, len = indexes.length; k < len; k++) {
+				const measurement = measurements[indexes[k]];
+				virtualItems.push(measurement);
+			}
+			return virtualItems;
+		}, {
+			key: false,
+			debug: () => this.options.debug
+		});
+		this.getVirtualItemForOffset = (offset) => {
+			const measurements = this.getMeasurements();
+			if (measurements.length === 0) return;
+			const flat = this._flatMeasurements;
+			const useFlat = this.options.lanes === 1 && flat != null;
+			return notUndefined(measurements[findNearestBinarySearch(0, measurements.length - 1, useFlat ? (i) => flat[i * 2] : (i) => notUndefined(measurements[i]).start, offset)]);
+		};
+		this.getMaxScrollOffset = () => {
+			if (!this.scrollElement) return 0;
+			if ("scrollHeight" in this.scrollElement) return this.options.horizontal ? this.scrollElement.scrollWidth - this.scrollElement.clientWidth : this.scrollElement.scrollHeight - this.scrollElement.clientHeight;
+			else {
+				const doc = this.scrollElement.document.documentElement;
+				return this.options.horizontal ? doc.scrollWidth - this.scrollElement.innerWidth : doc.scrollHeight - this.scrollElement.innerHeight;
+			}
+		};
+		this.getVirtualDistanceFromEnd = () => {
+			return Math.max(this.getTotalSize() - this.getSize() - this.getScrollOffset(), 0);
+		};
+		this.getDistanceFromEnd = () => {
+			return Math.max(this.getMaxScrollOffset() - this.getScrollOffset(), 0);
+		};
+		this.isAtEnd = (threshold = this.options.scrollEndThreshold) => {
+			return this.getDistanceFromEnd() <= threshold;
+		};
+		this.getOffsetForAlignment = (toOffset, align, itemSize = 0) => {
+			if (!this.scrollElement) return 0;
+			const size = this.getSize();
+			const scrollOffset = this.getScrollOffset();
+			if (align === "auto") align = toOffset >= scrollOffset + size ? "end" : "start";
+			if (align === "center") toOffset += (itemSize - size) / 2;
+			else if (align === "end") toOffset -= size;
+			const maxOffset = this.getMaxScrollOffset();
+			return Math.max(Math.min(maxOffset, toOffset), 0);
+		};
+		this.getOffsetForIndex = (index, align = "auto") => {
+			index = Math.max(0, Math.min(index, this.options.count - 1));
+			const size = this.getSize();
+			const scrollOffset = this.getScrollOffset();
+			const item = this.measurementsCache[index];
+			if (!item) return;
+			if (align === "auto") if (item.end >= scrollOffset + size - this.options.scrollPaddingEnd) align = "end";
+			else if (item.start <= scrollOffset + this.options.scrollPaddingStart) align = "start";
+			else return [scrollOffset, align];
+			if (align === "end" && index === this.options.count - 1) return [this.getMaxScrollOffset(), align];
+			const toOffset = align === "end" ? item.end + this.options.scrollPaddingEnd : item.start - this.options.scrollPaddingStart;
+			return [this.getOffsetForAlignment(toOffset, align, item.size), align];
+		};
+		this.scrollToOffset = (toOffset, { align = "start", behavior = "auto" } = {}) => {
+			this._iosDeferredAdjustment = 0;
+			const offset = this.getOffsetForAlignment(toOffset, align);
+			const now = this.now();
+			this.scrollState = {
+				index: null,
+				align,
+				behavior,
+				startedAt: now,
+				lastTargetOffset: offset,
+				stableFrames: 0
+			};
+			this._scrollToOffset(offset, {
+				adjustments: void 0,
+				behavior
+			});
+			this.scheduleScrollReconcile();
+		};
+		this.scrollToIndex = (index, { align: initialAlign = "auto", behavior = "auto" } = {}) => {
+			this._iosDeferredAdjustment = 0;
+			index = Math.max(0, Math.min(index, this.options.count - 1));
+			const offsetInfo = this.getOffsetForIndex(index, initialAlign);
+			if (!offsetInfo) return;
+			const [offset, align] = offsetInfo;
+			const now = this.now();
+			this.scrollState = {
+				index,
+				align,
+				behavior,
+				startedAt: now,
+				lastTargetOffset: offset,
+				stableFrames: 0
+			};
+			this._scrollToOffset(offset, {
+				adjustments: void 0,
+				behavior
+			});
+			this.scheduleScrollReconcile();
+		};
+		this.scrollBy = (delta, { behavior = "auto" } = {}) => {
+			const offset = this.getScrollOffset() + delta;
+			const now = this.now();
+			this.scrollState = {
+				index: null,
+				align: "start",
+				behavior,
+				startedAt: now,
+				lastTargetOffset: offset,
+				stableFrames: 0
+			};
+			this._scrollToOffset(offset, {
+				adjustments: void 0,
+				behavior
+			});
+			this.scheduleScrollReconcile();
+		};
+		this.scrollToEnd = ({ behavior = "auto" } = {}) => {
+			if (this.options.count > 0) {
+				this.scrollToIndex(this.options.count - 1, {
+					align: "end",
+					behavior
+				});
+				return;
+			}
+			this.scrollToOffset(Math.max(this.getTotalSize() - this.getSize(), 0), { behavior });
+		};
+		this.getTotalSize = () => {
+			var _a;
+			const measurements = this.getMeasurements();
+			let end;
+			if (measurements.length === 0) end = this.options.paddingStart;
+			else if (this.options.lanes === 1) {
+				const lastIdx = measurements.length - 1;
+				const flat = this._flatMeasurements;
+				if (flat != null) end = flat[lastIdx * 2] + flat[lastIdx * 2 + 1];
+				else end = ((_a = measurements[lastIdx]) == null ? void 0 : _a.end) ?? 0;
+			} else {
+				const endByLane = Array(this.options.lanes).fill(null);
+				let endIndex = measurements.length - 1;
+				while (endIndex >= 0 && endByLane.some((val) => val === null)) {
+					const item = measurements[endIndex];
+					if (endByLane[item.lane] === null) endByLane[item.lane] = item.end;
+					endIndex--;
+				}
+				end = Math.max(...endByLane.filter((val) => val !== null));
+			}
+			return Math.max(end - this.options.scrollMargin + this.options.paddingEnd, 0);
+		};
+		this.takeSnapshot = () => {
+			const snapshot = [];
+			if (this.itemSizeCache.size === 0) return snapshot;
+			const m = this.getMeasurements();
+			for (const item of m) if (item && this.itemSizeCache.has(item.key)) snapshot.push({
+				index: item.index,
+				key: item.key,
+				start: item.start,
+				size: item.size,
+				end: item.end,
+				lane: item.lane
+			});
+			return snapshot;
+		};
+		this._scrollToOffset = (offset, { adjustments, behavior }) => {
+			this._intendedScrollOffset = offset + (adjustments ?? 0);
+			this.options.scrollToFn(offset, {
+				behavior,
+				adjustments
+			}, this);
+		};
+		this.measure = () => {
+			this.pendingMin = null;
+			this.itemSizeCache.clear();
+			this.laneAssignments.clear();
+			this.itemSizeCacheVersion++;
+			this.notify(false);
+		};
+		this.setOptions(opts);
+	}
+	applyScrollAdjustment(delta, behavior) {
+		if (delta === 0) return false;
+		if (isIOSWebKit() && (this.isScrolling || this._iosTouching || this._iosJustTouchEnded)) {
+			this._iosDeferredAdjustment += delta;
+			return false;
+		} else {
+			this._scrollToOffset(this.getScrollOffset(), {
+				adjustments: this.scrollAdjustments += delta,
+				behavior
+			});
+			if (this.scrollOffset !== null) {
+				this.scrollOffset += this.scrollAdjustments;
+				if (this.scrollOffset < 0) this.scrollOffset = 0;
+				this.scrollAdjustments = 0;
+			}
+			return true;
+		}
+	}
+	scheduleScrollReconcile() {
+		if (!this.targetWindow) {
+			this.scrollState = null;
+			return;
+		}
+		if (this.rafId != null) return;
+		this.rafId = this.targetWindow.requestAnimationFrame(() => {
+			this.rafId = null;
+			this.reconcileScroll();
+		});
+	}
+	reconcileScroll() {
+		if (!this.scrollState) return;
+		if (!this.scrollElement) return;
+		if (this.now() - this.scrollState.startedAt > 5e3) {
+			this.scrollState = null;
+			return;
+		}
+		const offsetInfo = this.scrollState.index != null ? this.getOffsetForIndex(this.scrollState.index, this.scrollState.align) : void 0;
+		const targetOffset = offsetInfo ? offsetInfo[0] : this.scrollState.lastTargetOffset;
+		const STABLE_FRAMES = 1;
+		const targetChanged = targetOffset !== this.scrollState.lastTargetOffset;
+		if (!targetChanged && approxEqual(targetOffset, this.getScrollOffset())) {
+			this.scrollState.stableFrames++;
+			if (this.scrollState.stableFrames >= STABLE_FRAMES) {
+				if (this.getScrollOffset() !== targetOffset) this._scrollToOffset(targetOffset, {
+					adjustments: void 0,
+					behavior: "auto"
+				});
+				this.scrollState = null;
+				return;
+			}
+		} else {
+			this.scrollState.stableFrames = 0;
+			if (targetChanged) {
+				const viewport = this.getSize() || 600;
+				const distance = Math.abs(targetOffset - this.getScrollOffset());
+				const keepSmooth = this.scrollState.behavior === "smooth" && distance > viewport;
+				this.scrollState.lastTargetOffset = targetOffset;
+				if (!keepSmooth) this.scrollState.behavior = "auto";
+				this._scrollToOffset(targetOffset, {
+					adjustments: void 0,
+					behavior: keepSmooth ? "smooth" : "auto"
+				});
+			}
+		}
+		this.scheduleScrollReconcile();
+	}
+};
+var findNearestBinarySearch = (low, high, getCurrentValue, value) => {
+	while (low <= high) {
+		const middle = (low + high) / 2 | 0;
+		const currentValue = getCurrentValue(middle);
+		if (currentValue < value) low = middle + 1;
+		else if (currentValue > value) high = middle - 1;
+		else return middle;
+	}
+	if (low > 0) return low - 1;
+	else return 0;
+};
+function findNearestBinarySearchFlat(flat, high, value) {
+	let low = 0;
+	while (low <= high) {
+		const middle = (low + high) / 2 | 0;
+		const currentValue = flat[middle * 2];
+		if (currentValue < value) low = middle + 1;
+		else if (currentValue > value) high = middle - 1;
+		else return middle;
+	}
+	return low > 0 ? low - 1 : 0;
+}
+function calculateRangeImpl(measurements, outerSize, scrollOffset, lanes, flat) {
+	const lastIndex = measurements.length - 1;
+	if (measurements.length <= lanes) return {
+		startIndex: 0,
+		endIndex: lastIndex
+	};
+	if (lanes === 1 && flat !== null) {
+		const startIndex2 = findNearestBinarySearchFlat(flat, lastIndex, scrollOffset);
+		let endIndex2 = startIndex2;
+		const limit = scrollOffset + outerSize;
+		while (endIndex2 < lastIndex && flat[endIndex2 * 2] + flat[endIndex2 * 2 + 1] < limit) endIndex2++;
+		return {
+			startIndex: startIndex2,
+			endIndex: endIndex2
+		};
+	}
+	const getStart = (index) => measurements[index].start;
+	let startIndex = findNearestBinarySearch(0, lastIndex, getStart, scrollOffset);
+	let endIndex = startIndex;
+	if (lanes === 1) while (endIndex < lastIndex && measurements[endIndex].end < scrollOffset + outerSize) endIndex++;
+	else if (lanes > 1) {
+		const endPerLane = Array(lanes).fill(0);
+		while (endIndex < lastIndex && endPerLane.some((pos) => pos < scrollOffset + outerSize)) {
+			const item = measurements[endIndex];
+			endPerLane[item.lane] = item.end;
+			endIndex++;
+		}
+		const startPerLane = Array(lanes).fill(scrollOffset + outerSize);
+		while (startIndex >= 0 && startPerLane.some((pos) => pos >= scrollOffset)) {
+			const item = measurements[startIndex];
+			startPerLane[item.lane] = item.start;
+			startIndex--;
+		}
+		startIndex = Math.max(0, startIndex - startIndex % lanes);
+		endIndex = Math.min(lastIndex, endIndex + (lanes - 1 - endIndex % lanes));
+	}
+	return {
+		startIndex,
+		endIndex
+	};
+}
+//#endregion
+//#region ../../node_modules/.pnpm/@tanstack+react-virtual@3.14.9_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/@tanstack/react-virtual/dist/esm/index.js
+var useIsomorphicLayoutEffect = typeof document !== "undefined" ? import_react.useLayoutEffect : import_react.useEffect;
+function useVirtualizerBase({ useFlushSync = true, directDomUpdates = false, directDomUpdatesMode = "transform", ...options }) {
+	const rerender = import_react.useReducer((x) => x + 1, 0)[1];
+	const directRef = import_react.useRef({
+		enabled: directDomUpdates,
+		mode: directDomUpdatesMode,
+		container: null,
+		lastSize: null,
+		lastPositions: /* @__PURE__ */ new WeakMap(),
+		prevRange: null
+	});
+	directRef.current.enabled = directDomUpdates;
+	directRef.current.mode = directDomUpdatesMode;
+	const applyContainerSize = (instance2) => {
+		const state = directRef.current;
+		if (!state.enabled || !state.container) return;
+		const totalSize = instance2.getTotalSize();
+		if (totalSize !== state.lastSize) {
+			state.lastSize = totalSize;
+			const sizeAxis = instance2.options.horizontal ? "width" : "height";
+			state.container.style[sizeAxis] = `${totalSize}px`;
+		}
+	};
+	const applyDirectStyles = (instance2) => {
+		const state = directRef.current;
+		if (!state.enabled || !state.container) return;
+		applyContainerSize(instance2);
+		const horizontal = !!instance2.options.horizontal;
+		const useTransform = state.mode === "transform";
+		const posAxis = horizontal ? "left" : "top";
+		const scrollMargin = instance2.options.scrollMargin;
+		const items = instance2.getVirtualItems();
+		for (const item of items) {
+			const next = item.start - scrollMargin;
+			const el = instance2.elementsCache.get(item.key);
+			if (!el) continue;
+			if (state.lastPositions.get(el) === next) continue;
+			state.lastPositions.set(el, next);
+			if (useTransform) el.style.transform = horizontal ? `translate3d(${next}px, 0, 0)` : `translate3d(0, ${next}px, 0)`;
+			else el.style[posAxis] = `${next}px`;
+		}
+	};
+	const resolvedOptions = {
+		...options,
+		onChange: (instance2, sync) => {
+			var _a;
+			const state = directRef.current;
+			let shouldRerender = true;
+			if (state.enabled) {
+				applyDirectStyles(instance2);
+				const range = instance2.range;
+				const prev = state.prevRange;
+				shouldRerender = !prev || prev.isScrolling !== instance2.isScrolling || prev.startIndex !== (range == null ? void 0 : range.startIndex) || prev.endIndex !== (range == null ? void 0 : range.endIndex);
+				if (shouldRerender) state.prevRange = range ? {
+					startIndex: range.startIndex,
+					endIndex: range.endIndex,
+					isScrolling: instance2.isScrolling
+				} : null;
+			}
+			if (shouldRerender) if (useFlushSync && sync) (0, import_react_dom.flushSync)(rerender);
+			else rerender();
+			(_a = options.onChange) == null || _a.call(options, instance2, sync);
+		}
+	};
+	const [instance] = import_react.useState(() => {
+		const v = new Virtualizer(resolvedOptions);
+		return Object.assign(v, { containerRef: (node) => {
+			const state = directRef.current;
+			state.container = node;
+			state.lastSize = null;
+			if (node && state.enabled) {
+				const total = v.getTotalSize();
+				state.lastSize = total;
+				const axis = v.options.horizontal ? "width" : "height";
+				node.style[axis] = `${total}px`;
+			}
+		} });
+	});
+	instance.setOptions(resolvedOptions);
+	useIsomorphicLayoutEffect(() => {
+		return instance._didMount();
+	}, []);
+	useIsomorphicLayoutEffect(() => {
+		applyContainerSize(instance);
+		return instance._willUpdate();
+	});
+	useIsomorphicLayoutEffect(() => {
+		applyDirectStyles(instance);
+	});
+	return instance;
+}
+function useVirtualizer(options) {
+	return useVirtualizerBase({
+		observeElementRect,
+		observeElementOffset,
+		scrollToFn: elementScroll,
+		...options
+	});
+}
+//#endregion
+//#region ../../packages/react/src/virtual/scale-coordinate-space.ts
+var SAFE_MAX_SPACER = 16e6;
+function computeScale(contentTotal, safeMax) {
+	if (contentTotal <= safeMax) return 1;
+	return contentTotal / safeMax;
+}
+function toContent(spacerScroll, s) {
+	return spacerScroll * s;
+}
+function toSpacer(contentScroll, s) {
+	return contentScroll / s;
+}
+//#endregion
+//#region ../../packages/react/src/virtual/use-scaled-virtualizer.ts
+function useScaledVirtualizer(opts) {
+	const scaleRef = (0, import_react.useRef)(1);
+	const scaledObserveElementOffset = (0, import_react.useMemo)(() => (instance, cb) => {
+		const el = instance.scrollElement;
+		if (!el) return;
+		const onScroll = () => {
+			cb(el.scrollTop * scaleRef.current, true);
+		};
+		const onScrollEnd = () => {
+			cb(el.scrollTop * scaleRef.current, false);
+		};
+		cb(el.scrollTop * scaleRef.current, false);
+		el.addEventListener("scroll", onScroll, { passive: true });
+		el.addEventListener("scrollend", onScrollEnd, { passive: true });
+		return () => {
+			el.removeEventListener("scroll", onScroll);
+			el.removeEventListener("scrollend", onScrollEnd);
+		};
+	}, []);
+	const scaledScrollToFn = (0, import_react.useCallback)((offset, { adjustments, behavior }, instance) => {
+		const el = instance.scrollElement;
+		if (!el) return;
+		const adjusted = offset + (adjustments ?? 0);
+		el.scrollTo({
+			top: adjusted / scaleRef.current,
+			behavior
+		});
+	}, []);
+	const virtualizer = useVirtualizer({
+		count: opts.count,
+		estimateSize: opts.estimateSize,
+		getScrollElement: opts.getScrollElement,
+		overscan: opts.overscan ?? 5,
+		scrollPaddingStart: opts.scrollPaddingStart ?? 0,
+		scrollMargin: opts.scrollMargin ?? 0,
+		observeElementOffset: scaledObserveElementOffset,
+		scrollToFn: scaledScrollToFn
+	});
+	virtualizer.shouldAdjustScrollPositionOnItemSizeChange = (item, _delta, instance) => item.end <= (instance.scrollOffset ?? 0);
+	const contentTotal = virtualizer.getTotalSize();
+	const scale = computeScale(contentTotal, SAFE_MAX_SPACER);
+	scaleRef.current = scale;
+	return {
+		virtualizer,
+		scale,
+		spacerHeight: scale === 1 ? contentTotal : SAFE_MAX_SPACER,
+		toContentScroll: (0, import_react.useCallback)((spacerScroll) => toContent(spacerScroll, scaleRef.current), []),
+		toSpacerScroll: (0, import_react.useCallback)((contentScroll) => toSpacer(contentScroll, scaleRef.current), [])
+	};
+}
+//#endregion
+//#region ../../packages/react/src/virtual/use-virtual-list-state.ts
+var CURRENT_VERSION = 1;
+function useVirtualListState(persistenceKey) {
+	const [stored, setStored] = useProperty(persistenceKey, "snapshot", { defaultValue: null });
+	return {
+		getRestoreSnapshot: (0, import_react.useCallback)(() => {
+			if (!stored) return void 0;
+			if (stored.version !== CURRENT_VERSION) return void 0;
+			return stored;
+		}, [stored]),
+		recordSnapshot: (0, import_react.useCallback)((snapshot) => {
+			setStored(snapshot);
+		}, [setStored])
+	};
+}
+var VirtualList_module_default = {
+	scroller: "_scroller_1rroa_1",
+	spacer: "_spacer_1rroa_7"
+};
+//#endregion
+//#region ../../packages/react/src/virtual/VirtualList.tsx
+var BOTTOM_THRESHOLD_PX = 30;
+var USER_INTERACTION_WINDOW_MS = 400;
+var SMOOTH_SCROLL_MAX_S = 10;
+var PERSIST_DEBOUNCE_MS = 250;
+var DEFAULT_ITEM_HEIGHT_PX = 400;
+var MAX_CHUNK_HEIGHT = 5e6;
+function PaddingChunks({ height, prefix }) {
+	if (height <= 0) return null;
+	const chunks = [];
+	let remaining = height;
+	let i = 0;
+	while (remaining > 0) {
+		const h = Math.min(remaining, MAX_CHUNK_HEIGHT);
+		chunks.push(/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { height: h } }, `${prefix}-${i}`));
+		remaining -= h;
+		i++;
+	}
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(import_jsx_runtime.Fragment, { children: chunks });
+}
+var countMatchesInTexts = (lowerTextsByItem, lowerTerm) => {
+	if (lowerTerm.length === 0) return 0;
+	let total = 0;
+	for (const texts of lowerTextsByItem) for (const lowerText of texts) {
+		let pos = 0;
+		while ((pos = lowerText.indexOf(lowerTerm, pos)) !== -1) {
+			total++;
+			pos += lowerTerm.length;
+		}
+	}
+	return total;
+};
+function VirtualList({ persistenceKey, ref, id, className, scrollRef: externalScroll, data, renderRow, estimatedItemHeight = DEFAULT_ITEM_HEIGHT_PX, overscan, embedded = false, resetScrollOnMount: resetScrollOnMountProp, live, navOwned, followRequested, showProgress, initialIndex, scrollPaddingStart, components, smoothScroll = true, itemSearchText, findScope = "local", scrollToTopOnFinish = false, onVisibleRangeChange }) {
+	const resetScrollOnMount = resetScrollOnMountProp ?? !embedded;
+	const externalScrollRef = externalScroll instanceof HTMLElement ? null : externalScroll ?? null;
+	const externalScrollEl = externalScroll instanceof HTMLElement ? externalScroll : null;
+	const internalScrollRef = (0, import_react.useRef)(null);
+	const wrapperRef = (0, import_react.useRef)(null);
+	const [scrollParent, setScrollParent] = (0, import_react.useState)(null);
+	const [scrollMargin, setScrollMargin] = (0, import_react.useState)(0);
+	const measureScrollMargin = (0, import_react.useCallback)(() => {
+		const wrapper = wrapperRef.current;
+		const parent = embedded ? externalScrollEl ?? scrollParent : null;
+		let margin = 0;
+		if (wrapper && parent && parent !== wrapper) {
+			const parentRect = parent.getBoundingClientRect();
+			if (parentRect.width > 0 || parentRect.height > 0) margin = Math.max(0, Math.round(wrapper.getBoundingClientRect().top - parentRect.top + parent.scrollTop));
+		}
+		setScrollMargin((prev) => prev === margin ? prev : margin);
+	}, [
+		embedded,
+		externalScrollEl,
+		scrollParent
+	]);
+	(0, import_react.useLayoutEffect)(measureScrollMargin);
+	(0, import_react.useEffect)(() => {
+		if (externalScrollRef === null) return;
+		const sync = (records) => {
+			setScrollParent((prev) => prev === externalScrollRef.current ? prev : externalScrollRef.current ?? null);
+			const wrapper = wrapperRef.current;
+			if (records && wrapper && records.every((r) => wrapper.contains(r.target))) return;
+			measureScrollMargin();
+		};
+		sync();
+		const observer = new MutationObserver(sync);
+		observer.observe(document.body, {
+			childList: true,
+			subtree: true
+		});
+		return () => observer.disconnect();
+	}, [externalScrollRef, measureScrollMargin]);
+	const getScrollElement = (0, import_react.useCallback)(() => externalScrollEl ?? scrollParent ?? internalScrollRef.current, [externalScrollEl, scrollParent]);
+	const { virtualizer, scale, toContentScroll, toSpacerScroll } = useScaledVirtualizer({
+		count: data.length,
+		estimateSize: () => estimatedItemHeight,
+		getScrollElement,
+		overscan,
+		scrollPaddingStart: scrollPaddingStart ?? 0,
+		scrollMargin
+	});
+	const { getRestoreSnapshot, recordSnapshot } = useVirtualListState(persistenceKey);
+	const [storedFollow, setFollowOutput] = useProperty(persistenceKey, "follow", { defaultValue: null });
+	const isAutoScrollingRef = (0, import_react.useRef)(false);
+	const followUserActedRef = (0, import_react.useRef)(false);
+	const followSeedRef = (0, import_react.useRef)(null);
+	const resolveInitialFollow = () => followRequested ? true : navOwned ? false : storedFollow ?? !!live;
+	const [followSeed, setFollowSeed] = (0, import_react.useState)(() => ({
+		key: persistenceKey,
+		value: resolveInitialFollow(),
+		applied: false
+	}));
+	if (followSeed.key !== persistenceKey) setFollowSeed({
+		key: persistenceKey,
+		value: resolveInitialFollow(),
+		applied: false
+	});
+	else if (!followSeed.applied && storedFollow === followSeed.value) setFollowSeed((s) => ({
+		...s,
+		applied: true
+	}));
+	const seedActive = followSeed.key === persistenceKey && !followSeed.applied;
+	const followOutput = seedActive ? followSeed.value : storedFollow ?? false;
+	(0, import_react.useLayoutEffect)(() => {
+		followUserActedRef.current = false;
+		followSeedRef.current = null;
+	}, [persistenceKey]);
+	(0, import_react.useLayoutEffect)(() => {
+		if (seedActive && storedFollow !== followSeed.value) {
+			setFollowOutput(followSeed.value);
+			followSeedRef.current = followSeed.value;
+		}
+	}, [
+		seedActive,
+		followSeed,
+		storedFollow,
+		setFollowOutput
+	]);
+	const userInteractingRef = (0, import_react.useRef)(false);
+	const pointerDownRef = (0, import_react.useRef)(false);
+	const interactTimerRef = (0, import_react.useRef)(null);
+	const noteUserInteraction = (0, import_react.useCallback)(() => {
+		userInteractingRef.current = true;
+		if (interactTimerRef.current) clearTimeout(interactTimerRef.current);
+		interactTimerRef.current = setTimeout(() => {
+			userInteractingRef.current = false;
+		}, USER_INTERACTION_WINDOW_MS);
+	}, []);
+	const prevLive = usePreviousValue(live);
+	(0, import_react.useEffect)(() => {
+		if (live && !prevLive && !navOwned && !followRequested && !followUserActedRef.current && !storedFollow && storedFollow === followSeedRef.current) {
+			setFollowOutput(true);
+			followSeedRef.current = true;
+		}
+	}, [
+		live,
+		prevLive,
+		navOwned,
+		followRequested,
+		storedFollow,
+		setFollowOutput
+	]);
+	const finishScrollTimerRef = (0, import_react.useRef)(null);
+	const followOutputRef = (0, import_react.useRef)(followOutput);
+	(0, import_react.useEffect)(() => {
+		followOutputRef.current = followOutput;
+	}, [followOutput]);
+	(0, import_react.useEffect)(() => {
+		if (scrollToTopOnFinish && !live && prevLive && followOutputRef.current) {
+			const el = getScrollElement();
+			if (el) {
+				setFollowOutput(false);
+				finishScrollTimerRef.current = setTimeout(() => {
+					finishScrollTimerRef.current = null;
+					if (!userInteractingRef.current && !pointerDownRef.current) el.scrollTo({
+						top: 0,
+						behavior: "auto"
+					});
+				}, 100);
+			}
+		}
+		return () => {
+			if (finishScrollTimerRef.current) {
+				clearTimeout(finishScrollTimerRef.current);
+				finishScrollTimerRef.current = null;
+			}
+		};
+	}, [
+		live,
+		prevLive,
+		scrollToTopOnFinish,
+		getScrollElement,
+		setFollowOutput
+	]);
+	const handleScroll = useRafThrottle(() => {
+		if (!live) return;
+		const el = getScrollElement();
+		if (!el) return;
+		if (!userInteractingRef.current && !pointerDownRef.current) return;
+		const atBottom = el.scrollHeight - el.scrollTop <= el.clientHeight + BOTTOM_THRESHOLD_PX;
+		if (atBottom && !followOutput) {
+			followUserActedRef.current = true;
+			setFollowOutput(true);
+		} else if (!atBottom && followOutput) {
+			followUserActedRef.current = true;
+			setFollowOutput(false);
+		}
+	});
+	(0, import_react.useEffect)(() => {
+		const el = getScrollElement();
+		if (!el) return;
+		el.addEventListener("scroll", handleScroll);
+		return () => el.removeEventListener("scroll", handleScroll);
+	}, [getScrollElement, handleScroll]);
+	(0, import_react.useEffect)(() => {
+		const el = getScrollElement();
+		if (!el) return;
+		const onWheel = () => noteUserInteraction();
+		const onTouchMove = () => noteUserInteraction();
+		const onKeyDown = (e) => {
+			if (SCROLL_RELEASE_KEYS.has(e.key)) noteUserInteraction();
+		};
+		const onPointerDown = () => {
+			pointerDownRef.current = true;
+			noteUserInteraction();
+		};
+		const onPointerUp = () => {
+			pointerDownRef.current = false;
+		};
+		el.addEventListener("wheel", onWheel, { passive: true });
+		el.addEventListener("touchmove", onTouchMove, { passive: true });
+		el.addEventListener("keydown", onKeyDown);
+		el.addEventListener("pointerdown", onPointerDown, { passive: true });
+		window.addEventListener("pointerup", onPointerUp, { passive: true });
+		window.addEventListener("pointercancel", onPointerUp, { passive: true });
+		return () => {
+			el.removeEventListener("wheel", onWheel);
+			el.removeEventListener("touchmove", onTouchMove);
+			el.removeEventListener("keydown", onKeyDown);
+			el.removeEventListener("pointerdown", onPointerDown);
+			window.removeEventListener("pointerup", onPointerUp);
+			window.removeEventListener("pointercancel", onPointerUp);
+		};
+	}, [getScrollElement, noteUserInteraction]);
+	const contentTotal = virtualizer.getTotalSize();
+	(0, import_react.useEffect)(() => {
+		if (!followOutput || !live) return;
+		const el = getScrollElement();
+		if (!el) return;
+		let releaseFrame = 0;
+		const frame = requestAnimationFrame(() => {
+			isAutoScrollingRef.current = true;
+			el.scrollTo({ top: el.scrollHeight });
+			lastAutoScrollTopRef.current = el.scrollTop;
+			releaseFrame = requestAnimationFrame(() => {
+				isAutoScrollingRef.current = false;
+			});
+		});
+		return () => {
+			cancelAnimationFrame(frame);
+			cancelAnimationFrame(releaseFrame);
+		};
+	}, [
+		contentTotal,
+		followOutput,
+		live,
+		getScrollElement
+	]);
+	const hasInitialScrolledRef = (0, import_react.useRef)(false);
+	const userScrolledRef = (0, import_react.useRef)(false);
+	const lastAutoScrollTopRef = (0, import_react.useRef)(null);
+	const settleFrameRef = (0, import_react.useRef)(0);
+	const releaseFrameRef = (0, import_react.useRef)(0);
+	const settleScrollToIndex = (0, import_react.useCallback)((index, align, onDone) => {
+		const jump = () => virtualizer.scrollToIndex(index, {
+			align,
+			behavior: "auto"
+		});
+		isAutoScrollingRef.current = true;
+		cancelAnimationFrame(releaseFrameRef.current);
+		const finish = () => {
+			const elNow = getScrollElement();
+			if (elNow) lastAutoScrollTopRef.current = elNow.scrollTop;
+			releaseFrameRef.current = requestAnimationFrame(() => {
+				isAutoScrollingRef.current = false;
+			});
+			onDone?.();
+		};
+		jump();
+		const el = getScrollElement();
+		if (!el) {
+			finish();
+			return;
+		}
+		cancelAnimationFrame(settleFrameRef.current);
+		let frames = 0;
+		let stable = 0;
+		let lastTop = el.scrollTop;
+		const settle = () => {
+			if (userInteractingRef.current) {
+				finish();
+				return;
+			}
+			jump();
+			stable = Math.abs(el.scrollTop - lastTop) <= 1 ? stable + 1 : 0;
+			lastTop = el.scrollTop;
+			if (stable < 3 && ++frames < 30) settleFrameRef.current = requestAnimationFrame(settle);
+			else finish();
+		};
+		settleFrameRef.current = requestAnimationFrame(settle);
+	}, [virtualizer, getScrollElement]);
+	(0, import_react.useEffect)(() => () => {
+		cancelAnimationFrame(settleFrameRef.current);
+		cancelAnimationFrame(releaseFrameRef.current);
+	}, []);
+	const lastInitialKeyRef = (0, import_react.useRef)(null);
+	const settleRestoreScroll = (0, import_react.useCallback)((getTargetSpacerTop) => {
+		isAutoScrollingRef.current = true;
+		cancelAnimationFrame(releaseFrameRef.current);
+		cancelAnimationFrame(settleFrameRef.current);
+		const el = getScrollElement();
+		const keyAtStart = lastInitialKeyRef.current;
+		const finish = () => {
+			if (el) lastAutoScrollTopRef.current = el.scrollTop;
+			releaseFrameRef.current = requestAnimationFrame(() => {
+				isAutoScrollingRef.current = false;
+			});
+		};
+		if (!el) {
+			finish();
+			return;
+		}
+		el.scrollTop = getTargetSpacerTop();
+		let frames = 0;
+		let stable = 0;
+		let lastTop = el.scrollTop;
+		const settle = () => {
+			if (userInteractingRef.current || lastInitialKeyRef.current !== keyAtStart) {
+				finish();
+				return;
+			}
+			const preTop = el.scrollTop;
+			el.scrollTop = getTargetSpacerTop();
+			const postTop = el.scrollTop;
+			stable = Math.abs(preTop - lastTop) > 1 || Math.abs(postTop - lastTop) > 1 ? 0 : stable + 1;
+			lastTop = postTop;
+			if (stable < 3 && ++frames < 30) settleFrameRef.current = requestAnimationFrame(settle);
+			else finish();
+		};
+		settleFrameRef.current = requestAnimationFrame(settle);
+	}, [getScrollElement]);
+	const lastInitialIndexRef = (0, import_react.useRef)(void 0);
+	const hasResetTopRef = (0, import_react.useRef)(false);
+	(0, import_react.useEffect)(() => {
+		if (lastInitialKeyRef.current !== persistenceKey || lastInitialIndexRef.current !== initialIndex) {
+			hasInitialScrolledRef.current = false;
+			userScrolledRef.current = false;
+			hasResetTopRef.current = false;
+			lastInitialKeyRef.current = persistenceKey;
+			lastInitialIndexRef.current = initialIndex ?? void 0;
+		}
+		if (hasInitialScrolledRef.current) return;
+		const el = getScrollElement();
+		if (!el) return;
+		const snapshot = getRestoreSnapshot();
+		let releaseFrame = 0;
+		const frame = requestAnimationFrame(() => {
+			isAutoScrollingRef.current = true;
+			const release = () => {
+				lastAutoScrollTopRef.current = el.scrollTop;
+				releaseFrame = requestAnimationFrame(() => {
+					isAutoScrollingRef.current = false;
+				});
+			};
+			if (initialIndex != null) {
+				hasInitialScrolledRef.current = true;
+				settleScrollToIndex(initialIndex, "start");
+			} else if (followOutput && live) {
+				hasInitialScrolledRef.current = true;
+				release();
+			} else if (snapshot) {
+				hasInitialScrolledRef.current = true;
+				if (!userScrolledRef.current) {
+					const clampToMax = snapshot.totalCount !== data.length;
+					settleRestoreScroll(() => {
+						const target = toSpacerScroll(snapshot.scrollOffset);
+						if (!clampToMax) return target;
+						const maxSpacerTop = Math.max(0, toSpacerScroll(virtualizer.getTotalSize()) + scrollMargin - el.clientHeight);
+						return Math.min(target, maxSpacerTop);
+					});
+				} else release();
+			} else if (!userScrolledRef.current && !hasResetTopRef.current && resetScrollOnMount) {
+				el.scrollTop = 0;
+				hasResetTopRef.current = true;
+				release();
+			} else release();
+		});
+		return () => {
+			cancelAnimationFrame(frame);
+			if (releaseFrame) {
+				cancelAnimationFrame(releaseFrame);
+				isAutoScrollingRef.current = false;
+			}
+		};
+	}, [
+		persistenceKey,
+		initialIndex,
+		settleScrollToIndex,
+		settleRestoreScroll,
+		contentTotal,
+		data.length,
+		followOutput,
+		live,
+		getRestoreSnapshot,
+		getScrollElement,
+		toSpacerScroll,
+		virtualizer,
+		scrollMargin,
+		resetScrollOnMount
+	]);
+	const buildSnapshot = (0, import_react.useCallback)((el) => ({
+		version: 1,
+		scrollOffset: toContentScroll(el.scrollTop),
+		totalCount: data.length
+	}), [toContentScroll, data.length]);
+	const persistTimerRef = (0, import_react.useRef)(null);
+	const pendingSnapshotRef = (0, import_react.useRef)(null);
+	const persistOnScroll = useRafThrottle(() => {
+		if (isAutoScrollingRef.current) return;
+		const elNow = getScrollElement();
+		if (elNow && lastAutoScrollTopRef.current !== null && Math.abs(elNow.scrollTop - lastAutoScrollTopRef.current) <= 2) return;
+		userScrolledRef.current = true;
+		if (elNow) pendingSnapshotRef.current = buildSnapshot(elNow);
+		if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
+		persistTimerRef.current = setTimeout(() => {
+			persistTimerRef.current = null;
+			pendingSnapshotRef.current = null;
+			const el = getScrollElement();
+			if (!el) return;
+			recordSnapshot(buildSnapshot(el));
+		}, PERSIST_DEBOUNCE_MS);
+	});
+	(0, import_react.useEffect)(() => {
+		const el = getScrollElement();
+		if (!el) return;
+		el.addEventListener("scroll", persistOnScroll);
+		return () => el.removeEventListener("scroll", persistOnScroll);
+	}, [getScrollElement, persistOnScroll]);
+	(0, import_react.useEffect)(() => () => {
+		if (persistTimerRef.current) {
+			clearTimeout(persistTimerRef.current);
+			persistTimerRef.current = null;
+			if (pendingSnapshotRef.current) recordSnapshot(pendingSnapshotRef.current);
+		}
+		pendingSnapshotRef.current = null;
+	}, [recordSnapshot]);
+	(0, import_react.useEffect)(() => () => {
+		if (interactTimerRef.current) {
+			clearTimeout(interactTimerRef.current);
+			interactTimerRef.current = null;
+		}
+	}, []);
+	const items = virtualizer.getVirtualItems();
+	const startIndex = items[0]?.index ?? 0;
+	const endIndex = items[items.length - 1]?.index ?? 0;
+	const visibleRangeRef = (0, import_react.useRef)({
+		startIndex: 0,
+		endIndex: 0
+	});
+	(0, import_react.useEffect)(() => {
+		const range = {
+			startIndex,
+			endIndex
+		};
+		visibleRangeRef.current = range;
+		onVisibleRangeChange?.(range);
+	}, [
+		startIndex,
+		endIndex,
+		onVisibleRangeChange
+	]);
+	(0, import_react.useImperativeHandle)(ref, () => ({
+		scrollToIndex(opts) {
+			const behavior = scale > SMOOTH_SCROLL_MAX_S ? "auto" : opts.behavior ?? (smoothScroll ? "smooth" : "auto");
+			if (behavior === "auto") {
+				settleScrollToIndex(opts.index, opts.align, opts.onDone);
+				return;
+			}
+			virtualizer.scrollToIndex(opts.index, {
+				align: opts.align,
+				behavior
+			});
+			opts.onDone?.();
+		},
+		scrollTo(opts) {
+			const el = getScrollElement();
+			if (!el) return;
+			const behavior = scale > SMOOTH_SCROLL_MAX_S ? "auto" : opts.behavior ?? (smoothScroll ? "smooth" : "auto");
+			el.scrollTo({
+				top: opts.top,
+				behavior
+			});
+		},
+		getState(callback) {
+			const el = getScrollElement();
+			callback({
+				version: 1,
+				scrollOffset: el ? toContentScroll(el.scrollTop) : 0,
+				totalCount: data.length
+			});
+		},
+		jumpToStart() {
+			const el = getScrollElement();
+			if (el) el.scrollTop = 0;
+		},
+		jumpToEnd() {
+			const el = getScrollElement();
+			if (el) el.scrollTop = el.scrollHeight;
+		}
+	}), [
+		virtualizer,
+		scale,
+		settleScrollToIndex,
+		smoothScroll,
+		getScrollElement,
+		toContentScroll,
+		data.length
+	]);
+	const extendedFind = useExtendedFindOptional();
+	const findContext = findScope === "none" ? null : extendedFind;
+	const searchInData = (0, import_react.useCallback)((term, direction, onContentReady) => {
+		if (!term || data.length === 0) return Promise.resolve(false);
+		const isForward = direction === "forward";
+		const len = data.length;
+		const range = visibleRangeRef.current;
+		const current = isForward ? range.endIndex : range.startIndex;
+		const getText = itemSearchText ?? ((item) => JSON.stringify(item));
+		const prepared = prepareSearchTerm(term);
+		for (let offset = 1; offset < len; offset++) {
+			const i = isForward ? (current + offset) % len : (current - offset + len) % len;
+			const item = data[i];
+			if (item === void 0) continue;
+			const texts = getText(item);
+			if ((Array.isArray(texts) ? texts : [texts]).some((text) => {
+				const lower = text.toLowerCase();
+				if (lower.includes(prepared.simple)) return true;
+				if (prepared.unquoted && lower.includes(prepared.unquoted)) return true;
+				if (prepared.jsonEscaped && lower.includes(prepared.jsonEscaped)) return true;
+				return false;
+			})) {
+				settleScrollToIndex(i, "center");
+				setTimeout(onContentReady, 200);
+				return Promise.resolve(true);
+			}
+		}
+		return Promise.resolve(false);
+	}, [
+		data,
+		itemSearchText,
+		settleScrollToIndex
+	]);
+	const precomputedSearchTexts = (0, import_react.useMemo)(() => {
+		if (!findContext) return [];
+		const getText = itemSearchText ?? ((item) => JSON.stringify(item));
+		return data.map((item) => {
+			const texts = getText(item);
+			return (Array.isArray(texts) ? texts : [texts]).map((t) => t.toLowerCase());
+		});
+	}, [
+		data,
+		itemSearchText,
+		findContext
+	]);
+	const countMatchesInData = (0, import_react.useCallback)((term) => {
+		if (!term || precomputedSearchTexts.length === 0) return 0;
+		return countMatchesInTexts(precomputedSearchTexts, term.toLowerCase());
+	}, [precomputedSearchTexts]);
+	(0, import_react.useEffect)(() => {
+		if (!findContext) return;
+		const u1 = findContext.registerVirtualList(persistenceKey, searchInData);
+		const u2 = findContext.registerMatchCounter(persistenceKey, countMatchesInData);
+		return () => {
+			u1();
+			u2();
+		};
+	}, [
+		findContext,
+		persistenceKey,
+		searchInData,
+		countMatchesInData
+	]);
+	const ItemSlot = components?.Item;
+	const FooterSlot = components?.Footer;
+	const ownsScroll = externalScroll === void 0;
+	const firstItem = items.length > 0 ? items[0] : void 0;
+	const lastItem = items.length > 0 ? items[items.length - 1] : void 0;
+	const bandStart = firstItem?.start ?? 0;
+	const topPaddingSpacer = (firstItem ? firstItem.start - scrollMargin : 0) / scale;
+	const renderedBandHeight = firstItem && lastItem ? lastItem.start + lastItem.size - firstItem.start : 0;
+	const bottomPaddingSpacer = (lastItem ? Math.max(0, virtualizer.getTotalSize() + scrollMargin - (lastItem.start + lastItem.size)) : virtualizer.getTotalSize()) / scale;
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+		id,
+		ref: (el) => {
+			wrapperRef.current = el;
+			if (!ownsScroll) return;
+			internalScrollRef.current = el;
+			setScrollParent((prev) => prev === el ? prev : el);
+		},
+		className: clsx(VirtualList_module_default.scroller, className),
+		style: ownsScroll ? {
+			height: "100%",
+			width: "100%",
+			overflow: "auto"
+		} : { width: "100%" },
+		children: [
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(PaddingChunks, {
+				height: topPaddingSpacer,
+				prefix: "top"
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+				style: {
+					position: "relative",
+					height: renderedBandHeight
+				},
+				children: items.map((vItem) => {
+					const item = data[vItem.index];
+					if (item === void 0) return null;
+					const top = vItem.start - bandStart;
+					const child = renderRow(vItem.index, item);
+					if (ItemSlot) return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+						ref: virtualizer.measureElement,
+						"data-index": vItem.index,
+						style: {
+							position: "absolute",
+							top,
+							left: 0,
+							right: 0
+						},
+						children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ItemSlot, {
+							"data-index": vItem.index,
+							"data-item-index": vItem.index,
+							"data-known-size": vItem.size,
+							style: {},
+							children: child
+						})
+					}, vItem.key);
+					return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+						ref: virtualizer.measureElement,
+						"data-index": vItem.index,
+						"data-item-index": vItem.index,
+						"data-known-size": vItem.size,
+						style: {
+							position: "absolute",
+							top,
+							left: 0,
+							right: 0
+						},
+						children: child
+					}, vItem.key);
+				})
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(PaddingChunks, {
+				height: bottomPaddingSpacer,
+				prefix: "bot"
+			}),
+			showProgress && (FooterSlot ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(FooterSlot, {}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+				style: {
+					display: "flex",
+					justifyContent: "center",
+					padding: "1rem"
+				},
+				children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(PulsingDots, {
+					subtle: false,
+					size: "medium"
+				})
+			}))
+		]
+	});
+}
 //#endregion
 //#region ../../packages/inspect-components/src/content/copyText.ts
 /**
@@ -70101,13 +69290,14 @@ var contentRenderers = (icons, renderObject, externalRenderers) => {
 //#endregion
 //#region ../../packages/inspect-components/src/content/RecordTree.tsx
 var kRecordTreeKey = "record-tree-key";
+/** VirtualList persistence-key prefix for record trees. Exported so the app's
+*  per-sample reset can clear the persisted snapshots by this prefix. */
+var kMetadataGridKeyPrefix = "metadata-grid-";
 /**
 * Renders the MetaDataView component.
 */
 var RecordTree = ({ id, record, className, scrollRef, defaultExpandLevel = 1, processStore = false, useBorders = true, copyButton = false }) => {
 	const icons = useContentIcons();
-	const listHandle = (0, import_react.useRef)(null);
-	const { getRestoreState } = useVirtuosoState(listHandle, `metadata-grid-${id}`);
 	const [collapsedIds, setCollapsed, clearIds] = useCollapsibleIds(id);
 	(0, import_react.useEffect)(() => {
 		return () => {
@@ -70222,30 +69412,17 @@ var RecordTree = ({ id, record, className, scrollRef, defaultExpandLevel = 1, pr
 		style: { width: "100%" },
 		children: items.map((_, index) => renderRow(index))
 	});
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(es, {
-		ref: listHandle,
-		customScrollParent: scrollRef?.current ? scrollRef.current : void 0,
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(VirtualList, {
+		persistenceKey: `${kMetadataGridKeyPrefix}${id}`,
 		id,
-		style: {
-			width: "100%",
-			height: "100%"
-		},
+		scrollRef,
 		data: items,
-		defaultItemHeight: 50,
-		itemContent: renderRow,
-		atBottomThreshold: 30,
-		increaseViewportBy: {
-			top: 300,
-			bottom: 300
-		},
-		overscan: {
-			main: 10,
-			reverse: 10
-		},
-		className: clsx(className, "samples-list"),
-		skipAnimationFrameInResizeObserver: true,
-		restoreStateFrom: getRestoreState(),
-		tabIndex: 0
+		renderRow,
+		estimatedItemHeight: 50,
+		overscan: 10,
+		embedded: true,
+		findScope: "none",
+		className: clsx(className, "samples-list")
 	});
 };
 var toTreeItems = (record, isCollapsed, recordProcessors = [], currentDepth = 0, currentPath = []) => {
@@ -72144,1893 +71321,6 @@ var ChatView = ({ id, messages, className, display, labels, linking, tools, refe
 		})
 	});
 };
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+virtual-core@3.17.7/node_modules/@tanstack/virtual-core/dist/esm/lazy-measurements.js
-function createLazyMeasurementsView(count, flat, getItemKey) {
-	const cache = new Array(count);
-	return new Proxy(cache, { get(target, prop, receiver) {
-		if (typeof prop === "string") {
-			const c = prop.charCodeAt(0);
-			if (c >= 48 && c <= 57) {
-				const i = +prop;
-				if (Number.isInteger(i) && i >= 0 && i < count) {
-					let v = target[i];
-					if (!v) {
-						const s = flat[i * 2];
-						v = target[i] = {
-							index: i,
-							key: getItemKey(i),
-							start: s,
-							size: flat[i * 2 + 1],
-							end: s + flat[i * 2 + 1],
-							lane: 0
-						};
-					}
-					return v;
-				}
-			}
-			if (prop === "length") return count;
-		}
-		return Reflect.get(target, prop, receiver);
-	} });
-}
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+virtual-core@3.17.7/node_modules/@tanstack/virtual-core/dist/esm/utils.js
-function memo$8(getDeps, fn, opts) {
-	let deps = opts.initialDeps ?? [];
-	let result;
-	let isInitial = true;
-	function memoizedFunction() {
-		const newDeps = getDeps();
-		if (!(newDeps.length !== deps.length || newDeps.some((dep, index) => deps[index] !== dep))) return result;
-		deps = newDeps;
-		result = fn(...newDeps);
-		if ((opts == null ? void 0 : opts.onChange) && !(isInitial && opts.skipInitialOnChange)) opts.onChange(result);
-		isInitial = false;
-		return result;
-	}
-	memoizedFunction.updateDeps = (newDeps) => {
-		deps = newDeps;
-	};
-	return memoizedFunction;
-}
-function notUndefined(value, msg) {
-	if (value === void 0) throw new Error(`Unexpected undefined${msg ? `: ${msg}` : ""}`);
-	else return value;
-}
-var approxEqual = (a, b) => Math.abs(a - b) < 1.01;
-var debounce = (targetWindow, fn, ms) => {
-	let timeoutId;
-	return function(...args) {
-		targetWindow.clearTimeout(timeoutId);
-		timeoutId = targetWindow.setTimeout(() => fn.apply(this, args), ms);
-	};
-};
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+virtual-core@3.17.7/node_modules/@tanstack/virtual-core/dist/esm/index.js
-var _isIOSResult;
-var isIOSWebKit = () => {
-	if (_isIOSResult !== void 0) return _isIOSResult;
-	if (typeof navigator === "undefined") return _isIOSResult = false;
-	if (/iP(hone|od|ad)/.test(navigator.userAgent)) return _isIOSResult = true;
-	const mtp = navigator.maxTouchPoints;
-	return _isIOSResult = navigator.platform === "MacIntel" && mtp !== void 0 && mtp > 0;
-};
-var getRect = (element) => {
-	const { offsetWidth, offsetHeight } = element;
-	return {
-		width: offsetWidth,
-		height: offsetHeight
-	};
-};
-var defaultKeyExtractor = (index) => index;
-var defaultRangeExtractor = (range) => {
-	const start = Math.max(range.startIndex - range.overscan, 0);
-	const len = Math.min(range.endIndex + range.overscan, range.count - 1) - start + 1;
-	const arr = new Array(len);
-	for (let i = 0; i < len; i++) arr[i] = start + i;
-	return arr;
-};
-var observeElementRect = (instance, cb) => {
-	const element = instance.scrollElement;
-	if (!element) return;
-	const targetWindow = instance.targetWindow;
-	if (!targetWindow) return;
-	const handler = (rect) => {
-		const { width, height } = rect;
-		cb({
-			width: Math.round(width),
-			height: Math.round(height)
-		});
-	};
-	handler(getRect(element));
-	if (!targetWindow.ResizeObserver) return () => {};
-	const observer = new targetWindow.ResizeObserver((entries) => {
-		const run = () => {
-			const entry = entries[0];
-			if (entry == null ? void 0 : entry.borderBoxSize) {
-				const box = entry.borderBoxSize[0];
-				if (box) {
-					handler({
-						width: box.inlineSize,
-						height: box.blockSize
-					});
-					return;
-				}
-			}
-			handler(getRect(element));
-		};
-		instance.options.useAnimationFrameWithResizeObserver ? requestAnimationFrame(run) : run();
-	});
-	observer.observe(element, { box: "border-box" });
-	return () => {
-		observer.unobserve(element);
-	};
-};
-var addEventListenerOptions = { passive: true };
-var supportsScrollend = typeof window == "undefined" ? true : "onscrollend" in window;
-var observeOffset = (instance, cb, readOffset) => {
-	const element = instance.scrollElement;
-	if (!element) return;
-	const targetWindow = instance.targetWindow;
-	if (!targetWindow) return;
-	const registerScrollendEvent = instance.options.useScrollendEvent && supportsScrollend;
-	let offset = 0;
-	const fallback = registerScrollendEvent ? null : debounce(targetWindow, () => cb(offset, false), instance.options.isScrollingResetDelay);
-	const createHandler = (isScrolling) => () => {
-		offset = readOffset(element);
-		fallback?.();
-		cb(offset, isScrolling);
-	};
-	const handler = createHandler(true);
-	const endHandler = createHandler(false);
-	element.addEventListener("scroll", handler, addEventListenerOptions);
-	if (registerScrollendEvent) element.addEventListener("scrollend", endHandler, addEventListenerOptions);
-	return () => {
-		element.removeEventListener("scroll", handler);
-		if (registerScrollendEvent) element.removeEventListener("scrollend", endHandler);
-	};
-};
-var observeElementOffset = (instance, cb) => observeOffset(instance, cb, (el) => {
-	const { horizontal, isRtl } = instance.options;
-	return horizontal ? el.scrollLeft * (isRtl && -1 || 1) : el.scrollTop;
-});
-var measureElement = (element, entry, instance) => {
-	if (instance.options.useCachedMeasurements) {
-		const index = instance.indexFromElement(element);
-		const key = instance.options.getItemKey(index);
-		return instance.itemSizeCache.get(key) ?? instance.options.estimateSize(index);
-	}
-	if (entry == null ? void 0 : entry.borderBoxSize) {
-		const box = entry.borderBoxSize[0];
-		if (box) return Math.round(box[instance.options.horizontal ? "inlineSize" : "blockSize"]);
-	}
-	if (!entry) {
-		const index = instance.indexFromElement(element);
-		const key = instance.options.getItemKey(index);
-		const cachedSize = instance.itemSizeCache.get(key);
-		if (cachedSize !== void 0) return cachedSize;
-	}
-	return element[instance.options.horizontal ? "offsetWidth" : "offsetHeight"];
-};
-var scrollWithAdjustments = (offset, { adjustments = 0, behavior }, instance) => {
-	var _a, _b;
-	(_b = (_a = instance.scrollElement) == null ? void 0 : _a.scrollTo) == null || _b.call(_a, {
-		[instance.options.horizontal ? "left" : "top"]: offset + adjustments,
-		behavior
-	});
-};
-var elementScroll = scrollWithAdjustments;
-var Virtualizer = class {
-	constructor(opts) {
-		this.unsubs = [];
-		this.scrollElement = null;
-		this.targetWindow = null;
-		this.isScrolling = false;
-		this.scrollState = null;
-		this.measurementsCache = [];
-		this._flatMeasurements = null;
-		this.itemSizeCache = /* @__PURE__ */ new Map();
-		this.itemSizeCacheVersion = 0;
-		this.laneAssignments = /* @__PURE__ */ new Map();
-		this.pendingMin = null;
-		this.prevLanes = void 0;
-		this.lanesChangedFlag = false;
-		this.lanesSettling = false;
-		this.pendingScrollAnchor = null;
-		this.scrollRect = null;
-		this.scrollOffset = null;
-		this.scrollDirection = null;
-		this.scrollAdjustments = 0;
-		this._iosDeferredAdjustment = 0;
-		this._iosTouching = false;
-		this._iosJustTouchEnded = false;
-		this._iosTouchEndTimerId = null;
-		this._intendedScrollOffset = null;
-		this.elementsCache = /* @__PURE__ */ new Map();
-		this.now = () => {
-			var _a, _b, _c;
-			return ((_c = (_b = (_a = this.targetWindow) == null ? void 0 : _a.performance) == null ? void 0 : _b.now) == null ? void 0 : _c.call(_b)) ?? Date.now();
-		};
-		this.observer = /* @__PURE__ */ (() => {
-			let _ro = null;
-			const get = () => {
-				if (_ro) return _ro;
-				if (!this.targetWindow || !this.targetWindow.ResizeObserver) return null;
-				return _ro = new this.targetWindow.ResizeObserver((entries) => {
-					entries.forEach((entry) => {
-						const run = () => {
-							const node = entry.target;
-							const index = this.indexFromElement(node);
-							if (!node.isConnected) {
-								this.observer.unobserve(node);
-								for (const [cacheKey, cachedNode] of this.elementsCache) if (cachedNode === node) {
-									this.elementsCache.delete(cacheKey);
-									break;
-								}
-								return;
-							}
-							if (this.shouldMeasureDuringScroll(index)) this.resizeItem(index, this.options.measureElement(node, entry, this));
-						};
-						this.options.useAnimationFrameWithResizeObserver ? requestAnimationFrame(run) : run();
-					});
-				});
-			};
-			return {
-				disconnect: () => {
-					var _a;
-					(_a = get()) == null || _a.disconnect();
-					_ro = null;
-				},
-				observe: (target) => {
-					var _a;
-					return (_a = get()) == null ? void 0 : _a.observe(target, { box: "border-box" });
-				},
-				unobserve: (target) => {
-					var _a;
-					return (_a = get()) == null ? void 0 : _a.unobserve(target);
-				}
-			};
-		})();
-		this.range = null;
-		this.setOptions = (opts2) => {
-			var _a, _b;
-			const merged = {
-				debug: false,
-				initialOffset: 0,
-				overscan: 1,
-				paddingStart: 0,
-				paddingEnd: 0,
-				scrollPaddingStart: 0,
-				scrollPaddingEnd: 0,
-				horizontal: false,
-				getItemKey: defaultKeyExtractor,
-				rangeExtractor: defaultRangeExtractor,
-				onChange: () => {},
-				measureElement,
-				initialRect: {
-					width: 0,
-					height: 0
-				},
-				scrollMargin: 0,
-				gap: 0,
-				indexAttribute: "data-index",
-				initialMeasurementsCache: [],
-				lanes: 1,
-				anchorTo: "start",
-				followOnAppend: false,
-				scrollEndThreshold: 1,
-				isScrollingResetDelay: 150,
-				enabled: true,
-				isRtl: false,
-				useScrollendEvent: false,
-				useAnimationFrameWithResizeObserver: false,
-				laneAssignmentMode: "estimate",
-				useCachedMeasurements: false
-			};
-			for (const key in opts2) {
-				const v = opts2[key];
-				if (v !== void 0) merged[key] = v;
-			}
-			const prevOptions = this.options;
-			let anchor = null;
-			let followOnAppend = null;
-			let edgeKeysChanged = false;
-			if (prevOptions !== void 0 && prevOptions.enabled && merged.enabled && merged.anchorTo === "end" && this.scrollElement !== null) {
-				const prevCount = prevOptions.count;
-				const nextCount = merged.count;
-				const measurements = this.getMeasurements();
-				const prevFirstKey = prevCount > 0 ? ((_a = measurements[0]) == null ? void 0 : _a.key) ?? prevOptions.getItemKey(0) : null;
-				const prevLastKey = prevCount > 0 ? ((_b = measurements[prevCount - 1]) == null ? void 0 : _b.key) ?? prevOptions.getItemKey(prevCount - 1) : null;
-				if (nextCount !== prevCount || prevCount > 0 && nextCount > 0 && (merged.getItemKey(0) !== prevFirstKey || merged.getItemKey(nextCount - 1) !== prevLastKey)) {
-					edgeKeysChanged = true;
-					const item = prevCount > 0 ? this.getVirtualItemForOffset(this.getScrollOffset()) ?? measurements[0] : null;
-					if (item) anchor = [item.key, this.getScrollOffset() - item.start];
-					const behavior = merged.followOnAppend === true ? "auto" : merged.followOnAppend || null;
-					if (behavior && nextCount > prevCount && this.isAtEnd(prevOptions.scrollEndThreshold) && (prevCount === 0 || merged.getItemKey(nextCount - 1) !== prevLastKey)) followOnAppend = behavior;
-				}
-			}
-			this.options = merged;
-			if (edgeKeysChanged) {
-				this.pendingMin = 0;
-				this.itemSizeCacheVersion++;
-			}
-			let anchorResolved = false;
-			let anchorDelta = 0;
-			if (anchor && this.scrollOffset !== null) {
-				const [anchorKey, anchorOffset] = anchor;
-				const newMeasurements = this.getMeasurements();
-				const { count, getItemKey } = this.options;
-				let idx = 0;
-				while (idx < count && getItemKey(idx) !== anchorKey) idx++;
-				if (idx < count) {
-					const anchorItem = newMeasurements[idx];
-					if (anchorItem) {
-						const newOffset = Math.max(0, anchorItem.start + anchorOffset);
-						if (newOffset !== this.scrollOffset) {
-							anchorDelta = newOffset - this.scrollOffset;
-							this.scrollOffset = newOffset;
-							anchorResolved = true;
-						}
-					}
-				}
-			}
-			if (anchorResolved || followOnAppend) this.pendingScrollAnchor = [
-				anchorResolved ? anchor[0] : null,
-				anchorResolved ? anchor[1] : 0,
-				followOnAppend,
-				anchorDelta
-			];
-		};
-		this.notify = (sync) => {
-			var _a, _b;
-			(_b = (_a = this.options).onChange) == null || _b.call(_a, this, sync);
-		};
-		this.maybeNotify = memo$8(() => {
-			this.calculateRange();
-			return [
-				this.isScrolling,
-				this.range ? this.range.startIndex : null,
-				this.range ? this.range.endIndex : null
-			];
-		}, (isScrolling) => {
-			this.notify(isScrolling);
-		}, {
-			key: false,
-			debug: () => this.options.debug,
-			initialDeps: [
-				this.isScrolling,
-				this.range ? this.range.startIndex : null,
-				this.range ? this.range.endIndex : null
-			]
-		});
-		this.cleanup = () => {
-			this.unsubs.filter(Boolean).forEach((d) => d());
-			this.unsubs = [];
-			this.observer.disconnect();
-			if (this.rafId != null && this.targetWindow) {
-				this.targetWindow.cancelAnimationFrame(this.rafId);
-				this.rafId = null;
-			}
-			this.scrollState = null;
-			this._iosDeferredAdjustment = 0;
-			this._iosTouching = false;
-			this._iosJustTouchEnded = false;
-			this.scrollElement = null;
-			this.targetWindow = null;
-		};
-		this._didMount = () => {
-			return () => {
-				this.cleanup();
-			};
-		};
-		this._willUpdate = () => {
-			var _a;
-			const scrollElement = this.options.enabled ? this.options.getScrollElement() : null;
-			if (this.scrollElement !== scrollElement) {
-				this.cleanup();
-				if (!scrollElement) {
-					this.maybeNotify();
-					return;
-				}
-				this.scrollElement = scrollElement;
-				if (this.scrollElement && "ownerDocument" in this.scrollElement) this.targetWindow = this.scrollElement.ownerDocument.defaultView;
-				else this.targetWindow = ((_a = this.scrollElement) == null ? void 0 : _a.window) ?? null;
-				this.elementsCache.forEach((cached) => {
-					this.observer.observe(cached);
-				});
-				this.unsubs.push(this.options.observeElementRect(this, (rect) => {
-					this.scrollRect = rect;
-					this.maybeNotify();
-				}));
-				this.unsubs.push(this.options.observeElementOffset(this, (offset, isScrolling) => {
-					if (isScrolling && this._intendedScrollOffset === null && offset === this.scrollOffset) return;
-					if (this._intendedScrollOffset !== null && Math.abs(offset - this._intendedScrollOffset) < 1.5) offset = this._intendedScrollOffset;
-					this._intendedScrollOffset = null;
-					this.scrollAdjustments = 0;
-					const prevOffset = this.getScrollOffset();
-					this.scrollDirection = isScrolling ? prevOffset === offset ? this.scrollDirection : prevOffset < offset ? "forward" : "backward" : null;
-					this.scrollOffset = offset;
-					this.isScrolling = isScrolling;
-					this._flushIosDeferredIfReady();
-					if (this.scrollState) this.scheduleScrollReconcile();
-					this.maybeNotify();
-				}));
-				if ("addEventListener" in this.scrollElement) {
-					const scrollEl = this.scrollElement;
-					const onTouchStart = () => {
-						this._iosTouching = true;
-						this._iosJustTouchEnded = false;
-						if (this._iosTouchEndTimerId !== null && this.targetWindow != null) {
-							this.targetWindow.clearTimeout(this._iosTouchEndTimerId);
-							this._iosTouchEndTimerId = null;
-						}
-					};
-					const onTouchEnd = () => {
-						this._iosTouching = false;
-						if (!isIOSWebKit() || this.targetWindow == null) return;
-						this._iosJustTouchEnded = true;
-						this._iosTouchEndTimerId = this.targetWindow.setTimeout(() => {
-							this._iosJustTouchEnded = false;
-							this._iosTouchEndTimerId = null;
-							this._flushIosDeferredIfReady();
-						}, 150);
-					};
-					scrollEl.addEventListener("touchstart", onTouchStart, addEventListenerOptions);
-					scrollEl.addEventListener("touchend", onTouchEnd, addEventListenerOptions);
-					this.unsubs.push(() => {
-						scrollEl.removeEventListener("touchstart", onTouchStart);
-						scrollEl.removeEventListener("touchend", onTouchEnd);
-						if (this._iosTouchEndTimerId !== null && this.targetWindow != null) {
-							this.targetWindow.clearTimeout(this._iosTouchEndTimerId);
-							this._iosTouchEndTimerId = null;
-						}
-					});
-				}
-				this._scrollToOffset(this.getScrollOffset(), {
-					adjustments: void 0,
-					behavior: void 0
-				});
-			}
-			const anchor = this.pendingScrollAnchor;
-			this.pendingScrollAnchor = null;
-			if (anchor && this.scrollElement && this.options.enabled) {
-				const [key, _offset, followOnAppend, anchorDelta] = anchor;
-				if (key !== null && !followOnAppend) if (isIOSWebKit() && (this.isScrolling || this._iosTouching || this._iosJustTouchEnded)) {
-					if (anchorDelta !== 0) this._iosDeferredAdjustment += anchorDelta;
-				} else this._scrollToOffset(this.getScrollOffset(), {
-					adjustments: void 0,
-					behavior: void 0
-				});
-				if (followOnAppend) this.scrollToEnd({ behavior: followOnAppend });
-			}
-		};
-		this._flushIosDeferredIfReady = () => {
-			if (this._iosDeferredAdjustment === 0) return;
-			if (this.isScrolling) return;
-			if (this._iosTouching) return;
-			if (this._iosJustTouchEnded) return;
-			const cur = this.getScrollOffset();
-			const max = this.getMaxScrollOffset();
-			if (cur < 0 || cur > max) return;
-			if (this._iosDeferredAdjustment < 0 && cur >= max - 1) {
-				this._iosDeferredAdjustment = 0;
-				return;
-			}
-			const delta = this._iosDeferredAdjustment;
-			this._iosDeferredAdjustment = 0;
-			this._scrollToOffset(cur, {
-				adjustments: this.scrollAdjustments += delta,
-				behavior: void 0
-			});
-		};
-		this.rafId = null;
-		this.getSize = () => {
-			if (!this.options.enabled) {
-				this.scrollRect = null;
-				return 0;
-			}
-			this.scrollRect = this.scrollRect ?? this.options.initialRect;
-			return this.scrollRect[this.options.horizontal ? "width" : "height"];
-		};
-		this.getScrollOffset = () => {
-			if (!this.options.enabled) {
-				this.scrollOffset = null;
-				return 0;
-			}
-			this.scrollOffset = this.scrollOffset ?? (typeof this.options.initialOffset === "function" ? this.options.initialOffset() : this.options.initialOffset);
-			return this.scrollOffset;
-		};
-		this.getMeasurementOptions = memo$8(() => [
-			this.options.count,
-			this.options.paddingStart,
-			this.options.scrollMargin,
-			this.options.getItemKey,
-			this.options.enabled,
-			this.options.lanes,
-			this.options.laneAssignmentMode,
-			this.options.gap
-		], (count, paddingStart, scrollMargin, getItemKey, enabled, lanes, laneAssignmentMode, gap) => {
-			if (this.prevLanes !== void 0 && this.prevLanes !== lanes) this.lanesChangedFlag = true;
-			this.prevLanes = lanes;
-			this.pendingMin = null;
-			return {
-				count,
-				paddingStart,
-				scrollMargin,
-				getItemKey,
-				enabled,
-				lanes,
-				laneAssignmentMode,
-				gap
-			};
-		}, { key: false });
-		this.getMeasurements = memo$8(() => [this.getMeasurementOptions(), this.itemSizeCacheVersion], ({ count, paddingStart, scrollMargin, getItemKey, enabled, lanes, laneAssignmentMode, gap }, _itemSizeCacheVersion) => {
-			const itemSizeCache = this.itemSizeCache;
-			if (!enabled) {
-				this.measurementsCache = [];
-				this.itemSizeCache.clear();
-				this.laneAssignments.clear();
-				return [];
-			}
-			if (this.laneAssignments.size > count) {
-				for (const index of this.laneAssignments.keys()) if (index >= count) this.laneAssignments.delete(index);
-			}
-			if (this.lanesChangedFlag) {
-				this.lanesChangedFlag = false;
-				this.lanesSettling = true;
-				this.measurementsCache = [];
-				this.itemSizeCache.clear();
-				this.laneAssignments.clear();
-				this.pendingMin = null;
-			}
-			if (this.measurementsCache.length === 0 && !this.lanesSettling) {
-				this.measurementsCache = this.options.initialMeasurementsCache;
-				this.measurementsCache.forEach((item) => {
-					this.itemSizeCache.set(item.key, item.size);
-				});
-			}
-			const min = this.lanesSettling ? 0 : this.pendingMin ?? 0;
-			this.pendingMin = null;
-			if (this.lanesSettling && this.measurementsCache.length === count) this.lanesSettling = false;
-			if (lanes === 1) {
-				const need = count * 2;
-				let flat = this._flatMeasurements;
-				if (!flat || flat.length < need) {
-					const next = new Float64Array(need);
-					if (flat && min > 0) next.set(flat.subarray(0, min * 2));
-					flat = next;
-					this._flatMeasurements = flat;
-				}
-				let runningStart;
-				if (min === 0) runningStart = paddingStart + scrollMargin;
-				else {
-					const prevIdx = min - 1;
-					runningStart = flat[prevIdx * 2] + flat[prevIdx * 2 + 1] + gap;
-				}
-				for (let i = min; i < count; i++) {
-					const key = getItemKey(i);
-					const measuredSize = itemSizeCache.get(key);
-					const size = typeof measuredSize === "number" ? measuredSize : this.options.estimateSize(i);
-					flat[i * 2] = runningStart;
-					flat[i * 2 + 1] = size;
-					runningStart += size + gap;
-				}
-				const view = createLazyMeasurementsView(count, flat, getItemKey);
-				this.measurementsCache = view;
-				return view;
-			}
-			const measurements = this.measurementsCache.slice(0, min);
-			const laneLastIndex = new Array(lanes).fill(void 0);
-			const laneEnds = new Float64Array(lanes);
-			let filledLanes = 0;
-			for (let m = 0; m < min; m++) {
-				const item = measurements[m];
-				if (item) {
-					if (laneLastIndex[item.lane] === void 0) filledLanes++;
-					laneLastIndex[item.lane] = m;
-					laneEnds[item.lane] = item.end;
-				}
-			}
-			for (let i = min; i < count; i++) {
-				const key = getItemKey(i);
-				const cachedLane = this.laneAssignments.get(i);
-				let lane;
-				let start;
-				const shouldCacheLane = laneAssignmentMode === "estimate" || itemSizeCache.has(key);
-				if (cachedLane !== void 0 && this.options.lanes > 1) {
-					lane = cachedLane;
-					const prevIndex = laneLastIndex[lane];
-					const prevInLane = prevIndex !== void 0 ? measurements[prevIndex] : void 0;
-					start = prevInLane ? prevInLane.end + gap : paddingStart + scrollMargin;
-				} else if (filledLanes === lanes) {
-					let bestLane = 0;
-					let bestEnd = laneEnds[0];
-					let bestIdx = laneLastIndex[0];
-					for (let l = 1; l < lanes; l++) {
-						const e = laneEnds[l];
-						if (e < bestEnd || e === bestEnd && laneLastIndex[l] < bestIdx) {
-							bestLane = l;
-							bestEnd = e;
-							bestIdx = laneLastIndex[l];
-						}
-					}
-					lane = bestLane;
-					start = bestEnd + gap;
-					if (shouldCacheLane) this.laneAssignments.set(i, lane);
-				} else {
-					lane = i % this.options.lanes;
-					start = paddingStart + scrollMargin;
-					if (shouldCacheLane) this.laneAssignments.set(i, lane);
-				}
-				const measuredSize = itemSizeCache.get(key);
-				const size = typeof measuredSize === "number" ? measuredSize : this.options.estimateSize(i);
-				const end = start + size;
-				measurements[i] = {
-					index: i,
-					start,
-					size,
-					end,
-					key,
-					lane
-				};
-				if (laneLastIndex[lane] === void 0) filledLanes++;
-				laneLastIndex[lane] = i;
-				laneEnds[lane] = end;
-			}
-			this.measurementsCache = measurements;
-			return measurements;
-		}, {
-			key: false,
-			debug: () => this.options.debug
-		});
-		this.calculateRange = memo$8(() => [
-			this.getMeasurements(),
-			this.getSize(),
-			this.getScrollOffset(),
-			this.options.lanes
-		], (measurements, outerSize, scrollOffset, lanes) => {
-			if (measurements.length === 0 || outerSize === 0) {
-				this.range = null;
-				return null;
-			}
-			this.range = calculateRangeImpl(measurements, outerSize, scrollOffset, lanes, lanes === 1 && this._flatMeasurements != null ? this._flatMeasurements : null);
-			return this.range;
-		}, {
-			key: false,
-			debug: () => this.options.debug
-		});
-		this.getVirtualIndexes = memo$8(() => {
-			let startIndex = null;
-			let endIndex = null;
-			const range = this.calculateRange();
-			if (range) {
-				startIndex = range.startIndex;
-				endIndex = range.endIndex;
-			}
-			this.maybeNotify.updateDeps([
-				this.isScrolling,
-				startIndex,
-				endIndex
-			]);
-			return [
-				this.options.rangeExtractor,
-				this.options.overscan,
-				this.options.count,
-				startIndex,
-				endIndex
-			];
-		}, (rangeExtractor, overscan, count, startIndex, endIndex) => {
-			return startIndex === null || endIndex === null ? [] : rangeExtractor({
-				startIndex,
-				endIndex,
-				overscan,
-				count
-			});
-		}, {
-			key: false,
-			debug: () => this.options.debug
-		});
-		this.indexFromElement = (node) => {
-			const attributeName = this.options.indexAttribute;
-			const indexStr = node.getAttribute(attributeName);
-			if (!indexStr) {
-				console.warn(`Missing attribute name '${attributeName}={index}' on measured element.`);
-				return -1;
-			}
-			return parseInt(indexStr, 10);
-		};
-		this.shouldMeasureDuringScroll = (index) => {
-			var _a;
-			if (!this.scrollState || this.scrollState.behavior !== "smooth") return true;
-			const scrollIndex = this.scrollState.index ?? ((_a = this.getVirtualItemForOffset(this.scrollState.lastTargetOffset)) == null ? void 0 : _a.index);
-			if (scrollIndex !== void 0 && this.range) {
-				const bufferSize = Math.max(this.options.overscan, Math.ceil((this.range.endIndex - this.range.startIndex) / 2));
-				const minIndex = Math.max(0, scrollIndex - bufferSize);
-				const maxIndex = Math.min(this.options.count - 1, scrollIndex + bufferSize);
-				return index >= minIndex && index <= maxIndex;
-			}
-			return true;
-		};
-		this.measureElement = (node) => {
-			if (!node) {
-				this.elementsCache.forEach((cached, key2) => {
-					if (!cached.isConnected) {
-						this.observer.unobserve(cached);
-						this.elementsCache.delete(key2);
-					}
-				});
-				return;
-			}
-			const index = this.indexFromElement(node);
-			const key = this.options.getItemKey(index);
-			const prevNode = this.elementsCache.get(key);
-			if (prevNode !== node) {
-				if (prevNode) this.observer.unobserve(prevNode);
-				this.observer.observe(node);
-				this.elementsCache.set(key, node);
-			}
-			if ((!this.isScrolling || this.scrollState) && this.shouldMeasureDuringScroll(index)) this.resizeItem(index, this.options.measureElement(node, void 0, this));
-		};
-		this.resizeItem = (index, size) => {
-			var _a, _b;
-			if (index < 0 || index >= this.options.count) return;
-			let cachedSize;
-			let itemStart;
-			let key;
-			const flat = this._flatMeasurements;
-			if (this.options.lanes === 1 && flat !== null) {
-				key = this.options.getItemKey(index);
-				itemStart = flat[index * 2];
-				cachedSize = flat[index * 2 + 1];
-			} else {
-				const item = this.measurementsCache[index];
-				if (!item) return;
-				key = item.key;
-				itemStart = item.start;
-				cachedSize = item.size;
-			}
-			const itemSize = this.itemSizeCache.get(key) ?? cachedSize;
-			const delta = size - itemSize;
-			if (delta !== 0) {
-				const wasAtEnd = this.options.anchorTo === "end" && ((_a = this.scrollState) == null ? void 0 : _a.behavior) !== "smooth" && this.getVirtualDistanceFromEnd() <= this.options.scrollEndThreshold;
-				const prevTotalSize = wasAtEnd ? this.getTotalSize() : 0;
-				const scrollOffsetWithAdj = this.getScrollOffset() + this.scrollAdjustments;
-				const defaultShouldAdjust = !this.itemSizeCache.has(key) ? itemStart < scrollOffsetWithAdj : itemStart + itemSize <= scrollOffsetWithAdj && this.scrollDirection !== "backward";
-				const shouldAdjustScroll = ((_b = this.scrollState) == null ? void 0 : _b.behavior) !== "smooth" && (this.shouldAdjustScrollPositionOnItemSizeChange !== void 0 ? this.shouldAdjustScrollPositionOnItemSizeChange(this.measurementsCache[index] ?? {
-					index,
-					key,
-					start: itemStart,
-					size: cachedSize,
-					end: itemStart + cachedSize,
-					lane: 0
-				}, delta, this) : defaultShouldAdjust);
-				if (this.pendingMin === null || index < this.pendingMin) this.pendingMin = index;
-				this.itemSizeCache.set(key, size);
-				this.itemSizeCacheVersion++;
-				let adjustedSync = false;
-				if (wasAtEnd) adjustedSync = this.applyScrollAdjustment(this.getTotalSize() - prevTotalSize);
-				else if (shouldAdjustScroll) adjustedSync = this.applyScrollAdjustment(delta);
-				this.notify(adjustedSync);
-			}
-		};
-		this.getVirtualItems = memo$8(() => [this.getVirtualIndexes(), this.getMeasurements()], (indexes, measurements) => {
-			const virtualItems = [];
-			for (let k = 0, len = indexes.length; k < len; k++) {
-				const measurement = measurements[indexes[k]];
-				virtualItems.push(measurement);
-			}
-			return virtualItems;
-		}, {
-			key: false,
-			debug: () => this.options.debug
-		});
-		this.getVirtualItemForOffset = (offset) => {
-			const measurements = this.getMeasurements();
-			if (measurements.length === 0) return;
-			const flat = this._flatMeasurements;
-			const useFlat = this.options.lanes === 1 && flat != null;
-			return notUndefined(measurements[findNearestBinarySearch(0, measurements.length - 1, useFlat ? (i) => flat[i * 2] : (i) => notUndefined(measurements[i]).start, offset)]);
-		};
-		this.getMaxScrollOffset = () => {
-			if (!this.scrollElement) return 0;
-			if ("scrollHeight" in this.scrollElement) return this.options.horizontal ? this.scrollElement.scrollWidth - this.scrollElement.clientWidth : this.scrollElement.scrollHeight - this.scrollElement.clientHeight;
-			else {
-				const doc = this.scrollElement.document.documentElement;
-				return this.options.horizontal ? doc.scrollWidth - this.scrollElement.innerWidth : doc.scrollHeight - this.scrollElement.innerHeight;
-			}
-		};
-		this.getVirtualDistanceFromEnd = () => {
-			return Math.max(this.getTotalSize() - this.getSize() - this.getScrollOffset(), 0);
-		};
-		this.getDistanceFromEnd = () => {
-			return Math.max(this.getMaxScrollOffset() - this.getScrollOffset(), 0);
-		};
-		this.isAtEnd = (threshold = this.options.scrollEndThreshold) => {
-			return this.getDistanceFromEnd() <= threshold;
-		};
-		this.getOffsetForAlignment = (toOffset, align, itemSize = 0) => {
-			if (!this.scrollElement) return 0;
-			const size = this.getSize();
-			const scrollOffset = this.getScrollOffset();
-			if (align === "auto") align = toOffset >= scrollOffset + size ? "end" : "start";
-			if (align === "center") toOffset += (itemSize - size) / 2;
-			else if (align === "end") toOffset -= size;
-			const maxOffset = this.getMaxScrollOffset();
-			return Math.max(Math.min(maxOffset, toOffset), 0);
-		};
-		this.getOffsetForIndex = (index, align = "auto") => {
-			index = Math.max(0, Math.min(index, this.options.count - 1));
-			const size = this.getSize();
-			const scrollOffset = this.getScrollOffset();
-			const item = this.measurementsCache[index];
-			if (!item) return;
-			if (align === "auto") if (item.end >= scrollOffset + size - this.options.scrollPaddingEnd) align = "end";
-			else if (item.start <= scrollOffset + this.options.scrollPaddingStart) align = "start";
-			else return [scrollOffset, align];
-			if (align === "end" && index === this.options.count - 1) return [this.getMaxScrollOffset(), align];
-			const toOffset = align === "end" ? item.end + this.options.scrollPaddingEnd : item.start - this.options.scrollPaddingStart;
-			return [this.getOffsetForAlignment(toOffset, align, item.size), align];
-		};
-		this.scrollToOffset = (toOffset, { align = "start", behavior = "auto" } = {}) => {
-			this._iosDeferredAdjustment = 0;
-			const offset = this.getOffsetForAlignment(toOffset, align);
-			const now = this.now();
-			this.scrollState = {
-				index: null,
-				align,
-				behavior,
-				startedAt: now,
-				lastTargetOffset: offset,
-				stableFrames: 0
-			};
-			this._scrollToOffset(offset, {
-				adjustments: void 0,
-				behavior
-			});
-			this.scheduleScrollReconcile();
-		};
-		this.scrollToIndex = (index, { align: initialAlign = "auto", behavior = "auto" } = {}) => {
-			this._iosDeferredAdjustment = 0;
-			index = Math.max(0, Math.min(index, this.options.count - 1));
-			const offsetInfo = this.getOffsetForIndex(index, initialAlign);
-			if (!offsetInfo) return;
-			const [offset, align] = offsetInfo;
-			const now = this.now();
-			this.scrollState = {
-				index,
-				align,
-				behavior,
-				startedAt: now,
-				lastTargetOffset: offset,
-				stableFrames: 0
-			};
-			this._scrollToOffset(offset, {
-				adjustments: void 0,
-				behavior
-			});
-			this.scheduleScrollReconcile();
-		};
-		this.scrollBy = (delta, { behavior = "auto" } = {}) => {
-			const offset = this.getScrollOffset() + delta;
-			const now = this.now();
-			this.scrollState = {
-				index: null,
-				align: "start",
-				behavior,
-				startedAt: now,
-				lastTargetOffset: offset,
-				stableFrames: 0
-			};
-			this._scrollToOffset(offset, {
-				adjustments: void 0,
-				behavior
-			});
-			this.scheduleScrollReconcile();
-		};
-		this.scrollToEnd = ({ behavior = "auto" } = {}) => {
-			if (this.options.count > 0) {
-				this.scrollToIndex(this.options.count - 1, {
-					align: "end",
-					behavior
-				});
-				return;
-			}
-			this.scrollToOffset(Math.max(this.getTotalSize() - this.getSize(), 0), { behavior });
-		};
-		this.getTotalSize = () => {
-			var _a;
-			const measurements = this.getMeasurements();
-			let end;
-			if (measurements.length === 0) end = this.options.paddingStart;
-			else if (this.options.lanes === 1) {
-				const lastIdx = measurements.length - 1;
-				const flat = this._flatMeasurements;
-				if (flat != null) end = flat[lastIdx * 2] + flat[lastIdx * 2 + 1];
-				else end = ((_a = measurements[lastIdx]) == null ? void 0 : _a.end) ?? 0;
-			} else {
-				const endByLane = Array(this.options.lanes).fill(null);
-				let endIndex = measurements.length - 1;
-				while (endIndex >= 0 && endByLane.some((val) => val === null)) {
-					const item = measurements[endIndex];
-					if (endByLane[item.lane] === null) endByLane[item.lane] = item.end;
-					endIndex--;
-				}
-				end = Math.max(...endByLane.filter((val) => val !== null));
-			}
-			return Math.max(end - this.options.scrollMargin + this.options.paddingEnd, 0);
-		};
-		this.takeSnapshot = () => {
-			const snapshot = [];
-			if (this.itemSizeCache.size === 0) return snapshot;
-			const m = this.getMeasurements();
-			for (const item of m) if (item && this.itemSizeCache.has(item.key)) snapshot.push({
-				index: item.index,
-				key: item.key,
-				start: item.start,
-				size: item.size,
-				end: item.end,
-				lane: item.lane
-			});
-			return snapshot;
-		};
-		this._scrollToOffset = (offset, { adjustments, behavior }) => {
-			this._intendedScrollOffset = offset + (adjustments ?? 0);
-			this.options.scrollToFn(offset, {
-				behavior,
-				adjustments
-			}, this);
-		};
-		this.measure = () => {
-			this.pendingMin = null;
-			this.itemSizeCache.clear();
-			this.laneAssignments.clear();
-			this.itemSizeCacheVersion++;
-			this.notify(false);
-		};
-		this.setOptions(opts);
-	}
-	applyScrollAdjustment(delta, behavior) {
-		if (delta === 0) return false;
-		if (isIOSWebKit() && (this.isScrolling || this._iosTouching || this._iosJustTouchEnded)) {
-			this._iosDeferredAdjustment += delta;
-			return false;
-		} else {
-			this._scrollToOffset(this.getScrollOffset(), {
-				adjustments: this.scrollAdjustments += delta,
-				behavior
-			});
-			if (this.scrollOffset !== null) {
-				this.scrollOffset += this.scrollAdjustments;
-				if (this.scrollOffset < 0) this.scrollOffset = 0;
-				this.scrollAdjustments = 0;
-			}
-			return true;
-		}
-	}
-	scheduleScrollReconcile() {
-		if (!this.targetWindow) {
-			this.scrollState = null;
-			return;
-		}
-		if (this.rafId != null) return;
-		this.rafId = this.targetWindow.requestAnimationFrame(() => {
-			this.rafId = null;
-			this.reconcileScroll();
-		});
-	}
-	reconcileScroll() {
-		if (!this.scrollState) return;
-		if (!this.scrollElement) return;
-		if (this.now() - this.scrollState.startedAt > 5e3) {
-			this.scrollState = null;
-			return;
-		}
-		const offsetInfo = this.scrollState.index != null ? this.getOffsetForIndex(this.scrollState.index, this.scrollState.align) : void 0;
-		const targetOffset = offsetInfo ? offsetInfo[0] : this.scrollState.lastTargetOffset;
-		const STABLE_FRAMES = 1;
-		const targetChanged = targetOffset !== this.scrollState.lastTargetOffset;
-		if (!targetChanged && approxEqual(targetOffset, this.getScrollOffset())) {
-			this.scrollState.stableFrames++;
-			if (this.scrollState.stableFrames >= STABLE_FRAMES) {
-				if (this.getScrollOffset() !== targetOffset) this._scrollToOffset(targetOffset, {
-					adjustments: void 0,
-					behavior: "auto"
-				});
-				this.scrollState = null;
-				return;
-			}
-		} else {
-			this.scrollState.stableFrames = 0;
-			if (targetChanged) {
-				const viewport = this.getSize() || 600;
-				const distance = Math.abs(targetOffset - this.getScrollOffset());
-				const keepSmooth = this.scrollState.behavior === "smooth" && distance > viewport;
-				this.scrollState.lastTargetOffset = targetOffset;
-				if (!keepSmooth) this.scrollState.behavior = "auto";
-				this._scrollToOffset(targetOffset, {
-					adjustments: void 0,
-					behavior: keepSmooth ? "smooth" : "auto"
-				});
-			}
-		}
-		this.scheduleScrollReconcile();
-	}
-};
-var findNearestBinarySearch = (low, high, getCurrentValue, value) => {
-	while (low <= high) {
-		const middle = (low + high) / 2 | 0;
-		const currentValue = getCurrentValue(middle);
-		if (currentValue < value) low = middle + 1;
-		else if (currentValue > value) high = middle - 1;
-		else return middle;
-	}
-	if (low > 0) return low - 1;
-	else return 0;
-};
-function findNearestBinarySearchFlat(flat, high, value) {
-	let low = 0;
-	while (low <= high) {
-		const middle = (low + high) / 2 | 0;
-		const currentValue = flat[middle * 2];
-		if (currentValue < value) low = middle + 1;
-		else if (currentValue > value) high = middle - 1;
-		else return middle;
-	}
-	return low > 0 ? low - 1 : 0;
-}
-function calculateRangeImpl(measurements, outerSize, scrollOffset, lanes, flat) {
-	const lastIndex = measurements.length - 1;
-	if (measurements.length <= lanes) return {
-		startIndex: 0,
-		endIndex: lastIndex
-	};
-	if (lanes === 1 && flat !== null) {
-		const startIndex2 = findNearestBinarySearchFlat(flat, lastIndex, scrollOffset);
-		let endIndex2 = startIndex2;
-		const limit = scrollOffset + outerSize;
-		while (endIndex2 < lastIndex && flat[endIndex2 * 2] + flat[endIndex2 * 2 + 1] < limit) endIndex2++;
-		return {
-			startIndex: startIndex2,
-			endIndex: endIndex2
-		};
-	}
-	const getStart = (index) => measurements[index].start;
-	let startIndex = findNearestBinarySearch(0, lastIndex, getStart, scrollOffset);
-	let endIndex = startIndex;
-	if (lanes === 1) while (endIndex < lastIndex && measurements[endIndex].end < scrollOffset + outerSize) endIndex++;
-	else if (lanes > 1) {
-		const endPerLane = Array(lanes).fill(0);
-		while (endIndex < lastIndex && endPerLane.some((pos) => pos < scrollOffset + outerSize)) {
-			const item = measurements[endIndex];
-			endPerLane[item.lane] = item.end;
-			endIndex++;
-		}
-		const startPerLane = Array(lanes).fill(scrollOffset + outerSize);
-		while (startIndex >= 0 && startPerLane.some((pos) => pos >= scrollOffset)) {
-			const item = measurements[startIndex];
-			startPerLane[item.lane] = item.start;
-			startIndex--;
-		}
-		startIndex = Math.max(0, startIndex - startIndex % lanes);
-		endIndex = Math.min(lastIndex, endIndex + (lanes - 1 - endIndex % lanes));
-	}
-	return {
-		startIndex,
-		endIndex
-	};
-}
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-virtual@3.14.9_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/@tanstack/react-virtual/dist/esm/index.js
-var useIsomorphicLayoutEffect = typeof document !== "undefined" ? import_react.useLayoutEffect : import_react.useEffect;
-function useVirtualizerBase({ useFlushSync = true, directDomUpdates = false, directDomUpdatesMode = "transform", ...options }) {
-	const rerender = import_react.useReducer((x) => x + 1, 0)[1];
-	const directRef = import_react.useRef({
-		enabled: directDomUpdates,
-		mode: directDomUpdatesMode,
-		container: null,
-		lastSize: null,
-		lastPositions: /* @__PURE__ */ new WeakMap(),
-		prevRange: null
-	});
-	directRef.current.enabled = directDomUpdates;
-	directRef.current.mode = directDomUpdatesMode;
-	const applyContainerSize = (instance2) => {
-		const state = directRef.current;
-		if (!state.enabled || !state.container) return;
-		const totalSize = instance2.getTotalSize();
-		if (totalSize !== state.lastSize) {
-			state.lastSize = totalSize;
-			const sizeAxis = instance2.options.horizontal ? "width" : "height";
-			state.container.style[sizeAxis] = `${totalSize}px`;
-		}
-	};
-	const applyDirectStyles = (instance2) => {
-		const state = directRef.current;
-		if (!state.enabled || !state.container) return;
-		applyContainerSize(instance2);
-		const horizontal = !!instance2.options.horizontal;
-		const useTransform = state.mode === "transform";
-		const posAxis = horizontal ? "left" : "top";
-		const scrollMargin = instance2.options.scrollMargin;
-		const items = instance2.getVirtualItems();
-		for (const item of items) {
-			const next = item.start - scrollMargin;
-			const el = instance2.elementsCache.get(item.key);
-			if (!el) continue;
-			if (state.lastPositions.get(el) === next) continue;
-			state.lastPositions.set(el, next);
-			if (useTransform) el.style.transform = horizontal ? `translate3d(${next}px, 0, 0)` : `translate3d(0, ${next}px, 0)`;
-			else el.style[posAxis] = `${next}px`;
-		}
-	};
-	const resolvedOptions = {
-		...options,
-		onChange: (instance2, sync) => {
-			var _a;
-			const state = directRef.current;
-			let shouldRerender = true;
-			if (state.enabled) {
-				applyDirectStyles(instance2);
-				const range = instance2.range;
-				const prev = state.prevRange;
-				shouldRerender = !prev || prev.isScrolling !== instance2.isScrolling || prev.startIndex !== (range == null ? void 0 : range.startIndex) || prev.endIndex !== (range == null ? void 0 : range.endIndex);
-				if (shouldRerender) state.prevRange = range ? {
-					startIndex: range.startIndex,
-					endIndex: range.endIndex,
-					isScrolling: instance2.isScrolling
-				} : null;
-			}
-			if (shouldRerender) if (useFlushSync && sync) (0, import_react_dom.flushSync)(rerender);
-			else rerender();
-			(_a = options.onChange) == null || _a.call(options, instance2, sync);
-		}
-	};
-	const [instance] = import_react.useState(() => {
-		const v = new Virtualizer(resolvedOptions);
-		return Object.assign(v, { containerRef: (node) => {
-			const state = directRef.current;
-			state.container = node;
-			state.lastSize = null;
-			if (node && state.enabled) {
-				const total = v.getTotalSize();
-				state.lastSize = total;
-				const axis = v.options.horizontal ? "width" : "height";
-				node.style[axis] = `${total}px`;
-			}
-		} });
-	});
-	instance.setOptions(resolvedOptions);
-	useIsomorphicLayoutEffect(() => {
-		return instance._didMount();
-	}, []);
-	useIsomorphicLayoutEffect(() => {
-		applyContainerSize(instance);
-		return instance._willUpdate();
-	});
-	useIsomorphicLayoutEffect(() => {
-		applyDirectStyles(instance);
-	});
-	return instance;
-}
-function useVirtualizer(options) {
-	return useVirtualizerBase({
-		observeElementRect,
-		observeElementOffset,
-		scrollToFn: elementScroll,
-		...options
-	});
-}
-//#endregion
-//#region ../../packages/react/src/virtual/scale-coordinate-space.ts
-var SAFE_MAX_SPACER = 16e6;
-function computeScale(contentTotal, safeMax) {
-	if (contentTotal <= safeMax) return 1;
-	return contentTotal / safeMax;
-}
-function toContent(spacerScroll, s) {
-	return spacerScroll * s;
-}
-function toSpacer(contentScroll, s) {
-	return contentScroll / s;
-}
-//#endregion
-//#region ../../packages/react/src/virtual/use-scaled-virtualizer.ts
-function useScaledVirtualizer(opts) {
-	const scaleRef = (0, import_react.useRef)(1);
-	const scaledObserveElementOffset = (0, import_react.useMemo)(() => (instance, cb) => {
-		const el = instance.scrollElement;
-		if (!el) return;
-		const onScroll = () => {
-			cb(el.scrollTop * scaleRef.current, true);
-		};
-		const onScrollEnd = () => {
-			cb(el.scrollTop * scaleRef.current, false);
-		};
-		cb(el.scrollTop * scaleRef.current, false);
-		el.addEventListener("scroll", onScroll, { passive: true });
-		el.addEventListener("scrollend", onScrollEnd, { passive: true });
-		return () => {
-			el.removeEventListener("scroll", onScroll);
-			el.removeEventListener("scrollend", onScrollEnd);
-		};
-	}, []);
-	const scaledScrollToFn = (0, import_react.useCallback)((offset, { adjustments, behavior }, instance) => {
-		const el = instance.scrollElement;
-		if (!el) return;
-		const adjusted = offset + (adjustments ?? 0);
-		el.scrollTo({
-			top: adjusted / scaleRef.current,
-			behavior
-		});
-	}, []);
-	const virtualizer = useVirtualizer({
-		count: opts.count,
-		estimateSize: opts.estimateSize,
-		getScrollElement: opts.getScrollElement,
-		overscan: opts.overscan ?? 5,
-		scrollPaddingStart: opts.scrollPaddingStart ?? 0,
-		observeElementOffset: scaledObserveElementOffset,
-		scrollToFn: scaledScrollToFn
-	});
-	virtualizer.shouldAdjustScrollPositionOnItemSizeChange = (item, _delta, instance) => item.end <= (instance.scrollOffset ?? 0);
-	const contentTotal = virtualizer.getTotalSize();
-	const scale = computeScale(contentTotal, SAFE_MAX_SPACER);
-	scaleRef.current = scale;
-	return {
-		virtualizer,
-		scale,
-		spacerHeight: scale === 1 ? contentTotal : SAFE_MAX_SPACER,
-		toContentScroll: (0, import_react.useCallback)((spacerScroll) => toContent(spacerScroll, scaleRef.current), []),
-		toSpacerScroll: (0, import_react.useCallback)((contentScroll) => toSpacer(contentScroll, scaleRef.current), [])
-	};
-}
-//#endregion
-//#region ../../packages/react/src/virtual/use-virtual-list-state.ts
-var CURRENT_VERSION = 1;
-function useVirtualListState(persistenceKey) {
-	const [stored, setStored] = useProperty(persistenceKey, "snapshot", { defaultValue: null });
-	return {
-		getRestoreSnapshot: (0, import_react.useCallback)(() => {
-			if (!stored) return void 0;
-			if (stored.version !== CURRENT_VERSION) return void 0;
-			return stored;
-		}, [stored]),
-		recordSnapshot: (0, import_react.useCallback)((snapshot) => {
-			setStored(snapshot);
-		}, [setStored])
-	};
-}
-var VirtualList_module_default = {
-	scroller: "_scroller_1rroa_1",
-	spacer: "_spacer_1rroa_7"
-};
-//#endregion
-//#region ../../packages/react/src/virtual/VirtualList.tsx
-var BOTTOM_THRESHOLD_PX = 30;
-var USER_INTERACTION_WINDOW_MS = 400;
-var SMOOTH_SCROLL_MAX_S = 10;
-var PERSIST_DEBOUNCE_MS = 250;
-var DEFAULT_ITEM_HEIGHT_PX = 400;
-var MAX_CHUNK_HEIGHT = 5e6;
-function PaddingChunks({ height, prefix }) {
-	if (height <= 0) return null;
-	const chunks = [];
-	let remaining = height;
-	let i = 0;
-	while (remaining > 0) {
-		const h = Math.min(remaining, MAX_CHUNK_HEIGHT);
-		chunks.push(/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { height: h } }, `${prefix}-${i}`));
-		remaining -= h;
-		i++;
-	}
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(import_jsx_runtime.Fragment, { children: chunks });
-}
-var countMatchesInTexts = (lowerTextsByItem, lowerTerm) => {
-	if (lowerTerm.length === 0) return 0;
-	let total = 0;
-	for (const texts of lowerTextsByItem) for (const lowerText of texts) {
-		let pos = 0;
-		while ((pos = lowerText.indexOf(lowerTerm, pos)) !== -1) {
-			total++;
-			pos += lowerTerm.length;
-		}
-	}
-	return total;
-};
-function VirtualList({ persistenceKey, ref, className, scrollRef: externalScrollRef, data, renderRow, live, navOwned, followRequested, showProgress, initialIndex, scrollPaddingStart, components, smoothScroll = true, itemSearchText, findScope = "local", scrollToTopOnFinish = false, onVisibleRangeChange }) {
-	const internalScrollRef = (0, import_react.useRef)(null);
-	const [scrollParent, setScrollParent] = (0, import_react.useState)(null);
-	(0, import_react.useEffect)(() => {
-		if (!externalScrollRef) return;
-		const sync = () => {
-			setScrollParent((prev) => prev === externalScrollRef.current ? prev : externalScrollRef.current ?? null);
-		};
-		sync();
-		const observer = new MutationObserver(sync);
-		observer.observe(document.body, {
-			childList: true,
-			subtree: true
-		});
-		return () => observer.disconnect();
-	}, [externalScrollRef]);
-	const getScrollElement = (0, import_react.useCallback)(() => scrollParent ?? internalScrollRef.current, [scrollParent]);
-	const { virtualizer, scale, toContentScroll, toSpacerScroll } = useScaledVirtualizer({
-		count: data.length,
-		estimateSize: () => DEFAULT_ITEM_HEIGHT_PX,
-		getScrollElement,
-		scrollPaddingStart: scrollPaddingStart ?? 0
-	});
-	const { getRestoreSnapshot, recordSnapshot } = useVirtualListState(persistenceKey);
-	const [storedFollow, setFollowOutput] = useProperty(persistenceKey, "follow", { defaultValue: null });
-	const isAutoScrollingRef = (0, import_react.useRef)(false);
-	const followUserActedRef = (0, import_react.useRef)(false);
-	const followSeedRef = (0, import_react.useRef)(null);
-	const resolveInitialFollow = () => followRequested ? true : navOwned ? false : storedFollow ?? !!live;
-	const [followSeed, setFollowSeed] = (0, import_react.useState)(() => ({
-		key: persistenceKey,
-		value: resolveInitialFollow(),
-		applied: false
-	}));
-	if (followSeed.key !== persistenceKey) setFollowSeed({
-		key: persistenceKey,
-		value: resolveInitialFollow(),
-		applied: false
-	});
-	else if (!followSeed.applied && storedFollow === followSeed.value) setFollowSeed((s) => ({
-		...s,
-		applied: true
-	}));
-	const seedActive = followSeed.key === persistenceKey && !followSeed.applied;
-	const followOutput = seedActive ? followSeed.value : storedFollow ?? false;
-	(0, import_react.useLayoutEffect)(() => {
-		followUserActedRef.current = false;
-		followSeedRef.current = null;
-	}, [persistenceKey]);
-	(0, import_react.useLayoutEffect)(() => {
-		if (seedActive && storedFollow !== followSeed.value) {
-			setFollowOutput(followSeed.value);
-			followSeedRef.current = followSeed.value;
-		}
-	}, [
-		seedActive,
-		followSeed,
-		storedFollow,
-		setFollowOutput
-	]);
-	const userInteractingRef = (0, import_react.useRef)(false);
-	const pointerDownRef = (0, import_react.useRef)(false);
-	const interactTimerRef = (0, import_react.useRef)(null);
-	const noteUserInteraction = (0, import_react.useCallback)(() => {
-		userInteractingRef.current = true;
-		if (interactTimerRef.current) clearTimeout(interactTimerRef.current);
-		interactTimerRef.current = setTimeout(() => {
-			userInteractingRef.current = false;
-		}, USER_INTERACTION_WINDOW_MS);
-	}, []);
-	const prevLive = usePreviousValue(live);
-	(0, import_react.useEffect)(() => {
-		if (live && !prevLive && !navOwned && !followRequested && !followUserActedRef.current && !storedFollow && storedFollow === followSeedRef.current) {
-			setFollowOutput(true);
-			followSeedRef.current = true;
-		}
-	}, [
-		live,
-		prevLive,
-		navOwned,
-		followRequested,
-		storedFollow,
-		setFollowOutput
-	]);
-	const finishScrollTimerRef = (0, import_react.useRef)(null);
-	const followOutputRef = (0, import_react.useRef)(followOutput);
-	(0, import_react.useEffect)(() => {
-		followOutputRef.current = followOutput;
-	}, [followOutput]);
-	(0, import_react.useEffect)(() => {
-		if (scrollToTopOnFinish && !live && prevLive && followOutputRef.current) {
-			const el = getScrollElement();
-			if (el) {
-				setFollowOutput(false);
-				finishScrollTimerRef.current = setTimeout(() => {
-					finishScrollTimerRef.current = null;
-					if (!userInteractingRef.current && !pointerDownRef.current) el.scrollTo({
-						top: 0,
-						behavior: "auto"
-					});
-				}, 100);
-			}
-		}
-		return () => {
-			if (finishScrollTimerRef.current) {
-				clearTimeout(finishScrollTimerRef.current);
-				finishScrollTimerRef.current = null;
-			}
-		};
-	}, [
-		live,
-		prevLive,
-		scrollToTopOnFinish,
-		getScrollElement,
-		setFollowOutput
-	]);
-	const handleScroll = useRafThrottle(() => {
-		if (!live) return;
-		const el = getScrollElement();
-		if (!el) return;
-		if (!userInteractingRef.current && !pointerDownRef.current) return;
-		const atBottom = el.scrollHeight - el.scrollTop <= el.clientHeight + BOTTOM_THRESHOLD_PX;
-		if (atBottom && !followOutput) {
-			followUserActedRef.current = true;
-			setFollowOutput(true);
-		} else if (!atBottom && followOutput) {
-			followUserActedRef.current = true;
-			setFollowOutput(false);
-		}
-	});
-	(0, import_react.useEffect)(() => {
-		const el = getScrollElement();
-		if (!el) return;
-		el.addEventListener("scroll", handleScroll);
-		return () => el.removeEventListener("scroll", handleScroll);
-	}, [getScrollElement, handleScroll]);
-	(0, import_react.useEffect)(() => {
-		const el = getScrollElement();
-		if (!el) return;
-		const onWheel = () => noteUserInteraction();
-		const onTouchMove = () => noteUserInteraction();
-		const onKeyDown = (e) => {
-			if (SCROLL_RELEASE_KEYS.has(e.key)) noteUserInteraction();
-		};
-		const onPointerDown = () => {
-			pointerDownRef.current = true;
-			noteUserInteraction();
-		};
-		const onPointerUp = () => {
-			pointerDownRef.current = false;
-		};
-		el.addEventListener("wheel", onWheel, { passive: true });
-		el.addEventListener("touchmove", onTouchMove, { passive: true });
-		el.addEventListener("keydown", onKeyDown);
-		el.addEventListener("pointerdown", onPointerDown, { passive: true });
-		window.addEventListener("pointerup", onPointerUp, { passive: true });
-		window.addEventListener("pointercancel", onPointerUp, { passive: true });
-		return () => {
-			el.removeEventListener("wheel", onWheel);
-			el.removeEventListener("touchmove", onTouchMove);
-			el.removeEventListener("keydown", onKeyDown);
-			el.removeEventListener("pointerdown", onPointerDown);
-			window.removeEventListener("pointerup", onPointerUp);
-			window.removeEventListener("pointercancel", onPointerUp);
-		};
-	}, [getScrollElement, noteUserInteraction]);
-	const contentTotal = virtualizer.getTotalSize();
-	(0, import_react.useEffect)(() => {
-		if (!followOutput || !live) return;
-		const el = getScrollElement();
-		if (!el) return;
-		let releaseFrame = 0;
-		const frame = requestAnimationFrame(() => {
-			isAutoScrollingRef.current = true;
-			el.scrollTo({ top: el.scrollHeight });
-			lastAutoScrollTopRef.current = el.scrollTop;
-			releaseFrame = requestAnimationFrame(() => {
-				isAutoScrollingRef.current = false;
-			});
-		});
-		return () => {
-			cancelAnimationFrame(frame);
-			cancelAnimationFrame(releaseFrame);
-		};
-	}, [
-		contentTotal,
-		followOutput,
-		live,
-		getScrollElement
-	]);
-	const hasInitialScrolledRef = (0, import_react.useRef)(false);
-	const userScrolledRef = (0, import_react.useRef)(false);
-	const lastAutoScrollTopRef = (0, import_react.useRef)(null);
-	const settleFrameRef = (0, import_react.useRef)(0);
-	const releaseFrameRef = (0, import_react.useRef)(0);
-	const settleScrollToIndex = (0, import_react.useCallback)((index, align, onDone) => {
-		const jump = () => virtualizer.scrollToIndex(index, {
-			align,
-			behavior: "auto"
-		});
-		isAutoScrollingRef.current = true;
-		cancelAnimationFrame(releaseFrameRef.current);
-		const finish = () => {
-			const elNow = getScrollElement();
-			if (elNow) lastAutoScrollTopRef.current = elNow.scrollTop;
-			releaseFrameRef.current = requestAnimationFrame(() => {
-				isAutoScrollingRef.current = false;
-			});
-			onDone?.();
-		};
-		jump();
-		const el = getScrollElement();
-		if (!el) {
-			finish();
-			return;
-		}
-		cancelAnimationFrame(settleFrameRef.current);
-		let frames = 0;
-		let stable = 0;
-		let lastTop = el.scrollTop;
-		const settle = () => {
-			if (userInteractingRef.current) {
-				finish();
-				return;
-			}
-			jump();
-			stable = Math.abs(el.scrollTop - lastTop) <= 1 ? stable + 1 : 0;
-			lastTop = el.scrollTop;
-			if (stable < 3 && ++frames < 30) settleFrameRef.current = requestAnimationFrame(settle);
-			else finish();
-		};
-		settleFrameRef.current = requestAnimationFrame(settle);
-	}, [virtualizer, getScrollElement]);
-	(0, import_react.useEffect)(() => () => {
-		cancelAnimationFrame(settleFrameRef.current);
-		cancelAnimationFrame(releaseFrameRef.current);
-	}, []);
-	const lastInitialKeyRef = (0, import_react.useRef)(null);
-	const settleRestoreScroll = (0, import_react.useCallback)((getTargetSpacerTop) => {
-		isAutoScrollingRef.current = true;
-		cancelAnimationFrame(releaseFrameRef.current);
-		cancelAnimationFrame(settleFrameRef.current);
-		const el = getScrollElement();
-		const keyAtStart = lastInitialKeyRef.current;
-		const finish = () => {
-			if (el) lastAutoScrollTopRef.current = el.scrollTop;
-			releaseFrameRef.current = requestAnimationFrame(() => {
-				isAutoScrollingRef.current = false;
-			});
-		};
-		if (!el) {
-			finish();
-			return;
-		}
-		el.scrollTop = getTargetSpacerTop();
-		let frames = 0;
-		let stable = 0;
-		let lastTop = el.scrollTop;
-		const settle = () => {
-			if (userInteractingRef.current || lastInitialKeyRef.current !== keyAtStart) {
-				finish();
-				return;
-			}
-			const preTop = el.scrollTop;
-			el.scrollTop = getTargetSpacerTop();
-			const postTop = el.scrollTop;
-			stable = Math.abs(preTop - lastTop) > 1 || Math.abs(postTop - lastTop) > 1 ? 0 : stable + 1;
-			lastTop = postTop;
-			if (stable < 3 && ++frames < 30) settleFrameRef.current = requestAnimationFrame(settle);
-			else finish();
-		};
-		settleFrameRef.current = requestAnimationFrame(settle);
-	}, [getScrollElement]);
-	const lastInitialIndexRef = (0, import_react.useRef)(void 0);
-	const hasResetTopRef = (0, import_react.useRef)(false);
-	(0, import_react.useEffect)(() => {
-		if (lastInitialKeyRef.current !== persistenceKey || lastInitialIndexRef.current !== initialIndex) {
-			hasInitialScrolledRef.current = false;
-			userScrolledRef.current = false;
-			hasResetTopRef.current = false;
-			lastInitialKeyRef.current = persistenceKey;
-			lastInitialIndexRef.current = initialIndex ?? void 0;
-		}
-		if (hasInitialScrolledRef.current) return;
-		const el = getScrollElement();
-		if (!el) return;
-		const snapshot = getRestoreSnapshot();
-		let releaseFrame = 0;
-		const frame = requestAnimationFrame(() => {
-			isAutoScrollingRef.current = true;
-			const release = () => {
-				lastAutoScrollTopRef.current = el.scrollTop;
-				releaseFrame = requestAnimationFrame(() => {
-					isAutoScrollingRef.current = false;
-				});
-			};
-			if (initialIndex != null) {
-				hasInitialScrolledRef.current = true;
-				settleScrollToIndex(initialIndex, "start");
-			} else if (followOutput && live) {
-				hasInitialScrolledRef.current = true;
-				release();
-			} else if (snapshot) {
-				hasInitialScrolledRef.current = true;
-				if (!userScrolledRef.current) {
-					const clampToMax = snapshot.totalCount !== data.length;
-					settleRestoreScroll(() => {
-						const target = toSpacerScroll(snapshot.scrollOffset);
-						if (!clampToMax) return target;
-						const maxSpacerTop = Math.max(0, toSpacerScroll(virtualizer.getTotalSize()) - el.clientHeight);
-						return Math.min(target, maxSpacerTop);
-					});
-				} else release();
-			} else if (!userScrolledRef.current && !hasResetTopRef.current) {
-				el.scrollTop = 0;
-				hasResetTopRef.current = true;
-				release();
-			} else release();
-		});
-		return () => {
-			cancelAnimationFrame(frame);
-			if (releaseFrame) {
-				cancelAnimationFrame(releaseFrame);
-				isAutoScrollingRef.current = false;
-			}
-		};
-	}, [
-		persistenceKey,
-		initialIndex,
-		settleScrollToIndex,
-		settleRestoreScroll,
-		contentTotal,
-		data.length,
-		followOutput,
-		live,
-		getRestoreSnapshot,
-		getScrollElement,
-		toSpacerScroll,
-		virtualizer
-	]);
-	const buildSnapshot = (0, import_react.useCallback)((el) => ({
-		version: 1,
-		scrollOffset: toContentScroll(el.scrollTop),
-		totalCount: data.length
-	}), [toContentScroll, data.length]);
-	const persistTimerRef = (0, import_react.useRef)(null);
-	const pendingSnapshotRef = (0, import_react.useRef)(null);
-	const persistOnScroll = useRafThrottle(() => {
-		if (isAutoScrollingRef.current) return;
-		const elNow = getScrollElement();
-		if (elNow && lastAutoScrollTopRef.current !== null && Math.abs(elNow.scrollTop - lastAutoScrollTopRef.current) <= 2) return;
-		userScrolledRef.current = true;
-		if (elNow) pendingSnapshotRef.current = buildSnapshot(elNow);
-		if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
-		persistTimerRef.current = setTimeout(() => {
-			persistTimerRef.current = null;
-			pendingSnapshotRef.current = null;
-			const el = getScrollElement();
-			if (!el) return;
-			recordSnapshot(buildSnapshot(el));
-		}, PERSIST_DEBOUNCE_MS);
-	});
-	(0, import_react.useEffect)(() => {
-		const el = getScrollElement();
-		if (!el) return;
-		el.addEventListener("scroll", persistOnScroll);
-		return () => el.removeEventListener("scroll", persistOnScroll);
-	}, [getScrollElement, persistOnScroll]);
-	(0, import_react.useEffect)(() => () => {
-		if (persistTimerRef.current) {
-			clearTimeout(persistTimerRef.current);
-			persistTimerRef.current = null;
-			if (pendingSnapshotRef.current) recordSnapshot(pendingSnapshotRef.current);
-		}
-		pendingSnapshotRef.current = null;
-	}, [recordSnapshot]);
-	(0, import_react.useEffect)(() => () => {
-		if (interactTimerRef.current) {
-			clearTimeout(interactTimerRef.current);
-			interactTimerRef.current = null;
-		}
-	}, []);
-	const items = virtualizer.getVirtualItems();
-	const startIndex = items[0]?.index ?? 0;
-	const endIndex = items[items.length - 1]?.index ?? 0;
-	const visibleRangeRef = (0, import_react.useRef)({
-		startIndex: 0,
-		endIndex: 0
-	});
-	(0, import_react.useEffect)(() => {
-		const range = {
-			startIndex,
-			endIndex
-		};
-		visibleRangeRef.current = range;
-		onVisibleRangeChange?.(range);
-	}, [
-		startIndex,
-		endIndex,
-		onVisibleRangeChange
-	]);
-	(0, import_react.useImperativeHandle)(ref, () => ({
-		scrollToIndex(opts) {
-			const behavior = scale > SMOOTH_SCROLL_MAX_S ? "auto" : opts.behavior ?? (smoothScroll ? "smooth" : "auto");
-			if (behavior === "auto") {
-				settleScrollToIndex(opts.index, opts.align, opts.onDone);
-				return;
-			}
-			virtualizer.scrollToIndex(opts.index, {
-				align: opts.align,
-				behavior
-			});
-			opts.onDone?.();
-		},
-		scrollTo(opts) {
-			const el = getScrollElement();
-			if (!el) return;
-			const behavior = scale > SMOOTH_SCROLL_MAX_S ? "auto" : opts.behavior ?? (smoothScroll ? "smooth" : "auto");
-			el.scrollTo({
-				top: opts.top,
-				behavior
-			});
-		},
-		getState(callback) {
-			const el = getScrollElement();
-			callback({
-				version: 1,
-				scrollOffset: el ? toContentScroll(el.scrollTop) : 0,
-				totalCount: data.length
-			});
-		},
-		jumpToStart() {
-			const el = getScrollElement();
-			if (el) el.scrollTop = 0;
-		},
-		jumpToEnd() {
-			const el = getScrollElement();
-			if (el) el.scrollTop = el.scrollHeight;
-		}
-	}), [
-		virtualizer,
-		scale,
-		settleScrollToIndex,
-		smoothScroll,
-		getScrollElement,
-		toContentScroll,
-		data.length
-	]);
-	const { registerVirtualList, registerMatchCounter } = useExtendedFind();
-	const searchInData = (0, import_react.useCallback)((term, direction, onContentReady) => {
-		if (!term || data.length === 0) return Promise.resolve(false);
-		const isForward = direction === "forward";
-		const len = data.length;
-		const range = visibleRangeRef.current;
-		const current = isForward ? range.endIndex : range.startIndex;
-		const getText = itemSearchText ?? ((item) => JSON.stringify(item));
-		const prepared = prepareSearchTerm(term);
-		for (let offset = 1; offset < len; offset++) {
-			const i = isForward ? (current + offset) % len : (current - offset + len) % len;
-			const item = data[i];
-			if (item === void 0) continue;
-			const texts = getText(item);
-			if ((Array.isArray(texts) ? texts : [texts]).some((text) => {
-				const lower = text.toLowerCase();
-				if (lower.includes(prepared.simple)) return true;
-				if (prepared.unquoted && lower.includes(prepared.unquoted)) return true;
-				if (prepared.jsonEscaped && lower.includes(prepared.jsonEscaped)) return true;
-				return false;
-			})) {
-				settleScrollToIndex(i, "center");
-				setTimeout(onContentReady, 200);
-				return Promise.resolve(true);
-			}
-		}
-		return Promise.resolve(false);
-	}, [
-		data,
-		itemSearchText,
-		settleScrollToIndex
-	]);
-	const precomputedSearchTexts = (0, import_react.useMemo)(() => {
-		const getText = itemSearchText ?? ((item) => JSON.stringify(item));
-		return data.map((item) => {
-			const texts = getText(item);
-			return (Array.isArray(texts) ? texts : [texts]).map((t) => t.toLowerCase());
-		});
-	}, [data, itemSearchText]);
-	const countMatchesInData = (0, import_react.useCallback)((term) => {
-		if (!term || precomputedSearchTexts.length === 0) return 0;
-		return countMatchesInTexts(precomputedSearchTexts, term.toLowerCase());
-	}, [precomputedSearchTexts]);
-	(0, import_react.useEffect)(() => {
-		if (findScope === "none") return;
-		const u1 = registerVirtualList(persistenceKey, searchInData);
-		const u2 = registerMatchCounter(persistenceKey, countMatchesInData);
-		return () => {
-			u1();
-			u2();
-		};
-	}, [
-		findScope,
-		persistenceKey,
-		registerVirtualList,
-		registerMatchCounter,
-		searchInData,
-		countMatchesInData
-	]);
-	const ItemSlot = components?.Item;
-	const FooterSlot = components?.Footer;
-	const ownsScroll = !externalScrollRef;
-	const firstItem = items.length > 0 ? items[0] : void 0;
-	const lastItem = items.length > 0 ? items[items.length - 1] : void 0;
-	const topPaddingContent = firstItem?.start ?? 0;
-	const topPaddingSpacer = topPaddingContent / scale;
-	const renderedBandHeight = firstItem && lastItem ? lastItem.start + lastItem.size - firstItem.start : 0;
-	const bottomPaddingSpacer = (lastItem ? Math.max(0, virtualizer.getTotalSize() - (lastItem.start + lastItem.size)) : virtualizer.getTotalSize()) / scale;
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-		ref: (el) => {
-			if (!ownsScroll) return;
-			internalScrollRef.current = el;
-			setScrollParent((prev) => prev === el ? prev : el);
-		},
-		className: clsx(VirtualList_module_default.scroller, className),
-		style: ownsScroll ? {
-			height: "100%",
-			width: "100%",
-			overflow: "auto"
-		} : { width: "100%" },
-		children: [
-			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(PaddingChunks, {
-				height: topPaddingSpacer,
-				prefix: "top"
-			}),
-			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-				style: {
-					position: "relative",
-					height: renderedBandHeight
-				},
-				children: items.map((vItem) => {
-					const item = data[vItem.index];
-					if (item === void 0) return null;
-					const top = vItem.start - topPaddingContent;
-					const child = renderRow(vItem.index, item);
-					if (ItemSlot) return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-						ref: virtualizer.measureElement,
-						"data-index": vItem.index,
-						style: {
-							position: "absolute",
-							top,
-							left: 0,
-							right: 0
-						},
-						children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ItemSlot, {
-							"data-index": vItem.index,
-							"data-item-index": vItem.index,
-							"data-known-size": vItem.size,
-							style: {},
-							children: child
-						})
-					}, vItem.key);
-					return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-						ref: virtualizer.measureElement,
-						"data-index": vItem.index,
-						"data-item-index": vItem.index,
-						"data-known-size": vItem.size,
-						style: {
-							position: "absolute",
-							top,
-							left: 0,
-							right: 0
-						},
-						children: child
-					}, vItem.key);
-				})
-			}),
-			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(PaddingChunks, {
-				height: bottomPaddingSpacer,
-				prefix: "bot"
-			}),
-			showProgress && (FooterSlot ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(FooterSlot, {}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-				style: {
-					display: "flex",
-					justifyContent: "center",
-					padding: "1rem"
-				},
-				children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(PulsingDots, {
-					subtle: false,
-					size: "medium"
-				})
-			}))
-		]
-	});
-}
 var GeneratingIndicator_module_default = {
 	bar: "_bar_pg4l8_1",
 	"gen-sweep": "_gen-sweep_pg4l8_1",
@@ -74336,7 +71626,7 @@ var chunkedConversation = (chunked) => {
 			const messages = await chunked.messages.getRange(rangeLo, rangeHi);
 			return resolve ? withAttachmentsResolved(messages, chunked, `${label} range ${i}`) : messages;
 		}))).flat();
-		log$4.info(`read ${label}: ${messages.length} messages via ${ranges.length} range${ranges.length === 1 ? "" : "s"}`);
+		log$3.info(`read ${label}: ${messages.length} messages via ${ranges.length} range${ranges.length === 1 ? "" : "s"}`);
 		return messages;
 	};
 	return {
@@ -74444,7 +71734,7 @@ var windowedMessageRows = (conversation, options = kDefaultMessageRowOptions) =>
 				const msgLo = facts[sLo]?.start ?? 0;
 				const msgHi = sHi < facts.length ? facts[sHi]?.start ?? index.scanPos : exhausted ? conversation.messageCount : index.scanPos;
 				const folded = buildMessageRowsWindow(await conversation.getMessages(msgLo, msgHi), msgLo, index.startNumber(sLo), options);
-				if (folded.length !== sHi - sLo) log$4.error(`windowed fold mismatch: rows [${sLo}, ${sHi}) folded to ${folded.length} rows from messages [${msgLo}, ${msgHi})`);
+				if (folded.length !== sHi - sLo) log$3.error(`windowed fold mismatch: rows [${sLo}, ${sHi}) folded to ${folded.length} rows from messages [${msgLo}, ${msgHi})`);
 				rows.push(...folded);
 			}
 			return {
@@ -90030,6 +87320,10 @@ function labelForOutlineNode(node) {
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/outline/TranscriptOutline.tsx
 var outlineNodeRunning = ({ running, backfilling, isLast }) => running && !backfilling && isLast;
+/** The outline list's DOM id and VirtualList persistence-key prefix (the full
+*  key appends the transcript's listId). Exported so the app's per-sample
+*  reset can clear the persisted snapshots by this prefix. */
+var kTranscriptOutlineListKey = "transcript-tree";
 var EventPaddingNode = {
 	id: "padding",
 	event: {
@@ -90050,10 +87344,8 @@ var OutlineLoadingNode = {
 	...EventPaddingNode,
 	id: "loading"
 };
-var TranscriptOutline = ({ eventNodes, defaultCollapsedIds, running, backfilling, className, scrollRef, outlineScrollEl, style, agentName, onHasNodesChange, onNavigateToEvent, scrollTrackOffset, getEventUrl, collapse, selectedOutlineId, setSelectedOutlineId, renderLink }) => {
-	const id = "transcript-tree";
-	const listHandle = (0, import_react.useRef)(null);
-	const { getRestoreState } = useVirtuosoState(listHandle, id);
+var TranscriptOutline = ({ eventNodes, defaultCollapsedIds, running, backfilling, className, scrollRef, outlineScrollEl, style, listId, agentName, onHasNodesChange, onNavigateToEvent, scrollTrackOffset, getEventUrl, collapse, selectedOutlineId, setSelectedOutlineId, renderLink }) => {
+	const id = kTranscriptOutlineListKey;
 	const { collapsedIds, getCollapsed, setCollapsed } = useOutlineCollapse(defaultCollapsedIds, collapse);
 	const { outlineNodeList, allNodesList } = useOutlineNodes(eventNodes, collapsedIds);
 	const resolvedSelectedId = (0, import_react.useMemo)(() => resolveOutlineSelection(selectedOutlineId, allNodesList, outlineNodeList), [
@@ -90120,36 +87412,28 @@ var TranscriptOutline = ({ eventNodes, defaultCollapsedIds, running, backfilling
 		setCollapsed,
 		renderLink
 	]);
+	const listData = (0, import_react.useMemo)(() => backfilling ? [
+		...outlineNodeList,
+		OutlineLoadingNode,
+		EventPaddingNode
+	] : [...outlineNodeList, EventPaddingNode], [outlineNodeList, backfilling]);
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 		ref: rootRef,
 		style,
 		children: [agentName && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 			className: clsx(TranscriptOutline_module_default.rootHeader, "text-size-smaller", "text-style-secondary"),
 			children: agentName
-		}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(es, {
-			ref: listHandle,
-			customScrollParent: outlineScrollEl ?? void 0,
+		}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(VirtualList, {
+			persistenceKey: listId ? `${id}:${listId}` : id,
 			id,
-			data: backfilling ? [
-				...outlineNodeList,
-				OutlineLoadingNode,
-				EventPaddingNode
-			] : [...outlineNodeList, EventPaddingNode],
-			defaultItemHeight: 50,
-			itemContent: renderRow,
-			atBottomThreshold: 30,
-			increaseViewportBy: {
-				top: 300,
-				bottom: 300
-			},
-			overscan: {
-				main: 10,
-				reverse: 10
-			},
-			className: clsx(className, "transcript-outline"),
-			skipAnimationFrameInResizeObserver: true,
-			restoreStateFrom: getRestoreState(),
-			tabIndex: 0
+			scrollRef: outlineScrollEl ?? null,
+			data: listData,
+			renderRow,
+			estimatedItemHeight: 50,
+			overscan: 10,
+			embedded: true,
+			findScope: "none",
+			className: clsx(className, "transcript-outline")
 		})]
 	});
 };
@@ -90177,7 +87461,7 @@ var TranscriptLayout_module_default = {
 * button, outline tree) or the collapsed show-outline toggle, pinned below
 * the swimlanes via StickyScroll.
 */
-var OutlineSidebar = ({ outline, isCollapsed, hasNodes, onHasNodesChange, eventNodes, defaultCollapsedIds, scrollRef, running, backfilling, agentName, offsetTop, collapseState, getEventUrl }) => {
+var OutlineSidebar = ({ outline, isCollapsed, hasNodes, onHasNodesChange, eventNodes, defaultCollapsedIds, scrollRef, listId, running, backfilling, agentName, offsetTop, collapseState, getEventUrl }) => {
 	const [outlineScrollEl, setOutlineScrollEl] = (0, import_react.useState)(null);
 	const { scrollRef: externalScrollRef } = outline;
 	const handleOutlineScrollRef = (0, import_react.useCallback)((el) => {
@@ -90214,6 +87498,7 @@ var OutlineSidebar = ({ outline, isCollapsed, hasNodes, onHasNodesChange, eventN
 				defaultCollapsedIds,
 				scrollRef,
 				outlineScrollEl,
+				listId,
 				running,
 				backfilling,
 				agentName,
@@ -90617,7 +87902,7 @@ function positionSelectionAroundTerm(eventId, term, direction) {
 }
 /**
 * If the current selection no longer covers `term` inside the panel
-* (because a late settling pass — Virtuoso re-render, lazy syntax
+* (because a late settling pass — virtual-list re-render, lazy syntax
 * highlighting, ExpandablePanel auto-expand reflow — detached the text
 * node `window.find` was anchored on), re-anchor the selection to the
 * first occurrence of `term` in the panel. Returns false (no-op) when
@@ -90662,7 +87947,7 @@ async function waitForRow(viewNodesRef, eventId) {
 }
 /**
 * Wait until the event panel is actually rendered to the DOM. After
-* `scrollToEvent` triggers a Virtuoso scroll for an off-screen target, the
+* `scrollToEvent` triggers a virtual-list scroll for an off-screen target, the
 * panel takes several frames to mount. Returns false on timeout. The budget
 * is shorter than for row mount because we use this to detect unreachable
 * matches and skip them — too long a wait makes skipping feel laggy.
@@ -91407,6 +88692,7 @@ var TranscriptLayout = ({ events, hiddenEventTypes, running = false, backfilling
 							isCollapsed: isOutlineCollapsed,
 							hasNodes: outlineHasNodes,
 							onHasNodesChange: onOutlineHasNodesChange,
+							listId,
 							eventNodes,
 							defaultCollapsedIds,
 							scrollRef,
@@ -142462,8 +139748,12 @@ var LogLoadController = () => {
 };
 //#endregion
 //#region src/app/routing/loaders/SampleLoadController.tsx
-var kSampleListKeys = ["transcript-tree"];
-var kSampleBagKeys = ["scrollPosition", "listPosition"];
+var kSampleBagKeys = [
+	"scrollPosition",
+	"listPosition",
+	kTranscriptOutlineListKey,
+	kMetadataGridKeyPrefix
+];
 /**
 * Reacts to the selected sample changing — no fetching (the sample queries are
 * mounted by the detail views through `useSelectedEvalSampleData`). Resets the per-sample
@@ -142474,21 +139764,18 @@ var kSampleBagKeys = ["scrollPosition", "listPosition"];
 var SampleLoadController = () => {
 	const handle = useStore((state) => state.log.selectedSampleHandle);
 	const identity = handle ? `${handle.logFile}:${handle.id}:${handle.epoch}` : void 0;
-	const clearListPosition = useStore((state) => state.appActions.clearListPosition);
 	const removeBagsByPrefix = useStore((state) => state.appActions.removeBagsByPrefix);
 	const clearCollapsedEvents = useStore((state) => state.sampleActions.clearCollapsedEvents);
 	const setTimelineSelected = useStore((state) => state.sampleActions.setTimelineSelected);
 	const setActiveTimelineIndex = useStore((state) => state.sampleActions.setActiveTimelineIndex);
 	(0, import_react.useEffect)(() => {
 		if (identity === void 0) return;
-		for (const key of kSampleListKeys) clearListPosition(key);
 		for (const bag of kSampleBagKeys) removeBagsByPrefix(bag);
 		clearCollapsedEvents();
 		setTimelineSelected(null);
 		setActiveTimelineIndex(0);
 	}, [
 		identity,
-		clearListPosition,
 		removeBagsByPrefix,
 		clearCollapsedEvents,
 		setTimelineSelected,

@@ -1,9 +1,9 @@
 """Unit tests for the `inspect ctl` CLI.
 
 Covers target resolution (id + name matching), the noun-group command
-surface (implied `list`, strict verb boundary, hidden aliases), the agent
-output contract (envelopes, unconditional task_id, mutation results,
-cursor validation), and rendering helpers.
+surface (implied `list`, strict verb boundary), the agent output contract
+(envelopes, unconditional task_id, mutation results, cursor validation),
+and rendering helpers.
 """
 
 import json
@@ -15,16 +15,19 @@ from typing import Any
 
 import anyio
 import click
+import httpx
 import pytest
 from test_helpers.trace import action_record, write_trace_log
 
 from _control.conftest import cli_runner
 from inspect_ai._cli.ctl import (
     _KNOB_SCOPE,
-    _KNOB_SINCE,
+    _REQUEUE_ROUTE_MISSING,
     _SHORT_ID_LEN,
     _ConfigResult,
+    _CtlFailure,
     _echo_error,
+    _failure_prefix,
     _FetchedSummaries,
     _print_errored_samples_footer,
     _print_events,
@@ -1031,6 +1034,42 @@ def test_footer_reports_each_holding_latch_when_mixed(
     assert "inspect ctl process resume" not in out
 
 
+def test_footer_composes_quiesced_and_held_details(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The paused-footer detail combines the quiesced and held counts.
+
+    Held samples are summed across ALL rows, not just paused ones: a hard
+    model pause holds other tasks' grader/role calls to that model without
+    stamping a latch source on their rows.
+    """
+    summaries: list[dict[str, Any]] = [
+        {"keep_alive": True, "paused": ["task"], "quiesced": True},
+        {"keep_alive": True, "paused": ["task"], "paused_now": ["task"], "held": 2},
+        {"keep_alive": True, "paused": None, "held": 1},
+    ]
+    _print_keep_alive_footer(summaries)
+    out = capsys.readouterr().out
+    assert "paused: 2/3 tasks (1 quiesced, 3 held)" in out
+
+
+def test_footer_warns_on_held_samples_with_no_paused_rows(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Held samples with no paused row still print the don't-kill-yet warning.
+
+    A hard model pause whose primary tasks have no rows yet leaves the held
+    samples as the only visible trace — the footer must not stay silent.
+    """
+    _print_keep_alive_footer([{"keep_alive": True, "held": 2}])
+    out = capsys.readouterr().out
+    assert "held: 2 samples held at the next model call" in out
+    assert "forfeits in-sample progress" in out
+    # singular form
+    _print_keep_alive_footer([{"keep_alive": True, "held": 1}])
+    assert "held: 1 sample held" in capsys.readouterr().out
+
+
 def test_format_paused_renders_source_lists() -> None:
     from inspect_ai._cli.ctl import _format_paused
 
@@ -1040,6 +1079,39 @@ def test_format_paused_renders_source_lists() -> None:
     assert _format_paused({"paused": "both"}) == "task+process"
     assert _format_paused({"paused": "task"}) == "task"
     assert _format_paused({"paused": None}) == ""
+
+
+def test_format_paused_marks_hard_sources_and_held_counts() -> None:
+    from inspect_ai._cli.ctl import _format_paused
+
+    # only the hard-holding latch gets the (now) marker
+    assert (
+        _format_paused({"paused": ["task", "model"], "paused_now": ["model"]})
+        == "task+model(now)"
+    )
+    # a hard pause issued while nothing was in flight quiesces immediately
+    assert (
+        _format_paused({"paused": ["task"], "paused_now": ["task"], "quiesced": True})
+        == "task(now) (quiesced)"
+    )
+    # a nonzero held count replaces the quiesced marker (a held sample is
+    # still dispatched, so the two can't co-occur)
+    assert (
+        _format_paused({"paused": ["task"], "paused_now": ["task"], "held": 2})
+        == "task(now) (2 held)"
+    )
+    # held with no latch sources of its own: another task's `model pause
+    # --now` holds this task's grader/role calls to that model
+    assert _format_paused({"paused": None, "held": 3}) == "(3 held)"
+
+
+def test_format_process_paused_marks_hard_pause() -> None:
+    from inspect_ai._cli.ctl import _format_process_paused
+
+    assert _format_process_paused(None, False) == "?"
+    assert _format_process_paused(False, False) == "no"
+    assert _format_process_paused(True, False) == "yes"
+    assert _format_process_paused(True, True) == "yes (now)"
 
 
 class _FakeServer:
@@ -1731,13 +1803,22 @@ def test_fetch_summaries_all_busy_narrates_once_per_invocation(
 
 
 class _DiscServer:
-    """Discovery entry double (pid / socket_path / started_at / api_version)."""
+    """Discovery entry double (pid / socket_path / started_at / api_version).
 
-    def __init__(self, pid: int, api_version: int = 0) -> None:
+    Defaults to the current `CONTROL_API_VERSION` — the hermetic tests model
+    a current server unless a test explicitly exercises version skew (the
+    strict floor, the provenance gate) by passing an older `api_version`.
+    """
+
+    def __init__(self, pid: int, api_version: int | None = None) -> None:
+        from inspect_ai._control import CONTROL_API_VERSION
+
         self.pid = pid
         self.socket_path = f"/tmp/{pid}.sock"
         self.started_at = 100.0
-        self.api_version = api_version
+        self.api_version = (
+            api_version if api_version is not None else CONTROL_API_VERSION
+        )
 
 
 def _full_summary(
@@ -2877,96 +2958,6 @@ def test_config_busy_read_points_at_pid(
     assert "inspect ctl process anomalies 7" in result.stderr
 
 
-def test_old_flat_spellings_hidden_from_help() -> None:
-    result = cli_runner().invoke(ctl_command, ["--help"])
-    for old in (
-        "tasks",
-        "samples",
-        "errors",
-        "events",
-        "keep",
-        "release",
-        "flush",
-        "buffer",
-        "limits",
-    ):
-        assert f"\n  {old} " not in result.output, old
-
-
-def test_tasks_alias_delegates_with_deprecation_note(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The hidden alias runs the new implementation (new JSON) + stderr note."""
-    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
-    result = cli_runner().invoke(ctl_command, ["tasks", "--json"])
-    assert result.exit_code == 0
-    payload = json.loads(result.stdout)  # note on stderr keeps stdout parseable
-    assert payload["tasks"][0]["task_id"] == "aaa111"
-    assert "is now `inspect ctl task list`" in result.stderr
-
-
-def test_samples_alias_accepts_content_flag(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The alias honors the `--content` opt-in for its rows' error field."""
-    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
-    seen: dict[str, Any] = {}
-
-    async def fake_samples(
-        socket_path: Any,
-        eval_id: str,
-        active_since: float | None = None,
-        **kwargs: Any,
-    ) -> _SamplesPage:
-        seen.update(kwargs)
-        return _SamplesPage(as_of=123.0, samples=[_sample_row("bad", error="boom")])
-
-    monkeypatch.setattr("inspect_ai._cli.ctl._fetch_samples_async", fake_samples)
-    result = cli_runner().invoke(ctl_command, ["samples", "--content", "--json"])
-    assert result.exit_code == 0, result.output
-    assert seen["content"] is True
-    assert "is now `inspect ctl sample list`" in result.stderr
-
-
-def test_errors_alias_accepts_content_flag(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The alias honors the `--content` opt-in its withheld footer advertises."""
-    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
-    seen: dict[str, Any] = {}
-
-    async def fake_samples(
-        socket_path: Any,
-        eval_id: str,
-        active_since: float | None = None,
-        **kwargs: Any,
-    ) -> _SamplesPage:
-        seen.update(kwargs)
-        return _SamplesPage(as_of=123.0, samples=[_sample_row("bad", error="boom")])
-
-    monkeypatch.setattr("inspect_ai._cli.ctl._fetch_samples_async", fake_samples)
-    result = cli_runner().invoke(ctl_command, ["errors", "--content", "--json"])
-    assert result.exit_code == 0, result.output
-    assert seen["content"] is True
-    assert "is now `inspect ctl sample errors`" in result.stderr
-
-
-def test_events_alias_accepts_content_flag(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The alias honors the `--content` opt-in its metadata footer advertises."""
-    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
-    seen: dict[str, Any] = {}
-
-    def fake_events(
-        socket_path: Any, eval_id: str, sample_id: str, epoch: int, **kwargs: Any
-    ) -> dict[str, Any]:
-        seen.update(kwargs)
-        return {"events": [], "next": None, "done": True}
-
-    monkeypatch.setattr("inspect_ai._cli.ctl._fetch_sample_events", fake_events)
-    result = cli_runner().invoke(
-        ctl_command, ["events", "aaa111", "s1", "--content", "--json"]
-    )
-    assert result.exit_code == 0, result.output
-    assert seen["content"] is True
-    assert "is now `inspect ctl sample events`" in result.stderr
-
-
 def _stub_limits(
     monkeypatch: pytest.MonkeyPatch,
     buffer: dict[str, Any] | None = None,
@@ -2991,18 +2982,6 @@ def _stub_limits(
         )
 
     monkeypatch.setattr("inspect_ai._cli.ctl._exec_limits", fake_limits)
-
-
-def test_limits_alias_delegates_to_config(monkeypatch: pytest.MonkeyPatch) -> None:
-    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
-    _stub_limits(
-        monkeypatch, buffer={"log_buffer": 10, "pending": 0, "log_shared": None}
-    )
-    result = cli_runner().invoke(ctl_command, ["limits", "--json"])
-    assert result.exit_code == 0
-    payload = json.loads(result.stdout)
-    assert payload["knobs"]["max_samples"]["scope"] == "task"
-    assert "is now `inspect ctl config`" in result.stderr
 
 
 def test_config_view_tolerates_missing_buffer(
@@ -3085,41 +3064,11 @@ def test_config_set_buffer_error_does_not_claim_unapplied_knobs(
     assert "! log_buffer" not in result.stderr
 
 
-def test_config_gates_key_on_pre_version_server(
+def test_config_key_retune_sent_and_rendered(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """`--key` gates on the shipped `_KNOB_SINCE` entry (since-2).
-
-    An older server's PATCH handler silently ignores the unknown key/key_limit
-    params (returning a success-shaped view with the retune unapplied), so the
-    gate must refuse the whole request pre-flight — a server that predates the
-    knob refuses it, and a current server (advertising `CONTROL_API_VERSION`)
-    accepts it.
-    """
+    """A `--key` retune is sent as the `(name, limit)` pair and rendered."""
     from inspect_ai._control import CONTROL_API_VERSION
-
-    _patch_surface(
-        monkeypatch,
-        [_full_summary("aaa111", "t1")],
-        servers=[_DiscServer(7, api_version=1)],
-    )
-
-    def _no_patch(*args: Any, **kwargs: Any) -> _ConfigResult:
-        raise AssertionError("the mutation must not be sent")
-
-    monkeypatch.setattr("inspect_ai._cli.ctl._exec_limits", _no_patch)
-    result = cli_runner().invoke(ctl_command, ["config", "--key", "my_api", "2"])
-    assert result.exit_code == 1
-    assert "--key not supported" in result.stderr
-    assert "pid 7 is running an older inspect" in result.stderr
-
-    # the gate covers dry runs too: a dry-run PATCH on an older server would
-    # report a success-shaped view that omits the key retune
-    dry = cli_runner().invoke(
-        ctl_command, ["config", "--key", "my_api", "2", "--dry-run"]
-    )
-    assert dry.exit_code == 1
-    assert "--key not supported" in dry.stderr
 
     _patch_surface(
         monkeypatch,
@@ -3198,25 +3147,18 @@ def test_config_help_scope_tags_derive_from_knob_table() -> None:
         assert f"[{scope}]" in options[start : start + 120], knob
 
 
-def test_knob_since_table_is_consistent() -> None:
-    """Every knob has a min-version entry, and no entry outruns the constant.
+def test_client_gate_versions_do_not_outrun_version_constant() -> None:
+    """The client-side gates' min-versions must not exceed the constant.
 
-    Key parity (also asserted at runtime in `_exec_limits`) forces a new knob
-    to declare its since-version explicitly rather than silently defaulting
-    to "understood by every server". The second assertion catches
-    forgot-to-bump variant A (a `_KNOB_SINCE` entry of N+1 while
-    `CONTROL_API_VERSION` is still N), which would make the CLI block its own
-    new knob against every server — including current ones. (Variant B —
-    reusing the current N without a bump — is convention only; see the
-    comment on `CONTROL_API_VERSION`.)
+    A `_PROVENANCE_SINCE` of N+1 while `CONTROL_API_VERSION` is still N would
+    make the CLI silently drop the defaulted author against every server —
+    including current ones; a too-high `_STRICT_SINCE` would refuse every
+    knob mutation the same way.
     """
+    from inspect_ai._cli.ctl import _PROVENANCE_SINCE, _STRICT_SINCE
     from inspect_ai._control import CONTROL_API_VERSION
 
-    assert _KNOB_SINCE.keys() == _KNOB_SCOPE.keys()
-    assert max(_KNOB_SINCE.values()) <= CONTROL_API_VERSION
-    # the provenance params' gate must not outrun the constant either
-    from inspect_ai._cli.ctl import _PROVENANCE_SINCE
-
+    assert _STRICT_SINCE <= CONTROL_API_VERSION
     assert _PROVENANCE_SINCE <= CONTROL_API_VERSION
 
 
@@ -3647,165 +3589,84 @@ def test_config_provenance_rides_key_only_retune(
     assert isinstance(sent["author"], str) and sent["author"]
 
 
-def test_config_gates_newer_knob_on_older_server(
+def test_config_knobs_floored_on_pre_strict_server(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A knob the target server predates hard-errors before the PATCH.
+    """Knob mutations gate only on the strict floor, never per knob.
 
-    An older server's PATCH handler silently ignores unknown query params
-    (applying whatever it does recognize), so the gate must fail the whole
-    request pre-flight — `_exec_limits` must never run.
+    The per-knob pre-flight version gate (`_KNOB_SINCE`) was retired with
+    issue #67: a strict process (`_control/strict.py`, version >=
+    `_STRICT_SINCE`) rejects a knob it doesn't know with a 400 — atomically,
+    before anything is applied — and the CLI surfaces that error. A
+    pre-strict process would instead silently partial-apply, so any knob
+    mutation against one is refused outright before the PATCH is sent (dry
+    runs included — a dry-run PATCH on a tolerant server reports a
+    success-shaped view that omits the unknown knobs). Pins both sides of
+    the floor: refusal below `_STRICT_SINCE` (even a knob a tolerant server
+    could honor — the floor is deliberately tableless), the PATCH at exactly
+    `_STRICT_SINCE`.
     """
+    from inspect_ai._cli.ctl import _STRICT_SINCE
+
     _patch_surface(
         monkeypatch,
         [_full_summary("aaa111", "t1")],
-        servers=[_DiscServer(7, api_version=0)],
+        servers=[_DiscServer(7, api_version=_STRICT_SINCE - 1)],
     )
-    monkeypatch.setitem(_KNOB_SINCE, "max_samples", 1)
 
     def _no_patch(*args: Any, **kwargs: Any) -> _ConfigResult:
         raise AssertionError("the mutation must not be sent")
 
     monkeypatch.setattr("inspect_ai._cli.ctl._exec_limits", _no_patch)
 
+    # max_samples predates version reporting — a tolerant server would honor
+    # it — but the tableless floor refuses the mutation anyway
     result = cli_runner().invoke(ctl_command, ["config", "--max-samples", "3"])
     assert result.exit_code == 1
-    assert "--max-samples not supported" in result.stderr
+    assert "--max-samples" in result.stderr
     assert "pid 7 is running an older inspect" in result.stderr
-    assert "restart the eval" in result.stderr
+    assert "No changes were applied" in result.stderr
 
-    # the gate covers dry runs too: a dry-run PATCH on an older server would
-    # report a success-shaped view that omits the unknown knobs
     dry = cli_runner().invoke(
         ctl_command, ["config", "--max-samples", "3", "--dry-run"]
     )
     assert dry.exit_code == 1
-    assert "--max-samples not supported" in dry.stderr
+    assert "--max-samples" in dry.stderr
 
-
-def test_config_gate_names_only_unsupported_flags(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The pre-flight error lists the offending flags, not every set knob."""
-    _patch_surface(
-        monkeypatch,
-        [_full_summary("aaa111", "t1")],
-        servers=[_DiscServer(7, api_version=0)],
-    )
-    monkeypatch.setitem(_KNOB_SINCE, "log_buffer", 1)
-    result = cli_runner().invoke(
-        ctl_command, ["config", "--log-buffer", "2", "--max-samples", "5"]
-    )
-    assert result.exit_code == 1
-    assert "--log-buffer not supported" in result.stderr
-    assert "--max-samples" not in result.stderr
-
-
-def test_config_gate_passes_on_current_server(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A server whose advertised version covers the knob is not gated."""
-    _patch_surface(
-        monkeypatch,
-        [_full_summary("aaa111", "t1")],
-        servers=[_DiscServer(7, api_version=1)],
-    )
-    monkeypatch.setitem(_KNOB_SINCE, "max_samples", 1)
-    _stub_limits(
-        monkeypatch, buffer={"log_buffer": 10, "pending": 0, "log_shared": None}
-    )
-    result = cli_runner().invoke(
-        ctl_command, ["config", "--max-samples", "3", "--json"]
-    )
-    assert result.exit_code == 0, result.output
-    assert json.loads(result.stdout)["applied"] is True
-
-
-def test_config_gate_ignores_since_zero_knobs(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Since-0 knobs pass against any server, version-reporting or not."""
-    _patch_surface(
-        monkeypatch,
-        [_full_summary("aaa111", "t1")],
-        servers=[_DiscServer(7, api_version=0)],
-    )
-    _stub_limits(
-        monkeypatch, buffer={"log_buffer": 10, "pending": 0, "log_shared": None}
-    )
-    result = cli_runner().invoke(
-        ctl_command, ["config", "--max-samples", "3", "--json"]
-    )
-    assert result.exit_code == 0, result.output
-    assert json.loads(result.stdout)["applied"] is True
-
-
-def test_config_gates_max_subprocesses_on_pre_version_server(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """`--max-subprocesses` gates on the shipped `_KNOB_SINCE` entry (since-1).
-
-    The gate-mechanism tests above monkeypatch `_KNOB_SINCE`; this pins the
-    real table: a server that predates version reporting refuses the knob,
-    and a current server (advertising `CONTROL_API_VERSION`) accepts it.
-    """
-    from inspect_ai._control import CONTROL_API_VERSION
-
-    _patch_surface(
-        monkeypatch,
-        [_full_summary("aaa111", "t1")],
-        servers=[_DiscServer(7, api_version=0)],
-    )
+    # process-scoped knobs (no task selector) hit the same floor
     result = cli_runner().invoke(ctl_command, ["config", "--max-subprocesses", "2"])
     assert result.exit_code == 1
-    assert "--max-subprocesses not supported" in result.stderr
+    assert "--max-subprocesses" in result.stderr
 
+    # a process with no advertised version (pre-version-reporting discovery
+    # file) is version 0 — refused
     _patch_surface(
         monkeypatch,
         [_full_summary("aaa111", "t1")],
-        servers=[_DiscServer(7, api_version=CONTROL_API_VERSION)],
+        servers=[_DiscServer(7, api_version=0)],
+    )
+    result = cli_runner().invoke(ctl_command, ["config", "--max-samples", "3"])
+    assert result.exit_code == 1
+
+    # at exactly the floor the PATCH goes through — the server is strict, so
+    # unknown-knob skew is its job from here on
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        servers=[_DiscServer(7, api_version=_STRICT_SINCE)],
     )
     _stub_limits(
         monkeypatch, buffer={"log_buffer": 10, "pending": 0, "log_shared": None}
     )
+    result = cli_runner().invoke(
+        ctl_command, ["config", "--max-samples", "3", "--json"]
+    )
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.stdout)["applied"] is True
+
     result = cli_runner().invoke(
         ctl_command, ["config", "--max-subprocesses", "2", "--json"]
     )
-    assert result.exit_code == 0, result.output
-    assert json.loads(result.stdout)["applied"] is True
-
-
-def test_config_gates_retry_overrides_by_real_since_table(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The retry overrides gate on their real `_KNOB_SINCE` entries (since-2).
-
-    Unlike the gate tests above, no table entry is monkeypatched: a version-0
-    process rejects a retry-override set pre-flight, and a process at the
-    current version applies it.
-    """
-    _patch_surface(
-        monkeypatch,
-        [_full_summary("aaa111", "t1")],
-        servers=[_DiscServer(7, api_version=0)],
-    )
-    result = cli_runner().invoke(
-        ctl_command, ["config", "--timeout", "300", "--attempt-timeout", "60"]
-    )
-    assert result.exit_code == 1
-    assert "--timeout, --attempt-timeout not supported" in result.stderr
-
-    from inspect_ai._control import CONTROL_API_VERSION
-
-    _patch_surface(
-        monkeypatch,
-        [_full_summary("aaa111", "t1")],
-        servers=[_DiscServer(7, api_version=CONTROL_API_VERSION)],
-    )
-    _stub_limits(
-        monkeypatch, buffer={"log_buffer": 10, "pending": 0, "log_shared": None}
-    )
-    result = cli_runner().invoke(ctl_command, ["config", "--timeout", "300", "--json"])
     assert result.exit_code == 0, result.output
     assert json.loads(result.stdout)["applied"] is True
 
@@ -5266,6 +5127,366 @@ def test_sample_requeue_noop_human_output(monkeypatch: pytest.MonkeyPatch) -> No
     )
 
 
+def test_sample_requeue_multiple_pairs_bulk_envelope(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Several SID EPOCH pairs post one requeue each and report per-sample results."""
+    summary = _full_summary("aaa111", "t1")
+    summary["epochs"] = 3  # explicit epochs: the multi-epoch gate never fires
+    _patch_surface(monkeypatch, [summary])
+    spy = _RequestSpy({"ok": True, "changed": True})
+    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    result = cli_runner().invoke(
+        ctl_command,
+        ["sample", "requeue", "aaa111", "s1", "2", "s2", "3", "--json"],
+    )
+    assert result.exit_code == 0, result.output
+    assert spy.paths == ["/evals/eval_aaa111/sample/requeue"] * 2
+    assert spy.params == [
+        {"sample_id": "s1", "epoch": 2},
+        {"sample_id": "s2", "epoch": 3},
+    ]
+    payload = json.loads(result.stdout)
+    assert payload["target"]["task_id"] == "aaa111"
+    assert payload["requested"] == 2 and payload["applied"] == 2
+    assert [r["sample_id"] for r in payload["results"]] == ["s1", "s2"]
+    assert all(r["applied"] for r in payload["results"])
+
+
+def test_sample_requeue_pairs_require_integer_epoch() -> None:
+    """A bare id list is ambiguous under the fail-closed epoch rule."""
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "requeue", "aaa111", "s1", "s2"]
+    )
+    assert result.exit_code == 2
+    assert "EPOCH" in result.stderr
+
+
+def test_sample_requeue_odd_pair_tokens_rejected() -> None:
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "requeue", "aaa111", "s1", "2", "s2"]
+    )
+    assert result.exit_code == 2
+    assert "pairs" in result.stderr
+
+
+def test_sample_requeue_errored_excludes_explicit_targets() -> None:
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "requeue", "aaa111", "s1", "--errored"]
+    )
+    assert result.exit_code == 2
+    assert "mutually exclusive" in result.stderr
+
+
+def test_sample_requeue_requires_targets_or_errored() -> None:
+    result = cli_runner().invoke(ctl_command, ["sample", "requeue", "aaa111"])
+    assert result.exit_code == 2
+    assert "--errored" in result.stderr
+
+
+def test_sample_requeue_errored_sweeps_currently_errored_samples(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """--errored requeues each error-status sample with the listing's epoch."""
+    summary = _full_summary("aaa111", "t1")
+    summary["epochs"] = 3
+    _patch_surface(
+        monkeypatch,
+        [summary],
+        samples_by_eval={
+            "eval_aaa111": [
+                _sample_row("s1", status="error", error="boom"),
+                _sample_row("s2", status="error", error="boom", epoch=2),
+                # retried-and-now-running: listed by `sample errors`, not swept
+                _sample_row("s3", status="running", retries=1),
+                _sample_row("s4", status="completed"),
+            ]
+        },
+    )
+    spy = _RequestSpy({"ok": True, "changed": True})
+    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "requeue", "aaa111", "--errored", "--json"]
+    )
+    assert result.exit_code == 0, result.output
+    assert spy.params == [
+        {"sample_id": "s1", "epoch": 1},
+        {"sample_id": "s2", "epoch": 2},
+    ]
+    payload = json.loads(result.stdout)
+    assert payload["requested"] == 2 and payload["applied"] == 2
+
+
+def test_sample_requeue_errored_dry_run_human_output(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    summary = _full_summary("aaa111", "t1")
+    summary["epochs"] = 1
+    _patch_surface(
+        monkeypatch,
+        [summary],
+        samples_by_eval={
+            "eval_aaa111": [
+                _sample_row("s1", status="error", error="boom"),
+                _sample_row("s2", status="error", error="boom"),
+            ]
+        },
+    )
+    spy = _RequestSpy({"ok": True, "changed": True, "dry_run": True})
+    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    result = cli_runner().invoke(
+        ctl_command,
+        ["sample", "requeue", "aaa111", "--errored", "--dry-run", "--no-terse"],
+    )
+    assert result.exit_code == 0, result.output
+    assert all(params.get("dry_run") is True for params in spy.params)
+    assert result.stdout.count("Would requeue sample") == 2
+    assert "Would requeue 2 of 2 samples." in result.stdout
+
+
+def test_sample_requeue_errored_sweep_terse_lines(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The sweep honors terse (the runner's non-TTY stdout is the default)."""
+    summary = _full_summary("aaa111", "t1")
+    summary["epochs"] = 1
+    _patch_surface(
+        monkeypatch,
+        [summary],
+        samples_by_eval={
+            "eval_aaa111": [
+                _sample_row("s1", status="error", error="boom"),
+                _sample_row("s2", status="error", error="boom"),
+            ]
+        },
+    )
+    spy = _RequestSpy({"ok": True, "changed": True})
+    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "requeue", "aaa111", "--errored"]
+    )
+    assert result.exit_code == 0, result.output
+    lines = [line for line in result.stdout.splitlines() if line]
+    assert len(lines) == 2
+    assert all(line.startswith("requeue sample s") for line in lines)
+    assert all("accepted — will" in line for line in lines)
+    assert "Task:" not in result.stdout  # no header in terse mode
+
+
+def test_sample_requeue_errored_sweep_empty(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    summary = _full_summary("aaa111", "t1")
+    _patch_surface(
+        monkeypatch,
+        [summary],
+        samples_by_eval={"eval_aaa111": [_sample_row("s1", status="completed")]},
+    )
+    spy = _RequestSpy({"ok": True, "changed": True})
+    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "requeue", "aaa111", "--errored"]
+    )
+    assert result.exit_code == 0, result.output
+    assert spy.paths == []  # nothing was sent
+    assert "(no errored samples to requeue)" in result.stdout
+
+    as_json = cli_runner().invoke(
+        ctl_command, ["sample", "requeue", "aaa111", "--errored", "--json"]
+    )
+    assert as_json.exit_code == 0, as_json.output
+    payload = json.loads(as_json.stdout)
+    assert payload["requested"] == 0 and payload["results"] == []
+
+
+def test_sample_requeue_errored_aborts_on_row_without_epoch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A listing row missing its epoch aborts the sweep before any post.
+
+    Pins the fail-closed invariant: no epoch is ever defaulted, and the
+    abort happens while building the pairs — even rows with valid epochs
+    ahead of the bad one are never posted.
+    """
+    summary = _full_summary("aaa111", "t1")
+    summary["epochs"] = 3
+    _patch_surface(
+        monkeypatch,
+        [summary],
+        samples_by_eval={
+            "eval_aaa111": [
+                _sample_row("s1", status="error", error="boom"),
+                _sample_row("s2", status="error", error="boom", epoch=None),
+            ]
+        },
+    )
+    spy = _RequestSpy({"ok": True, "changed": True})
+    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "requeue", "aaa111", "--errored"]
+    )
+    assert result.exit_code != 0
+    assert spy.paths == []  # nothing was posted, including the valid s1 row
+    assert "'s2'" in result.stderr and "no epoch" in result.stderr
+
+    as_json = cli_runner().invoke(
+        ctl_command, ["sample", "requeue", "aaa111", "--errored", "--json"]
+    )
+    assert as_json.exit_code != 0
+    assert spy.paths == []
+    assert json.loads(as_json.stdout)["error"]["kind"] == "invalid_response"
+
+
+def test_sample_requeue_bulk_reports_mixed_results(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A per-sample rejection or no-op is reported and the sweep continues."""
+    summary = _full_summary("aaa111", "t1")
+    summary["epochs"] = 1
+    _patch_surface(monkeypatch, [summary])
+
+    def respond(socket_path: str, path: str, **kwargs: Any) -> dict[str, Any]:
+        sample_id = (kwargs.get("params") or {})["sample_id"]
+        if sample_id == "s2":
+            # build the message from the real prefix helper and the caller's
+            # actual ``what`` so a format drift breaks the literal
+            # assertions below instead of hiding
+            raise _CtlFailure(
+                "http_error",
+                _failure_prefix("update", kwargs["what"]) + "sample completed",
+                status=409,
+            )
+        if sample_id == "s3":
+            return {
+                "ok": True,
+                "changed": False,
+                "reason": "a re-run is already pending",
+            }
+        return {"ok": True, "sample_id": sample_id, "epoch": 1, "changed": True}
+
+    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", respond)
+    result = cli_runner().invoke(
+        ctl_command,
+        ["sample", "requeue", "aaa111", "s1", "1", "s2", "1", "s3", "1", "--json"],
+    )
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.stdout)
+    assert payload["requested"] == 3 and payload["applied"] == 1
+    by_id = {r["sample_id"]: r for r in payload["results"]}
+    assert by_id["s1"]["applied"] is True
+    assert by_id["s2"]["applied"] is False
+    assert by_id["s2"]["error"]["status"] == 409
+    # the full error-object shape, matching the top-level error envelope,
+    # with the message kept self-contained (prefix and all)
+    assert set(by_id["s2"]["error"]) == {"kind", "exception", "message", "status"}
+    assert (
+        by_id["s2"]["error"]["message"]
+        == "Failed to update requeue of sample s2: sample completed"
+    )
+    assert by_id["s3"]["applied"] is False
+    assert by_id["s3"]["detail"]["reason"] == "a re-run is already pending"
+
+    human = cli_runner().invoke(
+        ctl_command,
+        ["sample", "requeue", "aaa111", "s1", "1", "s2", "1", "s3", "1", "--no-terse"],
+    )
+    assert human.exit_code == 0, human.output
+    assert "Requeue accepted for sample s1 (epoch 1)" in human.stdout
+    # the human line drops the transport prefix that restates the label
+    assert "Rejected sample s2 (epoch 1) — sample completed" in human.stdout
+    assert "Failed to update requeue" not in human.stdout
+    assert "Nothing to do for sample s3 (epoch 1)" in human.stdout
+    assert "Requeued 1 of 3 samples (1 no-op, 1 rejected)." in human.stdout
+
+
+def test_sample_requeue_bulk_rejection_reported_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A recorded rejection appears only in the stdout report, not on stderr.
+
+    Runs the real ``_request_json`` (the tests above mock it away, which is
+    exactly how the double print escaped them): without ``echo_failures=
+    False`` every rejection would also surface as transport stderr narration
+    ("Failed to update requeue of sample ..."), printing each failure twice
+    in a terminal.
+    """
+    summary = _full_summary("aaa111", "t1")
+    summary["epochs"] = 2
+    _patch_surface(monkeypatch, [summary])
+
+    def respond(socket_path: str, path: str, **kwargs: Any) -> httpx.Response:
+        return httpx.Response(
+            409,
+            json={"error": "task already finished"},
+            request=httpx.Request("POST", f"http://localhost{path}"),
+        )
+
+    monkeypatch.setattr("inspect_ai._cli.ctl._get_response_with_retry", respond)
+    result = cli_runner().invoke(
+        ctl_command,
+        ["sample", "requeue", "aaa111", "s1", "1", "s2", "2", "--no-terse"],
+    )
+    assert result.exit_code == 0, result.output
+    assert "Rejected sample s1 (epoch 1) — task already finished" in result.stdout
+    assert "Rejected sample s2 (epoch 2) — task already finished" in result.stdout
+    assert "Requeued 0 of 2 samples (2 rejected)." in result.stdout
+    assert "Failed to update requeue" not in result.stderr
+
+
+def test_sample_requeue_bulk_abort_still_reaches_stderr(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An aborting failure is echoed to stderr exactly once despite the suppression.
+
+    With ``echo_failures=False`` the sweep owns the echo for failures it
+    re-raises — a router 404 (older server without the endpoint) must still
+    reach the user, and only once.
+    """
+    summary = _full_summary("aaa111", "t1")
+    summary["epochs"] = 1
+    _patch_surface(monkeypatch, [summary])
+
+    def respond(socket_path: str, path: str, **kwargs: Any) -> httpx.Response:
+        # FastAPI's stock router 404 (no {"error": ...} body) — see _handler_404
+        return httpx.Response(
+            404,
+            json={"detail": "Not Found"},
+            request=httpx.Request("POST", f"http://localhost{path}"),
+        )
+
+    monkeypatch.setattr("inspect_ai._cli.ctl._get_response_with_retry", respond)
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "requeue", "aaa111", "s1", "1", "s2", "1"]
+    )
+    assert result.exit_code == 1
+    assert result.stderr.count(_REQUEUE_ROUTE_MISSING) == 1
+
+
+def test_sample_requeue_bulk_aborts_on_missing_route(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An older server without the endpoint fails the sweep once, not per sample."""
+    summary = _full_summary("aaa111", "t1")
+    summary["epochs"] = 1
+    _patch_surface(monkeypatch, [summary])
+    calls: list[str] = []
+
+    def respond(socket_path: str, path: str, **kwargs: Any) -> dict[str, Any]:
+        calls.append((kwargs.get("params") or {})["sample_id"])
+        # the missing_route flag is what _request_json sets on a router 404
+        # (vs an entity 404) — the sweep aborts on the flag, not the message
+        raise _CtlFailure(
+            "not_found", _REQUEUE_ROUTE_MISSING, status=404, missing_route=True
+        )
+
+    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", respond)
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "requeue", "aaa111", "s1", "1", "s2", "1"]
+    )
+    assert result.exit_code == 1
+    assert calls == ["s1"]
+
+
 def test_sample_cancel_noop_human_output(monkeypatch: pytest.MonkeyPatch) -> None:
     summary = _full_summary("aaa111", "t1")
     summary["epochs"] = 1
@@ -5427,8 +5648,8 @@ def test_print_config_process_scope_shows_buffer_placeholder(
 ) -> None:
     """The process-level view points at the per-task buffer knobs.
 
-    Mirrors the max_samples placeholder, so `ctl config` (and the deprecated
-    `ctl buffer` alias) in a multi-task process never silently omits them.
+    Mirrors the max_samples placeholder, so `ctl config` in a multi-task
+    process never silently omits them.
     """
     from inspect_ai._cli.ctl import _print_config
 
@@ -5463,25 +5684,6 @@ def test_resolve_scope_siblings_counts_active_only() -> None:
     assert scope is not None
     assert scope.siblings == 1  # the completed sibling is excluded
     assert scope.pid == 7  # carried for the busy-escalation pointer
-
-
-def test_keep_alias_accepts_positional_pid(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The shared ambiguity error teaches `... keep <pid>`; the alias obeys."""
-    posted: list[str] = []
-
-    def record(socket_path: str, path: str, **kwargs: Any) -> dict[str, Any]:
-        posted.append(str(socket_path))
-        return {"ok": True}
-
-    monkeypatch.setattr(
-        "inspect_ai._cli.ctl.list_discovered_servers",
-        lambda: [_DiscServer(7), _DiscServer(8)],
-    )
-    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", record)
-    result = cli_runner().invoke(ctl_command, ["keep", "8"])
-    assert result.exit_code == 0, result.output
-    assert posted == ["/tmp/8.sock"]
-    assert "is now `inspect ctl process keep`" in result.stderr
 
 
 def test_sample_list_unscoped_skips_busy_eval(

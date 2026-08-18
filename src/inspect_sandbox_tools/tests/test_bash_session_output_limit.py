@@ -1,3 +1,5 @@
+from time import monotonic
+
 from inspect_sandbox_tools._remote_tools._bash_session._process import Process
 
 from tests.conftest import DEFAULT_RPC_TIMEOUT, RpcClient
@@ -35,8 +37,9 @@ def test_bash_session_truncates_large_output_before_jsonrpc_response(
     )
 
     outputs = [response["result"]]
+    combined_output = outputs[0]
     for request_id in range(3, 8):
-        if "-tail" in outputs[-1]:
+        if "-tail" in combined_output:
             break
         response = rpc_client(
             {
@@ -52,11 +55,13 @@ def test_bash_session_truncates_large_output_before_jsonrpc_response(
             },
             DEFAULT_RPC_TIMEOUT,
         )
-        outputs.append(response["result"])
+        output = response["result"]
+        outputs.append(output)
+        combined_output += output
 
-    assert "bash_session output exceeded" in "".join(outputs)
-    assert "bytes omitted" in "".join(outputs)
-    assert "-tail" in outputs[-1]
+    assert "bash_session output exceeded" in combined_output
+    assert "bytes omitted" in combined_output
+    assert "-tail" in combined_output
     assert "head-" not in outputs[0]
     assert all(len(output.encode("utf-8")) <= 2048 for output in outputs)
 
@@ -137,23 +142,29 @@ def test_bash_session_bounds_multibyte_stdout_and_stderr(
         },
         DEFAULT_RPC_TIMEOUT,
     )
-    second_response = rpc_client(
-        {
-            "jsonrpc": "2.0",
-            "method": "bash_session",
-            "params": params,
-            "id": 3,
-        },
-        DEFAULT_RPC_TIMEOUT,
-    )
+    outputs = [first_response["result"]]
+    combined_output = outputs[0]
+    deadline = monotonic() + 30
+    request_id = 3
+    while "-final" not in combined_output and monotonic() < deadline:
+        response = rpc_client(
+            {
+                "jsonrpc": "2.0",
+                "method": "bash_session",
+                "params": params,
+                "id": request_id,
+            },
+            DEFAULT_RPC_TIMEOUT,
+        )
+        output = response["result"]
+        outputs.append(output)
+        combined_output += output
+        request_id += 1
 
-    first_output = first_response["result"]
-    second_output = second_response["result"]
-    assert len(first_output.encode("utf-8")) <= 4096
-    assert len(second_output.encode("utf-8")) <= 4096
-    assert "bash_session output exceeded" in first_output + second_output
-    assert "-final" in second_output
-    assert "�" not in first_output + second_output
+    assert all(len(output.encode("utf-8")) <= 4096 for output in outputs)
+    assert "bash_session output exceeded" in combined_output
+    assert "-final" in combined_output
+    assert "�" not in combined_output
 
 
 def test_bash_session_truncation_notice_respects_tiny_limit() -> None:

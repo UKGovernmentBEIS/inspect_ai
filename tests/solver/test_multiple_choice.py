@@ -528,6 +528,20 @@ async def test_multiple_correct_trailing_comma():
     }
 
 
+@pytest.mark.anyio
+async def test_single_choice_trailing_comma():
+    generate = generate_for_multiple_correct(answers="ANSWER: A,")
+    solver = multiple_choice()
+    state = simple_task_state(
+        choices=["choice 1", "choice 2", "choice 3", "choice 4"],
+        messages=[ChatMessageUser(content="What's the answer?", source="input")],
+    )
+
+    new_state = await solver(state=state, generate=generate)
+
+    assert choices_marked_correct(new_state.choices) == {"choice 1"}
+
+
 def choices_marked_correct(choices: list[Choice]) -> set[str]:
     """Helper function"""
     return set([choice.value for choice in choices if choice.correct])

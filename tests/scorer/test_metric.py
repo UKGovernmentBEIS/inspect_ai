@@ -99,6 +99,22 @@ def dict_metric() -> Metric:
     return metric
 
 
+@metric
+def str_metric() -> Metric:
+    def metric(scores: list[SampleScore]) -> Value:
+        return "0.85"
+
+    return metric
+
+
+@metric
+def tuple_metric() -> Metric:
+    def metric(scores: list[SampleScore]) -> Value:
+        return (10, 20)
+
+    return metric
+
+
 def test_metric_registry() -> None:
     registry_assert(accuracy1, "accuracy1")
     registry_assert(acc_fn, "accuracy2")
@@ -227,6 +243,62 @@ def test_dict_metric() -> None:
     # normal eval
     log = eval(tasks=task, model="mockllm/model")[0]
     check_log(log)
+
+
+def test_str_metric() -> None:
+    def check_log(log):
+        assert log.results
+        score = log.results.scores[0]
+        assert list(score.metrics.keys()) == ["str_metric"]
+        assert score.metrics["str_metric"].value == pytest.approx(0.85)
+
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target=["2", "2.0", "Two"])],
+        scorer=match(),
+        metrics=[str_metric()],
+    )
+
+    log = eval(tasks=task, model="mockllm/model")[0]
+    check_log(log)
+
+
+def test_tuple_metric() -> None:
+    def check_log(log):
+        assert log.results
+        score = log.results.scores[0]
+        assert list(score.metrics.keys()) == ["tuple_metric-1", "tuple_metric-2"]
+        assert score.metrics["tuple_metric-1"].value == 10.0
+        assert score.metrics["tuple_metric-2"].value == 20.0
+
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target=["2", "2.0", "Two"])],
+        scorer=match(),
+        metrics=[tuple_metric()],
+    )
+
+    log = eval(tasks=task, model="mockllm/model")[0]
+    check_log(log)
+
+
+def test_dict_scorer_str_and_tuple_metrics() -> None:
+    @scorer(metrics={"a": [str_metric()], "b": [tuple_metric()]})
+    def my_dict_scorer() -> Scorer:
+        async def score(state: TaskState, target: Target) -> Score:
+            return Score(value={"a": 1.0, "b": 2.0})
+
+        return score
+
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target=["2"])],
+        scorer=my_dict_scorer(),
+    )
+
+    log = eval(tasks=task, model="mockllm/model")[0]
+    assert log.results
+    scores_by_name = {s.name: s for s in log.results.scores}
+    assert scores_by_name["a"].metrics["str_metric"].value == pytest.approx(0.85)
+    assert scores_by_name["b"].metrics["tuple_metric_0"].value == 10.0
+    assert scores_by_name["b"].metrics["tuple_metric_1"].value == 20.0
 
 
 def test_alternative_metrics() -> None:
