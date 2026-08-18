@@ -382,6 +382,7 @@ class TaskRunOptions:
     run_samples: bool | None = field(default=True)
     score: bool = field(default=True)
     debug_errors: bool = field(default=False)
+    fail_on_log_error: bool = field(default=False)
     sample_source: EvalSampleSource | None = field(default=None)
     display_name: str | None = field(default=None)
     kwargs: GenerateConfigArgs = field(default_factory=lambda: GenerateConfigArgs())
@@ -1089,6 +1090,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         ),
                         retry_on_error=config.retry_on_error or 0,
                         score_on_error=config.score_on_error or False,
+                        fail_on_log_error=options.fail_on_log_error,
                         error_retries=[],
                         previous_attempt_errors=previous_attempt_errors,
                         turn_limit=config.turn_limit,
@@ -1658,6 +1660,7 @@ async def task_run_sample(
     sample_feed: SampleSource | None,
     retry_on_error: int,
     score_on_error: bool,
+    fail_on_log_error: bool,
     error_retries: list[EvalRetryError],
     previous_attempt_errors: list[EvalRetryError],
     turn_limit: int | None,
@@ -1733,7 +1736,9 @@ async def task_run_sample(
         )
         init_transcript(sample_transcript)
         init_subtask_store(state.store)
-        sample_transcript._subscribe(on_sample_event, propagate_errors=True)
+        sample_transcript._subscribe(
+            on_sample_event, propagate_errors=fail_on_log_error
+        )
         if scorers:
             init_scoring_context(scorers, Target(sample.target))
         init_sample_assistant_internal()
@@ -2501,6 +2506,7 @@ async def task_run_sample(
             # tick retry count down
             retry_on_error=retry_on_error - 1,
             score_on_error=score_on_error,
+            fail_on_log_error=fail_on_log_error,
             # forward on error that caused retry
             error_retries=copy(error_retries) + [retry_error],
             previous_attempt_errors=previous_attempt_errors,

@@ -170,6 +170,7 @@ def eval_set(
     continue_on_fail: bool | None = None,
     retry_on_error: int | None = None,
     score_on_error: bool | None = None,
+    fail_on_log_error: bool | None = None,
     debug_errors: bool | None = None,
     message_limit: int | None = None,
     token_limit: int | str | TokenLimit | None = None,
@@ -291,6 +292,7 @@ def eval_set(
         score_on_error: Score samples that error rather than failing the eval mid-run.
             Errors still count toward the `fail_on_error` threshold for marking the eval
             log as 'error'. Only takes effect after retries (if any) are exhausted.
+        fail_on_log_error: Fail the eval if writing realtime sample events fails.
         debug_errors: Raise task errors (rather than logging them)
             so they can be debugged (defaults to False).
         message_limit: Limit on total messages used for each sample.
@@ -430,6 +432,7 @@ def eval_set(
             continue_on_fail=continue_on_fail,
             retry_on_error=retry_on_error,
             score_on_error=score_on_error,
+            fail_on_log_error=fail_on_log_error,
             debug_errors=debug_errors,
             message_limit=message_limit,
             token_limit=token_limit,

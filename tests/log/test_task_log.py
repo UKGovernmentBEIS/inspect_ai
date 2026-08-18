@@ -144,15 +144,23 @@ def _eval_spec() -> EvalSpec:
     )
 
 
-def test_realtime_sample_buffer_write_failure_stops_eval(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize(
+    ("fail_on_log_error", "expected_status"),
+    [(None, "success"), (True, "error")],
+)
+def test_realtime_sample_buffer_write_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    fail_on_log_error: bool | None,
+    expected_status: str,
 ) -> None:
     writes = 0
 
     def fail_write(_self: SampleBufferDatabase, _events: list[SampleEvent]) -> None:
         nonlocal writes
         writes += 1
-        raise OSError("disk full")
+        if fail_on_log_error or writes == 1:
+            raise OSError("disk full")
 
     monkeypatch.setattr(SampleBufferDatabase, "log_events", fail_write)
 
@@ -165,12 +173,19 @@ def test_realtime_sample_buffer_write_failure_stops_eval(
         log_dir=str(tmp_path),
         fail_on_error=False,
         retry_on_error=3,
+        fail_on_log_error=fail_on_log_error,
     )
 
-    assert logs[0].status == "error"
-    assert logs[0].error is not None
-    assert "Failed to write realtime sample events: disk full" in logs[0].error.message
-    assert writes < 4
+    assert logs[0].status == expected_status
+    if fail_on_log_error:
+        assert logs[0].error is not None
+        assert (
+            "Failed to write realtime sample events: disk full" in logs[0].error.message
+        )
+        assert writes < 4
+    else:
+        assert logs[0].error is None
+        assert writes > 1
 
 
 class _FlushRecorder:
