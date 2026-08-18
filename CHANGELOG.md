@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Model-graded scorers now warn once when an explicit model bypasses a required model role.
 - Control Channel: `inspect ctl sample requeue` can now sweep every currently-errored sample in one command (`--errored`) or requeue several `SAMPLE_ID EPOCH` pairs, reporting each sample's result individually.
 - Breaking: Removed the deprecated hidden flat `inspect ctl` spellings (e.g. `ctl tasks`, `ctl limits`); use the noun-group commands (`ctl task list`, `ctl config`, ...) instead.
 - Control Channel: `inspect ctl config` can now retune a running task's per-sample time/token/message limits mid-flight (`--time-limit` / `--token-limit` / `--message-limit`), reaching in-flight samples as well as ones not yet started.
@@ -13,6 +14,7 @@
 - Mistral: Provider-generated images remain available when replayed in subsequent conversation turns.
 
 ## 0.3.259 (16 August 2026)
+
 
 - Inspect View: The Messages tab now paginates chunked evals, loading further pages as you scroll instead of the entire sample up front, so huge samples open quickly (non-chunked evals still load in full). (#498)
 - Inspect View: Image-heavy info events now show their "more…" toggle — previously the clipped content was unexpandable. (#529)
