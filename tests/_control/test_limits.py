@@ -2146,7 +2146,7 @@ async def test_config_update_route_carries_provenance_params() -> None:
 
 
 def test_print_config(capsys: pytest.CaptureFixture[str]) -> None:
-    from inspect_ai._cli.ctl import _print_config
+    from inspect_ai._cli.ctl._render import _print_config
 
     _print_config(
         {
@@ -2179,7 +2179,7 @@ def test_print_config(capsys: pytest.CaptureFixture[str]) -> None:
 
 def test_print_config_max_subprocesses(capsys: pytest.CaptureFixture[str]) -> None:
     """An active subprocess limiter renders its limit; a dry-run set an arrow."""
-    from inspect_ai._cli.ctl import _print_config
+    from inspect_ai._cli.ctl._render import _print_config
 
     _print_config(
         {
@@ -2203,7 +2203,7 @@ def test_print_config_max_subprocesses_inactive(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """A run with no subprocess limiter yet renders the knob as inactive."""
-    from inspect_ai._cli.ctl import _print_config
+    from inspect_ai._cli.ctl._render import _print_config
 
     _print_config(
         {
@@ -2229,7 +2229,7 @@ def test_print_config_max_subprocesses_inactive(
 def test_print_config_updated_with_warning(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    from inspect_ai._cli.ctl import _print_config
+    from inspect_ai._cli.ctl._render import _print_config
 
     _print_config(
         {
@@ -2253,7 +2253,7 @@ def test_print_config_updated_with_warning(
 
 
 def test_print_config_dry_run_header(capsys: pytest.CaptureFixture[str]) -> None:
-    from inspect_ai._cli.ctl import _print_config
+    from inspect_ai._cli.ctl._render import _print_config
 
     _print_config(
         {
@@ -2288,7 +2288,7 @@ def test_print_config_dry_run_unchanged_knob_has_no_arrow(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """A dry-run knob whose requested value equals the current one shows no arrow."""
-    from inspect_ai._cli.ctl import _print_config
+    from inspect_ai._cli.ctl._render import _print_config
 
     _print_config(
         {
@@ -2322,7 +2322,7 @@ def test_print_config_dry_run_unchanged_knob_has_no_arrow(
 
 def test_print_config_adaptive_section(capsys: pytest.CaptureFixture[str]) -> None:
     """The adaptive path renders live controller state instead of a bare label."""
-    from inspect_ai._cli.ctl import _print_config
+    from inspect_ai._cli.ctl._render import _print_config
 
     _print_config(
         {
@@ -2372,7 +2372,7 @@ def test_print_config_adaptive_dry_run_shows_ceiling_arrow(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """A dry-run max_connections renders the ceiling as `max → requested`."""
-    from inspect_ai._cli.ctl import _print_config
+    from inspect_ai._cli.ctl._render import _print_config
 
     _print_config(
         {
@@ -2406,7 +2406,7 @@ def test_print_config_adaptive_dry_run_shows_ceiling_arrow(
 
 def test_print_config_process_scope(capsys: pytest.CaptureFixture[str]) -> None:
     """The process-level view (no max_samples knob) shows max samples as per-task."""
-    from inspect_ai._cli.ctl import _print_config
+    from inspect_ai._cli.ctl._render import _print_config
 
     _print_config(
         {
@@ -2447,7 +2447,7 @@ def test_print_config_buffer_knobs_and_notes(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """The absorbed buffer knobs render with their task scope; notes print last."""
-    from inspect_ai._cli.ctl import _print_config
+    from inspect_ai._cli.ctl._render import _print_config
 
     _print_config(
         {
@@ -2472,7 +2472,7 @@ def test_print_config_buffer_knobs_and_notes(
 
 def test_print_config_retry_overrides(capsys: pytest.CaptureFixture[str]) -> None:
     """Retry knobs render the live override, or 'launch config' when unset."""
-    from inspect_ai._cli.ctl import _print_config
+    from inspect_ai._cli.ctl._render import _print_config
 
     _print_config(
         {
@@ -2500,7 +2500,7 @@ def test_print_config_retry_overrides_dry_run_arrows(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """A dry-run renders `current → requested`, with `clear` shown as its meaning."""
-    from inspect_ai._cli.ctl import _print_config
+    from inspect_ai._cli.ctl._render import _print_config
 
     _print_config(
         {
@@ -2529,7 +2529,7 @@ def test_print_config_omits_retry_knobs_for_older_server(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """An older server's view has no retry knobs — no line, no value claim."""
-    from inspect_ai._cli.ctl import _print_config
+    from inspect_ai._cli.ctl._render import _print_config
 
     _print_config(
         {
@@ -2553,7 +2553,7 @@ def test_print_config_sample_limit_overrides(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """Sample-limit knobs render the live override, or 'launch config' when unset."""
-    from inspect_ai._cli.ctl import _print_config
+    from inspect_ai._cli.ctl._render import _print_config
 
     _print_config(
         {
@@ -2582,7 +2582,7 @@ def test_print_config_sample_limit_overrides_dry_run_arrows(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """A dry-run renders `current → requested`, with `clear` shown as its meaning."""
-    from inspect_ai._cli.ctl import _print_config
+    from inspect_ai._cli.ctl._render import _print_config
 
     _print_config(
         {
@@ -2616,7 +2616,7 @@ def test_print_config_sample_limits_process_placeholder(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """The process view can't show the task-scoped limit knobs — placeholder."""
-    from inspect_ai._cli.ctl import _print_config
+    from inspect_ai._cli.ctl._render import _print_config
 
     _print_config(
         {
@@ -2640,7 +2640,8 @@ def test_print_config_sample_limits_process_placeholder(
 
 def test_compose_config_sample_limit_overrides() -> None:
     """The composed view carries the limit knobs with their task scope."""
-    from inspect_ai._cli.ctl import _compose_config, _DirectiveScope
+    from inspect_ai._cli.ctl._config import _compose_config
+    from inspect_ai._cli.ctl._mutate import _DirectiveScope
 
     scope = _DirectiveScope(
         socket_path="/tmp/sock",
@@ -2669,7 +2670,7 @@ def test_print_config_concurrency_keys_section(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """The named-key section lists registry entries with their scope label."""
-    from inspect_ai._cli.ctl import _print_config
+    from inspect_ai._cli.ctl._render import _print_config
 
     _print_config(
         {
@@ -2718,7 +2719,7 @@ def test_print_config_concurrency_keys_empty_states(
     discoverable and tells that state apart from a server whose view predates
     the section (`keys` is None).
     """
-    from inspect_ai._cli.ctl import _print_config
+    from inspect_ai._cli.ctl._render import _print_config
 
     def view(keys: list[dict[str, Any]] | None) -> dict[str, Any]:
         return {
@@ -2750,7 +2751,7 @@ def test_print_config_concurrency_keys_dry_run_arrow(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """A dry-run key set renders the targeted key as `current → requested`."""
-    from inspect_ai._cli.ctl import _print_config
+    from inspect_ai._cli.ctl._render import _print_config
 
     _print_config(
         {
@@ -2783,7 +2784,7 @@ def test_print_config_concurrency_keys_dry_run_arrow(
 
 def test_process_scope_note() -> None:
     """The process-wide scope note fires only for a global knob in a multi-eval process."""
-    from inspect_ai._cli.ctl import _process_scope_note
+    from inspect_ai._cli.ctl._config import _process_scope_note
 
     # nothing set → no note
     assert _process_scope_note([], 3) is None
