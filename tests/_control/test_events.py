@@ -277,7 +277,7 @@ def test_filter_time_window() -> None:
 
 
 def test_project_compact_error() -> None:
-    out = _project(_error_event("boom"), full=False)
+    out = _project(_error_event("boom"), content=True, full=False)
     assert out["event"] == "error"
     assert out["error"] == "boom"
     assert isinstance(out["timestamp"], float)
@@ -285,23 +285,70 @@ def test_project_compact_error() -> None:
 
 
 def test_project_compact_info_carries_data() -> None:
-    # transcript().info(...) content must be visible without --full: the
+    # transcript().info(...) content must be visible with --content: the
     # compact projection carries the (truncated, text-form) data payload.
-    out = _project(InfoEvent(source="my-solver", data="phase 1 complete"), full=False)
+    out = _project(
+        InfoEvent(source="my-solver", data="phase 1 complete"),
+        content=True,
+        full=False,
+    )
     assert out["event"] == "info"
     assert out["source"] == "my-solver"
     assert out["data"] == "phase 1 complete"
     # non-string data is serialized to text
-    out = _project(InfoEvent(data={"step": 2}), full=False)
+    out = _project(InfoEvent(data={"step": 2}), content=True, full=False)
     assert out["source"] is None
     assert out["data"] == '{"step": 2}'
     # long payloads are truncated, not dumped whole
-    out = _project(InfoEvent(data="x" * 1000), full=False)
+    out = _project(InfoEvent(data="x" * 1000), content=True, full=False)
     assert len(out["data"]) <= 256
 
 
+def test_project_metadata_default_withholds_free_text() -> None:
+    """Without ``content`` the projection is metadata only.
+
+    No field the evaluated agent controls (error messages, info data) is
+    present, while the structural header and error *presence* remain readable.
+    """
+    out = _project(_error_event("boom"), content=False, full=False)
+    assert out["event"] == "error"
+    assert "error" not in out
+    assert isinstance(out["timestamp"], float)
+
+    out = _project(
+        InfoEvent(source="my-solver", data="agent-controlled"),
+        content=False,
+        full=False,
+    )
+    assert out["source"] == "my-solver"
+    assert "data" not in out
+
+
+def test_project_metadata_default_tool_event() -> None:
+    from inspect_ai.event._tool import ToolEvent
+    from inspect_ai.tool._tool_call import ToolCallError
+
+    event = ToolEvent(
+        id="t1",
+        function="bash",
+        arguments={"cmd": "echo payload"},
+        result="payload",
+        error=ToolCallError(type="unknown", message="boom"),
+    )
+    out = _project(event, content=False, full=False)
+    assert out["function"] == "bash"
+    assert out["has_error"] is True
+    assert "arguments" not in out and "result" not in out and "error" not in out
+
+    out = _project(event, content=True, full=False)
+    assert "echo payload" in out["arguments"]
+    assert out["result"] == "payload"
+    assert out["error"] == "boom"
+    assert out["has_error"] is True
+
+
 def test_project_full_is_raw_dump() -> None:
-    out = _project(_error_event("boom"), full=True)
+    out = _project(_error_event("boom"), content=False, full=True)
     assert out["event"] == "error"
     # raw form keeps the nested EvalError object, not the flattened message
     assert isinstance(out["error"], dict)

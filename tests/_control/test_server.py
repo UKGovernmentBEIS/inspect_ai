@@ -375,7 +375,8 @@ async def test_sample_endpoint_addresses_reserved_char_ids(
     ``q?x#y`` (query / fragment delimiters). They ride in the ``sample_id``
     *query parameter* (not a path segment, which can't carry them); the client
     URL-encodes and the server decodes them end to end. A path-segment route
-    could never reach these. Pins that the handler receives the id intact.
+    could never reach these. Pins that the handler receives the id intact,
+    and that `content` forwards (metadata-only default, `content=true` opt-in).
 
     A normal ``async def`` test (no isolated ``asyncio.run``): unlike the
     thread-leak tests above, this asserts nothing about worker threads, so the
@@ -383,10 +384,12 @@ async def test_sample_endpoint_addresses_reserved_char_ids(
     """
     from inspect_ai._control import server as server_mod
 
-    received: list[tuple[str, str, int]] = []
+    received: list[tuple[str, str, int, bool]] = []
 
-    async def _echo(eval_id: str, sample_id: str, epoch: int) -> dict[str, object]:
-        received.append((eval_id, sample_id, epoch))
+    async def _echo(
+        eval_id: str, sample_id: str, epoch: int, content: bool = False
+    ) -> dict[str, object]:
+        received.append((eval_id, sample_id, epoch, content))
         return {"sample_id": sample_id, "epoch": epoch, "status": "completed"}
 
     monkeypatch.setattr(server_mod, "sample_error_detail", _echo)
@@ -406,7 +409,15 @@ async def test_sample_endpoint_addresses_reserved_char_ids(
             assert response.status_code == 200, (sid, response.text)
             assert response.json()["sample_id"] == sid, sid
 
-    assert received == [("ev1", sid, 1) for sid in tricky_ids], received
+        assert received == [("ev1", sid, 1, False) for sid in tricky_ids], received
+
+        # `content=true` (the free-text opt-in) rides down to the error detail
+        with_content = await client.get(
+            "/evals/ev1/sample",
+            params={"sample_id": "case/001", "epoch": 1, "content": "true"},
+        )
+        assert with_content.status_code == 200, with_content.text
+        assert received[-1] == ("ev1", "case/001", 1, True)
 
 
 def test_control_server_cleans_up_partial_startup_failure(
@@ -496,6 +507,7 @@ async def test_sample_events_endpoint_parses_type_and_404(
         since: object,
         tail: object,
         types: object,
+        content: object,
         full: object,
         since_time: object,
         until: object,
@@ -503,6 +515,7 @@ async def test_sample_events_endpoint_parses_type_and_404(
     ) -> dict[str, object] | None:
         seen["sample_id"] = sample_id
         seen["types"] = types
+        seen["content"] = content
         seen["full"] = full
         seen["limit"] = limit
         if sample_id == "missing":
@@ -524,6 +537,15 @@ async def test_sample_events_endpoint_parses_type_and_404(
         assert seen["sample_id"] == "case/001"  # reserved-char id round-trips
         assert seen["types"] == frozenset({"model", "tool"})  # comma-split
         assert seen["full"] is True
+        assert seen["content"] is False  # metadata-only default
+
+        # `content=true` (the free-text opt-in) rides down
+        with_content = await client.get(
+            "/evals/e1/sample/events",
+            params={"sample_id": "case/001", "content": "true"},
+        )
+        assert with_content.status_code == 200, with_content.text
+        assert seen["content"] is True
 
         # whitespace around members is stripped — `--type "model, tool"`
         # must not silently filter everything out
@@ -578,10 +600,12 @@ async def test_sample_messages_endpoint_round_trips_and_404(
         epoch: int,
         *,
         tail: object,
+        content: object,
         full: object,
     ) -> dict[str, object] | None:
         seen["sample_id"] = sample_id
         seen["tail"] = tail
+        seen["content"] = content
         seen["full"] = full
         if sample_id == "missing":
             return None
@@ -602,6 +626,15 @@ async def test_sample_messages_endpoint_round_trips_and_404(
         assert seen["sample_id"] == "case/001"  # reserved-char id round-trips
         assert seen["tail"] == 5
         assert seen["full"] is True
+        assert seen["content"] is False  # metadata-only default
+
+        # `content=true` (the free-text opt-in) rides down
+        with_content = await client.get(
+            "/evals/e1/sample/messages",
+            params={"sample_id": "case/001", "content": "true"},
+        )
+        assert with_content.status_code == 200, with_content.text
+        assert seen["content"] is True
 
         missing = await client.get(
             "/evals/e1/sample/messages", params={"sample_id": "missing"}
@@ -616,9 +649,10 @@ async def test_samples_endpoint_parses_filter(
 
     The state-layer filtering is unit-tested; this pins the route wiring —
     `filter=errors` reaches the state layer as "errors", an omitted param
-    keeps the full listing (None), and an unrecognized filter value is
+    keeps the full listing (None), an unrecognized filter value is
     rejected (422) rather than silently answered with the full listing,
-    since the CLI trusts the filter was applied and keeps no fallback.
+    since the CLI trusts the filter was applied and keeps no fallback, and
+    `content` forwards (metadata-only default, `content=true` opt-in).
     """
     from inspect_ai._control import server as server_mod
     from inspect_ai._control.state import SampleListing
@@ -631,9 +665,11 @@ async def test_samples_endpoint_parses_filter(
         statuses: frozenset[str] | None = None,
         limit: int | None = None,
         sample_filter: str | None = None,
+        content: bool = False,
     ) -> SampleListing:
         seen["eval_id"] = eval_id
         seen["sample_filter"] = sample_filter
+        seen["content"] = content
         return SampleListing(counts={}, samples=[], truncated=False)
 
     monkeypatch.setattr(server_mod, "current_sample_listing", _fake)
@@ -650,6 +686,12 @@ async def test_samples_endpoint_parses_filter(
         default = await client.get("/evals/e1/samples")
         assert default.status_code == 200, default.text
         assert seen["sample_filter"] is None
+        assert seen["content"] is False  # metadata-only default
+
+        # `content=true` (the free-text opt-in) rides down
+        with_content = await client.get("/evals/e1/samples", params={"content": "true"})
+        assert with_content.status_code == 200, with_content.text
+        assert seen["content"] is True
 
         seen.clear()
         unknown = await client.get("/evals/e1/samples", params={"filter": "bogus"})
