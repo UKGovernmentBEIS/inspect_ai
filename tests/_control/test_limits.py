@@ -948,6 +948,7 @@ def test_sample_list_token_ceiling_reflects_override() -> None:
 
     class _FakeTranscript:
         history = _FakeHistory()
+        pending_events: list[Any] = []
 
     class _FakeSample:
         id = "s1"
