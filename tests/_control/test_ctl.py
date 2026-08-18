@@ -1035,6 +1035,42 @@ def test_footer_reports_each_holding_latch_when_mixed(
     assert "inspect ctl process resume" not in out
 
 
+def test_footer_composes_quiesced_and_held_details(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The paused-footer detail combines the quiesced and held counts.
+
+    Held samples are summed across ALL rows, not just paused ones: a hard
+    model pause holds other tasks' grader/role calls to that model without
+    stamping a latch source on their rows.
+    """
+    summaries: list[dict[str, Any]] = [
+        {"keep_alive": True, "paused": ["task"], "quiesced": True},
+        {"keep_alive": True, "paused": ["task"], "paused_now": ["task"], "held": 2},
+        {"keep_alive": True, "paused": None, "held": 1},
+    ]
+    _print_keep_alive_footer(summaries)
+    out = capsys.readouterr().out
+    assert "paused: 2/3 tasks (1 quiesced, 3 held)" in out
+
+
+def test_footer_warns_on_held_samples_with_no_paused_rows(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Held samples with no paused row still print the don't-kill-yet warning.
+
+    A hard model pause whose primary tasks have no rows yet leaves the held
+    samples as the only visible trace — the footer must not stay silent.
+    """
+    _print_keep_alive_footer([{"keep_alive": True, "held": 2}])
+    out = capsys.readouterr().out
+    assert "held: 2 samples held at the next model call" in out
+    assert "forfeits in-sample progress" in out
+    # singular form
+    _print_keep_alive_footer([{"keep_alive": True, "held": 1}])
+    assert "held: 1 sample held" in capsys.readouterr().out
+
+
 def test_format_paused_renders_source_lists() -> None:
     from inspect_ai._cli.ctl import _format_paused
 
@@ -1044,6 +1080,39 @@ def test_format_paused_renders_source_lists() -> None:
     assert _format_paused({"paused": "both"}) == "task+process"
     assert _format_paused({"paused": "task"}) == "task"
     assert _format_paused({"paused": None}) == ""
+
+
+def test_format_paused_marks_hard_sources_and_held_counts() -> None:
+    from inspect_ai._cli.ctl import _format_paused
+
+    # only the hard-holding latch gets the (now) marker
+    assert (
+        _format_paused({"paused": ["task", "model"], "paused_now": ["model"]})
+        == "task+model(now)"
+    )
+    # a hard pause issued while nothing was in flight quiesces immediately
+    assert (
+        _format_paused({"paused": ["task"], "paused_now": ["task"], "quiesced": True})
+        == "task(now) (quiesced)"
+    )
+    # a nonzero held count replaces the quiesced marker (a held sample is
+    # still dispatched, so the two can't co-occur)
+    assert (
+        _format_paused({"paused": ["task"], "paused_now": ["task"], "held": 2})
+        == "task(now) (2 held)"
+    )
+    # held with no latch sources of its own: another task's `model pause
+    # --now` holds this task's grader/role calls to that model
+    assert _format_paused({"paused": None, "held": 3}) == "(3 held)"
+
+
+def test_format_process_paused_marks_hard_pause() -> None:
+    from inspect_ai._cli.ctl import _format_process_paused
+
+    assert _format_process_paused(None, False) == "?"
+    assert _format_process_paused(False, False) == "no"
+    assert _format_process_paused(True, False) == "yes"
+    assert _format_process_paused(True, True) == "yes (now)"
 
 
 class _FakeServer:
