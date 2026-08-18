@@ -294,7 +294,7 @@ class TestListEvalLogsAsyncIntegration:
         refuses to run under trio, so custom-named local files silently lost
         their task name. The new async path bypasses that.
         """
-        from inspect_ai._view.common import list_eval_logs_async
+        from inspect_ai.log import list_eval_logs_async
 
         header = _make_full_header(task="local_task", task_id="local_id")
         _make_eval_zip(str(tmp_path / "no_timestamp.eval"), header)

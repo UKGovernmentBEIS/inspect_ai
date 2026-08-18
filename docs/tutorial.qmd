@@ -20,6 +20,10 @@ Below are several examples of Inspect evaluations. Each example is standalone, s
 
 See also the complete list of [Examples](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples) and the [Inspect Evals](https://github.com/UKGovernmentBEIS/inspect_evals) package for many more end-to-end implementations.
 
+::: {.callout-note appearance="simple"}
+If you use a coding agent alongside Inspect, the [inspect-skills](https://github.com/meridianlabs-ai/inspect-skills#install) plugin provides skills that teach it to monitor running evals, read logs efficiently, and analyze results.
+:::
+
 ## Benchmarks {#sec-benchmarks}
 
 An Inspect evaluation is a `Task` that brings together three things: a **dataset** of samples, a **solver** that produces an answer for each sample, and a **scorer** that grades the answers. We'll look at two short benchmarks below: one scored by a model and one multiple choice.
@@ -172,7 +176,7 @@ def intercode_ctf(attempts=3, message_limit=30):
 
 4.  `includes()` passes if the target flag appears in the agent's submitted answer.
 
-5.  `sandbox="docker"` isolates all tool execution in a Docker container (configured by a `Dockerfile`/`compose.yaml` beside the task). See [Sandboxing](sandboxing.qmd).
+5.  `sandbox="docker"` provides the isolated Docker container used by `bash()` and `python()`. See [Sandboxing](sandboxing.qmd).
 
 6.  Limits keep runaway agents in check. Here we cap total messages; you can also set token, time, and cost limits (see [Setting Limits](setting-limits.qmd)).
 

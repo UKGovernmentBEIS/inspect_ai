@@ -41,7 +41,7 @@ from inspect_ai._util.file import filesystem
 from inspect_ai._util.samples import parse_sample_id, parse_samples_limit
 from inspect_ai.log._file import log_file_info
 from inspect_ai.log._log import EvalConfig, EvalLog
-from inspect_ai.model import GenerateConfig, GenerateConfigArgs, get_model
+from inspect_ai.model import GenerateConfig, GenerateConfigArgs, Model, get_model
 from inspect_ai.model._cache import CachePolicy
 from inspect_ai.model._generate_config import (  # noqa: F811
     BatchConfig,
@@ -73,6 +73,7 @@ from .util import (
     parse_cli_args,
     parse_cli_config,
     parse_model_role_cli_args,
+    parse_model_spec_cli_args,
     parse_sandbox,
     token_limit_flag_callback,
 )
@@ -117,7 +118,8 @@ CONTINUE_ON_FAIL_HELP = "Do not immediately fail the eval if the error threshold
 RETRY_ON_ERROR_HELP = "Retry samples if they encounter errors (by default, no retries occur). Specify --retry-on-error to retry a single time, or specify e.g. `--retry-on-error=3` to retry multiple times."
 SCORE_ON_ERROR_HELP = "Score samples that error rather than failing the eval mid-run. Errors still count toward the --fail-on-error threshold for marking the log as 'error'. Only fires after retries (if any) are exhausted."
 LOG_IMAGES_HELP = (
-    "Include base64 encoded versions of filename or URL based images in the log file."
+    "Retain inline image and other media bytes in the log file. "
+    "This option does not control media fetching."
 )
 LOG_MODEL_API_HELP = "Log raw model api requests and responses. Note that error requests/responses are always logged."
 LOG_REFUSALS_HELP = "Log warnings for model refusals."
@@ -294,6 +296,13 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         type=str,
         envvar="INSPECT_EVAL_MODEL_CONFIG",
         help="YAML or JSON config file with model arguments.",
+    )
+    @click.option(
+        "--model-spec",
+        multiple=True,
+        type=str,
+        envvar="INSPECT_EVAL_MODEL_SPEC",
+        help='Model to evaluate along with its own generate config, model args, and base url, as inline YAML or JSON, e.g. --model-spec "{model: openai/gpt-4o, temperature: 0}" (same fields as --model-role, plus base_url). Repeat the option to evaluate several models, each with its own options. Cannot be combined with --model, --model-base-url, --model-config, or -M.',
     )
     @click.option(
         "--run-config",
@@ -983,6 +992,7 @@ def eval_command(ctx: click.Context, /, **params: Any) -> None:
                 "m": "model_args",
                 "t": "task_args",
                 "model_role": "model_roles",
+                "model_spec": "model",
                 "no_sandbox_cleanup": "sandbox_cleanup",
                 "s": "solver",
                 "solver_config": "solver",
@@ -1062,6 +1072,7 @@ def _eval_command_impl(
     model_base_url: str | None,
     m: tuple[str, ...] | None,
     model_config: str | None,
+    model_spec: tuple[str, ...] | None,
     run_config: str | None,
     model_role: tuple[str, ...] | None,
     t: tuple[str, ...] | None,
@@ -1192,6 +1203,7 @@ def _eval_command_impl(
         model_base_url=model_base_url,
         m=m,
         model_config=model_config,
+        model_spec=model_spec,
         run_config=run_config,
         model_role=model_role,
         t=t,
@@ -1362,6 +1374,7 @@ def eval_set_command(
     model_base_url: str | None,
     m: tuple[str, ...] | None,
     model_config: str | None,
+    model_spec: tuple[str, ...] | None,
     run_config: str | None,
     model_role: tuple[str, ...] | None,
     t: tuple[str, ...] | None,
@@ -1509,6 +1522,7 @@ def eval_set_command(
             model_base_url=model_base_url,
             m=m,
             model_config=model_config,
+            model_spec=model_spec,
             run_config=run_config,
             model_role=model_role,
             t=t,
@@ -1745,6 +1759,75 @@ def merge_run_config_params(
     return params
 
 
+_SINGLE_MODEL_OPTION_NAMES = {"model", "model_base_url", "model_config", "m"}
+"""Click names of the options that configure one shared main model."""
+
+
+def resolve_model_spec(
+    model_spec: tuple[str, ...] | None, run_params: dict[str, Any]
+) -> list[Model] | None:
+    """Resolve `--model-spec` into one model per spec.
+
+    A spec builds a `Model`, and `get_model()` returns a `Model` unchanged. The
+    single model options (`--model`, `--model-base-url`, `--model-config`, `-M`)
+    and a `--run-config` `model` field therefore reach nothing beside a spec, so
+    treat them as mutually exclusive with `--model-spec`.
+
+    A typed option beats an ambient environment value, so the source of each
+    side decides the outcome:
+
+    - Both typed on the command line: raise.
+    - A typed spec against an environment option: the spec wins.
+    - An environment spec against a typed option: the option wins and this
+      returns None. An `INSPECT_EVAL_MODEL_SPEC` in a `.env` file must not
+      break every explicit `--model`.
+
+    A `--run-config` `model` field counts as typed, because a config file states
+    it explicitly.
+
+    Args:
+        model_spec: The `--model-spec` values.
+        run_params: The parameters that `--run-config` supplies.
+
+    Returns:
+        One model per spec, or None to leave the model to `--model`.
+
+    Raises:
+        PrerequisiteError: The command line holds a spec and a conflicting
+            option.
+    """
+    if not model_spec:
+        return None
+
+    from click.core import ParameterSource
+
+    ctx = click.get_current_context(silent=True)
+    if ctx is None:
+        return parse_model_spec_cli_args(model_spec)
+
+    def typed(name: str) -> bool:
+        return ctx.get_parameter_source(name) == ParameterSource.COMMANDLINE
+
+    conflicting = [
+        param.opts[0]
+        for param in ctx.command.params
+        if param.name is not None
+        and param.name in _SINGLE_MODEL_OPTION_NAMES
+        and typed(param.name)
+    ]
+    if "model" in run_params:
+        conflicting.append("the 'model' field of --run-config")
+    if conflicting:
+        if not typed("model_spec"):
+            return None
+        raise PrerequisiteError(
+            f"--model-spec cannot be used with {' / '.join(conflicting)}. Put "
+            "the model, config, args, and base url inside each --model-spec."
+        )
+
+    return parse_model_spec_cli_args(model_spec)
+
+
 def eval_exec(
     tasks: tuple[str, ...] | None,
     solver: str | None,
@@ -1756,6 +1839,7 @@ def eval_exec(
     model_base_url: str | None,
     m: tuple[str, ...] | None,
     model_config: str | None,
+    model_spec: tuple[str, ...] | None,
     run_config: str | None,
     model_role: tuple[str, ...] | None,
     t: tuple[str, ...] | None,
@@ -1845,6 +1929,8 @@ def eval_exec(
     task_args = parse_cli_config(t, task_config)
     solver_args = parse_cli_config(s, solver_config)
     model_args = parse_cli_config(m, model_config)
+
+    eval_models = resolve_model_spec(model_spec, run_params)
 
     # resolve scanner spec
     from inspect_ai._display.core.results import set_retry_args_suffix
@@ -1944,7 +2030,7 @@ def eval_exec(
     cli_params: dict[str, Any] = (
         dict(
             tasks=list(tasks) if tasks else None,
-            model=model,
+            model=eval_models if eval_models is not None else model,
             model_base_url=model_base_url,
             model_args=model_args,
             model_roles=eval_model_roles,

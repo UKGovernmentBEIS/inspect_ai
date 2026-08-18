@@ -82,9 +82,16 @@ def test_completed_and_running_unaffected() -> None:
 
 
 async def test_summaries_from_missing_log_degrade_to_empty(tmp_path) -> None:
+    from inspect_ai._control.eval_state import EvalState
     from inspect_ai._control.state import _sample_summaries_from_log
 
-    assert await _sample_summaries_from_log(str(tmp_path / "deleted.eval")) == []
+    state = EvalState(
+        eval_id="e1", total=1, log_location=str(tmp_path / "deleted.eval")
+    )
+    assert await _sample_summaries_from_log(state) == []
+    # the empty degradation is never memoized: a deleted log stays a
+    # per-request (cheap, failing) read rather than a pinned empty listing
+    assert state.log_sample_summaries is None
 
 
 async def test_full_sample_from_missing_log_degrades_to_none(tmp_path) -> None:
@@ -95,6 +102,74 @@ async def test_full_sample_from_missing_log_degrades_to_none(tmp_path) -> None:
         # provider-less state (detached / reused) pointing at a deleted log
         register_eval("e1", 1, log_location=str(tmp_path / "deleted.eval"))
         assert await _full_sample("e1", "1", 1) is None
+    finally:
+        clear_all_eval_states()
+
+
+# --- fallback summaries memo ---------------------------------------------
+#
+# Once the live recorder is gone the log is finalized and immutable, so the
+# fallback listing read happens once and is memoized on the EvalState — a
+# keep-alive-parked process polled every 30s must not re-read the log
+# (possibly from S3) per poll (finding 3 in design/ctl/endpoint-cost-audit.md).
+# The retry sweep clears the memo when it deletes a superseded attempt's log.
+
+
+async def test_fallback_summaries_read_once_and_memoized(monkeypatch) -> None:
+    import inspect_ai.log._file as log_file
+    from inspect_ai._control.eval_state import clear_all_eval_states, register_eval
+    from inspect_ai._control.state import current_sample_summaries
+
+    monkeypatch.setattr("inspect_ai.log._samples.active_samples", lambda: [])
+    calls = {"n": 0}
+
+    async def fake_read(location: str) -> list[EvalSampleSummary]:
+        calls["n"] += 1
+        return [_summary(None, completed=True)]
+
+    monkeypatch.setattr(log_file, "read_eval_log_sample_summaries_async", fake_read)
+    try:
+        register_eval("e-memo", 1, log_location="logs/a.eval")
+
+        rows = await current_sample_summaries("e-memo")
+        assert [r["status"] for r in rows] == ["completed"]
+        assert rows == await current_sample_summaries("e-memo")
+        assert calls["n"] == 1
+    finally:
+        clear_all_eval_states()
+
+
+async def test_retry_sweep_invalidation_degrades_listing_to_empty(monkeypatch) -> None:
+    import inspect_ai.log._file as log_file
+    from inspect_ai._control.eval_state import (
+        clear_all_eval_states,
+        get_eval_state,
+        invalidate_log_sample_summaries,
+        register_eval,
+    )
+    from inspect_ai._control.state import current_sample_summaries
+
+    monkeypatch.setattr("inspect_ai.log._samples.active_samples", lambda: [])
+    deleted = {"is": False}
+
+    async def fake_read(location: str) -> list[EvalSampleSummary]:
+        if deleted["is"]:
+            raise FileNotFoundError(location)
+        return [_summary(None, completed=True)]
+
+    monkeypatch.setattr(log_file, "read_eval_log_sample_summaries_async", fake_read)
+    try:
+        register_eval("e-swept", 1, log_location="logs/a.eval")
+        assert len(await current_sample_summaries("e-swept")) == 1
+
+        # the sweep deletes the log and clears the memo: the listing degrades
+        # to empty (the pre-memo behavior) instead of serving memoized rows
+        # for a log that no longer exists (whose samples 404 on detail reads)
+        deleted["is"] = True
+        invalidate_log_sample_summaries("e-swept")
+        assert await current_sample_summaries("e-swept") == []
+        state = get_eval_state("e-swept")
+        assert state is not None and state.log_sample_summaries is None
     finally:
         clear_all_eval_states()
 
@@ -207,6 +282,84 @@ async def test_errors_filter_filters_and_skips_pending_grid(monkeypatch) -> None
         assert sum(1 for r in full if r["status"] == "pending") == 3
     finally:
         clear_all_eval_states()
+
+
+async def test_listing_withholds_error_message_unless_content(monkeypatch) -> None:
+    """The listing's error message (agent-influenced free text) is gated.
+
+    Withheld by default — the row still reads ``status == "error"`` — and
+    included with ``content=True``.
+    """
+    from inspect_ai._control.eval_state import clear_all_eval_states, register_eval
+    from inspect_ai._control.state import current_sample_listing
+
+    monkeypatch.setattr("inspect_ai.log._samples.active_samples", lambda: [])
+    completed = [
+        EvalSampleSummary(id="bad", epoch=1, input="i", target="t", error=_GENUINE),
+    ]
+    try:
+        register_eval(
+            "e-content",
+            7,
+            live=cast("LiveEvalData", _FakeLive(completed)),
+            sample_ids=["bad"],
+            epochs=1,
+        )
+
+        listing = await current_sample_listing("e-content")
+        [row] = [r for r in listing.samples if r["sample_id"] == "bad"]
+        assert row["status"] == "error"
+        assert row["error"] is None
+
+        listing = await current_sample_listing("e-content", content=True)
+        [row] = [r for r in listing.samples if r["sample_id"] == "bad"]
+        assert row["error"] == _GENUINE
+    finally:
+        clear_all_eval_states()
+
+
+async def test_error_detail_withholds_free_text_unless_content(monkeypatch) -> None:
+    """``sample_error_detail`` gates the error free text.
+
+    By default each error renders as an empty dict (presence without the
+    agent-influenced message / tracebacks); ``content=True`` restores the
+    full fields.
+    """
+    from types import SimpleNamespace
+
+    import inspect_ai._control.state as state_mod
+    from inspect_ai.log import EvalError
+
+    monkeypatch.setattr("inspect_ai.log._samples.active_samples", lambda: [])
+
+    error = EvalError(message="boom", traceback="TB", traceback_ansi="TB-ANSI")
+    sample = SimpleNamespace(
+        id="s1", epoch=1, error=error, error_retries=[error], scores=None
+    )
+
+    async def full_sample(*args: Any, **kwargs: Any) -> Any:
+        return sample
+
+    async def no_rows(eval_id: str) -> list[dict[str, Any]]:
+        return []
+
+    monkeypatch.setattr(state_mod, "_full_sample", full_sample)
+    monkeypatch.setattr(state_mod, "_completed_sample_summaries", no_rows)
+    monkeypatch.setattr(state_mod, "_pending_requeue_keys", lambda eid: frozenset())
+
+    detail = await state_mod.sample_error_detail("e1", "s1", 1)
+    assert detail is not None
+    assert detail["status"] == "error"
+    assert detail["error"] == {} and detail["error_retries"] == [{}]
+
+    detail = await state_mod.sample_error_detail("e1", "s1", 1, content=True)
+    assert detail is not None
+    assert detail["error"] == {
+        "message": "boom",
+        "traceback": "TB",
+        "traceback_ansi": "TB-ANSI",
+    }
+    assert [e["message"] for e in detail["error_retries"]] == ["boom"]
 
 
 def test_running_summary_reports_token_limit_and_turns(monkeypatch) -> None:
@@ -499,3 +652,98 @@ async def test_batch_admin_retry_does_not_stamp_retry_wait() -> None:
         assert active.retry_wait is None
     finally:
         _sample_active.reset(token)
+
+
+def test_task_summary_adds_live_counts_to_the_eval_total(monkeypatch) -> None:
+    """Refusals / HTTP retries are reported as ``eval total + sum(in flight)``.
+
+    Both terms are needed and neither is sufficient. The eval total alone misses
+    everything the running samples have seen so far — which on a long-episode
+    benchmark is everything, since no sample may finish for hours, and a retry
+    storm is worth knowing about while the run can still be steered. The live sum
+    alone falls back toward zero as samples finish and leave ``active_samples``,
+    the bug already fixed for ``total_tokens``.
+    """
+    from types import SimpleNamespace
+
+    from inspect_ai._control.eval_state import (
+        clear_all_eval_states,
+        get_eval_state,
+        record_sample_event_counts,
+        register_eval,
+    )
+    from inspect_ai._control.state import _build_summary
+
+    clear_all_eval_states()
+    try:
+        register_eval("e1", 3, task="t", task_id="tid")
+        # two samples already finished and left active_samples
+        record_sample_event_counts("e1", refusals=2, http_retries=7)
+        latest = get_eval_state("e1")
+        assert latest is not None
+
+        in_flight = SimpleNamespace(
+            eval_id="e1",
+            run_id="r",
+            task="t",
+            model="m",
+            log_location="logs/a.eval",
+            started=100.0,
+            completed=None,
+            total_tokens=0,
+            total_messages=0,
+            refusals=1,
+            http_retries=4,
+        )
+        summary = _build_summary(
+            latest=latest,
+            states=[latest],
+            samples=[cast("Any", in_flight)],
+            attempts=1,
+            started_at_fallback=0.0,
+        )
+        assert summary["refusals"] == 3
+        assert summary["http_retries"] == 11
+    finally:
+        clear_all_eval_states()
+
+
+def test_task_summary_sums_event_counts_across_retry_attempts() -> None:
+    """A task-level retry must not discard the prior attempt's tallies.
+
+    ``current_eval_summaries`` folds every attempt of a task onto ONE row, and the
+    state counters deliberately come from the latest attempt only (a retry's
+    ``completed`` already includes reused successes, so summing double-counts).
+    Event counts are the exception: they record what happened, and the attempt that
+    FAILED is the one whose retries matter most — a provider problem bad enough to
+    fail a task is what triggered the retry. With ``retry_attempts`` defaulting to
+    10, reading these off ``latest`` reset them on the default path.
+    """
+    from inspect_ai._control.eval_state import (
+        clear_all_eval_states,
+        get_eval_states,
+        record_sample_event_counts,
+        register_eval,
+    )
+    from inspect_ai._control.state import _build_summary
+
+    clear_all_eval_states()
+    try:
+        register_eval("e1", 2, task="t", task_id="tid")  # attempt 1
+        record_sample_event_counts("e1", refusals=2, http_retries=5)
+        register_eval("e2", 2, task="t", task_id="tid")  # its retry
+        record_sample_event_counts("e2", refusals=1, http_retries=3)
+        states = list(get_eval_states())
+        assert len(states) == 2
+
+        summary = _build_summary(
+            latest=states[-1],
+            states=states,
+            samples=[],
+            attempts=len(states),
+            started_at_fallback=0.0,
+        )
+        assert summary["refusals"] == 3
+        assert summary["http_retries"] == 8
+    finally:
+        clear_all_eval_states()

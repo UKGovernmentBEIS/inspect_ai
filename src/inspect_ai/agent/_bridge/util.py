@@ -2,12 +2,31 @@ import inspect
 import warnings
 from contextlib import contextmanager
 from contextvars import ContextVar
+from logging import getLogger
 from typing import Iterator, Sequence, cast
 
 from typing_extensions import TypeIs
 
+from inspect_ai._util.content import (
+    Content,
+    ContentAudio,
+    ContentDocument,
+    ContentImage,
+    ContentText,
+    ContentVideo,
+)
+from inspect_ai._util.images import materialize_media
 from inspect_ai._util.json import to_json_str_safe
+from inspect_ai._util.logger import warn_once
+from inspect_ai._util.url import data_uri_mime_type, is_data_uri
+from inspect_ai.agent._bridge._approval import (
+    MAX_CONSECUTIVE_REJECTIONS,
+    apply_bridge_tool_approval,
+    terminate_for_repeated_rejections,
+)
+from inspect_ai.agent._bridge._errors import BridgePolicyError
 from inspect_ai.agent._bridge.types import AgentBridge, message_json_hash
+from inspect_ai.model._agent_message import validate_agent_message
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
 from inspect_ai.model._generate_config import GenerateConfig, active_generate_config
 from inspect_ai.model._model import (
@@ -22,7 +41,7 @@ from inspect_ai.model._model import (
 )
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.tool._tool import Tool
-from inspect_ai.tool._tool_choice import ToolChoice
+from inspect_ai.tool._tool_choice import ToolChoice, ToolFunction
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.tool._tool_util import tool_to_tool_info
 from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
@@ -228,6 +247,11 @@ async def bridge_generate(
     Refusals (stop_reason="content_filter") from either the filter or model will trigger
     retries up to bridge.retry_refusals times, with inputs reset to original values for
     each retry to ensure clean state.
+
+    Tool calls in the output are approved before it is handed back to the scaffold. A
+    rejected call is not edited out of the response — instead the model is told it was
+    rejected and generation is retried, so the scaffold sees only the replacement (see
+    `_approval.apply_bridge_tool_approval`).
     """
     # restore operator provenance lost to a bridged scaffold's round-trip (e.g.
     # claude_code re-emits an operator message as a plain user message). Done
@@ -250,6 +274,7 @@ async def bridge_generate(
     original_config = config
 
     refusals = 0
+    rejections = 0
     while True:
         # Reset to original inputs for each retry
         input_messages = original_input
@@ -307,8 +332,23 @@ async def bridge_generate(
             and refusals < bridge.retry_refusals
         ):
             refusals += 1
-        else:
-            return output, c_message
+            continue
+
+        # Approve the tool calls the scaffold is about to run. A rejection comes back
+        # as the messages to replay to the model (the rejected call plus a result for
+        # every call in the response) so it can propose something else; the scaffold
+        # never sees the rejected response.
+        reviewed = await apply_bridge_tool_approval(bridge, output, input_messages)
+        if reviewed.rejection is None:
+            return reviewed.output, c_message
+
+        rejections += 1
+        if rejections >= MAX_CONSECUTIVE_REJECTIONS:
+            terminate_for_repeated_rejections(bridge, rejections)
+
+        # accumulate onto original_input (rather than input_messages) since that is
+        # what the top of the loop resets to, and any filter rewrite is per-attempt
+        original_input = original_input + reviewed.rejection
 
 
 def resolve_generate_config(
@@ -365,6 +405,170 @@ def default_code_execution_providers() -> CodeExecutionProviders:
     return CodeExecutionProviders(
         openai={}, anthropic=True, google=True, grok=True, python={}
     )
+
+
+logger = getLogger(__name__)
+
+
+def withheld_bridge_tool(tool_type: str) -> None:
+    """Drop a client-declared tool this bridge does not grant.
+
+    Dropping rather than erroring keeps the rest of the request serviceable. The
+    warning is what makes the omission diagnosable: an absent tool is otherwise
+    indistinguishable from the model simply choosing not to call it.
+    """
+    warn_once(
+        logger,
+        f"The bridged agent declared a '{tool_type}' tool, which this bridge does "
+        "not grant; it has been withheld from the model. Grant it via the "
+        "corresponding agent_bridge() option if the evaluation intends it.",
+    )
+    return None
+
+
+def relax_tool_choice_for_withheld(
+    tool_choice: ToolChoice | None, tools: Sequence[ToolInfo | Tool]
+) -> ToolChoice | None:
+    """Fall back to "auto" when `tool_choice` names a tool this bridge withheld.
+
+    Forcing a tool that isn't in the list makes the model layer purge *every* tool
+    for the turn, so one withheld capability would take the agent's own function
+    tools down with it.
+    """
+    if not isinstance(tool_choice, ToolFunction):
+        return tool_choice
+    names = {
+        (tool.name if isinstance(tool, ToolInfo) else tool_to_tool_info(tool).name)
+        for tool in tools
+    }
+    return tool_choice if tool_choice.name in names else "auto"
+
+
+def resolve_bridge_web_search(
+    providers: WebSearchProviders | bool | None,
+    *,
+    default_grant: bool,
+) -> WebSearchProviders | None:
+    """Resolve a bridge `web_search` option, returning `None` to withhold it.
+
+    `None` defers to the bridge's own posture. A config that leaves no provider
+    enabled also withholds: otherwise "turn every provider off" would still serve
+    search through whichever provider the config neglected to name.
+
+    Note an *empty* config is the opposite of an all-`False` one — it enables the
+    default provider set, and callers rely on that to grant without pinning a list.
+    """
+    if providers is None:
+        providers = default_grant
+    if providers is False:
+        return None
+    if providers is True:
+        providers = internal_web_search_providers()
+    return cast(WebSearchProviders, _normalize_config(providers)) or None
+
+
+def resolve_bridge_code_execution(
+    providers: CodeExecutionProviders | bool | None,
+    *,
+    default_grant: bool,
+) -> CodeExecutionProviders | None:
+    """Resolve a bridge `code_execution` option, returning `None` to withhold it."""
+    if providers is None:
+        providers = default_grant
+    if providers is False:
+        return None
+    if providers is True:
+        return default_code_execution_providers()
+    return providers
+
+
+def _bridge_media_uri(content: Content) -> str | None:
+    match content:
+        case ContentImage():
+            return content.image
+        case ContentDocument():
+            return content.document
+        case ContentAudio():
+            return content.audio
+        case ContentVideo():
+            return content.video
+        case _:
+            return None
+
+
+def _bridge_media_mime_type(content: Content) -> str | None:
+    if isinstance(content, ContentAudio):
+        return "audio/mpeg" if content.format == "mp3" else "audio/wav"
+    elif isinstance(content, ContentVideo):
+        return {
+            "mp4": "video/mp4",
+            "mpeg": "video/mpeg",
+            "mov": "video/quicktime",
+        }[content.format]
+    elif isinstance(content, ContentDocument):
+        return content.mime_type or None
+    else:
+        return None
+
+
+def _set_bridge_media_uri(content: Content, uri: str) -> None:
+    match content:
+        case ContentImage():
+            content.image = uri
+        case ContentDocument():
+            content.document = uri
+            content.mime_type = data_uri_mime_type(uri) or content.mime_type
+        case ContentAudio():
+            content.audio = uri
+        case ContentVideo():
+            content.video = uri
+
+
+async def validate_bridge_media(
+    bridge: AgentBridge, messages: Sequence[ChatMessage]
+) -> None:
+    """Reject or explicitly materialize inbound bridge media.
+
+    Media content carries a URI that gets resolved outside the sandbox: an http(s)
+    URL may be fetched and anything else may be read from the host filesystem via
+    fsspec. For a sandboxed agent that is a confused deputy — it turns an ordinary
+    model request into an arbitrary read performed by a process the sandbox is not
+    supposed to reach. Only inline `data:` URIs are accepted by default.
+
+    When remote media is enabled, the bridge itself materializes each reference
+    before the request reaches the model. This keeps provider serialization
+    inline-only while preserving the explicitly granted host access.
+    """
+    for message_index, message in enumerate(messages):
+        if isinstance(message.content, str):
+            continue
+        for content_index, content in enumerate(message.content):
+            if isinstance(content, ContentText):
+                if (
+                    isinstance(content.internal, dict)
+                    and "agent_message" in content.internal
+                ):
+                    try:
+                        validate_agent_message(content.internal["agent_message"])
+                    except ValueError as ex:
+                        raise BridgePolicyError(str(ex)) from ex
+                continue
+            uri = _bridge_media_uri(content)
+            if uri is None or is_data_uri(uri):
+                continue
+            if not bridge.allow_remote_media:
+                raise BridgePolicyError(
+                    f"Bridged {content.type} content at message index "
+                    f"{message_index}, content index {content_index} must be an "
+                    "inline 'data:' URI; the agent bridge will not dereference "
+                    "a non-inline reference."
+                )
+            _set_bridge_media_uri(
+                content,
+                await materialize_media(
+                    uri, mime_type=_bridge_media_mime_type(content)
+                ),
+            )
 
 
 def apply_message_ids(bridge: AgentBridge, messages: list[ChatMessage]) -> None:

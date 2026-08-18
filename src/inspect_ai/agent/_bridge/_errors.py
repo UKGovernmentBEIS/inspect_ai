@@ -22,6 +22,17 @@ Mirrored as a literal in the sandbox proxy; keep both in sync.
 """
 
 
+class BridgePolicyError(Exception):
+    """A bridged request asked for something the bridge is configured to withhold.
+
+    Carries `status_code` so `provider_error_payload()` reports a 400 rather than
+    an unrecoverable status — a policy denial is a deterministic client error, not
+    a bug in our request translation, and should not be logged with a traceback.
+    """
+
+    status_code = 400
+
+
 class ProviderErrorPayload(TypedDict):
     """Forwardable provider-error detail carried under `PROVIDER_ERROR_KEY`."""
 
