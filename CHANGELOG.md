@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Sandboxes: The HTTP proxy example now disables container network egress, preventing agents from bypassing mitmproxy by ignoring proxy environment variables.
 - Sandboxes: The evals-in-eval example now uses rootless Docker-in-Docker and warns that its privileged sidecar is unsuitable for adversarial agents.
 - Sandbox: Recognized Docker failures to run a command (stopped container; missing or unlaunchable timeout wrapper) now surface as tool errors of type `sandbox_unavailable` rather than as command output; non-tool callers (e.g. scorers) get a `SandboxUnavailableError` or `PermissionError` raise. (#4709)
 - Scoring: Treat numeric string metric return values as scalar values rather than sequences in eval results. (#4903)
@@ -14,6 +15,7 @@
 - Inspect CTL: Terminal escape sequences and control characters in agent-generated text are now sanitized in `inspect ctl` human-readable output, preventing spoofing of the operator's terminal.
 - Control Channel: New `--now` flag on `inspect ctl task|model|process pause` additionally holds in-flight samples at their next model call until resume, with held-sample counts reported in `inspect ctl task list`.
 - Fixed sandbox tools (`text_editor`, `bash_session`) failing to install in non-root sandboxes (e.g. Kubernetes pods with `runAsNonRoot`).
+- Bugfix: Model outputs stopped by a provider content filter are no longer cached, so `retry_refusals` gets a fresh model attempt instead of a replayed cached refusal.
 - Docker Sandbox: Prerequisite checks now validate the daemon version rather than the CLI version and explain when daemon metadata is unavailable.
 - Bugfix: `web_search("exa")` no longer fails with a validation error, and Exa citations now include page text by default.
 - Breaking: Runtime media paths and URLs now require `materialize_media()` before model use; fixed selected-dataset media remains automatic, while sandbox bridges require inline data URIs.
