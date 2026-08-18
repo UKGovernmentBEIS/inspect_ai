@@ -1,6 +1,6 @@
 from typing import IO, Any, Generic, Literal, TypeVar
 
-import httpx
+import httpx2
 import pydantic
 from openai import AsyncOpenAI
 from openai._types import NOT_GIVEN
@@ -150,7 +150,7 @@ class OpenAIBatcher(FileBatcher[ResponseT, CompletedBatchInfo], Generic[Response
         else:
             return request_id, (
                 self._openai_client._make_status_error_from_response(  # pyright: ignore[reportPrivateUsage]
-                    httpx.Response(status_code=error["code"], text=error["message"])
+                    httpx2.Response(status_code=error["code"], text=error["message"])
                 )
             )
 

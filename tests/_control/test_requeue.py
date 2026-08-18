@@ -1046,7 +1046,7 @@ async def test_sample_show_renders_pending_requeue_as_queued(
         "e1", cast(SampleRequeue, _FakeRequeueHandle(pending={("s1", 1)}))
     )
 
-    detail = await sample_error_detail("e1", "s1", 1)
+    detail = await sample_error_detail("e1", "s1", 1, content=True)
     assert detail is not None
     assert detail["status"] == "queued"
     assert detail["error"] is None and detail["completed_at"] is None
