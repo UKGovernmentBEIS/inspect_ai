@@ -118,21 +118,24 @@ async def test_all_model_entry_points_reject_non_inline_media(operation: str) ->
             await model.compact(messages, [])
 
 
-def test_responses_bare_file_data_is_normalized_without_io() -> None:
+@pytest.mark.parametrize(
+    "file_data",
+    [
+        "/tmp/host-only-secret.txt",
+        "https://example.com/report.pdf",
+        "JVBERi0xLjQ=",
+    ],
+)
+def test_responses_non_uri_file_data_is_not_normalized(file_data: str) -> None:
     content = content_from_response_input_content_param(
         cast(
             Any,
-            {
-                "type": "input_file",
-                "file_data": "JVBERi0xLjQ=",
-                "filename": "report.pdf",
-            },
+            {"type": "input_file", "file_data": file_data, "filename": "secret.txt"},
         )
     )
 
     assert isinstance(content, ContentDocument)
-    assert content.document == "data:application/pdf;base64,JVBERi0xLjQ="
-    assert content.mime_type == "application/pdf"
+    assert content.document == file_data
 
 
 def test_responses_typed_file_data_is_preserved() -> None:
