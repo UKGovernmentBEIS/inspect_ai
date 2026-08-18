@@ -31,9 +31,22 @@ def gh_api(path: str) -> Any:
 
 
 def gh_api_text(path: str) -> str:
+    """Fetch a text API response (job logs).
+
+    gh >= 2.97 refuses to print a response containing terminal escape
+    sequences (pytest runs --color=yes, so logs always have them) unless
+    --allow-escape-sequences is passed; older gh rejects that flag as
+    unknown, hence the flagless retry.
+    """
     result = subprocess.run(
-        ["gh", "api", path], capture_output=True, text=True, check=True
+        ["gh", "api", "--allow-escape-sequences", path],
+        capture_output=True,
+        text=True,
     )
+    if result.returncode != 0:
+        result = subprocess.run(
+            ["gh", "api", path], capture_output=True, text=True, check=True
+        )
     return result.stdout
 
 
