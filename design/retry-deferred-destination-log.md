@@ -16,7 +16,7 @@ today touches the destination log in this order:
    `write_through=True`: they land in the recorder's **local temp zip**
    (`ZipLogFile._temp_file`, an anonymous `tempfile.TemporaryFile()`), not
    the destination.
-3. The reuse-sweep settle flush (`schedule_quiet_flush`, fired by
+3. The reuse-sweep settle flush (`reuse_sweep_settled`, fired by
    `_ReuseSweepCountdown`) — or any earlier flush trigger — copies the temp
    zip to the destination.
 
@@ -121,7 +121,7 @@ method to set it (e.g. `hold_destination_writes()`).
   and when live pending has already reached `flush_buffer` (outside that
   predicate) the next completion's `>=` threshold check retries the flush,
   with `log_finish` as the final backstop. Nothing is stranded.
-- **Release**: in `schedule_quiet_flush` (whose semantics become "the reuse
+- **Release**: in `reuse_sweep_settled` (whose semantics become "the reuse
   sweep settled" rather than "flush quiet samples if any"). Synchronously
   clear the hold, then schedule the background flush when `flush_quiet` is
   non-empty **or the hold was set** — the destination must be created at
@@ -346,7 +346,7 @@ Unit tests (`tests/log/test_task_log.py`):
 - `_flush_pending_samples` returns 0 and drains nothing while held
   (pending lists and buffer-db rows intact); `flush_samples()` (ctl path)
   likewise returns 0 with no file created.
-- Settle release: `schedule_quiet_flush` clears the hold and flushes even
+- Settle release: `reuse_sweep_settled` clears the hold and flushes even
   with an empty quiet list (destination created); with quiet samples
   pending, the created destination contains them.
 - A config update recorded while held writes no destination; the update is

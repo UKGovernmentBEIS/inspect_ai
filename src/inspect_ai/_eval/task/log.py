@@ -288,7 +288,7 @@ class TaskLogger:
         # samples): tracked so every flush path drains them, but not counted
         # toward the flush_buffer threshold and never arming the stale-flush
         # timer on their own (one deterministic flush is scheduled when the
-        # reuse sweep settles — see schedule_quiet_flush)
+        # reuse sweep settles — see reuse_sweep_settled)
         self.flush_quiet: list[tuple[str | int, int]] = []
         # sticky permit for the stale-flush timer to arm with only quiet
         # samples pending: set when a flush fails with flush_quiet non-empty,
@@ -438,7 +438,7 @@ class TaskLogger:
         attempt's log (reuse intact) rather than to an empty newest log that
         would silently re-run every completed sample (and, with
         ``retry_cleanup=True``, lose them permanently once the prior log is
-        cleaned up). Released by :meth:`schedule_quiet_flush` when the sweep
+        cleaned up). Released by :meth:`reuse_sweep_settled` when the sweep
         settles, with ``log_finish`` as the backstop for attempts that end
         before settling.
         """
@@ -588,7 +588,7 @@ class TaskLogger:
             if self._finished:
                 return 0
             # checked under _flush_lock so a caller already awaiting the lock
-            # when schedule_quiet_flush releases the hold proceeds normally
+            # when reuse_sweep_settled releases the hold proceeds normally
             if self._destination_hold:
                 return 0
             async with self._flush_pending_lock:
@@ -663,11 +663,12 @@ class TaskLogger:
             await self._arm_stale_flush_timer()
             raise
 
-    def schedule_quiet_flush(self) -> None:
-        """Release the destination-write hold and schedule one settle flush.
+    def reuse_sweep_settled(self) -> None:
+        """The reuse sweep settled: release any destination-write hold and schedule one settle flush.
 
-        Called by ``task_run`` when the retry reuse sweep settles (every
-        planned sample has resolved its prior-attempt lookup). Reused samples
+        Called by ``task_run`` when every planned sample has resolved its
+        prior-attempt lookup (a no-op on runs with nothing held and nothing
+        reused — most runs). Reused samples
         are re-logged with ``flush=False`` and neither count toward the
         ``flush_buffer`` threshold nor arm the stale-flush timer, so without
         this one deterministic write they would stay unflushed until an
