@@ -345,6 +345,25 @@ def _json_option(what: str) -> Callable[[Callable[..., None]], Callable[..., Non
     )
 
 
+def _now_option(
+    holds: str = "in-flight samples at their next model call",
+) -> Callable[[Callable[..., None]], Callable[..., None]]:
+    """The ``--now`` (hard pause) flag the pause verbs carry.
+
+    ``holds`` names what the scope's hard gate parks (the model scope holds
+    calls *to* the model, role/grader calls included, rather than samples).
+    """
+    return click.option(
+        "--now",
+        is_flag=True,
+        default=False,
+        help=(
+            f"Hard pause: additionally hold {holds} (outstanding calls "
+            "finish; wall-clock time limits keep running while held)."
+        ),
+    )
+
+
 def _terse_option(
     note: str = "",
 ) -> Callable[[Callable[..., None]], Callable[..., None]]:
@@ -604,6 +623,7 @@ def task_cancel_command(
 
 @task_group.command("pause")
 @click.argument("task", required=False)
+@_now_option()
 @click.option(
     "--dry-run",
     is_flag=True,
@@ -613,20 +633,25 @@ def task_cancel_command(
 @_json_option(_MUTATION_ENVELOPE_HELP)
 @_terse_option()
 def task_pause_command(
-    task: str | None, dry_run: bool, as_json: bool, terse: bool | None
+    task: str | None, now: bool, dry_run: bool, as_json: bool, terse: bool | None
 ) -> None:
     """Pause a running task (stop dispatching new work; in-flight finishes).
 
     In-flight samples finish naturally (with scoring and log writes); queued
     samples and a queued retry attempt hold, unstarted — spending none of
-    their time limits — until `inspect ctl task resume`. Non-destructive,
-    idempotent, and reversible; cancel and config changes still work on a
-    paused task. To pause a whole eval-set (every task plus its task/retry
-    dispatch), use `inspect ctl process pause`. TASK (a task-id prefix or
-    name) is required when several tasks run.
+    their time limits — until `inspect ctl task resume`. With `--now` (the
+    hard pause), in-flight samples additionally hold at their next model
+    call: outstanding model calls and batch waits complete, but no new call
+    starts until resume. Note the wall clock keeps running for held samples
+    — a sample held past its time_limit resolves as an ordinary time-limit
+    outcome. Non-destructive, idempotent, and reversible (a plain pause
+    after `--now` downgrades to the soft pause); cancel and config changes
+    still work on a paused task. To pause a whole eval-set (every task plus
+    its task/retry dispatch), use `inspect ctl process pause`. TASK (a
+    task-id prefix or name) is required when several tasks run.
     """
     _run_task_pause_resume(
-        task, verb="pause", dry_run=dry_run, as_json=as_json, terse=terse
+        task, verb="pause", now=now, dry_run=dry_run, as_json=as_json, terse=terse
     )
 
 
@@ -1543,6 +1568,7 @@ def process_release_command(pid: int | None, as_json: bool) -> None:
 
 @process_group.command("pause")
 @click.argument("pid", required=False, type=int)
+@_now_option()
 @click.option(
     "--dry-run",
     is_flag=True,
@@ -1550,18 +1576,28 @@ def process_release_command(pid: int | None, as_json: bool) -> None:
     help="Report what would be paused without doing it.",
 )
 @_json_option(_MUTATION_ENVELOPE_HELP)
-def process_pause_command(pid: int | None, dry_run: bool, as_json: bool) -> None:
+def process_pause_command(
+    pid: int | None, now: bool, dry_run: bool, as_json: bool
+) -> None:
     """Pause a whole running eval or eval-set (stop dispatching new work; in-flight finishes).
 
     One process-scoped latch: no new eval-set tasks dispatch, no task
     retries start, and no samples dispatch in any task; in-flight samples
-    finish naturally. The process, its queue, and this control surface stay
-    alive — watch `inspect ctl task list` for `quiesced` (paused with
-    nothing in flight), after which completed work is flushed and the
-    process can be killed cleanly if needed. Resume with `inspect ctl
-    process resume`. Idempotent and non-destructive.
+    finish naturally. With `--now` (the hard pause), in-flight samples
+    additionally hold at their next model call — model spend stops as soon
+    as outstanding calls complete, at the price of the wall clock running
+    for held samples (a sample held past its time_limit resolves as an
+    ordinary time-limit outcome). The process, its queue, and this control
+    surface stay alive — watch `inspect ctl task list` for `quiesced`
+    (paused with nothing in flight), after which completed work is flushed
+    and the process can be killed cleanly if needed (under `--now`, a
+    nonzero `held` count means samples are mid-flight: killing then
+    forfeits their in-sample progress). Resume with `inspect ctl process
+    resume`. Idempotent and non-destructive.
     """
-    _run_process_pause_resume(pid, verb="pause", dry_run=dry_run, as_json=as_json)
+    _run_process_pause_resume(
+        pid, verb="pause", now=now, dry_run=dry_run, as_json=as_json
+    )
 
 
 @process_group.command("resume")
@@ -1643,6 +1679,12 @@ model_group.hint = lambda token: (
 @model_group.command("pause")
 @click.argument("model")
 @click.argument("pid", required=False, type=int)
+@_now_option(
+    holds=(
+        "generate calls to MODEL at their next attempt — including other "
+        "tasks' role/grader calls to it"
+    )
+)
 @click.option(
     "--dry-run",
     is_flag=True,
@@ -1651,7 +1693,7 @@ model_group.hint = lambda token: (
 )
 @_json_option(_MUTATION_ENVELOPE_HELP)
 def model_pause_command(
-    model: str, pid: int | None, dry_run: bool, as_json: bool
+    model: str, pid: int | None, now: bool, dry_run: bool, as_json: bool
 ) -> None:
     """Pause one model's dispatch (stop starting its tasks' work; in-flight finishes).
 
@@ -1659,12 +1701,17 @@ def model_pause_command(
     retry attempts start, and the eval-set scheduler does not start its
     not-yet-started tasks — which `inspect ctl task pause` cannot reach.
     Everything else keeps running, and in-flight samples (including other
-    tasks' role/grader calls to this model) finish naturally. MODEL is the
-    exact name shown by `inspect ctl task list`; an unknown name is an
-    error. PID is required when several processes run. Idempotent;
-    resume with `inspect ctl model resume`.
+    tasks' role/grader calls to this model) finish naturally. With `--now`
+    (the hard pause), generate calls to MODEL — role/grader calls included
+    — hold at their next attempt instead: the model's spend stops as soon
+    as outstanding calls complete, while the wall clock keeps running for
+    held samples. MODEL is the exact name shown by `inspect ctl task list`;
+    an unknown name is an error. PID is required when several processes
+    run. Idempotent; resume with `inspect ctl model resume`.
     """
-    _run_model_pause_resume(model, pid, verb="pause", dry_run=dry_run, as_json=as_json)
+    _run_model_pause_resume(
+        model, pid, verb="pause", now=now, dry_run=dry_run, as_json=as_json
+    )
 
 
 @model_group.command("resume")
@@ -3015,6 +3062,49 @@ def _run_task_cancel(
             _echo(f"Nothing to do: {reason}.")
 
 
+# the hard-pause caveat, shared by the three pause scopes' messages
+_HELD_CAVEAT = (
+    "outstanding calls finish; wall-clock time limits keep running while held"
+)
+
+
+def _pause_prefix(*, now: bool, dry_run: bool, target: str = "") -> str:
+    """The leading clause of a pause confirmation, across scope/strength/dry-run."""
+    if dry_run:
+        return f"Would {'hard-pause' if now else 'pause'} {target}".rstrip()
+    requested = "Hard pause requested" if now else "Pause requested"
+    return f"{requested} for {target}" if target else requested
+
+
+def _pause_confirmation(
+    *,
+    now: bool,
+    dry_run: bool,
+    target: str = "",
+    body: str,
+    no_new: str,
+    hint_hard: str,
+    hint_soft: str,
+) -> str:
+    """Assemble a pause confirmation from its scope-specific prose.
+
+    Owns the skeleton shared by the three pause scopes (prefix — body;
+    no new X start; trailing hint) so their structure can't drift.
+    ``body`` may contain ``{will}`` placeholders, resolved to would/will
+    here so callers don't need the tense. The hints are appended only
+    for real mutations and carry their own leading punctuation (usually
+    ``". "``; the model scope opens with a parenthetical instead).
+    """
+    will = "would" if dry_run else "will"
+    message = (
+        f"{_pause_prefix(now=now, dry_run=dry_run, target=target)} — "
+        f"{body.format(will=will)}; no new {no_new} {will} start"
+    )
+    if dry_run:
+        return message + "."
+    return message + (hint_hard if now else hint_soft)
+
+
 _PAUSE_ROUTE_MISSING = (
     "This process is running an older inspect without the pause/resume "
     "endpoints; restart the eval to pick up the current version."
@@ -3073,6 +3163,7 @@ def _run_task_pause_resume(
     task: str | None,
     *,
     verb: Literal["pause", "resume"],
+    now: bool = False,
     dry_run: bool,
     as_json: bool,
     terse: bool | None = None,
@@ -3084,6 +3175,9 @@ def _run_task_pause_resume(
     ``task cancel`` in the selector-always-required class (the same
     reasoning that gives ``process keep`` / ``release`` the sole-target
     default — the worst case of a wrongly targeted pause is a resume).
+    ``now`` (the hard pause) needs no version gate: an older server rejects
+    the unknown param with a 400 (strict mutations), so it fails loudly
+    rather than silently soft-pausing.
     """
     servers = list_discovered_servers()
     summaries = _fetch_summaries(servers).summaries
@@ -3097,6 +3191,8 @@ def _run_task_pause_resume(
     assert scope.task_id is not None
 
     params: dict[str, Any] = {}
+    if now:
+        params["now"] = True
     if dry_run:
         params["dry_run"] = True
     # idempotent last-write-wins latch, so it may ride the narrated
@@ -3134,29 +3230,39 @@ def _run_task_pause_resume(
             # `dispatched` counts samples past the gate, including ones still
             # initializing their sandbox (which the listing shows as queued)
             dispatched = int(result.get("dispatched", 0) or 0)
-            finishing = (
-                f"{dispatched} dispatched sample{'' if dispatched == 1 else 's'} "
-                f"{'would' if dry_run else 'will'} finish naturally"
-            )
+            noun = f"{dispatched} dispatched sample{'' if dispatched == 1 else 's'}"
+            if now:
+                body = (
+                    f"{noun} {{will}} hold at "
+                    f"{'its' if dispatched == 1 else 'their'} next model call "
+                    f"({_HELD_CAVEAT})"
+                )
+            else:
+                body = f"{noun} {{will}} finish naturally"
             if terse_mode:
+                will = "would" if dry_run else "will"
                 _echo(
                     _terse_line(
                         "pause",
                         target_label,
-                        f"{'dry-run' if dry_run else 'requested'} — {finishing}; "
-                        f"no new samples or retry attempts "
-                        f"{'would' if dry_run else 'will'} start",
+                        f"{'dry-run' if dry_run else 'requested'} — "
+                        f"{body.format(will=will)}; no new samples or retry "
+                        f"attempts {will} start",
                     )
-                )
-            elif dry_run:
-                _echo(
-                    f"Would pause — {finishing}; no new samples or retry "
-                    "attempts would start."
                 )
             else:
                 _echo(
-                    f"Pause requested — {finishing}; no new samples or retry "
-                    "attempts will start. Resume with `inspect ctl task resume`."
+                    _pause_confirmation(
+                        now=now,
+                        dry_run=dry_run,
+                        body=body,
+                        no_new="samples or retry attempts",
+                        hint_hard=(
+                            ". Watch `inspect ctl task list` for the held count;"
+                            " resume with `inspect ctl task resume`."
+                        ),
+                        hint_soft=". Resume with `inspect ctl task resume`.",
+                    )
                 )
         elif terse_mode:
             # independent latches: a task resume does not clear a process
@@ -3201,12 +3307,20 @@ def _run_process_pause_resume(
     pid: int | None,
     *,
     verb: Literal["pause", "resume"],
+    now: bool = False,
     dry_run: bool,
     as_json: bool,
 ) -> None:
-    """Pause or resume a whole process (``POST /pause`` / ``POST /resume``)."""
+    """Pause or resume a whole process (``POST /pause`` / ``POST /resume``).
+
+    ``now`` (the hard pause) needs no version gate: an older server rejects
+    the unknown param with a 400 (strict mutations), so it fails loudly
+    rather than silently soft-pausing.
+    """
     target = _resolve_target_server(pid)
     params: dict[str, Any] = {}
+    if now:
+        params["now"] = True
     if dry_run:
         params["dry_run"] = True
     result = _request_json(
@@ -3231,19 +3345,29 @@ def _run_process_pause_resume(
 
     if result.get("changed"):
         if verb == "pause":
-            if dry_run:
-                _echo(
-                    f"Would pause pid {target.pid} — in-flight samples would "
-                    "finish; no new samples, task retries, or eval-set tasks "
-                    "would start."
+            body = (
+                f"in-flight samples {{will}} hold at their next model call "
+                f"({_HELD_CAVEAT})"
+                if now
+                else "in-flight samples {will} finish"
+            )
+            _echo(
+                _pause_confirmation(
+                    now=now,
+                    dry_run=dry_run,
+                    target=f"pid {target.pid}",
+                    body=body,
+                    no_new="samples, task retries, or eval-set tasks",
+                    hint_hard=(
+                        ". Watch `inspect ctl task list` for the held count; "
+                        "resume with `inspect ctl process resume`."
+                    ),
+                    hint_soft=(
+                        ". Watch `inspect ctl task list` for quiesced; "
+                        "resume with `inspect ctl process resume`."
+                    ),
                 )
-            else:
-                _echo(
-                    f"Pause requested for pid {target.pid} — in-flight samples "
-                    "will finish; no new samples, task retries, or eval-set "
-                    "tasks will start. Watch `inspect ctl task list` for "
-                    "quiesced; resume with `inspect ctl process resume`."
-                )
+            )
         elif dry_run:
             _echo(f"Would resume pid {target.pid}.")
         else:
@@ -3262,6 +3386,7 @@ def _run_model_pause_resume(
     pid: int | None,
     *,
     verb: Literal["pause", "resume"],
+    now: bool = False,
     dry_run: bool,
     as_json: bool,
 ) -> None:
@@ -3272,10 +3397,15 @@ def _run_model_pause_resume(
     against the models the process could dispatch — a client-side resolve
     against the task summaries would wrongly reject a model whose tasks are
     all still queued (not-yet-started eval-set tasks have no summary row),
-    which is precisely the model latch's reason to exist.
+    which is precisely the model latch's reason to exist. ``now`` (the hard
+    pause) needs no version gate: an older server rejects the unknown param
+    with a 400 (strict mutations), so it fails loudly rather than silently
+    soft-pausing.
     """
     target = _resolve_target_server(pid)
     params: dict[str, Any] = {"model": model}
+    if now:
+        params["now"] = True
     if dry_run:
         params["dry_run"] = True
     result = _request_json(
@@ -3310,23 +3440,36 @@ def _run_model_pause_resume(
             # tasks, which have no row to count
             tasks = int(result.get("tasks", 0) or 0)
             dispatched = int(result.get("dispatched", 0) or 0)
-            held = (
+            counts = (
                 f"{tasks} running task{'' if tasks == 1 else 's'}, "
-                f"{dispatched} dispatched sample{'' if dispatched == 1 else 's'} "
-                f"{'would' if dry_run else 'will'} finish naturally"
+                f"{dispatched} dispatched sample{'' if dispatched == 1 else 's'}"
             )
-            if dry_run:
-                _echo(
-                    f"Would pause {model} — {held}; no new samples, retry "
-                    "attempts, or eval-set tasks of this model would start."
+            if now:
+                body = (
+                    f"{counts}; generate calls to it (role/grader calls "
+                    f"included) {{will}} hold at their next attempt "
+                    f"({_HELD_CAVEAT})"
                 )
             else:
-                _echo(
-                    f"Pause requested for {model} — {held}; no new samples, "
-                    "retry attempts, or eval-set tasks of this model will "
-                    "start (other models keep running). Resume with "
-                    "`inspect ctl model resume`."
+                body = f"{counts} {{will}} finish naturally"
+            _echo(
+                _pause_confirmation(
+                    now=now,
+                    dry_run=dry_run,
+                    target=model,
+                    body=body,
+                    no_new="samples, retry attempts, or eval-set tasks of this model",
+                    hint_hard=(
+                        " (other models keep running)."
+                        " Watch `inspect ctl task list` for held counts;"
+                        " resume with `inspect ctl model resume`."
+                    ),
+                    hint_soft=(
+                        " (other models keep running)."
+                        " Resume with `inspect ctl model resume`."
+                    ),
                 )
+            )
         elif dry_run:
             _echo(f"Would resume {model} — its held work would dispatch again.")
         else:
@@ -3816,6 +3959,10 @@ def _run_process_list(as_json: bool) -> None:
             if hosted and hosted[0].get("process_paused") is not None
             else None
         )
+        # the hard (`pause --now`) strength of the process latch; False
+        # against an older server that doesn't report it (soft is the only
+        # strength such a server can hold)
+        paused_now = bool(hosted[0].get("process_paused_now")) if hosted else False
         rows.append(
             {
                 "pid": server.pid,
@@ -3823,6 +3970,7 @@ def _run_process_list(as_json: bool) -> None:
                 "started_at": server.started_at,
                 "keep_alive": keep_alive,
                 "paused": paused,
+                "paused_now": paused_now,
                 "tasks": [
                     {
                         "task_id": t.get("task_id"),
@@ -3851,12 +3999,21 @@ def _run_process_list(as_json: bool) -> None:
             (
                 str(row["pid"]),
                 "?" if keep is None else ("on" if keep else "off"),
-                "?" if paused is None else ("yes" if paused else "no"),
+                _format_process_paused(paused, row["paused_now"]),
                 ", ".join(str(t.get("task") or "?") for t in tasks) or "(starting)",
                 _format_started(row["started_at"]),
             )
         )
     _render_table(("pid", "keep-alive", "paused", "tasks", "started"), table_rows)
+
+
+def _format_process_paused(paused: bool | None, paused_now: bool) -> str:
+    """The process latch cell: unknown / no / yes, with the hard strength marked."""
+    if paused is None:
+        return "?"
+    if not paused:
+        return "no"
+    return "yes (now)" if paused_now else "yes"
 
 
 class _PidAnomalies(NamedTuple):
@@ -6723,10 +6880,12 @@ def _print_human_table(summaries: list[dict[str, Any]]) -> None:
     # `or 0` also covers an older server, which reports neither key.
     any_refusals = any((s.get("refusals") or 0) > 0 for s in summaries)
     any_http_retries = any((s.get("http_retries") or 0) > 0 for s in summaries)
-    # shown only when some task is paused, so a paused run doesn't read as
-    # stalled (the cell names the holding latch; `quiesced` = nothing left
-    # in flight — the safe-to-kill signal)
-    any_paused = any(s.get("paused") for s in summaries)
+    # shown only when some task is paused (or holding samples — a hard model
+    # pause can hold another task's grader calls without any latch source on
+    # that row), so a paused run doesn't read as stalled (the cell names the
+    # holding latch; `quiesced` = nothing left in flight — the safe-to-kill
+    # signal)
+    any_paused = any(s.get("paused") or s.get("held") for s in summaries)
 
     rows = []
     for s in summaries:
@@ -6790,10 +6949,28 @@ def _format_count(value: Any) -> str:
 
 
 def _format_paused(summary: dict[str, Any]) -> str:
-    """The task's paused cell: the holding latch(es), plus quiesced when idle."""
-    paused = "+".join(_paused_sources(summary.get("paused")))
+    """The task's paused cell: the holding latch(es), plus quiesced when idle.
+
+    Hard-holding latches (``pause --now``) render as ``task(now)``, and a
+    nonzero held count (samples parked at their next model call) replaces
+    the quiesced marker — the two can't co-occur (a held sample is still
+    dispatched), and under a hard pause held, not quiesced, is the signal
+    the operator acts on (a kill while ``held > 0`` forfeits in-sample
+    progress). A row can be held with *no* latch sources of its own: the
+    hard model gate keys on the model actually being called, so another
+    task's ``model pause --now`` holds this task's grader/role calls to
+    that model — render the held count alone rather than suppressing it.
+    """
+    held = int(summary.get("held") or 0)
+    now = set(_paused_sources(summary.get("paused_now")))
+    paused = "+".join(
+        f"{source}(now)" if source in now else source
+        for source in _paused_sources(summary.get("paused"))
+    )
     if not paused:
-        return ""
+        return f"({held} held)" if held else ""
+    if held:
+        return f"{paused} ({held} held)"
     return f"{paused} (quiesced)" if summary.get("quiesced") else paused
 
 
@@ -6820,9 +6997,21 @@ def _print_keep_alive_footer(summaries: list[dict[str, Any]]) -> None:
     # either latch holds work the run awaits — so also surface the
     # exit-when-done contradiction when keep-alive is off for a paused row.
     paused = [s for s in summaries if s.get("paused")]
+    # held (`--now`) samples counted across ALL rows, not just paused ones:
+    # a hard model pause holds other tasks' grader calls to that model
+    # without stamping a latch source on their rows
+    held_samples = sum(int(s.get("held") or 0) for s in summaries)
     if paused:
         quiesced = sum(1 for s in paused if s.get("quiesced"))
-        detail = f" ({quiesced} quiesced)" if quiesced else ""
+        details = [
+            part
+            for part in (
+                f"{quiesced} quiesced" if quiesced else "",
+                f"{held_samples} held" if held_samples else "",
+            )
+            if part
+        ]
+        detail = f" ({', '.join(details)})" if details else ""
         # only the latches actually holding a paused task can resume it — a
         # task held solely by the model latch isn't freed by `task resume` or
         # `process resume`, so don't advertise them. Fixed order: task, model,
@@ -6843,6 +7032,15 @@ def _print_keep_alive_footer(summaries: list[dict[str, Any]]) -> None:
                 "note: a paused run never finishes — it will not exit until "
                 "resumed (or cancelled), despite keep-alive being off."
             )
+    elif held_samples:
+        # no paused rows, yet samples are parked at the generate gate (a
+        # hard model pause whose primary tasks have no rows yet) — the
+        # don't-kill-yet warning must still print
+        _echo(
+            f"held: {held_samples} sample{'' if held_samples == 1 else 's'} "
+            "held at the next model call (`pause --now`) — killing now "
+            "forfeits in-sample progress"
+        )
     # latched models whose tasks are all still queued have no paused row
     # above (an unstarted task has no summary) — surface them from the
     # process-level stamp so the latch can't hold work invisibly
