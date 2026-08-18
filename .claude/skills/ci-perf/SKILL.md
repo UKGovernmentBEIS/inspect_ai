@@ -6,8 +6,11 @@ description: Assess and improve CI performance for pull requests in this repo. U
 # CI performance analysis and improvement
 
 Recurring analysis of PR CI: measure where wall-clock time goes, track it
-over time, and turn findings into concrete fixes. Designed to be run
-manually today and on a schedule later — each run is self-contained.
+over time, and turn findings into concrete fixes. Runs two ways — manually
+in an interactive session, and unattended every ~2 days via the scheduled
+workflow in `meridianlabs-ai/actions` (`inspect-ai-ci-perf.yml`); see
+"Scheduled (unattended) mode" below for how the rules differ. Each run is
+self-contained.
 
 ## Objective and ground rules
 
@@ -25,10 +28,11 @@ manually today and on a schedule later — each run is self-contained.
     topology, or policy. Report-only; a maintainer decides.
 - **Never propose trimming the Python version matrix** (e.g. PRs testing
   only 3.11). Explicitly ruled out.
-- **Always ask before pushing.** Prepare branch + diff + PR body, show the
-  user, push only on their OK. One fix per PR. Follow AGENTS.md PR rules
-  (CI-only changes need no CHANGELOG entry; test-content changes are
-  product-adjacent — judge per AGENTS.md).
+- **Interactive runs: always ask before pushing.** Prepare branch + diff +
+  PR body, show the user, push only on their OK. Unattended runs can't ask —
+  see "Scheduled (unattended) mode" for what they may push. One fix per PR.
+  Follow AGENTS.md PR rules (CI-only changes need no CHANGELOG entry;
+  test-content changes are product-adjacent — judge per AGENTS.md).
 
 ## Phase 1 — Collect
 
@@ -41,7 +45,8 @@ python .claude/skills/ci-perf/scripts/collect_ci_data.py \
 
 It snapshots the last ~200 completed PR workflow runs with per-job
 timings (execution seconds, wait-from-run-start) and mines recent Build
-test-job logs for pytest `--durations` blocks.
+test-job logs for pytest `--durations` blocks and the final summary line
+(total test counts + pytest wall, for suite-size trends).
 
 - If `pytest_durations` comes back empty, CI likely doesn't pass
   `--durations` yet — proposing that one-line workflow change is the
@@ -114,6 +119,29 @@ only). Compute:
    graph) while skipping historical file contents; only jobs that read
    old blob contents (e.g. `git diff main -- <paths>` over sources) need
    care, and even those lazy-fetch on demand.
+7. **Suite size — step back from the slow tail.** `pytest_summaries` in
+   the snapshot carries total test counts and total pytest wall per job.
+   Individual slow tests are only half the story: once the outliers are
+   fixed, sheer test count becomes the long pole (N tests × small median
+   cost, growing every week). Each run:
+   - Report total count and total pytest seconds, and the trend vs prior
+     snapshots (absolute and per-week growth rate).
+   - Estimate the split: how much of pytest wall is the slow tail
+     (durations data) vs the body of ordinary tests? When the body
+     dominates, per-test fixes stop paying and the leverage is fewer or
+     cheaper tests.
+   - Hunt duplicate coverage: several tests exercising the same code path
+     with cosmetic variations (candidates for parametrize or deletion),
+     new tests added next to older ones that already assert the same
+     behavior, and whole files whose subject is also covered elsewhere.
+     Sample a few of the fastest-growing test files rather than trying to
+     read everything.
+   - Hunt low-value tests: asserting trivialities (constructors,
+     passthroughs, framework behavior), tests that can't fail unless an
+     adjacent test also fails, over-broad matrix legs.
+   - Deleting or merging tests is coverage-sensitive: exact duplicates are
+     safe fixes; anything judgement-based is a report proposal for a
+     maintainer.
 
 ## Phase 3 — Report
 
@@ -135,6 +163,11 @@ Table per workflow/job: median exec, median queue, p90 wall.
 Top ~15 with median seconds and classification. "(no data — --durations
 not in CI)" if empty.
 
+## Suite size
+Total tests / total pytest seconds per job, trend vs prior snapshots,
+slow-tail vs body split, duplicate-coverage and low-value findings
+(or what was sampled and came up clean).
+
 ## Regressions since last report
 Or "none".
 
@@ -147,11 +180,19 @@ Each: what / est. wall-clock impact / disruption (safe-fix vs structural)
 Carry forward prior proposals with updated status — don't drop them.
 
 ## PRs opened by this skill
-Running list with outcomes.
+See prs.md.
 ```
 
-Leave report + snapshot as uncommitted working-tree changes; ask the user
-whether to commit them at the end of the run.
+**Also maintain `design/ci-perf/prs.md`** — the permanent ledger of every
+change and PR this skill has produced. Unlike the report it is never
+rewritten, only appended to and updated in place: one entry per PR (number,
+date, one-line description, status open/merged/closed, measured impact once
+verified). Each run: add entries for any PRs opened, refresh the status of
+open ones (`gh pr view`), and record verified impact from the impact-check
+phase.
+
+Leave report + snapshot + prs.md as uncommitted working-tree changes; ask
+the user whether to commit them at the end of the run.
 
 ## Phase 4 — Fix
 
@@ -182,4 +223,41 @@ AGENTS.md. Record the PR number in the report.
 
 Each run, check the proposals marked "PR opened/done" in the previous
 report against the new snapshot: did the metric move as predicted? Say so
-in the report — honest misses are how estimates get better.
+in the report — honest misses are how estimates get better. Record the
+verified (or missed) impact on the PR's entry in prs.md.
+
+## Scheduled (unattended) mode
+
+The workflow `inspect-ai-ci-perf.yml` in `meridianlabs-ai/actions` runs
+this skill every ~2 days with no user present (it sets `CI_PERF_SCHEDULED=1`
+and says so in the prompt). Differences from an interactive run:
+
+- **Don't ask — act, within these bounds.** Commit the snapshot, report,
+  and prs.md updates on a branch and open ONE report PR. Additionally
+  prepare at most 2 safe-fix PRs per run (safe-fix categories only, one
+  change each, local validation run and passing). Structural proposals
+  remain report-only, always.
+- **Check the previous run's PRs first** (`gh pr list --author i-am-marvin`
+  plus the open entries in prs.md). If the prior report PR is still open,
+  push this run's snapshot/report/prs.md commit onto its branch instead of
+  opening a second report PR. Never open a fix PR duplicating a still-open
+  one, and respect the AGENTS.md open-PR limit (4 per account) — skip fix
+  PRs before skipping the report update.
+- **Contribution-policy compliance:** the marvin account is recorded as a
+  qualified contributor in `.github/qualified.yml`, which satisfies the PR
+  gate; the substantive rules still apply — every fix PR body must carry
+  the measured evidence from the snapshot that motivated it (AGENTS.md
+  rule 7).
+- **Push mechanics:** the token is the marvin machine account, which has
+  write access on the `meridianlabs-ai/inspect_ai` fork but not upstream.
+  Push branches to the fork and open PRs against
+  `UKGovernmentBEIS/inspect_ai` following the "Opening an upstream PR from
+  an org fork" section of AGENTS.md (`gh api` with `head_repo`).
+- **Skip anything doubtful.** If local validation fails, the fix touches
+  more than intended, or the change is only arguably in a safe-fix
+  category, drop it to a report proposal instead of opening the PR. An
+  unattended run that opens zero fix PRs is a fine outcome; one that opens
+  a wrong PR is not.
+- Record every opened PR in prs.md before the run ends, and disclose agent
+  involvement in each PR body per AGENTS.md (including the scheduled-run
+  context and a link to the workflow run).
