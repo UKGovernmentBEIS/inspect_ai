@@ -58,7 +58,14 @@ def normalize_uri(uri: str) -> str:
         path = parsed.path
 
         # Detect and normalize Windows-style file URIs
-        if path.startswith("/") and len(path) > 3 and path[2] == ":":
+        if (
+            len(parsed.netloc) == 2
+            and parsed.netloc[0].isalpha()
+            and parsed.netloc[1] == ":"
+        ):
+            # Preserve the drive parsed as the authority in `file://C:/...`
+            path = f"{parsed.netloc}{path}"
+        elif path.startswith("/") and len(path) > 3 and path[2] == ":":
             # Strip leading `/` before drive letter
             path = path[1:]
 

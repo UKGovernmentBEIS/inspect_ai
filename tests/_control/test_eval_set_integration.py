@@ -50,8 +50,8 @@ from inspect_ai.dataset import Sample
 from inspect_ai.log._samples import active_samples
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
 
-# `_isolate_active_model` (autouse) and `short_data_dir` come from
-# tests/_control/conftest.py.
+# `isolate_active_model` (autouse) comes from tests/conftest.py, and
+# `short_data_dir` from tests/_control/conftest.py.
 
 # --- ls / GET /evals: per-eval listing -------------------------------------
 
@@ -1542,7 +1542,7 @@ def test_ctl_samples_shows_retries_on_running_reattempt(short_data_dir: Path) ->
     async def capture() -> dict:
         entry = (await current_eval_summaries(0.0))[0]
         rows = await current_sample_summaries(entry["eval_id"])
-        detail = await sample_error_detail(entry["eval_id"], "1", 1)
+        detail = await sample_error_detail(entry["eval_id"], "1", 1, content=True)
         return {"rows": rows, "detail": detail}
 
     with probe(ready, capture) as p:
@@ -2268,8 +2268,9 @@ def test_ctl_messages_snapshots_running_sample_conversation(
     async def capture() -> dict:
         eid = (await current_eval_summaries(0.0))[0]["eval_id"]
         return {
-            "page": await sample_messages(eid, "1", 1),
+            "page": await sample_messages(eid, "1", 1, content=True),
             "tail": await sample_messages(eid, "1", 1, tail=1),
+            "metadata": await sample_messages(eid, "1", 1),
         }
 
     with probe(ready, capture) as p:
@@ -2293,6 +2294,13 @@ def test_ctl_messages_snapshots_running_sample_conversation(
     roles = [m["role"] for m in page["messages"]]
     assert "user" in roles and "assistant" in roles
     assert all("content" in m and "index" in m for m in page["messages"])
+
+    # the metadata-only default withholds the message text but keeps the
+    # structural fields
+    metadata = res["metadata"]
+    assert metadata is not None
+    assert metadata["count"] == page["count"]
+    assert all("content" not in m and "index" in m for m in metadata["messages"])
 
     # --tail windows from the end: one message, count unchanged, absolute index
     tail = res["tail"]

@@ -47,6 +47,7 @@ from inspect_ai.tool._tools._web_search._web_search import (
 )
 from inspect_ai.util._json import JSONSchema
 
+from ._errors import BridgePolicyError
 from .types import AgentBridge
 from .util import (
     apply_message_ids,
@@ -109,7 +110,7 @@ async def inspect_google_api_request_impl(
 
     # translate messages
     messages = messages_from_google_contents(contents, system_instruction)
-    validate_bridge_media(bridge, messages)
+    await validate_bridge_media(bridge, messages)
     debug_log("INSPECT MESSAGES", messages)
 
     # extract generate config
@@ -435,6 +436,12 @@ def _extract_user_parts(
                     ContentImage(image=f"data:{mime_type};base64,{data}")
                 )
 
+        elif "fileData" in part or "file_data" in part:
+            raise BridgePolicyError(
+                "The Google agent bridge does not support fileData media; "
+                "send the bytes as inlineData instead."
+            )
+
         elif _is_function_response_part(part):
             func_response = part.get(
                 "functionResponse", part.get("function_response", {})
@@ -505,6 +512,12 @@ def _extract_model_parts(
             if text == "(no content)":
                 continue
             content_parts.append(ContentText(text=text))
+
+        elif "fileData" in part or "file_data" in part:
+            raise BridgePolicyError(
+                "The Google agent bridge does not support fileData media; "
+                "send the bytes as inlineData instead."
+            )
 
         elif "functionCall" in part or "function_call" in part:
             func_call = part.get("functionCall", part.get("function_call", {}))

@@ -1,7 +1,67 @@
 ## Unreleased
 
-- vLLM: Read the served `max_model_len` from the server endpoint and register it as the model's context window (falling back to the static model catalog).
-- Compaction: Resolve fractional thresholds on first use rather than at handler creation, so a context window registered by a provider during its first `generate()` is honoured.
+- vLLM: The server's `max_model_len` is now registered as the model's context window, so compaction and context-length handling reflect the served configuration (including LoRA adapters via their parent model). (#4215)
+- Scoring: Treat numeric string metric return values as scalar values rather than sequences in eval results. (#4903)
+- Multiple Choice: A single-choice answer carrying a stray trailing comma (e.g. `ANSWER: A,`) is now scored instead of rejected as no answer.
+- Model-graded scorers now warn once when an explicit model bypasses a required model role.
+- Dataset: Choices fields read from CSV or JSON no longer produce an empty-string choice from trailing or doubled commas.
+- Control Channel: `inspect ctl sample requeue` can now sweep every currently-errored sample in one command (`--errored`) or requeue several `SAMPLE_ID EPOCH` pairs, reporting each sample's result individually.
+- Breaking: Removed the deprecated hidden flat `inspect ctl` spellings (e.g. `ctl tasks`, `ctl limits`); use the noun-group commands (`ctl task list`, `ctl config`, ...) instead.
+- Control Channel: `inspect ctl config` can now retune a running task's per-sample time/token/message limits mid-flight (`--time-limit` / `--token-limit` / `--message-limit`), reaching in-flight samples as well as ones not yet started.
+- Eval Log: Flushing buffered samples to an `.eval` log now yields between samples, so a large flush no longer stalls in-flight samples and control-channel requests for the whole batch.
+- ACP: Emit an `inspect/turn_state` extension notification (`started` / `ended` / `cancelled`) from the agent turn boundary so ACP clients have an exact "agent working" signal.
+- Inspect CTL: Terminal escape sequences and control characters in agent-generated text are now sanitized in `inspect ctl` human-readable output, preventing spoofing of the operator's terminal.
+- Control Channel: New `--now` flag on `inspect ctl task|model|process pause` additionally holds in-flight samples at their next model call until resume, with held-sample counts reported in `inspect ctl task list`.
+- Fixed sandbox tools (`text_editor`, `bash_session`) failing to install in non-root sandboxes (e.g. Kubernetes pods with `runAsNonRoot`).
+- Bugfix: `web_search("exa")` no longer fails with a validation error, and Exa citations now include page text by default.
+- Breaking: Runtime media paths and URLs now require `materialize_media()` before model use; fixed selected-dataset media remains automatic, while sandbox bridges require inline data URIs.
+- Fixed sandbox agent bridge forwarding file inputs that are not inline `data:` URIs (e.g. host paths or URLs); such requests are now rejected.
+- Mistral: Provider-generated images remain available when replayed in subsequent conversation turns.
+- Docs: Clarify that the sandbox `exec()` output limit is enforced by front-truncating the output streams rather than by raising `OutputLimitExceededError` (which remains the behaviour for `read_file()`). (#4778)
+
+## 0.3.259 (16 August 2026)
+
+
+- Inspect View: The Messages tab now paginates chunked evals, loading further pages as you scroll instead of the entire sample up front, so huge samples open quickly (non-chunked evals still load in full). (#498)
+- Inspect View: Image-heavy info events now show their "more…" toggle — previously the clipped content was unexpandable. (#529)
+- Inspect View: A sample's restored scroll position no longer drifts when rows finish measuring after the restore. (#523)
+- Inspect View: Human baseline Terminal Session thumbnails now open only their own lightbox instead of stacking a player in every Store Updated panel. (#520)
+- Inspect View: Re-activating the same log directory no longer trips the live-update engine's supersede fence, and a store write during render was eliminated. (#508)
+- Inspect View: Single-file sessions (e.g. VS Code) start without spurious "No database initialized" console errors. (#521)
+- Inspect View: Tool calls whose arguments are too long for the header line now show them in an expandable input zone instead of a single truncated line. (#531)
+- Scoring: New `precomputed_scores()` scorer applies scores computed outside of Inspect (e.g. human ratings) from a JSON or JSON Lines file, matched to samples by id and epoch.
+- Bugfix: `file_dataset()` now recognizes JSON and CSV URLs with query parameters while preserving the complete URL passed to the selected dataset reader.
+- Scoring: `model_graded_qa`/`model_graded_fact` now leave a sample unscored when the default grader's final `GRADE:` verdict is a letter the instructions never offered, instead of scoring a grade mentioned earlier in its reasoning. Note: re-scoring existing logs may shift metrics and sample counts — samples whose grader verdict was off-menu (including `P` grades when `partial_credit` is disabled) were previously scored from an earlier on-menu mention and are now unscored with `grade_parse_failure` recorded.
+- Anthropic: models returning omitted (empty) thinking summaries no longer misreport `usage.reasoning_tokens` and log a token-counting warning on every generate.
+- Grok: Support for Grok 4.6, including its new `xhigh` reasoning effort and a `service_tier` model argument for Priority Processing.
+- Security: Computer Tool bundled examples now bind dynamically assigned VNC and noVNC ports to loopback instead of all host interfaces.
+- Security: Control channel sample reads (`inspect ctl sample events` / `messages` / `show` / `errors`) now return metadata only by default, so monitors that never pass `--content` cannot be prompt-injected by the evaluated agent's output.
+- Sandbox: Local samples now isolate and stop sandbox-tools servers during cleanup, preventing stale working directories and orphaned tool processes across samples.
+- Control Channel: `inspect ctl` mutations with piped or captured output now print one outcome line each instead of repeating the full task header (`--terse/--no-terse` to override).
+- Control Channel: Every `inspect ctl` command's `--help` now sketches its `--json` payload's top-level keys.
+- OpenAI: the OpenAI providers and agent bridge now require openai >= 3.1.0, which verifies TLS against the OS trust store instead of certifi's bundle.
+- OpenAI: erroring MCP tool calls no longer raise a `ValidationError` with openai >= 3.1.0, which reports MCP call errors as structured objects rather than strings.
+- Scoring: Model-graded scorers can require their grader model role, preventing unintended fallback to the model being evaluated. (#4695)
+- Datasets (breaking): A ragged CSV row now raises `ValueError` naming the file and line, instead of `AttributeError` or a silent load. (#4546)
+- Multiple Choice: Answers listing choices with an Oxford or trailing comma (e.g. `ANSWER: A, B, and C`) are now scored correctly instead of as no answer.
+- Bugfix: MCP sandbox sessions are now cached per tool-source instance and cleared on close, so one instance's sessions and tool lists no longer leak into another's.
+- Bugfix: Recovered eval logs now report reasoning tokens and total cost in their top-level usage summary, which previously showed both as null.
+
+## 0.3.258 (11 August 2026)
+
+- Control Channel: `inspect ctl sample` and other unscoped commands no longer appear to hang on eval sets with many running tasks. (#4789)
+- Inspect View: `bundle_log_dir()` allows `output_dir` starting with `hf/` when `log_dir` is current directory or parent directory.
+- Utilities: `data_uri_to_base64()` strips `data:` headers from URIs with empty media types.
+- Datasets: `hf_dataset(..., auto_id=True, shuffle=True)` now attaches each auto id to its record (matching csv/json) instead of the shuffled position, so a record keeps the same id across seeds and limited slices. (#4459) Note: ids for affected datasets will change once on upgrade (row order for a given seed is unchanged) — avoid retrying an in-flight `eval_set` across this boundary. Previously, unseeded shuffles assigned irreproducible ids, which silently corrupted `eval_set` retries on affected datasets; those workflows are now correct.
+- Scoring: New `aggregate(key, agg=...)` metric factory applying any standard metric (`mean`, `stderr`, `accuracy`, …) to a single key of a dict-valued `Score.value`.
+- Scoring: Add `krippendorff_alpha()` metric for inter-rater agreement across multiple judges, with nominal / ordinal / interval measurement scales.
+- Scoring: Add `collect` score reducer that preserves each scorer's value as a list instead of aggregating.
+- Agent Bridge: The final agent state now surfaces the real conversation instead of a side call (e.g. opencode's session title) when the scaffold decorates the task prompt, such as opencode quote-wrapping it. (#4768)
+- Inspect View: Logs inside the configured directory now open on Windows when listings identify them with canonical file URIs. (#4765)
+- Bugfix: Dataset fields holding float `NaN` (as produced by Pandas, Hugging Face, CSV, and PyArrow sources for missing values) are now treated as missing for `input`, `choices`, `setup`, `sandbox`, `files`, and `metadata`, matching the existing `target` behavior. (#4626)
+- Bugfix: OpenAI and OpenAI-compatible providers no longer fail every request with `APIConnectionError: Connection error.` when openai 3.x is installed.
+- Reasoning: Unsupported extended `reasoning_effort` values are now mapped to valid provider/model tiers for Together, SambaNova, Perplexity, and Fireworks.
+- Models: New `--model-spec` option runs several models in one `inspect eval` or `inspect eval-set` command, each with its own generation config, model args, and base url.
 
 ## 0.3.257 (11 August 2026)
 

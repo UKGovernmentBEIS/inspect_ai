@@ -18,8 +18,12 @@ The fix is twofold:
 """
 
 import asyncio
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from inspect_sandbox_tools._remote_tools._mcp import (
+    mcp_server_session as session_module,
+)
 from inspect_sandbox_tools._remote_tools._mcp.mcp_server_session import (
     MCPServerSession,
 )
@@ -38,6 +42,7 @@ class _FakeProcess:
     def __init__(self, stdout: asyncio.StreamReader) -> None:
         self.stdout = stdout
         self.stdin = _FakeStdin()
+        self.pid: int | None = None
 
     def terminate(self) -> None:
         pass
@@ -156,6 +161,7 @@ async def test_create_wires_readline_limit_into_subprocess(
         *args: object, **kwargs: object
     ) -> _FakeProcess:
         captured["limit"] = kwargs.get("limit")
+        captured["start_new_session"] = kwargs.get("start_new_session")
         return _FakeProcess(asyncio.StreamReader())
 
     monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_create_subprocess_exec)
@@ -163,5 +169,30 @@ async def test_create_wires_readline_limit_into_subprocess(
     session = await MCPServerSession.create(StdioServerParameters(command="true"))
     try:
         assert captured["limit"] == mcp_server_session._READLINE_LIMIT
+        assert captured["start_new_session"] is True
     finally:
         await session.terminate()
+
+
+async def test_retired_session_shutdown_uses_only_captured_processes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    process = _FakeProcess(asyncio.StreamReader())
+    process.pid = 99
+    session = MCPServerSession(process, "utf-8", "strict")
+    captured_child = MagicMock(pid=100)
+    capture_group = MagicMock(return_value=[captured_child])
+    terminate = AsyncMock()
+    monkeypatch.setattr(session_module, "process_group_members", capture_group)
+    monkeypatch.setattr(session_module, "terminate_process_tree", terminate)
+
+    await session.terminate()
+    await session.shutdown()
+
+    capture_group.assert_called_once_with(99, exclude_pid=99)
+    terminate.assert_awaited_once_with(
+        process,
+        timeout=30,
+        process_group=False,
+        known_descendants=[captured_child],
+    )

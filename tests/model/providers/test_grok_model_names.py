@@ -30,6 +30,7 @@ KNOWN_MODELS = [
     "grok-4.20",
     "grok-4.3",
     "grok-4.5",
+    "grok-4.6",
     "grok-5",
 ]
 
@@ -65,7 +66,7 @@ def test_codename_models_are_latest(model_name: str) -> None:
     assert api.is_grok_2() is False
 
 
-@pytest.mark.parametrize("model_name", CODENAME_MODELS + ["grok-5", "grok-4.5"])
+@pytest.mark.parametrize("model_name", CODENAME_MODELS + ["grok-5", "grok-4.6"])
 def test_frontier_models_send_reasoning_effort(model_name: str) -> None:
     params = _api(model_name)._grok_params(GenerateConfig(reasoning_effort="high"))
     assert params["reasoning_effort"] == "high"
@@ -81,10 +82,12 @@ def test_original_grok_4_omits_reasoning_effort(model_name: str) -> None:
 def test_unknown_models_alias_to_frontier_context_window(model_name: str) -> None:
     # input_tokens_name() aliases to the current frontier so the context window
     # resolves instead of coming back empty
-    assert _api(model_name).input_tokens_name() == "grok/grok-4.5"
+    assert _api(model_name).input_tokens_name() == "grok/grok-4.6"
 
 
-@pytest.mark.parametrize("model_name", ["grok-4.5", "grok-3", "grok-3-mini"])
+@pytest.mark.parametrize(
+    "model_name", ["grok-4.5", "grok-4.6", "grok-3", "grok-3-mini"]
+)
 def test_known_model_input_tokens_name_unchanged(model_name: str) -> None:
     assert _api(model_name).input_tokens_name() == f"grok/{model_name}"
 
