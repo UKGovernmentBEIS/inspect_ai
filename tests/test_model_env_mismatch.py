@@ -131,14 +131,12 @@ class TestModelEnvironmentMismatch:
             f"Expected model names in output. Got: {output}"
         )
 
-    def test_azure_matching_model_url_no_warning(self, monkeypatch, mocker, caplog):
+    def test_azure_matching_model_url_no_warning(self, monkeypatch, mocker):
         """
         Test that matching model parameter and URL do not log warnings.
 
         This is a positive test case to ensure we don't have false positives.
         """
-        import logging
-
         # Set up matching environment - deployment name in URL should match model name
         monkeypatch.setenv(
             "AZUREAI_OPENAI_BASE_URL",
@@ -146,47 +144,32 @@ class TestModelEnvironmentMismatch:
         )
         monkeypatch.setenv("AZUREAI_OPENAI_API_KEY", "test-key")
 
-        # Mock the actual API call to avoid real requests
-        mocker.patch("inspect_ai.model._providers.openai.OpenAIAPI")
-
-        # Clear any existing logs
-        caplog.clear()
+        # Mock the Azure client creation (not the whole provider class, which
+        # would skip the constructor that performs the mismatch check)
+        mocker.patch("inspect_ai.model._providers.openai.AsyncAzureOpenAI")
+        mocker.patch("inspect_ai.model._providers.openai.DefaultAsyncHttpxClient")
 
         # This should not log any mismatch warnings
-        with caplog.at_level(logging.WARNING):
+        with capture_inspect_warnings() as warnings:
             try:
-                model = get_model("openai/azure/gpt-35-turbo")
+                model = get_model("openai/azure/gpt-35-turbo", memoize=False)
                 assert model is not None
             except Exception:
                 # Might fail for other reasons, but shouldn't have mismatch warning
                 pass
 
         # Verify no mismatch warnings were logged
-        mismatch_warning = any(
-            "mismatch" in record.message.lower()
-            for record in caplog.records
-            if record.levelname == "WARNING"
+        mismatch_warnings = [msg for msg in warnings if "mismatch" in msg.lower()]
+        assert not mismatch_warnings, (
+            f"Should not log mismatch warning for matching config. Got: {mismatch_warnings}"
         )
 
-        if mismatch_warning:
-            # Print warnings for debugging
-            warnings = [
-                r.message
-                for r in caplog.records
-                if r.levelname == "WARNING" and "mismatch" in r.message.lower()
-            ]
-            pytest.fail(
-                f"Should not log mismatch warning for matching config. Got: {warnings}"
-            )
-
-    def test_case_insensitive_matching(self, monkeypatch, mocker, caplog):
+    def test_case_insensitive_matching(self, monkeypatch, mocker):
         """
         Test that model name comparison is case-insensitive where appropriate.
 
         Avoids false positive warnings for GPT-4 vs gpt-4 style variations.
         """
-        import logging
-
         # Set up with lowercase in URL
         monkeypatch.setenv(
             "AZUREAI_OPENAI_BASE_URL",
@@ -194,33 +177,23 @@ class TestModelEnvironmentMismatch:
         )
         monkeypatch.setenv("AZUREAI_OPENAI_API_KEY", "test-key")
 
-        # Mock the API
-        mocker.patch("inspect_ai.model._providers.openai.OpenAIAPI")
-
-        # Clear logs
-        caplog.clear()
+        # Mock the Azure client creation (not the whole provider class, which
+        # would skip the constructor that performs the mismatch check)
+        mocker.patch("inspect_ai.model._providers.openai.AsyncAzureOpenAI")
+        mocker.patch("inspect_ai.model._providers.openai.DefaultAsyncHttpxClient")
 
         # Use uppercase in model parameter
-        with caplog.at_level(logging.WARNING):
+        with capture_inspect_warnings() as warnings:
             try:
-                get_model("openai/azure/GPT-4")
+                get_model("openai/azure/GPT-4", memoize=False)
             except Exception:
                 pass
 
         # Should not warn about case differences
-        mismatch_warning = any(
-            "mismatch" in record.message.lower()
-            for record in caplog.records
-            if record.levelname == "WARNING"
+        mismatch_warnings = [msg for msg in warnings if "mismatch" in msg.lower()]
+        assert not mismatch_warnings, (
+            f"Should not warn about case-only differences. Got: {mismatch_warnings}"
         )
-
-        if mismatch_warning:
-            warnings = [
-                r.message
-                for r in caplog.records
-                if r.levelname == "WARNING" and "mismatch" in r.message.lower()
-            ]
-            pytest.fail(f"Should not warn about case-only differences. Got: {warnings}")
 
     def test_deployment_name_normalization(self, monkeypatch, caplog):
         """
@@ -254,34 +227,27 @@ class TestModelEnvironmentMismatch:
         # This test documents expected behavior - adjust based on implementation
         # If we want to warn here, change to assert mismatch_warning
 
-    def test_other_providers_not_affected(self, monkeypatch, caplog):
+    def test_other_providers_not_affected(self, monkeypatch):
         """
         Test that non-Azure providers don't trigger mismatch warnings.
 
         Ensures the warning logic is scoped appropriately.
         """
-        import logging
-
         # Set OpenAI API key for non-Azure provider
         monkeypatch.setenv("OPENAI_API_KEY", "test-key")
 
         # Should not log mismatch warnings for non-Azure providers
-        with caplog.at_level(logging.WARNING):
+        with capture_inspect_warnings() as warnings:
             try:
-                model = get_model("openai/gpt-4")
+                model = get_model("openai/gpt-4", memoize=False)
                 assert model is not None
             except Exception:
                 pass  # Ignore other errors, we're checking for warnings
 
         # Verify no mismatch warnings
-        mismatch_warning = any(
-            "mismatch" in record.message.lower()
-            for record in caplog.records
-            if record.levelname == "WARNING"
-        )
-
-        assert not mismatch_warning, (
-            "Should not check mismatches for non-Azure providers"
+        mismatch_warnings = [msg for msg in warnings if "mismatch" in msg.lower()]
+        assert not mismatch_warnings, (
+            f"Should not check mismatches for non-Azure providers. Got: {mismatch_warnings}"
         )
 
     def test_warning_message_contains_both_models(self, monkeypatch, mocker):
