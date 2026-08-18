@@ -830,7 +830,8 @@ def test_model_overrides_required_role_restored_from_options_warns(
     # dict form is what log replay / EvalScorer.options restore produces;
     # as_model_role() must normalize it before the required check.
     model_graded_qa(
-        model="mockllm/model", model_role={"name": "grader", "required": True}
+        model="mockllm/model",
+        model_role={"name": "grader", "required": True},  # type: ignore[arg-type]
     )
     messages = [m for m in _warned if "required 'grader' role" in m]
     assert len(messages) == 1
