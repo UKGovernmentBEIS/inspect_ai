@@ -1,5 +1,5 @@
-from enum import IntEnum
 from dataclasses import dataclass
+from enum import IntEnum
 from functools import lru_cache
 from typing import TYPE_CHECKING, NamedTuple, NoReturn, Sequence, Set
 
