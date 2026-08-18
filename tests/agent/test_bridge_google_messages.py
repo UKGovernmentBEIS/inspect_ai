@@ -20,6 +20,9 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
+from inspect_ai.agent._bridge._errors import BridgePolicyError
 from inspect_ai.agent._bridge.google_api_impl import messages_from_google_contents
 from inspect_ai.model._chat_message import (
     ChatMessageAssistant,
@@ -69,3 +72,23 @@ def test_converted_conversation_does_not_end_on_a_model_turn() -> None:
     assert not (isinstance(last, ChatMessageAssistant) and not last.tool_calls), (
         "conversation ends on an empty model turn (the Gemini-400 bug)"
     )
+
+
+@pytest.mark.parametrize("role", ["user", "model"])
+def test_google_bridge_rejects_file_data_parts(role: str) -> None:
+    contents = [
+        {
+            "role": role,
+            "parts": [
+                {
+                    "fileData": {
+                        "mimeType": "application/pdf",
+                        "fileUri": "https://example.com/report.pdf",
+                    }
+                }
+            ],
+        }
+    ]
+
+    with pytest.raises(BridgePolicyError, match="send the bytes as inlineData"):
+        messages_from_google_contents(contents, None)

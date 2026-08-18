@@ -12,11 +12,13 @@ from inspect_ai._util.content import (
     ContentAudio,
     ContentDocument,
     ContentImage,
+    ContentText,
     ContentVideo,
 )
+from inspect_ai._util.images import materialize_media
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.logger import warn_once
-from inspect_ai._util.url import is_data_uri
+from inspect_ai._util.url import data_uri_mime_type, is_data_uri
 from inspect_ai.agent._bridge._approval import (
     MAX_CONSECUTIVE_REJECTIONS,
     apply_bridge_tool_approval,
@@ -24,6 +26,7 @@ from inspect_ai.agent._bridge._approval import (
 )
 from inspect_ai.agent._bridge._errors import BridgePolicyError
 from inspect_ai.agent._bridge.types import AgentBridge, message_json_hash
+from inspect_ai.model._agent_message import validate_agent_message
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
 from inspect_ai.model._generate_config import GenerateConfig, active_generate_config
 from inspect_ai.model._model import (
@@ -493,31 +496,79 @@ def _bridge_media_uri(content: Content) -> str | None:
             return None
 
 
-def validate_bridge_media(bridge: AgentBridge, messages: Sequence[ChatMessage]) -> None:
-    """Reject inbound media the host would dereference on the agent's behalf.
+def _bridge_media_mime_type(content: Content) -> str | None:
+    if isinstance(content, ContentAudio):
+        return "audio/mpeg" if content.format == "mp3" else "audio/wav"
+    elif isinstance(content, ContentVideo):
+        return {
+            "mp4": "video/mp4",
+            "mpeg": "video/mpeg",
+            "mov": "video/quicktime",
+        }[content.format]
+    elif isinstance(content, ContentDocument):
+        return content.mime_type or None
+    else:
+        return None
+
+
+def _set_bridge_media_uri(content: Content, uri: str) -> None:
+    match content:
+        case ContentImage():
+            content.image = uri
+        case ContentDocument():
+            content.document = uri
+            content.mime_type = data_uri_mime_type(uri) or content.mime_type
+        case ContentAudio():
+            content.audio = uri
+        case ContentVideo():
+            content.video = uri
+
+
+async def validate_bridge_media(
+    bridge: AgentBridge, messages: Sequence[ChatMessage]
+) -> None:
+    """Reject or explicitly materialize inbound bridge media.
 
     Media content carries a URI that gets resolved outside the sandbox: an http(s)
-    URL is fetched by the Inspect process (or by the provider), and anything else
-    is read from the host filesystem via fsspec. For a sandboxed agent that is a
-    confused deputy — it turns an ordinary model request into an arbitrary read
-    performed by a process the sandbox is not supposed to reach. Only inline
-    `data:` URIs are accepted there.
+    URL may be fetched and anything else may be read from the host filesystem via
+    fsspec. For a sandboxed agent that is a confused deputy — it turns an ordinary
+    model request into an arbitrary read performed by a process the sandbox is not
+    supposed to reach. Only inline `data:` URIs are accepted by default.
 
-    In-process bridges are exempt: that scaffold already runs with the host's
-    filesystem and network, so there is no boundary here to defend.
+    When remote media is enabled, the bridge itself materializes each reference
+    before the request reaches the model. This keeps provider serialization
+    inline-only while preserving the explicitly granted host access.
     """
-    if bridge.allow_remote_media:
-        return
-    for message in messages:
+    for message_index, message in enumerate(messages):
         if isinstance(message.content, str):
             continue
-        for content in message.content:
+        for content_index, content in enumerate(message.content):
+            if isinstance(content, ContentText):
+                if (
+                    isinstance(content.internal, dict)
+                    and "agent_message" in content.internal
+                ):
+                    try:
+                        validate_agent_message(content.internal["agent_message"])
+                    except ValueError as ex:
+                        raise BridgePolicyError(str(ex)) from ex
+                continue
             uri = _bridge_media_uri(content)
-            if uri is not None and not is_data_uri(uri):
+            if uri is None or is_data_uri(uri):
+                continue
+            if not bridge.allow_remote_media:
                 raise BridgePolicyError(
-                    f"Bridged {content.type} content must be an inline 'data:' URI; "
-                    f"the agent bridge will not dereference {uri[:80]!r}."
+                    f"Bridged {content.type} content at message index "
+                    f"{message_index}, content index {content_index} must be an "
+                    "inline 'data:' URI; the agent bridge will not dereference "
+                    "a non-inline reference."
                 )
+            _set_bridge_media_uri(
+                content,
+                await materialize_media(
+                    uri, mime_type=_bridge_media_mime_type(content)
+                ),
+            )
 
 
 def apply_message_ids(bridge: AgentBridge, messages: list[ChatMessage]) -> None:

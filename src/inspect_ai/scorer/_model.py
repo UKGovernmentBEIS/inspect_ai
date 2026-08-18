@@ -1,3 +1,4 @@
+import logging
 import re
 from functools import partial
 from typing import Any, Callable
@@ -6,6 +7,7 @@ from inspect_ai._util.content import Content, ContentText
 from inspect_ai._util.dict import omit
 from inspect_ai._util.format import format_function_call
 from inspect_ai._util.list import remove_last_match_and_after
+from inspect_ai._util.logger import warn_once
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -24,6 +26,8 @@ from ._metrics import accuracy, stderr
 from ._multi import multi_scorer
 from ._scorer import Scorer, scorer
 from ._target import Target
+
+logger = logging.getLogger(__name__)
 
 
 @scorer(metrics=[accuracy(), stderr()])
@@ -183,6 +187,21 @@ def _model_graded_qa_single(
     model_role: str | ModelRole | None = "grader",
 ) -> Scorer:
     # returns a scorer that does model graded qa for a single model
+
+    # an explicit model takes precedence over model_role (documented); when
+    # the role is required, the caller asked for a hard prerequisite that is
+    # silently bypassed, so surface it at construction time. warn_once dedups
+    # on the message text, so independent bypasses sharing a role name (across
+    # scorers or models) report once per process — one signal is enough for
+    # the caller to change the pattern.
+    if model is not None and model_role is not None:
+        role = as_model_role(model_role)
+        if role.required:
+            warn_once(
+                logger,
+                f"model_graded scorer: an explicit 'model' is provided, so the "
+                f"required '{role.name}' role will not be consulted",
+            )
 
     # resolve grading template, instructions, and grade_pattern
     template = template if template else DEFAULT_MODEL_GRADED_QA_TEMPLATE
