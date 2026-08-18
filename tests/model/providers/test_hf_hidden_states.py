@@ -35,7 +35,6 @@ async def test_hf_hidden_states(model) -> None:
     assert num_layers == 7
 
 
-@skip_if_no_transformers
 def test_hidden_states_to_jsonable_slices_batch_and_survives_log() -> None:
     """The provider must record each sample's own activations, as JSON-able lists.
 
@@ -45,7 +44,9 @@ def test_hidden_states_to_jsonable_slices_batch_and_survives_log() -> None:
     batch dimension and materializes it to lists that survive the canonical log
     serializer intact.
     """
-    import torch
+    # torch is the only dependency this pure-tensor test needs, and it is not in
+    # the dev group, so gate on it directly rather than on transformers.
+    torch = pytest.importorskip("torch")
 
     from inspect_ai._util.json import jsonable_python
     from inspect_ai.model._providers.util.hidden_states import (

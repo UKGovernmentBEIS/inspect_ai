@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from torch import Tensor
+    from torch import Tensor  # type: ignore
 
 
 def hidden_states_to_jsonable(
