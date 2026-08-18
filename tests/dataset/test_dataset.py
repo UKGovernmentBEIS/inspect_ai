@@ -19,6 +19,7 @@ from inspect_ai.dataset import (
     file_dataset,
     json_dataset,
 )
+from inspect_ai.dataset._util import read_choices
 from inspect_ai.model._chat_message import ChatMessageUser
 
 T_ds = TypeVar("T_ds")
@@ -459,3 +460,14 @@ def dataset_path(file: str) -> str:
 
 def example_path(*paths: str) -> str:
     return os.path.join("examples", "/".join(paths))
+
+
+def test_read_choices_drops_empty_entries() -> None:
+    assert read_choices("Paris,London,") == ["Paris", "London"]
+    assert read_choices("Paris,,London") == ["Paris", "London"]
+    assert read_choices("Paris, London") == ["Paris", "London"]
+    assert read_choices("Paris London") == ["Paris", "London"]
+    assert read_choices(",,") == []
+    assert read_choices(None) is None
+    assert read_choices(["Paris", "", "London"]) == ["Paris", "London"]
+    assert read_choices(["Paris", " ", "London"]) == ["Paris", "London"]
