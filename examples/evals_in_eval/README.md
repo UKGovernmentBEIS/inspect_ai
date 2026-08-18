@@ -5,6 +5,8 @@ This example demonstrates running Inspect evals (in Docker containers) inside an
 > [!CAUTION]
 > Do not use this example to evaluate adversarial or untrusted agents. The agent is intentionally given full control of a rootless Docker daemon in a privileged sidecar. Rootless mode prevents daemon control from directly granting root in the sidecar, but the privileged sidecar still has weakened isolation from the Docker host (the Docker Desktop Linux VM on macOS and Windows). This Compose file sets no CPU, memory, or PID limits. Run this example only on a disposable, isolated machine or VM.
 
+The Compose configuration intentionally permits outbound Internet access because the nested Docker daemon must pull sandbox images for the inner evaluations.
+
 > [!NOTE] The correct way to run an eval in an eval is to shell out a subprocess that has the eval you want to run. That protects many error conditions you would run into if you tried to run an eval in an eval. This is global state, background tasks (e.g. batch jobs), and contention for the UI.
 
 The example includes the following source files:
