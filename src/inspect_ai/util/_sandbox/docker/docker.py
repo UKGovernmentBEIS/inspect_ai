@@ -49,6 +49,7 @@ from .compose import (
     compose_up,
     docker_image_exists_locally,
 )
+from .failure import InjectedWrapper, classify_exec_failure
 from .internal import build_internal_image, is_internal_image
 from .prereqs import validate_prereqs
 from .util import ComposeProject, task_project_name
@@ -370,8 +371,14 @@ class DockerSandboxEnvironment(SandboxEnvironment):
             # else: signal-death exit code but too fast to be a timeout
             # (e.g. OOM kill) — fall through and return the ExecResult
 
-        if exec_result.returncode == 126 and "permission denied" in exec_result.stdout:
-            raise PermissionError(f"Permission denied executing command: {exec_result}")
+        failure = classify_exec_failure(
+            exec_result,
+            wrapper=InjectedWrapper(binary=in_container_cmd[0], target=cmd[0])
+            if in_container_cmd is not cmd and cmd
+            else None,
+        )
+        if failure is not None:
+            raise failure
 
         return exec_result
 
@@ -478,7 +485,10 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                 message = str(ex).lower()
 
                 # FileNotFoundError
-                if "could not find the file" in message:
+                if (
+                    "could not find the file" in message
+                    or "no such file or directory" in message
+                ):
                     raise FileNotFoundError(
                         errno.ENOENT, "No such file or directory.", original_file
                     ) from ex

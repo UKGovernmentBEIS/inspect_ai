@@ -365,6 +365,25 @@ class Hooks:
     catch any exceptions that may occur. This is to ensure that a hook failure does not
     affect the overall execution of the eval. If a hook fails, a warning will be logged.
 
+    #### Hook lifecycle
+
+    The ``@hooks`` decorator instantiates your class once, at import time, and
+    registers that single instance. Inspect never creates a second instance and
+    never destroys it: the registry holds it for the lifetime of the process, and
+    there is no teardown event. Do per-run cleanup in ``on_run_end`` or
+    ``on_eval_set_end``.
+
+    Because there is exactly one instance, ``self`` is shared by every eval set,
+    run, task, sample and epoch in the process:
+
+    - State stored on ``self`` by one sample is visible to all the others. Key
+      per-sample state by ``data.sample_id`` and remove it in ``on_sample_end``,
+      otherwise it accumulates for the life of the process.
+    - Samples run concurrently on a single event loop, so a call for one sample
+      can begin at any ``await`` in an in-flight call for another. Don't assume
+      one call completes before the next begins. (Within a single sample,
+      ``on_sample_event`` calls are serialized.)
+
     #### Ownership of hook event data
 
     Event objects passed via ``on_sample_event`` and the ``EvalSample`` passed
@@ -604,6 +623,11 @@ def hooks(name: str, description: str) -> Callable[..., Type[T]]:
     Either decorate a subclass of `Hooks`, or a function which returns the type
     of a subclass of `Hooks`. This decorator will instantiate the hook class
     and store it in the registry.
+
+    Instantiation happens eagerly, when the decorator runs (i.e. when the
+    defining module is imported), and the resulting instance is reused for every
+    event for the lifetime of the process. See `Hooks` for what that implies for
+    instance state.
 
     Args:
         name (str): Name of the subscriber (e.g. "audit logging").
