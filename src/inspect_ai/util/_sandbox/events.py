@@ -138,7 +138,9 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
         )
 
     @override
-    async def write_file(self, file: str, contents: str | bytes) -> None:
+    async def write_file(
+        self, file: str, contents: str | bytes, user: str | None = None
+    ) -> None:
         from inspect_ai.event._sandbox import SandboxEvent
         from inspect_ai.log._transcript import transcript
 
@@ -146,7 +148,7 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
 
         # make call
         try:
-            await self._sandbox.write_file(file, contents)
+            await self._sandbox.write_file(file, contents, user=user)
         except TimeoutError as ex:
             raise SandboxTimeoutError(str(ex)) from ex
 

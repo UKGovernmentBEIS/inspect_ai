@@ -20,7 +20,11 @@ from inspect_ai._util._json_rpc import (
 if TYPE_CHECKING:
     from .environment import SandboxEnvironment
 
-from ._cli import SANDBOX_CLI
+from ._cli import (
+    SANDBOX_CLI,
+    SANDBOX_TOOLS_SERVER_DIR_ENV,
+    sandbox_tools_server_dir,
+)
 from .limits import SandboxEnvironmentLimits
 
 _JSON_RPC_RESPONSE_CHUNK_METHOD = "__inspect_json_rpc_response_chunk__"
@@ -113,6 +117,19 @@ class SandboxJSONRPCTransport(JSONRPCTransport):
             if max_response_bytes is not None
             else None
         )
+        # A non-default user gets its own server directory, and thus its own
+        # server started lazily by the CLI already running as that user. This
+        # keeps per-user execution working without CAP_SETUID in the sandbox.
+        user = transport_extra_args.get("user", None)
+        if (
+            self.cli == SANDBOX_CLI
+            and user is not None
+            and user != self.sandbox._tools_user
+        ):
+            env = {
+                **(env or {}),
+                SANDBOX_TOOLS_SERVER_DIR_ENV: sandbox_tools_server_dir(user),
+            }
         exec_result = await self.sandbox.exec(
             [self.cli, "exec"],
             input=request,
