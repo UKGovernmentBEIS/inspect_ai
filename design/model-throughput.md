@@ -337,8 +337,8 @@ answers "which of my parallel tasks is starved?" without a second call.
 
 ### 4. Trace surface
 
-Two additions, both at the existing `HTTP` log level so they land in the
-trace file unconditionally and appear under `inspect trace http`:
+Two additions, both landing in the trace file unconditionally and (with one
+caveat below) appearing under `inspect trace http`:
 
 1. **Enrich the retry line.** `log_model_retry()` (`model/_model.py`)
    appends a throughput snippet to the message it already logs:
@@ -354,6 +354,13 @@ trace file unconditionally and appear under `inspect trace http`:
    by — every retry line carries the current window rate. Snapshot cost is
    trivial (single-model bucket sum) and the line only changes when a
    retry is already happening.
+
+   Caveat: `log_model_retry` escalates the line to `WARNING` when the
+   upcoming sleep is ≥ 20 minutes (`_model.py`), and `inspect trace http`
+   filters by *exact* level — so retry lines for the heaviest-throttle
+   sleeps (backoff caps at 30 minutes) carry the snippet but surface via
+   `inspect trace dump`, not `inspect trace http`. The periodic
+   `[Throughput]` line below is unaffected (always logged at `HTTP`).
 
 2. **Periodic snapshot line.** A lightweight run-scoped reporter task,
    started on the eval run's task group in `_eval/run.py` — run-scoped, so
