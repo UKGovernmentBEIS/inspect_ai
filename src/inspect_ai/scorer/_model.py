@@ -162,10 +162,19 @@ def model_graded_qa(
         available and the role is not required, the model being evaluated (the
         default model) is used.
     """
+    # resolve a file/resource template to its content now, at factory time:
+    # the deferred fan-out path below constructs its sub-scorers at scoring
+    # time, when the CWD may no longer be the task directory a relative
+    # template path was meant to resolve against (and `resource()` would then
+    # silently treat the missing path as literal template content)
+    grading_template = resource(
+        template if template else DEFAULT_MODEL_GRADED_QA_TEMPLATE
+    )
+
     # bind variables
     get_scorer = partial(
         _model_graded_qa_single,
-        template,
+        grading_template,
         instructions,
         grade_pattern,
         include_history,
@@ -214,7 +223,7 @@ def model_graded_qa(
 
 @scorer(metrics=[accuracy(), stderr()])
 def _model_graded_qa_single(
-    template: str | None = None,
+    grading_template: str,
     instructions: str | None = None,
     grade_pattern: str | None = None,
     include_history: bool | Callable[[TaskState], str] = False,
@@ -222,7 +231,9 @@ def _model_graded_qa_single(
     model: str | Model | None = None,
     model_role: str | ModelRole | None = "grader",
 ) -> Scorer:
-    # returns a scorer that does model graded qa for a single model
+    # returns a scorer that does model graded qa for a single model.
+    # `grading_template` is resolved template *content* -- `model_graded_qa`
+    # resolves file/resource templates at factory time (see comment there)
 
     # an explicit model takes precedence over model_role (documented); when
     # the role is required, the caller asked for a hard prerequisite that is
@@ -239,9 +250,7 @@ def _model_graded_qa_single(
                 f"required '{role.name}' role will not be consulted",
             )
 
-    # resolve grading template, instructions, and grade_pattern
-    template = template if template else DEFAULT_MODEL_GRADED_QA_TEMPLATE
-    grading_template = resource(template)
+    # resolve instructions and grade_pattern
     using_default_instructions = not instructions
     instructions = (
         instructions if instructions else default_instructions(partial_credit)

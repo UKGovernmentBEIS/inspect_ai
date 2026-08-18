@@ -367,6 +367,44 @@ def test_model_graded_scorer_explicit_model_overrides_role_list() -> None:
     assert list(log.samples[0].scores.values())[0].value == CORRECT
 
 
+def test_model_graded_scorer_file_template_resolves_at_construction(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A file-based template is read when the scorer is created, not at scoring time.
+
+    The deferred fan-out for a role bound to a list of models builds its
+    sub-scorers at scoring time, when the CWD may no longer be the directory a
+    relative template path was meant to resolve against. If the template were
+    resolved then, `resource()` would silently treat the missing path as
+    literal content and prompt the graders with the raw path string.
+    """
+    (tmp_path / "tmpl.txt").write_text(
+        "FILE TEMPLATE {question} ANS={answer} CRIT={criterion} {instructions}"
+    )
+    monkeypatch.chdir(tmp_path)
+    task = Task(
+        scorer=model_graded_qa(template="tmpl.txt"),
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+    )
+
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)
+    graders = [_grader_with_output("GRADE: C"), _grader_with_output("GRADE: C")]
+    log = eval(task, model="mockllm/model", model_roles={"grader": graders})[0]
+
+    assert log.status == "success"
+    assert log.samples
+    sample = resolve_sample_attachments(log.samples[0])
+    grader_events = [
+        e for e in sample.events if e.event == "model" and e.role == "grader"
+    ]
+    assert len(grader_events) == len(graders)
+    for event in grader_events:
+        assert event.input
+        assert event.input[0].text.startswith("FILE TEMPLATE What is 1 + 1?")
+
+
 def test_model_graded_answer_set_on_grade_parse_failure():
     # #4025: parse failure is unscored, but answer must still carry the completion.
     subject_answer = "The capital of France is Paris."
