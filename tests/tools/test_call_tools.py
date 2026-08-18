@@ -19,7 +19,7 @@ from inspect_ai.tool import tool
 from inspect_ai.tool._tool import tool_result_content
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_def import ToolDef
-from inspect_ai.util._sandbox import SandboxTimeoutError
+from inspect_ai.util._sandbox import SandboxTimeoutError, SandboxUnavailableError
 
 # --- Helpers ---------------------------------------------------------------
 
@@ -395,6 +395,32 @@ async def test_sandbox_timeout_partial_output_returned_as_tool_result():
     assert messages[-1].error is not None
     assert messages[-1].error.type == "timeout"
     assert messages[-1].error.message == "Command timed out before completing."
+
+
+@tool
+def sandbox_unavailable_tool():
+    async def execute() -> str:
+        """Raise SandboxUnavailableError as a dead sandbox provider would."""
+        raise SandboxUnavailableError(
+            'The sandbox is not running and cannot execute: service "default" is not running'
+        )
+
+    return execute
+
+
+async def test_sandbox_unavailable_surfaces_as_typed_tool_error():
+    """A dead sandbox is recorded with its own error type, filterable in logs."""
+    tool_def = ToolDef(sandbox_unavailable_tool())
+    call = make_call("sandbox_unavailable_tool", {})
+
+    messages, _ = await execute_tools(
+        [ChatMessageAssistant(content=[], tool_calls=[call])], [tool_def]
+    )
+
+    assert isinstance(messages[-1], ChatMessageTool)
+    assert messages[-1].error is not None
+    assert messages[-1].error.type == "sandbox_unavailable"
+    assert "is not running" in messages[-1].error.message
 
 
 @tool

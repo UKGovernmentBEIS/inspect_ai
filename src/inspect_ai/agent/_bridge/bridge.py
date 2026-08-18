@@ -187,6 +187,7 @@ async def agent_bridge(
         forward_generation_config=forward_generation_config,
         approval=approval,
         allow_remote_mcp=allow_remote_mcp,
+        allow_remote_media=True,
     )
 
     # set the patch config for this context and child coroutines
