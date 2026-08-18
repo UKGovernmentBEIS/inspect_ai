@@ -1172,20 +1172,22 @@ def tool_parse_error_message(arguments: str | None, ex: Exception) -> str:
 
 
 def _object_with_trailing_quotes(arguments: str) -> dict[str, Any] | None:
-    """Recover a complete JSON object trailed only by stray quote characters.
+    """Recover a complete JSON object trailed only by stray double quotes.
 
     Models generating a call to a tool whose parameters are empty or all
     optional sometimes emit the empty body plus loose quotes (e.g. `{}""`),
     which fails `json.loads`. The arguments arrive verbatim from the provider,
-    so the recovery has to happen here.
+    so the recovery has to happen here. Only double quotes are treated as
+    stray, since that's the artifact actually observed; a single quote in the
+    trailing text is left to still surface as a parse error.
 
     Args:
         arguments: Tool call arguments that failed to parse as JSON.
 
     Returns:
         The leading object, or None if the trailing text is anything other
-        than quotes and whitespace, so that truncated or doubled payloads
-        (e.g. `{"a": 1}{"a": 2}`) still surface as parse errors.
+        than double quotes and whitespace, so that truncated or doubled
+        payloads (e.g. `{"a": 1}{"a": 2}`) still surface as parse errors.
     """
     try:
         value, index = json.JSONDecoder().raw_decode(arguments)
@@ -1193,7 +1195,7 @@ def _object_with_trailing_quotes(arguments: str) -> dict[str, Any] | None:
         return None
     if not isinstance(value, dict):
         return None
-    if set(arguments[index:]) - {'"', "'"} - set(string.whitespace):
+    if set(arguments[index:]) - {'"'} - set(string.whitespace):
         return None
     return cast(dict[str, Any], value)
 

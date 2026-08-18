@@ -91,6 +91,15 @@ def test_parse_arguments_with_trailing_quotes_and_whitespace():
     assert tool_call.parse_error is None
 
 
+def test_parse_error_on_trailing_single_quote():
+    # only double quotes are the observed artifact; a trailing single quote
+    # still surfaces as a parse error rather than being recovered
+    tool_call = parse_tool_call("id", "testing_tool", "{}'", [testing_tool])
+
+    assert tool_call.arguments == {}
+    assert tool_call.parse_error is not None
+
+
 def test_parse_error_on_duplicated_object():
     # trailing content that isn't just quotes may be the call the model meant,
     # so it stays an error rather than silently taking the first object
