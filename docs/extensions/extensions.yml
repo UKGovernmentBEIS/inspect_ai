@@ -52,12 +52,6 @@
   author: "[Transluce](https://transluce.org/introducing-docent)"
   categories: ["Analysis"]
 
-- name: "[Lunette](https://docs.lunette.dev)"
-  description: |
-    Platform for understanding and improving agents.
-  author: "[Fulcrum Research](https://fulcrumresearch.ai)"
-  categories: ["Analysis"]
-
 - name: "[Inspect WandB](https://github.com/DanielPolatajko/inspect_wandb)"
   description: |
     Integration with Weights and Biases platform.
@@ -181,3 +175,9 @@
     Automatically load pricing data for models under test.
   author: "[Jason Gwartz](https://github.com/jasongwartz)"
   categories: ["Tooling"]
+
+- name: "[EvalPort](https://github.com/adhabnr-ux/evalport)"
+  description: |
+    Open standard for portable LLM evaluation datasets. Convert between Inspect AI and other eval frameworks (DeepEval, Promptfoo, LangSmith, etc.) using a portable JSON format.
+  author: "[Sahi Katukojula](https://github.com/adhabnr-ux)"
+  categories: ["Frameworks"]
