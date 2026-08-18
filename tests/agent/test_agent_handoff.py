@@ -326,6 +326,11 @@ def check_agent_handoff_output_filter(
         solver=[use_tools(handoff(oracle(), output_filter=output_filter)), generate()],
         model="openai/gpt-4o-mini",
         log_format="json",
+        # bound the handoff loop: with output_filter=None the oracle injects a
+        # "give me another answer?" user turn that can prompt the model to hand
+        # off again, and with no limit a runaway loop runs until CI's per-test
+        # timeout kills the worker with no output (meridianlabs-ai/inspect_ai#232)
+        message_limit=20,
     )[0]
     assert log.samples
     assert len(log.samples[0].messages) == messages_len
