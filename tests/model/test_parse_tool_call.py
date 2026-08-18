@@ -1,3 +1,6 @@
+import logging
+
+from inspect_ai._util.constants import PKG_NAME
 from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.tool import ToolInfo, ToolParam, ToolParams
 
@@ -85,10 +88,19 @@ def test_parse_arguments_with_trailing_quotes():
 
 
 def test_parse_recovered_arguments_logs_arguments(caplog):
-    with caplog.at_level("INFO"):
-        parse_tool_call("id", "testing_tool", '{"param1": "value"}""', [testing_tool])
-
-    assert '{"param1": "value"}""' in caplog.text
+    # init_logger() sets propagate=False on the inspect_ai logger once any
+    # earlier test triggers it, which would otherwise make caplog's root
+    # handler miss this record
+    logger = logging.getLogger(PKG_NAME)
+    logger.propagate = True
+    try:
+        with caplog.at_level("INFO"):
+            parse_tool_call(
+                "id", "testing_tool", '{"param1": "value"}""', [testing_tool]
+            )
+        assert '{"param1": "value"}""' in caplog.text
+    finally:
+        logger.propagate = False
 
 
 def test_parse_arguments_with_trailing_quotes_and_whitespace():
