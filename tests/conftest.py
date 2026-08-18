@@ -1,5 +1,6 @@
 import importlib.util
 import inspect
+import logging
 import os
 import shutil
 import subprocess
@@ -103,6 +104,53 @@ def chunked_corpus_small_chunks(
     return build_chunked_corpus(
         tmp_path_factory.mktemp("chunked_corpus_small"), CORPUS_SMALL_CHUNK_SIZE
     )
+
+
+class _DedupeRecordsFilter(logging.Filter):
+    """Pass each LogRecord object through the handler at most once.
+
+    Needed because the ``caplog`` override below attaches caplog's handler to
+    the ``inspect_ai`` logger *in addition to* pytest's own attachment at the
+    root logger. While ``inspect_ai.propagate`` is still True (fresh process),
+    a record would otherwise hit the same handler twice and double up
+    ``caplog.records``. Dedupe is by object identity; holding the record in
+    the set keeps it alive so its identity can't be recycled mid-test.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._seen: set[logging.LogRecord] = set()
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if record in self._seen:
+            return False
+        self._seen.add(record)
+        return True
+
+
+@pytest.fixture
+def caplog(caplog: pytest.LogCaptureFixture) -> Iterator[pytest.LogCaptureFixture]:
+    """Override the built-in ``caplog`` so it reliably captures inspect_ai records.
+
+    The first ``eval()`` in a process calls ``init_logger()``, which sets
+    ``propagate = False`` on the ``inspect_ai`` logger and never restores it
+    (the memoized handler guard in ``_util/logger.py`` skips reconfiguration
+    thereafter). From then on, ``inspect_ai.*`` records never reach the root
+    logger that stock ``caplog`` listens at, so any test asserting on them via
+    ``caplog`` is order-dependent: positive assertions flake, negative ones
+    pass vacuously. Attaching caplog's handler directly to the ``inspect_ai``
+    logger captures in every ordering, without mutating any inspect logging
+    config. See meta-tests in ``tests/test_conftest_caplog.py``.
+    """
+    dedupe = _DedupeRecordsFilter()
+    caplog.handler.addFilter(dedupe)
+    inspect_logger = logging.getLogger("inspect_ai")
+    inspect_logger.addHandler(caplog.handler)
+    try:
+        yield caplog
+    finally:
+        inspect_logger.removeHandler(caplog.handler)
+        caplog.handler.removeFilter(dedupe)
 
 
 @pytest.fixture(autouse=True)
