@@ -2,7 +2,7 @@
 
 `SampleTerminalReporter` owns the side-effects every terminal sample-run
 outcome must perform (see design/sample-lifecycle.md's side-effect table);
-these tests pin that matrix — including the metrics → counter → slot-release
+these tests pin that matrix — including the counter → slot-release → metrics
 order — so a change to one outcome's bookkeeping is deliberate.
 `SampleAttempt` derives the retry budget from the accrued error history; the
 tests pin that derivation.
@@ -103,7 +103,7 @@ def scores() -> dict[str, SampleScore]:
     return {"scorer": SampleScore(score=Score(value=1), sample_id="s1")}
 
 
-async def test_completed_reports_metrics_counter_and_slot(
+async def test_completed_reports_counter_slot_and_metrics(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     harness = ReporterHarness(monkeypatch)
@@ -113,12 +113,12 @@ async def test_completed_reports_metrics_counter_and_slot(
         "s1", 1, sample_scores, started=123.0, usage=_SampleUsage(10, 3)
     )
 
-    # metrics fire first (they run user hook code), then the counter, then
-    # the slot release — the design doc's stated order
+    # the counter and slot release fire first (terminal state is stamped
+    # before any user code runs), then metrics — the design doc's stated order
     assert harness.calls == [
-        ("metrics", ("s1", 1, sample_scores)),
         ("counter", "completed"),
         ("slot", "completed"),
+        ("metrics", ("s1", 1, sample_scores)),
     ]
     assert harness.counters() == (1, 0, 0)
     assert harness.usage() == (10, 3)
@@ -162,9 +162,9 @@ async def test_errored_with_scores_reports_metrics(
     )
 
     assert harness.calls == [
-        ("metrics", ("s1", 1, sample_scores)),
         ("counter", "errored"),
         ("slot", "errored"),
+        ("metrics", ("s1", 1, sample_scores)),
     ]
     assert harness.counters() == (0, 1, 0)
     assert harness.usage() == (7, 2)
@@ -228,6 +228,57 @@ async def test_double_terminal_report_is_rejected(
         harness.reporter.cancelled()
 
     assert harness.counters() == (1, 0, 0)
+
+
+async def test_raising_metrics_cannot_unbucket_the_run(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # metrics run user code (custom metrics, the early-stopping hook); a
+    # raise there tears the task down but must not leave the run outside
+    # every terminal bucket — under the prior metrics-first order nothing
+    # had counted the run yet, so the dying task could never reach `total`
+    harness = ReporterHarness(monkeypatch)
+
+    async def raising_sample_complete(
+        sample_id: int | str, epoch: int, sample_scores: dict[str, SampleScore]
+    ) -> None:
+        raise RuntimeError("hook failure")
+
+    reporter = SampleTerminalReporter(
+        task_id=EVAL_ID,
+        progress=lambda units: None,
+        sample_complete=raising_sample_complete,
+    )
+    with pytest.raises(RuntimeError, match="hook failure"):
+        await reporter.errored("s1", 1, scores(), usage=_SampleUsage(7, 2))
+
+    assert harness.counters() == (0, 1, 0)
+
+
+async def test_completed_at_stamps_before_metrics_await() -> None:
+    # the control channel's task-finished gates (task cancel, sample
+    # requeue) key on `completed_at`; it must be stamped before the
+    # potentially suspending metrics/early-stopping await, so those gates
+    # reject operations arriving while the last sample's hook is suspended
+    clear_all_eval_states()
+    register_eval(EVAL_ID, 1)
+    completed_at_during_metrics: list[float | None] = []
+
+    async def observing_sample_complete(
+        sample_id: int | str, epoch: int, sample_scores: dict[str, SampleScore]
+    ) -> None:
+        state = get_eval_state(EVAL_ID)
+        assert state is not None
+        completed_at_during_metrics.append(state.completed_at)
+
+    reporter = SampleTerminalReporter(
+        task_id=EVAL_ID,
+        progress=lambda units: None,
+        sample_complete=observing_sample_complete,
+    )
+    await reporter.completed("s1", 1, scores())
+
+    assert completed_at_during_metrics and completed_at_during_metrics[0] is not None
 
 
 def test_progress_ticks_one_unit(monkeypatch: pytest.MonkeyPatch) -> None:

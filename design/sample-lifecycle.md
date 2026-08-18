@@ -134,12 +134,19 @@ Column meanings:
 - **Metrics** — the `sample_complete` callback: progress results (keyed by
   `(id, epoch)`, so a requeued run's fresh score supersedes), display
   metrics, and the `EarlyStopping.complete_sample` hook. Within a terminal
-  report, metrics fire first, then the counter, then the slot release —
-  uniformly, where the pre-reporter branches disagreed (the errored path
-  counted first; the reuse path notified its `SampleSource` between metrics
-  and counter, and now notifies after the full report). A dynamic eval's
-  counters are already guarded against "reached total ≠ finished", so the
-  reuse reorder is safe.
+  report, the counter and slot release fire first, then metrics —
+  uniformly, where the pre-reporter branches disagreed (the completed and
+  reuse paths ran metrics first; the errored path counted first). Metrics
+  run user code that can raise or suspend indefinitely (custom metric
+  computations, the early-stopping hook); counting first means a raise
+  there cannot leave the run outside every terminal bucket, and the
+  `completed_at`-keyed task-finished gates (task cancel, sample requeue)
+  read the task as finished during a suspended hook on its last sample
+  rather than accepting operations on a de facto finished task. The reuse
+  path notifies its `SampleSource` after the full report, so a raising
+  feed leaves the reused run counted completed rather than folding it to
+  cancelled — accepted: a dynamic eval's counters are already guarded
+  against "reached total ≠ finished".
 
 Log/metrics agreement is the invariant behind the scores column: whatever
 scores land in the sample's log record are also reported to metrics — and

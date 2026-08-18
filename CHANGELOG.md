@@ -2,7 +2,7 @@
 
 - Security: Computer Tool bundled examples now bind dynamically assigned VNC and noVNC ports to loopback instead of all host interfaces.
 - Sandbox: Local samples now isolate and stop sandbox-tools servers during cleanup, preventing stale working directories and orphaned tool processes across samples.
-- Refactor: Consolidated the per-sample lifecycle in the task runner (retry loop and completion side-effects); no behavior change intended.
+- Refactor: Consolidated the per-sample lifecycle in the task runner; samples now reach terminal state before metrics/early-stopping hooks run, so a raising or suspended hook cannot leave a sample uncounted or a finished task accepting requeue/cancel.
 
 ## 0.3.258 (11 August 2026)
 

@@ -334,9 +334,15 @@ class SampleTerminalReporter:
       SampleSource-driven task frees a sample's memory once every epoch
       completed
 
-    Metrics fire first (they can await user hook code — a failure there
-    tears the task down, and ``finalize_eval`` reconciles the uncounted
-    run), then the counter, then the slot release.
+    The counter and slot release fire first, then metrics. Metrics run
+    user code (custom metric computations, the
+    ``EarlyStopping.complete_sample`` hook) that can raise or suspend
+    indefinitely: counting first means a raise there (which still tears
+    the task down) cannot leave the run outside every terminal bucket,
+    and the control channel's task-finished gates (keyed on
+    ``completed_at``) read the task as finished while the last sample's
+    hook is suspended, rather than accepting a requeue or cancel of a
+    task that is de facto done.
 
     One reporter is created per run (per ``run_sample`` invocation) and
     shared by every attempt of that run — error retries are re-entries of
@@ -436,10 +442,10 @@ class SampleTerminalReporter:
         started: float | None,
         usage: _SampleUsage | None,
     ) -> None:
-        """Metrics (when scored), then counter, then slot release."""
+        """Counter and slot release first, then metrics (when scored)."""
+        self._record_and_release(record, outcome, started=started, usage=usage)
         if scores is not None:
             await self._sample_complete(sample_id, epoch, scores)
-        self._record_and_release(record, outcome, started=started, usage=usage)
 
     def _record_and_release(
         self,
