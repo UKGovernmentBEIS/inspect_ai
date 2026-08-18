@@ -438,7 +438,9 @@ def scorer_for_metrics(
 
         # If the metric value is a list, turn each element in the list
         # into a result
-        elif isinstance(metric_value, Sequence):
+        elif isinstance(metric_value, Sequence) and not isinstance(
+            metric_value, str | bytes
+        ):
             for index, value in enumerate(metric_value):
                 if value is not None:
                     count = str(index + 1)
@@ -546,7 +548,7 @@ def scorers_from_metric_dict(
             # convert the value to a float (either by expanding the dict or array)
             # or by casting to a float
             group = registry_unqualified_name(target_metric)
-            if isinstance(value, dict):
+            if isinstance(value, Mapping):
                 for key, val in value.items():
                     result_metrics[f"{metric_name}_{key}"] = EvalMetric(
                         name=key,
@@ -554,7 +556,7 @@ def scorers_from_metric_dict(
                         value=cast(float, val),
                         params=metric_params,
                     )
-            elif isinstance(value, list):
+            elif isinstance(value, Sequence) and not isinstance(value, str | bytes):
                 for idx, item in enumerate(value):
                     result_metrics[f"{metric_name}_{idx}"] = EvalMetric(
                         name=str(idx),
