@@ -268,6 +268,25 @@ inspect eval math.py \
 
 Note that the built-in [model-graded scorers](model-graded.qmd) (e.g. `model_graded_qa()`, `model_graded_fact()`) look for the `grader` role by default.
 
+### Multiple Models per Role
+
+A role can also be bound to a *list* of models:
+
+``` python
+eval(
+    "math.py",
+    model_roles={"grader": ["openai/gpt-4o", "google/gemini-2.0-flash"]}
+)
+```
+
+Or equivalently on the CLI with comma-separated model names:
+
+``` bash
+inspect eval math.py --model-role grader=openai/gpt-4o,google/gemini-2.0-flash
+```
+
+When a list is bound to the role used by a [model-graded scorer](model-graded.qmd), each model grades independently and the final grade is chosen by majority vote (the same behaviour as passing a list of models to the scorer's `model` parameter). Elsewhere, `get_model(role="...")` resolves to the first model in the list---use `model_roles()` (from `inspect_ai.model`) to access all of the models bound to a role.
+
 Model roles can also be specified in a `--run-config` file alongside the full eval configuration. See [Run Config File](tasks.qmd#run-config).
 
 For how model roles fit into the broader override and precedence model, see [Configuration](tasks.qmd#model-roles).

@@ -84,7 +84,8 @@ def score(
     | None = None,
     epochs_reducer: ScoreReducers | None = None,
     model: str | Model | None = None,
-    model_roles: dict[str, str | Model] | None = None,
+    model_roles: dict[str, str | Model | list[str] | list[Model] | list[str | Model]]
+    | None = None,
     action: ScoreAction | None = None,
     display: DisplayType | None = None,
     copy: bool = True,
@@ -216,7 +217,8 @@ async def score_async(
     | None = None,
     epochs_reducer: ScoreReducers | None = None,
     model: str | Model | None = None,
-    model_roles: dict[str, str | Model] | None = None,
+    model_roles: dict[str, str | Model | list[str] | list[Model] | list[str | Model]]
+    | None = None,
     action: ScoreAction | None = None,
     display: DisplayType | None = None,
     copy: bool = True,
@@ -403,7 +405,7 @@ async def _run_score_task(
     sample: EvalSample,
     scorers: list[Scorer],
     model: Model,
-    model_roles: dict[str, Model],
+    model_roles: dict[str, Model | list[Model]],
     action: ScoreAction,
 ) -> Tuple[dict[str, SampleScore], list[str]]:
     # resolve attachment:// refs so scorers see real content rather than

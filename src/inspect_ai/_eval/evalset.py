@@ -142,7 +142,8 @@ def eval_set(
     model: str | Model | list[str] | list[Model] | None | NotGiven = NOT_GIVEN,
     model_base_url: str | None = None,
     model_args: dict[str, Any] | str = dict(),
-    model_roles: dict[str, str | Model] | None = None,
+    model_roles: dict[str, str | Model | list[str] | list[Model] | list[str | Model]]
+    | None = None,
     task_args: dict[str, Any] | str = dict(),
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
@@ -223,7 +224,7 @@ def eval_set(
             with the model API.
         model_args: Model creation args
             (as a dictionary or as a path to a JSON or YAML config file)
-        model_roles: Named roles for use in `get_model()`.
+        model_roles: Named roles for use in `get_model()` (a role can also map to a list of models).
         task_args: Task creation arguments
             (as a dictionary or as a path to a JSON or YAML config file)
         sandbox: Sandbox environment type
@@ -1533,9 +1534,14 @@ def to_eval_set_task(
     model_name = str(ModelName(task.model))
     model_args = task.model.model_args
 
-    # resolve model roles to names
+    # resolve model roles to names (comma-separated for list-valued roles)
     model_roles = (
-        {k: v.name for k, v in task.model_roles.items()} if task.model_roles else None
+        {
+            k: ",".join(m.name for m in v) if isinstance(v, list) else v.name
+            for k, v in task.model_roles.items()
+        }
+        if task.model_roles
+        else None
     )
 
     # see if there an existing task_id that should be used for this

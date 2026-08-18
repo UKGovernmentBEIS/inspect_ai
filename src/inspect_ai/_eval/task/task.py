@@ -91,7 +91,10 @@ class Task:
         | None = None,
         model: str | Model | None = None,
         config: GenerateConfig = GenerateConfig(),
-        model_roles: dict[str, str | Model] | None = None,
+        model_roles: dict[
+            str, str | Model | list[str] | list[Model] | list[str | Model]
+        ]
+        | None = None,
         sandbox: SandboxEnvironmentType | None = None,
         checkpoint: CheckpointConfig | bool | None = None,
         on_checkpoint: OnCheckpointCallback | None = None,
@@ -130,7 +133,7 @@ class Task:
             metrics: Alternative metrics (overrides the metrics provided by the specified scorer).
             model: Default model for task (Optional, defaults to eval model).
             config: Model generation config for default model (does not apply to model roles)
-            model_roles: Named roles for use in `get_model()`.
+            model_roles: Named roles for use in `get_model()` (a role can also map to a list of models).
             sandbox: Sandbox environment type (or optionally a str or tuple with a shorthand spec)
             checkpoint: Checkpoint configuration for this task. `True` (or a
                 `CheckpointConfig`) enables checkpointing with the default
@@ -297,7 +300,8 @@ def task_with(
     | NotGiven = NOT_GIVEN,
     model: str | Model | NotGiven = NOT_GIVEN,
     config: GenerateConfig | NotGiven = NOT_GIVEN,
-    model_roles: dict[str, str | Model] | NotGiven = NOT_GIVEN,
+    model_roles: dict[str, str | Model | list[str] | list[Model] | list[str | Model]]
+    | NotGiven = NOT_GIVEN,
     sandbox: SandboxEnvironmentType | None | NotGiven = NOT_GIVEN,
     checkpoint: CheckpointConfig | bool | None | NotGiven = NOT_GIVEN,
     on_checkpoint: OnCheckpointCallback | None | NotGiven = NOT_GIVEN,
@@ -343,7 +347,7 @@ def task_with(
         metrics: Alternative metrics (overrides the metrics provided by the specified scorer).
         model: Default model for task (Optional, defaults to eval model).
         config: Model generation config for default model (does not apply to model roles)
-        model_roles: Named roles for use in `get_model()`.
+        model_roles: Named roles for use in `get_model()` (a role can also map to a list of models).
         sandbox: Sandbox environment type (or optionally a str or tuple with a shorthand spec)
         checkpoint: Checkpoint configuration for this task. `True` (or a
             `CheckpointConfig`) enables checkpointing with the default
@@ -504,7 +508,7 @@ class PreviousTask:
     task: str | Task
     task_args: dict[str, Any]
     model: Model | None
-    model_roles: dict[str, Model] | None
+    model_roles: dict[str, Model | list[Model]] | None
     log: EvalLog
     log_info: EvalLogInfo | None
 

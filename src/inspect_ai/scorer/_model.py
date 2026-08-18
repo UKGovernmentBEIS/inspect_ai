@@ -15,7 +15,7 @@ from inspect_ai.model._chat_message import (
     ChatMessageTool,
     ChatMessageUser,
 )
-from inspect_ai.model._model import Model, get_model
+from inspect_ai.model._model import Model, get_model, model_roles
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.model._model_role import ModelRole, as_model_role
 from inspect_ai.solver._task_state import TaskState
@@ -84,8 +84,11 @@ def model_graded_fact(
         Pass `ModelRole(name, required=True)` to require a model to be bound
         to the role. Ignored if `model` is provided. If specified and a model
         is bound to this role (e.g. via the `model_roles` argument to `eval()`),
-        that model is used. If no role-bound model is available and the role
-        is not required, the model being evaluated (the default model) is used.
+        that model is used. If a list of models is bound to this role, each
+        model grades independently and the final grade is computed by majority
+        vote (as when a list is passed for `model`). If no role-bound model is
+        available and the role is not required, the model being evaluated (the
+        default model) is used.
     """
     return model_graded_qa(
         template=template if template else DEFAULT_MODEL_GRADED_FACT_TEMPLATE,
@@ -153,8 +156,11 @@ def model_graded_qa(
         Pass `ModelRole(name, required=True)` to require a model to be bound
         to the role. Ignored if `model` is provided. If specified and a model
         is bound to this role (e.g. via the `model_roles` argument to `eval()`),
-        that model is used. If no role-bound model is available and the role
-        is not required, the model being evaluated (the default model) is used.
+        that model is used. If a list of models is bound to this role, each
+        model grades independently and the final grade is computed by majority
+        vote (as when a list is passed for `model`). If no role-bound model is
+        available and the role is not required, the model being evaluated (the
+        default model) is used.
     """
     # bind variables
     get_scorer = partial(
@@ -164,16 +170,32 @@ def model_graded_qa(
         grade_pattern,
         include_history,
         partial_credit,
-        model_role=model_role,
     )
-    # if only a single model is passed, return a single scorer
-    if model is None or not isinstance(model, list):
-        return get_scorer(model)
 
-    # otherwise, use multi scorer
-    assert isinstance(model, list)
-    scorers = [get_scorer(model) for model in model]
-    return multi_scorer(scorers, "mode")
+    # if a list of models is passed, use multi scorer with majority vote
+    if isinstance(model, list):
+        scorers = [get_scorer(m, model_role=model_role) for m in model]
+        return multi_scorer(scorers, "mode")
+
+    # otherwise create a single scorer -- however, the model_role may be bound
+    # to a list of models (e.g. via the `model_roles` argument to `eval()`),
+    # which is only knowable at scoring time, so fan out to a grader per
+    # role-bound model (majority vote) when that turns out to be the case
+    single = get_scorer(model, model_role=model_role)
+
+    async def score(state: TaskState, target: Target) -> Score | None:
+        if model is None and model_role is not None:
+            role = as_model_role(model_role)
+            role_models = model_roles().get(role.name)
+            if isinstance(role_models, list):
+                # model_role=None because each grader gets an explicit
+                # (role-stamped) model and would otherwise warn when the
+                # role is required
+                scorers = [get_scorer(m, model_role=None) for m in role_models]
+                return await multi_scorer(scorers, "mode")(state, target)
+        return await single(state, target)
+
+    return score
 
 
 @scorer(metrics=[accuracy(), stderr()])

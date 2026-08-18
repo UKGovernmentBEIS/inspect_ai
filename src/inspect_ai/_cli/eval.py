@@ -1619,7 +1619,9 @@ class RunConfigInput(BaseModel):
 
     task: str | TaskInput | None = None
     model: str | ModelConfig | None = None
-    model_roles: dict[str, ModelConfig] = Field(default_factory=dict)
+    model_roles: dict[str, ModelConfig | list[ModelConfig]] = Field(
+        default_factory=dict
+    )
     generate_config: GenerateConfig = Field(default_factory=GenerateConfig)
     eval_config: EvalConfig = Field(default_factory=EvalConfig)
     solver: str | SolverInput | None = None
@@ -1678,10 +1680,16 @@ class RunConfigInput(BaseModel):
 
         # Model roles
         if self.model_roles:
-            params["model_roles"] = {
-                role: get_model(
+
+            def role_model(mc: ModelConfig) -> Model:
+                return get_model(
                     mc.model, config=mc.config, base_url=mc.base_url, **mc.args
                 )
+
+            params["model_roles"] = {
+                role: [role_model(m) for m in mc]
+                if isinstance(mc, list)
+                else role_model(mc)
                 for role, mc in self.model_roles.items()
             }
 

@@ -12,7 +12,13 @@ from inspect_ai._util.content import ContentImage, ContentText
 from inspect_ai.dataset import Sample
 from inspect_ai.dataset._sources.json import json_dataset
 from inspect_ai.log._condense import resolve_sample_attachments
-from inspect_ai.model import ChatMessageAssistant, ChatMessageUser, ModelName, ModelRole
+from inspect_ai.model import (
+    ChatMessageAssistant,
+    ChatMessageUser,
+    Model,
+    ModelName,
+    ModelRole,
+)
 from inspect_ai.model._model import get_model
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.scorer import (
@@ -276,6 +282,89 @@ def test_model_graded_scorer_model_role_round_trips_through_log() -> None:
     )
 
     assert rescored_log.status == "success"
+
+
+def _grader_with_output(text: str) -> Model:
+    return get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.from_content("mockllm/model", [ContentText(text=text)])
+        ],
+    )
+
+
+@pytest.mark.parametrize(
+    ["grades", "expected_value"],
+    [
+        pytest.param(
+            ["GRADE: C", "GRADE: I", "GRADE: C"], CORRECT, id="majority_correct"
+        ),
+        pytest.param(
+            ["GRADE: I", "GRADE: C", "GRADE: I"], INCORRECT, id="majority_incorrect"
+        ),
+    ],
+)
+@pytest.mark.parametrize(
+    "scorer_factory", [model_graded_fact, model_graded_qa], ids=["fact", "qa"]
+)
+def test_model_graded_scorer_role_bound_to_model_list(
+    scorer_factory: Callable[..., Scorer], grades: list[str], expected_value: str
+) -> None:
+    """A role bound to a list of models grades by majority vote.
+
+    Binding a list of models to the grader role must behave the same as
+    passing a list of models to the scorer's `model` parameter: each model
+    grades independently and the final grade is the majority vote.
+    """
+    graders = [_grader_with_output(grade) for grade in grades]
+    task = Task(
+        scorer=scorer_factory(),
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+    )
+
+    log = eval(task, model="mockllm/model", model_roles={"grader": graders})[0]
+
+    assert log.status == "success"
+    assert log.samples
+    assert log.samples[0].scores is not None
+    sample_score = list(log.samples[0].scores.values())[0]
+    assert sample_score.value == expected_value
+
+
+def test_model_graded_scorer_required_role_bound_to_model_list() -> None:
+    graders = [_grader_with_output("GRADE: C"), _grader_with_output("GRADE: C")]
+    task = Task(
+        scorer=model_graded_qa(model_role=ModelRole("grader", required=True)),
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+    )
+
+    log = eval(task, model="mockllm/model", model_roles={"grader": graders})[0]
+
+    assert log.status == "success"
+    assert log.samples
+    assert log.samples[0].scores is not None
+    assert list(log.samples[0].scores.values())[0].value == CORRECT
+
+
+def test_model_graded_scorer_explicit_model_overrides_role_list() -> None:
+    """An explicit `model` takes precedence over a list bound to the role."""
+    task = Task(
+        scorer=model_graded_qa(model=_grader_with_output("GRADE: C")),
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+    )
+
+    log = eval(
+        task,
+        model="mockllm/model",
+        model_roles={
+            "grader": [_grader_with_output("GRADE: I"), _grader_with_output("GRADE: I")]
+        },
+    )[0]
+
+    assert log.status == "success"
+    assert log.samples
+    assert log.samples[0].scores is not None
+    assert list(log.samples[0].scores.values())[0].value == CORRECT
 
 
 def test_model_graded_answer_set_on_grade_parse_failure():

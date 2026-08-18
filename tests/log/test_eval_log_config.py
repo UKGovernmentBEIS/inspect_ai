@@ -73,6 +73,42 @@ def test_eval_log_to_run_config_dict() -> None:
     assert d["eval_config"]["limit"] == 1
 
 
+def test_eval_log_to_run_config_dict_model_role_list() -> None:
+    """A role bound to a list of models exports as a list and re-imports as one."""
+    from inspect_ai._cli.eval import RunConfigInput
+    from inspect_ai.model import Model
+
+    graders = [
+        get_model("mockllm/model", config=GenerateConfig(temperature=0.1)),
+        get_model("mockllm/model", config=GenerateConfig(temperature=0.9)),
+    ]
+    log = eval(
+        config_test_task,
+        model="mockllm/model",
+        model_roles={"grader": graders},
+        limit=1,
+    )[0]
+
+    # the log stores the list under indexed keys
+    assert log.eval.model_roles is not None
+    assert set(log.eval.model_roles.keys()) == {"grader", "grader#2"}
+
+    # the exported run config regroups them into a list
+    d = eval_log_to_run_config_dict(log)
+    exported = d["model_roles"]["grader"]
+    assert isinstance(exported, list)
+    assert [e["config"]["temperature"] for e in exported] == [0.1, 0.9]
+
+    # and the run config parses back to a list of models for the role
+    params = RunConfigInput.model_validate(
+        {"model_roles": d["model_roles"]}
+    ).to_params()
+    parsed = params["model_roles"]["grader"]
+    assert isinstance(parsed, list)
+    assert all(isinstance(m, Model) for m in parsed)
+    assert [m.config.temperature for m in parsed] == [0.1, 0.9]
+
+
 def test_eval_log_to_run_config_dict_solver_override() -> None:
     log = eval(
         config_test_task,
