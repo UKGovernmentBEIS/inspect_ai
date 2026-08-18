@@ -6,6 +6,7 @@ from argparse import Namespace
 from typing import Any, Awaitable, Callable, Literal, NamedTuple
 
 from pydantic import JsonValue
+from shortuuid import uuid
 
 from inspect_ai._util.content import (
     ContentAudio,
@@ -13,12 +14,14 @@ from inspect_ai._util.content import (
     ContentText,
     ContentVideo,
 )
+from inspect_ai.event._tool import ToolEvent
+from inspect_ai.log._transcript import transcript
 from inspect_ai.model._call_tools import tool_params
-from inspect_ai.tool import Tool, ToolParams
+from inspect_ai.tool import Tool, ToolError, ToolParams
 from inspect_ai.tool._tool import ToolResult
+from inspect_ai.tool._tool_call import ToolCallError
 from inspect_ai.tool._tool_def import ToolDef
 
-from ..._agent import AgentState
 from ..state import HumanAgentState
 from .command import HumanAgentCommand
 
@@ -34,17 +37,18 @@ def tool_result_to_str(result: ToolResult) -> str:
     elif isinstance(result, list):
         if len(result) == 0:
             return ""
-        texts: list[str] = []
+        # render text parts; note non-text parts rather than discarding the
+        # text alongside them (the full result is preserved in the ToolEvent)
+        parts: list[str] = []
         for c in result:
             if isinstance(c, ContentText):
-                texts.append(c.text)
+                parts.append(c.text)
             else:
-                raise NotImplementedError(
-                    "Tool returned non-text content (images/audio/video)"
-                )
-        return "\n".join(texts)
+                kind = getattr(c, "type", "non-text")
+                parts.append(f"[{kind} content omitted (recorded in transcript)]")
+        return "\n".join(parts)
     elif isinstance(result, (ContentImage, ContentAudio, ContentVideo)):
-        raise NotImplementedError("Tool returned non-text content (images/audio/video)")
+        return f"[{result.type} content omitted (recorded in transcript)]"
     else:
         return str(result)
 
@@ -57,14 +61,23 @@ class ToolCommand(HumanAgentCommand):
     - JSON escape hatch: task tool addition --raw-json-escape-hatch '{"x": 12}'
     """
 
-    def __init__(self, tools: list[Tool], state: AgentState):
+    def __init__(self, tools: list[Tool]):
         self._tools = tools
-        self._state = state
         self._tool_defs: dict[str, ToolDef] = {}
         self._tool_map: dict[str, Tool] = {}
         self._tool_param_order: dict[str, list[str]] = {}
         for tool in tools:
             tool_def = ToolDef(tool)
+            # tool names are interpolated into the generated sandbox script as
+            # Python identifiers and string literals — fail closed on names
+            # that would break (or inject into) the generated code
+            if not tool_def.name.isidentifier():
+                raise ValueError(
+                    f"Tool name '{tool_def.name}' is not a valid Python "
+                    "identifier (required for the generated task CLI)."
+                )
+            if tool_def.name in self._tool_defs:
+                raise ValueError(f"Duplicate tool name '{tool_def.name}'.")
             self._tool_defs[tool_def.name] = tool_def
             self._tool_map[tool_def.name] = tool
             self._tool_param_order[tool_def.name] = get_param_order_from_tool(tool)
@@ -172,8 +185,29 @@ def tool(args):
             except Exception as e:
                 return f"Error parsing tool arguments: {e}"
 
-            # Call tool (let exceptions propagate naturally for ToolError etc.)
-            result = await tool(**params)
+            # Call tool (let exceptions propagate naturally for ToolError etc.),
+            # recording a ToolEvent either way — for human baselines the human's
+            # tool usage is the data, so the transcript must carry it
+            try:
+                result = await tool(**params)
+            except ToolError as ex:
+                transcript()._event(
+                    ToolEvent(
+                        id=uuid(),
+                        function=_tool_name_,
+                        arguments=params,
+                        error=ToolCallError("unknown", ex.message),
+                    )
+                )
+                raise
+            transcript()._event(
+                ToolEvent(
+                    id=uuid(),
+                    function=_tool_name_,
+                    arguments=params,
+                    result=result,
+                )
+            )
 
             # Convert result to string
             return tool_result_to_str(result)
@@ -331,7 +365,8 @@ def generate_tool_parser(
     escaped_desc = _escape_string(tool_description)
     lines.append(
         f'{tool_name}_parser = tool_subparsers.add_parser("{tool_name}", '
-        f'help="{escaped_desc}")'
+        f'help="{escaped_desc}", '
+        f"formatter_class=argparse.RawDescriptionHelpFormatter)"
     )
 
     # If tool has complex params, don't generate CLI args - user must use escape hatch
@@ -363,12 +398,11 @@ def generate_tool_parser(
             elif info.schema_type == "number":
                 parts.append("type=float")
             elif info.schema_type == "boolean":
-                # Do a store_true with default False for booleans, this is the idiomatic argparse
-                # way. It could be confusing with tool that has an optional boolean that defaults to
-                # True. But this seems like the best compromise; mapping to CLI interface is
-                # inherently imperfect.
-                parts.append('action="store_true"')
-                parts.append("default=False")
+                # --flag / --no-flag pair; default None means "not provided",
+                # which the handler filters out so the tool's own default
+                # applies (an absent flag must not silently send False to a
+                # tool whose default is True)
+                parts.append("action=argparse.BooleanOptionalAction")
             elif info.schema_type == "array":
                 parts.append('nargs="*"')
                 if info.array_item_type == "integer":
@@ -381,11 +415,10 @@ def generate_tool_parser(
                 parts.append(f"choices={info.enum!r}")
 
             # Required/default
-            if info.schema_type != "boolean":
-                if info.is_optional or not info.is_required:
-                    parts.append("default=None")
-                else:
-                    parts.append("required=True")
+            if info.is_optional or not info.is_required:
+                parts.append("default=None")
+            else:
+                parts.append("required=True")
 
             # Help text
             if info.description:

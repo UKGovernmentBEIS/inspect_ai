@@ -375,14 +375,10 @@ def test_human_cli_with_tools_complex(capsys: pytest.CaptureFixture[str]):
                 in help_result.stdout
             ), fmt_err(help_result)
             # JSON schema is shown so user knows what to pass
-            assert (
-                """Parameters: { "type": "object", "properties": { "config": { "type": "object",
-"description": "Configuration dictionary with settings.",
-"additionalProperties": {} }, "name": { "type": "string", "description": "Name
-for the configuration." } }, "required": [ "config", "name" ],
-"additionalProperties": false }"""
-                in help_result.stdout
-            ), fmt_err(help_result)
+            # RawDescriptionHelpFormatter preserves the schema's indentation
+            assert '"type": "object"' in help_result.stdout, fmt_err(help_result)
+            assert '"required": [' in help_result.stdout, fmt_err(help_result)
+            assert '  "properties": {' in help_result.stdout, fmt_err(help_result)
 
             # Test: calling with JSON escape hatch works
             json_result = subprocess.run(
@@ -516,16 +512,28 @@ def test_human_cli_with_tools_boolean(capsys: pytest.CaptureFixture[str]):
         wait_for_human_agent(docker_exec)
 
         try:
-            # Test: without boolean flags, they default to False
-            # **regardless of the tool function default values**.
-            # This is somewhat counterintuitive, but probably the best compromise
+            # Test: without boolean flags, the tool's own defaults apply
+            # (reverse defaults to True in the tool signature)
             no_flags_result = subprocess.run(
                 docker_exec
                 + ['python3 /opt/human_agent/task.py tool format_text --text "hello"'],
                 capture_output=True,
                 text=True,
             )
-            assert no_flags_result.stdout.strip() == "hello", fmt_err(no_flags_result)
+            assert no_flags_result.stdout.strip() == "olleh", fmt_err(no_flags_result)
+
+            # Test: --no-reverse expresses False explicitly
+            no_reverse_result = subprocess.run(
+                docker_exec
+                + [
+                    'python3 /opt/human_agent/task.py tool format_text --text "hello" --no-reverse'
+                ],
+                capture_output=True,
+                text=True,
+            )
+            assert no_reverse_result.stdout.strip() == "hello", fmt_err(
+                no_reverse_result
+            )
 
             # Test: with --uppercase flag, it becomes True
             uppercase_result = subprocess.run(
@@ -536,7 +544,7 @@ def test_human_cli_with_tools_boolean(capsys: pytest.CaptureFixture[str]):
                 capture_output=True,
                 text=True,
             )
-            assert uppercase_result.stdout.strip() == "HELLO", fmt_err(uppercase_result)
+            assert uppercase_result.stdout.strip() == "OLLEH", fmt_err(uppercase_result)
 
             # Test: with --reverse flag
             reverse_result = subprocess.run(

@@ -42,7 +42,7 @@ def human_agent_commands(
 
     # optional tools
     if tools:
-        commands.append(ToolCommand(tools, state))
+        commands.append(ToolCommand(tools))
 
     # with instructions (letting it see the other commands)
     return commands + [InstructionsCommand(commands, instructions)]
