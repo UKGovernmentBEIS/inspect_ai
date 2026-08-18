@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Scoring: Treat numeric string metric return values as scalar values rather than sequences in eval results. (#4903)
 - Multiple Choice: A single-choice answer carrying a stray trailing comma (e.g. `ANSWER: A,`) is now scored instead of rejected as no answer.
 - Model-graded scorers now warn once when an explicit model bypasses a required model role.
 - Dataset: Choices fields read from CSV or JSON no longer produce an empty-string choice from trailing or doubled commas.
