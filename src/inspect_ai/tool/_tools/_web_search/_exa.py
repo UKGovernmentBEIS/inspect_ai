@@ -12,7 +12,7 @@ from ._web_search_provider import SearchProvider
 class ExaOptions(BaseModel):
     # See https://docs.exa.ai/reference/answer
     text: bool | None = None
-    """Whether to include text content in citations"""
+    """Whether to include text content in citations (defaults to True)"""
     model: Literal["exa", "exa-pro"] | None = None
     """LLM model to use for generating the answer"""
     max_connections: int | None = None
@@ -20,17 +20,19 @@ class ExaOptions(BaseModel):
 
 
 class ExaCitation(BaseModel):
-    id: str
+    # Only `url` and `title` are guaranteed; the rest are present conditionally.
     url: str
     title: str
+    id: str | None = None
     author: str | None = None
     publishedDate: str | None = None
-    text: str
+    text: str | None = None
+    """Present only when the request asks for citation text."""
 
 
 class ExaSearchResponse(BaseModel):
     answer: str
-    citations: list[ExaCitation]
+    citations: list[ExaCitation] = []
 
 
 class ExaSearchProvider(BaseHttpProvider):
@@ -50,7 +52,11 @@ class ExaSearchProvider(BaseHttpProvider):
         }
 
     def set_default_options(self, options: dict[str, Any]) -> dict[str, Any]:
-        return options
+        # Request citation text unless the caller said otherwise. Exa omits it
+        # by default, which leaves citations with no cited_text.
+        new_options = options.copy()
+        new_options.setdefault("text", True)
+        return new_options
 
     def parse_response(self, response_data: dict[str, Any]) -> ContentText | None:
         exa_search_response = ExaSearchResponse.model_validate(response_data)

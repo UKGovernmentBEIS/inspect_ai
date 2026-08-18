@@ -161,7 +161,7 @@ async def current_eval_summaries(started_at: float) -> list[dict[str, Any]]:
         get_eval_states,
         resolve_deferred_sample_stats,
     )
-    from inspect_ai._control.pause import process_paused
+    from inspect_ai._control.pause import process_paused, process_paused_now
     from inspect_ai.log._samples import active_samples
 
     states = get_eval_states()
@@ -263,9 +263,12 @@ async def current_eval_summaries(started_at: float) -> list[dict[str, Any]]:
                 # a pre-registration attempt has no task_id, so only the
                 # process latch can hold it (its model latch already gated
                 # dispatch upstream); mid-startup is never "safe to kill",
-                # hence quiesced stays False
+                # hence quiesced stays False. Held samples are keyed by
+                # task_id, so a pre-registration row can't count them.
                 "paused": ["process"] if process_paused() else None,
+                "paused_now": ["process"] if process_paused_now() else None,
                 "quiesced": False,
+                "held": 0,
                 "attempts": 1,
                 "samples": {
                     "total": 0,
@@ -972,6 +975,13 @@ def _active_sample_summary(s: "ActiveSample") -> dict[str, Any]:
     listing (:func:`_sample_summaries_from_active`) and the per-sample detail
     (:func:`_running_sample_error_detail`) so the two views can't drift.
     """
+    from inspect_ai._control.eval_state import stable_task_id_for_eval
+    from inspect_ai.util._limit_overrides import sample_limit_override
+
+    # the override store wants the stable task id, while
+    # ActiveSample.eval_id is the per-attempt eval id
+    override_task_id = stable_task_id_for_eval(s.eval_id)
+
     if s.completed is not None:
         status = "completed"
     elif s.started is not None:
@@ -1004,7 +1014,11 @@ def _active_sample_summary(s: "ActiveSample") -> dict[str, Any]:
         "message_count": s.total_messages,
         "turn_count": s.total_turns,
         "token_limit_usage": s.token_limit_usage,
-        "token_limit_total": s.token_limit,
+        # a live `ctl config --token-limit` override supersedes the ceiling
+        # the sample started with
+        "token_limit_total": sample_limit_override(
+            override_task_id, "token_limit", s.token_limit
+        ),
         "token_limit_type": s.token_limit_type,
         "last_activity_at": last_activity_at,
         "activity": _sample_activity(s) if status == "running" else None,
@@ -1156,7 +1170,12 @@ def _build_summary(
         latest.started_at if latest.started_at is not None else started_at_fallback
     )
 
-    from inspect_ai._control.pause import task_dispatched_count, task_pause_sources
+    from inspect_ai._control.pause import (
+        task_dispatched_count,
+        task_held_count,
+        task_pause_now_sources,
+        task_pause_sources,
+    )
 
     in_flight_samples = [
         s for s in samples if s.started is not None and s.completed is None
@@ -1189,6 +1208,17 @@ def _build_summary(
         else None
     )
     quiesced = paused is not None and task_dispatched_count(latest.task_id) == 0
+    # the hard (`pause --now`) subset of the paused sources, and the samples
+    # held at their next model call. `held` is reported even on rows with no
+    # latch sources of their own: the hard model gate keys on the model
+    # actually being called, so another task's hard pause can hold this
+    # task's grader/role calls (see task_held_count).
+    paused_now = (
+        (task_pause_now_sources(latest.task_id, latest.model or None) or None)
+        if paused is not None
+        else None
+    )
+    held = task_held_count(latest.task_id)
 
     # Usage = the accumulated total for terminal samples (survives them
     # leaving active_samples — "usage so far") plus the live usage of the
@@ -1227,7 +1257,9 @@ def _build_summary(
         "started_at": eval_started_at,
         "completed_at": completed_at,
         "paused": paused,
+        "paused_now": paused_now,
         "quiesced": quiesced,
+        "held": held,
         "attempts": attempts,
         # Planned epoch count. `ctl sample cancel` uses it to require an
         # explicit EPOCH when the task runs more than one (a defaulted epoch
