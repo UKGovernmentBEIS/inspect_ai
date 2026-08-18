@@ -73,7 +73,8 @@ limit — no new wakeup machinery.
 
 - **Raising** takes effect immediately: the dispatch wakers fire, the
   dispatcher re-evaluates, and pending tasks start (model-balanced, pause
-  latches respected — `pick_balanced` is unchanged) up to the new limit.
+  latches respected — `pick_balanced`'s model-balancing and pause
+  filtering apply as before) up to the new limit.
   Raising beyond `in_flight + pending` changes nothing until more tasks
   arrive (an enqueued task, a `TaskSource` batch, a queued retry); the
   view reports both numbers so an operator can see that.
@@ -252,7 +253,12 @@ implementation should prefer the handle's value when available.
   with the unification: all task logs are created (and sandbox `task_init`
   runs) at batch start rather than per task, matching the `parallel > 1`
   path; rich/plain display renders one aggregate results table at the end
-  instead of per-task increments.
+  instead of per-task increments; and retry ordering at `max_tasks=1`
+  changes — a failed task's retry attempt previously ran within its own
+  sequence group's dispatcher before the next group started, whereas now
+  it re-queues at the tail of the unified queue and runs after all later
+  sequence groups (execution order only; results stay keyed and sorted by
+  index).
 - **Conversation display** forces `max_tasks = 1` at launch because the
   display renders one task's conversation. v1 does not special-case it:
   conversation runs are foreground/interactive and not the retune
