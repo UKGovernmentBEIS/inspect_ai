@@ -239,14 +239,17 @@ def value_to_float(
     """
 
     def to_float(value: Value) -> float:
-        if isinstance(value, int | float | bool):
-            return float(value)
-        elif value == correct:
+        # check the (possibly numeric) correct/incorrect/partial/noanswer values
+        # before the numeric cast below, otherwise numeric custom values are
+        # cast to float and passed through rather than mapped to 1/0.5/0
+        if value == correct:
             return 1.0
         elif value == partial:
             return 0.5
         elif value == incorrect or value == noanswer:
             return 0
+        elif isinstance(value, int | float | bool):
+            return float(value)
         elif isinstance(value, str):
             value = value.lower()
             if value in ["yes", "true"]:
