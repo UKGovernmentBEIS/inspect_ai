@@ -12,7 +12,7 @@ The issue's scope qualifier — *"if they're recorded in the log originally"* �
 
 ## Knob inventory: what's retunable, and what the log records
 
-The full set of `ctl config` knobs is the `_KNOB_SCOPE` table in `src/inspect_ai/_cli/ctl.py` (each with a scope and a min-server-version in `_KNOB_SINCE`), plus the per-sample limits planned in [control-channel.md](control-channel.md) ("Modify per-sample limits" rides `PATCH /tasks/<task-id>/config` as further config knobs).
+The full set of `ctl config` knobs is the `_KNOB_SCOPE` table in `src/inspect_ai/_cli/ctl.py`, plus the per-sample limits planned in [control-channel.md](control-channel.md) ("Modify per-sample limits" rides `PATCH /tasks/<task-id>/config` as further config knobs).
 
 | Knob | Scope | Recorded in the log? | Recorded where |
 |---|---|---|---|
@@ -174,7 +174,7 @@ Consumers, and what changes for them:
 
 - **Old logs, new reader**: `config_updates` defaults to `None`; nothing to migrate.
 - **New logs, old reader**: an optional extra top-level key. Same exposure class as any additive header field (e.g. `log_updates` when it landed); no `LOG_SCHEMA_VERSION` bump — the schema version marks structural breaks, not additive optional fields.
-- **Control-channel version skew**: recording is server-side behavior, invisible on the wire, so no `CONTROL_API_VERSION` bump for persistence itself. The `--reason` and `--author` flags *are* new query params an older server's strict check would reject — they get a `_KNOB_SINCE`-style gate (or simply ship with the next knob that bumps the version anyway). The `persisted` field in the result envelope is additive and null-guarded per the wire-envelope conventions.
+- **Control-channel version skew**: recording is server-side behavior, invisible on the wire, so no `CONTROL_API_VERSION` bump for persistence itself. The `--reason` and `--author` flags *are* new query params an older server's strict check would reject — they gate on the advertised server version (`_PROVENANCE_SINCE`, with `CONTROL_API_VERSION` bumped to 5): an explicit flag hard-errors against an older server, while the *defaulted* author (which the user never typed) is silently dropped rather than failing the retune. The `persisted` field in the result envelope is additive and null-guarded per the wire-envelope conventions.
 
 ## Alternatives considered
 
