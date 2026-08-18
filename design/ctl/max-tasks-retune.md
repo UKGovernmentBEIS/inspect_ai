@@ -43,9 +43,14 @@ an immutable local the whole way down:
    `None`; conversation display forces 1. `eval_set` defaults it to
    `max(len(models), 10)` before calling `eval()`. Finally
    `parallel = max_tasks if max_tasks is not None else 1`.
-2. **Batch shape** (`run_batches` in `_eval/eval.py`): `parallel == 1`
-   selects a sequential path (sequence groups run one `eval_run` batch at a
-   time); otherwise all pending tasks go to one batch.
+2. **Batch shape** (`run_batches` in `_eval/eval.py`): all pending tasks go
+   to one `eval_run` batch. With `parallel == 1` the batch is ordered
+   sequence-major (all of task N's model fan-outs before task N+1), which —
+   combined with the dispatcher's queue-order tie-break — preserves
+   sequence grouping at the launch limit while keeping the whole queue
+   visible to one dispatcher. (Historically `parallel == 1` ran a fresh
+   `eval_run` per sequence group, which hid the queue from the dispatcher —
+   see "The `parallel == 1` batch shape" under edge cases.)
 3. **Dispatch** (`run_task_retry_attempts` in `_eval/run.py`): the
    dispatcher admits work with `while not cancelled and in_flight <
    parallel and pending:`, where `parallel` is a function parameter — no
@@ -96,12 +101,12 @@ The natural-looking implementation — swap the `parallel` int for a
 - A limiter would be owned by one `run_task_retry_attempts` invocation, but
   dispatchers can be recreated within a run: tasks added via `enqueue_task`
   drive successive `run_batches` iterations (each a fresh `eval_run`), the
-  `parallel == 1` path runs a fresh `eval_run` per sequence group and per
-  `TaskSource` batch, and an eval-set in legacy `retry_immediate=False`
-  mode re-invokes `eval()` per retry pass. (With `parallel > 1` a
-  `TaskSource` feeds a single long-lived dispatcher via `TaskInjection`,
-  but the other paths are real.) A per-dispatcher limiter silently reverts
-  the operator's retune at the next dispatcher boundary.
+  `parallel == 1` path runs a fresh `eval_run` per `TaskSource` batch, and
+  an eval-set in legacy `retry_immediate=False` mode re-invokes `eval()`
+  per retry pass. (With `parallel > 1` a `TaskSource` feeds a single
+  long-lived dispatcher via `TaskInjection`, but the other paths are
+  real.) A per-dispatcher limiter silently reverts the operator's retune
+  at the next dispatcher boundary.
 
 Instead, model it on the retry knobs (`timeout` / `attempt_timeout` /
 `max_retries` in `model/_generate_overrides.py`): a **process-global
@@ -229,18 +234,25 @@ implementation should prefer the handle's value when available.
   regardless of headroom (`pick_balanced` filters it out); raising
   `max_tasks` on a fully paused run dispatches nothing until resume — and
   resume's waker re-evaluates against the raised limit.
-- **The `parallel == 1` batch shape**: `run_batches` chose the sequential
-  sequence-group path at launch, and a retune does not restructure batches
-  already carved. Raising `max_tasks` widens concurrency *within* the
-  current batch (the tasks of one sequence group — e.g. one task definition
-  across models) and within each subsequent batch, but sequence groups
-  still run in order. Sequence order is a correctness constraint, so this
-  is the right ceiling, not a limitation to engineer away. The one truly
-  unreachable case — a single-model multi-task `eval()` launched without
-  `max_tasks` (so `parallel == 1` and each sequence group is one task) —
-  keeps running task-at-a-time; the view's `launch: 1` plus docs point the
-  user at relaunching, and in practice the eval-set path (default 10) is
-  where this knob matters.
+- **The `parallel == 1` batch shape**: originally `run_batches` carved a
+  fresh `eval_run` per sequence group at launch, so a retune could never
+  reach the queued groups — each dispatcher held one group with nothing
+  pending (`in_flight: 1, pending: 0` while a dozen tasks waited in
+  `eval.py`'s loop). The design initially accepted that as a carve-out on
+  the theory that eval-set (default `max_tasks` 10) is where the knob
+  matters; in practice, launching an eval-set with an explicit
+  `max_tasks=1` and raising it mid-run is exactly the motivating scenario,
+  and it was dead on arrival. `run_batches` now hands the dispatcher one
+  sequence-major batch: at the launch limit the dispatcher's queue-order
+  tie-break preserves sequence grouping (all of task N's model fan-outs
+  before task N+1 — pinned by
+  `test_initial_tasks_parallel1_preserves_sequence_grouping`), and a raise
+  starts queued tasks immediately, intentionally trading the ordering
+  guarantee for the concurrency the operator asked for. Costs accepted
+  with the unification: all task logs are created (and sandbox `task_init`
+  runs) at batch start rather than per task, matching the `parallel > 1`
+  path; rich/plain display renders one aggregate results table at the end
+  instead of per-task increments.
 - **Conversation display** forces `max_tasks = 1` at launch because the
   display renders one task's conversation. v1 does not special-case it:
   conversation runs are foreground/interactive and not the retune

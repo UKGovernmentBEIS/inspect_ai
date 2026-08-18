@@ -5,8 +5,8 @@ The ``inspect ctl config --max-tasks`` retune surface (see
 (``parallel``) before a run starts and the dispatcher
 (``run_task_retry_attempts`` in ``inspect_ai._eval.run``) is a select loop,
 not a semaphore acquire — and dispatchers can be recreated within a run
-(``enqueue_task``-driven batches, the ``parallel == 1`` sequential path,
-legacy eval-set retry passes). So rather than a resizable limiter owned by
+(``enqueue_task``-driven batches, legacy eval-set retry passes). So rather
+than a resizable limiter owned by
 one dispatcher, this is a **process-global override read at the point of
 use**, modeled on the retry-knob layer in
 :mod:`inspect_ai.model._generate_overrides`: every dispatcher's admission
@@ -116,8 +116,8 @@ def task_dispatcher_stats() -> TaskDispatcherStats | None:
 
     ``None`` covers the windows where a set still lands usefully in the
     override layer — a batch still in startup (e.g. pulling sandbox images)
-    before its dispatcher registers, or a ``parallel == 1`` run blocked
-    between sequential batches — which is why the knob stays adjustable
+    before its dispatcher registers, or a run blocked between
+    ``enqueue_task``-driven batches — which is why the knob stays adjustable
     without a handle.
     """
     return _dispatchers[-1]() if _dispatchers else None

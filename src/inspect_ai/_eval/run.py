@@ -677,9 +677,12 @@ async def run_task_retry_attempts(
         ]
         if not candidates:
             return None
-        models_with_pending = {p.options.model for p in candidates}
-        model = min(models_with_pending, key=lambda m: model_counts[m])
-        item = next(p for p in candidates if p.options.model is model)
+        # earliest queued candidate among the least-used models: ties break
+        # by queue order (not arbitrary set order), so at a dispatch limit
+        # of 1 a sequence-major queue keeps its grouping — all of task N's
+        # model fan-outs run before task N+1 — instead of interleaving
+        min_count = min(model_counts[p.options.model] for p in candidates)
+        item = next(p for p in candidates if model_counts[p.options.model] == min_count)
         pending.remove(item)
         return item
 

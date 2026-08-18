@@ -2970,3 +2970,79 @@ def test_ctl_config_max_tasks_raise_starts_pending_task(
     )
     # the override is run-scoped: reset at the eval_set boundary
     assert max_tasks_override() is None
+
+
+def test_ctl_config_max_tasks_raise_reaches_sequential_launch(
+    short_data_dir: Path,
+) -> None:
+    """Raising max_tasks reaches a run launched with ``max_tasks=1``.
+
+    ``parallel == 1`` used to carve a fresh dispatcher per sequence group, so
+    the queued tasks were invisible to the dispatcher (``in_flight: 1,
+    pending: 0``) and a raise could never start them. The unified batch keeps
+    them pending in one dispatcher: the ready predicate asserting
+    ``pending == 2`` is itself the regression check, and the raise then
+    starts both queued tasks without any completion happening.
+    """
+    import anyio
+
+    from inspect_ai._control.limits import process_limits
+    from inspect_ai._control.max_tasks import task_dispatcher_stats
+
+    @task
+    def seq_task_a() -> Task:
+        return Task(
+            dataset=[Sample(input="x", target="y")], solver=[gate()], name="seq_task_a"
+        )
+
+    @task
+    def seq_task_b() -> Task:
+        return Task(
+            dataset=[Sample(input="x", target="y")], solver=[gate()], name="seq_task_b"
+        )
+
+    @task
+    def seq_task_c() -> Task:
+        return Task(
+            dataset=[Sample(input="x", target="y")], solver=[gate()], name="seq_task_c"
+        )
+
+    log_dir = str(short_data_dir / "logs")
+    Path(log_dir).mkdir()
+
+    def ready() -> bool:
+        stats = task_dispatcher_stats()
+        return stats is not None and stats.in_flight == 1 and stats.pending == 2
+
+    async def capture() -> dict:
+        before = (await process_limits())["max_tasks"]
+        await process_limits(max_tasks=3)
+        started = False
+        for _ in range(500):
+            stats = task_dispatcher_stats()
+            if stats is not None and stats.in_flight == 3:
+                started = True
+                break
+            await anyio.sleep(0.02)
+        return {"before": before, "started": started}
+
+    with probe(ready, capture) as p:
+        success, logs = eval_set(
+            tasks=[seq_task_a(), seq_task_b(), seq_task_c()],
+            log_dir=log_dir,
+            model="mockllm/model",
+            max_tasks=1,
+            retry_attempts=0,
+        )
+
+    assert p.result is not None, "never reached 'one in flight, two pending'"
+    assert p.result["before"] == {
+        "limit": 1,
+        "launch": 1,
+        "override": None,
+        "in_flight": 1,
+        "pending": 2,
+        "adjustable": True,
+    }
+    assert p.result["started"], "raising max_tasks did not start the queued tasks"
+    assert success and len(logs) == 3
