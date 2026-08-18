@@ -1422,6 +1422,16 @@ button._segment_1d1i3_10._disabled_1d1i3_41:hover {
   overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
+._scroller_1rroa_1 {
+  position: relative;
+  /* One scroll owner: native anchoring must not fight the virtualizer's own resize compensation. */
+  overflow-anchor: none;
+}
+
+._spacer_1rroa_7 {
+  position: relative;
+  width: 100%;
+}
 ._keyPairContainer_1u1d5_1 {
   display: grid;
   grid-template-columns: max-content auto;
@@ -2383,16 +2393,6 @@ a._citationLink_1ggvf_9:hover {
 
 ._interactive_1c7cn_25:hover {
   background: var(--inspect-msg-label-bg-hover);
-}
-._scroller_1rroa_1 {
-  position: relative;
-  /* One scroll owner: native anchoring must not fight the virtualizer's own resize compensation. */
-  overflow-anchor: none;
-}
-
-._spacer_1rroa_7 {
-  position: relative;
-  width: 100%;
 }
 ._bar_pg4l8_1 {
   --glint: rgba(64, 72, 104, 0.1);
