@@ -562,7 +562,7 @@ class TaskLogger:
             self._samples_completed += 1
 
     async def _flush_pending_samples(
-        self, *, stale_flush_generation: int | None = None, force: bool = False
+        self, *, stale_flush_generation: int | None = None, even_if_empty: bool = False
     ) -> int:
         """Flush buffered completed samples to the log; return the count written.
 
@@ -577,7 +577,7 @@ class TaskLogger:
         the recorder down, so reaching into it would raise) or while
         destination writes are held (see :meth:`hold_destination_writes`) —
         nothing is drained, so the pending lists and buffer-db rows stay
-        intact for the settle flush. ``force`` proceeds even with both lists
+        intact for the settle flush. ``even_if_empty`` proceeds even with both lists
         empty: the settle flush uses it to create the destination (the temp
         zip already holds ``start.json`` plus any write-throughs) when a held
         attempt reused nothing.
@@ -594,7 +594,7 @@ class TaskLogger:
             async with self._flush_pending_lock:
                 pending = list(self.flush_pending)
                 quiet = list(self.flush_quiet)
-                if not force and not pending and not quiet:
+                if not even_if_empty and not pending and not quiet:
                     return 0
 
             try:
@@ -703,12 +703,12 @@ class TaskLogger:
                 "Unable to schedule reused-sample flush: %s", ex, exc_info=ex
             )
 
-    async def _quiet_settle_flush(self, force: bool = False) -> None:
+    async def _quiet_settle_flush(self, even_if_empty: bool = False) -> None:
         try:
             # shield the write like the stale-timer path: a teardown that
             # cancels the background group must not abandon a half-written log
             with anyio.CancelScope(shield=True):
-                await self._flush_pending_samples(force=force)
+                await self._flush_pending_samples(even_if_empty=even_if_empty)
         except Exception as ex:
             logger.warning("Reused-sample settle flush failed: %s", ex, exc_info=ex)
             # retry fallback: the failed flush set flush_quiet_retry, which

@@ -34,7 +34,7 @@ def install_settle_kill() -> None:
     """Die at the reuse-sweep settle, before the settle flush writes."""
     from inspect_ai._eval.task.log import TaskLogger
 
-    async def kill_at_settle(self: TaskLogger, force: bool = False) -> None:
+    async def kill_at_settle(self: TaskLogger, even_if_empty: bool = False) -> None:
         os.kill(os.getpid(), signal.SIGKILL)
         await anyio.sleep_forever()  # unreachable; SIGKILL is immediate
 

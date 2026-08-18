@@ -563,11 +563,11 @@ def test_eval_retry_defers_destination_log_until_sweep_settles(
     original_settle_flush = TaskLogger._quiet_settle_flush
     absent_marker = os.path.join(probe_dir, "no_destination_before_settle")
 
-    async def gated_settle_flush(self: TaskLogger, force: bool = False) -> None:
+    async def gated_settle_flush(self: TaskLogger, even_if_empty: bool = False) -> None:
         with anyio.fail_after(30):
             while not os.path.exists(absent_marker):
                 await anyio.sleep(0.05)
-        await original_settle_flush(self, force)
+        await original_settle_flush(self, even_if_empty)
 
     monkeypatch.setattr(TaskLogger, "_quiet_settle_flush", gated_settle_flush)
 
