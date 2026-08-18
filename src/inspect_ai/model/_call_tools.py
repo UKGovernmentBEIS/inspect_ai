@@ -69,6 +69,7 @@ from inspect_ai.tool._tool_params import ToolParams
 from inspect_ai.util import OutputLimitExceededError
 from inspect_ai.util._anyio import inner_exception
 from inspect_ai.util._limit import LimitExceededError, apply_limits
+from inspect_ai.util._sandbox.environment import SandboxUnavailableError
 from inspect_ai.util._sandbox.events import SandboxTimeoutError
 from inspect_ai.util._span import AGENT_SPAN_TYPE, span
 
@@ -212,6 +213,12 @@ async def _execute_tools_impl(
                     )
                 else:
                     raise
+            except SandboxUnavailableError as ex:
+                # Preserve the tool loop's existing non-terminal behavior while
+                # surfacing sandbox unavailability as a failed tool call. Evals
+                # that need it to be terminal can enforce that policy in their
+                # agent logic.
+                tool_error = ToolCallError("sandbox_unavailable", str(ex))
             except PermissionError as ex:
                 err = f"{ex.strerror or str(ex)}."
                 if isinstance(ex.filename, str):

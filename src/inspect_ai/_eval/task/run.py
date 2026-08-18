@@ -21,6 +21,7 @@ from inspect_ai._control.eval_state import (
     record_samples_added,
     register_eval,
     set_sample_requeue,
+    stable_task_id_for_eval,
 )
 from inspect_ai._control.pause import PauseGatedSemaphore, dispatch_model_name
 from inspect_ai._display import (
@@ -167,6 +168,7 @@ from inspect_ai.util._limit import (
 from inspect_ai.util._limit import time_limit as create_time_limit
 from inspect_ai.util._limit import turn_limit as create_turn_limit
 from inspect_ai.util._limit import working_limit as create_working_limit
+from inspect_ai.util._limit_overrides import sample_limit_override_scope
 from inspect_ai.util._sandbox import SandboxTimeoutError
 from inspect_ai.util._sandbox.context import sandbox_connections
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
@@ -1958,13 +1960,27 @@ async def task_run_sample(
                         start_time = time.monotonic()
                         init_sample_working_time(start_time)
 
-                        # run sample w/ optional limits
+                        # run sample w/ optional limits. This function's
+                        # `task_id` param carries the per-attempt eval id;
+                        # the override store wants the stable task id.
+                        # Resolved through the eval registry rather than
+                        # `logger` — the per-sample logger is None under
+                        # --no-log-samples while the control channel stays
+                        # fully targetable.
+                        override_task_id = stable_task_id_for_eval(task_id)
+                        sample_time_limit = create_time_limit(time_limit)
                         with (
+                            sample_limit_override_scope(
+                                override_task_id,
+                                time=sample_time_limit,
+                                token=state._token_limit,
+                                message=state._message_limit,
+                            ),
                             state._token_limit,
                             state._cost_limit,
                             state._message_limit,
                             create_turn_limit(turn_limit),
-                            create_time_limit(time_limit),
+                            sample_time_limit,
                             create_working_limit(working_limit),
                         ):
 
