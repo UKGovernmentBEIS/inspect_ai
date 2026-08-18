@@ -160,9 +160,11 @@ def my_task(cpus: float = 1.0):
 
 The `ComposeConfig` and `ComposeService` classes mirror the structure of Docker Compose files, supporting fields like `image`, `build`, `command`, `environment`, `volumes`, `ports`, `mem_limit`, `cpus`, and more. Extension fields (prefixed with `x-`) are also supported.
 
-## Sandbox Limits
+## Sandbox Limits {#sec-sandbox-limits}
 
 By default, sandboxes limit the size of file reads to 100MB and execution output to 10MB. These limits exist to prevent boundary cases of outputs or executions that don't terminate and result in OOM or hung evaluations (i.e. they usually indicate an error by the model).
+
+The two limits are not enforced in the same way. `read_file()` always raises `OutputLimitExceededError` when the limit is exceeded. For `exec()` the behaviour depends on the sandbox provider: the built-in providers front-truncate each output stream (keeping only its trailing portion), so `exec()` returns a successful `ExecResult` whose `stdout` or `stderr` may be silently incomplete rather than raising. Don't rely on an exception to detect `exec()` overflow—this matters in particular when parsing structured output such as JSON. If a command can produce output near the limit and you need all of it, have the command write to a file and read it with `read_file()`.
 
 You can however increase these limits using environment variables. For example, here we set the read file limit to 200MB and the exec output size to 20MB:
 
