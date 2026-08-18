@@ -187,12 +187,15 @@ def read_target(obj: Any | None) -> str | list[str]:
 def read_choices(obj: Any | None) -> list[str] | None:
     if not is_none_or_nan(obj):
         if isinstance(obj, list):
-            return [str(choice) for choice in obj]
+            # drop empty entries the same way as the string branch
+            return [str(choice) for choice in obj if str(choice).strip()]
         elif isinstance(obj, str):
             choices = obj.split(",")
             if len(choices) == 1:
                 choices = obj.split()
-            return [choice.strip() for choice in choices]
+            # drop empty entries so a trailing or doubled comma does not
+            # produce an empty-string choice
+            return [choice.strip() for choice in choices if choice.strip()]
         else:
             return [str(obj)]
     else:
