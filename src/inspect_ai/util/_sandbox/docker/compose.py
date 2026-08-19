@@ -139,13 +139,14 @@ async def compose_ps(
     ]
     | None = None,
     all: bool = False,
+    timeout: int = 300,
 ) -> list[dict[str, Any]]:
     command = ["ps", "--format", "json"]
     if all:
         command.append("--all")
     if status:
         command = command + ["--status", status]
-    result = await compose_command(command, project=project, timeout=300)
+    result = await compose_command(command, project=project, timeout=timeout)
     if not result.success:
         msg = f"Error querying for running services: {result.stderr}"
         raise RuntimeError(msg)

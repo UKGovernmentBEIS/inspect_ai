@@ -116,34 +116,96 @@ async def test_mistral_with_description_parameter(tiktok_tool_with_description_p
 
 
 @skip_if_no_mistral_package
-def test_completion_content_chunks_image_url_string():
+async def test_completion_content_chunks_image_url_string():
     """Test that ImageURLChunk with string URL converts to ContentImage."""
     from mistralai.client.models import ImageURLChunk
 
     from inspect_ai.model._providers.mistral import completion_content_chunks
 
-    chunk = ImageURLChunk(image_url="data:image/png;base64,abc123")
-    result = completion_content_chunks(chunk)
+    image = "data:image/png;base64,iVBORw0KGgo="
+    chunk = ImageURLChunk(image_url=image)
+    result = await completion_content_chunks(chunk)
     assert len(result) == 1
     assert isinstance(result[0], ContentImage)
-    assert result[0].image == "data:image/png;base64,abc123"
+    assert result[0].image == image
 
 
 @skip_if_no_mistral_package
-def test_completion_content_chunks_image_url_object():
+async def test_completion_content_chunks_image_url_object():
     """Test that ImageURLChunk with ImageURL object converts to ContentImage with detail."""
+    from unittest.mock import AsyncMock, patch
+
     from mistralai.client.models import ImageURL, ImageURLChunk
 
     from inspect_ai.model._providers.mistral import completion_content_chunks
 
-    chunk = ImageURLChunk(
-        image_url=ImageURL(url="https://example.com/img.png", detail="high")
-    )
-    result = completion_content_chunks(chunk)
+    url = "https://example.com/img.png"
+    image = "data:image/png;base64,iVBORw0KGgo="
+    chunk = ImageURLChunk(image_url=ImageURL(url=url, detail="high"))
+    with patch(
+        "inspect_ai.model._providers.mistral.provider_image_data_uri",
+        new=AsyncMock(return_value=image),
+    ) as materialize:
+        result = await completion_content_chunks(chunk)
+
+    materialize.assert_awaited_once_with(url)
     assert len(result) == 1
     assert isinstance(result[0], ContentImage)
-    assert result[0].image == "https://example.com/img.png"
+    assert result[0].image == image
     assert result[0].detail == "high"
+
+
+@skip_if_no_mistral_package
+async def test_mistral_output_url_is_materialized_before_replay():
+    from unittest.mock import AsyncMock, patch
+
+    from mistralai.client.models import ImageURL, ImageURLChunk
+
+    from inspect_ai.model._providers.mistral import (
+        completion_content_chunks,
+        mistral_content_chunk,
+    )
+
+    url = "https://example.com/img.png"
+    image = "data:image/png;base64,iVBORw0KGgo="
+    chunk = ImageURLChunk(image_url=ImageURL(url=url, detail="high"))
+    with patch(
+        "inspect_ai.model._providers.mistral.provider_image_data_uri",
+        new=AsyncMock(return_value=image),
+    ) as materialize:
+        content = (await completion_content_chunks(chunk))[0]
+
+    replayed = await mistral_content_chunk(content)
+
+    materialize.assert_awaited_once_with(url)
+    assert isinstance(content, ContentImage)
+    assert content.image == image
+    assert replayed.image_url.url == image
+
+
+@skip_if_no_mistral_package
+async def test_mistral_conversation_output_url_is_materialized():
+    from unittest.mock import AsyncMock, patch
+
+    from mistralai.client.models import ImageURL, ImageURLChunk
+
+    from inspect_ai.model._providers.mistral_conversation import (
+        content_from_mistral_content_chunk,
+    )
+
+    url = "https://example.com/img.png"
+    image = "data:image/png;base64,iVBORw0KGgo="
+    chunk = ImageURLChunk(image_url=ImageURL(url=url, detail="low"))
+    with patch(
+        "inspect_ai.model._providers.mistral_conversation.provider_image_data_uri",
+        new=AsyncMock(return_value=image),
+    ) as materialize:
+        content = await content_from_mistral_content_chunk(chunk)
+
+    materialize.assert_awaited_once_with(url)
+    assert isinstance(content, ContentImage)
+    assert content.image == image
+    assert content.detail == "low"
 
 
 @skip_if_no_mistral_package
@@ -193,3 +255,61 @@ async def test_mistral_chat_forwards_config_extra_headers() -> None:
     assert isinstance(http_headers, dict)
     assert http_headers["x-custom-header"] == "custom-value"
     assert HttpxHooks.REQUEST_ID_HEADER in http_headers
+
+
+@skip_if_no_mistral_package
+def test_mistral_reasoning_effort_mapping() -> None:
+    """Mistral accepts only "high"/"none" — other Inspect values map to "high"."""
+    from inspect_ai.model._providers.mistral_conversation import (
+        mistral_reasoning_effort,
+    )
+
+    assert mistral_reasoning_effort("none") == "none"
+    for effort in ("minimal", "low", "medium", "high", "xhigh", "max"):
+        assert mistral_reasoning_effort(effort) == "high"
+
+
+@skip_if_no_mistral_package
+async def test_mistral_chat_forwards_reasoning_effort() -> None:
+    """config.reasoning_effort must reach the chat completions request (mapped)."""
+    from unittest import mock
+    from unittest.mock import AsyncMock, MagicMock
+
+    import httpx
+
+    from inspect_ai.model._providers.mistral import MistralAPI
+
+    api = MistralAPI(
+        model_name="mistral/mistral-medium-latest",
+        api_key="test-key",
+        conversation_api=False,
+    )
+
+    async def request_effort(config: GenerateConfig) -> object:
+        captured: dict[str, object] = {}
+
+        async def _capture(**kwargs: object) -> object:
+            captured.update(kwargs)
+            raise RuntimeError("stop after capture")
+
+        client = MagicMock()
+        client.__enter__.return_value = client
+        client.__exit__.return_value = False
+        client.sdk_configuration.async_client = httpx.AsyncClient()
+        client.chat.complete_async = AsyncMock(side_effect=_capture)
+
+        with mock.patch(
+            "inspect_ai.model._providers.mistral.Mistral", return_value=client
+        ):
+            with pytest.raises(RuntimeError, match="stop after capture"):
+                await api.generate(
+                    input=[ChatMessageUser(content="hi")],
+                    tools=[],
+                    tool_choice="none",
+                    config=config,
+                )
+        return captured.get("reasoning_effort", "OMITTED")
+
+    assert await request_effort(GenerateConfig(reasoning_effort="low")) == "high"
+    assert await request_effort(GenerateConfig(reasoning_effort="none")) == "none"
+    assert await request_effort(GenerateConfig()) == "OMITTED"

@@ -29,6 +29,7 @@ from pathlib import Path
 from typing import NamedTuple, cast
 
 import pytest
+from click.testing import Result
 
 import inspect_ai
 from _control.conftest import cli_runner
@@ -42,17 +43,20 @@ from inspect_ai._cli.eval import (
 )
 from inspect_ai._control.eval_state import get_eval_states
 from inspect_ai._eval.handoff import (
+    CTL_POINTER,
     LaunchHandoff,
     emit_launch_handoff,
     launch_handoff_emitted,
+    print_ctl_pointer,
+    set_ctl_pointer_armed,
     set_launch_handoff_listener,
 )
 from inspect_ai._util.error import PrerequisiteError, SilentException
 from inspect_ai.dataset import Sample
 from inspect_ai.solver import generate
 
-# `_isolate_active_model` (autouse) and `short_data_dir` come from
-# tests/_control/conftest.py.
+# `isolate_active_model` (autouse) comes from tests/conftest.py, and
+# `short_data_dir` from tests/_control/conftest.py.
 
 
 @pytest.fixture
@@ -1292,3 +1296,226 @@ def test_eval_detach_sigterm_terminates_child(short_data_dir: Path) -> None:
     assert _wait_for_pid_exit(int(pid_match.group(1)), timeout=60), (
         "detached child still running after SIGTERM to the launcher"
     )
+
+
+# --- launch-time ctl pointer ---------------------------------------------------
+
+
+def _run_eval_human(
+    short_data_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    display: str,
+    extra_args: list[str] | None = None,
+) -> Result:
+    """Run ``inspect eval`` (no ``--json``) with the given display mode."""
+    task_path = short_data_dir / "handoff_cli_task.py"
+    task_path.write_text(TASK_FILE)
+
+    monkeypatch.chdir(short_data_dir)
+
+    runner = cli_runner()
+    result = runner.invoke(
+        eval_command,
+        [
+            task_path.name,
+            "--model",
+            "mockllm/model",
+            "--log-dir",
+            str(short_data_dir / "logs"),
+            "--display",
+            display,
+            *(extra_args or []),
+        ],
+        catch_exceptions=False,
+    )
+    assert result.exit_code == 0, result.output
+    return result
+
+
+def _run_eval_set_human(
+    short_data_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    extra_args: list[str] | None = None,
+) -> Result:
+    """Run ``inspect eval-set`` (no ``--json``) with the plain display."""
+    task_path = short_data_dir / "handoff_cli_task.py"
+    task_path.write_text(TASK_FILE)
+
+    monkeypatch.chdir(short_data_dir)
+
+    runner = cli_runner()
+    result = runner.invoke(
+        eval_set_command,
+        [
+            task_path.name,
+            "--model",
+            "mockllm/model",
+            "--log-dir",
+            str(short_data_dir / "logs"),
+            "--display",
+            "plain",
+            *(extra_args or []),
+        ],
+        catch_exceptions=False,
+    )
+    assert result.exit_code == 0, result.output
+    return result
+
+
+def test_ctl_pointer_printed_once_on_plain_cli_run(
+    short_data_dir: Path, monkeypatch: pytest.MonkeyPatch, fresh_display: None
+) -> None:
+    """A human CLI run prints the observe pointer to stderr, exactly once."""
+    result = _run_eval_human(short_data_dir, monkeypatch, "plain")
+    assert result.stderr.count(CTL_POINTER) == 1
+    assert CTL_POINTER not in result.stdout
+
+
+def test_ctl_pointer_absent_under_display_none(
+    short_data_dir: Path, monkeypatch: pytest.MonkeyPatch, fresh_display: None
+) -> None:
+    """``--display none`` is how quiet is spelled — the pointer honors it."""
+    result = _run_eval_human(short_data_dir, monkeypatch, "none")
+    assert CTL_POINTER not in result.stderr
+    assert CTL_POINTER not in result.stdout
+
+
+def test_ctl_pointer_absent_under_json(
+    short_data_dir: Path, monkeypatch: pytest.MonkeyPatch, fresh_display: None
+) -> None:
+    """Under ``--json`` the launch record already carries the control block.
+
+    Stdout stays NDJSON-clean by construction (``_run_eval_json`` parses
+    every line); the pointer must not appear on stderr either.
+    """
+    result = _run_eval_json(short_data_dir, monkeypatch, [])
+    assert CTL_POINTER not in result.stderr
+
+
+def test_ctl_pointer_absent_when_server_disabled(
+    short_data_dir: Path, monkeypatch: pytest.MonkeyPatch, fresh_display: None
+) -> None:
+    """``--ctl-server=false`` leaves nothing to observe — no pointer."""
+    result = _run_eval_human(
+        short_data_dir, monkeypatch, "plain", ["--ctl-server=false"]
+    )
+    assert CTL_POINTER not in result.stderr
+
+
+def test_ctl_pointer_absent_from_direct_eval_call(
+    short_data_dir: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A bare ``eval()`` never arms the pointer — it is a CLI launch concern.
+
+    Notebooks, scripts, and test suites call ``eval()`` with the default
+    ``full`` display, so display-mode gating alone would spray the pointer
+    onto their stderr; the CLI-entry arm is what keeps them clean.
+    """
+    log_dir = str(short_data_dir / "logs")
+    inspect_ai.eval(handoff_task(), model="mockllm/model", log_dir=log_dir)
+    captured = capsys.readouterr()
+    assert CTL_POINTER not in captured.err
+    assert CTL_POINTER not in captured.out
+
+
+def test_ctl_pointer_printed_once_for_keep_alive_eval_set(
+    short_data_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    fresh_display: None,
+    parkless_keep_alive: None,
+) -> None:
+    """A keep-alive eval-set binds twice (run + park) but prints once.
+
+    The park calls the same print helper as the run's bind; the
+    once-per-process latch makes the second call a no-op.
+    """
+    result = _run_eval_set_human(short_data_dir, monkeypatch, ["--ctl-server=keep"])
+    assert result.stderr.count(CTL_POINTER) == 1
+
+
+def test_ctl_pointer_printed_at_all_reused_park(
+    short_data_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    fresh_display: None,
+    parkless_keep_alive: None,
+) -> None:
+    """When every task is reused, the park's bind is the only one — it prints.
+
+    No eval runs, so the run-level bind site never fires; the park still
+    binds a queryable control surface (the reused EvalStates show in
+    ``inspect ctl task list``), so the pointer must come from the park.
+    """
+    first = _run_eval_set_human(short_data_dir, monkeypatch)
+    assert first.stderr.count(CTL_POINTER) == 1
+
+    second = _run_eval_set_human(short_data_dir, monkeypatch, ["--ctl-server=keep"])
+    assert second.stderr.count(CTL_POINTER) == 1
+
+
+@pytest.fixture
+def armed_ctl_pointer() -> Iterator[None]:
+    """Arm the pointer for a direct ``print_ctl_pointer`` call, then disarm."""
+    set_ctl_pointer_armed(True)
+    try:
+        yield
+    finally:
+        set_ctl_pointer_armed(False)
+
+
+def test_ctl_pointer_gated_off_under_textual_display(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    armed_ctl_pointer: None,
+) -> None:
+    """The gate checks the display implementation: textual owns the terminal.
+
+    A real textual run needs a TTY, which no test here has — so exercise
+    the gate predicate directly against a forced ``TextualDisplay`` (its
+    constructor is trivial; the app only exists inside ``run_task_app``).
+    """
+    import inspect_ai._display.core.active as active_mod
+    import inspect_ai.util._display as display_mod
+    from inspect_ai._display.textual.display import TextualDisplay
+
+    monkeypatch.setattr(display_mod, "_display_type", "full")
+    monkeypatch.setattr(active_mod, "_active_display", TextualDisplay())
+
+    print_ctl_pointer("/tmp/ctl.sock")
+    assert capsys.readouterr().err == ""
+
+
+def test_ctl_pointer_admitted_before_display_resolves(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    armed_ctl_pointer: None,
+) -> None:
+    """An unresolved display (the all-reused park's case) admits the pointer.
+
+    When no eval ran, ``task_display()`` was never called, so the active
+    display is still ``None`` — that must read as "not the textual app",
+    not suppress the only bind's pointer.
+    """
+    import inspect_ai._display.core.active as active_mod
+    import inspect_ai.util._display as display_mod
+
+    monkeypatch.setattr(display_mod, "_display_type", "full")
+    monkeypatch.setattr(active_mod, "_active_display", None)
+
+    print_ctl_pointer("/tmp/ctl.sock")
+    assert CTL_POINTER in capsys.readouterr().err
+
+
+def test_ctl_pointer_requires_bound_socket(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    armed_ctl_pointer: None,
+) -> None:
+    """A disabled or bind-failed server (``None`` socket) prints nothing."""
+    import inspect_ai._display.core.active as active_mod
+    import inspect_ai.util._display as display_mod
+
+    monkeypatch.setattr(display_mod, "_display_type", "full")
+    monkeypatch.setattr(active_mod, "_active_display", None)
+
+    print_ctl_pointer(None)
+    assert CTL_POINTER not in capsys.readouterr().err

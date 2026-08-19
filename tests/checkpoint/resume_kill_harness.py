@@ -1,18 +1,19 @@
-"""Harness for the checkpoint resume-after-hard-kill e2e test.
+"""Harness for the checkpoint resume-after-interrupt e2e test.
 
 Lives alongside the e2e test in ``tests/checkpoint/`` and serves two roles:
 
 1. **Importable** by the test — registering the ``@task`` / ``@modelapi`` so
    the final in-process resume works, and exposing shared constants.
-2. **Runnable as a script** by the test for each killed attempt::
+2. **Runnable as a script** by the test for each interrupted attempt::
 
        python resume_kill_harness.py <log_dir> [<retry_from>]
 
-Running the killed attempts in child processes is what lets the test issue a
-*real* ``SIGKILL`` of the eval without taking down pytest. The ``crash`` tool
-``os.kill``s its own (child) process — abruptly, with no graceful unwind, no
-``finally``, no log finalize — exercising recovery from an unanticipated death
-(power loss / OOM / preemption), which is the whole point of checkpointing.
+Running the interrupted attempts in child processes is what lets the test
+issue a *real* signal to an eval without taking down pytest. The ``crash``
+tool ``os.kill``s its own (child) process with the signal named by
+``SIGNAL_ENV``: ``SIGKILL`` for an unanticipated death (power loss / OOM /
+preemption — no unwind, no log finalize), or ``SIGINT`` for what Ctrl-C
+delivers.
 
 Requires Docker (the sandbox backup path injects a Linux restic binary).
 """
@@ -90,6 +91,16 @@ def snapshot_strategy() -> str:
     return os.environ.get(STRATEGY_ENV, "restic")
 
 
+# Which signal the `crash` tool sends itself: SIGKILL (unanticipated death, no
+# unwind) or SIGINT (what Ctrl-C delivers — graceful cancel, log finalized,
+# sandboxes torn down). Resume must work from either.
+SIGNAL_ENV = "INSPECT_TEST_RESUME_SIGNAL"
+
+
+def crash_signal() -> signal.Signals:
+    return signal.Signals[os.environ.get(SIGNAL_ENV, "SIGKILL")]
+
+
 def cancels_done() -> int:
     f = os.environ.get(CANCEL_FILE_ENV)
     return int(Path(f).read_text() or "0") if f and Path(f).exists() else 0
@@ -149,13 +160,14 @@ def remember() -> Tool:
 @tool
 def crash() -> Tool:
     async def execute() -> str:
-        """Kill the eval process immediately (uncatchable, no cleanup)."""
-        # Record the crash before dying (flushed to disk), then SIGKILL our own
-        # process. Running inside the child, this is the child's PID — an
-        # abrupt death with no unwind, mimicking a power loss / OOM / preempt.
+        """Signal the eval process to die (SIGKILL) or cancel (SIGINT)."""
+        # Record the crash before signalling (flushed to disk), then signal our
+        # own process. Running inside the child, this is the child's PID.
         bump_cancels()
-        os.kill(os.getpid(), signal.SIGKILL)
-        await anyio.sleep_forever()  # unreachable; SIGKILL is immediate
+        os.kill(os.getpid(), crash_signal())
+        # SIGKILL never gets here; under SIGINT this is where the eval's
+        # cancellation lands.
+        await anyio.sleep_forever()
         return "crashed"
 
     return execute

@@ -2,6 +2,7 @@ import functools
 import logging
 import os
 import sys
+from copy import copy
 from dataclasses import dataclass, replace
 from typing import Any, Awaitable, Callable, Iterable, NamedTuple, Set, cast
 
@@ -24,6 +25,8 @@ from typing_extensions import Unpack
 from inspect_ai._control.eval_state import mark_eval_retry_pending
 from inspect_ai._control.pause import (
     add_dispatch_waker,
+    dispatch_model_name,
+    note_dispatch_models,
     remove_dispatch_waker,
     task_dispatch_paused,
     wake_pause_waiters,
@@ -202,7 +205,12 @@ async def eval_run(
                 # token_limit, time_limit, and fail_on_error so broadcast these
                 # into the eval config (so long as they aren't overriding a
                 # value specified from eval() or the CLI)
-                task = resolved_task.task
+                # Resolve eval-level overrides against a per-run task view so
+                # repeated eval() calls on the same Task do not retain them.
+                # The copy is shallow: it guards only the direct attribute
+                # rebinds below — nested state (dataset, config, reducer list
+                # contents) is still shared, so don't write to it in place.
+                task = copy(resolved_task.task)
                 task_eval_config = eval_config.model_copy()
 
                 # sample_ids can be specified per task
@@ -395,6 +403,7 @@ async def eval_run(
                         initial_role_usage=resolved_task.initial_role_usage,
                         task_source=task_source,
                         startup_sandboxes=startup_sandboxes,
+                        input_media_policy=resolved_task.input_media_policy,
                     )
                 )
                 # register the prepared task so a failed run can clean it up
@@ -613,6 +622,11 @@ async def run_task_retry_attempts(
     def note_models(options: list[TaskRunOptions]) -> None:
         for t in options:
             model_counts.setdefault(t.model, 0)
+        # let the model pause directives validate against tasks that haven't
+        # started yet (which have no EvalState to check). dispatch_model_name
+        # (not str(t.model)) for the same mid-run-rename reason model_counts
+        # keys by identity above
+        note_dispatch_models([dispatch_model_name(t.model) for t in options])
 
     # pending tasks: initial tasks keep their original order and injected tasks
     # are appended in arrival order, so results sort stably. A retry re-queues
@@ -650,11 +664,17 @@ async def run_task_retry_attempts(
         # pause latch — covering both not-yet-started tasks and queued retry
         # attempts of a paused task), pick the least-used one (keeps as many
         # different models running concurrently as possible); None when
-        # every pending task is paused
+        # every pending task is paused. The model name rides along because a
+        # not-yet-started task has no EvalState for the model latch to
+        # resolve against — this check is what holds a latched model's
+        # undispatched eval-set tasks.
         candidates = [
             p
             for p in pending
-            if not task_dispatch_paused(p.options.logger.eval.task_id)
+            if not task_dispatch_paused(
+                p.options.logger.eval.task_id,
+                model=dispatch_model_name(p.options.model),
+            )
         ]
         if not candidates:
             return None

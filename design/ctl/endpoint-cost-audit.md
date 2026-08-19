@@ -82,8 +82,8 @@ documented here but low priority to fix.
 | Endpoint | Live path | Fallback / terminal path | Verdict |
 |---|---|---|---|
 | `GET /tasks` | O(states + active samples) grouping over counters | Deferred per-log stats: once-only, memoized | ✅ holds |
-| `GET /evals/{id}/samples` | O(rows) over cached summaries + pending synthesis | Re-reads all summaries from the log **per request** | ⚠️ findings 2, 3 |
-| `GET /evals/{id}/sample` (error detail) | O(active samples) scan | Streamed sample scan + a summaries listing read | ⚠️ finding 4 |
+| `GET /evals/{id}/samples` | O(rows) over cached summaries + pending synthesis | One log read, memoized on `EvalState` (finding 3 — fixed) | ✅ holds (`.json` pays finding 2's parse on the first read only) |
+| `GET /evals/{id}/sample` (error detail) | O(active samples) scan | Streamed sample scan + a summaries row served from finding 3's memo | ✅ holds (finding 4 — fixed by finding 3's memo) |
 | `GET /evals/{id}/sample/events` | Paged, bounded by `limit` | Full-transcript parse **per page** once flushed to disk | ❌ finding 1 |
 | `GET /evals/{id}/sample/messages` | O(conversation) copy + truncating projection | Excluded-field scan + attachment resolution | ✅ holds (payload = the response; terminal `tail` reads — watch item) |
 | `POST /tasks/{id}/log-flush` | Full-log write (the endpoint's job); repeats are no-ops | — | ✅ holds |
@@ -102,7 +102,7 @@ the registry lock before the read, so concurrent first requests perform at
 most one read; a failed read leaves the provisional header-derived values
 permanently (no retry storm); only a cancellation restores the claim for a
 later retry. Bounded and confirmed. The per-row `paused`/`quiesced` fields
-added by #4531 keep the listing counter-shaped: `task_pause_scope` and
+added by #4531 keep the listing counter-shaped: `task_pause_sources` and
 `task_dispatched_count` are O(1) lookups against in-memory gate state and a
 dispatch counter maintained at the sample gate (write time), not derived per
 request.
@@ -150,6 +150,13 @@ finding 3. For `.json` logs the constant *is* the incident's:
 `FileRecorder.read_log_sample_summaries` re-runs `EvalSample.summary()` over
 every full-size sample on every request — finding 2.
 
+*Fixed (finding 3):* `_sample_summaries_from_log` now memoizes the read on
+`EvalState.log_sample_summaries` — one read per finalized log, later polls
+served from memory; the retry sweep clears the memo when it deletes a
+superseded attempt's log (`invalidate_log_sample_summaries`). The memo also
+shields this endpoint's fallback for `.json` logs (finding 2's parse is paid
+once, not per poll), though finding 2's other terminal readers remain.
+
 ### `GET /evals/{id}/sample` (error detail)
 
 **Running path — holds.** One `active_samples()` scan; error history comes
@@ -167,8 +174,9 @@ fields; acceptable, though worth knowing it is not O(error-fields). For a
 parses the *whole log*, mitigated only by the single-entry parse cache —
 finding 2. The subsequent "pick this sample's summary row" step calls
 `_completed_sample_summaries` — the entire listing — which is cheap on
-the live path (cached) but on the fallback path adds a *second* full
-summaries read to the same request (finding 4). The response's
+the live path (cached) and, since finding 3's memo landed, on the fallback
+path too (previously a *second* full summaries read per request —
+finding 4, fixed). The response's
 `error_retries` carry full tracebacks (message + plain + ANSI) per retry —
 proportional to retry history, bounded in practice by retry limits.
 
@@ -312,7 +320,9 @@ constant.
 legacy-format-only (see above). Finding 4's expensive half (the second,
 full-listing read) disappears once finding 3's memo lands; its remaining
 read is inherent to serving error detail and already parse-minimized, so it
-needs no work of its own.
+needs no work of its own. **Findings 3 and 4 are now fixed** (the
+`EvalState.log_sample_summaries` memo — meridianlabs-ai/inspect_ai#154);
+finding 1 remains open.
 
 1. **Events pages over a flushed sample re-parse the whole transcript per
    page** (`events.py` `_logged_source` → `_full_sample` with no
@@ -367,6 +377,20 @@ needs no work of its own.
    subtlety); the memo must be invalidated by `detach_eval_live`'s sweep
    semantics (a superseded attempt's log can be deleted under it, and the
    current per-request read degrades to `[]` on `FileNotFoundError`).
+   **Fixed** (meridianlabs-ai/inspect_ai#154):
+   `EvalState.log_sample_summaries`, populated by the first fallback read in
+   `_sample_summaries_from_log`. Invalidation happens at the deletion itself
+   (`latest_completed_task_eval_logs`'s cleanup calls
+   `invalidate_log_sample_summaries` per removed log) rather than at
+   `detach_eval_live`: detach doesn't make the memo wrong (it holds the
+   superseded attempt's *own* log data, valid until the file goes), and
+   legacy batch-retry sweeps logs without any detach ever firing. A
+   `FileNotFoundError` read is never memoized, preserving the `[]`
+   degradation. No stale-memo race with an in-flight listing read:
+   requests are served either on the eval's loop (running only inside an
+   `eval()` call) or by the keep-alive park's own server, while sweeps run
+   between `eval()` calls and before the park — never concurrently with a
+   request.
 
 4. **Error detail on the fallback path does two log reads per request**
    (`state.py` `sample_error_detail`): the excluded-field sample scan plus a
@@ -375,6 +399,9 @@ needs no work of its own.
    `ctl sample show` against a parked process a two-round-trip remote read.
    Fixing finding 3 fixes the second read for free; the first is inherent to
    serving error detail and already parse-minimized. Low priority on its own.
+   **Fixed** by finding 3's memo (the summaries-row read is now served from
+   memory after the first fallback read); the inherent sample read remains,
+   as intended.
 
 Watch items (bounded today, could grow constants): pending-row synthesis on
 very large dataset × epoch grids (see the `/samples` section); `full=true`
@@ -393,12 +420,16 @@ handler checks disconnects; no coalescing):
 
 - **Pile-up guard.** `uvicorn limit_concurrency` rejects (503) rather than
   queues excess connections — a blunt but honest backstop against a
-  pathological poller queueing unbounded identical work. Coalescing identical
+  pathological poller queueing unbounded identical work. Tracked as
+  [meridianlabs-ai/inspect_ai#225](https://github.com/meridianlabs-ai/inspect_ai/issues/225).
+  Coalescing identical
   concurrent listing requests (one in-flight build, late arrivals await its
   result) is the finer-grained version; only worth building if a legitimate
   multi-client pattern emerges.
 - **Disconnect check.** An `await request.is_disconnected()` before
-  nontrivial work skips serving hung-up clients. Only useful if the loop
+  nontrivial work skips serving hung-up clients. Tracked as
+  [meridianlabs-ai/inspect_ai#226](https://github.com/meridianlabs-ai/inspect_ai/issues/226).
+  Only useful if the loop
   yields between queued requests — which cheap handlers guarantee and a
   CPU-bound handler defeats; that ordering (handlers first, guard second) is
   the lesson of the incident.

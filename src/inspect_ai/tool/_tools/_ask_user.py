@@ -1,6 +1,11 @@
 from typing import Any
 
-from acp.schema import ElicitationSchema
+from acp.schema import (
+    ElicitationMultiSelectPropertySchema,
+    ElicitationOtherPropertySchema,
+    ElicitationSchema,
+    OtherMultiSelectItems,
+)
 from pydantic import ValidationError
 
 from inspect_ai._util.json import to_json_str_safe
@@ -104,6 +109,23 @@ def ask_user() -> Tool:
             )
         except ValidationError as e:
             raise ToolError(f"Invalid schema: {e}") from None
+
+        # ACP's schema types include catch-alls for custom/future property
+        # and multi-select item types; the built-in input handlers (and this
+        # tool's documented surface) support only the known types, so reject
+        # them here where the model can self-correct.
+        unsupported = [
+            f"property {name!r} has unsupported type {prop.type!r}"
+            for name, prop in (validated.properties or {}).items()
+            if isinstance(prop, ElicitationOtherPropertySchema)
+        ] + [
+            f"property {name!r} has unsupported items type {prop.items.type!r}"
+            for name, prop in (validated.properties or {}).items()
+            if isinstance(prop, ElicitationMultiSelectPropertySchema)
+            and isinstance(prop.items, OtherMultiSelectItems)
+        ]
+        if unsupported:
+            raise ToolError(f"Invalid schema: {'; '.join(unsupported)}")
 
         result = await request_input(message=message, schema=validated)
         if result.outcome == "accepted":

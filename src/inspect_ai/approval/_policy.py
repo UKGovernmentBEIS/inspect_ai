@@ -1,14 +1,14 @@
 import fnmatch
 import sys
 from dataclasses import dataclass
-from typing import Any, Generator
+from typing import Any, Generator, cast
 
 from pydantic import BaseModel, Field, model_validator
 
 from inspect_ai._util.config import read_config_object
 from inspect_ai._util.file import exists
 from inspect_ai._util.format import format_function_call
-from inspect_ai._util.registry import registry_create, registry_lookup
+from inspect_ai._util.registry import create_registry_object, registry_lookup
 from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.tool._tool_call import ToolCall, ToolCallView
 from inspect_ai.util._resource import resource
@@ -150,7 +150,7 @@ def approval_policies_from_config(
     def create_approval_policy(
         name: str, tools: str | list[str], params: dict[str, Any] = {}
     ) -> ApprovalPolicy:
-        approver = registry_create("approver", name, **params)
+        approver = cast(Approver, create_registry_object("approver", name, params))
         return ApprovalPolicy(approver, tools)
 
     # map config -> policy
