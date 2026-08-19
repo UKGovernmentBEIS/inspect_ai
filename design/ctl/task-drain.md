@@ -44,8 +44,8 @@ deferred to it (`control-channel.md`, end of "Cancel a task / a sample"):
 
 The graceful cancel resolutions (`--action score|error`) already implement
 drain's "stop dispatching" half. They stamp the resolution on the task's
-`TaskCancel` handle (`cancel_type`), and three existing check sites do the
-rest:
+`TaskCancel` handle (`cancel_type`), and existing machinery does the rest —
+three per-sample check sites, plus the task-level completion behavior:
 
 - **Queue exit** (`task_run_sample`, on semaphore entry): a still-queued
   sample observing a stamped graceful type abandons itself — terminal
@@ -237,7 +237,12 @@ idempotent `changed: false` no-op, with the reason naming the pending type:
   requested (retry)") would silently drop the drain — the retry then
   dispatches the whole task fresh unless the operator notices and
   re-issues, the same operator-races-the-dispatcher shape Alternatives
-  rejects for the status-quo 409. The tearing-down attempt itself is
+  rejects for the status-quo 409. A *repeat* drain/cancel landing in this
+  same window consults the retry-abandoned registry first and takes the
+  idempotent no-op (`changed: false`, "pending retry already abandoned") —
+  the registry stamp, not the pending type, marks the intent as already
+  applied, so only the first request reports the abandonment. The
+  tearing-down attempt itself is
   untouched (its scope has already fired; there is nothing further to
   interrupt or overwrite). One qualification: a `"retry"` stamp is only
   honored with retry budget remaining (`run_one` gates on
@@ -427,8 +432,10 @@ by awaits.
   a drained (or score/error-resolved) task with retry budget remaining
   shows its abandoned samples as `pending` forever. Stamping any type other
   than `"retry"` should clear the attempt's `will_retry` so they read
-  `cancelled`. The retry-abandoned registry stamp clears it too — there the
-  stamped type *is* `"retry"`, but the abandonment means no re-run is
+  `cancelled`. The retry-abandoned registry stamp clears it too — whether the
+  retry was requested by a stamped `"retry"` (attempt still tearing down)
+  or queued from a naturally errored attempt (no stamped type at all, the
+  common between-attempts case), the abandonment means no re-run is
   coming. Small, display-only, shared with the shipped graceful cancels.
 
 ## Implementation sketch
@@ -448,7 +455,8 @@ by awaits.
   score/error), and the between-attempts branch swaps its 409 for the
   retry-abandon path (kept 409 for score/error).
 - Retry-abandoned registry (stamping also clears `retry_pending` and
-  `will_retry`), the shared never-started-logger discard, and its consume
+  `will_retry` — amending `EvalState.retry_pending`'s "never cleared"
+  docstring), the shared never-started-logger discard, and its consume
   points in `_eval/run.py`: the `pick_balanced` drop, the attempt-start
   self-check (surfaced to `run_one` as a dedicated *abandoned* field on
   `TaskRunResult`, checked before the external-cancellation branch), and
@@ -505,9 +513,12 @@ by awaits.
 ## Out of scope
 
 - **Process/eval-set-scoped drain** ("drain every task and end the run").
-  Composes today as `process pause` (stop the world) plus per-task drains of
-  the running tasks; a first-class spelling belongs to the eval-set noun
-  group (`ctl eval-set …`, a later phase) alongside `eval-set cancel`.
+  Draining every *running* task composes today as `process pause` (stop the
+  world) plus per-task drains; the "end the run" half does not — undispatched
+  eval-set tasks stay held by the pause rather than cancelled (next bullet),
+  so the run quiesces without ending until a `resume` dispatches them. A
+  first-class spelling belongs to the eval-set noun group (`ctl eval-set …`,
+  a later phase) alongside `eval-set cancel`.
 - **Not-yet-started eval-set tasks** are unaffected by a task-scoped drain
   (they have no `EvalState` to address) — holding them is `process pause`'s
   job; cancelling them outright is eval-set cancel's.
