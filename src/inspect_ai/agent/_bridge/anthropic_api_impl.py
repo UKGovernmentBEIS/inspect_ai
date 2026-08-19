@@ -552,7 +552,7 @@ def content_block_to_content(
         else:
             raise RuntimeError(f"Unsupported document source type: {source['type']}")
     else:
-        raise RuntimeError(f"Unsupported content block type: {type(block)}")
+        raise RuntimeError(f"Unsupported content block type: {block['type']}")
 
 
 def base_64_data(data: str | IO[bytes] | PathLike[str]) -> str:

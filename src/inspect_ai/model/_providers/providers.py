@@ -377,7 +377,7 @@ def validate_openai_client(feature: str) -> None:
 
 def validate_anthropic_client(feature: str) -> None:
     PACKAGE = "anthropic"
-    MIN_VERSION = "0.115.0"
+    MIN_VERSION = "0.124.0"
 
     # verify we have the package
     try:
