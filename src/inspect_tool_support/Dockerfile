@@ -18,9 +18,17 @@ RUN apt-get update && apt-get install -y pipx && \
 
 # Install inspect-tool-support to a custom location that's on the path and has permissions granting access to all users
 ENV PATH="$PATH:/opt/inspect/bin"
+# Install Playwright browsers to a shared location instead of the default
+# $HOME/.cache/ms-playwright. post-install runs as root during the build, so
+# without this the browsers land under /root and are unresolvable when the
+# container runs as nonroot. ENV (not a build ARG) so the same path applies
+# both to post-install below and at runtime for every user. The chmod grants
+# world read+execute (browser executables need o+rx).
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 RUN PIPX_HOME=/opt/inspect/pipx PIPX_BIN_DIR=/opt/inspect/bin PIPX_VENV_DIR=/opt/inspect/pipx/venvs \
     pipx install inspect-tool-support && \
     chmod -R 755 /opt/inspect && \
-    inspect-tool-support post-install
+    inspect-tool-support post-install && \
+    chmod -R a+rX /ms-playwright
 
 CMD ["tail", "-f", "/dev/null"]
