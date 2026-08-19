@@ -340,6 +340,9 @@ async def bridge_generate(
         # never sees the rejected response.
         reviewed = await apply_bridge_tool_approval(bridge, output, input_messages)
         if reviewed.rejection is None:
+            bridge.register_tool_execution_grants(
+                reviewed.output.message.tool_calls or []
+            )
             return reviewed.output, c_message
 
         rejections += 1

@@ -16,14 +16,33 @@ conversation never contains the rejected call. This mirrors the native path
 """
 
 import sys
-from contextlib import nullcontext
-from typing import Any, NamedTuple, NoReturn
+from contextlib import AbstractContextManager, nullcontext
+from typing import TYPE_CHECKING, Any, NamedTuple, NoReturn
 
 from inspect_ai._util.format import format_function_call
 from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageTool
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.tool._tool_call import ToolCall, ToolCallError
+
+if TYPE_CHECKING:
+    from inspect_ai.approval._policy import ApprovalPolicy
+
+
+def bridge_approval_scope(
+    approval: list["ApprovalPolicy"] | None,
+) -> AbstractContextManager[None]:
+    """Activate a bridge's own approval policies, or fall back to ambient ones.
+
+    Approval enforcement (`apply_bridge_tool_approval`) and the host-tool granting /
+    execution gate (`SandboxAgentBridge.tool_approval_required`) must resolve which
+    policies are active identically, or granting and enforcement desync. They share
+    this helper so that decision lives in one place.
+    """
+    from inspect_ai.approval._apply import approval as approval_context
+
+    return approval_context(approval) if approval else nullcontext()
+
 
 MAX_CONSECUTIVE_REJECTIONS = 3
 """Consecutive rejected generations before the sample is terminated.
@@ -83,14 +102,12 @@ async def apply_bridge_tool_approval(
         the response was rejected.
     """
     from inspect_ai.approval._apply import apply_tool_approval, have_tool_approval
-    from inspect_ai.approval._apply import approval as approval_context
 
     tool_calls = output.message.tool_calls
     if not tool_calls:
         return BridgeApproval(output, None)
 
-    cm = approval_context(bridge.approval) if bridge.approval else nullcontext()
-    with cm:
+    with bridge_approval_scope(bridge.approval):
         if not have_tool_approval():
             return BridgeApproval(output, None)
 

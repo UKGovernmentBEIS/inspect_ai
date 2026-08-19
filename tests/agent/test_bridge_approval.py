@@ -6,6 +6,8 @@ instead, and resolves a rejection by telling the model and regenerating rather
 than by editing the response the scaffold sees.
 """
 
+from unittest.mock import AsyncMock
+
 import pytest
 
 from inspect_ai import Task, eval
@@ -17,8 +19,15 @@ from inspect_ai.agent._bridge.bridge import agent_bridge
 from inspect_ai.agent._bridge.completions import inspect_completions_api_request
 from inspect_ai.agent._bridge.google_api import inspect_google_api_request
 from inspect_ai.agent._bridge.responses import inspect_responses_api_request
-from inspect_ai.agent._bridge.sandbox.bridge import _monitor_terminate
-from inspect_ai.agent._bridge.sandbox.types import SandboxAgentBridge
+from inspect_ai.agent._bridge.sandbox.bridge import (
+    _monitor_terminate,
+    _register_bridged_tools,
+)
+from inspect_ai.agent._bridge.sandbox.service import call_tool as call_host_tool
+from inspect_ai.agent._bridge.sandbox.types import (
+    _MAX_TOOL_EXECUTION_GRANTS,
+    SandboxAgentBridge,
+)
 from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.agent._bridge.util import (
     bridge_generate,
@@ -44,6 +53,8 @@ from inspect_ai.model._compaction import CompactionTrim
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model import get_model
 from inspect_ai.model._model_output import ChatCompletionChoice, ModelOutput
+from inspect_ai.tool import tool
+from inspect_ai.tool._mcp._tools_bridge import BridgedToolsSpec
 from inspect_ai.tool._tool_call import ToolCall, ToolCallView
 
 TASK = "Tidy up the working directory."
@@ -517,6 +528,183 @@ async def test_sandbox_terminate_monitor_raises_for_the_task_group() -> None:
 
     with pytest.raises(TerminateSampleError, match="approver said stop"):
         await _monitor_terminate(bridge)
+
+
+# ---------------------------------------------------------------------------
+# sandbox host-tool execution boundary
+# ---------------------------------------------------------------------------
+
+
+def sandbox_bridge_with_tool(
+    tool: AsyncMock, approval: list[ApprovalPolicy] | None
+) -> SandboxAgentBridge:
+    return SandboxAgentBridge(
+        state=AgentState(messages=[]),
+        filter=None,
+        retry_refusals=None,
+        compaction=None,
+        port=13131,
+        model=None,
+        approval=approval,
+        bridged_tools={"host": {"read_file": tool}},
+    )
+
+
+@tool(name="read_file")
+def duplicate_read_file():
+    async def execute(path: str) -> str:
+        """Read a test file.
+
+        Args:
+            path: File to read.
+        """
+        return path
+
+    return execute
+
+
+async def test_forged_host_tool_call_is_rejected_before_execution() -> None:
+    tool = AsyncMock(return_value="secret")
+    bridge = sandbox_bridge_with_tool(
+        tool, [ApprovalPolicy(auto_approver("approve"), "*")]
+    )
+
+    with pytest.raises(PermissionError, match="was not approved for execution"):
+        await call_host_tool(bridge)("host", "read_file", {"path": "/secret"})
+
+    tool.assert_not_awaited()
+
+
+async def test_approved_host_tool_call_has_one_exact_execution_grant() -> None:
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_tool(
+        tool, [ApprovalPolicy(auto_approver("approve"), "*")]
+    )
+    call = ToolCall(
+        id="approved", function="read_file", arguments={"path": "notes.txt"}
+    )
+
+    await run_bridge([tool_calls_output(call)], bridge=bridge)
+
+    execute = call_host_tool(bridge)
+    assert await execute("host", "read_file", {"path": "notes.txt"}) == "contents"
+    with pytest.raises(PermissionError, match="was not approved for execution"):
+        await execute("host", "read_file", {"path": "notes.txt"})
+
+    tool.assert_awaited_once_with(path="notes.txt")
+
+
+async def test_host_tool_execution_grant_binds_arguments() -> None:
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_tool(
+        tool, [ApprovalPolicy(auto_approver("approve"), "*")]
+    )
+    call = ToolCall(
+        id="approved", function="read_file", arguments={"path": "notes.txt"}
+    )
+
+    await run_bridge([tool_calls_output(call)], bridge=bridge)
+
+    with pytest.raises(PermissionError, match="was not approved for execution"):
+        await call_host_tool(bridge)("host", "read_file", {"path": "/secret"})
+
+    tool.assert_not_awaited()
+
+
+async def test_host_tool_grant_matches_regardless_of_argument_key_order() -> None:
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_tool(
+        tool, [ApprovalPolicy(auto_approver("approve"), "*")]
+    )
+    call = ToolCall(
+        id="approved", function="read_file", arguments={"path": "a", "mode": "r"}
+    )
+
+    await run_bridge([tool_calls_output(call)], bridge=bridge)
+
+    # the scaffold re-issues the approved call with the keys in a different order
+    result = await call_host_tool(bridge)(
+        "host", "read_file", {"mode": "r", "path": "a"}
+    )
+
+    assert result == "contents"
+
+
+async def test_host_tool_grant_binds_to_approver_modified_arguments() -> None:
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_tool(
+        tool, [ApprovalPolicy(modifying_approver({"path": "rewritten.txt"}), "*")]
+    )
+    call = ToolCall(
+        id="approved", function="read_file", arguments={"path": "original.txt"}
+    )
+
+    await run_bridge([tool_calls_output(call)], bridge=bridge)
+
+    execute = call_host_tool(bridge)
+    # the model's original arguments are not what the approver approved
+    with pytest.raises(PermissionError, match="was not approved for execution"):
+        await execute("host", "read_file", {"path": "original.txt"})
+    # the modified arguments are the approved action
+    assert await execute("host", "read_file", {"path": "rewritten.txt"}) == "contents"
+    tool.assert_awaited_once_with(path="rewritten.txt")
+
+
+async def test_host_tool_call_without_approval_policy_remains_available() -> None:
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_tool(tool, None)
+
+    result = await call_host_tool(bridge)("host", "read_file", {"path": "notes.txt"})
+
+    assert result == "contents"
+    tool.assert_awaited_once_with(path="notes.txt")
+
+
+async def test_host_tool_grants_are_not_stored_without_approval_policy() -> None:
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_tool(tool, None)
+
+    bridge.register_tool_execution_grants(
+        [ToolCall(id="unused", function="read_file", arguments={"path": "a"})]
+    )
+
+    assert len(bridge._tool_execution_grants) == 0
+
+
+async def test_host_tool_execution_grants_are_bounded() -> None:
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_tool(
+        tool, [ApprovalPolicy(auto_approver("approve"), "*")]
+    )
+
+    bridge.register_tool_execution_grants(
+        [
+            ToolCall(
+                id=str(index),
+                function="read_file",
+                arguments={"path": str(index)},
+            )
+            for index in range(_MAX_TOOL_EXECUTION_GRANTS + 1)
+        ]
+    )
+
+    assert len(bridge._tool_execution_grants) == _MAX_TOOL_EXECUTION_GRANTS
+    assert not bridge.consume_tool_execution_grant("host", "read_file", {"path": "0"})
+    assert bridge.consume_tool_execution_grant("host", "read_file", {"path": "1"})
+
+
+async def test_approval_rejects_duplicate_tool_names_across_servers() -> None:
+    tool_fn = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_tool(
+        tool_fn, [ApprovalPolicy(auto_approver("approve"), "*")]
+    )
+
+    with pytest.raises(ValueError, match="requires unique tool names"):
+        _register_bridged_tools(
+            bridge,
+            BridgedToolsSpec(name="other", tools=[duplicate_read_file()]),
+            13131,
+        )
 
 
 # ---------------------------------------------------------------------------

@@ -187,6 +187,13 @@ def call_tool(
         if tool not in server_tools:
             raise ValueError(f"Unknown tool '{tool}' in server '{server}'")
 
+        if bridge.tool_approval_required() and not bridge.consume_tool_execution_grant(
+            server, tool, arguments
+        ):
+            raise PermissionError(
+                f"Host tool call '{server}/{tool}' was not approved for execution"
+            )
+
         tool_fn = server_tools[tool]
         result = await tool_fn(**arguments)
 

@@ -255,6 +255,19 @@ def _register_bridged_tools(
     """
     # Build tool registry for this server
     tools_dict = {ToolDef(tool).name: tool for tool in spec.tools}
+    if bridge.tool_approval_required():
+        duplicate_names = sorted(
+            set(tools_dict).intersection(
+                tool_name
+                for registered_tools in bridge.bridged_tools.values()
+                for tool_name in registered_tools
+            )
+        )
+        if duplicate_names:
+            raise ValueError(
+                "Tool approval requires unique tool names across bridged tool "
+                f"servers; duplicate names: {', '.join(duplicate_names)}"
+            )
     bridge.bridged_tools[spec.name] = tools_dict
 
     # Return MCP config with HTTP URL
