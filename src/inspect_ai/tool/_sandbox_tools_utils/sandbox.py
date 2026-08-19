@@ -100,10 +100,11 @@ async def _inject_container_tools_code(sandbox: SandboxEnvironment) -> None:
         async with _open_executable_for_arch(info["architecture"], musl) as (name, f):
             gz_bytes = f.read()  # gzipped tar of the PyInstaller --onedir tree
 
-        # Create the install dir as root if possible so the tree is root-owned and
-        # can be hidden from the agent; fall back to the default user for rootless
-        # sandboxes (where user-switching will be disabled, auto-detected by the
-        # server).
+        # Create the install dir as root if possible, and restrict it to 0700; fall
+        # back to the default user for rootless sandboxes (where user-switching will
+        # be disabled, auto-detected by the server). A root-owned 0700 tree prevents
+        # access by other, non-root users, but not by a process running in the
+        # sandbox as root.
         if await _create_tools_dir_as_root(sandbox):
             sandbox._tools_user = "root"
         else:
@@ -115,9 +116,10 @@ async def _inject_container_tools_code(sandbox: SandboxEnvironment) -> None:
 
         await _extract_tools_tree(sandbox, name, gz_bytes, sandbox._tools_user)
 
-        # When running as root, restrict the tree so the agent can neither read nor
-        # execute the tools. The default user (the one that runs `exec`) is root, so
-        # this does not impede tool calls.
+        # When running as root, restrict the tree to 0700. A root-owned 0700 tree
+        # prevents access by other, non-root users, but not by a process running in
+        # the sandbox as root. Inspect invokes the launcher as root, so this does
+        # not impede tool calls.
         if sandbox._tools_user == "root":
             result = await sandbox.exec(
                 ["chmod", "700", SANDBOX_TOOLS_DIR], user="root"
