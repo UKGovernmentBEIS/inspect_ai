@@ -137,7 +137,40 @@ def test_model_matching_nothing_exits(capsys: pytest.CaptureFixture[str]) -> Non
     summaries = [_model_summary("aaa111", "my_task", "openai/gpt-5")]
     with pytest.raises(click.exceptions.Exit):
         _resolve_target_eval(summaries, "my_task", model="mistral")
-    assert "No running task with a model matching 'mistral'" in capsys.readouterr().err
+    assert (
+        "No running task matching 'my_task' with model matching 'mistral'"
+        in capsys.readouterr().err
+    )
+
+
+def test_model_prefix_match_survives_unrelated_exact_match() -> None:
+    # Model filtering happens within the selector's matches, so an unrelated
+    # task running the exact-named model can't veto the prefix match
+    # (`gpt-5` → openai/gpt-5-mini) on the task the selector picked.
+    summaries = [
+        _model_summary("aaa111", "my_task", "openai/gpt-5-mini"),
+        _model_summary("bbb222", "other_task", "openai/gpt-5"),
+    ]
+    resolved = _resolve_target_eval(summaries, "aaa111", model="gpt-5")
+    assert resolved["task_id"] == "aaa111"
+
+
+def test_model_does_not_reroute_exact_name_match(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # The flip side of filtering within the selector's matches: --model can't
+    # re-route an exact name match to a prefix-named sibling running the
+    # model — the selector means the same rows with or without --model.
+    summaries = [
+        _model_summary("aaa111", "my_task", "openai/gpt-5"),
+        _model_summary("bbb222", "my_task_v2", "anthropic/claude-fable-5"),
+    ]
+    with pytest.raises(click.exceptions.Exit):
+        _resolve_target_eval(summaries, "my_task", model="claude-fable-5")
+    assert (
+        "No running task matching 'my_task' with model matching 'claude-fable-5'"
+        in capsys.readouterr().err
+    )
 
 
 def test_model_narrowed_no_name_match_qualifies_error(
@@ -4541,7 +4574,10 @@ def test_task_cancel_model_matching_nothing_errors(
     assert result.exit_code == 1
     error = json.loads(result.stdout)["error"]
     assert error["kind"] == "not_found"
-    assert "No running task with a model matching 'mistral'" in error["message"]
+    assert (
+        "No running task matching 'my_task' with model matching 'mistral'"
+        in error["message"]
+    )
 
 
 def test_sample_list_model_disambiguates_task_name(

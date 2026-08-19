@@ -169,9 +169,10 @@ def _resolve_scope(
     explicit ``TASK`` targets that task; no ``TASK`` defaults to the sole
     process — a single-active-task process resolves to that task (completed
     eval-set siblings don't count), a multi-task process resolves to the
-    process-level scope. ``model`` narrows the rows the resolution considers
-    to tasks running a matching model (see ``_narrow_by_model``) — both the
-    explicit ``TASK`` match and the no-``TASK`` defaults, so one task run
+    process-level scope. ``model`` composes with both paths — an explicit
+    ``TASK``'s matches are filtered to tasks running a matching model (see
+    ``_resolve_target_eval``), and the no-``TASK`` defaults resolve over the
+    model-narrowed rows (see ``_narrow_by_model``) — so one task run
     against several models resolves by name plus ``--model``. Sibling counts
     stay on the full summaries: the blast radius of a process-scoped knob is
     unaffected by a narrowed view. ``per_task_option`` names the option or

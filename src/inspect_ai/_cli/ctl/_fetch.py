@@ -267,16 +267,19 @@ def _resolve_target_eval(
 
     ``query`` matches a task id first (full, then unique prefix — ``task
     list`` shows truncated ids; ids are stable across retries), then falls
-    back to the task name (see :func:`_match_by_task_name`). ``model``
-    narrows the candidate rows to tasks running a matching model before
-    ``query`` resolution (see :func:`_narrow_by_model`) — the disambiguator
-    for one task run against several models, where the name alone matches
-    every row. An exact-id ``query`` whose row runs a non-matching model
-    errors by naming the contradiction rather than via the narrowing
-    not-found: an exact id short-circuits the summaries fan-out at its
-    server, so a skipped process could be running a matching model and the
-    global "no task with that model" claim would be false about it (the
-    refusal itself is sound — duplicate-id rows share the model, so a
+    back to the task name (see :func:`_match_by_task_name`). ``model`` — the
+    disambiguator for one task run against several models, where the name
+    alone matches every row — filters *within* the rows ``query`` matches
+    (see :func:`_match_by_model`), never before resolution: it can't change
+    which rows the selector denotes, so an unrelated task running the
+    exact-named model can neither veto a prefix match on the selected task
+    (exact-wins competes only within the candidates) nor re-route the
+    selector to a different task. An exact-id ``query`` whose row runs a
+    non-matching model errors by naming the contradiction rather than with
+    a global "no task with that model" claim: an exact id short-circuits
+    the summaries fan-out at its server, so a skipped process could be
+    running a matching model and the global claim would be false about it
+    (the refusal itself is sound — duplicate-id rows share the model, so a
     skipped row could not resolve the id either). ``busy_pids``
     (from the summaries fetch) qualifies the resolution against partial
     discovery: a not-found error and the ambiguity table note that the busy
@@ -288,22 +291,22 @@ def _resolve_target_eval(
     norm (one task, several models), and a shorter hand-typed id prefix
     could collide with a task on the busy process.
     """
-    if model is not None:
-        contradicted = [s for s in summaries if s.get("task_id") == query]
-        if contradicted and not _match_by_model(contradicted, model):
-            _fail(
-                "not_found",
-                f"Task '{query}' is running model "
-                f"'{contradicted[0].get('model')}', which does not match "
-                f"'{model}'.",
-            )
-        summaries = _narrow_by_model(summaries, model, busy_pids=busy_pids)
     qualifier = _model_qualifier(model)
     exact = [s for s in summaries if s.get("task_id") == query]
     id_matches = exact or [
         s for s in summaries if str(s.get("task_id", "")).startswith(query)
     ]
     matches = id_matches or _match_by_task_name(summaries, query)
+    if matches and model is not None:
+        narrowed = _match_by_model(matches, model)
+        if not narrowed and exact:
+            _fail(
+                "not_found",
+                f"Task '{query}' is running model "
+                f"'{exact[0].get('model')}', which does not match "
+                f"'{model}'.",
+            )
+        matches = narrowed
     if not matches:
         busy = (
             f" among responsive processes; {_busy_note(busy_pids)}" if busy_pids else ""
@@ -364,10 +367,12 @@ def _narrow_by_model(
 ) -> list[dict[str, Any]]:
     """Narrow summaries to tasks running a matching model, or exit not-found.
 
-    The shared front half of the ``--model`` disambiguator on task-selecting
-    commands: the narrowed rows feed the ordinary selector resolution, so a
-    selector plus ``--model`` composes with the existing ambiguity and
-    not-found errors (qualified via :func:`_model_qualifier`).
+    The ``TASK``-less half of the ``--model`` option, where the model is the
+    only selector: the no-``TASK`` defaults and the sample fan-out resolve
+    over the narrowed rows. With a ``TASK``, model filtering instead happens
+    within the selector's matches (see :func:`_resolve_target_eval`), so the
+    global not-found claim here is made only when the whole summary set was
+    consulted.
     """
     matches = _match_by_model(summaries, model)
     if not matches:

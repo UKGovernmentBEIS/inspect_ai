@@ -190,10 +190,10 @@ def _model_option() -> Callable[[Callable[..., None]], Callable[..., None]]:
     """The ``--model`` disambiguator the task-selecting commands carry.
 
     One task run against several models (``--model a,b``) makes the task
-    name ambiguous as a selector; this narrows the candidate rows to tasks
-    whose model matches — the same rule ``ctl config --model`` uses (see
-    `match_name_prefix`) — so the name resolves without falling back to
-    opaque task ids.
+    name ambiguous as a selector; this filters the selector's candidates
+    (or, with no ``TASK``, all rows) to tasks whose model matches — the
+    same rule ``ctl config --model`` uses (see `match_name_prefix`) — so
+    the name resolves without falling back to opaque task ids.
     """
     return click.option(
         "--model",
