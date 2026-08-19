@@ -181,60 +181,6 @@ def model_graded_qa(
         partial_credit,
     )
 
-    # if a list of models is passed, use multi scorer with majority vote
-    if isinstance(model, list):
-        scorers = [get_scorer(m, model_role=model_role) for m in model]
-        return multi_scorer(scorers, "mode")
-
-    # otherwise create a single scorer
-    single = get_scorer(model, model_role=model_role)
-    if model is not None or model_role is None:
-        return single
-
-    # a model_role is in play, and it may be bound to a list of models (e.g.
-    # via the `model_roles` argument to `eval()`), which is only knowable at
-    # scoring time -- defer resolution and fan out to a grader per role-bound
-    # model (majority vote) when the role turns out to be bound to a list
-    role = as_model_role(model_role)
-
-    # cache the fan-out on the role binding (fixed for the life of a task
-    # context) so scorers aren't rebuilt for every scored sample. no lock:
-    # a concurrent first score builds an identical scorer (benign race)
-    fan_out_models: list[Model] | None = None
-    fan_out: Scorer | None = None
-
-    async def score(state: TaskState, target: Target) -> Score | None:
-        nonlocal fan_out_models, fan_out
-        role_models = model_roles().get(role.name)
-        if isinstance(role_models, list):
-            if fan_out is None or role_models is not fan_out_models:
-                # model_role=None because each grader gets an explicit
-                # (role-stamped) model and would otherwise warn when the
-                # role is required
-                fan_out = multi_scorer(
-                    [get_scorer(m, model_role=None) for m in role_models], "mode"
-                )
-                fan_out_models = role_models
-            return await fan_out(state, target)
-        return await single(state, target)
-
-    return score
-
-
-@scorer(metrics=[accuracy(), stderr()])
-def _model_graded_qa_single(
-    grading_template: str,
-    instructions: str | None = None,
-    grade_pattern: str | None = None,
-    include_history: bool | Callable[[TaskState], str] = False,
-    partial_credit: bool = False,
-    model: str | Model | None = None,
-    model_role: str | ModelRole | None = "grader",
-) -> Scorer:
-    # returns a scorer that does model graded qa for a single model.
-    # `grading_template` is resolved template *content* -- `model_graded_qa`
-    # resolves file/resource templates at factory time (see comment there)
-
     # an explicit model takes precedence over model_role (documented); when
     # the role is required, the caller asked for a hard prerequisite that is
     # silently bypassed, so surface it at construction time. warn_once dedups
@@ -249,6 +195,48 @@ def _model_graded_qa_single(
                 f"model_graded scorer: an explicit 'model' is provided, so the "
                 f"required '{role.name}' role will not be consulted",
             )
+
+    # explicit model(s): a list grades by majority vote
+    if isinstance(model, list):
+        return multi_scorer([get_scorer(m) for m in model], "mode")
+    if model is not None:
+        return get_scorer(model)
+
+    # no role in play: grade with the default model
+    if model_role is None:
+        return get_scorer(None)
+
+    # a model_role is in play, and its binding (a single model or a list of
+    # models, e.g. via the `model_roles` argument to `eval()`) isn't knowable
+    # here -- tasks and their scorers are typically constructed before `eval()`
+    # binds roles -- so resolve it at scoring time: fan out to a grader per
+    # role-bound model (majority vote) when the role is bound to a list
+    role = as_model_role(model_role)
+
+    async def score(state: TaskState, target: Target) -> Score | None:
+        role_models = model_roles().get(role.name)
+        if isinstance(role_models, list):
+            graders = [get_scorer(m) for m in role_models]
+            return await multi_scorer(graders, "mode")(state, target)
+        grader = get_model(role=role.name, required=role.required)
+        return await get_scorer(grader)(state, target)
+
+    return score
+
+
+@scorer(metrics=[accuracy(), stderr()])
+def _model_graded_qa_single(
+    grading_template: str,
+    instructions: str | None = None,
+    grade_pattern: str | None = None,
+    include_history: bool | Callable[[TaskState], str] = False,
+    partial_credit: bool = False,
+    model: str | Model | None = None,
+) -> Scorer:
+    # returns a scorer that does model graded qa for a single model (None =
+    # the default model being evaluated). `grading_template` is resolved
+    # template *content* and all model/role precedence has been applied --
+    # `model_graded_qa` resolves both (see comments there)
 
     # resolve instructions and grade_pattern
     using_default_instructions = not instructions
@@ -277,14 +265,7 @@ def _model_graded_qa_single(
     async def score(state: TaskState, target: Target) -> Score:
         # resolve model
         nonlocal model
-        # Order of precedence: `model` > `model_role` > default model
-        if model is not None:
-            model = model if isinstance(model, Model) else get_model(model)
-        elif model_role is not None:
-            role = as_model_role(model_role)
-            model = get_model(role=role.name, required=role.required)
-        else:
-            model = get_model()
+        model = model if isinstance(model, Model) else get_model(model)
 
         # metadata without grading template variables
         metadata = omit(
