@@ -20,15 +20,19 @@ import pytest
 from test_helpers.trace import action_record, write_trace_log
 
 from _control.conftest import cli_runner
-from inspect_ai._cli.ctl import (
-    _KNOB_SCOPE,
-    _REQUEUE_ROUTE_MISSING,
-    _SHORT_ID_LEN,
-    _ConfigResult,
-    _CtlFailure,
-    _echo_error,
-    _failure_prefix,
+from inspect_ai._cli.ctl import ctl_command
+from inspect_ai._cli.ctl._config import _ConfigResult
+from inspect_ai._cli.ctl._failure import _CtlFailure
+from inspect_ai._cli.ctl._fetch import (
     _FetchedSummaries,
+    _resolve_target_eval,
+    _SamplesPage,
+)
+from inspect_ai._cli.ctl._http import _failure_prefix, _resolve_target_server
+from inspect_ai._cli.ctl._knobs import _KNOB_SCOPE
+from inspect_ai._cli.ctl._render import (
+    _SHORT_ID_LEN,
+    _echo_error,
     _print_errored_samples_footer,
     _print_events,
     _print_human_table,
@@ -37,15 +41,12 @@ from inspect_ai._cli.ctl import (
     _print_sample_detail,
     _print_samples_table,
     _render_table,
-    _resolve_target_eval,
-    _resolve_target_server,
-    _SamplesPage,
     _sanitize_control,
     _sanitize_keep_sgr,
     _sanitize_line,
     _truncate,
-    ctl_command,
 )
+from inspect_ai._cli.ctl._sample import _REQUEUE_ROUTE_MISSING
 from inspect_ai._control.discovery import DiscoveredControlServer
 
 
@@ -329,7 +330,7 @@ def test_activity_column_hidden_when_no_activity(
 def test_activity_cell_renders_tool_and_multi_tool() -> None:
     import time
 
-    from inspect_ai._cli.ctl import _format_activity
+    from inspect_ai._cli.ctl._render import _format_activity
 
     # sample `now` after building so elapsed rounds to the intended value
     bash = _activity("tool", 41, detail="bash")
@@ -342,7 +343,7 @@ def test_activity_cell_renders_tool_and_multi_tool() -> None:
 def test_activity_cell_renders_retries_and_tokens() -> None:
     import time
 
-    from inspect_ai._cli.ctl import _format_activity
+    from inspect_ai._cli.ctl._render import _format_activity
 
     # sample `now` after building so elapsed rounds to the intended value
     retried = _activity("model", 151, retries=2)
@@ -358,7 +359,7 @@ def test_activity_cell_renders_retries_and_tokens() -> None:
 def test_activity_cell_renders_retry_wait() -> None:
     import time
 
-    from inspect_ai._cli.ctl import _format_activity
+    from inspect_ai._cli.ctl._render import _format_activity
 
     now = time.time()
     wait = _activity("retry_wait", 10, deadline=now + 45)
@@ -375,7 +376,7 @@ def test_activity_cell_renders_retry_wait() -> None:
 def test_activity_cell_degrades_for_unknown_type_and_null() -> None:
     import time
 
-    from inspect_ai._cli.ctl import _format_activity
+    from inspect_ai._cli.ctl._render import _format_activity
 
     now = time.time()
     assert _format_activity(None, now) == ""
@@ -388,7 +389,7 @@ def test_sample_detail_includes_activity(
 ) -> None:
     import time
 
-    from inspect_ai._cli.ctl import _print_sample_detail
+    from inspect_ai._cli.ctl._render import _print_sample_detail
 
     detail = {
         "sample_id": "recABC",
@@ -416,7 +417,7 @@ def test_sample_detail_includes_activity(
 def test_event_summary_renders_pending_model_and_tool() -> None:
     import time
 
-    from inspect_ai._cli.ctl import _event_summary
+    from inspect_ai._cli.ctl._render import _event_summary
 
     started = time.time() - 151
     pending_model = {
@@ -588,7 +589,7 @@ def test_retries_column_hidden_when_no_retries(
 def test_sample_detail_shows_prior_attempts_message_only(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    from inspect_ai._cli.ctl import _print_sample_detail
+    from inspect_ai._cli.ctl._render import _print_sample_detail
 
     detail = {
         "sample_id": "recABC",
@@ -614,7 +615,7 @@ def test_sample_detail_shows_prior_attempts_message_only(
 def test_sample_detail_traceback_flag_expands(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    from inspect_ai._cli.ctl import _print_sample_detail
+    from inspect_ai._cli.ctl._render import _print_sample_detail
 
     detail = {
         "sample_id": 1,
@@ -633,7 +634,7 @@ def test_sample_detail_traceback_flag_expands(
 
 
 def test_sample_detail_no_errors(capsys: pytest.CaptureFixture[str]) -> None:
-    from inspect_ai._cli.ctl import _print_sample_detail
+    from inspect_ai._cli.ctl._render import _print_sample_detail
 
     detail = {
         "sample_id": 1,
@@ -655,7 +656,7 @@ def test_sample_detail_withheld_error_renders_marker(
 
     A metadata-only detail (no --content) carries each error as an empty dict.
     """
-    from inspect_ai._cli.ctl import _print_sample_detail
+    from inspect_ai._cli.ctl._render import _print_sample_detail
 
     detail = {
         "sample_id": 1,
@@ -675,7 +676,7 @@ def test_sample_detail_withheld_error_renders_marker(
 def test_errors_table_lists_retried_and_errored(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    from inspect_ai._cli.ctl import _print_errors_table
+    from inspect_ai._cli.ctl._render import _print_errors_table
 
     samples = [
         {
@@ -703,7 +704,7 @@ def test_errors_table_lists_retried_and_errored(
 def test_print_events_table_and_footer(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    from inspect_ai._cli.ctl import _print_events
+    from inspect_ai._cli.ctl._render import _print_events
 
     page = {
         "events": [
@@ -754,7 +755,7 @@ def test_print_events_metadata_rows_and_footer_hint(
 
     The footer points at the --content opt-in.
     """
-    from inspect_ai._cli.ctl import _print_events
+    from inspect_ai._cli.ctl._render import _print_events
 
     page = {
         "events": [
@@ -792,7 +793,7 @@ def test_print_events_footer_response_keyed_on_old_server(
     the old content-bearing projection; the footer keys on the response, so
     it must not caption the text printed right above it as withheld.
     """
-    from inspect_ai._cli.ctl import _print_events
+    from inspect_ai._cli.ctl._render import _print_events
 
     page = {
         "events": [
@@ -816,7 +817,7 @@ def test_print_events_footer_response_keyed_on_old_server(
 
 
 def test_print_events_empty_and_done(capsys: pytest.CaptureFixture[str]) -> None:
-    from inspect_ai._cli.ctl import _print_events
+    from inspect_ai._cli.ctl._render import _print_events
 
     _print_events({"events": [], "next": "X", "done": True}, content=True, full=False)
     out = capsys.readouterr().out
@@ -829,7 +830,7 @@ def test_print_events_full_pretty_prints_raw(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """Full mode emits raw JSON: nested fields the summary table can't render."""
-    from inspect_ai._cli.ctl import _print_events
+    from inspect_ai._cli.ctl._render import _print_events
 
     page = {
         "events": [
@@ -1071,7 +1072,7 @@ def test_footer_warns_on_held_samples_with_no_paused_rows(
 
 
 def test_format_paused_renders_source_lists() -> None:
-    from inspect_ai._cli.ctl import _format_paused
+    from inspect_ai._cli.ctl._render import _format_paused
 
     assert _format_paused({"paused": ["task", "model"]}) == "task+model"
     assert _format_paused({"paused": ["model"], "quiesced": True}) == "model (quiesced)"
@@ -1082,7 +1083,7 @@ def test_format_paused_renders_source_lists() -> None:
 
 
 def test_format_paused_marks_hard_sources_and_held_counts() -> None:
-    from inspect_ai._cli.ctl import _format_paused
+    from inspect_ai._cli.ctl._render import _format_paused
 
     # only the hard-holding latch gets the (now) marker
     assert (
@@ -1106,7 +1107,7 @@ def test_format_paused_marks_hard_sources_and_held_counts() -> None:
 
 
 def test_format_process_paused_marks_hard_pause() -> None:
-    from inspect_ai._cli.ctl import _format_process_paused
+    from inspect_ai._cli.ctl._process import _format_process_paused
 
     assert _format_process_paused(None, False) == "?"
     assert _format_process_paused(False, False) == "no"
@@ -1124,7 +1125,7 @@ def test_resolve_target_server_defaults_to_sole_process(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        "inspect_ai._cli.ctl.list_discovered_servers", lambda: [_FakeServer(7)]
+        "inspect_ai._cli.ctl._http.list_discovered_servers", lambda: [_FakeServer(7)]
     )
     assert _resolve_target_server(None).pid == 7
 
@@ -1133,7 +1134,9 @@ def test_resolve_target_server_matches_pid(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     servers = [_FakeServer(7), _FakeServer(8)]
-    monkeypatch.setattr("inspect_ai._cli.ctl.list_discovered_servers", lambda: servers)
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl._http.list_discovered_servers", lambda: servers
+    )
     assert _resolve_target_server(8).pid == 8
 
 
@@ -1141,7 +1144,9 @@ def test_resolve_target_server_ambiguous_exits(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     servers = [_FakeServer(7), _FakeServer(8)]
-    monkeypatch.setattr("inspect_ai._cli.ctl.list_discovered_servers", lambda: servers)
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl._http.list_discovered_servers", lambda: servers
+    )
     with pytest.raises(click.exceptions.Exit):
         _resolve_target_server(None)
     err = capsys.readouterr().err
@@ -1153,7 +1158,7 @@ def test_resolve_target_server_unknown_pid_exits(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     monkeypatch.setattr(
-        "inspect_ai._cli.ctl.list_discovered_servers", lambda: [_FakeServer(7)]
+        "inspect_ai._cli.ctl._http.list_discovered_servers", lambda: [_FakeServer(7)]
     )
     with pytest.raises(click.exceptions.Exit):
         _resolve_target_server(99)
@@ -1163,7 +1168,7 @@ def test_resolve_target_server_unknown_pid_exits(
 def test_resolve_target_server_none_running_exits(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    monkeypatch.setattr("inspect_ai._cli.ctl.list_discovered_servers", lambda: [])
+    monkeypatch.setattr("inspect_ai._cli.ctl._http.list_discovered_servers", lambda: [])
     with pytest.raises(click.exceptions.Exit):
         _resolve_target_server(None)
     assert "No running inspect processes found" in capsys.readouterr().err
@@ -1275,10 +1280,12 @@ def _stub_httpx(
         async def request(self, method: str, path: str, params: object = None) -> _Resp:
             return _next(count_key[method], self.uds)
 
-    monkeypatch.setattr("inspect_ai._cli.ctl.httpx.Client", _Client)
-    monkeypatch.setattr("inspect_ai._cli.ctl.httpx.HTTPTransport", _Transport)
-    monkeypatch.setattr("inspect_ai._cli.ctl.httpx.AsyncClient", _AsyncClient)
-    monkeypatch.setattr("inspect_ai._cli.ctl.httpx.AsyncHTTPTransport", _Transport)
+    monkeypatch.setattr("inspect_ai._cli.ctl._http.httpx.Client", _Client)
+    monkeypatch.setattr("inspect_ai._cli.ctl._http.httpx.HTTPTransport", _Transport)
+    monkeypatch.setattr("inspect_ai._cli.ctl._http.httpx.AsyncClient", _AsyncClient)
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl._http.httpx.AsyncHTTPTransport", _Transport
+    )
     return counter
 
 
@@ -1319,7 +1326,7 @@ async def test_get_with_retry_retries_timeout_then_succeeds(
     """
     import httpx
 
-    from inspect_ai._cli.ctl import _get_with_retry_async
+    from inspect_ai._cli.ctl._http import _get_with_retry_async
 
     counter = _stub_httpx(
         monkeypatch,
@@ -1339,7 +1346,7 @@ async def test_get_with_retry_exhausts_and_exits(
     """Eight consecutive timeouts exhaust the retries → error + failure status."""
     import httpx
 
-    from inspect_ai._cli.ctl import _REQUEST_ATTEMPTS, _get_with_retry_async
+    from inspect_ai._cli.ctl._http import _REQUEST_ATTEMPTS, _get_with_retry_async
 
     counter = _stub_httpx(monkeypatch, [httpx.ReadTimeout("slow")] * _REQUEST_ATTEMPTS)
     with pytest.raises(click.exceptions.Exit) as exc_info:
@@ -1361,7 +1368,7 @@ def test_config_read_retries_timeout_then_succeeds(
     """A config read (GET) retries a busy process on timeout, like other reads."""
     import httpx
 
-    from inspect_ai._cli.ctl import _exec_limits
+    from inspect_ai._cli.ctl._config import _exec_limits
 
     view = {"max_samples": {"adjustable": False}, "buffer": None}
     counter = _stub_httpx(
@@ -1390,7 +1397,7 @@ def test_config_set_does_not_retry_timeout(
     """A config update (PATCH) is single-shot — a mutation must not be retried."""
     import httpx
 
-    from inspect_ai._cli.ctl import _exec_limits
+    from inspect_ai._cli.ctl._config import _exec_limits
 
     counter = _stub_httpx(monkeypatch, [httpx.ReadTimeout("slow")])
     with pytest.raises(click.exceptions.Exit) as exc_info:
@@ -1420,7 +1427,7 @@ async def test_get_with_retry_busy_raises_without_terminal_echo(
     """
     import httpx
 
-    from inspect_ai._cli.ctl import _get_with_retry_async, _ServerBusy
+    from inspect_ai._cli.ctl._http import _get_with_retry_async, _ServerBusy
 
     counter = _stub_httpx(monkeypatch, [httpx.ReadTimeout("slow")] * 2)
     with pytest.raises(_ServerBusy):
@@ -1449,7 +1456,8 @@ def test_fetch_summaries_busy_server_skipped_when_degradable(
     """
     import httpx
 
-    from inspect_ai._cli.ctl import _DEGRADED_READ_ATTEMPTS, _fetch_summaries
+    from inspect_ai._cli.ctl._fetch import _fetch_summaries
+    from inspect_ai._cli.ctl._http import _DEGRADED_READ_ATTEMPTS
 
     _stub_httpx(
         monkeypatch,
@@ -1478,7 +1486,8 @@ def test_fetch_summaries_sole_server_rides_full_budget(
     """
     import httpx
 
-    from inspect_ai._cli.ctl import _DEGRADED_READ_ATTEMPTS, _fetch_summaries
+    from inspect_ai._cli.ctl._fetch import _fetch_summaries
+    from inspect_ai._cli.ctl._http import _DEGRADED_READ_ATTEMPTS
 
     stalls = _DEGRADED_READ_ATTEMPTS + 1
     _stub_httpx(
@@ -1495,7 +1504,7 @@ def test_fetch_summaries_exact_id_match_short_circuits_fan_out(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """An exact full-task_id match stops the fan-out at the server holding it."""
-    from inspect_ai._cli.ctl import _fetch_summaries
+    from inspect_ai._cli.ctl._fetch import _fetch_summaries
 
     counter = _stub_httpx(monkeypatch, [[{"task_id": "aaa111"}]])
     fetched = _fetch_summaries(
@@ -1514,7 +1523,7 @@ def test_fetch_summaries_prefix_query_contacts_every_server(
     serial branch, since whether a query is an exact id is only knowable from
     the rows. That costs a scoped read the concurrency an unscoped one gets.
     """
-    from inspect_ai._cli.ctl import _fetch_summaries
+    from inspect_ai._cli.ctl._fetch import _fetch_summaries
 
     counter = _stub_httpx(
         monkeypatch, [[{"task_id": "aaa111"}], [{"task_id": "aaa222"}]]
@@ -1534,7 +1543,7 @@ def test_fetch_summaries_duplicate_id_resolves_to_newest_attempt(
     Only the newest server's payload is stubbed: contacting the older
     sibling would exhaust the sequence and fail loudly.
     """
-    from inspect_ai._cli.ctl import _fetch_summaries
+    from inspect_ai._cli.ctl._fetch import _fetch_summaries
 
     counter = _stub_httpx(monkeypatch, [[{"task_id": "aaa111", "task": "t1"}]])
     fetched = _fetch_summaries(
@@ -1570,7 +1579,7 @@ def test_events_poll_with_full_task_id_skips_sibling_servers(
     exhaust the stub sequence and fail loudly.
     """
     monkeypatch.setattr(
-        "inspect_ai._cli.ctl.list_discovered_servers",
+        "inspect_ai._cli.ctl._http.list_discovered_servers",
         lambda: [_disc(8), _disc(7)],
     )
     counter = _stub_httpx(
@@ -1595,7 +1604,7 @@ def test_sample_detail_read_retries_busy_timeout(
     """The authoritative detail read rides the narrated busy-retry policy."""
     import httpx
 
-    from inspect_ai._cli.ctl import _fetch_sample_detail
+    from inspect_ai._cli.ctl._fetch import _fetch_sample_detail
 
     counter = _stub_httpx(
         monkeypatch,
@@ -1613,7 +1622,7 @@ def test_sample_events_read_retries_busy_timeout(
     """The authoritative events read rides the narrated busy-retry policy."""
     import httpx
 
-    from inspect_ai._cli.ctl import _fetch_sample_events
+    from inspect_ai._cli.ctl._fetch import _fetch_sample_events
 
     counter = _stub_httpx(
         monkeypatch,
@@ -1644,7 +1653,7 @@ async def test_get_with_retry_does_not_retry_connection_error(
     """A non-timeout transport error (server gone) is not retried."""
     import httpx
 
-    from inspect_ai._cli.ctl import _get_with_retry_async, _ServerUnreachable
+    from inspect_ai._cli.ctl._http import _get_with_retry_async, _ServerUnreachable
 
     counter = _stub_httpx(monkeypatch, [httpx.ConnectError("refused")])
     with pytest.raises(_ServerUnreachable):
@@ -1663,7 +1672,7 @@ def test_fetch_summaries_skips_gone_server_but_aggregates_live_one(
     """
     import httpx
 
-    from inspect_ai._cli.ctl import _fetch_summaries
+    from inspect_ai._cli.ctl._fetch import _fetch_summaries
 
     # server 7 refuses (gone); server 8 returns one task.
     _stub_httpx(
@@ -1696,7 +1705,8 @@ def test_fetch_summaries_unreachable_server_does_not_cancel_in_flight_siblings(
     """
     import httpx
 
-    from inspect_ai._cli.ctl import _fetch_summaries, _ServerUnreachable
+    from inspect_ai._cli.ctl._fetch import _fetch_summaries
+    from inspect_ai._cli.ctl._http import _ServerUnreachable
 
     state: dict[str, Any] = {}
 
@@ -1712,7 +1722,7 @@ def test_fetch_summaries_unreachable_server_does_not_cancel_in_flight_siblings(
         state["released"].set()
         return [{"task_id": "late"}]
 
-    monkeypatch.setattr("inspect_ai._cli.ctl._get_with_retry_async", fake_get)
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._get_with_retry_async", fake_get)
     summaries = _fetch_summaries([_disc(7), _disc(8), _disc(9)]).summaries
     assert [s["task_id"] for s in summaries] == ["parked", "late"]
     assert "Skipping pid 7" in capsys.readouterr().err
@@ -1727,7 +1737,7 @@ def test_fetch_summaries_reads_servers_concurrently(
     fetch only returns if they are all in flight at once, and they complete in
     the reverse of discovery order — which the rows must not inherit.
     """
-    from inspect_ai._cli.ctl import _fetch_summaries
+    from inspect_ai._cli.ctl._fetch import _fetch_summaries
 
     pids = [7, 8, 9]
     state: dict[str, Any] = {}
@@ -1745,7 +1755,7 @@ def test_fetch_summaries_reads_servers_concurrently(
         state["done"][index].set()
         return [{"task_id": f"task{pids[index]}"}]
 
-    monkeypatch.setattr("inspect_ai._cli.ctl._get_with_retry_async", fake_get)
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._get_with_retry_async", fake_get)
     summaries = _fetch_summaries([_disc(pid) for pid in pids]).summaries
     assert [s["task_id"] for s in summaries] == ["task7", "task8", "task9"]
     assert [s["pid"] for s in summaries] == pids
@@ -1757,7 +1767,8 @@ def test_fetch_summaries_unresponsive_server_exits(
     """A server that keeps timing out fails the command (not silently dropped)."""
     import httpx
 
-    from inspect_ai._cli.ctl import _REQUEST_ATTEMPTS, _fetch_summaries
+    from inspect_ai._cli.ctl._fetch import _fetch_summaries
+    from inspect_ai._cli.ctl._http import _REQUEST_ATTEMPTS
 
     _stub_httpx(monkeypatch, [httpx.ReadTimeout("slow")] * _REQUEST_ATTEMPTS)
     with pytest.raises(click.exceptions.Exit):
@@ -1777,7 +1788,8 @@ def test_fetch_summaries_all_busy_narrates_once_per_invocation(
     """
     import httpx
 
-    from inspect_ai._cli.ctl import _REQUEST_ATTEMPTS, _fetch_summaries
+    from inspect_ai._cli.ctl._fetch import _fetch_summaries
+    from inspect_ai._cli.ctl._http import _REQUEST_ATTEMPTS
 
     _stub_httpx(
         monkeypatch,
@@ -1862,11 +1874,11 @@ def _patch_surface(
 ) -> None:
     """Stub discovery + the HTTP reads so CLI commands run hermetically."""
     monkeypatch.setattr(
-        "inspect_ai._cli.ctl.list_discovered_servers",
+        "inspect_ai._cli.ctl._http.list_discovered_servers",
         lambda: servers if servers is not None else [_DiscServer(7)],
     )
     monkeypatch.setattr(
-        "inspect_ai._cli.ctl._fetch_summaries",
+        "inspect_ai._cli.ctl._fetch._fetch_summaries",
         lambda s, **kwargs: _FetchedSummaries(summaries, busy_pids or []),
     )
     if samples_by_eval is not None:
@@ -1886,7 +1898,7 @@ def _patch_surface(
             return _SamplesPage(as_of=123.0, samples=samples)
 
         monkeypatch.setattr(
-            "inspect_ai._cli.ctl._fetch_samples_async", fake_fetch_samples
+            "inspect_ai._cli.ctl._fetch._fetch_samples_async", fake_fetch_samples
         )
 
 
@@ -2035,7 +2047,7 @@ def test_sample_errors_requests_server_side_filter(
             samples=[_sample_row("bad", error="boom")],
         )
 
-    monkeypatch.setattr("inspect_ai._cli.ctl._fetch_samples_async", fake_samples)
+    monkeypatch.setattr("inspect_ai._cli.ctl._fetch._fetch_samples_async", fake_samples)
     result = cli_runner().invoke(ctl_command, ["sample", "errors", "--json"])
     assert result.exit_code == 0, result.output
     assert seen["sample_filter"] == "errors"
@@ -2060,7 +2072,7 @@ def test_sample_list_does_not_request_errors_filter(
         seen["sample_filter"] = sample_filter
         return _SamplesPage(as_of=123.0, samples=[_sample_row("s1")])
 
-    monkeypatch.setattr("inspect_ai._cli.ctl._fetch_samples_async", fake_samples)
+    monkeypatch.setattr("inspect_ai._cli.ctl._fetch._fetch_samples_async", fake_samples)
     result = cli_runner().invoke(ctl_command, ["sample", "list", "--json"])
     assert result.exit_code == 0, result.output
     assert seen["sample_filter"] is None
@@ -2070,7 +2082,7 @@ def test_fetch_samples_sends_filter_param(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The wire param is `filter=errors`, and only when requested."""
-    from inspect_ai._cli.ctl import _fetch_samples
+    from inspect_ai._cli.ctl._fetch import _fetch_samples
 
     seen: dict[str, Any] = {}
 
@@ -2080,7 +2092,7 @@ def test_fetch_samples_sends_filter_param(
         seen["params"] = params
         return {"as_of": 1.0, "samples": []}
 
-    monkeypatch.setattr("inspect_ai._cli.ctl._get_with_retry_async", fake_get)
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._get_with_retry_async", fake_get)
     _fetch_samples("/tmp/x.sock", "e1", sample_filter="errors")
     assert seen["params"] == {"filter": "errors"}
     _fetch_samples("/tmp/x.sock", "e1")
@@ -2104,7 +2116,7 @@ def _capture_fetch_kwargs(
         calls.append(dict(kwargs))
         return result
 
-    monkeypatch.setattr("inspect_ai._cli.ctl._fetch_samples_async", fake_samples)
+    monkeypatch.setattr("inspect_ai._cli.ctl._fetch._fetch_samples_async", fake_samples)
     return calls
 
 
@@ -2138,7 +2150,7 @@ def test_sample_list_attempt_budget_splits_scoped_from_fan_out(
     waiting out; an unscoped one warn-and-skips, where one wedged eval must
     not hold up the rest.
     """
-    from inspect_ai._cli.ctl import _REQUEST_ATTEMPTS
+    from inspect_ai._cli.ctl._http import _REQUEST_ATTEMPTS
 
     _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
     calls = _capture_fetch_kwargs(monkeypatch)
@@ -2249,7 +2261,7 @@ def test_sample_list_envelope_aggregates_counts_and_truncated(
     ) -> _SamplesPage:
         return pages[eval_id]
 
-    monkeypatch.setattr("inspect_ai._cli.ctl._fetch_samples_async", fake_samples)
+    monkeypatch.setattr("inspect_ai._cli.ctl._fetch._fetch_samples_async", fake_samples)
     result = cli_runner().invoke(ctl_command, ["sample", "list", "--json"])
     assert result.exit_code == 0, result.output
     payload = json.loads(result.stdout)
@@ -2531,7 +2543,7 @@ def test_sample_list_scoped_busy_points_at_process_anomalies(
     Stderr only: the --json envelope message stays hint-free (agents branch
     on `kind` and learn the verb from --help).
     """
-    from inspect_ai._cli.ctl import _ServerBusy
+    from inspect_ai._cli.ctl._http import _ServerBusy
 
     _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
     _patch_samples_unreachable_for(
@@ -2602,7 +2614,7 @@ def test_sample_show_row_lookup_requests_full_listing(
     _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
     calls = _capture_fetch_kwargs(monkeypatch)
     monkeypatch.setattr(
-        "inspect_ai._cli.ctl._fetch_sample_detail",
+        "inspect_ai._cli.ctl._fetch._fetch_sample_detail",
         lambda *a, **k: {"sample_id": "s1", "epoch": 1, "status": "completed"},
     )
     result = cli_runner().invoke(
@@ -2625,7 +2637,7 @@ def _patch_samples_unreachable_for(
     """
     import httpx
 
-    from inspect_ai._cli.ctl import _ServerUnreachable
+    from inspect_ai._cli.ctl._http import _ServerUnreachable
 
     if exc is None:
         exc = _ServerUnreachable()
@@ -2642,7 +2654,7 @@ def _patch_samples_unreachable_for(
             raise failure
         return _SamplesPage(as_of=123.0, samples=[_sample_row("s2")])
 
-    monkeypatch.setattr("inspect_ai._cli.ctl._fetch_samples_async", fake_samples)
+    monkeypatch.setattr("inspect_ai._cli.ctl._fetch._fetch_samples_async", fake_samples)
 
 
 def test_sample_list_unscoped_skips_unreachable_eval(
@@ -2778,7 +2790,7 @@ def test_sample_show_reports_detail_summary_fields(
         "scores": {},
     }
     monkeypatch.setattr(
-        "inspect_ai._cli.ctl._fetch_sample_detail", lambda *a, **k: detail
+        "inspect_ai._cli.ctl._fetch._fetch_sample_detail", lambda *a, **k: detail
     )
     result = cli_runner().invoke(
         ctl_command, ["sample", "show", "aaa111", "s1", "--json"]
@@ -2804,7 +2816,7 @@ def test_sample_show_is_a_single_read(monkeypatch: pytest.MonkeyPatch) -> None:
     def fail_fetch(*args: Any, **kwargs: Any) -> Any:
         raise AssertionError("sample show should not fetch the samples listing")
 
-    monkeypatch.setattr("inspect_ai._cli.ctl._fetch_samples", fail_fetch)
+    monkeypatch.setattr("inspect_ai._cli.ctl._fetch._fetch_samples", fail_fetch)
     detail = {
         "sample_id": "s1",
         "epoch": 1,
@@ -2817,7 +2829,7 @@ def test_sample_show_is_a_single_read(monkeypatch: pytest.MonkeyPatch) -> None:
         "scores": {},
     }
     monkeypatch.setattr(
-        "inspect_ai._cli.ctl._fetch_sample_detail", lambda *a, **k: detail
+        "inspect_ai._cli.ctl._fetch._fetch_sample_detail", lambda *a, **k: detail
     )
     result = cli_runner().invoke(
         ctl_command, ["sample", "show", "aaa111", "s1", "--json"]
@@ -2863,7 +2875,7 @@ def test_sample_show_old_server_falls_back_to_listing(
         },
     )
     monkeypatch.setattr(
-        "inspect_ai._cli.ctl._fetch_sample_detail",
+        "inspect_ai._cli.ctl._fetch._fetch_sample_detail",
         lambda *a, **k: _old_server_detail(),
     )
     result = cli_runner().invoke(
@@ -2892,7 +2904,7 @@ def test_sample_show_old_server_fallback_unreachable_degrades(
     skip note has taught it on this path) — costs only the summary fields,
     surfaced on stderr, with stdout still valid JSON.
     """
-    from inspect_ai._cli.ctl import _ServerBusy
+    from inspect_ai._cli.ctl._http import _ServerBusy
 
     _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
     _patch_samples_unreachable_for(
@@ -2903,7 +2915,7 @@ def test_sample_show_old_server_fallback_unreachable_degrades(
         else None,
     )
     monkeypatch.setattr(
-        "inspect_ai._cli.ctl._fetch_sample_detail",
+        "inspect_ai._cli.ctl._fetch._fetch_sample_detail",
         lambda *a, **k: _old_server_detail(),
     )
     result = cli_runner().invoke(
@@ -2928,7 +2940,7 @@ def test_sample_show_busy_detail_read_points_at_pid(
     """
     import httpx
 
-    from inspect_ai._cli.ctl import _REQUEST_ATTEMPTS
+    from inspect_ai._cli.ctl._http import _REQUEST_ATTEMPTS
 
     _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
     _stub_httpx(monkeypatch, [httpx.ReadTimeout("slow")] * _REQUEST_ATTEMPTS)
@@ -2948,7 +2960,7 @@ def test_config_busy_read_points_at_pid(
     """
     import httpx
 
-    from inspect_ai._cli.ctl import _REQUEST_ATTEMPTS
+    from inspect_ai._cli.ctl._http import _REQUEST_ATTEMPTS
 
     _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
     _stub_httpx(monkeypatch, [httpx.ReadTimeout("slow")] * _REQUEST_ATTEMPTS)
@@ -2981,7 +2993,7 @@ def _stub_limits(
             mutated=any(kwargs.get(k) is not None for k in knobs),
         )
 
-    monkeypatch.setattr("inspect_ai._cli.ctl._exec_limits", fake_limits)
+    monkeypatch.setattr("inspect_ai._cli.ctl._config._exec_limits", fake_limits)
 
 
 def test_config_view_tolerates_missing_buffer(
@@ -3033,7 +3045,7 @@ def test_config_set_buffer_error_does_not_claim_unapplied_knobs(
     """
     _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
     monkeypatch.setattr(
-        "inspect_ai._cli.ctl._exec_limits",
+        "inspect_ai._cli.ctl._config._exec_limits",
         lambda *a, **k: _ConfigResult(
             view={
                 "max_samples": {"adjustable": False, "tracks_adaptive": True},
@@ -3095,7 +3107,7 @@ def test_config_key_retune_sent_and_rendered(
             mutated=True,
         )
 
-    monkeypatch.setattr("inspect_ai._cli.ctl._exec_limits", fake_limits)
+    monkeypatch.setattr("inspect_ai._cli.ctl._config._exec_limits", fake_limits)
     result = cli_runner().invoke(
         ctl_command, ["config", "--key", "my_api", "2", "--json"]
     )
@@ -3155,7 +3167,7 @@ def test_client_gate_versions_do_not_outrun_version_constant() -> None:
     including current ones; a too-high `_STRICT_SINCE` would refuse every
     knob mutation the same way.
     """
-    from inspect_ai._cli.ctl import _PROVENANCE_SINCE, _STRICT_SINCE
+    from inspect_ai._cli.ctl._knobs import _PROVENANCE_SINCE, _STRICT_SINCE
     from inspect_ai._control import CONTROL_API_VERSION
 
     assert _STRICT_SINCE <= CONTROL_API_VERSION
@@ -3169,7 +3181,8 @@ def test_mutation_envelope_help_sketches_actual_keys() -> None:
     scripted consumer can orient the first parse from --help alone; this
     pins the sketch to the envelope builder so the two can't drift.
     """
-    from inspect_ai._cli.ctl import _MUTATION_ENVELOPE_HELP, _mutation_envelope
+    from inspect_ai._cli.ctl._group import _MUTATION_ENVELOPE_HELP
+    from inspect_ai._cli.ctl._mutate import _mutation_envelope
 
     envelope = _mutation_envelope(
         {"task_id": "aaa111"}, {"ok": True, "changed": True}, dry_run=False
@@ -3179,7 +3192,8 @@ def test_mutation_envelope_help_sketches_actual_keys() -> None:
 
 def test_config_help_sketches_compose_config_keys() -> None:
     """`config --help`'s --json sketch names exactly `_compose_config`'s keys."""
-    from inspect_ai._cli.ctl import _compose_config, _DirectiveScope, config_command
+    from inspect_ai._cli.ctl._config import _compose_config, config_command
+    from inspect_ai._cli.ctl._mutate import _DirectiveScope
 
     scope = _DirectiveScope(
         socket_path="sock", pid=1, task_id=None, task=None, header="", siblings=0
@@ -3316,7 +3330,7 @@ def test_sample_show_json_payload_matches_help_sketch(
         "scores": {},
     }
     monkeypatch.setattr(
-        "inspect_ai._cli.ctl._fetch_sample_detail", lambda *a, **k: dict(detail)
+        "inspect_ai._cli.ctl._fetch._fetch_sample_detail", lambda *a, **k: dict(detail)
     )
     result = cli_runner().invoke(
         ctl_command, ["sample", "show", "aaa111", "s1", "--json"]
@@ -3331,7 +3345,7 @@ def test_sample_events_json_payload_matches_help_sketch(
     """Both the served page and the no-evals empty page keep the sketched shape."""
     _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
     monkeypatch.setattr(
-        "inspect_ai._cli.ctl._fetch_sample_events",
+        "inspect_ai._cli.ctl._fetch._fetch_sample_events",
         lambda *a, **k: {"events": [], "next": None, "done": True},
     )
     runner = cli_runner()
@@ -3351,7 +3365,7 @@ def test_sample_messages_json_payload_matches_help_sketch(
     """Both the served page and the no-evals empty page keep the sketched shape."""
     _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
     monkeypatch.setattr(
-        "inspect_ai._cli.ctl._fetch_sample_messages",
+        "inspect_ai._cli.ctl._fetch._fetch_sample_messages",
         lambda *a, **k: {"as_of": 1.0, "status": "running", "count": 0, "messages": []},
     )
     runner = cli_runner()
@@ -3410,7 +3424,7 @@ def test_config_provenance_sent_with_mutations_on_current_server(
             mutated=True,
         )
 
-    monkeypatch.setattr("inspect_ai._cli.ctl._exec_limits", fake_limits)
+    monkeypatch.setattr("inspect_ai._cli.ctl._config._exec_limits", fake_limits)
 
     result = cli_runner().invoke(
         ctl_command, ["config", "--max-samples", "3", "--reason", "ramp up"]
@@ -3444,7 +3458,7 @@ def test_config_provenance_gated_on_older_server(
     *defaulted* author (which the user never typed) is silently dropped and
     the mutation proceeds without it.
     """
-    from inspect_ai._cli.ctl import _PROVENANCE_SINCE
+    from inspect_ai._cli.ctl._knobs import _PROVENANCE_SINCE
 
     _patch_surface(
         monkeypatch,
@@ -3468,7 +3482,7 @@ def test_config_provenance_gated_on_older_server(
             mutated=True,
         )
 
-    monkeypatch.setattr("inspect_ai._cli.ctl._exec_limits", fake_limits)
+    monkeypatch.setattr("inspect_ai._cli.ctl._config._exec_limits", fake_limits)
 
     result = cli_runner().invoke(
         ctl_command, ["config", "--max-samples", "3", "--reason", "why"]
@@ -3524,7 +3538,7 @@ def test_config_provenance_requires_set_option(
             mutated=False,
         )
 
-    monkeypatch.setattr("inspect_ai._cli.ctl._exec_limits", fake_limits)
+    monkeypatch.setattr("inspect_ai._cli.ctl._config._exec_limits", fake_limits)
 
     result = cli_runner().invoke(
         ctl_command, ["config", "--reason", "provider incident"]
@@ -3577,7 +3591,7 @@ def test_config_provenance_rides_key_only_retune(
             mutated=True,
         )
 
-    monkeypatch.setattr("inspect_ai._cli.ctl._exec_limits", fake_limits)
+    monkeypatch.setattr("inspect_ai._cli.ctl._config._exec_limits", fake_limits)
 
     result = cli_runner().invoke(
         ctl_command,
@@ -3606,7 +3620,7 @@ def test_config_knobs_floored_on_pre_strict_server(
     could honor — the floor is deliberately tableless), the PATCH at exactly
     `_STRICT_SINCE`.
     """
-    from inspect_ai._cli.ctl import _STRICT_SINCE
+    from inspect_ai._cli.ctl._knobs import _STRICT_SINCE
 
     _patch_surface(
         monkeypatch,
@@ -3617,7 +3631,7 @@ def test_config_knobs_floored_on_pre_strict_server(
     def _no_patch(*args: Any, **kwargs: Any) -> _ConfigResult:
         raise AssertionError("the mutation must not be sent")
 
-    monkeypatch.setattr("inspect_ai._cli.ctl._exec_limits", _no_patch)
+    monkeypatch.setattr("inspect_ai._cli.ctl._config._exec_limits", _no_patch)
 
     # max_samples predates version reporting — a tolerant server would honor
     # it — but the tableless floor refuses the mutation anyway
@@ -3752,10 +3766,10 @@ def test_config_log_shared_rejects_below_one() -> None:
 
 def test_process_release_json_envelope(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        "inspect_ai._cli.ctl.list_discovered_servers", lambda: [_DiscServer(7)]
+        "inspect_ai._cli.ctl._http.list_discovered_servers", lambda: [_DiscServer(7)]
     )
     monkeypatch.setattr(
-        "inspect_ai._cli.ctl._request_json",
+        "inspect_ai._cli.ctl._http._request_json",
         lambda *a, **k: {"ok": True, "keep_alive": False, "changed": True},
     )
     result = cli_runner().invoke(ctl_command, ["process", "release", "--json"])
@@ -3770,10 +3784,10 @@ def test_process_keep_reports_idempotent_noop(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        "inspect_ai._cli.ctl.list_discovered_servers", lambda: [_DiscServer(7)]
+        "inspect_ai._cli.ctl._http.list_discovered_servers", lambda: [_DiscServer(7)]
     )
     monkeypatch.setattr(
-        "inspect_ai._cli.ctl._request_json",
+        "inspect_ai._cli.ctl._http._request_json",
         lambda *a, **k: {"ok": True, "keep_alive": True, "changed": False},
     )
     result = cli_runner().invoke(ctl_command, ["process", "keep"])
@@ -3789,10 +3803,10 @@ def test_process_keep_pid_is_positional(monkeypatch: pytest.MonkeyPatch) -> None
         return {"ok": True}
 
     monkeypatch.setattr(
-        "inspect_ai._cli.ctl.list_discovered_servers",
+        "inspect_ai._cli.ctl._http.list_discovered_servers",
         lambda: [_DiscServer(7), _DiscServer(8)],
     )
-    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", record)
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", record)
     result = cli_runner().invoke(ctl_command, ["process", "keep", "8"])
     assert result.exit_code == 0, result.output
     assert posted == ["/tmp/8.sock"]
@@ -3831,7 +3845,7 @@ def test_events_unseeded_defaults_to_recent_tail(
         return {"events": [], "next": None, "done": True}
 
     _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
-    monkeypatch.setattr("inspect_ai._cli.ctl._fetch_sample_events", fake_events)
+    monkeypatch.setattr("inspect_ai._cli.ctl._fetch._fetch_sample_events", fake_events)
     runner = cli_runner()
 
     result = runner.invoke(ctl_command, ["sample", "events", "aaa111", "s1", "--json"])
@@ -3884,7 +3898,7 @@ def test_events_type_all_normalized_to_star(
         return {"events": [], "next": None, "done": True}
 
     _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
-    monkeypatch.setattr("inspect_ai._cli.ctl._fetch_sample_events", fake_events)
+    monkeypatch.setattr("inspect_ai._cli.ctl._fetch._fetch_sample_events", fake_events)
     runner = cli_runner()
 
     result = runner.invoke(
@@ -3922,7 +3936,7 @@ def test_events_from_start_reads_full_backlog(
         return {"events": [], "next": None, "done": True}
 
     _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
-    monkeypatch.setattr("inspect_ai._cli.ctl._fetch_sample_events", fake_events)
+    monkeypatch.setattr("inspect_ai._cli.ctl._fetch._fetch_sample_events", fake_events)
     runner = cli_runner()
 
     result = runner.invoke(
@@ -3973,7 +3987,7 @@ def test_events_limit_rides_wire_and_combines_with_seeds(
         return {"events": [], "next": None, "done": True}
 
     _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
-    monkeypatch.setattr("inspect_ai._cli.ctl._fetch_sample_events", fake_events)
+    monkeypatch.setattr("inspect_ai._cli.ctl._fetch._fetch_sample_events", fake_events)
     runner = cli_runner()
 
     result = runner.invoke(
@@ -4005,7 +4019,7 @@ def test_events_json_no_servers_echoes_identifiers(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The no-running-evals empty page keeps the identifier echo shape."""
-    monkeypatch.setattr("inspect_ai._cli.ctl.list_discovered_servers", lambda: [])
+    monkeypatch.setattr("inspect_ai._cli.ctl._http.list_discovered_servers", lambda: [])
     result = cli_runner().invoke(
         ctl_command, ["sample", "events", "aaa111", "s1", "--json"]
     )
@@ -4019,7 +4033,7 @@ def test_events_json_no_servers_echoes_identifiers(
 def test_print_messages_table_and_footer(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    from inspect_ai._cli.ctl import _print_messages
+    from inspect_ai._cli.ctl._render import _print_messages
 
     page = {
         "status": "running",
@@ -4053,7 +4067,7 @@ def test_print_messages_metadata_rows_and_footer_hint(
 
     The footer points at the --content opt-in.
     """
-    from inspect_ai._cli.ctl import _print_messages
+    from inspect_ai._cli.ctl._render import _print_messages
 
     page = {
         "status": "running",
@@ -4082,7 +4096,7 @@ def test_print_messages_footer_response_keyed_on_old_server(
     Pre-v6 message projections carry ``content`` on every message; its
     presence means the server ignored the metadata-only request.
     """
-    from inspect_ai._cli.ctl import _print_messages
+    from inspect_ai._cli.ctl._render import _print_messages
 
     page = {
         "status": "running",
@@ -4096,7 +4110,7 @@ def test_print_messages_footer_response_keyed_on_old_server(
 
 
 def test_print_messages_empty(capsys: pytest.CaptureFixture[str]) -> None:
-    from inspect_ai._cli.ctl import _print_messages
+    from inspect_ai._cli.ctl._render import _print_messages
 
     _print_messages(
         {"status": "completed", "count": 0, "messages": []}, content=True, full=False
@@ -4121,7 +4135,9 @@ def test_messages_unseeded_defaults_to_recent_tail(
         return {"as_of": 1.0, "status": "running", "count": 0, "messages": []}
 
     _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
-    monkeypatch.setattr("inspect_ai._cli.ctl._fetch_sample_messages", fake_messages)
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl._fetch._fetch_sample_messages", fake_messages
+    )
     runner = cli_runner()
 
     result = runner.invoke(
@@ -4159,7 +4175,7 @@ def test_messages_json_no_servers_echoes_identifiers(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The no-running-evals empty page keeps the identifier echo shape."""
-    monkeypatch.setattr("inspect_ai._cli.ctl.list_discovered_servers", lambda: [])
+    monkeypatch.setattr("inspect_ai._cli.ctl._http.list_discovered_servers", lambda: [])
     result = cli_runner().invoke(
         ctl_command, ["sample", "messages", "aaa111", "s1", "--json"]
     )
@@ -4220,7 +4236,7 @@ def test_group_option_forwards_value_and_verb_wins(
         return _SamplesPage(as_of=123.0, samples=[])
 
     _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
-    monkeypatch.setattr("inspect_ai._cli.ctl._fetch_samples_async", fake_samples)
+    monkeypatch.setattr("inspect_ai._cli.ctl._fetch._fetch_samples_async", fake_samples)
     runner = cli_runner()
 
     result = runner.invoke(ctl_command, ["sample", "--active-since", "5.0", "list"])
@@ -4283,7 +4299,8 @@ def test_events_removed_since_flag_teaches_split() -> None:
 
 
 def test_compose_config_labels_every_knob_with_scope() -> None:
-    from inspect_ai._cli.ctl import _compose_config, _DirectiveScope
+    from inspect_ai._cli.ctl._config import _compose_config
+    from inspect_ai._cli.ctl._mutate import _DirectiveScope
 
     scope = _DirectiveScope(
         socket_path="/tmp/7.sock",
@@ -4328,7 +4345,8 @@ def test_compose_config_labels_every_knob_with_scope() -> None:
 
 
 def test_compose_config_process_scope_dry_run() -> None:
-    from inspect_ai._cli.ctl import _compose_config, _DirectiveScope
+    from inspect_ai._cli.ctl._config import _compose_config
+    from inspect_ai._cli.ctl._mutate import _DirectiveScope
 
     scope = _DirectiveScope(
         socket_path="/tmp/7.sock",
@@ -4374,7 +4392,7 @@ def test_log_flush_resolves_sole_active_task(monkeypatch: pytest.MonkeyPatch) ->
         ],
     )
     monkeypatch.setattr(
-        "inspect_ai._cli.ctl._post_flush", lambda *a, **k: {"flushed": 1}
+        "inspect_ai._cli.ctl._fetch._post_flush", lambda *a, **k: {"flushed": 1}
     )
     result = cli_runner().invoke(ctl_command, ["task", "log-flush", "--json"])
     assert result.exit_code == 0, result.output
@@ -4398,7 +4416,7 @@ def test_fetch_summaries_404_names_version_skew(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """A 404 from a live server reads as version skew, not 'just exited'."""
-    from inspect_ai._cli.ctl import _fetch_summaries
+    from inspect_ai._cli.ctl._fetch import _fetch_summaries
 
     _stub_httpx(monkeypatch, [(404, {"error": "not found"})])
     fetched = _fetch_summaries([_disc(7)])
@@ -4412,7 +4430,7 @@ def test_fetch_summaries_404_names_version_skew(
 def test_log_flush_json_mutation_envelope(monkeypatch: pytest.MonkeyPatch) -> None:
     _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
     monkeypatch.setattr(
-        "inspect_ai._cli.ctl._post_flush", lambda *a, **k: {"flushed": 2}
+        "inspect_ai._cli.ctl._fetch._post_flush", lambda *a, **k: {"flushed": 2}
     )
     result = cli_runner().invoke(ctl_command, ["task", "log-flush", "--json"])
     assert result.exit_code == 0, result.output
@@ -4448,7 +4466,7 @@ def test_task_cancel_json_mutation_envelope(monkeypatch: pytest.MonkeyPatch) -> 
     spy = _RequestSpy(
         {"ok": True, "task_id": "aaa111", "changed": True, "in_flight": 2}
     )
-    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
     result = cli_runner().invoke(ctl_command, ["task", "cancel", "aaa111", "--json"])
     assert result.exit_code == 0, result.output
     assert spy.paths == ["/tasks/aaa111/cancel"]
@@ -4462,7 +4480,7 @@ def test_task_cancel_json_mutation_envelope(monkeypatch: pytest.MonkeyPatch) -> 
 def test_task_cancel_dry_run_not_applied(monkeypatch: pytest.MonkeyPatch) -> None:
     _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
     spy = _RequestSpy({"ok": True, "changed": True, "dry_run": True, "in_flight": 1})
-    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
     result = cli_runner().invoke(
         ctl_command, ["task", "cancel", "aaa111", "--dry-run", "--json"]
     )
@@ -4476,7 +4494,7 @@ def test_task_cancel_noop_reports_unapplied(monkeypatch: pytest.MonkeyPatch) -> 
     """The idempotent no-op (already finished) reports applied: false."""
     _patch_surface(monkeypatch, [_full_summary("aaa111", "t1", status="completed")])
     spy = _RequestSpy({"ok": True, "changed": False, "reason": "task already finished"})
-    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
     result = cli_runner().invoke(ctl_command, ["task", "cancel", "aaa111", "--json"])
     assert result.exit_code == 0, result.output
     payload = json.loads(result.stdout)
@@ -4488,7 +4506,7 @@ def test_task_cancel_human_output(monkeypatch: pytest.MonkeyPatch) -> None:
     """--no-terse pins the full rendering (the runner's stdout is not a TTY)."""
     _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
     spy = _RequestSpy({"ok": True, "changed": True, "in_flight": 3})
-    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
     result = cli_runner().invoke(
         ctl_command, ["task", "cancel", "aaa111", "--no-terse"]
     )
@@ -4502,7 +4520,7 @@ def test_task_cancel_terse_line(monkeypatch: pytest.MonkeyPatch) -> None:
     """Non-TTY stdout (the runner's) defaults to one header-free outcome line."""
     _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
     spy = _RequestSpy({"ok": True, "changed": True, "in_flight": 3})
-    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
     result = cli_runner().invoke(ctl_command, ["task", "cancel", "aaa111"])
     assert result.exit_code == 0, result.output
     assert result.stdout == (
@@ -4547,7 +4565,7 @@ def test_task_cancel_action_sent_on_current_server(
         servers=[_DiscServer(7, api_version=CONTROL_API_VERSION)],
     )
     spy = _RequestSpy({"ok": True, "changed": True, "in_flight": 1})
-    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
 
     runner = cli_runner()
     score = runner.invoke(
@@ -4583,7 +4601,7 @@ def test_task_pause_json_mutation_envelope(monkeypatch: pytest.MonkeyPatch) -> N
             "dispatched": 2,
         }
     )
-    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
     result = cli_runner().invoke(ctl_command, ["task", "pause", "aaa111", "--json"])
     assert result.exit_code == 0, result.output
     assert spy.paths == ["/tasks/aaa111/pause"]
@@ -4600,7 +4618,7 @@ def test_task_pause_resolves_sole_running_task(
     """Pause is reversible, so it gets the sole-task default (unlike cancel)."""
     _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
     spy = _RequestSpy({"ok": True, "changed": True, "dispatched": 0})
-    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
     result = cli_runner().invoke(ctl_command, ["task", "pause", "--json"])
     assert result.exit_code == 0, result.output
     assert spy.paths == ["/tasks/aaa111/pause"]
@@ -4620,7 +4638,7 @@ def test_task_pause_multiple_tasks_requires_selector(
 def test_task_pause_dry_run_not_applied(monkeypatch: pytest.MonkeyPatch) -> None:
     _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
     spy = _RequestSpy({"ok": True, "changed": True, "dry_run": True, "dispatched": 1})
-    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
     result = cli_runner().invoke(
         ctl_command, ["task", "pause", "aaa111", "--dry-run", "--json"]
     )
@@ -4633,7 +4651,7 @@ def test_task_pause_dry_run_not_applied(monkeypatch: pytest.MonkeyPatch) -> None
 def test_task_pause_human_output(monkeypatch: pytest.MonkeyPatch) -> None:
     _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
     spy = _RequestSpy({"ok": True, "paused": "task", "changed": True, "dispatched": 3})
-    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
     result = cli_runner().invoke(ctl_command, ["task", "pause", "aaa111", "--no-terse"])
     assert result.exit_code == 0, result.output
     assert "Pause requested" in result.output
@@ -4643,7 +4661,7 @@ def test_task_pause_human_output(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_task_pause_terse_line(monkeypatch: pytest.MonkeyPatch) -> None:
     _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
     spy = _RequestSpy({"ok": True, "paused": "task", "changed": True, "dispatched": 3})
-    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
     result = cli_runner().invoke(ctl_command, ["task", "pause", "aaa111"])
     assert result.exit_code == 0, result.output
     assert result.stdout == (
@@ -4658,7 +4676,7 @@ def test_task_resume_human_output_notes_process_latch(
     """A task resume that leaves the task held by the process latch says so."""
     _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
     spy = _RequestSpy({"ok": True, "paused": "process", "changed": True})
-    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
     result = cli_runner().invoke(
         ctl_command, ["task", "resume", "aaa111", "--no-terse"]
     )
@@ -4674,7 +4692,7 @@ def test_task_resume_terse_line_notes_still_held(
     """The terse resume line still reports the latch that keeps the task held."""
     _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
     spy = _RequestSpy({"ok": True, "paused": "process", "changed": True})
-    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
     result = cli_runner().invoke(ctl_command, ["task", "resume", "aaa111"])
     assert result.exit_code == 0, result.output
     assert result.stdout == (
@@ -4701,7 +4719,7 @@ def test_task_resume_noop_notes_process_latch(
             "reason": "task is not paused",
         }
     )
-    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
     result = cli_runner().invoke(
         ctl_command, ["task", "resume", "aaa111", "--no-terse"]
     )
@@ -4720,7 +4738,7 @@ def test_task_resume_noop_notes_process_latch(
 def test_task_pause_noop_reports_unapplied(monkeypatch: pytest.MonkeyPatch) -> None:
     _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
     spy = _RequestSpy({"ok": True, "changed": False, "reason": "task already paused"})
-    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
     result = cli_runner().invoke(ctl_command, ["task", "pause", "aaa111", "--json"])
     assert result.exit_code == 0, result.output
     payload = json.loads(result.stdout)
@@ -4742,10 +4760,10 @@ def test_process_pause_json_mutation_envelope(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        "inspect_ai._cli.ctl.list_discovered_servers", lambda: [_DiscServer(7)]
+        "inspect_ai._cli.ctl._http.list_discovered_servers", lambda: [_DiscServer(7)]
     )
     spy = _RequestSpy({"ok": True, "paused": True, "changed": True})
-    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
     result = cli_runner().invoke(ctl_command, ["process", "pause", "--json"])
     assert result.exit_code == 0, result.output
     assert spy.paths == ["/pause"]
@@ -4763,10 +4781,10 @@ def test_process_resume_pid_is_positional(monkeypatch: pytest.MonkeyPatch) -> No
         return {"ok": True, "paused": False, "changed": True}
 
     monkeypatch.setattr(
-        "inspect_ai._cli.ctl.list_discovered_servers",
+        "inspect_ai._cli.ctl._http.list_discovered_servers",
         lambda: [_DiscServer(7), _DiscServer(8)],
     )
-    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", record)
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", record)
     result = cli_runner().invoke(ctl_command, ["process", "resume", "8"])
     assert result.exit_code == 0, result.output
     assert posted == ["/tmp/8.sock"]
@@ -4776,11 +4794,11 @@ def test_process_pause_dry_run_rides_query_param(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        "inspect_ai._cli.ctl.list_discovered_servers", lambda: [_DiscServer(7)]
+        "inspect_ai._cli.ctl._http.list_discovered_servers", lambda: [_DiscServer(7)]
     )
     # `paused` is the actual latch state, still False under a dry-run pause
     spy = _RequestSpy({"ok": True, "paused": False, "changed": True, "dry_run": True})
-    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
     result = cli_runner().invoke(
         ctl_command, ["process", "pause", "--dry-run", "--json"]
     )
@@ -4792,10 +4810,10 @@ def test_process_pause_dry_run_rides_query_param(
 
 def test_process_pause_noop_human_output(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        "inspect_ai._cli.ctl.list_discovered_servers", lambda: [_DiscServer(7)]
+        "inspect_ai._cli.ctl._http.list_discovered_servers", lambda: [_DiscServer(7)]
     )
     monkeypatch.setattr(
-        "inspect_ai._cli.ctl._request_json",
+        "inspect_ai._cli.ctl._http._request_json",
         lambda *a, **k: {
             "ok": True,
             "paused": True,
@@ -4811,7 +4829,7 @@ def test_process_pause_noop_human_output(monkeypatch: pytest.MonkeyPatch) -> Non
 
 def test_model_pause_json_mutation_envelope(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        "inspect_ai._cli.ctl.list_discovered_servers", lambda: [_DiscServer(7)]
+        "inspect_ai._cli.ctl._http.list_discovered_servers", lambda: [_DiscServer(7)]
     )
     spy = _RequestSpy(
         {
@@ -4823,7 +4841,7 @@ def test_model_pause_json_mutation_envelope(monkeypatch: pytest.MonkeyPatch) -> 
             "dispatched": 2,
         }
     )
-    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
     result = cli_runner().invoke(
         ctl_command, ["model", "pause", "openai/gpt-5", "--json"]
     )
@@ -4846,10 +4864,10 @@ def test_model_resume_pid_is_positional(monkeypatch: pytest.MonkeyPatch) -> None
         return {"ok": True, "model": "m/x", "paused": False, "changed": True}
 
     monkeypatch.setattr(
-        "inspect_ai._cli.ctl.list_discovered_servers",
+        "inspect_ai._cli.ctl._http.list_discovered_servers",
         lambda: [_DiscServer(7), _DiscServer(8)],
     )
-    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", record)
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", record)
     result = cli_runner().invoke(ctl_command, ["model", "resume", "m/x", "8"])
     assert result.exit_code == 0, result.output
     assert posted == ["/tmp/8.sock"]
@@ -4859,7 +4877,7 @@ def test_model_pause_multiple_processes_requires_pid(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        "inspect_ai._cli.ctl.list_discovered_servers",
+        "inspect_ai._cli.ctl._http.list_discovered_servers",
         lambda: [_DiscServer(7), _DiscServer(8)],
     )
     result = cli_runner().invoke(ctl_command, ["model", "pause", "m/x"])
@@ -4871,7 +4889,7 @@ def test_model_pause_dry_run_rides_query_param(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        "inspect_ai._cli.ctl.list_discovered_servers", lambda: [_DiscServer(7)]
+        "inspect_ai._cli.ctl._http.list_discovered_servers", lambda: [_DiscServer(7)]
     )
     # `paused` is the actual latch state, still False under a dry-run pause
     spy = _RequestSpy(
@@ -4885,7 +4903,7 @@ def test_model_pause_dry_run_rides_query_param(
             "dispatched": 0,
         }
     )
-    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
     result = cli_runner().invoke(
         ctl_command, ["model", "pause", "m/x", "--dry-run", "--json"]
     )
@@ -4897,10 +4915,10 @@ def test_model_pause_dry_run_rides_query_param(
 
 def test_model_pause_noop_human_output(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        "inspect_ai._cli.ctl.list_discovered_servers", lambda: [_DiscServer(7)]
+        "inspect_ai._cli.ctl._http.list_discovered_servers", lambda: [_DiscServer(7)]
     )
     monkeypatch.setattr(
-        "inspect_ai._cli.ctl._request_json",
+        "inspect_ai._cli.ctl._http._request_json",
         lambda *a, **k: {
             "ok": True,
             "model": "m/x",
@@ -4925,7 +4943,7 @@ def test_task_resume_notes_model_latch(monkeypatch: pytest.MonkeyPatch) -> None:
             "changed": True,
         }
     )
-    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
     result = cli_runner().invoke(
         ctl_command, ["task", "resume", "aaa111", "--no-terse"]
     )
@@ -4941,7 +4959,7 @@ def test_sample_cancel_defaults_epoch_for_single_epoch_task(
     summary["epochs"] = 1
     _patch_surface(monkeypatch, [summary])
     spy = _RequestSpy({"ok": True, "sample_id": "s1", "epoch": 1, "changed": True})
-    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
     result = cli_runner().invoke(
         ctl_command, ["sample", "cancel", "aaa111", "s1", "--json"]
     )
@@ -4962,7 +4980,7 @@ def test_sample_cancel_requires_epoch_when_multi_epoch(
     summary["epochs"] = 3
     _patch_surface(monkeypatch, [summary])
     spy = _RequestSpy({"ok": True, "changed": True})
-    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
     result = cli_runner().invoke(ctl_command, ["sample", "cancel", "aaa111", "s1"])
     assert result.exit_code == 1
     assert "pass EPOCH explicitly" in result.stderr
@@ -4983,7 +5001,7 @@ def test_sample_cancel_error_flag_and_dry_run(
     spy = _RequestSpy(
         {"ok": True, "sample_id": "s1", "epoch": 1, "changed": True, "dry_run": True}
     )
-    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
     result = cli_runner().invoke(
         ctl_command,
         [
@@ -5012,7 +5030,7 @@ def test_sample_cancel_cancel_action_sent(
     summary["epochs"] = 1
     _patch_surface(monkeypatch, [summary])
     spy = _RequestSpy({"ok": True, "sample_id": "s1", "epoch": 1, "changed": True})
-    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
     result = cli_runner().invoke(
         ctl_command,
         ["sample", "cancel", "aaa111", "s1", "--action", "cancel", "--json"],
@@ -5037,7 +5055,7 @@ def test_sample_requeue_defaults_epoch_for_single_epoch_task(
     summary["epochs"] = 1
     _patch_surface(monkeypatch, [summary])
     spy = _RequestSpy({"ok": True, "sample_id": "s1", "epoch": 1, "changed": True})
-    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
     result = cli_runner().invoke(
         ctl_command, ["sample", "requeue", "aaa111", "s1", "--json"]
     )
@@ -5058,7 +5076,7 @@ def test_sample_requeue_requires_epoch_when_multi_epoch(
     summary["epochs"] = 3
     _patch_surface(monkeypatch, [summary])
     spy = _RequestSpy({"ok": True, "changed": True})
-    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
     result = cli_runner().invoke(ctl_command, ["sample", "requeue", "aaa111", "s1"])
     assert result.exit_code == 1
     assert "pass EPOCH explicitly" in result.stderr
@@ -5086,7 +5104,7 @@ def test_sample_requeue_dry_run_and_human_output(
             "resume_from_checkpoint": True,
         }
     )
-    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
     result = cli_runner().invoke(
         ctl_command, ["sample", "requeue", "aaa111", "s1", "--dry-run", "--no-terse"]
     )
@@ -5110,7 +5128,7 @@ def test_sample_requeue_noop_human_output(monkeypatch: pytest.MonkeyPatch) -> No
             "reason": "a re-run is already pending",
         }
     )
-    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
     result = cli_runner().invoke(
         ctl_command, ["sample", "requeue", "aaa111", "s1", "--no-terse"]
     )
@@ -5135,7 +5153,7 @@ def test_sample_requeue_multiple_pairs_bulk_envelope(
     summary["epochs"] = 3  # explicit epochs: the multi-epoch gate never fires
     _patch_surface(monkeypatch, [summary])
     spy = _RequestSpy({"ok": True, "changed": True})
-    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
     result = cli_runner().invoke(
         ctl_command,
         ["sample", "requeue", "aaa111", "s1", "2", "s2", "3", "--json"],
@@ -5204,7 +5222,7 @@ def test_sample_requeue_errored_sweeps_currently_errored_samples(
         },
     )
     spy = _RequestSpy({"ok": True, "changed": True})
-    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
     result = cli_runner().invoke(
         ctl_command, ["sample", "requeue", "aaa111", "--errored", "--json"]
     )
@@ -5233,7 +5251,7 @@ def test_sample_requeue_errored_dry_run_human_output(
         },
     )
     spy = _RequestSpy({"ok": True, "changed": True, "dry_run": True})
-    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
     result = cli_runner().invoke(
         ctl_command,
         ["sample", "requeue", "aaa111", "--errored", "--dry-run", "--no-terse"],
@@ -5261,7 +5279,7 @@ def test_sample_requeue_errored_sweep_terse_lines(
         },
     )
     spy = _RequestSpy({"ok": True, "changed": True})
-    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
     result = cli_runner().invoke(
         ctl_command, ["sample", "requeue", "aaa111", "--errored"]
     )
@@ -5283,7 +5301,7 @@ def test_sample_requeue_errored_sweep_empty(
         samples_by_eval={"eval_aaa111": [_sample_row("s1", status="completed")]},
     )
     spy = _RequestSpy({"ok": True, "changed": True})
-    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
     result = cli_runner().invoke(
         ctl_command, ["sample", "requeue", "aaa111", "--errored"]
     )
@@ -5321,7 +5339,7 @@ def test_sample_requeue_errored_aborts_on_row_without_epoch(
         },
     )
     spy = _RequestSpy({"ok": True, "changed": True})
-    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
     result = cli_runner().invoke(
         ctl_command, ["sample", "requeue", "aaa111", "--errored"]
     )
@@ -5364,7 +5382,7 @@ def test_sample_requeue_bulk_reports_mixed_results(
             }
         return {"ok": True, "sample_id": sample_id, "epoch": 1, "changed": True}
 
-    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", respond)
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", respond)
     result = cli_runner().invoke(
         ctl_command,
         ["sample", "requeue", "aaa111", "s1", "1", "s2", "1", "s3", "1", "--json"],
@@ -5421,7 +5439,7 @@ def test_sample_requeue_bulk_rejection_reported_once(
             request=httpx.Request("POST", f"http://localhost{path}"),
         )
 
-    monkeypatch.setattr("inspect_ai._cli.ctl._get_response_with_retry", respond)
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._get_response_with_retry", respond)
     result = cli_runner().invoke(
         ctl_command,
         ["sample", "requeue", "aaa111", "s1", "1", "s2", "2", "--no-terse"],
@@ -5454,7 +5472,7 @@ def test_sample_requeue_bulk_abort_still_reaches_stderr(
             request=httpx.Request("POST", f"http://localhost{path}"),
         )
 
-    monkeypatch.setattr("inspect_ai._cli.ctl._get_response_with_retry", respond)
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._get_response_with_retry", respond)
     result = cli_runner().invoke(
         ctl_command, ["sample", "requeue", "aaa111", "s1", "1", "s2", "1"]
     )
@@ -5479,7 +5497,7 @@ def test_sample_requeue_bulk_aborts_on_missing_route(
             "not_found", _REQUEUE_ROUTE_MISSING, status=404, missing_route=True
         )
 
-    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", respond)
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", respond)
     result = cli_runner().invoke(
         ctl_command, ["sample", "requeue", "aaa111", "s1", "1", "s2", "1"]
     )
@@ -5501,7 +5519,7 @@ def test_sample_cancel_noop_human_output(monkeypatch: pytest.MonkeyPatch) -> Non
             "reason": "sample already finished",
         }
     )
-    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
     result = cli_runner().invoke(
         ctl_command, ["sample", "cancel", "aaa111", "s1", "--no-terse"]
     )
@@ -5524,7 +5542,7 @@ def test_sample_mutation_terse_default_and_flags(
     summary["epochs"] = 1
     _patch_surface(monkeypatch, [summary])
     spy = _RequestSpy({"ok": True, "sample_id": "s1", "epoch": 1, "changed": True})
-    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
 
     requeue = cli_runner().invoke(ctl_command, ["sample", "requeue", "aaa111", "s1"])
     assert requeue.exit_code == 0, requeue.output
@@ -5550,7 +5568,7 @@ def test_sample_mutation_terse_default_and_flags(
 
 def test_use_terse_resolves_by_tty(monkeypatch: pytest.MonkeyPatch) -> None:
     """Neither --terse nor --no-terse given resolves by stdout TTY-ness."""
-    from inspect_ai._cli.ctl import _use_terse
+    from inspect_ai._cli.ctl._group import _use_terse
 
     class _Stream:
         def __init__(self, tty: bool) -> None:
@@ -5571,14 +5589,14 @@ def test_use_terse_resolves_by_tty(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_log_flush_terse_line(monkeypatch: pytest.MonkeyPatch) -> None:
     _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
     monkeypatch.setattr(
-        "inspect_ai._cli.ctl._post_flush", lambda *a, **k: {"flushed": 2}
+        "inspect_ai._cli.ctl._fetch._post_flush", lambda *a, **k: {"flushed": 2}
     )
     result = cli_runner().invoke(ctl_command, ["task", "log-flush"])
     assert result.exit_code == 0, result.output
     assert result.stdout == "log-flush t1: applied — flushed 2 samples\n"
 
     monkeypatch.setattr(
-        "inspect_ai._cli.ctl._post_flush", lambda *a, **k: {"flushed": 0}
+        "inspect_ai._cli.ctl._fetch._post_flush", lambda *a, **k: {"flushed": 0}
     )
     noop = cli_runner().invoke(ctl_command, ["task", "log-flush"])
     assert noop.exit_code == 0, noop.output
@@ -5651,7 +5669,7 @@ def test_print_config_process_scope_shows_buffer_placeholder(
     Mirrors the max_samples placeholder, so `ctl config` in a multi-task
     process never silently omits them.
     """
-    from inspect_ai._cli.ctl import _print_config
+    from inspect_ai._cli.ctl._render import _print_config
 
     _print_config(
         {
@@ -5674,7 +5692,7 @@ def test_print_config_process_scope_shows_buffer_placeholder(
 
 def test_resolve_scope_siblings_counts_active_only() -> None:
     """Completed eval-set siblings don't inflate the blast-radius count."""
-    from inspect_ai._cli.ctl import _resolve_scope
+    from inspect_ai._cli.ctl._mutate import _resolve_scope
 
     summaries = [
         _full_summary("aaa111", "t1", status="running"),
@@ -5694,7 +5712,7 @@ def test_sample_list_unscoped_skips_busy_eval(
     Mirrors the unreachable-skip: the fan-out opts into _ServerBusy so one
     busy sibling can't kill the whole listing and discard other evals' rows.
     """
-    from inspect_ai._cli.ctl import _ServerBusy
+    from inspect_ai._cli.ctl._http import _ServerBusy
 
     _patch_surface(
         monkeypatch,
@@ -5742,7 +5760,7 @@ def test_sample_list_reads_evals_concurrently(
         state["done"][index].set()
         return _SamplesPage(as_of=200.0 - index, samples=[_sample_row(f"s{index}")])
 
-    monkeypatch.setattr("inspect_ai._cli.ctl._fetch_samples_async", fake_samples)
+    monkeypatch.setattr("inspect_ai._cli.ctl._fetch._fetch_samples_async", fake_samples)
     result = cli_runner().invoke(ctl_command, ["sample", "list", "--json"])
     assert result.exit_code == 0, result.output
     payload = json.loads(result.stdout)
@@ -5763,7 +5781,7 @@ def test_sample_list_caps_reads_in_flight(monkeypatch: pytest.MonkeyPatch) -> No
     the test fails distinguishably if the cap is never reached (too serial)
     or exceeded (uncapped).
     """
-    from inspect_ai._cli.ctl import _MAX_CONCURRENT_READS
+    from inspect_ai._cli.ctl._http import _MAX_CONCURRENT_READS
 
     tasks = [
         _full_summary(f"aaa{i}", f"t{i}") for i in range(_MAX_CONCURRENT_READS + 2)
@@ -5797,7 +5815,7 @@ def test_sample_list_caps_reads_in_flight(monkeypatch: pytest.MonkeyPatch) -> No
             samples=[_sample_row(eval_id.removeprefix("eval_"))],
         )
 
-    monkeypatch.setattr("inspect_ai._cli.ctl._fetch_samples_async", fake_samples)
+    monkeypatch.setattr("inspect_ai._cli.ctl._fetch._fetch_samples_async", fake_samples)
     result = cli_runner().invoke(ctl_command, ["sample", "list", "--all", "--json"])
     assert result.exit_code == 0, result.output
     payload = json.loads(result.stdout)
@@ -5922,7 +5940,7 @@ def test_keep_alive_retries_busy_timeout(
     """keep/release ride the narrated retrying policy (idempotent latches)."""
     import httpx
 
-    from inspect_ai._cli.ctl import _request_json
+    from inspect_ai._cli.ctl._http import _request_json
 
     counter = _stub_httpx(
         monkeypatch,
@@ -5964,10 +5982,10 @@ def test_json_busy_failure_emits_error_envelope(
     """
     import httpx
 
-    from inspect_ai._cli.ctl import _REQUEST_ATTEMPTS
+    from inspect_ai._cli.ctl._http import _REQUEST_ATTEMPTS
 
     monkeypatch.setattr(
-        "inspect_ai._cli.ctl.list_discovered_servers", lambda: [_DiscServer(7)]
+        "inspect_ai._cli.ctl._http.list_discovered_servers", lambda: [_DiscServer(7)]
     )
     _stub_httpx(monkeypatch, [httpx.ReadTimeout("slow")] * _REQUEST_ATTEMPTS)
     result = cli_runner().invoke(ctl_command, ["task", "list", "--json"])
@@ -6068,7 +6086,7 @@ def test_json_mutation_failure_emits_error_envelope(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Mutations get the same envelope shape as reads."""
-    monkeypatch.setattr("inspect_ai._cli.ctl.list_discovered_servers", lambda: [])
+    monkeypatch.setattr("inspect_ai._cli.ctl._http.list_discovered_servers", lambda: [])
     result = cli_runner().invoke(ctl_command, ["process", "keep", "--json"])
     assert result.exit_code == 1
     error = _error_envelope(result)
@@ -6142,7 +6160,7 @@ def test_json_unexpected_exception_envelope_with_traceback_on_stderr(
     def boom() -> list[Any]:
         raise RuntimeError("boom")
 
-    monkeypatch.setattr("inspect_ai._cli.ctl.list_discovered_servers", boom)
+    monkeypatch.setattr("inspect_ai._cli.ctl._http.list_discovered_servers", boom)
     result = cli_runner().invoke(ctl_command, ["task", "list", "--json"])
     assert result.exit_code == 1
     error = _error_envelope(result)
@@ -6171,7 +6189,7 @@ def test_human_unexpected_exception_not_swallowed(
     def boom() -> list[Any]:
         raise RuntimeError("boom")
 
-    monkeypatch.setattr("inspect_ai._cli.ctl.list_discovered_servers", boom)
+    monkeypatch.setattr("inspect_ai._cli.ctl._http.list_discovered_servers", boom)
     result = cli_runner().invoke(ctl_command, ["task", "list"])
     assert result.exit_code != 0
     assert isinstance(result.exception, RuntimeError)
@@ -6183,7 +6201,7 @@ def test_envelope_failures_rejects_runner_without_as_json() -> None:
     Without the guard, such a runner would bind `as_json=False` for every
     call and quietly revert its command to unstructured failures.
     """
-    from inspect_ai._cli.ctl import _envelope_failures
+    from inspect_ai._cli.ctl._failure import _envelope_failures
 
     with pytest.raises(TypeError, match="as_json"):
 
@@ -6198,7 +6216,7 @@ def test_resolve_scope_completed_target_counts_toward_siblings() -> None:
     The named target counts even when completed — the retune reaches a
     *different* (active) task, which is exactly what the note exists to say.
     """
-    from inspect_ai._cli.ctl import _resolve_scope
+    from inspect_ai._cli.ctl._mutate import _resolve_scope
 
     summaries = [
         _full_summary("aaa111", "t1", status="completed"),
@@ -6227,7 +6245,9 @@ def _anomalous_records() -> list[dict[str, Any]]:
 @pytest.fixture
 def trace_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """Point the ctl trace-file resolution at a per-test directory."""
-    monkeypatch.setattr("inspect_ai._cli.ctl.inspect_trace_dir", lambda: tmp_path)
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl._process.inspect_trace_dir", lambda: tmp_path
+    )
     return tmp_path
 
 
@@ -6261,7 +6281,7 @@ def test_process_anomalies_dead_pid_reads_gz(
     """A pid with no live process still resolves via the gzipped post-mortem file."""
     import gzip
 
-    monkeypatch.setattr("inspect_ai._cli.ctl.pid_alive", lambda _pid: False)
+    monkeypatch.setattr("inspect_ai._cli.ctl._process.pid_alive", lambda _pid: False)
     with gzip.open(trace_dir / "trace-124.log.gz", "wt") as f:
         for record in _anomalous_records():
             f.write(json.dumps(record) + "\n")
@@ -6281,7 +6301,7 @@ def test_process_anomalies_dead_pid_durations_date_to_last_write(
     time since (an overnight death would otherwise show it "running" for
     hours); the file's mtime approximates the time of death.
     """
-    monkeypatch.setattr("inspect_ai._cli.ctl.pid_alive", lambda _pid: False)
+    monkeypatch.setattr("inspect_ai._cli.ctl._process.pid_alive", lambda _pid: False)
     trace_file = trace_dir / "trace-125.log"
     write_trace_log(trace_file, _anomalous_records())  # running since t=1000.0
     os.utime(trace_file, (1180.0, 1180.0))
@@ -6308,7 +6328,7 @@ def test_process_anomalies_live_pid_durations_date_to_read(
     lands mid-read can't yield a negative duration); the envelope as_of is
     stamped before the reads (cursor semantics), so section >= envelope.
     """
-    monkeypatch.setattr("inspect_ai._cli.ctl.pid_alive", lambda _pid: True)
+    monkeypatch.setattr("inspect_ai._cli.ctl._process.pid_alive", lambda _pid: True)
     write_trace_log(trace_dir / "trace-126.log", _anomalous_records())
     result = cli_runner().invoke(ctl_command, ["process", "anomalies", "126", "--json"])
     assert result.exit_code == 0
@@ -6336,7 +6356,7 @@ def test_process_anomalies_widens_over_running_processes(
     write_trace_log(trace_dir / "trace-7.log", _anomalous_records())
     write_trace_log(trace_dir / "trace-8.log", _anomalous_records())
     monkeypatch.setattr(
-        "inspect_ai._cli.ctl.list_discovered_servers",
+        "inspect_ai._cli.ctl._http.list_discovered_servers",
         lambda: [_FakeServer(7), _FakeServer(8)],
     )
     result = cli_runner().invoke(ctl_command, ["process", "anomalies", "--json"])
@@ -6355,7 +6375,7 @@ def test_process_anomalies_widen_skips_missing_trace_file(
 ) -> None:
     write_trace_log(trace_dir / "trace-8.log", _anomalous_records())
     monkeypatch.setattr(
-        "inspect_ai._cli.ctl.list_discovered_servers",
+        "inspect_ai._cli.ctl._http.list_discovered_servers",
         lambda: [_FakeServer(7), _FakeServer(8)],
     )
     result = cli_runner().invoke(ctl_command, ["process", "anomalies", "--json"])
@@ -6387,7 +6407,7 @@ def test_process_anomalies_widen_skips_unreadable_trace_file(
     (trace_dir / "trace-7.log.gz").write_bytes(b"not gzip")
     write_trace_log(trace_dir / "trace-8.log", _anomalous_records())
     monkeypatch.setattr(
-        "inspect_ai._cli.ctl.list_discovered_servers",
+        "inspect_ai._cli.ctl._http.list_discovered_servers",
         lambda: [_FakeServer(7), _FakeServer(8)],
     )
     result = cli_runner().invoke(ctl_command, ["process", "anomalies", "--json"])
@@ -6405,7 +6425,7 @@ def test_process_anomalies_explicit_pid_read_failure_errors(
     the ``internal`` envelope; human mode echoes self-contained stderr prose
     and exits 1 rather than surfacing a raw traceback.
     """
-    monkeypatch.setattr("inspect_ai._cli.ctl.pid_alive", lambda _pid: False)
+    monkeypatch.setattr("inspect_ai._cli.ctl._process.pid_alive", lambda _pid: False)
     (trace_dir / "trace-124.log.gz").write_bytes(b"not gzip")
 
     result = cli_runner().invoke(ctl_command, ["process", "anomalies", "124", "--json"])
@@ -6447,7 +6467,7 @@ def test_process_anomalies_widen_skips_corrupt_gz_stream(
 
     write_trace_log(trace_dir / "trace-8.log", _anomalous_records())
     monkeypatch.setattr(
-        "inspect_ai._cli.ctl.list_discovered_servers",
+        "inspect_ai._cli.ctl._http.list_discovered_servers",
         lambda: [_FakeServer(7), _FakeServer(8)],
     )
     result = cli_runner().invoke(ctl_command, ["process", "anomalies", "--json"])
@@ -6472,7 +6492,7 @@ def test_process_anomalies_human_gates_errors_behind_all(trace_dir: Path) -> Non
 def test_process_anomalies_no_running_processes(
     trace_dir: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr("inspect_ai._cli.ctl.list_discovered_servers", lambda: [])
+    monkeypatch.setattr("inspect_ai._cli.ctl._http.list_discovered_servers", lambda: [])
     result = cli_runner().invoke(ctl_command, ["process", "anomalies"])
     assert result.exit_code == 0
     assert "No running inspect processes found" in result.stdout
@@ -6629,7 +6649,7 @@ def test_echo_error_keeps_traceback_ansi_sgr_styling(
     # stream, which would mask whether _echo_error sanitized the traceback
     lines: list[str] = []
     monkeypatch.setattr(
-        "inspect_ai._cli.ctl.click.echo",
+        "inspect_ai._cli.ctl._render.click.echo",
         lambda message=None, **kwargs: lines.append(str(message)),
     )
     _echo_error(
@@ -6650,7 +6670,7 @@ def test_echo_error_neutralizes_raw_traceback_ansi(
     """
     lines: list[str] = []
     monkeypatch.setattr(
-        "inspect_ai._cli.ctl.click.echo",
+        "inspect_ai._cli.ctl._render.click.echo",
         lambda message=None, **kwargs: lines.append(str(message)),
     )
     _echo_error(
@@ -6785,7 +6805,7 @@ def test_event_summary_unterminated_osc_cannot_swallow_error_tag() -> None:
     behavior stops at the field boundary instead of consuming the error
     tag appended after the completion within the same summary cell.
     """
-    from inspect_ai._cli.ctl import _event_summary
+    from inspect_ai._cli.ctl._render import _event_summary
 
     summary = _event_summary(
         {
@@ -6820,7 +6840,7 @@ def test_event_summary_unterminated_osc_cannot_swallow_error_tag() -> None:
 
 def test_message_summary_unterminated_osc_cannot_swallow_tool_calls() -> None:
     """A swallow in message content can't hide the tool calls/error after it."""
-    from inspect_ai._cli.ctl import _message_summary
+    from inspect_ai._cli.ctl._render import _message_summary
 
     summary = _message_summary(
         {
@@ -6919,7 +6939,7 @@ def test_process_anomalies_rendering_escapes_rich_markup(trace_dir: Path) -> Non
 
 def test_sanitized_anomalies_neutralizes_rendered_fields() -> None:
     """Field-level pin, unmasked by click's own CSI stripping on a non-tty."""
-    from inspect_ai._cli.ctl import _sanitized_anomalies
+    from inspect_ai._cli.ctl._process import _sanitized_anomalies
     from inspect_ai._cli.trace import TraceAnomalies
     from inspect_ai._util.trace import ActionTraceRecord
 
@@ -6948,7 +6968,7 @@ def test_event_summary_sanitizes_every_wire_field() -> None:
 
     Sanitization is provenance-blind — every wire field is covered.
     """
-    from inspect_ai._cli.ctl import _event_summary
+    from inspect_ai._cli.ctl._render import _event_summary
 
     summary = _event_summary(
         {
@@ -6966,7 +6986,7 @@ def test_event_summary_sanitizes_every_wire_field() -> None:
 
 
 def test_task_header_sanitizes_and_flattens_all_parts() -> None:
-    from inspect_ai._cli.ctl import _task_header
+    from inspect_ai._cli.ctl._render import _task_header
 
     header = _task_header(
         {
@@ -6989,7 +7009,7 @@ def test_task_header_sanitizes_and_flattens_all_parts() -> None:
 
 def test_task_header_drops_separator_for_all_control_part() -> None:
     """A task name that sanitizes to empty must not leave a leading separator."""
-    from inspect_ai._cli.ctl import _task_header
+    from inspect_ai._cli.ctl._render import _task_header
 
     header = _task_header(
         {"task": "\x1b[2K", "task_id": "", "status": "running", "samples": {}}
@@ -7049,7 +7069,7 @@ def test_sample_mutation_messages_sanitize_wire_fields(
             "status": "comp\nleted\x1b]0;evil",
         }
     )
-    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
     result = cli_runner().invoke(
         ctl_command, ["sample", "cancel", "aaa111", "s1", "--no-terse"]
     )
@@ -7061,7 +7081,7 @@ def test_sample_mutation_messages_sanitize_wire_fields(
     spy = _RequestSpy(
         {"ok": True, "changed": False, "reason": "held\x1b]0;evil\x07\nelsewhere"}
     )
-    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
     result = cli_runner().invoke(
         ctl_command, ["sample", "requeue", "aaa111", "s1", "--no-terse"]
     )
@@ -7071,7 +7091,7 @@ def test_sample_mutation_messages_sanitize_wire_fields(
 
 
 def test_no_direct_click_echo_outside_the_wrappers() -> None:
-    """Every echo in ctl.py routes through `_echo` / `_echo_raw`.
+    """Every echo in the ctl package routes through `_echo` / `_echo_raw`.
 
     The sanitizing default is a structural guarantee only while direct
     output calls stay out of rendering code — a bare `click.echo`,
@@ -7079,16 +7099,15 @@ def test_no_direct_click_echo_outside_the_wrappers() -> None:
     bypass `_sanitize_control`.
     """
     import ast
-    import inspect as inspect_module
+    from pathlib import Path
 
-    import inspect_ai._cli.ctl as ctl_module
+    import inspect_ai._cli.ctl as ctl_package
 
-    source = inspect_module.getsource(ctl_module)
-    tree = ast.parse(source)
     offenders: list[str] = []
 
     class Visitor(ast.NodeVisitor):
-        def __init__(self) -> None:
+        def __init__(self, module: str) -> None:
+            self.module = module
             self.stack: list[str] = []
 
         def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
@@ -7100,7 +7119,13 @@ def test_no_direct_click_echo_outside_the_wrappers() -> None:
 
         def visit_Call(self, node: ast.Call) -> None:
             func = node.func
-            in_wrapper = self.stack[-1:] in (["_echo"], ["_echo_raw"])
+            # the sanitizing wrappers live in _render.py alone; a same-named
+            # function in any other module would be an unsanitized shadow, so
+            # the exemption is module-scoped, not name-scoped
+            in_wrapper = self.module == "_render.py" and self.stack[-1:] in (
+                ["_echo"],
+                ["_echo_raw"],
+            )
             direct_output = (
                 isinstance(func, ast.Attribute)
                 and func.attr in ("echo", "secho", "echo_via_pager")
@@ -7109,9 +7134,17 @@ def test_no_direct_click_echo_outside_the_wrappers() -> None:
             ) or (isinstance(func, ast.Name) and func.id == "print")
             if direct_output and not in_wrapper:
                 offenders.append(
-                    f"line {node.lineno} in {'.'.join(self.stack) or '<module>'}"
+                    f"{self.module} line {node.lineno} "
+                    f"in {'.'.join(self.stack) or '<module>'}"
                 )
             self.generic_visit(node)
 
-    Visitor().visit(tree)
+    package_dir = Path(ctl_package.__file__).parent
+    module_files = sorted(package_dir.rglob("*.py"))
+    assert len(module_files) > 1, "expected the ctl package's split modules"
+    for module_file in module_files:
+        tree = ast.parse(
+            module_file.read_text(encoding="utf-8"), filename=str(module_file)
+        )
+        Visitor(module_file.name).visit(tree)
     assert not offenders, f"direct output calls outside _echo/_echo_raw: {offenders}"
