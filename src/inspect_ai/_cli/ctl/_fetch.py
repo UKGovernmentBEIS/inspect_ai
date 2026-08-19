@@ -257,12 +257,17 @@ def _resolve_target_eval(
     query: str,
     *,
     busy_pids: list[int] | None = None,
+    model: str | None = None,
 ) -> dict[str, Any]:
     """Pick the task a per-eval command targets, or exit with an error.
 
     ``query`` matches a task id first (full, then unique prefix — ``task
     list`` shows truncated ids; ids are stable across retries), then falls
-    back to the task name (see :func:`_match_by_task_name`). ``busy_pids``
+    back to the task name (see :func:`_match_by_task_name`). ``model``
+    narrows the candidate rows to tasks running a matching model before
+    ``query`` resolution (see :func:`_narrow_by_model`) — the disambiguator
+    for one task run against several models, where the name alone matches
+    every row. ``busy_pids``
     (from the summaries fetch) qualifies the resolution against partial
     discovery: a not-found error and the ambiguity table note that the busy
     process may hold further candidates, and a successful match carries a
@@ -273,6 +278,9 @@ def _resolve_target_eval(
     norm (one task, several models), and a shorter hand-typed id prefix
     could collide with a task on the busy process.
     """
+    if model is not None:
+        summaries = _narrow_by_model(summaries, model, busy_pids=busy_pids)
+    qualifier = _model_qualifier(model)
     exact = [s for s in summaries if s.get("task_id") == query]
     id_matches = exact or [
         s for s in summaries if str(s.get("task_id", "")).startswith(query)
@@ -282,7 +290,7 @@ def _resolve_target_eval(
         busy = (
             f" among responsive processes; {_busy_note(busy_pids)}" if busy_pids else ""
         )
-        _fail("not_found", f"No running task matching '{query}'{busy}.")
+        _fail("not_found", f"No running task matching '{query}'{qualifier}{busy}.")
     if len(matches) > 1:
         if busy_pids:
             _echo(
@@ -290,7 +298,7 @@ def _resolve_target_eval(
                 "drawn from responsive processes only.",
                 err=True,
             )
-        _exit_ambiguous(matches, f"'{query}' matches multiple tasks")
+        _exit_ambiguous(matches, f"'{query}' matches multiple tasks{qualifier}")
     match = matches[0]
     # exact ids are unique; a >= _SHORT_ID_LEN prefix is the truncated
     # task-list paste (see the docstring for the caveat rationale)
@@ -316,6 +324,45 @@ def _match_by_task_name(
     resolves model names in ``ctl config --model`` — see `match_name_prefix`.)
     """
     return match_name_prefix(summaries, query, lambda s: str(s.get("task", "")))
+
+
+def _match_by_model(
+    summaries: list[dict[str, Any]], query: str
+) -> list[dict[str, Any]]:
+    """Match summaries by model name — the ``--model`` disambiguator's rule.
+
+    The same anchored-prefix, exact-wins rule as task names and ``ctl config
+    --model`` (see `match_name_prefix`): ``gpt-5`` matches ``openai/gpt-5``,
+    and resolves cleanly even when ``openai/gpt-5-mini`` is also running.
+    """
+    return match_name_prefix(summaries, query, lambda s: str(s.get("model", "")))
+
+
+def _narrow_by_model(
+    summaries: list[dict[str, Any]],
+    model: str,
+    *,
+    busy_pids: list[int] | None = None,
+) -> list[dict[str, Any]]:
+    """Narrow summaries to tasks running a matching model, or exit not-found.
+
+    The shared front half of the ``--model`` disambiguator on task-selecting
+    commands: the narrowed rows feed the ordinary selector resolution, so a
+    selector plus ``--model`` composes with the existing ambiguity and
+    not-found errors (qualified via :func:`_model_qualifier`).
+    """
+    matches = _match_by_model(summaries, model)
+    if not matches:
+        busy = (
+            f" among responsive processes; {_busy_note(busy_pids)}" if busy_pids else ""
+        )
+        _fail("not_found", f"No running task with a model matching '{model}'{busy}.")
+    return matches
+
+
+def _model_qualifier(model: str | None) -> str:
+    """The `` with model matching '...'`` clause the ``--model`` errors carry."""
+    return f" with model matching '{model}'" if model is not None else ""
 
 
 def _exit_ambiguous(matches: list[dict[str, Any]], prefix: str) -> NoReturn:

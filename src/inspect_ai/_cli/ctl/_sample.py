@@ -27,6 +27,7 @@ from ._group import (
     _forward_group_options,
     _json_option,
     _mirror_list_options,
+    _model_option,
     _NounGroup,
     _terse_line,
     _terse_option,
@@ -82,6 +83,7 @@ sample_group.hint = lambda token: (
 
 @sample_group.command("list")
 @click.argument("task", required=False)
+@_model_option()
 @click.option(
     "--active-since",
     type=float,
@@ -134,6 +136,7 @@ sample_group.hint = lambda token: (
 @_json_option("an `{as_of, counts, samples, truncated}` envelope")
 def sample_list_command(
     task: str | None,
+    model: str | None,
     active_since: float | None,
     limit: int | None,
     all_samples: bool,
@@ -144,8 +147,10 @@ def sample_list_command(
     """List the samples (running and completed) of running evals.
 
     TASK is a task id (or unique prefix) or task name, matched at the start
-    or after a `/`; omitted, the listing spans all running tasks. To poll
-    for what changed, pass `--active-since` the `as_of` from the prior
+    or after a `/`; omitted, the listing spans all running tasks. `--model`
+    narrows to tasks running a matching model — disambiguating a TASK name
+    that runs against several models, or scoping a TASK-less listing. To
+    poll for what changed, pass `--active-since` the `as_of` from the prior
     response's envelope.
 
     The listing is capped (running samples first); `counts` in the envelope
@@ -163,6 +168,7 @@ def sample_list_command(
         limit=limit,
         all_samples=all_samples,
         content=content,
+        model=model,
     )
 
 
@@ -171,6 +177,7 @@ _mirror_list_options(sample_group, sample_list_command)
 
 @sample_group.command("errors")
 @click.argument("task", required=False)
+@_model_option()
 @click.option(
     "--content",
     is_flag=True,
@@ -181,20 +188,23 @@ _mirror_list_options(sample_group, sample_list_command)
     ),
 )
 @_json_option("an `{as_of, counts, samples, truncated}` envelope")
-def sample_errors_command(task: str | None, content: bool, as_json: bool) -> None:
+def sample_errors_command(
+    task: str | None, model: str | None, content: bool, as_json: bool
+) -> None:
     """List the samples of running evals that errored or were retried.
 
     One row per sample; pass `--content` for the latest error message. An
-    omitted TASK spans all running tasks. Drill into one sample with
-    `inspect ctl sample show`.
+    omitted TASK spans all running tasks; `--model` narrows to tasks running
+    a matching model. Drill into one sample with `inspect ctl sample show`.
     """
-    _run_sample_errors(task, as_json, content=content)
+    _run_sample_errors(task, as_json, content=content, model=model)
 
 
 @sample_group.command("show")
 @click.argument("task")
 @click.argument("sample_id")
 @click.argument("epoch", required=False, type=int, default=1)
+@_model_option()
 @click.option(
     "--content",
     is_flag=True,
@@ -220,6 +230,7 @@ def sample_show_command(
     task: str,
     sample_id: str,
     epoch: int,
+    model: str | None,
     content: bool,
     show_traceback: bool,
     as_json: bool,
@@ -233,7 +244,13 @@ def sample_show_command(
     the resolved epoch).
     """
     _run_sample_show(
-        task, sample_id, epoch, content or show_traceback, show_traceback, as_json
+        task,
+        sample_id,
+        epoch,
+        content or show_traceback,
+        show_traceback,
+        as_json,
+        model=model,
     )
 
 
@@ -241,6 +258,7 @@ def sample_show_command(
 @click.argument("task")
 @click.argument("sample_id")
 @click.argument("epoch", required=False, type=int, default=1)
+@_model_option()
 @click.option(
     "--cursor",
     default=None,
@@ -329,6 +347,7 @@ def sample_events_command(
     task: str,
     sample_id: str,
     epoch: int,
+    model: str | None,
     cursor: str | None,
     legacy_since: str | None,
     tail: int | None,
@@ -359,6 +378,7 @@ def sample_events_command(
         task,
         sample_id,
         epoch,
+        model=model,
         cursor=cursor,
         tail=tail,
         from_start=from_start,
@@ -376,6 +396,7 @@ def sample_events_command(
 @click.argument("task")
 @click.argument("sample_id")
 @click.argument("epoch", required=False, type=int, default=1)
+@_model_option()
 @click.option(
     "--tail",
     type=click.IntRange(min=1),
@@ -415,6 +436,7 @@ def sample_messages_command(
     task: str,
     sample_id: str,
     epoch: int,
+    model: str | None,
     tail: int | None,
     show_all: bool,
     content: bool,
@@ -437,6 +459,7 @@ def sample_messages_command(
         task,
         sample_id,
         epoch,
+        model=model,
         tail=tail,
         show_all=show_all,
         content=content,
@@ -449,6 +472,7 @@ def sample_messages_command(
 @click.argument("task")
 @click.argument("sample_id")
 @click.argument("epoch", required=False, type=int, default=None)
+@_model_option()
 @click.option(
     "--action",
     type=click.Choice(["score", "error", "cancel"]),
@@ -472,6 +496,7 @@ def sample_cancel_command(
     task: str,
     sample_id: str,
     epoch: int | None,
+    model: str | None,
     action: str,
     dry_run: bool,
     as_json: bool,
@@ -493,6 +518,7 @@ def sample_cancel_command(
         dry_run=dry_run,
         as_json=as_json,
         terse=terse,
+        model=model,
     )
 
 
@@ -501,6 +527,7 @@ def sample_cancel_command(
 @click.argument(
     "targets", nargs=-1, metavar="[SAMPLE_ID [EPOCH] | SAMPLE_ID EPOCH ...]"
 )
+@_model_option()
 @click.option(
     "--errored",
     is_flag=True,
@@ -522,6 +549,7 @@ def sample_cancel_command(
 def sample_requeue_command(
     task: str,
     targets: tuple[str, ...],
+    model: str | None,
     errored: bool,
     dry_run: bool,
     as_json: bool,
@@ -555,7 +583,9 @@ def sample_requeue_command(
             "--errored and SAMPLE_ID arguments are mutually exclusive."
         )
     if errored:
-        _run_sample_requeue_errored(task, dry_run=dry_run, as_json=as_json, terse=terse)
+        _run_sample_requeue_errored(
+            task, dry_run=dry_run, as_json=as_json, terse=terse, model=model
+        )
         return
     if not targets:
         raise click.UsageError(
@@ -564,7 +594,13 @@ def sample_requeue_command(
         )
     if len(targets) == 1:
         _run_sample_requeue(
-            task, targets[0], None, dry_run=dry_run, as_json=as_json, terse=terse
+            task,
+            targets[0],
+            None,
+            dry_run=dry_run,
+            as_json=as_json,
+            terse=terse,
+            model=model,
         )
         return
     pairs = _parse_requeue_pairs(targets)
@@ -576,10 +612,11 @@ def sample_requeue_command(
             dry_run=dry_run,
             as_json=as_json,
             terse=terse,
+            model=model,
         )
     else:
         _run_sample_requeue_bulk(
-            task, pairs, dry_run=dry_run, as_json=as_json, terse=terse
+            task, pairs, dry_run=dry_run, as_json=as_json, terse=terse, model=model
         )
 
 
@@ -626,6 +663,7 @@ def _run_sample_mutation(
     noop_message: Callable[[str, dict[str, Any]], str],
     terse_changed: Callable[[dict[str, Any]], str],
     terse_noop: Callable[[dict[str, Any]], str],
+    model: str | None = None,
 ) -> None:
     """Shared scaffold for the per-sample mutation verbs (cancel, requeue).
 
@@ -649,7 +687,9 @@ def _run_sample_mutation(
         _echo_no_running_evals()
         return
 
-    target = _resolve_target_eval(summaries, task, busy_pids=fetched.busy_pids)
+    target = _resolve_target_eval(
+        summaries, task, busy_pids=fetched.busy_pids, model=model
+    )
 
     # Mutation selector rule: a defaulted epoch doesn't error — it resolves
     # to a *different sample* — so EPOCH is required whenever the task runs
@@ -738,6 +778,7 @@ def _run_sample_cancel(
     dry_run: bool,
     as_json: bool,
     terse: bool | None = None,
+    model: str | None = None,
 ) -> None:
     outcome = {
         "score": "scored on the work done so far",
@@ -779,6 +820,7 @@ def _run_sample_cancel(
         noop_message=noop_message,
         terse_changed=terse_changed,
         terse_noop=terse_noop,
+        model=model,
     )
 
 
@@ -816,6 +858,7 @@ def _run_sample_requeue(
     dry_run: bool,
     as_json: bool,
     terse: bool | None = None,
+    model: str | None = None,
 ) -> None:
     def changed_message(label: str, result: dict[str, Any]) -> str:
         return _requeue_changed_message(label, result, dry_run=dry_run)
@@ -846,6 +889,7 @@ def _run_sample_requeue(
         noop_message=noop_message,
         terse_changed=terse_changed,
         terse_noop=terse_noop,
+        model=model,
     )
 
 
@@ -857,6 +901,7 @@ def _run_sample_requeue_bulk(
     dry_run: bool,
     as_json: bool,
     terse: bool | None = None,
+    model: str | None = None,
 ) -> None:
     """Requeue several explicitly-listed ``(sample_id, epoch)`` pairs."""
     fetched = _fetch_sample_summaries(task)
@@ -867,7 +912,9 @@ def _run_sample_requeue_bulk(
             return
         _echo_no_running_evals()
         return
-    target = _resolve_target_eval(summaries, task, busy_pids=fetched.busy_pids)
+    target = _resolve_target_eval(
+        summaries, task, busy_pids=fetched.busy_pids, model=model
+    )
     _requeue_pairs(target, pairs, dry_run=dry_run, as_json=as_json, terse=terse)
 
 
@@ -878,6 +925,7 @@ def _run_sample_requeue_errored(
     dry_run: bool,
     as_json: bool,
     terse: bool | None = None,
+    model: str | None = None,
 ) -> None:
     """Requeue every sample of the task whose *current* status is ``error``.
 
@@ -889,7 +937,7 @@ def _run_sample_requeue_errored(
     post into a per-sample no-op.
     """
     listing = _list_sample_rows(
-        task, None, statuses=frozenset({"error"}), all_samples=True
+        task, None, statuses=frozenset({"error"}), all_samples=True, model=model
     )
     if not listing.targets:
         if as_json:
