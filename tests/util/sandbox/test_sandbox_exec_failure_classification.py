@@ -435,14 +435,36 @@ def _sandbox() -> DockerSandboxEnvironment:
     )
 
 
+FAKE_DIAGNOSTICS = 'Diagnostics for service "default":\n(fake diagnostics)'
+
+
 async def _exec_returning(
-    monkeypatch: pytest.MonkeyPatch, result: ExecResult[str], timeout: int | None = 30
+    monkeypatch: pytest.MonkeyPatch,
+    result: ExecResult[str],
+    timeout: int | None = 30,
+    service_running: bool = True,
 ) -> ExecResult[str]:
     async def fake_compose_exec(*args: object, **kwargs: object) -> ExecResult[str]:
         return result
 
+    async def fake_service_running(*args: object, **kwargs: object) -> bool:
+        return service_running
+
+    async def fake_diagnostics(*args: object, **kwargs: object) -> str:
+        return FAKE_DIAGNOSTICS
+
     monkeypatch.setattr(
         "inspect_ai.util._sandbox.docker.docker.compose_exec", fake_compose_exec
+    )
+    # stub the docker probes the dead-container paths run, so these tests
+    # never touch a real docker daemon
+    monkeypatch.setattr(
+        "inspect_ai.util._sandbox.docker.docker.service_running",
+        fake_service_running,
+    )
+    monkeypatch.setattr(
+        "inspect_ai.util._sandbox.docker.docker.sandbox_unavailable_diagnostics",
+        fake_diagnostics,
     )
     # timeout=None is `bash()`'s default, and is what decides whether a
     # wrapper is injected ahead of the command
@@ -459,8 +481,11 @@ async def _exec_returning(
 async def test_exec_raises_when_docker_could_not_run_the_command(
     monkeypatch: pytest.MonkeyPatch, result: ExecResult[str]
 ) -> None:
-    with pytest.raises(SandboxUnavailableError):
+    with pytest.raises(SandboxUnavailableError) as excinfo:
         await _exec_returning(monkeypatch, result)
+    # the raised error carries container diagnostics alongside docker's
+    # message, so a dead container leaves evidence of why it died (#264)
+    assert FAKE_DIAGNOSTICS in str(excinfo.value)
 
 
 async def test_exec_raises_permission_error_for_unlaunchable_shell(
@@ -481,6 +506,56 @@ async def test_exec_returns_ordinary_failures(
 ) -> None:
     failed = ExecResult(success=False, returncode=1, stdout="", stderr="")
     assert await _exec_returning(monkeypatch, failed) == failed
+
+
+# --- a container dying mid-command produces a silent failure ---------------
+#
+# docker reports nothing when the container dies while the command runs:
+# non-zero exit, both streams empty. that is also the shape of an ordinary
+# silent failure (`grep -q` without a match), so the two are told apart by
+# asking compose whether the container is still running (#264).
+
+
+async def test_silent_failure_with_dead_container_raises_with_diagnostics(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    died_mid_command = ExecResult(success=False, returncode=137, stdout="", stderr="")
+    with pytest.raises(SandboxUnavailableError) as excinfo:
+        await _exec_returning(monkeypatch, died_mid_command, service_running=False)
+    assert "exited with code 137" in str(excinfo.value)
+    assert FAKE_DIAGNOSTICS in str(excinfo.value)
+
+
+async def test_silent_failure_with_running_container_is_an_ordinary_result(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    grep_no_match = ExecResult(success=False, returncode=1, stdout="", stderr="")
+    assert (
+        await _exec_returning(monkeypatch, grep_no_match, service_running=True)
+        == grep_no_match
+    )
+
+
+async def test_silent_success_never_checks_the_container(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # a command that succeeded ran, whatever it printed; the running check
+    # must not fire (it costs a docker CLI call per exec)
+    ok = ExecResult(success=True, returncode=0, stdout="", stderr="")
+
+    async def fake_compose_exec(*args: object, **kwargs: object) -> ExecResult[str]:
+        return ok
+
+    async def exploding_check(*args: object, **kwargs: object) -> bool:
+        raise AssertionError("service_running must not be called for successful execs")
+
+    monkeypatch.setattr(
+        "inspect_ai.util._sandbox.docker.docker.compose_exec", fake_compose_exec
+    )
+    monkeypatch.setattr(
+        "inspect_ai.util._sandbox.docker.docker.service_running", exploding_check
+    )
+    assert await _sandbox().exec(["true"], timeout=30) == ok
 
 
 async def test_no_wrapper_leaves_runc_launch_failures_unclassified(

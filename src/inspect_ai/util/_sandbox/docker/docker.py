@@ -23,6 +23,7 @@ from ..environment import (
     SandboxConnection,
     SandboxEnvironment,
     SandboxEnvironmentConfigType,
+    SandboxUnavailableError,
 )
 from ..limits import (
     SandboxEnvironmentLimits,
@@ -49,6 +50,7 @@ from .compose import (
     compose_up,
     docker_image_exists_locally,
 )
+from .diagnostics import sandbox_unavailable_diagnostics, service_running
 from .failure import InjectedWrapper, classify_exec_failure
 from .internal import build_internal_image, is_internal_image
 from .prereqs import validate_prereqs
@@ -378,7 +380,33 @@ class DockerSandboxEnvironment(SandboxEnvironment):
             else None,
         )
         if failure is not None:
+            if isinstance(failure, SandboxUnavailableError):
+                failure = SandboxUnavailableError(
+                    f"{failure}\n\n"
+                    + await sandbox_unavailable_diagnostics(
+                        self._service, self._project
+                    )
+                )
             raise failure
+
+        # a failed exec with no output at all is also how a container dying
+        # mid-command presents — docker reports nothing in that case (#264).
+        # ordinary commands fail silently too (e.g. `grep -q` without a
+        # match), so confirm against `compose ps` before escalating; the
+        # check only runs on already-failed, output-less execs.
+        if (
+            not exec_result.success
+            and not exec_result.stdout.strip()
+            and not exec_result.stderr.strip()
+            and not await service_running(self._service, self._project)
+        ):
+            raise SandboxUnavailableError(
+                "The sandbox is not running and cannot execute: command "
+                f"exited with code {exec_result.returncode} and no output, "
+                f'and the container for service "{self._service}" is no '
+                "longer running\n\n"
+                + await sandbox_unavailable_diagnostics(self._service, self._project)
+            )
 
         return exec_result
 
