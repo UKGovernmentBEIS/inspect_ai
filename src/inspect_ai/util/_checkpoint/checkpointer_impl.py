@@ -697,7 +697,8 @@ class _EnteredCheckpointer:
         design §4.4: delete thinned ``ckpt-*.json`` files (destination
         copy first, then local), then hand each strategy the surviving
         snapshots via ``apply_retention``. Best-effort: failures are
-        logged, never fail the (already committed) fire.
+        logged, never fail the (already committed) fire — and one
+        sandbox's failure doesn't skip retention for the others.
         """
         policies: dict[str, SnapshotRetention] = {}
         for name in self._sandbox_sessions:
@@ -732,17 +733,26 @@ class _EnteredCheckpointer:
             surviving = await self._read_committed_checkpoints(
                 committed_ids[-keep_last:]
             )
-            for name, policy in policies.items():
-                session = self._sandbox_sessions[name]
-                await session.strategy.apply_retention(
-                    policy, committed_snapshots_for(surviving, name), session.context
-                )
         except Exception as err:
             logger.warning(
                 "Checkpoint retention failed (non-fatal, latest checkpoint "
                 "unaffected): %s",
                 err,
             )
+            return
+        for name, policy in policies.items():
+            session = self._sandbox_sessions[name]
+            try:
+                await session.strategy.apply_retention(
+                    policy, committed_snapshots_for(surviving, name), session.context
+                )
+            except Exception as err:
+                logger.warning(
+                    "Checkpoint retention failed for sandbox %r (non-fatal, "
+                    "latest checkpoint unaffected): %s",
+                    name,
+                    err,
+                )
 
     async def _read_committed_checkpoints(
         self, checkpoint_ids: list[int]

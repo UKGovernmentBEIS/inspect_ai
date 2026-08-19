@@ -70,6 +70,10 @@ always-on capture exclude, so staging never captures itself."""
 
 _DEFAULT_CHUNK_SIZE = 8 * 1024 * 1024
 
+_ARCHIVE_NAME_RE = re.compile(r"ckpt-\d{5,}\.tar\.(?:zst|gz)")
+"""The exact archive filename form ``snapshot()`` generates — also the
+shell-safety gate for names interpolated into ``restore``'s root scripts."""
+
 
 class ArchiveStrategy(SandboxSnapshotStrategy):
     """Complete compressed tar archive per checkpoint."""
@@ -86,6 +90,7 @@ class ArchiveStrategy(SandboxSnapshotStrategy):
         self._sandbox_dir = sandbox_dir
         self._staging_root = f"{sandbox_dir}/snapshot-staging"
         self._compressor: str | None = None
+        self._dd_fullblock = False
 
     async def setup(self, env: SandboxEnvironment, ctx: SnapshotContext) -> None:
         """Probe required tools and pick the compressor.
@@ -93,7 +98,10 @@ class ArchiveStrategy(SandboxSnapshotStrategy):
         Verifies ``tar``, ``sha256sum``, and ``dd`` up front (so a
         missing tool fails at provisioning rather than at first fire or
         restore), and records zstd vs. the gzip fallback for this
-        sandbox. Nothing is injected.
+        sandbox. Also probes ``dd iflag=fullblock`` (GNU/busybox), which
+        copy-out uses when available to defeat short reads — BSD ``dd``
+        lacks it, and the copy-out digest check still catches any
+        short-read desync loudly. Nothing is injected.
         """
         script = (
             "set -e; "
@@ -101,6 +109,8 @@ class ArchiveStrategy(SandboxSnapshotStrategy):
             "for tool in tar sha256sum dd; do "
             'command -v "$tool" >/dev/null 2>&1 || '
             '{ echo "missing required tool: $tool" >&2; exit 1; }; done; '
+            "if dd if=/dev/null of=/dev/null bs=1 count=0 iflag=fullblock "
+            ">/dev/null 2>&1; then echo fullblock; fi; "
             "if command -v zstd >/dev/null 2>&1; then echo zstd; "
             "elif command -v gzip >/dev/null 2>&1; then echo gzip; "
             'else echo "missing required tool: zstd or gzip" >&2; exit 1; fi'
@@ -111,7 +121,9 @@ class ArchiveStrategy(SandboxSnapshotStrategy):
                 f"archive snapshot setup failed for sandbox "
                 f"{ctx.sandbox_name!r}: {result.stderr}"
             )
-        self._compressor = result.stdout.strip().splitlines()[-1]
+        lines = result.stdout.strip().splitlines()
+        self._dd_fullblock = "fullblock" in lines
+        self._compressor = lines[-1]
 
     async def snapshot(
         self,
@@ -247,8 +259,14 @@ class ArchiveStrategy(SandboxSnapshotStrategy):
                 copied = 0
                 while copied < size:
                     script = (
+                        # fullblock (when dd supports it): without it a short
+                        # read (fuse/9p-backed filesystems) desyncs the
+                        # block-indexed `skip` from the bytes actually copied,
+                        # dropping data — which the digest check then rejects.
                         f"rm -f {chunk_path} && dd if={archive} of={chunk_path} "
-                        f"bs={self._chunk_size} skip={index} count=1 2>/dev/null"
+                        f"bs={self._chunk_size} skip={index} count=1 "
+                        f"{'iflag=fullblock ' if self._dd_fullblock else ''}"
+                        f"2>/dev/null"
                     )
                     result = await env.exec(["sh", "-c", script], user="root")
                     if not result.success:
@@ -285,38 +303,49 @@ class ArchiveStrategy(SandboxSnapshotStrategy):
         ref: SnapshotDetails | None,
         ctx: SnapshotContext,
     ) -> None:
+        expected_digest: str | None
         if ref is None:
-            raise RuntimeError(
-                f"archive snapshot restore for sandbox {ctx.sandbox_name!r}: "
-                f"the latest committed checkpoint records no snapshot for "
-                f"this sandbox"
-            )
-        extra = ref.model_extra or {}
-        archive_name = extra.get("archive")
-        expected_digest = extra.get("content_sha256")
-        if not isinstance(archive_name, str) or not isinstance(expected_digest, str):
-            raise RuntimeError(
-                f"archive snapshot restore for sandbox {ctx.sandbox_name!r}: "
-                f"checkpoint record for {ref.snapshot_id} lacks archive "
-                f"metadata (archive/content_sha256)"
-            )
-        # `archive_name` is joined into a host path and interpolated into
-        # root shell scripts below. Checkpoint records are host-written and
-        # trusted, but `snapshot()` only ever generates this exact form, so
-        # a corrupted record fails here instead of becoming a path-traversal
-        # or shell-injection surface (or a confusing shell error).
-        if not re.fullmatch(r"ckpt-\d{5,}\.tar\.(zst|gz)", archive_name):
-            raise RuntimeError(
-                f"archive snapshot restore for sandbox {ctx.sandbox_name!r}: "
-                f"checkpoint record for {ref.snapshot_id} has malformed "
-                f"archive name {archive_name!r}"
-            )
-        if not re.fullmatch(r"[0-9a-f]{64}", expected_digest):
-            raise RuntimeError(
-                f"archive snapshot restore for sandbox {ctx.sandbox_name!r}: "
-                f"checkpoint record for {ref.snapshot_id} has malformed "
-                f"content_sha256 {expected_digest!r}"
-            )
+            # No committed checkpoint records a snapshot for this sandbox —
+            # e.g. the kill tore the only checkpoint file mid-write. Restic
+            # parity (see ``ResticStrategy.restore``): orphan discard is
+            # skipped in exactly this case, so restore the newest adopted
+            # archive — the best available capture, digest-verified when it
+            # was copied out. Transit into the sandbox is still verified
+            # below, against a digest computed during copy-in.
+            archive_name = self._latest_archive_name(ctx)
+            expected_digest = None
+        else:
+            extra = ref.model_extra or {}
+            archive_name_extra = extra.get("archive")
+            digest_extra = extra.get("content_sha256")
+            if not isinstance(archive_name_extra, str) or not isinstance(
+                digest_extra, str
+            ):
+                raise RuntimeError(
+                    f"archive snapshot restore for sandbox {ctx.sandbox_name!r}: "
+                    f"checkpoint record for {ref.snapshot_id} lacks archive "
+                    f"metadata (archive/content_sha256)"
+                )
+            # `archive_name` is joined into a host path and interpolated into
+            # root shell scripts below. Checkpoint records are host-written
+            # and trusted, but `snapshot()` only ever generates this exact
+            # form, so a corrupted record fails here instead of becoming a
+            # path-traversal or shell-injection surface (or a confusing
+            # shell error).
+            if not _ARCHIVE_NAME_RE.fullmatch(archive_name_extra):
+                raise RuntimeError(
+                    f"archive snapshot restore for sandbox {ctx.sandbox_name!r}: "
+                    f"checkpoint record for {ref.snapshot_id} has malformed "
+                    f"archive name {archive_name_extra!r}"
+                )
+            if not re.fullmatch(r"[0-9a-f]{64}", digest_extra):
+                raise RuntimeError(
+                    f"archive snapshot restore for sandbox {ctx.sandbox_name!r}: "
+                    f"checkpoint record for {ref.snapshot_id} has malformed "
+                    f"content_sha256 {digest_extra!r}"
+                )
+            archive_name = archive_name_extra
+            expected_digest = digest_extra
         local_path = Path(ctx.storage_dir) / archive_name
         if not local_path.is_file():
             raise RuntimeError(
@@ -345,12 +374,14 @@ class ArchiveStrategy(SandboxSnapshotStrategy):
         # input bytes, so streaming the whole archive through one exec
         # would buffer it entirely in host RAM (and can exceed per-call
         # provider limits) — the copy-out problem in reverse.
+        digest = hashlib.sha256()
         with open(local_path, "rb") as f:
             first = True
             while True:
                 data = f.read(self._chunk_size)
                 if not data:
                     break
+                digest.update(data)
                 redirect = ">" if first else ">>"
                 result = await env.exec(
                     ["sh", "-c", f"cat {redirect} {staged}"], input=data, user="root"
@@ -361,6 +392,8 @@ class ArchiveStrategy(SandboxSnapshotStrategy):
                         f"{ctx.sandbox_name!r}: {result.stderr}"
                     )
                 first = False
+        if expected_digest is None:
+            expected_digest = digest.hexdigest()
 
         # Verify-then-extract: a corrupt archive is rejected before any
         # byte reaches a final path.
@@ -384,6 +417,21 @@ class ArchiveStrategy(SandboxSnapshotStrategy):
                 f"archive snapshot restore failed for sandbox "
                 f"{ctx.sandbox_name!r}: {result.stderr}"
             )
+
+    def _latest_archive_name(self, ctx: SnapshotContext) -> str:
+        """Newest adopted archive, for restores with no committed record."""
+        candidates = [
+            entry.name
+            for entry in Path(ctx.storage_dir).glob("ckpt-*")
+            if _ARCHIVE_NAME_RE.fullmatch(entry.name)
+        ]
+        if not candidates:
+            raise RuntimeError(
+                f"archive snapshot restore for sandbox {ctx.sandbox_name!r}: "
+                f"no committed checkpoint records a snapshot and no adopted "
+                f"archives exist in {ctx.storage_dir}"
+            )
+        return max(candidates, key=lambda name: _archive_checkpoint_id(name) or 0)
 
     async def adopt(self, prior: PriorAttempt, ctx: SnapshotContext) -> None:
         """Copy the prior attempt's retained archives into this attempt.

@@ -473,8 +473,8 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
     async def delete_file(self, filename: str) -> None:
         """Delete `filename` if it exists; deleting a missing file is a no-op.
 
-        (S3 DeleteObject succeeds for missing keys; other filesystems get
-        an explicit existence check.)
+        (S3 DeleteObject succeeds for missing keys; other filesystems
+        swallow the missing-file error.)
         """
         if is_s3_filename(filename):
             bucket, key = s3_bucket_and_key(filename)
@@ -486,9 +486,10 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                     s3_delete_file, self.s3_client(), bucket, key
                 )
         else:
-            fs = filesystem(filename)
-            if fs.exists(filename):
-                fs.rm(filename)
+            try:
+                filesystem(filename).rm(filename)
+            except FileNotFoundError:
+                pass
 
     @overload
     def iter_files(

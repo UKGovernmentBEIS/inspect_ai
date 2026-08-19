@@ -323,10 +323,37 @@ async def test_archive_restore_rejects_corrupt_archive(tmp_path: Path) -> None:
     assert marker.read_bytes() == b"post-capture content"
 
 
-async def test_archive_restore_requires_ref(tmp_path: Path) -> None:
+async def test_archive_restore_without_ref_uses_latest_archive(tmp_path: Path) -> None:
+    """Restore with no committed record falls back to the newest archive.
+
+    E.g. the kill tore the only checkpoint file mid-write; restic-parity
+    degenerate-case semantics.
+    """
     env = _LocalShellSandbox()
     strategy = await _strategy(env, tmp_path)
-    with pytest.raises(RuntimeError, match="records no snapshot"):
+    ctx = _context(tmp_path / "sample")
+    data_dir = tmp_path / "capture" / "data"
+    files = _write_data(data_dir)
+    paths = SandboxBackupPaths(include=[str(data_dir)])
+
+    await strategy.snapshot(env, paths, 1, ctx)
+    marker = data_dir / "notes.txt"
+    marker.write_bytes(b"second capture\n")
+    await strategy.snapshot(env, paths, 2, ctx)
+
+    for rel in files:
+        (data_dir / rel).unlink()
+    await strategy.restore(env, None, ctx)
+    assert marker.read_bytes() == b"second capture\n"
+    assert (data_dir / "nested/blob.bin").read_bytes() == files["nested/blob.bin"]
+
+
+async def test_archive_restore_without_ref_and_no_archives_errors(
+    tmp_path: Path,
+) -> None:
+    env = _LocalShellSandbox()
+    strategy = await _strategy(env, tmp_path)
+    with pytest.raises(RuntimeError, match="no adopted archives"):
         await strategy.restore(env, None, _context(tmp_path / "sample"))
 
 
