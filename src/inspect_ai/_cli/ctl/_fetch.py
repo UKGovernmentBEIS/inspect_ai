@@ -271,7 +271,13 @@ def _resolve_target_eval(
     narrows the candidate rows to tasks running a matching model before
     ``query`` resolution (see :func:`_narrow_by_model`) — the disambiguator
     for one task run against several models, where the name alone matches
-    every row. ``busy_pids``
+    every row. An exact-id ``query`` whose row runs a non-matching model
+    errors by naming the contradiction rather than via the narrowing
+    not-found: an exact id short-circuits the summaries fan-out at its
+    server, so a skipped process could be running a matching model and the
+    global "no task with that model" claim would be false about it (the
+    refusal itself is sound — duplicate-id rows share the model, so a
+    skipped row could not resolve the id either). ``busy_pids``
     (from the summaries fetch) qualifies the resolution against partial
     discovery: a not-found error and the ambiguity table note that the busy
     process may hold further candidates, and a successful match carries a
@@ -283,6 +289,14 @@ def _resolve_target_eval(
     could collide with a task on the busy process.
     """
     if model is not None:
+        contradicted = [s for s in summaries if s.get("task_id") == query]
+        if contradicted and not _match_by_model(contradicted, model):
+            _fail(
+                "not_found",
+                f"Task '{query}' is running model "
+                f"'{contradicted[0].get('model')}', which does not match "
+                f"'{model}'.",
+            )
         summaries = _narrow_by_model(summaries, model, busy_pids=busy_pids)
     qualifier = _model_qualifier(model)
     exact = [s for s in summaries if s.get("task_id") == query]

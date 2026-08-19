@@ -4589,7 +4589,9 @@ def test_exact_task_id_with_contradicting_model_errors(
     """--model composes as a filter even against an exact full task id.
 
     A contradicting model must not be silently ignored in favor of the id —
-    the pinned semantic is a not-found error naming the model.
+    the pinned semantic is a not-found error naming the contradiction (not
+    a global "no task with that model" claim, which could be false about
+    processes an exact-id fetch skipped).
     """
     _patch_surface(monkeypatch, _two_model_summaries())
     result = cli_runner().invoke(
@@ -4599,7 +4601,10 @@ def test_exact_task_id_with_contradicting_model_errors(
     assert result.exit_code == 1
     error = json.loads(result.stdout)["error"]
     assert error["kind"] == "not_found"
-    assert "'claude-fable-5'" in error["message"]
+    assert (
+        "Task 'aaa111' is running model 'openai/gpt-5', which does not match "
+        "'claude-fable-5'" in error["message"]
+    )
 
 
 def test_bare_sample_noun_forwards_model_option(
