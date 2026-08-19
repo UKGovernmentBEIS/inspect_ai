@@ -13,6 +13,7 @@
 - Model-graded scorers now warn once when an explicit model bypasses a required model role.
 - Dataset: Choices fields read from CSV or JSON no longer produce an empty-string choice from trailing or doubled commas.
 - Control Channel: `inspect ctl sample requeue` can now sweep every currently-errored sample in one command (`--errored`) or requeue several `SAMPLE_ID EPOCH` pairs, reporting each sample's result individually.
+- Control Channel: A runaway polling client can no longer starve the eval by piling up queued requests — excess concurrent connections are rejected as busy, and `inspect ctl` retries them shortly.
 - Breaking: Removed the deprecated hidden flat `inspect ctl` spellings (e.g. `ctl tasks`, `ctl limits`); use the noun-group commands (`ctl task list`, `ctl config`, ...) instead.
 - Control Channel: `inspect ctl config` can now retune a running task's per-sample time/token/message limits mid-flight (`--time-limit` / `--token-limit` / `--message-limit`), reaching in-flight samples as well as ones not yet started.
 - Eval Log: Flushing buffered samples to an `.eval` log now yields between samples, so a large flush no longer stalls in-flight samples and control-channel requests for the whole batch.

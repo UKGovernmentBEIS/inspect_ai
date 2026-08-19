@@ -7,6 +7,7 @@ helpers shared by every route caller.
 from __future__ import annotations
 
 import functools
+import random
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any, Literal, NoReturn
@@ -116,6 +117,43 @@ _MAX_CONCURRENT_READS = 32
 _MUTATION_TIMEOUT = _REQUEST_ATTEMPTS * _REQUEST_TIMEOUT
 _CONNECT_TIMEOUT = 10.0
 
+# A bare 503 is the server's connection-limit backstop (uvicorn
+# `limit_concurrency` — see `_MAX_CONCURRENT_CONNECTIONS` in
+# `inspect_ai._control.server`): the request was rejected before any handler
+# ran, so the process is alive but saturated — busy semantics ("retry
+# shortly"), like a timeout, not unreachable. Unlike a timeout the rejection
+# comes back instantly, so retries pause about this long (jittered, so a
+# fan-out's rejected wave doesn't re-arrive in lockstep) rather than
+# hammering a server that just said it's overloaded.
+_REJECTED_RETRY_DELAY = 2.0
+
+# The rejection's cause clause — shared by the per-attempt narration, both
+# terminal errors, and the mutation failure so the wording can't drift.
+_REJECTED_PROBLEM = "the server is at its concurrent-connection limit"
+
+# The all-timeouts cause clause (the busy policy's default terminal wording).
+_TIMEOUT_CAUSE = (
+    f"every attempt timed out after {_REQUEST_TIMEOUT:.0f}s "
+    "(the eval's event loop is busy)"
+)
+
+
+def _busy_cause(timeouts: int, rejections: int) -> str:
+    """The cause clause for a retry-exhausted read's terminal error.
+
+    Worded from what the attempts actually hit, so a mixed run (some
+    timeouts, some connection-limit rejections) doesn't falsely claim a
+    single cause — or a per-attempt duration — for all of them.
+    """
+    if rejections == 0:
+        return _TIMEOUT_CAUSE
+    if timeouts == 0:
+        return _REJECTED_PROBLEM
+    return (
+        f"{timeouts} timed out and {rejections} hit the server's "
+        "concurrent-connection limit"
+    )
+
 
 class _ServerUnreachable(Exception):
     """A control read failed for a non-timeout reason.
@@ -135,18 +173,25 @@ class _ServerBusy(_ServerUnreachable):
 
     A subclass, so a caller's existing ``except _ServerUnreachable``
     warn-and-skip covers it; carries its message as the detail (there is no
-    transport ``__cause__`` — every attempt timed out). ``last_timeout``
-    records the final attempt's timeout for the ``--json`` error envelope's
-    ``exception`` field (an attribute rather than ``__cause__``, whose
-    presence would swap the human detail from the busy narration to the
-    bare timeout string).
+    transport ``__cause__`` — every attempt timed out or was rejected).
+    ``last_timeout`` records the last timed-out attempt's exception, if any
+    attempt timed out, for the ``--json`` error envelope's ``exception``
+    field (an attribute rather than ``__cause__``, whose presence would swap
+    the human detail from the busy narration to the bare timeout string).
+    ``cause`` carries the composed :func:`_busy_cause` clause so a caller
+    re-raising the terminal error (see :func:`_exit_busy`) words it from
+    what the attempts actually hit.
     """
 
     def __init__(
-        self, message: str, last_timeout: httpx.TimeoutException | None = None
+        self,
+        message: str,
+        last_timeout: httpx.TimeoutException | None = None,
+        cause: str = _TIMEOUT_CAUSE,
     ) -> None:
         super().__init__(message)
         self.last_timeout = last_timeout
+        self.cause = cause
 
 
 class _BusyNarrator:
@@ -159,24 +204,36 @@ class _BusyNarrator:
     Sharing one narrator across a fan-out collapses each round to a single
     line, named for the fan-out (``what``) rather than for whichever target
     happened to get there first, which is not stable across backends.
+
+    The dedup key includes the ``problem`` clause: 503 rejections pace
+    differently from timeouts (2s vs 15s per attempt), so a fast-rejected
+    target reaching an attempt number first must not silence a slower
+    target's differently-caused narration for the same attempt.
     """
 
     def __init__(self, what: str) -> None:
         self._what = what
-        self._narrated: set[int] = set()
+        self._narrated: set[tuple[int, str | None]] = set()
 
-    def narrate(self, attempt: int, attempts: int) -> None:
-        if attempt in self._narrated:
+    def narrate(self, attempt: int, attempts: int, problem: str | None = None) -> None:
+        if (attempt, problem) in self._narrated:
             return
-        self._narrated.add(attempt)
-        _echo_busy_attempt(self._what, attempt, attempts)
+        self._narrated.add((attempt, problem))
+        _echo_busy_attempt(self._what, attempt, attempts, problem)
 
 
-def _echo_busy_attempt(what: str, attempt: int, attempts: int) -> None:
-    """Report one timed-out attempt (stderr, so ``--json`` stdout stays clean)."""
+def _echo_busy_attempt(
+    what: str, attempt: int, attempts: int, problem: str | None = None
+) -> None:
+    """Report one busy attempt (stderr, so ``--json`` stdout stays clean).
+
+    ``problem`` is the attempt's failure clause — defaults to the timeout
+    wording; a 503 rejection passes :data:`_REJECTED_PROBLEM`.
+    """
     retrying = "; retrying…" if attempt < attempts else "."
+    problem = problem or f"no response after {_REQUEST_TIMEOUT:.0f}s"
     _echo(
-        f"{what}: no response after {_REQUEST_TIMEOUT:.0f}s "
+        f"{what}: {problem} "
         f"(attempt {attempt}/{attempts}) — the eval may be busy{retrying}",
         err=True,
     )
@@ -194,11 +251,15 @@ async def _get_response_with_retry_async(
     pid: int | None = None,
     narrator: _BusyNarrator | None = None,
 ) -> httpx.Response:
-    """Request ``path`` over the UDS, retrying a read timeout.
+    """Request ``path`` over the UDS, retrying a read timeout or a 503.
 
     Retries a read timeout up to ``attempts`` times, printing a status to the
     console (stderr, so ``--json`` stdout stays clean) on each — the eval is
-    most likely just busy. On exhaustion, raises :class:`_ServerBusy` when
+    most likely just busy. A ``503`` — the server's connection-limit backstop,
+    rejected before any handler ran (so retrying is safe even for the
+    idempotent mutations that ride this path) — is retried the same way, but
+    paced by :data:`_REJECTED_RETRY_DELAY` since it answers instantly.
+    On exhaustion, raises :class:`_ServerBusy` when
     ``raise_on_busy`` is set — handing the caller the terminal outcome (a
     fan-out warns and skips the busy eval, a supplemental read degrades in
     place, a scoped read exits with a targeted error), along with its
@@ -220,8 +281,9 @@ async def _get_response_with_retry_async(
     (keep/release's last-write-wins latches); a non-idempotent mutation must
     not be retried and takes the single-shot path in :func:`_request_json`.
 
-    Returns the raw response without inspecting its status, so callers that need
-    to handle a meaningful status (eg. a 404) can;
+    Returns the raw response without inspecting its status (except the 503
+    consumed above, which no control endpoint returns itself), so callers
+    that need to handle a meaningful status (eg. a 404) can;
     :func:`_get_with_retry_async` is the JSON-decoding wrapper for the common
     case.
 
@@ -234,8 +296,14 @@ async def _get_response_with_retry_async(
     """
     if attempts is None:
         attempts = _DEGRADED_READ_ATTEMPTS if raise_on_busy else _REQUEST_ATTEMPTS
+    if narrator is None:
+        # a private narrator: a single read's attempt numbers never repeat,
+        # so its dedup can't fire — this is exactly per-attempt narration
+        narrator = _BusyNarrator(what)
     transport = httpx.AsyncHTTPTransport(uds=str(socket_path))
     last_timeout: httpx.TimeoutException | None = None
+    timeouts = 0
+    rejections = 0
     for attempt in range(1, attempts + 1):
         try:
             async with httpx.AsyncClient(
@@ -243,21 +311,30 @@ async def _get_response_with_retry_async(
                 base_url="http://localhost",
                 timeout=_REQUEST_TIMEOUT,
             ) as client:
-                return await client.request(method, path, params=params or {})
+                response = await client.request(method, path, params=params or {})
         except httpx.TimeoutException as exc:
             last_timeout = exc
-            if narrator is not None:
-                narrator.narrate(attempt, attempts)
-            else:
-                _echo_busy_attempt(what, attempt, attempts)
+            timeouts += 1
+            narrator.narrate(attempt, attempts)
+            continue
         except (httpx.HTTPError, OSError) as exc:
             raise _ServerUnreachable() from exc
+        if response.status_code != 503 or not _rejection_503(response):
+            return response
+        # a capacity rejection — retry like a timeout, jitter-paced (see
+        # _REJECTED_RETRY_DELAY)
+        rejections += 1
+        narrator.narrate(attempt, attempts, _REJECTED_PROBLEM)
+        if attempt < attempts:
+            await anyio.sleep(_REJECTED_RETRY_DELAY * (0.5 + random.random()))
+    cause = _busy_cause(timeouts, rejections)
     if raise_on_busy:
         raise _ServerBusy(
-            f"no response after {attempts} attempts — the eval's event loop is busy",
+            f"gave up after {attempts} attempts — {cause}",
             last_timeout=last_timeout,
+            cause=cause,
         )
-    _exit_busy(what, attempts, last_timeout=last_timeout, pid=pid)
+    _exit_busy(what, attempts, last_timeout=last_timeout, pid=pid, cause=cause)
 
 
 def _exit_busy(
@@ -266,6 +343,7 @@ def _exit_busy(
     *,
     last_timeout: httpx.TimeoutException | None,
     pid: int | None,
+    cause: str = _TIMEOUT_CAUSE,
 ) -> NoReturn:
     """Narrate a read that stayed busy through its retries, and fail the command.
 
@@ -275,12 +353,11 @@ def _exit_busy(
     process is wedged reports one failure naming one pid, rather than one per
     process — the reads are concurrent, so without this they would all reach
     their deadline together and each print its own terminal error.
+
+    ``cause`` is the :func:`_busy_cause` clause naming what the attempts
+    actually hit (timeouts, connection-limit rejections, or both).
     """
-    message = (
-        f"{what}: gave up after {attempts} attempts of "
-        f"{_REQUEST_TIMEOUT:.0f}s each — the eval's event loop is busy; "
-        "try again shortly."
-    )
+    message = f"{what}: gave up after {attempts} attempts — {cause}; try again shortly."
     _echo(message, err=True)
     _echo(f"{_anomalies_pointer(pid)}.", err=True)
     raise _CtlFailure(
@@ -410,8 +487,10 @@ def _request_json(
     ``retry_mutation`` (an idempotent last-write-wins latch like
     keep/release), which rides the narrated retrying policy instead of one
     silent long wait. A 404 prints ``not_found`` and exits non-zero; a 400
-    surfaces the server's ``{"error": ...}`` body; transport errors exit
-    with ``what`` as context.
+    surfaces the server's ``{"error": ...}`` body; a 503 (the server's
+    connection-limit backstop — only reachable here on the single-shot
+    mutation path, since reads retry it) exits as ``busy``; transport errors
+    exit with ``what`` as context.
 
     ``not_found_missing_route`` splits the 404 by origin (see
     :func:`_handler_404`): a router 404 — the endpoint doesn't exist, so the
@@ -484,6 +563,15 @@ def _request_json(
                 f"Invalid request: {_error_detail_from_response(response)}",
                 status=400,
             )
+        if response.status_code == 503 and _rejection_503(response):
+            # only the single-shot mutation path sees this (reads retry it);
+            # the rejection precedes the handler, so the mutation was NOT
+            # applied and retrying it by hand is safe
+            fail(
+                "busy",
+                f"{_failure_prefix(verb, what)}{_REJECTED_PROBLEM}; try again shortly.",
+                status=503,
+            )
         response.raise_for_status()
         result = response.json()
     except _ServerUnreachable as exc:
@@ -528,6 +616,22 @@ def _handler_404(response: httpx.Response) -> bool:
     except ValueError:
         return False
     return isinstance(body, dict) and "error" in body
+
+
+def _rejection_503(response: httpx.Response) -> bool:
+    """Whether a 503 is the server's connection-limit rejection.
+
+    uvicorn's ``limit_concurrency`` backstop answers a fixed plain-text 503
+    before any handler runs. No control endpoint returns 503 today, but a
+    handler that ever does would carry the server's JSON ``{"error": ...}``
+    convention (cf. :func:`_handler_404`) — pass that through to the caller
+    rather than consuming it as a capacity rejection.
+    """
+    try:
+        body = response.json()
+    except ValueError:
+        return True
+    return not (isinstance(body, dict) and "error" in body)
 
 
 def _error_body(response: httpx.Response) -> str | None:

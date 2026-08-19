@@ -123,6 +123,7 @@ def _fetch_summaries(
                         attempts,
                         last_timeout=rows.last_timeout,
                         pid=server.pid,
+                        cause=rows.cause,
                     )
                 busy_pids.append(server.pid)
                 hint = f"try again shortly, or {_anomalies_pointer(server.pid)}"
