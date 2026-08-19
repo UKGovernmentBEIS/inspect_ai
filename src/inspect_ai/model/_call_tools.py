@@ -1,5 +1,6 @@
 import inspect
 import json
+import string
 import types
 import typing
 from copy import copy, deepcopy
@@ -1177,6 +1178,35 @@ def tool_parse_error_message(arguments: str | None, ex: Exception) -> str:
     return f"Error parsing the following tool call arguments:\n\n{shown}\n\nError details: {ex}"
 
 
+def _object_with_trailing_quotes(arguments: str) -> dict[str, Any] | None:
+    """Recover a complete JSON object trailed only by stray double quotes.
+
+    Models generating a call to a tool whose parameters are empty or all
+    optional sometimes emit the empty body plus loose quotes (e.g. `{}""`),
+    which fails `json.loads`. The arguments arrive verbatim from the provider,
+    so the recovery has to happen here. Only double quotes are treated as
+    stray, since that's the artifact actually observed; a single quote in the
+    trailing text is left to still surface as a parse error.
+
+    Args:
+        arguments: Tool call arguments that failed to parse as JSON.
+
+    Returns:
+        The leading object, or None if the trailing text is anything other
+        than double quotes and whitespace, so that truncated or doubled
+        payloads (e.g. `{"a": 1}{"a": 2}`) still surface as parse errors.
+    """
+    try:
+        value, index = json.JSONDecoder().raw_decode(arguments)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(value, dict):
+        return None
+    if set(arguments[index:]) - {'"'} - set(string.whitespace):
+        return None
+    return cast(dict[str, Any], value)
+
+
 def parse_tool_call(
     id: str,
     function: str,
@@ -1205,7 +1235,17 @@ def parse_tool_call(
         try:
             arguments_dict = json.loads(arguments)
         except json.JSONDecodeError as ex:
-            report_parse_error(ex)
+            recovered = _object_with_trailing_quotes(arguments)
+            if recovered is not None:
+                arguments_dict = recovered
+                truncated = truncate_string_to_bytes(arguments, 256)
+                shown = truncated.output if truncated else arguments
+                logger.info(
+                    f"Recovered arguments for tool call '{function}' from a "
+                    f"complete JSON object trailed by stray quote characters: {shown}"
+                )
+            else:
+                report_parse_error(ex)
 
     # otherwise parse it as yaml (which will pickup unquoted strings, numbers, and true/false)
     # and then create a dict that maps it to the first function argument
