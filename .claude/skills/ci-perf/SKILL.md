@@ -25,7 +25,9 @@ self-contained.
   - *Safe fixes* — small, low-risk changes the skill prepares as PRs
     (see the fix phase for the category list).
   - *Structural proposals* — anything touching required-check names, job
-    topology, or policy. Report-only; a maintainer decides.
+    topology, or policy. Never a PR from this skill: they rank in the
+    report, and ripe ones are filed as issues for a maintainer decision
+    (see the fix phase).
 - **Never propose trimming the Python version matrix** (e.g. PRs testing
   only 3.11). Explicitly ruled out.
 - **Interactive runs: always ask before pushing.** Prepare branch + diff +
@@ -211,10 +213,20 @@ run, shipped together with the report in the run's single PR):
   events, removal of exact-duplicate tests, marking genuinely slow tests
   `@pytest.mark.slow` where an equivalent fast path exists.
 
-**Structural proposals** (report-only, never a PR from this skill):
-renaming/merging required checks (branch protection), moving checks
-between workflows, retry/concurrency policy changes, anything a reviewer
-could reasonably object to on grounds other than correctness.
+**Structural proposals** (never a PR from this skill): renaming/merging
+required checks (branch protection), moving checks between workflows,
+retry/concurrency policy changes, anything a reviewer could reasonably
+object to on grounds other than correctness. They rank in the report, and
+when one is **ripe** — a concrete change with measured impact, worth doing
+on the evidence, and no open question the next snapshot would answer —
+write it up as an issue on `meridianlabs-ai/inspect_ai` (the org's tracking
+repo, same as test-failure triage) so it gets a maintainer decision instead
+of scrolling by in successive reports. Before filing, search for an
+existing issue (`gh issue list --repo meridianlabs-ai/inspect_ai
+--state all --search "<key phrase>"`, plus the issue links already in the
+report): if one exists, add the new evidence as a comment rather than
+filing a duplicate. Record the issue link in the proposal's status line.
+Speculative or still-maturing proposals stay report-only.
 
 Procedure: one branch off `main` for the whole run. Each fix is its own
 commit — make the single change, run the relevant local validation
@@ -242,7 +254,9 @@ and says so in the prompt). Differences from an interactive run:
   prs.md updates, and up to 2 safe fixes (safe-fix categories only, one
   commit each, local validation run and passing) on one branch and open
   ONE PR — the run's entire output ships as a single PR. Structural
-  proposals remain report-only, always.
+  proposals are never shipped as changes; ripe ones are filed as issues
+  per the fix phase (the fork tracking repo accepts marvin's issue writes
+  even while upstream PRs are blocked).
 - **Check the previous run's PR first** (`gh pr list --author i-am-marvin`
   plus the open entries in prs.md). If it is still open, push this run's
   commits onto its branch instead of opening a second PR. Never re-ship a
