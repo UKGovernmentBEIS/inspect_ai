@@ -210,11 +210,12 @@ async def _asgi_get(
         "root_path": "",
     }
     await app(scope, receive, send)  # type: ignore[operator]
-    status = next(m["status"] for m in sent if m["type"] == "http.response.start")
+    start = next((m for m in sent if m["type"] == "http.response.start"), None)
+    assert start is not None, f"no response started for {method} {path}"
     body = b"".join(
         m.get("body", b"") for m in sent if m["type"] == "http.response.body"
     )
-    return status, body
+    return start["status"], body
 
 
 def test_read_endpoints_skip_disconnected_client(
@@ -222,12 +223,8 @@ def test_read_endpoints_skip_disconnected_client(
 ) -> None:
     """A hung-up client's read request is answered 499 without doing the work.
 
-    The disconnect guard from the endpoint cost audit (design/ctl/
-    endpoint-cost-audit.md "Structural guards"): uvicorn keeps processing
-    queued requests after their clients disconnect, so without the guard a
-    timed-out poller leaves the server building listings nobody will read on
-    the eval's own loop. Each nontrivial read handler must return before
-    touching its data source.
+    Each guarded read must return before touching its data source — the
+    rationale lives in ``_control/disconnect.py``'s module docstring.
     """
     import json
 
@@ -291,11 +288,10 @@ def test_read_endpoints_serve_connected_client(
 def test_mutations_apply_for_disconnected_client() -> None:
     """Mutations from a hung-up client still apply — they are NOT guarded.
 
-    A directive's intent was expressed when the request was sent; skipping it
-    because the client gave up waiting would silently drop it (and mutations
-    are already cheap on the retry the client will issue). Pins that a future
-    blanket guard doesn't swallow mutations: ``POST /keep`` from an
-    already-disconnected client must still latch keep-alive on.
+    Pins that a future blanket guard doesn't swallow mutations (why they
+    must pass through: ``_control/disconnect.py``'s module docstring):
+    ``POST /keep`` from an already-disconnected client must still latch
+    keep-alive on.
     """
     from inspect_ai._control import server as server_mod
     from inspect_ai._control.server import keep_alive_intent, reset_keep_alive

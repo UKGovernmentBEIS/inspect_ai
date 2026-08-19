@@ -390,8 +390,9 @@ class ControlServer:
         async def on_client_disconnected(
             request: Request, exc: ClientDisconnectedError
         ) -> JSONResponse:
-            # 499 (nginx's "client closed request") — nobody reads it (the
-            # client is gone); the status exists for the server-side record.
+            # 499 (nginx's "client closed request") — a placeholder nobody
+            # observes: the client is gone and uvicorn drops writes to
+            # disconnected transports.
             return JSONResponse(
                 status_code=499, content={"error": "client disconnected"}
             )
