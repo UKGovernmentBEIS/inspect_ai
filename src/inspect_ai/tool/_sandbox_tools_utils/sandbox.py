@@ -520,21 +520,39 @@ def _check_main_divergence(url: str) -> Literal["clean", "edited"]:
                 )
                 return "edited"
 
-            # Check for committed changes relative to main
+        main_ref = _resolve_main_ref(git_root)
+        if main_ref is None:
+            trace_message(
+                logger,
+                TRACE_SANDBOX_TOOLS,
+                "_check_for_changes: no main branch ref resolved",
+            )
+            return "clean"
+
+        for pathspecs in pathspecs_to_check:
+            # Check for committed changes relative to the freshest main ref
+            # available in common checkouts.
             result = subprocess.run(
-                ["git", "diff", "main", "--quiet", "--", *pathspecs],
+                ["git", "diff", main_ref, "--quiet", "--", *pathspecs],
                 capture_output=True,
                 text=True,
                 check=False,
                 cwd=git_root,
             )
-            if result.returncode != 0:
+            if result.returncode == 1:
                 trace_message(
                     logger,
                     TRACE_SANDBOX_TOOLS,
-                    f"_check_for_changes: diff's from main detected for {pathspecs[0]}",
+                    f"_check_for_changes: diff's from {main_ref} detected for {pathspecs[0]}",
                 )
                 return "edited"
+            elif result.returncode != 0:
+                trace_message(
+                    logger,
+                    TRACE_SANDBOX_TOOLS,
+                    f"_check_for_changes: git diff failed for {pathspecs[0]}: {result}",
+                )
+                return "clean"
 
         trace_message(
             logger, TRACE_SANDBOX_TOOLS, "_check_for_changes: do changes detected"
@@ -547,3 +565,17 @@ def _check_main_divergence(url: str) -> Literal["clean", "edited"]:
             logger, TRACE_SANDBOX_TOOLS, f"_check_for_changes: caught exception {ex}"
         )
         return "clean"
+
+
+def _resolve_main_ref(git_root: Path) -> str | None:
+    for ref in ("origin/main", "main"):
+        result = subprocess.run(
+            ["git", "rev-parse", "--verify", ref],
+            capture_output=True,
+            text=True,
+            check=False,
+            cwd=git_root,
+        )
+        if result.returncode == 0:
+            return ref
+    return None
