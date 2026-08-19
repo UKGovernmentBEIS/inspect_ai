@@ -5,6 +5,7 @@ from typing import Any
 
 import anyio
 from openai import (
+    APIConnectionError,
     APIStatusError,
     AsyncAzureOpenAI,
     AsyncOpenAI,
@@ -19,7 +20,7 @@ from openai.types.responses import (
 )
 from tenacity import (
     retry,
-    retry_if_exception,
+    retry_if_exception_type,
     stop_after_attempt,
     stop_after_delay,
     wait_exponential_jitter,
@@ -42,7 +43,6 @@ from .._openai import (
     OpenAIResponseError,
     openai_handle_bad_request,
     openai_media_filter,
-    openai_should_retry,
 )
 from .._openai_responses import (
     ResponsesModelInfo,
@@ -262,7 +262,8 @@ async def wait_for_background_response(
     @retry(
         wait=wait_exponential_jitter(),
         stop=stop_after_attempt(5) | stop_after_delay(60),
-        retry=retry_if_exception(openai_should_retry),
+        retry=retry_if_exception_type(APIConnectionError),
+        reraise=True,
         before_sleep=log_httpx_retry_attempt(
             f"background polling: {model_response.model}"
         ),
