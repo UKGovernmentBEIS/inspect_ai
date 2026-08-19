@@ -207,6 +207,9 @@ async def eval_run(
                 # value specified from eval() or the CLI)
                 # Resolve eval-level overrides against a per-run task view so
                 # repeated eval() calls on the same Task do not retain them.
+                # The copy is shallow: it guards only the direct attribute
+                # rebinds below — nested state (dataset, config, reducer list
+                # contents) is still shared, so don't write to it in place.
                 task = copy(resolved_task.task)
                 task_eval_config = eval_config.model_copy()
 
