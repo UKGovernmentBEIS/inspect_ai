@@ -300,7 +300,9 @@ def _peer_checked_http_protocol() -> "type[asyncio.Protocol] | None":
 # ---------------------------------------------------------------------------
 
 # Ceiling on concurrent control-channel connections (uvicorn
-# ``limit_concurrency``): over it, requests get a 503 instead of queueing.
+# ``limit_concurrency``): at the cap, requests get a 503 instead of queueing
+# (the incoming connection counts itself against the limit, so effective
+# capacity is one below this constant).
 # The server shares the eval's event loop, so unbounded queueing lets a
 # runaway poller pile identical work onto the loop with nothing ever erroring
 # while the eval starves (design/ctl/endpoint-cost-audit.md, "Structural

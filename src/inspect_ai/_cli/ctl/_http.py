@@ -178,20 +178,21 @@ class _ServerBusy(_ServerUnreachable):
     attempt timed out, for the ``--json`` error envelope's ``exception``
     field (an attribute rather than ``__cause__``, whose presence would swap
     the human detail from the busy narration to the bare timeout string).
-    ``cause`` carries the composed :func:`_busy_cause` clause so a caller
-    re-raising the terminal error (see :func:`_exit_busy`) words it from
-    what the attempts actually hit.
+    ``busy_cause`` carries the composed :func:`_busy_cause` clause (a
+    ``str``, named to avoid colliding with ``Exception.__cause__``) so a
+    caller re-raising the terminal error (see :func:`_exit_busy`) words it
+    from what the attempts actually hit.
     """
 
     def __init__(
         self,
         message: str,
         last_timeout: httpx.TimeoutException | None = None,
-        cause: str = _TIMEOUT_CAUSE,
+        busy_cause: str = _TIMEOUT_CAUSE,
     ) -> None:
         super().__init__(message)
         self.last_timeout = last_timeout
-        self.cause = cause
+        self.busy_cause = busy_cause
 
 
 class _BusyNarrator:
@@ -327,14 +328,16 @@ async def _get_response_with_retry_async(
         narrator.narrate(attempt, attempts, _REJECTED_PROBLEM)
         if attempt < attempts:
             await anyio.sleep(_REJECTED_RETRY_DELAY * (0.5 + random.random()))
-    cause = _busy_cause(timeouts, rejections)
+    busy_cause = _busy_cause(timeouts, rejections)
     if raise_on_busy:
         raise _ServerBusy(
-            f"gave up after {attempts} attempts — {cause}",
+            f"gave up after {attempts} attempts — {busy_cause}",
             last_timeout=last_timeout,
-            cause=cause,
+            busy_cause=busy_cause,
         )
-    _exit_busy(what, attempts, last_timeout=last_timeout, pid=pid, cause=cause)
+    _exit_busy(
+        what, attempts, last_timeout=last_timeout, pid=pid, busy_cause=busy_cause
+    )
 
 
 def _exit_busy(
@@ -343,7 +346,7 @@ def _exit_busy(
     *,
     last_timeout: httpx.TimeoutException | None,
     pid: int | None,
-    cause: str = _TIMEOUT_CAUSE,
+    busy_cause: str = _TIMEOUT_CAUSE,
 ) -> NoReturn:
     """Narrate a read that stayed busy through its retries, and fail the command.
 
@@ -354,10 +357,12 @@ def _exit_busy(
     process — the reads are concurrent, so without this they would all reach
     their deadline together and each print its own terminal error.
 
-    ``cause`` is the :func:`_busy_cause` clause naming what the attempts
+    ``busy_cause`` is the :func:`_busy_cause` clause naming what the attempts
     actually hit (timeouts, connection-limit rejections, or both).
     """
-    message = f"{what}: gave up after {attempts} attempts — {cause}; try again shortly."
+    message = (
+        f"{what}: gave up after {attempts} attempts — {busy_cause}; try again shortly."
+    )
     _echo(message, err=True)
     _echo(f"{_anomalies_pointer(pid)}.", err=True)
     raise _CtlFailure(

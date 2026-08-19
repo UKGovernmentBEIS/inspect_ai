@@ -1514,7 +1514,7 @@ async def test_get_with_retry_503_raises_busy_with_rejection_cause(
             attempts=2,
         )
     assert counter["gets"] == 2
-    assert exc_info.value.cause == _http._REJECTED_PROBLEM
+    assert exc_info.value.busy_cause == _http._REJECTED_PROBLEM
     assert "concurrent-connection limit" in str(exc_info.value)
 
 
