@@ -6152,6 +6152,57 @@ def test_json_invalid_cursor_emits_error_envelope(
     assert "--since-time" in error["message"]
 
 
+def test_json_version_gate_failure_emits_error_envelope(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The config version gates emit `invalid_request` envelopes on --json.
+
+    Both gates (`_gate_strict_floor`, `_gate_provenance_support`) refuse
+    before the PATCH is sent — a terminal failure like any other, so on
+    --json the refusal must be the structured envelope, not stderr prose
+    over an empty stdout (issue #69: the gates once raised a bare click
+    ``Exit``, which `_structured_failures` passes through un-enveloped).
+    """
+    from inspect_ai._cli.ctl._knobs import _PROVENANCE_SINCE, _STRICT_SINCE
+
+    def _no_patch(*args: Any, **kwargs: Any) -> _ConfigResult:
+        raise AssertionError("the mutation must not be sent")
+
+    monkeypatch.setattr("inspect_ai._cli.ctl._config._exec_limits", _no_patch)
+
+    # strict-floor gate: any knob mutation against a pre-strict server
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        servers=[_DiscServer(7, api_version=_STRICT_SINCE - 1)],
+    )
+    result = cli_runner().invoke(
+        ctl_command, ["config", "--max-samples", "3", "--json"]
+    )
+    assert result.exit_code == 1
+    error = _error_envelope(result)
+    assert error["kind"] == "invalid_request"
+    assert "--max-samples" in error["message"]
+    assert "No changes were applied" in error["message"]  # self-contained
+    assert "pid 7 is running an older inspect" in result.stderr
+
+    # provenance gate: explicit --author/--reason against a strict server
+    # that predates provenance recording
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        servers=[_DiscServer(7, api_version=_PROVENANCE_SINCE - 1)],
+    )
+    result = cli_runner().invoke(
+        ctl_command,
+        ["config", "--max-samples", "3", "--reason", "why", "--json"],
+    )
+    assert result.exit_code == 1
+    error = _error_envelope(result)
+    assert error["kind"] == "invalid_request"
+    assert "--reason not supported" in error["message"]
+
+
 def test_json_unexpected_exception_envelope_with_traceback_on_stderr(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -6193,6 +6244,32 @@ def test_human_unexpected_exception_not_swallowed(
     result = cli_runner().invoke(ctl_command, ["task", "list"])
     assert result.exit_code != 0
     assert isinstance(result.exception, RuntimeError)
+
+
+def test_no_bare_click_exit_in_ctl_error_sites() -> None:
+    """Terminal ctl error sites must raise `_CtlFailure`, never a bare `Exit`.
+
+    `_structured_failures` deliberately passes a plain click ``Exit``
+    through un-enveloped (it is click control flow), so an error site
+    raising one silently drops the --json error envelope — stderr prose
+    over an empty stdout (issue #69: the config version gates did exactly
+    that). Only `_failure.py` itself constructs the bare ``Exit`` (the
+    internal-envelope path, after emitting).
+    """
+    import inspect_ai._cli.ctl as ctl_package
+
+    package_dir = Path(ctl_package.__file__).parent
+    offenders = [
+        f"{path.name}:{lineno}"
+        for path in sorted(package_dir.rglob("*.py"))
+        if path.name != "_failure.py"
+        for lineno, line in enumerate(path.read_text().splitlines(), start=1)
+        if "click.exceptions.Exit(" in line
+    ]
+    assert not offenders, (
+        "bare click Exit constructed outside _failure.py — raise _CtlFailure "
+        f"(usually via _fail) so --json failures stay enveloped: {offenders}"
+    )
 
 
 def test_envelope_failures_rejects_runner_without_as_json() -> None:
