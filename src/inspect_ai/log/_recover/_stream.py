@@ -332,6 +332,10 @@ def _write_sample_streaming(
             _write_json_field(
                 stream, "token_limit_usage", summary.token_limit_usage, comma=True
             )
+            _write_json_field(
+                stream, "message_limit", summary.message_limit, comma=True
+            )
+            _write_json_field(stream, "time_limit", summary.time_limit, comma=True)
             _write_json_field(stream, "started_at", summary.started_at, comma=True)
             _write_json_field(stream, "completed_at", summary.completed_at, comma=True)
             _write_json_field(stream, "total_time", summary.total_time, comma=True)

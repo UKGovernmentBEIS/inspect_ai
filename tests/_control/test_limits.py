@@ -1047,6 +1047,60 @@ def test_sample_limit_overrides_wired_into_sample_runner(log_samples: bool) -> N
     }
 
 
+def test_sample_limit_retune_stamped_on_logged_sample() -> None:
+    """A mid-run limits retune is stamped onto the logged sample record.
+
+    The logged ``EvalSample`` carries the *effective* per-sample limits — a
+    ``task_limits`` retune issued while the sample runs supersedes the launch
+    values in the stamped ``message_limit`` / ``token_limit`` / ``time_limit``
+    fields, so a log consumer never has to fold ``EvalLog.config_updates``
+    timestamps to answer "what limits did this sample run under?".
+    """
+    from inspect_ai import Task
+    from inspect_ai import eval as inspect_eval
+    from inspect_ai.dataset import Sample
+    from inspect_ai.solver import Generate, Solver, TaskState, solver
+
+    @solver
+    def retune() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            from inspect_ai._control.eval_state import get_eval_state
+            from inspect_ai.log._samples import sample_active
+
+            active = sample_active()
+            assert active is not None
+            eval_state = get_eval_state(active.eval_id)
+            assert eval_state is not None
+            result = await task_limits(
+                eval_state.task_id,
+                time_limit=600,
+                token_limit=1234,
+                message_limit=55,
+            )
+            assert result is not None
+            return state
+
+        return solve
+
+    log = inspect_eval(
+        Task(
+            dataset=[Sample(input="hi")],
+            solver=retune(),
+            message_limit=10,
+            token_limit=100,
+            time_limit=100,
+        ),
+        model="mockllm/model",
+        display="none",
+    )[0]
+    assert log.status == "success"
+    assert log.samples is not None
+    sample = log.samples[0]
+    assert sample.message_limit == 55
+    assert sample.token_limit == 1234
+    assert sample.time_limit == 600
+
+
 # ---------------------------------------------------------------------------
 # Named concurrency keys (--key)
 # ---------------------------------------------------------------------------

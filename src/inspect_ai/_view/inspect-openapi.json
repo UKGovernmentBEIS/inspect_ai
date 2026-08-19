@@ -3654,6 +3654,17 @@
               }
             ]
           },
+          "message_limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message Limit"
+          },
           "messages": {
             "items": {
               "anyOf": [
@@ -3774,6 +3785,17 @@
               }
             ],
             "title": "Target"
+          },
+          "time_limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Time Limit"
           },
           "timelines": {
             "anyOf": [
@@ -4179,6 +4201,17 @@
             ],
             "title": "Message Count"
           },
+          "message_limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message Limit"
+          },
           "metadata": {
             "additionalProperties": true,
             "title": "Metadata",
@@ -4261,6 +4294,17 @@
               }
             ],
             "title": "Target"
+          },
+          "time_limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Time Limit"
           },
           "token_limit": {
             "anyOf": [

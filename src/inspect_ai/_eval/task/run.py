@@ -159,6 +159,7 @@ from inspect_ai.util._early_stopping import (
 )
 from inspect_ai.util._limit import (
     LimitExceededError,
+    _TimeLimit,
     monitor_working_limit,
     record_sample_limit_data,
     reset_sample_limit_data,
@@ -1858,6 +1859,7 @@ async def task_run_sample(
             sample_summary: EvalSampleSummary | None = None
             attempt_started = False
             sample_row_started = False
+            sample_time_limit: _TimeLimit | None = None
 
             def make_sample_summary() -> EvalSampleSummary:
                 return EvalSampleSummary(
@@ -2372,6 +2374,20 @@ async def task_run_sample(
 
                     # emit/log sample end
                     def make_eval_sample(include_events: bool = True) -> EvalSample:
+                        # the effective time limit, read off the sample's root
+                        # time node so it resolves a live retune exactly as the
+                        # message/token ceilings do through the state's limit
+                        # nodes; a sample that failed before its limit scopes
+                        # were created stamps the launch value (as the other
+                        # ceilings do)
+                        if sample_time_limit is not None:
+                            effective_time_limit = (
+                                int(sample_time_limit.limit)
+                                if sample_time_limit.limit is not None
+                                else None
+                            )
+                        else:
+                            effective_time_limit = time_limit
                         return create_eval_sample(
                             start_time=start_time,
                             sample=sample,
@@ -2383,6 +2399,7 @@ async def task_run_sample(
                             # prior task attempts followed by this eval's
                             # sample-level retries
                             error_retries=previous_attempt_errors + error_retries,
+                            time_limit=effective_time_limit,
                             started_at=sample_start_datetime(),
                             include_events=include_events,
                         )
@@ -2605,6 +2622,7 @@ def create_eval_sample(
     error: EvalError | None,
     limit: EvalSampleLimit | None,
     error_retries: list[EvalRetryError],
+    time_limit: int | None,
     started_at: datetime | None = None,
     include_events: bool = True,
 ) -> EvalSample:
@@ -2647,6 +2665,8 @@ def create_eval_sample(
         if state.token_limit is not None
         else None,
         token_limit_usage=token_limit_usage(),
+        message_limit=state.message_limit,
+        time_limit=time_limit,
         started_at=started_at.isoformat() if started_at is not None else None,
         completed_at=datetime.now(timezone.utc).isoformat(),
         total_time=round(total_time, 3) if total_time is not None else None,

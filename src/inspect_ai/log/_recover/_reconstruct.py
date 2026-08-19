@@ -143,6 +143,8 @@ def reconstruct_eval_sample(
         token_limit=summary.token_limit,
         token_limit_type=summary.token_limit_type,
         token_limit_usage=summary.token_limit_usage,
+        message_limit=summary.message_limit,
+        time_limit=summary.time_limit,
         started_at=summary.started_at,
         completed_at=summary.completed_at,
         total_time=summary.total_time,
