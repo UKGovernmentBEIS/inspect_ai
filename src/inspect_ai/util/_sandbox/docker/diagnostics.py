@@ -5,8 +5,11 @@ died, and a container dying mid-command produces no output at all — so a CI
 failure of this kind used to carry no diagnostic evidence whatsoever (#264).
 These helpers capture the container's state (`compose ps`), its exit detail
 (`docker inspect .State`, including the OOM-killed flag) and its recent log
-output at the moment a dead sandbox is detected, so the error raised to the
-caller points at real evidence.
+output at the moment a dead sandbox is detected.
+
+All probes use short timeouts (not `compose_ps`'s 300s default): they run on
+error paths, often when the docker daemon is already struggling, and must
+not stall a sample for minutes.
 """
 
 import json
@@ -20,22 +23,28 @@ from .util import ComposeProject
 # fields of a `compose ps` record worth relaying (the full record is noisy)
 _PS_FIELDS = ("Name", "ID", "State", "Status", "ExitCode")
 
+# container states that positively confirm the container cannot exec.
+# restarting/paused/created containers are left alone: they may recover,
+# and misreading a recoverable container as dead aborts a healthy sample.
+_DEAD_STATES = ("exited", "dead")
+
 _LOG_TAIL_LINES = 100
 _SECTION_LIMIT = 4096
+_PROBE_TIMEOUT = 60
 
 
-async def service_running(service: str, project: ComposeProject) -> bool:
-    """Whether `service` currently has a running container.
+async def service_dead(service: str, project: ComposeProject) -> bool:
+    """Whether every container for `service` is positively exited or dead.
 
-    Returns True when the query itself fails: callers use False to escalate
-    an ambiguous exec failure to "sandbox dead", and a failed query is not
-    evidence of that.
+    Conservative: returns False when the query fails or shows no containers.
+    Callers use True to escalate an ambiguous exec failure to "sandbox dead",
+    and anything short of an observed dead container is not evidence of that.
     """
     try:
-        running = await compose_ps(project=project, status="running")
+        entries = await _service_ps_entries(service, project)
     except Exception:
-        return True
-    return any(entry.get("Service") == service for entry in running)
+        return False
+    return bool(entries) and all(_is_dead(entry) for entry in entries)
 
 
 async def sandbox_unavailable_diagnostics(service: str, project: ComposeProject) -> str:
@@ -51,7 +60,21 @@ async def sandbox_unavailable_diagnostics(service: str, project: ComposeProject)
         await _log_tail(service, project),
     ]
     body = "\n".join(section for section in sections if section)
-    return f'Diagnostics for service "{service}":\n{body}'
+    return f'Container diagnostics for service "{service}" (project {project.name}):\n{body}'
+
+
+def _is_dead(entry: dict[str, Any]) -> bool:
+    return str(entry.get("State", "")).lower() in _DEAD_STATES
+
+
+async def _service_ps_entries(
+    service: str, project: ComposeProject
+) -> list[dict[str, Any]]:
+    return [
+        entry
+        for entry in await compose_ps(project=project, all=True, timeout=_PROBE_TIMEOUT)
+        if entry.get("Service") == service
+    ]
 
 
 class _PsState(NamedTuple):
@@ -62,11 +85,7 @@ class _PsState(NamedTuple):
 
 async def _ps_state(service: str, project: ComposeProject) -> _PsState:
     try:
-        entries = [
-            entry
-            for entry in await compose_ps(project=project, all=True)
-            if entry.get("Service") == service
-        ]
+        entries = await _service_ps_entries(service, project)
     except Exception as ex:
         return _PsState(f"docker compose ps --all failed: {ex}", None)
     if not entries:
@@ -76,7 +95,10 @@ async def _ps_state(service: str, project: ComposeProject) -> _PsState:
             None,
         )
     summaries = [_ps_summary(entry) for entry in entries]
-    container = entries[0].get("ID") or entries[0].get("Name")
+    # inspect the dead container when there is more than one (e.g. a stale
+    # exited container coexisting with a fresh one)
+    target = next((entry for entry in entries if _is_dead(entry)), entries[0])
+    container = target.get("ID") or target.get("Name")
     return _PsState(f"docker compose ps --all: {json.dumps(summaries)}", container)
 
 
@@ -90,7 +112,7 @@ async def _inspect_state(container: str | None) -> str:
     try:
         result = await subprocess(
             ["docker", "inspect", "--format", "{{json .State}}", container],
-            timeout=60,
+            timeout=_PROBE_TIMEOUT,
         )
     except Exception as ex:
         return f"docker inspect failed: {ex}"
@@ -102,9 +124,9 @@ async def _inspect_state(container: str | None) -> str:
 async def _log_tail(service: str, project: ComposeProject) -> str:
     try:
         result = await compose_command(
-            ["logs", "--no-color", "--tail", str(_LOG_TAIL_LINES), service],
+            ["logs", "--tail", str(_LOG_TAIL_LINES), service],
             project=project,
-            timeout=60,
+            timeout=_PROBE_TIMEOUT,
             ansi="never",
         )
     except Exception as ex:
