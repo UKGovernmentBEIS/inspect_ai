@@ -4583,6 +4583,43 @@ def test_sample_list_model_scopes_taskless_listing(
     assert [row["sample_id"] for row in rows] == ["s2"]
 
 
+def test_exact_task_id_with_contradicting_model_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """--model composes as a filter even against an exact full task id.
+
+    A contradicting model must not be silently ignored in favor of the id —
+    the pinned semantic is a not-found error naming the model.
+    """
+    _patch_surface(monkeypatch, _two_model_summaries())
+    result = cli_runner().invoke(
+        ctl_command,
+        ["task", "cancel", "aaa111", "--model", "claude-fable-5", "--json"],
+    )
+    assert result.exit_code == 1
+    error = json.loads(result.stdout)["error"]
+    assert error["kind"] == "not_found"
+    assert "'claude-fable-5'" in error["message"]
+
+
+def test_bare_sample_noun_forwards_model_option(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`ctl sample --model X` (bare noun) mirrors --model onto the implied list."""
+    _patch_surface(
+        monkeypatch,
+        _two_model_summaries(),
+        samples_by_eval={
+            "eval_aaa111": [_sample_row("s1")],
+            "eval_bbb222": [_sample_row("s2")],
+        },
+    )
+    result = cli_runner().invoke(ctl_command, ["sample", "--model", "gpt-5", "--json"])
+    assert result.exit_code == 0, result.output
+    rows = json.loads(result.stdout)["samples"]
+    assert [row["sample_id"] for row in rows] == ["s1"]
+
+
 def test_sample_cancel_model_disambiguates_task_name(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

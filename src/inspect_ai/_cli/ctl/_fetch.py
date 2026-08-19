@@ -81,7 +81,11 @@ def _fetch_summaries(
     Safe only for an exact *full* id — it wins resolution outright (see
     :func:`_resolve_target_eval`), so the skipped servers could neither add
     candidates nor create ambiguity; a prefix or name query never equals a
-    full id, so it still sees every server. Discovery is newest-first, so
+    full id, so it still sees every server. A ``--model`` narrowing that
+    contradicts the exact id's row errors not-found over the short-circuited
+    (partial) summary set, which stays sound: task ids are stable across
+    retries of the same task × model row, so a duplicate-id row on a skipped
+    server carries the same model and could not have matched either. Discovery is newest-first, so
     only siblings started before the target are skipped, and the
     duplicate-id corner (an old kept-alive attempt a newer process is
     retrying) resolves to the newest attempt.
