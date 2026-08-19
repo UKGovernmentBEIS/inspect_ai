@@ -4,6 +4,14 @@
 
 FROM python:3.12-bookworm
 
+# Provide an opt-in non-root account (e.g. `user: nonroot` in a compose file).
+# UID/GID 65532 follows the distroless "nonroot" convention: it is above
+# Debian's useradd auto-assign range (1000-60000), so downstream images'
+# auto-assigned users can't land on it, and below nobody (65534) and the
+# 16-bit ceiling. The image's default user remains root.
+RUN groupadd --gid 65532 nonroot && \
+    useradd --create-home --uid 65532 --gid nonroot --shell /bin/bash nonroot
+
 # Install pipx to manage Python applications in isolated environments
 RUN apt-get update && apt-get install -y pipx && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
