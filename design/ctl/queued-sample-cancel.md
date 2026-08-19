@@ -83,7 +83,7 @@ Notes on the table:
   sample is exactly as if the requeue had never been accepted: the prior terminal record
   stands (it was only ever superseded when a re-run *logs*), the counters and
   fail-on-error tally are restored, and the sample is **requeueable again** — including
-  re-requeueing the very same record (see the `_accepted_uuids` note below). One honest
+  re-requeuing the very same record (see the `_accepted_uuids` note below). One honest
   carve-out: if the withdrawn re-run (or a cancel-before-start) was the *last*
   outstanding work, restoring/recording the terminal bucket reaches `terminal == total`,
   which stamps `completed_at` (and clears `EvalState.sample_ids`) — the task then
