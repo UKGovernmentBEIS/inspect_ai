@@ -6,6 +6,7 @@ from test_helpers.utils import failing_solver_deterministic, identity_solver
 
 from inspect_ai import Task, eval
 from inspect_ai._eval.task.run import (
+    InvalidatedPrior,
     PreviousError,
     _resume_if_checkpointed,
     eval_log_sample_source,
@@ -13,6 +14,7 @@ from inspect_ai._eval.task.run import (
 from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai.dataset import MemoryDataset, Sample
 from inspect_ai.log import EvalLog, recompute_metrics
+from inspect_ai.log._edit import ProvenanceData
 from inspect_ai.scorer import (
     CORRECT,
     INCORRECT,
@@ -403,6 +405,25 @@ def test_resume_detection_scoring_resume_for_agent_complete_checkpoint(
     assert isinstance(resume, ResumeCheckpoint)
     assert resume.sample_checkpoints_dir == str(sample_dir)
     assert resume.attempt == "resume_for_scoring"
+
+
+def test_eval_log_sample_source_invalidated_yields_invalidated_prior():
+    # an invalidated prior sample restarts from scratch: the lookup
+    # signals it so the re-run discards the sample's copied checkpoints
+    # instead of resuming from them
+    log = eval(_make_task([False]), fail_on_error=False)[0]
+    assert log.samples is not None
+    sample = log.samples[0]
+    assert sample.error is None
+    sample.invalidation = ProvenanceData(author="tester")
+
+    dataset = MemoryDataset([Sample(id=sample.id, input="hi", target="hi")])
+    source = eval_log_sample_source(log, None, dataset)
+
+    async def call() -> object:
+        return await source.lookup(sample.id, sample.epoch)
+
+    assert isinstance(anyio.run(call), InvalidatedPrior)
 
 
 def test_eval_log_sample_source_no_resume_when_sidecar_absent(tmp_path: Path) -> None:

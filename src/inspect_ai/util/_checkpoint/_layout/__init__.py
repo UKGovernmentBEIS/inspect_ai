@@ -16,8 +16,8 @@ from .eval_checkpoints_dir import (
     eval_checkpoints_dir_from_config,
 )
 from .sample_checkpoints_dir import (
+    delete_sample_checkpoints_dir,
     resolve_resumable_sample_dir,
-    resolve_resumable_sample_dir_in_chain,
     sample_checkpoints_dir,
 )
 
@@ -31,9 +31,9 @@ from .sample_checkpoints_dir import (
 # of the import statement.
 
 __all__ = [
+    "delete_sample_checkpoints_dir",
     "eval_checkpoints_dir",
     "eval_checkpoints_dir_from_config",
     "resolve_resumable_sample_dir",
-    "resolve_resumable_sample_dir_in_chain",
     "sample_checkpoints_dir",
 ]

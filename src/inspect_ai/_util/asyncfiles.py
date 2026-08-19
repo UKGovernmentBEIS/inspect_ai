@@ -250,22 +250,36 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
             return filesystem(filename).exists(filename)
 
     async def read_file(self, filename: str) -> bytes:
+        """Read a file's full contents.
+
+        Raises ``FileNotFoundError`` for a missing file on every
+        backend (S3 missing-key errors are normalized to it, matching
+        the local branch).
+        """
         if is_s3_filename(filename):
             bucket, key = s3_bucket_and_key(filename)
-            if current_async_backend() == "asyncio":
-                response = await (await self.s3_client_async()).get_object(
-                    Bucket=bucket, Key=key
-                )
-                body = response["Body"]
-                try:
-                    return cast(bytes, await body.read())
-                finally:
-                    body.close()
-
-            else:
-                return await anyio.to_thread.run_sync(
-                    s3_read_file, self.s3_client(), bucket, key
-                )
+            try:
+                if current_async_backend() == "asyncio":
+                    response = await (await self.s3_client_async()).get_object(
+                        Bucket=bucket, Key=key
+                    )
+                    body = response["Body"]
+                    try:
+                        return cast(bytes, await body.read())
+                    finally:
+                        body.close()
+                else:
+                    return await anyio.to_thread.run_sync(
+                        s3_read_file, self.s3_client(), bucket, key
+                    )
+            except ClientError as ex:
+                if ex.response.get("Error", {}).get("Code") in (
+                    "NoSuchKey",
+                    "404",
+                    "NotFound",
+                ):
+                    raise FileNotFoundError(filename) from ex
+                raise
         else:
             with file(filename, "rb") as f:
                 return f.read()

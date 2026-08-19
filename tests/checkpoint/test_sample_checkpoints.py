@@ -9,10 +9,12 @@ from pathlib import Path
 from inspect_ai.util._checkpoint._layout.sample_checkpoints_dir import (
     RESUME_SOURCE_FILE,
     _read_restic_config,
+    delete_resume_source_marker,
+    delete_sample_checkpoints_dir,
     ensure_restic_config,
     ensure_sample_checkpoints_dir,
+    read_resume_source_marker,
     resolve_resumable_sample_dir,
-    resolve_resumable_sample_dir_in_chain,
     sample_checkpoints_dir,
     scan_latest_committed_checkpoint,
     write_checkpoint_file,
@@ -263,12 +265,10 @@ async def test_scan_latest_committed_checkpoint_returns_latest_parseable(
 
 # -- resume resolution ---------------------------------------------------
 #
-# A retry's eval dir permanently records the attempt it retried
-# (resume-source.json); checkpoint files are always the last files
-# copied into a sample dir (the commit point). Those two facts make an
-# interrupted copy recoverable: a torn dir commits nothing, and
-# `resolve_resumable_sample_dir_in_chain` falls through the eval-dir
-# chain to the newest attempt holding a committed checkpoint.
+# Detection looks only in a sample's own dir: the retry startup copy
+# replicated every sample dir from the newest clean attempt, so a
+# sample either has a committed checkpoint here or runs fresh. The
+# eval-level marker (dirty flag) is exercised in test_resume_copy.py.
 
 
 async def _dir_with_checkpoint(root: Path, name: str) -> str:
@@ -305,102 +305,43 @@ async def test_resolve_none_when_nothing_committed(tmp_path: Path) -> None:
     assert await resolve_resumable_sample_dir(str(tmp_path / "missing")) is None
 
 
-async def test_resolve_in_chain_walks_eval_markers(tmp_path: Path) -> None:
-    """A sample absent from the nearest attempt resolves via the chain.
+async def test_resume_source_marker_roundtrip(tmp_path: Path) -> None:
+    """Write → read → delete → read None; delete is idempotent."""
+    eval_dir = str(tmp_path / "b.checkpoints")
+    Path(eval_dir).mkdir()
+    await write_resume_source_marker(eval_dir, str(tmp_path / "a.checkpoints"))
 
-    The nearest attempt's eval dir has no dir for this sample (its
-    greedy copy skipped it, or the sample was fed in mid-run) — the
-    eval dir's permanent resume-source marker leads one attempt back,
-    where the payload is.
-    """
-    old_eval = str(tmp_path / "a.checkpoints")
-    old_sample = await ensure_sample_checkpoints_dir(old_eval, "s", 0)
+    marker = await read_resume_source_marker(eval_dir)
+    assert marker is not None
+    assert marker.source_dir == str(tmp_path / "a.checkpoints")
+
+    await delete_resume_source_marker(eval_dir)
+    assert await read_resume_source_marker(eval_dir) is None
+    await delete_resume_source_marker(eval_dir)  # idempotent
+
+
+async def test_read_resume_source_marker_torn_is_none(tmp_path: Path) -> None:
+    eval_dir = str(tmp_path / "b.checkpoints")
+    Path(eval_dir).mkdir()
+    (Path(eval_dir) / RESUME_SOURCE_FILE).write_text('{"source_d')
+
+    assert await read_resume_source_marker(eval_dir) is None
+
+
+async def test_delete_sample_checkpoints_dir(tmp_path: Path) -> None:
+    """Removes the whole dir (invalidated sample); missing dir is a no-op."""
+    eval_dir = str(tmp_path / "a.checkpoints")
+    sample_dir = await ensure_sample_checkpoints_dir(eval_dir, "s", 0)
+    (Path(sample_dir) / "restic" / "host").mkdir(parents=True)
+    (Path(sample_dir) / "restic" / "host" / "config").write_text("cfg")
     await write_checkpoint_file(
-        sample_checkpoints_dir=old_sample,
+        sample_checkpoints_dir=sample_dir,
         checkpoint=_checkpoint(
             checkpoint_id=1, trigger="turn", turn=1, host=_info("snap-1")
         ),
     )
-    new_eval = str(tmp_path / "b.checkpoints")
-    Path(new_eval).mkdir()
-    await write_resume_source_marker(new_eval, old_eval)
 
-    resolved = await resolve_resumable_sample_dir_in_chain(new_eval, "s", 0)
+    await delete_sample_checkpoints_dir(eval_dir, "s", 0)
 
-    assert resolved is not None
-    assert resolved.sample_dir == old_sample
-
-
-async def test_resolve_in_chain_prefers_nearest_attempt(tmp_path: Path) -> None:
-    """The chain stops at the first attempt holding the sample's payload."""
-    old_eval = str(tmp_path / "a.checkpoints")
-    await _dir_with_checkpoint(tmp_path, "a")
-    new_eval = str(tmp_path / "b.checkpoints")
-    new_sample = await ensure_sample_checkpoints_dir(new_eval, "s", 0)
-    await write_checkpoint_file(
-        sample_checkpoints_dir=new_sample,
-        checkpoint=_checkpoint(
-            checkpoint_id=2, trigger="turn", turn=2, host=_info("snap-2")
-        ),
-    )
-    await write_resume_source_marker(new_eval, old_eval)
-
-    resolved = await resolve_resumable_sample_dir_in_chain(new_eval, "s", 0)
-
-    assert resolved is not None
-    assert resolved.sample_dir == new_sample
-    assert resolved.checkpoint.checkpoint_id == 2
-
-
-async def test_resolve_in_chain_none_when_chain_exhausted(tmp_path: Path) -> None:
-    old_eval = str(tmp_path / "a.checkpoints")
-    Path(old_eval).mkdir()
-    new_eval = str(tmp_path / "b.checkpoints")
-    Path(new_eval).mkdir()
-    await write_resume_source_marker(new_eval, old_eval)
-
-    assert await resolve_resumable_sample_dir_in_chain(new_eval, "s", 0) is None
-
-
-async def test_resolve_in_chain_falls_through_torn_dir(tmp_path: Path) -> None:
-    """A torn copy commits nothing, so the chain reaches the intact attempt.
-
-    The nearest attempt's sample dir exists but holds no committed
-    checkpoint (its copy was interrupted before the checkpoint files —
-    the last files copied — landed). Two dead attempts in a row still
-    resolve back to the intact payload.
-    """
-    old_eval = str(tmp_path / "a.checkpoints")
-    old_sample = await _dir_with_checkpoint(tmp_path, "a")
-    mid_eval = str(tmp_path / "b.checkpoints")
-    await ensure_sample_checkpoints_dir(mid_eval, "s", 0)  # torn: no ckpt files
-    await write_resume_source_marker(mid_eval, old_eval)
-    new_eval = str(tmp_path / "c.checkpoints")
-    Path(new_eval).mkdir()
-    await write_resume_source_marker(new_eval, mid_eval)
-
-    resolved = await resolve_resumable_sample_dir_in_chain(new_eval, "s", 0)
-
-    assert resolved is not None
-    assert resolved.sample_dir == old_sample
-
-
-async def test_resolve_in_chain_ends_on_torn_eval_marker(tmp_path: Path) -> None:
-    """A torn eval marker parses as absent — the chain ends there."""
-    new_eval = str(tmp_path / "b.checkpoints")
-    Path(new_eval).mkdir()
-    (Path(new_eval) / RESUME_SOURCE_FILE).write_text('{"source_d')
-
-    assert await resolve_resumable_sample_dir_in_chain(new_eval, "s", 0) is None
-
-
-async def test_resolve_in_chain_bails_on_marker_cycle(tmp_path: Path) -> None:
-    """A hand-crafted eval-marker cycle returns None rather than looping."""
-    d1 = str(tmp_path / "a.checkpoints")
-    Path(d1).mkdir()
-    d2 = str(tmp_path / "b.checkpoints")
-    Path(d2).mkdir()
-    await write_resume_source_marker(d1, d2)
-    await write_resume_source_marker(d2, d1)
-
-    assert await resolve_resumable_sample_dir_in_chain(d1, "s", 0) is None
+    assert not Path(sample_dir).exists()
+    await delete_sample_checkpoints_dir(eval_dir, "s", 0)  # idempotent

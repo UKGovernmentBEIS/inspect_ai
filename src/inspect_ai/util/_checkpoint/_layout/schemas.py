@@ -104,14 +104,13 @@ class ResticConfig(BaseModel):
 class ResumeSource(BaseModel):
     """Resume-source marker file (``<eval-checkpoints-dir>/resume-source.json``).
 
-    A retry's *first* write into its eval checkpoints dir, permanently
-    recording the attempt it retried. The markers link attempts into a
-    chain, newest first; resume detection walks the chain and takes the
-    first attempt whose sample dir holds a committed checkpoint (see
-    ``resolve_resumable_sample_dir_in_chain``). Because checkpoint
-    files are always the *last* files copied into a sample dir, a torn
-    copy commits nothing and falls through the chain to the intact
-    attempt behind it — however many interrupted retries pile up.
+    The retry startup copy's dirty flag: its *first* write, naming the
+    attempt being retried, deleted once every sample dir has been
+    copied in. An attempt without a marker is a clean, self-contained
+    archive; an attempt whose marker is still present died during its
+    startup copy and holds nothing of its own, so the next retry
+    follows the marker past it (and past any run of dead attempts) to
+    the newest clean attempt (see ``_resume_copy``).
     """
 
     model_config = ConfigDict(extra="allow")

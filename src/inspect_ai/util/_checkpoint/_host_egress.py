@@ -190,8 +190,7 @@ def _safe_order(files: list[str]) -> list[str]:
         # newest checkpoint file first: a per-fire egress ships one, but
         # a multi-file ship interrupted part way through must leave the
         # *latest* at the destination — a stale-prefix dir would resolve
-        # to an old checkpoint instead of falling through the retry
-        # chain to the intact one
+        # to an old checkpoint
         + sorted(checkpoint_files, reverse=True)
     )
 

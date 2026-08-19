@@ -14,10 +14,9 @@ context subdir, ingress each sandbox repo back into its container and
 restore in-container state, load ``agent_state.json``, and push
 restored events/attachments/store into the live framework state.
 Restore never writes anything a future retry needs — by the time a
-sample starts, its dir normally already holds the payload. The one
-exception is the lazy fallback: when the greedy copy skipped or failed
-this sample, detection resolves an earlier attempt's dir through the
-retry chain, and hydration copies that payload in first.
+sample starts, its dir already holds the payload (the startup copy
+replicated every sample dir from the retried attempt), and resume
+detection never resolves anything but the sample's own dir.
 
 Sample-root selection:
 
@@ -87,7 +86,7 @@ from ._layout.staging_dir import (
     is_remote_destination,
     sandbox_repo_dir,
 )
-from ._resume_copy import copy_payload_files, copy_sample_payload
+from ._resume_copy import copy_payload_files
 from ._sandbox_restic import ingress_sandbox, init_sandbox_repo, inject_restic
 from .checkpointer import ResumeCheckpoint
 from .config import ResolvedCheckpointConfig
@@ -226,13 +225,10 @@ async def hydrate(
     )
 
     if resume_checkpoint:
-        # normally a no-op: the greedy startup copy already put the
-        # payload in this attempt's dir, so detection resolved the
-        # sample's own dir. A different source means detection resolved
-        # an earlier attempt through the retry chain (the greedy copy
-        # skipped or failed this sample) — copy it in before restoring.
-        await copy_sample_payload(
-            resume_checkpoint.sample_checkpoints_dir, new_sample_checkpoints_dir
+        # detection resolves only the sample's own dir (the startup copy
+        # already put the payload there)
+        assert resume_checkpoint.sample_checkpoints_dir == new_sample_checkpoints_dir, (
+            "resume source must be this sample's own checkpoints dir"
         )
         if sample_staging is not None:
             # remote destination: pull the payload into local staging
@@ -326,6 +322,19 @@ async def hydrate(
         host=host_result,
         sandbox_backup_paths=sandbox_backup_paths,
     )
+
+
+def _same_dir(a: str, b: str) -> bool:
+    """Whether two dir references name the same location.
+
+    Remote URIs compare textually; local paths (including ``file://``
+    and relative forms) compare fully resolved.
+    """
+    if a == b:
+        return True
+    if is_remote_destination(a) or is_remote_destination(b):
+        return False
+    return Path(local_path(a)).resolve() == Path(local_path(b)).resolve()
 
 
 async def _hydrate_host(
