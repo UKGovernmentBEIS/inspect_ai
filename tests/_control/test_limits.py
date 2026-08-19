@@ -854,8 +854,11 @@ async def test_sample_limit_override_retunes_inflight_time_deadline() -> None:
             assert time_node._cancel_scope.deadline == math.inf
 
             set_sample_limit_override("t1", "time_limit", 500)
+            # abs tolerance: both operands are absolute clock readings, so
+            # approx's default relative tolerance leaves sub-millisecond slack
+            # that CI scheduling jitter can exceed
             assert time_node._cancel_scope.deadline == pytest.approx(
-                time_node._start_time + 500
+                time_node._start_time + 500, abs=0.1
             )
 
             set_sample_limit_override("t1", "time_limit", None)
@@ -927,8 +930,9 @@ async def test_sample_limit_override_applies_to_new_time_scope() -> None:
         "t1", time=time_node, token=token_node, message=message_node
     ):
         with time_node:
+            # abs tolerance to absorb CI scheduling jitter (see above)
             assert time_node._cancel_scope.deadline == pytest.approx(
-                time_node._start_time + 500
+                time_node._start_time + 500, abs=0.1
             )
 
 
@@ -1025,7 +1029,7 @@ def test_sample_limit_overrides_wired_into_sample_runner(log_samples: bool) -> N
             observed["time"] = limits.time.limit
             time_node = cast(Any, limits.time)
             observed["deadline_tracks_override"] = time_node._cancel_scope.deadline == (
-                pytest.approx(time_node._start_time + 600)
+                pytest.approx(time_node._start_time + 600, abs=0.1)
             )
             return state
 
