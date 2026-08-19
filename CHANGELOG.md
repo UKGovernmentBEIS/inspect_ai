@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Anthropic: Compatibility with anthropic SDK 0.124.0 (browser state tool results and file-based image/document sources no longer fail type checking).
 - Sandbox: Editable installs now avoid spurious `-dev` sandbox-tools binaries when local main refs are missing, stale, or unavailable.
 - Eval Log: Log directory manifests now strip Windows-style directory prefixes before normalizing paths, avoiding parent directories in bundled listings.
 - Sandboxes: The HTTP proxy example now disables container network egress, preventing agents from bypassing mitmproxy by ignoring proxy environment variables.
