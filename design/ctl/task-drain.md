@@ -145,7 +145,17 @@ POST /tasks/<task-id>/drain?dry_run=true|false
 - **Queued samples** (parked at the sample semaphore, or held by a pause
   latch) abandon as they leave the queue: terminal `cancelled` in the
   counters, absent from the log — identical to their treatment under a
-  score/error resolution, per the issue's expectation.
+  score/error resolution, per the issue's expectation. One timing caveat:
+  the abandon check runs at semaphore *entry*, so a queued sample reaches
+  it only when a slot frees. Score/error frees slots immediately (the
+  interrupt sweep resolves the in-flight samples); drain by definition does
+  not — nothing abandons until the **first** in-flight sample finishes
+  naturally, after which the queue cascades (each abandon frees a slot for
+  the next waiter). An operator polling the counters may therefore see
+  `queued` and `cancelled` static for as long as that first natural
+  completion takes; `resolving` (see read surface) is what says the drain
+  is nonetheless in effect. The mechanism is identical to score/error; the
+  timing is not.
 - **Samples in the materialization window** (past the queue, not yet
   started — sandbox init, sample-state creation) do not run their plan: the
   existing start-time self-check that resolves this window for score/error
@@ -169,9 +179,10 @@ POST /tasks/<task-id>/drain?dry_run=true|false
   status `success` (or `error` if genuine failures crossed the fail-on-error
   threshold; drain-abandoned samples never count toward it). If nothing was
   in flight when the stamp landed, the task completes almost immediately.
-- **No eval-set in-run retry**: any stamped `cancel_type` is a user cancel,
-  so the existing dispatcher branch suppresses the retry — drain inherits
-  this with zero new code.
+- **No eval-set in-run retry**: every stamped `cancel_type` except
+  `"retry"` (which requests a re-run) is a user cancel whose in-run retry
+  the dispatcher suppresses; `"drain"` joins the suppressed set, inheriting
+  the existing branch with zero new code.
 - **The undispatched remainder stays explicitly resumable.** A drained log
   reports fewer samples than the dataset × epochs, so eval-set's run-vs-reuse
   logic (`log_samples_complete`) classifies it incomplete: re-invoking
@@ -276,26 +287,51 @@ an exhausted retry budget produces).
   abandon, like drain, is a this-run decision.
 
 **Mechanics.** The directive stamps a task-id-keyed *retry-abandoned*
-registry (reset at the run boundary like the pause-gate registry) and fires
-the existing dispatch waker. Two checks consume it:
+registry (reset at the run boundary like the pause-gate registry), clears
+`EvalState.retry_pending` synchronously, and fires the existing dispatch
+waker. Clearing `retry_pending` at stamp time — rather than leaving it to
+the dispatcher pick — makes the task read terminal on the read surface the
+moment the directive returns, and closes the repeat-request window: a
+second `cancel`/`drain` landing before the dispatcher's next pick sees
+`completed_at` set and `retry_pending` false and takes the ordinary
+idempotent no-op (`changed: false`, with the registry consulted so the
+detail can say "pending retry already abandoned" rather than "task already
+finished") instead of re-reporting `changed: true` for one abandonment.
+
+One fact shapes the consume sites: the retry item is built *eagerly* —
+`options.logger.reinit()` runs at retry-item construction in the
+dispatcher, before the item is queued — so a queued `PendingTask` already
+carries a reinitialized logger: a fresh in-memory eval entry plus a live
+realtime sample-buffer database on disk (`TaskLogger.init` creates one
+whenever `log_realtime` is not off). Abandoning the retry therefore always
+includes a *discard* of that never-started entry (buffer-db cleanup plus
+dropping the entry — the errored attempt's log on disk remains the task's
+latest), wherever the abandonment lands. An implementation may instead
+defer `reinit()` to attempt start (after the self-check below), leaving
+nothing to discard at either site; the contract either way is that an
+abandoned retry leaves no live buffer db and no phantom eval entry behind.
+Two checks consume the registry, sharing the discard:
 
 1. **Dispatch pick** (`pick_balanced`): a pending task whose task id is
    stamped is dropped from the queue instead of dispatched (before the pause
-   filter, so a paused-and-held retry is droppable too), clearing
-   `EvalState.retry_pending` so the task reads terminal on the read surface.
-   A retry item still mid-construction (between `mark_eval_retry_pending`
-   and its `pending.append`) is covered without a separate hook: the append
-   fires the dispatcher wake, and the next pick drops it.
+   filter, so a paused-and-held retry is droppable too), running the discard
+   on the dropped item's logger. A retry item still mid-construction
+   (between `mark_eval_retry_pending` and its `pending.append`) is covered
+   without a separate hook: the append fires the dispatcher wake, and the
+   next pick drops it.
 2. **Attempt start**: the retry attempt self-checks the stamp before
-   registering its `EvalState` and abandons instead of running (discarding
-   its re-initialized, never-started log entry — the errored attempt's log
-   remains the task's latest). This closes the pick-to-register window: a
-   stamp landing after the dispatcher has dequeued the item but before the
-   attempt registers must not let the retry run after the operator was told
-   it was abandoned. If discarding the unstarted logger entry proves thorny
-   in implementation, the fallback is a narrow 409 for exactly that window
-   ("retry is starting — re-issue"), shrinking today's always-409 to a
-   moments-wide race rather than a state.
+   registering its `EvalState` and abandons instead of running, with the
+   same discard. This closes the pick-to-register window: a stamp landing
+   after the dispatcher has dequeued the item but before the attempt
+   registers must not let the retry run after the operator was told it was
+   abandoned.
+
+An earlier draft kept a fallback — a narrow 409 for the pick-to-register
+window if discarding the unstarted logger entry proved thorny. Dropped: the
+fallback could only ever rescue site 2 (a request context that can answer
+409); site 1 runs inside the dispatcher, cannot 409, and must discard
+regardless — so the discard has to be built either way, and site 2 simply
+reuses it.
 
 Everything runs on the eval's single loop, so the stamp-vs-check ordering at
 each site is race-free; the two-site split exists only because dispatch and
@@ -306,17 +342,22 @@ attempt start are separated by awaits.
 - `GET /tasks` rows gain **`resolving`** (`null`, or the pending graceful
   resolution: `"drain"` / `"score"` / `"error"`). Drain's window is long by
   design — an agent polling a draining task must be able to tell "tail is
-  draining" from "task is stalled" — and the same field makes a stalled
-  score/error resolution (hung scorer) visible, which today's rows don't
-  show at all. `ctl task list` renders a marker in the human table.
-  Purely additive; no version bump (an older CLI ignores it, an older
-  server omits it and the new CLI shows nothing).
+  draining" from "task is stalled", and the counters offer no early signal
+  (queued samples abandon only as slots free, so `queued`/`cancelled` can
+  sit static until the first natural completion — see Semantics) — and the
+  same field makes a stalled score/error resolution (hung scorer) visible,
+  which today's rows don't show at all. `ctl task list` renders a marker in
+  the human table. Purely additive; no version bump (an older CLI ignores
+  it, an older server omits it and the new CLI shows nothing).
 - **`will_retry` honesty (pre-existing wart, fix alongside):** sample rows
   render a cancelled sample as `pending` ("re-run coming") when the
-  attempt's `will_retry` snapshot is true — but any stamped `cancel_type`
-  means no retry will happen, so a drained (or score/error-resolved) task
-  with retry budget remaining shows its abandoned samples as `pending`
-  forever. Stamping should clear the attempt's `will_retry` so they read
+  attempt's `will_retry` snapshot is true. That is right for a stamped
+  `"retry"` — the dispatcher re-runs exactly on that type, the case
+  `will_retry` exists for — but wrong for every other stamped type:
+  `"drain"`, `"score"`, `"error"`, and `"abort"` all suppress the retry, so
+  a drained (or score/error-resolved) task with retry budget remaining
+  shows its abandoned samples as `pending` forever. Stamping any type other
+  than `"retry"` should clear the attempt's `will_retry` so they read
   `cancelled`. Small, display-only, shared with the shipped graceful
   cancels.
 
@@ -335,12 +376,14 @@ attempt start are separated by awaits.
   the score/error-only escalation special case) and the between-attempts
   branch swaps its 409 for the retry-abandon path (kept 409 for
   score/error).
-- Retry-abandoned registry + the two consume sites (`pick_balanced` drop in
-  `_eval/run.py`, attempt-start self-check).
+- Retry-abandoned registry (stamping also clears `retry_pending`), the
+  shared never-started-logger discard, and its two consume sites
+  (`pick_balanced` drop in `_eval/run.py`, attempt-start self-check).
 - Route (`POST /tasks/<task-id>/drain`) in `_control/server.py`; CLI verb in
   `_cli/ctl/_task.py` riding the shared mutation renderer with
   `not_found_missing_route`.
-- `GET /tasks` `resolving` field + `will_retry` clear; docs
+- `GET /tasks` `resolving` field + `will_retry` clear on non-`"retry"`
+  stamps; docs
   (`docs/control-channel.qmd` drain section) and CHANGELOG at
   implementation time.
 
@@ -359,9 +402,11 @@ attempt start are separated by awaits.
   composition costs real machinery the stamp avoids (a drain intent on the
   gate, a finalize-at-quiesce hook racing the auto-flush, `resume`
   interplay, read-surface state for held-but-doomed samples) and leaves
-  queued samples in limbo (`queued` in the counters until quiesce) rather
-  than moving them to `cancelled` at decision time, which the issue's
-  semantics call for.
+  queued samples in limbo (`queued` in the counters until quiesce). The
+  stamp is not instant either — queued samples resolve to `cancelled` as
+  slots free, starting at the first natural completion (see Semantics) —
+  but each resolution is terminal rather than held, and all land strictly
+  before quiesce, which is what the issue's semantics call for.
 - **A `--force` flag on drain (or a drain/force split on cancel).** The
   escalation ladder makes both redundant: `--action score` is "stop waiting,
   resolve now", `task cancel` is force. Deferred item 1's "possible
