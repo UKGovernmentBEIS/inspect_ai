@@ -295,6 +295,86 @@ def test_eval_config_override():
     assert log.eval.config.fail_on_error == 0.5
 
 
+def test_eval_config_overrides_do_not_mutate_reused_task():
+    task = Task(dataset=[Sample(input="Say Hello", target="Hello")], scorer=match())
+
+    log = eval(
+        task,
+        model="mockllm/model",
+        epochs=2,
+        message_limit=10,
+        token_limit=500,
+        turn_limit=3,
+        time_limit=60,
+        working_limit=60,
+        fail_on_error=False,
+        continue_on_fail=True,
+        score_on_error=True,
+    )[0]
+    assert log.eval.config.epochs == 2
+    assert log.eval.config.message_limit == 10
+    assert log.eval.config.token_limit == 500
+    assert log.eval.config.turn_limit == 3
+    assert log.eval.config.time_limit == 60
+    assert log.eval.config.working_limit == 60
+    assert log.eval.config.fail_on_error is False
+    assert log.eval.config.continue_on_fail is True
+    assert log.eval.config.score_on_error is True
+
+    assert task.epochs is None
+    assert task.message_limit is None
+    assert task.token_limit is None
+    assert task.token_limit_type is None
+    assert task.turn_limit is None
+    assert task.time_limit is None
+    assert task.working_limit is None
+    assert task.fail_on_error is None
+    assert task.continue_on_fail is None
+    assert task.score_on_error is None
+
+    followup = eval(task, model="mockllm/model")[0]
+    assert followup.eval.config.epochs == 1
+    assert followup.eval.config.message_limit is None
+    assert followup.eval.config.token_limit is None
+    assert followup.eval.config.token_limit_type is None
+    assert followup.eval.config.turn_limit is None
+    assert followup.eval.config.time_limit is None
+    assert followup.eval.config.working_limit is None
+    assert followup.eval.config.fail_on_error is True
+    assert followup.eval.config.continue_on_fail is False
+    assert followup.eval.config.score_on_error is False
+
+
+def test_eval_level_message_limit_not_reused_by_task_object():
+    from inspect_ai.solver import Generate, TaskState, solver
+
+    @solver
+    def two_generates():
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            state = await generate(state)
+            state.messages.append(state.user_prompt)
+            return await generate(state)
+
+        return solve
+
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        solver=[two_generates()],
+        scorer=match(numeric=True),
+    )
+
+    limited = eval(task, model="mockllm/model", message_limit=1, fail_on_error=False)[0]
+    assert limited.samples is not None
+    assert limited.samples[0].limit is not None
+    assert limited.samples[0].limit.type == "message"
+    assert task.message_limit is None
+
+    followup = eval(task, model="mockllm/model")[0]
+    assert followup.eval.config.message_limit is None
+    assert followup.samples is not None
+    assert followup.samples[0].limit is None
+
+
 def test_eval_approval_override():
     eval_approval = ApprovalPolicyConfig(
         approvers=[
