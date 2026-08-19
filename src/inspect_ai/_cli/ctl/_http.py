@@ -627,16 +627,19 @@ def _rejection_503(response: httpx.Response) -> bool:
     """Whether a 503 is the server's connection-limit rejection.
 
     uvicorn's ``limit_concurrency`` backstop answers a fixed plain-text 503
-    before any handler runs. No control endpoint returns 503 today, but a
-    handler that ever does would carry the server's JSON ``{"error": ...}``
-    convention (cf. :func:`_handler_404`) — pass that through to the caller
-    rather than consuming it as a capacity rejection.
+    before any handler runs — never a JSON dict. So unlike :func:`_handler_404`
+    (where both sides are dicts and only the ``{"error": ...}`` convention
+    discriminates), any dict body here — the ``{"error": ...}`` convention or
+    e.g. FastAPI's stock ``{"detail": ...}`` from ``HTTPException`` — must be
+    a handler 503: pass it through to the caller rather than consuming it as
+    a capacity rejection. No control endpoint returns 503 today, so this is
+    purely a forward-looking guard.
     """
     try:
         body = response.json()
     except ValueError:
         return True
-    return not (isinstance(body, dict) and "error" in body)
+    return not isinstance(body, dict)
 
 
 def _error_body(response: httpx.Response) -> str | None:

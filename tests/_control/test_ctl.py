@@ -1548,19 +1548,27 @@ async def test_get_with_retry_mixed_exhaustion_names_both_causes(
     )
 
 
+@pytest.mark.parametrize(
+    "body",
+    [{"error": "component not ready"}, {"detail": "component not ready"}],
+    ids=["error-convention", "fastapi-http-exception"],
+)
 async def test_get_with_retry_passes_handler_503_through(
     monkeypatch: pytest.MonkeyPatch,
+    body: dict[str, str],
 ) -> None:
-    """A 503 carrying the JSON error convention is a handler's, not the cap's.
+    """A 503 carrying any JSON dict body is a handler's, not the cap's.
 
-    No control endpoint returns 503 today, but one that ever does would use
-    the server's ``{"error": ...}`` body convention — such a response must
-    reach the caller (here: non-2xx → unreachable) rather than be consumed
-    and retried as a capacity rejection.
+    No control endpoint returns 503 today, but uvicorn's connection-limit
+    rejection is always plain text — so a JSON dict body, whether the
+    server's ``{"error": ...}`` convention or FastAPI's stock
+    ``{"detail": ...}`` from ``HTTPException``, must reach the caller
+    (here: non-2xx → unreachable) rather than be consumed and retried as
+    a capacity rejection.
     """
     from inspect_ai._cli.ctl._http import _get_with_retry_async, _ServerUnreachable
 
-    counter = _stub_httpx(monkeypatch, [(503, {"error": "component not ready"})])
+    counter = _stub_httpx(monkeypatch, [(503, body)])
     with pytest.raises(_ServerUnreachable):
         await _get_with_retry_async("/tmp/x.sock", "/tasks", what="Reading tasks")
     assert counter["gets"] == 1  # not retried as a capacity rejection
