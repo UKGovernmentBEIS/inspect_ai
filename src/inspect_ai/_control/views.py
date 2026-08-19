@@ -128,6 +128,11 @@ class TaskConfigView(ProcessConfigView):
     """
 
     max_samples: MaxSamplesView
+    limits: NotRequired[dict[str, int | None]]
+    """Per-sample limit overrides (``time_limit`` / ``token_limit`` /
+    ``message_limit`` → live task-wide override, ``None`` = the launch
+    config applies per sample). Absent on servers predating the retune-
+    limits knobs. Sourced from ``sample_limit_overrides``."""
     buffer: dict[str, Any] | None
     """The sample-buffer params (``None`` = no live buffer). Sourced from
     ``_control/buffer.py`` — a typed-``Any`` island until that view is typed.

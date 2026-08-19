@@ -135,7 +135,7 @@ async def inspect_anthropic_api_request_impl(
     debug_log("SCAFFOLD INPUT", input)
 
     messages = await messages_from_anthropic_input(input, tools)
-    validate_bridge_media(bridge, messages)
+    await validate_bridge_media(bridge, messages)
     debug_log("INSPECT MESSAGES", messages)
 
     # extract generate config (hoist instructions into system_message)
@@ -524,8 +524,10 @@ def content_block_to_content(
     elif block["type"] == "document":
         source = block["source"]
         if source["type"] == "text":
+            data = base64.b64encode(source["data"].encode("utf-8")).decode("ascii")
             return ContentDocument(
-                document=source["data"], mime_type=source["media_type"]
+                document=as_data_uri(source["media_type"], data),
+                mime_type=source["media_type"],
             )
         elif source["type"] == "url":
             return ContentDocument(document=source["url"])

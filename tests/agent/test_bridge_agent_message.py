@@ -30,9 +30,13 @@ import pytest
 from openai.types.responses import ResponseInputItemParam
 
 from inspect_ai._util.content import ContentText
+from inspect_ai.agent._agent import AgentState
+from inspect_ai.agent._bridge._errors import BridgePolicyError
 from inspect_ai.agent._bridge.responses_impl import (
     messages_from_responses_input,
 )
+from inspect_ai.agent._bridge.types import AgentBridge
+from inspect_ai.agent._bridge.util import validate_bridge_media
 from inspect_ai.model._chat_message import ChatMessageUser
 from inspect_ai.model._openai_responses import (
     is_agent_message,
@@ -165,6 +169,36 @@ def test_agent_message_with_role_key_is_still_attributed() -> None:
     assert isinstance(content, list)
     assert isinstance(content[0], ContentText)
     assert content[0].internal == {"agent_message": item}
+
+
+@pytest.mark.parametrize("update", [{"author": None}, {"role": "user"}])
+async def test_agent_message_supported_envelope_variants_pass_validation(
+    update: dict[str, Any],
+) -> None:
+    item = _agent_message_item(_text("delegate result"))
+    item.update(update)
+    messages = messages_from_responses_input(
+        cast(list[ResponseInputItemParam], [item]), [], MODEL_NAME
+    )
+
+    await validate_bridge_media(
+        AgentBridge(AgentState(messages=[]), allow_remote_media=False), messages
+    )
+    assert dict((await openai_responses_inputs(messages))[0]) == item
+
+
+async def test_agent_message_media_is_rejected_by_sandbox_bridge() -> None:
+    item = _agent_message_item(
+        {"type": "input_image", "image_url": "https://example.com/secret"}
+    )
+    messages = messages_from_responses_input(
+        cast(list[ResponseInputItemParam], [item]), [], MODEL_NAME
+    )
+
+    with pytest.raises(BridgePolicyError, match="input_image.*cannot be replayed"):
+        await validate_bridge_media(
+            AgentBridge(AgentState(messages=[]), allow_remote_media=False), messages
+        )
 
 
 def test_agent_message_joins_multiple_text_parts() -> None:

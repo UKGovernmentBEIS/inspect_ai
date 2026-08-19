@@ -16,26 +16,26 @@ The CI gates exist to prevent two failure modes:
 1. **Regression in sandbox-related tool behavior.** The end-to-end tests under `tests/tools/` that exercise real sandboxes are too slow to run in the normal test gate, so they're excluded there and run in a dedicated slow-test gate instead. That gate only triggers when a PR touches code that could plausibly regress them — the host-side tool code, the injectable, or the tests themselves. PRs touching those paths pay the cost of the slower tests; PRs that don't, don't.
 2. **Merging injectable source changes that haven't been published.** If `src/inspect_sandbox_tools/` changes but `sandbox_tools_version.txt` isn't bumped (and the new `v{N}` isn't uploaded to S3), the next PyPI wheel build will either fail or bundle the wrong binary, and editable installs on `main` will S3-download a binary that doesn't match the source tree. The gates force the bump and verify the S3 upload before the PR can land.
 
-## Fast unit gate
+## Package test gate
 
-Separate from the slow integration gates below, the **`sandbox-tools-unit`** job runs the package's own fast, self-contained unit tests (`src/inspect_sandbox_tools/tests/agent_bridge/`, notably the model proxy) on any change under `src/inspect_sandbox_tools/**` — including test-only changes. It installs the package as its own project (`uv pip install "./src/inspect_sandbox_tools[dev]"`) so pytest resolves that package's `pyproject.toml` as config (`asyncio_mode=auto`); these tests can't run under the root `test` job, whose anyio conftest blocks `@pytest.mark.asyncio`. It needs no Docker or built binary, so it gives fast feedback on proxy-logic regressions that the slow integration gates (which require a binary + version bump) would not.
+Separate from the slow integration gates below, the **`sandbox-tools-unit`** job runs the package's complete test suite (`src/inspect_sandbox_tools/tests/`) on any change under `src/inspect_sandbox_tools/**` — including test-only changes. The root `test` job neither collects these tests (`testpaths` is limited to `tests/`) nor installs the `inspect_sandbox_tools` package. The dedicated job installs the package with its test dependencies, including `pytest-asyncio`; targeting the nested test path makes pytest load the package's config (`asyncio_mode=auto`). It needs no Docker or built binary, so it gives earlier feedback than the Docker-based integration gates.
 
 ## Gates
 
-Three jobs run in sequence on PRs:
+Four jobs run in sequence on PRs:
 
 ```
-check-tool-paths ──► check-version-bump ──► slow-tool-tests-dev ──► slow-tool-tests-release
+detect-slow ──► check-version-bump ──► slow-tool-tests-dev ──► slow-tool-tests-release
 ```
 
-- **`check-tool-paths`** — detects whether the PR touches tool-related paths relative to the PR base branch. Emits `tools_changed` and `injectable_src_changed`. Documentation under the injectable tree (`*.md`, `design/`) doesn't ship in the built binary, so it counts toward `tools_changed` but not `injectable_src_changed`.
+- **`detect-slow`** — detects whether the PR touches tool-related paths relative to the PR base branch. Emits `tools_changed` and `injectable_src_changed`. Documentation under the injectable tree (`*.md`, `design/`) doesn't ship in the built binary, so it counts toward `tools_changed` but not `injectable_src_changed`.
 - **`check-version-bump`** — fast, cheap. Reads `sandbox_tools_version.txt` on the PR and on the base branch. Enforces the invariant "injectable source and version move together": fails when the injectable source changed without a correct `N+1` bump, and also when the version was bumped without an injectable change.
 - **`slow-tool-tests-dev`** — runs `pytest --runslow -m slow tests/tools/`. Green = "your code works from a developer perspective." Conditionally builds a `-dev` binary in CI when the PR changed the injected code; otherwise uses the published `v{N}` via the runtime's normal S3 download path.
 - **`slow-tool-tests-release`** — runs only when a version bump is present. Prechecks S3 for the new `v{N+1}`; on 404 fails fast with a message telling the maintainer to run `upload_to_s3.py`. On success, downloads the published artifact and re-runs the slow tests against it. Maintainer reruns this job manually from the Actions UI after publishing.
 
 ## Behavior matrix
 
-When `check-tool-paths` returns false, none of the downstream gates execute. The table describes the four possibilities when `check-tool-paths` returns true. `N` = version on the PR base branch.
+When `detect-slow` returns false, none of the downstream gates execute. The table describes the four possibilities when `detect-slow` returns true. `N` = version on the PR base branch.
 
 | Scenario | injectable src | `...version.txt` | check-version-bump | slow-tool-tests-dev | slow-tool-tests-release |
 |---|---|---|---|---|---|
@@ -46,9 +46,9 @@ When `check-tool-paths` returns false, none of the downstream gates execute. The
 
 ## Gate conditions
 
-- `check-version-bump`: `needs: check-tool-paths`; `if: tools_changed == 'true'`. Enforces that injectable source and version move together — passes when both changed (injectable edit + N→N+1 bump) or neither changed; fails otherwise. Emits `version_correctly_bumped` for downstream jobs.
-- `slow-tool-tests-dev`: `needs: [check-tool-paths, check-version-bump]`; `if: tools_changed == 'true'`; build step conditional on `injectable_src_changed || version_correctly_bumped`.
-- `slow-tool-tests-release`: `needs: [check-tool-paths, check-version-bump, slow-tool-tests-dev]`; `if: tools_changed == 'true' && version_correctly_bumped == 'true'`.
+- `check-version-bump`: `needs: detect-slow`; `if: tools_changed == 'true'`. Enforces that injectable source and version move together — passes when both changed (injectable edit + N→N+1 bump) or neither changed; fails otherwise. Emits `version_correctly_bumped` for downstream jobs.
+- `slow-tool-tests-dev`: `needs: [detect-slow, check-version-bump]`; `if: tools_changed == 'true'`; build step conditional on `injectable_src_changed || version_correctly_bumped`.
+- `slow-tool-tests-release`: `needs: [detect-slow, check-version-bump, slow-tool-tests-dev]`; `if: tools_changed == 'true' && version_correctly_bumped == 'true'`.
 
 ## `INSPECT_SANDBOX_TOOLS_INSTALL_STATE` escape hatch
 
