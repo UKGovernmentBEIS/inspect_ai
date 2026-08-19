@@ -1,8 +1,12 @@
 # Interim scoring: score a running eval's completed and in-flight samples
 
 > **Status: design proposal** (meridianlabs-ai/inspect_ai#91). Nothing described here is
-> built yet. The control-channel context this builds on is in
-> [`control-channel.md`](control-channel.md); the partial-sample persistence
+> built yet — but the pause-gate machinery the `--pause` mode depends on has
+> since shipped as the hard pause (`pause --now`, meridianlabs-ai/inspect_ai#103; see
+> [`ctl/pause-resume.md`](ctl/pause-resume.md)), and shape 3 below is now
+> specified against it rather than sketching new gates. The control-channel
+> context this builds on is in
+> [`control-channel.md`](ctl/control-channel.md); the partial-sample persistence
 > machinery referenced throughout is described in [`recover.md`](recover.md).
 
 The feature: a **non-destructive control-channel directive** — `inspect ctl
@@ -32,6 +36,7 @@ What exists today, and why none of it covers this:
 | Existing machinery | What it does | Gap |
 |---|---|---|
 | `ctl sample cancel --action score` / `ctl task cancel --action score` | scores the work done so far | **destructive** — ends the sample / the task |
+| `ctl task pause --now` (and model/process scope) | holds in-flight samples at their next model call, state stable while held | holds but doesn't score — no snapshot, no scorer run, no interim metrics; this design's `--pause` mode composes it with scoring |
 | `inspect score` (CLI) / `score_async` | re-scores a log | post-hoc: in-flight samples aren't in the log (only in the sample buffer), and a live log is mid-write |
 | `score()` (`inspect_ai/scorer/_score.py`) | intermediate scoring from *inside* a sample; emits `ScoreEvent(intermediate=True)` | must be authored into the task; an operator can't trigger it from outside |
 | live display metrics (`compute()` in `_eval/task/run.py`) | periodically recomputes metrics over completed samples | completed samples only; display-only; in-process |
@@ -58,10 +63,11 @@ inspect ctl task score [TASK] [--dry-run] [--pause] [--no-wait] [--json]
   sits with `log-flush` on the selector-optional side.
 - `--dry-run` reports what would be scored (counts by sample disposition —
   see "Which samples" below) without scoring anything.
-- `--pause` (maps to a `pause` query param) briefly pauses each in-flight
-  sample while its own scoring runs, trading sample wall-clock for a coherent
-  view of live state + sandbox — see shape 3 under "The context problem".
-  Off by default: the snapshot mode never delays the run.
+- `--pause` (maps to a `pause` query param) briefly holds each in-flight
+  sample at its next model call — a per-sample application of the shipped
+  hard-pause gate — while its own scoring runs, trading sample wall-clock
+  for a coherent view of live state + sandbox — see shape 3 under "The
+  context problem". Off by default: the snapshot mode never delays the run.
 - The pass can take minutes (model-graded scorers over hundreds of samples),
   so the HTTP shape is **start + poll**, not one long request (see "Job
   model"); by default the CLI polls to completion and renders progress, and
@@ -149,32 +155,86 @@ Three shapes can score an in-flight sample without ending it:
    snapshot in (1) covers only in-memory state — the sandbox is shared, live,
    and keeps moving under the still-running solver, so a sandbox-inspecting
    scorer reads a sandbox that can drift from the `TaskState` snapshot it was
-   handed. This mode restores coherence by *pausing the solver* while its
-   scoring runs: a pause gate on the `ActiveSample`, awaited at the same
-   mutation chokepoints where the runner already polls `interrupt_action`
-   (model generate, tool calls, sandbox exec). A sample mutates its state
-   only from its own coroutine, so a solver parked at a gate — or awaiting a
-   gated operation whose *result* the gate holds — leaves the live
-   `TaskState` stable: no deep copy, no drift, sandbox reads coherent with
-   the message history. The build requirements: an ack protocol (requesting a
-   pause is not being paused — scoring waits for the solver to park; gating
-   operation *returns* makes this near-immediate); pause time excluded from
-   working limits (`report_sample_waiting_time` already walks the limit tree)
-   and added to wall-clock `time_limit` deadlines (anyio scope deadlines are
-   mutable — new surgery on the limit tree); gates never placed under a held
-   semaphore (a paused sample holding a model-connection slot the scorer
-   needs is a deadlock); and a pause timeout so a stuck scorer can't wedge
-   the sample. Each sample pauses only while *its own* scoring runs, not for
-   the whole pass. Opt-in rather than default because a pause steals the
-   scoring duration from every in-flight sample's wall-clock: fine for a
-   one-off "should I kill this run?" check, wrong for the recurring
-   watchdog/dashboard polling scenario, where it would turn periodic
-   monitoring into periodic eval-wide stalls that perturb the thing being
-   measured. Note the limit of what it buys: agent-launched *background*
-   processes in the sandbox keep running (a true sandbox freeze is
-   provider-specific — `docker pause` has no portable k8s/local equivalent),
-   so this reaches parity with task-authored `score()` consistency, not
-   absolute quiescence.
+   handed. This mode restores coherence by *holding the solver* while its
+   scoring runs. The gate machinery this shape originally sketched has since
+   shipped as the hard pause (`pause --now` —
+   [`ctl/pause-resume.md`](ctl/pause-resume.md), gate module
+   `src/inspect_ai/_control/pause.py`): a `PauseGate` awaited at
+   generate-attempt start (`wait_generate_dispatch`, gating `Model.compact()`
+   too), per-task held-sample accounting (`task_held_count`, surfaced as the
+   `held` count on `GET /tasks` rows), incremental waiting-time crediting so
+   a held span never burns `working_limit`, cancel escalating over the hold
+   via the gate's escape check, and last-write-wins pause/resume. A sample
+   parked at that gate mutates its `TaskState` only from its own coroutine,
+   so the live state is stable while held — no deep copy, no drift, sandbox
+   reads coherent with the message history — and the compact gate means the
+   conversation can't be rewritten under the scorer either.
+
+   The shipped semantics settle several of the sketch's build requirements —
+   this mode inherits them rather than reopening them:
+
+   - **Park point: the next model call**, not every runner chokepoint (the
+     hard-pause build deliberately gates only generate/compact; tool calls
+     and sandbox commands in progress run to completion). So the ack
+     protocol stands: request the hold, wait for the sample to actually park
+     — the held accounting is exactly that signal — then score. A tool-heavy
+     sample may take a while to reach its next model call; one that
+     completes instead is reported as "completed before interim scoring
+     finished", its final score superseding.
+   - **Wall clock is the operator's risk.** `time_limit` deadlines keep
+     running while held — deadline-shifting was considered and rejected in
+     the hard-pause build, which drops the original sketch's "add pause time
+     to `time_limit` deadlines" surgery. A scoring hold is minutes, not
+     hours, but a sample near its deadline can expire while held; the pass's
+     per-sample rows carry the held duration so the cost is visible.
+     `working_limit` exclusion needs no new work — the shipped crediting
+     already covers it.
+   - **A parked call keeps its connection slot** (the trade-off the
+     hard-pause build accepted). For a per-sample hold the exposure is
+     bounded — one sample's concurrent calls — but the sketch's deadlock
+     hazard survives in miniature: a run whose `max_connections` is at or
+     near the held sample's parked-call count, with a grader on the same
+     pool, starves the scorer. The release-and-reacquire escape hatch named
+     in `pause-resume.md` is the remedy if it bites.
+
+   What remains to build is the *per-sample* hold: the shipped gate
+   registries key task / model / process, so `--pause` needs a sample-keyed
+   hard hold consulted at the same `wait_generate_dispatch` site (which
+   already resolves the active sample for the held count), plus the
+   wait-for-park ack above, a hold timeout so a stuck scorer can't wedge the
+   sample, independence from the operator latches (an unrelated `ctl
+   task resume` must not release a scoring hold, nor the pass's release
+   clear an operator's pause) — and a **scorer exemption**: the hard gate
+   deliberately holds *every* generate in the sample's context, grader calls
+   included, so without one a model-graded interim scorer would park at the
+   very hold that exists for its benefit. The companion's scoring context
+   must carry a pass token the sample-keyed hold checks, precedented by the
+   gate's existing interrupt-escape check. Each sample holds only while
+   *its own* scoring runs, not for the whole pass. Opt-in rather than
+   default because
+   a hold steals the scoring duration from every in-flight sample's
+   wall-clock: fine for a one-off "should I kill this run?" check, wrong for
+   the recurring watchdog/dashboard polling scenario, where it would turn
+   periodic monitoring into periodic eval-wide stalls that perturb the thing
+   being measured. Note the limit of what it buys: agent-launched
+   *background* processes in the sandbox keep running (a true sandbox freeze
+   is provider-specific — `docker pause` has no portable k8s/local
+   equivalent), so this reaches parity with task-authored `score()`
+   consistency, not absolute quiescence.
+
+   Until built, a composition is available by hand from phase 1: `ctl
+   task pause --now`, poll `task list` until the in-flight samples read as
+   held, `ctl task score`, `ctl task resume`. Coarser than `--pause` — the
+   whole task holds for the whole pass, and a sample still mid-tool-call
+   when its scoring starts scores un-held (its row can say so: the pass
+   checks the held state at snapshot time) — and bounded by the exemption
+   gap above: the task-scope hard gate holds the in-context companion's own
+   grader calls too, so under `task pause --now` the composition serves
+   non-model-graded interim scorers, or model-graded ones via the
+   model-scoped spelling (`ctl model pause --now` on the *solver's* model,
+   when the grader is a different model). Within those bounds it needs zero
+   new runner machinery, which is exactly why built-in `--pause` stays in
+   the "later" phase.
 
 The in-context shape buys full fidelity (real `TaskState`, live store, live
 sandbox), free log persistence (the transcript event flows through the
@@ -343,8 +403,11 @@ for the fire-and-poll agent loop.
    snapshot copy, cancel-on-completion, budget isolation),
    `ScoreEvent(intermediate=True)` recording, per-sample results into the
    pass. This is the headline capability.
-3. **Later.** `--pause` coherent-scoring mode (shape 3: pause gates, limit
-   compensation, ack protocol); `ctl sample score` (per-sample variant); surfacing the latest
+3. **Later.** `--pause` coherent-scoring mode (shape 3 — since `pause --now`
+   shipped, a thin layer over the existing gates: sample-keyed hold,
+   wait-for-park ack, hold timeout, scorer exemption; meanwhile the manual
+   `pause --now` + score + `resume` composition covers part of the need
+   from phase 1); `ctl sample score` (per-sample variant); surfacing the latest
    interim score in `ctl sample list` rows; recovery consuming intermediate
    scores (a recovered in-progress sample could carry its last interim score
    instead of no score — see open questions); scheduled/periodic passes
@@ -381,10 +444,11 @@ duplicating the tables now).
 ## Alternatives considered
 
 - **Cancel-with-score, then requeue.** Compose the existing destructive
-  primitives: `sample cancel --action score` followed by the planned `sample
-  requeue`. Rejected: requeue restarts the sample from scratch — the
-  in-flight work is scored but then *discarded*, which inverts the point of
-  a non-destructive snapshot (and requeue isn't built either).
+  primitives: `sample cancel --action score` followed by `sample requeue`
+  (since built — [`ctl/sample-requeue.md`](ctl/sample-requeue.md)).
+  Rejected: requeue restarts the sample from scratch — the in-flight work is
+  scored but then *discarded*, which inverts the point of a non-destructive
+  snapshot.
 - **Post-hoc `inspect score` pointed at the live log + buffer.** Make
   `inspect score` read a running eval's log and sample buffer directly from
   a second process. Rejected: it races the writer (the log is mid-write; the
