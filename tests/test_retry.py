@@ -470,3 +470,118 @@ def test_eval_retry_flushes_reused_samples_during_live_run(tmp_path: Path):
     assert retry_log.status == "success"
     assert retry_log.samples is not None
     assert {(s.id, s.epoch) for s in retry_log.samples} == {(1, 1), (2, 1)}
+
+
+def _eval_logs_in(log_dir: str) -> list[str]:
+    return sorted(name for name in os.listdir(log_dir) if name.endswith(".eval"))
+
+
+@solver
+def _deferred_log_probe_solver(log_dir: str, probe_dir: str):
+    # cross-attempt state lives in probe_dir marker files (eval_retry
+    # re-imports the task's source file, so module globals don't survive)
+    import anyio
+
+    failed_marker = os.path.join(probe_dir, "failed")
+    first_log_marker = os.path.join(probe_dir, "first_log")
+    absent_marker = os.path.join(probe_dir, "no_destination_before_settle")
+    settled_marker = os.path.join(probe_dir, "settle_wrote_reused_sample")
+
+    async def solve(state: TaskState, generate):
+        if state.sample_id == 1:
+            return state
+        if not os.path.exists(failed_marker):
+            # first attempt: fail once sample 1 is in the log, so the retry
+            # deterministically has a completed sample to reuse
+            with anyio.fail_after(30):
+                while (first_log := await _log_with_clean_sample(log_dir, 1)) is None:
+                    await anyio.sleep(0.1)
+            with open(first_log_marker, "w") as f:
+                f.write(first_log)
+            open(failed_marker, "w").close()
+            raise ValueError("first attempt fails")
+
+        # retry attempt: the settle flush is gated by the test until this
+        # probe has recorded which logs exist mid-sweep (the test asserts on
+        # the recording, so a regression reports the extra log rather than
+        # failing as a sample error)
+        with open(first_log_marker) as f:
+            first_log = f.read()
+        with open(absent_marker, "w") as f:
+            f.write("\n".join(_eval_logs_in(log_dir)))
+
+        # once the settle flush is released, the destination appears — and
+        # its very first on-disk version already carries the reused sample
+        with anyio.move_on_after(30):
+            while await _log_with_clean_sample(log_dir, 1, exclude=first_log) is None:
+                await anyio.sleep(0.05)
+            open(settled_marker, "w").close()
+        return state
+
+    return solve
+
+
+@task
+def _deferred_log_probe_task(log_dir: str, probe_dir: str) -> Task:
+    return Task(
+        dataset=[
+            Sample(input="Say hello", target="hello"),
+            Sample(input="Say hello again", target="hello"),
+        ],
+        solver=[_deferred_log_probe_solver(log_dir, probe_dir)],
+    )
+
+
+def test_eval_retry_defers_destination_log_until_sweep_settles(
+    tmp_path: Path, monkeypatch
+):
+    # design/retry-deferred-destination-log.md: a retry attempt performs no
+    # destination write until its reuse sweep settles, so a hard kill in that
+    # window leaves no file (the next retry chains to the prior attempt's log
+    # with its completed samples) rather than an empty newest log.
+    import anyio
+
+    from inspect_ai._eval.task.log import TaskLogger
+
+    log_dir = str(tmp_path / "logs")
+    probe_dir = str(tmp_path / "probe")
+    os.makedirs(log_dir)
+    os.makedirs(probe_dir)
+
+    log = eval(
+        _deferred_log_probe_task(log_dir, probe_dir),
+        model="mockllm/model",
+        log_dir=log_dir,
+    )[0]
+    assert log.status == "error"
+    first_logs = _eval_logs_in(log_dir)
+    assert len(first_logs) == 1
+
+    # hold the settle flush open until the probe has checked for the file,
+    # standing in for a slow sweep (the probe's own reuse lookup resolves
+    # long before its solver body runs)
+    original_settle_flush = TaskLogger._quiet_settle_flush
+    absent_marker = os.path.join(probe_dir, "no_destination_before_settle")
+
+    async def gated_settle_flush(self: TaskLogger, even_if_empty: bool = False) -> None:
+        with anyio.fail_after(30):
+            while not os.path.exists(absent_marker):
+                await anyio.sleep(0.05)
+        await original_settle_flush(self, even_if_empty)
+
+    monkeypatch.setattr(TaskLogger, "_quiet_settle_flush", gated_settle_flush)
+
+    retryable = retryable_eval_logs(list_eval_logs(log_dir))
+    assert len(retryable) == 1
+    retry_log = eval_retry(retryable, log_dir=log_dir)[0]
+
+    assert os.path.exists(absent_marker), "probe never ran its absence check"
+    with open(absent_marker) as f:
+        logs_during_sweep = f.read().splitlines()
+    # only the prior attempt's log exists while the sweep is unsettled
+    assert logs_during_sweep == first_logs
+    # ...and the destination's first on-disk version carries the reused sample
+    assert os.path.exists(os.path.join(probe_dir, "settle_wrote_reused_sample"))
+    assert retry_log.status == "success"
+    assert retry_log.samples is not None
+    assert {(s.id, s.epoch) for s in retry_log.samples} == {(1, 1), (2, 1)}

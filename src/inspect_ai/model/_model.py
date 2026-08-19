@@ -56,6 +56,7 @@ from inspect_ai._util.content import (
 )
 from inspect_ai._util.error import PrerequisiteError, exception_message
 from inspect_ai._util.http import status_code_of
+from inspect_ai._util.images import UnresolvedMediaError, inline_media_data_uri
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
 from inspect_ai._util.platform import platform_init
@@ -88,6 +89,7 @@ from inspect_ai.util._limit import (
     turn_count,
 )
 
+from ._agent_message import validate_agent_message
 from ._cache import CacheEntry, CachePolicy, cache_fetch, cache_store, epoch
 from ._call_tools import (
     copy_tools_info,
@@ -119,6 +121,73 @@ from ._model_output import ModelFallback, ModelOutput, ModelUsage
 from ._tokens import count_media_tokens, count_text_tokens, count_tokens
 
 logger = logging.getLogger(__name__)
+
+
+def _validate_model_input_media(messages: Sequence[ChatMessage]) -> None:
+    """Require all media to be inline at the model API boundary."""
+    for message_index, message in enumerate(messages):
+        if isinstance(message.content, str):
+            continue
+        for content_index, content in enumerate(message.content):
+            if isinstance(content, ContentText):
+                if (
+                    isinstance(content.internal, dict)
+                    and "agent_message" in content.internal
+                ):
+                    validate_agent_message(content.internal["agent_message"])
+            elif isinstance(content, ContentImage):
+                _validate_inline_media(
+                    content.image, "image", message_index, content_index
+                )
+            elif isinstance(content, ContentAudio):
+                _validate_inline_media(
+                    content.audio,
+                    "audio",
+                    message_index,
+                    content_index,
+                    mime_type_hint=(
+                        "audio/mpeg" if content.format == "mp3" else "audio/wav"
+                    ),
+                )
+            elif isinstance(content, ContentVideo):
+                _validate_inline_media(
+                    content.video,
+                    "video",
+                    message_index,
+                    content_index,
+                    mime_type_hint={
+                        "mp4": "video/mp4",
+                        "mpeg": "video/mpeg",
+                        "mov": "video/quicktime",
+                    }[content.format],
+                )
+            elif isinstance(content, ContentDocument):
+                _validate_inline_media(
+                    content.document,
+                    "document",
+                    message_index,
+                    content_index,
+                    mime_type_hint=content.mime_type,
+                )
+
+
+def _validate_inline_media(
+    reference: str,
+    kind: Literal["image", "audio", "video", "document"],
+    message_index: int,
+    content_index: int,
+    mime_type_hint: str | None = None,
+) -> None:
+    try:
+        inline_media_data_uri(reference, kind, mime_type_hint=mime_type_hint)
+    except ValueError as ex:
+        message = (
+            f"{ex} Invalid model input at message index {message_index}, "
+            f"content index {content_index}: non-inline or invalid {kind} content."
+        )
+        if isinstance(ex, UnresolvedMediaError):
+            raise UnresolvedMediaError(message) from ex
+        raise ValueError(message) from ex
 
 
 class GenerateInput(NamedTuple):
@@ -926,6 +995,9 @@ class Model:
            config: Optional generation config for provider-specific counting
                (e.g., reasoning parameters that affect token allocation).
         """
+        if not isinstance(input, str):
+            _validate_model_input_media(input)
+
         config = self._resolve_config(config)
 
         # Retry handler for token counting (429/timeouts retried with the
@@ -1047,6 +1119,7 @@ class Model:
         Raises:
             NotImplementedError: For providers without native compaction support.
         """
+        _validate_model_input_media(input)
         config = self._resolve_config(None)
 
         # provide max_tokens from the model api if required (same as generate)
@@ -1057,6 +1130,10 @@ class Model:
 
         model_name = ModelName(self)
         key = f"ModelCompact({_connection_pool_key(self.api)})"
+
+        # Local import: model is imported very early and the pause gate is
+        # only consulted per attempt (see wait_generate_dispatch's fast path).
+        from inspect_ai._control.pause import wait_generate_dispatch
 
         async with concurrency(f"{model_name}_compact", 10, key, visible=False):
 
@@ -1075,6 +1152,9 @@ class Model:
             async def _compact(
                 messages: list[ChatMessage],
             ) -> tuple[list[ChatMessage], ModelUsage | None]:
+                # report_sample_waiting_time directly: unlike generate,
+                # compact has no post-call waiting reconciliation to feed
+                await wait_generate_dispatch(self, report_sample_waiting_time)
                 return await self.api.compact(messages, tools, config, instructions)
 
             from inspect_ai.log._samples import cleared_retry_wait
@@ -1165,6 +1245,7 @@ class Model:
             input = tool_result_media_as_user_message(input, tuple(extract_types))
 
         input = collapse_consecutive_messages_for_api(input, self.api)
+        _validate_model_input_media(input)
 
         # resolve cache policy
         if isinstance(cache, NotGiven):
@@ -1181,6 +1262,10 @@ class Model:
             report_sample_waiting_time(waiting_time)
             reported_waiting_time += waiting_time
 
+        # Local import: model is imported very early and the pause gate is
+        # only consulted per attempt (see wait_generate_dispatch's fast path).
+        from inspect_ai._control.pause import wait_generate_dispatch
+
         @retry(
             **model_retry_config(
                 self.api.model_name,
@@ -1194,6 +1279,10 @@ class Model:
             )
         )
         async def generate() -> tuple[ModelOutput, BaseModel]:
+            # report_waiting_time (not report_sample_waiting_time): held time
+            # must also accumulate into this call's reconciliation below
+            await wait_generate_dispatch(self, report_waiting_time)
+
             # type-checker can't see that we made sure tool_choice is not none in the outer frame
             assert tool_choice is not None
 
@@ -1207,6 +1296,7 @@ class Model:
                 config=config,
                 cache=cache_mode,
             )
+            _validate_model_input_media(input)
 
             event_tools = (
                 snapshot_tools_for_event(call_tools, base_tools)

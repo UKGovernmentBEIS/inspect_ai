@@ -23,6 +23,7 @@ from ..environment import (
     SandboxConnection,
     SandboxEnvironment,
     SandboxEnvironmentConfigType,
+    SandboxUnavailableError,
 )
 from ..limits import (
     SandboxEnvironmentLimits,
@@ -49,6 +50,8 @@ from .compose import (
     compose_up,
     docker_image_exists_locally,
 )
+from .diagnostics import sandbox_unavailable_diagnostics, service_dead
+from .failure import InjectedWrapper, classify_exec_failure
 from .internal import build_internal_image, is_internal_image
 from .prereqs import validate_prereqs
 from .util import ComposeProject, task_project_name
@@ -282,6 +285,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         self._service = service
         self._project = project
         self._working_dir = working_dir
+        self._unavailable_diagnostics_logged = False
 
     @override
     async def exec(
@@ -370,10 +374,57 @@ class DockerSandboxEnvironment(SandboxEnvironment):
             # else: signal-death exit code but too fast to be a timeout
             # (e.g. OOM kill) — fall through and return the ExecResult
 
-        if exec_result.returncode == 126 and "permission denied" in exec_result.stdout:
-            raise PermissionError(f"Permission denied executing command: {exec_result}")
+        failure = classify_exec_failure(
+            exec_result,
+            wrapper=InjectedWrapper(binary=in_container_cmd[0], target=cmd[0])
+            if in_container_cmd is not cmd and cmd
+            else None,
+        )
+
+        # a container dying mid-command is invisible to the classifier: docker
+        # reports nothing at all, just the signal-death exit code (#264).
+        # ordinary commands exit silently with small codes constantly
+        # (`grep -q` without a match), so only signal-death exits (> 128) pay
+        # the `compose ps` confirmation, and only a positively dead container
+        # escalates.
+        if (
+            failure is None
+            and not exec_result.success
+            and exec_result.returncode > 128
+            and not exec_result.stdout.strip()
+            and not exec_result.stderr.strip()
+            and await service_dead(self._service, self._project)
+        ):
+            failure = SandboxUnavailableError(
+                "The sandbox is not running and cannot execute: command "
+                f"exited with code {exec_result.returncode} and no output, "
+                f'and the container for service "{self._service}" has exited '
+                "(container diagnostics logged as a warning)"
+            )
+
+        if failure is not None:
+            if isinstance(failure, SandboxUnavailableError):
+                await self._log_unavailable_diagnostics()
+            raise failure
 
         return exec_result
+
+    async def _log_unavailable_diagnostics(self) -> None:
+        """Log post-mortem evidence for this environment's dead container.
+
+        Logged (not embedded in the error): the audience is the human/CI
+        post-mortem, and error text reaches the model as tool output — up to
+        ~12KB of agent-writable container logs per call. Collected once per
+        environment: a dead sandbox fails every subsequent exec identically,
+        and repeating the probes only loads a daemon that may already be
+        struggling.
+        """
+        if self._unavailable_diagnostics_logged:
+            return
+        self._unavailable_diagnostics_logged = True
+        logger.warning(
+            await sandbox_unavailable_diagnostics(self._service, self._project)
+        )
 
     @override
     async def write_file(self, file: str, contents: str | bytes) -> None:
