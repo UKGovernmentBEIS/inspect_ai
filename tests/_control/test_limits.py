@@ -36,8 +36,13 @@ from inspect_ai.util._concurrency import (
 )
 
 
-@pytest.fixture(autouse=True)
-def _clear_states():
+def _reset_all_states() -> None:
+    """Reset every global store the control server mutates.
+
+    The single reset choke point: the ``_clear_states`` fixture (setup and
+    teardown) and any test needing a mid-test reset must all call this, so a
+    future global store added here covers every reset site at once.
+    """
     from inspect_ai._control.config_record import reset_process_config_updates
     from inspect_ai.util._limit_overrides import reset_sample_limit_overrides
 
@@ -46,12 +51,13 @@ def _clear_states():
     reset_generate_config_overrides()
     reset_sample_limit_overrides()
     reset_process_config_updates()
+
+
+@pytest.fixture(autouse=True)
+def _clear_states():
+    _reset_all_states()
     yield
-    clear_all_eval_states()
-    init_concurrency()
-    reset_generate_config_overrides()
-    reset_sample_limit_overrides()
-    reset_process_config_updates()
+    _reset_all_states()
 
 
 # ---------------------------------------------------------------------------
@@ -2160,16 +2166,10 @@ def test_config_update_programmatic_patch_records_identically_to_cli(
     from inspect_ai._cli.ctl import ctl_command
     from inspect_ai._cli.ctl._fetch import _FetchedSummaries
     from inspect_ai._control import CONTROL_API_VERSION
-    from inspect_ai._control.config_record import reset_process_config_updates
-    from inspect_ai.util._limit_overrides import reset_sample_limit_overrides
 
     def fresh_target() -> tuple[_RecordingLive, ResizableLimiter]:
-        """Identical launch state for each leg (same resets as _clear_states)."""
-        clear_all_eval_states()
-        init_concurrency()
-        reset_generate_config_overrides()
-        reset_sample_limit_overrides()
-        reset_process_config_updates()
+        """Identical launch state for each leg."""
+        _reset_all_states()
         live = _RecordingLive()
         _register_with_live("e1", "t1", live)
         limiter = ResizableLimiter(20)
