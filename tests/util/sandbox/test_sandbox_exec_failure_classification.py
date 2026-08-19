@@ -461,6 +461,21 @@ def _stub_dead_container_probes(
     )
 
 
+def _capture_warnings(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    """Record warnings logged by the docker module.
+
+    Not caplog: once any eval has run in the process, inspect's init_logger
+    sets propagate=False on the inspect_ai logger, so records never reach
+    caplog's root handler (passes file-only, fails in a full-suite run).
+    """
+    warnings: list[str] = []
+    monkeypatch.setattr(
+        "inspect_ai.util._sandbox.docker.docker.logger.warning",
+        lambda msg, *args, **kwargs: warnings.append(str(msg)),
+    )
+    return warnings
+
+
 async def _exec_returning(
     monkeypatch: pytest.MonkeyPatch,
     result: ExecResult[str],
@@ -488,14 +503,14 @@ async def _exec_returning(
 )
 async def test_exec_raises_when_docker_could_not_run_the_command(
     monkeypatch: pytest.MonkeyPatch,
-    caplog: pytest.LogCaptureFixture,
     result: ExecResult[str],
 ) -> None:
+    warnings = _capture_warnings(monkeypatch)
     with pytest.raises(SandboxUnavailableError):
         await _exec_returning(monkeypatch, result)
     # a dead container logs evidence of why it died (#264). logged, not
     # embedded in the error: error text reaches the model as tool output
-    assert FAKE_DIAGNOSTICS in caplog.text
+    assert FAKE_DIAGNOSTICS in warnings
 
 
 async def test_exec_raises_permission_error_for_unlaunchable_shell(
@@ -530,13 +545,13 @@ async def test_exec_returns_ordinary_failures(
 
 async def test_silent_signal_death_with_dead_container_raises_and_logs(
     monkeypatch: pytest.MonkeyPatch,
-    caplog: pytest.LogCaptureFixture,
 ) -> None:
+    warnings = _capture_warnings(monkeypatch)
     died_mid_command = ExecResult(success=False, returncode=137, stdout="", stderr="")
     with pytest.raises(SandboxUnavailableError) as excinfo:
         await _exec_returning(monkeypatch, died_mid_command, service_dead=True)
     assert "exited with code 137" in str(excinfo.value)
-    assert FAKE_DIAGNOSTICS in caplog.text
+    assert FAKE_DIAGNOSTICS in warnings
 
 
 async def test_silent_small_exit_code_never_checks_the_container(
@@ -565,13 +580,13 @@ async def test_silent_signal_death_in_running_container_is_an_ordinary_result(
 
 async def test_diagnostics_logged_once_per_environment(
     monkeypatch: pytest.MonkeyPatch,
-    caplog: pytest.LogCaptureFixture,
 ) -> None:
     # a dead sandbox fails every subsequent exec; the post-mortem is logged
     # for the first only
     async def fake_compose_exec(*args: object, **kwargs: object) -> ExecResult[str]:
         return KILL_WORKLOAD
 
+    warnings = _capture_warnings(monkeypatch)
     monkeypatch.setattr(
         "inspect_ai.util._sandbox.docker.docker.compose_exec", fake_compose_exec
     )
@@ -580,7 +595,7 @@ async def test_diagnostics_logged_once_per_environment(
     for _ in range(2):
         with pytest.raises(SandboxUnavailableError):
             await sandbox.exec(["echo", "hi"], timeout=30)
-    assert caplog.text.count(FAKE_DIAGNOSTICS) == 1
+    assert warnings == [FAKE_DIAGNOSTICS]
 
 
 async def test_silent_success_never_checks_the_container(
