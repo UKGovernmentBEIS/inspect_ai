@@ -42,6 +42,15 @@ answers each differently (none of them well):
    nothing: the re-run still happens. This is the worst of the three (the 404 and 409
    at least fail loudly).
 
+On a **retry attempt** there is a fourth look-alike: a planned sample whose
+prior-attempt result is being **reused** (`run_sample` resolves reuse — the
+`sample_source.lookup` at its top — before ever reaching the queue). For the whole
+resolution window (which `reuse_read_throttle` can stretch on a large retry) it presents
+exactly like flavor 1 — planned, no `ActiveSample`, no record in this attempt's
+recorder — and gets the same 404. But unlike flavor 1 it must *stay* uncancellable: a
+reuse hit re-logs the prior result and records completion on its own, without ever
+passing the queue. See "Reuse in flight" under Mechanism.
+
 ## Semantics
 
 The extended decision table for `sample/cancel`, by the sample's current state
@@ -54,7 +63,8 @@ first note below):
 | running (`ActiveSample`, started) | interrupt — unchanged | unchanged (score / error, with the fail-on-error gate) |
 | initializing (`ActiveSample`, `started is None`) | 409 — unchanged, message reworded ("initializing", not "queued") | 409 — unchanged |
 | **queued re-run** (pending-requeue key, no `ActiveSample`) | **applied — un-requeue**: the pending entry is withdrawn and the prior terminal record stands | **409** — there is no work to score and no error to record; the message names `--action cancel` |
-| **never started** (planned, no `ActiveSample`, no record, fanout open) | **applied — cancelled before start**: removed from the queue, counted `cancelled`, absent from the log | **409** — same message (upgrades today's 404 to a truthful answer) |
+| **never started** (planned, *at the queue* — arrival-stamped, not departed — no `ActiveSample`, no record, fanout open) | **applied — cancelled before start**: removed from the queue, counted `cancelled`, absent from the log | **409** — same message (upgrades today's 404 to a truthful answer) |
+| **not yet at the queue** (planned, no `ActiveSample`, no record, no arrival stamp — reuse resolution in flight on a retry attempt, or a seed's first tick) | **409** — "not at the queue yet (it may be reused from the prior attempt) — retry" (upgrades today's 404) | **409** — same |
 | already cancelled-before-start | **`changed: false` no-op** ("already cancelled") | 409 |
 | terminal (record exists, no requeue pending) | `changed: false` no-op — unchanged | unchanged |
 | unknown `(sample_id, epoch)` | 404 — unchanged | unchanged |
@@ -108,15 +118,21 @@ block). The design splits the cancel into a **synchronous semantic accept** and 
   the same argument as requeue's `accept` and task-cancel's stamp-then-interrupt. The
   resolver's earlier reads (`sample_error_detail` / `_full_sample`) await, so — like the
   requeue resolver, but with one more gate — it re-runs its checks synchronously right
-  before mutating: the task-level gates, **and the departed-the-queue check**. The
-  queue-exit point stamps departure synchronously (on the entry for a re-run; on the key
-  for a seed) as its very first action after acquiring the semaphore, because a run that
-  leaves the queue is *invisible* until its `ActiveSample` registers much later
-  (materialization awaits sit between — the same blind window the task-cancel
-  fails-on-error gate documents). A `find_active_sample` re-check alone therefore isn't
-  enough; accept consults the departure stamp and answers a departed-but-unregistered
-  run with the initializing 409, never a half-cancel that mutates counters for a run
-  that will also terminal-record on its own.
+  before mutating: the task-level gates, **and the at-the-queue check**. The queue is
+  stamped at *both ends*, because a run is invisible on both sides of it:
+  `task_run_sample` stamps **arrival** (on the key) synchronously immediately before
+  the semaphore acquire, and the queue-exit point stamps **departure** (on the entry
+  for a re-run; on the key for a seed) as its very first action after acquiring the
+  semaphore. Departure matters because a run that leaves the queue is invisible until
+  its `ActiveSample` registers much later (materialization awaits sit between — the
+  same blind window the task-cancel fails-on-error gate documents). Arrival matters
+  because on a retry attempt a planned key may never reach the queue at all — its
+  prior-attempt result may be *reused* ("Reuse in flight" below). A
+  `find_active_sample` re-check alone therefore isn't enough; the never-started accept
+  requires the key to be exactly *at the queue* (arrived, not departed): a
+  departed-but-unregistered run gets the initializing 409, a not-yet-arrived key gets
+  the retryable not-at-the-queue 409 — never a half-cancel that mutates counters for a
+  run that will also terminal-record on its own.
 - **Discard (deferred).** The parked coroutine becomes a zombie: when it eventually
   acquires the semaphore, the queue-exit check sees the cancel stamp and returns
   immediately — no materialization, no recording (the accept already counted it), no
@@ -141,8 +157,14 @@ owns the analogous pending-requeue set and has exactly the right lifecycle — r
 when the fanout starts, detached on retry) grows a
 `cancelled: dict[tuple[str, int], Literal["parked", "discarded"]]`. Accept inserts
 `"parked"`; the queue-exit discard flips it to `"discarded"` (the distinction matters to
-requeue, below). At most one coroutine per seed key exists, so keying is unambiguous —
-the reason re-runs can't use this map (below).
+requeue, below). One deliberate asymmetry: **source-added** samples
+(`SampleScheduler.add`) are never-started candidates that *do* carry a per-entry
+`_ScheduledRun` (`prior=None`, no `on_terminal`) — they have an entry but no prior —
+and they take this key-based path too, not the entry-flag path below. That's sound
+because a fresh add's key is new: it can never alias a second live coroutine the way a
+re-run key can after un-requeue + fresh requeue. So "at most one live coroutine per
+key" holds for every key-based run — initial seeds and source adds alike — keying is
+unambiguous, and the entry-flag machinery below stays re-run-only.
 
 - **Counters.** Accept calls `record_sample_cancelled(eval_id)` — the sample is
   terminally cancelled from the operator's point of view, and `terminal == total`
@@ -157,13 +179,16 @@ the reason re-runs can't use this map (below).
   under an abort or a graceful drain (terminal in the counters, no record). The
   alternative — a synthetic cancelled `EvalSample` — is rejected below.
 - **Wiring.** `run_sample` knows the key before materialization (`get_sample(index).id`
-  is read at its top), so it threads a pre-bound `queue_exit: Callable[[], bool]` hook
-  into `task_run_sample`, invoked at the semaphore-exit point beside the existing drain
-  check. The hook does double duty, synchronously: it records the key's departure
-  (every run, cancelled or not — this is what the accept-side departed-the-queue check
-  reads, so it must cover uncancelled runs too) and returns whether this run was
-  cancelled. On a cancelled hit: mark `"discarded"`, fire `sample_terminal("cancelled")`
-  (the injected-slot outcome bookkeeping, exactly as the drain path does — a cancelled
+  is read at its top), so it threads a pre-bound queue-hook pair into `task_run_sample`:
+  `queue_enter()` stamps the key's arrival synchronously immediately before the
+  semaphore acquire, and `queue_exit: Callable[[], bool]` runs at the semaphore-exit
+  point beside the existing drain check. The exit hook does double duty, synchronously:
+  it records the key's departure (every run that parks, cancelled or not — this is what
+  the accept-side at-the-queue check reads, so it must cover uncancelled runs too; a
+  reuse hit never reaches either hook, which is exactly why accept *requires* the
+  arrival stamp — "Reuse in flight" below) and returns whether this run was cancelled.
+  On a cancelled hit: mark `"discarded"`, fire `sample_terminal("cancelled")` (the
+  injected-slot outcome bookkeeping, exactly as the drain path does — a cancelled
   outcome keeps the slot resident), return the discard sentinel.
 - **Listing / show.** Today the sample renders `pending` (planned, no record, no active
   row) — which reads as "will run", now false. The status derivation gets a
@@ -276,6 +301,44 @@ realtime-buffer entry is gone for good (nothing re-inserts removed samples; the 
 cycle only ever removes). This is view-only (the control channel reads the recorder,
 not the view buffer); noted so nobody hunts it as a bug.
 
+### What stays rejected: reuse in flight (retry attempts)
+
+On a retry attempt (`sample_source` present), every planned coroutine first resolves
+whether the prior attempt's log already holds a result to reuse — `run_sample`'s reuse
+branch runs *before* `task_run_sample`, and a hit re-logs the prior record
+(write-through), records completion, and **returns without ever touching the queue**.
+For the whole resolution window the sample satisfies the never-started row's naive
+conditions — planned, no `ActiveSample`, no record in this attempt's recorder — but
+accepting a cancel there would be triply wrong:
+
+- **double count**: `record_sample_cancelled` at accept plus the reuse path's
+  unconditional `record_sample_completed`, letting `_maybe_mark_finished` stamp
+  `completed_at` while siblings still run;
+- **"absent from the log" becomes false**: the reused record is re-logged regardless;
+- **a stuck rendering**: the key stays `"parked"` forever (no queue exit ever flips it
+  to `"discarded"`), so the listing shows a completed sample as `cancelled`
+  indefinitely.
+
+The arrival stamp closes this by construction: a reuse-bound key is never stamped
+`queued`, so the accept's at-the-queue gate refuses it with the truthful, retryable
+not-at-the-queue 409 throughout resolution *and* through the hit path's recording
+awaits; once the reuse records, the key has a terminal record and lands in the ordinary
+already-terminal no-op row. A lookup **miss** (or a `ResumeCheckpoint` /
+`PreviousError` seed) falls through into `task_run_sample`, stamps arrival, parks — and
+is cancellable as ordinary flavor 1 from that point.
+
+Two notes on the stamp's placement. It gates by *positive eligibility* (arrived at the
+queue) rather than having the reuse path claim keys with a negative "reuse in flight"
+marker: absence fails closed, so any path that completes without queueing is excluded
+without having to remember to mark itself — and the same gate covers the sub-tick
+window on a fresh eval between the fanout's `start_soon` and a seed coroutine's first
+run (a cancel arriving a tick early gets the same retryable 409; on a fresh eval the
+segment from `run_sample`'s top to the semaphore park is synchronous, so arrival is
+stamped the moment each seed first runs and cancel-before-start is fully available).
+And it must sit at the park point, not at `run_sample`'s top: stamped at the top, every
+reuse-bound key on a retry attempt would read as queued, reintroducing the hole this
+section closes.
+
 ### What stays rejected: the initializing window
 
 Flavor 2 (past the semaphore, `ActiveSample` with `started is None`) keeps its 409,
@@ -292,8 +355,11 @@ this window) — but it's not needed for the queued cases this design targets.
 - **Cancel accepted, then task cancelled / torn down before the zombie drains.**
   Never-started: already counted `cancelled`; the shortfall fold sees it as terminal and
   adds nothing; the scheduler's `finally` drain doesn't know about it (no entry) and
-  needn't. Un-requeue: the bucket was restored at accept and the entry never runs; the
-  `finally` drain fires its `on_terminal` (idempotent key discard). Coherent either way.
+  needn't. Un-requeue: the bucket was restored at accept and the entry never runs;
+  accept already disarmed the withdrawn entry's `on_terminal` (step 2), so the teardown
+  drain — or `run_one`'s `finally`, if the dispatcher had started the entry — fires
+  nothing for it, leaving the key (which may by now belong to a fresh requeue)
+  untouched, which is the intended outcome. Coherent either way.
 - **Cancel racing the re-run's start.** If the `ActiveSample` has appeared by resolve
   time, the active row wins (same precedence as the requeue resolver): a started re-run
   is a running sample (ordinary interrupt); one mid-materialization is the initializing
@@ -355,16 +421,19 @@ this window) — but it's not needed for the queued cases this design targets.
 
 - `_control/cancel.py`: `cancel_sample` grows the queued rows — task-level gates
   (reusing/sharing requeue's `_task_level_reject`), pending-requeue key → un-requeue,
-  `_is_planned` + cancelled-map → cancel-before-start / no-op, score|error → 409 for all
-  queued flavors; synchronous gate re-check before mutating.
+  `_is_planned` + cancelled-map + queue-lifecycle → cancel-before-start /
+  not-at-the-queue 409 / no-op, score|error → 409 for all queued flavors; synchronous
+  gate re-check before mutating.
 - `_eval/task/scheduler.py`: `_ScheduledRun.cancelled` + departure flags; `SampleRequeue`
-  grows the cancelled-keys map, the per-pending-key entry/stashed-score bookkeeping,
+  grows the cancelled-keys map, the per-key queue-lifecycle map (arrived/departed), the
+  per-pending-key entry/stashed-score bookkeeping,
   `cancel_queued(...)` (un-requeue, disarming the withdrawn entry's `on_terminal`) and
   `cancel_before_start(...)` accepts, and `uncancel(...)` for the requeue resolver;
   `run_one` plumbs the entry through to `run_sample` and skips the result write for
   discarded runs (also fixing the drain path's `None` write for abandoned re-runs).
-- `_eval/task/run.py`: queue-exit departure stamp + discard check beside the drain
-  check, ordered before it; `run_sample` top-of-function entry check (before the
+- `_eval/task/run.py`: queue-entry arrival stamp at the top of `task_run_sample`
+  (before the semaphore acquire); queue-exit departure stamp + discard check beside the
+  drain check, ordered before it; `run_sample` top-of-function entry check (before the
   requeue seeding side effects); restore-side of `on_requeue_accept` (progress tick +
   score re-insert).
 - `_control/eval_state.py`: `record_sample_unrequeued` (increment inverse of
@@ -376,8 +445,11 @@ this window) — but it's not needed for the queued cases this design targets.
 - `_cli/ctl/_sample.py`: no new flags; rejection/detail wording for the new rows.
 - Docs: flip `sample-requeue.md` resolved question 3 and the `control-channel.md`
   `sample/cancel` bullet to point here when this ships.
-- Tests: route-level decision table (all three flavors × three actions), un-requeue
+- Tests: route-level decision table (all queued flavors × three actions), un-requeue
   reconciliation (counters, error_count, progress/score restore, re-requeue of the same
   record succeeds), cancel-before-start → un-cancel → runs normally,
-  cancel-before-start → discard → requeue 409, drain/teardown interplay (no
-  double-count), listing/status rendering, idempotence and dry-run rows.
+  cancel-before-start → discard → requeue 409, the retry-attempt reuse window (cancel
+  during resolution → not-at-the-queue 409; after the reuse records → terminal no-op;
+  lookup miss → cancellable once parked), source-added sample cancel-before-start,
+  drain/teardown interplay (no double-count), listing/status rendering, idempotence
+  and dry-run rows.
