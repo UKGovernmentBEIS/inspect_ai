@@ -1185,8 +1185,10 @@ def _stub_httpx(
 
     Each item is either an ``Exception`` to raise (e.g. a ``TimeoutException``),
     a payload to return from ``response.json()``, or a ``(status_code, payload)``
-    tuple for a non-200 response. Returns a dict whose ``"gets"`` entry counts
-    how many requests were attempted.
+    tuple for a non-200 response. A ``str`` payload is a raw response body:
+    ``json()`` parses it, so plain text raises as it would from real httpx.
+    Returns a dict whose ``"gets"`` entry counts how many requests were
+    attempted.
 
     Both the sync and async clients are stubbed: reads go out over the async
     client, while a non-idempotent mutation still takes the sync path.
@@ -1223,6 +1225,11 @@ def _stub_httpx(
                 )
 
         def json(self) -> object:
+            # faithful to httpx: a str payload is a raw body to be parsed, so
+            # plain text (e.g. uvicorn's connection-limit rejection) raises
+            # JSONDecodeError (a ValueError) just as a real response would
+            if isinstance(self._payload, str):
+                return json.loads(self._payload)
             return self._payload
 
     count_key = {"get": "gets", "post": "posts", "patch": "patches"}
