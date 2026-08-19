@@ -1,10 +1,12 @@
 import json
 from collections import deque
-from typing import TYPE_CHECKING, Any, NoReturn, Sequence
+from logging import getLogger
+from typing import TYPE_CHECKING, Any, NamedTuple, NoReturn, Sequence
 
 import anyio
 
 from inspect_ai._util.exception import TerminateSampleError
+from inspect_ai._util.logger import warn_once
 from inspect_ai.agent._agent import AgentState
 from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.model._compaction.types import CompactionStrategy
@@ -20,6 +22,8 @@ if TYPE_CHECKING:
     # initializing. Same reason `model/_call_tools.py` defers it.
     from inspect_ai.approval._policy import ApprovalPolicy
 
+
+logger = getLogger(__name__)
 
 _MAX_TOOL_EXECUTION_GRANTS = 1024
 
@@ -62,7 +66,9 @@ class SandboxAgentBridge(AgentBridge):
         self.port = port
         self.mcp_server_configs = mcp_server_configs or []
         self.bridged_tools = bridged_tools or {}
-        self._tool_execution_grants: deque[tuple[str, str, str]] = deque()
+        self._tool_execution_grants: deque[_ToolExecutionGrant] = deque(
+            maxlen=_MAX_TOOL_EXECUTION_GRANTS
+        )
         self._terminate_requested = anyio.Event()
         self._terminate_reason: str | None = None
 
@@ -80,25 +86,47 @@ class SandboxAgentBridge(AgentBridge):
 
         Each grant is identity-scoped to (server, tool, canonical arguments) and
         consumed once. It is not scoped to the turn or time it was approved: a
-        grant persists for the bridge's (sample's) lifetime until consumed, so an
-        approved call the scaffold never executes stays consumable later. That only
-        ever re-authorizes the same action the approver already approved (same
-        server, tool, and canonical arguments), never a different one.
+        grant persists for the bridge's (sample's) lifetime until consumed (or
+        evicted, with a warning, once `_MAX_TOOL_EXECUTION_GRANTS` unconsumed
+        grants accumulate), so an approved call the scaffold never executes stays
+        consumable later. That only ever re-authorizes the same action the
+        approver already approved (same server, tool, and canonical arguments),
+        never a different one.
+
+        Matching is by name: the approval API carries no execution target, so an
+        approved call to a scaffold-local tool that happens to share a bridged
+        tool's name also mints a host grant — still bounded to the exact
+        approver-reviewed arguments.
         """
         if not self.tool_approval_required():
             return
 
         for call in calls:
-            servers = [
-                server
-                for server, tools in self.bridged_tools.items()
-                if call.function in tools
-            ]
-            if len(servers) == 1:
-                key = _tool_execution_key(servers[0], call.function, call.arguments)
-                self._tool_execution_grants.append(key)
-                while len(self._tool_execution_grants) > _MAX_TOOL_EXECUTION_GRANTS:
-                    self._tool_execution_grants.popleft()
+            resolutions = _resolve_bridged_tool(self.bridged_tools, call.function)
+            if len(resolutions) > 1:
+                warn_once(
+                    logger,
+                    f"Approved tool call '{call.function}' matches multiple bridged "
+                    f"tools ({', '.join('/'.join(r) for r in sorted(resolutions))}); "
+                    "no execution grant was registered and executing it will be "
+                    "denied. Give bridged tools unique names.",
+                )
+            elif len(resolutions) == 1:
+                server, tool = next(iter(resolutions))
+                if (
+                    len(self._tool_execution_grants)
+                    == self._tool_execution_grants.maxlen
+                ):
+                    warn_once(
+                        logger,
+                        "Bridged tool execution grants exceeded "
+                        f"{_MAX_TOOL_EXECUTION_GRANTS}; evicting the oldest "
+                        "unconsumed grant. An approved-but-never-executed call "
+                        "that old can no longer be executed.",
+                    )
+                self._tool_execution_grants.append(
+                    _tool_execution_key(server, tool, call.arguments)
+                )
 
     def consume_tool_execution_grant(
         self, server: str, tool: str, arguments: dict[str, Any]
@@ -137,9 +165,43 @@ class SandboxAgentBridge(AgentBridge):
         raise TerminateSampleError(reason)
 
 
+class _ToolExecutionGrant(NamedTuple):
+    """Canonical identity of one approved host tool execution."""
+
+    server: str
+    tool: str
+    arguments: str
+    """Canonical JSON of the approved arguments (see `_tool_execution_key`)."""
+
+
+def _resolve_bridged_tool(
+    bridged_tools: dict[str, dict[str, Tool]], function: str
+) -> set[tuple[str, str]]:
+    """Resolve a model-facing tool call name to bridged (server, tool) pairs.
+
+    Scaffolds declare MCP tools to their model under their own naming scheme, so
+    the approved call's name may be qualified rather than the bare tool name:
+    Claude Code uses ``mcp__<server>__<tool>``, and Gemini CLI qualifies
+    conflicting names as ``<server>__<tool>``. Each candidate is an exact string
+    computed from the registry — never a fuzzy parse — so an unrecognized scheme
+    resolves to nothing (deny-safe) rather than to the wrong tool.
+
+    Returns every distinct resolution; more than one means the name is ambiguous
+    and no grant may be issued for it.
+    """
+    resolutions: set[tuple[str, str]] = set()
+    for server, tools in bridged_tools.items():
+        if function in tools:
+            resolutions.add((server, function))
+        for prefix in (f"mcp__{server}__", f"{server}__"):
+            if function.startswith(prefix) and function[len(prefix) :] in tools:
+                resolutions.add((server, function[len(prefix) :]))
+    return resolutions
+
+
 def _tool_execution_key(
     server: str, tool: str, arguments: dict[str, Any]
-) -> tuple[str, str, str]:
+) -> _ToolExecutionGrant:
     """Canonical identity for a host tool execution request.
 
     Matching is exact on the canonical form: key order is normalized, but an
@@ -147,11 +209,20 @@ def _tool_execution_key(
     approver reviewed. A scaffold that re-serializes arguments differently (e.g.
     coercing number types) will not match and is denied — deliberately strict, so
     an unreviewed call can never slip through.
+
+    `default=str` keeps this total for the values `dict[str, Any]` admits beyond
+    JSON (an approver `modify` can inject e.g. `Path`): registration must never
+    crash an approved generate. Such values still only match if the scaffold
+    re-sends the identical string form — unmatched remains denied, not an error.
     """
-    return (
-        server,
-        tool,
-        json.dumps(
-            arguments, ensure_ascii=False, separators=(",", ":"), sort_keys=True
+    return _ToolExecutionGrant(
+        server=server,
+        tool=tool,
+        arguments=json.dumps(
+            arguments,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+            default=str,
         ),
     )

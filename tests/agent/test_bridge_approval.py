@@ -6,6 +6,7 @@ instead, and resolves a rejection by telling the model and regenerating rather
 than by editing the response the scaffold sees.
 """
 
+from pathlib import PurePosixPath
 from unittest.mock import AsyncMock
 
 import pytest
@@ -628,6 +629,100 @@ async def test_host_tool_grant_matches_regardless_of_argument_key_order() -> Non
     )
 
     assert result == "contents"
+
+
+@pytest.mark.parametrize(
+    "function",
+    ["mcp__host__read_file", "host__read_file"],
+    ids=["claude-code-style", "server-qualified"],
+)
+async def test_host_tool_grant_matches_namespaced_tool_names(function: str) -> None:
+    """Scaffolds declare MCP tools to the model under qualified names."""
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_tool(
+        tool, [ApprovalPolicy(auto_approver("approve"), "*")]
+    )
+    call = ToolCall(id="approved", function=function, arguments={"path": "notes.txt"})
+
+    await run_bridge([tool_calls_output(call)], bridge=bridge)
+
+    result = await call_host_tool(bridge)("host", "read_file", {"path": "notes.txt"})
+
+    assert result == "contents"
+    tool.assert_awaited_once_with(path="notes.txt")
+
+
+async def test_ambiguous_host_tool_name_registers_no_grant() -> None:
+    tool_a = AsyncMock(return_value="a")
+    tool_b = AsyncMock(return_value="b")
+    bridge = SandboxAgentBridge(
+        state=AgentState(messages=[]),
+        filter=None,
+        retry_refusals=None,
+        compaction=None,
+        port=13131,
+        model=None,
+        approval=[ApprovalPolicy(auto_approver("approve"), "*")],
+        bridged_tools={"a": {"read_file": tool_a}, "b": {"read_file": tool_b}},
+    )
+
+    bridge.register_tool_execution_grants(
+        [ToolCall(id="approved", function="read_file", arguments={"path": "x"})]
+    )
+
+    assert len(bridge._tool_execution_grants) == 0
+
+
+async def test_host_tool_grant_tolerates_non_json_arguments() -> None:
+    """An approver `modify` can inject non-JSON values; granting must not crash."""
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_tool(
+        tool,
+        [ApprovalPolicy(modifying_approver({"path": PurePosixPath("x.txt")}), "*")],
+    )
+    call = ToolCall(id="approved", function="read_file", arguments={"path": "a.txt"})
+
+    await run_bridge([tool_calls_output(call)], bridge=bridge)
+
+    assert bridge.consume_tool_execution_grant("host", "read_file", {"path": "x.txt"})
+
+
+async def test_multi_choice_response_truncated_under_approval() -> None:
+    """Only the primary choice is reviewed, so alternates must not reach the scaffold."""
+    unreviewed = ToolCall(id="alt", function="bash", arguments={"cmd": "rm -rf /"})
+    output = tool_calls_output(
+        ToolCall(id="main", function="bash", arguments={"cmd": "ls"})
+    )
+    output.choices.append(
+        ChatCompletionChoice(
+            message=ChatMessageAssistant(content="", tool_calls=[unreviewed]),
+            stop_reason="tool_calls",
+        )
+    )
+
+    run = await run_bridge(
+        [output], approval=[ApprovalPolicy(auto_approver("approve"), "*")]
+    )
+
+    assert len(run.output.choices) == 1
+    assert run.output.message.tool_calls is not None
+    assert run.output.message.tool_calls[0].id == "main"
+
+
+async def test_multi_choice_response_passes_through_without_approval() -> None:
+    output = tool_calls_output(
+        ToolCall(id="main", function="bash", arguments={"cmd": "ls"})
+    )
+    output.choices.append(
+        ChatCompletionChoice(
+            message=ChatMessageAssistant(content="alternate"),
+            stop_reason="stop",
+        )
+    )
+
+    run = await run_bridge([output])
+
+    assert len(run.output.choices) == 2
 
 
 async def test_host_tool_grant_binds_to_approver_modified_arguments() -> None:

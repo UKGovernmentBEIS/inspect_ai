@@ -17,9 +17,11 @@ conversation never contains the rejected call. This mirrors the native path
 
 import sys
 from contextlib import AbstractContextManager, nullcontext
+from logging import getLogger
 from typing import TYPE_CHECKING, Any, NamedTuple, NoReturn
 
 from inspect_ai._util.format import format_function_call
+from inspect_ai._util.logger import warn_once
 from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageTool
 from inspect_ai.model._model_output import ModelOutput
@@ -27,6 +29,8 @@ from inspect_ai.tool._tool_call import ToolCall, ToolCallError
 
 if TYPE_CHECKING:
     from inspect_ai.approval._policy import ApprovalPolicy
+
+logger = getLogger(__name__)
 
 
 def bridge_approval_scope(
@@ -92,6 +96,10 @@ async def apply_bridge_tool_approval(
     human isn't asked to decide on calls that are about to be discarded anyway.
     `terminate` doesn't return.
 
+    When approval is active, multi-choice responses are reduced to the primary
+    choice (with a warning): only that choice is reviewed, so returning the others
+    would hand the scaffold tool calls no approver ever saw.
+
     Args:
         bridge: Bridge whose `approval` policies (if any) apply for this call.
         output: Model output about to be handed to the scaffold.
@@ -103,12 +111,25 @@ async def apply_bridge_tool_approval(
     """
     from inspect_ai.approval._apply import apply_tool_approval, have_tool_approval
 
-    tool_calls = output.message.tool_calls
-    if not tool_calls:
-        return BridgeApproval(output, None)
-
     with bridge_approval_scope(bridge.approval):
         if not have_tool_approval():
+            return BridgeApproval(output, None)
+
+        # approval reviews (and the sandbox bridge grants) only the primary
+        # choice, so alternate choices would reach the scaffold unreviewed —
+        # drop them rather than hand back tool calls no approver ever saw.
+        if len(output.choices) > 1:
+            warn_once(
+                logger,
+                "Tool approval reviews only the primary choice of a bridged "
+                f"response; dropping {len(output.choices) - 1} alternate "
+                "choice(s). Request a single choice (n=1) when approval is "
+                "active.",
+            )
+            output = output.model_copy(update={"choices": output.choices[:1]})
+
+        tool_calls = output.message.tool_calls
+        if not tool_calls:
             return BridgeApproval(output, None)
 
         # approvers see the assistant turn under review, matching the native path
