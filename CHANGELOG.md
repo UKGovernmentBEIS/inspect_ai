@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Agent Bridge: filters and downstream code can now tell which agent (root, subagent, or utility) a bridged model request belongs to. (#4791)
 - Sandbox: Editable installs now avoid spurious `-dev` sandbox-tools binaries when local main refs are missing, stale, or unavailable.
 - Sandboxes: The HTTP proxy example now disables container network egress, preventing agents from bypassing mitmproxy by ignoring proxy environment variables.
 - Sandboxes: The evals-in-eval example now uses rootless Docker-in-Docker and warns that its privileged sidecar is unsuitable for adversarial agents.

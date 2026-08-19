@@ -90,7 +90,13 @@ async def inspect_completions_api_request(
 
     # if there is a bridge filter give it a shot first
     output, c_message = await bridge_generate(
-        bridge, model, messages, tools, tool_choice, config
+        bridge,
+        model,
+        messages,
+        tools,
+        tool_choice,
+        config,
+        requested_model=bridge_model_name,
     )
     if c_message is not None:
         messages.append(c_message)

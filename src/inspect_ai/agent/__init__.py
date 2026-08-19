@@ -4,6 +4,15 @@ from ._agent import Agent, AgentState, agent, agent_with, is_agent
 from ._as_solver import as_solver
 from ._as_tool import as_tool
 from ._bridge.bridge import agent_bridge, bridge
+from ._bridge.context import (
+    AgentBridgeContext,
+    BridgeRequest,
+    current_agent_bridge_context,
+    current_bridge_request,
+    is_root_agent,
+    is_sub_agent,
+    set_agent_bridge_context,
+)
 from ._bridge.sandbox.bridge import sandbox_agent_bridge
 from ._bridge.sandbox.types import SandboxAgentBridge
 from ._bridge.types import AgentBridge
@@ -38,6 +47,14 @@ __all__ = [
     "AgentBridge",
     "SandboxAgentBridge",
     "BridgedToolsSpec",
+    # Agent bridge context (ambient identity of the calling agent)
+    "AgentBridgeContext",
+    "BridgeRequest",
+    "current_agent_bridge_context",
+    "current_bridge_request",
+    "is_root_agent",
+    "is_sub_agent",
+    "set_agent_bridge_context",
     "content_only",
     "last_message",
     "remove_tools",
