@@ -7,13 +7,45 @@ import pytest
 
 from inspect_ai._util.file import filesystem
 from inspect_ai.log import list_eval_logs, list_eval_logs_async
-from inspect_ai.log._file import _walk_without_detail
+from inspect_ai.log._file import (
+    EvalLogInfo,
+    _walk_without_detail,
+    manifest_eval_log_name,
+)
 
 file = Path(__file__)
 
 log_dir = join(dirname(file), "test_list_logs")
 
 ignored_files = ["ignore.json"]
+
+
+def test_manifest_eval_log_name_uses_filesystem_separator() -> None:
+    info = EvalLogInfo(
+        name="logs\\2024-01-01_task.eval",
+        type="file",
+        size=100,
+        mtime=1.0,
+        task="task",
+        task_id="1",
+        suffix=None,
+    )
+
+    assert manifest_eval_log_name(info, "logs", "\\") == "2024-01-01_task.eval"
+
+
+def test_manifest_eval_log_name_normalizes_manifest_separator() -> None:
+    info = EvalLogInfo(
+        name="logs/subdir/2024-01-01_task.eval",
+        type="file",
+        size=100,
+        mtime=1.0,
+        task="task",
+        task_id="1",
+        suffix=None,
+    )
+
+    assert manifest_eval_log_name(info, "logs", "/") == "subdir/2024-01-01_task.eval"
 
 
 def test_list_logs():
