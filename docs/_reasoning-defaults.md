@@ -22,6 +22,7 @@
 | grok/grok-4 | no effort scale |
 | grok/grok-4.3 | low |
 | grok/grok-4.5 | high |
+| grok/grok-4.6 | high |
 | mistral/magistral-medium-2506 | no effort scale |
 | mistral/magistral-small-2506 | no effort scale |
 | mistral/mistral-medium-2604 | none |

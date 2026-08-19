@@ -79,6 +79,7 @@ class ToolCallError:
         "limit",
         "approval",
         "cancelled",
+        "sandbox_unavailable",
         "unknown",
         # Retained for backward compatibility when loading logs created with an older
         # version of inspect.

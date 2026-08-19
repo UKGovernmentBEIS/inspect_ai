@@ -52,7 +52,7 @@ from inspect_ai._util.content import (
     ContentText,
 )
 from inspect_ai._util.http import is_retryable_http_status
-from inspect_ai._util.images import file_as_data_uri
+from inspect_ai._util.images import inline_media_data_uri, provider_image_data_uri
 from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.model._reasoning import parse_content_with_reasoning
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
@@ -252,7 +252,7 @@ class MistralAPI(ModelAPI):
                 )
 
             # return model output (w/ tool calls if they exist)
-            choices = completion_choices_from_response(completion, tools)
+            choices = await completion_choices_from_response(completion, tools)
             return ModelOutput(
                 model=completion.model,
                 choices=choices,
@@ -481,8 +481,7 @@ async def mistral_content_chunk(content: Content) -> ContentChunk:
     if isinstance(content, ContentText):
         return TextChunk(text=content.text or NO_CONTENT)
     elif isinstance(content, ContentImage):
-        # resolve image to url
-        image_url = await file_as_data_uri(content.image)
+        image_url = inline_media_data_uri(content.image, "image")
 
         # return chunk
         return ImageURLChunk(
@@ -527,12 +526,12 @@ def chat_tool_call(tool_call: MistralToolCall, tools: list[ToolInfo]) -> ToolCal
         return ToolCall(id, tool_call.function.name, tool_call.function.arguments)
 
 
-def completion_choice(
+async def completion_choice(
     model: str, choice: MistralChatCompletionChoice, tools: list[ToolInfo]
 ) -> ChatCompletionChoice:
     message = choice.message
     if message:
-        completion = completion_content(message.content or "")
+        completion = await completion_content(message.content or "")
         return ChatCompletionChoice(
             message=ChatMessageAssistant(
                 content=completion,
@@ -554,14 +553,19 @@ def completion_choice(
         )
 
 
-def completion_content(content: str | list[ContentChunk]) -> str | list[Content]:
+async def completion_content(
+    content: str | list[ContentChunk],
+) -> str | list[Content]:
     if isinstance(content, str):
         return content
     else:
-        return [item for c in content for item in completion_content_chunks(c)]
+        completion: list[Content] = []
+        for chunk in content:
+            completion.extend(await completion_content_chunks(chunk))
+        return completion
 
 
-def completion_content_chunks(content: ContentChunk) -> list[Content]:
+async def completion_content_chunks(content: ContentChunk) -> list[Content]:
     if isinstance(content, ReferenceChunk):
         raise TypeError("ReferenceChunk content is not supported by Inspect.")
     elif isinstance(content, TextChunk):
@@ -579,7 +583,9 @@ def completion_content_chunks(content: ContentChunk) -> list[Content]:
         return [ContentText(text=f"file: {content.file_id}")]
     elif isinstance(content, ImageURLChunk):
         if isinstance(content.image_url, str):
-            return [ContentImage(image=content.image_url)]
+            return [
+                ContentImage(image=await provider_image_data_uri(content.image_url))
+            ]
         else:
             detail: Literal["auto", "low", "high"]
             match content.image_url.detail:
@@ -589,7 +595,12 @@ def completion_content_chunks(content: ContentChunk) -> list[Content]:
                     detail = "high"
                 case _:
                     detail = "auto"
-            return [ContentImage(image=content.image_url.url, detail=detail)]
+            return [
+                ContentImage(
+                    image=await provider_image_data_uri(content.image_url.url),
+                    detail=detail,
+                )
+            ]
     elif isinstance(content, ThinkChunk):
         return [
             ContentReasoning(
@@ -602,16 +613,16 @@ def completion_content_chunks(content: ContentChunk) -> list[Content]:
         raise TypeError(f"{type(content)} content is not supported by Inspect.")
 
 
-def completion_choices_from_response(
+async def completion_choices_from_response(
     response: MistralChatCompletionResponse, tools: list[ToolInfo]
 ) -> list[ChatCompletionChoice]:
     if response.choices is None:
         return []
     else:
-        return [
-            completion_choice(response.model, choice, tools)
-            for choice in response.choices
-        ]
+        choices: list[ChatCompletionChoice] = []
+        for choice in response.choices:
+            choices.append(await completion_choice(response.model, choice, tools))
+        return choices
 
 
 # Note: Mistral chat completions carry no response-level refusal category or

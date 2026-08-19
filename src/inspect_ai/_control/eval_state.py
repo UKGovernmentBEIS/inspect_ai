@@ -247,6 +247,29 @@ class EvalState:
     those fields hold the header-derived provisional values set at
     registration. ``None`` for live evals."""
 
+    log_sample_summaries: "list[EvalSampleSummary] | None" = None
+    """Memoized on-disk sample summaries for the per-sample listing.
+
+    Once :attr:`live` no longer serves summaries (eval finished and its
+    recorder torn down, reused/synthetic eval, superseded retry attempt),
+    the log at :attr:`log_location` is finalized and immutable — so the
+    listing's fallback read of it is performed once and cached here, and
+    every later request is served from memory (a keep-alive-parked process
+    is polled indefinitely; re-reading an immutable log — possibly from
+    S3 — per poll is pure waste). ``None`` until the first fallback read
+    (and always while :attr:`live` serves summaries). Cleared by
+    :func:`invalidate_log_sample_summaries` when the retry sweep deletes
+    the log, so the memo can't outlive the file it was read from.
+
+    Known limitation: "immutable" holds for every in-process writer (both
+    recorders fully write and close the log before the fallback becomes
+    reachable), but not for external ones — e.g. ``inspect score
+    --overwrite`` from another process rewrites a finished log in place,
+    and a parked process keeps serving the pre-rewrite rows for the rest
+    of the park. If in-process rewriting of finished logs ever lands
+    (e.g. interim scoring), it must call
+    :func:`invalidate_log_sample_summaries` after rewriting."""
+
     sample_ids: list[str | int] = field(default_factory=list)
     """The eval's planned sample ids (after slicing). With :attr:`epochs`,
     the full set of planned ``(sample_id, epoch)`` pairs — which lets the
@@ -323,6 +346,23 @@ class EvalState:
 
     total_messages: int = 0
     """Cumulative message count, accumulated like :attr:`total_tokens`."""
+
+    refusals: int = 0
+    """Cumulative model refusals reported by this eval's finished samples.
+
+    Accumulated by :func:`record_sample_event_counts` as each sample leaves
+    ``active_samples``; the control endpoint adds the in-flight samples' live
+    counts on top, exactly as it does for :attr:`total_tokens`.
+
+    UNLIKE the usage totals, this counts every *attempt*: a sample retried under
+    ``retry_on_error`` contributes the refusals of each attempt, because these are
+    counts of events that happened rather than a property of the final state. That
+    also keeps them consistent with the process-global counters the TUI footer
+    shows, which likewise count every occurrence."""
+
+    http_retries: int = 0
+    """Cumulative HTTP retries (rate-limit and transient), accumulated like
+    :attr:`refusals` — every attempt, not just the final one."""
 
     def observe_started(self, started: float | None) -> None:
         """Fold a sample's start time into :attr:`started_at` (running minimum).
@@ -656,6 +696,33 @@ def record_samples_added(
                 state.sample_ids.extend(sample_ids)
 
 
+def record_sample_event_counts(
+    eval_id: str, *, refusals: int = 0, http_retries: int = 0
+) -> None:
+    """Accumulate a finished sample's refusal / HTTP-retry counts onto the eval.
+
+    Separate from the ``record_sample_*`` family, and called from a different
+    place, because it answers a different question. Those fire once per sample at
+    its *final* outcome and carry that outcome's usage; this fires as each
+    *attempt* leaves ``active_samples``, since a retried attempt's refusals and
+    retries really did happen and are usually the very thing being watched (see
+    :attr:`EvalState.refusals`).
+
+    Called with the counts rather than the sample so this module keeps no
+    dependency on the log package (it is imported during eval bootstrap, before
+    the log package finishes initializing). Silently no-ops if the eval isn't
+    registered, and short-circuits when there is nothing to add — the common case,
+    since most samples neither refuse nor retry.
+    """
+    if not refusals and not http_retries:
+        return
+    with _lock:
+        state = _eval_states.get(eval_id)
+        if state is not None:
+            state.refusals += refusals
+            state.http_retries += http_retries
+
+
 def latest_eval_for_task(task_id: str) -> "EvalState | None":
     """The last-registered attempt of ``task_id``, or ``None`` if untracked.
 
@@ -704,7 +771,10 @@ def detach_eval_live(eval_id: str) -> None:
     Clearing it makes the superseded attempt's reads fall back to its own
     ``log_location`` — its data stays correct until the retry sweep removes
     that log, after which per-sample reads degrade to empty/404 (the counters
-    on the state itself are unaffected).
+    on the state itself are unaffected). :attr:`EvalState.log_sample_summaries`
+    is deliberately left alone: it holds data read from this attempt's *own*
+    log, which stays correct until that log is deleted —
+    :func:`invalidate_log_sample_summaries` handles that moment.
 
     The attempt-scoped :attr:`sample_requeue` handle is detached here too: a
     requeue aimed at a superseded attempt's ``eval_id`` must be rejected, not
@@ -717,6 +787,22 @@ def detach_eval_live(eval_id: str) -> None:
         if state is not None:
             state.live = None
             state.sample_requeue = None
+
+
+def invalidate_log_sample_summaries(eval_id: str) -> None:
+    """Drop an eval's memoized on-disk sample summaries.
+
+    Call after deleting (or rewriting) the log the memo was read from, so
+    the memo can't outlive it — later listing reads re-attempt the on-disk
+    read. Keyed by ``eval_id`` (the log's header carries it) rather than by
+    matching ``log_location`` strings, which differ in form between fsspec
+    listings and registration (``file://`` prefixes). No-ops if the eval
+    isn't registered.
+    """
+    with _lock:
+        state = _eval_states.get(eval_id)
+        if state is not None:
+            state.log_sample_summaries = None
 
 
 def finalize_eval(eval_id: str) -> None:
@@ -777,6 +863,19 @@ def get_eval_state(eval_id: str) -> EvalState | None:
         return _eval_states.get(eval_id)
 
 
+def stable_task_id_for_eval(eval_id: str) -> str:
+    """The stable across-retry task id for ``eval_id``.
+
+    The limit-override store is keyed by the *stable* task id
+    (``EvalSpec.task_id`` — the control channel's handle, preserved across
+    retry attempts), while callers typically hold a per-attempt eval id.
+    An unregistered eval (or a pre-``task_id`` record) falls back to the
+    eval id itself, where no directive can write anyway.
+    """
+    state = get_eval_state(eval_id)
+    return (state.task_id if state is not None else "") or eval_id
+
+
 def get_eval_states() -> list[EvalState]:
     """Snapshot of all currently-tracked eval states."""
     with _lock:
@@ -816,9 +915,11 @@ def reset_run_registries() -> None:
     from inspect_ai.model._generate_overrides import (
         reset_generate_config_overrides,
     )
+    from inspect_ai.util._limit_overrides import reset_sample_limit_overrides
 
     clear_all_eval_states()
     reset_generate_config_overrides()
+    reset_sample_limit_overrides()
     reset_process_config_updates()
     reset_task_pause_gates()
     reset_process_pause()

@@ -1,5 +1,5 @@
 const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["./AsciinemaPlayerImpl.js","./rolldown-runtime.js","./jsx-runtime.js","./AsciinemaPlayerImpl.css","./dist.js","./preload-helper.js","./chunk-DfAF0w94.js"])))=>i.map(i=>d[i]);
-import { i as __toESM, n as __exportAll, r as __require, t as __commonJSMin } from "./rolldown-runtime.js";
+import { i as __toESM, n as __exportAll$1, r as __require, t as __commonJSMin } from "./rolldown-runtime.js";
 import { n as require_react, t as require_jsx_runtime } from "./jsx-runtime.js";
 import { t as __vitePreload } from "./preload-helper.js";
 //#region \0vite/modulepreload-polyfill.js
@@ -166,7 +166,6 @@ var require_scheduler_production = /* @__PURE__ */ __commonJSMin(((exports) => {
 					} finally {
 						currentTask = null, currentPriorityLevel = previousPriorityLevel, isPerformingWork = !1;
 					}
-					hasMoreWork = void 0;
 				}
 			} finally {
 				hasMoreWork ? schedulePerformWorkUntilDeadline() : isMessageLoopRunning = !1;
@@ -9732,8 +9731,8 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 	};
 }));
 //#endregion
-//#region ../../packages/util/src/api-error.ts
-var import_client = (/* @__PURE__ */ __commonJSMin(((exports, module) => {
+//#region ../../node_modules/.pnpm/react-dom@19.2.8_react@19.2.8/node_modules/react-dom/client.js
+var require_client = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	function checkDCE() {
 		if (typeof __REACT_DEVTOOLS_GLOBAL_HOOK__ === "undefined" || typeof __REACT_DEVTOOLS_GLOBAL_HOOK__.checkDCE !== "function") return;
 		try {
@@ -9744,7 +9743,11 @@ var import_client = (/* @__PURE__ */ __commonJSMin(((exports, module) => {
 	}
 	checkDCE();
 	module.exports = require_react_dom_client_production();
-})))();
+}));
+//#endregion
+//#region ../../packages/util/src/api-error.ts
+var import_react = /* @__PURE__ */ __toESM(require_react(), 1);
+var import_client = require_client();
 var ApiError$1 = class extends Error {
 	status;
 	constructor(status, message) {
@@ -9877,12 +9880,12 @@ function isDate(value) {
 * @param {*} value
 * @returns {value is RegExp}
 */
-function isRegExp$1(value) {
+function isRegExp(value) {
 	return value instanceof RegExp;
 }
 //#endregion
 //#region ../../node_modules/.pnpm/arquero@8.0.3/node_modules/arquero/src/util/is-object.js
-function isObject$2(value) {
+function isObject$1(value) {
 	return value === Object(value);
 }
 //#endregion
@@ -9896,7 +9899,7 @@ function isObject$2(value) {
 * @return {boolean} True if equal, false if not.
 */
 function equal(a, b) {
-	return a == null || b == null || a !== a || b !== b ? false : a === b ? true : isDate(a) || isDate(b) ? +a === +b : isRegExp$1(a) && isRegExp$1(b) ? a + "" === b + "" : isObject$2(a) && isObject$2(b) ? deepEqual(a, b) : false;
+	return a == null || b == null || a !== a || b !== b ? false : a === b ? true : isDate(a) || isDate(b) ? +a === +b : isRegExp(a) && isRegExp(b) ? a + "" === b + "" : isObject$1(a) && isObject$1(b) ? deepEqual(a, b) : false;
 }
 function deepEqual(a, b) {
 	if (Object.getPrototypeOf(a) !== Object.getPrototypeOf(b)) return false;
@@ -10005,7 +10008,7 @@ function isArrayType(value) {
 * @param {*} value
 * @return {value is String}
 */
-function isString$2(value) {
+function isString(value) {
 	return typeof value === "string";
 }
 //#endregion
@@ -10015,7 +10018,7 @@ function isValid(value) {
 }
 //#endregion
 //#region ../../node_modules/.pnpm/arquero@8.0.3/node_modules/arquero/src/op/functions/array.js
-var array_exports = /* @__PURE__ */ __exportAll({
+var array_exports = /* @__PURE__ */ __exportAll$1({
 	compact: () => compact$3,
 	concat: () => concat,
 	includes: () => includes,
@@ -10027,7 +10030,7 @@ var array_exports = /* @__PURE__ */ __exportAll({
 	reverse: () => reverse,
 	slice: () => slice
 });
-var isSeq = (seq) => isArrayType(seq) || isString$2(seq);
+var isSeq = (seq) => isArrayType(seq) || isString(seq);
 /**
 * Returns a new compacted array with invalid values
 * (`null`, `undefined`, `NaN`) removed.
@@ -10125,7 +10128,7 @@ function pluck(array, property) {
 * @return {T[]|string} The reversed sequence.
 */
 function reverse(sequence) {
-	return isArrayType(sequence) ? sequence.slice().reverse() : isString$2(sequence) ? sequence.split("").reverse().join("") : void 0;
+	return isArrayType(sequence) ? sequence.slice().reverse() : isString(sequence) ? sequence.split("").reverse().join("") : void 0;
 }
 /**
 * Returns a copy of a portion of the input *sequence* (array or string)
@@ -10180,7 +10183,7 @@ function parseISODate(value, parse = Date.parse) {
 }
 //#endregion
 //#region ../../node_modules/.pnpm/arquero@8.0.3/node_modules/arquero/src/op/functions/date.js
-var date_exports = /* @__PURE__ */ __exportAll({
+var date_exports = /* @__PURE__ */ __exportAll$1({
 	date: () => date,
 	datetime: () => datetime$1,
 	dayofweek: () => dayofweek,
@@ -10530,7 +10533,7 @@ function utcmilliseconds(date) {
 }
 //#endregion
 //#region ../../node_modules/.pnpm/arquero@8.0.3/node_modules/arquero/src/op/functions/json.js
-var json_exports = /* @__PURE__ */ __exportAll({
+var json_exports = /* @__PURE__ */ __exportAll$1({
 	parse_json: () => parse_json,
 	to_json: () => to_json
 });
@@ -10559,7 +10562,7 @@ function random$1() {
 }
 //#endregion
 //#region ../../node_modules/.pnpm/arquero@8.0.3/node_modules/arquero/src/op/functions/math.js
-var math_exports = /* @__PURE__ */ __exportAll({
+var math_exports = /* @__PURE__ */ __exportAll$1({
 	abs: () => abs,
 	acos: () => acos,
 	acosh: () => acosh,
@@ -10582,7 +10585,7 @@ var math_exports = /* @__PURE__ */ __exportAll({
 	is_finite: () => is_finite,
 	is_nan: () => is_nan,
 	least: () => least,
-	log: () => log$9,
+	log: () => log$8,
 	log10: () => log10,
 	log1p: () => log1p,
 	log2: () => log2,
@@ -10722,7 +10725,7 @@ function least(...values) {
 * @param {number} value The input number value.
 * @return {number} The base-e log value.
 */
-function log$9(value) {
+function log$8(value) {
 	return Math.log(value);
 }
 /**
@@ -10961,9 +10964,9 @@ function isMapOrSet(value) {
 }
 //#endregion
 //#region ../../node_modules/.pnpm/arquero@8.0.3/node_modules/arquero/src/op/functions/object.js
-var object_exports = /* @__PURE__ */ __exportAll({
+var object_exports = /* @__PURE__ */ __exportAll$1({
 	entries: () => entries$2,
-	has: () => has$2,
+	has: () => has$1,
 	keys: () => keys,
 	object: () => object,
 	values: () => values$1
@@ -10983,7 +10986,7 @@ function array(iter) {
 * @param {K} key The property key to test for.
 * @return {boolean} True if the object has the given key, false otherwise.
 */
-function has$2(object, key) {
+function has$1(object, key) {
 	return isMapOrSet(object) ? object.has(key) : object != null ? Object.hasOwn(object, `${key}`) : false;
 }
 /**
@@ -11039,7 +11042,7 @@ function object(entries) {
 }
 //#endregion
 //#region ../../node_modules/.pnpm/arquero@8.0.3/node_modules/arquero/src/op/functions/string.js
-var string_exports = /* @__PURE__ */ __exportAll({
+var string_exports = /* @__PURE__ */ __exportAll$1({
 	endswith: () => endswith,
 	lower: () => lower,
 	match: () => match,
@@ -11325,7 +11328,7 @@ function error$7(message, cause) {
 * @param {*} value
 * @returns {value is Function}
 */
-function isFunction$3(value) {
+function isFunction$2(value) {
 	return typeof value === "function";
 }
 //#endregion
@@ -11363,7 +11366,7 @@ function bins(min, max, maxbins = 15, nice = true, minstep = 0, step) {
 //#region ../../node_modules/.pnpm/arquero@8.0.3/node_modules/arquero/src/util/key-function.js
 function key$6(value) {
 	const type = typeof value;
-	return type === "string" ? `"${value}"` : type !== "object" || !value ? value : isDate(value) ? +value : isArray$2(value) || isTypedArray(value) ? `[${value.map(key$6)}]` : isRegExp$1(value) ? value + "" : objectKey(value);
+	return type === "string" ? `"${value}"` : type !== "object" || !value ? value : isDate(value) ? +value : isArray$2(value) || isTypedArray(value) ? `[${value.map(key$6)}]` : isRegExp(value) ? value + "" : objectKey(value);
 }
 function objectKey(value) {
 	let s = "{";
@@ -12171,7 +12174,7 @@ function rewrite(ref, name, index = 0, col = void 0, op = void 0) {
 	ref.name = name;
 	ref.table = index;
 	if (isArrayType(col)) ref.array = true;
-	if (op && col && isFunction$3(col.keyFor)) {
+	if (op && col && isFunction$2(col.keyFor)) {
 		const lit = dictOps[op.operator] ? op.left === ref ? op.right : op.left : op.callee && op.callee.name === "equal" ? op.arguments[op.arguments[0] === ref ? 1 : 0] : null;
 		if (lit && lit.type === "Literal") rewriteDictionary(op, ref, lit, col.keyFor(lit.value));
 	}
@@ -17198,9 +17201,7 @@ pp.readTmplToken = function() {
 				case 10:
 					out += "\n";
 					break;
-				default:
-					out += String.fromCharCode(ch);
-					break;
+				default: out += String.fromCharCode(ch);
 			}
 			if (this.options.locations) {
 				++this.curLine;
@@ -17223,7 +17224,6 @@ pp.readInvalidTemplateToken = function() {
 		case "\u2029":
 			++this.curLine;
 			this.lineStart = this.pos + 1;
-			break;
 	}
 	this.raise(this.start, "Unterminated template");
 };
@@ -17728,7 +17728,7 @@ var require_xxh32 = /* @__PURE__ */ __commonJSMin(((exports) => {
 		}
 	}
 	function sliceArray(array, start, end) {
-		if (Uint8Array.prototype.slice) return array.slice(start, end);
+		if (typeof array.buffer !== void 0) if (Uint8Array.prototype.slice) return array.slice(start, end);
 		else {
 			var len = array.length;
 			start = start | 0;
@@ -17739,6 +17739,7 @@ var require_xxh32 = /* @__PURE__ */ __commonJSMin(((exports) => {
 			for (var i = start, n = 0; i < end;) arraySlice[n++] = array[i++];
 			return arraySlice;
 		}
+		else return array.slice(start, end);
 	}
 	exports.compressBound = function compressBound(n) {
 		return n + n / 255 + 16 | 0;
@@ -18136,7 +18137,7 @@ var formatTime$1 = (seconds) => {
 		const min = Math.floor(seconds / 60);
 		const sec = Math.floor(seconds % 60);
 		return sec > 0 ? `${min} min ${sec} sec` : `${min} min`;
-	} else if (seconds < 3600 * 24) {
+	} else if (seconds < 86400) {
 		const hours = Math.floor(seconds / 3600);
 		const minutes = Math.floor(seconds % 3600 / 60);
 		const sec = Math.floor(seconds % 60);
@@ -18145,8 +18146,8 @@ var formatTime$1 = (seconds) => {
 		if (sec > 0) parts.push(`${sec} sec`);
 		return parts.join(" ");
 	} else {
-		const days = Math.floor(seconds / (3600 * 24));
-		const hours = Math.floor(seconds % (3600 * 24) / 3600);
+		const days = Math.floor(seconds / 86400);
+		const hours = Math.floor(seconds % 86400 / 3600);
 		const minutes = Math.floor(seconds % 3600 / 60);
 		const sec = Math.floor(seconds % 60);
 		const parts = [`${days} days`];
@@ -18812,9 +18813,7 @@ var import_dist = /* @__PURE__ */ __toESM((/* @__PURE__ */ __commonJSMin(((expor
 				switch (u) {
 					case "$":
 					case "_": break;
-					default:
-						if (!util.isIdStartChar(u)) throw invalidIdentifier();
-						break;
+					default: if (!util.isIdStartChar(u)) throw invalidIdentifier();
 				}
 				buffer += u;
 				lexState = "identifierName";
@@ -18847,9 +18846,7 @@ var import_dist = /* @__PURE__ */ __toESM((/* @__PURE__ */ __commonJSMin(((expor
 					case "_":
 					case "‌":
 					case "‍": break;
-					default:
-						if (!util.isIdContinueChar(u)) throw invalidIdentifier();
-						break;
+					default: if (!util.isIdContinueChar(u)) throw invalidIdentifier();
 				}
 				buffer += u;
 				lexState = "identifierName";
@@ -19246,17 +19243,13 @@ var import_dist = /* @__PURE__ */ __toESM((/* @__PURE__ */ __commonJSMin(((expor
 						case "{":
 							value = {};
 							break;
-						case "[":
-							value = [];
-							break;
+						case "[": value = [];
 					}
 					break;
 				case "null":
 				case "boolean":
 				case "numeric":
-				case "string":
-					value = token.value;
-					break;
+				case "string": value = token.value;
 			}
 			if (root === void 0) root = value;
 			else {
@@ -25484,7 +25477,7 @@ var deleteLegacyDatabases = async () => {
 };
 //#endregion
 //#region src/client/database/manager.ts
-var log$8 = createLogger("DatabaseManager");
+var log$7 = createLogger("DatabaseManager");
 /**
 * Manages the (single, per-origin) database connection. Log dirs are query
 * scopes over the unified database, not separate databases.
@@ -25497,18 +25490,18 @@ var DatabaseManager = class {
 	async openDatabase() {
 		if (this.database) return this.database;
 		if (await AppDatabase.checkVersionMismatch()) {
-			log$8.info("Recreating database due to version mismatch");
+			log$7.info("Recreating database due to version mismatch");
 			await Dexie.delete(DB_NAME);
-			log$8.debug(`Deleted old database: ${DB_NAME}`);
+			log$7.debug(`Deleted old database: ${DB_NAME}`);
 		}
 		this.database = new AppDatabase();
 		try {
 			await this.database.open();
-			log$8.debug("Successfully opened database");
+			log$7.debug("Successfully opened database");
 			deleteLegacyDatabases();
 			return this.database;
 		} catch (error) {
-			log$8.error("Failed to open database:", error);
+			log$7.error("Failed to open database:", error);
 			this.database = null;
 			throw error;
 		}
@@ -25525,7 +25518,7 @@ var DatabaseManager = class {
 	*/
 	close() {
 		if (this.database) {
-			log$8.debug("Closing database");
+			log$7.debug("Closing database");
 			this.database.close();
 			this.database = null;
 		}
@@ -25540,7 +25533,7 @@ var DatabaseManager = class {
 };
 //#endregion
 //#region src/client/database/service.ts
-var log$7 = createLogger("DatabaseService");
+var log$6 = createLogger("DatabaseService");
 var newRow$1 = (handle) => ({
 	...handle,
 	depth: "listed",
@@ -25601,13 +25594,13 @@ var DatabaseService = class {
 				cached_at: now
 			} : toLogRecord(newRow$1(handle), void 0, now);
 		});
-		log$7.debug(`Upserting ${records.length} log rows (identity tier)`);
+		log$6.debug(`Upserting ${records.length} log rows (identity tier)`);
 		await db.logs.bulkPut(records);
 	}
 	async readLogs(scope) {
 		try {
 			if (!this.opened()) {
-				log$7.debug("Database not open");
+				log$6.debug("Database not open");
 				return null;
 			}
 			const records = await this.getDb().logs.where("file_path").startsWith(scopePrefix(scope.prefix)).toArray();
@@ -25616,10 +25609,10 @@ var DatabaseService = class {
 				if (a.id != null && b.id != null) return a.id - b.id;
 				return 0;
 			});
-			log$7.debug(`Retrieved ${records.length} log rows`);
+			log$6.debug(`Retrieved ${records.length} log rows`);
 			return records.map(fromLogRecord);
 		} catch (error) {
-			log$7.error("Error retrieving log rows:", error);
+			log$6.error("Error retrieving log rows:", error);
 			return null;
 		}
 	}
@@ -25628,7 +25621,7 @@ var DatabaseService = class {
 			const record = await this.getDb().logs.where("file_path").equals(filePath).first();
 			return record ? fromLogRecord(record) : null;
 		} catch (error) {
-			log$7.error(`Error retrieving log row for ${filePath}:`, error);
+			log$6.error(`Error retrieving log row for ${filePath}:`, error);
 			return null;
 		}
 	}
@@ -25639,7 +25632,7 @@ var DatabaseService = class {
 			for (const record of records) result[record.file_path] = fromLogRecord(record);
 			return result;
 		} catch (error) {
-			log$7.error("Error retrieving log rows:", error);
+			log$6.error("Error retrieving log rows:", error);
 			return {};
 		}
 	}
@@ -25667,7 +25660,7 @@ var DatabaseService = class {
 		await db.logs.bulkPut(records);
 	}
 	async writeLogPreviews(previews) {
-		log$7.debug(`Upserting ${Object.keys(previews).length} log rows (previewed tier)`);
+		log$6.debug(`Upserting ${Object.keys(previews).length} log rows (previewed tier)`);
 		await this.mergeRows(Object.fromEntries(Object.entries(previews).map(([file, preview]) => [file, previewTier(preview)])));
 	}
 	/**
@@ -25681,7 +25674,7 @@ var DatabaseService = class {
 		const db = this.getDb();
 		const now = (/* @__PURE__ */ new Date()).toISOString();
 		const entries = Object.entries(details);
-		log$7.debug(`Ingesting ${entries.length} log details (split)`);
+		log$6.debug(`Ingesting ${entries.length} log details (split)`);
 		await db.transaction("rw", db.logs, db.sample_summaries, async () => {
 			await this.mergeRows(Object.fromEntries(entries.map(([file, { patch }]) => [file, patch])));
 			const files = entries.map(([filePath]) => filePath);
@@ -25701,7 +25694,7 @@ var DatabaseService = class {
 		return ("file" in scope ? db.sample_summaries.where("file_path").equals(scope.file) : db.sample_summaries.where("file_path").startsWith(scopePrefix(scope.prefix))).toArray();
 	}
 	async writeFetchStates(states) {
-		log$7.debug(`Merging retrieval facts into ${Object.keys(states).length} log rows`);
+		log$6.debug(`Merging retrieval facts into ${Object.keys(states).length} log rows`);
 		await this.mergeRows(states);
 	}
 	/**
@@ -25726,7 +25719,7 @@ var DatabaseService = class {
 	/** Remove a deleted file's row and its sample summaries. */
 	async clearCacheForFile(filePath) {
 		const db = this.getDb();
-		log$7.debug(`Clearing cache for file: ${filePath}`);
+		log$6.debug(`Clearing cache for file: ${filePath}`);
 		await Promise.all([db.logs.where("file_path").equals(filePath).delete(), db.sample_summaries.where("file_path").equals(filePath).delete()]);
 	}
 	/**
@@ -25736,7 +25729,7 @@ var DatabaseService = class {
 	*/
 	async clearAllData() {
 		const db = this.getDb();
-		log$7.debug("Clearing all cached data");
+		log$6.debug("Clearing all cached data");
 		await db.transaction("rw", [
 			db.logs,
 			db.sample_summaries,
@@ -25754,7 +25747,7 @@ var DatabaseService = class {
 	async clearScope(scope) {
 		const db = this.getDb();
 		const prefix = scopePrefix(scope.prefix);
-		log$7.debug(`Clearing caches under: ${prefix}`);
+		log$6.debug(`Clearing caches under: ${prefix}`);
 		await db.transaction("rw", [
 			db.logs,
 			db.sample_summaries,
@@ -25888,7 +25881,6 @@ var syncListing = async (api, engine) => {
 };
 //#endregion
 //#region ../../packages/react/src/hooks/useMapAsyncData.ts
-var import_react = /* @__PURE__ */ __toESM(require_react(), 1);
 function useMapAsyncData(input, transform, errorTransform) {
 	return (0, import_react.useMemo)(() => {
 		const isArray = Array.isArray(input);
@@ -26116,7 +26108,7 @@ function baseTrim(string) {
 * _.isObject(null);
 * // => false
 */
-function isObject$1(value) {
+function isObject(value) {
 	var type = typeof value;
 	return value != null && (type == "object" || type == "function");
 }
@@ -26158,9 +26150,9 @@ var freeParseInt = parseInt;
 function toNumber(value) {
 	if (typeof value == "number") return value;
 	if (isSymbol(value)) return NAN;
-	if (isObject$1(value)) {
+	if (isObject(value)) {
 		var other = typeof value.valueOf == "function" ? value.valueOf() : value;
-		value = isObject$1(other) ? other + "" : other;
+		value = isObject(other) ? other + "" : other;
 	}
 	if (typeof value != "string") return value === 0 ? value : +value;
 	value = baseTrim(value);
@@ -26252,7 +26244,7 @@ function debounce$2(func, wait, options) {
 	var lastArgs, lastThis, maxWait, result, timerId, lastCallTime, lastInvokeTime = 0, leading = false, maxing = false, trailing = true;
 	if (typeof func != "function") throw new TypeError(FUNC_ERROR_TEXT);
 	wait = toNumber(wait) || 0;
-	if (isObject$1(options)) {
+	if (isObject(options)) {
 		leading = !!options.leading;
 		maxing = "maxWait" in options;
 		maxWait = maxing ? nativeMax(toNumber(options.maxWait) || 0, wait) : maxWait;
@@ -26918,7 +26910,7 @@ var Removable = class {
 		}, this.gcTime);
 	}
 	updateGcTime(newGcTime) {
-		this.gcTime = Math.max(this.gcTime || 0, newGcTime ?? (environmentManager.isServer() ? Infinity : 300 * 1e3));
+		this.gcTime = Math.max(this.gcTime || 0, newGcTime ?? (environmentManager.isServer() ? Infinity : 3e5));
 	}
 	clearGcTimeout() {
 		if (this.#gcTimeout !== void 0) {
@@ -27005,6 +26997,14 @@ function getNextPageParam(options, { pages, pageParams }) {
 }
 function getPreviousPageParam(options, { pages, pageParams }) {
 	return pages.length > 0 ? options.getPreviousPageParam?.(pages[0], pages, pageParams[0], pageParams) : void 0;
+}
+function hasNextPage(options, data) {
+	if (!data) return false;
+	return getNextPageParam(options, data) != null;
+}
+function hasPreviousPage(options, data) {
+	if (!data || !options.getPreviousPageParam) return false;
+	return getPreviousPageParam(options, data) != null;
 }
 //#endregion
 //#region ../../node_modules/.pnpm/@tanstack+query-core@5.101.4/node_modules/@tanstack/query-core/build/modern/query.js
@@ -27643,9 +27643,7 @@ var QueryObserver = class extends Subscribable {
 				case "fulfilled":
 					if (isErrorWithoutData || nextResult.data !== prevThenable.value) recreateThenable();
 					break;
-				case "rejected":
-					if (!isErrorWithoutData || nextResult.error !== prevThenable.reason) recreateThenable();
-					break;
+				case "rejected": if (!isErrorWithoutData || nextResult.error !== prevThenable.reason) recreateThenable();
 			}
 		}
 		return nextResult;
@@ -27722,6 +27720,61 @@ function shouldAssignObserverCurrentProperties(observer, optimisticResult) {
 	if (!shallowEqualObjects(observer.getCurrentResult(), optimisticResult)) return true;
 	return false;
 }
+//#endregion
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.101.4/node_modules/@tanstack/query-core/build/modern/infiniteQueryObserver.js
+var InfiniteQueryObserver = class extends QueryObserver {
+	constructor(client, options) {
+		super(client, options);
+	}
+	bindMethods() {
+		super.bindMethods();
+		this.fetchNextPage = this.fetchNextPage.bind(this);
+		this.fetchPreviousPage = this.fetchPreviousPage.bind(this);
+	}
+	setOptions(options) {
+		options._type = "infinite";
+		super.setOptions(options);
+	}
+	getOptimisticResult(options) {
+		options._type = "infinite";
+		return super.getOptimisticResult(options);
+	}
+	fetchNextPage(options) {
+		return this.fetch({
+			...options,
+			meta: { fetchMore: { direction: "forward" } }
+		});
+	}
+	fetchPreviousPage(options) {
+		return this.fetch({
+			...options,
+			meta: { fetchMore: { direction: "backward" } }
+		});
+	}
+	createResult(query, options) {
+		const { state } = query;
+		const parentResult = super.createResult(query, options);
+		const { isFetching, isRefetching, isError, isRefetchError } = parentResult;
+		const fetchDirection = state.fetchMeta?.fetchMore?.direction;
+		const isFetchNextPageError = isError && fetchDirection === "forward";
+		const isFetchingNextPage = isFetching && fetchDirection === "forward";
+		const isFetchPreviousPageError = isError && fetchDirection === "backward";
+		const isFetchingPreviousPage = isFetching && fetchDirection === "backward";
+		return {
+			...parentResult,
+			fetchNextPage: this.fetchNextPage,
+			fetchPreviousPage: this.fetchPreviousPage,
+			hasNextPage: hasNextPage(options, state.data),
+			hasPreviousPage: hasPreviousPage(options, state.data),
+			isFetchNextPageError,
+			isFetchingNextPage,
+			isFetchPreviousPageError,
+			isFetchingPreviousPage,
+			isRefetchError: isRefetchError && !isFetchNextPageError && !isFetchPreviousPageError,
+			isRefetching: isRefetching && !isFetchingNextPage && !isFetchingPreviousPage
+		};
+	}
+};
 //#endregion
 //#region ../../node_modules/.pnpm/@tanstack+query-core@5.101.4/node_modules/@tanstack/query-core/build/modern/mutation.js
 var Mutation = class extends Removable {
@@ -28620,6 +28673,11 @@ function useMutation(options, queryClient) {
 		mutate,
 		mutateAsync: result.mutate
 	};
+}
+//#endregion
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.101.4_react@19.2.8/node_modules/@tanstack/react-query/build/modern/useInfiniteQuery.js
+function useInfiniteQuery(options, queryClient) {
+	return useBaseQuery(options, InfiniteQueryObserver, queryClient);
 }
 //#endregion
 //#region ../../packages/react/src/hooks/useAsyncDataFromQuery.ts
@@ -36815,7 +36873,7 @@ var useCollapsibleIds = (key) => {
 };
 //#endregion
 //#region ../../packages/react/src/hooks/useStatefulScrollPosition.ts
-var log$6 = createLogger("scrolling");
+var log$5 = createLogger("scrolling");
 function useStatefulScrollPosition(elementRef, elementKey, delay = 1e3, scrollable = true) {
 	const [scrollPosition, setScrollPosition] = useProperty("scrollPosition", elementKey);
 	const scrollPositionRef = (0, import_react.useRef)(scrollPosition);
@@ -36824,7 +36882,7 @@ function useStatefulScrollPosition(elementRef, elementKey, delay = 1e3, scrollab
 	}, [scrollPosition]);
 	const handleScrollInner = (0, import_react.useCallback)((e) => {
 		const position = e.target.scrollTop;
-		log$6.debug(`Storing scroll position`, elementKey, position);
+		log$5.debug(`Storing scroll position`, elementKey, position);
 		setScrollPosition(position);
 	}, [elementKey, setScrollPosition]);
 	const handleScroll = (0, import_react.useMemo)(() => debounce$3(handleScrollInner, delay), [handleScrollInner, delay]);
@@ -36841,16 +36899,16 @@ function useStatefulScrollPosition(elementRef, elementKey, delay = 1e3, scrollab
 	(0, import_react.useEffect)(() => {
 		const element = elementRef.current;
 		if (!element || !scrollable) return;
-		log$6.debug(`Restore Scroll Hook`, elementKey);
+		log$5.debug(`Restore Scroll Hook`, elementKey);
 		let pollTimer;
 		const savedPosition = scrollPositionRef.current;
 		if (savedPosition !== void 0) {
-			log$6.debug(`Restoring scroll position`, savedPosition);
+			log$5.debug(`Restoring scroll position`, savedPosition);
 			const tryRestoreScroll = () => {
 				if (element.scrollHeight > element.clientHeight) {
 					if (element.scrollTop !== savedPosition) {
 						element.scrollTop = savedPosition;
-						log$6.debug(`Scroll position restored to ${savedPosition}`);
+						log$5.debug(`Scroll position restored to ${savedPosition}`);
 					}
 					return true;
 				}
@@ -36861,7 +36919,7 @@ function useStatefulScrollPosition(elementRef, elementKey, delay = 1e3, scrollab
 				const maxAttempts = 20;
 				const pollForRender = () => {
 					if (tryRestoreScroll() || attempts >= maxAttempts) {
-						if (attempts >= maxAttempts) log$6.debug(`Failed to restore scroll after ${maxAttempts} attempts`);
+						if (attempts >= maxAttempts) log$5.debug(`Failed to restore scroll after ${maxAttempts} attempts`);
 						return;
 					}
 					attempts++;
@@ -36871,11 +36929,11 @@ function useStatefulScrollPosition(elementRef, elementKey, delay = 1e3, scrollab
 			}
 		}
 		if (element.addEventListener) element.addEventListener("scroll", handleScroll);
-		else log$6.warn("Element has no way to add event listener", element);
+		else log$5.warn("Element has no way to add event listener", element);
 		return () => {
 			if (pollTimer !== void 0) clearTimeout(pollTimer);
 			if (element.removeEventListener) element.removeEventListener("scroll", handleScroll);
-			else log$6.warn("Element has no way to remove event listener", element);
+			else log$5.warn("Element has no way to remove event listener", element);
 		};
 	}, [
 		elementKey,
@@ -37697,7 +37755,6 @@ var AutocompleteInput = ({ id, value, onChange, onCommit, onCancel, disabled, su
 				e.preventDefault();
 				e.stopPropagation();
 				setIsOpen(false);
-				break;
 		}
 	}, [
 		showDropdown,
@@ -37967,9 +38024,7 @@ var import_ansi_output = (/* @__PURE__ */ __commonJSMin(((exports, module) => {
 						this.flushBuffer();
 						this._outputColumn = 0;
 						break;
-					default:
-						this._buffer += char;
-						break;
+					default: this._buffer += char;
 				}
 			}
 			/**
@@ -37998,10 +38053,7 @@ var import_ansi_output = (/* @__PURE__ */ __commonJSMin(((exports, module) => {
 					case "K":
 						this.processEL();
 						break;
-					case "m":
-						this.processSGR();
-						break;
-					default: break;
+					case "m": this.processSGR();
 				}
 				this._controlSequence = "";
 				this._parserState = ParserState.BufferingOutput;
@@ -38058,9 +38110,7 @@ var import_ansi_output = (/* @__PURE__ */ __commonJSMin(((exports, module) => {
 						this._outputLines[this._outputLine].clearToBeginningOfLine(this._outputColumn);
 						for (let i = 0; i < this._outputLine; i++) this._outputLines[i].clearEntireLine();
 						break;
-					case 2:
-						for (let i = 0; i < this._outputLines.length; i++) this._outputLines[i].clearEntireLine();
-						break;
+					case 2: for (let i = 0; i < this._outputLines.length; i++) this._outputLines[i].clearEntireLine();
 				}
 			}
 			/**
@@ -38077,9 +38127,7 @@ var import_ansi_output = (/* @__PURE__ */ __commonJSMin(((exports, module) => {
 						case 1:
 							outputLine.clearToBeginningOfLine(this._outputColumn);
 							break;
-						case 2:
-							outputLine.clearEntireLine();
-							break;
+						case 2: outputLine.clearEntireLine();
 					}
 				}
 			}
@@ -38356,10 +38404,7 @@ var import_ansi_output = (/* @__PURE__ */ __commonJSMin(((exports, module) => {
 						case SGRParam.BackgroundBrightCyan:
 							sgrState.setBackgroundColor(ANSIColor.BrightCyan);
 							break;
-						case SGRParam.BackgroundBrightWhite:
-							sgrState.setBackgroundColor(ANSIColor.BrightWhite);
-							break;
-						default: break;
+						case SGRParam.BackgroundBrightWhite: sgrState.setBackgroundColor(ANSIColor.BrightWhite);
 					}
 				}
 				if (!SGRState.equivalent(sgrState, this._sgrState)) this._sgrState = sgrState;
@@ -39137,13 +39182,11 @@ var computeStyles$1 = (styles) => {
 					textDecorationStyle: "solid"
 				};
 				break;
-			case import_ansi_output.ANSIStyle.DoubleUnderlined:
-				cssProperties = {
-					...cssProperties,
-					textDecorationLine: "underline",
-					textDecorationStyle: "double"
-				};
-				break;
+			case import_ansi_output.ANSIStyle.DoubleUnderlined: cssProperties = {
+				...cssProperties,
+				textDecorationLine: "underline",
+				textDecorationStyle: "double"
+			};
 		}
 	});
 	return cssProperties;
@@ -39310,7 +39353,7 @@ var AsciinemaPlayer = (props) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)(imp
 	children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(LazyAsciinemaPlayer, { ...props })
 });
 //#endregion
-//#region ../../node_modules/.pnpm/@lit+react@1.0.8_@types+react@19.2.17/node_modules/@lit/react/create-component.js
+//#region ../../node_modules/.pnpm/@lit+react@1.0.8_@types+react@19.2.18/node_modules/@lit/react/create-component.js
 /**
 * @license
 * Copyright 2018 Google LLC
@@ -39391,7 +39434,7 @@ var i$8 = (t, ...e) => {
 		throw Error("Value passed to 'css' function must be a 'css' function result: " + t + ". Use 'unsafeCSS' to pass non-literal values, but take care to ensure page security.");
 	})(s) + t[o + 1], t[0]), t, s$6);
 };
-var S$1 = (s, o) => {
+var S$2 = (s, o) => {
 	if (e$10) s.adoptedStyleSheets = o.map((t) => t instanceof CSSStyleSheet ? t : t.styleSheet);
 	else for (const e of o) {
 		const o = document.createElement("style"), n = t$4.litNonce;
@@ -39536,7 +39579,7 @@ var y$1 = class extends HTMLElement {
 	}
 	createRenderRoot() {
 		const t = this.shadowRoot ?? this.attachShadow(this.constructor.shadowRootOptions);
-		return S$1(t, this.constructor.elementStyles), t;
+		return S$2(t, this.constructor.elementStyles), t;
 	}
 	connectedCallback() {
 		this.renderRoot ??= this.createRenderRoot(), this.enableUpdating(!0), this._$EO?.forEach((t) => t.hostConnected?.());
@@ -39655,21 +39698,21 @@ var u$2 = Array.isArray;
 var d$1 = (t) => u$2(t) || "function" == typeof t?.[Symbol.iterator];
 var f$1 = "[ 	\n\f\r]";
 var v$1 = /<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g;
-var _$1 = /-->/g;
+var _ = /-->/g;
 var m$1 = />/g;
 var p$1 = RegExp(`>|${f$1}(?:([^\\s"'>=/]+)(${f$1}*=${f$1}*(?:[^ \t\n\f\r"'\`<>=]|("|')|))|$)`, "g");
 var g = /'/g;
-var $$1 = /"/g;
+var $ = /"/g;
 var y = /^(?:script|style|textarea|title)$/i;
-var x$2 = (t) => (i, ...s) => ({
+var x$1 = (t) => (i, ...s) => ({
 	_$litType$: t,
 	strings: i,
 	values: s
 });
-var b = x$2(1);
-var w = x$2(2);
-var E$1 = Symbol.for("lit-noChange");
-var A$1 = Symbol.for("lit-nothing");
+var b = x$1(1);
+var w = x$1(2);
+var E = Symbol.for("lit-noChange");
+var A = Symbol.for("lit-nothing");
 var C$1 = /* @__PURE__ */ new WeakMap();
 var P$1 = l$1.createTreeWalker(l$1, 129);
 function V(t, i) {
@@ -39682,19 +39725,19 @@ var N = (t, i) => {
 	for (let i = 0; i < s; i++) {
 		const s = t[i];
 		let a, u, d = -1, f = 0;
-		for (; f < s.length && (c.lastIndex = f, u = c.exec(s), null !== u);) f = c.lastIndex, c === v$1 ? "!--" === u[1] ? c = _$1 : void 0 !== u[1] ? c = m$1 : void 0 !== u[2] ? (y.test(u[2]) && (n = RegExp("</" + u[2], "g")), c = p$1) : void 0 !== u[3] && (c = p$1) : c === p$1 ? ">" === u[0] ? (c = n ?? v$1, d = -1) : void 0 === u[1] ? d = -2 : (d = c.lastIndex - u[2].length, a = u[1], c = void 0 === u[3] ? p$1 : "\"" === u[3] ? $$1 : g) : c === $$1 || c === g ? c = p$1 : c === _$1 || c === m$1 ? c = v$1 : (c = p$1, n = void 0);
+		for (; f < s.length && (c.lastIndex = f, u = c.exec(s), null !== u);) f = c.lastIndex, c === v$1 ? "!--" === u[1] ? c = _ : void 0 !== u[1] ? c = m$1 : void 0 !== u[2] ? (y.test(u[2]) && (n = RegExp("</" + u[2], "g")), c = p$1) : void 0 !== u[3] && (c = p$1) : c === p$1 ? ">" === u[0] ? (c = n ?? v$1, d = -1) : void 0 === u[1] ? d = -2 : (d = c.lastIndex - u[2].length, a = u[1], c = void 0 === u[3] ? p$1 : "\"" === u[3] ? $ : g) : c === $ || c === g ? c = p$1 : c === _ || c === m$1 ? c = v$1 : (c = p$1, n = void 0);
 		const x = c === p$1 && t[i + 1].startsWith("/>") ? " " : "";
 		l += c === v$1 ? s + r$4 : d >= 0 ? (e.push(a), s.slice(0, d) + h$1 + s.slice(d) + o$4 + x) : s + o$4 + (-2 === d ? i : x);
 	}
 	return [V(t, l + (t[s] || "<?>") + (2 === i ? "</svg>" : 3 === i ? "</math>" : "")), e];
 };
-var S = class S {
+var S$1 = class S$1 {
 	constructor({ strings: t, _$litType$: i }, e) {
 		let r;
 		this.parts = [];
 		let l = 0, a = 0;
 		const u = t.length - 1, d = this.parts, [f, v] = N(t, i);
-		if (this.el = S.createElement(f, e), P$1.currentNode = this.el.content, 2 === i || 3 === i) {
+		if (this.el = S$1.createElement(f, e), P$1.currentNode = this.el.content, 2 === i || 3 === i) {
 			const t = this.el.content.firstChild;
 			t.replaceWith(...t.childNodes);
 		}
@@ -39707,7 +39750,7 @@ var S = class S {
 						index: l,
 						name: e[2],
 						strings: s,
-						ctor: "." === e[1] ? I : "?" === e[1] ? L : "@" === e[1] ? z$1 : H
+						ctor: "." === e[1] ? I : "?" === e[1] ? L : "@" === e[1] ? z : H
 					}), r.removeAttribute(t);
 				} else t.startsWith(o$4) && (d.push({
 					type: 6,
@@ -39743,11 +39786,11 @@ var S = class S {
 		return s.innerHTML = t, s;
 	}
 };
-function M$2(t, i, s = t, e) {
-	if (i === E$1) return i;
+function M$1(t, i, s = t, e) {
+	if (i === E) return i;
 	let h = void 0 !== e ? s._$Co?.[e] : s._$Cl;
 	const o = a(i) ? void 0 : i._$litDirective$;
-	return h?.constructor !== o && (h?._$AO?.(!1), void 0 === o ? h = void 0 : (h = new o(t), h._$AT(t, s, e)), void 0 !== e ? (s._$Co ??= [])[e] = h : s._$Cl = h), void 0 !== h && (i = M$2(t, h._$AS(t, i.values), h, e)), i;
+	return h?.constructor !== o && (h?._$AO?.(!1), void 0 === o ? h = void 0 : (h = new o(t), h._$AT(t, s, e)), void 0 !== e ? (s._$Co ??= [])[e] = h : s._$Cl = h), void 0 !== h && (i = M$1(t, h._$AS(t, i.values), h, e)), i;
 }
 var R = class {
 	constructor(t, i) {
@@ -39766,7 +39809,7 @@ var R = class {
 		for (; void 0 !== r;) {
 			if (o === r.index) {
 				let i;
-				2 === r.type ? i = new k(h, h.nextSibling, this, t) : 1 === r.type ? i = new r.ctor(h, r.name, r.strings, this, t) : 6 === r.type && (i = new Z(h, this, t)), this._$AV.push(i), r = s[++n];
+				2 === r.type ? i = new k(h, h.nextSibling, this, t) : 1 === r.type ? i = new r.ctor(h, r.name, r.strings, this, t) : 6 === r.type && (i = new Z$1(h, this, t)), this._$AV.push(i), r = s[++n];
 			}
 			o !== r?.index && (h = P$1.nextNode(), o++);
 		}
@@ -39782,7 +39825,7 @@ var k = class k {
 		return this._$AM?._$AU ?? this._$Cv;
 	}
 	constructor(t, i, s, e) {
-		this.type = 2, this._$AH = A$1, this._$AN = void 0, this._$AA = t, this._$AB = i, this._$AM = s, this.options = e, this._$Cv = e?.isConnected ?? !0;
+		this.type = 2, this._$AH = A, this._$AN = void 0, this._$AA = t, this._$AB = i, this._$AM = s, this.options = e, this._$Cv = e?.isConnected ?? !0;
 	}
 	get parentNode() {
 		let t = this._$AA.parentNode;
@@ -39796,7 +39839,7 @@ var k = class k {
 		return this._$AB;
 	}
 	_$AI(t, i = this) {
-		t = M$2(this, t, i), a(t) ? t === A$1 || null == t || "" === t ? (this._$AH !== A$1 && this._$AR(), this._$AH = A$1) : t !== this._$AH && t !== E$1 && this._(t) : void 0 !== t._$litType$ ? this.$(t) : void 0 !== t.nodeType ? this.T(t) : d$1(t) ? this.k(t) : this._(t);
+		t = M$1(this, t, i), a(t) ? t === A || null == t || "" === t ? (this._$AH !== A && this._$AR(), this._$AH = A) : t !== this._$AH && t !== E && this._(t) : void 0 !== t._$litType$ ? this.$(t) : void 0 !== t.nodeType ? this.T(t) : d$1(t) ? this.k(t) : this._(t);
 	}
 	O(t) {
 		return this._$AA.parentNode.insertBefore(t, this._$AB);
@@ -39805,10 +39848,10 @@ var k = class k {
 		this._$AH !== t && (this._$AR(), this._$AH = this.O(t));
 	}
 	_(t) {
-		this._$AH !== A$1 && a(this._$AH) ? this._$AA.nextSibling.data = t : this.T(l$1.createTextNode(t)), this._$AH = t;
+		this._$AH !== A && a(this._$AH) ? this._$AA.nextSibling.data = t : this.T(l$1.createTextNode(t)), this._$AH = t;
 	}
 	$(t) {
-		const { values: i, _$litType$: s } = t, e = "number" == typeof s ? this._$AC(t) : (void 0 === s.el && (s.el = S.createElement(V(s.h, s.h[0]), this.options)), s);
+		const { values: i, _$litType$: s } = t, e = "number" == typeof s ? this._$AC(t) : (void 0 === s.el && (s.el = S$1.createElement(V(s.h, s.h[0]), this.options)), s);
 		if (this._$AH?._$AD === e) this._$AH.p(i);
 		else {
 			const t = new R(e, this), s = t.u(this.options);
@@ -39817,7 +39860,7 @@ var k = class k {
 	}
 	_$AC(t) {
 		let i = C$1.get(t.strings);
-		return void 0 === i && C$1.set(t.strings, i = new S(t)), i;
+		return void 0 === i && C$1.set(t.strings, i = new S$1(t)), i;
 	}
 	k(t) {
 		u$2(this._$AH) || (this._$AH = [], this._$AR());
@@ -39844,21 +39887,21 @@ var H = class {
 		return this._$AM._$AU;
 	}
 	constructor(t, i, s, e, h) {
-		this.type = 1, this._$AH = A$1, this._$AN = void 0, this.element = t, this.name = i, this._$AM = e, this.options = h, s.length > 2 || "" !== s[0] || "" !== s[1] ? (this._$AH = Array(s.length - 1).fill(/* @__PURE__ */ new String()), this.strings = s) : this._$AH = A$1;
+		this.type = 1, this._$AH = A, this._$AN = void 0, this.element = t, this.name = i, this._$AM = e, this.options = h, s.length > 2 || "" !== s[0] || "" !== s[1] ? (this._$AH = Array(s.length - 1).fill(/* @__PURE__ */ new String()), this.strings = s) : this._$AH = A;
 	}
 	_$AI(t, i = this, s, e) {
 		const h = this.strings;
 		let o = !1;
-		if (void 0 === h) t = M$2(this, t, i, 0), o = !a(t) || t !== this._$AH && t !== E$1, o && (this._$AH = t);
+		if (void 0 === h) t = M$1(this, t, i, 0), o = !a(t) || t !== this._$AH && t !== E, o && (this._$AH = t);
 		else {
 			const e = t;
 			let n, r;
-			for (t = h[0], n = 0; n < h.length - 1; n++) r = M$2(this, e[s + n], i, n), r === E$1 && (r = this._$AH[n]), o ||= !a(r) || r !== this._$AH[n], r === A$1 ? t = A$1 : t !== A$1 && (t += (r ?? "") + h[n + 1]), this._$AH[n] = r;
+			for (t = h[0], n = 0; n < h.length - 1; n++) r = M$1(this, e[s + n], i, n), r === E && (r = this._$AH[n]), o ||= !a(r) || r !== this._$AH[n], r === A ? t = A : t !== A && (t += (r ?? "") + h[n + 1]), this._$AH[n] = r;
 		}
 		o && !e && this.j(t);
 	}
 	j(t) {
-		t === A$1 ? this.element.removeAttribute(this.name) : this.element.setAttribute(this.name, t ?? "");
+		t === A ? this.element.removeAttribute(this.name) : this.element.setAttribute(this.name, t ?? "");
 	}
 };
 var I = class extends H {
@@ -39866,7 +39909,7 @@ var I = class extends H {
 		super(...arguments), this.type = 3;
 	}
 	j(t) {
-		this.element[this.name] = t === A$1 ? void 0 : t;
+		this.element[this.name] = t === A ? void 0 : t;
 	}
 };
 var L = class extends H {
@@ -39874,23 +39917,23 @@ var L = class extends H {
 		super(...arguments), this.type = 4;
 	}
 	j(t) {
-		this.element.toggleAttribute(this.name, !!t && t !== A$1);
+		this.element.toggleAttribute(this.name, !!t && t !== A);
 	}
 };
-var z$1 = class extends H {
+var z = class extends H {
 	constructor(t, i, s, e, h) {
 		super(t, i, s, e, h), this.type = 5;
 	}
 	_$AI(t, i = this) {
-		if ((t = M$2(this, t, i, 0) ?? A$1) === E$1) return;
-		const s = this._$AH, e = t === A$1 && s !== A$1 || t.capture !== s.capture || t.once !== s.once || t.passive !== s.passive, h = t !== A$1 && (s === A$1 || e);
+		if ((t = M$1(this, t, i, 0) ?? A) === E) return;
+		const s = this._$AH, e = t === A && s !== A || t.capture !== s.capture || t.once !== s.once || t.passive !== s.passive, h = t !== A && (s === A || e);
 		e && this.element.removeEventListener(this.name, this, s), h && this.element.addEventListener(this.name, this, t), this._$AH = t;
 	}
 	handleEvent(t) {
 		"function" == typeof this._$AH ? this._$AH.call(this.options?.host ?? this.element, t) : this._$AH.handleEvent(t);
 	}
 };
-var Z = class {
+var Z$1 = class {
 	constructor(t, i, s) {
 		this.element = t, this.type = 6, this._$AN = void 0, this._$AM = i, this.options = s;
 	}
@@ -39898,10 +39941,10 @@ var Z = class {
 		return this._$AM._$AU;
 	}
 	_$AI(t) {
-		M$2(this, t);
+		M$1(this, t);
 	}
 };
-var j$2 = {
+var j$1 = {
 	M: h$1,
 	P: o$4,
 	A: n$5,
@@ -39909,16 +39952,16 @@ var j$2 = {
 	L: N,
 	R,
 	D: d$1,
-	V: M$2,
+	V: M$1,
 	I: k,
 	H,
 	N: L,
-	U: z$1,
+	U: z,
 	B: I,
-	F: Z
+	F: Z$1
 };
-var B$1 = t$3.litHtmlPolyfillSupport;
-B$1?.(S, k), (t$3.litHtmlVersions ??= []).push("3.3.2");
+var B = t$3.litHtmlPolyfillSupport;
+B?.(S$1, k), (t$3.litHtmlVersions ??= []).push("3.3.2");
 var D = (t, i, s) => {
 	const e = s?.renderBefore ?? i;
 	let h = e._$litPart$;
@@ -39954,7 +39997,7 @@ var i$5 = class extends y$1 {
 		super.disconnectedCallback(), this._$Do?.setConnected(!1);
 	}
 	render() {
-		return E$1;
+		return E;
 	}
 };
 i$5._$litElement$ = !0, i$5["finalized"] = !0, s$4.litElementHydrateSupport?.({ LitElement: i$5 });
@@ -40157,8 +40200,6 @@ function getDefaultFontStack() {
 	else if (navigator.userAgent.indexOf("Windows") > -1) return "\"Segoe WPC\", \"Segoe UI\", sans-serif";
 	else return "sans-serif";
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-badge/vscode-badge.styles.js
 var styles$35 = [default_styles_default, i$8`
     :host {
       display: inline-block;
@@ -40306,7 +40347,7 @@ var i$4 = class {
 			const s = !!i[t];
 			s === this.st.has(t) || this.nt?.has(t) || (s ? (r.add(t), this.st.add(t)) : (r.remove(t), this.st.delete(t)));
 		}
-		return E$1;
+		return E;
 	}
 });
 //#endregion
@@ -40315,7 +40356,7 @@ var i$4 = class {
 * @license
 * Copyright 2018 Google LLC
 * SPDX-License-Identifier: BSD-3-Clause
-*/ var o = (o) => o ?? A$1;
+*/ var o = (o) => o ?? A;
 //#endregion
 //#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/includes/style-property-map.js
 var StylePropertyMap = class extends i$4 {
@@ -40332,10 +40373,10 @@ var StylePropertyMap = class extends i$4 {
 				this._prevProperties[key] = val;
 			}
 		});
-		return E$1;
+		return E;
 	}
 	render(_styleProps) {
-		return E$1;
+		return E;
 	}
 };
 /**
@@ -40540,8 +40581,6 @@ __decorate$39([n$4({
 	attribute: "action-icon"
 })], VscodeIcon$1.prototype, "actionIcon", void 0);
 VscodeIcon$1 = VscodeIcon_1 = __decorate$39([customElement("vscode-icon")], VscodeIcon$1);
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-button/vscode-button.styles.js
 var styles$33 = [default_styles_default, i$8`
     :host {
       cursor: pointer;
@@ -40875,13 +40914,13 @@ var VscodeButton$1 = class VscodeButton extends VscElement {
           ?spin=${this.iconSpin}
           spin-duration=${o(this.iconSpinDuration)}
           class="icon"
-        ></vscode-icon>` : A$1;
+        ></vscode-icon>` : A;
 		const iconAfterElem = hasIconAfter ? b`<vscode-icon
           name=${this.iconAfter}
           ?spin=${this.iconAfterSpin}
           spin-duration=${o(this.iconAfterSpinDuration)}
           class="icon-after"
-        ></vscode-icon>` : A$1;
+        ></vscode-icon>` : A;
 		return b`
       <div
         class=${e$3(baseClasses)}
@@ -41110,7 +41149,7 @@ var LabelledCheckboxOrRadioMixin = (superClass) => {
 			if (this._slottedText !== "") this.setAttribute("aria-label", this._slottedText);
 		}
 		_renderLabelAttribute() {
-			return this._slottedText === "" ? b`<span class="label-attr">${this._label}</span>` : b`${A$1}`;
+			return this._slottedText === "" ? b`<span class="label-attr">${this._label}</span>` : b`${A}`;
 		}
 	}
 	__decorate$35([n$4()], LabelledCheckboxOrRadio.prototype, "label", null);
@@ -41493,8 +41532,8 @@ var VscodeCheckbox$1 = class VscodeCheckbox extends LabelledCheckboxOrRadioMixin
         d="M14.431 3.323l-8.47 10-.79-.036-3.35-4.77.818-.574 2.978 4.24 8.051-9.506.764.646z"
       />
     </svg>`;
-		const check = this.checked && !this.indeterminate ? icon : A$1;
-		const indeterminate = this.indeterminate ? b`<span class="indeterminate-icon"></span>` : A$1;
+		const check = this.checked && !this.indeterminate ? icon : A;
+		const indeterminate = this.indeterminate ? b`<span class="indeterminate-icon"></span>` : A;
 		const iconContent = this.toggle ? b`<span class="thumb"></span>` : b`${indeterminate}${check}`;
 		return b`
       <div class="wrapper">
@@ -41832,7 +41871,7 @@ var VscodeCollapsible$1 = class VscodeCollapsible extends VscElement {
         d="M10.072 8.024L5.715 3.667l.618-.62L11 7.716v.618L6.333 13l-.618-.619 4.357-4.357z"
       />
     </svg>`;
-		const descriptionMarkup = this.description ? b`<span class="description">${this.description}</span>` : A$1;
+		const descriptionMarkup = this.description ? b`<span class="description">${this.description}</span>` : A;
 		return b`
       <div class=${e$3(classes)}>
         <div
@@ -41874,7 +41913,7 @@ __decorate$32([n$4({
 })], VscodeCollapsible$1.prototype, "open", void 0);
 VscodeCollapsible$1 = __decorate$32([customElement("vscode-collapsible")], VscodeCollapsible$1);
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+react-elements@2.4.0_@types+react@19.2.17_@vscode+codicons@0.0.45_reac_03eb83aeba4a8b6650c268fe5d621271/node_modules/@vscode-elements/react-elements/dist/components/VscodeCollapsible.js
+//#region ../../node_modules/.pnpm/@vscode-elements+react-elements@2.4.0_@types+react@19.2.18_@vscode+codicons@0.0.45_reac_60d6242d3937d2ce9985ddf46c0cfe01/node_modules/@vscode-elements/react-elements/dist/components/VscodeCollapsible.js
 var VscodeCollapsible = o$7({
 	tagName: "vscode-collapsible",
 	elementClass: VscodeCollapsible$1,
@@ -42008,8 +42047,8 @@ var VscodeContextMenuItem$1 = class VscodeContextMenuItem extends VscElement {
           ` : b`
             <div class="context-menu-item">
               <a @click=${this.onItemClick}>
-                ${this.label ? b`<span class="label">${this.label}</span>` : A$1}
-                ${this.keybinding ? b`<span class="keybinding">${this.keybinding}</span>` : A$1}
+                ${this.label ? b`<span class="label">${this.label}</span>` : A}
+                ${this.keybinding ? b`<span class="keybinding">${this.keybinding}</span>` : A}
               </a>
             </div>
           `}
@@ -42131,10 +42170,7 @@ var VscodeContextMenu$1 = class VscodeContextMenu extends VscElement {
 			case "Escape":
 				this._handleEscape();
 				break;
-			case "Enter":
-				this._handleEnter();
-				break;
-			default:
+			case "Enter": this._handleEnter();
 		}
 	}
 	_handleArrowUp() {
@@ -42184,7 +42220,7 @@ var VscodeContextMenu$1 = class VscodeContextMenu extends VscElement {
 		this._selectedClickableItemIndex = -1;
 	}
 	render() {
-		if (!this._show) return b`${A$1}`;
+		if (!this._show) return b`${A}`;
 		const selectedIndex = this._clickableItemIndexes[this._selectedClickableItemIndex];
 		return b`
       <div class="context-menu" tabindex="0">
@@ -42749,7 +42785,7 @@ var checkIcon = w`<svg
     clip-rule="evenodd"
     d="M14.431 3.323l-8.47 10-.79-.036-3.35-4.77.818-.574 2.978 4.24 8.051-9.506.764.646z"
   />
-</svg>`, { I: t$1 } = j$2, i$3 = (o) => o, s$3 = () => document.createComment(""), v = (o, n, e) => {
+</svg>`, { I: t$1 } = j$1, i$3 = (o) => o, s$3 = () => document.createComment(""), v = (o, n, e) => {
 	/**
 	* @license
 	* Copyright 2020 Google LLC
@@ -42772,7 +42808,7 @@ var checkIcon = w`<svg
 		}
 	}
 	return e;
-}, u$1 = (o, t, i = o) => (o._$AI(t, i), o), m = {}, p = (o, t = m) => o._$AH = t, M$1 = (o) => o._$AH, h = (o) => {
+}, u$1 = (o, t, i = o) => (o._$AI(t, i), o), m = {}, p = (o, t = m) => o._$AH = t, M = (o) => o._$AH, h = (o) => {
 	o._$AR(), o._$AA.remove();
 };
 //#endregion
@@ -42806,7 +42842,7 @@ var c$1 = e$4(class extends i$4 {
 		return this.dt(e, s, t).values;
 	}
 	update(s, [t, r, c]) {
-		const d = M$1(s), { values: p$3, keys: a } = this.dt(t, r, c);
+		const d = M(s), { values: p$3, keys: a } = this.dt(t, r, c);
 		if (!Array.isArray(d)) return this.ut = a, p$3;
 		const h$3 = this.ut ??= [], v$2 = [];
 		let m, y, x = 0, j = d.length - 1, k = 0, w = p$3.length - 1;
@@ -42833,7 +42869,7 @@ var c$1 = e$4(class extends i$4 {
 			const e = d[x++];
 			null !== e && h(e);
 		}
-		return this.ut = a, p(s, v$2), E$1;
+		return this.ut = a, p(s, v$2), E;
 	}
 });
 //#endregion
@@ -43659,7 +43695,7 @@ var VscodeScrollable$1 = class VscodeScrollable extends VscElement {
 		})}
           .style=${stylePropertyMap({ zIndex: String(this._scrollbarTrackZ) })}
         ></div>
-        ${this._isDragging ? b`<div class="prevent-interaction"></div>` : A$1}
+        ${this._isDragging ? b`<div class="prevent-interaction"></div>` : A}
         <div
           class=${e$3({
 			"scrollbar-track": true,
@@ -44127,7 +44163,7 @@ var VscodeSelectBase = class extends VscElement {
         @mouseover=${this._onOptionMouseOver}
       >
         ${c$1(list, (op) => op.index, (op, index) => {
-			if (!op.visible) return A$1;
+			if (!op.visible) return A;
 			const active = op.index === this._opts.activeIndex && !op.disabled;
 			const selected = this._opts.getIsIndexSelected(op.index);
 			const optionClasses = {
@@ -44158,8 +44194,8 @@ var VscodeSelectBase = class extends VscElement {
     `;
 	}
 	_renderPlaceholderOption(isListEmpty) {
-		if (!this.combobox) return A$1;
-		if (this._opts.getOptionByLabel(this._opts.filterPattern)) return A$1;
+		if (!this.combobox) return A;
+		if (this._opts.getOptionByLabel(this._opts.filterPattern)) return A;
 		if (this.creatable && this._opts.filterPattern.length > 0) return b`<li
         class=${e$3({
 			option: true,
@@ -44172,22 +44208,22 @@ var VscodeSelectBase = class extends VscElement {
       </li>`;
 		else return isListEmpty ? b`<li class="no-options" @click=${this._onNoOptionsClick}>
             No options
-          </li>` : A$1;
+          </li>` : A;
 	}
 	_renderDescription() {
 		const op = this._opts.getActiveOption();
-		if (!op) return A$1;
+		if (!op) return A;
 		const { description } = op;
-		return description ? b`<div class="description">${description}</div>` : A$1;
+		return description ? b`<div class="description">${description}</div>` : A;
 	}
 	_renderSelectFace() {
-		return b`${A$1}`;
+		return b`${A}`;
 	}
 	_renderComboboxFace() {
-		return b`${A$1}`;
+		return b`${A}`;
 	}
 	_renderDropdownControls() {
-		return b`${A$1}`;
+		return b`${A}`;
 	}
 	_renderDropdown() {
 		const classes = {
@@ -44211,7 +44247,7 @@ var VscodeSelectBase = class extends VscElement {
         @toggle=${this._handleDropdownToggle}
         .style=${stylePropertyMap(dropdownStyles)}
       >
-        ${this.position === "above" ? this._renderDescription() : A$1}
+        ${this.position === "above" ? this._renderDescription() : A}
         <vscode-scrollable
           always-visible
           class="scrollable"
@@ -44223,7 +44259,7 @@ var VscodeSelectBase = class extends VscElement {
         >
           ${this._renderOptions()} ${this._renderDropdownControls()}
         </vscode-scrollable>
-        ${this.position === "below" ? this._renderDescription() : A$1}
+        ${this.position === "below" ? this._renderDescription() : A}
       </div>
     `;
 	}
@@ -44923,7 +44959,7 @@ var VscodeMultiSelect$1 = class VscodeMultiSelect extends VscodeSelectBase {
 		const expanded = this.open ? "true" : "false";
 		return b`
       <div class="combobox-face face">
-        ${this._opts.multiSelect ? this._renderLabel() : A$1}
+        ${this._opts.multiSelect ? this._renderLabel() : A}
         <input
           aria-activedescendant=${activeDescendant}
           aria-autocomplete="list"
@@ -45001,7 +45037,7 @@ var VscodeMultiSelect$1 = class VscodeMultiSelect extends VscodeSelectBase {
               >OK</vscode-button
             >
           </div>
-        ` : b`${A$1}`;
+        ` : b`${A}`;
 	}
 	render() {
 		return b`
@@ -45048,7 +45084,7 @@ o$7({
 	}
 });
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+react-elements@2.4.0_@types+react@19.2.17_@vscode+codicons@0.0.45_reac_03eb83aeba4a8b6650c268fe5d621271/node_modules/@vscode-elements/react-elements/dist/components/VscodeOption.js
+//#region ../../node_modules/.pnpm/@vscode-elements+react-elements@2.4.0_@types+react@19.2.18_@vscode+codicons@0.0.45_reac_60d6242d3937d2ce9985ddf46c0cfe01/node_modules/@vscode-elements/react-elements/dist/components/VscodeOption.js
 var VscodeOption = o$7({
 	tagName: "vscode-option",
 	elementClass: VscodeOption$1,
@@ -46114,7 +46150,7 @@ __decorate$16([n$4({
 __decorate$16([e$6(".face")], VscodeSingleSelect$1.prototype, "_face", void 0);
 VscodeSingleSelect$1 = __decorate$16([customElement("vscode-single-select")], VscodeSingleSelect$1);
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+react-elements@2.4.0_@types+react@19.2.17_@vscode+codicons@0.0.45_reac_03eb83aeba4a8b6650c268fe5d621271/node_modules/@vscode-elements/react-elements/dist/components/VscodeSingleSelect.js
+//#region ../../node_modules/.pnpm/@vscode-elements+react-elements@2.4.0_@types+react@19.2.18_@vscode+codicons@0.0.45_reac_60d6242d3937d2ce9985ddf46c0cfe01/node_modules/@vscode-elements/react-elements/dist/components/VscodeSingleSelect.js
 var VscodeSingleSelect = o$7({
 	tagName: "vscode-single-select",
 	elementClass: VscodeSingleSelect$1,
@@ -47753,7 +47789,7 @@ var VscodeTableCell$1 = class VscodeTableCell extends VscElement {
       <div class="wrapper">
         ${this.columnLabel ? b`<div class="column-label" role="presentation">
           ${this.columnLabel}
-        </div>` : A$1}
+        </div>` : A}
         <slot></slot>
       </div>
     `;
@@ -48528,10 +48564,9 @@ var VscodeTextarea$1 = class VscodeTextarea extends VscElement {
 			return;
 		}
 		const SCROLLBAR_WIDTH = 14;
-		const BORDER_WIDTH = 1;
 		const br = this._textareaEl.getBoundingClientRect();
 		const x = ev.clientX;
-		this._textareaPointerCursor = x >= br.left + br.width - SCROLLBAR_WIDTH - BORDER_WIDTH * 2;
+		this._textareaPointerCursor = x >= br.left + br.width - SCROLLBAR_WIDTH - 2;
 	}
 	_handleScroll() {
 		this._shadow = this._textareaEl.scrollTop > 0;
@@ -48625,7 +48660,7 @@ __decorate$5([r$2()], VscodeTextarea$1.prototype, "_textareaPointerCursor", void
 __decorate$5([r$2()], VscodeTextarea$1.prototype, "_shadow", void 0);
 VscodeTextarea$1 = __decorate$5([customElement("vscode-textarea")], VscodeTextarea$1);
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+react-elements@2.4.0_@types+react@19.2.17_@vscode+codicons@0.0.45_reac_03eb83aeba4a8b6650c268fe5d621271/node_modules/@vscode-elements/react-elements/dist/components/VscodeTextarea.js
+//#region ../../node_modules/.pnpm/@vscode-elements+react-elements@2.4.0_@types+react@19.2.18_@vscode+codicons@0.0.45_reac_60d6242d3937d2ce9985ddf46c0cfe01/node_modules/@vscode-elements/react-elements/dist/components/VscodeTextarea.js
 var VscodeTextarea = o$7({
 	tagName: "vscode-textarea",
 	elementClass: VscodeTextarea$1,
@@ -49174,7 +49209,7 @@ var VscodeToolbarButton$1 = class VscodeToolbarButton extends VscElement {
         class=${e$3({ checked: this.toggleable && this.checked })}
         @click=${this._handleButtonClick}
       >
-        ${this.icon ? b`<vscode-icon name=${this.icon}></vscode-icon>` : A$1}
+        ${this.icon ? b`<vscode-icon name=${this.icon}></vscode-icon>` : A}
         <slot
           @slotchange=${this._handleSlotChange}
           class=${e$3({
@@ -49717,10 +49752,7 @@ var VscodeTree$2 = class VscodeTree extends VscElement {
 				case "ArrowUp":
 					this._handleArrowUpPress();
 					break;
-				case "Shift":
-					this._handleShiftPress();
-					break;
-				default:
+				case "Shift": this._handleShiftPress();
 			}
 		};
 		this._handleComponentKeyUp = (ev) => {
@@ -50595,10 +50627,7 @@ var VscodeTreeItem = VscodeTreeItem_1 = class VscodeTreeItem extends VscElement 
 			case "icon-branch-opened":
 				this._hasBranchOpenedIcon = hasContent;
 				break;
-			case "icon-leaf":
-				this._hasLeafIcon = hasContent;
-				break;
-			default:
+			case "icon-leaf": this._hasLeafIcon = hasContent;
 		}
 	}
 	render() {
@@ -50647,20 +50676,20 @@ var VscodeTreeItem = VscodeTreeItem_1 = class VscodeTreeItem extends VscElement 
               part="arrow-icon-container"
             >
               ${arrowIcon}
-            </div>` : A$1}
+            </div>` : A}
         <div class=${e$3(iconContainerClasses)} part="icon-container">
           ${this.branch && !this.open ? b`<slot
                 name="icon-branch"
                 @slotchange=${this._handleIconSlotChange}
-              ></slot>` : A$1}
+              ></slot>` : A}
           ${this.branch && this.open ? b`<slot
                 name="icon-branch-opened"
                 @slotchange=${this._handleIconSlotChange}
-              ></slot>` : A$1}
+              ></slot>` : A}
           ${!this.branch ? b`<slot
                 name="icon-leaf"
                 @slotchange=${this._handleIconSlotChange}
-              ></slot>` : A$1}
+              ></slot>` : A}
         </div>
         <div class=${e$3(contentClasses)} part="content">
           <span class="label" part="label">
@@ -50954,10 +50983,13 @@ var ExtendedFindProvider = ({ children }) => {
 	});
 };
 var useExtendedFind = () => {
-	const context = (0, import_react.useContext)(ExtendedFindContext);
+	const context = useExtendedFindOptional();
 	if (!context) throw new Error("useSearch must be used within a SearchProvider");
 	return context;
 };
+/** Null outside an ExtendedFindProvider, for components (e.g. VirtualList)
+*  that integrate with find when available but must not require it. */
+var useExtendedFindOptional = () => (0, import_react.useContext)(ExtendedFindContext);
 //#endregion
 //#region ../../packages/react/src/components/JsonPanel.tsx
 var kMaxStringValueDisplay = 1048576;
@@ -51044,7 +51076,7 @@ var LoadingBar = ({ loading }) => {
 	});
 };
 //#endregion
-//#region ../../node_modules/.pnpm/mdurl@2.0.0/node_modules/mdurl/lib/decode.mjs
+//#region ../../node_modules/.pnpm/mdurl@2.1.0/node_modules/mdurl/lib/decode.mjs
 var decodeCache = {};
 function getDecodeCache(exclude) {
 	let cache = decodeCache[exclude];
@@ -51115,7 +51147,7 @@ function decode$1(string, exclude) {
 decode$1.defaultChars = ";/?:@&=+$,#";
 decode$1.componentChars = "";
 //#endregion
-//#region ../../node_modules/.pnpm/mdurl@2.0.0/node_modules/mdurl/lib/encode.mjs
+//#region ../../node_modules/.pnpm/mdurl@2.1.0/node_modules/mdurl/lib/encode.mjs
 var encodeCache = {};
 function getEncodeCache(exclude) {
 	let cache = encodeCache[exclude];
@@ -51169,7 +51201,7 @@ function encode$1(string, exclude, keepEscaped) {
 encode$1.defaultChars = ";/?:@&=+$,-_.!~*'()#";
 encode$1.componentChars = "-_.!~*'()";
 //#endregion
-//#region ../../node_modules/.pnpm/mdurl@2.0.0/node_modules/mdurl/lib/format.mjs
+//#region ../../node_modules/.pnpm/mdurl@2.1.0/node_modules/mdurl/lib/format.mjs
 function format$1(url) {
 	let result = "";
 	result += url.protocol || "";
@@ -51184,7 +51216,7 @@ function format$1(url) {
 	return result;
 }
 //#endregion
-//#region ../../node_modules/.pnpm/mdurl@2.0.0/node_modules/mdurl/lib/parse.mjs
+//#region ../../node_modules/.pnpm/mdurl@2.1.0/node_modules/mdurl/lib/parse.mjs
 function Url() {
 	this.protocol = null;
 	this.slashes = null;
@@ -51356,50 +51388,31 @@ Url.prototype.parseHost = function(host) {
 	if (host) this.hostname = host;
 };
 //#endregion
-//#region ../../node_modules/.pnpm/mdurl@2.0.0/node_modules/mdurl/index.mjs
-var mdurl_exports = /* @__PURE__ */ __exportAll({
+//#region ../../node_modules/.pnpm/mdurl@2.1.0/node_modules/mdurl/index.mjs
+var mdurl_exports = /* @__PURE__ */ __exportAll$1({
 	decode: () => decode$1,
 	encode: () => encode$1,
 	format: () => format$1,
 	parse: () => urlParse
 });
 //#endregion
-//#region ../../node_modules/.pnpm/uc.micro@2.1.0/node_modules/uc.micro/properties/Any/regex.mjs
-var regex_default$5 = /[\0-\uD7FF\uE000-\uFFFF]|[\uD800-\uDBFF][\uDC00-\uDFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?:[^\uD800-\uDBFF]|^)[\uDC00-\uDFFF]/;
-//#endregion
-//#region ../../node_modules/.pnpm/uc.micro@2.1.0/node_modules/uc.micro/categories/Cc/regex.mjs
-var regex_default$4 = /[\0-\x1F\x7F-\x9F]/;
-//#endregion
-//#region ../../node_modules/.pnpm/uc.micro@2.1.0/node_modules/uc.micro/categories/Cf/regex.mjs
-var regex_default$3 = /[\xAD\u0600-\u0605\u061C\u06DD\u070F\u0890\u0891\u08E2\u180E\u200B-\u200F\u202A-\u202E\u2060-\u2064\u2066-\u206F\uFEFF\uFFF9-\uFFFB]|\uD804[\uDCBD\uDCCD]|\uD80D[\uDC30-\uDC3F]|\uD82F[\uDCA0-\uDCA3]|\uD834[\uDD73-\uDD7A]|\uDB40[\uDC01\uDC20-\uDC7F]/;
-//#endregion
-//#region ../../node_modules/.pnpm/uc.micro@2.1.0/node_modules/uc.micro/categories/P/regex.mjs
-var regex_default$2 = /[!-#%-\*,-\/:;\?@\[-\]_\{\}\xA1\xA7\xAB\xB6\xB7\xBB\xBF\u037E\u0387\u055A-\u055F\u0589\u058A\u05BE\u05C0\u05C3\u05C6\u05F3\u05F4\u0609\u060A\u060C\u060D\u061B\u061D-\u061F\u066A-\u066D\u06D4\u0700-\u070D\u07F7-\u07F9\u0830-\u083E\u085E\u0964\u0965\u0970\u09FD\u0A76\u0AF0\u0C77\u0C84\u0DF4\u0E4F\u0E5A\u0E5B\u0F04-\u0F12\u0F14\u0F3A-\u0F3D\u0F85\u0FD0-\u0FD4\u0FD9\u0FDA\u104A-\u104F\u10FB\u1360-\u1368\u1400\u166E\u169B\u169C\u16EB-\u16ED\u1735\u1736\u17D4-\u17D6\u17D8-\u17DA\u1800-\u180A\u1944\u1945\u1A1E\u1A1F\u1AA0-\u1AA6\u1AA8-\u1AAD\u1B5A-\u1B60\u1B7D\u1B7E\u1BFC-\u1BFF\u1C3B-\u1C3F\u1C7E\u1C7F\u1CC0-\u1CC7\u1CD3\u2010-\u2027\u2030-\u2043\u2045-\u2051\u2053-\u205E\u207D\u207E\u208D\u208E\u2308-\u230B\u2329\u232A\u2768-\u2775\u27C5\u27C6\u27E6-\u27EF\u2983-\u2998\u29D8-\u29DB\u29FC\u29FD\u2CF9-\u2CFC\u2CFE\u2CFF\u2D70\u2E00-\u2E2E\u2E30-\u2E4F\u2E52-\u2E5D\u3001-\u3003\u3008-\u3011\u3014-\u301F\u3030\u303D\u30A0\u30FB\uA4FE\uA4FF\uA60D-\uA60F\uA673\uA67E\uA6F2-\uA6F7\uA874-\uA877\uA8CE\uA8CF\uA8F8-\uA8FA\uA8FC\uA92E\uA92F\uA95F\uA9C1-\uA9CD\uA9DE\uA9DF\uAA5C-\uAA5F\uAADE\uAADF\uAAF0\uAAF1\uABEB\uFD3E\uFD3F\uFE10-\uFE19\uFE30-\uFE52\uFE54-\uFE61\uFE63\uFE68\uFE6A\uFE6B\uFF01-\uFF03\uFF05-\uFF0A\uFF0C-\uFF0F\uFF1A\uFF1B\uFF1F\uFF20\uFF3B-\uFF3D\uFF3F\uFF5B\uFF5D\uFF5F-\uFF65]|\uD800[\uDD00-\uDD02\uDF9F\uDFD0]|\uD801\uDD6F|\uD802[\uDC57\uDD1F\uDD3F\uDE50-\uDE58\uDE7F\uDEF0-\uDEF6\uDF39-\uDF3F\uDF99-\uDF9C]|\uD803[\uDEAD\uDF55-\uDF59\uDF86-\uDF89]|\uD804[\uDC47-\uDC4D\uDCBB\uDCBC\uDCBE-\uDCC1\uDD40-\uDD43\uDD74\uDD75\uDDC5-\uDDC8\uDDCD\uDDDB\uDDDD-\uDDDF\uDE38-\uDE3D\uDEA9]|\uD805[\uDC4B-\uDC4F\uDC5A\uDC5B\uDC5D\uDCC6\uDDC1-\uDDD7\uDE41-\uDE43\uDE60-\uDE6C\uDEB9\uDF3C-\uDF3E]|\uD806[\uDC3B\uDD44-\uDD46\uDDE2\uDE3F-\uDE46\uDE9A-\uDE9C\uDE9E-\uDEA2\uDF00-\uDF09]|\uD807[\uDC41-\uDC45\uDC70\uDC71\uDEF7\uDEF8\uDF43-\uDF4F\uDFFF]|\uD809[\uDC70-\uDC74]|\uD80B[\uDFF1\uDFF2]|\uD81A[\uDE6E\uDE6F\uDEF5\uDF37-\uDF3B\uDF44]|\uD81B[\uDE97-\uDE9A\uDFE2]|\uD82F\uDC9F|\uD836[\uDE87-\uDE8B]|\uD83A[\uDD5E\uDD5F]/;
-//#endregion
-//#region ../../node_modules/.pnpm/uc.micro@2.1.0/node_modules/uc.micro/categories/S/regex.mjs
-var regex_default$1 = /[\$\+<->\^`\|~\xA2-\xA6\xA8\xA9\xAC\xAE-\xB1\xB4\xB8\xD7\xF7\u02C2-\u02C5\u02D2-\u02DF\u02E5-\u02EB\u02ED\u02EF-\u02FF\u0375\u0384\u0385\u03F6\u0482\u058D-\u058F\u0606-\u0608\u060B\u060E\u060F\u06DE\u06E9\u06FD\u06FE\u07F6\u07FE\u07FF\u0888\u09F2\u09F3\u09FA\u09FB\u0AF1\u0B70\u0BF3-\u0BFA\u0C7F\u0D4F\u0D79\u0E3F\u0F01-\u0F03\u0F13\u0F15-\u0F17\u0F1A-\u0F1F\u0F34\u0F36\u0F38\u0FBE-\u0FC5\u0FC7-\u0FCC\u0FCE\u0FCF\u0FD5-\u0FD8\u109E\u109F\u1390-\u1399\u166D\u17DB\u1940\u19DE-\u19FF\u1B61-\u1B6A\u1B74-\u1B7C\u1FBD\u1FBF-\u1FC1\u1FCD-\u1FCF\u1FDD-\u1FDF\u1FED-\u1FEF\u1FFD\u1FFE\u2044\u2052\u207A-\u207C\u208A-\u208C\u20A0-\u20C0\u2100\u2101\u2103-\u2106\u2108\u2109\u2114\u2116-\u2118\u211E-\u2123\u2125\u2127\u2129\u212E\u213A\u213B\u2140-\u2144\u214A-\u214D\u214F\u218A\u218B\u2190-\u2307\u230C-\u2328\u232B-\u2426\u2440-\u244A\u249C-\u24E9\u2500-\u2767\u2794-\u27C4\u27C7-\u27E5\u27F0-\u2982\u2999-\u29D7\u29DC-\u29FB\u29FE-\u2B73\u2B76-\u2B95\u2B97-\u2BFF\u2CE5-\u2CEA\u2E50\u2E51\u2E80-\u2E99\u2E9B-\u2EF3\u2F00-\u2FD5\u2FF0-\u2FFF\u3004\u3012\u3013\u3020\u3036\u3037\u303E\u303F\u309B\u309C\u3190\u3191\u3196-\u319F\u31C0-\u31E3\u31EF\u3200-\u321E\u322A-\u3247\u3250\u3260-\u327F\u328A-\u32B0\u32C0-\u33FF\u4DC0-\u4DFF\uA490-\uA4C6\uA700-\uA716\uA720\uA721\uA789\uA78A\uA828-\uA82B\uA836-\uA839\uAA77-\uAA79\uAB5B\uAB6A\uAB6B\uFB29\uFBB2-\uFBC2\uFD40-\uFD4F\uFDCF\uFDFC-\uFDFF\uFE62\uFE64-\uFE66\uFE69\uFF04\uFF0B\uFF1C-\uFF1E\uFF3E\uFF40\uFF5C\uFF5E\uFFE0-\uFFE6\uFFE8-\uFFEE\uFFFC\uFFFD]|\uD800[\uDD37-\uDD3F\uDD79-\uDD89\uDD8C-\uDD8E\uDD90-\uDD9C\uDDA0\uDDD0-\uDDFC]|\uD802[\uDC77\uDC78\uDEC8]|\uD805\uDF3F|\uD807[\uDFD5-\uDFF1]|\uD81A[\uDF3C-\uDF3F\uDF45]|\uD82F\uDC9C|\uD833[\uDF50-\uDFC3]|\uD834[\uDC00-\uDCF5\uDD00-\uDD26\uDD29-\uDD64\uDD6A-\uDD6C\uDD83\uDD84\uDD8C-\uDDA9\uDDAE-\uDDEA\uDE00-\uDE41\uDE45\uDF00-\uDF56]|\uD835[\uDEC1\uDEDB\uDEFB\uDF15\uDF35\uDF4F\uDF6F\uDF89\uDFA9\uDFC3]|\uD836[\uDC00-\uDDFF\uDE37-\uDE3A\uDE6D-\uDE74\uDE76-\uDE83\uDE85\uDE86]|\uD838[\uDD4F\uDEFF]|\uD83B[\uDCAC\uDCB0\uDD2E\uDEF0\uDEF1]|\uD83C[\uDC00-\uDC2B\uDC30-\uDC93\uDCA0-\uDCAE\uDCB1-\uDCBF\uDCC1-\uDCCF\uDCD1-\uDCF5\uDD0D-\uDDAD\uDDE6-\uDE02\uDE10-\uDE3B\uDE40-\uDE48\uDE50\uDE51\uDE60-\uDE65\uDF00-\uDFFF]|\uD83D[\uDC00-\uDED7\uDEDC-\uDEEC\uDEF0-\uDEFC\uDF00-\uDF76\uDF7B-\uDFD9\uDFE0-\uDFEB\uDFF0]|\uD83E[\uDC00-\uDC0B\uDC10-\uDC47\uDC50-\uDC59\uDC60-\uDC87\uDC90-\uDCAD\uDCB0\uDCB1\uDD00-\uDE53\uDE60-\uDE6D\uDE70-\uDE7C\uDE80-\uDE88\uDE90-\uDEBD\uDEBF-\uDEC5\uDECE-\uDEDB\uDEE0-\uDEE8\uDEF0-\uDEF8\uDF00-\uDF92\uDF94-\uDFCA]/;
-//#endregion
-//#region ../../node_modules/.pnpm/uc.micro@2.1.0/node_modules/uc.micro/categories/Z/regex.mjs
-var regex_default = /[ \xA0\u1680\u2000-\u200A\u2028\u2029\u202F\u205F\u3000]/;
-//#endregion
-//#region ../../node_modules/.pnpm/uc.micro@2.1.0/node_modules/uc.micro/index.mjs
-var uc_micro_exports = /* @__PURE__ */ __exportAll({
-	Any: () => regex_default$5,
-	Cc: () => regex_default$4,
-	Cf: () => regex_default$3,
-	P: () => regex_default$2,
-	S: () => regex_default$1,
-	Z: () => regex_default
+//#region ../../node_modules/.pnpm/uc.micro@3.0.0/node_modules/uc.micro/build/index.mjs
+var build_exports = /* @__PURE__ */ __exportAll$1({
+	Any: () => Any,
+	Cc: () => Cc,
+	Cf: () => Cf,
+	P: () => P,
+	S: () => S,
+	Z: () => Z
 });
+var Any = /[\0-\uD7FF\uE000-\uFFFF]|[\uD800-\uDBFF][\uDC00-\uDFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?:[^\uD800-\uDBFF]|^)[\uDC00-\uDFFF]/;
+var Cc = /[\0-\x1F\x7F-\x9F]/;
+var Cf = /[\xAD\u0600-\u0605\u061C\u06DD\u070F\u0890\u0891\u08E2\u180E\u200B-\u200F\u202A-\u202E\u2060-\u2064\u2066-\u206F\uFEFF\uFFF9-\uFFFB]|\uD804[\uDCBD\uDCCD]|\uD80D[\uDC30-\uDC3F]|\uD82F[\uDCA0-\uDCA3]|\uD834[\uDD73-\uDD7A]|\uDB40[\uDC01\uDC20-\uDC7F]/;
+var P = /[!-#%-\*,-\/:;\?@\[-\]_\{\}\xA1\xA7\xAB\xB6\xB7\xBB\xBF\u037E\u0387\u055A-\u055F\u0589\u058A\u05BE\u05C0\u05C3\u05C6\u05F3\u05F4\u0609\u060A\u060C\u060D\u061B\u061D-\u061F\u066A-\u066D\u06D4\u0700-\u070D\u07F7-\u07F9\u0830-\u083E\u085E\u0964\u0965\u0970\u09FD\u0A76\u0AF0\u0C77\u0C84\u0DF4\u0E4F\u0E5A\u0E5B\u0F04-\u0F12\u0F14\u0F3A-\u0F3D\u0F85\u0FD0-\u0FD4\u0FD9\u0FDA\u104A-\u104F\u10FB\u1360-\u1368\u1400\u166E\u169B\u169C\u16EB-\u16ED\u1735\u1736\u17D4-\u17D6\u17D8-\u17DA\u1800-\u180A\u1944\u1945\u1A1E\u1A1F\u1AA0-\u1AA6\u1AA8-\u1AAD\u1B4E\u1B4F\u1B5A-\u1B60\u1B7D-\u1B7F\u1BFC-\u1BFF\u1C3B-\u1C3F\u1C7E\u1C7F\u1CC0-\u1CC7\u1CD3\u2010-\u2027\u2030-\u2043\u2045-\u2051\u2053-\u205E\u207D\u207E\u208D\u208E\u2308-\u230B\u2329\u232A\u2768-\u2775\u27C5\u27C6\u27E6-\u27EF\u2983-\u2998\u29D8-\u29DB\u29FC\u29FD\u2CF9-\u2CFC\u2CFE\u2CFF\u2D70\u2E00-\u2E2E\u2E30-\u2E4F\u2E52-\u2E5D\u3001-\u3003\u3008-\u3011\u3014-\u301F\u3030\u303D\u30A0\u30FB\uA4FE\uA4FF\uA60D-\uA60F\uA673\uA67E\uA6F2-\uA6F7\uA874-\uA877\uA8CE\uA8CF\uA8F8-\uA8FA\uA8FC\uA92E\uA92F\uA95F\uA9C1-\uA9CD\uA9DE\uA9DF\uAA5C-\uAA5F\uAADE\uAADF\uAAF0\uAAF1\uABEB\uFD3E\uFD3F\uFE10-\uFE19\uFE30-\uFE52\uFE54-\uFE61\uFE63\uFE68\uFE6A\uFE6B\uFF01-\uFF03\uFF05-\uFF0A\uFF0C-\uFF0F\uFF1A\uFF1B\uFF1F\uFF20\uFF3B-\uFF3D\uFF3F\uFF5B\uFF5D\uFF5F-\uFF65]|\uD800[\uDD00-\uDD02\uDF9F\uDFD0]|\uD801\uDD6F|\uD802[\uDC57\uDD1F\uDD3F\uDE50-\uDE58\uDE7F\uDEF0-\uDEF6\uDF39-\uDF3F\uDF99-\uDF9C]|\uD803[\uDD6E\uDEAD\uDED0\uDF55-\uDF59\uDF86-\uDF89]|\uD804[\uDC47-\uDC4D\uDCBB\uDCBC\uDCBE-\uDCC1\uDD40-\uDD43\uDD74\uDD75\uDDC5-\uDDC8\uDDCD\uDDDB\uDDDD-\uDDDF\uDE38-\uDE3D\uDEA9\uDFD4\uDFD5\uDFD7\uDFD8]|\uD805[\uDC4B-\uDC4F\uDC5A\uDC5B\uDC5D\uDCC6\uDDC1-\uDDD7\uDE41-\uDE43\uDE60-\uDE6C\uDEB9\uDF3C-\uDF3E]|\uD806[\uDC3B\uDD44-\uDD46\uDDE2\uDE3F-\uDE46\uDE9A-\uDE9C\uDE9E-\uDEA2\uDF00-\uDF09\uDFE1]|\uD807[\uDC41-\uDC45\uDC70\uDC71\uDEF7\uDEF8\uDF43-\uDF4F\uDFFF]|\uD809[\uDC70-\uDC74]|\uD80B[\uDFF1\uDFF2]|\uD81A[\uDE6E\uDE6F\uDEF5\uDF37-\uDF3B\uDF44]|\uD81B[\uDD6D-\uDD6F\uDE97-\uDE9A\uDFE2]|\uD82F\uDC9F|\uD836[\uDE87-\uDE8B]|\uD839\uDDFF|\uD83A[\uDD5E\uDD5F]/;
+var S = /[\$\+<->\^`\|~\xA2-\xA6\xA8\xA9\xAC\xAE-\xB1\xB4\xB8\xD7\xF7\u02C2-\u02C5\u02D2-\u02DF\u02E5-\u02EB\u02ED\u02EF-\u02FF\u0375\u0384\u0385\u03F6\u0482\u058D-\u058F\u0606-\u0608\u060B\u060E\u060F\u06DE\u06E9\u06FD\u06FE\u07F6\u07FE\u07FF\u0888\u09F2\u09F3\u09FA\u09FB\u0AF1\u0B70\u0BF3-\u0BFA\u0C7F\u0D4F\u0D79\u0E3F\u0F01-\u0F03\u0F13\u0F15-\u0F17\u0F1A-\u0F1F\u0F34\u0F36\u0F38\u0FBE-\u0FC5\u0FC7-\u0FCC\u0FCE\u0FCF\u0FD5-\u0FD8\u109E\u109F\u1390-\u1399\u166D\u17DB\u1940\u19DE-\u19FF\u1B61-\u1B6A\u1B74-\u1B7C\u1FBD\u1FBF-\u1FC1\u1FCD-\u1FCF\u1FDD-\u1FDF\u1FED-\u1FEF\u1FFD\u1FFE\u2044\u2052\u207A-\u207C\u208A-\u208C\u20A0-\u20C1\u2100\u2101\u2103-\u2106\u2108\u2109\u2114\u2116-\u2118\u211E-\u2123\u2125\u2127\u2129\u212E\u213A\u213B\u2140-\u2144\u214A-\u214D\u214F\u218A\u218B\u2190-\u2307\u230C-\u2328\u232B-\u2429\u2440-\u244A\u249C-\u24E9\u2500-\u2767\u2794-\u27C4\u27C7-\u27E5\u27F0-\u2982\u2999-\u29D7\u29DC-\u29FB\u29FE-\u2B73\u2B76-\u2BFF\u2CE5-\u2CEA\u2E50\u2E51\u2E80-\u2E99\u2E9B-\u2EF3\u2F00-\u2FD5\u2FF0-\u2FFF\u3004\u3012\u3013\u3020\u3036\u3037\u303E\u303F\u309B\u309C\u3190\u3191\u3196-\u319F\u31C0-\u31E5\u31EF\u3200-\u321E\u322A-\u3247\u3250\u3260-\u327F\u328A-\u32B0\u32C0-\u33FF\u4DC0-\u4DFF\uA490-\uA4C6\uA700-\uA716\uA720\uA721\uA789\uA78A\uA828-\uA82B\uA836-\uA839\uAA77-\uAA79\uAB5B\uAB6A\uAB6B\uFB29\uFBB2-\uFBD2\uFD40-\uFD4F\uFD90\uFD91\uFDC8-\uFDCF\uFDFC-\uFDFF\uFE62\uFE64-\uFE66\uFE69\uFF04\uFF0B\uFF1C-\uFF1E\uFF3E\uFF40\uFF5C\uFF5E\uFFE0-\uFFE6\uFFE8-\uFFEE\uFFFC\uFFFD]|\uD800[\uDD37-\uDD3F\uDD79-\uDD89\uDD8C-\uDD8E\uDD90-\uDD9C\uDDA0\uDDD0-\uDDFC]|\uD802[\uDC77\uDC78\uDEC8]|\uD803[\uDD8E\uDD8F\uDED1-\uDED8]|\uD805\uDF3F|\uD807[\uDFD5-\uDFF1]|\uD81A[\uDF3C-\uDF3F\uDF45]|\uD82F\uDC9C|\uD833[\uDC00-\uDCEF\uDCFA-\uDCFC\uDD00-\uDEB3\uDEBA-\uDED0\uDEE0-\uDEF0\uDF50-\uDFC3]|\uD834[\uDC00-\uDCF5\uDD00-\uDD26\uDD29-\uDD64\uDD6A-\uDD6C\uDD83\uDD84\uDD8C-\uDDA9\uDDAE-\uDDEA\uDE00-\uDE41\uDE45\uDF00-\uDF56]|\uD835[\uDEC1\uDEDB\uDEFB\uDF15\uDF35\uDF4F\uDF6F\uDF89\uDFA9\uDFC3]|\uD836[\uDC00-\uDDFF\uDE37-\uDE3A\uDE6D-\uDE74\uDE76-\uDE83\uDE85\uDE86]|\uD838[\uDD4F\uDEFF]|\uD83B[\uDCAC\uDCB0\uDD2E\uDEF0\uDEF1]|\uD83C[\uDC00-\uDC2B\uDC30-\uDC93\uDCA0-\uDCAE\uDCB1-\uDCBF\uDCC1-\uDCCF\uDCD1-\uDCF5\uDD0D-\uDDAD\uDDE6-\uDE02\uDE10-\uDE3B\uDE40-\uDE48\uDE50\uDE51\uDE60-\uDE65\uDF00-\uDFFF]|\uD83D[\uDC00-\uDED8\uDEDC-\uDEEC\uDEF0-\uDEFC\uDF00-\uDFD9\uDFE0-\uDFEB\uDFF0]|\uD83E[\uDC00-\uDC0B\uDC10-\uDC47\uDC50-\uDC59\uDC60-\uDC87\uDC90-\uDCAD\uDCB0-\uDCBB\uDCC0\uDCC1\uDCD0-\uDCD8\uDD00-\uDE57\uDE60-\uDE6D\uDE70-\uDE7C\uDE80-\uDE8A\uDE8E-\uDEC6\uDEC8\uDECD-\uDEDC\uDEDF-\uDEEA\uDEEF-\uDEF8\uDF00-\uDF92\uDF94-\uDFEF\uDFFA]/;
+var Z = /[ \xA0\u1680\u2000-\u200A\u2028\u2029\u202F\u205F\u3000]/;
 //#endregion
-//#region ../../node_modules/.pnpm/entities@4.5.0/node_modules/entities/lib/esm/generated/decode-data-html.js
-var decode_data_html_default = new Uint16Array("ᵁ<Õıʊҝջאٵ۞ޢߖࠏ੊ઑඡ๭༉༦჊ረዡᐕᒝᓃᓟᔥ\0\0\0\0\0\0ᕫᛍᦍᰒᷝ὾⁠↰⊍⏀⏻⑂⠤⤒ⴈ⹈⿎〖㊺㘹㞬㣾㨨㩱㫠㬮ࠀEMabcfglmnoprstu\\bfms¦³¹ÈÏlig耻Æ䃆P耻&䀦cute耻Á䃁reve;䄂Āiyx}rc耻Â䃂;䐐r;쀀𝔄rave耻À䃀pha;䎑acr;䄀d;橓Āgp¡on;䄄f;쀀𝔸plyFunction;恡ing耻Å䃅Ācs¾Ãr;쀀𝒜ign;扔ilde耻Ã䃃ml耻Ä䃄ЀaceforsuåûþėĜĢħĪĀcrêòkslash;或Ŷöø;櫧ed;挆y;䐑ƀcrtąċĔause;戵noullis;愬a;䎒r;쀀𝔅pf;쀀𝔹eve;䋘còēmpeq;扎܀HOacdefhilorsuōőŖƀƞƢƵƷƺǜȕɳɸɾcy;䐧PY耻©䂩ƀcpyŝŢźute;䄆Ā;iŧŨ拒talDifferentialD;慅leys;愭ȀaeioƉƎƔƘron;䄌dil耻Ç䃇rc;䄈nint;戰ot;䄊ĀdnƧƭilla;䂸terDot;䂷òſi;䎧rcleȀDMPTǇǋǑǖot;抙inus;抖lus;投imes;抗oĀcsǢǸkwiseContourIntegral;戲eCurlyĀDQȃȏoubleQuote;思uote;怙ȀlnpuȞȨɇɕonĀ;eȥȦ户;橴ƀgitȯȶȺruent;扡nt;戯ourIntegral;戮ĀfrɌɎ;愂oduct;成nterClockwiseContourIntegral;戳oss;樯cr;쀀𝒞pĀ;Cʄʅ拓ap;才րDJSZacefiosʠʬʰʴʸˋ˗ˡ˦̳ҍĀ;oŹʥtrahd;椑cy;䐂cy;䐅cy;䐏ƀgrsʿ˄ˇger;怡r;憡hv;櫤Āayː˕ron;䄎;䐔lĀ;t˝˞戇a;䎔r;쀀𝔇Āaf˫̧Ācm˰̢riticalȀADGT̖̜̀̆cute;䂴oŴ̋̍;䋙bleAcute;䋝rave;䁠ilde;䋜ond;拄ferentialD;慆Ѱ̽\0\0\0͔͂\0Ѕf;쀀𝔻ƀ;DE͈͉͍䂨ot;惜qual;扐blèCDLRUVͣͲ΂ϏϢϸontourIntegraìȹoɴ͹\0\0ͻ»͉nArrow;懓Āeo·ΤftƀARTΐΖΡrrow;懐ightArrow;懔eåˊngĀLRΫτeftĀARγιrrow;柸ightArrow;柺ightArrow;柹ightĀATϘϞrrow;懒ee;抨pɁϩ\0\0ϯrrow;懑ownArrow;懕erticalBar;戥ǹABLRTaВЪаўѿͼrrowƀ;BUНОТ憓ar;椓pArrow;懵reve;䌑eft˒к\0ц\0ѐightVector;楐eeVector;楞ectorĀ;Bљњ憽ar;楖ightǔѧ\0ѱeeVector;楟ectorĀ;BѺѻ懁ar;楗eeĀ;A҆҇护rrow;憧ĀctҒҗr;쀀𝒟rok;䄐ࠀNTacdfglmopqstuxҽӀӄӋӞӢӧӮӵԡԯԶՒ՝ՠեG;䅊H耻Ð䃐cute耻É䃉ƀaiyӒӗӜron;䄚rc耻Ê䃊;䐭ot;䄖r;쀀𝔈rave耻È䃈ement;戈ĀapӺӾcr;䄒tyɓԆ\0\0ԒmallSquare;旻erySmallSquare;斫ĀgpԦԪon;䄘f;쀀𝔼silon;䎕uĀaiԼՉlĀ;TՂՃ橵ilde;扂librium;懌Āci՗՚r;愰m;橳a;䎗ml耻Ë䃋Āipժկsts;戃onentialE;慇ʀcfiosօֈ֍ֲ׌y;䐤r;쀀𝔉lledɓ֗\0\0֣mallSquare;旼erySmallSquare;斪Ͱֺ\0ֿ\0\0ׄf;쀀𝔽All;戀riertrf;愱cò׋؀JTabcdfgorstר׬ׯ׺؀ؒؖ؛؝أ٬ٲcy;䐃耻>䀾mmaĀ;d׷׸䎓;䏜reve;䄞ƀeiy؇،ؐdil;䄢rc;䄜;䐓ot;䄠r;쀀𝔊;拙pf;쀀𝔾eater̀EFGLSTصلَٖٛ٦qualĀ;Lؾؿ扥ess;招ullEqual;执reater;檢ess;扷lantEqual;橾ilde;扳cr;쀀𝒢;扫ЀAacfiosuڅڋږڛڞڪھۊRDcy;䐪Āctڐڔek;䋇;䁞irc;䄤r;愌lbertSpace;愋ǰگ\0ڲf;愍izontalLine;攀Āctۃۅòکrok;䄦mpńېۘownHumðįqual;扏܀EJOacdfgmnostuۺ۾܃܇܎ܚܞܡܨ݄ݸދޏޕcy;䐕lig;䄲cy;䐁cute耻Í䃍Āiyܓܘrc耻Î䃎;䐘ot;䄰r;愑rave耻Ì䃌ƀ;apܠܯܿĀcgܴܷr;䄪inaryI;慈lieóϝǴ݉\0ݢĀ;eݍݎ戬Āgrݓݘral;戫section;拂isibleĀCTݬݲomma;恣imes;恢ƀgptݿރވon;䄮f;쀀𝕀a;䎙cr;愐ilde;䄨ǫޚ\0ޞcy;䐆l耻Ï䃏ʀcfosuެ޷޼߂ߐĀiyޱ޵rc;䄴;䐙r;쀀𝔍pf;쀀𝕁ǣ߇\0ߌr;쀀𝒥rcy;䐈kcy;䐄΀HJacfosߤߨ߽߬߱ࠂࠈcy;䐥cy;䐌ppa;䎚Āey߶߻dil;䄶;䐚r;쀀𝔎pf;쀀𝕂cr;쀀𝒦րJTaceflmostࠥࠩࠬࡐࡣ঳সে্਷ੇcy;䐉耻<䀼ʀcmnpr࠷࠼ࡁࡄࡍute;䄹bda;䎛g;柪lacetrf;愒r;憞ƀaeyࡗ࡜ࡡron;䄽dil;䄻;䐛Āfsࡨ॰tԀACDFRTUVarࡾࢩࢱࣦ࣠ࣼयज़ΐ४Ānrࢃ࢏gleBracket;柨rowƀ;BR࢙࢚࢞憐ar;懤ightArrow;懆eiling;挈oǵࢷ\0ࣃbleBracket;柦nǔࣈ\0࣒eeVector;楡ectorĀ;Bࣛࣜ懃ar;楙loor;挊ightĀAV࣯ࣵrrow;憔ector;楎Āerँगeƀ;AVउऊऐ抣rrow;憤ector;楚iangleƀ;BEतथऩ抲ar;槏qual;抴pƀDTVषूौownVector;楑eeVector;楠ectorĀ;Bॖॗ憿ar;楘ectorĀ;B॥०憼ar;楒ightáΜs̀EFGLSTॾঋকঝঢভqualGreater;拚ullEqual;扦reater;扶ess;檡lantEqual;橽ilde;扲r;쀀𝔏Ā;eঽা拘ftarrow;懚idot;䄿ƀnpw৔ਖਛgȀLRlr৞৷ਂਐeftĀAR০৬rrow;柵ightArrow;柷ightArrow;柶eftĀarγਊightáοightáϊf;쀀𝕃erĀLRਢਬeftArrow;憙ightArrow;憘ƀchtਾੀੂòࡌ;憰rok;䅁;扪Ѐacefiosuਗ਼੝੠੷੼અઋ઎p;椅y;䐜Ādl੥੯iumSpace;恟lintrf;愳r;쀀𝔐nusPlus;戓pf;쀀𝕄cò੶;䎜ҀJacefostuણધભીଔଙඑ඗ඞcy;䐊cute;䅃ƀaey઴હાron;䅇dil;䅅;䐝ƀgswે૰଎ativeƀMTV૓૟૨ediumSpace;怋hiĀcn૦૘ë૙eryThiî૙tedĀGL૸ଆreaterGreateòٳessLesóੈLine;䀊r;쀀𝔑ȀBnptଢନଷ଺reak;恠BreakingSpace;䂠f;愕ڀ;CDEGHLNPRSTV୕ୖ୪୼஡௫ఄ౞಄ದ೘ൡඅ櫬Āou୛୤ngruent;扢pCap;扭oubleVerticalBar;戦ƀlqxஃஊ஛ement;戉ualĀ;Tஒஓ扠ilde;쀀≂̸ists;戄reater΀;EFGLSTஶஷ஽௉௓௘௥扯qual;扱ullEqual;쀀≧̸reater;쀀≫̸ess;批lantEqual;쀀⩾̸ilde;扵umpń௲௽ownHump;쀀≎̸qual;쀀≏̸eĀfsఊధtTriangleƀ;BEచఛడ拪ar;쀀⧏̸qual;括s̀;EGLSTవశ఼ౄోౘ扮qual;扰reater;扸ess;쀀≪̸lantEqual;쀀⩽̸ilde;扴estedĀGL౨౹reaterGreater;쀀⪢̸essLess;쀀⪡̸recedesƀ;ESಒಓಛ技qual;쀀⪯̸lantEqual;拠ĀeiಫಹverseElement;戌ghtTriangleƀ;BEೋೌ೒拫ar;쀀⧐̸qual;拭ĀquೝഌuareSuĀbp೨೹setĀ;E೰ೳ쀀⊏̸qual;拢ersetĀ;Eഃആ쀀⊐̸qual;拣ƀbcpഓതൎsetĀ;Eഛഞ쀀⊂⃒qual;抈ceedsȀ;ESTലള഻െ抁qual;쀀⪰̸lantEqual;拡ilde;쀀≿̸ersetĀ;E൘൛쀀⊃⃒qual;抉ildeȀ;EFT൮൯൵ൿ扁qual;扄ullEqual;扇ilde;扉erticalBar;戤cr;쀀𝒩ilde耻Ñ䃑;䎝܀Eacdfgmoprstuvලෂ෉෕ෛ෠෧෼ขภยา฿ไlig;䅒cute耻Ó䃓Āiy෎ීrc耻Ô䃔;䐞blac;䅐r;쀀𝔒rave耻Ò䃒ƀaei෮ෲ෶cr;䅌ga;䎩cron;䎟pf;쀀𝕆enCurlyĀDQฎบoubleQuote;怜uote;怘;橔Āclวฬr;쀀𝒪ash耻Ø䃘iŬื฼de耻Õ䃕es;樷ml耻Ö䃖erĀBP๋๠Āar๐๓r;怾acĀek๚๜;揞et;掴arenthesis;揜Ҁacfhilors๿ງຊຏຒດຝະ໼rtialD;戂y;䐟r;쀀𝔓i;䎦;䎠usMinus;䂱Āipຢອncareplanåڝf;愙Ȁ;eio຺ູ໠໤檻cedesȀ;EST່້໏໚扺qual;檯lantEqual;扼ilde;找me;怳Ādp໩໮uct;戏ortionĀ;aȥ໹l;戝Āci༁༆r;쀀𝒫;䎨ȀUfos༑༖༛༟OT耻\"䀢r;쀀𝔔pf;愚cr;쀀𝒬؀BEacefhiorsu༾གྷཇའཱིྦྷྪྭ႖ႩႴႾarr;椐G耻®䂮ƀcnrཎནབute;䅔g;柫rĀ;tཛྷཝ憠l;椖ƀaeyཧཬཱron;䅘dil;䅖;䐠Ā;vླྀཹ愜erseĀEUྂྙĀlq྇ྎement;戋uilibrium;懋pEquilibrium;楯r»ཹo;䎡ghtЀACDFTUVa࿁࿫࿳ဢဨၛႇϘĀnr࿆࿒gleBracket;柩rowƀ;BL࿜࿝࿡憒ar;懥eftArrow;懄eiling;按oǵ࿹\0စbleBracket;柧nǔည\0နeeVector;楝ectorĀ;Bဝသ懂ar;楕loor;挋Āerိ၃eƀ;AVဵံြ抢rrow;憦ector;楛iangleƀ;BEၐၑၕ抳ar;槐qual;抵pƀDTVၣၮၸownVector;楏eeVector;楜ectorĀ;Bႂႃ憾ar;楔ectorĀ;B႑႒懀ar;楓Āpuႛ႞f;愝ndImplies;楰ightarrow;懛ĀchႹႼr;愛;憱leDelayed;槴ڀHOacfhimoqstuფჱჷჽᄙᄞᅑᅖᅡᅧᆵᆻᆿĀCcჩხHcy;䐩y;䐨FTcy;䐬cute;䅚ʀ;aeiyᄈᄉᄎᄓᄗ檼ron;䅠dil;䅞rc;䅜;䐡r;쀀𝔖ortȀDLRUᄪᄴᄾᅉownArrow»ОeftArrow»࢚ightArrow»࿝pArrow;憑gma;䎣allCircle;战pf;쀀𝕊ɲᅭ\0\0ᅰt;戚areȀ;ISUᅻᅼᆉᆯ斡ntersection;抓uĀbpᆏᆞsetĀ;Eᆗᆘ抏qual;抑ersetĀ;Eᆨᆩ抐qual;抒nion;抔cr;쀀𝒮ar;拆ȀbcmpᇈᇛሉላĀ;sᇍᇎ拐etĀ;Eᇍᇕqual;抆ĀchᇠህeedsȀ;ESTᇭᇮᇴᇿ扻qual;檰lantEqual;扽ilde;承Tháྌ;我ƀ;esሒሓሣ拑rsetĀ;Eሜም抃qual;抇et»ሓրHRSacfhiorsሾቄ቉ቕ቞ቱቶኟዂወዑORN耻Þ䃞ADE;愢ĀHc቎ቒcy;䐋y;䐦Ābuቚቜ;䀉;䎤ƀaeyብቪቯron;䅤dil;䅢;䐢r;쀀𝔗Āeiቻ኉ǲኀ\0ኇefore;戴a;䎘Ācn኎ኘkSpace;쀀  Space;怉ldeȀ;EFTካኬኲኼ戼qual;扃ullEqual;扅ilde;扈pf;쀀𝕋ipleDot;惛Āctዖዛr;쀀𝒯rok;䅦ૡዷጎጚጦ\0ጬጱ\0\0\0\0\0ጸጽ፷ᎅ\0᏿ᐄᐊᐐĀcrዻጁute耻Ú䃚rĀ;oጇገ憟cir;楉rǣጓ\0጖y;䐎ve;䅬Āiyጞጣrc耻Û䃛;䐣blac;䅰r;쀀𝔘rave耻Ù䃙acr;䅪Ādiፁ፩erĀBPፈ፝Āarፍፐr;䁟acĀekፗፙ;揟et;掵arenthesis;揝onĀ;P፰፱拃lus;抎Āgp፻፿on;䅲f;쀀𝕌ЀADETadps᎕ᎮᎸᏄϨᏒᏗᏳrrowƀ;BDᅐᎠᎤar;椒ownArrow;懅ownArrow;憕quilibrium;楮eeĀ;AᏋᏌ报rrow;憥ownáϳerĀLRᏞᏨeftArrow;憖ightArrow;憗iĀ;lᏹᏺ䏒on;䎥ing;䅮cr;쀀𝒰ilde;䅨ml耻Ü䃜ҀDbcdefosvᐧᐬᐰᐳᐾᒅᒊᒐᒖash;披ar;櫫y;䐒ashĀ;lᐻᐼ抩;櫦Āerᑃᑅ;拁ƀbtyᑌᑐᑺar;怖Ā;iᑏᑕcalȀBLSTᑡᑥᑪᑴar;戣ine;䁼eparator;杘ilde;所ThinSpace;怊r;쀀𝔙pf;쀀𝕍cr;쀀𝒱dash;抪ʀcefosᒧᒬᒱᒶᒼirc;䅴dge;拀r;쀀𝔚pf;쀀𝕎cr;쀀𝒲Ȁfiosᓋᓐᓒᓘr;쀀𝔛;䎞pf;쀀𝕏cr;쀀𝒳ҀAIUacfosuᓱᓵᓹᓽᔄᔏᔔᔚᔠcy;䐯cy;䐇cy;䐮cute耻Ý䃝Āiyᔉᔍrc;䅶;䐫r;쀀𝔜pf;쀀𝕐cr;쀀𝒴ml;䅸ЀHacdefosᔵᔹᔿᕋᕏᕝᕠᕤcy;䐖cute;䅹Āayᕄᕉron;䅽;䐗ot;䅻ǲᕔ\0ᕛoWidtè૙a;䎖r;愨pf;愤cr;쀀𝒵௡ᖃᖊᖐ\0ᖰᖶᖿ\0\0\0\0ᗆᗛᗫᙟ᙭\0ᚕ᚛ᚲᚹ\0ᚾcute耻á䃡reve;䄃̀;Ediuyᖜᖝᖡᖣᖨᖭ戾;쀀∾̳;房rc耻â䃢te肻´̆;䐰lig耻æ䃦Ā;r²ᖺ;쀀𝔞rave耻à䃠ĀepᗊᗖĀfpᗏᗔsym;愵èᗓha;䎱ĀapᗟcĀclᗤᗧr;䄁g;樿ɤᗰ\0\0ᘊʀ;adsvᗺᗻᗿᘁᘇ戧nd;橕;橜lope;橘;橚΀;elmrszᘘᘙᘛᘞᘿᙏᙙ戠;榤e»ᘙsdĀ;aᘥᘦ戡ѡᘰᘲᘴᘶᘸᘺᘼᘾ;榨;榩;榪;榫;榬;榭;榮;榯tĀ;vᙅᙆ戟bĀ;dᙌᙍ抾;榝Āptᙔᙗh;戢»¹arr;捼Āgpᙣᙧon;䄅f;쀀𝕒΀;Eaeiop዁ᙻᙽᚂᚄᚇᚊ;橰cir;橯;扊d;手s;䀧roxĀ;e዁ᚒñᚃing耻å䃥ƀctyᚡᚦᚨr;쀀𝒶;䀪mpĀ;e዁ᚯñʈilde耻ã䃣ml耻ä䃤Āciᛂᛈoninôɲnt;樑ࠀNabcdefiklnoprsu᛭ᛱᜰ᜼ᝃᝈ᝸᝽០៦ᠹᡐᜍ᤽᥈ᥰot;櫭Ācrᛶ᜞kȀcepsᜀᜅᜍᜓong;扌psilon;䏶rime;怵imĀ;e᜚᜛戽q;拍Ŷᜢᜦee;抽edĀ;gᜬᜭ挅e»ᜭrkĀ;t፜᜷brk;掶Āoyᜁᝁ;䐱quo;怞ʀcmprtᝓ᝛ᝡᝤᝨausĀ;eĊĉptyv;榰séᜌnoõēƀahwᝯ᝱ᝳ;䎲;愶een;扬r;쀀𝔟g΀costuvwឍឝឳេ៕៛៞ƀaiuបពរðݠrc;旯p»፱ƀdptឤឨឭot;樀lus;樁imes;樂ɱឹ\0\0ើcup;樆ar;昅riangleĀdu៍្own;施p;斳plus;樄eåᑄåᒭarow;植ƀako៭ᠦᠵĀcn៲ᠣkƀlst៺֫᠂ozenge;槫riangleȀ;dlr᠒᠓᠘᠝斴own;斾eft;旂ight;斸k;搣Ʊᠫ\0ᠳƲᠯ\0ᠱ;斒;斑4;斓ck;斈ĀeoᠾᡍĀ;qᡃᡆ쀀=⃥uiv;쀀≡⃥t;挐Ȁptwxᡙᡞᡧᡬf;쀀𝕓Ā;tᏋᡣom»Ꮜtie;拈؀DHUVbdhmptuvᢅᢖᢪᢻᣗᣛᣬ᣿ᤅᤊᤐᤡȀLRlrᢎᢐᢒᢔ;敗;敔;敖;敓ʀ;DUduᢡᢢᢤᢦᢨ敐;敦;敩;敤;敧ȀLRlrᢳᢵᢷᢹ;敝;敚;敜;教΀;HLRhlrᣊᣋᣍᣏᣑᣓᣕ救;敬;散;敠;敫;敢;敟ox;槉ȀLRlrᣤᣦᣨᣪ;敕;敒;攐;攌ʀ;DUduڽ᣷᣹᣻᣽;敥;敨;攬;攴inus;抟lus;択imes;抠ȀLRlrᤙᤛᤝ᤟;敛;敘;攘;攔΀;HLRhlrᤰᤱᤳᤵᤷ᤻᤹攂;敪;敡;敞;攼;攤;攜Āevģ᥂bar耻¦䂦Ȁceioᥑᥖᥚᥠr;쀀𝒷mi;恏mĀ;e᜚᜜lƀ;bhᥨᥩᥫ䁜;槅sub;柈Ŭᥴ᥾lĀ;e᥹᥺怢t»᥺pƀ;Eeįᦅᦇ;檮Ā;qۜۛೡᦧ\0᧨ᨑᨕᨲ\0ᨷᩐ\0\0᪴\0\0᫁\0\0ᬡᬮ᭍᭒\0᯽\0ᰌƀcpr᦭ᦲ᧝ute;䄇̀;abcdsᦿᧀᧄ᧊᧕᧙戩nd;橄rcup;橉Āau᧏᧒p;橋p;橇ot;橀;쀀∩︀Āeo᧢᧥t;恁îړȀaeiu᧰᧻ᨁᨅǰ᧵\0᧸s;橍on;䄍dil耻ç䃧rc;䄉psĀ;sᨌᨍ橌m;橐ot;䄋ƀdmnᨛᨠᨦil肻¸ƭptyv;榲t脀¢;eᨭᨮ䂢räƲr;쀀𝔠ƀceiᨽᩀᩍy;䑇ckĀ;mᩇᩈ朓ark»ᩈ;䏇r΀;Ecefms᩟᩠ᩢᩫ᪤᪪᪮旋;槃ƀ;elᩩᩪᩭ䋆q;扗eɡᩴ\0\0᪈rrowĀlr᩼᪁eft;憺ight;憻ʀRSacd᪒᪔᪖᪚᪟»ཇ;擈st;抛irc;抚ash;抝nint;樐id;櫯cir;槂ubsĀ;u᪻᪼晣it»᪼ˬ᫇᫔᫺\0ᬊonĀ;eᫍᫎ䀺Ā;qÇÆɭ᫙\0\0᫢aĀ;t᫞᫟䀬;䁀ƀ;fl᫨᫩᫫戁îᅠeĀmx᫱᫶ent»᫩eóɍǧ᫾\0ᬇĀ;dኻᬂot;橭nôɆƀfryᬐᬔᬗ;쀀𝕔oäɔ脀©;sŕᬝr;愗Āaoᬥᬩrr;憵ss;朗Ācuᬲᬷr;쀀𝒸Ābpᬼ᭄Ā;eᭁᭂ櫏;櫑Ā;eᭉᭊ櫐;櫒dot;拯΀delprvw᭠᭬᭷ᮂᮬᯔ᯹arrĀlr᭨᭪;椸;椵ɰ᭲\0\0᭵r;拞c;拟arrĀ;p᭿ᮀ憶;椽̀;bcdosᮏᮐᮖᮡᮥᮨ截rcap;橈Āauᮛᮞp;橆p;橊ot;抍r;橅;쀀∪︀Ȁalrv᮵ᮿᯞᯣrrĀ;mᮼᮽ憷;椼yƀevwᯇᯔᯘqɰᯎ\0\0ᯒreã᭳uã᭵ee;拎edge;拏en耻¤䂤earrowĀlrᯮ᯳eft»ᮀight»ᮽeäᯝĀciᰁᰇoninôǷnt;戱lcty;挭ঀAHabcdefhijlorstuwz᰸᰻᰿ᱝᱩᱵᲊᲞᲬᲷ᳻᳿ᴍᵻᶑᶫᶻ᷆᷍rò΁ar;楥Ȁglrs᱈ᱍ᱒᱔ger;怠eth;愸òᄳhĀ;vᱚᱛ怐»ऊūᱡᱧarow;椏aã̕Āayᱮᱳron;䄏;䐴ƀ;ao̲ᱼᲄĀgrʿᲁr;懊tseq;橷ƀglmᲑᲔᲘ耻°䂰ta;䎴ptyv;榱ĀirᲣᲨsht;楿;쀀𝔡arĀlrᲳᲵ»ࣜ»သʀaegsv᳂͸᳖᳜᳠mƀ;oș᳊᳔ndĀ;ș᳑uit;晦amma;䏝in;拲ƀ;io᳧᳨᳸䃷de脀÷;o᳧ᳰntimes;拇nø᳷cy;䑒cɯᴆ\0\0ᴊrn;挞op;挍ʀlptuwᴘᴝᴢᵉᵕlar;䀤f;쀀𝕕ʀ;emps̋ᴭᴷᴽᵂqĀ;d͒ᴳot;扑inus;戸lus;戔quare;抡blebarwedgåúnƀadhᄮᵝᵧownarrowóᲃarpoonĀlrᵲᵶefôᲴighôᲶŢᵿᶅkaro÷གɯᶊ\0\0ᶎrn;挟op;挌ƀcotᶘᶣᶦĀryᶝᶡ;쀀𝒹;䑕l;槶rok;䄑Ādrᶰᶴot;拱iĀ;fᶺ᠖斿Āah᷀᷃ròЩaòྦangle;榦Āci᷒ᷕy;䑟grarr;柿ऀDacdefglmnopqrstuxḁḉḙḸոḼṉṡṾấắẽỡἪἷὄ὎὚ĀDoḆᴴoôᲉĀcsḎḔute耻é䃩ter;橮ȀaioyḢḧḱḶron;䄛rĀ;cḭḮ扖耻ê䃪lon;払;䑍ot;䄗ĀDrṁṅot;扒;쀀𝔢ƀ;rsṐṑṗ檚ave耻è䃨Ā;dṜṝ檖ot;檘Ȁ;ilsṪṫṲṴ檙nters;揧;愓Ā;dṹṺ檕ot;檗ƀapsẅẉẗcr;䄓tyƀ;svẒẓẕ戅et»ẓpĀ1;ẝẤĳạả;怄;怅怃ĀgsẪẬ;䅋p;怂ĀgpẴẸon;䄙f;쀀𝕖ƀalsỄỎỒrĀ;sỊị拕l;槣us;橱iƀ;lvỚớở䎵on»ớ;䏵ȀcsuvỪỳἋἣĀioữḱrc»Ḯɩỹ\0\0ỻíՈantĀglἂἆtr»ṝess»Ṻƀaeiἒ἖Ἒls;䀽st;扟vĀ;DȵἠD;橸parsl;槥ĀDaἯἳot;打rr;楱ƀcdiἾὁỸr;愯oô͒ĀahὉὋ;䎷耻ð䃰Āmrὓὗl耻ë䃫o;悬ƀcipὡὤὧl;䀡sôծĀeoὬὴctatioîՙnentialåչৡᾒ\0ᾞ\0ᾡᾧ\0\0ῆῌ\0ΐ\0ῦῪ \0 ⁚llingdotseñṄy;䑄male;晀ƀilrᾭᾳ῁lig;耀ﬃɩᾹ\0\0᾽g;耀ﬀig;耀ﬄ;쀀𝔣lig;耀ﬁlig;쀀fjƀaltῙ῜ῡt;晭ig;耀ﬂns;斱of;䆒ǰ΅\0ῳf;쀀𝕗ĀakֿῷĀ;vῼ´拔;櫙artint;樍Āao‌⁕Ācs‑⁒α‚‰‸⁅⁈\0⁐β•‥‧‪‬\0‮耻½䂽;慓耻¼䂼;慕;慙;慛Ƴ‴\0‶;慔;慖ʴ‾⁁\0\0⁃耻¾䂾;慗;慜5;慘ƶ⁌\0⁎;慚;慝8;慞l;恄wn;挢cr;쀀𝒻ࢀEabcdefgijlnorstv₂₉₟₥₰₴⃰⃵⃺⃿℃ℒℸ̗ℾ⅒↞Ā;lٍ₇;檌ƀcmpₐₕ₝ute;䇵maĀ;dₜ᳚䎳;檆reve;䄟Āiy₪₮rc;䄝;䐳ot;䄡Ȁ;lqsؾق₽⃉ƀ;qsؾٌ⃄lanô٥Ȁ;cdl٥⃒⃥⃕c;檩otĀ;o⃜⃝檀Ā;l⃢⃣檂;檄Ā;e⃪⃭쀀⋛︀s;檔r;쀀𝔤Ā;gٳ؛mel;愷cy;䑓Ȁ;Eajٚℌℎℐ;檒;檥;檤ȀEaesℛℝ℩ℴ;扩pĀ;p℣ℤ檊rox»ℤĀ;q℮ℯ檈Ā;q℮ℛim;拧pf;쀀𝕘Āci⅃ⅆr;愊mƀ;el٫ⅎ⅐;檎;檐茀>;cdlqr׮ⅠⅪⅮⅳⅹĀciⅥⅧ;檧r;橺ot;拗Par;榕uest;橼ʀadelsↄⅪ←ٖ↛ǰ↉\0↎proø₞r;楸qĀlqؿ↖lesó₈ií٫Āen↣↭rtneqq;쀀≩︀Å↪ԀAabcefkosy⇄⇇⇱⇵⇺∘∝∯≨≽ròΠȀilmr⇐⇔⇗⇛rsðᒄf»․ilôکĀdr⇠⇤cy;䑊ƀ;cwࣴ⇫⇯ir;楈;憭ar;意irc;䄥ƀalr∁∎∓rtsĀ;u∉∊晥it»∊lip;怦con;抹r;쀀𝔥sĀew∣∩arow;椥arow;椦ʀamopr∺∾≃≞≣rr;懿tht;戻kĀlr≉≓eftarrow;憩ightarrow;憪f;쀀𝕙bar;怕ƀclt≯≴≸r;쀀𝒽asè⇴rok;䄧Ābp⊂⊇ull;恃hen»ᱛૡ⊣\0⊪\0⊸⋅⋎\0⋕⋳\0\0⋸⌢⍧⍢⍿\0⎆⎪⎴cute耻í䃭ƀ;iyݱ⊰⊵rc耻î䃮;䐸Ācx⊼⊿y;䐵cl耻¡䂡ĀfrΟ⋉;쀀𝔦rave耻ì䃬Ȁ;inoܾ⋝⋩⋮Āin⋢⋦nt;樌t;戭fin;槜ta;愩lig;䄳ƀaop⋾⌚⌝ƀcgt⌅⌈⌗r;䄫ƀelpܟ⌏⌓inåގarôܠh;䄱f;抷ed;䆵ʀ;cfotӴ⌬⌱⌽⍁are;愅inĀ;t⌸⌹戞ie;槝doô⌙ʀ;celpݗ⍌⍐⍛⍡al;抺Āgr⍕⍙eróᕣã⍍arhk;樗rod;樼Ȁcgpt⍯⍲⍶⍻y;䑑on;䄯f;쀀𝕚a;䎹uest耻¿䂿Āci⎊⎏r;쀀𝒾nʀ;EdsvӴ⎛⎝⎡ӳ;拹ot;拵Ā;v⎦⎧拴;拳Ā;iݷ⎮lde;䄩ǫ⎸\0⎼cy;䑖l耻ï䃯̀cfmosu⏌⏗⏜⏡⏧⏵Āiy⏑⏕rc;䄵;䐹r;쀀𝔧ath;䈷pf;쀀𝕛ǣ⏬\0⏱r;쀀𝒿rcy;䑘kcy;䑔Ѐacfghjos␋␖␢␧␭␱␵␻ppaĀ;v␓␔䎺;䏰Āey␛␠dil;䄷;䐺r;쀀𝔨reen;䄸cy;䑅cy;䑜pf;쀀𝕜cr;쀀𝓀஀ABEHabcdefghjlmnoprstuv⑰⒁⒆⒍⒑┎┽╚▀♎♞♥♹♽⚚⚲⛘❝❨➋⟀⠁⠒ƀart⑷⑺⑼rò৆òΕail;椛arr;椎Ā;gঔ⒋;檋ar;楢ॣ⒥\0⒪\0⒱\0\0\0\0\0⒵Ⓔ\0ⓆⓈⓍ\0⓹ute;䄺mptyv;榴raîࡌbda;䎻gƀ;dlࢎⓁⓃ;榑åࢎ;檅uo耻«䂫rЀ;bfhlpst࢙ⓞⓦⓩ⓫⓮⓱⓵Ā;f࢝ⓣs;椟s;椝ë≒p;憫l;椹im;楳l;憢ƀ;ae⓿─┄檫il;椙Ā;s┉┊檭;쀀⪭︀ƀabr┕┙┝rr;椌rk;杲Āak┢┬cĀek┨┪;䁻;䁛Āes┱┳;榋lĀdu┹┻;榏;榍Ȁaeuy╆╋╖╘ron;䄾Ādi═╔il;䄼ìࢰâ┩;䐻Ȁcqrs╣╦╭╽a;椶uoĀ;rนᝆĀdu╲╷har;楧shar;楋h;憲ʀ;fgqs▋▌উ◳◿扤tʀahlrt▘▤▷◂◨rrowĀ;t࢙□aé⓶arpoonĀdu▯▴own»њp»०eftarrows;懇ightƀahs◍◖◞rrowĀ;sࣴࢧarpoonó྘quigarro÷⇰hreetimes;拋ƀ;qs▋ও◺lanôবʀ;cdgsব☊☍☝☨c;檨otĀ;o☔☕橿Ā;r☚☛檁;檃Ā;e☢☥쀀⋚︀s;檓ʀadegs☳☹☽♉♋pproøⓆot;拖qĀgq♃♅ôউgtò⒌ôছiíলƀilr♕࣡♚sht;楼;쀀𝔩Ā;Eজ♣;檑š♩♶rĀdu▲♮Ā;l॥♳;楪lk;斄cy;䑙ʀ;achtੈ⚈⚋⚑⚖rò◁orneòᴈard;楫ri;旺Āio⚟⚤dot;䅀ustĀ;a⚬⚭掰che»⚭ȀEaes⚻⚽⛉⛔;扨pĀ;p⛃⛄檉rox»⛄Ā;q⛎⛏檇Ā;q⛎⚻im;拦Ѐabnoptwz⛩⛴⛷✚✯❁❇❐Ānr⛮⛱g;柬r;懽rëࣁgƀlmr⛿✍✔eftĀar০✇ightá৲apsto;柼ightá৽parrowĀlr✥✩efô⓭ight;憬ƀafl✶✹✽r;榅;쀀𝕝us;樭imes;樴š❋❏st;戗áፎƀ;ef❗❘᠀旊nge»❘arĀ;l❤❥䀨t;榓ʀachmt❳❶❼➅➇ròࢨorneòᶌarĀ;d྘➃;業;怎ri;抿̀achiqt➘➝ੀ➢➮➻quo;怹r;쀀𝓁mƀ;egল➪➬;檍;檏Ābu┪➳oĀ;rฟ➹;怚rok;䅂萀<;cdhilqrࠫ⟒☹⟜⟠⟥⟪⟰Āci⟗⟙;檦r;橹reå◲mes;拉arr;楶uest;橻ĀPi⟵⟹ar;榖ƀ;ef⠀भ᠛旃rĀdu⠇⠍shar;楊har;楦Āen⠗⠡rtneqq;쀀≨︀Å⠞܀Dacdefhilnopsu⡀⡅⢂⢎⢓⢠⢥⢨⣚⣢⣤ઃ⣳⤂Dot;戺Ȁclpr⡎⡒⡣⡽r耻¯䂯Āet⡗⡙;時Ā;e⡞⡟朠se»⡟Ā;sျ⡨toȀ;dluျ⡳⡷⡻owîҌefôएðᏑker;斮Āoy⢇⢌mma;権;䐼ash;怔asuredangle»ᘦr;쀀𝔪o;愧ƀcdn⢯⢴⣉ro耻µ䂵Ȁ;acdᑤ⢽⣀⣄sôᚧir;櫰ot肻·Ƶusƀ;bd⣒ᤃ⣓戒Ā;uᴼ⣘;横ţ⣞⣡p;櫛ò−ðઁĀdp⣩⣮els;抧f;쀀𝕞Āct⣸⣽r;쀀𝓂pos»ᖝƀ;lm⤉⤊⤍䎼timap;抸ఀGLRVabcdefghijlmoprstuvw⥂⥓⥾⦉⦘⧚⧩⨕⨚⩘⩝⪃⪕⪤⪨⬄⬇⭄⭿⮮ⰴⱧⱼ⳩Āgt⥇⥋;쀀⋙̸Ā;v⥐௏쀀≫⃒ƀelt⥚⥲⥶ftĀar⥡⥧rrow;懍ightarrow;懎;쀀⋘̸Ā;v⥻ే쀀≪⃒ightarrow;懏ĀDd⦎⦓ash;抯ash;抮ʀbcnpt⦣⦧⦬⦱⧌la»˞ute;䅄g;쀀∠⃒ʀ;Eiop඄⦼⧀⧅⧈;쀀⩰̸d;쀀≋̸s;䅉roø඄urĀ;a⧓⧔普lĀ;s⧓ସǳ⧟\0⧣p肻\xA0ଷmpĀ;e௹ఀʀaeouy⧴⧾⨃⨐⨓ǰ⧹\0⧻;橃on;䅈dil;䅆ngĀ;dൾ⨊ot;쀀⩭̸p;橂;䐽ash;怓΀;Aadqsxஒ⨩⨭⨻⩁⩅⩐rr;懗rĀhr⨳⨶k;椤Ā;oᏲᏰot;쀀≐̸uiöୣĀei⩊⩎ar;椨í஘istĀ;s஠டr;쀀𝔫ȀEest௅⩦⩹⩼ƀ;qs஼⩭௡ƀ;qs஼௅⩴lanô௢ií௪Ā;rஶ⪁»ஷƀAap⪊⪍⪑rò⥱rr;憮ar;櫲ƀ;svྍ⪜ྌĀ;d⪡⪢拼;拺cy;䑚΀AEadest⪷⪺⪾⫂⫅⫶⫹rò⥦;쀀≦̸rr;憚r;急Ȁ;fqs఻⫎⫣⫯tĀar⫔⫙rro÷⫁ightarro÷⪐ƀ;qs఻⪺⫪lanôౕĀ;sౕ⫴»శiíౝĀ;rవ⫾iĀ;eచథiäඐĀpt⬌⬑f;쀀𝕟膀¬;in⬙⬚⬶䂬nȀ;Edvஉ⬤⬨⬮;쀀⋹̸ot;쀀⋵̸ǡஉ⬳⬵;拷;拶iĀ;vಸ⬼ǡಸ⭁⭃;拾;拽ƀaor⭋⭣⭩rȀ;ast୻⭕⭚⭟lleì୻l;쀀⫽⃥;쀀∂̸lint;樔ƀ;ceಒ⭰⭳uåಥĀ;cಘ⭸Ā;eಒ⭽ñಘȀAait⮈⮋⮝⮧rò⦈rrƀ;cw⮔⮕⮙憛;쀀⤳̸;쀀↝̸ghtarrow»⮕riĀ;eೋೖ΀chimpqu⮽⯍⯙⬄୸⯤⯯Ȁ;cerല⯆ഷ⯉uå൅;쀀𝓃ortɭ⬅\0\0⯖ará⭖mĀ;e൮⯟Ā;q൴൳suĀbp⯫⯭å೸åഋƀbcp⯶ⰑⰙȀ;Ees⯿ⰀഢⰄ抄;쀀⫅̸etĀ;eഛⰋqĀ;qണⰀcĀ;eലⰗñസȀ;EesⰢⰣൟⰧ抅;쀀⫆̸etĀ;e൘ⰮqĀ;qൠⰣȀgilrⰽⰿⱅⱇìௗlde耻ñ䃱çృiangleĀlrⱒⱜeftĀ;eచⱚñదightĀ;eೋⱥñ೗Ā;mⱬⱭ䎽ƀ;esⱴⱵⱹ䀣ro;愖p;怇ҀDHadgilrsⲏⲔⲙⲞⲣⲰⲶⳓⳣash;抭arr;椄p;쀀≍⃒ash;抬ĀetⲨⲬ;쀀≥⃒;쀀>⃒nfin;槞ƀAetⲽⳁⳅrr;椂;쀀≤⃒Ā;rⳊⳍ쀀<⃒ie;쀀⊴⃒ĀAtⳘⳜrr;椃rie;쀀⊵⃒im;쀀∼⃒ƀAan⳰⳴ⴂrr;懖rĀhr⳺⳽k;椣Ā;oᏧᏥear;椧ቓ᪕\0\0\0\0\0\0\0\0\0\0\0\0\0ⴭ\0ⴸⵈⵠⵥ⵲ⶄᬇ\0\0ⶍⶫ\0ⷈⷎ\0ⷜ⸙⸫⸾⹃Ācsⴱ᪗ute耻ó䃳ĀiyⴼⵅrĀ;c᪞ⵂ耻ô䃴;䐾ʀabios᪠ⵒⵗǈⵚlac;䅑v;樸old;榼lig;䅓Ācr⵩⵭ir;榿;쀀𝔬ͯ⵹\0\0⵼\0ⶂn;䋛ave耻ò䃲;槁Ābmⶈ෴ar;榵Ȁacitⶕ⶘ⶥⶨrò᪀Āir⶝ⶠr;榾oss;榻nå๒;槀ƀaeiⶱⶵⶹcr;䅍ga;䏉ƀcdnⷀⷅǍron;䎿;榶pf;쀀𝕠ƀaelⷔ⷗ǒr;榷rp;榹΀;adiosvⷪⷫⷮ⸈⸍⸐⸖戨rò᪆Ȁ;efmⷷⷸ⸂⸅橝rĀ;oⷾⷿ愴f»ⷿ耻ª䂪耻º䂺gof;抶r;橖lope;橗;橛ƀclo⸟⸡⸧ò⸁ash耻ø䃸l;折iŬⸯ⸴de耻õ䃵esĀ;aǛ⸺s;樶ml耻ö䃶bar;挽ૡ⹞\0⹽\0⺀⺝\0⺢⺹\0\0⻋ຜ\0⼓\0\0⼫⾼\0⿈rȀ;astЃ⹧⹲຅脀¶;l⹭⹮䂶leìЃɩ⹸\0\0⹻m;櫳;櫽y;䐿rʀcimpt⺋⺏⺓ᡥ⺗nt;䀥od;䀮il;怰enk;怱r;쀀𝔭ƀimo⺨⺰⺴Ā;v⺭⺮䏆;䏕maô੶ne;明ƀ;tv⺿⻀⻈䏀chfork»´;䏖Āau⻏⻟nĀck⻕⻝kĀ;h⇴⻛;愎ö⇴sҀ;abcdemst⻳⻴ᤈ⻹⻽⼄⼆⼊⼎䀫cir;樣ir;樢Āouᵀ⼂;樥;橲n肻±ຝim;樦wo;樧ƀipu⼙⼠⼥ntint;樕f;쀀𝕡nd耻£䂣Ԁ;Eaceinosu່⼿⽁⽄⽇⾁⾉⾒⽾⾶;檳p;檷uå໙Ā;c໎⽌̀;acens່⽙⽟⽦⽨⽾pproø⽃urlyeñ໙ñ໎ƀaes⽯⽶⽺pprox;檹qq;檵im;拨iíໟmeĀ;s⾈ຮ怲ƀEas⽸⾐⽺ð⽵ƀdfp໬⾙⾯ƀals⾠⾥⾪lar;挮ine;挒urf;挓Ā;t໻⾴ï໻rel;抰Āci⿀⿅r;쀀𝓅;䏈ncsp;怈̀fiopsu⿚⋢⿟⿥⿫⿱r;쀀𝔮pf;쀀𝕢rime;恗cr;쀀𝓆ƀaeo⿸〉〓tĀei⿾々rnionóڰnt;樖stĀ;e【】䀿ñἙô༔઀ABHabcdefhilmnoprstux぀けさすムㄎㄫㅇㅢㅲㆎ㈆㈕㈤㈩㉘㉮㉲㊐㊰㊷ƀartぇおがròႳòϝail;検aròᱥar;楤΀cdenqrtとふへみわゔヌĀeuねぱ;쀀∽̱te;䅕iãᅮmptyv;榳gȀ;del࿑らるろ;榒;榥å࿑uo耻»䂻rր;abcfhlpstw࿜ガクシスゼゾダッデナp;極Ā;f࿠ゴs;椠;椳s;椞ë≝ð✮l;楅im;楴l;憣;憝Āaiパフil;椚oĀ;nホボ戶aló༞ƀabrョリヮrò៥rk;杳ĀakンヽcĀekヹ・;䁽;䁝Āes㄂㄄;榌lĀduㄊㄌ;榎;榐Ȁaeuyㄗㄜㄧㄩron;䅙Ādiㄡㄥil;䅗ì࿲âヺ;䑀Ȁclqsㄴㄷㄽㅄa;椷dhar;楩uoĀ;rȎȍh;憳ƀacgㅎㅟངlȀ;ipsླྀㅘㅛႜnåႻarôྩt;断ƀilrㅩဣㅮsht;楽;쀀𝔯ĀaoㅷㆆrĀduㅽㅿ»ѻĀ;l႑ㆄ;楬Ā;vㆋㆌ䏁;䏱ƀgns㆕ㇹㇼht̀ahlrstㆤㆰ㇂㇘㇤㇮rrowĀ;t࿜ㆭaéトarpoonĀduㆻㆿowîㅾp»႒eftĀah㇊㇐rrowó࿪arpoonóՑightarrows;應quigarro÷ニhreetimes;拌g;䋚ingdotseñἲƀahm㈍㈐㈓rò࿪aòՑ;怏oustĀ;a㈞㈟掱che»㈟mid;櫮Ȁabpt㈲㈽㉀㉒Ānr㈷㈺g;柭r;懾rëဃƀafl㉇㉊㉎r;榆;쀀𝕣us;樮imes;樵Āap㉝㉧rĀ;g㉣㉤䀩t;榔olint;樒arò㇣Ȁachq㉻㊀Ⴜ㊅quo;怺r;쀀𝓇Ābu・㊊oĀ;rȔȓƀhir㊗㊛㊠reåㇸmes;拊iȀ;efl㊪ၙᠡ㊫方tri;槎luhar;楨;愞ൡ㋕㋛㋟㌬㌸㍱\0㍺㎤\0\0㏬㏰\0㐨㑈㑚㒭㒱㓊㓱\0㘖\0\0㘳cute;䅛quï➺Ԁ;Eaceinpsyᇭ㋳㋵㋿㌂㌋㌏㌟㌦㌩;檴ǰ㋺\0㋼;檸on;䅡uåᇾĀ;dᇳ㌇il;䅟rc;䅝ƀEas㌖㌘㌛;檶p;檺im;择olint;樓iíሄ;䑁otƀ;be㌴ᵇ㌵担;橦΀Aacmstx㍆㍊㍗㍛㍞㍣㍭rr;懘rĀhr㍐㍒ë∨Ā;oਸ਼਴t耻§䂧i;䀻war;椩mĀin㍩ðnuóñt;朶rĀ;o㍶⁕쀀𝔰Ȁacoy㎂㎆㎑㎠rp;景Āhy㎋㎏cy;䑉;䑈rtɭ㎙\0\0㎜iäᑤaraì⹯耻­䂭Āgm㎨㎴maƀ;fv㎱㎲㎲䏃;䏂Ѐ;deglnprካ㏅㏉㏎㏖㏞㏡㏦ot;橪Ā;q኱ኰĀ;E㏓㏔檞;檠Ā;E㏛㏜檝;檟e;扆lus;樤arr;楲aròᄽȀaeit㏸㐈㐏㐗Āls㏽㐄lsetmé㍪hp;樳parsl;槤Ādlᑣ㐔e;挣Ā;e㐜㐝檪Ā;s㐢㐣檬;쀀⪬︀ƀflp㐮㐳㑂tcy;䑌Ā;b㐸㐹䀯Ā;a㐾㐿槄r;挿f;쀀𝕤aĀdr㑍ЂesĀ;u㑔㑕晠it»㑕ƀcsu㑠㑹㒟Āau㑥㑯pĀ;sᆈ㑫;쀀⊓︀pĀ;sᆴ㑵;쀀⊔︀uĀbp㑿㒏ƀ;esᆗᆜ㒆etĀ;eᆗ㒍ñᆝƀ;esᆨᆭ㒖etĀ;eᆨ㒝ñᆮƀ;afᅻ㒦ְrť㒫ֱ»ᅼaròᅈȀcemt㒹㒾㓂㓅r;쀀𝓈tmîñiì㐕aræᆾĀar㓎㓕rĀ;f㓔ឿ昆Āan㓚㓭ightĀep㓣㓪psiloîỠhé⺯s»⡒ʀbcmnp㓻㕞ሉ㖋㖎Ҁ;Edemnprs㔎㔏㔑㔕㔞㔣㔬㔱㔶抂;櫅ot;檽Ā;dᇚ㔚ot;櫃ult;櫁ĀEe㔨㔪;櫋;把lus;檿arr;楹ƀeiu㔽㕒㕕tƀ;en㔎㕅㕋qĀ;qᇚ㔏eqĀ;q㔫㔨m;櫇Ābp㕚㕜;櫕;櫓c̀;acensᇭ㕬㕲㕹㕻㌦pproø㋺urlyeñᇾñᇳƀaes㖂㖈㌛pproø㌚qñ㌗g;晪ڀ123;Edehlmnps㖩㖬㖯ሜ㖲㖴㗀㗉㗕㗚㗟㗨㗭耻¹䂹耻²䂲耻³䂳;櫆Āos㖹㖼t;檾ub;櫘Ā;dሢ㗅ot;櫄sĀou㗏㗒l;柉b;櫗arr;楻ult;櫂ĀEe㗤㗦;櫌;抋lus;櫀ƀeiu㗴㘉㘌tƀ;enሜ㗼㘂qĀ;qሢ㖲eqĀ;q㗧㗤m;櫈Ābp㘑㘓;櫔;櫖ƀAan㘜㘠㘭rr;懙rĀhr㘦㘨ë∮Ā;oਫ਩war;椪lig耻ß䃟௡㙑㙝㙠ዎ㙳㙹\0㙾㛂\0\0\0\0\0㛛㜃\0㜉㝬\0\0\0㞇ɲ㙖\0\0㙛get;挖;䏄rë๟ƀaey㙦㙫㙰ron;䅥dil;䅣;䑂lrec;挕r;쀀𝔱Ȁeiko㚆㚝㚵㚼ǲ㚋\0㚑eĀ4fኄኁaƀ;sv㚘㚙㚛䎸ym;䏑Ācn㚢㚲kĀas㚨㚮pproø዁im»ኬsðኞĀas㚺㚮ð዁rn耻þ䃾Ǭ̟㛆⋧es膀×;bd㛏㛐㛘䃗Ā;aᤏ㛕r;樱;樰ƀeps㛡㛣㜀á⩍Ȁ;bcf҆㛬㛰㛴ot;挶ir;櫱Ā;o㛹㛼쀀𝕥rk;櫚á㍢rime;怴ƀaip㜏㜒㝤dåቈ΀adempst㜡㝍㝀㝑㝗㝜㝟ngleʀ;dlqr㜰㜱㜶㝀㝂斵own»ᶻeftĀ;e⠀㜾ñम;扜ightĀ;e㊪㝋ñၚot;旬inus;樺lus;樹b;槍ime;樻ezium;揢ƀcht㝲㝽㞁Āry㝷㝻;쀀𝓉;䑆cy;䑛rok;䅧Āio㞋㞎xô᝷headĀlr㞗㞠eftarro÷ࡏightarrow»ཝऀAHabcdfghlmoprstuw㟐㟓㟗㟤㟰㟼㠎㠜㠣㠴㡑㡝㡫㢩㣌㣒㣪㣶ròϭar;楣Ācr㟜㟢ute耻ú䃺òᅐrǣ㟪\0㟭y;䑞ve;䅭Āiy㟵㟺rc耻û䃻;䑃ƀabh㠃㠆㠋ròᎭlac;䅱aòᏃĀir㠓㠘sht;楾;쀀𝔲rave耻ù䃹š㠧㠱rĀlr㠬㠮»ॗ»ႃlk;斀Āct㠹㡍ɯ㠿\0\0㡊rnĀ;e㡅㡆挜r»㡆op;挏ri;旸Āal㡖㡚cr;䅫肻¨͉Āgp㡢㡦on;䅳f;쀀𝕦̀adhlsuᅋ㡸㡽፲㢑㢠ownáᎳarpoonĀlr㢈㢌efô㠭ighô㠯iƀ;hl㢙㢚㢜䏅»ᏺon»㢚parrows;懈ƀcit㢰㣄㣈ɯ㢶\0\0㣁rnĀ;e㢼㢽挝r»㢽op;挎ng;䅯ri;旹cr;쀀𝓊ƀdir㣙㣝㣢ot;拰lde;䅩iĀ;f㜰㣨»᠓Āam㣯㣲rò㢨l耻ü䃼angle;榧ހABDacdeflnoprsz㤜㤟㤩㤭㦵㦸㦽㧟㧤㧨㧳㧹㧽㨁㨠ròϷarĀ;v㤦㤧櫨;櫩asèϡĀnr㤲㤷grt;榜΀eknprst㓣㥆㥋㥒㥝㥤㦖appá␕othinçẖƀhir㓫⻈㥙opô⾵Ā;hᎷ㥢ïㆍĀiu㥩㥭gmá㎳Ābp㥲㦄setneqĀ;q㥽㦀쀀⊊︀;쀀⫋︀setneqĀ;q㦏㦒쀀⊋︀;쀀⫌︀Āhr㦛㦟etá㚜iangleĀlr㦪㦯eft»थight»ၑy;䐲ash»ံƀelr㧄㧒㧗ƀ;beⷪ㧋㧏ar;抻q;扚lip;拮Ābt㧜ᑨaòᑩr;쀀𝔳tré㦮suĀbp㧯㧱»ജ»൙pf;쀀𝕧roð໻tré㦴Ācu㨆㨋r;쀀𝓋Ābp㨐㨘nĀEe㦀㨖»㥾nĀEe㦒㨞»㦐igzag;榚΀cefoprs㨶㨻㩖㩛㩔㩡㩪irc;䅵Ādi㩀㩑Ābg㩅㩉ar;機eĀ;qᗺ㩏;扙erp;愘r;쀀𝔴pf;쀀𝕨Ā;eᑹ㩦atèᑹcr;쀀𝓌ૣណ㪇\0㪋\0㪐㪛\0\0㪝㪨㪫㪯\0\0㫃㫎\0㫘ៜ៟tré៑r;쀀𝔵ĀAa㪔㪗ròσrò৶;䎾ĀAa㪡㪤ròθrò৫að✓is;拻ƀdptឤ㪵㪾Āfl㪺ឩ;쀀𝕩imåឲĀAa㫇㫊ròώròਁĀcq㫒ីr;쀀𝓍Āpt៖㫜ré។Ѐacefiosu㫰㫽㬈㬌㬑㬕㬛㬡cĀuy㫶㫻te耻ý䃽;䑏Āiy㬂㬆rc;䅷;䑋n耻¥䂥r;쀀𝔶cy;䑗pf;쀀𝕪cr;쀀𝓎Ācm㬦㬩y;䑎l耻ÿ䃿Ԁacdefhiosw㭂㭈㭔㭘㭤㭩㭭㭴㭺㮀cute;䅺Āay㭍㭒ron;䅾;䐷ot;䅼Āet㭝㭡træᕟa;䎶r;쀀𝔷cy;䐶grarr;懝pf;쀀𝕫cr;쀀𝓏Ājn㮅㮇;怍j;怌".split("").map((c) => c.charCodeAt(0)));
-//#endregion
-//#region ../../node_modules/.pnpm/entities@4.5.0/node_modules/entities/lib/esm/generated/decode-data-xml.js
-var decode_data_xml_default = new Uint16Array("Ȁaglq	\x1Bɭ\0\0p;䀦os;䀧t;䀾t;䀼uot;䀢".split("").map((c) => c.charCodeAt(0)));
-//#endregion
-//#region ../../node_modules/.pnpm/entities@4.5.0/node_modules/entities/lib/esm/decode_codepoint.js
-var _a$2;
+//#region ../../node_modules/.pnpm/entities@8.0.0/node_modules/entities/dist/decode-codepoint.js
 var decodeMap = /* @__PURE__ */ new Map([
 	[0, 65533],
 	[128, 8364],
@@ -51431,30 +51444,58 @@ var decodeMap = /* @__PURE__ */ new Map([
 	[159, 376]
 ]);
 /**
-* Polyfill for `String.fromCodePoint`. It is used to create a string from a Unicode code point.
-*/
-var fromCodePoint$2 = (_a$2 = String.fromCodePoint) !== null && _a$2 !== void 0 ? _a$2 : function(codePoint) {
-	let output = "";
-	if (codePoint > 65535) {
-		codePoint -= 65536;
-		output += String.fromCharCode(codePoint >>> 10 & 1023 | 55296);
-		codePoint = 56320 | codePoint & 1023;
-	}
-	output += String.fromCharCode(codePoint);
-	return output;
-};
-/**
 * Replace the given code point with a replacement character if it is a
 * surrogate or is outside the valid range. Otherwise return the code
 * point unchanged.
+* @param codePoint Unicode code point to convert.
 */
 function replaceCodePoint(codePoint) {
-	var _a;
 	if (codePoint >= 55296 && codePoint <= 57343 || codePoint > 1114111) return 65533;
-	return (_a = decodeMap.get(codePoint)) !== null && _a !== void 0 ? _a : codePoint;
+	return decodeMap.get(codePoint) ?? codePoint;
 }
 //#endregion
-//#region ../../node_modules/.pnpm/entities@4.5.0/node_modules/entities/lib/esm/decode.js
+//#region ../../node_modules/.pnpm/entities@8.0.0/node_modules/entities/dist/internal/decode-shared.js
+/**
+* Shared base64 decode helper for generated decode data.
+* Assumes global atob is available.
+* @param input Input string to encode or decode.
+*/
+function decodeBase64(input) {
+	const binary = atob(input);
+	const evenLength = binary.length & -2;
+	const out = new Uint16Array(evenLength / 2);
+	for (let index = 0, outIndex = 0; index < evenLength; index += 2) {
+		const lo = binary.charCodeAt(index);
+		const hi = binary.charCodeAt(index + 1);
+		out[outIndex++] = lo | hi << 8;
+	}
+	return out;
+}
+//#endregion
+//#region ../../node_modules/.pnpm/entities@8.0.0/node_modules/entities/dist/generated/decode-data-html.js
+/** Packed HTML decode trie data. */
+var htmlDecodeTree = /* #__PURE__ */ decodeBase64("QR08ALkAAgH6AYsDNQR2BO0EPgXZBQEGLAbdBxMISQrvCmQLfQurDKQNLw4fD4YPpA+6D/IPAAAAAAAAAAAAAAAAKhBMEY8TmxUWF2EYLBkxGuAa3RsJHDscWR8YIC8jSCSIJcMl6ie3Ku8rEC0CLjoupS7kLgAIRU1hYmNmZ2xtbm9wcnN0dVQAWgBeAGUAaQBzAHcAfgCBAIQAhwCSAJoAoACsALMAbABpAGcAO4DGAMZAUAA7gCYAJkBjAHUAdABlADuAwQDBQHIiZXZlAAJhAAFpeW0AcgByAGMAO4DCAMJAEGRyAADgNdgE3XIAYQB2AGUAO4DAAMBA8CFoYZFj4SFjcgBhZAAAoFMqAAFncIsAjgBvAG4ABGFmAADgNdg43fAlbHlGdW5jdGlvbgCgYSBpAG4AZwA7gMUAxUAAAWNzpACoAHIAAOA12Jzc6SFnbgCgVCJpAGwAZABlADuAwwDDQG0AbAA7gMQAxEAABGFjZWZvcnN1xQDYANoA7QDxAPYA+QD8AAABY3LJAM8AayNzbGFzaAAAoBYidgHTANUAAKDnKmUAZAAAoAYjeQARZIABY3J0AOAA5QDrAGEidXNlAACgNSLuI291bGxpcwCgLCFhAJJjcgAA4DXYBd1wAGYAAOA12Dnd5SF2ZdhiYwDyAOoAbSJwZXEAAKBOIgAHSE9hY2RlZmhpbG9yc3UXARoBHwE6AVIBVQFiAWQBZgGCAakB6QHtAfIBYwB5ACdkUABZADuAqQCpQIABY3B5ACUBKAE1AfUhdGUGYWmg0iJ0KGFsRGlmZmVyZW50aWFsRAAAoEUhbCJleXMAAKAtIQACYWVpb0EBRAFKAU0B8iFvbgxhZABpAGwAO4DHAMdAcgBjAAhhbiJpbnQAAKAwIm8AdAAKYQABZG5ZAV0BaSJsbGEAuGB0I2VyRG90ALdg8gA5AWkAp2NyImNsZQAAAkRNUFRwAXQBeQF9AW8AdAAAoJkiaSJudXMAAKCWIuwhdXMAoJUiaSJtZXMAAKCXIm8AAAFjc4cBlAFrKndpc2VDb250b3VySW50ZWdyYWwAAKAyImUjQ3VybHkAAAFEUZwBpAFvJXVibGVRdW90ZQAAoB0gdSJvdGUAAKAZIAACbG5wdbABtgHNAdgBbwBuAGWgNyIAoHQqgAFnaXQAvAHBAcUB8iJ1ZW50AKBhIm4AdAAAoC8i7yV1ckludGVncmFsAKAuIgABZnLRAdMBAKACIe8iZHVjdACgECJuLnRlckNsb2Nrd2lzZUNvbnRvdXJJbnRlZ3JhbAAAoDMi7yFzcwCgLypjAHIAAOA12J7ccABDoNMiYQBwAACgTSKABURKU1phY2VmaW9zAAsCEgIVAhgCGwIsAjQCOQI9AnMCfwNvoEUh9CJyYWhkAKARKWMAeQACZGMAeQAFZGMAeQAPZIABZ3JzACECJQIoAuchZXIAoCEgcgAAoKEhaAB2AACg5CoAAWF5MAIzAvIhb24OYRRkbAB0oAciYQCUY3IAAOA12AfdAAFhZkECawIAAWNtRQJnAvIjaXRpY2FsAAJBREdUUAJUAl8CYwJjInV0ZQC0YG8AdAFZAloC2WJiJGxlQWN1dGUA3WJyImF2ZQBgYGkibGRlANxi7yFuZACgxCJmJWVyZW50aWFsRAAAoEYhcAR9AgAAAAAAAIECjgIAABoDZgAA4DXYO91EoagAhQKJAm8AdAAAoNwgcSJ1YWwAAKBQIuIhbGUAA0NETFJVVpkCqAK1Au8C/wIRA28AbgB0AG8AdQByAEkAbgB0AGUAZwByAGEA7ADEAW8AdAKvAgAAAACwAqhgbiNBcnJvdwAAoNMhAAFlb7kC0AJmAHQAgAFBUlQAwQLGAs0CciJyb3cAAKDQIekkZ2h0QXJyb3cAoNQhZQDlACsCbgBnAAABTFLWAugC5SFmdAABQVLcAuECciJyb3cAAKD4J+kkZ2h0QXJyb3cAoPon6SRnaHRBcnJvdwCg+SdpImdodAAAAUFU9gL7AnIicm93AACg0iFlAGUAAKCoInAAQQIGAwAAAAALA3Iicm93AACg0SFvJHduQXJyb3cAAKDVIWUlcnRpY2FsQmFyAACgJSJuAAADQUJMUlRhJAM2AzoDWgNxA3oDciJyb3cAAKGTIUJVLAMwA2EAcgAAoBMpcCNBcnJvdwAAoPUhciJldmUAEWPlIWZ00gJDAwAASwMAAFIDaSVnaHRWZWN0b3IAAKBQKWUkZVZlY3RvcgAAoF4p5SJjdG9yQqC9IWEAcgAAoFYpaSJnaHQA1AFiAwAAaQNlJGVWZWN0b3IAAKBfKeUiY3RvckKgwSFhAHIAAKBXKWUAZQBBoKQiciJyb3cAAKCnIXIAcgBvAPcAtAIAAWN0gwOHA3IAAOA12J/c8iFvaxBhAAhOVGFjZGZnbG1vcHFzdHV4owOlA6kDsAO/A8IDxgPNA9ID8gP9AwEEFAQeBCAEJQRHAEphSAA7gNAA0EBjAHUAdABlADuAyQDJQIABYWl5ALYDuQO+A/Ihb24aYXIAYwA7gMoAykAtZG8AdAAWYXIAAOA12AjdcgBhAHYAZQA7gMgAyEDlIm1lbnQAoAgiAAFhcNYD2QNjAHIAEmF0AHkAUwLhAwAAAADpA20lYWxsU3F1YXJlAACg+yVlJ3J5U21hbGxTcXVhcmUAAKCrJQABZ3D2A/kDbwBuABhhZgAA4DXYPN3zImlsb26VY3UAAAFhaQYEDgRsAFSgdSppImxkZQAAoEIi7CNpYnJpdW0AoMwhAAFjaRgEGwRyAACgMCFtAACgcyphAJdjbQBsADuAywDLQAABaXApBC0E8yF0cwCgAyLvJG5lbnRpYWxFAKBHIYACY2Zpb3MAPQQ/BEMEXQRyBHkAJGRyAADgNdgJ3WwibGVkAFMCTAQAAAAAVARtJWFsbFNxdWFyZQAAoPwlZSdyeVNtYWxsU3F1YXJlAACgqiVwA2UEAABpBAAAAABtBGYAAOA12D3dwSFsbACgACLyI2llcnRyZgCgMSFjAPIAcQQABkpUYWJjZGZnb3JzdIgEiwSOBJMElwSkBKcEqwStBLIE5QTqBGMAeQADZDuAPgA+QO0hbWFkoJMD3GNyImV2ZQAeYYABZWl5AJ0EoASjBOQhaWwiYXIAYwAcYRNkbwB0ACBhcgAA4DXYCt0AoNkicABmAADgNdg+3eUiYXRlcgADRUZHTFNUvwTIBM8E1QTZBOAEcSJ1YWwATKBlIuUhc3MAoNsidSRsbEVxdWFsAACgZyJyI2VhdGVyAACgoirlIXNzAKB3IuwkYW50RXF1YWwAoH4qaSJsZGUAAKBzImMAcgAA4DXYotwAoGsiAARBYWNmaW9zdfkE/QQFBQgFCwUTBSIFKwVSIkRjeQAqZAABY3QBBQQFZQBrAMdiXmDpIXJjJGFyAACgDCFsJWJlcnRTcGFjZQAAoAsh8AEYBQAAGwVmAACgDSHpJXpvbnRhbExpbmUAoAAlAAFjdCYFKAXyABIF8iFvayZhbQBwAEQBMQU5BW8AdwBuAEgAdQBtAPAAAAFxInVhbAAAoE8iAAdFSk9hY2RmZ21ub3N0dVMFVgVZBVwFYwVtBXAFcwV6BZAFtgXFBckFzQVjAHkAFWTsIWlnMmFjAHkAAWRjAHUAdABlADuAzQDNQAABaXlnBWwFcgBjADuAzgDOQBhkbwB0ADBhcgAAoBEhcgBhAHYAZQA7gMwAzEAAoREhYXB/BYsFAAFjZ4MFhQVyACphaSNuYXJ5SQAAoEghbABpAGUA8wD6AvQBlQUAAKUFZaAsIgABZ3KaBZ4F8iFhbACgKyLzI2VjdGlvbgCgwiJpI3NpYmxlAAABQ1SsBbEFbyJtbWEAAKBjIGkibWVzAACgYiCAAWdwdAC8Bb8FwwVvAG4ALmFmAADgNdhA3WEAmWNjAHIAAKAQIWkibGRlAChh6wHSBQAA1QVjAHkABmRsADuAzwDPQIACY2Zvc3UA4QXpBe0F8gX9BQABaXnlBegFcgBjADRhGWRyAADgNdgN3XAAZgAA4DXYQd3jAfcFAAD7BXIAAOA12KXc8iFjeQhk6yFjeQRkgANISmFjZm9zAAwGDwYSBhUGHQYhBiYGYwB5ACVkYwB5AAxk8CFwYZpjAAFleRkGHAbkIWlsNmEaZHIAAOA12A7dcABmAADgNdhC3WMAcgAA4DXYptyABUpUYWNlZmxtb3N0AD0GQAZDBl4GawZkB2gHcAd0B80H2gdjAHkACWQ7gDwAPECAAmNtbnByAEwGTwZSBlUGWwb1IXRlOWHiIWRhm2NnAACg6ifsI2FjZXRyZgCgEiFyAACgniGAAWFleQBkBmcGagbyIW9uPWHkIWlsO2EbZAABZnNvBjQHdAAABUFDREZSVFVWYXKABp4GpAbGBssG3AYDByEHwQIqBwABbnKEBowGZyVsZUJyYWNrZXQAAKDoJ/Ihb3cAoZAhQlKTBpcGYQByAACg5CHpJGdodEFycm93AKDGIWUjaWxpbmcAAKAII28A9QGqBgAAsgZiJWxlQnJhY2tldAAAoOYnbgDUAbcGAAC+BmUkZVZlY3RvcgAAoGEp5SJjdG9yQqDDIWEAcgAAoFkpbCJvb3IAAKAKI2kiZ2h0AAABQVbSBtcGciJyb3cAAKCUIeUiY3RvcgCgTikAAWVy4AbwBmUAAKGjIkFW5gbrBnIicm93AACgpCHlImN0b3IAoFopaSNhbmdsZQBCorIi+wYAAAAA/wZhAHIAAKDPKXEidWFsAACgtCJwAIABRFRWAAoHEQcYB+8kd25WZWN0b3IAoFEpZSRlVmVjdG9yAACgYCnlImN0b3JCoL8hYQByAACgWCnlImN0b3JCoLwhYQByAACgUilpAGcAaAB0AGEAcgByAG8A9wDMAnMAAANFRkdMU1Q/B0cHTgdUB1gHXwfxJXVhbEdyZWF0ZXIAoNoidSRsbEVxdWFsAACgZiJyI2VhdGVyAACgdiLlIXNzAKChKuwkYW50RXF1YWwAoH0qaSJsZGUAAKByInIAAOA12A/dZaDYIuYjdGFycm93AKDaIWkiZG90AD9hgAFucHcAege1B7kHZwAAAkxSbHKCB5QHmwerB+UhZnQAAUFSiAeNB3Iicm93AACg9SfpJGdodEFycm93AKD3J+kkZ2h0QXJyb3cAoPYn5SFmdAABYXLcAqEHaQBnAGgAdABhAHIAcgBvAPcA5wJpAGcAaAB0AGEAcgByAG8A9wDuAmYAAOA12EPdZQByAAABTFK/B8YHZSRmdEFycm93AACgmSHpJGdodEFycm93AKCYIYABY2h0ANMH1QfXB/IAWgYAoLAh8iFva0FhAKBqIgAEYWNlZmlvc3XpB+wH7gf/BwMICQgOCBEIcAAAoAUpeQAcZAABZGzyB/kHaSR1bVNwYWNlAACgXyBsI2ludHJmAACgMyFyAADgNdgQ3e4jdXNQbHVzAKATInAAZgAA4DXYRN1jAPIA/gecY4AESmFjZWZvc3R1ACEIJAgoCDUIgQiFCDsKQApHCmMAeQAKZGMidXRlAENhgAFhZXkALggxCDQI8iFvbkdh5CFpbEVhHWSAAWdzdwA7CGEIfQjhInRpdmWAAU1UVgBECEwIWQhlJWRpdW1TcGFjZQAAoAsgaABpAAABY25SCFMIawBTAHAAYQBjAOUASwhlAHIAeQBUAGgAaQDuAFQI9CFlZAABR0xnCHUIcgBlAGEAdABlAHIARwByAGUAYQB0AGUA8gDrBGUAcwBzAEwAZQBzAPMA2wdMImluZQAKYHIAAOA12BHdAAJCbnB0jAiRCJkInAhyImVhawAAoGAgwiZyZWFraW5nU3BhY2WgYGYAAKAVIUOq7CqzCMIIzQgAAOcIGwkAAAAAAAAtCQAAbwkAAIcJAACdCcAJGQoAADQKAAFvdbYIvAjuI2dydWVudACgYiJwIkNhcAAAoG0ibyh1YmxlVmVydGljYWxCYXIAAKAmIoABbHF4ANII1wjhCOUibWVudACgCSL1IWFsVKBgImkibGRlAADgQiI4A2kic3RzAACgBCJyI2VhdGVyAACjbyJFRkdMU1T1CPoIAgkJCQ0JFQlxInVhbAAAoHEidSRsbEVxdWFsAADgZyI4A3IjZWF0ZXIAAOBrIjgD5SFzcwCgeSLsJGFudEVxdWFsAOB+KjgDaSJsZGUAAKB1IvUhbXBEASAJJwnvI3duSHVtcADgTiI4A3EidWFsAADgTyI4A2UAAAFmczEJRgn0JFRyaWFuZ2xlQqLqIj0JAAAAAEIJYQByAADgzyk4A3EidWFsAACg7CJzAICibiJFR0xTVABRCVYJXAlhCWkJcSJ1YWwAAKBwInIjZWF0ZXIAAKB4IuUhc3MA4GoiOAPsJGFudEVxdWFsAOB9KjgDaSJsZGUAAKB0IuUic3RlZAABR0x1CX8J8iZlYXRlckdyZWF0ZXIA4KIqOAPlI3NzTGVzcwDgoSo4A/IjZWNlZGVzAKGAIkVTjwmVCXEidWFsAADgryo4A+wkYW50RXF1YWwAoOAiAAFlaaAJqQl2JmVyc2VFbGVtZW50AACgDCLnJWh0VHJpYW5nbGVCousitgkAAAAAuwlhAHIAAODQKTgDcSJ1YWwAAKDtIgABcXXDCeAJdSNhcmVTdQAAAWJwywnVCfMhZXRF4I8iOANxInVhbAAAoOIi5SJyc2V0ReCQIjgDcSJ1YWwAAKDjIoABYmNwAOYJ8AkNCvMhZXRF4IIi0iBxInVhbAAAoIgi4yJlZWRzgKGBIkVTVAD6CQAKBwpxInVhbAAA4LAqOAPsJGFudEVxdWFsAKDhImkibGRlAADgfyI4A+UicnNldEXggyLSIHEidWFsAACgiSJpImxkZQCAoUEiRUZUACIKJwouCnEidWFsAACgRCJ1JGxsRXF1YWwAAKBHImkibGRlAACgSSJlJXJ0aWNhbEJhcgAAoCQiYwByAADgNdip3GkAbABkAGUAO4DRANFAnWMAB0VhY2RmZ21vcHJzdHV2XgphCmgKcgp2CnoKgQqRCpYKqwqtCrsKyArNCuwhaWdSYWMAdQB0AGUAO4DTANNAAAFpeWwKcQpyAGMAO4DUANRAHmRiImxhYwBQYXIAAOA12BLdcgBhAHYAZQA7gNIA0kCAAWFlaQCHCooKjQpjAHIATGFnAGEAqWNjInJvbgCfY3AAZgAA4DXYRt3lI25DdXJseQABRFGeCqYKbyV1YmxlUXVvdGUAAKAcIHUib3RlAACgGCAAoFQqAAFjbLEKtQpyAADgNdiq3GEAcwBoADuA2ADYQGkAbAHACsUKZABlADuA1QDVQGUAcwAAoDcqbQBsADuA1gDWQGUAcgAAAUJQ0wrmCgABYXLXCtoKcgAAoD4gYQBjAAABZWvgCuIKAKDeI2UAdAAAoLQjYSVyZW50aGVzaXMAAKDcI4AEYWNmaGlsb3JzAP0KAwsFCwkLCwsMCxELIwtaC3IjdGlhbEQAAKACInkAH2RyAADgNdgT3WkApmOgY/Ujc01pbnVzsWAAAWlwFQsgC24AYwBhAHIAZQBwAGwAYQBuAOUACgVmAACgGSGAobsqZWlvACoLRQtJC+MiZWRlc4CheiJFU1QANAs5C0ALcSJ1YWwAAKCvKuwkYW50RXF1YWwAoHwiaSJsZGUAAKB+Im0AZQAAoDMgAAFkcE0LUQv1IWN0AKAPIm8jcnRpb24AYaA3ImwAAKAdIgABY2leC2ILcgAA4DXYq9yoYwACVWZvc2oLbwtzC3cLTwBUADuAIgAiQHIAAOA12BTdcABmAACgGiFjAHIAAOA12KzcAAZCRWFjZWZoaW9yc3WPC5MLlwupC7YL2AvbC90LhQyTDJoMowzhIXJyAKAQKUcAO4CuAK5AgAFjbnIAnQugC6ML9SF0ZVRhZwAAoOsncgB0oKAhbAAAoBYpgAFhZXkArwuyC7UL8iFvblhh5CFpbFZhIGR2oBwhZSJyc2UAAAFFVb8LzwsAAWxxwwvIC+UibWVudACgCyL1JGlsaWJyaXVtAKDLIXAmRXF1aWxpYnJpdW0AAKBvKXIAAKAcIW8AoWPnIWh0AARBQ0RGVFVWYewLCgwQDDIMNwxeDHwM9gIAAW5y8Av4C2clbGVCcmFja2V0AACg6SfyIW93AKGSIUJM/wsDDGEAcgAAoOUhZSRmdEFycm93AACgxCFlI2lsaW5nAACgCSNvAPUBFgwAAB4MYiVsZUJyYWNrZXQAAKDnJ24A1AEjDAAAKgxlJGVWZWN0b3IAAKBdKeUiY3RvckKgwiFhAHIAAKBVKWwib29yAACgCyMAAWVyOwxLDGUAAKGiIkFWQQxGDHIicm93AACgpiHlImN0b3IAoFspaSNhbmdsZQBCorMiVgwAAAAAWgxhAHIAAKDQKXEidWFsAACgtSJwAIABRFRWAGUMbAxzDO8kd25WZWN0b3IAoE8pZSRlVmVjdG9yAACgXCnlImN0b3JCoL4hYQByAACgVCnlImN0b3JCoMAhYQByAACgUykAAXB1iQyMDGYAAKAdIe4kZEltcGxpZXMAoHAp6SRnaHRhcnJvdwCg2yEAAWNongyhDHIAAKAbIQCgsSHsJGVEZWxheWVkAKD0KYAGSE9hY2ZoaW1vcXN0dQC/DMgMzAzQDOIM5gwKDQ0NFA0ZDU8NVA1YDQABQ2PDDMYMyCFjeSlkeQAoZEYiVGN5ACxkYyJ1dGUAWmEAorwqYWVpedgM2wzeDOEM8iFvbmBh5CFpbF5hcgBjAFxhIWRyAADgNdgW3e8hcnQAAkRMUlXvDPYM/QwEDW8kd25BcnJvdwAAoJMhZSRmdEFycm93AACgkCHpJGdodEFycm93AKCSIXAjQXJyb3cAAKCRIechbWGjY+EkbGxDaXJjbGUAoBgicABmAADgNdhK3XICHw0AAAAAIg10AACgGiLhIXJlgKGhJUlTVQAqDTINSg3uJXRlcnNlY3Rpb24AoJMidQAAAWJwNw1ADfMhZXRFoI8icSJ1YWwAAKCRIuUicnNldEWgkCJxInVhbAAAoJIibiJpb24AAKCUImMAcgAA4DXYrtxhAHIAAKDGIgACYmNtcF8Nag2ODZANc6DQImUAdABFoNAicSJ1YWwAAKCGIgABY2huDYkNZSJlZHMAgKF7IkVTVAB4DX0NhA1xInVhbAAAoLAq7CRhbnRFcXVhbACgfSJpImxkZQAAoH8iVABoAGEA9ADHCwCgESIAodEiZXOVDZ8NciJzZXQARaCDInEidWFsAACghyJlAHQAAKDRIoAFSFJTYWNmaGlvcnMAtQ27Db8NyA3ODdsN3w3+DRgOHQ4jDk8AUgBOADuA3gDeQMEhREUAoCIhAAFIY8MNxg1jAHkAC2R5ACZkAAFidcwNzQ0JYKRjgAFhZXkA1A3XDdoN8iFvbmRh5CFpbGJhImRyAADgNdgX3QABZWnjDe4N8gHoDQAA7Q3lImZvcmUAoDQiYQCYYwABY27yDfkNayNTcGFjZQAA4F8gCiDTInBhY2UAoAkg7CFkZYChPCJFRlQABw4MDhMOcSJ1YWwAAKBDInUkbGxFcXVhbAAAoEUiaSJsZGUAAKBIInAAZgAA4DXYS93pI3BsZURvdACg2yAAAWN0Jw4rDnIAAOA12K/c8iFva2Zh4QpFDlYOYA5qDgAAbg5yDgAAAAAAAAAAAAB5DnwOqA6zDgAADg8RDxYPGg8AAWNySA5ODnUAdABlADuA2gDaQHIAb6CfIeMhaXIAoEkpcgDjAVsOAABdDnkADmR2AGUAbGEAAWl5Yw5oDnIAYwA7gNsA20AjZGIibGFjAHBhcgAA4DXYGN1yAGEAdgBlADuA2QDZQOEhY3JqYQABZGl/Dp8OZQByAAABQlCFDpcOAAFhcokOiw5yAF9gYQBjAAABZWuRDpMOAKDfI2UAdAAAoLUjYSVyZW50aGVzaXMAAKDdI28AbgBQoMMi7CF1cwCgjiIAAWdwqw6uDm8AbgByYWYAAOA12EzdAARBREVUYWRwc78O0g7ZDuEOBQPqDvMOBw9yInJvdwDCoZEhyA4AAMwOYQByAACgEilvJHduQXJyb3cAAKDFIW8kd25BcnJvdwAAoJUhcSV1aWxpYnJpdW0AAKBuKWUAZQBBoKUiciJyb3cAAKClIW8AdwBuAGEAcgByAG8A9wAQA2UAcgAAAUxS+Q4AD2UkZnRBcnJvdwAAoJYh6SRnaHRBcnJvdwCglyFpAGyg0gNvAG4ApWPpIW5nbmFjAHIAAOA12LDcaSJsZGUAaGFtAGwAO4DcANxAgAREYmNkZWZvc3YALQ8xDzUPNw89D3IPdg97D4AP4SFzaACgqyJhAHIAAKDrKnkAEmThIXNobKCpIgCg5ioAAWVyQQ9DDwCgwSKAAWJ0eQBJD00Paw9hAHIAAKAWIGmgFiDjIWFsAAJCTFNUWA9cD18PZg9hAHIAAKAjIukhbmV8YGUkcGFyYXRvcgAAoFgnaSJsZGUAAKBAItQkaGluU3BhY2UAoAogcgAA4DXYGd1wAGYAAOA12E3dYwByAADgNdix3GQiYXNoAACgqiKAAmNlZm9zAI4PkQ+VD5kPng/pIXJjdGHkIWdlAKDAInIAAOA12BrdcABmAADgNdhO3WMAcgAA4DXYstwAAmZpb3OqD64Prw+0D3IAAOA12BvdnmNwAGYAAOA12E/dYwByAADgNdiz3IAEQUlVYWNmb3N1AMgPyw/OD9EP2A/gD+QP6Q/uD2MAeQAvZGMAeQAHZGMAeQAuZGMAdQB0AGUAO4DdAN1AAAFpedwP3w9yAGMAdmErZHIAAOA12BzdcABmAADgNdhQ3WMAcgAA4DXYtNxtAGwAeGEABEhhY2RlZm9z/g8BEAUQDRAQEB0QIBAkEGMAeQAWZGMidXRlAHlhAAFheQkQDBDyIW9ufWEXZG8AdAB7YfIBFRAAABwQbwBXAGkAZAB0AOgAVAhhAJZjcgAAoCghcABmAACgJCFjAHIAAOA12LXc4QtCEEkQTRAAAGcQbRByEAAAAAAAAAAAeRCKEJcQ8hD9EAAAGxEhETIROREAAD4RYwB1AHQAZQA7gOEA4UByImV2ZQADYYCiPiJFZGl1eQBWEFkQWxBgEGUQAOA+IjMDAKA/InIAYwA7gOIA4kB0AGUAO4C0ALRAMGRsAGkAZwA7gOYA5kByoGEgAOA12B7dcgBhAHYAZQA7gOAA4EAAAWVwfBCGEAABZnCAEIQQ8yF5bQCgNSHoAIMQaABhALFjAAFhcI0QWwAAAWNskRCTEHIAAWFnAACgPypkApwQAAAAALEQAKInImFkc3ajEKcQqRCuEG4AZAAAoFUqAKBcKmwib3BlAACgWCoAoFoqAKMgImVsbXJzersQvRDAEN0Q5RDtEACgpCllAACgICJzAGQAYaAhImEEzhDQENIQ1BDWENgQ2hDcEACgqCkAoKkpAKCqKQCgqykAoKwpAKCtKQCgrikAoK8pdAB2oB8iYgBkoL4iAKCdKQABcHTpEOwQaAAAoCIixWDhIXJyAKB8IwABZ3D1EPgQbwBuAAVhZgAA4DXYUt0Ao0giRWFlaW9wBxEJEQ0RDxESERQRAKBwKuMhaXIAoG8qAKBKImQAAKBLInMAJ2DyIW94ZaBIIvEADhFpAG4AZwA7gOUA5UCAAWN0eQAmESoRKxFyAADgNdi23CpgbQBwAGWgSCLxAPgBaQBsAGQAZQA7gOMA40BtAGwAO4DkAORAAAFjaUERRxFvAG4AaQBuAPQA6AFuAHQAAKARKgAITmFiY2RlZmlrbG5vcHJzdWQRaBGXEZ8RpxGrEdIR1hErEjASexKKEn0RThNbE3oTbwB0AACg7SoAAWNybBGJEWsAAAJjZXBzdBF4EX0RghHvIW5nAKBMInAjc2lsb24A9mNyImltZQAAoDUgaQBtAGWgPSJxAACgzSJ2AY0RkRFlAGUAAKC9ImUAZABnoAUjZQAAoAUjcgBrAHSgtSPiIXJrAKC2IwABb3mjEaYRbgDnAHcRMWTxIXVvAKAeIIACY21wcnQAtBG5Eb4RwRHFEeEhdXPloDUi5ABwInR5dgAAoLApcwDpAH0RbgBvAPUA6gCAAWFodwDLEcwRzhGyYwCgNiHlIWVuAKBsInIAAOA12B/dZwCAA2Nvc3R1dncA4xHyEQUSEhIhEiYSKRKAAWFpdQDpEesR7xHwAKMFcgBjAACg7yVwAACgwyKAAWRwdAD4EfwRABJvAHQAAKAAKuwhdXMAoAEqaSJtZXMAAKACKnECCxIAAAAADxLjIXVwAKAGKmEAcgAAoAUm8iNpYW5nbGUAAWR1GhIeEu8hd24AoL0lcAAAoLMlcCJsdXMAAKAEKmUA5QBCD+UAkg9hInJvdwAAoA0pgAFha28ANhJoEncSAAFjbjoSZRJrAIABbHN0AEESRxJNEm8jemVuZ2UAAKDrKXEAdQBhAHIA5QBcBPIjaWFuZ2xlgKG0JWRscgBYElwSYBLvIXduAKC+JeUhZnQAoMIlaSJnaHQAAKC4JWsAAKAjJLEBbRIAAHUSsgFxEgAAcxIAoJIlAKCRJTQAAKCTJWMAawAAoIglAAFlb38ShxJx4D0A5SD1IWl2AOBhIuUgdAAAoBAjAAJwdHd4kRKVEpsSnxJmAADgNdhT3XSgpSJvAG0AAKClIvQhaWUAoMgiAAZESFVWYmRobXB0dXayEsES0RLgEvcS+xIKExoTHxMjEygTNxMAAkxSbHK5ErsSvRK/EgCgVyUAoFQlAKBWJQCgUyUAolAlRFVkdckSyxLNEs8SAKBmJQCgaSUAoGQlAKBnJQACTFJsctgS2hLcEt4SAKBdJQCgWiUAoFwlAKBZJQCjUSVITFJobHLrEu0S7xLxEvMS9RIAoGwlAKBjJQCgYCUAoGslAKBiJQCgXyVvAHgAAKDJKQACTFJscgITBBMGEwgTAKBVJQCgUiUAoBAlAKAMJQCiACVEVWR1EhMUExYTGBMAoGUlAKBoJQCgLCUAoDQlaSJudXMAAKCfIuwhdXMAoJ4iaSJtZXMAAKCgIgACTFJsci8TMRMzEzUTAKBbJQCgWCUAoBglAKAUJQCjAiVITFJobHJCE0QTRhNIE0oTTBMAoGolAKBhJQCgXiUAoDwlAKAkJQCgHCUAAWV2UhNVE3YA5QD5AGIAYQByADuApgCmQAACY2Vpb2ITZhNqE24TcgAA4DXYt9xtAGkAAKBPIG0A5aA9IogRbAAAoVwAYmh0E3YTAKDFKfMhdWIAoMgnbAF+E4QTbABloCIgdAAAoCIgcAAAoU4iRWWJE4sTAKCuKvGgTyI8BeEMqRMAAN8TABQDFB8UAAAjFDQUAAAAAIUUAAAAAI0UAAAAANcU4xT3FPsUAACIFQAAlhWAAWNwcgCuE7ET1RP1IXRlB2GAoikiYWJjZHMAuxO/E8QTzhPSE24AZAAAoEQqciJjdXAAAKBJKgABYXXIE8sTcAAAoEsqcAAAoEcqbwB0AACgQCoA4CkiAP4AAWVv2RPcE3QAAKBBIO4ABAUAAmFlaXXlE+8T9RP4E/AB6hMAAO0TcwAAoE0qbwBuAA1hZABpAGwAO4DnAOdAcgBjAAlhcABzAHOgTCptAACgUCpvAHQAC2GAAWRtbgAIFA0UEhRpAGwAO4C4ALhAcCJ0eXYAAKCyKXQAAIGiADtlGBQZFKJAcgBkAG8A9ABiAXIAAOA12CDdgAFjZWkAKBQqFDIUeQBHZGMAawBtoBMn4SFyawCgEyfHY3IAAKPLJUVjZWZtcz8UQRRHFHcUfBSAFACgwykAocYCZWxGFEkUcQAAoFciZQBhAlAUAAAAAGAUciJyb3cAAAFsclYUWhTlIWZ0AKC6IWkiZ2h0AACguyGAAlJTYWNkAGgUaRRrFG8UcxSuYACgyCRzAHQAAKCbIukhcmMAoJoi4SFzaACgnSJuImludAAAoBAqaQBkAACg7yrjIWlyAKDCKfUhYnN1oGMmaQB0AACgYybsApMUmhS2FAAAwxRvAG4AZaA6APGgVCKrAG0CnxQAAAAAoxRhAHSgLABAYAChASJmbKcUqRTuABMNZQAAAW14rhSyFOUhbnQAoAEiZQDzANIB5wG6FAAAwBRkoEUibwB0AACgbSpuAPQAzAGAAWZyeQDIFMsUzhQA4DXYVN1vAOQA1wEAgakAO3MeAdMUcgAAoBchAAFhb9oU3hRyAHIAAKC1IXMAcwAAoBcnAAFjdeYU6hRyAADgNdi43AABYnDuFPIUZaDPKgCg0SploNAqAKDSKuQhb3QAoO8igANkZWxwcnZ3AAYVEBUbFSEVRBVlFYQV4SFycgABbHIMFQ4VAKA4KQCgNSlwAhYVAAAAABkVcgAAoN4iYwAAoN8i4SFycnCgtiEAoD0pgKIqImJjZG9zACsVMBU6FT4VQRVyImNhcAAAoEgqAAFhdTQVNxVwAACgRipwAACgSipvAHQAAKCNInIAAKBFKgDgKiIA/gACYWxydksVURVuFXMVcgByAG2gtyEAoDwpeQCAAWV2dwBYFWUVaRVxAHACXxUAAAAAYxVyAGUA4wAXFXUA4wAZFWUAZQAAoM4iZSJkZ2UAAKDPImUAbgA7gKQApEBlI2Fycm93AAABbHJ7FX8V5SFmdACgtiFpImdodAAAoLchZQDkAG0VAAFjaYsVkRVvAG4AaQBuAPQAkwFuAHQAAKAxImwiY3R5AACgLSOACUFIYWJjZGVmaGlqbG9yc3R1d3oAuBW7Fb8V1RXgFegV+RUKFhUWHxZUFlcWZRbFFtsW7xb7FgUXChdyAPIAtAJhAHIAAKBlKQACZ2xyc8YVyhXOFdAV5yFlcgCgICDlIXRoAKA4IfIA9QxoAHagECAAoKMiawHZFd4VYSJyb3cAAKAPKWEA4wBfAgABYXnkFecV8iFvbg9hNGQAoUYhYW/tFfQVAAFnciEC8RVyAACgyiF0InNlcQAAoHcqgAFnbG0A/xUCFgUWO4CwALBAdABhALRjcCJ0eXYAAKCxKQABaXIOFhIW8yFodACgfykA4DXYId1hAHIAAAFschsWHRYAoMMhAKDCIYACYWVnc3YAKBauAjYWOhY+Fm0AAKHEIm9zLhY0Fm4AZABzoMQi9SFpdACgZiZhIm1tYQDdY2kAbgAAoPIiAKH3AGlvQxZRFmQAZQAAgfcAO29KFksW90BuI3RpbWVzAACgxyJuAPgAUBZjAHkAUmRjAG8CXhYAAAAAYhZyAG4AAKAeI28AcAAAoA0jgAJscHR1dwBuFnEWdRaSFp4W7CFhciRgZgAA4DXYVd0AotkCZW1wc30WhBaJFo0WcQBkoFAibwB0AACgUSJpIm51cwAAoDgi7CF1cwCgFCLxInVhcmUAoKEiYgBsAGUAYgBhAHIAdwBlAGQAZwDlANcAbgCAAWFkaAClFqoWtBZyAHIAbwD3APUMbwB3AG4AYQByAHIAbwB3APMA8xVhI3Jwb29uAAABbHK8FsAWZQBmAPQAHBZpAGcAaAD0AB4WYgHJFs8WawBhAHIAbwD3AJILbwLUFgAAAADYFnIAbgAAoB8jbwBwAACgDCOAAWNvdADhFukW7BYAAXJ55RboFgDgNdi53FVkbAAAoPYp8iFvaxFhAAFkcvMW9xZvAHQAAKDxImkA5qC/JVsSAAFhaP8WAhdyAPIANQNhAPIA1wvhIm5nbGUAoKYpAAFjaQ4XEBd5AF9k5yJyYXJyAKD/JwAJRGFjZGVmZ2xtbm9wcXJzdHV4MRc4F0YXWxcyBF4XaRd5F40XrBe0F78X2RcVGCEYLRg1GEAYAAFEbzUXgRZvAPQA+BUAAWNzPBdCF3UAdABlADuA6QDpQPQhZXIAoG4qAAJhaW95TRdQF1YXWhfyIW9uG2FyAGOgViI7gOoA6kDsIW9uAKBVIk1kbwB0ABdhAAFEcmIXZhdvAHQAAKBSIgDgNdgi3XKhmipuF3QXYQB2AGUAO4DoAOhAZKCWKm8AdAAAoJgqgKGZKmlscwCAF4UXhxfuInRlcnMAoOcjAKATIWSglSpvAHQAAKCXKoABYXBzAJMXlheiF2MAcgATYXQAeQBzogUinxcAAAAAoRdlAHQAAKAFInAAMaADIDMBqRerFwCgBCAAoAUgAAFnc7AXsRdLYXAAAKACIAABZ3C4F7sXbwBuABlhZgAA4DXYVt2AAWFscwDFF8sXzxdyAHOg1SJsAACg4yl1AHMAAKBxKmkAAKG1A2x21RfYF28AbgC1Y/VjAAJjc3V24BfoF/0XEBgAAWlv5BdWF3IAYwAAoFYiaQLuFwAAAADwF+0ADQThIW50AAFnbPUX+Rd0AHIAAKCWKuUhc3MAoJUqgAFhZWkAAxgGGAoYbABzAD1gcwB0AACgXyJ2AESgYSJEAACgeCrwImFyc2wAoOUpAAFEYRkYHRhvAHQAAKBTInIAcgAAoHEpgAFjZGkAJxgqGO0XcgAAoC8hbwD0AIwCAAFhaDEYMhi3YzuA8ADwQAABbXI5GD0YbAA7gOsA60BvAACgrCCAAWNpcABGGEgYSxhsACFgcwD0ACwEAAFlb08YVxhjAHQAYQB0AGkAbwDuABoEbgBlAG4AdABpAGEAbADlADME4Ql1GAAAgRgAAIMYiBgAAAAAoRilGAAAqhgAALsYvhjRGAAA1xgnGWwAbABpAG4AZwBkAG8AdABzAGUA8QBlF3kARGRtImFsZQAAoEAmgAFpbHIAjRiRGJ0Y7CFpZwCgA/tpApcYAAAAAJoYZwAAoAD7aQBnAACgBPsA4DXYI93sIWlnAKAB++whaWcA4GYAagCAAWFsdACvGLIYthh0AACgbSZpAGcAAKAC+24AcwAAoLElbwBmAJJh8AHCGAAAxhhmAADgNdhX3QABYWvJGMwYbADsAGsEdqDUIgCg2SphI3J0aW50AACgDSoAAWFv2hgiGQABY3PeGB8ZsQPnGP0YBRkSGRUZAAAdGbID7xjyGPQY9xj5GAAA+xg7gL0AvUAAoFMhO4C8ALxAAKBVIQCgWSEAoFshswEBGQAAAxkAoFQhAKBWIbQCCxkOGQAAAAAQGTuAvgC+QACgVyEAoFwhNQAAoFghtgEZGQAAGxkAoFohAKBdITgAAKBeIWwAAKBEIHcAbgAAoCIjYwByAADgNdi73IAIRWFiY2RlZmdpamxub3JzdHYARhlKGVoZXhlmGWkZkhmWGZkZnRmgGa0ZxhnLGc8Z4BkjGmygZyIAoIwqgAFjbXAAUBlTGVgZ9SF0ZfVhbQBhAOSgswM6FgCghipyImV2ZQAfYQABaXliGWUZcgBjAB1hM2RvAHQAIWGAoWUibHFzAMYEcBl6GfGhZSLOBAAAdhlsAGEAbgD0AN8EgKF+KmNkbACBGYQZjBljAACgqSpvAHQAb6CAKmyggioAoIQqZeDbIgD+cwAAoJQqcgAA4DXYJN3noGsirATtIWVsAKA3IWMAeQBTZIChdyJFYWoApxmpGasZAKCSKgCgpSoAoKQqAAJFYWVztBm2Gb0ZwhkAoGkicABwoIoq8iFveACgiipxoIgq8aCIKrUZaQBtAACg5yJwAGYAAOA12FjdYQB2AOUAYwIAAWNp0xnWGXIAAKAKIW0AAKFzImVs3BneGQCgjioAoJAqAIM+ADtjZGxxco0E6xn0GfgZ/BkBGgABY2nvGfEZAKCnKnIAAKB6Km8AdAAAoNci0CFhcgCglSl1ImVzdAAAoHwqgAJhZGVscwAKGvQZFhrVBCAa8AEPGgAAFBpwAHIAbwD4AFkZcgAAoHgpcQAAAWxxxAQbGmwAZQBzAPMASRlpAO0A5AQAAWVuJxouGnIjdG5lcXEAAOBpIgD+xQAsGgAFQWFiY2Vma29zeUAaQxpmGmoabRqDGocalhrCGtMacgDyAMwCAAJpbG1yShpOGlAaVBpyAHMA8ABxD2YAvWBpAGwA9AASBQABZHJYGlsaYwB5AEpkAKGUIWN3YBpkGmkAcgAAoEgpAKCtIWEAcgAAoA8h6SFyYyVhgAFhbHIAcxp7Gn8a8iF0c3WgZSZpAHQAAKBlJuwhaXAAoCYg4yFvbgCguSJyAADgNdgl3XMAAAFld4wakRphInJvdwAAoCUpYSJyb3cAAKAmKYACYW1vcHIAnxqjGqcauhq+GnIAcgAAoP8h9CFodACgOyJrAAABbHKsGrMaZSRmdGFycm93AACgqSHpJGdodGFycm93AKCqIWYAAOA12Fnd4iFhcgCgFSCAAWNsdADIGswa0BpyAADgNdi93GEAcwDoAGka8iFvaydhAAFicNca2xr1IWxsAKBDIOghZW4AoBAg4Qr2GgAA/RoAAAgbExsaGwAAIRs7GwAAAAA+G2IbmRuVG6sbAACyG80b0htjAHUAdABlADuA7QDtQAChYyBpeQEbBhtyAGMAO4DuAO5AOGQAAWN4CxsNG3kANWRjAGwAO4ChAKFAAAFmcssCFhsA4DXYJt1yAGEAdgBlADuA7ADsQIChSCFpbm8AJxsyGzYbAAFpbisbLxtuAHQAAKAMKnQAAKAtIuYhaW4AoNwpdABhAACgKSHsIWlnM2GAAWFvcABDG1sbXhuAAWNndABJG0sbWRtyACthgAFlbHAAcQVRG1UbaQBuAOUAyAVhAHIA9AByBWgAMWFmAACgtyJlAGQAtWEAoggiY2ZvdGkbbRt1G3kb4SFyZQCgBSFpAG4AdKAeImkAZQAAoN0pZABvAPQAWxsAoisiY2VscIEbhRuPG5QbYQBsAACguiIAAWdyiRuNG2UAcgDzACMQ4wCCG2EicmhrAACgFyryIW9kAKA8KgACY2dwdJ8boRukG6gbeQBRZG8AbgAvYWYAAOA12FrdYQC5Y3UAZQBzAHQAO4C/AL9AAAFjabUbuRtyAADgNdi+3G4AAKIIIkVkc3bCG8QbyBvQAwCg+SJvAHQAAKD1Inag9CIAoPMiaaBiIOwhZGUpYesB1hsAANkbYwB5AFZkbAA7gO8A70AAA2NmbW9zdeYb7hvyG/Ub+hsFHAABaXnqG+0bcgBjADVhOWRyAADgNdgn3eEhdGg3YnAAZgAA4DXYW93jAf8bAAADHHIAAOA12L/c8iFjeVhk6yFjeVRkAARhY2ZnaGpvcxUcGhwiHCYcKhwtHDAcNRzwIXBhdqC6A/BjAAFleR4cIRzkIWlsN2E6ZHIAAOA12CjdciJlZW4AOGFjAHkARWRjAHkAXGRwAGYAAOA12FzdYwByAADgNdjA3IALQUJFSGFiY2RlZmdoamxtbm9wcnN0dXYAXhxtHHEcdRx5HN8cBx0dHTwd3B3tHfEdAR4EHh0eLB5FHrwewx7hHgkfPR9LH4ABYXJ0AGQcZxxpHHIA8gBvB/IAxQLhIWlsAKAbKeEhcnIAoA4pZ6BmIgCgiyphAHIAAKBiKWMJjRwAAJAcAACVHAAAAAAAAAAAAACZHJwcAACmHKgcrRwAANIc9SF0ZTph7SJwdHl2AKC0KXIAYQDuAFoG4iFkYbtjZwAAoegnZGyhHKMcAKCRKeUAiwYAoIUqdQBvADuAqwCrQHIAgKOQIWJmaGxwc3QAuhy/HMIcxBzHHMoczhxmoOQhcwAAoB8pcwAAoB0p6wCyGnAAAKCrIWwAAKA5KWkAbQAAoHMpbAAAoKIhAKGrKmFl1hzaHGkAbAAAoBkpc6CtKgDgrSoA/oABYWJyAOUc6RztHHIAcgAAoAwpcgBrAACgcicAAWFr8Rz4HGMAAAFla/Yc9xx7YFtgAAFlc/wc/hwAoIspbAAAAWR1Ax0FHQCgjykAoI0pAAJhZXV5Dh0RHRodHB3yIW9uPmEAAWRpFR0YHWkAbAA8YewAowbiAPccO2QAAmNxcnMkHScdLB05HWEAAKA2KXUAbwDyoBwgqhEAAWR1MB00HeghYXIAoGcpcyJoYXIAAKBLKWgAAKCyIQCiZCJmZ3FzRB1FB5Qdnh10AIACYWhscnQATh1WHWUdbB2NHXIicm93AHSgkCFhAOkAzxxhI3Jwb29uAAABZHVeHWId7yF3bgCgvSFwAACgvCHlJGZ0YXJyb3dzAKDHIWkiZ2h0AIABYWhzAHUdex2DHXIicm93APOglCGdBmEAcgBwAG8AbwBuAPMAzgtxAHUAaQBnAGEAcgByAG8A9wBlGugkcmVldGltZXMAoMsi8aFkIk0HAACaHWwAYQBuAPQAXgcAon0qY2Rnc6YdqR2xHbcdYwAAoKgqbwB0AG+gfypyoIEqAKCDKmXg2iIA/nMAAKCTKoACYWRlZ3MAwB3GHcod1h3ZHXAAcAByAG8A+ACmHG8AdAAAoNYicQAAAWdxzx3SHXQA8gBGB2cAdADyAHQcdADyAFMHaQDtAGMHgAFpbHIA4h3mHeod8yFodACgfClvAG8A8gDKBgDgNdgp3UWgdiIAoJEqYQH1Hf4dcgAAAWR1YB35HWygvCEAoGopbABrAACghCVjAHkAWWQAomoiYWNodAweDx4VHhkecgDyAGsdbwByAG4AZQDyAGAW4SFyZACgaylyAGkAAKD6JQABaW8hHiQe5CFvdEBh9SFzdGGgsCPjIWhlAKCwIwACRWFlczMeNR48HkEeAKBoInAAcKCJKvIhb3gAoIkqcaCHKvGghyo0HmkAbQAAoOYiAARhYm5vcHR3elIeXB5fHoUelh6mHqsetB4AAW5yVh5ZHmcAAKDsJ3IAAKD9IXIA6wCwBmcAgAFsbXIAZh52Hnse5SFmdAABYXKIB2weaQBnAGgAdABhAHIAcgBvAPcAkwfhInBzdG8AoPwnaQBnAGgAdABhAHIAcgBvAPcAmgdwI2Fycm93AAABbHKNHpEeZQBmAPQAxhxpImdodAAAoKwhgAFhZmwAnB6fHqIecgAAoIUpAOA12F3ddQBzAACgLSppIm1lcwAAoDQqYQGvHrMecwB0AACgFyLhAIoOZaHKJbkeRhLuIWdlAKDKJWEAcgBsoCgAdAAAoJMpgAJhY2htdADMHs8e1R7bHt0ecgDyAJ0GbwByAG4AZQDyANYWYQByAGSgyyEAoG0pAKAOIHIAaQAAoL8iAANhY2hpcXTrHu8e1QfzHv0eBh/xIXVvAKA5IHIAAOA12MHcbQDloXIi+h4AAPweAKCNKgCgjyoAAWJ19xwBH28AcqAYIACgGiDyIW9rQmEAhDwAO2NkaGlscXJCBhcfxh0gHyQfKB8sHzEfAAFjaRsfHR8AoKYqcgAAoHkqcgBlAOUAkx3tIWVzAKDJIuEhcnIAoHYpdSJlc3QAAKB7KgABUGk1HzkfYQByAACglillocMlAgdfEnIAAAFkdUIfRx9zImhhcgAAoEop6CFhcgCgZikAAWVuTx9WH3IjdG5lcXEAAOBoIgD+xQBUHwAHRGFjZGVmaGlsbm9wc3VuH3Ifoh+rH68ftx+7H74f5h/uH/MfBwj/HwsgxCFvdACgOiIAAmNscHJ5H30fiR+eH3IAO4CvAK9AAAFldIEfgx8AoEImZaAgJ3MAZQAAoCAnc6CmIXQAbwCAoaYhZGx1AJQfmB+cH28AdwDuAHkDZQBmAPQA6gbwAOkO6yFlcgCgriUAAW95ph+qH+0hbWEAoCkqPGThIXNoAKAUIOElc3VyZWRhbmdsZQCgISJyAADgNdgq3W8AAKAnIYABY2RuAMQfyR/bH3IAbwA7gLUAtUBhoiMi0B8AANMf1x9zAPQAKxFpAHIAAKDwKm8AdAA7gLcAt0B1AHMA4qESIh4TAADjH3WgOCIAoCoqYwHqH+0fcAAAoNsq8gB+GnAAbAB1APMACAgAAWRw9x/7H+UhbHMAoKciZgAA4DXYXt0AAWN0AyAHIHIAAOA12MLc8CFvcwCgPiJsobwDECAVIPQiaW1hcACguCJhAPAAEyAADEdMUlZhYmNkZWZnaGlqbG1vcHJzdHV2dzwgRyBmIG0geSCqILgg2iDeIBEhFSEyIUMhTSFQIZwhnyHSIQAiIyKLIrEivyIUIwABZ3RAIEMgAODZIjgD9uBrItIgBwmAAWVsdABNIF8gYiBmAHQAAAFhclMgWCByInJvdwAAoM0h6SRnaHRhcnJvdwCgziEA4NgiOAP24Goi0iBfCekkZ2h0YXJyb3cAoM8hAAFEZHEgdSDhIXNoAKCvIuEhc2gAoK4igAJiY25wdACCIIYgiSCNIKIgbABhAACgByL1IXRlRGFnAADgICLSIACiSSJFaW9wlSCYIJwgniAA4HAqOANkAADgSyI4A3MASWFyAG8A+AAyCnUAcgBhoG4mbADzoG4mmwjzAa8gAACzIHAAO4CgAKBAbQBwAOXgTiI4AyoJgAJhZW91eQDBIMogzSDWINkg8AHGIAAAyCAAoEMqbwBuAEhh5CFpbEZhbgBnAGSgRyJvAHQAAOBtKjgDcAAAoEIqPWThIXNoAKATIACjYCJBYWRxc3jpIO0g+SD+IAIhDCFyAHIAAKDXIXIAAAFocvIg9SBrAACgJClvoJch9wAGD28AdAAA4FAiOAN1AGkA9gC7CAABZWkGIQohYQByAACgKCntAN8I6SFzdPOgBCLlCHIAAOA12CvdAAJFZXN0/wgcISshLiHxoXEiIiEAABMJ8aFxIgAJAAAnIWwAYQBuAPQAEwlpAO0AGQlyoG8iAKBvIoABQWFwADghOyE/IXIA8gBeIHIAcgAAoK4hYQByAACg8ipzogsiSiEAAAAAxwtkoPwiAKD6ImMAeQBaZIADQUVhZGVzdABcIV8hYiFmIWkhkyGWIXIA8gBXIADgZiI4A3IAcgAAoJohcgAAoCUggKFwImZxcwBwIYQhjiF0AAABYXJ1IXohcgByAG8A9wBlIWkAZwBoAHQAYQByAHIAbwD3AD4h8aFwImAhAACKIWwAYQBuAPQAZwlz4H0qOAMAoG4iaQDtAG0JcqBuImkA5aDqIkUJaQDkADoKAAFwdKMhpyFmAADgNdhf3YCBrAA7aW4AriGvIcchrEBuAIChCSJFZHYAtyG6Ib8hAOD5IjgDbwB0AADg9SI4A+EB1gjEIcYhAKD3IgCg9iJpAHagDCLhAagJzyHRIQCg/iIAoP0igAFhb3IA2CHsIfEhcgCAoSYiYXN0AOAh5SHpIWwAbABlAOwAywhsAADg/SrlIADgAiI4A2wiaW50AACgFCrjoYAi9yEAAPohdQDlAJsJY+CvKjgDZaCAIvEAkwkAAkFhaXQHIgoiFyIeInIA8gBsIHIAcgAAoZshY3cRIhQiAOAzKTgDAOCdITgDZyRodGFycm93AACgmyFyAGkA5aDrIr4JgANjaGltcHF1AC8iPCJHIpwhTSJQIloigKGBImNlcgA2Iv0JOSJ1AOUABgoA4DXYw9zvIXJ0bQKdIQAAAABEImEAcgDhAOEhbQBloEEi8aBEIiYKYQDyAMsIcwB1AAABYnBWIlgi5QDUCeUA3wmAAWJjcABgInMieCKAoYQiRWVzAGci7glqIgDgxSo4A2UAdABl4IIi0iBxAPGgiCJoImMAZaCBIvEA/gmAoYUiRWVzAH8iFgqCIgDgxio4A2UAdABl4IMi0iBxAPGgiSKAIgACZ2lscpIilCKaIpwi7AAMCWwAZABlADuA8QDxQOcAWwlpI2FuZ2xlAAABbHKkIqoi5SFmdGWg6iLxAEUJaSJnaHQAZaDrIvEAvgltoL0DAKEjAGVzuCK8InIAbwAAoBYhcAAAoAcggARESGFkZ2lscnMAziLSItYi2iLeIugi7SICIw8j4SFzaACgrSLhIXJyAKAEKXAAAOBNItIg4SFzaACgrCIAAWV04iLlIgDgZSLSIADgPgDSIG4iZmluAACg3imAAUFldADzIvci+iJyAHIAAKACKQDgZCLSIHLgPADSIGkAZQAA4LQi0iAAAUF0BiMKI3IAcgAAoAMp8iFpZQDgtSLSIGkAbQAA4Dwi0iCAAUFhbgAaIx4jKiNyAHIAAKDWIXIAAAFociMjJiNrAACgIylvoJYh9wD/DuUhYXIAoCcpUxJqFAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAVCMAAF4jaSN/I4IjjSOeI8AUAAAAAKYjwCMAANoj3yMAAO8jHiQvJD8kRCQAAWNzVyNsFHUAdABlADuA8wDzQAABaXlhI2cjcgBjoJoiO4D0APRAPmSAAmFiaW9zAHEjdCN3I3EBeiNzAOgAdhTsIWFjUWF2AACgOCrvIWxkAKC8KewhaWdTYQABY3KFI4kjaQByAACgvykA4DXYLN1vA5QjAAAAAJYjAACcI24A22JhAHYAZQA7gPIA8kAAoMEpAAFibaEjjAphAHIAAKC1KQACYWNpdKwjryO6I70jcgDyAFkUAAFpcrMjtiNyAACgvinvIXNzAKC7KW4A5QDZCgCgwCmAAWFlaQDFI8gjyyNjAHIATWFnAGEAyWOAAWNkbgDRI9Qj1iPyIW9uv2MAoLYpdQDzAHgBcABmAADgNdhg3YABYWVsAOQj5yPrI3IAAKC3KXIAcAAAoLkpdQDzAHwBAKMoImFkaW9zdvkj/CMPJBMkFiQbJHIA8gBeFIChXSplZm0AAyQJJAwkcgBvoDQhZgAAoDQhO4CqAKpAO4C6ALpA5yFvZgCgtiJyAACgVipsIm9wZQAAoFcqAKBbKoABY2xvACMkJSQrJPIACCRhAHMAaAA7gPgA+EBsAACgmCJpAGwBMyQ4JGQAZQA7gPUA9UBlAHMAYaCXInMAAKA2Km0AbAA7gPYA9kDiIWFyAKA9I+EKXiQAAHokAAB8JJQkAACYJKkkAAAAALUkEQsAAPAkAAAAAAQleiUAAIMlcgCAoSUiYXN0AGUkbyQBCwCBtgA7bGokayS2QGwAZQDsABgDaQJ1JAAAAAB4JG0AAKDzKgCg/Sp5AD9kcgCAAmNpbXB0AIUkiCSLJJkSjyRuAHQAJWBvAGQALmBpAGwAAKAwIOUhbmsAoDEgcgAA4DXYLd2AAWltbwCdJKAkpCR2oMYD1WNtAGEA9AD+B24AZQAAoA4m9KHAA64kAAC0JGMjaGZvcmsAAKDUItZjAAFhdbgkxCRuAAABY2u9JMIkawBooA8hAKAOIfYAaRpzAACkKwBhYmNkZW1zdNMkIRPXJNsk4STjJOck6yTjIWlyAKAjKmkAcgAAoCIqAAFvdYsW3yQAoCUqAKByKm4AO4CxALFAaQBtAACgJip3AG8AAKAnKoABaXB1APUk+iT+JO4idGludACgFSpmAADgNdhh3W4AZAA7gKMAo0CApHoiRWFjZWlub3N1ABMlFSUYJRslTCVRJVklSSV1JQCgsypwAACgtyp1AOUAPwtjoK8qgKJ6ImFjZW5zACclLSU0JTYlSSVwAHAAcgBvAPgAFyV1AHIAbAB5AGUA8QA/C/EAOAuAAWFlcwA8JUElRSXwInByb3gAoLkqcQBxAACgtSppAG0AAKDoImkA7QBEC20AZQDzoDIgIguAAUVhcwBDJVclRSXwAEAlgAFkZnAATwtfJXElgAFhbHMAZSVpJW0l7CFhcgCgLiPpIW5lAKASI/UhcmYAoBMjdKAdIu8AWQvyIWVsAKCwIgABY2l9JYElcgAA4DXYxdzIY24iY3NwAACgCCAAA2Zpb3BzdZElKxuVJZolnyWkJXIAAOA12C7dcABmAADgNdhi3XIiaW1lAACgVyBjAHIAAOA12MbcgAFhZW8AqiW6JcAldAAAAWVpryW2JXIAbgBpAG8AbgDzABkFbgB0AACgFipzAHQAZaA/APEACRj0AG0LgApBQkhhYmNkZWZoaWxtbm9wcnN0dXgA4yXyJfYl+iVpJpAmpia9JtUm5ib4JlonaCdxJ3UnnietJ7EnyCfiJ+cngAFhcnQA6SXsJe4lcgDyAJkM8gD6AuEhaWwAoBwpYQByAPIA3BVhAHIAAKBkKYADY2RlbnFydAAGJhAmEyYYJiYmKyZaJgABZXUKJg0mAOA9IjEDdABlAFVhaQDjACAN7SJwdHl2AKCzKWcAgKHpJ2RlbAAgJiImJCYAoJIpAKClKeUA9wt1AG8AO4C7ALtAcgAApZIhYWJjZmhscHN0dz0mQCZFJkcmSiZMJk4mUSZVJlgmcAAAoHUpZqDlIXMAAKAgKQCgMylzAACgHinrALka8ACVHmwAAKBFKWkAbQAAoHQpbAAAoKMhAKCdIQABYWleJmImaQBsAACgGilvAG6gNiJhAGwA8wB2C4ABYWJyAG8mciZ2JnIA8gAvEnIAawAAoHMnAAFha3omgSZjAAABZWt/JoAmfWBdYAABZXOFJocmAKCMKWwAAAFkdYwmjiYAoI4pAKCQKQACYWV1eZcmmiajJqUm8iFvbllhAAFkaZ4moSZpAGwAV2HsAA8M4gCAJkBkAAJjbHFzrSawJrUmuiZhAACgNylkImhhcgAAoGkpdQBvAPKgHSCjAWgAAKCzIYABYWNnAMMm0iaUC2wAgKEcIWlwcwDLJs4migxuAOUAoAxhAHIA9ADaC3QAAKCtJYABaWxyANsm3ybjJvMhaHQAoH0pbwBvAPIANgwA4DXYL90AAWFv6ib1JnIAAAFkde8m8SYAoMEhbKDAIQCgbCl2oMED8WOAAWducwD+Jk4nUCdoAHQAAANhaGxyc3QKJxInISc1Jz0nRydyInJvdwB0oJIhYQDpAFYmYSNycG9vbgAAAWR1GiceJ28AdwDuAPAmcAAAoMAh5SFmdAABYWgnJy0ncgByAG8AdwDzAAkMYQByAHAAbwBvAG4A8wATBGklZ2h0YXJyb3dzAACgySFxAHUAaQBnAGEAcgByAG8A9wBZJugkcmVldGltZXMAoMwiZwDaYmkAbgBnAGQAbwB0AHMAZQDxABwYgAFhaG0AYCdjJ2YncgDyAAkMYQDyABMEAKAPIG8idXN0AGGgsSPjIWhlAKCxI+0haWQAoO4qAAJhYnB0fCeGJ4knmScAAW5ygCeDJ2cAAKDtJ3IAAKD+IXIA6wAcDIABYWZsAI8nkieVJ3IAAKCGKQDgNdhj3XUAcwAAoC4qaSJtZXMAAKA1KgABYXCiJ6gncgBnoCkAdAAAoJQp7yJsaW50AKASKmEAcgDyADwnAAJhY2hxuCe8J6EMwCfxIXVvAKA6IHIAAOA12MfcAAFidYAmxCdvAPKgGSCoAYABaGlyAM4n0ifWJ3IAZQDlAE0n7SFlcwCgyiJpAIChuSVlZmwAXAxjEt4n9CFyaQCgzinsInVoYXIAoGgpAKAeIWENBSgJKA0oSyhVKIYoAACLKLAoAAAAAOMo5ygAABApJCkxKW0pcSmHKaYpAACYKgAAAACxKmMidXRlAFthcQB1AO8ABR+ApHsiRWFjZWlucHN5ABwoHignKCooLygyKEEoRihJKACgtCrwASMoAAAlKACguCpvAG4AYWF1AOUAgw1koLAqaQBsAF9hcgBjAF1hgAFFYXMAOCg6KD0oAKC2KnAAAKC6KmkAbQAAoOki7yJsaW50AKATKmkA7QCIDUFkbwB0AGKixSKRFgAAAABTKACgZiqAA0FhY21zdHgAYChkKG8ocyh1KHkogihyAHIAAKDYIXIAAAFocmkoayjrAJAab6CYIfcAzAd0ADuApwCnQGkAO2D3IWFyAKApKW0AAAFpbn4ozQBuAHUA8wDOAHQAAKA2J3IA7+A12DDdIxkAAmFjb3mRKJUonSisKHIAcAAAoG8mAAFoeZkonChjAHkASWRIZHIAdABtAqUoAAAAAKgoaQDkAFsPYQByAGEA7ABsJDuArQCtQAABZ22zKLsobQBhAAChwwNmdroouijCY4CjPCJkZWdsbnByAMgozCjPKNMo1yjaKN4obwB0AACgairxoEMiCw5FoJ4qAKCgKkWgnSoAoJ8qZQAAoEYi7CF1cwCgJCrhIXJyAKByKWEAcgDyAPwMAAJhZWl07Sj8KAEpCCkAAWxz8Sj4KGwAcwBlAHQAbQDpAH8oaABwAACgMyrwImFyc2wAoOQpAAFkbFoPBSllAACgIyNloKoqc6CsKgDgrCoA/oABZmxwABUpGCkfKfQhY3lMZGKgLwBhoMQpcgAAoD8jZgAA4DXYZN1hAAABZHIoKRcDZQBzAHWgYCZpAHQAAKBgJoABY3N1ADYpRilhKQABYXU6KUApcABzoJMiAOCTIgD+cABzoJQiAOCUIgD+dQAAAWJwSylWKQChjyJlcz4NUCllAHQAZaCPIvEAPw0AoZAiZXNIDVspZQB0AGWgkCLxAEkNAKGhJWFmZilbBHIAZQFrKVwEAKChJWEAcgDyAAMNAAJjZW10dyl7KX8pgilyAADgNdjI3HQAbQDuAM4AaQDsAAYpYQByAOYAVw0AAWFyiimOKXIA5qAGJhESAAFhbpIpoylpImdodAAAAWVwmSmgKXAAcwBpAGwAbwDuANkXaADpAKAkcwCvYIACYmNtbnAArin8KY4NJSooKgCkgiJFZGVtbnByc7wpvinCKcgpzCnUKdgp3CkAoMUqbwB0AACgvSpkoIYibwB0AACgwyr1IWx0AKDBKgABRWXQKdIpAKDLKgCgiiLsIXVzAKC/KuEhcnIAoHkpgAFlaXUA4inxKfQpdAAAoYIiZW7oKewpcQDxoIYivSllAHEA8aCKItEpbQAAoMcqAAFicPgp+ikAoNUqAKDTKmMAgKJ7ImFjZW5zAAcqDSoUKhYqRihwAHAAcgBvAPgAIyh1AHIAbAB5AGUA8QCDDfEAfA2AAWFlcwAcKiIqPShwAHAAcgBvAPgAPChxAPEAOShnAACgaiYApoMiMTIzRWRlaGxtbnBzPCo/KkIqRSpHKlIqWCpjKmcqaypzKncqO4C5ALlAO4CyALJAO4CzALNAAKDGKgABb3NLKk4qdAAAoL4qdQBiAACg2CpkoIcibwB0AACgxCpzAAABb3VdKmAqbAAAoMknYgAAoNcq4SFycgCgeyn1IWx0AKDCKgABRWVvKnEqAKDMKgCgiyLsIXVzAKDAKoABZWl1AH0qjCqPKnQAAKGDImVugyqHKnEA8aCHIkYqZQBxAPGgiyJwKm0AAKDIKgABYnCTKpUqAKDUKgCg1iqAAUFhbgCdKqEqrCpyAHIAAKDZIXIAAAFocqYqqCrrAJUab6CZIfcAxQf3IWFyAKAqKWwAaQBnADuA3wDfQOELzyrZKtwq6SrsKvEqAAD1KjQrAAAAAAAAAAAAAEwrbCsAAHErvSsAAAAAAADRK3IC1CoAAAAA2CrnIWV0AKAWI8RjcgDrAOUKgAFhZXkA4SrkKucq8iFvbmVh5CFpbGNhQmRvAPQAIg5sInJlYwAAoBUjcgAA4DXYMd0AAmVpa2/7KhIrKCsuK/IBACsAAAkrZQAAATRm6g0EK28AcgDlAOsNYQBzorgDECsAAAAAEit5AG0A0WMAAWNuFislK2sAAAFhcxsrIStwAHAAcgBvAPgAFw5pAG0AAKA8InMA8AD9DQABYXMsKyEr8AAXDnIAbgA7gP4A/kDsATgrOyswG2QA5QBnAmUAcwCAgdcAO2JkAEMrRCtJK9dAYaCgInIAAKAxKgCgMCqAAWVwcwBRK1MraSvhAAkh4qKkIlsrXysAAAAAYytvAHQAAKA2I2kAcgAAoPEqb+A12GXdcgBrAACg2irhAHgociJpbWUAAKA0IIABYWlwAHYreSu3K2QA5QC+DYADYWRlbXBzdACFK6MrmiunK6wrsCuzK24iZ2xlAACitSVkbHFykCuUK5ornCvvIXduAKC/JeUhZnRloMMl8QACBwCgXCJpImdodABloLkl8QBdDG8AdAAAoOwlaSJudXMAAKA6KuwhdXMAoDkqYgAAoM0p6SFtZQCgOyrlInppdW0AoOIjgAFjaHQAwivKK80rAAFyecYrySsA4DXYydxGZGMAeQBbZPIhb2tnYQABaW/UK9creAD0ANERaCJlYWQAAAFsct4r5ytlAGYAdABhAHIAcgBvAPcAXQbpJGdodGFycm93AKCgIQAJQUhhYmNkZmdobG1vcHJzdHV3CiwNLBEsHSwnLDEsQCxLLFIsYix6LIQsjyzLLOgs7Sz/LAotcgDyAAkDYQByAACgYykAAWNyFSwbLHUAdABlADuA+gD6QPIACQ1yAOMBIywAACUseQBeZHYAZQBtYQABaXkrLDAscgBjADuA+wD7QENkgAFhYmgANyw6LD0scgDyANEO7CFhY3FhYQDyAOAOAAFpckQsSCzzIWh0AKB+KQDgNdgy3XIAYQB2AGUAO4D5APlAYQFWLF8scgAAAWxyWixcLACgvyEAoL4hbABrAACggCUAAWN0Zix2LG8CbCwAAAAAcyxyAG4AZaAcI3IAAKAcI28AcAAAoA8jcgBpAACg+CUAAWFsfiyBLGMAcgBrYTuAqACoQAABZ3CILIssbwBuAHNhZgAA4DXYZt0AA2FkaGxzdZksniynLLgsuyzFLHIAcgBvAPcACQ1vAHcAbgBhAHIAcgBvAPcA2A5hI3Jwb29uAAABbHKvLLMsZQBmAPQAWyxpAGcAaAD0AF0sdQDzAKYOaQAAocUDaGzBLMIs0mNvAG4AxWPwI2Fycm93cwCgyCGAAWNpdADRLOEs5CxvAtcsAAAAAN4scgBuAGWgHSNyAACgHSNvAHAAAKAOI24AZwBvYXIAaQAAoPklYwByAADgNdjK3IABZGlyAPMs9yz6LG8AdAAAoPAi7CFkZWlhaQBmoLUlAKC0JQABYW0DLQYtcgDyAMosbAA7gPwA/EDhIm5nbGUAoKcpgAdBQkRhY2RlZmxub3Byc3oAJy0qLTAtNC2bLZ0toS2/LcMtxy3TLdgt3C3gLfwtcgDyABADYQByAHag6CoAoOkqYQBzAOgA/gIAAW5yOC08LechcnQAoJwpgANla25wcnN0AJkpSC1NLVQtXi1iLYItYQBwAHAA4QAaHG8AdABoAGkAbgDnAKEXgAFoaXIAoSmzJFotbwBwAPQAdCVooJUh7wD4JgABaXVmLWotZwBtAOEAuygAAWJwbi14LXMjZXRuZXEAceCKIgD+AODLKgD+cyNldG5lcQBx4IsiAP4A4MwqAP4AAWhyhi2KLWUAdADhABIraSNhbmdsZQAAAWxyki2WLeUhZnQAoLIiaSJnaHQAAKCzInkAMmThIXNoAKCiIoABZWxyAKcttC24LWKiKCKuLQAAAACyLWEAcgAAoLsicQAAoFoi7CFpcACg7iIAAWJ0vC1eD2EA8gBfD3IAAOA12DPddAByAOkAlS1zAHUAAAFicM0t0C0A4IIi0iAA4IMi0iBwAGYAAOA12GfdcgBvAPAAWQt0AHIA6QCaLQABY3XkLegtcgAA4DXYy9wAAWJw7C30LW4AAAFFZXUt8S0A4IoiAP5uAAABRWV/LfktAOCLIgD+6SJnemFnAKCaKYADY2Vmb3BycwANLhAuJS4pLiMuLi40LukhcmN1YQABZGkULiEuAAFiZxguHC5hAHIAAKBfKmUAcaAnIgCgWSLlIXJwAKAYIXIAAOA12DTdcABmAADgNdho3WWgQCJhAHQA6ABqD2MAcgAA4DXYzNzjCuQRUC4AAFQuAABYLmIuAAAAAGMubS5wLnQuAAAAAIguki4AAJouJxIqEnQAcgDpAB0ScgAA4DXYNd0AAUFhWy5eLnIA8gDnAnIA8gCTB75jAAFBYWYuaS5yAPIA4AJyAPIAjAdhAPAAeh5pAHMAAKD7IoABZHB0APgReS6DLgABZmx9LoAuAOA12GnddQDzAP8RaQBtAOUABBIAAUFhiy6OLnIA8gDuAnIA8gCaBwABY3GVLgoScgAA4DXYzdwAAXB0nS6hLmwAdQDzACUScgDpACASAARhY2VmaW9zdbEuvC7ELsguzC7PLtQu2S5jAAABdXm2LrsudABlADuA/QD9QE9kAAFpecAuwy5yAGMAd2FLZG4AO4ClAKVAcgAA4DXYNt1jAHkAV2RwAGYAAOA12GrdYwByAADgNdjO3AABY23dLt8ueQBOZGwAO4D/AP9AAAVhY2RlZmhpb3N38y73Lv8uAi8MLxAvEy8YLx0vIi9jInV0ZQB6YQABYXn7Lv4u8iFvbn5hN2RvAHQAfGEAAWV0Bi8KL3QAcgDmAB8QYQC2Y3IAAOA12DfdYwB5ADZk5yJyYXJyAKDdIXAAZgAA4DXYa91jAHIAAOA12M/cAAFqbiYvKC8AoA0gagAAoAwg");
+//#endregion
+//#region ../../node_modules/.pnpm/entities@8.0.0/node_modules/entities/dist/internal/bin-trie-flags.js
+/**
+* Bit flags & masks for the binary trie encoding used for entity decoding.
+*
+* Bit layout (16 bits total):
+* 15..14 VALUE_LENGTH   (+1 encoding; 0 => no value)
+* 13     FLAG13.        If valueLength>0: semicolon required flag (implicit ';').
+*                       If valueLength==0: compact run flag.
+* 12..7  BRANCH_LENGTH  Branch length (0 => single branch in 6..0 if jumpOffset==char) OR run length (when compact run)
+* 6..0   JUMP_TABLE     Jump offset (jump table) OR single-branch char code OR first run char
+*/
+var BinTrieFlags;
+(function(BinTrieFlags) {
+	BinTrieFlags[BinTrieFlags["VALUE_LENGTH"] = 49152] = "VALUE_LENGTH";
+	BinTrieFlags[BinTrieFlags["FLAG13"] = 8192] = "FLAG13";
+	BinTrieFlags[BinTrieFlags["BRANCH_LENGTH"] = 8064] = "BRANCH_LENGTH";
+	BinTrieFlags[BinTrieFlags["JUMP_TABLE"] = 127] = "JUMP_TABLE";
+})(BinTrieFlags || (BinTrieFlags = {}));
+//#endregion
+//#region ../../node_modules/.pnpm/entities@8.0.0/node_modules/entities/dist/decode.js
 var CharCodes;
 (function(CharCodes) {
 	CharCodes[CharCodes["NUM"] = 35] = "NUM";
@@ -51472,12 +51513,6 @@ var CharCodes;
 })(CharCodes || (CharCodes = {}));
 /** Bit that needs to be set to convert an upper case ASCII character to lower case */
 var TO_LOWER_BIT = 32;
-var BinTrieFlags;
-(function(BinTrieFlags) {
-	BinTrieFlags[BinTrieFlags["VALUE_LENGTH"] = 49152] = "VALUE_LENGTH";
-	BinTrieFlags[BinTrieFlags["BRANCH_LENGTH"] = 16256] = "BRANCH_LENGTH";
-	BinTrieFlags[BinTrieFlags["JUMP_TABLE"] = 127] = "JUMP_TABLE";
-})(BinTrieFlags || (BinTrieFlags = {}));
 function isNumber(code) {
 	return code >= CharCodes.ZERO && code <= CharCodes.NINE;
 }
@@ -51492,6 +51527,7 @@ function isAsciiAlphaNumeric(code) {
 *
 * Attribute values that aren't terminated properly aren't parsed, and shouldn't lead to a parser error.
 * See the example in https://html.spec.whatwg.org/multipage/parsing.html#named-character-reference-state
+* @param code Code point to decode.
 */
 function isEntityInAttributeInvalidEnd(code) {
 	return code === CharCodes.EQUALS || isAsciiAlphaNumeric(code);
@@ -51504,6 +51540,9 @@ var EntityDecoderState;
 	EntityDecoderState[EntityDecoderState["NumericHex"] = 3] = "NumericHex";
 	EntityDecoderState[EntityDecoderState["NamedEntity"] = 4] = "NamedEntity";
 })(EntityDecoderState || (EntityDecoderState = {}));
+/**
+* Decoding mode for named entities.
+*/
 var DecodingMode;
 (function(DecodingMode) {
 	/** Entities in text nodes that can end with any character. */
@@ -51517,29 +51556,37 @@ var DecodingMode;
 * Token decoder with support of writing partial entities.
 */
 var EntityDecoder = class {
+	decodeTree;
+	emitCodePoint;
+	errors;
 	constructor(decodeTree, emitCodePoint, errors) {
 		this.decodeTree = decodeTree;
 		this.emitCodePoint = emitCodePoint;
 		this.errors = errors;
-		/** The current state of the decoder. */
-		this.state = EntityDecoderState.EntityStart;
-		/** Characters that were consumed while parsing an entity. */
-		this.consumed = 1;
-		/**
-		* The result of the entity.
-		*
-		* Either the result index of a numeric entity, or the codepoint of a
-		* numeric entity.
-		*/
-		this.result = 0;
-		/** The current index in the decode tree. */
-		this.treeIndex = 0;
-		/** The number of characters that were consumed in excess. */
-		this.excess = 1;
-		/** The mode in which the decoder is operating. */
-		this.decodeMode = DecodingMode.Strict;
 	}
-	/** Resets the instance to make it reusable. */
+	/** The current state of the decoder. */
+	state = EntityDecoderState.EntityStart;
+	/** Characters that were consumed while parsing an entity. */
+	consumed = 1;
+	/**
+	* The result of the entity.
+	*
+	* Either the result index of a numeric entity, or the codepoint of a
+	* numeric entity.
+	*/
+	result = 0;
+	/** The current index in the decode tree. */
+	treeIndex = 0;
+	/** The number of characters that were consumed in excess. */
+	excess = 1;
+	/** The mode in which the decoder is operating. */
+	decodeMode = DecodingMode.Strict;
+	/** The number of characters that have been consumed in the current run. */
+	runConsumed = 0;
+	/**
+	* Resets the instance to make it reusable.
+	* @param decodeMode Entity decoding mode to use.
+	*/
 	startEntity(decodeMode) {
 		this.decodeMode = decodeMode;
 		this.state = EntityDecoderState.EntityStart;
@@ -51547,6 +51594,7 @@ var EntityDecoder = class {
 		this.treeIndex = 0;
 		this.excess = 1;
 		this.consumed = 1;
+		this.runConsumed = 0;
 	}
 	/**
 	* Write an entity to the decoder. This can be called multiple times with partial entities.
@@ -51554,95 +51602,81 @@ var EntityDecoder = class {
 	*
 	* Mirrors the implementation of `getDecoder`, but with the ability to stop decoding if the
 	* entity is incomplete, and resume when the next string is written.
-	*
-	* @param string The string containing the entity (or a continuation of the entity).
+	* @param input The string containing the entity (or a continuation of the entity).
 	* @param offset The offset at which the entity begins. Should be 0 if this is not the first call.
 	* @returns The number of characters that were consumed, or -1 if the entity is incomplete.
 	*/
-	write(str, offset) {
+	write(input, offset) {
 		switch (this.state) {
 			case EntityDecoderState.EntityStart:
-				if (str.charCodeAt(offset) === CharCodes.NUM) {
+				if (input.charCodeAt(offset) === CharCodes.NUM) {
 					this.state = EntityDecoderState.NumericStart;
 					this.consumed += 1;
-					return this.stateNumericStart(str, offset + 1);
+					return this.stateNumericStart(input, offset + 1);
 				}
 				this.state = EntityDecoderState.NamedEntity;
-				return this.stateNamedEntity(str, offset);
-			case EntityDecoderState.NumericStart: return this.stateNumericStart(str, offset);
-			case EntityDecoderState.NumericDecimal: return this.stateNumericDecimal(str, offset);
-			case EntityDecoderState.NumericHex: return this.stateNumericHex(str, offset);
-			case EntityDecoderState.NamedEntity: return this.stateNamedEntity(str, offset);
+				return this.stateNamedEntity(input, offset);
+			case EntityDecoderState.NumericStart: return this.stateNumericStart(input, offset);
+			case EntityDecoderState.NumericDecimal: return this.stateNumericDecimal(input, offset);
+			case EntityDecoderState.NumericHex: return this.stateNumericHex(input, offset);
+			case EntityDecoderState.NamedEntity: return this.stateNamedEntity(input, offset);
 		}
 	}
 	/**
 	* Switches between the numeric decimal and hexadecimal states.
 	*
 	* Equivalent to the `Numeric character reference state` in the HTML spec.
-	*
-	* @param str The string containing the entity (or a continuation of the entity).
+	* @param input The string containing the entity (or a continuation of the entity).
 	* @param offset The current offset.
 	* @returns The number of characters that were consumed, or -1 if the entity is incomplete.
 	*/
-	stateNumericStart(str, offset) {
-		if (offset >= str.length) return -1;
-		if ((str.charCodeAt(offset) | TO_LOWER_BIT) === CharCodes.LOWER_X) {
+	stateNumericStart(input, offset) {
+		if (offset >= input.length) return -1;
+		if ((input.charCodeAt(offset) | TO_LOWER_BIT) === CharCodes.LOWER_X) {
 			this.state = EntityDecoderState.NumericHex;
 			this.consumed += 1;
-			return this.stateNumericHex(str, offset + 1);
+			return this.stateNumericHex(input, offset + 1);
 		}
 		this.state = EntityDecoderState.NumericDecimal;
-		return this.stateNumericDecimal(str, offset);
-	}
-	addToNumericResult(str, start, end, base) {
-		if (start !== end) {
-			const digitCount = end - start;
-			this.result = this.result * Math.pow(base, digitCount) + parseInt(str.substr(start, digitCount), base);
-			this.consumed += digitCount;
-		}
+		return this.stateNumericDecimal(input, offset);
 	}
 	/**
 	* Parses a hexadecimal numeric entity.
 	*
 	* Equivalent to the `Hexademical character reference state` in the HTML spec.
-	*
-	* @param str The string containing the entity (or a continuation of the entity).
+	* @param input The string containing the entity (or a continuation of the entity).
 	* @param offset The current offset.
 	* @returns The number of characters that were consumed, or -1 if the entity is incomplete.
 	*/
-	stateNumericHex(str, offset) {
-		const startIdx = offset;
-		while (offset < str.length) {
-			const char = str.charCodeAt(offset);
-			if (isNumber(char) || isHexadecimalCharacter(char)) offset += 1;
-			else {
-				this.addToNumericResult(str, startIdx, offset, 16);
-				return this.emitNumericEntity(char, 3);
-			}
+	stateNumericHex(input, offset) {
+		while (offset < input.length) {
+			const char = input.charCodeAt(offset);
+			if (isNumber(char) || isHexadecimalCharacter(char)) {
+				const digit = char <= CharCodes.NINE ? char - CharCodes.ZERO : (char | TO_LOWER_BIT) - CharCodes.LOWER_A + 10;
+				this.result = this.result * 16 + digit;
+				this.consumed++;
+				offset++;
+			} else return this.emitNumericEntity(char, 3);
 		}
-		this.addToNumericResult(str, startIdx, offset, 16);
 		return -1;
 	}
 	/**
 	* Parses a decimal numeric entity.
 	*
 	* Equivalent to the `Decimal character reference state` in the HTML spec.
-	*
-	* @param str The string containing the entity (or a continuation of the entity).
+	* @param input The string containing the entity (or a continuation of the entity).
 	* @param offset The current offset.
 	* @returns The number of characters that were consumed, or -1 if the entity is incomplete.
 	*/
-	stateNumericDecimal(str, offset) {
-		const startIdx = offset;
-		while (offset < str.length) {
-			const char = str.charCodeAt(offset);
-			if (isNumber(char)) offset += 1;
-			else {
-				this.addToNumericResult(str, startIdx, offset, 10);
-				return this.emitNumericEntity(char, 2);
-			}
+	stateNumericDecimal(input, offset) {
+		while (offset < input.length) {
+			const char = input.charCodeAt(offset);
+			if (isNumber(char)) {
+				this.result = this.result * 10 + (char - CharCodes.ZERO);
+				this.consumed++;
+				offset++;
+			} else return this.emitNumericEntity(char, 2);
 		}
-		this.addToNumericResult(str, startIdx, offset, 10);
 		return -1;
 	}
 	/**
@@ -51650,7 +51684,6 @@ var EntityDecoder = class {
 	*
 	* Implements the logic from the `Hexademical character reference start
 	* state` and `Numeric character reference end state` in the HTML spec.
-	*
 	* @param lastCp The last code point of the entity. Used to see if the
 	*               entity was terminated with a semicolon.
 	* @param expectedLength The minimum number of characters that should be
@@ -51659,9 +51692,8 @@ var EntityDecoder = class {
 	* @returns The number of characters that were consumed.
 	*/
 	emitNumericEntity(lastCp, expectedLength) {
-		var _a;
 		if (this.consumed <= expectedLength) {
-			(_a = this.errors) === null || _a === void 0 || _a.absenceOfDigitsInNumericCharacterReference(this.consumed);
+			this.errors?.absenceOfDigitsInNumericCharacterReference(this.consumed);
 			return 0;
 		}
 		if (lastCp === CharCodes.SEMI) this.consumed += 1;
@@ -51677,57 +51709,83 @@ var EntityDecoder = class {
 	* Parses a named entity.
 	*
 	* Equivalent to the `Named character reference state` in the HTML spec.
-	*
-	* @param str The string containing the entity (or a continuation of the entity).
+	* @param input The string containing the entity (or a continuation of the entity).
 	* @param offset The current offset.
 	* @returns The number of characters that were consumed, or -1 if the entity is incomplete.
 	*/
-	stateNamedEntity(str, offset) {
+	stateNamedEntity(input, offset) {
 		const { decodeTree } = this;
 		let current = decodeTree[this.treeIndex];
 		let valueLength = (current & BinTrieFlags.VALUE_LENGTH) >> 14;
-		for (; offset < str.length; offset++, this.excess++) {
-			const char = str.charCodeAt(offset);
+		while (offset < input.length) {
+			if (valueLength === 0 && (current & BinTrieFlags.FLAG13) !== 0) {
+				const runLength = (current & BinTrieFlags.BRANCH_LENGTH) >> 7;
+				if (this.runConsumed === 0) {
+					const firstChar = current & BinTrieFlags.JUMP_TABLE;
+					if (input.charCodeAt(offset) !== firstChar) return this.result === 0 ? 0 : this.emitNotTerminatedNamedEntity();
+					offset++;
+					this.excess++;
+					this.runConsumed++;
+				}
+				while (this.runConsumed < runLength) {
+					if (offset >= input.length) return -1;
+					const charIndexInPacked = this.runConsumed - 1;
+					const packedWord = decodeTree[this.treeIndex + 1 + (charIndexInPacked >> 1)];
+					const expectedChar = charIndexInPacked % 2 === 0 ? packedWord & 255 : packedWord >> 8 & 255;
+					if (input.charCodeAt(offset) !== expectedChar) {
+						this.runConsumed = 0;
+						return this.result === 0 ? 0 : this.emitNotTerminatedNamedEntity();
+					}
+					offset++;
+					this.excess++;
+					this.runConsumed++;
+				}
+				this.runConsumed = 0;
+				this.treeIndex += 1 + (runLength >> 1);
+				current = decodeTree[this.treeIndex];
+				valueLength = (current & BinTrieFlags.VALUE_LENGTH) >> 14;
+			}
+			if (offset >= input.length) break;
+			const char = input.charCodeAt(offset);
+			if (char === CharCodes.SEMI && valueLength !== 0 && (current & BinTrieFlags.FLAG13) !== 0) return this.emitNamedEntityData(this.treeIndex, valueLength, this.consumed + this.excess);
 			this.treeIndex = determineBranch(decodeTree, current, this.treeIndex + Math.max(1, valueLength), char);
 			if (this.treeIndex < 0) return this.result === 0 || this.decodeMode === DecodingMode.Attribute && (valueLength === 0 || isEntityInAttributeInvalidEnd(char)) ? 0 : this.emitNotTerminatedNamedEntity();
 			current = decodeTree[this.treeIndex];
 			valueLength = (current & BinTrieFlags.VALUE_LENGTH) >> 14;
 			if (valueLength !== 0) {
 				if (char === CharCodes.SEMI) return this.emitNamedEntityData(this.treeIndex, valueLength, this.consumed + this.excess);
-				if (this.decodeMode !== DecodingMode.Strict) {
+				if (this.decodeMode !== DecodingMode.Strict && (current & BinTrieFlags.FLAG13) === 0) {
 					this.result = this.treeIndex;
 					this.consumed += this.excess;
 					this.excess = 0;
 				}
 			}
+			offset++;
+			this.excess++;
 		}
 		return -1;
 	}
 	/**
 	* Emit a named entity that was not terminated with a semicolon.
-	*
 	* @returns The number of characters consumed.
 	*/
 	emitNotTerminatedNamedEntity() {
-		var _a;
 		const { result, decodeTree } = this;
 		const valueLength = (decodeTree[result] & BinTrieFlags.VALUE_LENGTH) >> 14;
 		this.emitNamedEntityData(result, valueLength, this.consumed);
-		(_a = this.errors) === null || _a === void 0 || _a.missingSemicolonAfterCharacterReference();
+		this.errors?.missingSemicolonAfterCharacterReference();
 		return this.consumed;
 	}
 	/**
 	* Emit a named entity.
-	*
 	* @param result The index of the entity in the decode tree.
 	* @param valueLength The number of bytes in the entity.
 	* @param consumed The number of characters consumed.
-	*
 	* @returns The number of characters consumed.
 	*/
 	emitNamedEntityData(result, valueLength, consumed) {
 		const { decodeTree } = this;
-		this.emitCodePoint(valueLength === 1 ? decodeTree[result] & ~BinTrieFlags.VALUE_LENGTH : decodeTree[result + 1], consumed);
+		this.emitCodePoint(valueLength === 1 ? decodeTree[result] & ~(BinTrieFlags.VALUE_LENGTH | BinTrieFlags.FLAG13) : decodeTree[result + 1], consumed);
 		if (valueLength === 3) this.emitCodePoint(decodeTree[result + 2], consumed);
 		return consumed;
 	}
@@ -51735,17 +51793,15 @@ var EntityDecoder = class {
 	* Signal to the parser that the end of the input was reached.
 	*
 	* Remaining data will be emitted and relevant errors will be produced.
-	*
 	* @returns The number of characters consumed.
 	*/
 	end() {
-		var _a;
 		switch (this.state) {
 			case EntityDecoderState.NamedEntity: return this.result !== 0 && (this.decodeMode !== DecodingMode.Attribute || this.result === this.treeIndex) ? this.emitNotTerminatedNamedEntity() : 0;
 			case EntityDecoderState.NumericDecimal: return this.emitNumericEntity(0, 2);
 			case EntityDecoderState.NumericHex: return this.emitNumericEntity(0, 3);
 			case EntityDecoderState.NumericStart:
-				(_a = this.errors) === null || _a === void 0 || _a.absenceOfDigitsInNumericCharacterReference(this.consumed);
+				this.errors?.absenceOfDigitsInNumericCharacterReference(this.consumed);
 				return 0;
 			case EntityDecoderState.EntityStart: return 0;
 		}
@@ -51753,3873 +51809,598 @@ var EntityDecoder = class {
 };
 /**
 * Creates a function that decodes entities in a string.
-*
 * @param decodeTree The decode tree.
 * @returns A function that decodes entities in a string.
 */
 function getDecoder(decodeTree) {
-	let ret = "";
-	const decoder = new EntityDecoder(decodeTree, (str) => ret += fromCodePoint$2(str));
-	return function decodeWithTrie(str, decodeMode) {
+	let returnValue = "";
+	const decoder = new EntityDecoder(decodeTree, (data) => returnValue += String.fromCodePoint(data));
+	return function decodeWithTrie(input, decodeMode) {
 		let lastIndex = 0;
 		let offset = 0;
-		while ((offset = str.indexOf("&", offset)) >= 0) {
-			ret += str.slice(lastIndex, offset);
+		while ((offset = input.indexOf("&", offset)) >= 0) {
+			returnValue += input.slice(lastIndex, offset);
 			decoder.startEntity(decodeMode);
-			const len = decoder.write(str, offset + 1);
-			if (len < 0) {
+			const length = decoder.write(input, offset + 1);
+			if (length < 0) {
 				lastIndex = offset + decoder.end();
 				break;
 			}
-			lastIndex = offset + len;
-			offset = len === 0 ? lastIndex + 1 : lastIndex;
+			lastIndex = offset + length;
+			offset = length === 0 ? lastIndex + 1 : lastIndex;
 		}
-		const result = ret + str.slice(lastIndex);
-		ret = "";
+		const result = returnValue + input.slice(lastIndex);
+		returnValue = "";
 		return result;
 	};
 }
 /**
 * Determines the branch of the current node that is taken given the current
 * character. This function is used to traverse the trie.
-*
 * @param decodeTree The trie.
 * @param current The current node.
-* @param nodeIdx The index right after the current node and its value.
+* @param nodeIndex Index immediately after the current node header.
 * @param char The current character.
 * @returns The index of the next node, or -1 if no branch is taken.
 */
-function determineBranch(decodeTree, current, nodeIdx, char) {
+function determineBranch(decodeTree, current, nodeIndex, char) {
 	const branchCount = (current & BinTrieFlags.BRANCH_LENGTH) >> 7;
 	const jumpOffset = current & BinTrieFlags.JUMP_TABLE;
-	if (branchCount === 0) return jumpOffset !== 0 && char === jumpOffset ? nodeIdx : -1;
+	if (branchCount === 0) return jumpOffset !== 0 && char === jumpOffset ? nodeIndex : -1;
 	if (jumpOffset) {
 		const value = char - jumpOffset;
-		return value < 0 || value >= branchCount ? -1 : decodeTree[nodeIdx + value] - 1;
+		return value < 0 || value >= branchCount ? -1 : decodeTree[nodeIndex + value] - 1;
 	}
-	let lo = nodeIdx;
-	let hi = lo + branchCount - 1;
+	const packedKeySlots = branchCount + 1 >> 1;
+	let lo = 0;
+	let hi = branchCount - 1;
 	while (lo <= hi) {
 		const mid = lo + hi >>> 1;
-		const midVal = decodeTree[mid];
-		if (midVal < char) lo = mid + 1;
-		else if (midVal > char) hi = mid - 1;
-		else return decodeTree[mid + branchCount];
+		const midKey = decodeTree[nodeIndex + (mid >> 1)] >> (mid & 1) * 8 & 255;
+		if (midKey < char) lo = mid + 1;
+		else if (midKey > char) hi = mid - 1;
+		else return decodeTree[nodeIndex + packedKeySlots + mid];
 	}
 	return -1;
 }
-var htmlDecoder = getDecoder(decode_data_html_default);
-getDecoder(decode_data_xml_default);
-/**
-* Decodes an HTML string.
-*
-* @param str The string to decode.
-* @param mode The decoding mode.
-* @returns The decoded string.
-*/
-function decodeHTML(str, mode = DecodingMode.Legacy) {
-	return htmlDecoder(str, mode);
-}
+var htmlDecoder = /* #__PURE__ */ getDecoder(htmlDecodeTree);
 /**
 * Decodes an HTML string, requiring all entities to be terminated by a semicolon.
-*
-* @param str The string to decode.
+* @param htmlString The string to decode.
 * @returns The decoded string.
 */
-function decodeHTMLStrict(str) {
-	return htmlDecoder(str, DecodingMode.Strict);
+function decodeHTMLStrict(htmlString) {
+	return htmlDecoder(htmlString, DecodingMode.Strict);
 }
 //#endregion
-//#region ../../node_modules/.pnpm/markdown-it@14.3.0/node_modules/markdown-it/lib/common/utils.mjs
-var utils_exports = /* @__PURE__ */ __exportAll({
-	arrayReplaceAt: () => arrayReplaceAt,
-	asciiTrim: () => asciiTrim,
-	assign: () => assign$1,
-	escapeHtml: () => escapeHtml,
-	escapeRE: () => escapeRE$1,
-	fromCodePoint: () => fromCodePoint$1,
-	has: () => has$1,
-	isMdAsciiPunct: () => isMdAsciiPunct,
-	isPunctChar: () => isPunctChar,
-	isPunctCharCode: () => isPunctCharCode,
-	isSpace: () => isSpace,
-	isString: () => isString$1,
-	isValidEntityCode: () => isValidEntityCode,
-	isWhiteSpace: () => isWhiteSpace,
-	lib: () => lib,
-	normalizeReference: () => normalizeReference,
-	unescapeAll: () => unescapeAll,
-	unescapeMd: () => unescapeMd
-});
-function _class$1(obj) {
-	return Object.prototype.toString.call(obj);
-}
-function isString$1(obj) {
-	return _class$1(obj) === "[object String]";
-}
-var _hasOwnProperty = Object.prototype.hasOwnProperty;
-function has$1(object, key) {
-	return _hasOwnProperty.call(object, key);
-}
-function assign$1(obj) {
-	Array.prototype.slice.call(arguments, 1).forEach(function(source) {
-		if (!source) return;
-		if (typeof source !== "object") throw new TypeError(source + "must be object");
-		Object.keys(source).forEach(function(key) {
-			obj[key] = source[key];
-		});
-	});
-	return obj;
-}
-function arrayReplaceAt(src, pos, newElements) {
-	return [].concat(src.slice(0, pos), newElements, src.slice(pos + 1));
-}
-function isValidEntityCode(c) {
-	if (c >= 55296 && c <= 57343) return false;
-	if (c >= 64976 && c <= 65007) return false;
-	if ((c & 65535) === 65535 || (c & 65535) === 65534) return false;
-	if (c >= 0 && c <= 8) return false;
-	if (c === 11) return false;
-	if (c >= 14 && c <= 31) return false;
-	if (c >= 127 && c <= 159) return false;
-	if (c > 1114111) return false;
-	return true;
-}
-function fromCodePoint$1(c) {
-	if (c > 65535) {
-		c -= 65536;
-		const surrogate1 = 55296 + (c >> 10);
-		const surrogate2 = 56320 + (c & 1023);
-		return String.fromCharCode(surrogate1, surrogate2);
-	}
-	return String.fromCharCode(c);
-}
-var UNESCAPE_MD_RE = /\\([!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~])/g;
-var UNESCAPE_ALL_RE = new RegExp(UNESCAPE_MD_RE.source + "|" + /&([a-z#][a-z0-9]{1,31});/gi.source, "gi");
-var DIGITAL_ENTITY_TEST_RE = /^#((?:x[a-f0-9]{1,8}|[0-9]{1,8}))$/i;
-function replaceEntityPattern(match, name) {
-	if (name.charCodeAt(0) === 35 && DIGITAL_ENTITY_TEST_RE.test(name)) {
-		const code = name[1].toLowerCase() === "x" ? parseInt(name.slice(2), 16) : parseInt(name.slice(1), 10);
-		if (isValidEntityCode(code)) return fromCodePoint$1(code);
-		return match;
-	}
-	const decoded = decodeHTML(match);
-	if (decoded !== match) return decoded;
-	return match;
-}
-function unescapeMd(str) {
-	if (str.indexOf("\\") < 0) return str;
-	return str.replace(UNESCAPE_MD_RE, "$1");
-}
-function unescapeAll(str) {
-	if (str.indexOf("\\") < 0 && str.indexOf("&") < 0) return str;
-	return str.replace(UNESCAPE_ALL_RE, function(match, escaped, entity) {
-		if (escaped) return escaped;
-		return replaceEntityPattern(match, entity);
-	});
-}
-var HTML_ESCAPE_TEST_RE = /[&<>"]/;
-var HTML_ESCAPE_REPLACE_RE = /[&<>"]/g;
-var HTML_REPLACEMENTS = {
-	"&": "&amp;",
-	"<": "&lt;",
-	">": "&gt;",
-	"\"": "&quot;"
-};
-function replaceUnsafeChar(ch) {
-	return HTML_REPLACEMENTS[ch];
-}
-function escapeHtml(str) {
-	if (HTML_ESCAPE_TEST_RE.test(str)) return str.replace(HTML_ESCAPE_REPLACE_RE, replaceUnsafeChar);
-	return str;
-}
-var REGEXP_ESCAPE_RE = /[.?*+^$[\]\\(){}|-]/g;
-function escapeRE$1(str) {
-	return str.replace(REGEXP_ESCAPE_RE, "\\$&");
-}
-function isSpace(code) {
-	switch (code) {
-		case 9:
-		case 32: return true;
-	}
-	return false;
-}
-function isWhiteSpace(code) {
-	if (code >= 8192 && code <= 8202) return true;
-	switch (code) {
-		case 9:
-		case 10:
-		case 11:
-		case 12:
-		case 13:
-		case 32:
-		case 160:
-		case 5760:
-		case 8239:
-		case 8287:
-		case 12288: return true;
-	}
-	return false;
-}
-function isPunctChar(ch) {
-	return regex_default$2.test(ch) || regex_default$1.test(ch);
-}
-function isPunctCharCode(code) {
-	return isPunctChar(fromCodePoint$1(code));
-}
-function isMdAsciiPunct(ch) {
-	switch (ch) {
-		case 33:
-		case 34:
-		case 35:
-		case 36:
-		case 37:
-		case 38:
-		case 39:
-		case 40:
-		case 41:
-		case 42:
-		case 43:
-		case 44:
-		case 45:
-		case 46:
-		case 47:
-		case 58:
-		case 59:
-		case 60:
-		case 61:
-		case 62:
-		case 63:
-		case 64:
-		case 91:
-		case 92:
-		case 93:
-		case 94:
-		case 95:
-		case 96:
-		case 123:
-		case 124:
-		case 125:
-		case 126: return true;
-		default: return false;
-	}
-}
-function normalizeReference(str) {
-	str = str.trim().replace(/\s+/g, " ");
-	if ("ẞ".toLowerCase() === "Ṿ")
- /* c8 ignore next 2 */
-	str = str.replace(/ẞ/g, "ß");
-	return str.toLowerCase().toUpperCase();
-}
-function isAsciiTrimmable(c) {
-	return c === 32 || c === 9 || c === 10 || c === 13;
-}
-function asciiTrim(str) {
-	let start = 0;
-	for (; start < str.length; start++) if (!isAsciiTrimmable(str.charCodeAt(start))) break;
-	let end = str.length - 1;
-	for (; end >= start; end--) if (!isAsciiTrimmable(str.charCodeAt(end))) break;
-	return str.slice(start, end + 1);
-}
-var lib = {
-	mdurl: mdurl_exports,
-	ucmicro: uc_micro_exports
-};
-//#endregion
-//#region ../../node_modules/.pnpm/markdown-it@14.3.0/node_modules/markdown-it/lib/helpers/parse_link_label.mjs
-function parseLinkLabel(state, start, disableNested) {
-	let level, found, marker, prevPos;
-	const max = state.posMax;
-	const oldPos = state.pos;
-	state.pos = start + 1;
-	level = 1;
-	while (state.pos < max) {
-		marker = state.src.charCodeAt(state.pos);
-		if (marker === 93) {
-			level--;
-			if (level === 0) {
-				found = true;
-				break;
-			}
-		}
-		prevPos = state.pos;
-		state.md.inline.skipToken(state);
-		if (marker === 91) {
-			if (prevPos === state.pos - 1) level++;
-			else if (disableNested) {
-				state.pos = oldPos;
-				return -1;
-			}
-		}
-	}
-	let labelEnd = -1;
-	if (found) labelEnd = state.pos;
-	state.pos = oldPos;
-	return labelEnd;
-}
-//#endregion
-//#region ../../node_modules/.pnpm/markdown-it@14.3.0/node_modules/markdown-it/lib/helpers/parse_link_destination.mjs
-function parseLinkDestination(str, start, max) {
-	let code;
-	let pos = start;
-	const result = {
-		ok: false,
-		pos: 0,
-		str: ""
+//#region ../../node_modules/.pnpm/linkify-it@6.1.0/node_modules/linkify-it/build/index.mjs
+var REBuilder = class {
+	src_Any = Any.source;
+	src_Cc = Cc.source;
+	src_Z = Z.source;
+	src_P = P.source;
+	src_ZPCc = [
+		this.src_Z,
+		this.src_P,
+		this.src_Cc
+	].join("|");
+	src_ZCc = [this.src_Z, this.src_Cc].join("|");
+	cache = {};
+	opts = {
+		maxLength: 1e4,
+		urlAuth: false,
+		schema_names: []
 	};
-	if (str.charCodeAt(pos) === 60) {
-		pos++;
-		while (pos < max) {
-			code = str.charCodeAt(pos);
-			if (code === 10) return result;
-			if (code === 60) return result;
-			if (code === 62) {
-				result.pos = pos + 1;
-				result.str = unescapeAll(str.slice(start + 1, pos));
-				result.ok = true;
-				return result;
-			}
-			if (code === 92 && pos + 1 < max) {
-				pos += 2;
-				continue;
-			}
-			pos++;
-		}
-		return result;
+	constructor(opts = {}) {
+		this.opts = {
+			...this.opts,
+			...opts
+		};
 	}
-	let level = 0;
-	while (pos < max) {
-		code = str.charCodeAt(pos);
-		if (code === 32) break;
-		if (code < 32 || code === 127) break;
-		if (code === 92 && pos + 1 < max) {
-			if (str.charCodeAt(pos + 1) === 32) break;
-			pos += 2;
-			continue;
-		}
-		if (code === 40) {
-			level++;
-			if (level > 32) return result;
-		}
-		if (code === 41) {
-			if (level === 0) break;
-			level--;
-		}
-		pos++;
+	set(opts = {}) {
+		this.opts = {
+			...this.opts,
+			...opts
+		};
+		this.cache = {};
+		return this;
 	}
-	if (start === pos) return result;
-	if (level !== 0) return result;
-	result.str = unescapeAll(str.slice(start, pos));
-	result.pos = pos;
-	result.ok = true;
+	escapeRE(str) {
+		return str.replace(/[.?*+^$[\]\\(){}|-]/g, "\\$&");
+	}
+	nestedPairRE(open, close, depth = 4) {
+		const openRE = this.escapeRE(open);
+		const closeRE = this.escapeRE(close);
+		const atom = `(?:(?!${this.src_ZCc}|${openRE}|${closeRE}).)`;
+		let pair = `${openRE}${atom}{0,1000}${closeRE}`;
+		for (let level = 2; level <= depth; level++) pair = `${openRE}(?:${atom}|${pair}){0,1000}${closeRE}`;
+		return pair;
+	}
+	get_text_separators() {
+		return this.cache.text_separators ??= /[><\uff5c]/;
+	}
+	get_pseudo_letter() {
+		return this.cache.src_pseudo_letter ??= new RegExp(`(?:(?!${this.get_text_separators().source}|${this.src_ZPCc})${this.src_Any})`);
+	}
+	get_ipv4_addr() {
+		return this.cache.src_ip4 ??= /* @__PURE__ */ new RegExp("(?:(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])[.]){3}(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])");
+	}
+	get_ipv6_addr() {
+		const h16 = "[0-9A-Fa-f]{1,4}";
+		const ls32 = `(?:(?:${h16}:${h16})|${this.get_ipv4_addr().source})`;
+		return this.cache.src_ip6_addr ??= new RegExp(`(?:(?:${h16}:){6}${ls32}|::(?:${h16}:){5}${ls32}|(?:${h16})?::(?:${h16}:){4}${ls32}|(?:(?:${h16}:){0,1}${h16})?::(?:${h16}:){3}${ls32}|(?:(?:${h16}:){0,2}${h16})?::(?:${h16}:){2}${ls32}|(?:(?:${h16}:){0,3}${h16})?::${h16}:${ls32}|(?:(?:${h16}:){0,4}${h16})?::${ls32}|(?:(?:${h16}:){0,5}${h16})?::${h16}|(?:(?:${h16}:){0,6}${h16})?::)`);
+	}
+	get_ipv6_url_host() {
+		return this.cache.src_ip6_host ??= new RegExp(`\\[${this.get_ipv6_addr().source}\\]`);
+	}
+	get_ipv6_mail_host() {
+		return this.cache.src_ipv6_mail_host ??= new RegExp(`\\[IPv6:${this.get_ipv6_addr().source}\\]`);
+	}
+	get_auth() {
+		return this.cache.src_auth ??= new RegExp(`(?:(?:(?!${this.src_ZCc}|[@/\\[\\]()]).){1,50}@)?`);
+	}
+	get_port() {
+		return this.cache.src_port ??= /* @__PURE__ */ new RegExp("(?::(?:6(?:[0-4]\\d{3}|5(?:[0-4]\\d{2}|5(?:[0-2]\\d|3[0-5])))|[1-5]?\\d{1,4}))?");
+	}
+	get_host_terminator() {
+		return this.cache.src_host_terminator ??= new RegExp(`(?=$|${this.get_text_separators().source}|${this.src_ZPCc})(?!${this.opts["---"] ? "-(?!--)|" : "-|"}_|:\\d|\\.-|\\.(?!$|${this.src_ZPCc}))`);
+	}
+	get_path_terminator() {
+		return this.cache.src_path_terminator ??= new RegExp(`${this.src_ZPCc}|${this.get_text_separators().source}`);
+	}
+	get_path() {
+		return this.cache.src_path ??= new RegExp(`(?:[/?#](?:${this.nestedPairRE("[", "]")}|${this.nestedPairRE("(", ")")}|${this.nestedPairRE("{", "}")}|\\"(?:(?!${this.src_ZCc}|["]).){1,100}\\"|\\'(?:(?!${this.src_ZCc}|[']).){1,100}\\'|\\'(?=${this.get_pseudo_letter().source}|[-])|\\.{2,20}[:]?[a-zA-Z0-9%/&]|\\.(?!${this.src_ZCc}|[.]|$)|` + (this.opts["---"] ? "\\-(?!--(?:[^-]|$))(?:-{0,19})|" : "\\-{1,20}|") + `,(?!${this.src_ZCc}|$)|;(?!${this.src_ZCc}|$)|\\!{1,20}(?!${this.src_ZCc}|[!]|$)|\\?(?!${this.src_ZCc}|[?]|$)|` + this.get_path_extra().source + `[\\\\/:%@#&=_~*]|(?!${this.get_path_terminator().source}).){1,${this.opts.maxLength}}|\\/)?`);
+	}
+	get_mail_name() {
+		return this.cache.src_mail_name ??= /* @__PURE__ */ new RegExp("[-!#$%&'*+/=?^_`{|}~a-zA-Z0-9](?:[-!#$%&'*+/=?^_`{|}~a-zA-Z0-9]|[.](?=[-!#$%&'*+/=?^_`{|}~a-zA-Z0-9])){0,63}");
+	}
+	get_xn() {
+		return this.cache.src_xn ??= /* @__PURE__ */ new RegExp("xn--[a-z0-9\\-]{1,59}");
+	}
+	get_tld() {
+		if (this.cache.tld) return this.cache.tld;
+		const tlds_src = [...new Set(this.opts.tlds || [])].sort().reverse().join("|");
+		this.cache.tld = new RegExp(`${tlds_src || "$#none#$"}|${this.get_xn().source}`);
+		return this.cache.tld;
+	}
+	get_domain_root() {
+		return this.cache.src_domain_root ??= new RegExp("(?:" + this.get_xn().source + `|${this.get_pseudo_letter().source}{1,63})`);
+	}
+	get_domain() {
+		return this.cache.src_domain ??= new RegExp("(?:" + this.get_xn().source + `|(?:${this.get_pseudo_letter().source})|(?:${this.get_pseudo_letter().source}(?:-|${this.get_pseudo_letter().source}){0,61}${this.get_pseudo_letter().source}))`);
+	}
+	get_url_host_port() {
+		return this.cache.url_host_port ??= new RegExp("(?:" + this.get_ipv6_url_host().source + `|(?:(?:(?:${this.get_domain().source})\\.){0,10}${this.get_domain().source}))` + this.get_port().source + this.get_host_terminator().source);
+	}
+	get_fuzzy_url_host_port() {
+		return this.cache.fuzzy_url_host_port ??= new RegExp("(?:" + (this.opts.fuzzyIP ? this.get_ipv4_addr().source + "|" : "") + `(?:(?:(?:${this.get_domain().source})\\.){1,10}(?:${this.get_tld().source})))` + this.get_host_terminator().source);
+	}
+	get_mail_host() {
+		return this.cache.src_mail_host ??= new RegExp("(?:" + this.get_ipv6_mail_host().source + `|(?:(?:(?:${this.get_domain().source})\\.){0,4}${this.get_domain().source}))` + this.get_host_terminator().source);
+	}
+	get_fuzzy_mail_host() {
+		return this.cache.src_fuzzy_mail_host ??= new RegExp("(?:" + this.get_ipv6_mail_host().source + `|(?:(?:(?:${this.get_domain().source})[.]){1,4}${this.get_domain_root().source}))` + this.get_host_terminator().source);
+	}
+	get_path_extra() {
+		return this.cache.src_path_extra ??= /* @__PURE__ */ new RegExp("");
+	}
+	get_fuzzy_mail_host_search() {
+		return this.cache.mail_fuzzy_host_search ??= new RegExp(`@${this.get_fuzzy_mail_host().source}`, "ig");
+	}
+	get_fuzzy_link_search() {
+		return this.cache.link_fuzzy_search ??= new RegExp(`(^|(?![.:/\\-_@])(?:[$+<=>^\`|\uff5c]|${this.src_ZPCc}))(?:(?![$+<=>^\`|\uff5c])${this.get_fuzzy_url_host_port().source}${this.get_path().source})`, "ig");
+	}
+	get_http_validator() {
+		return this.cache.http_validator ??= new RegExp("\\/\\/" + (this.opts.urlAuth ? this.get_auth().source : "") + this.get_url_host_port().source + this.get_path().source, "iy");
+	}
+	get_relative_proto_validator() {
+		return this.cache.relative_proto_validator ??= new RegExp((this.opts.urlAuth ? this.get_auth().source : "") + `(?:localhost|${this.get_ipv6_url_host().source}|(?:(?:${this.get_domain().source})[.]){1,10}${this.get_domain_root().source})` + this.get_port().source + this.get_host_terminator().source + this.get_path().source, "iy");
+	}
+	get_mail_name_validator() {
+		return this.cache.mail_name_validator ??= new RegExp(`(?:^|${this.get_text_separators().source}|"|\\(|${this.src_ZCc})(${this.get_mail_name().source})$`);
+	}
+	get_mailto_validator() {
+		return this.cache.mailto_validator ??= new RegExp(`${this.get_mail_name().source}@${this.get_mail_host().source}`, "iy");
+	}
+	get_schema_names() {
+		return this.cache.schema_names ??= new RegExp((this.opts.schema_names || []).map((name) => this.escapeRE(name)).join("|"));
+	}
+	get_schema_search() {
+		return this.cache.schema_search ??= new RegExp(`(^|(?!_)(?:[><\uff5c]|${this.src_ZPCc}))(${this.get_schema_names().source})`, "ig");
+	}
+	get_schema_at_start() {
+		return this.cache.schema_at_start ??= new RegExp(`^${this.get_schema_search().source}`, "i");
+	}
+};
+var web_schema = {
+	validate: (text, pos, self) => {
+		const re = self.re.get_http_validator();
+		re.lastIndex = pos;
+		const m = re.exec(text);
+		return m ? m[0].length : 0;
+	},
+	normalize: (match, self) => self.normalize(match)
+};
+var defaultSchemas = {
+	"http:": web_schema,
+	"https:": web_schema,
+	"ftp:": web_schema,
+	"//": {
+		validate: function(text, pos, self) {
+			const re = self.re.get_relative_proto_validator();
+			re.lastIndex = pos;
+			const m = re.exec(text);
+			if (m) {
+				if (pos >= 3 && text[pos - 3] === ":") return 0;
+				if (pos >= 3 && text[pos - 3] === "/") return 0;
+				return m[0].length;
+			}
+			return 0;
+		},
+		normalize: (match, self) => self.normalize(match)
+	},
+	"mailto:": {
+		validate: function(text, pos, self) {
+			const re = self.re.get_mailto_validator();
+			re.lastIndex = pos;
+			const m = re.exec(text);
+			return m ? m[0].length : 0;
+		},
+		normalize: (match, self) => self.normalize(match)
+	}
+};
+var tlds_2ch = "a:cdefgilmnoqrstuwxz|b:abdefghijmnorstvwyz|c:acdfghiklmnoruvwxyz|d:ejkmoz|e:cegrstu|f:ijkmor|g:abdefghilmnpqrstuwy|h:kmnrtu|i:delmnoqrst|j:emop|k:eghimnprwyz|l:abcikrstuvy|m:acdeghklmnopqrstuvwxyz|n:acefgilopruz|o:m|p:aefghklmnrstwy|q:a|r:eosuw|s:abcdeghijklmnortuvxyz|t:cdfghjklmnortvwz|u:agksyz|v:aceginu|w:fs|y:et|z:amw";
+var tlds_default = "biz|com|edu|gov|net|org|pro|web|xxx|aero|asia|coop|info|museum|name|shop|рф";
+function unpackTlds() {
+	const result = tlds_default.split("|");
+	tlds_2ch.split("|").forEach((item) => {
+		const sep = item.indexOf(":");
+		const prefix = item.slice(0, sep);
+		for (const suffix of item.slice(sep + 1)) result.push(prefix + suffix);
+	});
 	return result;
 }
-//#endregion
-//#region ../../node_modules/.pnpm/markdown-it@14.3.0/node_modules/markdown-it/lib/helpers/parse_link_title.mjs
-function parseLinkTitle(str, start, max, prev_state) {
-	let code;
-	let pos = start;
-	const state = {
-		ok: false,
-		can_continue: false,
-		pos: 0,
-		str: "",
-		marker: 0
-	};
-	if (prev_state) {
-		state.str = prev_state.str;
-		state.marker = prev_state.marker;
-	} else {
-		if (pos >= max) return state;
-		let marker = str.charCodeAt(pos);
-		if (marker !== 34 && marker !== 39 && marker !== 40) return state;
-		start++;
-		pos++;
-		if (marker === 40) marker = 41;
-		state.marker = marker;
-	}
-	while (pos < max) {
-		code = str.charCodeAt(pos);
-		if (code === state.marker) {
-			state.pos = pos + 1;
-			state.str += unescapeAll(str.slice(start, pos));
-			state.ok = true;
-			return state;
-		} else if (code === 40 && state.marker === 41) return state;
-		else if (code === 92 && pos + 1 < max) pos++;
-		pos++;
-	}
-	state.can_continue = true;
-	state.str += unescapeAll(str.slice(start, pos));
-	return state;
-}
-//#endregion
-//#region ../../node_modules/.pnpm/markdown-it@14.3.0/node_modules/markdown-it/lib/helpers/index.mjs
-var helpers_exports = /* @__PURE__ */ __exportAll({
-	parseLinkDestination: () => parseLinkDestination,
-	parseLinkLabel: () => parseLinkLabel,
-	parseLinkTitle: () => parseLinkTitle
-});
-//#endregion
-//#region ../../node_modules/.pnpm/markdown-it@14.3.0/node_modules/markdown-it/lib/renderer.mjs
-/**
-* class Renderer
-*
-* Generates HTML from parsed token stream. Each instance has independent
-* copy of rules. Those can be rewritten with ease. Also, you can add new
-* rules if you create plugin and adds new token types.
-**/
-var default_rules = {};
-default_rules.code_inline = function(tokens, idx, options, env, slf) {
-	const token = tokens[idx];
-	return "<code" + slf.renderAttrs(token) + ">" + escapeHtml(token.content) + "</code>";
-};
-default_rules.code_block = function(tokens, idx, options, env, slf) {
-	const token = tokens[idx];
-	return "<pre" + slf.renderAttrs(token) + "><code>" + escapeHtml(tokens[idx].content) + "</code></pre>\n";
-};
-default_rules.fence = function(tokens, idx, options, env, slf) {
-	const token = tokens[idx];
-	const info = token.info ? unescapeAll(token.info).trim() : "";
-	let langName = "";
-	let langAttrs = "";
-	if (info) {
-		const arr = info.split(/(\s+)/g);
-		langName = arr[0];
-		langAttrs = arr.slice(2).join("");
-	}
-	let highlighted;
-	if (options.highlight) highlighted = options.highlight(token.content, langName, langAttrs) || escapeHtml(token.content);
-	else highlighted = escapeHtml(token.content);
-	if (highlighted.indexOf("<pre") === 0) return highlighted + "\n";
-	if (info) {
-		const i = token.attrIndex("class");
-		const tmpAttrs = token.attrs ? token.attrs.slice() : [];
-		if (i < 0) tmpAttrs.push(["class", options.langPrefix + langName]);
-		else {
-			tmpAttrs[i] = tmpAttrs[i].slice();
-			tmpAttrs[i][1] += " " + options.langPrefix + langName;
-		}
-		const tmpToken = { attrs: tmpAttrs };
-		return `<pre><code${slf.renderAttrs(tmpToken)}>${highlighted}</code></pre>\n`;
-	}
-	return `<pre><code${slf.renderAttrs(token)}>${highlighted}</code></pre>\n`;
-};
-default_rules.image = function(tokens, idx, options, env, slf) {
-	const token = tokens[idx];
-	token.attrs[token.attrIndex("alt")][1] = slf.renderInlineAsText(token.children, options, env);
-	return slf.renderToken(tokens, idx, options);
-};
-default_rules.hardbreak = function(tokens, idx, options) {
-	return options.xhtmlOut ? "<br />\n" : "<br>\n";
-};
-default_rules.softbreak = function(tokens, idx, options) {
-	return options.breaks ? options.xhtmlOut ? "<br />\n" : "<br>\n" : "\n";
-};
-default_rules.text = function(tokens, idx) {
-	return escapeHtml(tokens[idx].content);
-};
-default_rules.html_block = function(tokens, idx) {
-	return tokens[idx].content;
-};
-default_rules.html_inline = function(tokens, idx) {
-	return tokens[idx].content;
+var defaultOptions = {
+	fuzzyLink: false,
+	fuzzyEmail: true,
+	fuzzyIP: false,
+	"---": false,
+	tlds: unpackTlds(),
+	urlAuth: false,
+	maxLength: 1e4
 };
 /**
-* new Renderer()
+* Match result returned by {@link LinkifyIt.match} and
+* {@link LinkifyIt.matchAtStart}.
 *
-* Creates new [[Renderer]] instance and fill [[Renderer#rules]] with defaults.
-**/
-function Renderer() {
+* @category types
+*/
+var Match = class {
+	/** Prefix (protocol) for matched string. Empty for fuzzy links. */
+	schema;
+	/** First position of matched string. */
+	index;
+	/** Next position after matched string. */
+	lastIndex;
+	/** Matched string. */
+	raw;
+	/** Normalized text of matched string. */
+	text;
+	/** Normalized URL of matched string. */
+	url;
+	constructor(text, schema, index, lastIndex) {
+		const raw = text.slice(index, lastIndex);
+		this.schema = schema.toLowerCase();
+		this.index = index;
+		this.lastIndex = lastIndex;
+		this.raw = raw;
+		this.text = raw;
+		this.url = raw;
+	}
+};
+/** Linkifier instance. */
+var LinkifyIt = class {
+	__opts__;
+	__schemas__;
+	re;
 	/**
-	* Renderer#rules -> Object
+	* Creates new linkifier instance.
 	*
-	* Contains render rules for tokens. Can be updated and extended.
+	* By default understands:
 	*
-	* ##### Example
+	* - `http(s)://...` , `ftp://...`, `mailto:...` & `//...` links
+	* - "fuzzy" emails (foo@bar.com).
 	*
+	* See {@link LinkifyConstructorOptions} for available options.
+	*
+	* @param options Recognition options.
+	*
+	* @example
 	* ```javascript
-	* var md = require('markdown-it')();
+	* import { LinkifyIt } from 'linkify-it'
 	*
-	* md.renderer.rules.strong_open  = function () { return '<b>'; };
-	* md.renderer.rules.strong_close = function () { return '</b>'; };
+	* const linkify = new LinkifyIt({ fuzzyLink: true })
 	*
-	* var result = md.renderInline(...);
+	* linkify
+	*   .tlds(require('tlds'))       // Reload with full TLD list
+	*   .tlds('onion', true)         // Add unofficial `.onion` domain
+	*   .add('ftp:', null)           // Disable `ftp:` protocol
+	*   .set({ fuzzyIP: true })      // Enable IPs in fuzzy links
+	*
+	* console.log(linkify.test('Site github.com!')) // true
+	* console.log(linkify.match('Site github.com!'))
 	* ```
-	*
-	* Each rule is called as independent static function with fixed signature:
-	*
-	* ```javascript
-	* function my_token_render(tokens, idx, options, env, renderer) {
-	*   // ...
-	*   return renderedHTML;
-	* }
-	* ```
-	*
-	* See [source code](https://github.com/markdown-it/markdown-it/blob/master/lib/renderer.mjs)
-	* for more details and examples.
-	**/
-	this.rules = assign$1({}, default_rules);
-}
-/**
-* Renderer.renderAttrs(token) -> String
-*
-* Render token attributes to string.
-**/
-Renderer.prototype.renderAttrs = function renderAttrs(token) {
-	let i, l, result;
-	if (!token.attrs) return "";
-	result = "";
-	for (i = 0, l = token.attrs.length; i < l; i++) result += " " + escapeHtml(token.attrs[i][0]) + "=\"" + escapeHtml(token.attrs[i][1]) + "\"";
-	return result;
-};
-/**
-* Renderer.renderToken(tokens, idx, options) -> String
-* - tokens (Array): list of tokens
-* - idx (Numbed): token index to render
-* - options (Object): params of parser instance
-*
-* Default token renderer. Can be overriden by custom function
-* in [[Renderer#rules]].
-**/
-Renderer.prototype.renderToken = function renderToken(tokens, idx, options) {
-	const token = tokens[idx];
-	let result = "";
-	if (token.hidden) return "";
-	if (token.block && token.nesting !== -1 && idx && tokens[idx - 1].hidden) result += "\n";
-	result += (token.nesting === -1 ? "</" : "<") + token.tag;
-	result += this.renderAttrs(token);
-	if (token.nesting === 0 && options.xhtmlOut) result += " /";
-	let needLf = false;
-	if (token.block) {
-		needLf = true;
-		if (token.nesting === 1) {
-			if (idx + 1 < tokens.length) {
-				const nextToken = tokens[idx + 1];
-				if (nextToken.type === "inline" || nextToken.hidden) needLf = false;
-				else if (nextToken.nesting === -1 && nextToken.tag === token.tag) needLf = false;
-			}
-		}
-	}
-	result += needLf ? ">\n" : ">";
-	return result;
-};
-/**
-* Renderer.renderInline(tokens, options, env) -> String
-* - tokens (Array): list on block tokens to render
-* - options (Object): params of parser instance
-* - env (Object): additional data from parsed input (references, for example)
-*
-* The same as [[Renderer.render]], but for single token of `inline` type.
-**/
-Renderer.prototype.renderInline = function(tokens, options, env) {
-	let result = "";
-	const rules = this.rules;
-	for (let i = 0, len = tokens.length; i < len; i++) {
-		const type = tokens[i].type;
-		if (typeof rules[type] !== "undefined") result += rules[type](tokens, i, options, env, this);
-		else result += this.renderToken(tokens, i, options);
-	}
-	return result;
-};
-/** internal
-* Renderer.renderInlineAsText(tokens, options, env) -> String
-* - tokens (Array): list on block tokens to render
-* - options (Object): params of parser instance
-* - env (Object): additional data from parsed input (references, for example)
-*
-* Special kludge for image `alt` attributes to conform CommonMark spec.
-* Don't try to use it! Spec requires to show `alt` content with stripped markup,
-* instead of simple escaping.
-**/
-Renderer.prototype.renderInlineAsText = function(tokens, options, env) {
-	let result = "";
-	for (let i = 0, len = tokens.length; i < len; i++) switch (tokens[i].type) {
-		case "text":
-			result += tokens[i].content;
-			break;
-		case "image":
-			result += this.renderInlineAsText(tokens[i].children, options, env);
-			break;
-		case "html_inline":
-		case "html_block":
-			result += tokens[i].content;
-			break;
-		case "softbreak":
-		case "hardbreak":
-			result += "\n";
-			break;
-		default:
-	}
-	return result;
-};
-/**
-* Renderer.render(tokens, options, env) -> String
-* - tokens (Array): list on block tokens to render
-* - options (Object): params of parser instance
-* - env (Object): additional data from parsed input (references, for example)
-*
-* Takes token stream and generates HTML. Probably, you will never need to call
-* this method directly.
-**/
-Renderer.prototype.render = function(tokens, options, env) {
-	let result = "";
-	const rules = this.rules;
-	for (let i = 0, len = tokens.length; i < len; i++) {
-		const type = tokens[i].type;
-		if (type === "inline") result += this.renderInline(tokens[i].children, options, env);
-		else if (typeof rules[type] !== "undefined") result += rules[type](tokens, i, options, env, this);
-		else result += this.renderToken(tokens, i, options, env);
-	}
-	return result;
-};
-//#endregion
-//#region ../../node_modules/.pnpm/markdown-it@14.3.0/node_modules/markdown-it/lib/ruler.mjs
-/**
-* class Ruler
-*
-* Helper class, used by [[MarkdownIt#core]], [[MarkdownIt#block]] and
-* [[MarkdownIt#inline]] to manage sequences of functions (rules):
-*
-* - keep rules in defined order
-* - assign the name to each rule
-* - enable/disable rules
-* - add/replace rules
-* - allow assign rules to additional named chains (in the same)
-* - cacheing lists of active rules
-*
-* You will not need use this class directly until write plugins. For simple
-* rules control use [[MarkdownIt.disable]], [[MarkdownIt.enable]] and
-* [[MarkdownIt.use]].
-**/
-/**
-* new Ruler()
-**/
-function Ruler() {
-	this.__rules__ = [];
-	this.__cache__ = null;
-}
-Ruler.prototype.__find__ = function(name) {
-	for (let i = 0; i < this.__rules__.length; i++) if (this.__rules__[i].name === name) return i;
-	return -1;
-};
-Ruler.prototype.__compile__ = function() {
-	const self = this;
-	const chains = [""];
-	self.__rules__.forEach(function(rule) {
-		if (!rule.enabled) return;
-		rule.alt.forEach(function(altName) {
-			if (chains.indexOf(altName) < 0) chains.push(altName);
+	*/
+	constructor(options = {}) {
+		const { rebuilder, ...linkifyOptions } = options;
+		this.__opts__ = {
+			...defaultOptions,
+			...linkifyOptions
+		};
+		this.__schemas__ = { ...defaultSchemas };
+		this.re = rebuilder || new REBuilder();
+		this.re.set({
+			...this.__opts__,
+			schema_names: Object.keys(this.__schemas__)
 		});
-	});
-	self.__cache__ = {};
-	chains.forEach(function(chain) {
-		self.__cache__[chain] = [];
-		self.__rules__.forEach(function(rule) {
-			if (!rule.enabled) return;
-			if (chain && rule.alt.indexOf(chain) < 0) return;
-			self.__cache__[chain].push(rule.fn);
-		});
-	});
-};
-/**
-* Ruler.at(name, fn [, options])
-* - name (String): rule name to replace.
-* - fn (Function): new rule function.
-* - options (Object): new rule options (not mandatory).
-*
-* Replace rule by name with new function & options. Throws error if name not
-* found.
-*
-* ##### Options:
-*
-* - __alt__ - array with names of "alternate" chains.
-*
-* ##### Example
-*
-* Replace existing typographer replacement rule with new one:
-*
-* ```javascript
-* var md = require('markdown-it')();
-*
-* md.core.ruler.at('replacements', function replace(state) {
-*   //...
-* });
-* ```
-**/
-Ruler.prototype.at = function(name, fn, options) {
-	const index = this.__find__(name);
-	const opt = options || {};
-	if (index === -1) throw new Error("Parser rule not found: " + name);
-	this.__rules__[index].fn = fn;
-	this.__rules__[index].alt = opt.alt || [];
-	this.__cache__ = null;
-};
-/**
-* Ruler.before(beforeName, ruleName, fn [, options])
-* - beforeName (String): new rule will be added before this one.
-* - ruleName (String): name of added rule.
-* - fn (Function): rule function.
-* - options (Object): rule options (not mandatory).
-*
-* Add new rule to chain before one with given name. See also
-* [[Ruler.after]], [[Ruler.push]].
-*
-* ##### Options:
-*
-* - __alt__ - array with names of "alternate" chains.
-*
-* ##### Example
-*
-* ```javascript
-* var md = require('markdown-it')();
-*
-* md.block.ruler.before('paragraph', 'my_rule', function replace(state) {
-*   //...
-* });
-* ```
-**/
-Ruler.prototype.before = function(beforeName, ruleName, fn, options) {
-	const index = this.__find__(beforeName);
-	const opt = options || {};
-	if (index === -1) throw new Error("Parser rule not found: " + beforeName);
-	this.__rules__.splice(index, 0, {
-		name: ruleName,
-		enabled: true,
-		fn,
-		alt: opt.alt || []
-	});
-	this.__cache__ = null;
-};
-/**
-* Ruler.after(afterName, ruleName, fn [, options])
-* - afterName (String): new rule will be added after this one.
-* - ruleName (String): name of added rule.
-* - fn (Function): rule function.
-* - options (Object): rule options (not mandatory).
-*
-* Add new rule to chain after one with given name. See also
-* [[Ruler.before]], [[Ruler.push]].
-*
-* ##### Options:
-*
-* - __alt__ - array with names of "alternate" chains.
-*
-* ##### Example
-*
-* ```javascript
-* var md = require('markdown-it')();
-*
-* md.inline.ruler.after('text', 'my_rule', function replace(state) {
-*   //...
-* });
-* ```
-**/
-Ruler.prototype.after = function(afterName, ruleName, fn, options) {
-	const index = this.__find__(afterName);
-	const opt = options || {};
-	if (index === -1) throw new Error("Parser rule not found: " + afterName);
-	this.__rules__.splice(index + 1, 0, {
-		name: ruleName,
-		enabled: true,
-		fn,
-		alt: opt.alt || []
-	});
-	this.__cache__ = null;
-};
-/**
-* Ruler.push(ruleName, fn [, options])
-* - ruleName (String): name of added rule.
-* - fn (Function): rule function.
-* - options (Object): rule options (not mandatory).
-*
-* Push new rule to the end of chain. See also
-* [[Ruler.before]], [[Ruler.after]].
-*
-* ##### Options:
-*
-* - __alt__ - array with names of "alternate" chains.
-*
-* ##### Example
-*
-* ```javascript
-* var md = require('markdown-it')();
-*
-* md.core.ruler.push('my_rule', function replace(state) {
-*   //...
-* });
-* ```
-**/
-Ruler.prototype.push = function(ruleName, fn, options) {
-	const opt = options || {};
-	this.__rules__.push({
-		name: ruleName,
-		enabled: true,
-		fn,
-		alt: opt.alt || []
-	});
-	this.__cache__ = null;
-};
-/**
-* Ruler.enable(list [, ignoreInvalid]) -> Array
-* - list (String|Array): list of rule names to enable.
-* - ignoreInvalid (Boolean): set `true` to ignore errors when rule not found.
-*
-* Enable rules with given names. If any rule name not found - throw Error.
-* Errors can be disabled by second param.
-*
-* Returns list of found rule names (if no exception happened).
-*
-* See also [[Ruler.disable]], [[Ruler.enableOnly]].
-**/
-Ruler.prototype.enable = function(list, ignoreInvalid) {
-	if (!Array.isArray(list)) list = [list];
-	const result = [];
-	list.forEach(function(name) {
-		const idx = this.__find__(name);
-		if (idx < 0) {
-			if (ignoreInvalid) return;
-			throw new Error("Rules manager: invalid rule name " + name);
-		}
-		this.__rules__[idx].enabled = true;
-		result.push(name);
-	}, this);
-	this.__cache__ = null;
-	return result;
-};
-/**
-* Ruler.enableOnly(list [, ignoreInvalid])
-* - list (String|Array): list of rule names to enable (whitelist).
-* - ignoreInvalid (Boolean): set `true` to ignore errors when rule not found.
-*
-* Enable rules with given names, and disable everything else. If any rule name
-* not found - throw Error. Errors can be disabled by second param.
-*
-* See also [[Ruler.disable]], [[Ruler.enable]].
-**/
-Ruler.prototype.enableOnly = function(list, ignoreInvalid) {
-	if (!Array.isArray(list)) list = [list];
-	this.__rules__.forEach(function(rule) {
-		rule.enabled = false;
-	});
-	this.enable(list, ignoreInvalid);
-};
-/**
-* Ruler.disable(list [, ignoreInvalid]) -> Array
-* - list (String|Array): list of rule names to disable.
-* - ignoreInvalid (Boolean): set `true` to ignore errors when rule not found.
-*
-* Disable rules with given names. If any rule name not found - throw Error.
-* Errors can be disabled by second param.
-*
-* Returns list of found rule names (if no exception happened).
-*
-* See also [[Ruler.enable]], [[Ruler.enableOnly]].
-**/
-Ruler.prototype.disable = function(list, ignoreInvalid) {
-	if (!Array.isArray(list)) list = [list];
-	const result = [];
-	list.forEach(function(name) {
-		const idx = this.__find__(name);
-		if (idx < 0) {
-			if (ignoreInvalid) return;
-			throw new Error("Rules manager: invalid rule name " + name);
-		}
-		this.__rules__[idx].enabled = false;
-		result.push(name);
-	}, this);
-	this.__cache__ = null;
-	return result;
-};
-/**
-* Ruler.getRules(chainName) -> Array
-*
-* Return array of active functions (rules) for given chain name. It analyzes
-* rules configuration, compiles caches if not exists and returns result.
-*
-* Default chain name is `''` (empty string). It can't be skipped. That's
-* done intentionally, to keep signature monomorphic for high speed.
-**/
-Ruler.prototype.getRules = function(chainName) {
-	if (this.__cache__ === null) this.__compile__();
-	return this.__cache__[chainName] || [];
-};
-//#endregion
-//#region ../../node_modules/.pnpm/markdown-it@14.3.0/node_modules/markdown-it/lib/token.mjs
-/**
-* class Token
-**/
-/**
-* new Token(type, tag, nesting)
-*
-* Create new token and fill passed properties.
-**/
-function Token(type, tag, nesting) {
-	/**
-	* Token#type -> String
-	*
-	* Type of the token (string, e.g. "paragraph_open")
-	**/
-	this.type = type;
-	/**
-	* Token#tag -> String
-	*
-	* html tag name, e.g. "p"
-	**/
-	this.tag = tag;
-	/**
-	* Token#attrs -> Array
-	*
-	* Html attributes. Format: `[ [ name1, value1 ], [ name2, value2 ] ]`
-	**/
-	this.attrs = null;
-	/**
-	* Token#map -> Array
-	*
-	* Source map info. Format: `[ line_begin, line_end ]`
-	**/
-	this.map = null;
-	/**
-	* Token#nesting -> Number
-	*
-	* Level change (number in {-1, 0, 1} set), where:
-	*
-	* -  `1` means the tag is opening
-	* -  `0` means the tag is self-closing
-	* - `-1` means the tag is closing
-	**/
-	this.nesting = nesting;
-	/**
-	* Token#level -> Number
-	*
-	* nesting level, the same as `state.level`
-	**/
-	this.level = 0;
-	/**
-	* Token#children -> Array
-	*
-	* An array of child nodes (inline and img tokens)
-	**/
-	this.children = null;
-	/**
-	* Token#content -> String
-	*
-	* In a case of self-closing tag (code, html, fence, etc.),
-	* it has contents of this tag.
-	**/
-	this.content = "";
-	/**
-	* Token#markup -> String
-	*
-	* '*' or '_' for emphasis, fence string for fence, etc.
-	**/
-	this.markup = "";
-	/**
-	* Token#info -> String
-	*
-	* Additional information:
-	*
-	* - Info string for "fence" tokens
-	* - The value "auto" for autolink "link_open" and "link_close" tokens
-	* - The string value of the item marker for ordered-list "list_item_open" tokens
-	**/
-	this.info = "";
-	/**
-	* Token#meta -> Object
-	*
-	* A place for plugins to store an arbitrary data
-	**/
-	this.meta = null;
-	/**
-	* Token#block -> Boolean
-	*
-	* True for block-level tokens, false for inline tokens.
-	* Used in renderer to calculate line breaks
-	**/
-	this.block = false;
-	/**
-	* Token#hidden -> Boolean
-	*
-	* If it's true, ignore this element when rendering. Used for tight lists
-	* to hide paragraphs.
-	**/
-	this.hidden = false;
-}
-/**
-* Token.attrIndex(name) -> Number
-*
-* Search attribute index by name.
-**/
-Token.prototype.attrIndex = function attrIndex(name) {
-	if (!this.attrs) return -1;
-	const attrs = this.attrs;
-	for (let i = 0, len = attrs.length; i < len; i++) if (attrs[i][0] === name) return i;
-	return -1;
-};
-/**
-* Token.attrPush(attrData)
-*
-* Add `[ name, value ]` attribute to list. Init attrs if necessary
-**/
-Token.prototype.attrPush = function attrPush(attrData) {
-	if (this.attrs) this.attrs.push(attrData);
-	else this.attrs = [attrData];
-};
-/**
-* Token.attrSet(name, value)
-*
-* Set `name` attribute to `value`. Override old value if exists.
-**/
-Token.prototype.attrSet = function attrSet(name, value) {
-	const idx = this.attrIndex(name);
-	const attrData = [name, value];
-	if (idx < 0) this.attrPush(attrData);
-	else this.attrs[idx] = attrData;
-};
-/**
-* Token.attrGet(name)
-*
-* Get the value of attribute `name`, or null if it does not exist.
-**/
-Token.prototype.attrGet = function attrGet(name) {
-	const idx = this.attrIndex(name);
-	let value = null;
-	if (idx >= 0) value = this.attrs[idx][1];
-	return value;
-};
-/**
-* Token.attrJoin(name, value)
-*
-* Join value to existing attribute via space. Or create new attribute if not
-* exists. Useful to operate with token classes.
-**/
-Token.prototype.attrJoin = function attrJoin(name, value) {
-	const idx = this.attrIndex(name);
-	if (idx < 0) this.attrPush([name, value]);
-	else this.attrs[idx][1] = this.attrs[idx][1] + " " + value;
-};
-//#endregion
-//#region ../../node_modules/.pnpm/markdown-it@14.3.0/node_modules/markdown-it/lib/rules_core/state_core.mjs
-function StateCore(src, md, env) {
-	this.src = src;
-	this.env = env;
-	this.tokens = [];
-	this.inlineMode = false;
-	this.md = md;
-}
-StateCore.prototype.Token = Token;
-//#endregion
-//#region ../../node_modules/.pnpm/markdown-it@14.3.0/node_modules/markdown-it/lib/rules_core/normalize.mjs
-var NEWLINES_RE = /\r\n?|\n/g;
-var NULL_RE = /\0/g;
-function normalize(state) {
-	let str;
-	str = state.src.replace(NEWLINES_RE, "\n");
-	str = str.replace(NULL_RE, "�");
-	state.src = str;
-}
-//#endregion
-//#region ../../node_modules/.pnpm/markdown-it@14.3.0/node_modules/markdown-it/lib/rules_core/block.mjs
-function block$1(state) {
-	let token;
-	if (state.inlineMode) {
-		token = new state.Token("inline", "", 0);
-		token.content = state.src;
-		token.map = [0, 1];
-		token.children = [];
-		state.tokens.push(token);
-	} else state.md.block.parse(state.src, state.md, state.env, state.tokens);
-}
-//#endregion
-//#region ../../node_modules/.pnpm/markdown-it@14.3.0/node_modules/markdown-it/lib/rules_core/inline.mjs
-function inline$2(state) {
-	const tokens = state.tokens;
-	for (let i = 0, l = tokens.length; i < l; i++) {
-		const tok = tokens[i];
-		if (tok.type === "inline") state.md.inline.parse(tok.content, state.md, state.env, tok.children);
 	}
-}
-//#endregion
-//#region ../../node_modules/.pnpm/markdown-it@14.3.0/node_modules/markdown-it/lib/rules_core/linkify.mjs
-function isLinkOpen$1(str) {
-	return /^<a[>\s]/i.test(str);
-}
-function isLinkClose$1(str) {
-	return /^<\/a\s*>/i.test(str);
-}
-function linkify$1(state) {
-	const blockTokens = state.tokens;
-	if (!state.md.options.linkify) return;
-	for (let j = 0, l = blockTokens.length; j < l; j++) {
-		if (blockTokens[j].type !== "inline" || !state.md.linkify.pretest(blockTokens[j].content)) continue;
-		let tokens = blockTokens[j].children;
-		let htmlLinkLevel = 0;
-		for (let i = tokens.length - 1; i >= 0; i--) {
-			const currentToken = tokens[i];
-			if (currentToken.type === "link_close") {
-				i--;
-				while (tokens[i].level !== currentToken.level && tokens[i].type !== "link_open") i--;
-				continue;
-			}
-			if (currentToken.type === "html_inline") {
-				if (isLinkOpen$1(currentToken.content) && htmlLinkLevel > 0) htmlLinkLevel--;
-				if (isLinkClose$1(currentToken.content)) htmlLinkLevel++;
-			}
-			if (htmlLinkLevel > 0) continue;
-			if (currentToken.type === "text" && state.md.linkify.test(currentToken.content)) {
-				const text = currentToken.content;
-				let links = state.md.linkify.match(text);
-				const nodes = [];
-				let level = currentToken.level;
-				let lastPos = 0;
-				if (links.length > 0 && links[0].index === 0 && i > 0 && tokens[i - 1].type === "text_special") links = links.slice(1);
-				for (let ln = 0; ln < links.length; ln++) {
-					const url = links[ln].url;
-					const fullUrl = state.md.normalizeLink(url);
-					if (!state.md.validateLink(fullUrl)) continue;
-					let urlText = links[ln].text;
-					if (!links[ln].schema) urlText = state.md.normalizeLinkText("http://" + urlText).replace(/^http:\/\//, "");
-					else if (links[ln].schema === "mailto:" && !/^mailto:/i.test(urlText)) urlText = state.md.normalizeLinkText("mailto:" + urlText).replace(/^mailto:/, "");
-					else urlText = state.md.normalizeLinkText(urlText);
-					const pos = links[ln].index;
-					if (pos > lastPos) {
-						const token = new state.Token("text", "", 0);
-						token.content = text.slice(lastPos, pos);
-						token.level = level;
-						nodes.push(token);
-					}
-					const token_o = new state.Token("link_open", "a", 1);
-					token_o.attrs = [["href", fullUrl]];
-					token_o.level = level++;
-					token_o.markup = "linkify";
-					token_o.info = "auto";
-					nodes.push(token_o);
-					const token_t = new state.Token("text", "", 0);
-					token_t.content = urlText;
-					token_t.level = level;
-					nodes.push(token_t);
-					const token_c = new state.Token("link_close", "a", -1);
-					token_c.level = --level;
-					token_c.markup = "linkify";
-					token_c.info = "auto";
-					nodes.push(token_c);
-					lastPos = links[ln].lastIndex;
-				}
-				if (lastPos < text.length) {
-					const token = new state.Token("text", "", 0);
-					token.content = text.slice(lastPos);
-					token.level = level;
-					nodes.push(token);
-				}
-				blockTokens[j].children = tokens = arrayReplaceAt(tokens, i, nodes);
-			}
-		}
-	}
-}
-//#endregion
-//#region ../../node_modules/.pnpm/markdown-it@14.3.0/node_modules/markdown-it/lib/rules_core/replacements.mjs
-var RARE_RE = /\+-|\.\.|\?\?\?\?|!!!!|,,|--/;
-var SCOPED_ABBR_TEST_RE = /\((c|tm|r)\)/i;
-var SCOPED_ABBR_RE = /\((c|tm|r)\)/gi;
-var SCOPED_ABBR = {
-	c: "©",
-	r: "®",
-	tm: "™"
-};
-function replaceFn(match, name) {
-	return SCOPED_ABBR[name.toLowerCase()];
-}
-function replace_scoped(inlineTokens) {
-	let inside_autolink = 0;
-	for (let i = inlineTokens.length - 1; i >= 0; i--) {
-		const token = inlineTokens[i];
-		if (token.type === "text" && !inside_autolink) token.content = token.content.replace(SCOPED_ABBR_RE, replaceFn);
-		if (token.type === "link_open" && token.info === "auto") inside_autolink--;
-		if (token.type === "link_close" && token.info === "auto") inside_autolink++;
-	}
-}
-function replace_rare(inlineTokens) {
-	let inside_autolink = 0;
-	for (let i = inlineTokens.length - 1; i >= 0; i--) {
-		const token = inlineTokens[i];
-		if (token.type === "text" && !inside_autolink) {
-			if (RARE_RE.test(token.content)) token.content = token.content.replace(/\+-/g, "±").replace(/\.{2,}/g, "…").replace(/([?!])…/g, "$1..").replace(/([?!]){4,}/g, "$1$1$1").replace(/,{2,}/g, ",").replace(/(^|[^-])---(?=[^-]|$)/gm, "$1—").replace(/(^|\s)--(?=\s|$)/gm, "$1–").replace(/(^|[^-\s])--(?=[^-\s]|$)/gm, "$1–");
-		}
-		if (token.type === "link_open" && token.info === "auto") inside_autolink--;
-		if (token.type === "link_close" && token.info === "auto") inside_autolink++;
-	}
-}
-function replace$1(state) {
-	let blkIdx;
-	if (!state.md.options.typographer) return;
-	for (blkIdx = state.tokens.length - 1; blkIdx >= 0; blkIdx--) {
-		if (state.tokens[blkIdx].type !== "inline") continue;
-		if (SCOPED_ABBR_TEST_RE.test(state.tokens[blkIdx].content)) replace_scoped(state.tokens[blkIdx].children);
-		if (RARE_RE.test(state.tokens[blkIdx].content)) replace_rare(state.tokens[blkIdx].children);
-	}
-}
-//#endregion
-//#region ../../node_modules/.pnpm/markdown-it@14.3.0/node_modules/markdown-it/lib/rules_core/smartquotes.mjs
-var QUOTE_TEST_RE = /['"]/;
-var QUOTE_RE = /['"]/g;
-var APOSTROPHE = "’";
-function addReplacement(replacements, tokenIdx, pos, ch) {
-	if (!replacements[tokenIdx]) replacements[tokenIdx] = [];
-	replacements[tokenIdx].push({
-		pos,
-		ch
-	});
-}
-function applyReplacements(str, replacements) {
-	let result = "";
-	let lastPos = 0;
-	replacements.sort((a, b) => a.pos - b.pos);
-	for (let i = 0; i < replacements.length; i++) {
-		const replacement = replacements[i];
-		result += str.slice(lastPos, replacement.pos) + replacement.ch;
-		lastPos = replacement.pos + 1;
-	}
-	return result + str.slice(lastPos);
-}
-function process_inlines(tokens, state) {
-	let j;
-	const stack = [];
-	const replacements = {};
-	for (let i = 0; i < tokens.length; i++) {
-		const token = tokens[i];
-		const thisLevel = tokens[i].level;
-		for (j = stack.length - 1; j >= 0; j--) if (stack[j].level <= thisLevel) break;
-		stack.length = j + 1;
-		if (token.type !== "text") continue;
-		const text = token.content;
-		let pos = 0;
-		const max = text.length;
-		OUTER: while (pos < max) {
-			QUOTE_RE.lastIndex = pos;
-			const t = QUOTE_RE.exec(text);
-			if (!t) break;
-			let canOpen = true;
-			let canClose = true;
-			pos = t.index + 1;
-			const isSingle = t[0] === "'";
-			let lastChar = 32;
-			if (t.index - 1 >= 0) lastChar = text.charCodeAt(t.index - 1);
-			else for (j = i - 1; j >= 0; j--) {
-				if (tokens[j].type === "softbreak" || tokens[j].type === "hardbreak") break;
-				if (!tokens[j].content) continue;
-				lastChar = tokens[j].content.charCodeAt(tokens[j].content.length - 1);
-				break;
-			}
-			let nextChar = 32;
-			if (pos < max) nextChar = text.charCodeAt(pos);
-			else for (j = i + 1; j < tokens.length; j++) {
-				if (tokens[j].type === "softbreak" || tokens[j].type === "hardbreak") break;
-				if (!tokens[j].content) continue;
-				nextChar = tokens[j].content.charCodeAt(0);
-				break;
-			}
-			const isLastPunctChar = isMdAsciiPunct(lastChar) || isPunctCharCode(lastChar);
-			const isNextPunctChar = isMdAsciiPunct(nextChar) || isPunctCharCode(nextChar);
-			const isLastWhiteSpace = isWhiteSpace(lastChar);
-			const isNextWhiteSpace = isWhiteSpace(nextChar);
-			if (isNextWhiteSpace) canOpen = false;
-			else if (isNextPunctChar) {
-				if (!(isLastWhiteSpace || isLastPunctChar)) canOpen = false;
-			}
-			if (isLastWhiteSpace) canClose = false;
-			else if (isLastPunctChar) {
-				if (!(isNextWhiteSpace || isNextPunctChar)) canClose = false;
-			}
-			if (nextChar === 34 && t[0] === "\"") {
-				if (lastChar >= 48 && lastChar <= 57) canClose = canOpen = false;
-			}
-			if (canOpen && canClose) {
-				canOpen = isLastPunctChar;
-				canClose = isNextPunctChar;
-			}
-			if (!canOpen && !canClose) {
-				if (isSingle) addReplacement(replacements, i, t.index, APOSTROPHE);
-				continue;
-			}
-			if (canClose) for (j = stack.length - 1; j >= 0; j--) {
-				let item = stack[j];
-				if (stack[j].level < thisLevel) break;
-				if (item.single === isSingle && stack[j].level === thisLevel) {
-					item = stack[j];
-					let openQuote;
-					let closeQuote;
-					if (isSingle) {
-						openQuote = state.md.options.quotes[2];
-						closeQuote = state.md.options.quotes[3];
-					} else {
-						openQuote = state.md.options.quotes[0];
-						closeQuote = state.md.options.quotes[1];
-					}
-					addReplacement(replacements, i, t.index, closeQuote);
-					addReplacement(replacements, item.token, item.pos, openQuote);
-					stack.length = j;
-					continue OUTER;
-				}
-			}
-			if (canOpen) stack.push({
-				token: i,
-				pos: t.index,
-				single: isSingle,
-				level: thisLevel
-			});
-			else if (canClose && isSingle) addReplacement(replacements, i, t.index, APOSTROPHE);
-		}
-	}
-	Object.keys(replacements).forEach(function(tokenIdx) {
-		tokens[tokenIdx].content = applyReplacements(tokens[tokenIdx].content, replacements[tokenIdx]);
-	});
-}
-function smartquotes(state) {
-	if (!state.md.options.typographer) return;
-	for (let blkIdx = state.tokens.length - 1; blkIdx >= 0; blkIdx--) {
-		if (state.tokens[blkIdx].type !== "inline" || !QUOTE_TEST_RE.test(state.tokens[blkIdx].content)) continue;
-		process_inlines(state.tokens[blkIdx].children, state);
-	}
-}
-//#endregion
-//#region ../../node_modules/.pnpm/markdown-it@14.3.0/node_modules/markdown-it/lib/rules_core/text_join.mjs
-function text_join(state) {
-	let curr, last;
-	const blockTokens = state.tokens;
-	const l = blockTokens.length;
-	for (let j = 0; j < l; j++) {
-		if (blockTokens[j].type !== "inline") continue;
-		const tokens = blockTokens[j].children;
-		const max = tokens.length;
-		for (curr = 0; curr < max; curr++) if (tokens[curr].type === "text_special") tokens[curr].type = "text";
-		for (curr = last = 0; curr < max; curr++) if (tokens[curr].type === "text" && curr + 1 < max && tokens[curr + 1].type === "text") tokens[curr + 1].content = tokens[curr].content + tokens[curr + 1].content;
+	/**
+	* Add new rule definition.
+	*
+	* `schema` is a link prefix (usually, protocol name with `:` at the end,
+	* `skype:` for example). `linkify-it` makes sure that prefix is not
+	* preceded with alphanumeric char and symbols. Only whitespaces and
+	* punctuation allowed.
+	*
+	* `definition` is a rule to check tail after link prefix. To disable an
+	* existing rule, pass `null`.
+	*
+	* @param schema Rule name (fixed pattern prefix).
+	* @param definition Schema definition, or `null` to disable the rule.
+	*
+	* See [twitter mentions example](https://github.com/markdown-it/linkify-it/blob/master/examples/twitter.mjs).
+	*/
+	add(schema, definition = null) {
+		if (!definition) delete this.__schemas__[schema];
 		else {
-			if (curr !== last) tokens[last] = tokens[curr];
-			last++;
+			const def = {
+				normalize: (match, self) => self.normalize(match),
+				...definition
+			};
+			this.__schemas__[schema] = def;
 		}
-		if (curr !== last) tokens.length = last;
+		this.re.set({
+			...this.__opts__,
+			schema_names: Object.keys(this.__schemas__)
+		});
+		return this;
 	}
-}
-//#endregion
-//#region ../../node_modules/.pnpm/markdown-it@14.3.0/node_modules/markdown-it/lib/parser_core.mjs
-/** internal
-* class Core
-*
-* Top-level rules executor. Glues block/inline parsers and does intermediate
-* transformations.
-**/
-var _rules$2 = [
-	["normalize", normalize],
-	["block", block$1],
-	["inline", inline$2],
-	["linkify", linkify$1],
-	["replacements", replace$1],
-	["smartquotes", smartquotes],
-	["text_join", text_join]
-];
-/**
-* new Core()
-**/
-function Core() {
 	/**
-	* Core#ruler -> Ruler
+	* Set recognition options for links without schema.
 	*
-	* [[Ruler]] instance. Keep configuration of core rules.
-	**/
-	this.ruler = new Ruler();
-	for (let i = 0; i < _rules$2.length; i++) this.ruler.push(_rules$2[i][0], _rules$2[i][1]);
-}
-/**
-* Core.process(state)
-*
-* Executes core chain rules.
-**/
-Core.prototype.process = function(state) {
-	const rules = this.ruler.getRules("");
-	for (let i = 0, l = rules.length; i < l; i++) rules[i](state);
-};
-Core.prototype.State = StateCore;
-//#endregion
-//#region ../../node_modules/.pnpm/markdown-it@14.3.0/node_modules/markdown-it/lib/rules_block/state_block.mjs
-function StateBlock(src, md, env, tokens) {
-	this.src = src;
-	this.md = md;
-	this.env = env;
-	this.tokens = tokens;
-	this.bMarks = [];
-	this.eMarks = [];
-	this.tShift = [];
-	this.sCount = [];
-	this.bsCount = [];
-	this.blkIndent = 0;
-	this.line = 0;
-	this.lineMax = 0;
-	this.tight = false;
-	this.ddIndent = -1;
-	this.listIndent = -1;
-	this.parentType = "root";
-	this.level = 0;
-	const s = this.src;
-	for (let start = 0, pos = 0, indent = 0, offset = 0, len = s.length, indent_found = false; pos < len; pos++) {
-		const ch = s.charCodeAt(pos);
-		if (!indent_found) if (isSpace(ch)) {
-			indent++;
-			if (ch === 9) offset += 4 - offset % 4;
-			else offset++;
-			continue;
-		} else indent_found = true;
-		if (ch === 10 || pos === len - 1) {
-			if (ch !== 10) pos++;
-			this.bMarks.push(start);
-			this.eMarks.push(pos);
-			this.tShift.push(indent);
-			this.sCount.push(offset);
-			this.bsCount.push(0);
-			indent_found = false;
-			indent = 0;
-			offset = 0;
-			start = pos + 1;
+	* @param options Recognition options.
+	*/
+	set(options = {}) {
+		this.__opts__ = {
+			...this.__opts__,
+			...options
+		};
+		this.re.set({
+			...this.__opts__,
+			schema_names: Object.keys(this.__schemas__)
+		});
+		return this;
+	}
+	/**
+	* Searches linkifiable pattern and returns `true` on success or `false` on fail.
+	*
+	* @param text Text to scan.
+	*/
+	test(text) {
+		if (!text.length) return false;
+		let m, re;
+		re = this.re.get_schema_search();
+		re.lastIndex = 0;
+		while ((m = re.exec(text)) !== null) if (this.testSchemaAt(text, m[2], re.lastIndex)) return true;
+		if (this.__opts__.fuzzyLink && this.__schemas__["http:"]) {
+			re = this.re.get_fuzzy_link_search();
+			re.lastIndex = 0;
+			if (re.exec(text) !== null) return true;
 		}
-	}
-	this.bMarks.push(s.length);
-	this.eMarks.push(s.length);
-	this.tShift.push(0);
-	this.sCount.push(0);
-	this.bsCount.push(0);
-	this.lineMax = this.bMarks.length - 1;
-}
-StateBlock.prototype.push = function(type, tag, nesting) {
-	const token = new Token(type, tag, nesting);
-	token.block = true;
-	if (nesting < 0) this.level--;
-	token.level = this.level;
-	if (nesting > 0) this.level++;
-	this.tokens.push(token);
-	return token;
-};
-StateBlock.prototype.isEmpty = function isEmpty(line) {
-	return this.bMarks[line] + this.tShift[line] >= this.eMarks[line];
-};
-StateBlock.prototype.skipEmptyLines = function skipEmptyLines(from) {
-	for (let max = this.lineMax; from < max; from++) if (this.bMarks[from] + this.tShift[from] < this.eMarks[from]) break;
-	return from;
-};
-StateBlock.prototype.skipSpaces = function skipSpaces(pos) {
-	for (let max = this.src.length; pos < max; pos++) if (!isSpace(this.src.charCodeAt(pos))) break;
-	return pos;
-};
-StateBlock.prototype.skipSpacesBack = function skipSpacesBack(pos, min) {
-	if (pos <= min) return pos;
-	while (pos > min) if (!isSpace(this.src.charCodeAt(--pos))) return pos + 1;
-	return pos;
-};
-StateBlock.prototype.skipChars = function skipChars(pos, code) {
-	for (let max = this.src.length; pos < max; pos++) if (this.src.charCodeAt(pos) !== code) break;
-	return pos;
-};
-StateBlock.prototype.skipCharsBack = function skipCharsBack(pos, code, min) {
-	if (pos <= min) return pos;
-	while (pos > min) if (code !== this.src.charCodeAt(--pos)) return pos + 1;
-	return pos;
-};
-StateBlock.prototype.getLines = function getLines(begin, end, indent, keepLastLF) {
-	if (begin >= end) return "";
-	const queue = new Array(end - begin);
-	for (let i = 0, line = begin; line < end; line++, i++) {
-		let lineIndent = 0;
-		const lineStart = this.bMarks[line];
-		let first = lineStart;
-		let last;
-		if (line + 1 < end || keepLastLF) last = this.eMarks[line] + 1;
-		else last = this.eMarks[line];
-		while (first < last && lineIndent < indent) {
-			const ch = this.src.charCodeAt(first);
-			if (isSpace(ch)) if (ch === 9) lineIndent += 4 - (lineIndent + this.bsCount[line]) % 4;
-			else lineIndent++;
-			else if (first - lineStart < this.tShift[line]) lineIndent++;
-			else break;
-			first++;
-		}
-		if (lineIndent > indent) queue[i] = new Array(lineIndent - indent + 1).join(" ") + this.src.slice(first, last);
-		else queue[i] = this.src.slice(first, last);
-	}
-	return queue.join("");
-};
-StateBlock.prototype.Token = Token;
-//#endregion
-//#region ../../node_modules/.pnpm/markdown-it@14.3.0/node_modules/markdown-it/lib/rules_block/table.mjs
-var MAX_AUTOCOMPLETED_CELLS = 65536;
-function getLine(state, line) {
-	const pos = state.bMarks[line] + state.tShift[line];
-	const max = state.eMarks[line];
-	return state.src.slice(pos, max);
-}
-function escapedSplit(str) {
-	const result = [];
-	const max = str.length;
-	let pos = 0;
-	let ch = str.charCodeAt(pos);
-	let isEscaped = false;
-	let lastPos = 0;
-	let current = "";
-	while (pos < max) {
-		if (ch === 124) if (!isEscaped) {
-			result.push(current + str.substring(lastPos, pos));
-			current = "";
-			lastPos = pos + 1;
-		} else {
-			current += str.substring(lastPos, pos - 1);
-			lastPos = pos;
-		}
-		isEscaped = ch === 92;
-		pos++;
-		ch = str.charCodeAt(pos);
-	}
-	result.push(current + str.substring(lastPos));
-	return result;
-}
-function table$5(state, startLine, endLine, silent) {
-	if (startLine + 2 > endLine) return false;
-	let nextLine = startLine + 1;
-	if (state.sCount[nextLine] < state.blkIndent) return false;
-	if (state.sCount[nextLine] - state.blkIndent >= 4) return false;
-	let pos = state.bMarks[nextLine] + state.tShift[nextLine];
-	if (pos >= state.eMarks[nextLine]) return false;
-	const firstCh = state.src.charCodeAt(pos++);
-	if (firstCh !== 124 && firstCh !== 45 && firstCh !== 58) return false;
-	if (pos >= state.eMarks[nextLine]) return false;
-	const secondCh = state.src.charCodeAt(pos++);
-	if (secondCh !== 124 && secondCh !== 45 && secondCh !== 58 && !isSpace(secondCh)) return false;
-	if (firstCh === 45 && isSpace(secondCh)) return false;
-	while (pos < state.eMarks[nextLine]) {
-		const ch = state.src.charCodeAt(pos);
-		if (ch !== 124 && ch !== 45 && ch !== 58 && !isSpace(ch)) return false;
-		pos++;
-	}
-	let lineText = getLine(state, startLine + 1);
-	let columns = lineText.split("|");
-	const aligns = [];
-	for (let i = 0; i < columns.length; i++) {
-		const t = columns[i].trim();
-		if (!t) if (i === 0 || i === columns.length - 1) continue;
-		else return false;
-		if (!/^:?-+:?$/.test(t)) return false;
-		if (t.charCodeAt(t.length - 1) === 58) aligns.push(t.charCodeAt(0) === 58 ? "center" : "right");
-		else if (t.charCodeAt(0) === 58) aligns.push("left");
-		else aligns.push("");
-	}
-	lineText = getLine(state, startLine).trim();
-	if (lineText.indexOf("|") === -1) return false;
-	if (state.sCount[startLine] - state.blkIndent >= 4) return false;
-	columns = escapedSplit(lineText);
-	if (columns.length && columns[0] === "") columns.shift();
-	if (columns.length && columns[columns.length - 1] === "") columns.pop();
-	const columnCount = columns.length;
-	if (columnCount === 0 || columnCount !== aligns.length) return false;
-	if (silent) return true;
-	const oldParentType = state.parentType;
-	state.parentType = "table";
-	const terminatorRules = state.md.block.ruler.getRules("blockquote");
-	const token_to = state.push("table_open", "table", 1);
-	const tableLines = [startLine, 0];
-	token_to.map = tableLines;
-	const token_tho = state.push("thead_open", "thead", 1);
-	token_tho.map = [startLine, startLine + 1];
-	const token_htro = state.push("tr_open", "tr", 1);
-	token_htro.map = [startLine, startLine + 1];
-	for (let i = 0; i < columns.length; i++) {
-		const token_ho = state.push("th_open", "th", 1);
-		if (aligns[i]) token_ho.attrs = [["style", "text-align:" + aligns[i]]];
-		const token_il = state.push("inline", "", 0);
-		token_il.content = columns[i].trim();
-		token_il.children = [];
-		state.push("th_close", "th", -1);
-	}
-	state.push("tr_close", "tr", -1);
-	state.push("thead_close", "thead", -1);
-	let tbodyLines;
-	let autocompletedCells = 0;
-	for (nextLine = startLine + 2; nextLine < endLine; nextLine++) {
-		if (state.sCount[nextLine] < state.blkIndent) break;
-		let terminate = false;
-		for (let i = 0, l = terminatorRules.length; i < l; i++) if (terminatorRules[i](state, nextLine, endLine, true)) {
-			terminate = true;
-			break;
-		}
-		if (terminate) break;
-		lineText = getLine(state, nextLine).trim();
-		if (!lineText) break;
-		if (state.sCount[nextLine] - state.blkIndent >= 4) break;
-		columns = escapedSplit(lineText);
-		if (columns.length && columns[0] === "") columns.shift();
-		if (columns.length && columns[columns.length - 1] === "") columns.pop();
-		autocompletedCells += columnCount - columns.length;
-		if (autocompletedCells > MAX_AUTOCOMPLETED_CELLS) break;
-		if (nextLine === startLine + 2) {
-			const token_tbo = state.push("tbody_open", "tbody", 1);
-			token_tbo.map = tbodyLines = [startLine + 2, 0];
-		}
-		const token_tro = state.push("tr_open", "tr", 1);
-		token_tro.map = [nextLine, nextLine + 1];
-		for (let i = 0; i < columnCount; i++) {
-			const token_tdo = state.push("td_open", "td", 1);
-			if (aligns[i]) token_tdo.attrs = [["style", "text-align:" + aligns[i]]];
-			const token_il = state.push("inline", "", 0);
-			token_il.content = columns[i] ? columns[i].trim() : "";
-			token_il.children = [];
-			state.push("td_close", "td", -1);
-		}
-		state.push("tr_close", "tr", -1);
-	}
-	if (tbodyLines) {
-		state.push("tbody_close", "tbody", -1);
-		tbodyLines[1] = nextLine;
-	}
-	state.push("table_close", "table", -1);
-	tableLines[1] = nextLine;
-	state.parentType = oldParentType;
-	state.line = nextLine;
-	return true;
-}
-//#endregion
-//#region ../../node_modules/.pnpm/markdown-it@14.3.0/node_modules/markdown-it/lib/rules_block/code.mjs
-function code$5(state, startLine, endLine) {
-	if (state.sCount[startLine] - state.blkIndent < 4) return false;
-	let nextLine = startLine + 1;
-	let last = nextLine;
-	while (nextLine < endLine) {
-		if (state.isEmpty(nextLine)) {
-			nextLine++;
-			continue;
-		}
-		if (state.sCount[nextLine] - state.blkIndent >= 4) {
-			nextLine++;
-			last = nextLine;
-			continue;
-		}
-		break;
-	}
-	state.line = last;
-	const token = state.push("code_block", "code", 0);
-	token.content = state.getLines(startLine, last, 4 + state.blkIndent, false) + "\n";
-	token.map = [startLine, state.line];
-	return true;
-}
-//#endregion
-//#region ../../node_modules/.pnpm/markdown-it@14.3.0/node_modules/markdown-it/lib/rules_block/fence.mjs
-function fence(state, startLine, endLine, silent) {
-	let pos = state.bMarks[startLine] + state.tShift[startLine];
-	let max = state.eMarks[startLine];
-	if (state.sCount[startLine] - state.blkIndent >= 4) return false;
-	if (pos + 3 > max) return false;
-	const marker = state.src.charCodeAt(pos);
-	if (marker !== 126 && marker !== 96) return false;
-	let mem = pos;
-	pos = state.skipChars(pos, marker);
-	let len = pos - mem;
-	if (len < 3) return false;
-	const markup = state.src.slice(mem, pos);
-	const params = state.src.slice(pos, max);
-	if (marker === 96) {
-		if (params.indexOf(String.fromCharCode(marker)) >= 0) return false;
-	}
-	if (silent) return true;
-	let nextLine = startLine;
-	let haveEndMarker = false;
-	for (;;) {
-		nextLine++;
-		if (nextLine >= endLine) break;
-		pos = mem = state.bMarks[nextLine] + state.tShift[nextLine];
-		max = state.eMarks[nextLine];
-		if (pos < max && state.sCount[nextLine] < state.blkIndent) break;
-		if (state.src.charCodeAt(pos) !== marker) continue;
-		if (state.sCount[nextLine] - state.blkIndent >= 4) continue;
-		pos = state.skipChars(pos, marker);
-		if (pos - mem < len) continue;
-		pos = state.skipSpaces(pos);
-		if (pos < max) continue;
-		haveEndMarker = true;
-		break;
-	}
-	len = state.sCount[startLine];
-	state.line = nextLine + (haveEndMarker ? 1 : 0);
-	const token = state.push("fence", "code", 0);
-	token.info = params;
-	token.content = state.getLines(startLine + 1, nextLine, len, true);
-	token.markup = markup;
-	token.map = [startLine, state.line];
-	return true;
-}
-//#endregion
-//#region ../../node_modules/.pnpm/markdown-it@14.3.0/node_modules/markdown-it/lib/rules_block/blockquote.mjs
-function blockquote(state, startLine, endLine, silent) {
-	let pos = state.bMarks[startLine] + state.tShift[startLine];
-	let max = state.eMarks[startLine];
-	const oldLineMax = state.lineMax;
-	if (state.sCount[startLine] - state.blkIndent >= 4) return false;
-	if (state.src.charCodeAt(pos) !== 62) return false;
-	if (silent) return true;
-	const oldBMarks = [];
-	const oldBSCount = [];
-	const oldSCount = [];
-	const oldTShift = [];
-	const terminatorRules = state.md.block.ruler.getRules("blockquote");
-	const oldParentType = state.parentType;
-	state.parentType = "blockquote";
-	let lastLineEmpty = false;
-	let nextLine;
-	for (nextLine = startLine; nextLine < endLine; nextLine++) {
-		const isOutdented = state.sCount[nextLine] < state.blkIndent;
-		pos = state.bMarks[nextLine] + state.tShift[nextLine];
-		max = state.eMarks[nextLine];
-		if (pos >= max) break;
-		if (state.src.charCodeAt(pos++) === 62 && !isOutdented) {
-			let initial = state.sCount[nextLine] + 1;
-			let spaceAfterMarker;
-			let adjustTab;
-			if (state.src.charCodeAt(pos) === 32) {
-				pos++;
-				initial++;
-				adjustTab = false;
-				spaceAfterMarker = true;
-			} else if (state.src.charCodeAt(pos) === 9) {
-				spaceAfterMarker = true;
-				if ((state.bsCount[nextLine] + initial) % 4 === 3) {
-					pos++;
-					initial++;
-					adjustTab = false;
-				} else adjustTab = true;
-			} else spaceAfterMarker = false;
-			let offset = initial;
-			oldBMarks.push(state.bMarks[nextLine]);
-			state.bMarks[nextLine] = pos;
-			while (pos < max) {
-				const ch = state.src.charCodeAt(pos);
-				if (isSpace(ch)) if (ch === 9) offset += 4 - (offset + state.bsCount[nextLine] + (adjustTab ? 1 : 0)) % 4;
-				else offset++;
-				else break;
-				pos++;
-			}
-			lastLineEmpty = pos >= max;
-			oldBSCount.push(state.bsCount[nextLine]);
-			state.bsCount[nextLine] = state.sCount[nextLine] + 1 + (spaceAfterMarker ? 1 : 0);
-			oldSCount.push(state.sCount[nextLine]);
-			state.sCount[nextLine] = offset - initial;
-			oldTShift.push(state.tShift[nextLine]);
-			state.tShift[nextLine] = pos - state.bMarks[nextLine];
-			continue;
-		}
-		if (lastLineEmpty) break;
-		let terminate = false;
-		for (let i = 0, l = terminatorRules.length; i < l; i++) if (terminatorRules[i](state, nextLine, endLine, true)) {
-			terminate = true;
-			break;
-		}
-		if (terminate) {
-			state.lineMax = nextLine;
-			if (state.blkIndent !== 0) {
-				oldBMarks.push(state.bMarks[nextLine]);
-				oldBSCount.push(state.bsCount[nextLine]);
-				oldTShift.push(state.tShift[nextLine]);
-				oldSCount.push(state.sCount[nextLine]);
-				state.sCount[nextLine] -= state.blkIndent;
-			}
-			break;
-		}
-		oldBMarks.push(state.bMarks[nextLine]);
-		oldBSCount.push(state.bsCount[nextLine]);
-		oldTShift.push(state.tShift[nextLine]);
-		oldSCount.push(state.sCount[nextLine]);
-		state.sCount[nextLine] = -1;
-	}
-	const oldIndent = state.blkIndent;
-	state.blkIndent = 0;
-	const token_o = state.push("blockquote_open", "blockquote", 1);
-	token_o.markup = ">";
-	const lines = [startLine, 0];
-	token_o.map = lines;
-	state.md.block.tokenize(state, startLine, nextLine);
-	const token_c = state.push("blockquote_close", "blockquote", -1);
-	token_c.markup = ">";
-	state.lineMax = oldLineMax;
-	state.parentType = oldParentType;
-	lines[1] = state.line;
-	for (let i = 0; i < oldTShift.length; i++) {
-		state.bMarks[i + startLine] = oldBMarks[i];
-		state.tShift[i + startLine] = oldTShift[i];
-		state.sCount[i + startLine] = oldSCount[i];
-		state.bsCount[i + startLine] = oldBSCount[i];
-	}
-	state.blkIndent = oldIndent;
-	return true;
-}
-//#endregion
-//#region ../../node_modules/.pnpm/markdown-it@14.3.0/node_modules/markdown-it/lib/rules_block/hr.mjs
-function hr$1(state, startLine, endLine, silent) {
-	const max = state.eMarks[startLine];
-	if (state.sCount[startLine] - state.blkIndent >= 4) return false;
-	let pos = state.bMarks[startLine] + state.tShift[startLine];
-	const marker = state.src.charCodeAt(pos++);
-	if (marker !== 42 && marker !== 45 && marker !== 95) return false;
-	let cnt = 1;
-	while (pos < max) {
-		const ch = state.src.charCodeAt(pos++);
-		if (ch !== marker && !isSpace(ch)) return false;
-		if (ch === marker) cnt++;
-	}
-	if (cnt < 3) return false;
-	if (silent) return true;
-	state.line = startLine + 1;
-	const token = state.push("hr", "hr", 0);
-	token.map = [startLine, state.line];
-	token.markup = Array(cnt + 1).join(String.fromCharCode(marker));
-	return true;
-}
-//#endregion
-//#region ../../node_modules/.pnpm/markdown-it@14.3.0/node_modules/markdown-it/lib/rules_block/list.mjs
-function skipBulletListMarker(state, startLine) {
-	const max = state.eMarks[startLine];
-	let pos = state.bMarks[startLine] + state.tShift[startLine];
-	const marker = state.src.charCodeAt(pos++);
-	if (marker !== 42 && marker !== 45 && marker !== 43) return -1;
-	if (pos < max) {
-		if (!isSpace(state.src.charCodeAt(pos))) return -1;
-	}
-	return pos;
-}
-function skipOrderedListMarker(state, startLine) {
-	const start = state.bMarks[startLine] + state.tShift[startLine];
-	const max = state.eMarks[startLine];
-	let pos = start;
-	if (pos + 1 >= max) return -1;
-	let ch = state.src.charCodeAt(pos++);
-	if (ch < 48 || ch > 57) return -1;
-	for (;;) {
-		if (pos >= max) return -1;
-		ch = state.src.charCodeAt(pos++);
-		if (ch >= 48 && ch <= 57) {
-			if (pos - start >= 10) return -1;
-			continue;
-		}
-		if (ch === 41 || ch === 46) break;
-		return -1;
-	}
-	if (pos < max) {
-		ch = state.src.charCodeAt(pos);
-		if (!isSpace(ch)) return -1;
-	}
-	return pos;
-}
-function markTightParagraphs(state, idx) {
-	const level = state.level + 2;
-	for (let i = idx + 2, l = state.tokens.length - 2; i < l; i++) if (state.tokens[i].level === level && state.tokens[i].type === "paragraph_open") {
-		state.tokens[i + 2].hidden = true;
-		state.tokens[i].hidden = true;
-		i += 2;
-	}
-}
-function list$5(state, startLine, endLine, silent) {
-	let max, pos, start, token;
-	let nextLine = startLine;
-	let tight = true;
-	if (state.sCount[nextLine] - state.blkIndent >= 4) return false;
-	if (state.listIndent >= 0 && state.sCount[nextLine] - state.listIndent >= 4 && state.sCount[nextLine] < state.blkIndent) return false;
-	let isTerminatingParagraph = false;
-	if (silent && state.parentType === "paragraph") {
-		if (state.sCount[nextLine] >= state.blkIndent) isTerminatingParagraph = true;
-	}
-	let isOrdered;
-	let markerValue;
-	let posAfterMarker;
-	if ((posAfterMarker = skipOrderedListMarker(state, nextLine)) >= 0) {
-		isOrdered = true;
-		start = state.bMarks[nextLine] + state.tShift[nextLine];
-		markerValue = Number(state.src.slice(start, posAfterMarker - 1));
-		if (isTerminatingParagraph && markerValue !== 1) return false;
-	} else if ((posAfterMarker = skipBulletListMarker(state, nextLine)) >= 0) isOrdered = false;
-	else return false;
-	if (isTerminatingParagraph) {
-		if (state.skipSpaces(posAfterMarker) >= state.eMarks[nextLine]) return false;
-	}
-	if (silent) return true;
-	const markerCharCode = state.src.charCodeAt(posAfterMarker - 1);
-	const listTokIdx = state.tokens.length;
-	if (isOrdered) {
-		token = state.push("ordered_list_open", "ol", 1);
-		if (markerValue !== 1) token.attrs = [["start", markerValue]];
-	} else token = state.push("bullet_list_open", "ul", 1);
-	const listLines = [nextLine, 0];
-	token.map = listLines;
-	token.markup = String.fromCharCode(markerCharCode);
-	let prevEmptyEnd = false;
-	const terminatorRules = state.md.block.ruler.getRules("list");
-	const oldParentType = state.parentType;
-	state.parentType = "list";
-	while (nextLine < endLine) {
-		pos = posAfterMarker;
-		max = state.eMarks[nextLine];
-		const initial = state.sCount[nextLine] + posAfterMarker - (state.bMarks[nextLine] + state.tShift[nextLine]);
-		let offset = initial;
-		while (pos < max) {
-			const ch = state.src.charCodeAt(pos);
-			if (ch === 9) offset += 4 - (offset + state.bsCount[nextLine]) % 4;
-			else if (ch === 32) offset++;
-			else break;
-			pos++;
-		}
-		const contentStart = pos;
-		let indentAfterMarker;
-		if (contentStart >= max) indentAfterMarker = 1;
-		else indentAfterMarker = offset - initial;
-		if (indentAfterMarker > 4) indentAfterMarker = 1;
-		const indent = initial + indentAfterMarker;
-		token = state.push("list_item_open", "li", 1);
-		token.markup = String.fromCharCode(markerCharCode);
-		const itemLines = [nextLine, 0];
-		token.map = itemLines;
-		if (isOrdered) token.info = state.src.slice(start, posAfterMarker - 1);
-		const oldTight = state.tight;
-		const oldTShift = state.tShift[nextLine];
-		const oldSCount = state.sCount[nextLine];
-		const oldListIndent = state.listIndent;
-		state.listIndent = state.blkIndent;
-		state.blkIndent = indent;
-		state.tight = true;
-		state.tShift[nextLine] = contentStart - state.bMarks[nextLine];
-		state.sCount[nextLine] = offset;
-		if (contentStart >= max && state.isEmpty(nextLine + 1)) state.line = Math.min(state.line + 2, endLine);
-		else state.md.block.tokenize(state, nextLine, endLine, true);
-		if (!state.tight || prevEmptyEnd) tight = false;
-		prevEmptyEnd = state.line - nextLine > 1 && state.isEmpty(state.line - 1);
-		state.blkIndent = state.listIndent;
-		state.listIndent = oldListIndent;
-		state.tShift[nextLine] = oldTShift;
-		state.sCount[nextLine] = oldSCount;
-		state.tight = oldTight;
-		token = state.push("list_item_close", "li", -1);
-		token.markup = String.fromCharCode(markerCharCode);
-		nextLine = state.line;
-		itemLines[1] = nextLine;
-		if (nextLine >= endLine) break;
-		if (state.sCount[nextLine] < state.blkIndent) break;
-		if (state.sCount[nextLine] - state.blkIndent >= 4) break;
-		let terminate = false;
-		for (let i = 0, l = terminatorRules.length; i < l; i++) if (terminatorRules[i](state, nextLine, endLine, true)) {
-			terminate = true;
-			break;
-		}
-		if (terminate) break;
-		if (isOrdered) {
-			posAfterMarker = skipOrderedListMarker(state, nextLine);
-			if (posAfterMarker < 0) break;
-			start = state.bMarks[nextLine] + state.tShift[nextLine];
-		} else {
-			posAfterMarker = skipBulletListMarker(state, nextLine);
-			if (posAfterMarker < 0) break;
-		}
-		if (markerCharCode !== state.src.charCodeAt(posAfterMarker - 1)) break;
-	}
-	if (isOrdered) token = state.push("ordered_list_close", "ol", -1);
-	else token = state.push("bullet_list_close", "ul", -1);
-	token.markup = String.fromCharCode(markerCharCode);
-	listLines[1] = nextLine;
-	state.line = nextLine;
-	state.parentType = oldParentType;
-	if (tight) markTightParagraphs(state, listTokIdx);
-	return true;
-}
-//#endregion
-//#region ../../node_modules/.pnpm/markdown-it@14.3.0/node_modules/markdown-it/lib/rules_block/reference.mjs
-function reference$2(state, startLine, _endLine, silent) {
-	let pos = state.bMarks[startLine] + state.tShift[startLine];
-	let max = state.eMarks[startLine];
-	let nextLine = startLine + 1;
-	if (state.sCount[startLine] - state.blkIndent >= 4) return false;
-	if (state.src.charCodeAt(pos) !== 91) return false;
-	function getNextLine(nextLine) {
-		const endLine = state.lineMax;
-		if (nextLine >= endLine || state.isEmpty(nextLine)) return null;
-		let isContinuation = false;
-		if (state.sCount[nextLine] - state.blkIndent > 3) isContinuation = true;
-		if (state.sCount[nextLine] < 0) isContinuation = true;
-		if (!isContinuation) {
-			const terminatorRules = state.md.block.ruler.getRules("reference");
-			const oldParentType = state.parentType;
-			state.parentType = "reference";
-			let terminate = false;
-			for (let i = 0, l = terminatorRules.length; i < l; i++) if (terminatorRules[i](state, nextLine, endLine, true)) {
-				terminate = true;
-				break;
-			}
-			state.parentType = oldParentType;
-			if (terminate) return null;
-		}
-		const pos = state.bMarks[nextLine] + state.tShift[nextLine];
-		const max = state.eMarks[nextLine];
-		return state.src.slice(pos, max + 1);
-	}
-	let str = state.src.slice(pos, max + 1);
-	max = str.length;
-	let labelEnd = -1;
-	for (pos = 1; pos < max; pos++) {
-		const ch = str.charCodeAt(pos);
-		if (ch === 91) return false;
-		else if (ch === 93) {
-			labelEnd = pos;
-			break;
-		} else if (ch === 10) {
-			const lineContent = getNextLine(nextLine);
-			if (lineContent !== null) {
-				str += lineContent;
-				max = str.length;
-				nextLine++;
-			}
-		} else if (ch === 92) {
-			pos++;
-			if (pos < max && str.charCodeAt(pos) === 10) {
-				const lineContent = getNextLine(nextLine);
-				if (lineContent !== null) {
-					str += lineContent;
-					max = str.length;
-					nextLine++;
+		if (this.__opts__.fuzzyEmail && this.__schemas__["mailto:"]) {
+			if (text.indexOf("@") >= 0) {
+				const mailHostRe = this.re.get_fuzzy_mail_host_search();
+				const mailNameRe = this.re.get_mail_name_validator();
+				mailHostRe.lastIndex = 0;
+				while ((m = mailHostRe.exec(text)) !== null) {
+					const name = text.slice(Math.max(0, m.index - 65), m.index);
+					if (mailNameRe.test(name)) return true;
 				}
 			}
 		}
-	}
-	if (labelEnd < 0 || str.charCodeAt(labelEnd + 1) !== 58) return false;
-	for (pos = labelEnd + 2; pos < max; pos++) {
-		const ch = str.charCodeAt(pos);
-		if (ch === 10) {
-			const lineContent = getNextLine(nextLine);
-			if (lineContent !== null) {
-				str += lineContent;
-				max = str.length;
-				nextLine++;
-			}
-		} else if (isSpace(ch)) {} else break;
-	}
-	const destRes = state.md.helpers.parseLinkDestination(str, pos, max);
-	if (!destRes.ok) return false;
-	const href = state.md.normalizeLink(destRes.str);
-	if (!state.md.validateLink(href)) return false;
-	pos = destRes.pos;
-	const destEndPos = pos;
-	const destEndLineNo = nextLine;
-	const start = pos;
-	for (; pos < max; pos++) {
-		const ch = str.charCodeAt(pos);
-		if (ch === 10) {
-			const lineContent = getNextLine(nextLine);
-			if (lineContent !== null) {
-				str += lineContent;
-				max = str.length;
-				nextLine++;
-			}
-		} else if (isSpace(ch)) {} else break;
-	}
-	let titleRes = state.md.helpers.parseLinkTitle(str, pos, max);
-	while (titleRes.can_continue) {
-		const lineContent = getNextLine(nextLine);
-		if (lineContent === null) break;
-		str += lineContent;
-		pos = max;
-		max = str.length;
-		nextLine++;
-		titleRes = state.md.helpers.parseLinkTitle(str, pos, max, titleRes);
-	}
-	let title;
-	if (pos < max && start !== pos && titleRes.ok) {
-		title = titleRes.str;
-		pos = titleRes.pos;
-	} else {
-		title = "";
-		pos = destEndPos;
-		nextLine = destEndLineNo;
-	}
-	while (pos < max) {
-		if (!isSpace(str.charCodeAt(pos))) break;
-		pos++;
-	}
-	if (pos < max && str.charCodeAt(pos) !== 10) {
-		if (title) {
-			title = "";
-			pos = destEndPos;
-			nextLine = destEndLineNo;
-			while (pos < max) {
-				if (!isSpace(str.charCodeAt(pos))) break;
-				pos++;
-			}
-		}
-	}
-	if (pos < max && str.charCodeAt(pos) !== 10) return false;
-	const label = normalizeReference(str.slice(1, labelEnd));
-	if (!label) return false;
-	/* istanbul ignore if */
-	if (silent) return true;
-	if (typeof state.env.references === "undefined") state.env.references = {};
-	if (typeof state.env.references[label] === "undefined") state.env.references[label] = {
-		title,
-		href
-	};
-	state.line = nextLine;
-	return true;
-}
-//#endregion
-//#region ../../node_modules/.pnpm/markdown-it@14.3.0/node_modules/markdown-it/lib/common/html_blocks.mjs
-var html_blocks_default = [
-	"address",
-	"article",
-	"aside",
-	"base",
-	"basefont",
-	"blockquote",
-	"body",
-	"caption",
-	"center",
-	"col",
-	"colgroup",
-	"dd",
-	"details",
-	"dialog",
-	"dir",
-	"div",
-	"dl",
-	"dt",
-	"fieldset",
-	"figcaption",
-	"figure",
-	"footer",
-	"form",
-	"frame",
-	"frameset",
-	"h1",
-	"h2",
-	"h3",
-	"h4",
-	"h5",
-	"h6",
-	"head",
-	"header",
-	"hr",
-	"html",
-	"iframe",
-	"legend",
-	"li",
-	"link",
-	"main",
-	"menu",
-	"menuitem",
-	"nav",
-	"noframes",
-	"ol",
-	"optgroup",
-	"option",
-	"p",
-	"param",
-	"search",
-	"section",
-	"summary",
-	"table",
-	"tbody",
-	"td",
-	"tfoot",
-	"th",
-	"thead",
-	"title",
-	"tr",
-	"track",
-	"ul"
-];
-//#endregion
-//#region ../../node_modules/.pnpm/markdown-it@14.3.0/node_modules/markdown-it/lib/common/html_re.mjs
-var HTML_TAG_RE = /* @__PURE__ */ new RegExp("^(?:<[A-Za-z][A-Za-z0-9\\-]*(?:\\s+[a-zA-Z_:][a-zA-Z0-9:._-]*(?:\\s*=\\s*(?:[^\"'=<>`\\x00-\\x20]+|'[^']*'|\"[^\"]*\"))?)*\\s*\\/?>|<\\/[A-Za-z][A-Za-z0-9\\-]*\\s*>|<!---?>|<!--(?:[^-]|-[^-]|--[^>])*-->|<[?][\\s\\S]*?[?]>|<![A-Za-z][^>]*>|<!\\[CDATA\\[[\\s\\S]*?\\]\\]>)");
-var HTML_OPEN_CLOSE_TAG_RE = /* @__PURE__ */ new RegExp("^(?:<[A-Za-z][A-Za-z0-9\\-]*(?:\\s+[a-zA-Z_:][a-zA-Z0-9:._-]*(?:\\s*=\\s*(?:[^\"'=<>`\\x00-\\x20]+|'[^']*'|\"[^\"]*\"))?)*\\s*\\/?>|<\\/[A-Za-z][A-Za-z0-9\\-]*\\s*>)");
-//#endregion
-//#region ../../node_modules/.pnpm/markdown-it@14.3.0/node_modules/markdown-it/lib/rules_block/html_block.mjs
-var HTML_SEQUENCES = [
-	[
-		/^<(script|pre|style|textarea)(?=(\s|>|$))/i,
-		/<\/(script|pre|style|textarea)>/i,
-		true
-	],
-	[
-		/^<!--/,
-		/-->/,
-		true
-	],
-	[
-		/^<\?/,
-		/\?>/,
-		true
-	],
-	[
-		/^<![A-Z]/,
-		/>/,
-		true
-	],
-	[
-		/^<!\[CDATA\[/,
-		/\]\]>/,
-		true
-	],
-	[
-		new RegExp("^</?(" + html_blocks_default.join("|") + ")(?=(\\s|/?>|$))", "i"),
-		/^$/,
-		true
-	],
-	[
-		new RegExp(HTML_OPEN_CLOSE_TAG_RE.source + "\\s*$"),
-		/^$/,
-		false
-	]
-];
-function html_block(state, startLine, endLine, silent) {
-	let pos = state.bMarks[startLine] + state.tShift[startLine];
-	let max = state.eMarks[startLine];
-	if (state.sCount[startLine] - state.blkIndent >= 4) return false;
-	if (!state.md.options.html) return false;
-	if (state.src.charCodeAt(pos) !== 60) return false;
-	let lineText = state.src.slice(pos, max);
-	let i = 0;
-	for (; i < HTML_SEQUENCES.length; i++) if (HTML_SEQUENCES[i][0].test(lineText)) break;
-	if (i === HTML_SEQUENCES.length) return false;
-	if (silent) return HTML_SEQUENCES[i][2];
-	let nextLine = startLine + 1;
-	const endsOnBlankLine = HTML_SEQUENCES[i][1].test("");
-	if (!HTML_SEQUENCES[i][1].test(lineText)) for (; nextLine < endLine; nextLine++) {
-		if (state.sCount[nextLine] < state.blkIndent) {
-			if (endsOnBlankLine || !state.isEmpty(nextLine)) break;
-		}
-		pos = state.bMarks[nextLine] + state.tShift[nextLine];
-		max = state.eMarks[nextLine];
-		lineText = state.src.slice(pos, max);
-		if (HTML_SEQUENCES[i][1].test(lineText)) {
-			if (lineText.length !== 0) nextLine++;
-			break;
-		}
-	}
-	state.line = nextLine;
-	const token = state.push("html_block", "", 0);
-	token.map = [startLine, nextLine];
-	token.content = state.getLines(startLine, nextLine, state.blkIndent, true);
-	return true;
-}
-//#endregion
-//#region ../../node_modules/.pnpm/markdown-it@14.3.0/node_modules/markdown-it/lib/rules_block/heading.mjs
-function heading$3(state, startLine, endLine, silent) {
-	let pos = state.bMarks[startLine] + state.tShift[startLine];
-	let max = state.eMarks[startLine];
-	if (state.sCount[startLine] - state.blkIndent >= 4) return false;
-	let ch = state.src.charCodeAt(pos);
-	if (ch !== 35 || pos >= max) return false;
-	let level = 1;
-	ch = state.src.charCodeAt(++pos);
-	while (ch === 35 && pos < max && level <= 6) {
-		level++;
-		ch = state.src.charCodeAt(++pos);
-	}
-	if (level > 6 || pos < max && !isSpace(ch)) return false;
-	if (silent) return true;
-	max = state.skipSpacesBack(max, pos);
-	const tmp = state.skipCharsBack(max, 35, pos);
-	if (tmp > pos && isSpace(state.src.charCodeAt(tmp - 1))) max = tmp;
-	state.line = startLine + 1;
-	const token_o = state.push("heading_open", "h" + String(level), 1);
-	token_o.markup = "########".slice(0, level);
-	token_o.map = [startLine, state.line];
-	const token_i = state.push("inline", "", 0);
-	token_i.content = asciiTrim(state.src.slice(pos, max));
-	token_i.map = [startLine, state.line];
-	token_i.children = [];
-	const token_c = state.push("heading_close", "h" + String(level), -1);
-	token_c.markup = "########".slice(0, level);
-	return true;
-}
-//#endregion
-//#region ../../node_modules/.pnpm/markdown-it@14.3.0/node_modules/markdown-it/lib/rules_block/lheading.mjs
-function lheading(state, startLine, endLine) {
-	const terminatorRules = state.md.block.ruler.getRules("paragraph");
-	if (state.sCount[startLine] - state.blkIndent >= 4) return false;
-	const oldParentType = state.parentType;
-	state.parentType = "paragraph";
-	let level = 0;
-	let marker;
-	let nextLine = startLine + 1;
-	for (; nextLine < endLine && !state.isEmpty(nextLine); nextLine++) {
-		if (state.sCount[nextLine] - state.blkIndent > 3) continue;
-		if (state.sCount[nextLine] >= state.blkIndent) {
-			let pos = state.bMarks[nextLine] + state.tShift[nextLine];
-			const max = state.eMarks[nextLine];
-			if (pos < max) {
-				marker = state.src.charCodeAt(pos);
-				if (marker === 45 || marker === 61) {
-					pos = state.skipChars(pos, marker);
-					pos = state.skipSpaces(pos);
-					if (pos >= max) {
-						level = marker === 61 ? 1 : 2;
-						break;
-					}
-				}
-			}
-		}
-		if (state.sCount[nextLine] < 0) continue;
-		let terminate = false;
-		for (let i = 0, l = terminatorRules.length; i < l; i++) if (terminatorRules[i](state, nextLine, endLine, true)) {
-			terminate = true;
-			break;
-		}
-		if (terminate) break;
-	}
-	if (!level) {
-		state.parentType = oldParentType;
 		return false;
 	}
-	const content = asciiTrim(state.getLines(startLine, nextLine, state.blkIndent, false));
-	state.line = nextLine + 1;
-	const token_o = state.push("heading_open", "h" + String(level), 1);
-	token_o.markup = String.fromCharCode(marker);
-	token_o.map = [startLine, state.line];
-	const token_i = state.push("inline", "", 0);
-	token_i.content = content;
-	token_i.map = [startLine, state.line - 1];
-	token_i.children = [];
-	const token_c = state.push("heading_close", "h" + String(level), -1);
-	token_c.markup = String.fromCharCode(marker);
-	state.parentType = oldParentType;
-	return true;
-}
-//#endregion
-//#region ../../node_modules/.pnpm/markdown-it@14.3.0/node_modules/markdown-it/lib/rules_block/paragraph.mjs
-function paragraph(state, startLine, endLine) {
-	const terminatorRules = state.md.block.ruler.getRules("paragraph");
-	const oldParentType = state.parentType;
-	let nextLine = startLine + 1;
-	state.parentType = "paragraph";
-	for (; nextLine < endLine && !state.isEmpty(nextLine); nextLine++) {
-		if (state.sCount[nextLine] - state.blkIndent > 3) continue;
-		if (state.sCount[nextLine] < 0) continue;
-		let terminate = false;
-		for (let i = 0, l = terminatorRules.length; i < l; i++) if (terminatorRules[i](state, nextLine, endLine, true)) {
-			terminate = true;
-			break;
-		}
-		if (terminate) break;
-	}
-	const content = asciiTrim(state.getLines(startLine, nextLine, state.blkIndent, false));
-	state.line = nextLine;
-	const token_o = state.push("paragraph_open", "p", 1);
-	token_o.map = [startLine, state.line];
-	const token_i = state.push("inline", "", 0);
-	token_i.content = content;
-	token_i.map = [startLine, state.line];
-	token_i.children = [];
-	state.push("paragraph_close", "p", -1);
-	state.parentType = oldParentType;
-	return true;
-}
-//#endregion
-//#region ../../node_modules/.pnpm/markdown-it@14.3.0/node_modules/markdown-it/lib/parser_block.mjs
-/** internal
-* class ParserBlock
-*
-* Block-level tokenizer.
-**/
-var _rules$1 = [
-	[
-		"table",
-		table$5,
-		["paragraph", "reference"]
-	],
-	["code", code$5],
-	[
-		"fence",
-		fence,
-		[
-			"paragraph",
-			"reference",
-			"blockquote",
-			"list"
-		]
-	],
-	[
-		"blockquote",
-		blockquote,
-		[
-			"paragraph",
-			"reference",
-			"blockquote",
-			"list"
-		]
-	],
-	[
-		"hr",
-		hr$1,
-		[
-			"paragraph",
-			"reference",
-			"blockquote",
-			"list"
-		]
-	],
-	[
-		"list",
-		list$5,
-		[
-			"paragraph",
-			"reference",
-			"blockquote"
-		]
-	],
-	["reference", reference$2],
-	[
-		"html_block",
-		html_block,
-		[
-			"paragraph",
-			"reference",
-			"blockquote"
-		]
-	],
-	[
-		"heading",
-		heading$3,
-		[
-			"paragraph",
-			"reference",
-			"blockquote"
-		]
-	],
-	["lheading", lheading],
-	["paragraph", paragraph]
-];
-/**
-* new ParserBlock()
-**/
-function ParserBlock() {
 	/**
-	* ParserBlock#ruler -> Ruler
+	* Similar to {@link LinkifyIt.test} but checks only specific protocol tail exactly
+	* at given position. Returns length of found pattern (0 on fail).
 	*
-	* [[Ruler]] instance. Keep configuration of block rules.
-	**/
-	this.ruler = new Ruler();
-	for (let i = 0; i < _rules$1.length; i++) this.ruler.push(_rules$1[i][0], _rules$1[i][1], { alt: (_rules$1[i][2] || []).slice() });
-}
-ParserBlock.prototype.tokenize = function(state, startLine, endLine) {
-	const rules = this.ruler.getRules("");
-	const len = rules.length;
-	const maxNesting = state.md.options.maxNesting;
-	let line = startLine;
-	let hasEmptyLines = false;
-	while (line < endLine) {
-		state.line = line = state.skipEmptyLines(line);
-		if (line >= endLine) break;
-		if (state.sCount[line] < state.blkIndent) break;
-		if (state.level >= maxNesting) {
-			state.line = endLine;
-			break;
+	* @param text Text to scan.
+	* @param schema Rule (schema) name.
+	* @param pos Text offset to check from.
+	*/
+	testSchemaAt(text, schema, pos) {
+		if (!this.__schemas__[schema.toLowerCase()]) return 0;
+		return this.__schemas__[schema.toLowerCase()].validate(text.slice(0, pos + this.__opts__.maxLength), pos, this);
+	}
+	/**
+	* Returns array of found link descriptions or `null` on fail. We strongly
+	* recommend to use {@link LinkifyIt.test} first, for best speed.
+	*
+	* @param text Text to scan.
+	*/
+	match(text) {
+		const result = [];
+		const schemaRe = this.re.get_schema_search();
+		let fuzzyLinkRe;
+		let mailHostRe;
+		let mailNameRe;
+		let fuzzyLinkCandidate;
+		let fuzzyEmailCandidate;
+		let schemaPrefix;
+		let schemaDone = false;
+		let fuzzyLinkDone = false;
+		let fuzzyEmailDone = false;
+		let pos = 0;
+		if (!text.length) return null;
+		schemaRe.lastIndex = 0;
+		if (this.__opts__.fuzzyLink && this.__schemas__["http:"]) {
+			fuzzyLinkRe = this.re.get_fuzzy_link_search();
+			fuzzyLinkRe.lastIndex = 0;
 		}
-		const prevLine = state.line;
-		let ok = false;
-		for (let i = 0; i < len; i++) {
-			ok = rules[i](state, line, endLine, false);
-			if (ok) {
-				if (prevLine >= state.line) throw new Error("block rule didn't increment state.line");
-				break;
-			}
+		if (this.__opts__.fuzzyEmail && this.__schemas__["mailto:"]) {
+			mailHostRe = this.re.get_fuzzy_mail_host_search();
+			mailHostRe.lastIndex = 0;
+			mailNameRe = this.re.get_mail_name_validator();
 		}
-		if (!ok) throw new Error("none of the block rules matched");
-		state.tight = !hasEmptyLines;
-		if (state.isEmpty(state.line - 1)) hasEmptyLines = true;
-		line = state.line;
-		if (line < endLine && state.isEmpty(line)) {
-			hasEmptyLines = true;
-			line++;
-			state.line = line;
-		}
-	}
-};
-/**
-* ParserBlock.parse(str, md, env, outTokens)
-*
-* Process input string and push block tokens into `outTokens`
-**/
-ParserBlock.prototype.parse = function(src, md, env, outTokens) {
-	if (!src) return;
-	const state = new this.State(src, md, env, outTokens);
-	this.tokenize(state, state.line, state.lineMax);
-};
-ParserBlock.prototype.State = StateBlock;
-//#endregion
-//#region ../../node_modules/.pnpm/markdown-it@14.3.0/node_modules/markdown-it/lib/rules_inline/state_inline.mjs
-function StateInline(src, md, env, outTokens) {
-	this.src = src;
-	this.env = env;
-	this.md = md;
-	this.tokens = outTokens;
-	this.tokens_meta = Array(outTokens.length);
-	this.pos = 0;
-	this.posMax = this.src.length;
-	this.level = 0;
-	this.pending = "";
-	this.pendingLevel = 0;
-	this.cache = {};
-	this.delimiters = [];
-	this._prev_delimiters = [];
-	this.backticks = {};
-	this.backticksScanned = false;
-	this.linkLevel = 0;
-}
-StateInline.prototype.pushPending = function() {
-	const token = new Token("text", "", 0);
-	token.content = this.pending;
-	token.level = this.pendingLevel;
-	this.tokens.push(token);
-	this.pending = "";
-	return token;
-};
-StateInline.prototype.push = function(type, tag, nesting) {
-	if (this.pending) this.pushPending();
-	const token = new Token(type, tag, nesting);
-	let token_meta = null;
-	if (nesting < 0) {
-		this.level--;
-		this.delimiters = this._prev_delimiters.pop();
-	}
-	token.level = this.level;
-	if (nesting > 0) {
-		this.level++;
-		this._prev_delimiters.push(this.delimiters);
-		this.delimiters = [];
-		token_meta = { delimiters: this.delimiters };
-	}
-	this.pendingLevel = this.level;
-	this.tokens.push(token);
-	this.tokens_meta.push(token_meta);
-	return token;
-};
-StateInline.prototype.scanDelims = function(start, canSplitWord) {
-	const max = this.posMax;
-	const marker = this.src.charCodeAt(start);
-	let lastChar;
-	if (start === 0) lastChar = 32;
-	else if (start === 1) {
-		lastChar = this.src.charCodeAt(0);
-		if ((lastChar & 63488) === 55296) lastChar = 65533;
-	} else {
-		lastChar = this.src.charCodeAt(start - 1);
-		if ((lastChar & 64512) === 56320) {
-			const highSurr = this.src.charCodeAt(start - 2);
-			lastChar = (highSurr & 64512) === 55296 ? 65536 + (highSurr - 55296 << 10) + (lastChar - 56320) : 65533;
-		} else if ((lastChar & 64512) === 55296) lastChar = 65533;
-	}
-	let pos = start;
-	while (pos < max && this.src.charCodeAt(pos) === marker) pos++;
-	const count = pos - start;
-	let nextChar = pos < max ? this.src.charCodeAt(pos) : 32;
-	if ((nextChar & 64512) === 55296) {
-		const lowSurr = this.src.charCodeAt(pos + 1);
-		nextChar = (lowSurr & 64512) === 56320 ? 65536 + (nextChar - 55296 << 10) + (lowSurr - 56320) : 65533;
-	} else if ((nextChar & 64512) === 56320) nextChar = 65533;
-	const isLastPunctChar = isMdAsciiPunct(lastChar) || isPunctCharCode(lastChar);
-	const isNextPunctChar = isMdAsciiPunct(nextChar) || isPunctCharCode(nextChar);
-	const isLastWhiteSpace = isWhiteSpace(lastChar);
-	const isNextWhiteSpace = isWhiteSpace(nextChar);
-	const left_flanking = !isNextWhiteSpace && (!isNextPunctChar || isLastWhiteSpace || isLastPunctChar);
-	const right_flanking = !isLastWhiteSpace && (!isLastPunctChar || isNextWhiteSpace || isNextPunctChar);
-	return {
-		can_open: left_flanking && (canSplitWord || !right_flanking || isLastPunctChar),
-		can_close: right_flanking && (canSplitWord || !left_flanking || isNextPunctChar),
-		length: count
-	};
-};
-StateInline.prototype.Token = Token;
-//#endregion
-//#region ../../node_modules/.pnpm/markdown-it@14.3.0/node_modules/markdown-it/lib/rules_inline/text.mjs
-function isTerminatorChar(ch) {
-	switch (ch) {
-		case 10:
-		case 33:
-		case 35:
-		case 36:
-		case 37:
-		case 38:
-		case 42:
-		case 43:
-		case 45:
-		case 58:
-		case 60:
-		case 61:
-		case 62:
-		case 64:
-		case 91:
-		case 92:
-		case 93:
-		case 94:
-		case 95:
-		case 96:
-		case 123:
-		case 125:
-		case 126: return true;
-		default: return false;
-	}
-}
-function text$4(state, silent) {
-	let pos = state.pos;
-	while (pos < state.posMax && !isTerminatorChar(state.src.charCodeAt(pos))) pos++;
-	if (pos === state.pos) return false;
-	if (!silent) state.pending += state.src.slice(state.pos, pos);
-	state.pos = pos;
-	return true;
-}
-//#endregion
-//#region ../../node_modules/.pnpm/markdown-it@14.3.0/node_modules/markdown-it/lib/rules_inline/linkify.mjs
-var SCHEME_RE = /(?:^|[^a-z0-9.+-])([a-z][a-z0-9.+-]*)$/i;
-function linkify(state, silent) {
-	if (!state.md.options.linkify) return false;
-	if (state.linkLevel > 0) return false;
-	const pos = state.pos;
-	const max = state.posMax;
-	if (pos + 3 > max) return false;
-	if (state.src.charCodeAt(pos) !== 58) return false;
-	if (state.src.charCodeAt(pos + 1) !== 47) return false;
-	if (state.src.charCodeAt(pos + 2) !== 47) return false;
-	const match = state.pending.match(SCHEME_RE);
-	if (!match) return false;
-	const proto = match[1];
-	const link = state.md.linkify.matchAtStart(state.src.slice(pos - proto.length));
-	if (!link) return false;
-	let url = link.url;
-	if (url.length <= proto.length) return false;
-	let urlEnd = url.length;
-	while (urlEnd > 0 && url.charCodeAt(urlEnd - 1) === 42) urlEnd--;
-	if (urlEnd !== url.length) url = url.slice(0, urlEnd);
-	const fullUrl = state.md.normalizeLink(url);
-	if (!state.md.validateLink(fullUrl)) return false;
-	if (!silent) {
-		state.pending = state.pending.slice(0, -proto.length);
-		const token_o = state.push("link_open", "a", 1);
-		token_o.attrs = [["href", fullUrl]];
-		token_o.markup = "linkify";
-		token_o.info = "auto";
-		const token_t = state.push("text", "", 0);
-		token_t.content = state.md.normalizeLinkText(url);
-		const token_c = state.push("link_close", "a", -1);
-		token_c.markup = "linkify";
-		token_c.info = "auto";
-	}
-	state.pos += url.length - proto.length;
-	return true;
-}
-//#endregion
-//#region ../../node_modules/.pnpm/markdown-it@14.3.0/node_modules/markdown-it/lib/rules_inline/newline.mjs
-function newline(state, silent) {
-	let pos = state.pos;
-	if (state.src.charCodeAt(pos) !== 10) return false;
-	const pmax = state.pending.length - 1;
-	const max = state.posMax;
-	if (!silent) if (pmax >= 0 && state.pending.charCodeAt(pmax) === 32) if (pmax >= 1 && state.pending.charCodeAt(pmax - 1) === 32) {
-		let ws = pmax - 1;
-		while (ws >= 1 && state.pending.charCodeAt(ws - 1) === 32) ws--;
-		state.pending = state.pending.slice(0, ws);
-		state.push("hardbreak", "br", 0);
-	} else {
-		state.pending = state.pending.slice(0, -1);
-		state.push("softbreak", "br", 0);
-	}
-	else state.push("softbreak", "br", 0);
-	pos++;
-	while (pos < max && isSpace(state.src.charCodeAt(pos))) pos++;
-	state.pos = pos;
-	return true;
-}
-//#endregion
-//#region ../../node_modules/.pnpm/markdown-it@14.3.0/node_modules/markdown-it/lib/rules_inline/escape.mjs
-var ESCAPED = [];
-for (let i = 0; i < 256; i++) ESCAPED.push(0);
-"\\!\"#$%&'()*+,./:;<=>?@[]^_`{|}~-".split("").forEach(function(ch) {
-	ESCAPED[ch.charCodeAt(0)] = 1;
-});
-function escape(state, silent) {
-	let pos = state.pos;
-	const max = state.posMax;
-	if (state.src.charCodeAt(pos) !== 92) return false;
-	pos++;
-	if (pos >= max) return false;
-	let ch1 = state.src.charCodeAt(pos);
-	if (ch1 === 10) {
-		if (!silent) state.push("hardbreak", "br", 0);
-		pos++;
-		while (pos < max) {
-			ch1 = state.src.charCodeAt(pos);
-			if (!isSpace(ch1)) break;
-			pos++;
-		}
-		state.pos = pos;
-		return true;
-	}
-	if (ch1 === 32) {
-		if (!silent) {
-			const token = state.push("text_special", "", 0);
-			token.content = "\\";
-			token.markup = "\\";
-			token.info = "escape";
-		}
-		state.pos = pos;
-		return true;
-	}
-	let escapedStr = state.src[pos];
-	if (ch1 >= 55296 && ch1 <= 56319 && pos + 1 < max) {
-		const ch2 = state.src.charCodeAt(pos + 1);
-		if (ch2 >= 56320 && ch2 <= 57343) {
-			escapedStr += state.src[pos + 1];
-			pos++;
-		}
-	}
-	const origStr = "\\" + escapedStr;
-	if (!silent) {
-		const token = state.push("text_special", "", 0);
-		if (ch1 < 256 && ESCAPED[ch1] !== 0) token.content = escapedStr;
-		else token.content = origStr;
-		token.markup = origStr;
-		token.info = "escape";
-	}
-	state.pos = pos + 1;
-	return true;
-}
-//#endregion
-//#region ../../node_modules/.pnpm/markdown-it@14.3.0/node_modules/markdown-it/lib/rules_inline/backticks.mjs
-function backtick(state, silent) {
-	let pos = state.pos;
-	if (state.src.charCodeAt(pos) !== 96) return false;
-	const start = pos;
-	pos++;
-	const max = state.posMax;
-	while (pos < max && state.src.charCodeAt(pos) === 96) pos++;
-	const marker = state.src.slice(start, pos);
-	const openerLength = marker.length;
-	if (state.backticksScanned && (state.backticks[openerLength] || 0) <= start) {
-		if (!silent) state.pending += marker;
-		state.pos += openerLength;
-		return true;
-	}
-	let matchEnd = pos;
-	let matchStart;
-	while ((matchStart = state.src.indexOf("`", matchEnd)) !== -1) {
-		matchEnd = matchStart + 1;
-		while (matchEnd < max && state.src.charCodeAt(matchEnd) === 96) matchEnd++;
-		const closerLength = matchEnd - matchStart;
-		if (closerLength === openerLength) {
-			if (!silent) {
-				const token = state.push("code_inline", "code", 0);
-				token.markup = marker;
-				token.content = state.src.slice(pos, matchStart).replace(/\n/g, " ").replace(/^ (.+) $/, "$1");
-			}
-			state.pos = matchEnd;
-			return true;
-		}
-		state.backticks[closerLength] = matchStart;
-	}
-	state.backticksScanned = true;
-	if (!silent) state.pending += marker;
-	state.pos += openerLength;
-	return true;
-}
-//#endregion
-//#region ../../node_modules/.pnpm/markdown-it@14.3.0/node_modules/markdown-it/lib/rules_inline/strikethrough.mjs
-function strikethrough_tokenize(state, silent) {
-	const start = state.pos;
-	const marker = state.src.charCodeAt(start);
-	if (silent) return false;
-	if (marker !== 126) return false;
-	const scanned = state.scanDelims(state.pos, true);
-	let len = scanned.length;
-	const ch = String.fromCharCode(marker);
-	if (len < 2) return false;
-	let token;
-	if (len % 2) {
-		token = state.push("text", "", 0);
-		token.content = ch;
-		len--;
-	}
-	for (let i = 0; i < len; i += 2) {
-		token = state.push("text", "", 0);
-		token.content = ch + ch;
-		state.delimiters.push({
-			marker,
-			length: 0,
-			token: state.tokens.length - 1,
-			end: -1,
-			open: scanned.can_open,
-			close: scanned.can_close
-		});
-	}
-	state.pos += scanned.length;
-	return true;
-}
-function postProcess$1(state, delimiters) {
-	let token;
-	const loneMarkers = [];
-	const max = delimiters.length;
-	for (let i = 0; i < max; i++) {
-		const startDelim = delimiters[i];
-		if (startDelim.marker !== 126) continue;
-		if (startDelim.end === -1) continue;
-		const endDelim = delimiters[startDelim.end];
-		token = state.tokens[startDelim.token];
-		token.type = "s_open";
-		token.tag = "s";
-		token.nesting = 1;
-		token.markup = "~~";
-		token.content = "";
-		token = state.tokens[endDelim.token];
-		token.type = "s_close";
-		token.tag = "s";
-		token.nesting = -1;
-		token.markup = "~~";
-		token.content = "";
-		if (state.tokens[endDelim.token - 1].type === "text" && state.tokens[endDelim.token - 1].content === "~") loneMarkers.push(endDelim.token - 1);
-	}
-	while (loneMarkers.length) {
-		const i = loneMarkers.pop();
-		let j = i + 1;
-		while (j < state.tokens.length && state.tokens[j].type === "s_close") j++;
-		j--;
-		if (i !== j) {
-			token = state.tokens[j];
-			state.tokens[j] = state.tokens[i];
-			state.tokens[i] = token;
-		}
-	}
-}
-function strikethrough_postProcess(state) {
-	const tokens_meta = state.tokens_meta;
-	const max = state.tokens_meta.length;
-	postProcess$1(state, state.delimiters);
-	for (let curr = 0; curr < max; curr++) if (tokens_meta[curr] && tokens_meta[curr].delimiters) postProcess$1(state, tokens_meta[curr].delimiters);
-}
-var strikethrough_default = {
-	tokenize: strikethrough_tokenize,
-	postProcess: strikethrough_postProcess
-};
-//#endregion
-//#region ../../node_modules/.pnpm/markdown-it@14.3.0/node_modules/markdown-it/lib/rules_inline/emphasis.mjs
-function emphasis_tokenize(state, silent) {
-	const start = state.pos;
-	const marker = state.src.charCodeAt(start);
-	if (silent) return false;
-	if (marker !== 95 && marker !== 42) return false;
-	const scanned = state.scanDelims(state.pos, marker === 42);
-	for (let i = 0; i < scanned.length; i++) {
-		const token = state.push("text", "", 0);
-		token.content = String.fromCharCode(marker);
-		state.delimiters.push({
-			marker,
-			length: scanned.length,
-			token: state.tokens.length - 1,
-			end: -1,
-			open: scanned.can_open,
-			close: scanned.can_close
-		});
-	}
-	state.pos += scanned.length;
-	return true;
-}
-function postProcess(state, delimiters) {
-	const max = delimiters.length;
-	for (let i = max - 1; i >= 0; i--) {
-		const startDelim = delimiters[i];
-		if (startDelim.marker !== 95 && startDelim.marker !== 42) continue;
-		if (startDelim.end === -1) continue;
-		const endDelim = delimiters[startDelim.end];
-		const isStrong = i > 0 && delimiters[i - 1].end === startDelim.end + 1 && delimiters[i - 1].marker === startDelim.marker && delimiters[i - 1].token === startDelim.token - 1 && delimiters[startDelim.end + 1].token === endDelim.token + 1;
-		const ch = String.fromCharCode(startDelim.marker);
-		const token_o = state.tokens[startDelim.token];
-		token_o.type = isStrong ? "strong_open" : "em_open";
-		token_o.tag = isStrong ? "strong" : "em";
-		token_o.nesting = 1;
-		token_o.markup = isStrong ? ch + ch : ch;
-		token_o.content = "";
-		const token_c = state.tokens[endDelim.token];
-		token_c.type = isStrong ? "strong_close" : "em_close";
-		token_c.tag = isStrong ? "strong" : "em";
-		token_c.nesting = -1;
-		token_c.markup = isStrong ? ch + ch : ch;
-		token_c.content = "";
-		if (isStrong) {
-			state.tokens[delimiters[i - 1].token].content = "";
-			state.tokens[delimiters[startDelim.end + 1].token].content = "";
-			i--;
-		}
-	}
-}
-function emphasis_post_process(state) {
-	const tokens_meta = state.tokens_meta;
-	const max = state.tokens_meta.length;
-	postProcess(state, state.delimiters);
-	for (let curr = 0; curr < max; curr++) if (tokens_meta[curr] && tokens_meta[curr].delimiters) postProcess(state, tokens_meta[curr].delimiters);
-}
-var emphasis_default = {
-	tokenize: emphasis_tokenize,
-	postProcess: emphasis_post_process
-};
-//#endregion
-//#region ../../node_modules/.pnpm/markdown-it@14.3.0/node_modules/markdown-it/lib/rules_inline/link.mjs
-function link$1(state, silent) {
-	let code, label, res, ref;
-	let href = "";
-	let title = "";
-	let start = state.pos;
-	let parseReference = true;
-	if (state.src.charCodeAt(state.pos) !== 91) return false;
-	const oldPos = state.pos;
-	const max = state.posMax;
-	const labelStart = state.pos + 1;
-	const labelEnd = state.md.helpers.parseLinkLabel(state, state.pos, true);
-	if (labelEnd < 0) return false;
-	let pos = labelEnd + 1;
-	if (pos < max && state.src.charCodeAt(pos) === 40) {
-		parseReference = false;
-		pos++;
-		for (; pos < max; pos++) {
-			code = state.src.charCodeAt(pos);
-			if (!isSpace(code) && code !== 10) break;
-		}
-		if (pos >= max) return false;
-		start = pos;
-		res = state.md.helpers.parseLinkDestination(state.src, pos, state.posMax);
-		if (res.ok) {
-			href = state.md.normalizeLink(res.str);
-			if (state.md.validateLink(href)) pos = res.pos;
-			else href = "";
-			start = pos;
-			for (; pos < max; pos++) {
-				code = state.src.charCodeAt(pos);
-				if (!isSpace(code) && code !== 10) break;
-			}
-			res = state.md.helpers.parseLinkTitle(state.src, pos, state.posMax);
-			if (pos < max && start !== pos && res.ok) {
-				title = res.str;
-				pos = res.pos;
-				for (; pos < max; pos++) {
-					code = state.src.charCodeAt(pos);
-					if (!isSpace(code) && code !== 10) break;
-				}
-			}
-		}
-		if (pos >= max || state.src.charCodeAt(pos) !== 41) parseReference = true;
-		pos++;
-	}
-	if (parseReference) {
-		if (typeof state.env.references === "undefined") return false;
-		if (pos < max && state.src.charCodeAt(pos) === 91) {
-			start = pos + 1;
-			pos = state.md.helpers.parseLinkLabel(state, pos);
-			if (pos >= 0) label = state.src.slice(start, pos++);
-			else pos = labelEnd + 1;
-		} else pos = labelEnd + 1;
-		if (!label) label = state.src.slice(labelStart, labelEnd);
-		ref = state.env.references[normalizeReference(label)];
-		if (!ref) {
-			state.pos = oldPos;
-			return false;
-		}
-		href = ref.href;
-		title = ref.title;
-	}
-	if (!silent) {
-		state.pos = labelStart;
-		state.posMax = labelEnd;
-		const token_o = state.push("link_open", "a", 1);
-		const attrs = [["href", href]];
-		token_o.attrs = attrs;
-		if (title) attrs.push(["title", title]);
-		state.linkLevel++;
-		state.md.inline.tokenize(state);
-		state.linkLevel--;
-		state.push("link_close", "a", -1);
-	}
-	state.pos = pos;
-	state.posMax = max;
-	return true;
-}
-//#endregion
-//#region ../../node_modules/.pnpm/markdown-it@14.3.0/node_modules/markdown-it/lib/rules_inline/image.mjs
-function image$1(state, silent) {
-	let code, content, label, pos, ref, res, title, start;
-	let href = "";
-	const oldPos = state.pos;
-	const max = state.posMax;
-	if (state.src.charCodeAt(state.pos) !== 33) return false;
-	if (state.src.charCodeAt(state.pos + 1) !== 91) return false;
-	const labelStart = state.pos + 2;
-	const labelEnd = state.md.helpers.parseLinkLabel(state, state.pos + 1, false);
-	if (labelEnd < 0) return false;
-	pos = labelEnd + 1;
-	if (pos < max && state.src.charCodeAt(pos) === 40) {
-		pos++;
-		for (; pos < max; pos++) {
-			code = state.src.charCodeAt(pos);
-			if (!isSpace(code) && code !== 10) break;
-		}
-		if (pos >= max) return false;
-		start = pos;
-		res = state.md.helpers.parseLinkDestination(state.src, pos, state.posMax);
-		if (res.ok) {
-			href = state.md.normalizeLink(res.str);
-			if (state.md.validateLink(href)) pos = res.pos;
-			else href = "";
-		}
-		start = pos;
-		for (; pos < max; pos++) {
-			code = state.src.charCodeAt(pos);
-			if (!isSpace(code) && code !== 10) break;
-		}
-		res = state.md.helpers.parseLinkTitle(state.src, pos, state.posMax);
-		if (pos < max && start !== pos && res.ok) {
-			title = res.str;
-			pos = res.pos;
-			for (; pos < max; pos++) {
-				code = state.src.charCodeAt(pos);
-				if (!isSpace(code) && code !== 10) break;
-			}
-		} else title = "";
-		if (pos >= max || state.src.charCodeAt(pos) !== 41) {
-			state.pos = oldPos;
-			return false;
-		}
-		pos++;
-	} else {
-		if (typeof state.env.references === "undefined") return false;
-		if (pos < max && state.src.charCodeAt(pos) === 91) {
-			start = pos + 1;
-			pos = state.md.helpers.parseLinkLabel(state, pos);
-			if (pos >= 0) label = state.src.slice(start, pos++);
-			else pos = labelEnd + 1;
-		} else pos = labelEnd + 1;
-		if (!label) label = state.src.slice(labelStart, labelEnd);
-		ref = state.env.references[normalizeReference(label)];
-		if (!ref) {
-			state.pos = oldPos;
-			return false;
-		}
-		href = ref.href;
-		title = ref.title;
-	}
-	if (!silent) {
-		content = state.src.slice(labelStart, labelEnd);
-		const tokens = [];
-		state.md.inline.parse(content, state.md, state.env, tokens);
-		const token = state.push("image", "img", 0);
-		const attrs = [["src", href], ["alt", ""]];
-		token.attrs = attrs;
-		token.children = tokens;
-		token.content = content;
-		if (title) attrs.push(["title", title]);
-	}
-	state.pos = pos;
-	state.posMax = max;
-	return true;
-}
-//#endregion
-//#region ../../node_modules/.pnpm/markdown-it@14.3.0/node_modules/markdown-it/lib/rules_inline/autolink.mjs
-var EMAIL_RE = /^([a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*)$/;
-var AUTOLINK_RE = /^([a-zA-Z][a-zA-Z0-9+.-]{1,31}):([^<>\x00-\x20]*)$/;
-function autolink(state, silent) {
-	let pos = state.pos;
-	if (state.src.charCodeAt(pos) !== 60) return false;
-	const start = state.pos;
-	const max = state.posMax;
-	for (;;) {
-		if (++pos >= max) return false;
-		const ch = state.src.charCodeAt(pos);
-		if (ch === 60) return false;
-		if (ch === 62) break;
-	}
-	const url = state.src.slice(start + 1, pos);
-	if (AUTOLINK_RE.test(url)) {
-		const fullUrl = state.md.normalizeLink(url);
-		if (!state.md.validateLink(fullUrl)) return false;
-		if (!silent) {
-			const token_o = state.push("link_open", "a", 1);
-			token_o.attrs = [["href", fullUrl]];
-			token_o.markup = "autolink";
-			token_o.info = "auto";
-			const token_t = state.push("text", "", 0);
-			token_t.content = state.md.normalizeLinkText(url);
-			const token_c = state.push("link_close", "a", -1);
-			token_c.markup = "autolink";
-			token_c.info = "auto";
-		}
-		state.pos += url.length + 2;
-		return true;
-	}
-	if (EMAIL_RE.test(url)) {
-		const fullUrl = state.md.normalizeLink("mailto:" + url);
-		if (!state.md.validateLink(fullUrl)) return false;
-		if (!silent) {
-			const token_o = state.push("link_open", "a", 1);
-			token_o.attrs = [["href", fullUrl]];
-			token_o.markup = "autolink";
-			token_o.info = "auto";
-			const token_t = state.push("text", "", 0);
-			token_t.content = state.md.normalizeLinkText(url);
-			const token_c = state.push("link_close", "a", -1);
-			token_c.markup = "autolink";
-			token_c.info = "auto";
-		}
-		state.pos += url.length + 2;
-		return true;
-	}
-	return false;
-}
-//#endregion
-//#region ../../node_modules/.pnpm/markdown-it@14.3.0/node_modules/markdown-it/lib/rules_inline/html_inline.mjs
-function isLinkOpen(str) {
-	return /^<a[>\s]/i.test(str);
-}
-function isLinkClose(str) {
-	return /^<\/a\s*>/i.test(str);
-}
-function isLetter(ch) {
-	const lc = ch | 32;
-	return lc >= 97 && lc <= 122;
-}
-function html_inline(state, silent) {
-	if (!state.md.options.html) return false;
-	const max = state.posMax;
-	const pos = state.pos;
-	if (state.src.charCodeAt(pos) !== 60 || pos + 2 >= max) return false;
-	const ch = state.src.charCodeAt(pos + 1);
-	if (ch !== 33 && ch !== 63 && ch !== 47 && !isLetter(ch)) return false;
-	const match = state.src.slice(pos).match(HTML_TAG_RE);
-	if (!match) return false;
-	if (!silent) {
-		const token = state.push("html_inline", "", 0);
-		token.content = match[0];
-		if (isLinkOpen(token.content)) state.linkLevel++;
-		if (isLinkClose(token.content)) state.linkLevel--;
-	}
-	state.pos += match[0].length;
-	return true;
-}
-//#endregion
-//#region ../../node_modules/.pnpm/markdown-it@14.3.0/node_modules/markdown-it/lib/rules_inline/entity.mjs
-var DIGITAL_RE = /^&#((?:x[a-f0-9]{1,6}|[0-9]{1,7}));/i;
-var NAMED_RE = /^&([a-z][a-z0-9]{1,31});/i;
-function entity(state, silent) {
-	const pos = state.pos;
-	const max = state.posMax;
-	if (state.src.charCodeAt(pos) !== 38) return false;
-	if (pos + 1 >= max) return false;
-	if (state.src.charCodeAt(pos + 1) === 35) {
-		const match = state.src.slice(pos).match(DIGITAL_RE);
-		if (match) {
-			if (!silent) {
-				const code = match[1][0].toLowerCase() === "x" ? parseInt(match[1].slice(1), 16) : parseInt(match[1], 10);
-				const token = state.push("text_special", "", 0);
-				token.content = isValidEntityCode(code) ? fromCodePoint$1(code) : fromCodePoint$1(65533);
-				token.markup = match[0];
-				token.info = "entity";
-			}
-			state.pos += match[0].length;
-			return true;
-		}
-	} else {
-		const match = state.src.slice(pos).match(NAMED_RE);
-		if (match) {
-			const decoded = decodeHTMLStrict(match[0]);
-			if (decoded !== match[0]) {
-				if (!silent) {
-					const token = state.push("text_special", "", 0);
-					token.content = decoded;
-					token.markup = match[0];
-					token.info = "entity";
-				}
-				state.pos += match[0].length;
-				return true;
-			}
-		}
-	}
-	return false;
-}
-//#endregion
-//#region ../../node_modules/.pnpm/markdown-it@14.3.0/node_modules/markdown-it/lib/rules_inline/balance_pairs.mjs
-function processDelimiters(delimiters) {
-	const openersBottom = {};
-	const max = delimiters.length;
-	if (!max) return;
-	let headerIdx = 0;
-	let lastTokenIdx = -2;
-	const jumps = [];
-	for (let closerIdx = 0; closerIdx < max; closerIdx++) {
-		const closer = delimiters[closerIdx];
-		jumps.push(0);
-		if (delimiters[headerIdx].marker !== closer.marker || lastTokenIdx !== closer.token - 1) headerIdx = closerIdx;
-		lastTokenIdx = closer.token;
-		closer.length = closer.length || 0;
-		if (!closer.close) continue;
-		if (!openersBottom.hasOwnProperty(closer.marker)) openersBottom[closer.marker] = [
-			-1,
-			-1,
-			-1,
-			-1,
-			-1,
-			-1
-		];
-		const minOpenerIdx = openersBottom[closer.marker][(closer.open ? 3 : 0) + closer.length % 3];
-		let openerIdx = headerIdx - jumps[headerIdx] - 1;
-		let newMinOpenerIdx = openerIdx;
-		for (; openerIdx > minOpenerIdx; openerIdx -= jumps[openerIdx] + 1) {
-			const opener = delimiters[openerIdx];
-			if (opener.marker !== closer.marker) continue;
-			if (opener.open && opener.end < 0) {
-				let isOddMatch = false;
-				if (opener.close || closer.open) {
-					if ((opener.length + closer.length) % 3 === 0) {
-						if (opener.length % 3 !== 0 || closer.length % 3 !== 0) isOddMatch = true;
+		for (;;) {
+			const scanFrom = Math.max(pos - 1, 0);
+			if (mailHostRe && mailNameRe && !fuzzyEmailDone && (!fuzzyEmailCandidate || fuzzyEmailCandidate.index < pos)) {
+				if (mailHostRe.lastIndex < scanFrom) mailHostRe.lastIndex = scanFrom;
+				for (;;) {
+					const m = mailHostRe.exec(text);
+					if (!m) {
+						fuzzyEmailDone = true;
+						fuzzyEmailCandidate = void 0;
+						break;
 					}
+					const name = mailNameRe.exec(text.slice(Math.max(0, m.index - 65), m.index));
+					if (!name) continue;
+					fuzzyEmailCandidate = {
+						schema: "mailto:",
+						index: m.index - name[1].length,
+						lastIndex: m.index + m[0].length
+					};
+					if (fuzzyEmailCandidate.index >= pos) break;
+					if (mailHostRe.lastIndex < scanFrom) mailHostRe.lastIndex = scanFrom;
 				}
-				if (!isOddMatch) {
-					const lastJump = openerIdx > 0 && !delimiters[openerIdx - 1].open ? jumps[openerIdx - 1] + 1 : 0;
-					jumps[closerIdx] = closerIdx - openerIdx + lastJump;
-					jumps[openerIdx] = lastJump;
-					closer.open = false;
-					opener.end = closerIdx;
-					opener.close = false;
-					newMinOpenerIdx = -1;
-					lastTokenIdx = -2;
+			}
+			if (fuzzyLinkRe && !fuzzyLinkDone && (!fuzzyLinkCandidate || fuzzyLinkCandidate.index < pos)) {
+				if (fuzzyLinkRe.lastIndex < scanFrom) fuzzyLinkRe.lastIndex = scanFrom;
+				for (;;) {
+					const m = fuzzyLinkRe.exec(text);
+					if (!m) {
+						fuzzyLinkDone = true;
+						fuzzyLinkCandidate = void 0;
+						break;
+					}
+					fuzzyLinkCandidate = {
+						schema: "",
+						index: m.index + m[1].length,
+						lastIndex: m.index + m[0].length
+					};
+					if (fuzzyLinkCandidate.index >= pos) break;
+					if (fuzzyLinkRe.lastIndex < scanFrom) fuzzyLinkRe.lastIndex = scanFrom;
+				}
+			}
+			let fuzzyCandidate = fuzzyEmailCandidate;
+			if (!fuzzyCandidate || fuzzyLinkCandidate && (fuzzyLinkCandidate.index < fuzzyCandidate.index || fuzzyLinkCandidate.index === fuzzyCandidate.index && fuzzyLinkCandidate.lastIndex > fuzzyCandidate.lastIndex)) fuzzyCandidate = fuzzyLinkCandidate;
+			let schemaCandidate;
+			if (!schemaDone) for (;;) {
+				if (!schemaPrefix) {
+					if (schemaRe.lastIndex < scanFrom) schemaRe.lastIndex = scanFrom;
+					const m = schemaRe.exec(text);
+					if (!m) {
+						schemaDone = true;
+						break;
+					}
+					schemaPrefix = {
+						schema: m[2],
+						index: m.index + m[1].length,
+						lastIndex: m.index + m[0].length
+					};
+				}
+				if (schemaPrefix.index < pos) {
+					schemaPrefix = void 0;
+					continue;
+				}
+				if (fuzzyCandidate && schemaPrefix.index > fuzzyCandidate.index) break;
+				const prefix = schemaPrefix;
+				schemaPrefix = void 0;
+				const len = this.testSchemaAt(text, prefix.schema, prefix.lastIndex);
+				if (len) {
+					schemaCandidate = {
+						schema: prefix.schema,
+						index: prefix.index,
+						lastIndex: prefix.lastIndex + len
+					};
 					break;
 				}
 			}
+			let candidate = schemaCandidate;
+			if (!candidate || fuzzyEmailCandidate && (fuzzyEmailCandidate.index < candidate.index || fuzzyEmailCandidate.index === candidate.index && fuzzyEmailCandidate.lastIndex > candidate.lastIndex)) candidate = fuzzyEmailCandidate;
+			if (!candidate || fuzzyLinkCandidate && (fuzzyLinkCandidate.index < candidate.index || fuzzyLinkCandidate.index === candidate.index && fuzzyLinkCandidate.lastIndex > candidate.lastIndex)) candidate = fuzzyLinkCandidate;
+			if (!candidate) break;
+			if (candidate === fuzzyEmailCandidate) fuzzyEmailCandidate = void 0;
+			else if (candidate === fuzzyLinkCandidate) fuzzyLinkCandidate = void 0;
+			const match = new Match(text, candidate.schema, candidate.index, candidate.lastIndex);
+			if (match.schema) this.__schemas__[match.schema].normalize(match, this);
+			else this.normalize(match);
+			result.push(match);
+			pos = candidate.lastIndex;
 		}
-		if (newMinOpenerIdx !== -1) openersBottom[closer.marker][(closer.open ? 3 : 0) + (closer.length || 0) % 3] = newMinOpenerIdx;
+		if (result.length) return result;
+		return null;
 	}
-}
-function link_pairs(state) {
-	const tokens_meta = state.tokens_meta;
-	const max = state.tokens_meta.length;
-	processDelimiters(state.delimiters);
-	for (let curr = 0; curr < max; curr++) if (tokens_meta[curr] && tokens_meta[curr].delimiters) processDelimiters(tokens_meta[curr].delimiters);
-}
-//#endregion
-//#region ../../node_modules/.pnpm/markdown-it@14.3.0/node_modules/markdown-it/lib/rules_inline/fragments_join.mjs
-function fragments_join(state) {
-	let curr, last;
-	let level = 0;
-	const tokens = state.tokens;
-	const max = state.tokens.length;
-	for (curr = last = 0; curr < max; curr++) {
-		if (tokens[curr].nesting < 0) level--;
-		tokens[curr].level = level;
-		if (tokens[curr].nesting > 0) level++;
-		if (tokens[curr].type === "text" && curr + 1 < max && tokens[curr + 1].type === "text") tokens[curr + 1].content = tokens[curr].content + tokens[curr + 1].content;
-		else {
-			if (curr !== last) tokens[last] = tokens[curr];
-			last++;
-		}
-	}
-	if (curr !== last) tokens.length = last;
-}
-//#endregion
-//#region ../../node_modules/.pnpm/markdown-it@14.3.0/node_modules/markdown-it/lib/parser_inline.mjs
-/** internal
-* class ParserInline
-*
-* Tokenizes paragraph content.
-**/
-var _rules = [
-	["text", text$4],
-	["linkify", linkify],
-	["newline", newline],
-	["escape", escape],
-	["backticks", backtick],
-	["strikethrough", strikethrough_default.tokenize],
-	["emphasis", emphasis_default.tokenize],
-	["link", link$1],
-	["image", image$1],
-	["autolink", autolink],
-	["html_inline", html_inline],
-	["entity", entity]
-];
-var _rules2 = [
-	["balance_pairs", link_pairs],
-	["strikethrough", strikethrough_default.postProcess],
-	["emphasis", emphasis_default.postProcess],
-	["fragments_join", fragments_join]
-];
-/**
-* new ParserInline()
-**/
-function ParserInline() {
 	/**
-	* ParserInline#ruler -> Ruler
+	* Returns fully-formed (not fuzzy) link if it starts at the beginning
+	* of the string, and null otherwise.
 	*
-	* [[Ruler]] instance. Keep configuration of inline rules.
-	**/
-	this.ruler = new Ruler();
-	for (let i = 0; i < _rules.length; i++) this.ruler.push(_rules[i][0], _rules[i][1]);
+	* @param text Text to scan.
+	*/
+	matchAtStart(text) {
+		if (!text.length) return null;
+		const m = this.re.get_schema_at_start().exec(text);
+		if (!m) return null;
+		const len = this.testSchemaAt(text, m[2], m[0].length);
+		if (!len) return null;
+		const match = new Match(text, m[2], m.index + m[1].length, m.index + m[0].length + len);
+		this.__schemas__[match.schema].normalize(match, this);
+		return match;
+	}
 	/**
-	* ParserInline#ruler2 -> Ruler
+	* Load (or merge) new TLDs list. Those are used for fuzzy links (without
+	* prefix) to avoid false positives. By default this algorithm is used:
 	*
-	* [[Ruler]] instance. Second ruler used for post-processing
-	* (e.g. in emphasis-like rules).
-	**/
-	this.ruler2 = new Ruler();
-	for (let i = 0; i < _rules2.length; i++) this.ruler2.push(_rules2[i][0], _rules2[i][1]);
-}
-ParserInline.prototype.skipToken = function(state) {
-	const pos = state.pos;
-	const rules = this.ruler.getRules("");
-	const len = rules.length;
-	const maxNesting = state.md.options.maxNesting;
-	const cache = state.cache;
-	if (typeof cache[pos] !== "undefined") {
-		state.pos = cache[pos];
-		return;
-	}
-	let ok = false;
-	if (state.level < maxNesting) for (let i = 0; i < len; i++) {
-		state.level++;
-		ok = rules[i](state, true);
-		state.level--;
-		if (ok) {
-			if (pos >= state.pos) throw new Error("inline rule didn't increment state.pos");
-			break;
-		}
-	}
-	else state.pos = state.posMax;
-	if (!ok) state.pos++;
-	cache[pos] = state.pos;
-};
-ParserInline.prototype.tokenize = function(state) {
-	const rules = this.ruler.getRules("");
-	const len = rules.length;
-	const end = state.posMax;
-	const maxNesting = state.md.options.maxNesting;
-	while (state.pos < end) {
-		const prevPos = state.pos;
-		let ok = false;
-		if (state.level < maxNesting) for (let i = 0; i < len; i++) {
-			ok = rules[i](state, false);
-			if (ok) {
-				if (prevPos >= state.pos) throw new Error("inline rule didn't increment state.pos");
-				break;
-			}
-		}
-		if (ok) {
-			if (state.pos >= end) break;
-			continue;
-		}
-		state.pending += state.src[state.pos++];
-	}
-	if (state.pending) state.pushPending();
-};
-/**
-* ParserInline.parse(str, md, env, outTokens)
-*
-* Process input string and push inline tokens into `outTokens`
-**/
-ParserInline.prototype.parse = function(str, md, env, outTokens) {
-	const state = new this.State(str, md, env, outTokens);
-	this.tokenize(state);
-	const rules = this.ruler2.getRules("");
-	const len = rules.length;
-	for (let i = 0; i < len; i++) rules[i](state);
-};
-ParserInline.prototype.State = StateInline;
-//#endregion
-//#region ../../node_modules/.pnpm/linkify-it@5.0.2/node_modules/linkify-it/lib/re.mjs
-function re_default(opts) {
-	const re = {};
-	opts = opts || {};
-	re.src_Any = regex_default$5.source;
-	re.src_Cc = regex_default$4.source;
-	re.src_Z = regex_default.source;
-	re.src_P = regex_default$2.source;
-	re.src_ZPCc = [
-		re.src_Z,
-		re.src_P,
-		re.src_Cc
-	].join("|");
-	re.src_ZCc = [re.src_Z, re.src_Cc].join("|");
-	const text_separators = "[><｜]";
-	re.src_pseudo_letter = `(?:(?!${text_separators}|${re.src_ZPCc})${re.src_Any})`;
-	re.src_ip4 = "(?:(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)";
-	re.src_auth = `(?:(?:(?!${re.src_ZCc}|[@/\\[\\]()]).){1,50}@)?`;
-	re.src_port = "(?::(?:6(?:[0-4]\\d{3}|5(?:[0-4]\\d{2}|5(?:[0-2]\\d|3[0-5])))|[1-5]?\\d{1,4}))?";
-	re.src_host_terminator = `(?=$|${text_separators}|${re.src_ZPCc})(?!${opts["---"] ? "-(?!--)|" : "-|"}_|:\\d|\\.-|\\.(?!$|${re.src_ZPCc}))`;
-	re.src_path = `(?:[/?#](?:(?!${re.src_ZCc}|${text_separators}|[()[\\]{}.,"'?!\\-;]).|\\[(?:(?!${re.src_ZCc}|\\]).)*\\]|\\((?:(?!${re.src_ZCc}|[)]).)*\\)|\\{(?:(?!${re.src_ZCc}|[}]).)*\\}|\\"(?:(?!${re.src_ZCc}|["]).)+\\"|\\'(?:(?!${re.src_ZCc}|[']).)+\\'|\\'(?=${re.src_pseudo_letter}|[-])|\\.{2,}[a-zA-Z0-9%/&]|\\.(?!${re.src_ZCc}|[.]|$)|` + (opts["---"] ? "\\-(?!--(?:[^-]|$))(?:-*)|" : "\\-+|") + `,(?!${re.src_ZCc}|$)|;(?!${re.src_ZCc}|$)|\\!+(?!${re.src_ZCc}|[!]|$)|\\?(?!${re.src_ZCc}|[?]|$))+|\\/)?`;
-	re.src_email_name = "[\\-;:&=\\+\\$,\\.a-zA-Z0-9_][\\-;:&=\\+\\$,\\\"\\.a-zA-Z0-9_]{0,63}";
-	re.src_xn = "xn--[a-z0-9\\-]{1,59}";
-	re.src_domain_root = "(?:" + re.src_xn + `|${re.src_pseudo_letter}{1,63})`;
-	re.src_domain = "(?:" + re.src_xn + `|(?:${re.src_pseudo_letter})|(?:${re.src_pseudo_letter}(?:-|${re.src_pseudo_letter}){0,61}${re.src_pseudo_letter}))`;
-	re.src_host = `(?:(?:(?:(?:${re.src_domain})\\.)*${re.src_domain}))`;
-	re.tpl_host_fuzzy = "(?:" + re.src_ip4 + `|(?:(?:(?:${re.src_domain})\\.)+(?:%TLDS%)))`;
-	re.tpl_host_no_ip_fuzzy = `(?:(?:(?:${re.src_domain})\\.)+(?:%TLDS%))`;
-	re.src_host_strict = re.src_host + re.src_host_terminator;
-	re.tpl_host_fuzzy_strict = re.tpl_host_fuzzy + re.src_host_terminator;
-	re.src_host_port_strict = re.src_host + re.src_port + re.src_host_terminator;
-	re.tpl_host_port_fuzzy_strict = re.tpl_host_fuzzy + re.src_port + re.src_host_terminator;
-	re.tpl_host_port_no_ip_fuzzy_strict = re.tpl_host_no_ip_fuzzy + re.src_port + re.src_host_terminator;
-	re.tpl_host_fuzzy_test = `localhost|www\\.|\\.\\d{1,3}\\.|(?:\\.(?:%TLDS%)(?:${re.src_ZPCc}|>|$))`;
-	re.tpl_email_fuzzy = `(^|${text_separators}|"|\\(|${re.src_ZCc})(${re.src_email_name}@${re.tpl_host_fuzzy_strict})`;
-	re.tpl_link_fuzzy = `(^|(?![.:/\\-_@])(?:[$+<=>^\`|\uff5c]|${re.src_ZPCc}))((?![$+<=>^\`|\uff5c])${re.tpl_host_port_fuzzy_strict}${re.src_path})`;
-	re.tpl_link_no_ip_fuzzy = `(^|(?![.:/\\-_@])(?:[$+<=>^\`|\uff5c]|${re.src_ZPCc}))((?![$+<=>^\`|\uff5c])${re.tpl_host_port_no_ip_fuzzy_strict}${re.src_path})`;
-	return re;
-}
-//#endregion
-//#region ../../node_modules/.pnpm/linkify-it@5.0.2/node_modules/linkify-it/index.mjs
-function assign(obj) {
-	Array.prototype.slice.call(arguments, 1).forEach(function(source) {
-		if (!source) return;
-		Object.keys(source).forEach(function(key) {
-			obj[key] = source[key];
+	* - hostname with any 2-letter root zones are ok.
+	* - biz|com|edu|gov|net|org|pro|web|xxx|aero|asia|coop|info|museum|name|shop|рф
+	*   are ok.
+	* - encoded (`xn--...`) root zones are ok.
+	*
+	* If list is replaced, then exact match for 2-chars root zones will be checked.
+	*
+	* @param list List of TLDs.
+	* @param keepOld Merge with current list if `true` (`false` by default).
+	*/
+	tlds(list, keepOld = false) {
+		list = Array.isArray(list) ? list : [list];
+		if (!keepOld) this.__opts__.tlds = list;
+		else this.__opts__.tlds = this.__opts__.tlds.concat(list);
+		this.re.set({
+			...this.__opts__,
+			schema_names: Object.keys(this.__schemas__)
 		});
-	});
-	return obj;
-}
-function _class(obj) {
-	return Object.prototype.toString.call(obj);
-}
-function isString(obj) {
-	return _class(obj) === "[object String]";
-}
-function isObject(obj) {
-	return _class(obj) === "[object Object]";
-}
-function isRegExp(obj) {
-	return _class(obj) === "[object RegExp]";
-}
-function isFunction$2(obj) {
-	return _class(obj) === "[object Function]";
-}
-function escapeRE(str) {
-	return str.replace(/[.?*+^$[\]\\(){}|-]/g, "\\$&");
-}
-var defaultOptions = {
-	fuzzyLink: true,
-	fuzzyEmail: true,
-	fuzzyIP: false
-};
-function isOptionsObj(obj) {
-	return Object.keys(obj || {}).reduce(function(acc, k) {
-		return acc || defaultOptions.hasOwnProperty(k);
-	}, false);
-}
-var defaultSchemas = {
-	"http:": { validate: function(text, pos, self) {
-		const tail = text.slice(pos);
-		if (!self.re.http) self.re.http = new RegExp(`^\\/\\/${self.re.src_auth}${self.re.src_host_port_strict}${self.re.src_path}`, "i");
-		if (self.re.http.test(tail)) return tail.match(self.re.http)[0].length;
-		return 0;
-	} },
-	"https:": "http:",
-	"ftp:": "http:",
-	"//": { validate: function(text, pos, self) {
-		const tail = text.slice(pos);
-		if (!self.re.no_http) self.re.no_http = new RegExp("^" + self.re.src_auth + `(?:localhost|(?:(?:${self.re.src_domain})\\.)+${self.re.src_domain_root})` + self.re.src_port + self.re.src_host_terminator + self.re.src_path, "i");
-		if (self.re.no_http.test(tail)) {
-			if (pos >= 3 && text[pos - 3] === ":") return 0;
-			if (pos >= 3 && text[pos - 3] === "/") return 0;
-			return tail.match(self.re.no_http)[0].length;
-		}
-		return 0;
-	} },
-	"mailto:": { validate: function(text, pos, self) {
-		const tail = text.slice(pos);
-		if (!self.re.mailto) self.re.mailto = new RegExp(`^${self.re.src_email_name}@${self.re.src_host_strict}`, "i");
-		if (self.re.mailto.test(tail)) return tail.match(self.re.mailto)[0].length;
-		return 0;
-	} }
-};
-var tlds_2ch_src_re = "a[cdefgilmnoqrstuwxz]|b[abdefghijmnorstvwyz]|c[acdfghiklmnoruvwxyz]|d[ejkmoz]|e[cegrstu]|f[ijkmor]|g[abdefghilmnpqrstuwy]|h[kmnrtu]|i[delmnoqrst]|j[emop]|k[eghimnprwyz]|l[abcikrstuvy]|m[acdeghklmnopqrstuvwxyz]|n[acefgilopruz]|om|p[aefghklmnrstwy]|qa|r[eosuw]|s[abcdeghijklmnortuvxyz]|t[cdfghjklmnortvwz]|u[agksyz]|v[aceginu]|w[fs]|y[et]|z[amw]";
-var tlds_default = "biz|com|edu|gov|net|org|pro|web|xxx|aero|asia|coop|info|museum|name|shop|рф".split("|");
-function createValidator(re) {
-	return function(text, pos) {
-		const tail = text.slice(pos);
-		if (re.test(tail)) return tail.match(re)[0].length;
-		return 0;
-	};
-}
-function createNormalizer() {
-	return function(match, self) {
-		self.normalize(match);
-	};
-}
-function compile(self) {
-	const re = self.re = re_default(self.__opts__);
-	const tlds = self.__tlds__.slice();
-	self.onCompile();
-	if (!self.__tlds_replaced__) tlds.push(tlds_2ch_src_re);
-	tlds.push(re.src_xn);
-	re.src_tlds = tlds.join("|");
-	function untpl(tpl) {
-		return tpl.replace("%TLDS%", re.src_tlds);
-	}
-	re.email_fuzzy = RegExp(untpl(re.tpl_email_fuzzy), "i");
-	re.email_fuzzy_global = RegExp(untpl(re.tpl_email_fuzzy), "ig");
-	re.link_fuzzy = RegExp(untpl(re.tpl_link_fuzzy), "i");
-	re.link_fuzzy_global = RegExp(untpl(re.tpl_link_fuzzy), "ig");
-	re.link_no_ip_fuzzy = RegExp(untpl(re.tpl_link_no_ip_fuzzy), "i");
-	re.link_no_ip_fuzzy_global = RegExp(untpl(re.tpl_link_no_ip_fuzzy), "ig");
-	re.host_fuzzy_test = RegExp(untpl(re.tpl_host_fuzzy_test), "i");
-	const aliases = [];
-	self.__compiled__ = {};
-	function schemaError(name, val) {
-		throw new Error(`(LinkifyIt) Invalid schema "${name}": ${val}`);
-	}
-	Object.keys(self.__schemas__).forEach(function(name) {
-		const val = self.__schemas__[name];
-		if (val === null) return;
-		const compiled = {
-			validate: null,
-			link: null
-		};
-		self.__compiled__[name] = compiled;
-		if (isObject(val)) {
-			if (isRegExp(val.validate)) compiled.validate = createValidator(val.validate);
-			else if (isFunction$2(val.validate)) compiled.validate = val.validate;
-			else schemaError(name, val);
-			if (isFunction$2(val.normalize)) compiled.normalize = val.normalize;
-			else if (!val.normalize) compiled.normalize = createNormalizer();
-			else schemaError(name, val);
-			return;
-		}
-		if (isString(val)) {
-			aliases.push(name);
-			return;
-		}
-		schemaError(name, val);
-	});
-	aliases.forEach(function(alias) {
-		if (!self.__compiled__[self.__schemas__[alias]]) return;
-		self.__compiled__[alias].validate = self.__compiled__[self.__schemas__[alias]].validate;
-		self.__compiled__[alias].normalize = self.__compiled__[self.__schemas__[alias]].normalize;
-	});
-	self.__compiled__[""] = {
-		validate: null,
-		normalize: createNormalizer()
-	};
-	const slist = Object.keys(self.__compiled__).filter(function(name) {
-		return name.length > 0 && self.__compiled__[name];
-	}).map(escapeRE).join("|");
-	self.re.schema_test = RegExp(`(^|(?!_)(?:[><\uff5c]|${re.src_ZPCc}))(${slist})`, "i");
-	self.re.schema_search = RegExp(`(^|(?!_)(?:[><\uff5c]|${re.src_ZPCc}))(${slist})`, "ig");
-	self.re.schema_at_start = RegExp(`^${self.re.schema_search.source}`, "i");
-	self.re.pretest = RegExp(`(${self.re.schema_test.source})|(${self.re.host_fuzzy_test.source})|@`, "i");
-}
-/**
-* class Match
-*
-* Match result. Single element of array, returned by [[LinkifyIt#match]]
-**/
-function Match(text, schema, index, lastIndex) {
-	const raw = text.slice(index, lastIndex);
-	/**
-	* Match#schema -> String
-	*
-	* Prefix (protocol) for matched string.
-	**/
-	this.schema = schema.toLowerCase();
-	/**
-	* Match#index -> Number
-	*
-	* First position of matched string.
-	**/
-	this.index = index;
-	/**
-	* Match#lastIndex -> Number
-	*
-	* Next position after matched string.
-	**/
-	this.lastIndex = lastIndex;
-	/**
-	* Match#raw -> String
-	*
-	* Matched string.
-	**/
-	this.raw = raw;
-	/**
-	* Match#text -> String
-	*
-	* Notmalized text of matched string.
-	**/
-	this.text = raw;
-	/**
-	* Match#url -> String
-	*
-	* Normalized url of matched string.
-	**/
-	this.url = raw;
-}
-/**
-* class LinkifyIt
-**/
-/**
-* new LinkifyIt(schemas, options)
-* - schemas (Object): Optional. Additional schemas to validate (prefix/validator)
-* - options (Object): { fuzzyLink|fuzzyEmail|fuzzyIP: true|false }
-*
-* Creates new linkifier instance with optional additional schemas.
-* Can be called without `new` keyword for convenience.
-*
-* By default understands:
-*
-* - `http(s)://...` , `ftp://...`, `mailto:...` & `//...` links
-* - "fuzzy" links and emails (example.com, foo@bar.com).
-*
-* `schemas` is an object, where each key/value describes protocol/rule:
-*
-* - __key__ - link prefix (usually, protocol name with `:` at the end, `skype:`
-*   for example). `linkify-it` makes shure that prefix is not preceeded with
-*   alphanumeric char and symbols. Only whitespaces and punctuation allowed.
-* - __value__ - rule to check tail after link prefix
-*   - _String_ - just alias to existing rule
-*   - _Object_
-*     - _validate_ - validator function (should return matched length on success),
-*       or `RegExp`.
-*     - _normalize_ - optional function to normalize text & url of matched result
-*       (for example, for @twitter mentions).
-*
-* `options`:
-*
-* - __fuzzyLink__ - recognige URL-s without `http(s):` prefix. Default `true`.
-* - __fuzzyIP__ - allow IPs in fuzzy links above. Can conflict with some texts
-*   like version numbers. Default `false`.
-* - __fuzzyEmail__ - recognize emails without `mailto:` prefix.
-*
-**/
-function LinkifyIt(schemas, options) {
-	if (!(this instanceof LinkifyIt)) return new LinkifyIt(schemas, options);
-	if (!options) {
-		if (isOptionsObj(schemas)) {
-			options = schemas;
-			schemas = {};
-		}
-	}
-	this.__opts__ = assign({}, defaultOptions, options);
-	this.__schemas__ = assign({}, defaultSchemas, schemas);
-	this.__compiled__ = {};
-	this.__tlds__ = tlds_default;
-	this.__tlds_replaced__ = false;
-	this.re = {};
-	compile(this);
-}
-/** chainable
-* LinkifyIt#add(schema, definition)
-* - schema (String): rule name (fixed pattern prefix)
-* - definition (String|RegExp|Object): schema definition
-*
-* Add new rule definition. See constructor description for details.
-**/
-LinkifyIt.prototype.add = function add(schema, definition) {
-	this.__schemas__[schema] = definition;
-	compile(this);
-	return this;
-};
-/** chainable
-* LinkifyIt#set(options)
-* - options (Object): { fuzzyLink|fuzzyEmail|fuzzyIP: true|false }
-*
-* Set recognition options for links without schema.
-**/
-LinkifyIt.prototype.set = function set(options) {
-	this.__opts__ = assign(this.__opts__, options);
-	return this;
-};
-/**
-* LinkifyIt#test(text) -> Boolean
-*
-* Searches linkifiable pattern and returns `true` on success or `false` on fail.
-**/
-LinkifyIt.prototype.test = function test(text) {
-	if (!text.length) return false;
-	let m, re;
-	if (this.re.schema_test.test(text)) {
-		re = this.re.schema_search;
-		re.lastIndex = 0;
-		while ((m = re.exec(text)) !== null) if (this.testSchemaAt(text, m[2], re.lastIndex)) return true;
-	}
-	if (this.__opts__.fuzzyLink && this.__compiled__["http:"]) {
-		if (text.search(this.re.host_fuzzy_test) >= 0) {
-			if (text.match(this.__opts__.fuzzyIP ? this.re.link_fuzzy : this.re.link_no_ip_fuzzy) !== null) return true;
-		}
-	}
-	if (this.__opts__.fuzzyEmail && this.__compiled__["mailto:"]) {
-		if (text.indexOf("@") >= 0) {
-			if (text.match(this.re.email_fuzzy) !== null) return true;
-		}
-	}
-	return false;
-};
-/**
-* LinkifyIt#pretest(text) -> Boolean
-*
-* Very quick check, that can give false positives. Returns true if link MAY BE
-* can exists. Can be used for speed optimization, when you need to check that
-* link NOT exists.
-**/
-LinkifyIt.prototype.pretest = function pretest(text) {
-	return this.re.pretest.test(text);
-};
-/**
-* LinkifyIt#testSchemaAt(text, name, position) -> Number
-* - text (String): text to scan
-* - name (String): rule (schema) name
-* - position (Number): text offset to check from
-*
-* Similar to [[LinkifyIt#test]] but checks only specific protocol tail exactly
-* at given position. Returns length of found pattern (0 on fail).
-**/
-LinkifyIt.prototype.testSchemaAt = function testSchemaAt(text, schema, pos) {
-	if (!this.__compiled__[schema.toLowerCase()]) return 0;
-	return this.__compiled__[schema.toLowerCase()].validate(text, pos, this);
-};
-/**
-* LinkifyIt#match(text) -> Array|null
-*
-* Returns array of found link descriptions or `null` on fail. We strongly
-* recommend to use [[LinkifyIt#test]] first, for best speed.
-*
-* ##### Result match description
-*
-* - __schema__ - link schema, can be empty for fuzzy links, or `//` for
-*   protocol-neutral  links.
-* - __index__ - offset of matched text
-* - __lastIndex__ - index of next char after mathch end
-* - __raw__ - matched text
-* - __text__ - normalized text
-* - __url__ - link, generated from matched text
-**/
-LinkifyIt.prototype.match = function match(text) {
-	const result = [];
-	const type_schemed = [];
-	const type_fuzzy_link = [];
-	const type_fuzzy_email = [];
-	let m, len, re;
-	function choose(a, b) {
-		if (!a) return b;
-		if (!b) return a;
-		if (a.index !== b.index) return a.index < b.index ? a : b;
-		return a.lastIndex >= b.lastIndex ? a : b;
-	}
-	if (!text.length) return null;
-	if (this.re.schema_test.test(text)) {
-		re = this.re.schema_search;
-		re.lastIndex = 0;
-		while ((m = re.exec(text)) !== null) {
-			len = this.testSchemaAt(text, m[2], re.lastIndex);
-			if (len) type_schemed.push({
-				schema: m[2],
-				index: m.index + m[1].length,
-				lastIndex: m.index + m[0].length + len
-			});
-		}
-	}
-	if (this.__opts__.fuzzyLink && this.__compiled__["http:"]) {
-		re = this.__opts__.fuzzyIP ? this.re.link_fuzzy_global : this.re.link_no_ip_fuzzy_global;
-		re.lastIndex = 0;
-		while ((m = re.exec(text)) !== null) type_fuzzy_link.push({
-			schema: "",
-			index: m.index + m[1].length,
-			lastIndex: m.index + m[0].length
-		});
-	}
-	if (this.__opts__.fuzzyEmail && this.__compiled__["mailto:"]) {
-		re = this.re.email_fuzzy_global;
-		re.lastIndex = 0;
-		while ((m = re.exec(text)) !== null) type_fuzzy_email.push({
-			schema: "mailto:",
-			index: m.index + m[1].length,
-			lastIndex: m.index + m[0].length
-		});
-	}
-	const indexes = [
-		0,
-		0,
-		0
-	];
-	let lastIndex = 0;
-	for (;;) {
-		const candidates = [
-			type_schemed[indexes[0]],
-			type_fuzzy_email[indexes[1]],
-			type_fuzzy_link[indexes[2]]
-		];
-		const candidate = choose(choose(candidates[0], candidates[1]), candidates[2]);
-		if (!candidate) break;
-		if (candidate === candidates[0]) indexes[0]++;
-		else if (candidate === candidates[1]) indexes[1]++;
-		else indexes[2]++;
-		if (candidate.index < lastIndex) continue;
-		const match = new Match(text, candidate.schema, candidate.index, candidate.lastIndex);
-		this.__compiled__[match.schema].normalize(match, this);
-		result.push(match);
-		lastIndex = candidate.lastIndex;
-	}
-	if (result.length) return result;
-	return null;
-};
-/**
-* LinkifyIt#matchAtStart(text) -> Match|null
-*
-* Returns fully-formed (not fuzzy) link if it starts at the beginning
-* of the string, and null otherwise.
-**/
-LinkifyIt.prototype.matchAtStart = function matchAtStart(text) {
-	if (!text.length) return null;
-	const m = this.re.schema_at_start.exec(text);
-	if (!m) return null;
-	const len = this.testSchemaAt(text, m[2], m[0].length);
-	if (!len) return null;
-	const match = new Match(text, m[2], m.index + m[1].length, m.index + m[0].length + len);
-	this.__compiled__[match.schema].normalize(match, this);
-	return match;
-};
-/** chainable
-* LinkifyIt#tlds(list [, keepOld]) -> this
-* - list (Array): list of tlds
-* - keepOld (Boolean): merge with current list if `true` (`false` by default)
-*
-* Load (or merge) new tlds list. Those are user for fuzzy links (without prefix)
-* to avoid false positives. By default this algorythm used:
-*
-* - hostname with any 2-letter root zones are ok.
-* - biz|com|edu|gov|net|org|pro|web|xxx|aero|asia|coop|info|museum|name|shop|рф
-*   are ok.
-* - encoded (`xn--...`) root zones are ok.
-*
-* If list is replaced, then exact match for 2-chars root zones will be checked.
-**/
-LinkifyIt.prototype.tlds = function tlds(list, keepOld) {
-	list = Array.isArray(list) ? list : [list];
-	if (!keepOld) {
-		this.__tlds__ = list.slice();
-		this.__tlds_replaced__ = true;
-		compile(this);
 		return this;
 	}
-	this.__tlds__ = this.__tlds__.concat(list).sort().filter(function(el, idx, arr) {
-		return el !== arr[idx - 1];
-	}).reverse();
-	compile(this);
-	return this;
+	/**
+	* Default normalizer (if schema does not define its own).
+	*
+	* @param match Match to normalize.
+	*/
+	normalize(match) {
+		if (!match.schema) match.url = `http://${match.url}`;
+		if (match.schema === "mailto:" && !/^mailto:/i.test(match.url)) match.url = `mailto:${match.url}`;
+	}
 };
-/**
-* LinkifyIt#normalize(match)
-*
-* Default normalizer (if schema does not define it's own).
-**/
-LinkifyIt.prototype.normalize = function normalize(match) {
-	if (!match.schema) match.url = `http://${match.url}`;
-	if (match.schema === "mailto:" && !/^mailto:/i.test(match.url)) match.url = `mailto:${match.url}`;
-};
-/**
-* LinkifyIt#onCompile()
-*
-* Override to modify basic RegExp-s.
-**/
-LinkifyIt.prototype.onCompile = function onCompile() {};
 //#endregion
 //#region ../../node_modules/.pnpm/punycode.js@2.3.1/node_modules/punycode.js/punycode.es6.js
 /** Highest positive signed 32-bit float value */
@@ -55644,7 +52425,7 @@ var errors = {
 	"invalid-input": "Invalid input"
 };
 /** Convenience shortcuts */
-var baseMinusTMin = base$1 - tMin;
+var baseMinusTMin = 35;
 var floor = Math.floor;
 var stringFromCharCode = String.fromCharCode;
 /**
@@ -55918,7 +52699,3302 @@ var punycode = {
 	"toUnicode": toUnicode
 };
 //#endregion
-//#region ../../node_modules/.pnpm/markdown-it@14.3.0/node_modules/markdown-it/lib/index.mjs
+//#region ../../node_modules/.pnpm/markdown-it@15.0.0/node_modules/markdown-it/dist/markdown-it.mjs
+/*! markdown-it 15.0.0 https://github.com/markdown-it/markdown-it @license MIT */
+var __defProp = Object.defineProperty;
+var __exportAll = (all, no_symbols) => {
+	let target = {};
+	for (var name in all) __defProp(target, name, {
+		get: all[name],
+		enumerable: true
+	});
+	if (!no_symbols) __defProp(target, Symbol.toStringTag, { value: "Module" });
+	return target;
+};
+/**
+* Common utility functions exposed through `md.utils` for use by plugins.
+*
+* @module md.utils
+*/
+var utils_exports = /* @__PURE__ */ __exportAll({
+	arrayReplaceAt: () => arrayReplaceAt,
+	asciiTrim: () => asciiTrim,
+	callable: () => callable,
+	escapeHtml: () => escapeHtml,
+	escapeRE: () => escapeRE,
+	fromCodePoint: () => fromCodePoint$1,
+	isMdAsciiPunct: () => isMdAsciiPunct,
+	isPunctChar: () => isPunctChar,
+	isPunctCharCode: () => isPunctCharCode,
+	isSpace: () => isSpace,
+	isValidEntityCode: () => isValidEntityCode,
+	isWhiteSpace: () => isWhiteSpace,
+	lib: () => lib,
+	normalizeReference: () => normalizeReference,
+	unescapeAll: () => unescapeAll,
+	unescapeMd: () => unescapeMd
+});
+function callable(cls) {
+	const wrapper = function(...args) {
+		return Reflect.construct(cls, args, new.target && new.target !== wrapper ? new.target : cls);
+	};
+	Object.defineProperty(wrapper, "name", { value: cls.name });
+	Object.setPrototypeOf(wrapper, cls);
+	wrapper.prototype = cls.prototype;
+	return wrapper;
+}
+/**
+* Returns a copy of a token array with the token at `pos` replaced by
+* `newElements`. Used to transform token streams without modifying the
+* original array.
+*/
+function arrayReplaceAt(src, pos, newElements) {
+	return [].concat(src.slice(0, pos), newElements, src.slice(pos + 1));
+}
+/** Checks whether a code point can be decoded from a numeric HTML entity. */
+function isValidEntityCode(c) {
+	if (c >= 55296 && c <= 57343) return false;
+	if (c >= 64976 && c <= 65007) return false;
+	if ((c & 65535) === 65535 || (c & 65535) === 65534) return false;
+	if (c >= 0 && c <= 8) return false;
+	if (c === 11) return false;
+	if (c >= 14 && c <= 31) return false;
+	if (c >= 127 && c <= 159) return false;
+	if (c > 1114111) return false;
+	return true;
+}
+/**
+* Converts a Unicode code point to a string, like `String.fromCodePoint()`,
+* but does not throw for invalid input.
+*/
+function fromCodePoint$1(c) {
+	if (c > 65535) {
+		c -= 65536;
+		const surrogate1 = 55296 + (c >> 10);
+		const surrogate2 = 56320 + (c & 1023);
+		return String.fromCharCode(surrogate1, surrogate2);
+	}
+	return String.fromCharCode(c);
+}
+var UNESCAPE_MD_RE = /\\([!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~])/g;
+var UNESCAPE_ALL_RE = new RegExp(`${UNESCAPE_MD_RE.source}|${/&([a-z#][a-z0-9]{1,31});/gi.source}`, "gi");
+var DIGITAL_ENTITY_TEST_RE = /^#((?:x[a-f0-9]{1,8}|[0-9]{1,8}))$/i;
+function replaceEntityPattern(match, name) {
+	if (name.charCodeAt(0) === 35 && DIGITAL_ENTITY_TEST_RE.test(name)) {
+		const code = name[1].toLowerCase() === "x" ? parseInt(name.slice(2), 16) : parseInt(name.slice(1), 10);
+		if (isValidEntityCode(code)) return fromCodePoint$1(code);
+		return match;
+	}
+	const decoded = decodeHTMLStrict(match);
+	if (decoded !== match) return decoded;
+	return match;
+}
+/** Decodes Markdown backslash escapes. */
+function unescapeMd(str) {
+	if (str.indexOf("\\") < 0) return str;
+	return str.replace(UNESCAPE_MD_RE, "$1");
+}
+/**
+* Decodes Markdown backslash escapes and HTML character references in link
+* destinations, link titles, and fenced code info strings.
+*/
+function unescapeAll(str) {
+	if (str.indexOf("\\") < 0 && str.indexOf("&") < 0) return str;
+	return str.replace(UNESCAPE_ALL_RE, function(match, escaped, entity) {
+		if (escaped) return escaped;
+		return replaceEntityPattern(match, entity);
+	});
+}
+var HTML_ESCAPE_TEST_RE = /[&<>"]/;
+var HTML_ESCAPE_REPLACE_RE = /[&<>"]/g;
+var HTML_REPLACEMENTS = {
+	"&": "&amp;",
+	"<": "&lt;",
+	">": "&gt;",
+	"\"": "&quot;"
+};
+function replaceUnsafeChar(ch) {
+	return HTML_REPLACEMENTS[ch];
+}
+/** Escapes HTML special characters in a string. */
+function escapeHtml(str) {
+	if (HTML_ESCAPE_TEST_RE.test(str)) return str.replace(HTML_ESCAPE_REPLACE_RE, replaceUnsafeChar);
+	return str;
+}
+var REGEXP_ESCAPE_RE = /[.?*+^$[\]\\(){}|-]/g;
+/** Escapes regular expression metacharacters in a string. */
+function escapeRE(str) {
+	return str.replace(REGEXP_ESCAPE_RE, "\\$&");
+}
+/** Checks whether a character code is an ASCII space or tab. */
+function isSpace(code) {
+	switch (code) {
+		case 9:
+		case 32: return true;
+	}
+	return false;
+}
+/**
+* Checks whether a character code is whitespace recognized by Markdown.
+*
+* Matches the Unicode `Zs` category or `\t`, `\f`, `\v`, `\r`, `\n`.
+*/
+function isWhiteSpace(code) {
+	if (code >= 8192 && code <= 8202) return true;
+	switch (code) {
+		case 9:
+		case 10:
+		case 11:
+		case 12:
+		case 13:
+		case 32:
+		case 160:
+		case 5760:
+		case 8239:
+		case 8287:
+		case 12288: return true;
+	}
+	return false;
+}
+/**
+* Checks whether a character is Unicode punctuation or a symbol.
+*
+* Does not support astral characters.
+*/
+function isPunctChar(ch) {
+	return P.test(ch) || S.test(ch);
+}
+/** Checks whether a Unicode code point is punctuation or a symbol. */
+function isPunctCharCode(code) {
+	return isPunctChar(fromCodePoint$1(code));
+}
+/**
+* Markdown ASCII punctuation characters.
+*
+*     !, ", #, $, %, &, ', (, ), *, +, ,, -, ., /, :, ;, <, =, >, ?, @,
+*     [, \, ], ^, _, `, {, |, }, or ~
+*
+* http://spec.commonmark.org/0.15/#ascii-punctuation-character
+*
+* Don't confuse with Unicode punctuation. It lacks some characters in the
+* ASCII range.
+*/
+function isMdAsciiPunct(ch) {
+	switch (ch) {
+		case 33:
+		case 34:
+		case 35:
+		case 36:
+		case 37:
+		case 38:
+		case 39:
+		case 40:
+		case 41:
+		case 42:
+		case 43:
+		case 44:
+		case 45:
+		case 46:
+		case 47:
+		case 58:
+		case 59:
+		case 60:
+		case 61:
+		case 62:
+		case 63:
+		case 64:
+		case 91:
+		case 92:
+		case 93:
+		case 94:
+		case 95:
+		case 96:
+		case 123:
+		case 124:
+		case 125:
+		case 126: return true;
+		default: return false;
+	}
+}
+/** Normalizes `[reference labels]` for case-insensitive lookup. */
+function normalizeReference(str) {
+	str = str.trim().replace(/\s+/g, " ");
+	return str.toLowerCase().toUpperCase();
+}
+function isAsciiTrimmable(c) {
+	return c === 32 || c === 9 || c === 10 || c === 13;
+}
+/**
+* "Light" `.trim()` for blocks (headings, paragraphs), where Unicode spaces
+* should be preserved.
+*/
+function asciiTrim(str) {
+	let start = 0;
+	for (; start < str.length; start++) if (!isAsciiTrimmable(str.charCodeAt(start))) break;
+	let end = str.length - 1;
+	for (; end >= start; end--) if (!isAsciiTrimmable(str.charCodeAt(end))) break;
+	return str.slice(start, end + 1);
+}
+/**
+* Libraries commonly used by markdown-it and its plugins, re-exported to
+* reduce duplicate dependencies in browser bundles.
+*/
+var lib = {
+	mdurl: mdurl_exports,
+	ucmicro: build_exports
+};
+/** Finds the end of a link or image label (`[label]`). */
+function parseLinkLabel(state, start, disableNested) {
+	let level, found, marker, prevPos;
+	const max = state.posMax;
+	const oldPos = state.pos;
+	state.pos = start + 1;
+	level = 1;
+	while (state.pos < max) {
+		marker = state.src.charCodeAt(state.pos);
+		if (marker === 93) {
+			level--;
+			if (level === 0) {
+				found = true;
+				break;
+			}
+		}
+		prevPos = state.pos;
+		state.md.inline.skipToken(state);
+		if (marker === 91) {
+			if (prevPos === state.pos - 1) level++;
+			else if (disableNested) {
+				state.pos = oldPos;
+				return -1;
+			}
+		}
+	}
+	let labelEnd = -1;
+	if (found) labelEnd = state.pos;
+	state.pos = oldPos;
+	return labelEnd;
+}
+/** Parses the destination in `[label](destination "title")`. */
+function parseLinkDestination(str, start, max) {
+	let code;
+	let pos = start;
+	const result = {
+		ok: false,
+		pos: 0,
+		str: ""
+	};
+	if (str.charCodeAt(pos) === 60) {
+		pos++;
+		while (pos < max) {
+			code = str.charCodeAt(pos);
+			if (code === 10) return result;
+			if (code === 60) return result;
+			if (code === 62) {
+				result.pos = pos + 1;
+				result.str = unescapeAll(str.slice(start + 1, pos));
+				result.ok = true;
+				return result;
+			}
+			if (code === 92 && pos + 1 < max) {
+				pos += 2;
+				continue;
+			}
+			pos++;
+		}
+		return result;
+	}
+	let level = 0;
+	while (pos < max) {
+		code = str.charCodeAt(pos);
+		if (code === 32) break;
+		if (code < 32 || code === 127) break;
+		if (code === 92 && pos + 1 < max) {
+			if (str.charCodeAt(pos + 1) === 32) {
+				pos++;
+				continue;
+			}
+			pos += 2;
+			continue;
+		}
+		if (code === 40) {
+			level++;
+			if (level > 32) return result;
+		}
+		if (code === 41) {
+			if (level === 0) break;
+			level--;
+		}
+		pos++;
+	}
+	if (start === pos) return result;
+	if (level !== 0) return result;
+	result.str = unescapeAll(str.slice(start, pos));
+	result.pos = pos;
+	result.ok = true;
+	return result;
+}
+/**
+* Parses the optional title in `[label](destination "title")` or
+* `[label]: destination "title"`.
+*
+* `prev_state` continues a reference title on the next source line.
+*/
+function parseLinkTitle(str, start, max, prev_state) {
+	let code;
+	let pos = start;
+	const state = {
+		ok: false,
+		can_continue: false,
+		pos: 0,
+		str: "",
+		marker: 0
+	};
+	if (prev_state) {
+		state.str = prev_state.str;
+		state.marker = prev_state.marker;
+	} else {
+		if (pos >= max) return state;
+		let marker = str.charCodeAt(pos);
+		if (marker !== 34 && marker !== 39 && marker !== 40) return state;
+		start++;
+		pos++;
+		if (marker === 40) marker = 41;
+		state.marker = marker;
+	}
+	while (pos < max) {
+		code = str.charCodeAt(pos);
+		if (code === state.marker) {
+			state.pos = pos + 1;
+			state.str += unescapeAll(str.slice(start, pos));
+			state.ok = true;
+			return state;
+		} else if (code === 40 && state.marker === 41) return state;
+		else if (code === 92 && pos + 1 < max) pos++;
+		pos++;
+	}
+	state.can_continue = true;
+	state.str += unescapeAll(str.slice(start, pos));
+	return state;
+}
+/**
+* Functions used to parse links and images, split out of parser rules because
+* of their size.
+*
+* @module md.helpers
+*/
+var helpers_exports = /* @__PURE__ */ __exportAll({
+	parseLinkDestination: () => parseLinkDestination,
+	parseLinkLabel: () => parseLinkLabel,
+	parseLinkTitle: () => parseLinkTitle
+});
+function _typeof(o) {
+	"@babel/helpers - typeof";
+	return _typeof = "function" == typeof Symbol && "symbol" == typeof Symbol.iterator ? function(o) {
+		return typeof o;
+	} : function(o) {
+		return o && "function" == typeof Symbol && o.constructor === Symbol && o !== Symbol.prototype ? "symbol" : typeof o;
+	}, _typeof(o);
+}
+function toPrimitive(t, r) {
+	if ("object" != _typeof(t) || !t) return t;
+	var e = t[Symbol.toPrimitive];
+	if (void 0 !== e) {
+		var i = e.call(t, r || "default");
+		if ("object" != _typeof(i)) return i;
+		throw new TypeError("@@toPrimitive must return a primitive value.");
+	}
+	return ("string" === r ? String : Number)(t);
+}
+function toPropertyKey(t) {
+	var i = toPrimitive(t, "string");
+	return "symbol" == _typeof(i) ? i : i + "";
+}
+function _defineProperty(e, r, t) {
+	return (r = toPropertyKey(r)) in e ? Object.defineProperty(e, r, {
+		value: t,
+		enumerable: !0,
+		configurable: !0,
+		writable: !0
+	}) : e[r] = t, e;
+}
+/**
+* Represents one item in the parsed token stream, storing parsed data and
+* providing helpers for managing HTML attributes.
+*/
+var Token = class {
+	constructor(type, tag, nesting) {
+		_defineProperty(
+			this,
+			/**
+			* Source map info. Format: `[ line_begin, line_end ]`
+			*/
+			"map",
+			null
+		);
+		_defineProperty(
+			this,
+			/**
+			* nesting level, the same as `state.level`
+			*/
+			"level",
+			0
+		);
+		_defineProperty(
+			this,
+			/**
+			* An array of child nodes (inline and img tokens)
+			*/
+			"children",
+			null
+		);
+		_defineProperty(
+			this,
+			/**
+			* In a case of self-closing tag (code, html, fence, etc.),
+			* it has contents of this tag.
+			*/
+			"content",
+			""
+		);
+		_defineProperty(
+			this,
+			/**
+			* '*' or '_' for emphasis, fence string for fence, etc.
+			*/
+			"markup",
+			""
+		);
+		_defineProperty(
+			this,
+			/**
+			* Additional information:
+			*
+			* - Info string for "fence" tokens
+			* - The value "auto" for autolink "link_open" and "link_close" tokens
+			* - The string value of the item marker for ordered-list "list_item_open" tokens
+			*/
+			"info",
+			""
+		);
+		_defineProperty(
+			this,
+			/**
+			* True for block-level tokens, false for inline tokens.
+			* Used in renderer to calculate line breaks
+			*/
+			"block",
+			false
+		);
+		_defineProperty(
+			this,
+			/**
+			* If it's true, ignore this element when rendering. Used for tight lists
+			* to hide paragraphs.
+			*/
+			"hidden",
+			false
+		);
+		this.type = type;
+		this.tag = tag;
+		this.attrs = null;
+		this.nesting = nesting;
+		this.meta = null;
+	}
+	/**
+	* Search attribute index by name.
+	*/
+	attrIndex(name) {
+		if (!this.attrs) return -1;
+		const attrs = this.attrs;
+		for (let i = 0, len = attrs.length; i < len; i++) if (attrs[i][0] === name) return i;
+		return -1;
+	}
+	/**
+	* Add `[ name, value ]` attribute to list. Init attrs if necessary
+	*/
+	attrPush(attrData) {
+		if (this.attrs) this.attrs.push(attrData);
+		else this.attrs = [attrData];
+	}
+	/**
+	* Set `name` attribute to `value`. Override old value if exists.
+	*/
+	attrSet(name, value) {
+		const idx = this.attrIndex(name);
+		const attrData = [name, value];
+		if (idx < 0) this.attrPush(attrData);
+		else this.attrs[idx] = attrData;
+	}
+	/**
+	* Get the value of attribute `name`, or null if it does not exist.
+	*/
+	attrGet(name) {
+		const idx = this.attrIndex(name);
+		let value = null;
+		if (idx >= 0) value = this.attrs[idx][1];
+		return value;
+	}
+	/**
+	* Join value to existing attribute via space. Or create new attribute if not
+	* exists. Useful to operate with token classes.
+	*/
+	attrJoin(name, value) {
+		const idx = this.attrIndex(name);
+		if (idx < 0) this.attrPush([name, value]);
+		else this.attrs[idx][1] = `${this.attrs[idx][1]} ${value}`;
+	}
+};
+/**
+* Helper class, used by {@link MarkdownIt.core}, {@link MarkdownIt.block} and
+* {@link MarkdownIt.inline} to manage sequences of functions (rules):
+*
+* - keep rules in defined order
+* - assign the name to each rule
+* - enable/disable rules
+* - add/replace rules
+* - allow assign rules to additional named chains (in the same)
+* - cacheing lists of active rules
+*
+* You will not need use this class directly until write plugins. For simple
+* rules control use {@link MarkdownIt.disable}, {@link MarkdownIt.enable} and
+* {@link MarkdownIt.use}.
+*/
+var Ruler = class {
+	constructor() {
+		_defineProperty(this, "__rules__", []);
+		_defineProperty(this, "__cache__", null);
+	}
+	__find__(name) {
+		for (let i = 0; i < this.__rules__.length; i++) if (this.__rules__[i].name === name) return i;
+		return -1;
+	}
+	__compile__() {
+		const chains = /* @__PURE__ */ new Set();
+		this.__rules__.forEach((rule) => {
+			if (!rule.enabled) return;
+			rule.alt.forEach((altName) => {
+				if (altName) chains.add(altName);
+			});
+		});
+		this.__cache__ = Object.create(null);
+		this.__cache__[""] = [];
+		this.__rules__.forEach((rule) => {
+			if (rule.enabled) this.__cache__[""].push(rule.fn);
+		});
+		chains.forEach((chain) => {
+			this.__cache__[chain] = [];
+			this.__rules__.forEach((rule) => {
+				if (rule.enabled && rule.alt.indexOf(chain) >= 0) this.__cache__[chain].push(rule.fn);
+			});
+		});
+	}
+	/**
+	* Replace rule by name with new function & options. Throws error if name not
+	* found.
+	*
+	* @param name Rule name to replace.
+	* @param fn New rule function.
+	* @param options Rule options. `alt` is an array with names of "alternate"
+	* chains.
+	*
+	* @example Replace existing typographer replacement rule with new one
+	* ```javascript
+	* import MarkdownIt from 'markdown-it'
+	* const md = new MarkdownIt()
+	*
+	* md.core.ruler.at('replacements', function replace(state) {
+	*   //...
+	* });
+	* ```
+	*/
+	at(name, fn, options = {}) {
+		const index = this.__find__(name);
+		if (index === -1) throw new Error(`Parser rule not found: ${name}`);
+		this.__rules__[index].fn = fn;
+		this.__rules__[index].alt = options.alt || [];
+		this.__cache__ = null;
+	}
+	/**
+	* Add new rule to chain before one with given name. See also
+	* {@link Ruler.after}, {@link Ruler.push}.
+	*
+	* @param beforeName New rule will be added before this one.
+	* @param ruleName Name of added rule.
+	* @param fn Rule function.
+	* @param options Rule options. `alt` is an array with names of "alternate"
+	* chains.
+	*
+	* @example
+	* ```javascript
+	* import MarkdownIt from 'markdown-it'
+	* const md = new MarkdownIt()
+	*
+	* md.block.ruler.before('paragraph', 'my_rule', function replace(state) {
+	*   //...
+	* });
+	* ```
+	*/
+	before(beforeName, ruleName, fn, options = {}) {
+		const index = this.__find__(beforeName);
+		if (index === -1) throw new Error(`Parser rule not found: ${beforeName}`);
+		this.__rules__.splice(index, 0, {
+			name: ruleName,
+			enabled: true,
+			fn,
+			alt: options.alt || []
+		});
+		this.__cache__ = null;
+	}
+	/**
+	* Add new rule to chain after one with given name. See also
+	* {@link Ruler.before}, {@link Ruler.push}.
+	*
+	* @param afterName New rule will be added after this one.
+	* @param ruleName Name of added rule.
+	* @param fn Rule function.
+	* @param options Rule options. `alt` is an array with names of "alternate"
+	* chains.
+	*
+	* @example
+	* ```javascript
+	* import MarkdownIt from 'markdown-it'
+	* const md = new MarkdownIt()
+	*
+	* md.inline.ruler.after('text', 'my_rule', function replace(state) {
+	*   //...
+	* });
+	* ```
+	*/
+	after(afterName, ruleName, fn, options = {}) {
+		const index = this.__find__(afterName);
+		if (index === -1) throw new Error(`Parser rule not found: ${afterName}`);
+		this.__rules__.splice(index + 1, 0, {
+			name: ruleName,
+			enabled: true,
+			fn,
+			alt: options.alt || []
+		});
+		this.__cache__ = null;
+	}
+	/**
+	* Push new rule to the end of chain. See also
+	* {@link Ruler.before}, {@link Ruler.after}.
+	*
+	* @param ruleName Name of added rule.
+	* @param fn Rule function.
+	* @param options Rule options. `alt` is an array with names of "alternate"
+	* chains.
+	*
+	* @example
+	* ```javascript
+	* import MarkdownIt from 'markdown-it'
+	* const md = new MarkdownIt()
+	*
+	* md.core.ruler.push('my_rule', function replace(state) {
+	*   //...
+	* });
+	* ```
+	*/
+	push(ruleName, fn, options = {}) {
+		this.__rules__.push({
+			name: ruleName,
+			enabled: true,
+			fn,
+			alt: options.alt || []
+		});
+		this.__cache__ = null;
+	}
+	/**
+	* Enable rules with given names. If any rule name not found - throw Error.
+	* Errors can be disabled by second param.
+	*
+	* See also {@link Ruler.disable}, {@link Ruler.enableOnly}.
+	*
+	* @param list List of rule names to enable.
+	* @param ignoreInvalid Set `true` to ignore errors when rule not found.
+	* @returns List of found rule names (if no exception happened).
+	*/
+	enable(list, ignoreInvalid = false) {
+		if (!Array.isArray(list)) list = [list];
+		const result = [];
+		list.forEach((name) => {
+			const idx = this.__find__(name);
+			if (idx < 0) {
+				if (ignoreInvalid) return;
+				throw new Error(`Rules manager: invalid rule name ${name}`);
+			}
+			this.__rules__[idx].enabled = true;
+			result.push(name);
+		});
+		this.__cache__ = null;
+		return result;
+	}
+	/**
+	* Enable rules with given names, and disable everything else. If any rule name
+	* not found - throw Error. Errors can be disabled by second param.
+	*
+	* See also {@link Ruler.disable}, {@link Ruler.enable}.
+	*
+	* @param list List of rule names to enable (whitelist).
+	* @param ignoreInvalid Set `true` to ignore errors when rule not found.
+	*/
+	enableOnly(list, ignoreInvalid = false) {
+		if (!Array.isArray(list)) list = [list];
+		this.__rules__.forEach((rule) => {
+			rule.enabled = false;
+		});
+		this.enable(list, ignoreInvalid);
+	}
+	/**
+	* Disable rules with given names. If any rule name not found - throw Error.
+	* Errors can be disabled by second param.
+	*
+	* See also {@link Ruler.enable}, {@link Ruler.enableOnly}.
+	*
+	* @param list List of rule names to disable.
+	* @param ignoreInvalid Set `true` to ignore errors when rule not found.
+	* @returns List of found rule names (if no exception happened).
+	*/
+	disable(list, ignoreInvalid = false) {
+		if (!Array.isArray(list)) list = [list];
+		const result = [];
+		list.forEach((name) => {
+			const idx = this.__find__(name);
+			if (idx < 0) {
+				if (ignoreInvalid) return;
+				throw new Error(`Rules manager: invalid rule name ${name}`);
+			}
+			this.__rules__[idx].enabled = false;
+			result.push(name);
+		});
+		this.__cache__ = null;
+		return result;
+	}
+	/**
+	* Return array of active functions (rules) for given chain name. It analyzes
+	* rules configuration, compiles caches if not exists and returns result.
+	*
+	* Default chain name is `''` (empty string). It can't be skipped. That's
+	* done intentionally, to keep signature monomorphic for high speed.
+	*/
+	getRules(chainName) {
+		if (!this.__cache__) this.__compile__();
+		return this.__cache__[chainName] || [];
+	}
+};
+var default_rules = {};
+default_rules.code_inline = function(tokens, idx, options, env, slf) {
+	const token = tokens[idx];
+	return `<code${slf.renderAttrs(token)}>${escapeHtml(token.content)}</code>`;
+};
+default_rules.code_block = function(tokens, idx, options, env, slf) {
+	const token = tokens[idx];
+	return `<pre${slf.renderAttrs(token)}><code>${escapeHtml(tokens[idx].content)}</code></pre>\n`;
+};
+default_rules.fence = function(tokens, idx, options, env, slf) {
+	const token = tokens[idx];
+	const info = token.info ? unescapeAll(token.info).trim() : "";
+	let langName = "";
+	let langAttrs = "";
+	if (info) {
+		const arr = info.split(/(\s+)/g);
+		langName = arr[0];
+		langAttrs = arr.slice(2).join("");
+	}
+	let highlighted;
+	if (options.highlight) highlighted = options.highlight(token.content, langName, langAttrs) || escapeHtml(token.content);
+	else highlighted = escapeHtml(token.content);
+	if (highlighted.indexOf("<pre") === 0) return highlighted + "\n";
+	if (info) {
+		const i = token.attrIndex("class");
+		const tmpAttrs = token.attrs ? token.attrs.slice() : [];
+		if (i < 0) tmpAttrs.push(["class", `${options.langPrefix}${langName}`]);
+		else {
+			tmpAttrs[i] = [tmpAttrs[i][0], tmpAttrs[i][1]];
+			tmpAttrs[i][1] += ` ${options.langPrefix}${langName}`;
+		}
+		const tmpToken = { attrs: tmpAttrs };
+		return `<pre><code${slf.renderAttrs(tmpToken)}>${highlighted}</code></pre>\n`;
+	}
+	return `<pre><code${slf.renderAttrs(token)}>${highlighted}</code></pre>\n`;
+};
+default_rules.image = function(tokens, idx, options, env, slf) {
+	const token = tokens[idx];
+	token.attrs[token.attrIndex("alt")][1] = slf.renderInlineAsText(token.children, options, env);
+	return slf.renderToken(tokens, idx, options);
+};
+default_rules.hardbreak = function(tokens, idx, options) {
+	return options.xhtmlOut ? "<br />\n" : "<br>\n";
+};
+default_rules.softbreak = function(tokens, idx, options) {
+	return options.breaks ? options.xhtmlOut ? "<br />\n" : "<br>\n" : "\n";
+};
+default_rules.text = function(tokens, idx) {
+	return escapeHtml(tokens[idx].content);
+};
+default_rules.html_block = function(tokens, idx) {
+	return tokens[idx].content;
+};
+default_rules.html_inline = function(tokens, idx) {
+	return tokens[idx].content;
+};
+/**
+* Generates HTML from parsed token stream. Each instance has independent
+* copy of rules. Those can be rewritten with ease. Also, you can add new
+* rules if you create plugin and adds new token types.
+*
+* Creates new renderer instance and fills {@link Renderer.rules} with defaults.
+*/
+var Renderer = class {
+	constructor() {
+		_defineProperty(
+			this,
+			/**
+			* Contains render rules for tokens. Can be updated and extended.
+			*
+			* See [source code](https://github.com/markdown-it/markdown-it/blob/master/src/renderer.ts)
+			* for more details and examples.
+			*
+			* @example Custom render rules
+			* ```javascript
+			* import MarkdownIt from 'markdown-it'
+			* const md = new MarkdownIt()
+			*
+			* md.renderer.rules.strong_open  = function () { return '<b>'; };
+			* md.renderer.rules.strong_close = function () { return '</b>'; };
+			*
+			* const result = md.renderInline(...);
+			* ```
+			*
+			* @example Each rule is called as independent static function with fixed signature
+			* ```javascript
+			* function my_token_render(tokens, idx, options, env, renderer) {
+			*   // ...
+			*   return renderedHTML;
+			* }
+			* ```
+			*/
+			"rules",
+			Object.assign({}, default_rules)
+		);
+	}
+	/**
+	* Render token attributes to string.
+	*/
+	renderAttrs(token) {
+		let i, l, result;
+		if (!token.attrs) return "";
+		result = "";
+		for (i = 0, l = token.attrs.length; i < l; i++) result += ` ${escapeHtml(token.attrs[i][0])}="${escapeHtml(String(token.attrs[i][1]))}"`;
+		return result;
+	}
+	/**
+	* Default token renderer. Can be overriden by custom function
+	* in {@link Renderer.rules}.
+	*
+	* @param tokens List of tokens.
+	* @param idx Token index to render.
+	* @param options Params of parser instance.
+	*/
+	renderToken(tokens, idx, options) {
+		const token = tokens[idx];
+		let result = "";
+		if (token.hidden) return "";
+		let prev = idx - 1;
+		while (prev >= 0 && tokens[prev].hidden && tokens[prev].nesting === 0) prev--;
+		if (token.block && token.nesting !== -1 && prev >= 0 && tokens[prev].hidden && tokens[prev].nesting === -1) result += "\n";
+		result += (token.nesting === -1 ? "</" : "<") + token.tag;
+		result += this.renderAttrs(token);
+		if (token.nesting === 0 && options.xhtmlOut) result += " /";
+		let needLf = false;
+		if (token.block) {
+			needLf = true;
+			if (token.nesting === 1) {
+				let next = idx + 1;
+				while (next < tokens.length && tokens[next].hidden && tokens[next].nesting === 0) next++;
+				if (next < tokens.length) {
+					const nextToken = tokens[next];
+					if (nextToken.type === "inline" || nextToken.hidden) needLf = false;
+					else if (nextToken.nesting === -1 && nextToken.tag === token.tag) needLf = false;
+				}
+			}
+		}
+		result += needLf ? ">\n" : ">";
+		return result;
+	}
+	/**
+	* The same as {@link Renderer.render}, but for single token of `inline` type.
+	*
+	* @param tokens List on block tokens to render.
+	* @param options Params of parser instance.
+	* @param env Additional data from parsed input (references, for example).
+	*/
+	renderInline(tokens, options, env) {
+		let result = "";
+		const rules = this.rules;
+		for (let i = 0, len = tokens.length; i < len; i++) {
+			const type = tokens[i].type;
+			if (typeof rules[type] !== "undefined") result += rules[type](tokens, i, options, env, this);
+			else result += this.renderToken(tokens, i, options);
+		}
+		return result;
+	}
+	/**
+	* Special kludge for image `alt` attributes to conform CommonMark spec.
+	* Don't try to use it! Spec requires to show `alt` content with stripped markup,
+	* instead of simple escaping.
+	*
+	* @param tokens List on block tokens to render.
+	* @param options Params of parser instance.
+	* @param env Additional data from parsed input (references, for example).
+	*/
+	renderInlineAsText(tokens, options, env) {
+		let result = "";
+		for (let i = 0, len = tokens.length; i < len; i++) switch (tokens[i].type) {
+			case "text":
+			case "code_inline":
+				result += tokens[i].content;
+				break;
+			case "image":
+				result += this.renderInlineAsText(tokens[i].children, options, env);
+				break;
+			case "html_inline":
+			case "html_block":
+				result += tokens[i].content;
+				break;
+			case "softbreak":
+			case "hardbreak": result += "\n";
+		}
+		return result;
+	}
+	/**
+	* Takes token stream and generates HTML. Probably, you will never need to call
+	* this method directly.
+	*
+	* @param tokens List on block tokens to render.
+	* @param options Params of parser instance.
+	* @param env Additional data from parsed input (references, for example).
+	*/
+	render(tokens, options, env) {
+		let result = "";
+		const rules = this.rules;
+		for (let i = 0, len = tokens.length; i < len; i++) {
+			const type = tokens[i].type;
+			if (type === "inline") result += this.renderInline(tokens[i].children, options, env);
+			else if (typeof rules[type] !== "undefined") result += rules[type](tokens, i, options, env, this);
+			else result += this.renderToken(tokens, i, options);
+		}
+		return result;
+	}
+};
+/** Mutable state passed through the core rules chain. */
+var StateCore = class {
+	constructor(src, md, env) {
+		_defineProperty(this, "tokens", []);
+		_defineProperty(this, "inlineMode", false);
+		_defineProperty(this, "Token", Token);
+		this.src = src;
+		this.env = env;
+		this.md = md;
+	}
+};
+var NEWLINES_RE = /\r\n?|\n/g;
+var NULL_RE = /\0/g;
+function normalize(state) {
+	let str;
+	str = state.src.replace(NEWLINES_RE, "\n");
+	str = str.replace(NULL_RE, "�");
+	state.src = str;
+}
+function block$1(state) {
+	let token;
+	if (state.inlineMode) {
+		token = new state.Token("inline", "", 0);
+		token.content = state.src;
+		token.map = [0, 1];
+		token.children = [];
+		state.tokens.push(token);
+	} else state.md.block.parse(state.src, state.md, state.env, state.tokens);
+}
+function strip_references(state) {
+	const tokens = state.tokens;
+	let last = 0;
+	for (let curr = 0; curr < tokens.length; curr++) {
+		if (tokens[curr].type === "reference_definition") continue;
+		if (curr !== last) tokens[last] = tokens[curr];
+		last++;
+	}
+	if (tokens.length !== last) tokens.length = last;
+}
+function inline$2(state) {
+	const tokens = state.tokens;
+	for (let i = 0, l = tokens.length; i < l; i++) {
+		const tok = tokens[i];
+		if (tok.type === "inline") state.md.inline.parse(tok.content, state.md, state.env, tok.children);
+	}
+}
+function isLinkOpen$1(str) {
+	return /^<a[>\s]/i.test(str);
+}
+function isLinkClose$1(str) {
+	return /^<\/a\s*>/i.test(str);
+}
+function linkify$1(state) {
+	const blockTokens = state.tokens;
+	if (!state.md.options.linkify) return;
+	for (let j = 0, l = blockTokens.length; j < l; j++) {
+		if (blockTokens[j].type !== "inline" || !state.md.linkify.test(blockTokens[j].content)) continue;
+		let tokens = blockTokens[j].children;
+		let htmlLinkLevel = 0;
+		for (let i = tokens.length - 1; i >= 0; i--) {
+			const currentToken = tokens[i];
+			if (currentToken.type === "link_close") {
+				i--;
+				while (tokens[i].level !== currentToken.level && tokens[i].type !== "link_open") i--;
+				continue;
+			}
+			if (currentToken.type === "html_inline") {
+				if (isLinkOpen$1(currentToken.content) && htmlLinkLevel > 0) htmlLinkLevel--;
+				if (isLinkClose$1(currentToken.content)) htmlLinkLevel++;
+			}
+			if (htmlLinkLevel > 0) continue;
+			if (currentToken.type === "text" && state.md.linkify.test(currentToken.content)) {
+				const text = currentToken.content;
+				let links = state.md.linkify.match(text);
+				const nodes = [];
+				let level = currentToken.level;
+				let lastPos = 0;
+				if (links.length > 0 && links[0].index === 0 && i > 0 && tokens[i - 1].type === "text_special") links = links.slice(1);
+				for (let ln = 0; ln < links.length; ln++) {
+					const url = links[ln].url;
+					const fullUrl = state.md.normalizeLink(url);
+					if (!state.md.validateLink(fullUrl)) continue;
+					let urlText = links[ln].text;
+					if (!links[ln].schema) urlText = state.md.normalizeLinkText(`http://${urlText}`).replace(/^http:\/\//, "");
+					else if (links[ln].schema === "mailto:" && !/^mailto:/i.test(urlText)) urlText = state.md.normalizeLinkText(`mailto:${urlText}`).replace(/^mailto:/, "");
+					else urlText = state.md.normalizeLinkText(urlText);
+					const pos = links[ln].index;
+					if (pos > lastPos) {
+						const token = new state.Token("text", "", 0);
+						token.content = text.slice(lastPos, pos);
+						token.level = level;
+						nodes.push(token);
+					}
+					const token_o = new state.Token("link_open", "a", 1);
+					token_o.attrs = [["href", fullUrl]];
+					token_o.level = level++;
+					token_o.markup = "linkify";
+					token_o.info = "auto";
+					nodes.push(token_o);
+					const token_t = new state.Token("text", "", 0);
+					token_t.content = urlText;
+					token_t.level = level;
+					nodes.push(token_t);
+					const token_c = new state.Token("link_close", "a", -1);
+					token_c.level = --level;
+					token_c.markup = "linkify";
+					token_c.info = "auto";
+					nodes.push(token_c);
+					lastPos = links[ln].lastIndex;
+				}
+				if (lastPos < text.length) {
+					const token = new state.Token("text", "", 0);
+					token.content = text.slice(lastPos);
+					token.level = level;
+					nodes.push(token);
+				}
+				blockTokens[j].children = tokens = arrayReplaceAt(tokens, i, nodes);
+			}
+		}
+	}
+}
+var RARE_RE = /\+-|\.\.|\?\?\?\?|!!!!|,,|--/;
+var SCOPED_ABBR_TEST_RE = /\((c|tm|r)\)/i;
+var SCOPED_ABBR_RE = /\((c|tm|r)\)/gi;
+var SCOPED_ABBR = {
+	c: "©",
+	r: "®",
+	tm: "™"
+};
+function replaceFn(match, name) {
+	return SCOPED_ABBR[name.toLowerCase()];
+}
+function replace_scoped(inlineTokens) {
+	let inside_autolink = 0;
+	for (let i = inlineTokens.length - 1; i >= 0; i--) {
+		const token = inlineTokens[i];
+		if (token.type === "text" && !inside_autolink) token.content = token.content.replace(SCOPED_ABBR_RE, replaceFn);
+		if (token.type === "link_open" && token.info === "auto") inside_autolink--;
+		if (token.type === "link_close" && token.info === "auto") inside_autolink++;
+	}
+}
+function replace_rare(inlineTokens) {
+	let inside_autolink = 0;
+	for (let i = inlineTokens.length - 1; i >= 0; i--) {
+		const token = inlineTokens[i];
+		if (token.type === "text" && !inside_autolink) {
+			if (RARE_RE.test(token.content)) token.content = token.content.replace(/\+-/g, "±").replace(/\.{2,}/g, "…").replace(/([?!])…/g, "$1..").replace(/([?!]){4,}/g, "$1$1$1").replace(/,{2,}/g, ",").replace(/(^|[^-])---(?=[^-]|$)/gm, "$1—").replace(/(^|\s)--(?=\s|$)/gm, "$1–").replace(/(^|[^-\s])--(?=[^-\s]|$)/gm, "$1–");
+		}
+		if (token.type === "link_open" && token.info === "auto") inside_autolink--;
+		if (token.type === "link_close" && token.info === "auto") inside_autolink++;
+	}
+}
+function replace$1(state) {
+	let blkIdx;
+	if (!state.md.options.typographer) return;
+	for (blkIdx = state.tokens.length - 1; blkIdx >= 0; blkIdx--) {
+		if (state.tokens[blkIdx].type !== "inline") continue;
+		if (SCOPED_ABBR_TEST_RE.test(state.tokens[blkIdx].content)) replace_scoped(state.tokens[blkIdx].children);
+		if (RARE_RE.test(state.tokens[blkIdx].content)) replace_rare(state.tokens[blkIdx].children);
+	}
+}
+var QUOTE_TEST_RE = /['"]/;
+var QUOTE_RE = /['"]/g;
+var APOSTROPHE = "’";
+function addReplacement(replacements, tokenIdx, pos, ch) {
+	if (!replacements[tokenIdx]) replacements[tokenIdx] = [];
+	replacements[tokenIdx].push({
+		pos,
+		ch
+	});
+}
+function applyReplacements(str, replacements) {
+	let result = "";
+	let lastPos = 0;
+	replacements.sort((a, b) => a.pos - b.pos);
+	for (let i = 0; i < replacements.length; i++) {
+		const replacement = replacements[i];
+		result += str.slice(lastPos, replacement.pos) + replacement.ch;
+		lastPos = replacement.pos + 1;
+	}
+	return result + str.slice(lastPos);
+}
+function process_inlines(tokens, state) {
+	let j;
+	const stack = [];
+	const replacements = {};
+	for (let i = 0; i < tokens.length; i++) {
+		const token = tokens[i];
+		const thisLevel = tokens[i].level;
+		for (j = stack.length - 1; j >= 0; j--) if (stack[j].level <= thisLevel) break;
+		stack.length = j + 1;
+		if (token.type !== "text") continue;
+		const text = token.content;
+		let pos = 0;
+		const max = text.length;
+		OUTER: while (pos < max) {
+			QUOTE_RE.lastIndex = pos;
+			const t = QUOTE_RE.exec(text);
+			if (!t) break;
+			let canOpen = true;
+			let canClose = true;
+			pos = t.index + 1;
+			const isSingle = t[0] === "'";
+			let lastChar = 32;
+			if (t.index - 1 >= 0) lastChar = text.charCodeAt(t.index - 1);
+			else for (j = i - 1; j >= 0; j--) {
+				if (tokens[j].type === "softbreak" || tokens[j].type === "hardbreak") break;
+				if (!tokens[j].content) continue;
+				lastChar = tokens[j].content.charCodeAt(tokens[j].content.length - 1);
+				break;
+			}
+			let nextChar = 32;
+			if (pos < max) nextChar = text.charCodeAt(pos);
+			else for (j = i + 1; j < tokens.length; j++) {
+				if (tokens[j].type === "softbreak" || tokens[j].type === "hardbreak") break;
+				if (!tokens[j].content) continue;
+				nextChar = tokens[j].content.charCodeAt(0);
+				break;
+			}
+			const isLastPunctChar = isMdAsciiPunct(lastChar) || isPunctCharCode(lastChar);
+			const isNextPunctChar = isMdAsciiPunct(nextChar) || isPunctCharCode(nextChar);
+			const isLastWhiteSpace = isWhiteSpace(lastChar);
+			const isNextWhiteSpace = isWhiteSpace(nextChar);
+			if (isNextWhiteSpace) canOpen = false;
+			else if (isNextPunctChar) {
+				if (!(isLastWhiteSpace || isLastPunctChar)) canOpen = false;
+			}
+			if (isLastWhiteSpace) canClose = false;
+			else if (isLastPunctChar) {
+				if (!(isNextWhiteSpace || isNextPunctChar)) canClose = false;
+			}
+			if (nextChar === 34 && t[0] === "\"") {
+				if (lastChar >= 48 && lastChar <= 57) canClose = canOpen = false;
+			}
+			if (canOpen && canClose) {
+				canOpen = isLastPunctChar;
+				canClose = isNextPunctChar;
+			}
+			if (!canOpen && !canClose) {
+				if (isSingle) addReplacement(replacements, i, t.index, APOSTROPHE);
+				continue;
+			}
+			if (canClose) for (j = stack.length - 1; j >= 0; j--) {
+				let item = stack[j];
+				if (stack[j].level < thisLevel) break;
+				if (item.single === isSingle && stack[j].level === thisLevel) {
+					item = stack[j];
+					let openQuote;
+					let closeQuote;
+					if (isSingle) {
+						openQuote = state.md.options.quotes[2];
+						closeQuote = state.md.options.quotes[3];
+					} else {
+						openQuote = state.md.options.quotes[0];
+						closeQuote = state.md.options.quotes[1];
+					}
+					addReplacement(replacements, i, t.index, closeQuote);
+					addReplacement(replacements, item.token, item.pos, openQuote);
+					stack.length = j;
+					continue OUTER;
+				}
+			}
+			if (canOpen) stack.push({
+				token: i,
+				pos: t.index,
+				single: isSingle,
+				level: thisLevel
+			});
+			else if (canClose && isSingle) addReplacement(replacements, i, t.index, APOSTROPHE);
+		}
+	}
+	Object.keys(replacements).forEach(function(tokenIdx) {
+		const idx = Number(tokenIdx);
+		tokens[idx].content = applyReplacements(tokens[idx].content, replacements[tokenIdx]);
+	});
+}
+function smartquotes(state) {
+	if (!state.md.options.typographer) return;
+	for (let blkIdx = state.tokens.length - 1; blkIdx >= 0; blkIdx--) {
+		if (state.tokens[blkIdx].type !== "inline" || !QUOTE_TEST_RE.test(state.tokens[blkIdx].content)) continue;
+		process_inlines(state.tokens[blkIdx].children, state);
+	}
+}
+function join_alt(tokens) {
+	let curr, last;
+	const max = tokens.length;
+	for (curr = 0; curr < max; curr++) if (tokens[curr].type === "text_special") tokens[curr].type = "text";
+	for (curr = last = 0; curr < max; curr++) if (tokens[curr].type === "text" && curr + 1 < max && tokens[curr + 1].type === "text") tokens[curr + 1].content = tokens[curr].content + tokens[curr + 1].content;
+	else {
+		if (curr !== last) tokens[last] = tokens[curr];
+		last++;
+	}
+	if (curr !== last) tokens.length = last;
+}
+function text_join(state) {
+	let curr, last;
+	const blockTokens = state.tokens;
+	const l = blockTokens.length;
+	for (let j = 0; j < l; j++) {
+		if (blockTokens[j].type !== "inline") continue;
+		const tokens = blockTokens[j].children;
+		const max = tokens.length;
+		for (curr = 0; curr < max; curr++) {
+			if (tokens[curr].type === "text_special") tokens[curr].type = "text";
+			if (tokens[curr].children) join_alt(tokens[curr].children);
+		}
+		for (curr = last = 0; curr < max; curr++) if (tokens[curr].type === "text" && curr + 1 < max && tokens[curr + 1].type === "text") tokens[curr + 1].content = tokens[curr].content + tokens[curr + 1].content;
+		else {
+			if (curr !== last) tokens[last] = tokens[curr];
+			last++;
+		}
+		if (curr !== last) tokens.length = last;
+	}
+}
+var _rules$2 = [
+	["normalize", normalize],
+	["block", block$1],
+	["strip_references", strip_references],
+	["inline", inline$2],
+	["linkify", linkify$1],
+	["replacements", replace$1],
+	["smartquotes", smartquotes],
+	["text_join", text_join]
+];
+/**
+* Top-level rules executor. Glues block/inline parsers and does intermediate
+* transformations.
+*/
+var ParserCore = class {
+	constructor() {
+		_defineProperty(
+			this,
+			/**
+			* {@link Ruler} instance. Keep configuration of core rules.
+			*/
+			"ruler",
+			new Ruler()
+		);
+		_defineProperty(this, "State", StateCore);
+		for (let i = 0; i < _rules$2.length; i++) this.ruler.push(_rules$2[i][0], _rules$2[i][1]);
+	}
+	/**
+	* Executes core chain rules.
+	*/
+	process(state) {
+		const rules = this.ruler.getRules("");
+		for (let i = 0, l = rules.length; i < l; i++) rules[i](state);
+	}
+};
+/** Mutable state passed to block rules while tokenizing a source document. */
+var StateBlock = class {
+	constructor(src, md, env, tokens) {
+		_defineProperty(this, "bMarks", []);
+		_defineProperty(this, "eMarks", []);
+		_defineProperty(this, "tShift", []);
+		_defineProperty(this, "sCount", []);
+		_defineProperty(this, "bsCount", []);
+		_defineProperty(this, "blkIndent", 0);
+		_defineProperty(this, "line", 0);
+		_defineProperty(this, "lineMax", 0);
+		_defineProperty(this, "tight", false);
+		_defineProperty(this, "listIndent", -1);
+		_defineProperty(this, "parentType", "root");
+		_defineProperty(this, "level", 0);
+		_defineProperty(this, "Token", Token);
+		this.src = src;
+		this.md = md;
+		this.env = env;
+		this.tokens = tokens;
+		const s = this.src;
+		for (let start = 0, pos = 0, indent = 0, offset = 0, len = s.length, indent_found = false; pos < len; pos++) {
+			const ch = s.charCodeAt(pos);
+			if (!indent_found) if (isSpace(ch)) {
+				indent++;
+				if (ch === 9) offset += 4 - offset % 4;
+				else offset++;
+				continue;
+			} else indent_found = true;
+			if (ch === 10 || pos === len - 1) {
+				if (ch !== 10) pos++;
+				this.bMarks.push(start);
+				this.eMarks.push(pos);
+				this.tShift.push(indent);
+				this.sCount.push(offset);
+				this.bsCount.push(0);
+				indent_found = false;
+				indent = 0;
+				offset = 0;
+				start = pos + 1;
+			}
+		}
+		this.bMarks.push(s.length);
+		this.eMarks.push(s.length);
+		this.tShift.push(0);
+		this.sCount.push(0);
+		this.bsCount.push(0);
+		this.lineMax = this.bMarks.length - 1;
+	}
+	push(type, tag, nesting) {
+		const token = new Token(type, tag, nesting);
+		token.block = true;
+		if (nesting < 0) this.level--;
+		token.level = this.level;
+		if (nesting > 0) this.level++;
+		this.tokens.push(token);
+		return token;
+	}
+	isEmpty(line) {
+		return this.bMarks[line] + this.tShift[line] >= this.eMarks[line];
+	}
+	skipEmptyLines(from) {
+		for (let max = this.lineMax; from < max; from++) if (this.bMarks[from] + this.tShift[from] < this.eMarks[from]) break;
+		return from;
+	}
+	skipSpaces(pos) {
+		for (let max = this.src.length; pos < max; pos++) if (!isSpace(this.src.charCodeAt(pos))) break;
+		return pos;
+	}
+	skipSpacesBack(pos, min) {
+		if (pos <= min) return pos;
+		while (pos > min) if (!isSpace(this.src.charCodeAt(--pos))) return pos + 1;
+		return pos;
+	}
+	skipChars(pos, code) {
+		for (let max = this.src.length; pos < max; pos++) if (this.src.charCodeAt(pos) !== code) break;
+		return pos;
+	}
+	skipCharsBack(pos, code, min) {
+		if (pos <= min) return pos;
+		while (pos > min) if (code !== this.src.charCodeAt(--pos)) return pos + 1;
+		return pos;
+	}
+	getLines(begin, end, indent, keepLastLF) {
+		if (begin >= end) return "";
+		const queue = new Array(end - begin);
+		for (let i = 0, line = begin; line < end; line++, i++) {
+			let lineIndent = 0;
+			const lineStart = this.bMarks[line];
+			let first = lineStart;
+			let last;
+			if (line + 1 < end || keepLastLF) last = this.eMarks[line] + 1;
+			else last = this.eMarks[line];
+			while (first < last && lineIndent < indent) {
+				const ch = this.src.charCodeAt(first);
+				if (isSpace(ch)) if (ch === 9) lineIndent += 4 - (lineIndent + this.bsCount[line]) % 4;
+				else lineIndent++;
+				else if (first - lineStart < this.tShift[line]) lineIndent++;
+				else break;
+				first++;
+			}
+			if (lineIndent > indent) queue[i] = new Array(lineIndent - indent + 1).join(" ") + this.src.slice(first, last);
+			else queue[i] = this.src.slice(first, last);
+		}
+		return queue.join("");
+	}
+};
+var MAX_AUTOCOMPLETED_CELLS = 65536;
+function getLine(state, line) {
+	const pos = state.bMarks[line] + state.tShift[line];
+	const max = state.eMarks[line];
+	return state.src.slice(pos, max);
+}
+function escapedSplit(str) {
+	const result = [];
+	const max = str.length;
+	let pos = 0;
+	let ch = str.charCodeAt(pos);
+	let isEscaped = false;
+	let lastPos = 0;
+	let current = "";
+	while (pos < max) {
+		if (ch === 124) if (!isEscaped) {
+			result.push(current + str.substring(lastPos, pos));
+			current = "";
+			lastPos = pos + 1;
+		} else {
+			current += str.substring(lastPos, pos - 1);
+			lastPos = pos;
+		}
+		isEscaped = ch === 92;
+		pos++;
+		ch = str.charCodeAt(pos);
+	}
+	result.push(current + str.substring(lastPos));
+	return result;
+}
+function table$5(state, startLine, endLine, silent) {
+	if (startLine + 2 > endLine) return false;
+	let nextLine = startLine + 1;
+	if (state.sCount[nextLine] < state.blkIndent) return false;
+	if (state.sCount[nextLine] - state.blkIndent >= 4) return false;
+	let pos = state.bMarks[nextLine] + state.tShift[nextLine];
+	if (pos >= state.eMarks[nextLine]) return false;
+	const firstCh = state.src.charCodeAt(pos++);
+	if (firstCh !== 124 && firstCh !== 45 && firstCh !== 58) return false;
+	if (pos >= state.eMarks[nextLine]) return false;
+	const secondCh = state.src.charCodeAt(pos++);
+	if (secondCh !== 124 && secondCh !== 45 && secondCh !== 58 && !isSpace(secondCh)) return false;
+	if (firstCh === 45 && isSpace(secondCh)) return false;
+	while (pos < state.eMarks[nextLine]) {
+		const ch = state.src.charCodeAt(pos);
+		if (ch !== 124 && ch !== 45 && ch !== 58 && !isSpace(ch)) return false;
+		pos++;
+	}
+	let lineText = getLine(state, startLine + 1);
+	let columns = lineText.split("|");
+	const aligns = [];
+	for (let i = 0; i < columns.length; i++) {
+		const t = columns[i].trim();
+		if (!t) if (i === 0 || i === columns.length - 1) continue;
+		else return false;
+		if (!/^:?-+:?$/.test(t)) return false;
+		if (t.charCodeAt(t.length - 1) === 58) aligns.push(t.charCodeAt(0) === 58 ? "center" : "right");
+		else if (t.charCodeAt(0) === 58) aligns.push("left");
+		else aligns.push("");
+	}
+	lineText = getLine(state, startLine).trim();
+	if (lineText.indexOf("|") === -1) return false;
+	if (state.sCount[startLine] - state.blkIndent >= 4) return false;
+	columns = escapedSplit(lineText);
+	if (columns.length && columns[0] === "") columns.shift();
+	if (columns.length && columns[columns.length - 1] === "") columns.pop();
+	const columnCount = columns.length;
+	if (columnCount === 0 || columnCount !== aligns.length) return false;
+	if (silent) return true;
+	const oldParentType = state.parentType;
+	state.parentType = "table";
+	const terminatorRules = state.md.block.ruler.getRules("blockquote");
+	const token_to = state.push("table_open", "table", 1);
+	const tableLines = [startLine, 0];
+	token_to.map = tableLines;
+	const token_tho = state.push("thead_open", "thead", 1);
+	token_tho.map = [startLine, startLine + 1];
+	const token_htro = state.push("tr_open", "tr", 1);
+	token_htro.map = [startLine, startLine + 1];
+	for (let i = 0; i < columns.length; i++) {
+		const token_ho = state.push("th_open", "th", 1);
+		if (aligns[i]) token_ho.attrs = [["style", `text-align:${aligns[i]}`]];
+		const token_il = state.push("inline", "", 0);
+		token_il.content = columns[i].trim();
+		token_il.children = [];
+		state.push("th_close", "th", -1);
+	}
+	state.push("tr_close", "tr", -1);
+	state.push("thead_close", "thead", -1);
+	let tbodyLines;
+	let autocompletedCells = 0;
+	for (nextLine = startLine + 2; nextLine < endLine; nextLine++) {
+		if (state.sCount[nextLine] < state.blkIndent) break;
+		let terminate = false;
+		for (let i = 0, l = terminatorRules.length; i < l; i++) if (terminatorRules[i](state, nextLine, endLine, true)) {
+			terminate = true;
+			break;
+		}
+		if (terminate) break;
+		lineText = getLine(state, nextLine).trim();
+		if (!lineText) break;
+		if (state.sCount[nextLine] - state.blkIndent >= 4) break;
+		columns = escapedSplit(lineText);
+		if (columns.length && columns[0] === "") columns.shift();
+		if (columns.length && columns[columns.length - 1] === "") columns.pop();
+		autocompletedCells += columnCount - columns.length;
+		if (autocompletedCells > MAX_AUTOCOMPLETED_CELLS) break;
+		if (nextLine === startLine + 2) {
+			const token_tbo = state.push("tbody_open", "tbody", 1);
+			token_tbo.map = tbodyLines = [startLine + 2, 0];
+		}
+		const token_tro = state.push("tr_open", "tr", 1);
+		token_tro.map = [nextLine, nextLine + 1];
+		for (let i = 0; i < columnCount; i++) {
+			const token_tdo = state.push("td_open", "td", 1);
+			if (aligns[i]) token_tdo.attrs = [["style", `text-align:${aligns[i]}`]];
+			const token_il = state.push("inline", "", 0);
+			token_il.content = columns[i] ? columns[i].trim() : "";
+			token_il.children = [];
+			state.push("td_close", "td", -1);
+		}
+		state.push("tr_close", "tr", -1);
+	}
+	if (tbodyLines) {
+		state.push("tbody_close", "tbody", -1);
+		tbodyLines[1] = nextLine;
+	}
+	state.push("table_close", "table", -1);
+	tableLines[1] = nextLine;
+	state.parentType = oldParentType;
+	state.line = nextLine;
+	return true;
+}
+function code$5(state, startLine, endLine) {
+	if (state.sCount[startLine] - state.blkIndent < 4) return false;
+	let nextLine = startLine + 1;
+	let last = nextLine;
+	while (nextLine < endLine) {
+		if (state.isEmpty(nextLine)) {
+			nextLine++;
+			continue;
+		}
+		if (state.sCount[nextLine] - state.blkIndent >= 4) {
+			nextLine++;
+			last = nextLine;
+			continue;
+		}
+		break;
+	}
+	state.line = last;
+	const token = state.push("code_block", "code", 0);
+	token.content = state.getLines(startLine, last, 4 + state.blkIndent, false) + "\n";
+	token.map = [startLine, state.line];
+	return true;
+}
+function fence(state, startLine, endLine, silent) {
+	let pos = state.bMarks[startLine] + state.tShift[startLine];
+	let max = state.eMarks[startLine];
+	if (state.sCount[startLine] - state.blkIndent >= 4) return false;
+	if (pos + 3 > max) return false;
+	const marker = state.src.charCodeAt(pos);
+	if (marker !== 126 && marker !== 96) return false;
+	let mem = pos;
+	pos = state.skipChars(pos, marker);
+	let len = pos - mem;
+	if (len < 3) return false;
+	const markup = state.src.slice(mem, pos);
+	const params = state.src.slice(pos, max);
+	if (marker === 96) {
+		if (params.indexOf(String.fromCharCode(marker)) >= 0) return false;
+	}
+	if (silent) return true;
+	let nextLine = startLine;
+	let haveEndMarker = false;
+	for (;;) {
+		nextLine++;
+		if (nextLine >= endLine) break;
+		pos = mem = state.bMarks[nextLine] + state.tShift[nextLine];
+		max = state.eMarks[nextLine];
+		if (pos < max && state.sCount[nextLine] < state.blkIndent) break;
+		if (state.src.charCodeAt(pos) !== marker) continue;
+		if (state.sCount[nextLine] - state.blkIndent >= 4) continue;
+		pos = state.skipChars(pos, marker);
+		if (pos - mem < len) continue;
+		pos = state.skipSpaces(pos);
+		if (pos < max) continue;
+		haveEndMarker = true;
+		break;
+	}
+	len = state.sCount[startLine];
+	state.line = nextLine + (haveEndMarker ? 1 : 0);
+	const token = state.push("fence", "code", 0);
+	token.info = params;
+	token.content = state.getLines(startLine + 1, nextLine, len, true);
+	token.markup = markup;
+	token.map = [startLine, state.line];
+	return true;
+}
+function blockquote(state, startLine, endLine, silent) {
+	let pos = state.bMarks[startLine] + state.tShift[startLine];
+	let max = state.eMarks[startLine];
+	const oldLineMax = state.lineMax;
+	if (state.sCount[startLine] - state.blkIndent >= 4) return false;
+	if (state.src.charCodeAt(pos) !== 62) return false;
+	if (silent) return true;
+	const oldBMarks = [];
+	const oldBSCount = [];
+	const oldSCount = [];
+	const oldTShift = [];
+	const terminatorRules = state.md.block.ruler.getRules("blockquote");
+	const oldParentType = state.parentType;
+	state.parentType = "blockquote";
+	let lastLineEmpty = false;
+	let nextLine;
+	for (nextLine = startLine; nextLine < endLine; nextLine++) {
+		const isOutdented = state.sCount[nextLine] < state.blkIndent;
+		pos = state.bMarks[nextLine] + state.tShift[nextLine];
+		max = state.eMarks[nextLine];
+		if (pos >= max) break;
+		if (state.src.charCodeAt(pos++) === 62 && !isOutdented) {
+			let initial = state.sCount[nextLine] + 1;
+			let spaceAfterMarker;
+			let adjustTab;
+			if (state.src.charCodeAt(pos) === 32) {
+				pos++;
+				initial++;
+				adjustTab = false;
+				spaceAfterMarker = true;
+			} else if (state.src.charCodeAt(pos) === 9) {
+				spaceAfterMarker = true;
+				if ((state.bsCount[nextLine] + initial) % 4 === 3) {
+					pos++;
+					initial++;
+					adjustTab = false;
+				} else adjustTab = true;
+			} else spaceAfterMarker = false;
+			let offset = initial;
+			oldBMarks.push(state.bMarks[nextLine]);
+			state.bMarks[nextLine] = pos;
+			while (pos < max) {
+				const ch = state.src.charCodeAt(pos);
+				if (isSpace(ch)) if (ch === 9) offset += 4 - (offset + state.bsCount[nextLine] + (adjustTab ? 1 : 0)) % 4;
+				else offset++;
+				else break;
+				pos++;
+			}
+			lastLineEmpty = pos >= max;
+			oldBSCount.push(state.bsCount[nextLine]);
+			state.bsCount[nextLine] = state.sCount[nextLine] + 1 + (spaceAfterMarker ? 1 : 0);
+			oldSCount.push(state.sCount[nextLine]);
+			state.sCount[nextLine] = offset - initial;
+			oldTShift.push(state.tShift[nextLine]);
+			state.tShift[nextLine] = pos - state.bMarks[nextLine];
+			continue;
+		}
+		if (lastLineEmpty) break;
+		let terminate = false;
+		for (let i = 0, l = terminatorRules.length; i < l; i++) if (terminatorRules[i](state, nextLine, endLine, true)) {
+			terminate = true;
+			break;
+		}
+		if (terminate) {
+			state.lineMax = nextLine;
+			if (state.blkIndent !== 0) {
+				oldBMarks.push(state.bMarks[nextLine]);
+				oldBSCount.push(state.bsCount[nextLine]);
+				oldTShift.push(state.tShift[nextLine]);
+				oldSCount.push(state.sCount[nextLine]);
+				state.sCount[nextLine] -= state.blkIndent;
+			}
+			break;
+		}
+		oldBMarks.push(state.bMarks[nextLine]);
+		oldBSCount.push(state.bsCount[nextLine]);
+		oldTShift.push(state.tShift[nextLine]);
+		oldSCount.push(state.sCount[nextLine]);
+		state.sCount[nextLine] = -1;
+	}
+	const oldIndent = state.blkIndent;
+	state.blkIndent = 0;
+	const token_o = state.push("blockquote_open", "blockquote", 1);
+	token_o.markup = ">";
+	const lines = [startLine, 0];
+	token_o.map = lines;
+	state.md.block.tokenize(state, startLine, nextLine);
+	const token_c = state.push("blockquote_close", "blockquote", -1);
+	token_c.markup = ">";
+	state.lineMax = oldLineMax;
+	state.parentType = oldParentType;
+	lines[1] = state.line;
+	for (let i = 0; i < oldTShift.length; i++) {
+		state.bMarks[i + startLine] = oldBMarks[i];
+		state.tShift[i + startLine] = oldTShift[i];
+		state.sCount[i + startLine] = oldSCount[i];
+		state.bsCount[i + startLine] = oldBSCount[i];
+	}
+	state.blkIndent = oldIndent;
+	return true;
+}
+function hr(state, startLine, endLine, silent) {
+	const max = state.eMarks[startLine];
+	if (state.sCount[startLine] - state.blkIndent >= 4) return false;
+	let pos = state.bMarks[startLine] + state.tShift[startLine];
+	const marker = state.src.charCodeAt(pos++);
+	if (marker !== 42 && marker !== 45 && marker !== 95) return false;
+	let cnt = 1;
+	while (pos < max) {
+		const ch = state.src.charCodeAt(pos++);
+		if (ch !== marker && !isSpace(ch)) return false;
+		if (ch === marker) cnt++;
+	}
+	if (cnt < 3) return false;
+	if (silent) return true;
+	state.line = startLine + 1;
+	const token = state.push("hr", "hr", 0);
+	token.map = [startLine, state.line];
+	token.markup = Array(cnt + 1).join(String.fromCharCode(marker));
+	return true;
+}
+function skipBulletListMarker(state, startLine) {
+	const max = state.eMarks[startLine];
+	let pos = state.bMarks[startLine] + state.tShift[startLine];
+	const marker = state.src.charCodeAt(pos++);
+	if (marker !== 42 && marker !== 45 && marker !== 43) return -1;
+	if (pos < max) {
+		if (!isSpace(state.src.charCodeAt(pos))) return -1;
+	}
+	return pos;
+}
+function skipOrderedListMarker(state, startLine) {
+	const start = state.bMarks[startLine] + state.tShift[startLine];
+	const max = state.eMarks[startLine];
+	let pos = start;
+	if (pos + 1 >= max) return -1;
+	let ch = state.src.charCodeAt(pos++);
+	if (ch < 48 || ch > 57) return -1;
+	for (;;) {
+		if (pos >= max) return -1;
+		ch = state.src.charCodeAt(pos++);
+		if (ch >= 48 && ch <= 57) {
+			if (pos - start >= 10) return -1;
+			continue;
+		}
+		if (ch === 41 || ch === 46) break;
+		return -1;
+	}
+	if (pos < max) {
+		ch = state.src.charCodeAt(pos);
+		if (!isSpace(ch)) return -1;
+	}
+	return pos;
+}
+function markTightParagraphs(state, idx) {
+	const level = state.level + 2;
+	for (let i = idx + 2, l = state.tokens.length - 2; i < l; i++) if (state.tokens[i].level === level && state.tokens[i].type === "paragraph_open") {
+		state.tokens[i + 2].hidden = true;
+		state.tokens[i].hidden = true;
+		i += 2;
+	}
+}
+function list$5(state, startLine, endLine, silent) {
+	let max, pos, start, token;
+	let nextLine = startLine;
+	let tight = true;
+	if (state.sCount[nextLine] - state.blkIndent >= 4) return false;
+	if (state.listIndent >= 0 && state.sCount[nextLine] - state.listIndent >= 4 && state.sCount[nextLine] < state.blkIndent) return false;
+	let isTerminatingParagraph = false;
+	if (silent && state.parentType === "paragraph") {
+		if (state.sCount[nextLine] >= state.blkIndent) isTerminatingParagraph = true;
+	}
+	let isOrdered;
+	let markerValue;
+	let posAfterMarker;
+	if ((posAfterMarker = skipOrderedListMarker(state, nextLine)) >= 0) {
+		isOrdered = true;
+		start = state.bMarks[nextLine] + state.tShift[nextLine];
+		markerValue = Number(state.src.slice(start, posAfterMarker - 1));
+		if (isTerminatingParagraph && markerValue !== 1) return false;
+	} else if ((posAfterMarker = skipBulletListMarker(state, nextLine)) >= 0) isOrdered = false;
+	else return false;
+	if (isTerminatingParagraph) {
+		if (state.skipSpaces(posAfterMarker) >= state.eMarks[nextLine]) return false;
+	}
+	if (silent) return true;
+	const markerCharCode = state.src.charCodeAt(posAfterMarker - 1);
+	const listTokIdx = state.tokens.length;
+	if (isOrdered) {
+		token = state.push("ordered_list_open", "ol", 1);
+		if (markerValue !== 1) token.attrs = [["start", markerValue]];
+	} else token = state.push("bullet_list_open", "ul", 1);
+	const listLines = [nextLine, 0];
+	token.map = listLines;
+	token.markup = String.fromCharCode(markerCharCode);
+	let prevEmptyEnd = false;
+	const terminatorRules = state.md.block.ruler.getRules("list");
+	const oldParentType = state.parentType;
+	state.parentType = "list";
+	while (nextLine < endLine) {
+		pos = posAfterMarker;
+		max = state.eMarks[nextLine];
+		const initial = state.sCount[nextLine] + posAfterMarker - (state.bMarks[nextLine] + state.tShift[nextLine]);
+		let offset = initial;
+		while (pos < max) {
+			const ch = state.src.charCodeAt(pos);
+			if (ch === 9) offset += 4 - (offset + state.bsCount[nextLine]) % 4;
+			else if (ch === 32) offset++;
+			else break;
+			pos++;
+		}
+		const contentStart = pos;
+		let indentAfterMarker;
+		if (contentStart >= max) indentAfterMarker = 1;
+		else indentAfterMarker = offset - initial;
+		if (indentAfterMarker > 4) indentAfterMarker = 1;
+		const indent = initial + indentAfterMarker;
+		token = state.push("list_item_open", "li", 1);
+		token.markup = String.fromCharCode(markerCharCode);
+		const itemLines = [nextLine, 0];
+		token.map = itemLines;
+		if (isOrdered) token.info = state.src.slice(start, posAfterMarker - 1);
+		const oldTight = state.tight;
+		const oldTShift = state.tShift[nextLine];
+		const oldSCount = state.sCount[nextLine];
+		const oldListIndent = state.listIndent;
+		state.listIndent = state.blkIndent;
+		state.blkIndent = indent;
+		state.tight = true;
+		state.tShift[nextLine] = contentStart - state.bMarks[nextLine];
+		state.sCount[nextLine] = offset;
+		if (contentStart >= max && state.isEmpty(nextLine + 1)) state.line = Math.min(state.line + 2, endLine);
+		else state.md.block.tokenize(state, nextLine, endLine);
+		if (!state.tight || prevEmptyEnd) tight = false;
+		prevEmptyEnd = state.line - nextLine > 1 && state.isEmpty(state.line - 1);
+		state.blkIndent = state.listIndent;
+		state.listIndent = oldListIndent;
+		state.tShift[nextLine] = oldTShift;
+		state.sCount[nextLine] = oldSCount;
+		state.tight = oldTight;
+		token = state.push("list_item_close", "li", -1);
+		token.markup = String.fromCharCode(markerCharCode);
+		nextLine = state.line;
+		itemLines[1] = nextLine;
+		if (nextLine >= endLine) break;
+		if (state.sCount[nextLine] < state.blkIndent) break;
+		if (state.sCount[nextLine] - state.blkIndent >= 4) break;
+		let terminate = false;
+		for (let i = 0, l = terminatorRules.length; i < l; i++) if (terminatorRules[i](state, nextLine, endLine, true)) {
+			terminate = true;
+			break;
+		}
+		if (terminate) break;
+		if (isOrdered) {
+			posAfterMarker = skipOrderedListMarker(state, nextLine);
+			if (posAfterMarker < 0) break;
+			start = state.bMarks[nextLine] + state.tShift[nextLine];
+		} else {
+			posAfterMarker = skipBulletListMarker(state, nextLine);
+			if (posAfterMarker < 0) break;
+		}
+		if (markerCharCode !== state.src.charCodeAt(posAfterMarker - 1)) break;
+	}
+	if (isOrdered) token = state.push("ordered_list_close", "ol", -1);
+	else token = state.push("bullet_list_close", "ul", -1);
+	token.markup = String.fromCharCode(markerCharCode);
+	listLines[1] = nextLine;
+	state.line = nextLine;
+	state.parentType = oldParentType;
+	if (tight) markTightParagraphs(state, listTokIdx);
+	return true;
+}
+function reference$2(state, startLine, _endLine, silent) {
+	let pos = state.bMarks[startLine] + state.tShift[startLine];
+	let max = state.eMarks[startLine];
+	let nextLine = startLine + 1;
+	if (state.sCount[startLine] - state.blkIndent >= 4) return false;
+	if (state.src.charCodeAt(pos) !== 91) return false;
+	function getNextLine(nextLine) {
+		const endLine = state.lineMax;
+		if (nextLine >= endLine || state.isEmpty(nextLine)) return null;
+		let isContinuation = false;
+		if (state.sCount[nextLine] - state.blkIndent > 3) isContinuation = true;
+		if (state.sCount[nextLine] < 0) isContinuation = true;
+		if (!isContinuation) {
+			const terminatorRules = state.md.block.ruler.getRules("reference");
+			const oldParentType = state.parentType;
+			state.parentType = "reference";
+			let terminate = false;
+			for (let i = 0, l = terminatorRules.length; i < l; i++) if (terminatorRules[i](state, nextLine, endLine, true)) {
+				terminate = true;
+				break;
+			}
+			state.parentType = oldParentType;
+			if (terminate) return null;
+		}
+		const pos = state.bMarks[nextLine] + state.tShift[nextLine];
+		const max = state.eMarks[nextLine];
+		return state.src.slice(pos, max + 1);
+	}
+	let str = state.src.slice(pos, max + 1);
+	max = str.length;
+	let labelEnd = -1;
+	for (pos = 1; pos < max; pos++) {
+		const ch = str.charCodeAt(pos);
+		if (ch === 91) return false;
+		else if (ch === 93) {
+			labelEnd = pos;
+			break;
+		} else if (ch === 10) {
+			const lineContent = getNextLine(nextLine);
+			if (lineContent !== null) {
+				str += lineContent;
+				max = str.length;
+				nextLine++;
+			}
+		} else if (ch === 92) {
+			pos++;
+			if (pos < max && str.charCodeAt(pos) === 10) {
+				const lineContent = getNextLine(nextLine);
+				if (lineContent !== null) {
+					str += lineContent;
+					max = str.length;
+					nextLine++;
+				}
+			}
+		}
+	}
+	if (labelEnd < 0 || str.charCodeAt(labelEnd + 1) !== 58) return false;
+	for (pos = labelEnd + 2; pos < max; pos++) {
+		const ch = str.charCodeAt(pos);
+		if (ch === 10) {
+			const lineContent = getNextLine(nextLine);
+			if (lineContent !== null) {
+				str += lineContent;
+				max = str.length;
+				nextLine++;
+			}
+		} else if (isSpace(ch)) {} else break;
+	}
+	const destRes = state.md.helpers.parseLinkDestination(str, pos, max);
+	if (!destRes.ok) return false;
+	const href = state.md.normalizeLink(destRes.str);
+	if (!state.md.validateLink(href)) return false;
+	pos = destRes.pos;
+	const destEndPos = pos;
+	const destEndLineNo = nextLine;
+	const start = pos;
+	for (; pos < max; pos++) {
+		const ch = str.charCodeAt(pos);
+		if (ch === 10) {
+			const lineContent = getNextLine(nextLine);
+			if (lineContent !== null) {
+				str += lineContent;
+				max = str.length;
+				nextLine++;
+			}
+		} else if (isSpace(ch)) {} else break;
+	}
+	let titleRes = state.md.helpers.parseLinkTitle(str, pos, max);
+	while (titleRes.can_continue) {
+		const lineContent = getNextLine(nextLine);
+		if (lineContent === null) break;
+		str += lineContent;
+		pos = max;
+		max = str.length;
+		nextLine++;
+		titleRes = state.md.helpers.parseLinkTitle(str, pos, max, titleRes);
+	}
+	let title;
+	if (pos < max && start !== pos && titleRes.ok) {
+		title = titleRes.str;
+		pos = titleRes.pos;
+	} else {
+		title = "";
+		pos = destEndPos;
+		nextLine = destEndLineNo;
+	}
+	while (pos < max) {
+		if (!isSpace(str.charCodeAt(pos))) break;
+		pos++;
+	}
+	if (pos < max && str.charCodeAt(pos) !== 10) {
+		if (title) {
+			title = "";
+			pos = destEndPos;
+			nextLine = destEndLineNo;
+			while (pos < max) {
+				if (!isSpace(str.charCodeAt(pos))) break;
+				pos++;
+			}
+		}
+	}
+	if (pos < max && str.charCodeAt(pos) !== 10) return false;
+	const label = normalizeReference(str.slice(1, labelEnd));
+	if (!label) return false;
+	/* istanbul ignore if */
+	if (silent) return true;
+	if (typeof state.env.references === "undefined") state.env.references = {};
+	if (typeof state.env.references[label] === "undefined") state.env.references[label] = {
+		title,
+		href
+	};
+	const token = state.push("reference_definition", "", 0);
+	token.map = [startLine, nextLine];
+	token.hidden = true;
+	const meta = Object.create(null);
+	meta.label = label;
+	token.meta = meta;
+	state.line = nextLine;
+	return true;
+}
+var html_blocks_default = [
+	"address",
+	"article",
+	"aside",
+	"base",
+	"basefont",
+	"blockquote",
+	"body",
+	"caption",
+	"center",
+	"col",
+	"colgroup",
+	"dd",
+	"details",
+	"dialog",
+	"dir",
+	"div",
+	"dl",
+	"dt",
+	"fieldset",
+	"figcaption",
+	"figure",
+	"footer",
+	"form",
+	"frame",
+	"frameset",
+	"h1",
+	"h2",
+	"h3",
+	"h4",
+	"h5",
+	"h6",
+	"head",
+	"header",
+	"hr",
+	"html",
+	"iframe",
+	"legend",
+	"li",
+	"link",
+	"main",
+	"menu",
+	"menuitem",
+	"nav",
+	"noframes",
+	"ol",
+	"optgroup",
+	"option",
+	"p",
+	"param",
+	"search",
+	"section",
+	"summary",
+	"table",
+	"tbody",
+	"td",
+	"tfoot",
+	"th",
+	"thead",
+	"title",
+	"tr",
+	"track",
+	"ul"
+];
+var open_tag = `<[A-Za-z][A-Za-z0-9\\-]*(?:\\s+[a-zA-Z_:][a-zA-Z0-9:._-]*(?:\\s*=\\s*(?:[^"'=<>\`\\x00-\\x20]+|'[^']*'|"[^"]*"))?)*\\s*\\/?>`;
+var close_tag = "<\\/[A-Za-z][A-Za-z0-9\\-]*\\s*>";
+var HTML_TAG_RE = new RegExp(`^(?:${open_tag}|${close_tag}|<!---?>|<!--(?:[^-]|-[^-]|--[^>])*-->|<[?][\\s\\S]*?[?]>|<![A-Za-z][^>]*>|<!\\[CDATA\\[[\\s\\S]*?\\]\\]>)`);
+var HTML_OPEN_CLOSE_TAG_RE = new RegExp(`^(?:${open_tag}|${close_tag})`);
+var HTML_SEQUENCES = [
+	[
+		/^<(script|pre|style|textarea)(?=(\s|>|$))/i,
+		/<\/(script|pre|style|textarea)>/i,
+		true
+	],
+	[
+		/^<!--/,
+		/-->/,
+		true
+	],
+	[
+		/^<\?/,
+		/\?>/,
+		true
+	],
+	[
+		/^<![A-Za-z]/,
+		/>/,
+		true
+	],
+	[
+		/^<!\[CDATA\[/,
+		/\]\]>/,
+		true
+	],
+	[
+		new RegExp(`^</?(${html_blocks_default.join("|")})(?=(\\s|/?>|$))`, "i"),
+		/^$/,
+		true
+	],
+	[
+		new RegExp(`${HTML_OPEN_CLOSE_TAG_RE.source}\\s*$`),
+		/^$/,
+		false
+	]
+];
+function html_block(state, startLine, endLine, silent) {
+	let pos = state.bMarks[startLine] + state.tShift[startLine];
+	let max = state.eMarks[startLine];
+	if (state.sCount[startLine] - state.blkIndent >= 4) return false;
+	if (!state.md.options.html) return false;
+	if (state.src.charCodeAt(pos) !== 60) return false;
+	let lineText = state.src.slice(pos, max);
+	let i = 0;
+	for (; i < HTML_SEQUENCES.length; i++) if (HTML_SEQUENCES[i][0].test(lineText)) break;
+	if (i === HTML_SEQUENCES.length) return false;
+	if (silent) return HTML_SEQUENCES[i][2];
+	let nextLine = startLine + 1;
+	const endsOnBlankLine = HTML_SEQUENCES[i][1].test("");
+	if (!HTML_SEQUENCES[i][1].test(lineText)) for (; nextLine < endLine; nextLine++) {
+		if (state.sCount[nextLine] < state.blkIndent) {
+			if (endsOnBlankLine || !state.isEmpty(nextLine)) break;
+		}
+		pos = state.bMarks[nextLine] + state.tShift[nextLine];
+		max = state.eMarks[nextLine];
+		lineText = state.src.slice(pos, max);
+		if (HTML_SEQUENCES[i][1].test(lineText)) {
+			if (lineText.length !== 0) nextLine++;
+			break;
+		}
+	}
+	state.line = nextLine;
+	const token = state.push("html_block", "", 0);
+	token.map = [startLine, nextLine];
+	token.content = state.getLines(startLine, nextLine, state.blkIndent, true);
+	return true;
+}
+function heading$3(state, startLine, endLine, silent) {
+	let pos = state.bMarks[startLine] + state.tShift[startLine];
+	let max = state.eMarks[startLine];
+	if (state.sCount[startLine] - state.blkIndent >= 4) return false;
+	let ch = state.src.charCodeAt(pos);
+	if (ch !== 35 || pos >= max) return false;
+	let level = 1;
+	ch = state.src.charCodeAt(++pos);
+	while (ch === 35 && pos < max && level <= 6) {
+		level++;
+		ch = state.src.charCodeAt(++pos);
+	}
+	if (level > 6 || pos < max && !isSpace(ch)) return false;
+	if (silent) return true;
+	max = state.skipSpacesBack(max, pos);
+	const tmp = state.skipCharsBack(max, 35, pos);
+	if (tmp > pos && isSpace(state.src.charCodeAt(tmp - 1))) max = tmp;
+	state.line = startLine + 1;
+	const token_o = state.push("heading_open", `h${level}`, 1);
+	token_o.markup = "########".slice(0, level);
+	token_o.map = [startLine, state.line];
+	const token_i = state.push("inline", "", 0);
+	token_i.content = asciiTrim(state.src.slice(pos, max));
+	token_i.map = [startLine, state.line];
+	token_i.children = [];
+	const token_c = state.push("heading_close", `h${level}`, -1);
+	token_c.markup = "########".slice(0, level);
+	return true;
+}
+function lheading(state, startLine, endLine) {
+	const terminatorRules = state.md.block.ruler.getRules("paragraph");
+	if (state.sCount[startLine] - state.blkIndent >= 4) return false;
+	const oldParentType = state.parentType;
+	state.parentType = "paragraph";
+	let level = 0;
+	let marker;
+	let nextLine = startLine + 1;
+	for (; nextLine < endLine && !state.isEmpty(nextLine); nextLine++) {
+		if (state.sCount[nextLine] - state.blkIndent > 3) continue;
+		if (state.sCount[nextLine] >= state.blkIndent) {
+			let pos = state.bMarks[nextLine] + state.tShift[nextLine];
+			const max = state.eMarks[nextLine];
+			if (pos < max) {
+				marker = state.src.charCodeAt(pos);
+				if (marker === 45 || marker === 61) {
+					pos = state.skipChars(pos, marker);
+					pos = state.skipSpaces(pos);
+					if (pos >= max) {
+						level = marker === 61 ? 1 : 2;
+						break;
+					}
+				}
+			}
+		}
+		if (state.sCount[nextLine] < 0) continue;
+		let terminate = false;
+		for (let i = 0, l = terminatorRules.length; i < l; i++) if (terminatorRules[i](state, nextLine, endLine, true)) {
+			terminate = true;
+			break;
+		}
+		if (terminate) break;
+	}
+	if (!level) {
+		state.parentType = oldParentType;
+		return false;
+	}
+	const content = asciiTrim(state.getLines(startLine, nextLine, state.blkIndent, false));
+	state.line = nextLine + 1;
+	const token_o = state.push("heading_open", `h${level}`, 1);
+	token_o.markup = String.fromCharCode(marker);
+	token_o.map = [startLine, state.line];
+	const token_i = state.push("inline", "", 0);
+	token_i.content = content;
+	token_i.map = [startLine, state.line - 1];
+	token_i.children = [];
+	const token_c = state.push("heading_close", `h${level}`, -1);
+	token_c.markup = String.fromCharCode(marker);
+	state.parentType = oldParentType;
+	return true;
+}
+function paragraph(state, startLine, endLine) {
+	const terminatorRules = state.md.block.ruler.getRules("paragraph");
+	const oldParentType = state.parentType;
+	let nextLine = startLine + 1;
+	state.parentType = "paragraph";
+	for (; nextLine < endLine && !state.isEmpty(nextLine); nextLine++) {
+		if (state.sCount[nextLine] - state.blkIndent > 3) continue;
+		if (state.sCount[nextLine] < 0) continue;
+		let terminate = false;
+		for (let i = 0, l = terminatorRules.length; i < l; i++) if (terminatorRules[i](state, nextLine, endLine, true)) {
+			terminate = true;
+			break;
+		}
+		if (terminate) break;
+	}
+	const content = asciiTrim(state.getLines(startLine, nextLine, state.blkIndent, false));
+	state.line = nextLine;
+	const token_o = state.push("paragraph_open", "p", 1);
+	token_o.map = [startLine, state.line];
+	const token_i = state.push("inline", "", 0);
+	token_i.content = content;
+	token_i.map = [startLine, state.line];
+	token_i.children = [];
+	state.push("paragraph_close", "p", -1);
+	state.parentType = oldParentType;
+	return true;
+}
+var _rules$1 = [
+	[
+		"table",
+		table$5,
+		["paragraph", "reference"]
+	],
+	["code", code$5],
+	[
+		"fence",
+		fence,
+		[
+			"paragraph",
+			"reference",
+			"blockquote",
+			"list"
+		]
+	],
+	[
+		"blockquote",
+		blockquote,
+		[
+			"paragraph",
+			"reference",
+			"blockquote",
+			"list"
+		]
+	],
+	[
+		"hr",
+		hr,
+		[
+			"paragraph",
+			"reference",
+			"blockquote",
+			"list"
+		]
+	],
+	[
+		"list",
+		list$5,
+		[
+			"paragraph",
+			"reference",
+			"blockquote"
+		]
+	],
+	["reference", reference$2],
+	[
+		"html_block",
+		html_block,
+		[
+			"paragraph",
+			"reference",
+			"blockquote"
+		]
+	],
+	[
+		"heading",
+		heading$3,
+		[
+			"paragraph",
+			"reference",
+			"blockquote"
+		]
+	],
+	["lheading", lheading],
+	["paragraph", paragraph]
+];
+/**
+* Block-level tokenizer.
+*/
+var ParserBlock = class {
+	constructor() {
+		_defineProperty(
+			this,
+			/**
+			* {@link Ruler} instance. Keep configuration of block rules.
+			*/
+			"ruler",
+			new Ruler()
+		);
+		_defineProperty(this, "State", StateBlock);
+		for (let i = 0; i < _rules$1.length; i++) this.ruler.push(_rules$1[i][0], _rules$1[i][1], { alt: (_rules$1[i][2] || []).slice() });
+	}
+	tokenize(state, startLine, endLine) {
+		const rules = this.ruler.getRules("");
+		const len = rules.length;
+		const maxNesting = state.md.options.maxNesting;
+		let line = startLine;
+		let hasEmptyLines = false;
+		while (line < endLine) {
+			state.line = line = state.skipEmptyLines(line);
+			if (line >= endLine) break;
+			if (state.sCount[line] < state.blkIndent) break;
+			if (state.level >= maxNesting) {
+				state.line = endLine;
+				break;
+			}
+			const prevLine = state.line;
+			let ok = false;
+			for (let i = 0; i < len; i++) {
+				ok = rules[i](state, line, endLine, false);
+				if (ok) {
+					if (prevLine >= state.line) throw new Error("block rule didn't increment state.line");
+					break;
+				}
+			}
+			if (!ok) throw new Error("none of the block rules matched");
+			state.tight = !hasEmptyLines;
+			if (state.isEmpty(state.line - 1)) hasEmptyLines = true;
+			line = state.line;
+			if (line < endLine && state.isEmpty(line)) {
+				hasEmptyLines = true;
+				line++;
+				state.line = line;
+			}
+		}
+	}
+	/**
+	* Process input string and push block tokens into `outTokens`
+	*/
+	parse(src, md, env, outTokens) {
+		if (!src) return;
+		const state = new this.State(src, md, env, outTokens);
+		this.tokenize(state, state.line, state.lineMax);
+	}
+};
+/** Mutable state passed to inline rules while tokenizing inline content. */
+var StateInline = class {
+	constructor(src, md, env, outTokens) {
+		_defineProperty(this, "pos", 0);
+		_defineProperty(this, "level", 0);
+		_defineProperty(this, "pending", "");
+		_defineProperty(this, "pendingLevel", 0);
+		_defineProperty(this, "cache", {});
+		_defineProperty(this, "backticks", {});
+		_defineProperty(this, "backticksScanned", false);
+		_defineProperty(this, "linkLevel", 0);
+		_defineProperty(this, "delimiters", []);
+		_defineProperty(this, "_prev_delimiters", []);
+		_defineProperty(this, "Token", Token);
+		this.src = src;
+		this.env = env;
+		this.md = md;
+		this.tokens = outTokens;
+		this.tokens_meta = Array(outTokens.length);
+		this.posMax = this.src.length;
+	}
+	pushPending() {
+		const token = new Token("text", "", 0);
+		token.content = this.pending;
+		token.level = this.pendingLevel;
+		this.tokens.push(token);
+		this.pending = "";
+		return token;
+	}
+	push(type, tag, nesting) {
+		if (this.pending) this.pushPending();
+		const token = new Token(type, tag, nesting);
+		let token_meta = void 0;
+		if (nesting < 0) {
+			this.level--;
+			this.delimiters = this._prev_delimiters.pop();
+		}
+		token.level = this.level;
+		if (nesting > 0) {
+			this.level++;
+			this._prev_delimiters.push(this.delimiters);
+			this.delimiters = [];
+			token_meta = { delimiters: this.delimiters };
+		}
+		this.pendingLevel = this.level;
+		this.tokens.push(token);
+		this.tokens_meta.push(token_meta);
+		return token;
+	}
+	scanDelims(start, canSplitWord) {
+		const max = this.posMax;
+		const marker = this.src.charCodeAt(start);
+		let lastChar;
+		if (start === 0) lastChar = 32;
+		else if (start === 1) {
+			lastChar = this.src.charCodeAt(0);
+			if ((lastChar & 63488) === 55296) lastChar = 65533;
+		} else {
+			lastChar = this.src.charCodeAt(start - 1);
+			if ((lastChar & 64512) === 56320) {
+				const highSurr = this.src.charCodeAt(start - 2);
+				lastChar = (highSurr & 64512) === 55296 ? 65536 + (highSurr - 55296 << 10) + (lastChar - 56320) : 65533;
+			} else if ((lastChar & 64512) === 55296) lastChar = 65533;
+		}
+		let pos = start;
+		while (pos < max && this.src.charCodeAt(pos) === marker) pos++;
+		const count = pos - start;
+		let nextChar = pos < max ? this.src.charCodeAt(pos) : 32;
+		if ((nextChar & 64512) === 55296) {
+			const lowSurr = this.src.charCodeAt(pos + 1);
+			nextChar = (lowSurr & 64512) === 56320 ? 65536 + (nextChar - 55296 << 10) + (lowSurr - 56320) : 65533;
+		} else if ((nextChar & 64512) === 56320) nextChar = 65533;
+		const isLastPunctChar = isMdAsciiPunct(lastChar) || isPunctCharCode(lastChar);
+		const isNextPunctChar = isMdAsciiPunct(nextChar) || isPunctCharCode(nextChar);
+		const isLastWhiteSpace = isWhiteSpace(lastChar);
+		const isNextWhiteSpace = isWhiteSpace(nextChar);
+		const left_flanking = !isNextWhiteSpace && (!isNextPunctChar || isLastWhiteSpace || isLastPunctChar);
+		const right_flanking = !isLastWhiteSpace && (!isLastPunctChar || isNextWhiteSpace || isNextPunctChar);
+		return {
+			can_open: left_flanking && (canSplitWord || !right_flanking || isLastPunctChar),
+			can_close: right_flanking && (canSplitWord || !left_flanking || isNextPunctChar),
+			length: count
+		};
+	}
+};
+function isTerminatorChar(ch) {
+	switch (ch) {
+		case 10:
+		case 33:
+		case 35:
+		case 36:
+		case 37:
+		case 38:
+		case 42:
+		case 43:
+		case 45:
+		case 58:
+		case 60:
+		case 61:
+		case 62:
+		case 64:
+		case 91:
+		case 92:
+		case 93:
+		case 94:
+		case 95:
+		case 96:
+		case 123:
+		case 125:
+		case 126: return true;
+		default: return false;
+	}
+}
+function text$4(state, silent) {
+	let pos = state.pos;
+	while (pos < state.posMax && !isTerminatorChar(state.src.charCodeAt(pos))) pos++;
+	if (pos === state.pos) return false;
+	if (!silent) state.pending += state.src.slice(state.pos, pos);
+	state.pos = pos;
+	return true;
+}
+var SCHEME_RE = /(?:^|[^a-z0-9.+-])([a-z][a-z0-9.+-]*)$/i;
+function linkify(state, silent) {
+	if (!state.md.options.linkify) return false;
+	if (state.linkLevel > 0) return false;
+	const pos = state.pos;
+	const max = state.posMax;
+	if (pos + 3 > max) return false;
+	if (state.src.charCodeAt(pos) !== 58) return false;
+	if (state.src.charCodeAt(pos + 1) !== 47) return false;
+	if (state.src.charCodeAt(pos + 2) !== 47) return false;
+	const match = state.pending.match(SCHEME_RE);
+	if (!match) return false;
+	const proto = match[1];
+	const link = state.md.linkify.matchAtStart(state.src.slice(pos - proto.length));
+	if (!link) return false;
+	let url = link.url;
+	if (url.length <= proto.length) return false;
+	let urlEnd = url.length;
+	while (urlEnd > 0 && url.charCodeAt(urlEnd - 1) === 42) urlEnd--;
+	if (urlEnd !== url.length) url = url.slice(0, urlEnd);
+	const fullUrl = state.md.normalizeLink(url);
+	if (!state.md.validateLink(fullUrl)) return false;
+	if (!silent) {
+		state.pending = state.pending.slice(0, -proto.length);
+		const token_o = state.push("link_open", "a", 1);
+		token_o.attrs = [["href", fullUrl]];
+		token_o.markup = "linkify";
+		token_o.info = "auto";
+		const token_t = state.push("text", "", 0);
+		token_t.content = state.md.normalizeLinkText(url);
+		const token_c = state.push("link_close", "a", -1);
+		token_c.markup = "linkify";
+		token_c.info = "auto";
+	}
+	state.pos += url.length - proto.length;
+	return true;
+}
+function newline(state, silent) {
+	let pos = state.pos;
+	if (state.src.charCodeAt(pos) !== 10) return false;
+	const pmax = state.pending.length - 1;
+	const max = state.posMax;
+	if (!silent) if (pmax >= 0 && state.pending.charCodeAt(pmax) === 32) if (pmax >= 1 && state.pending.charCodeAt(pmax - 1) === 32) {
+		let ws = pmax - 1;
+		while (ws >= 1 && state.pending.charCodeAt(ws - 1) === 32) ws--;
+		state.pending = state.pending.slice(0, ws);
+		state.push("hardbreak", "br", 0);
+	} else {
+		state.pending = state.pending.slice(0, -1);
+		state.push("softbreak", "br", 0);
+	}
+	else state.push("softbreak", "br", 0);
+	pos++;
+	while (pos < max && isSpace(state.src.charCodeAt(pos))) pos++;
+	state.pos = pos;
+	return true;
+}
+var ESCAPED = [];
+for (let i = 0; i < 256; i++) ESCAPED.push(0);
+"\\!\"#$%&'()*+,./:;<=>?@[]^_`{|}~-".split("").forEach(function(ch) {
+	ESCAPED[ch.charCodeAt(0)] = 1;
+});
+function escape(state, silent) {
+	let pos = state.pos;
+	const max = state.posMax;
+	if (state.src.charCodeAt(pos) !== 92) return false;
+	pos++;
+	if (pos >= max) return false;
+	let ch1 = state.src.charCodeAt(pos);
+	if (ch1 === 10) {
+		if (!silent) state.push("hardbreak", "br", 0);
+		pos++;
+		while (pos < max) {
+			ch1 = state.src.charCodeAt(pos);
+			if (!isSpace(ch1)) break;
+			pos++;
+		}
+		state.pos = pos;
+		return true;
+	}
+	if (ch1 === 32) {
+		if (!silent) {
+			const token = state.push("text_special", "", 0);
+			token.content = "\\";
+			token.markup = "\\";
+			token.info = "escape";
+		}
+		state.pos = pos;
+		return true;
+	}
+	let escapedStr = state.src[pos];
+	if (ch1 >= 55296 && ch1 <= 56319 && pos + 1 < max) {
+		const ch2 = state.src.charCodeAt(pos + 1);
+		if (ch2 >= 56320 && ch2 <= 57343) {
+			escapedStr += state.src[pos + 1];
+			pos++;
+		}
+	}
+	const origStr = "\\" + escapedStr;
+	if (!silent) {
+		const token = state.push("text_special", "", 0);
+		if (ch1 < 256 && ESCAPED[ch1] !== 0) token.content = escapedStr;
+		else token.content = origStr;
+		token.markup = origStr;
+		token.info = "escape";
+	}
+	state.pos = pos + 1;
+	return true;
+}
+function backtick(state, silent) {
+	let pos = state.pos;
+	if (state.src.charCodeAt(pos) !== 96) return false;
+	const start = pos;
+	pos++;
+	const max = state.posMax;
+	while (pos < max && state.src.charCodeAt(pos) === 96) pos++;
+	const marker = state.src.slice(start, pos);
+	const openerLength = marker.length;
+	if (state.backticksScanned && (state.backticks[openerLength] || 0) <= start) {
+		if (!silent) state.pending += marker;
+		state.pos += openerLength;
+		return true;
+	}
+	let matchEnd = pos;
+	let matchStart;
+	while ((matchStart = state.src.indexOf("`", matchEnd)) !== -1) {
+		matchEnd = matchStart + 1;
+		while (matchEnd < max && state.src.charCodeAt(matchEnd) === 96) matchEnd++;
+		const closerLength = matchEnd - matchStart;
+		if (closerLength === openerLength) {
+			if (!silent) {
+				const token = state.push("code_inline", "code", 0);
+				token.markup = marker;
+				token.content = state.src.slice(pos, matchStart).replace(/\n/g, " ").replace(/^ (.+) $/, "$1");
+			}
+			state.pos = matchEnd;
+			return true;
+		}
+		state.backticks[closerLength] = matchStart;
+	}
+	state.backticksScanned = true;
+	if (!silent) state.pending += marker;
+	state.pos += openerLength;
+	return true;
+}
+function strikethrough_tokenize(state, silent) {
+	const start = state.pos;
+	const marker = state.src.charCodeAt(start);
+	if (silent) return false;
+	if (marker !== 126) return false;
+	const scanned = state.scanDelims(state.pos, true);
+	let len = scanned.length;
+	const ch = String.fromCharCode(marker);
+	if (len < 2) return false;
+	let token;
+	if (len % 2) {
+		token = state.push("text", "", 0);
+		token.content = ch;
+		len--;
+	}
+	for (let i = 0; i < len; i += 2) {
+		token = state.push("text", "", 0);
+		token.content = ch + ch;
+		state.delimiters.push({
+			marker,
+			length: 0,
+			token: state.tokens.length - 1,
+			end: -1,
+			open: scanned.can_open,
+			close: scanned.can_close
+		});
+	}
+	state.pos += scanned.length;
+	return true;
+}
+function postProcess$1(state, delimiters) {
+	let token;
+	const loneMarkers = [];
+	const max = delimiters.length;
+	for (let i = 0; i < max; i++) {
+		const startDelim = delimiters[i];
+		if (startDelim.marker !== 126) continue;
+		if (startDelim.end === -1) continue;
+		const endDelim = delimiters[startDelim.end];
+		token = state.tokens[startDelim.token];
+		token.type = "s_open";
+		token.tag = "s";
+		token.nesting = 1;
+		token.markup = "~~";
+		token.content = "";
+		token = state.tokens[endDelim.token];
+		token.type = "s_close";
+		token.tag = "s";
+		token.nesting = -1;
+		token.markup = "~~";
+		token.content = "";
+		if (state.tokens[endDelim.token - 1].type === "text" && state.tokens[endDelim.token - 1].content === "~") loneMarkers.push(endDelim.token - 1);
+	}
+	while (loneMarkers.length) {
+		const i = loneMarkers.pop();
+		let j = i + 1;
+		while (j < state.tokens.length && state.tokens[j].type === "s_close") j++;
+		j--;
+		if (i !== j) {
+			token = state.tokens[j];
+			state.tokens[j] = state.tokens[i];
+			state.tokens[i] = token;
+		}
+	}
+}
+function strikethrough_postProcess(state) {
+	const tokens_meta = state.tokens_meta;
+	const max = state.tokens_meta.length;
+	postProcess$1(state, state.delimiters);
+	for (let curr = 0; curr < max; curr++) {
+		var _tokens_meta$curr;
+		const delimiters = (_tokens_meta$curr = tokens_meta[curr]) === null || _tokens_meta$curr === void 0 ? void 0 : _tokens_meta$curr.delimiters;
+		if (delimiters) postProcess$1(state, delimiters);
+	}
+}
+var strikethrough_default = {
+	tokenize: strikethrough_tokenize,
+	postProcess: strikethrough_postProcess
+};
+function emphasis_tokenize(state, silent) {
+	const start = state.pos;
+	const marker = state.src.charCodeAt(start);
+	if (silent) return false;
+	if (marker !== 95 && marker !== 42) return false;
+	const scanned = state.scanDelims(state.pos, marker === 42);
+	for (let i = 0; i < scanned.length; i++) {
+		const token = state.push("text", "", 0);
+		token.content = String.fromCharCode(marker);
+		state.delimiters.push({
+			marker,
+			length: scanned.length,
+			token: state.tokens.length - 1,
+			end: -1,
+			open: scanned.can_open,
+			close: scanned.can_close
+		});
+	}
+	state.pos += scanned.length;
+	return true;
+}
+function postProcess(state, delimiters) {
+	const max = delimiters.length;
+	for (let i = max - 1; i >= 0; i--) {
+		const startDelim = delimiters[i];
+		if (startDelim.marker !== 95 && startDelim.marker !== 42) continue;
+		if (startDelim.end === -1) continue;
+		const endDelim = delimiters[startDelim.end];
+		const isStrong = i > 0 && delimiters[i - 1].end === startDelim.end + 1 && delimiters[i - 1].marker === startDelim.marker && delimiters[i - 1].token === startDelim.token - 1 && delimiters[startDelim.end + 1].token === endDelim.token + 1;
+		const ch = String.fromCharCode(startDelim.marker);
+		const token_o = state.tokens[startDelim.token];
+		token_o.type = isStrong ? "strong_open" : "em_open";
+		token_o.tag = isStrong ? "strong" : "em";
+		token_o.nesting = 1;
+		token_o.markup = isStrong ? ch + ch : ch;
+		token_o.content = "";
+		const token_c = state.tokens[endDelim.token];
+		token_c.type = isStrong ? "strong_close" : "em_close";
+		token_c.tag = isStrong ? "strong" : "em";
+		token_c.nesting = -1;
+		token_c.markup = isStrong ? ch + ch : ch;
+		token_c.content = "";
+		if (isStrong) {
+			state.tokens[delimiters[i - 1].token].content = "";
+			state.tokens[delimiters[startDelim.end + 1].token].content = "";
+			i--;
+		}
+	}
+}
+function emphasis_post_process(state) {
+	const tokens_meta = state.tokens_meta;
+	const max = state.tokens_meta.length;
+	postProcess(state, state.delimiters);
+	for (let curr = 0; curr < max; curr++) {
+		var _tokens_meta$curr;
+		const delimiters = (_tokens_meta$curr = tokens_meta[curr]) === null || _tokens_meta$curr === void 0 ? void 0 : _tokens_meta$curr.delimiters;
+		if (delimiters) postProcess(state, delimiters);
+	}
+}
+var emphasis_default = {
+	tokenize: emphasis_tokenize,
+	postProcess: emphasis_post_process
+};
+function link$1(state, silent) {
+	let code, label, res, ref;
+	let href = "";
+	let title = "";
+	let start = state.pos;
+	let parseReference = true;
+	if (state.src.charCodeAt(state.pos) !== 91) return false;
+	const oldPos = state.pos;
+	const max = state.posMax;
+	const labelStart = state.pos + 1;
+	const labelEnd = state.md.helpers.parseLinkLabel(state, state.pos, true);
+	if (labelEnd < 0) return false;
+	let pos = labelEnd + 1;
+	if (pos < max && state.src.charCodeAt(pos) === 40) {
+		parseReference = false;
+		pos++;
+		for (; pos < max; pos++) {
+			code = state.src.charCodeAt(pos);
+			if (!isSpace(code) && code !== 10) break;
+		}
+		if (pos >= max) return false;
+		start = pos;
+		res = state.md.helpers.parseLinkDestination(state.src, pos, state.posMax);
+		if (res.ok) {
+			href = state.md.normalizeLink(res.str);
+			if (state.md.validateLink(href)) pos = res.pos;
+			else href = "";
+			start = pos;
+			for (; pos < max; pos++) {
+				code = state.src.charCodeAt(pos);
+				if (!isSpace(code) && code !== 10) break;
+			}
+			res = state.md.helpers.parseLinkTitle(state.src, pos, state.posMax);
+			if (pos < max && start !== pos && res.ok) {
+				title = res.str;
+				pos = res.pos;
+				for (; pos < max; pos++) {
+					code = state.src.charCodeAt(pos);
+					if (!isSpace(code) && code !== 10) break;
+				}
+			}
+		}
+		if (pos >= max || state.src.charCodeAt(pos) !== 41) parseReference = true;
+		pos++;
+	}
+	if (parseReference) {
+		if (typeof state.env.references === "undefined") return false;
+		if (pos < max && state.src.charCodeAt(pos) === 91) {
+			start = pos + 1;
+			pos = state.md.helpers.parseLinkLabel(state, pos);
+			if (pos >= 0) label = state.src.slice(start, pos++);
+			else pos = labelEnd + 1;
+		} else pos = labelEnd + 1;
+		if (!label) label = state.src.slice(labelStart, labelEnd);
+		label = normalizeReference(label);
+		ref = state.env.references[label];
+		if (!ref) {
+			state.pos = oldPos;
+			return false;
+		}
+		href = ref.href;
+		title = ref.title;
+	}
+	if (!silent) {
+		state.pos = labelStart;
+		state.posMax = labelEnd;
+		const token_o = state.push("link_open", "a", 1);
+		const attrs = [["href", href]];
+		token_o.attrs = attrs;
+		if (title) attrs.push(["title", title]);
+		if (label) {
+			const meta = Object.create(null);
+			meta.label = label;
+			token_o.meta = meta;
+		}
+		state.linkLevel++;
+		state.md.inline.tokenize(state);
+		state.linkLevel--;
+		state.push("link_close", "a", -1);
+	}
+	state.pos = pos;
+	state.posMax = max;
+	return true;
+}
+function image$1(state, silent) {
+	let code, content, label, pos, ref, res, title, start;
+	let href = "";
+	const oldPos = state.pos;
+	const max = state.posMax;
+	if (state.src.charCodeAt(state.pos) !== 33) return false;
+	if (state.src.charCodeAt(state.pos + 1) !== 91) return false;
+	const labelStart = state.pos + 2;
+	const labelEnd = state.md.helpers.parseLinkLabel(state, state.pos + 1, false);
+	if (labelEnd < 0) return false;
+	pos = labelEnd + 1;
+	if (pos < max && state.src.charCodeAt(pos) === 40) {
+		pos++;
+		for (; pos < max; pos++) {
+			code = state.src.charCodeAt(pos);
+			if (!isSpace(code) && code !== 10) break;
+		}
+		if (pos >= max) return false;
+		start = pos;
+		res = state.md.helpers.parseLinkDestination(state.src, pos, state.posMax);
+		if (res.ok) {
+			href = state.md.normalizeLink(res.str);
+			if (state.md.validateLink(href)) pos = res.pos;
+			else href = "";
+		}
+		start = pos;
+		for (; pos < max; pos++) {
+			code = state.src.charCodeAt(pos);
+			if (!isSpace(code) && code !== 10) break;
+		}
+		res = state.md.helpers.parseLinkTitle(state.src, pos, state.posMax);
+		if (pos < max && start !== pos && res.ok) {
+			title = res.str;
+			pos = res.pos;
+			for (; pos < max; pos++) {
+				code = state.src.charCodeAt(pos);
+				if (!isSpace(code) && code !== 10) break;
+			}
+		} else title = "";
+		if (pos >= max || state.src.charCodeAt(pos) !== 41) {
+			state.pos = oldPos;
+			return false;
+		}
+		pos++;
+	} else {
+		if (typeof state.env.references === "undefined") return false;
+		if (pos < max && state.src.charCodeAt(pos) === 91) {
+			start = pos + 1;
+			pos = state.md.helpers.parseLinkLabel(state, pos);
+			if (pos >= 0) label = state.src.slice(start, pos++);
+			else pos = labelEnd + 1;
+		} else pos = labelEnd + 1;
+		if (!label) label = state.src.slice(labelStart, labelEnd);
+		label = normalizeReference(label);
+		ref = state.env.references[label];
+		if (!ref) {
+			state.pos = oldPos;
+			return false;
+		}
+		href = ref.href;
+		title = ref.title;
+	}
+	if (!silent) {
+		content = state.src.slice(labelStart, labelEnd);
+		const tokens = [];
+		state.md.inline.parse(content, state.md, state.env, tokens);
+		const token = state.push("image", "img", 0);
+		const attrs = [["src", href], ["alt", ""]];
+		token.attrs = attrs;
+		token.children = tokens;
+		token.content = content;
+		if (title) attrs.push(["title", title]);
+		if (label) {
+			const meta = Object.create(null);
+			meta.label = label;
+			token.meta = meta;
+		}
+	}
+	state.pos = pos;
+	state.posMax = max;
+	return true;
+}
+var EMAIL_RE = /^([a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*)$/;
+var AUTOLINK_RE = /^([a-zA-Z][a-zA-Z0-9+.-]{1,31}):([^<>\x00-\x20]*)$/;
+function autolink(state, silent) {
+	let pos = state.pos;
+	if (state.src.charCodeAt(pos) !== 60) return false;
+	const start = state.pos;
+	const max = state.posMax;
+	for (;;) {
+		if (++pos >= max) return false;
+		const ch = state.src.charCodeAt(pos);
+		if (ch === 60) return false;
+		if (ch === 62) break;
+	}
+	const url = state.src.slice(start + 1, pos);
+	if (AUTOLINK_RE.test(url)) {
+		const fullUrl = state.md.normalizeLink(url);
+		if (!state.md.validateLink(fullUrl)) return false;
+		if (!silent) {
+			const token_o = state.push("link_open", "a", 1);
+			token_o.attrs = [["href", fullUrl]];
+			token_o.markup = "autolink";
+			token_o.info = "auto";
+			const token_t = state.push("text", "", 0);
+			token_t.content = state.md.normalizeLinkText(url);
+			const token_c = state.push("link_close", "a", -1);
+			token_c.markup = "autolink";
+			token_c.info = "auto";
+		}
+		state.pos += url.length + 2;
+		return true;
+	}
+	if (EMAIL_RE.test(url)) {
+		const fullUrl = state.md.normalizeLink(`mailto:${url}`);
+		if (!state.md.validateLink(fullUrl)) return false;
+		if (!silent) {
+			const token_o = state.push("link_open", "a", 1);
+			token_o.attrs = [["href", fullUrl]];
+			token_o.markup = "autolink";
+			token_o.info = "auto";
+			const token_t = state.push("text", "", 0);
+			token_t.content = state.md.normalizeLinkText(url);
+			const token_c = state.push("link_close", "a", -1);
+			token_c.markup = "autolink";
+			token_c.info = "auto";
+		}
+		state.pos += url.length + 2;
+		return true;
+	}
+	return false;
+}
+function isLinkOpen(str) {
+	return /^<a[>\s]/i.test(str);
+}
+function isLinkClose(str) {
+	return /^<\/a\s*>/i.test(str);
+}
+function isLetter(ch) {
+	const lc = ch | 32;
+	return lc >= 97 && lc <= 122;
+}
+function html_inline(state, silent) {
+	if (!state.md.options.html) return false;
+	const max = state.posMax;
+	const pos = state.pos;
+	if (state.src.charCodeAt(pos) !== 60 || pos + 2 >= max) return false;
+	const ch = state.src.charCodeAt(pos + 1);
+	if (ch !== 33 && ch !== 63 && ch !== 47 && !isLetter(ch)) return false;
+	const match = state.src.slice(pos).match(HTML_TAG_RE);
+	if (!match) return false;
+	if (!silent) {
+		const token = state.push("html_inline", "", 0);
+		token.content = match[0];
+		if (isLinkOpen(token.content)) state.linkLevel++;
+		if (isLinkClose(token.content)) state.linkLevel--;
+	}
+	state.pos += match[0].length;
+	return true;
+}
+var DIGITAL_RE = /^&#((?:x[a-f0-9]{1,6}|[0-9]{1,7}));/i;
+var NAMED_RE = /^&([a-z][a-z0-9]{1,31});/i;
+function entity(state, silent) {
+	const pos = state.pos;
+	const max = state.posMax;
+	if (state.src.charCodeAt(pos) !== 38) return false;
+	if (pos + 1 >= max) return false;
+	if (state.src.charCodeAt(pos + 1) === 35) {
+		const match = state.src.slice(pos).match(DIGITAL_RE);
+		if (match) {
+			if (!silent) {
+				const code = match[1][0].toLowerCase() === "x" ? parseInt(match[1].slice(1), 16) : parseInt(match[1], 10);
+				const token = state.push("text_special", "", 0);
+				token.content = isValidEntityCode(code) ? fromCodePoint$1(code) : fromCodePoint$1(65533);
+				token.markup = match[0];
+				token.info = "entity";
+			}
+			state.pos += match[0].length;
+			return true;
+		}
+	} else {
+		const match = state.src.slice(pos).match(NAMED_RE);
+		if (match) {
+			const decoded = decodeHTMLStrict(match[0]);
+			if (decoded !== match[0]) {
+				if (!silent) {
+					const token = state.push("text_special", "", 0);
+					token.content = decoded;
+					token.markup = match[0];
+					token.info = "entity";
+				}
+				state.pos += match[0].length;
+				return true;
+			}
+		}
+	}
+	return false;
+}
+function processDelimiters(delimiters) {
+	const openersBottom = {};
+	const max = delimiters.length;
+	if (!max) return;
+	let headerIdx = 0;
+	let lastTokenIdx = -2;
+	const jumps = [];
+	for (let closerIdx = 0; closerIdx < max; closerIdx++) {
+		const closer = delimiters[closerIdx];
+		jumps.push(0);
+		if (delimiters[headerIdx].marker !== closer.marker || lastTokenIdx !== closer.token - 1) headerIdx = closerIdx;
+		lastTokenIdx = closer.token;
+		closer.length = closer.length || 0;
+		if (!closer.close) continue;
+		if (!openersBottom.hasOwnProperty(closer.marker)) openersBottom[closer.marker] = [
+			-1,
+			-1,
+			-1,
+			-1,
+			-1,
+			-1
+		];
+		const minOpenerIdx = openersBottom[closer.marker][(closer.open ? 3 : 0) + closer.length % 3];
+		let openerIdx = headerIdx - jumps[headerIdx] - 1;
+		let newMinOpenerIdx = openerIdx;
+		for (; openerIdx > minOpenerIdx; openerIdx -= jumps[openerIdx] + 1) {
+			const opener = delimiters[openerIdx];
+			if (opener.marker !== closer.marker) continue;
+			if (opener.open && opener.end < 0) {
+				let isOddMatch = false;
+				if (opener.close || closer.open) {
+					if ((opener.length + closer.length) % 3 === 0) {
+						if (opener.length % 3 !== 0 || closer.length % 3 !== 0) isOddMatch = true;
+					}
+				}
+				if (!isOddMatch) {
+					const lastJump = openerIdx > 0 && !delimiters[openerIdx - 1].open ? jumps[openerIdx - 1] + 1 : 0;
+					jumps[closerIdx] = closerIdx - openerIdx + lastJump;
+					jumps[openerIdx] = lastJump;
+					closer.open = false;
+					opener.end = closerIdx;
+					opener.close = false;
+					newMinOpenerIdx = -1;
+					lastTokenIdx = -2;
+					break;
+				}
+			}
+		}
+		if (newMinOpenerIdx !== -1) openersBottom[closer.marker][(closer.open ? 3 : 0) + (closer.length || 0) % 3] = newMinOpenerIdx;
+	}
+}
+function link_pairs(state) {
+	const tokens_meta = state.tokens_meta;
+	const max = state.tokens_meta.length;
+	processDelimiters(state.delimiters);
+	for (let curr = 0; curr < max; curr++) {
+		var _tokens_meta$curr;
+		const delimiters = (_tokens_meta$curr = tokens_meta[curr]) === null || _tokens_meta$curr === void 0 ? void 0 : _tokens_meta$curr.delimiters;
+		if (delimiters) processDelimiters(delimiters);
+	}
+}
+function fragments_join(state) {
+	let curr, last;
+	let level = 0;
+	const tokens = state.tokens;
+	const max = state.tokens.length;
+	for (curr = last = 0; curr < max; curr++) {
+		if (tokens[curr].nesting < 0) level--;
+		tokens[curr].level = level;
+		if (tokens[curr].nesting > 0) level++;
+		if (tokens[curr].type === "text" && curr + 1 < max && tokens[curr + 1].type === "text") tokens[curr + 1].content = tokens[curr].content + tokens[curr + 1].content;
+		else {
+			if (curr !== last) tokens[last] = tokens[curr];
+			last++;
+		}
+	}
+	if (curr !== last) tokens.length = last;
+}
+var _rules = [
+	["text", text$4],
+	["linkify", linkify],
+	["newline", newline],
+	["escape", escape],
+	["backticks", backtick],
+	["strikethrough", strikethrough_default.tokenize],
+	["emphasis", emphasis_default.tokenize],
+	["link", link$1],
+	["image", image$1],
+	["autolink", autolink],
+	["html_inline", html_inline],
+	["entity", entity]
+];
+var _rules2 = [
+	["balance_pairs", link_pairs],
+	["strikethrough", strikethrough_default.postProcess],
+	["emphasis", emphasis_default.postProcess],
+	["fragments_join", fragments_join]
+];
+/**
+* Tokenizes paragraph content.
+*/
+var ParserInline = class {
+	constructor() {
+		_defineProperty(
+			this,
+			/**
+			* {@link Ruler} instance. Keep configuration of inline rules.
+			*/
+			"ruler",
+			new Ruler()
+		);
+		_defineProperty(
+			this,
+			/**
+			* {@link Ruler} instance. Second ruler used for post-processing
+			* (e.g. in emphasis-like rules).
+			*/
+			"ruler2",
+			new Ruler()
+		);
+		_defineProperty(this, "State", StateInline);
+		for (let i = 0; i < _rules.length; i++) this.ruler.push(_rules[i][0], _rules[i][1]);
+		for (let i = 0; i < _rules2.length; i++) this.ruler2.push(_rules2[i][0], _rules2[i][1]);
+	}
+	skipToken(state) {
+		const pos = state.pos;
+		const rules = this.ruler.getRules("");
+		const len = rules.length;
+		const maxNesting = state.md.options.maxNesting;
+		const cache = state.cache;
+		if (typeof cache[pos] !== "undefined") {
+			state.pos = cache[pos];
+			return;
+		}
+		let ok = false;
+		if (state.level < maxNesting) for (let i = 0; i < len; i++) {
+			state.level++;
+			ok = rules[i](state, true);
+			state.level--;
+			if (ok) {
+				if (pos >= state.pos) throw new Error("inline rule didn't increment state.pos");
+				break;
+			}
+		}
+		else state.pos = state.posMax;
+		if (!ok) state.pos++;
+		cache[pos] = state.pos;
+	}
+	tokenize(state) {
+		const rules = this.ruler.getRules("");
+		const len = rules.length;
+		const end = state.posMax;
+		const maxNesting = state.md.options.maxNesting;
+		while (state.pos < end) {
+			const prevPos = state.pos;
+			let ok = false;
+			if (state.level < maxNesting) for (let i = 0; i < len; i++) {
+				ok = rules[i](state, false);
+				if (ok) {
+					if (prevPos >= state.pos) throw new Error("inline rule didn't increment state.pos");
+					break;
+				}
+			}
+			if (ok) {
+				if (state.pos >= end) break;
+				continue;
+			}
+			state.pending += state.src[state.pos++];
+		}
+		if (state.pending) state.pushPending();
+	}
+	/**
+	* Process input string and push inline tokens into `outTokens`
+	*/
+	parse(str, md, env, outTokens) {
+		const state = new this.State(str, md, env, outTokens);
+		this.tokenize(state);
+		const rules = this.ruler2.getRules("");
+		const len = rules.length;
+		for (let i = 0; i < len; i++) rules[i](state);
+	}
+};
 var config$1 = {
 	default: {
 		options: {
@@ -55954,6 +56030,7 @@ var config$1 = {
 			core: { rules: [
 				"normalize",
 				"block",
+				"strip_references",
 				"inline",
 				"text_join"
 			] },
@@ -55980,6 +56057,7 @@ var config$1 = {
 			core: { rules: [
 				"normalize",
 				"block",
+				"strip_references",
 				"inline",
 				"text_join"
 			] },
@@ -56019,464 +56097,361 @@ var config$1 = {
 };
 var BAD_PROTO_RE = /^(vbscript|javascript|file|data):/;
 var GOOD_DATA_RE = /^data:image\/(gif|png|jpeg|webp);/;
-function validateLink(url) {
-	const str = url.trim().toLowerCase();
-	return BAD_PROTO_RE.test(str) ? GOOD_DATA_RE.test(str) : true;
-}
 var RECODE_HOSTNAME_FOR = [
 	"http:",
 	"https:",
 	"mailto:"
 ];
-function normalizeLink(url) {
-	const parsed = urlParse(url, true);
-	if (parsed.hostname) {
-		if (!parsed.protocol || RECODE_HOSTNAME_FOR.indexOf(parsed.protocol) >= 0) try {
-			parsed.hostname = punycode.toASCII(parsed.hostname);
-		} catch (er) {}
-	}
-	return encode$1(format$1(parsed));
-}
-function normalizeLinkText(url) {
-	const parsed = urlParse(url, true);
-	if (parsed.hostname) {
-		if (!parsed.protocol || RECODE_HOSTNAME_FOR.indexOf(parsed.protocol) >= 0) try {
-			parsed.hostname = punycode.toUnicode(parsed.hostname);
-		} catch (er) {}
-	}
-	return decode$1(format$1(parsed), decode$1.defaultChars + "%");
-}
 /**
-* class MarkdownIt
+* Parses Markdown into tokens and renders them to HTML.
 *
-* Main parser/renderer class.
-*
-* ##### Usage
-*
-* ```javascript
-* // node.js, "classic" way:
-* var MarkdownIt = require('markdown-it'),
-*     md = new MarkdownIt();
-* var result = md.render('# markdown-it rulezz!');
-*
-* // node.js, the same, but with sugar:
-* var md = require('markdown-it')();
-* var result = md.render('# markdown-it rulezz!');
-*
-* // browser without AMD, added to "window" on script load
-* // Note, there are no dash.
-* var md = window.markdownit();
-* var result = md.render('# markdown-it rulezz!');
-* ```
-*
-* Single line rendering, without paragraph wrap:
-*
-* ```javascript
-* var md = require('markdown-it')();
-* var result = md.renderInline('__markdown-it__ rulezz!');
-* ```
-**/
-/**
-* new MarkdownIt([presetName, options])
-* - presetName (String): optional, `commonmark` / `zero`
-* - options (Object)
-*
-* Creates parser instanse with given config. Can be called without `new`.
-*
-* ##### presetName
-*
-* MarkdownIt provides named presets as a convenience to quickly
-* enable/disable active syntax rules and options for common use cases.
-*
-* - ["commonmark"](https://github.com/markdown-it/markdown-it/blob/master/lib/presets/commonmark.mjs) -
-*   configures parser to strict [CommonMark](http://commonmark.org/) mode.
-* - [default](https://github.com/markdown-it/markdown-it/blob/master/lib/presets/default.mjs) -
-*   similar to GFM, used when no preset name given. Enables all available rules,
-*   but still without html, typographer & autolinker.
-* - ["zero"](https://github.com/markdown-it/markdown-it/blob/master/lib/presets/zero.mjs) -
-*   all rules disabled. Useful to quickly setup your config via `.enable()`.
-*   For example, when you need only `bold` and `italic` markup and nothing else.
-*
-* ##### options:
-*
-* - __html__ - `false`. Set `true` to enable HTML tags in source. Be careful!
-*   That's not safe! You may need external sanitizer to protect output from XSS.
-*   It's better to extend features via plugins, instead of enabling HTML.
-* - __xhtmlOut__ - `false`. Set `true` to add '/' when closing single tags
-*   (`<br />`). This is needed only for full CommonMark compatibility. In real
-*   world you will need HTML output.
-* - __breaks__ - `false`. Set `true` to convert `\n` in paragraphs into `<br>`.
-* - __langPrefix__ - `language-`. CSS language class prefix for fenced blocks.
-*   Can be useful for external highlighters.
-* - __linkify__ - `false`. Set `true` to autoconvert URL-like text to links.
-* - __typographer__  - `false`. Set `true` to enable [some language-neutral
-*   replacement](https://github.com/markdown-it/markdown-it/blob/master/lib/rules_core/replacements.mjs) +
-*   quotes beautification (smartquotes).
-* - __quotes__ - `“”‘’`, String or Array. Double + single quotes replacement
-*   pairs, when typographer enabled and smartquotes on. For example, you can
-*   use `'«»„“'` for Russian, `'„“‚‘'` for German, and
-*   `['«\xA0', '\xA0»', '‹\xA0', '\xA0›']` for French (including nbsp).
-* - __highlight__ - `null`. Highlighter function for fenced code blocks.
-*   Highlighter `function (str, lang)` should return escaped HTML. It can also
-*   return empty string if the source was not changed and should be escaped
-*   externaly. If result starts with <pre... internal wrapper is skipped.
-*
-* ##### Example
-*
-* ```javascript
-* // commonmark mode
-* var md = require('markdown-it')('commonmark');
-*
-* // default mode
-* var md = require('markdown-it')();
-*
-* // enable everything
-* var md = require('markdown-it')({
-*   html: true,
-*   linkify: true,
-*   typographer: true
-* });
-* ```
-*
-* ##### Syntax highlighting
-*
-* ```js
-* var hljs = require('highlight.js') // https://highlightjs.org/
-*
-* var md = require('markdown-it')({
-*   highlight: function (str, lang) {
-*     if (lang && hljs.getLanguage(lang)) {
-*       try {
-*         return hljs.highlight(str, { language: lang, ignoreIllegals: true }).value;
-*       } catch (__) {}
-*     }
-*
-*     return ''; // use external default escaping
-*   }
-* });
-* ```
-*
-* Or with full wrapper override (if you need assign class to `<pre>` or `<code>`):
-*
-* ```javascript
-* var hljs = require('highlight.js') // https://highlightjs.org/
-*
-* // Actual default values
-* var md = require('markdown-it')({
-*   highlight: function (str, lang) {
-*     if (lang && hljs.getLanguage(lang)) {
-*       try {
-*         return '<pre><code class="hljs">' +
-*                hljs.highlight(str, { language: lang, ignoreIllegals: true }).value +
-*                '</code></pre>';
-*       } catch (__) {}
-*     }
-*
-*     return '<pre><code class="hljs">' + md.utils.escapeHtml(str) + '</code></pre>';
-*   }
-* });
-* ```
-*
-**/
-function MarkdownIt(presetName, options) {
-	if (!(this instanceof MarkdownIt)) return new MarkdownIt(presetName, options);
-	if (!options) {
-		if (!isString$1(presetName)) {
-			options = presetName || {};
-			presetName = "default";
-		}
-	}
+* @category Main
+*/
+var MarkdownIt = class {
 	/**
-	* MarkdownIt#inline -> ParserInline
-	*
-	* Instance of [[ParserInline]]. You may need it to add new rules when
-	* writing plugins. For simple rules control use [[MarkdownIt.disable]] and
-	* [[MarkdownIt.enable]].
-	**/
-	this.inline = new ParserInline();
-	/**
-	* MarkdownIt#block -> ParserBlock
-	*
-	* Instance of [[ParserBlock]]. You may need it to add new rules when
-	* writing plugins. For simple rules control use [[MarkdownIt.disable]] and
-	* [[MarkdownIt.enable]].
-	**/
-	this.block = new ParserBlock();
-	/**
-	* MarkdownIt#core -> Core
-	*
-	* Instance of [[Core]] chain executor. You may need it to add new rules when
-	* writing plugins. For simple rules control use [[MarkdownIt.disable]] and
-	* [[MarkdownIt.enable]].
-	**/
-	this.core = new Core();
-	/**
-	* MarkdownIt#renderer -> Renderer
-	*
-	* Instance of [[Renderer]]. Use it to modify output look. Or to add rendering
-	* rules for new token types, generated by plugins.
-	*
-	* ##### Example
-	*
-	* ```javascript
-	* var md = require('markdown-it')();
-	*
-	* function myToken(tokens, idx, options, env, self) {
-	*   //...
-	*   return result;
-	* };
-	*
-	* md.renderer.rules['my_token'] = myToken
-	* ```
-	*
-	* See [[Renderer]] docs and [source code](https://github.com/markdown-it/markdown-it/blob/master/lib/renderer.mjs).
-	**/
-	this.renderer = new Renderer();
-	/**
-	* MarkdownIt#linkify -> LinkifyIt
-	*
-	* [linkify-it](https://github.com/markdown-it/linkify-it) instance.
-	* Used by [linkify](https://github.com/markdown-it/markdown-it/blob/master/lib/rules_core/linkify.mjs)
-	* rule.
-	**/
-	this.linkify = new LinkifyIt();
-	/**
-	* MarkdownIt#validateLink(url) -> Boolean
-	*
 	* Link validation function. CommonMark allows too much in links. By default
 	* we disable `javascript:`, `vbscript:`, `file:` schemas, and almost all `data:...` schemas
 	* except some embedded image types.
 	*
 	* You can change this behaviour:
 	*
+	* @example
 	* ```javascript
-	* var md = require('markdown-it')();
+	* import MarkdownIt from 'markdown-it'
+	* const md = new MarkdownIt()
+	*
 	* // enable everything
 	* md.validateLink = function () { return true; }
 	* ```
-	**/
-	this.validateLink = validateLink;
+	*/
+	validateLink(url) {
+		const str = url.trim().toLowerCase();
+		return BAD_PROTO_RE.test(str) ? GOOD_DATA_RE.test(str) : true;
+	}
 	/**
-	* MarkdownIt#normalizeLink(url) -> String
-	*
 	* Function used to encode link url to a machine-readable format,
 	* which includes url-encoding, punycode, etc.
-	**/
-	this.normalizeLink = normalizeLink;
-	/**
-	* MarkdownIt#normalizeLinkText(url) -> String
-	*
-	* Function used to decode link url to a human-readable format`
-	**/
-	this.normalizeLinkText = normalizeLinkText;
-	/**
-	* MarkdownIt#utils -> utils
-	*
-	* Assorted utility functions, useful to write plugins. See details
-	* [here](https://github.com/markdown-it/markdown-it/blob/master/lib/common/utils.mjs).
-	**/
-	this.utils = utils_exports;
-	/**
-	* MarkdownIt#helpers -> helpers
-	*
-	* Link components parser functions, useful to write plugins. See details
-	* [here](https://github.com/markdown-it/markdown-it/blob/master/lib/helpers).
-	**/
-	this.helpers = assign$1({}, helpers_exports);
-	this.options = {};
-	this.configure(presetName);
-	if (options) this.set(options);
-}
-/** chainable
-* MarkdownIt.set(options)
-*
-* Set parser options (in the same format as in constructor). Probably, you
-* will never need it, but you can change options after constructor call.
-*
-* ##### Example
-*
-* ```javascript
-* var md = require('markdown-it')()
-*             .set({ html: true, breaks: true })
-*             .set({ typographer: true });
-* ```
-*
-* __Note:__ To achieve the best possible performance, don't modify a
-* `markdown-it` instance options on the fly. If you need multiple configurations
-* it's best to create multiple instances and initialize each with separate
-* config.
-**/
-MarkdownIt.prototype.set = function(options) {
-	assign$1(this.options, options);
-	return this;
-};
-/** chainable, internal
-* MarkdownIt.configure(presets)
-*
-* Batch load of all options and compenent settings. This is internal method,
-* and you probably will not need it. But if you will - see available presets
-* and data structure [here](https://github.com/markdown-it/markdown-it/tree/master/lib/presets)
-*
-* We strongly recommend to use presets instead of direct config loads. That
-* will give better compatibility with next versions.
-**/
-MarkdownIt.prototype.configure = function(presets) {
-	const self = this;
-	if (isString$1(presets)) {
-		const presetName = presets;
-		presets = config$1[presetName];
-		if (!presets) throw new Error("Wrong `markdown-it` preset \"" + presetName + "\", check name");
+	*/
+	normalizeLink(url) {
+		const parsed = urlParse(url, true);
+		if (parsed.hostname) {
+			if (!parsed.protocol || RECODE_HOSTNAME_FOR.indexOf(parsed.protocol) >= 0) try {
+				parsed.hostname = punycode.toASCII(parsed.hostname);
+			} catch (er) {}
+		}
+		return encode$1(format$1(parsed));
 	}
-	if (!presets) throw new Error("Wrong `markdown-it` preset, can't be empty");
-	if (presets.options) self.set(presets.options);
-	if (presets.components) Object.keys(presets.components).forEach(function(name) {
-		if (presets.components[name].rules) self[name].ruler.enableOnly(presets.components[name].rules);
-		if (presets.components[name].rules2) self[name].ruler2.enableOnly(presets.components[name].rules2);
-	});
-	return this;
+	/**
+	* Function used to decode link url to a human-readable format`
+	*/
+	normalizeLinkText(url) {
+		const parsed = urlParse(url, true);
+		if (parsed.hostname) {
+			if (!parsed.protocol || RECODE_HOSTNAME_FOR.indexOf(parsed.protocol) >= 0) try {
+				parsed.hostname = punycode.toUnicode(parsed.hostname);
+			} catch (er) {}
+		}
+		return decode$1(format$1(parsed), decode$1.defaultChars + "%");
+	}
+	constructor(...args) {
+		_defineProperty(
+			this,
+			/**
+			* Instance of {@link ParserInline}. You may need it to add new rules when
+			* writing plugins. For simple rules control use {@link MarkdownIt.disable}
+			* and {@link MarkdownIt.enable}.
+			*/
+			"inline",
+			new ParserInline()
+		);
+		_defineProperty(
+			this,
+			/**
+			* Instance of {@link ParserBlock}. You may need it to add new rules when
+			* writing plugins. For simple rules control use {@link MarkdownIt.disable}
+			* and {@link MarkdownIt.enable}.
+			*/
+			"block",
+			new ParserBlock()
+		);
+		_defineProperty(
+			this,
+			/**
+			* Instance of {@link ParserCore} chain executor. You may need it to add new
+			* rules when writing plugins. For simple rules control use
+			* {@link MarkdownIt.disable} and {@link MarkdownIt.enable}.
+			*/
+			"core",
+			new ParserCore()
+		);
+		_defineProperty(
+			this,
+			/**
+			* Instance of {@link Renderer}. Use it to modify output look. Or to add rendering
+			* rules for new token types, generated by plugins.
+			*
+			* See {@link Renderer} docs and
+			* [source code](https://github.com/markdown-it/markdown-it/blob/master/src/renderer.ts).
+			*
+			* @example
+			* ```javascript
+			* import MarkdownIt from 'markdown-it'
+			* const md = new MarkdownIt()
+			*
+			* function myToken(tokens, idx, options, env, self) {
+			*   //...
+			*   return result;
+			* };
+			*
+			* md.renderer.rules['my_token'] = myToken
+			* ```
+			*/
+			"renderer",
+			new Renderer()
+		);
+		_defineProperty(
+			this,
+			/**
+			* [linkify-it](https://github.com/markdown-it/linkify-it) instance.
+			* Used by [linkify](https://github.com/markdown-it/markdown-it/blob/master/src/rules_core/linkify.ts)
+			* rule.
+			*/
+			"linkify",
+			new LinkifyIt()
+		);
+		_defineProperty(
+			this,
+			/**
+			* Assorted utility functions, useful to write plugins. See details
+			* [here](https://github.com/markdown-it/markdown-it/blob/master/src/common/utils.ts).
+			*/
+			"utils",
+			utils_exports
+		);
+		_defineProperty(
+			this,
+			/**
+			* Link components parser functions, useful to write plugins. See details
+			* [here](https://github.com/markdown-it/markdown-it/blob/master/src/helpers).
+			*/
+			"helpers",
+			Object.assign({}, helpers_exports)
+		);
+		const [presetNameOrOptions, options] = args;
+		if (typeof presetNameOrOptions === "string") {
+			this.configure(presetNameOrOptions);
+			if (options) this.set(options);
+		} else {
+			this.configure("default");
+			this.set(presetNameOrOptions || {});
+		}
+	}
+	/**
+	* Set parser options (in the same format as in constructor). Probably, you
+	* will never need it, but you can change options after constructor call.
+	*
+	* __Note:__ To achieve the best possible performance, don't modify a
+	* `markdown-it` instance options on the fly. If you need multiple configurations
+	* it's best to create multiple instances and initialize each with separate
+	* config.
+	*
+	* @example
+	* ```javascript
+	* import MarkdownIt from 'markdown-it'
+	*
+	* const md = new MarkdownIt()
+	*   .set({ html: true, breaks: true })
+	*   .set({ typographer: true })
+	* ```
+	*/
+	set(options) {
+		Object.assign(this.options, options);
+		return this;
+	}
+	/**
+	* Batch load of all options and compenent settings. This is internal method,
+	* and you probably will not need it. But if you will - see available presets
+	* and data structure [here](https://github.com/markdown-it/markdown-it/tree/master/src/presets)
+	*
+	* We strongly recommend to use presets instead of direct config loads. That
+	* will give better compatibility with next versions.
+	*/
+	configure(presets) {
+		let p;
+		if (typeof presets === "string") {
+			const presetName = presets;
+			p = config$1[presetName];
+			if (!p) throw new Error(`Wrong 'markdown-it' preset "${presetName}", check name`);
+		} else p = presets;
+		if (!p) throw new Error("Wrong `markdown-it` preset, can't be empty");
+		if (p.options) this.options = { ...p.options };
+		const components = p.components;
+		if (components) {
+			var _components$inline;
+			[
+				"core",
+				"block",
+				"inline"
+			].forEach((name) => {
+				var _components$name;
+				const rules = (_components$name = components[name]) === null || _components$name === void 0 ? void 0 : _components$name.rules;
+				if (rules) this[name].ruler.enableOnly(rules);
+			});
+			const rules2 = (_components$inline = components.inline) === null || _components$inline === void 0 ? void 0 : _components$inline.rules2;
+			if (rules2) this.inline.ruler2.enableOnly(rules2);
+		}
+		return this;
+	}
+	/**
+	* Enable list or rules. It will automatically find appropriate components,
+	* containing rules with given names. If rule not found, and `ignoreInvalid`
+	* not set - throws exception.
+	*
+	* @param list Rule name or list of rule names to enable.
+	* @param ignoreInvalid Set `true` to ignore errors when rule not found.
+	*
+	* @example
+	* ```javascript
+	* import MarkdownIt from 'markdown-it'
+	*
+	* const md = new MarkdownIt()
+	*   .enable(['sub', 'sup'])
+	*   .disable('smartquotes')
+	* ```
+	*/
+	enable(list, ignoreInvalid = false) {
+		let result = [];
+		if (!Array.isArray(list)) list = [list];
+		[
+			"core",
+			"block",
+			"inline"
+		].forEach((chain) => {
+			result = result.concat(this[chain].ruler.enable(list, true));
+		});
+		result = result.concat(this.inline.ruler2.enable(list, true));
+		const missed = list.filter((name) => result.indexOf(name) < 0);
+		if (missed.length && !ignoreInvalid) throw new Error(`MarkdownIt. Failed to enable unknown rule(s): ${missed}`);
+		return this;
+	}
+	/**
+	* The same as {@link MarkdownIt.enable}, but turn specified rules off.
+	*
+	* @param list Rule name or list of rule names to disable.
+	* @param ignoreInvalid Set `true` to ignore errors when rule not found.
+	*/
+	disable(list, ignoreInvalid = false) {
+		let result = [];
+		if (!Array.isArray(list)) list = [list];
+		[
+			"core",
+			"block",
+			"inline"
+		].forEach((chain) => {
+			result = result.concat(this[chain].ruler.disable(list, true));
+		});
+		result = result.concat(this.inline.ruler2.disable(list, true));
+		const missed = list.filter((name) => result.indexOf(name) < 0);
+		if (missed.length && !ignoreInvalid) throw new Error(`MarkdownIt. Failed to disable unknown rule(s): ${missed}`);
+		return this;
+	}
+	/**
+	* Load specified plugin with given params into current parser instance.
+	* It's just a sugar to call `plugin(md, params)` with curring.
+	*
+	* @example
+	* ```javascript
+	* import MarkdownIt from 'markdown-it'
+	* import iterator from 'markdown-it-for-inline'
+	*
+	* const md = new MarkdownIt()
+	*   .use(iterator, 'foo_replace', 'text', function (tokens, idx) {
+	*     tokens[idx].content = tokens[idx].content.replace(/foo/g, 'bar')
+	*   })
+	* ```
+	*/
+	use(plugin, ...params) {
+		plugin.apply(plugin, [this, ...params]);
+		return this;
+	}
+	/**
+	* Parse input string and return list of block tokens (special token type
+	* "inline" will contain list of inline tokens). You should not call this
+	* method directly, until you write custom renderer (for example, to produce
+	* AST).
+	*
+	* `env` is used to pass data between "distributed" rules and return additional
+	* metadata like reference info, needed for the renderer. It also can be used to
+	* inject data in specific cases. Usually, you will be ok to pass `{}`,
+	* and then pass updated object to renderer.
+	*
+	* @param src Source string.
+	* @param env Environment sandbox.
+	*/
+	parse(src, env) {
+		if (typeof src !== "string") throw new Error("Input data should be a String");
+		const state = new this.core.State(src, this, env);
+		this.core.process(state);
+		return state.tokens;
+	}
+	/**
+	* Render markdown string into html. It does all magic for you :).
+	*
+	* `env` can be used to inject additional metadata (`{}` by default).
+	* But you will not need it with high probability. See also comment
+	* in {@link MarkdownIt.parse}.
+	*
+	* @param src Source string.
+	* @param env Environment sandbox.
+	*/
+	render(src, env = {}) {
+		return this.renderer.render(this.parse(src, env), this.options, env);
+	}
+	/**
+	* The same as {@link MarkdownIt.parse} but skip all block rules. It returns
+	* the block tokens list with the single `inline` element, containing parsed
+	* inline tokens in `children` property. Also updates `env` object.
+	*
+	* @param src Source string.
+	* @param env Environment sandbox.
+	*/
+	parseInline(src, env) {
+		const state = new this.core.State(src, this, env);
+		state.inlineMode = true;
+		this.core.process(state);
+		return state.tokens;
+	}
+	/**
+	* Similar to {@link MarkdownIt.render} but for single paragraph content.
+	* Result will NOT be wrapped into `<p>` tags.
+	*
+	* @param src Source string.
+	* @param env Environment sandbox.
+	*/
+	renderInline(src, env = {}) {
+		return this.renderer.render(this.parseInline(src, env), this.options, env);
+	}
 };
-/** chainable
-* MarkdownIt.enable(list, ignoreInvalid)
-* - list (String|Array): rule name or list of rule names to enable
-* - ignoreInvalid (Boolean): set `true` to ignore errors when rule not found.
-*
-* Enable list or rules. It will automatically find appropriate components,
-* containing rules with given names. If rule not found, and `ignoreInvalid`
-* not set - throws exception.
-*
-* ##### Example
-*
-* ```javascript
-* var md = require('markdown-it')()
-*             .enable(['sub', 'sup'])
-*             .disable('smartquotes');
-* ```
-**/
-MarkdownIt.prototype.enable = function(list, ignoreInvalid) {
-	let result = [];
-	if (!Array.isArray(list)) list = [list];
-	[
-		"core",
-		"block",
-		"inline"
-	].forEach(function(chain) {
-		result = result.concat(this[chain].ruler.enable(list, true));
-	}, this);
-	result = result.concat(this.inline.ruler2.enable(list, true));
-	const missed = list.filter(function(name) {
-		return result.indexOf(name) < 0;
-	});
-	if (missed.length && !ignoreInvalid) throw new Error("MarkdownIt. Failed to enable unknown rule(s): " + missed);
-	return this;
-};
-/** chainable
-* MarkdownIt.disable(list, ignoreInvalid)
-* - list (String|Array): rule name or list of rule names to disable.
-* - ignoreInvalid (Boolean): set `true` to ignore errors when rule not found.
-*
-* The same as [[MarkdownIt.enable]], but turn specified rules off.
-**/
-MarkdownIt.prototype.disable = function(list, ignoreInvalid) {
-	let result = [];
-	if (!Array.isArray(list)) list = [list];
-	[
-		"core",
-		"block",
-		"inline"
-	].forEach(function(chain) {
-		result = result.concat(this[chain].ruler.disable(list, true));
-	}, this);
-	result = result.concat(this.inline.ruler2.disable(list, true));
-	const missed = list.filter(function(name) {
-		return result.indexOf(name) < 0;
-	});
-	if (missed.length && !ignoreInvalid) throw new Error("MarkdownIt. Failed to disable unknown rule(s): " + missed);
-	return this;
-};
-/** chainable
-* MarkdownIt.use(plugin, params)
-*
-* Load specified plugin with given params into current parser instance.
-* It's just a sugar to call `plugin(md, params)` with curring.
-*
-* ##### Example
-*
-* ```javascript
-* var iterator = require('markdown-it-for-inline');
-* var md = require('markdown-it')()
-*             .use(iterator, 'foo_replace', 'text', function (tokens, idx) {
-*               tokens[idx].content = tokens[idx].content.replace(/foo/g, 'bar');
-*             });
-* ```
-**/
-MarkdownIt.prototype.use = function(plugin) {
-	const args = [this].concat(Array.prototype.slice.call(arguments, 1));
-	plugin.apply(plugin, args);
-	return this;
-};
-/** internal
-* MarkdownIt.parse(src, env) -> Array
-* - src (String): source string
-* - env (Object): environment sandbox
-*
-* Parse input string and return list of block tokens (special token type
-* "inline" will contain list of inline tokens). You should not call this
-* method directly, until you write custom renderer (for example, to produce
-* AST).
-*
-* `env` is used to pass data between "distributed" rules and return additional
-* metadata like reference info, needed for the renderer. It also can be used to
-* inject data in specific cases. Usually, you will be ok to pass `{}`,
-* and then pass updated object to renderer.
-**/
-MarkdownIt.prototype.parse = function(src, env) {
-	if (typeof src !== "string") throw new Error("Input data should be a String");
-	const state = new this.core.State(src, this, env);
-	this.core.process(state);
-	return state.tokens;
-};
+_defineProperty(MarkdownIt, "Token", Token);
+_defineProperty(MarkdownIt, "Ruler", Ruler);
+_defineProperty(MarkdownIt, "Renderer", Renderer);
+_defineProperty(MarkdownIt, "ParserCore", ParserCore);
+_defineProperty(MarkdownIt, "StateCore", StateCore);
+_defineProperty(MarkdownIt, "ParserBlock", ParserBlock);
+_defineProperty(MarkdownIt, "StateBlock", StateBlock);
+_defineProperty(MarkdownIt, "ParserInline", ParserInline);
+_defineProperty(MarkdownIt, "StateInline", StateInline);
 /**
-* MarkdownIt.render(src [, env]) -> String
-* - src (String): source string
-* - env (Object): environment sandbox
+* Default package export.
 *
-* Render markdown string into html. It does all magic for you :).
+* For backward compatibility, the {@link MarkdownIt} class is wrapped so
+* legacy code can call it without `new`. New code should instantiate it as a
+* regular class with `new`. The compatibility wrapper may be removed in a
+* future release.
 *
-* `env` can be used to inject additional metadata (`{}` by default).
-* But you will not need it with high probability. See also comment
-* in [[MarkdownIt.parse]].
-**/
-MarkdownIt.prototype.render = function(src, env) {
-	env = env || {};
-	return this.renderer.render(this.parse(src, env), this.options, env);
-};
-/** internal
-* MarkdownIt.parseInline(src, env) -> Array
-* - src (String): source string
-* - env (Object): environment sandbox
-*
-* The same as [[MarkdownIt.parse]] but skip all block rules. It returns the
-* block tokens list with the single `inline` element, containing parsed inline
-* tokens in `children` property. Also updates `env` object.
-**/
-MarkdownIt.prototype.parseInline = function(src, env) {
-	const state = new this.core.State(src, this, env);
-	state.inlineMode = true;
-	this.core.process(state);
-	return state.tokens;
-};
-/**
-* MarkdownIt.renderInline(src [, env]) -> String
-* - src (String): source string
-* - env (Object): environment sandbox
-*
-* Similar to [[MarkdownIt.render]] but for single paragraph content. Result
-* will NOT be wrapped into `<p>` tags.
-**/
-MarkdownIt.prototype.renderInline = function(src, env) {
-	env = env || {};
-	return this.renderer.render(this.parseInline(src, env), this.options, env);
-};
+* @category Main
+*/
+var MarkdownItCallable = callable(MarkdownIt);
 //#endregion
 //#region ../../packages/react/src/components/markdownRendering.ts
 /**
@@ -56508,26 +56483,26 @@ var getMarkdownInstance = async (renderer, contentHasMath) => {
 	const cached = mdInstanceCache[cacheKey];
 	if (cached) return cached;
 	if (renderer === "textOnly") {
-		const md = new MarkdownIt("zero", {
+		const md = new MarkdownItCallable("zero", {
 			breaks: true,
 			html: false
 		}).enable(["emphasis", "newline"]);
 		mdInstanceCache[cacheKey] = md;
 		return md;
 	}
-	const md = new MarkdownIt({
+	const md = new MarkdownItCallable({
 		breaks: true,
 		html: true
 	});
 	md.renderer.rules.image = (tokens, idx) => {
 		const token = tokens[idx];
 		if (!token) return "";
-		const source = token.attrGet("src") ?? "";
+		const source = String(token.attrGet("src") ?? "");
 		const alt = token.content.trim();
 		const canonicalSource = canonicalImageSource(source);
 		if (canonicalSource !== void 0) {
 			const title = token.attrGet("title");
-			const titleAttr = title ? ` title="${md.utils.escapeHtml(title)}"` : "";
+			const titleAttr = title ? ` title="${md.utils.escapeHtml(String(title))}"` : "";
 			return `<img src="${md.utils.escapeHtml(canonicalSource)}" alt="${md.utils.escapeHtml(alt)}"${titleAttr}>`;
 		}
 		const href = parseAbsoluteHttpUrl(source);
@@ -56670,8 +56645,8 @@ var markdownRenderers = {
 };
 var renderMarkdown = (markdown, renderer = defaultMarkdownRenderer) => markdownRenderers[renderer](markdown);
 //#endregion
-//#region ../../node_modules/.pnpm/dompurify@3.4.12/node_modules/dompurify/dist/purify.es.mjs
-/*! @license DOMPurify 3.4.12 | (c) Cure53 and other contributors | Released under the Apache license 2.0 and Mozilla Public License 2.0 | github.com/cure53/DOMPurify/blob/3.4.12/LICENSE */
+//#region ../../node_modules/.pnpm/dompurify@3.4.13/node_modules/dompurify/dist/purify.es.mjs
+/*! @license DOMPurify 3.4.13 | (c) Cure53 and other contributors | Released under the Apache license 2.0 and Mozilla Public License 2.0 | github.com/cure53/DOMPurify/blob/3.4.13/LICENSE */
 function _arrayLikeToArray(r, a) {
 	(null == a || a > r.length) && (a = r.length);
 	for (var e = 0, n = Array(a); e < a; e++) n[e] = r[e];
@@ -57629,7 +57604,7 @@ var _resolveSetOption = function _resolveSetOption(cfg, key, fallback, options) 
 function createDOMPurify() {
 	let window = arguments.length > 0 && arguments[0] !== void 0 ? arguments[0] : getGlobal();
 	const DOMPurify = (root) => createDOMPurify(root);
-	DOMPurify.version = "3.4.12";
+	DOMPurify.version = "3.4.13";
 	DOMPurify.removed = [];
 	if (!window || !window.document || window.document.nodeType !== NODE_TYPE.document || !window.Element) {
 		DOMPurify.isSupported = false;
@@ -57653,6 +57628,7 @@ function createDOMPurify() {
 	const getAttributes = lookupGetter(ElementPrototype, "attributes");
 	const getNodeType = Node && Node.prototype ? lookupGetter(Node.prototype, "nodeType") : null;
 	const getNodeName = Node && Node.prototype ? lookupGetter(Node.prototype, "nodeName") : null;
+	const getOwnerDocument = Node && Node.prototype ? lookupGetter(Node.prototype, "ownerDocument") : null;
 	if (typeof HTMLTemplateElement === "function") {
 		const template = document.createElement("template");
 		if (template.content && template.content.ownerDocument) document = template.content.ownerDocument;
@@ -58293,7 +58269,8 @@ function createDOMPurify() {
 	* @return The created NodeIterator
 	*/
 	const _createNodeIterator = function _createNodeIterator(root) {
-		return createNodeIterator.call(root.ownerDocument || root, root, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_COMMENT | NodeFilter.SHOW_TEXT | NodeFilter.SHOW_PROCESSING_INSTRUCTION | NodeFilter.SHOW_CDATA_SECTION, null);
+		const doc = getOwnerDocument ? getOwnerDocument(root) : root.ownerDocument;
+		return createNodeIterator.call(doc || root, root, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_COMMENT | NodeFilter.SHOW_TEXT | NodeFilter.SHOW_PROCESSING_INSTRUCTION | NodeFilter.SHOW_CDATA_SECTION, null);
 	};
 	/**
 	* Replace template expression syntax (mustache, ERB, template
@@ -58331,7 +58308,8 @@ function createDOMPurify() {
 	const _scrubTemplateExpressions2 = function _scrubTemplateExpressions(node) {
 		var _node$querySelectorAl;
 		node.normalize();
-		const walker = createNodeIterator.call(node.ownerDocument || node, node, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_COMMENT | NodeFilter.SHOW_CDATA_SECTION | NodeFilter.SHOW_PROCESSING_INSTRUCTION, null);
+		const doc = getOwnerDocument ? getOwnerDocument(node) : node.ownerDocument;
+		const walker = createNodeIterator.call(doc || node, node, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_COMMENT | NodeFilter.SHOW_CDATA_SECTION | NodeFilter.SHOW_PROCESSING_INSTRUCTION, null);
 		let currentNode = walker.nextNode();
 		while (currentNode) {
 			currentNode.data = _stripTemplateExpressions(currentNode.data);
@@ -58438,7 +58416,7 @@ function createDOMPurify() {
 	* @param tagName the node's transformCaseFunc'd tag name
 	* @return true if the node was removed, false if kept
 	*/
-	const _sanitizeDisallowedNode = function _sanitizeDisallowedNode(currentNode, tagName) {
+	const _sanitizeDisallowedNode = function _sanitizeDisallowedNode(currentNode, tagName, root) {
 		if (!FORBID_TAGS[tagName] && _isBasicCustomElement(tagName)) {
 			if (CUSTOM_ELEMENT_HANDLING.tagNameCheck instanceof RegExp && regExpTest(CUSTOM_ELEMENT_HANDLING.tagNameCheck, tagName)) return false;
 			if (CUSTOM_ELEMENT_HANDLING.tagNameCheck instanceof Function && CUSTOM_ELEMENT_HANDLING.tagNameCheck(tagName)) return false;
@@ -58449,13 +58427,31 @@ function createDOMPurify() {
 			if (childNodes && parentNode) {
 				const childCount = childNodes.length;
 				for (let i = childCount - 1; i >= 0; --i) {
-					const hoisted = IN_PLACE ? childNodes[i] : cloneNode(childNodes[i], true);
+					const hoisted = currentNode === root ? cloneNode(childNodes[i], true) : childNodes[i];
 					parentNode.insertBefore(hoisted, getNextSibling(currentNode));
 				}
 			}
 		}
 		_forceRemove(currentNode);
 		return true;
+	};
+	/**
+	* Fork a hook-mutable allowlist off its shared binding the first time a
+	* (possibly lazily-installed) uponSanitize* hook is about to see it, so the
+	* hook cannot widen the per-instance default or the setConfig binding by
+	* reference and leak past the call. Returns the set unchanged once it is
+	* already call-local, so repeated calls across elements are idempotent.
+	*
+	* @param hookList the uponSanitize* hook array for this event
+	* @param set the current ALLOWED_TAGS / ALLOWED_ATTR binding
+	* @param defaultSet the per-instance DEFAULT_ALLOWED_* constant
+	* @param setConfigSet the captured setConfig() binding, or null
+	* @return a call-local clone if a hook is present and set is still shared,
+	*   else set unchanged
+	*/
+	const _forkSharedAllowlist = function _forkSharedAllowlist(hookList, set, defaultSet, setConfigSet) {
+		if (hookList.length === 0) return set;
+		return set === defaultSet || set === setConfigSet ? clone$1(set) : set;
 	};
 	/**
 	* _sanitizeElements
@@ -58468,23 +58464,30 @@ function createDOMPurify() {
 	*/
 	const _sanitizeElements = function _sanitizeElements(currentNode, root) {
 		_executeHooks(hooks.beforeSanitizeElements, currentNode, null);
-		if (currentNode !== root && getParentNode(currentNode) === null) return true;
+		if (currentNode !== root && getParentNode(currentNode) === null) {
+			if (IN_PLACE) _neutralizeSubtree(currentNode);
+			return true;
+		}
 		if (_isClobbered(currentNode)) {
 			_forceRemove(currentNode);
 			return true;
 		}
 		const tagName = transformCaseFunc(getNodeName ? getNodeName(currentNode) : currentNode.nodeName);
+		ALLOWED_TAGS = _forkSharedAllowlist(hooks.uponSanitizeElement, ALLOWED_TAGS, DEFAULT_ALLOWED_TAGS, SET_CONFIG_ALLOWED_TAGS);
 		_executeHooks(hooks.uponSanitizeElement, currentNode, {
 			tagName,
 			allowedTags: ALLOWED_TAGS
 		});
-		if (currentNode !== root && getParentNode(currentNode) === null) return true;
+		if (currentNode !== root && getParentNode(currentNode) === null) {
+			if (IN_PLACE) _neutralizeSubtree(currentNode);
+			return true;
+		}
 		if (_isUnsafeNode(currentNode, tagName)) {
 			_forceRemove(currentNode);
 			return true;
 		}
 		if (FORBID_TAGS[tagName] || !(EXTRA_ELEMENT_HANDLING.tagCheck instanceof Function && EXTRA_ELEMENT_HANDLING.tagCheck(tagName)) && !ALLOWED_TAGS[tagName]) {
-			const removed = _sanitizeDisallowedNode(currentNode, tagName);
+			const removed = _sanitizeDisallowedNode(currentNode, tagName, root);
 			if (removed === false) _executeHooks(hooks.afterSanitizeElements, currentNode, null);
 			return removed;
 		}
@@ -58608,6 +58611,7 @@ function createDOMPurify() {
 		_executeHooks(hooks.beforeSanitizeAttributes, currentNode, null);
 		const attributes = currentNode.attributes;
 		if (!attributes || _isClobbered(currentNode)) return;
+		ALLOWED_ATTR = _forkSharedAllowlist(hooks.uponSanitizeAttribute, ALLOWED_ATTR, DEFAULT_ALLOWED_ATTR, SET_CONFIG_ALLOWED_ATTR);
 		const hookEvent = {
 			attrName: "",
 			attrValue: "",
@@ -58798,8 +58802,8 @@ function createDOMPurify() {
 		}
 		if (body && FORCE_BODY) _forceRemove(body.firstChild);
 		const walkRoot = inPlace ? dirty : body;
-		const nodeIterator = _createNodeIterator(walkRoot);
 		try {
+			const nodeIterator = _createNodeIterator(walkRoot);
 			while (currentNode = nodeIterator.nextNode()) {
 				_sanitizeElements(currentNode, walkRoot);
 				_sanitizeAttributes(currentNode);
@@ -59947,10 +59951,7 @@ function computeOffsets(_ref) {
 			case start:
 				offsets[mainAxis] = offsets[mainAxis] - (reference[len] / 2 - element[len] / 2);
 				break;
-			case "end":
-				offsets[mainAxis] = offsets[mainAxis] + (reference[len] / 2 - element[len] / 2);
-				break;
-			default:
+			case "end": offsets[mainAxis] = offsets[mainAxis] + (reference[len] / 2 - element[len] / 2);
 		}
 	}
 	return offsets;
@@ -61474,9 +61475,10 @@ var StickyScroll = (0, import_react.forwardRef)(({ children, scrollRef, offsetTo
 		minHeight: isSticky && preserveHeight ? preStickHeight : void 0,
 		overflowAnchor: preserveHeight ? "none" : void 0
 	};
+	const contentClassName = isSticky && stickyClassName ? `${className} ${stickyClassName}`.trim() : className;
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 		ref: setRef,
-		className: isSticky && stickyClassName ? `${className} ${stickyClassName}`.trim() : className,
+		className: contentClassName,
 		style: stickyStyle,
 		children: preserveHeight ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 			ref: childMeasureRef,
@@ -61787,18 +61789,18 @@ var flattenChildren$1 = (children) => {
 	});
 };
 var ExpandablePanel_module_default = {
-	outer: "_outer_1ml7m_1",
-	expandablePanel: "_expandablePanel_1ml7m_8",
-	expandableBordered: "_expandableBordered_1ml7m_12",
-	expandableTogglable: "_expandableTogglable_1ml7m_17",
-	expandableContents: "_expandableContents_1ml7m_21",
-	expandableTruncated: "_expandableTruncated_1ml7m_37",
-	moreToggle: "_moreToggle_1ml7m_46",
-	bordered: "_bordered_1ml7m_56",
-	moreToggleButton: "_moreToggleButton_1ml7m_63",
-	inlineToggleHolder: "_inlineToggleHolder_1ml7m_74",
-	inlineToggleSticky: "_inlineToggleSticky_1ml7m_86",
-	blockLeft: "_blockLeft_1ml7m_92"
+	outer: "_outer_1ylmn_1",
+	expandablePanel: "_expandablePanel_1ylmn_17",
+	expandableBordered: "_expandableBordered_1ylmn_21",
+	expandableTogglable: "_expandableTogglable_1ylmn_26",
+	expandableContents: "_expandableContents_1ylmn_30",
+	expandableTruncated: "_expandableTruncated_1ylmn_46",
+	moreToggle: "_moreToggle_1ylmn_55",
+	bordered: "_bordered_1ylmn_65",
+	moreToggleButton: "_moreToggleButton_1ylmn_72",
+	inlineToggleHolder: "_inlineToggleHolder_1ylmn_83",
+	inlineToggleSticky: "_inlineToggleSticky_1ylmn_95",
+	blockLeft: "_blockLeft_1ylmn_101"
 };
 //#endregion
 //#region ../../packages/react/src/components/FindTargetContext.tsx
@@ -62054,7 +62056,7 @@ var LightboxCarousel = ({ id, slides }) => {
 /**
 * Renders the HumanBaselineView component.
 */
-var HumanBaselineView = ({ started, runtime, answer, completed, running, sessionLogs }) => {
+var HumanBaselineView = ({ id, started, runtime, answer, completed, running, sessionLogs }) => {
 	const createRevokableUrl = useRevokableUrls();
 	const player_fns = [];
 	let count = 1;
@@ -62068,7 +62070,7 @@ var HumanBaselineView = ({ started, runtime, answer, completed, running, session
 		player_fns.push({
 			label: title,
 			render: () => /* @__PURE__ */ (0, import_jsx_runtime.jsx)(AsciinemaPlayer, {
-				id: `player-${currentCount}`,
+				id: `${id}-player-${currentCount}`,
 				inputUrl: createRevokableUrl(sessionLog.input),
 				outputUrl: createRevokableUrl(sessionLog.output),
 				timingUrl: createRevokableUrl(sessionLog.timing),
@@ -62105,7 +62107,7 @@ var HumanBaselineView = ({ started, runtime, answer, completed, running, session
 				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 					className: "asciinema-body",
 					children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(LightboxCarousel, {
-						id: "ascii-cinema",
+						id: `${id}-ascii-cinema`,
 						slides: player_fns
 					})
 				})
@@ -62582,7 +62584,7 @@ function selectionParentElement(range) {
 }
 /**
 * Polls until the search term appears in a searchable (non-unsearchable) DOM
-* text node. After Virtuoso scrolls a virtual list item into view, the
+* text node. After the virtual list scrolls an item into view, the
 * onContentReady callback may fire before the content is actually rendered,
 * especially for large scroll distances. This ensures we wait for the text
 * to be present before calling window.find().
@@ -63156,7 +63158,7 @@ var removeSamplesListings = (logDir) => {
 * `set*`/`merge*`/`seed*` primitives) are allowed; the invariant is
 * one-directional (db ⟹ cache).
 */
-var log$5 = createLogger("logsContent");
+var log$4 = createLogger("logsContent");
 var EMPTY_LOGS = [];
 var logsKey = (logDir) => [
 	"log_data",
@@ -63294,7 +63296,7 @@ var namesInScope = (logDir, handles) => {
 	if (misnamed !== void 0) {
 		if (!cacheOnlyScopes.has(prefix)) {
 			cacheOnlyScopes.add(prefix);
-			log$5.warn(`Listing names (e.g. ${misnamed.name}) are outside the log dir's namespace (${prefix}); skipping persistence for this scope.`);
+			log$4.warn(`Listing names (e.g. ${misnamed.name}) are outside the log dir's namespace (${prefix}); skipping persistence for this scope.`);
 		}
 		return false;
 	}
@@ -63440,22 +63442,25 @@ var openLogDirDatabase = async (logDir) => {
 		return;
 	}
 };
-var startEngine = async (config) => {
+var startEngine = async (config, seq) => {
 	const { api, logDir } = config;
 	fetchEngine.stop();
 	const epoch = fetchEngine.epoch();
 	if (config.singleFileMode) {
-		const database = getDatabaseService();
 		await fetchEngine.start({
 			api,
-			database,
-			sink: createLogsContentSink(database, logDir),
+			database: null,
+			sink: createLogsContentSink(null, logDir),
 			logDir
 		});
 		return;
 	}
 	const opened = await openLogDirDatabase(logDir);
-	if (fetchEngine.epoch() !== epoch) throw staleDirError(logDir);
+	if (fetchEngine.epoch() !== epoch) {
+		const current = activation;
+		if (current && current.seq > seq && current.config.logDir === logDir) return current.promise;
+		throw staleDirError(logDir);
+	}
 	if (!opened) throw new Error("Database service not available");
 	await fetchEngine.start({
 		api,
@@ -63464,6 +63469,7 @@ var startEngine = async (config) => {
 		logDir
 	});
 };
+var activationSeq = 0;
 var activation = null;
 var deactivated = false;
 var waiters = [];
@@ -63475,9 +63481,11 @@ var settleWaiters = () => {
 	else waiter.reject(staleDirError(waiter.logDir));
 };
 var beginActivation = (config) => {
+	const seq = ++activationSeq;
 	const entry = {
+		seq,
 		config,
-		promise: startEngine(config),
+		promise: startEngine(config, seq),
 		failed: false
 	};
 	entry.promise.catch(() => {
@@ -63808,7 +63816,8 @@ var computeLogsWithRetried = (logs) => {
 	});
 };
 var useLogListing = (logDir) => {
-	return useMapAsyncData((0, import_react.useDeferredValue)(useLogs(logDir)), computeLogsWithRetried);
+	const logs = useLogs(logDir);
+	return useMapAsyncData((0, import_react.useDeferredValue)(logs), computeLogsWithRetried);
 };
 //#endregion
 //#region src/log_data/logsListingRead.ts
@@ -64191,7 +64200,7 @@ var sequenceChunkStarts = (entryNames, id, epoch, sequence) => {
 	return starts.sort((a, b) => a - b);
 };
 /** Bounds-checked index (an out-of-range index is a coding error). */
-var at$1 = (items, i) => {
+var at = (items, i) => {
 	const item = items[i];
 	if (item === void 0) throw new Error(`Index ${i} out of range (length ${items.length})`);
 	return item;
@@ -64205,7 +64214,7 @@ var chunkIndexOf = (starts, i) => {
 	let hi = starts.length - 1;
 	while (lo < hi) {
 		const mid = lo + hi + 1 >> 1;
-		if (at$1(starts, mid) <= i) lo = mid;
+		if (at(starts, mid) <= i) lo = mid;
 		else hi = mid - 1;
 	}
 	return lo;
@@ -64221,7 +64230,7 @@ var chunkIndexOf = (starts, i) => {
 * chunked logs), and the point is to see the reads in any build. Dial
 * back to `createLogger("chunked")` before the format ships by default.
 */
-var log$4 = {
+var log$3 = {
 	info: (message) => {
 		console.log(`[chunked] ${message}`);
 	},
@@ -64245,7 +64254,7 @@ var log$4 = {
 * over it for one sequence.
 */
 var kb = (bytes) => `${(bytes / 1024).toFixed(1)}KB`;
-var DEFAULT_BYTE_BUDGET = 256 * 1024 * 1024;
+var DEFAULT_BYTE_BUDGET = 268435456;
 /**
 * LRU-cached, request-deduped reads of decompressed entry bytes. Eviction
 * is by total cached bytes against a generous budget; in-flight reads are
@@ -64264,7 +64273,7 @@ var ChunkByteStore = class {
 	read(name) {
 		const cached = this.cache.get(name);
 		if (cached) {
-			log$4.debug(`byte-cache hit ${name} (${kb(cached.byteLength)})`);
+			log$3.debug(`byte-cache hit ${name} (${kb(cached.byteLength)})`);
 			this.cache.delete(name);
 			this.cache.set(name, cached);
 			return Promise.resolve(cached);
@@ -64275,14 +64284,14 @@ var ChunkByteStore = class {
 			pending = this.source.readFile(name).then((bytes) => {
 				this.cache.set(name, bytes);
 				this.cachedBytes += bytes.byteLength;
-				log$4.info(`fetch ${name} — ${kb(bytes.byteLength)} in ${(performance.now() - startedAt).toFixed(0)}ms (byte cache ${kb(this.cachedBytes)})`);
+				log$3.info(`fetch ${name} — ${kb(bytes.byteLength)} in ${(performance.now() - startedAt).toFixed(0)}ms (byte cache ${kb(this.cachedBytes)})`);
 				this.evict();
 				return bytes;
 			}).finally(() => {
 				this.inflight.delete(name);
 			});
 			this.inflight.set(name, pending);
-		} else log$4.debug(`fetch dedup ${name} (already in flight)`);
+		} else log$3.debug(`fetch dedup ${name} (already in flight)`);
 		return pending;
 	}
 	evict() {
@@ -64290,7 +64299,7 @@ var ChunkByteStore = class {
 			if (this.cachedBytes <= this.byteBudget || this.cache.size === 1) return;
 			this.cache.delete(name);
 			this.cachedBytes -= bytes.byteLength;
-			log$4.info(`evict ${name} (${kb(bytes.byteLength)}) — over byte budget`);
+			log$3.info(`evict ${name} (${kb(bytes.byteLength)}) — over byte budget`);
 		}
 	}
 	get size() {
@@ -64344,16 +64353,16 @@ var SequenceReader = class SequenceReader {
 	* consumers are events-side, where stats supply the count).
 	*/
 	chunkBounds(chunkIdx) {
-		return [at$1(this.starts, chunkIdx), this.starts[chunkIdx + 1] ?? this.knownCount];
+		return [at(this.starts, chunkIdx), this.starts[chunkIdx + 1] ?? this.knownCount];
 	}
 	loadChunk(chunkIdx) {
-		const start = at$1(this.starts, chunkIdx);
+		const start = at(this.starts, chunkIdx);
 		let pending = this.parsed.get(start);
 		if (!pending) {
 			const name = this.entryNameFor(start);
 			pending = this.bytes.read(name).then((bytes) => {
 				const items = JSON.parse(decoder$1.decode(bytes));
-				log$4.debug(`parse ${name}: ${items.length} items`);
+				log$3.debug(`parse ${name}: ${items.length} items`);
 				return items;
 			}).then((items) => this.transform?.(items, start) ?? items);
 			const inserted = pending;
@@ -64364,7 +64373,7 @@ var SequenceReader = class SequenceReader {
 			for (const key of this.parsed.keys()) {
 				if (this.parsed.size <= PARSED_CHUNK_CAP) break;
 				this.parsed.delete(key);
-				log$4.debug(`parsed-cache evict ${this.entryNameFor(key)} — over ${PARSED_CHUNK_CAP}-chunk cap`);
+				log$3.debug(`parsed-cache evict ${this.entryNameFor(key)} — over ${PARSED_CHUNK_CAP}-chunk cap`);
 			}
 		} else {
 			this.parsed.delete(start);
@@ -64384,7 +64393,7 @@ var SequenceReader = class SequenceReader {
 		const firstChunk = this.chunkIndexOf(lo);
 		const lastChunk = this.chunkIndexOf(hi - 1);
 		const chunks = await Promise.all(Array.from({ length: lastChunk - firstChunk + 1 }, (_, k) => this.loadChunk(firstChunk + k)));
-		const base = at$1(this.starts, firstChunk);
+		const base = at(this.starts, firstChunk);
 		return chunks.flat().slice(lo - base, hi - base);
 	}
 };
@@ -64411,7 +64420,7 @@ var SkeletonIndex = class {
 		this.spans.forEach((span, i) => {
 			this.byBegin.set(span.begin, i);
 			if (span.parent === void 0) this.roots.push(i);
-			else at$1(this.childrenOf, span.parent).push(i);
+			else at(this.childrenOf, span.parent).push(i);
 		});
 		this.spanIds = new Set(this.spans.map((span) => span.id));
 	}
@@ -64430,12 +64439,12 @@ var SkeletonIndex = class {
 		let candidates = this.roots;
 		for (;;) {
 			const hit = candidates.find((i) => {
-				const [lo, hi] = at$1(this.spans, i).extent;
+				const [lo, hi] = at(this.spans, i).extent;
 				return lo <= ordinal && ordinal <= hi;
 			});
 			if (hit === void 0) return stack;
 			stack.push(hit);
-			candidates = at$1(this.childrenOf, hit);
+			candidates = at(this.childrenOf, hit);
 		}
 	}
 	depthAt(ordinal) {
@@ -64443,9 +64452,9 @@ var SkeletonIndex = class {
 	}
 	/** Does an expanded span have anything to show under the current filter? */
 	hasVisibleContents(spanIdx, visibleTypes) {
-		const span = at$1(this.spans, spanIdx);
+		const span = at(this.spans, spanIdx);
 		if (Object.entries(span.children).some(([type, count]) => count > 0 && visibleTypes(type))) return true;
-		return at$1(this.childrenOf, spanIdx).length > 0;
+		return at(this.childrenOf, spanIdx).length > 0;
 	}
 };
 //#endregion
@@ -64454,7 +64463,7 @@ var decoder = new TextDecoder();
 var readJson = async (source, name) => {
 	const startedAt = performance.now();
 	const bytes = await source.readFile(name);
-	log$4.info(`fetch ${name} — ${(bytes.byteLength / 1024).toFixed(1)}KB in ${(performance.now() - startedAt).toFixed(0)}ms (sidecar, uncached)`);
+	log$3.info(`fetch ${name} — ${(bytes.byteLength / 1024).toFixed(1)}KB in ${(performance.now() - startedAt).toFixed(0)}ms (sidecar, uncached)`);
 	return JSON.parse(decoder.decode(bytes));
 };
 /**
@@ -65088,10 +65097,10 @@ var RowSpace = class {
 		let hi = this.chunkRows.length - 1;
 		while (lo < hi) {
 			const mid = lo + hi + 1 >> 1;
-			if (at$1(this.prefix, mid) <= globalIndex) lo = mid;
+			if (at(this.prefix, mid) <= globalIndex) lo = mid;
 			else hi = mid - 1;
 		}
-		const offset = globalIndex - at$1(this.prefix, lo);
+		const offset = globalIndex - at(this.prefix, lo);
 		const row = this.materializedRows.get(lo)?.[offset];
 		if (row !== void 0) return {
 			kind: "row",
@@ -65099,7 +65108,7 @@ var RowSpace = class {
 			globalIndex
 		};
 		const [clo, chi] = this.chunkBounds(lo);
-		const est = Math.max(at$1(this.chunkRows, lo), 1);
+		const est = Math.max(at(this.chunkRows, lo), 1);
 		const estOrdinal = Math.min(chi - 1, clo + Math.floor((offset + .5) / est * (chi - clo)));
 		return {
 			kind: "placeholder",
@@ -65121,10 +65130,10 @@ var RowSpace = class {
 		const rows = this.materializedRows.get(c);
 		if (rows) {
 			const i = rows.findIndex((row) => row.ordinal >= ordinal);
-			return at$1(this.prefix, c) + (i === -1 ? Math.max(rows.length - 1, 0) : i);
+			return at(this.prefix, c) + (i === -1 ? Math.max(rows.length - 1, 0) : i);
 		}
 		const [lo, hi] = this.chunkBounds(c);
-		return at$1(this.prefix, c) + Math.floor((ordinal - lo) / (hi - lo) * at$1(this.chunkRows, c));
+		return at(this.prefix, c) + Math.floor((ordinal - lo) / (hi - lo) * at(this.chunkRows, c));
 	}
 	isMaterialized(chunkIdx) {
 		return this.materializedRows.has(chunkIdx);
@@ -65141,7 +65150,7 @@ var RowSpace = class {
 	}
 	async doMaterialize(chunkIdx, ctx) {
 		const [lo, hi] = this.chunkBounds(chunkIdx);
-		const estimated = at$1(this.chunkRows, chunkIdx);
+		const estimated = at(this.chunkRows, chunkIdx);
 		let start = lo;
 		for (const [a, b] of this.elision) if (a <= start && start <= b) start = b + 1;
 		let rows = [];
@@ -65154,7 +65163,7 @@ var RowSpace = class {
 		this.materializedRows.set(chunkIdx, rows);
 		this.chunkRows[chunkIdx] = rows.length;
 		this.exact[chunkIdx] = true;
-		log$4.info(`materialize events chunk ${chunkIdx} [${lo},${hi}) → ${rows.length} rows (estimate was ${estimated}${start > lo ? `, decode from ${start} past elision` : ""})`);
+		log$3.info(`materialize events chunk ${chunkIdx} [${lo},${hi}) → ${rows.length} rows (estimate was ${estimated}${start > lo ? `, decode from ${start} past elision` : ""})`);
 		this.recompute();
 	}
 	get materializedCount() {
@@ -65300,7 +65309,7 @@ var synthesizeErroredSampleFromSummary = (summary) => {
 * Full-download size gate for timeline'd chunked samples
 * (`TIMELINE_HYDRATION_BYTES` in the spec's named-constants table).
 */
-var TIMELINE_HYDRATION_BYTES = 50 * 1024 * 1024;
+var TIMELINE_HYDRATION_BYTES = 52428800;
 /** Sum of uncompressed entry sizes under `{prefix}/{sequence}/`. */
 var sequenceBytes = (zip, id, epoch, sequence) => {
 	const prefix = `${samplePrefix(id, epoch)}/${sequence}/`;
@@ -65453,7 +65462,7 @@ var useChunkedSample = (handle) => useAsyncDataFromQuery({
 });
 //#endregion
 //#region src/log_data/sampleStream.ts
-var log$3 = createLogger("sampleStream");
+var log$2 = createLogger("sampleStream");
 var kNoId = -1;
 var initialStreamState = () => ({
 	eventId: kNoId,
@@ -65536,7 +65545,7 @@ var shouldFinalizeStreamingSample = (sampleDataResponse, completedInLog) => {
 	return !hasSampleDataUpdates(sampleDataResponse.sampleData);
 };
 function processAttachments(sampleData, state) {
-	log$3.debug(`Processing ${sampleData.attachments.length} attachments`);
+	log$2.debug(`Processing ${sampleData.attachments.length} attachments`);
 	Object.values(sampleData.attachments).forEach((v) => {
 		state.attachments[v.hash] = v.content;
 	});
@@ -65558,7 +65567,7 @@ function processCallPool(sampleData, state) {
 	}
 }
 function processEvents(sampleData, state, api, logFile) {
-	log$3.debug(`Processing ${sampleData.events.length} events`);
+	log$2.debug(`Processing ${sampleData.events.length} events`);
 	if (sampleData.events.length === 0) return false;
 	for (const eventData of sampleData.events) {
 		const existingIndex = state.eventMapping[eventData.event_id];
@@ -65941,7 +65950,7 @@ var withAttachmentsResolved = async (items, chunked, label) => {
 	const refs = /* @__PURE__ */ new Set();
 	collectRefs(items, refs);
 	if (refs.size === 0) return items;
-	log$4.info(`resolve ${refs.size} attachment ref${refs.size === 1 ? "" : "s"} for ${label}`);
+	log$3.info(`resolve ${refs.size} attachment ref${refs.size === 1 ? "" : "s"} for ${label}`);
 	const attachments = {};
 	await Promise.all([...refs].map(async (index) => {
 		const [content] = await chunked.attachments.getRange(index, index + 1);
@@ -66055,6 +66064,13 @@ var normalizeContent$2 = (content) => {
 };
 //#endregion
 //#region ../../packages/inspect-components/src/chat/rowsModel.ts
+/**
+* Whether a row renders the message with this id — as its head message or
+* as one of its folded tool messages. The deep-link target scan and the
+* data layer's target drain must agree on this, so it lives with the row
+* type.
+*/
+var rowContainsMessage = (row, messageId) => row.resolved.message.id === messageId || row.resolved.toolMessages.some((tm) => tm.id === messageId);
 /**
 * Fold options from a view's tool options — the one place the fold
 * defaults ("complete", collapse on) are defined. Data-layer folds and
@@ -66877,2740 +66893,1926 @@ var isRenderableImageDocument = (source, declaredMimeType) => {
 	return isRasterImageMimeType(normalizedSource) && normalizedSource === normalizedDeclared;
 };
 //#endregion
-//#region ../../node_modules/.pnpm/react-virtuoso@4.18.11_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-virtuoso/dist/index.mjs
-var we = 0;
-var Pt = 1;
-var Xt = 2;
-var Vn = 4;
-function fn(t) {
-	return () => t;
-}
-function Io(t) {
-	t();
-}
-function re(t, e) {
-	return (n) => t(e(n));
-}
-function mn(t, e) {
-	return () => t(e);
-}
-function So(t, e) {
-	return (n) => t(e, n);
-}
-function _e(t) {
-	return t !== void 0;
-}
-function xo(...t) {
-	return () => {
-		t.map(Io);
-	};
-}
-function Jt() {}
-function ye(t, e) {
-	return e(t), t;
-}
-function vo(t, e) {
-	return e(t);
-}
-function rt(...t) {
-	return t;
-}
-function Y(t, e) {
-	return t(Pt, e);
-}
-function M(t, e) {
-	t(we, e);
-}
-function Ne(t) {
-	t(Xt);
-}
-function it(t) {
-	return t(Vn);
-}
-function z(t, e) {
-	return Y(t, So(e, we));
-}
-function yt(t, e) {
-	const n = t(Pt, (o) => {
-		n(), e(o);
-	});
-	return n;
-}
-function pn(t) {
-	let e, n;
-	return (o) => (r) => {
-		e = r, n && clearTimeout(n), n = setTimeout(() => {
-			o(e);
-		}, t);
-	};
-}
-function Wn(t, e) {
-	return t === e;
-}
-function nt(t = Wn) {
-	let e;
-	return (n) => (o) => {
-		t(e, o) || (e = o, n(o));
-	};
-}
-function P(t) {
-	return (e) => (n) => {
-		t(n) && e(n);
-	};
-}
-function B(t) {
-	return (e) => re(e, t);
-}
-function Bt(t) {
-	return (e) => () => {
-		e(t);
-	};
-}
-function x$1(t, ...e) {
-	const n = To(...e);
-	return ((o, r) => {
-		switch (o) {
-			case Xt:
-				Ne(t);
-				return;
-			case Pt: return Y(t, n(r));
-		}
-	});
-}
-function Ot(t, e) {
-	return (n) => (o) => {
-		n(e = t(e, o));
-	};
-}
-function Ut(t) {
-	return (e) => (n) => {
-		t > 0 ? t-- : e(n);
-	};
-}
-function zt(t) {
-	let e = null, n;
-	return (o) => (r) => {
-		e = r, !n && (n = setTimeout(() => {
-			n = void 0, o(e);
-		}, t));
-	};
-}
-function $(...t) {
-	const e = Array.from({ length: t.length });
-	let n = 0, o = null;
-	const r = 2 ** t.length - 1;
-	return t.forEach((s, i) => {
-		const l = 2 ** i;
-		Y(s, (c) => {
-			const d = n;
-			n |= l, e[i] = c, d !== r && n === r && o && (o(), o = null);
-		});
-	}), (s) => (i) => {
-		const l = () => {
-			s([i].concat(e));
-		};
-		n === r ? l() : o = l;
-	};
-}
-function To(...t) {
-	return (e) => t.reduceRight(vo, e);
-}
-function Co(t) {
-	let e, n;
-	const o = () => e?.();
-	return function(r, s) {
-		switch (r) {
-			case Pt: return s ? n === s ? void 0 : (o(), n = s, e = Y(t, s), e) : (o(), Jt);
-			case Xt:
-				o(), n = null;
-				return;
-		}
-	};
-}
-function T(t) {
-	let e = t;
-	const n = U();
-	return ((o, r) => {
-		switch (o) {
-			case we:
-				e = r;
-				break;
-			case Pt:
-				r(e);
-				break;
-			case Vn: return e;
-		}
-		return n(o, r);
-	});
-}
-function ht(t, e) {
-	return ye(T(e), (n) => z(t, n));
-}
-function U() {
-	const t = [];
-	return ((e, n) => {
-		switch (e) {
-			case we:
-				t.slice().forEach((o) => {
-					o(n);
-				});
-				return;
-			case Xt:
-				t.splice(0);
-				return;
-			case Pt: return t.push(n), () => {
-				const o = t.indexOf(n);
-				o > -1 && t.splice(o, 1);
-			};
-		}
-	});
-}
-function Tt(t) {
-	return ye(U(), (e) => z(t, e));
-}
-var wo = { singleton: !0 };
-function j(t, e = [], n = wo) {
-	const { singleton: o } = n;
-	return {
-		constructor: t,
-		dependencies: e,
-		id: yo(),
-		singleton: o
-	};
-}
-var yo = () => /* @__PURE__ */ Symbol("id");
-function bo(t) {
-	const e = /* @__PURE__ */ new Map(), n = ({ constructor: o, dependencies: r, id: s, singleton: i }) => {
-		if (i && e.has(s)) return e.get(s);
-		const l = o(r.map((c) => n(c)));
-		return i && e.set(s, l), l;
-	};
-	return n(t);
-}
-function at(...t) {
-	const e = U(), n = Array.from({ length: t.length });
-	let o = 0;
-	const r = 2 ** t.length - 1;
-	return t.forEach((s, i) => {
-		const l = 2 ** i;
-		Y(s, (c) => {
-			n[i] = c, o |= l, o === r && M(e, n);
-		});
-	}), function(s, i) {
-		switch (s) {
-			case Xt:
-				Ne(e);
-				return;
-			case Pt: return o === r && i(n), Y(e, i);
-		}
-	};
-}
-function W(t, e = Wn) {
-	return x$1(t, nt(e));
-}
-function Fe(...t) {
-	return function(e, n) {
-		switch (e) {
-			case Xt: return;
-			case Pt: return xo(...t.map((o) => Y(o, n)));
-		}
-	};
-}
-var ft = {
-	/** Detailed debugging information including item measurements */
-	DEBUG: 0,
-	/** General informational messages */
-	INFO: 1,
-	/** Warning messages for potential issues */
-	WARN: 2,
-	/** Error messages for failures (default level) */
-	ERROR: 3
-};
-var Ro = {
-	[ft.DEBUG]: "debug",
-	[ft.ERROR]: "error",
-	[ft.INFO]: "log",
-	[ft.WARN]: "warn"
-};
-var Ho = () => typeof globalThis > "u" ? window : globalThis;
-var Gt = j(() => {
-	const t = T(ft.ERROR);
-	return {
-		log: T((n, o, r = ft.INFO) => {
-			r >= (Ho().VIRTUOSO_LOG_LEVEL ?? it(t)) && console[Ro[r]]("%creact-virtuoso: %c%s %o", "color: #0253b3; font-weight: bold", "color: initial", n, o);
-		}),
-		logLevel: t
-	};
-}, [], { singleton: !0 });
-function Eo(t) {
-	return "self" in t ? t.document.documentElement : t;
-}
-function Pn(t) {
-	const e = Eo(t);
-	return e.ownerDocument.defaultView.getComputedStyle(e).direction === "rtl";
-}
-function _t(t, e) {
-	return Pn(t) ? -e : e;
-}
-function hn(t, e) {
-	return Pn(t) ? -e : e;
-}
-function kt(t, e, n) {
-	return De(t, e, n).callbackRef;
-}
-function De(t, e, n) {
-	const o = import_react.useRef(null);
-	let r = (i) => {};
-	const s = import_react.useMemo(() => typeof ResizeObserver < "u" ? new ResizeObserver((i) => {
-		const l = () => {
-			const c = i[0].target;
-			c.offsetParent !== null && t(c);
-		};
-		n ? l() : requestAnimationFrame(l);
-	}) : null, [t, n]);
-	return r = (i) => {
-		i && e ? (s?.observe(i), o.current = i) : (o.current && s?.unobserve(o.current), o.current = null);
-	}, {
-		callbackRef: r,
-		ref: o
-	};
-}
-function Gn(t, e, n, o, r, s, i, l, c) {
-	return De(import_react.useCallback((m) => {
-		const v = Bo(m.children, e, l ? "offsetWidth" : "offsetHeight", r);
-		let p = m.parentElement;
-		for (; p.dataset.virtuosoScroller === void 0;) p = p.parentElement;
-		const I = p.lastElementChild?.dataset.viewportType === "window";
-		let w;
-		I && (w = p.ownerDocument.defaultView);
-		const R = i ? l ? i.scrollWidth : i.scrollHeight : I ? l ? w.document.documentElement.scrollWidth : w.document.documentElement.scrollHeight : l ? p.scrollWidth : p.scrollHeight, h = i ? l ? i.offsetWidth : i.offsetHeight : I ? l ? w.innerWidth : w.innerHeight : l ? p.offsetWidth : p.offsetHeight, f = i ? l ? _t(i, i.scrollLeft) : i.scrollTop : I ? l ? _t(w, w.scrollX || w.document.documentElement.scrollLeft) : w.scrollY || w.document.documentElement.scrollTop : l ? _t(p, p.scrollLeft) : p.scrollTop;
-		o({
-			scrollHeight: R,
-			scrollTop: Math.max(f, 0),
-			viewportHeight: h
-		}), s?.(l ? gn("column-gap", getComputedStyle(m).columnGap, r) : gn("row-gap", getComputedStyle(m).rowGap, r)), v !== null && t(v);
-	}, [
-		t,
-		e,
-		r,
-		s,
-		i,
-		o,
-		l
-	]), n, c);
-}
-function Bo(t, e, n, o) {
-	const r = t.length;
-	if (r === 0) return null;
-	const s = [];
-	for (let i = 0; i < r; i++) {
-		const l = t.item(i);
-		if (l.dataset.index === void 0) continue;
-		const c = parseInt(l.dataset.index, 10), d = parseFloat(l.dataset.knownSize), m = e(l, n);
-		if (m === 0 && o("Zero-sized element, this should not happen", { child: l }, ft.ERROR), m === d) continue;
-		const v = s[s.length - 1];
-		s.length === 0 || v.size !== m || v.endIndex !== c - 1 ? s.push({
-			endIndex: c,
-			size: m,
-			startIndex: c
-		}) : s[s.length - 1].endIndex++;
-	}
-	return s;
-}
-function gn(t, e, n) {
-	return e !== "normal" && e?.endsWith("px") !== !0 && n(`${t} was not resolved to pixel value correctly`, e, ft.WARN), e === "normal" ? 0 : parseInt(e ?? "0", 10);
-}
-function $e(t, e, n) {
-	const o = import_react.useRef(null), r = import_react.useCallback((c) => {
-		if (!c?.offsetParent) return;
-		const d = c.getBoundingClientRect(), m = d.width;
-		let v, p;
-		if (e) {
-			const I = e.getBoundingClientRect(), w = d.top - I.top;
-			p = I.height - Math.max(0, w), v = w + e.scrollTop;
-		} else {
-			const I = i.current.ownerDocument.defaultView;
-			p = I.innerHeight - Math.max(0, d.top), v = d.top + I.scrollY;
-		}
-		o.current = {
-			listHeight: d.height,
-			offsetTop: v,
-			visibleHeight: p,
-			visibleWidth: m
-		}, t(o.current);
-	}, [t, e]), { callbackRef: s, ref: i } = De(r, !0, n), l = import_react.useCallback(() => {
-		r(i.current);
-	}, [r, i]);
-	return import_react.useEffect(() => {
-		if (e) {
-			e.addEventListener("scroll", l);
-			const d = new ResizeObserver(() => {
-				requestAnimationFrame(l);
-			});
-			return d.observe(e), () => {
-				e.removeEventListener("scroll", l), d.unobserve(e);
-			};
-		}
-		const c = i.current?.ownerDocument.defaultView;
-		return c?.addEventListener("scroll", l), c?.addEventListener("resize", l), () => {
-			c?.removeEventListener("scroll", l), c?.removeEventListener("resize", l);
-		};
-	}, [
-		l,
-		e,
-		i
-	]), s;
-}
-var It = j(() => {
-	const t = U(), e = U(), n = T(0), o = U(), r = T(0), s = U(), i = U(), l = T(0), c = T(0), d = T(0), m = T(0), v = U(), p = U(), I = T(!1), w = T(!1), R = T(!1);
-	return z(x$1(t, B(({ scrollTop: h }) => h)), e), z(x$1(t, B(({ scrollHeight: h }) => h)), i), z(e, r), {
-		deviation: n,
-		fixedFooterHeight: d,
-		fixedHeaderHeight: c,
-		footerHeight: m,
-		headerHeight: l,
-		horizontalDirection: w,
-		scrollBy: p,
-		scrollContainerState: t,
-		scrollHeight: i,
-		scrollingInProgress: I,
-		scrollTo: v,
-		scrollTop: e,
-		skipAnimationFrameInResizeObserver: R,
-		smoothScrollTargetReached: o,
-		statefulScrollTop: r,
-		viewportHeight: s
-	};
-}, [], { singleton: !0 });
-var se = { lvl: 0 };
-function An(t, e) {
-	const n = t.length;
-	if (n === 0) return [];
-	let { index: o, value: r } = e(t[0]);
-	const s = [];
-	for (let i = 1; i < n; i++) {
-		const { index: l, value: c } = e(t[i]);
-		s.push({
-			end: l - 1,
-			start: o,
-			value: r
-		}), o = l, r = c;
-	}
-	return s.push({
-		end: Infinity,
-		start: o,
-		value: r
-	}), s;
-}
-function J(t) {
-	return t === se;
-}
-function ie$2(t, e) {
-	if (!J(t)) return e === t.k ? t.v : e < t.k ? ie$2(t.l, e) : ie$2(t.r, e);
-}
-function Rt(t, e, n = "k") {
-	if (J(t)) return [-Infinity, void 0];
-	if (Number(t[n]) === e) return [t.k, t.v];
-	if (Number(t[n]) < e) {
-		const o = Rt(t.r, e, n);
-		return o[0] === -Infinity ? [t.k, t.v] : o;
-	}
-	return Rt(t.l, e, n);
-}
-function vt(t, e, n) {
-	return J(t) ? Nn(e, n, 1) : e === t.k ? dt(t, {
-		k: e,
-		v: n
-	}) : e < t.k ? In(dt(t, { l: vt(t.l, e, n) })) : In(dt(t, { r: vt(t.r, e, n) }));
-}
-function Yt() {
-	return se;
-}
-function Zt(t, e, n) {
-	if (J(t)) return [];
-	const o = Rt(t, e)[0];
-	return Oo(We(t, o, n));
-}
-function Ve(t, e) {
-	if (J(t)) return se;
-	const { k: n, l: o, r } = t;
-	if (e === n) {
-		if (J(o)) return r;
-		if (J(r)) return o;
-		const [s, i] = _n(o);
-		return xe(dt(t, {
-			k: s,
-			l: Mn(o),
-			v: i
-		}));
-	}
-	return e < n ? xe(dt(t, { l: Ve(o, e) })) : xe(dt(t, { r: Ve(r, e) }));
-}
-function Nt(t) {
-	return J(t) ? [] : [
-		...Nt(t.l),
-		{
-			k: t.k,
-			v: t.v
-		},
-		...Nt(t.r)
-	];
-}
-function We(t, e, n) {
-	if (J(t)) return [];
-	const { k: o, l: r, r: s, v: i } = t;
-	let l = [];
-	return o > e && (l = l.concat(We(r, e, n))), o >= e && o <= n && l.push({
-		k: o,
-		v: i
-	}), o <= n && (l = l.concat(We(s, e, n))), l;
-}
-function xe(t) {
-	const { l: e, lvl: n, r: o } = t;
-	if (o.lvl >= n - 1 && e.lvl >= n - 1) return t;
-	if (n > o.lvl + 1) {
-		if (Be(e)) return Dn(dt(t, { lvl: n - 1 }));
-		if (!J(e) && !J(e.r)) return dt(e.r, {
-			l: dt(e, { r: e.r.l }),
-			lvl: n,
-			r: dt(t, {
-				l: e.r.r,
-				lvl: n - 1
-			})
-		});
-		throw new Error("Unexpected empty nodes");
-	}
-	if (Be(t)) return Pe(dt(t, { lvl: n - 1 }));
-	if (!J(o) && !J(o.l)) {
-		const r = o.l, s = Be(r) ? o.lvl - 1 : o.lvl;
-		return dt(r, {
-			l: dt(t, {
-				lvl: n - 1,
-				r: r.l
-			}),
-			lvl: r.lvl + 1,
-			r: Pe(dt(o, {
-				l: r.r,
-				lvl: s
-			}))
-		});
-	}
-	throw new Error("Unexpected empty nodes");
-}
-function dt(t, e) {
-	return Nn(e.k === void 0 ? t.k : e.k, e.v === void 0 ? t.v : e.v, e.lvl === void 0 ? t.lvl : e.lvl, e.l === void 0 ? t.l : e.l, e.r === void 0 ? t.r : e.r);
-}
-function Mn(t) {
-	return J(t.r) ? t.l : xe(dt(t, { r: Mn(t.r) }));
-}
-function Be(t) {
-	return J(t) || t.lvl > t.r.lvl;
-}
-function _n(t) {
-	return J(t.r) ? [t.k, t.v] : _n(t.r);
-}
-function Nn(t, e, n, o = se, r = se) {
-	return {
-		k: t,
-		l: o,
-		lvl: n,
-		r,
-		v: e
-	};
-}
-function In(t) {
-	return Pe(Dn(t));
-}
-function Dn(t) {
-	const { l: e } = t;
-	return !J(e) && e.lvl === t.lvl ? dt(e, { r: dt(t, { l: e.r }) }) : t;
-}
-function Pe(t) {
-	const { lvl: e, r: n } = t;
-	return !J(n) && !J(n.r) && n.lvl === e && n.r.lvl === e ? dt(n, {
-		l: dt(t, { r: n.l }),
-		lvl: e + 1
-	}) : t;
-}
-function Oo(t) {
-	return An(t, ({ k: e, v: n }) => ({
-		index: e,
-		value: n
-	}));
-}
-function $n(t, e) {
-	return !!(t && t.startIndex === e.startIndex && t.endIndex === e.endIndex);
-}
-function le(t, e) {
-	return !!(t && t[0] === e[0] && t[1] === e[1]);
-}
-var Ue = j(() => ({ recalcInProgress: T(!1) }), [], { singleton: !0 });
-function Un(t, e, n) {
-	return t[Te(t, e, n)];
-}
-function Te(t, e, n, o = 0) {
-	let r = t.length - 1;
-	for (; o <= r;) {
-		const s = Math.floor((o + r) / 2), i = t[s], l = n(i, e);
-		if (l === 0) return s;
-		if (l === -1) {
-			if (r - o < 2) return s - 1;
-			r = s - 1;
-		} else {
-			if (r === o) return s;
-			o = s + 1;
-		}
-	}
-	throw new Error(`Failed binary finding record in array - ${t.join(",")}, searched for ${e}`);
-}
-function ko(t, e, n, o) {
-	const r = Te(t, e, o), s = Te(t, n, o, r);
-	return t.slice(r, s + 1);
-}
-function Ht(t, e) {
-	return Math.round(t.getBoundingClientRect()[e]);
-}
-function be(t) {
-	return !J(t.groupOffsetTree);
-}
-function Ke({ index: t }, e) {
-	return e === t ? 0 : e < t ? -1 : 1;
-}
-function Lo() {
-	return {
-		groupIndices: [],
-		groupOffsetTree: Yt(),
-		lastIndex: 0,
-		lastOffset: 0,
-		lastSize: 0,
-		offsetTree: [],
-		sizeTree: Yt()
-	};
-}
-function zo(t, e) {
-	let n = J(t) ? 0 : Infinity;
-	for (const o of e) {
-		const { endIndex: r, size: s, startIndex: i } = o;
-		if (n = Math.min(n, i), J(t)) {
-			t = vt(t, 0, s);
-			continue;
-		}
-		const l = Zt(t, i - 1, r + 1);
-		if (l.some(Mo(o))) continue;
-		let c = !1, d = !1;
-		for (const { end: m, start: v, value: p } of l) c ? (r >= v || s === p) && (t = Ve(t, v)) : (d = p !== s, c = !0), m > r && r >= v && p !== s && (t = vt(t, r + 1, p));
-		d && (t = vt(t, i, s));
-	}
-	return [t, n];
-}
-function Fo(t) {
-	return t.groupIndex !== void 0;
-}
-function Vo({ offset: t }, e) {
-	return e === t ? 0 : e < t ? -1 : 1;
-}
-function ce(t, e, n) {
-	if (e.length === 0) return 0;
-	const { index: o, offset: r, size: s } = Un(e, t, Ke), i = t - o, l = s * i + (i - 1) * n + r;
-	return l > 0 ? l + n : l;
-}
-function Kn(t, e) {
-	if (!be(e)) return t;
-	let n = 0;
-	for (; e.groupIndices[n] <= t + n;) n++;
-	return t + n;
-}
-function jn(t, e, n) {
-	if (Fo(t)) return e.groupIndices[t.groupIndex] + 1;
-	let r = Kn(t.index === "LAST" ? n : t.index, e);
-	return r = Math.max(0, Math.min(n, r)), r;
-}
-function Wo(t, e, n, o = 0) {
-	return o > 0 && (e = Math.max(e, Un(t, o, Ke).offset)), An(ko(t, e, n, Vo), Ao);
-}
-function Po(t, [e, n, o, r]) {
-	e.length > 0 && o("received item sizes", e, ft.DEBUG);
-	const s = t.sizeTree;
-	let i = s, l = 0;
-	if (n.length > 0 && J(s) && e.length === 2) {
-		const p = e[0].size, I = e[1].size;
-		i = n.reduce((w, R) => vt(vt(w, R, p), R + 1, I), i);
-	} else [i, l] = zo(i, e);
-	if (i === s) return t;
-	const { lastIndex: c, lastOffset: d, lastSize: m, offsetTree: v } = Ge(t.offsetTree, l, i, r);
-	return {
-		groupIndices: n,
-		groupOffsetTree: n.reduce((p, I) => vt(p, I, ce(I, v, r)), Yt()),
-		lastIndex: c,
-		lastOffset: d,
-		lastSize: m,
-		offsetTree: v,
-		sizeTree: i
-	};
-}
-function Go(t) {
-	return Nt(t).map(({ k: e, v: n }, o, r) => {
-		const s = r[o + 1];
-		return {
-			endIndex: s === void 0 ? Infinity : s.k - 1,
-			size: n,
-			startIndex: e
-		};
-	});
-}
-function Sn(t, e) {
-	let n = 0, o = 0;
-	for (; n < t;) n += e[o + 1] - e[o] - 1, o++;
-	return o - (n === t ? 0 : 1);
-}
-function Ge(t, e, n, o) {
-	let r = t, s = 0, i = 0, l = 0, c = 0;
-	if (e === 0) r = [];
-	else {
-		c = Te(r, e - 1, Ke), l = r[c].offset;
-		const m = Rt(n, e - 1);
-		s = m[0], i = m[1], r.length && r[c].size === Rt(n, e)[1] && (c -= 1), r = r.slice(0, c + 1);
-	}
-	for (const { start: d, value: m } of Zt(n, e, Infinity)) {
-		const v = d - s, p = v * i + l + v * o;
-		r.push({
-			index: d,
-			offset: p,
-			size: m
-		}), s = d, l = p, i = m;
-	}
-	return {
-		lastIndex: s,
-		lastOffset: l,
-		lastSize: i,
-		offsetTree: r
-	};
-}
-function Ao(t) {
-	return {
-		index: t.index,
-		value: t
-	};
-}
-function Mo(t) {
-	const { endIndex: e, size: n, startIndex: o } = t;
-	return (r) => r.start === o && (r.end === e || r.end === Infinity) && r.value === n;
-}
-var _o = {
-	offsetHeight: "height",
-	offsetWidth: "width"
-};
-var Lt = j(([{ log: t }, { recalcInProgress: e }]) => {
-	const n = U(), o = U(), r = ht(o, 0), s = U(), i = U(), l = T(0), c = T([]), d = T(void 0), m = T(void 0), v = T(void 0), p = T(void 0), I = T((u, g) => Ht(u, _o[g])), w = T(void 0), R = T(0), h = Lo(), f = ht(x$1(n, $(c, t, R), Ot(Po, h), nt()), h), a = ht(x$1(c, nt(), Ot((u, g) => ({
-		current: g,
-		prev: u.current
-	}), {
-		current: [],
-		prev: []
-	}), B(({ prev: u }) => u)), []);
-	z(x$1(c, P((u) => u.length > 0), $(f, R), B(([u, g, C]) => {
-		const L = u.reduce((O, V, N) => vt(O, V, ce(V, g.offsetTree, C) || N), Yt());
-		return {
-			...g,
-			groupIndices: u,
-			groupOffsetTree: L
-		};
-	})), f), z(x$1(o, $(f), P(([u, { lastIndex: g }]) => u < g), B(([u, { lastIndex: g, lastSize: C }]) => [{
-		endIndex: g,
-		size: C,
-		startIndex: u
-	}])), n), z(d, m);
-	const S = ht(x$1(d, B((u) => u === void 0)), !0);
-	z(x$1(m, P((u) => u !== void 0 && J(it(f).sizeTree)), B((u) => {
-		const g = it(v), C = it(c).length > 0;
-		return g !== void 0 && g !== 0 ? C ? [{
-			endIndex: 0,
-			size: g,
-			startIndex: 0
-		}, {
-			endIndex: 1,
-			size: u,
-			startIndex: 1
-		}] : [] : [{
-			endIndex: 0,
-			size: u,
-			startIndex: 0
-		}];
-	})), n), z(x$1(p, P((u) => u !== void 0 && u.length > 0 && J(it(f).sizeTree)), B((u) => {
-		const g = [];
-		let C = u[0], L = 0;
-		for (let O = 1; O < u.length; O++) {
-			const V = u[O];
-			V !== C && (g.push({
-				endIndex: O - 1,
-				size: C,
-				startIndex: L
-			}), C = V, L = O);
-		}
-		return g.push({
-			endIndex: u.length - 1,
-			size: C,
-			startIndex: L
-		}), g;
-	})), n), z(x$1(c, $(v, m), P(([, u, g]) => u !== void 0 && g !== void 0), B(([u, g, C]) => {
-		const L = [];
-		for (let O = 0; O < u.length; O++) {
-			const V = u[O], N = u[O + 1];
-			L.push({
-				startIndex: V,
-				endIndex: V,
-				size: g
-			}), N !== void 0 && L.push({
-				startIndex: V + 1,
-				endIndex: N - 1,
-				size: C
-			});
-		}
-		return L;
-	})), n);
-	const H = Tt(x$1(n, $(f), Ot(({ sizes: u }, [g, C]) => ({
-		changed: C !== u,
-		sizes: C
-	}), {
-		changed: !1,
-		sizes: h
-	}), B((u) => u.changed)));
-	Y(x$1(l, Ot((u, g) => ({
-		diff: u.prev - g,
-		prev: g
-	}), {
-		diff: 0,
-		prev: 0
-	}), B((u) => u.diff)), (u) => {
-		const { groupIndices: g } = it(f);
-		if (u > 0) M(e, !0), M(s, u + Sn(u, g));
-		else if (u < 0) {
-			const C = it(a);
-			C.length > 0 && (u -= Sn(-u, C)), M(i, u);
-		}
-	}), Y(x$1(l, $(t)), ([u, g]) => {
-		u < 0 && g("`firstItemIndex` prop should not be set to less than zero. If you don't know the total count, just use a very high value", { firstItemIndex: l }, ft.ERROR);
-	});
-	const y = Tt(s);
-	z(x$1(s, $(f), B(([u, g]) => {
-		const C = g.groupIndices.length > 0, L = [], O = g.lastSize;
-		if (C) {
-			const V = ie$2(g.sizeTree, 0);
-			let N = 0, Z = 0;
-			for (; N < u;) {
-				const q = g.groupIndices[Z], Q = g.groupIndices.length === Z + 1 ? Infinity : g.groupIndices[Z + 1] - q - 1;
-				L.push({
-					endIndex: q,
-					size: V,
-					startIndex: q
-				}), L.push({
-					endIndex: q + 1 + Q - 1,
-					size: O,
-					startIndex: q + 1
-				}), Z++, N += Q + 1;
-			}
-			const F = Nt(g.sizeTree);
-			return N !== u && F.shift(), F.reduce((q, { k: Q, v: gt }) => {
-				let lt = q.ranges;
-				return q.prevSize !== 0 && (lt = [...q.ranges, {
-					endIndex: Q + u - 1,
-					size: q.prevSize,
-					startIndex: q.prevIndex
-				}]), {
-					prevIndex: Q + u,
-					prevSize: gt,
-					ranges: lt
-				};
-			}, {
-				prevIndex: u,
-				prevSize: 0,
-				ranges: L
-			}).ranges;
-		}
-		return Nt(g.sizeTree).reduce((V, { k: N, v: Z }) => ({
-			prevIndex: N + u,
-			prevSize: Z,
-			ranges: [...V.ranges, {
-				endIndex: N + u - 1,
-				size: V.prevSize,
-				startIndex: V.prevIndex
-			}]
-		}), {
-			prevIndex: 0,
-			prevSize: O,
-			ranges: []
-		}).ranges;
-	})), n);
-	const k = Tt(x$1(i, $(f, R), B(([u, { offsetTree: g }, C]) => {
-		return ce(-u, g, C);
-	})));
-	return z(x$1(i, $(f, R), B(([u, g, C]) => {
-		if (g.groupIndices.length > 0) {
-			if (J(g.sizeTree)) return g;
-			let V = Yt();
-			const N = it(a);
-			let Z = 0, F = 0, mt = 0;
-			for (; Z < -u;) {
-				mt = N[F];
-				const Q = N[F + 1] - mt - 1;
-				F++, Z += Q + 1;
-			}
-			if (V = Nt(g.sizeTree).reduce((Q, { k: gt, v: lt }) => vt(Q, Math.max(0, gt + u), lt), V), Z !== -u) {
-				const Q = ie$2(g.sizeTree, mt);
-				V = vt(V, 0, Q);
-				const gt = Rt(g.sizeTree, -u + 1)[1];
-				V = vt(V, 1, gt);
-			}
-			return {
-				...g,
-				sizeTree: V,
-				...Ge(g.offsetTree, 0, V, C)
-			};
-		}
-		const O = Nt(g.sizeTree).reduce((V, { k: N, v: Z }) => vt(V, Math.max(0, N + u), Z), Yt());
-		return {
-			...g,
-			sizeTree: O,
-			...Ge(g.offsetTree, 0, O, C)
-		};
-	})), f), {
-		beforeUnshiftWith: y,
-		data: w,
-		defaultItemSize: m,
-		firstItemIndex: l,
-		fixedItemSize: d,
-		fixedGroupSize: v,
-		gap: R,
-		groupIndices: c,
-		heightEstimates: p,
-		itemSize: I,
-		listRefresh: H,
-		shiftWith: i,
-		shiftWithOffset: k,
-		sizeRanges: n,
-		sizes: f,
-		statefulTotalCount: r,
-		totalCount: o,
-		trackItemSizes: S,
-		unshiftWith: s
-	};
-}, rt(Gt, Ue), { singleton: !0 });
-function No(t) {
-	return t.reduce((e, n) => (e.groupIndices.push(e.totalCount), e.totalCount += n + 1, e), {
-		groupIndices: [],
-		totalCount: 0
-	});
-}
-var qn = j(([{ groupIndices: t, sizes: e, totalCount: n }, { headerHeight: o, scrollTop: r }]) => {
-	const s = U(), i = U(), l = Tt(x$1(s, B(No)));
-	return z(x$1(l, B((c) => c.totalCount)), n), z(x$1(l, B((c) => c.groupIndices)), t), z(x$1(at(r, e, o), P(([c, d]) => be(d)), B(([c, d, m]) => Rt(d.groupOffsetTree, Math.max(c - m, 0), "v")[0]), nt(), B((c) => [c])), i), {
-		groupCounts: s,
-		topItemsIndexes: i
-	};
-}, rt(Lt, It));
-var At = j(([{ log: t }]) => {
-	const e = T(!1), n = Tt(x$1(e, P((o) => o), nt()));
-	return Y(e, (o) => {
-		o && it(t)("props updated", {}, ft.DEBUG);
-	}), {
-		didMount: n,
-		propsReady: e
-	};
-}, rt(Gt), { singleton: !0 });
-var Do = typeof document < "u" && "scrollBehavior" in document.documentElement.style;
-function Yn(t) {
-	const e = typeof t == "number" ? { index: t } : { ...t };
-	return e.align || (e.align = "start"), (!e.behavior || !Do) && (e.behavior = "auto"), e.offset === void 0 && (e.offset = 0), e;
-}
-var fe = j(([{ gap: t, listRefresh: e, sizes: n, totalCount: o }, { fixedFooterHeight: r, fixedHeaderHeight: s, footerHeight: i, headerHeight: l, scrollingInProgress: c, scrollTo: d, smoothScrollTargetReached: m, viewportHeight: v }, { log: p }]) => {
-	const I = U(), w = U(), R = T(0);
-	let h = null, f = null, a = null;
-	function S() {
-		h !== null && (h(), h = null), a !== null && (a(), a = null), f && (clearTimeout(f), f = null), M(c, !1);
-	}
-	return z(x$1(I, $(n, v, o, R, l, i, p), $(t, s, r), B(([[H, y, k, u, g, C, L, O], V, N, Z]) => {
-		const F = Yn(H), { align: mt, behavior: q, offset: Q } = F, gt = u - 1, lt = jn(F, y, gt);
-		let St = ce(lt, y.offsetTree, V) + C;
-		mt === "end" ? (St += N + Rt(y.sizeTree, lt)[1] - k + Z, lt === gt && (St += L)) : mt === "center" ? St += (N + Rt(y.sizeTree, lt)[1] - k + Z) / 2 : St -= g, Q !== void 0 && Q !== 0 && (St += Q);
-		const Ft = (pt) => {
-			S(), pt ? (O("retrying to scroll to", { location: H }, ft.DEBUG), M(I, H)) : (M(w, !0), O("list did not change, scroll successful", {}, ft.DEBUG));
-		};
-		if (S(), q === "smooth") {
-			let pt = !1;
-			a = Y(e, (jt) => {
-				pt = pt || jt;
-			}), h = yt(m, () => {
-				Ft(pt);
-			});
-		} else h = yt(x$1(e, $o(150)), Ft);
-		return f = setTimeout(() => {
-			S();
-		}, 1200), M(c, !0), O("scrolling from index to", {
-			behavior: q,
-			index: lt,
-			top: St
-		}, ft.DEBUG), {
-			behavior: q,
-			top: St
-		};
-	})), d), {
-		scrollTargetReached: w,
-		scrollToIndex: I,
-		topListHeight: R
-	};
-}, rt(Lt, It, Gt), { singleton: !0 });
-function $o(t) {
-	return (e) => {
-		const n = setTimeout(() => {
-			e(!1);
-		}, t);
-		return (o) => {
-			o && (e(!0), clearTimeout(n));
-		};
-	};
-}
-function je(t, e) {
-	t === 0 ? e() : requestAnimationFrame(() => {
-		je(t - 1, e);
-	});
-}
-function qe(t, e) {
-	if (t === void 0) return 0;
-	const n = e - 1, o = typeof t == "number" ? t : t.index === "LAST" ? n : t.index;
-	return Math.max(0, Math.min(o, n));
-}
-function Ae(t) {
-	return t === void 0 ? !0 : typeof t == "number" ? t === 0 : t.index === 0 && (t.align === void 0 || t.align === "start") && (t.offset === void 0 || t.offset === 0);
-}
-var me = j(([{ defaultItemSize: t, listRefresh: e, sizes: n }, { scrollTop: o }, { scrollTargetReached: r, scrollToIndex: s }, { didMount: i }]) => {
-	const l = T(!0), c = T(0), d = T(!0);
-	return z(x$1(i, $(c), P(([m, v]) => !Ae(v)), Bt(!1)), l), z(x$1(i, $(c), P(([m, v]) => !Ae(v)), Bt(!1)), d), Y(x$1(at(e, i), $(l, n, t, d), P(([[, m], v, { sizeTree: p }, I, w]) => m && (!J(p) || _e(I)) && !v && !w), $(c)), ([, m]) => {
-		if (m === void 0) {
-			M(l, !0), M(d, !0);
-			return;
-		}
-		yt(r, () => {
-			M(d, !0);
-		}), je(4, () => {
-			yt(o, () => {
-				M(l, !0);
-			}), M(s, m);
-		});
-	}), {
-		initialItemFinalLocationReached: d,
-		initialTopMostItemIndex: c,
-		scrolledToInitialItem: l
-	};
-}, rt(Lt, It, fe, At), { singleton: !0 });
-function Zn(t, e) {
-	return Math.abs(t - e) < 1.01;
-}
-var ue = "up";
-var ne = "down";
-var Uo = "none";
-var Ko = {
-	atBottom: !1,
-	notAtBottomBecause: "NOT_SHOWING_LAST_ITEM",
-	state: {
-		offsetBottom: 0,
-		scrollHeight: 0,
-		scrollTop: 0,
-		viewportHeight: 0
-	}
-};
-var jo = 0;
-var pe = j(([{ footerHeight: t, headerHeight: e, scrollBy: n, scrollContainerState: o, scrollTop: r, viewportHeight: s }]) => {
-	const i = T(!1), l = T(!0), c = U(), d = U(), m = T(4), v = T(jo), p = ht(x$1(Fe(x$1(W(r), Ut(1), Bt(!0)), x$1(W(r), Ut(1), Bt(!1), pn(100))), nt()), !1), I = ht(x$1(Fe(x$1(n, Bt(!0)), x$1(n, Bt(!1), pn(200))), nt()), !1);
-	z(x$1(at(W(r), W(v)), B(([a, S]) => a <= S), nt()), l), z(x$1(l, zt(50)), d);
-	const w = Tt(x$1(at(o, W(s), W(e), W(t), W(m)), Ot((a, [{ scrollHeight: S, scrollTop: H }, y, k, u, g]) => {
-		const C = H + y - S > -g, L = {
-			scrollHeight: S,
-			scrollTop: H,
-			viewportHeight: y
-		};
-		if (C) {
-			let V, N;
-			return H > a.state.scrollTop ? (V = "SCROLLED_DOWN", N = a.state.scrollTop - H) : (V = "SIZE_DECREASED", N = a.state.scrollTop - H || a.scrollTopDelta), {
-				atBottom: !0,
-				atBottomBecause: V,
-				scrollTopDelta: N,
-				state: L
-			};
-		}
-		let O;
-		return L.scrollHeight > a.state.scrollHeight ? O = "SIZE_INCREASED" : y < a.state.viewportHeight ? O = "VIEWPORT_HEIGHT_DECREASING" : H < a.state.scrollTop ? O = "SCROLLING_UPWARDS" : O = "NOT_FULLY_SCROLLED_TO_LAST_ITEM_BOTTOM", {
-			atBottom: !1,
-			notAtBottomBecause: O,
-			state: L
-		};
-	}, Ko), nt((a, S) => a !== void 0 && a.atBottom === S.atBottom))), R = ht(x$1(o, Ot((a, { scrollHeight: S, scrollTop: H, viewportHeight: y }) => {
-		if (!Zn(a.scrollHeight, S)) {
-			const k = S - (H + y) < 1;
-			return a.scrollTop !== H && k ? {
-				changed: !0,
-				jump: a.scrollTop - H,
-				scrollHeight: S,
-				scrollTop: H
-			} : {
-				changed: !0,
-				jump: 0,
-				scrollHeight: S,
-				scrollTop: H
-			};
-		}
-		return {
-			changed: !1,
-			jump: 0,
-			scrollHeight: S,
-			scrollTop: H
-		};
-	}, {
-		changed: !1,
-		jump: 0,
-		scrollHeight: 0,
-		scrollTop: 0
-	}), P((a) => a.changed), B((a) => a.jump)), 0);
-	z(x$1(w, B((a) => a.atBottom)), i), z(x$1(i, zt(50)), c);
-	const h = T(ne);
-	z(x$1(o, B(({ scrollTop: a }) => a), nt(), Ot((a, S) => it(I) ? {
-		direction: a.direction,
-		prevScrollTop: S
-	} : {
-		direction: S < a.prevScrollTop ? ue : ne,
-		prevScrollTop: S
-	}, {
-		direction: ne,
-		prevScrollTop: 0
-	}), B((a) => a.direction)), h), z(x$1(o, zt(50), Bt(Uo)), h);
-	const f = T(0);
-	return z(x$1(p, P((a) => !a), Bt(0)), f), z(x$1(r, zt(100), $(p), P(([a, S]) => S), Ot(([a, S], [H]) => [S, H], [0, 0]), B(([a, S]) => S - a)), f), {
-		atBottomState: w,
-		atBottomStateChange: c,
-		atBottomThreshold: m,
-		atTopStateChange: d,
-		atTopThreshold: v,
-		isAtBottom: i,
-		isAtTop: l,
-		isScrolling: p,
-		lastJumpDueToItemResize: R,
-		scrollDirection: h,
-		scrollVelocity: f
-	};
-}, rt(It));
-var ae = "top";
-var de = "bottom";
-var xn = "none";
-function vn(t, e, n) {
-	return typeof t == "number" ? n === ue && e === ae || n === ne && e === de ? t : 0 : n === ue ? e === ae ? t.main : t.reverse : e === de ? t.main : t.reverse;
-}
-function Tn(t, e) {
-	return typeof t == "number" ? t : t[e] ?? 0;
-}
-var Ye = j(([{ deviation: t, fixedHeaderHeight: e, headerHeight: n, scrollTop: o, viewportHeight: r }]) => {
-	const s = U(), i = T(0), l = T(0), c = T(0);
-	return {
-		increaseViewportBy: l,
-		listBoundary: s,
-		overscan: c,
-		topListHeight: i,
-		visibleRange: ht(x$1(at(W(o), W(r), W(n), W(s, le), W(c), W(i), W(e), W(t), W(l)), B(([m, v, p, [I, w], R, h, f, a, S]) => {
-			const H = m - a, y = h + f, k = Math.max(p - H, 0);
-			let u = xn;
-			const g = Tn(S, ae), C = Tn(S, de);
-			return I -= a, I += p + f, w += p + f, w -= a, I > m + y - g && (u = ue), w < m - k + v + C && (u = ne), u !== xn ? [Math.max(H - p - vn(R, ae, u) - g, 0), H - k - f + v + vn(R, de, u) + C] : null;
-		}), P((m) => m !== null), nt(le)), [0, 0])
-	};
-}, rt(It), { singleton: !0 });
-function qo(t, e, n) {
-	if (be(e)) {
-		const o = Kn(t, e);
-		return [{
-			index: Rt(e.groupOffsetTree, o)[0],
-			offset: 0,
-			size: 0
-		}, {
-			data: n?.[0],
-			index: o,
-			offset: 0,
-			size: 0
-		}];
-	}
-	return [{
-		data: n?.[0],
-		index: t,
-		offset: 0,
-		size: 0
-	}];
-}
-var Oe = {
-	bottom: 0,
-	firstItemIndex: 0,
-	items: [],
-	offsetBottom: 0,
-	offsetTop: 0,
-	top: 0,
-	topItems: [],
-	topListHeight: 0,
-	totalCount: 0
-};
-function ve(t, e, n, o, r, s) {
-	const { lastIndex: i, lastOffset: l, lastSize: c } = r;
-	let d = 0, m = 0;
-	if (t.length > 0) {
-		d = t[0].offset;
-		const R = t[t.length - 1];
-		m = R.offset + R.size;
-	}
-	const v = n - i, p = l + v * c + (v - 1) * o, I = d, w = p - m;
-	return {
-		bottom: m,
-		firstItemIndex: s,
-		items: Cn(t, r, s),
-		offsetBottom: w,
-		offsetTop: d,
-		top: I,
-		topItems: Cn(e, r, s),
-		topListHeight: e.reduce((R, h) => h.size + R, 0),
-		totalCount: n
-	};
-}
-function Xn(t, e, n, o, r, s) {
-	let i = 0;
-	if (n.groupIndices.length > 0) for (const m of n.groupIndices) {
-		if (m - i >= t) break;
-		i++;
-	}
-	const l = t + i, c = qe(e, l);
-	return ve(Array.from({ length: l }).map((m, v) => ({
-		data: s[v + c],
-		index: v + c,
-		offset: 0,
-		size: 0
-	})), [], l, r, n, o);
-}
-function Cn(t, e, n) {
-	if (t.length === 0) return [];
-	if (!be(e)) return t.map((d) => ({
-		...d,
-		index: d.index + n,
-		originalIndex: d.index
-	}));
-	const o = t[0].index, r = t[t.length - 1].index, s = [], i = Zt(e.groupOffsetTree, o, r);
-	let l, c = 0;
-	for (const d of t) {
-		(!l || l.end < d.index) && (l = i.shift(), c = e.groupIndices.indexOf(l.start));
-		let m;
-		d.index === l.start ? m = {
-			index: c,
-			type: "group"
-		} : m = {
-			groupIndex: c,
-			index: d.index - (c + 1) + n
-		}, s.push({
-			...m,
-			data: d.data,
-			offset: d.offset,
-			originalIndex: d.index,
-			size: d.size
-		});
-	}
-	return s;
-}
-function wn(t, e) {
-	return t === void 0 ? 0 : typeof t == "number" ? t : t[e] ?? 0;
-}
-var Kt = j(([{ data: t, firstItemIndex: e, gap: n, sizes: o, totalCount: r }, s, { listBoundary: i, topListHeight: l, visibleRange: c }, { initialTopMostItemIndex: d, scrolledToInitialItem: m }, { topListHeight: v }, p, { didMount: I }, { recalcInProgress: w }]) => {
-	const R = T([]), h = T(0), f = U(), a = T(0);
-	z(s.topItemsIndexes, R);
-	const S = ht(x$1(at(I, w, W(c, le), W(r), W(o), W(d), m, W(R), W(e), W(n), W(a), t), P(([u, g, , C, , , , , , , , L]) => {
-		const O = L !== void 0 && L.length !== C;
-		return u && !g && !O;
-	}), B(([, , [u, g], C, L, O, V, N, Z, F, mt, q]) => {
-		const Q = L, { offsetTree: gt, sizeTree: lt } = Q, St = it(h);
-		if (C === 0) return {
-			...Oe,
-			totalCount: C
-		};
-		if (u === 0 && g === 0) return St === 0 ? {
-			...Oe,
-			totalCount: C
-		} : Xn(St, O, L, Z, F, q || []);
-		if (J(lt)) return St > 0 ? null : ve(qo(qe(O, C), Q, q), [], C, F, Q, Z);
-		const Ft = [];
-		if (N.length > 0) {
-			const D = N[0], K = N[N.length - 1];
-			let st = 0;
-			for (const tt of Zt(lt, D, K)) {
-				const X = tt.value, ct = Math.max(tt.start, D), xt = Math.min(tt.end, K);
-				for (let ut = ct; ut <= xt; ut++) Ft.push({
-					data: q?.[ut],
-					index: ut,
-					offset: st,
-					size: X
-				}), st += X;
-			}
-		}
-		if (!V) return ve([], Ft, C, F, Q, Z);
-		const pt = N.length > 0 ? N[N.length - 1] + 1 : 0, jt = Wo(gt, u, g, pt);
-		if (jt.length === 0) return null;
-		const Qt = C - 1, Et = ye([], (D) => {
-			for (const K of jt) {
-				const st = K.value;
-				let tt = st.offset, X = K.start;
-				const ct = st.size;
-				if (st.offset < u) {
-					X += Math.floor((u - st.offset + F) / (ct + F));
-					const ut = X - K.start;
-					tt += ut * ct + ut * F;
-				}
-				X < pt && (tt += (pt - X) * ct, X = pt);
-				const xt = Math.min(K.end, Qt);
-				for (let ut = X; ut <= xt && !(tt >= g); ut++) D.push({
-					data: q?.[ut],
-					index: ut,
-					offset: tt,
-					size: ct
-				}), tt += ct + F;
-			}
-		}), te = wn(mt, ae), b = wn(mt, de);
-		if (Et.length > 0 && (te > 0 || b > 0)) {
-			const D = Et[0], K = Et[Et.length - 1];
-			if (te > 0 && D.index > pt) {
-				const st = Math.min(te, D.index - pt), tt = [];
-				let X = D.offset;
-				for (let ct = D.index - 1; ct >= D.index - st; ct--) {
-					const ut = Zt(lt, ct, ct)[0]?.value ?? D.size;
-					X -= ut + F, tt.unshift({
-						data: q?.[ct],
-						index: ct,
-						offset: X,
-						size: ut
-					});
-				}
-				Et.unshift(...tt);
-			}
-			if (b > 0 && K.index < Qt) {
-				const st = Math.min(b, Qt - K.index);
-				let tt = K.offset + K.size + F;
-				for (let X = K.index + 1; X <= K.index + st; X++) {
-					const xt = Zt(lt, X, X)[0]?.value ?? K.size;
-					Et.push({
-						data: q?.[X],
-						index: X,
-						offset: tt,
-						size: xt
-					}), tt += xt + F;
+//#region ../../node_modules/.pnpm/@tanstack+virtual-core@3.17.7/node_modules/@tanstack/virtual-core/dist/esm/lazy-measurements.js
+function createLazyMeasurementsView(count, flat, getItemKey) {
+	const cache = new Array(count);
+	return new Proxy(cache, { get(target, prop, receiver) {
+		if (typeof prop === "string") {
+			const c = prop.charCodeAt(0);
+			if (c >= 48 && c <= 57) {
+				const i = +prop;
+				if (Number.isInteger(i) && i >= 0 && i < count) {
+					let v = target[i];
+					if (!v) {
+						const s = flat[i * 2];
+						v = target[i] = {
+							index: i,
+							key: getItemKey(i),
+							start: s,
+							size: flat[i * 2 + 1],
+							end: s + flat[i * 2 + 1],
+							lane: 0
+						};
+					}
+					return v;
 				}
 			}
+			if (prop === "length") return count;
 		}
-		return ve(Et, Ft, C, F, Q, Z);
-	}), P((u) => u !== null), nt()), Oe);
-	z(x$1(t, P(_e), B((u) => u?.length)), r), z(x$1(S, B((u) => u.topListHeight)), v), z(v, l), z(x$1(S, B((u) => [u.top, u.bottom])), i), z(x$1(S, B((u) => u.items)), f);
-	const H = Tt(x$1(S, P(({ items: u }) => u.length > 0), $(r, t), P(([{ items: u }, g]) => u[u.length - 1].originalIndex === g - 1), B(([, u, g]) => [u - 1, g]), nt(le), B(([u]) => u))), y = Tt(x$1(S, zt(200), P(({ items: u, topItems: g }) => u.length > 0 && u[0].originalIndex === g.length), B(({ items: u }) => u[0].index), nt()));
-	return {
-		endReached: H,
-		initialItemCount: h,
-		itemsRendered: f,
-		listState: S,
-		minOverscanItemCount: a,
-		rangeChanged: Tt(x$1(S, P(({ items: u }) => u.length > 0), B(({ items: u }) => {
-			let g = 0, C = u.length - 1;
-			for (; u[g].type === "group" && g < C;) g++;
-			for (; u[C].type === "group" && C > g;) C--;
-			return {
-				endIndex: u[C].index,
-				startIndex: u[g].index
-			};
-		}), nt($n))),
-		startReached: y,
-		topItemsIndexes: R,
-		...p
-	};
-}, rt(Lt, qn, Ye, me, fe, pe, At, Ue), { singleton: !0 });
-var Jn = j(([{ fixedFooterHeight: t, fixedHeaderHeight: e, footerHeight: n, headerHeight: o }, { listState: r }]) => {
-	const s = U(), i = ht(x$1(at(n, t, o, e, r), B(([l, c, d, m, v]) => l + c + d + m + v.offsetBottom + v.bottom)), 0);
-	return z(W(i), s), {
-		totalListHeight: i,
-		totalListHeightChanged: s
-	};
-}, rt(It, Kt), { singleton: !0 });
-var Yo = j(([{ viewportHeight: t }, { totalListHeight: e }]) => {
-	const n = T(!1);
-	return {
-		alignToBottom: n,
-		paddingTopAddition: ht(x$1(at(n, t, e), P(([r]) => r), B(([, r, s]) => Math.max(0, r - s)), zt(0), nt()), 0)
-	};
-}, rt(It, Jn), { singleton: !0 });
-var Qn = j(() => ({ context: T(null) }));
-var Zo = ({ itemBottom: t, itemTop: e, locationParams: { align: n, behavior: o, ...r }, viewportBottom: s, viewportTop: i }) => e < i ? {
-	...r,
-	align: n ?? "start",
-	...o === void 0 ? {} : { behavior: o }
-} : t > s ? {
-	...r,
-	align: n ?? "end",
-	...o === void 0 ? {} : { behavior: o }
-} : null;
-var to$1 = j(([{ gap: t, sizes: e, totalCount: n }, { fixedFooterHeight: o, fixedHeaderHeight: r, headerHeight: s, scrollingInProgress: i, scrollTop: l, viewportHeight: c }, { scrollToIndex: d }]) => {
-	const m = U();
-	return z(x$1(m, $(e, c, n, s, r, o, l), $(t), B(([[v, p, I, w, R, h, f, a], S]) => {
-		const { calculateViewLocation: H = Zo, done: y, ...k } = v, u = jn(v, p, w - 1), g = ce(u, p.offsetTree, S) + R + h, C = g + Rt(p.sizeTree, u)[1], L = a + h, V = H({
-			itemBottom: C,
-			itemTop: g,
-			locationParams: k,
-			viewportBottom: a + I - f,
-			viewportTop: L
-		});
-		return V === null ? y?.() : y && yt(x$1(i, P((N) => !N), Ut(it(i) ? 1 : 2)), y), V;
-	}), P((v) => v !== null)), d), { scrollIntoView: m };
-}, rt(Lt, It, fe, Kt, Gt), { singleton: !0 });
-function yn(t) {
-	return t === !1 ? !1 : t === "smooth" ? "smooth" : "auto";
-}
-var Xo = (t, e) => typeof t == "function" ? yn(t(e)) : e && yn(t);
-var Jo = j(([{ listRefresh: t, totalCount: e, fixedItemSize: n, data: o }, { atBottomState: r, isAtBottom: s }, { scrollToIndex: i }, { scrolledToInitialItem: l }, { didMount: c, propsReady: d }, { log: m }, { scrollingInProgress: v }, { context: p }, { scrollIntoView: I }]) => {
-	const w = T(!1), R = U();
-	let h = null;
-	function f(y) {
-		M(i, {
-			align: "end",
-			behavior: y,
-			index: "LAST"
-		});
-	}
-	Y(x$1(at(x$1(W(e), Ut(1)), c), $(W(w), s, l, v), B(([[y, k], u, g, C, L]) => {
-		let O = k && C, V = "auto";
-		return O && (V = Xo(u, g || L), O = O && V !== !1), {
-			followOutputBehavior: V,
-			shouldFollow: O,
-			totalCount: y
-		};
-	}), P(({ shouldFollow: y }) => y)), ({ followOutputBehavior: y, totalCount: k }) => {
-		h !== null && (h(), h = null), it(n) === void 0 ? h = yt(t, () => {
-			it(m)("following output to ", { totalCount: k }, ft.DEBUG), f(y), h = null;
-		}) : requestAnimationFrame(() => {
-			it(m)("following output to ", { totalCount: k }, ft.DEBUG), f(y);
-		});
-	});
-	function a(y) {
-		const k = yt(r, (u) => {
-			y && !u.atBottom && u.notAtBottomBecause === "SIZE_INCREASED" && h === null && (it(m)("scrolling to bottom due to increased size", {}, ft.DEBUG), f("auto"));
-		});
-		setTimeout(k, 100);
-	}
-	Y(x$1(at(W(w), e, d), P(([y, , k]) => y !== !1 && k), Ot(({ value: y }, [, k]) => ({
-		refreshed: y === k,
-		value: k
-	}), {
-		refreshed: !1,
-		value: 0
-	}), P(({ refreshed: y }) => y), $(w, e)), ([, y]) => {
-		it(l) && a(y !== !1);
-	}), Y(R, () => {
-		a(it(w) !== !1);
-	}), Y(at(W(w), r), ([y, k]) => {
-		y !== !1 && !k.atBottom && k.notAtBottomBecause === "VIEWPORT_HEIGHT_DECREASING" && f("auto");
-	});
-	const S = T(null), H = U();
-	return z(Fe(x$1(W(o), B((y) => y?.length ?? 0)), x$1(W(e))), H), Y(x$1(at(x$1(H, Ut(1)), c), $(W(S), l, v, p), B(([[y, k], u, g, C, L]) => k && g && u?.({
-		context: L,
-		totalCount: y,
-		scrollingInProgress: C
-	})), P((y) => !!y), zt(0)), (y) => {
-		h !== null && (h(), h = null), it(n) === void 0 ? h = yt(t, () => {
-			it(m)("scrolling into view", {}), M(I, y), h = null;
-		}) : requestAnimationFrame(() => {
-			it(m)("scrolling into view", {}), M(I, y);
-		});
-	}), {
-		autoscrollToBottom: R,
-		followOutput: w,
-		scrollIntoViewOnChange: S
-	};
-}, rt(Lt, pe, fe, me, At, Gt, It, Qn, to$1));
-var Qo = j(([{ data: t, firstItemIndex: e, gap: n, sizes: o }, { initialTopMostItemIndex: r }, { initialItemCount: s, listState: i }, { didMount: l }]) => (z(x$1(l, $(s), P(([, c]) => c !== 0), $(r, o, e, n, t), B(([[, c], d, m, v, p, I = []]) => Xn(c, d, m, v, p, I))), i), {}), rt(Lt, me, Kt, At), { singleton: !0 });
-var tr = j(([{ didMount: t }, { scrollTo: e }, { listState: n }]) => {
-	const o = T(0);
-	return Y(x$1(t, $(o), P(([, r]) => r !== 0), B(([, r]) => ({ top: r }))), (r) => {
-		yt(x$1(n, Ut(1), P((s) => s.items.length > 1)), () => {
-			requestAnimationFrame(() => {
-				M(e, r);
-			});
-		});
-	}), { initialScrollTop: o };
-}, rt(At, It, Kt), { singleton: !0 });
-var eo = j(([{ scrollVelocity: t }]) => {
-	const e = T(!1), n = U(), o = T(!1);
-	return z(x$1(t, $(o, e, n), P(([r, s]) => s !== !1 && s !== void 0), B(([r, s, i, l]) => {
-		const { enter: c, exit: d } = s;
-		if (i) {
-			if (d(r, l)) return !1;
-		} else if (c(r, l)) return !0;
-		return i;
-	}), nt()), e), Y(x$1(at(e, t, n), $(o)), ([[r, s, i], l]) => {
-		r && l !== !1 && l !== void 0 && l.change && l.change(s, i);
-	}), {
-		isSeeking: e,
-		scrollSeekConfiguration: o,
-		scrollSeekRangeChanged: n,
-		scrollVelocity: t
-	};
-}, rt(pe), { singleton: !0 });
-var Ze = j(([{ scrollContainerState: t, scrollTo: e }]) => {
-	const n = U(), o = U(), r = U(), s = T(!1), i = T(void 0);
-	return z(x$1(at(n, o), B(([{ scrollTop: l, viewportHeight: c }, { offsetTop: d, listHeight: m }]) => ({
-		scrollHeight: m,
-		scrollTop: Math.max(0, l - d),
-		viewportHeight: c
-	}))), t), z(x$1(e, $(o), B(([l, { offsetTop: c }]) => ({
-		...l,
-		top: l.top + c
-	}))), r), {
-		customScrollParent: i,
-		useWindowScroll: s,
-		windowScrollContainerState: n,
-		windowScrollTo: r,
-		windowViewportRect: o
-	};
-}, rt(It));
-var er = j(([{ sizeRanges: t, sizes: e }, { headerHeight: n, scrollTop: o }, { initialTopMostItemIndex: r }, { didMount: s }, { useWindowScroll: i, windowScrollContainerState: l, windowViewportRect: c }]) => {
-	const d = U(), m = T(void 0), v = T(null), p = T(null);
-	return z(l, v), z(c, p), Y(x$1(d, $(e, o, i, v, p, n)), ([I, w, R, h, f, a, S]) => {
-		const H = Go(w.sizeTree);
-		h && f !== null && a !== null && (R = f.scrollTop - a.offsetTop), R -= S, I({
-			ranges: H,
-			scrollTop: R
-		});
-	}), z(x$1(m, P(_e), B(nr)), r), z(x$1(s, $(m), P(([, I]) => I !== void 0), nt(), B(([, I]) => I.ranges)), t), {
-		getState: d,
-		restoreStateFrom: m
-	};
-}, rt(Lt, It, me, At, Ze));
-function nr(t) {
-	return {
-		align: "start",
-		index: 0,
-		offset: t.scrollTop
-	};
-}
-var or = j(([{ topItemsIndexes: t }]) => {
-	const e = T(0);
-	return z(x$1(e, P((n) => n >= 0), B((n) => Array.from({ length: n }).map((o, r) => r))), t), { topItemCount: e };
-}, rt(Kt));
-function no(t) {
-	let e = !1, n;
-	return (() => (e || (e = !0, n = t()), n));
-}
-var rr = no(() => /iP(ad|od|hone)/i.test(navigator.userAgent) && /WebKit/i.test(navigator.userAgent));
-var oo = j(([{ data: t, defaultItemSize: e, firstItemIndex: n, fixedItemSize: o, fixedGroupSize: r, gap: s, groupIndices: i, heightEstimates: l, itemSize: c, sizeRanges: d, sizes: m, statefulTotalCount: v, totalCount: p, trackItemSizes: I }, { initialItemFinalLocationReached: w, initialTopMostItemIndex: R, scrolledToInitialItem: h }, f, a, S, H, { scrollToIndex: y }, k, { topItemCount: u }, { groupCounts: g }, C]) => {
-	const { listState: L, minOverscanItemCount: O, topItemsIndexes: V, rangeChanged: N, ...Z } = H;
-	return z(N, C.scrollSeekRangeChanged), z(x$1(C.windowViewportRect, B((F) => F.visibleHeight)), f.viewportHeight), {
-		data: t,
-		defaultItemHeight: e,
-		firstItemIndex: n,
-		fixedItemHeight: o,
-		fixedGroupHeight: r,
-		gap: s,
-		groupCounts: g,
-		heightEstimates: l,
-		initialItemFinalLocationReached: w,
-		initialTopMostItemIndex: R,
-		scrolledToInitialItem: h,
-		sizeRanges: d,
-		topItemCount: u,
-		topItemsIndexes: V,
-		totalCount: p,
-		...S,
-		groupIndices: i,
-		itemSize: c,
-		listState: L,
-		minOverscanItemCount: O,
-		scrollToIndex: y,
-		statefulTotalCount: v,
-		trackItemSizes: I,
-		rangeChanged: N,
-		...Z,
-		...C,
-		...f,
-		sizes: m,
-		...a
-	};
-}, rt(Lt, me, It, er, Jo, Kt, fe, j(([{ deviation: t, scrollBy: e, scrollingInProgress: n, scrollTop: o }, { isAtBottom: r, isScrolling: s, lastJumpDueToItemResize: i, scrollDirection: l }, { listState: c }, { beforeUnshiftWith: d, gap: m, shiftWithOffset: v, sizes: p }, { log: I }, { recalcInProgress: w }]) => {
-	const R = Tt(x$1(c, $(i), Ot(([, f, a, S], [{ bottom: H, items: y, offsetBottom: k, totalCount: u }, g]) => {
-		const C = H + k;
-		let L = 0;
-		return a === u && f.length > 0 && y.length > 0 && (y[0].originalIndex === 0 && f[0].originalIndex === 0 || (L = C - S, L !== 0 && (L += g))), [
-			L,
-			y,
-			u,
-			C
-		];
-	}, [
-		0,
-		[],
-		0,
-		0
-	]), P(([f]) => f !== 0), $(o, l, n, r, I, w), P(([, f, a, S, , , H]) => !H && !S && f !== 0 && a === ue), B(([[f], , , , , a]) => (a("Upward scrolling compensation", { amount: f }, ft.DEBUG), f))));
-	function h(f) {
-		f > 0 ? (M(e, {
-			behavior: "auto",
-			top: -f
-		}), M(t, 0)) : (M(t, 0), M(e, {
-			behavior: "auto",
-			top: -f
-		}));
-	}
-	return Y(x$1(R, $(t, s)), ([f, a, S]) => {
-		S && rr() ? M(t, a - f) : h(-f);
-	}), Y(x$1(at(ht(s, !1), t, w), P(([f, a, S]) => !f && !S && a !== 0), B(([f, a]) => a), zt(1)), h), z(x$1(v, B((f) => ({ top: -f }))), e), Y(x$1(d, $(p, m), B(([f, { groupIndices: a, lastSize: S, sizeTree: H }, y]) => {
-		function k(O) {
-			return O * (S + y);
-		}
-		if (a.length === 0) return k(f);
-		let u = 0;
-		const g = ie$2(H, 0);
-		let C = 0, L = 0;
-		for (; C < f;) {
-			C++, u += g;
-			let O = a.length === L + 1 ? Infinity : a[L + 1] - a[L] - 1;
-			C + O > f && (u -= g, O = f - C + 1), C += O, u += k(O), L++;
-		}
-		return u;
-	})), (f) => {
-		M(t, f), requestAnimationFrame(() => {
-			M(e, { top: f }), requestAnimationFrame(() => {
-				M(t, 0), M(w, !1);
-			});
-		});
-	}), { deviation: t };
-}, rt(It, pe, Kt, Lt, Gt, Ue)), or, qn, j(([t, e, n, o, r, s, i, l, c, d, m]) => ({
-	...t,
-	...e,
-	...n,
-	...o,
-	...r,
-	...s,
-	...i,
-	...l,
-	...c,
-	...d,
-	...m
-}), rt(Ye, Qo, At, eo, Jn, tr, Yo, Ze, to$1, Gt, Qn))));
-function lr(t, e) {
-	const n = {}, o = {};
-	let r = 0;
-	const s = t.length;
-	for (; r < s;) o[t[r]] = 1, r += 1;
-	for (const i in e) Object.hasOwn(o, i) || (n[i] = e[i]);
-	return n;
-}
-var Ie = typeof document > "u" ? import_react.useEffect : import_react.useLayoutEffect;
-function Xe(t, e, n) {
-	const o = Object.keys(e.required || {}), r = Object.keys(e.optional || {}), s = Object.keys(e.methods || {}), i = Object.keys(e.events || {}), l = import_react.createContext({});
-	function c(f, a) {
-		f.propsReady !== void 0 && M(f.propsReady, !1);
-		for (const S of o) {
-			const H = f[e.required[S]];
-			M(H, a[S]);
-		}
-		for (const S of r) if (S in a) {
-			const H = f[e.optional[S]];
-			M(H, a[S]);
-		}
-		f.propsReady !== void 0 && M(f.propsReady, !0);
-	}
-	function d(f) {
-		return s.reduce((a, S) => (a[S] = (H) => {
-			const y = f[e.methods[S]];
-			M(y, H);
-		}, a), {});
-	}
-	function m(f) {
-		return i.reduce((a, S) => (a[S] = Co(f[e.events[S]]), a), {});
-	}
-	const v = import_react.forwardRef(function(a, S) {
-		const { children: H, ...y } = a, [k] = import_react.useState(() => ye(bo(t), (C) => {
-			c(C, y);
-		})), [u] = import_react.useState(mn(m, k));
-		Ie(() => {
-			for (const C of i) C in y && Y(u[C], y[C]);
-			return () => {
-				Object.values(u).map(Ne);
-			};
-		}, [
-			y,
-			u,
-			k
-		]), Ie(() => {
-			c(k, y);
-		}), import_react.useImperativeHandle(S, fn(d(k)));
-		const g = n;
-		return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(l.Provider, {
-			value: k,
-			children: n === void 0 ? H : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(g, {
-				...lr([
-					...o,
-					...r,
-					...i
-				], y),
-				children: H
-			})
-		});
-	}), p = (f) => {
-		const a = import_react.useContext(l);
-		return import_react.useCallback((S) => {
-			M(a[f], S);
-		}, [a, f]);
-	}, I = (f) => {
-		const S = import_react.useContext(l)[f], H = import_react.useCallback((y) => Y(S, y), [S]);
-		return import_react.useSyncExternalStore(H, () => it(S), () => it(S));
-	}, w = (f) => {
-		const S = import_react.useContext(l)[f], [H, y] = import_react.useState(mn(it, S));
-		return Ie(() => Y(S, (k) => {
-			k !== H && y(fn(k));
-		}), [S, H]), H;
-	};
-	return {
-		Component: v,
-		useEmitter: (f, a) => {
-			const H = import_react.useContext(l)[f];
-			Ie(() => Y(H, a), [a, H]);
-		},
-		useEmitterValue: parseInt("19.2.8", 10) >= 18 ? I : w,
-		usePublisher: p
-	};
-}
-var Re = import_react.createContext(void 0);
-var ro = import_react.createContext(void 0);
-var ke = "-webkit-sticky";
-var bn = "sticky";
-var Je = no(() => {
-	if (typeof document > "u") return bn;
-	const t = document.createElement("div");
-	return t.style.position = ke, t.style.position === ke ? ke : bn;
-});
-var so = typeof document > "u" ? import_react.useEffect : import_react.useLayoutEffect;
-function Le(t) {
-	return "self" in t;
-}
-function cr(t) {
-	return "body" in t;
-}
-function io(t, e, n, o = Jt, r, s) {
-	const i = import_react.useRef(null), l = import_react.useRef(null), c = import_react.useRef(null), d = import_react.useCallback((p) => {
-		let I, w, R;
-		const h = p.target;
-		if (cr(h) || Le(h)) {
-			const a = Le(h) ? h : h.defaultView;
-			R = s === !0 ? _t(a, a.scrollX) : a.scrollY, I = s === !0 ? a.document.documentElement.scrollWidth : a.document.documentElement.scrollHeight, w = s === !0 ? a.innerWidth : a.innerHeight;
-		} else R = s === !0 ? _t(h, h.scrollLeft) : h.scrollTop, I = s === !0 ? h.scrollWidth : h.scrollHeight, w = s === !0 ? h.offsetWidth : h.offsetHeight;
-		const f = () => {
-			t({
-				scrollHeight: I,
-				scrollTop: Math.max(R, 0),
-				viewportHeight: w
-			});
-		};
-		p.suppressFlushSync === !0 ? f() : import_react_dom.flushSync(f), l.current !== null && (R === l.current || R <= 0 || R === I - w) && (l.current = null, e(!0), c.current && (clearTimeout(c.current), c.current = null));
-	}, [
-		t,
-		e,
-		s
-	]);
-	import_react.useEffect(() => {
-		const p = r ?? i.current;
-		return o(r ?? i.current), d({
-			suppressFlushSync: !0,
-			target: p
-		}), p.addEventListener("scroll", d, { passive: !0 }), () => {
-			o(null), p.removeEventListener("scroll", d);
-		};
-	}, [
-		i,
-		d,
-		n,
-		o,
-		r
-	]);
-	function m(p) {
-		const I = i.current;
-		if (!I || (s === !0 ? "offsetWidth" in I && I.offsetWidth === 0 : "offsetHeight" in I && I.offsetHeight === 0)) return;
-		const w = p.behavior === "smooth";
-		let R, h, f;
-		Le(I) ? (h = Math.max(Ht(I.document.documentElement, s === !0 ? "width" : "height"), s === !0 ? I.document.documentElement.scrollWidth : I.document.documentElement.scrollHeight), R = s === !0 ? I.innerWidth : I.innerHeight, f = s === !0 ? _t(I, I.scrollX) : I.scrollY) : (h = I[s === !0 ? "scrollWidth" : "scrollHeight"], R = Ht(I, s === !0 ? "width" : "height"), f = s === !0 ? _t(I, I.scrollLeft) : I.scrollTop);
-		const a = h - R;
-		if (p.top === void 0) {
-			I.scrollTo(p);
-			return;
-		}
-		const S = Math.ceil(Math.max(Math.min(a, p.top), 0));
-		if (p.top = S, Zn(R, h) || S === f) {
-			t({
-				scrollHeight: h,
-				scrollTop: f,
-				viewportHeight: R
-			}), w && e(!0);
-			return;
-		}
-		w ? (l.current = S, c.current && clearTimeout(c.current), c.current = setTimeout(() => {
-			c.current = null, l.current = null, e(!0);
-		}, 1e3)) : l.current = null, s === !0 && (p = {
-			...p.behavior === void 0 ? {} : { behavior: p.behavior },
-			left: hn(I, S)
-		}), I.scrollTo(p);
-	}
-	function v(p) {
-		s === !0 && (p = {
-			...p.behavior === void 0 ? {} : { behavior: p.behavior },
-			...p.top === void 0 ? {} : { left: hn(i.current, p.top) }
-		}), i.current.scrollBy(p);
-	}
-	return {
-		scrollByCallback: v,
-		scrollerRef: i,
-		scrollToCallback: m
-	};
-}
-function Qe(t) {
-	return t;
-}
-var ar = /* @__PURE__ */ j(([t, e]) => ({
-	...t,
-	...e
-}), rt(oo, /* @__PURE__ */ j(() => {
-	const t = T((l) => `Item ${l}`), e = T((l) => `Group ${l}`), n = T({}), o = T(Qe), r = T("div"), s = T(Jt), i = (l, c = null) => ht(x$1(n, B((d) => d[l]), nt()), c);
-	return {
-		components: n,
-		computeItemKey: o,
-		EmptyPlaceholder: i("EmptyPlaceholder"),
-		FooterComponent: i("Footer"),
-		GroupComponent: i("Group", "div"),
-		groupContent: e,
-		HeaderComponent: i("Header"),
-		HeaderFooterTag: r,
-		ItemComponent: i("Item", "div"),
-		itemContent: t,
-		ListComponent: i("List", "div"),
-		ScrollerComponent: i("Scroller", "div"),
-		scrollerRef: s,
-		ScrollSeekPlaceholder: i("ScrollSeekPlaceholder"),
-		TopItemListComponent: i("TopItemList")
-	};
-})));
-var dr = ({ height: t }) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { height: t } });
-var fr = {
-	overflowAnchor: "none",
-	position: Je(),
-	zIndex: 1
-};
-var lo = { overflowAnchor: "none" };
-var mr = {
-	...lo,
-	display: "inline-block",
-	height: "100%"
-};
-var Rn = /* @__PURE__ */ import_react.memo(function({ showTopList: e = !1 }) {
-	const n = A("listState"), o = Ct("sizeRanges"), r = A("useWindowScroll"), s = A("customScrollParent"), i = Ct("windowScrollContainerState"), l = Ct("scrollContainerState"), c = s || r ? i : l, d = A("itemContent"), m = A("context"), v = A("groupContent"), p = A("trackItemSizes"), I = A("itemSize"), w = A("log"), R = Ct("gap"), h = A("horizontalDirection"), { callbackRef: f } = Gn(o, I, p, e ? Jt : c, w, R, s, h, A("skipAnimationFrameInResizeObserver")), [a, S] = import_react.useState(0);
-	on("deviation", (F) => {
-		a !== F && S(F);
-	});
-	const H = A("EmptyPlaceholder"), y = A("ScrollSeekPlaceholder") ?? dr, k = A("ListComponent"), u = A("ItemComponent"), g = A("GroupComponent"), C = A("computeItemKey"), L = A("isSeeking"), O = A("groupIndices").length > 0, V = A("alignToBottom"), N = A("initialItemFinalLocationReached"), Z = e ? {} : {
-		boxSizing: "border-box",
-		...h ? {
-			display: "inline-block",
-			height: "100%",
-			marginInlineStart: a === 0 ? V ? "auto" : 0 : a,
-			paddingInlineEnd: n.offsetBottom,
-			paddingInlineStart: n.offsetTop,
-			whiteSpace: "nowrap"
-		} : {
-			marginTop: a === 0 ? V ? "auto" : 0 : a,
-			paddingBottom: n.offsetBottom,
-			paddingTop: n.offsetTop
-		},
-		...N ? {} : { visibility: "hidden" }
-	};
-	return !e && n.totalCount === 0 && H !== null && H !== void 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(H, { ...ot(H, m) }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(k, {
-		...ot(k, m),
-		"data-testid": e ? "virtuoso-top-item-list" : "virtuoso-item-list",
-		ref: f,
-		style: Z,
-		children: (e ? n.topItems : n.items).map((F) => {
-			const mt = F.originalIndex, q = C(mt + n.firstItemIndex, F.data, m);
-			return L ? /* @__PURE__ */ (0, import_react.createElement)(y, {
-				...ot(y, m),
-				height: F.size,
-				index: F.index,
-				key: q,
-				type: F.type || "item",
-				...F.type === "group" ? {} : { groupIndex: F.groupIndex }
-			}) : F.type === "group" ? /* @__PURE__ */ (0, import_react.createElement)(g, {
-				...ot(g, m),
-				"data-index": mt,
-				"data-item-index": F.index,
-				"data-known-size": F.size,
-				key: q,
-				style: fr
-			}, v(F.index, m)) : /* @__PURE__ */ (0, import_react.createElement)(u, {
-				...ot(u, m),
-				...co(u, F.data),
-				"data-index": mt,
-				"data-item-group-index": F.groupIndex,
-				"data-item-index": F.index,
-				"data-known-size": F.size,
-				key: q,
-				style: h ? mr : lo
-			}, O ? d(F.index, F.groupIndex, F.data, m) : d(F.index, F.data, m));
-		})
-	});
-});
-var pr = {
-	height: "100%",
-	outline: "none",
-	overflowY: "auto",
-	position: "relative",
-	WebkitOverflowScrolling: "touch"
-};
-var hr = {
-	outline: "none",
-	overflowX: "auto",
-	position: "relative"
-};
-var He = (t) => ({
-	height: "100%",
-	position: "absolute",
-	top: 0,
-	width: "100%",
-	...t ? {
-		display: "flex",
-		flexDirection: "column"
-	} : void 0
-});
-var tn = (t, e, n = 0) => ({
-	...He(t),
-	position: e ? "relative" : "absolute",
-	top: e ? -n : 0
-});
-var gr = {
-	position: Je(),
-	top: 0,
-	width: "100%",
-	zIndex: 1
-};
-function ot(t, e) {
-	if (typeof t != "string") return { context: e };
-}
-function co(t, e) {
-	return { item: typeof t == "string" ? void 0 : e };
-}
-var Ir = /* @__PURE__ */ import_react.memo(function() {
-	const e = A("HeaderComponent"), n = Ct("headerHeight"), o = A("HeaderFooterTag"), r = kt(import_react.useMemo(() => (i) => {
-		n(Ht(i, "height"));
-	}, [n]), !0, A("skipAnimationFrameInResizeObserver")), s = A("context");
-	return e != null ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(o, {
-		ref: r,
-		children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(e, { ...ot(e, s) })
-	}) : null;
-});
-var Sr = /* @__PURE__ */ import_react.memo(function() {
-	const e = A("FooterComponent"), n = Ct("footerHeight"), o = A("HeaderFooterTag"), r = kt(import_react.useMemo(() => (i) => {
-		n(Ht(i, "height"));
-	}, [n]), !0, A("skipAnimationFrameInResizeObserver")), s = A("context");
-	return e != null ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(o, {
-		ref: r,
-		children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(e, { ...ot(e, s) })
-	}) : null;
-});
-function en({ useEmitter: t, useEmitterValue: e, usePublisher: n }) {
-	return import_react.memo(function({ children: s, style: i, context: l, ...c }) {
-		const d = n("scrollContainerState"), m = e("ScrollerComponent"), v = n("smoothScrollTargetReached"), p = e("scrollerRef"), I = e("horizontalDirection") || !1, { scrollByCallback: w, scrollerRef: R, scrollToCallback: h } = io(d, v, m, p, void 0, I);
-		return t("scrollTo", h), t("scrollBy", w), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(m, {
-			"data-testid": "virtuoso-scroller",
-			"data-virtuoso-scroller": !0,
-			ref: R,
-			style: {
-				...I ? hr : pr,
-				...i
-			},
-			tabIndex: 0,
-			...c,
-			...ot(m, l),
-			children: s
-		});
-	});
-}
-function nn({ useEmitter: t, useEmitterValue: e, usePublisher: n }) {
-	return import_react.memo(function({ children: s, style: i, context: l, ...c }) {
-		const d = n("windowScrollContainerState"), m = e("ScrollerComponent"), v = n("smoothScrollTargetReached"), p = e("totalListHeight"), I = e("deviation"), w = e("customScrollParent"), R = import_react.useRef(null), { scrollByCallback: f, scrollerRef: a, scrollToCallback: S } = io(d, v, m, e("scrollerRef"), w);
-		return so(() => (a.current = w ?? R.current?.ownerDocument.defaultView, () => {
-			a.current = null;
-		}), [a, w]), t("windowScrollTo", S), t("scrollBy", f), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(m, {
-			ref: R,
-			"data-virtuoso-scroller": !0,
-			style: {
-				position: "relative",
-				...i,
-				...p === 0 ? void 0 : { height: p + I }
-			},
-			...c,
-			...ot(m, l),
-			children: s
-		});
-	});
-}
-var xr = ({ children: t }) => {
-	const e = import_react.useContext(Re), n = Ct("viewportHeight"), o = Ct("fixedItemHeight"), r = A("alignToBottom"), s = A("horizontalDirection"), l = kt(import_react.useMemo(() => re(n, (c) => Ht(c, s ? "width" : "height")), [n, s]), !0, A("skipAnimationFrameInResizeObserver"));
-	return import_react.useEffect(() => {
-		e && (n(e.viewportHeight), o(e.itemHeight));
-	}, [
-		e,
-		n,
-		o
-	]), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-		"data-viewport-type": "element",
-		ref: l,
-		style: He(r),
-		children: t
-	});
-}, vr = ({ children: t }) => {
-	const e = import_react.useContext(Re), n = Ct("windowViewportRect"), o = Ct("fixedItemHeight"), r = A("customScrollParent"), s = A("useWindowScroll"), i = A("topListHeight"), l = $e(n, r, A("skipAnimationFrameInResizeObserver")), c = A("alignToBottom");
-	return import_react.useEffect(() => {
-		e && (o(e.itemHeight), n({
-			listHeight: 0,
-			offsetTop: 0,
-			visibleHeight: e.viewportHeight,
-			visibleWidth: 100
-		}));
-	}, [
-		e,
-		n,
-		o
-	]), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-		"data-viewport-type": "window",
-		ref: l,
-		style: tn(c, s, i),
-		children: t
-	});
-}, Tr = ({ children: t }) => {
-	const e = A("TopItemListComponent") ?? "div", n = A("headerHeight");
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(e, {
-		style: {
-			...gr,
-			marginTop: `${n}px`
-		},
-		...ot(e, A("context")),
-		children: t
-	});
-}, { Component: uo, useEmitter: on, useEmitterValue: A, usePublisher: Ct } = /* @__PURE__ */ Xe(ar, {
-	optional: {
-		restoreStateFrom: "restoreStateFrom",
-		context: "context",
-		followOutput: "followOutput",
-		scrollIntoViewOnChange: "scrollIntoViewOnChange",
-		itemContent: "itemContent",
-		groupContent: "groupContent",
-		overscan: "overscan",
-		increaseViewportBy: "increaseViewportBy",
-		minOverscanItemCount: "minOverscanItemCount",
-		totalCount: "totalCount",
-		groupCounts: "groupCounts",
-		topItemCount: "topItemCount",
-		firstItemIndex: "firstItemIndex",
-		initialTopMostItemIndex: "initialTopMostItemIndex",
-		components: "components",
-		atBottomThreshold: "atBottomThreshold",
-		atTopThreshold: "atTopThreshold",
-		computeItemKey: "computeItemKey",
-		defaultItemHeight: "defaultItemHeight",
-		fixedGroupHeight: "fixedGroupHeight",
-		fixedItemHeight: "fixedItemHeight",
-		heightEstimates: "heightEstimates",
-		itemSize: "itemSize",
-		scrollSeekConfiguration: "scrollSeekConfiguration",
-		headerFooterTag: "HeaderFooterTag",
-		data: "data",
-		initialItemCount: "initialItemCount",
-		initialScrollTop: "initialScrollTop",
-		alignToBottom: "alignToBottom",
-		useWindowScroll: "useWindowScroll",
-		customScrollParent: "customScrollParent",
-		scrollerRef: "scrollerRef",
-		logLevel: "logLevel",
-		horizontalDirection: "horizontalDirection",
-		skipAnimationFrameInResizeObserver: "skipAnimationFrameInResizeObserver"
-	},
-	methods: {
-		scrollToIndex: "scrollToIndex",
-		scrollIntoView: "scrollIntoView",
-		scrollTo: "scrollTo",
-		scrollBy: "scrollBy",
-		autoscrollToBottom: "autoscrollToBottom",
-		getState: "getState"
-	},
-	events: {
-		isScrolling: "isScrolling",
-		endReached: "endReached",
-		startReached: "startReached",
-		rangeChanged: "rangeChanged",
-		atBottomStateChange: "atBottomStateChange",
-		atTopStateChange: "atTopStateChange",
-		totalListHeightChanged: "totalListHeightChanged",
-		itemsRendered: "itemsRendered",
-		groupIndices: "groupIndices"
-	}
-}, /* @__PURE__ */ import_react.memo(function(e) {
-	const n = A("useWindowScroll"), o = A("topItemsIndexes").length > 0, r = A("customScrollParent"), s = A("context");
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(r || n ? yr : wr, {
-		...e,
-		context: s,
-		children: [o && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Tr, { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Rn, { showTopList: !0 }) }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(r || n ? vr : xr, { children: [
-			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Ir, {}),
-			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Rn, {}),
-			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Sr, {})
-		] })]
-	});
-})), wr = /* @__PURE__ */ en({
-	useEmitter: on,
-	useEmitterValue: A,
-	usePublisher: Ct
-}), yr = /* @__PURE__ */ nn({
-	useEmitter: on,
-	useEmitterValue: A,
-	usePublisher: Ct
-}), es = uo, Rr = /* @__PURE__ */ j(([t, e]) => ({
-	...t,
-	...e
-}), rt(oo, /* @__PURE__ */ j(() => {
-	const t = T((d) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("td", { children: ["Item $", d] })), e = T(null), n = T((d) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("td", {
-		colSpan: 1e3,
-		children: ["Group ", d]
-	})), o = T(null), r = T(null), s = T({}), i = T(Qe), l = T(Jt), c = (d, m = null) => ht(x$1(s, B((v) => v[d]), nt()), m);
-	return {
-		components: s,
-		computeItemKey: i,
-		context: e,
-		EmptyPlaceholder: c("EmptyPlaceholder"),
-		FillerRow: c("FillerRow"),
-		fixedFooterContent: r,
-		fixedHeaderContent: o,
-		itemContent: t,
-		groupContent: n,
-		ScrollerComponent: c("Scroller", "div"),
-		scrollerRef: l,
-		ScrollSeekPlaceholder: c("ScrollSeekPlaceholder"),
-		TableBodyComponent: c("TableBody", "tbody"),
-		TableComponent: c("Table", "table"),
-		TableFooterComponent: c("TableFoot", "tfoot"),
-		TableHeadComponent: c("TableHead", "thead"),
-		TableRowComponent: c("TableRow", "tr"),
-		GroupComponent: c("Group", "tr")
-	};
-}))), Hr = ({ height: t }) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("tr", { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { style: { height: t } }) }), Er = ({ height: t }) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("tr", { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { style: {
-	border: 0,
-	height: t,
-	padding: 0
-} }) }), Br = { overflowAnchor: "none" }, Hn = {
-	position: Je(),
-	zIndex: 2,
-	overflowAnchor: "none"
-}, En = /* @__PURE__ */ import_react.memo(function({ showTopList: e = !1 }) {
-	const n = _("listState"), o = _("computeItemKey"), r = _("firstItemIndex"), s = _("context"), i = _("isSeeking"), l = _("fixedHeaderHeight"), c = _("groupIndices").length > 0, d = _("itemContent"), m = _("groupContent"), v = _("ScrollSeekPlaceholder") ?? Hr, p = _("GroupComponent"), I = _("TableRowComponent"), w = (e ? n.topItems : []).reduce((h, f, a) => (a === 0 ? h.push(f.size) : h.push(h[a - 1] + f.size), h), []);
-	return (e ? n.topItems : n.items).map((h) => {
-		const f = h.originalIndex, a = o(f + r, h.data, s), S = e ? f === 0 ? 0 : w[f - 1] : 0;
-		return i ? /* @__PURE__ */ (0, import_react.createElement)(v, {
-			...ot(v, s),
-			height: h.size,
-			index: h.index,
-			key: a,
-			type: h.type || "item"
-		}) : h.type === "group" ? /* @__PURE__ */ (0, import_react.createElement)(p, {
-			...ot(p, s),
-			"data-index": f,
-			"data-item-index": h.index,
-			"data-known-size": h.size,
-			key: a,
-			style: {
-				...Hn,
-				top: l
-			}
-		}, m(h.index, s)) : /* @__PURE__ */ (0, import_react.createElement)(I, {
-			...ot(I, s),
-			...co(I, h.data),
-			"data-index": f,
-			"data-item-index": h.index,
-			"data-known-size": h.size,
-			"data-item-group-index": h.groupIndex,
-			key: a,
-			style: e ? {
-				...Hn,
-				top: l + S
-			} : Br
-		}, c ? d(h.index, h.groupIndex, h.data, s) : d(h.index, h.data, s));
-	});
-}), Or = /* @__PURE__ */ import_react.memo(function() {
-	const e = _("listState"), n = _("topItemsIndexes").length > 0, o = bt("sizeRanges"), r = _("useWindowScroll"), s = _("customScrollParent"), i = bt("windowScrollContainerState"), l = bt("scrollContainerState"), c = s || r ? i : l, d = _("trackItemSizes"), { callbackRef: p, ref: I } = Gn(o, _("itemSize"), d, c, _("log"), void 0, s, !1, _("skipAnimationFrameInResizeObserver")), [w, R] = import_react.useState(0);
-	rn("deviation", (O) => {
-		w !== O && (I.current.style.marginTop = `${O}px`, R(O));
-	});
-	const h = _("EmptyPlaceholder"), f = _("FillerRow") ?? Er, a = _("TableBodyComponent"), S = _("paddingTopAddition"), H = _("statefulTotalCount"), y = _("context");
-	if (H === 0 && h !== null && h !== void 0) return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(h, { ...ot(h, y) });
-	const k = (n ? e.topItems : []).reduce((O, V) => O + V.size, 0), u = e.offsetTop + S + w - k, g = e.offsetBottom, C = u > 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(f, {
-		context: y,
-		height: u
-	}, "padding-top") : null, L = g > 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(f, {
-		context: y,
-		height: g
-	}, "padding-bottom") : null;
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(a, {
-		"data-testid": "virtuoso-item-list",
-		ref: p,
-		...ot(a, y),
-		children: [
-			C,
-			n && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(En, { showTopList: !0 }),
-			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(En, {}),
-			L
-		]
-	});
-}), kr = ({ children: t }) => {
-	const e = import_react.useContext(Re), n = bt("viewportHeight"), o = bt("fixedItemHeight"), r = kt(import_react.useMemo(() => re(n, (s) => Ht(s, "height")), [n]), !0, _("skipAnimationFrameInResizeObserver"));
-	return import_react.useEffect(() => {
-		e && (n(e.viewportHeight), o(e.itemHeight));
-	}, [
-		e,
-		n,
-		o
-	]), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-		"data-viewport-type": "element",
-		ref: r,
-		style: He(!1),
-		children: t
-	});
-}, Lr = ({ children: t }) => {
-	const e = import_react.useContext(Re), n = bt("windowViewportRect"), o = bt("fixedItemHeight"), r = _("customScrollParent"), s = _("useWindowScroll"), i = $e(n, r, _("skipAnimationFrameInResizeObserver"));
-	return import_react.useEffect(() => {
-		e && (o(e.itemHeight), n({
-			listHeight: 0,
-			offsetTop: 0,
-			visibleHeight: e.viewportHeight,
-			visibleWidth: 100
-		}));
-	}, [
-		e,
-		n,
-		o
-	]), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-		"data-viewport-type": "window",
-		ref: i,
-		style: tn(!1, s),
-		children: t
-	});
-}, { Component: ao, useEmitter: rn, useEmitterValue: _, usePublisher: bt } = /* @__PURE__ */ Xe(Rr, {
-	optional: {
-		restoreStateFrom: "restoreStateFrom",
-		context: "context",
-		followOutput: "followOutput",
-		firstItemIndex: "firstItemIndex",
-		itemContent: "itemContent",
-		groupContent: "groupContent",
-		fixedHeaderContent: "fixedHeaderContent",
-		fixedFooterContent: "fixedFooterContent",
-		overscan: "overscan",
-		increaseViewportBy: "increaseViewportBy",
-		minOverscanItemCount: "minOverscanItemCount",
-		totalCount: "totalCount",
-		topItemCount: "topItemCount",
-		initialTopMostItemIndex: "initialTopMostItemIndex",
-		components: "components",
-		groupCounts: "groupCounts",
-		atBottomThreshold: "atBottomThreshold",
-		atTopThreshold: "atTopThreshold",
-		computeItemKey: "computeItemKey",
-		defaultItemHeight: "defaultItemHeight",
-		fixedGroupHeight: "fixedGroupHeight",
-		fixedItemHeight: "fixedItemHeight",
-		itemSize: "itemSize",
-		scrollSeekConfiguration: "scrollSeekConfiguration",
-		data: "data",
-		initialItemCount: "initialItemCount",
-		initialScrollTop: "initialScrollTop",
-		alignToBottom: "alignToBottom",
-		useWindowScroll: "useWindowScroll",
-		customScrollParent: "customScrollParent",
-		scrollerRef: "scrollerRef",
-		logLevel: "logLevel"
-	},
-	methods: {
-		scrollToIndex: "scrollToIndex",
-		scrollIntoView: "scrollIntoView",
-		scrollTo: "scrollTo",
-		scrollBy: "scrollBy",
-		getState: "getState"
-	},
-	events: {
-		isScrolling: "isScrolling",
-		endReached: "endReached",
-		startReached: "startReached",
-		rangeChanged: "rangeChanged",
-		atBottomStateChange: "atBottomStateChange",
-		atTopStateChange: "atTopStateChange",
-		totalListHeightChanged: "totalListHeightChanged",
-		itemsRendered: "itemsRendered",
-		groupIndices: "groupIndices"
-	}
-}, /* @__PURE__ */ import_react.memo(function(e) {
-	const n = _("useWindowScroll"), o = _("customScrollParent"), r = bt("fixedHeaderHeight"), s = bt("fixedFooterHeight"), i = _("fixedHeaderContent"), l = _("fixedFooterContent"), c = _("context"), d = kt(import_react.useMemo(() => re(r, (a) => Ht(a, "height")), [r]), !0, _("skipAnimationFrameInResizeObserver")), m = kt(import_react.useMemo(() => re(s, (a) => Ht(a, "height")), [s]), !0, _("skipAnimationFrameInResizeObserver")), v = o || n ? Vr : Fr, p = o || n ? Lr : kr, I = _("TableComponent"), w = _("TableHeadComponent"), R = _("TableFooterComponent"), h = i ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(w, {
-		ref: d,
-		style: {
-			position: "sticky",
-			top: 0,
-			zIndex: 2
-		},
-		...ot(w, c),
-		children: i()
-	}, "TableHead") : null, f = l ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(R, {
-		ref: m,
-		style: {
-			bottom: 0,
-			position: "sticky",
-			zIndex: 1
-		},
-		...ot(R, c),
-		children: l()
-	}, "TableFoot") : null;
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(v, {
-		...e,
-		...ot(v, c),
-		children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(p, { children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(I, {
-			style: {
-				borderSpacing: 0,
-				overflowAnchor: "none"
-			},
-			...ot(I, c),
-			children: [
-				h,
-				/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Or, {}, "TableBody"),
-				f
-			]
-		}) })
-	});
-})), Fr = /* @__PURE__ */ en({
-	useEmitter: rn,
-	useEmitterValue: _,
-	usePublisher: bt
-}), Vr = /* @__PURE__ */ nn({
-	useEmitter: rn,
-	useEmitterValue: _,
-	usePublisher: bt
-}), Bn = {
-	bottom: 0,
-	itemHeight: 0,
-	items: [],
-	itemWidth: 0,
-	offsetBottom: 0,
-	offsetTop: 0,
-	top: 0
-}, Wr = {
-	bottom: 0,
-	itemHeight: 0,
-	items: [{ index: 0 }],
-	itemWidth: 0,
-	offsetBottom: 0,
-	offsetTop: 0,
-	top: 0
-}, { ceil: On, floor: Ce, max: oe, min: ze, round: kn } = Math;
-function Ln(t, e, n) {
-	return Array.from({ length: e - t + 1 }).map((o, r) => ({
-		data: n === null ? null : n[r + t],
-		index: r + t
-	}));
-}
-function Pr(t) {
-	return {
-		...Wr,
-		items: t
-	};
-}
-function Se(t, e) {
-	return t !== void 0 && t.width === e.width && t.height === e.height;
-}
-function Gr(t, e) {
-	return t !== void 0 && t.column === e.column && t.row === e.row;
-}
-var Ar = /* @__PURE__ */ j(([{ increaseViewportBy: t, listBoundary: e, overscan: n, visibleRange: o }, { footerHeight: r, headerHeight: s, scrollBy: i, scrollContainerState: l, scrollTo: c, scrollTop: d, smoothScrollTargetReached: m, viewportHeight: v }, p, I, { didMount: w, propsReady: R }, { customScrollParent: h, useWindowScroll: f, windowScrollContainerState: a, windowScrollTo: S, windowViewportRect: H }, y]) => {
-	const k = T(0), u = T(0), g = T(Bn), C = T({
-		height: 0,
-		width: 0
-	}), L = T({
-		height: 0,
-		width: 0
-	}), O = U(), V = U(), N = T(0), Z = T(null), F = T({
-		column: 0,
-		row: 0
-	}), mt = U(), q = U(), Q = T(!1), gt = T(0), lt = T(!0), St = T(!1), Ft = T(!1);
-	Y(x$1(w, $(gt), P(([b, D]) => !Ae(D))), () => {
-		M(lt, !1);
-	}), Y(x$1(at(w, lt, L, C, gt, St), P(([b, D, K, st, , tt]) => b && !D && K.height !== 0 && st.height !== 0 && !tt)), ([, , , , b]) => {
-		if (b === void 0) {
-			M(lt, !0);
-			return;
-		}
-		M(St, !0), je(1, () => {
-			M(O, b);
-		}), yt(x$1(d), () => {
-			M(e, [0, 0]), M(lt, !0);
-		});
-	}), z(x$1(q, P((b) => b != null && b.scrollTop > 0), Bt(0)), u), Y(x$1(w, $(q), P(([, b]) => b != null)), ([, b]) => {
-		b && (M(C, b.viewport), M(L, b.item), M(F, b.gap), b.scrollTop > 0 && (M(Q, !0), yt(x$1(d, Ut(1)), (D) => {
-			M(Q, !1);
-		}), M(c, { top: b.scrollTop })));
-	}), z(x$1(C, B(({ height: b }) => b)), v), z(x$1(at(W(C, Se), W(L, Se), W(F, (b, D) => b !== void 0 && b.column === D.column && b.row === D.row), W(d)), B(([b, D, K, st]) => ({
-		gap: K,
-		item: D,
-		scrollTop: st,
-		viewport: b
-	}))), mt), z(x$1(at(W(k), o, W(F, Gr), W(L, Se), W(C, Se), W(Z), W(u), W(Q), W(lt), W(gt)), P(([, , , , , , , b]) => !b), B(([b, [D, K], st, tt, X, ct, xt, , ut, Vt]) => {
-		const { column: Wt, row: ee } = st, { height: he, width: Ee } = tt, { width: sn } = X;
-		if (xt === 0 && (b === 0 || sn === 0)) return Bn;
-		if (Ee === 0) {
-			const dn = qe(Vt, b);
-			return Pr(Ln(dn, dn + Math.max(xt - 1, 0), ct));
-		}
-		const ge = fo(sn, Ee, Wt);
-		let qt, Mt;
-		ut ? D === 0 && K === 0 && xt > 0 ? (qt = 0, Mt = xt - 1) : (qt = ge * Ce((D + ee) / (he + ee)), Mt = ge * On((K + ee) / (he + ee)) - 1, Mt = ze(b - 1, oe(Mt, ge - 1)), qt = ze(Mt, oe(0, qt))) : (qt = 0, Mt = -1);
-		const ln = Ln(qt, Mt, ct), { bottom: cn, top: un } = zn(X, st, tt, ln), an = On(b / ge);
-		return {
-			bottom: cn,
-			itemHeight: he,
-			items: ln,
-			itemWidth: Ee,
-			offsetBottom: an * he + (an - 1) * ee - cn,
-			offsetTop: un,
-			top: un
-		};
-	})), g), z(x$1(Z, P((b) => b !== null), B((b) => b.length)), k), z(x$1(at(C, L, g, F), P(([b, D, { items: K }]) => K.length > 0 && D.height !== 0 && b.height !== 0), B(([b, D, { items: K }, st]) => {
-		const { bottom: tt, top: X } = zn(b, st, D, K);
-		return [X, tt];
-	}), nt(le)), e);
-	const pt = T(!1);
-	z(x$1(d, $(pt), B(([b, D]) => D || b !== 0)), pt);
-	const jt = Tt(x$1(at(g, k), P(([{ items: b }]) => b.length > 0), $(pt), P(([[b, D], K]) => {
-		const tt = b.items[b.items.length - 1].index === D - 1;
-		return (K || b.bottom > 0 && b.itemHeight > 0 && b.offsetBottom === 0 && b.items.length === D) && tt;
-	}), B(([[, b]]) => b - 1), nt())), Qt = Tt(x$1(W(g), P(({ items: b }) => b.length > 0 && b[0].index === 0), Bt(0), nt())), Et = Tt(x$1(W(g), $(Q), P(([{ items: b }, D]) => b.length > 0 && !D), B(([{ items: b }]) => ({
-		endIndex: b[b.length - 1].index,
-		startIndex: b[0].index
-	})), nt($n), zt(0)));
-	z(Et, I.scrollSeekRangeChanged), z(x$1(O, $(C, L, k, F), B(([b, D, K, st, tt]) => {
-		const X = Yn(b), { align: ct, behavior: xt, offset: ut } = X;
-		let Vt = X.index;
-		Vt === "LAST" && (Vt = st - 1), Vt = oe(0, Vt, ze(st - 1, Vt));
-		let Wt = Me(D, tt, K, Vt);
-		return ct === "end" ? Wt = kn(Wt - D.height + K.height) : ct === "center" && (Wt = kn(Wt - D.height / 2 + K.height / 2)), ut !== void 0 && ut !== 0 && (Wt += ut), {
-			behavior: xt,
-			top: Wt
-		};
-	})), c);
-	const te = ht(x$1(g, B((b) => b.offsetBottom + b.bottom)), 0);
-	return z(x$1(H, B((b) => ({
-		height: b.visibleHeight,
-		width: b.visibleWidth
-	}))), C), {
-		customScrollParent: h,
-		data: Z,
-		deviation: N,
-		footerHeight: r,
-		gap: F,
-		headerHeight: s,
-		increaseViewportBy: t,
-		initialItemCount: u,
-		itemDimensions: L,
-		overscan: n,
-		restoreStateFrom: q,
-		scrollBy: i,
-		scrollContainerState: l,
-		scrollHeight: V,
-		scrollTo: c,
-		scrollToIndex: O,
-		scrollTop: d,
-		smoothScrollTargetReached: m,
-		totalCount: k,
-		useWindowScroll: f,
-		viewportDimensions: C,
-		windowScrollContainerState: a,
-		windowScrollTo: S,
-		windowViewportRect: H,
-		...I,
-		gridState: g,
-		horizontalDirection: Ft,
-		initialTopMostItemIndex: gt,
-		totalListHeight: te,
-		...p,
-		endReached: jt,
-		propsReady: R,
-		rangeChanged: Et,
-		startReached: Qt,
-		stateChanged: mt,
-		stateRestoreInProgress: Q,
-		...y
-	};
-}, rt(Ye, It, pe, eo, At, Ze, Gt));
-function fo(t, e, n) {
-	return oe(1, Ce((t + n) / (Ce(e) + n)));
-}
-function zn(t, e, n, o) {
-	const { height: r } = n;
-	if (r === void 0 || o.length === 0) return {
-		bottom: 0,
-		top: 0
-	};
-	const s = Me(t, e, n, o[0].index);
-	return {
-		bottom: Me(t, e, n, o[o.length - 1].index) + r,
-		top: s
-	};
-}
-function Me(t, e, n, o) {
-	const s = Ce(o / fo(t.width, n.width, e.column)), i = s * n.height + oe(0, s - 1) * e.row;
-	return i > 0 ? i + e.row : i;
-}
-var _r = /* @__PURE__ */ j(([t, e]) => ({
-	...t,
-	...e
-}), rt(Ar, /* @__PURE__ */ j(() => {
-	const t = T((v) => `Item ${v}`), e = T({}), n = T(null), o = T("virtuoso-grid-item"), r = T("virtuoso-grid-list"), s = T(Qe), i = T("div"), l = T(Jt), c = (v, p = null) => ht(x$1(e, B((I) => I[v]), nt()), p), d = T(!1), m = T(!1);
-	return z(W(m), d), {
-		components: e,
-		computeItemKey: s,
-		context: n,
-		FooterComponent: c("Footer"),
-		HeaderComponent: c("Header"),
-		headerFooterTag: i,
-		itemClassName: o,
-		ItemComponent: c("Item", "div"),
-		itemContent: t,
-		listClassName: r,
-		ListComponent: c("List", "div"),
-		readyStateChanged: d,
-		reportReadyState: m,
-		ScrollerComponent: c("Scroller", "div"),
-		scrollerRef: l,
-		ScrollSeekPlaceholder: c("ScrollSeekPlaceholder", "div")
-	};
-}))), Nr = /* @__PURE__ */ import_react.memo(function() {
-	const e = et$1("gridState"), n = et$1("listClassName"), o = et$1("itemClassName"), r = et$1("itemContent"), s = et$1("computeItemKey"), i = et$1("isSeeking"), l = wt("scrollHeight"), c = et$1("ItemComponent"), d = et$1("ListComponent"), m = et$1("ScrollSeekPlaceholder"), v = et$1("context"), p = wt("itemDimensions"), I = wt("gap"), w = et$1("log"), R = et$1("stateRestoreInProgress"), h = wt("reportReadyState"), f = kt(import_react.useMemo(() => (a) => {
-		const S = a.parentElement.parentElement.scrollHeight;
-		l(S);
-		const H = a.firstChild;
-		if (H !== null) {
-			const { height: y, width: k } = H.getBoundingClientRect();
-			p({
-				height: y,
-				width: k
-			});
-		}
-		I({
-			column: Fn("column-gap", getComputedStyle(a).columnGap, w),
-			row: Fn("row-gap", getComputedStyle(a).rowGap, w)
-		});
-	}, [
-		l,
-		p,
-		I,
-		w
-	]), !0, !1);
-	return so(() => {
-		e.itemHeight > 0 && e.itemWidth > 0 && h(!0);
-	}, [e]), R ? null : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(d, {
-		className: n,
-		ref: f,
-		...ot(d, v),
-		"data-testid": "virtuoso-item-list",
-		style: {
-			paddingBottom: e.offsetBottom,
-			paddingTop: e.offsetTop
-		},
-		children: e.items.map((a) => {
-			const S = s(a.index, a.data, v);
-			return i ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(m, {
-				...ot(m, v),
-				height: e.itemHeight,
-				index: a.index,
-				width: e.itemWidth
-			}, S) : /* @__PURE__ */ (0, import_react.createElement)(c, {
-				...ot(c, v),
-				className: o,
-				"data-index": a.index,
-				key: S
-			}, r(a.index, a.data, v));
-		})
-	});
-}), Dr = import_react.memo(function() {
-	const e = et$1("HeaderComponent"), n = wt("headerHeight"), o = et$1("headerFooterTag"), r = kt(import_react.useMemo(() => (i) => {
-		n(Ht(i, "height"));
-	}, [n]), !0, !1), s = et$1("context");
-	return e != null ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(o, {
-		ref: r,
-		children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(e, { ...ot(e, s) })
-	}) : null;
-}), $r = import_react.memo(function() {
-	const e = et$1("FooterComponent"), n = wt("footerHeight"), o = et$1("headerFooterTag"), r = kt(import_react.useMemo(() => (i) => {
-		n(Ht(i, "height"));
-	}, [n]), !0, !1), s = et$1("context");
-	return e != null ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(o, {
-		ref: r,
-		children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(e, { ...ot(e, s) })
-	}) : null;
-}), Ur = ({ children: t }) => {
-	const e = import_react.useContext(ro), n = wt("itemDimensions"), o = wt("viewportDimensions"), r = kt(import_react.useMemo(() => (s) => {
-		o(s.getBoundingClientRect());
-	}, [o]), !0, !1);
-	return import_react.useEffect(() => {
-		e && (o({
-			height: e.viewportHeight,
-			width: e.viewportWidth
-		}), n({
-			height: e.itemHeight,
-			width: e.itemWidth
-		}));
-	}, [
-		e,
-		o,
-		n
-	]), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-		ref: r,
-		style: He(!1),
-		children: t
-	});
-}, Kr = ({ children: t }) => {
-	const e = import_react.useContext(ro), n = wt("windowViewportRect"), o = wt("itemDimensions"), r = et$1("customScrollParent"), s = et$1("useWindowScroll"), i = $e(n, r, !1);
-	return import_react.useEffect(() => {
-		e && (o({
-			height: e.itemHeight,
-			width: e.itemWidth
-		}), n({
-			listHeight: 0,
-			offsetTop: 0,
-			visibleHeight: e.viewportHeight,
-			visibleWidth: e.viewportWidth
-		}));
-	}, [
-		e,
-		n,
-		o
-	]), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-		ref: i,
-		style: tn(!1, s),
-		children: t
-	});
-}, { Component: qr, useEmitter: mo, useEmitterValue: et$1, usePublisher: wt } = /* @__PURE__ */ Xe(_r, {
-	optional: {
-		context: "context",
-		totalCount: "totalCount",
-		overscan: "overscan",
-		itemContent: "itemContent",
-		components: "components",
-		computeItemKey: "computeItemKey",
-		data: "data",
-		initialItemCount: "initialItemCount",
-		scrollSeekConfiguration: "scrollSeekConfiguration",
-		headerFooterTag: "headerFooterTag",
-		listClassName: "listClassName",
-		itemClassName: "itemClassName",
-		useWindowScroll: "useWindowScroll",
-		customScrollParent: "customScrollParent",
-		scrollerRef: "scrollerRef",
-		logLevel: "logLevel",
-		restoreStateFrom: "restoreStateFrom",
-		initialTopMostItemIndex: "initialTopMostItemIndex",
-		increaseViewportBy: "increaseViewportBy"
-	},
-	methods: {
-		scrollTo: "scrollTo",
-		scrollBy: "scrollBy",
-		scrollToIndex: "scrollToIndex"
-	},
-	events: {
-		isScrolling: "isScrolling",
-		endReached: "endReached",
-		startReached: "startReached",
-		rangeChanged: "rangeChanged",
-		atBottomStateChange: "atBottomStateChange",
-		atTopStateChange: "atTopStateChange",
-		stateChanged: "stateChanged",
-		readyStateChanged: "readyStateChanged"
-	}
-}, /* @__PURE__ */ import_react.memo(function({ ...e }) {
-	const n = et$1("useWindowScroll"), o = et$1("customScrollParent"), r = o || n ? Zr : Yr, s = o || n ? Kr : Ur, i = et$1("context");
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(r, {
-		...e,
-		...ot(r, i),
-		children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(s, { children: [
-			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Dr, {}),
-			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Nr, {}),
-			/* @__PURE__ */ (0, import_jsx_runtime.jsx)($r, {})
-		] })
-	});
-})), Yr = /* @__PURE__ */ en({
-	useEmitter: mo,
-	useEmitterValue: et$1,
-	usePublisher: wt
-}), Zr = /* @__PURE__ */ nn({
-	useEmitter: mo,
-	useEmitterValue: et$1,
-	usePublisher: wt
-});
-function Fn(t, e, n) {
-	return e !== "normal" && e?.endsWith("px") !== !0 && n(`${t} was not resolved to pixel value correctly`, e, ft.WARN), e === "normal" ? 0 : parseInt(e ?? "0", 10);
+		return Reflect.get(target, prop, receiver);
+	} });
 }
 //#endregion
-//#region ../../packages/inspect-components/src/virtuoso/useVirtuosoState.ts
-var log$2 = createLogger("scrolling");
-var useVirtuosoState = (virtuosoRef, elementKey, delay = 1e3) => {
-	const [restoreState, setListPosition, clearListPosition] = useProperty("listPosition", elementKey);
-	const [visibleRange = {
-		startIndex: 0,
-		endIndex: 0,
-		totalCount: 0
-	}, setVisibleRange] = useProperty("visibleRange", elementKey);
-	const debouncedFnRef = (0, import_react.useRef)(null);
-	const handleStateChange = (0, import_react.useCallback)((state) => {
-		log$2.debug(`Storing list state: [${elementKey}]`, state);
-		setListPosition(state);
-	}, [elementKey, setListPosition]);
-	(0, import_react.useEffect)(() => {
-		debouncedFnRef.current = debounce$3((isScrolling) => {
-			log$2.debug("List scroll", isScrolling);
-			const element = virtuosoRef.current;
-			if (!element) return;
-			element.getState(handleStateChange);
-		}, delay);
-		return () => {
-			clearListPosition();
-		};
-	}, [
-		delay,
-		elementKey,
-		handleStateChange,
-		clearListPosition,
-		virtuosoRef
-	]);
-	const isScrolling = (0, import_react.useCallback)((scrolling) => {
-		if (!scrolling) return;
-		if (debouncedFnRef.current) debouncedFnRef.current(scrolling);
-	}, []);
-	const stateRef = (0, import_react.useRef)(restoreState);
-	(0, import_react.useEffect)(() => {
-		stateRef.current = restoreState;
-	}, [restoreState]);
-	return {
-		getRestoreState: (0, import_react.useCallback)(() => stateRef.current, []),
-		isScrolling,
-		visibleRange,
-		setVisibleRange
+//#region ../../node_modules/.pnpm/@tanstack+virtual-core@3.17.7/node_modules/@tanstack/virtual-core/dist/esm/utils.js
+function memo$10(getDeps, fn, opts) {
+	let deps = opts.initialDeps ?? [];
+	let result;
+	let isInitial = true;
+	function memoizedFunction() {
+		const newDeps = getDeps();
+		if (!(newDeps.length !== deps.length || newDeps.some((dep, index) => deps[index] !== dep))) return result;
+		deps = newDeps;
+		result = fn(...newDeps);
+		if ((opts == null ? void 0 : opts.onChange) && !(isInitial && opts.skipInitialOnChange)) opts.onChange(result);
+		isInitial = false;
+		return result;
+	}
+	memoizedFunction.updateDeps = (newDeps) => {
+		deps = newDeps;
+	};
+	return memoizedFunction;
+}
+function notUndefined(value, msg) {
+	if (value === void 0) throw new Error(`Unexpected undefined${msg ? `: ${msg}` : ""}`);
+	else return value;
+}
+var approxEqual = (a, b) => Math.abs(a - b) < 1.01;
+var debounce = (targetWindow, fn, ms) => {
+	let timeoutId;
+	return function(...args) {
+		targetWindow.clearTimeout(timeoutId);
+		timeoutId = targetWindow.setTimeout(() => fn.apply(this, args), ms);
 	};
 };
+//#endregion
+//#region ../../node_modules/.pnpm/@tanstack+virtual-core@3.17.7/node_modules/@tanstack/virtual-core/dist/esm/index.js
+var _isIOSResult;
+var isIOSWebKit = () => {
+	if (_isIOSResult !== void 0) return _isIOSResult;
+	if (typeof navigator === "undefined") return _isIOSResult = false;
+	if (/iP(hone|od|ad)/.test(navigator.userAgent)) return _isIOSResult = true;
+	const mtp = navigator.maxTouchPoints;
+	return _isIOSResult = navigator.platform === "MacIntel" && mtp !== void 0 && mtp > 0;
+};
+var getRect = (element) => {
+	const { offsetWidth, offsetHeight } = element;
+	return {
+		width: offsetWidth,
+		height: offsetHeight
+	};
+};
+var defaultKeyExtractor = (index) => index;
+var defaultRangeExtractor = (range) => {
+	const start = Math.max(range.startIndex - range.overscan, 0);
+	const len = Math.min(range.endIndex + range.overscan, range.count - 1) - start + 1;
+	const arr = new Array(len);
+	for (let i = 0; i < len; i++) arr[i] = start + i;
+	return arr;
+};
+var observeElementRect = (instance, cb) => {
+	const element = instance.scrollElement;
+	if (!element) return;
+	const targetWindow = instance.targetWindow;
+	if (!targetWindow) return;
+	const handler = (rect) => {
+		const { width, height } = rect;
+		cb({
+			width: Math.round(width),
+			height: Math.round(height)
+		});
+	};
+	handler(getRect(element));
+	if (!targetWindow.ResizeObserver) return () => {};
+	const observer = new targetWindow.ResizeObserver((entries) => {
+		const run = () => {
+			const entry = entries[0];
+			if (entry == null ? void 0 : entry.borderBoxSize) {
+				const box = entry.borderBoxSize[0];
+				if (box) {
+					handler({
+						width: box.inlineSize,
+						height: box.blockSize
+					});
+					return;
+				}
+			}
+			handler(getRect(element));
+		};
+		instance.options.useAnimationFrameWithResizeObserver ? requestAnimationFrame(run) : run();
+	});
+	observer.observe(element, { box: "border-box" });
+	return () => {
+		observer.unobserve(element);
+	};
+};
+var addEventListenerOptions = { passive: true };
+var supportsScrollend = typeof window == "undefined" ? true : "onscrollend" in window;
+var observeOffset = (instance, cb, readOffset) => {
+	const element = instance.scrollElement;
+	if (!element) return;
+	const targetWindow = instance.targetWindow;
+	if (!targetWindow) return;
+	const registerScrollendEvent = instance.options.useScrollendEvent && supportsScrollend;
+	let offset = 0;
+	const fallback = registerScrollendEvent ? null : debounce(targetWindow, () => cb(offset, false), instance.options.isScrollingResetDelay);
+	const createHandler = (isScrolling) => () => {
+		offset = readOffset(element);
+		fallback?.();
+		cb(offset, isScrolling);
+	};
+	const handler = createHandler(true);
+	const endHandler = createHandler(false);
+	element.addEventListener("scroll", handler, addEventListenerOptions);
+	if (registerScrollendEvent) element.addEventListener("scrollend", endHandler, addEventListenerOptions);
+	return () => {
+		element.removeEventListener("scroll", handler);
+		if (registerScrollendEvent) element.removeEventListener("scrollend", endHandler);
+	};
+};
+var observeElementOffset = (instance, cb) => observeOffset(instance, cb, (el) => {
+	const { horizontal, isRtl } = instance.options;
+	return horizontal ? el.scrollLeft * (isRtl && -1 || 1) : el.scrollTop;
+});
+var measureElement = (element, entry, instance) => {
+	if (instance.options.useCachedMeasurements) {
+		const index = instance.indexFromElement(element);
+		const key = instance.options.getItemKey(index);
+		return instance.itemSizeCache.get(key) ?? instance.options.estimateSize(index);
+	}
+	if (entry == null ? void 0 : entry.borderBoxSize) {
+		const box = entry.borderBoxSize[0];
+		if (box) return Math.round(box[instance.options.horizontal ? "inlineSize" : "blockSize"]);
+	}
+	if (!entry) {
+		const index = instance.indexFromElement(element);
+		const key = instance.options.getItemKey(index);
+		const cachedSize = instance.itemSizeCache.get(key);
+		if (cachedSize !== void 0) return cachedSize;
+	}
+	return element[instance.options.horizontal ? "offsetWidth" : "offsetHeight"];
+};
+var scrollWithAdjustments = (offset, { adjustments = 0, behavior }, instance) => {
+	var _a, _b;
+	(_b = (_a = instance.scrollElement) == null ? void 0 : _a.scrollTo) == null || _b.call(_a, {
+		[instance.options.horizontal ? "left" : "top"]: offset + adjustments,
+		behavior
+	});
+};
+var elementScroll = scrollWithAdjustments;
+var Virtualizer = class {
+	constructor(opts) {
+		this.unsubs = [];
+		this.scrollElement = null;
+		this.targetWindow = null;
+		this.isScrolling = false;
+		this.scrollState = null;
+		this.measurementsCache = [];
+		this._flatMeasurements = null;
+		this.itemSizeCache = /* @__PURE__ */ new Map();
+		this.itemSizeCacheVersion = 0;
+		this.laneAssignments = /* @__PURE__ */ new Map();
+		this.pendingMin = null;
+		this.prevLanes = void 0;
+		this.lanesChangedFlag = false;
+		this.lanesSettling = false;
+		this.pendingScrollAnchor = null;
+		this.scrollRect = null;
+		this.scrollOffset = null;
+		this.scrollDirection = null;
+		this.scrollAdjustments = 0;
+		this._iosDeferredAdjustment = 0;
+		this._iosTouching = false;
+		this._iosJustTouchEnded = false;
+		this._iosTouchEndTimerId = null;
+		this._intendedScrollOffset = null;
+		this.elementsCache = /* @__PURE__ */ new Map();
+		this.now = () => {
+			var _a, _b, _c;
+			return ((_c = (_b = (_a = this.targetWindow) == null ? void 0 : _a.performance) == null ? void 0 : _b.now) == null ? void 0 : _c.call(_b)) ?? Date.now();
+		};
+		this.observer = /* @__PURE__ */ (() => {
+			let _ro = null;
+			const get = () => {
+				if (_ro) return _ro;
+				if (!this.targetWindow || !this.targetWindow.ResizeObserver) return null;
+				return _ro = new this.targetWindow.ResizeObserver((entries) => {
+					entries.forEach((entry) => {
+						const run = () => {
+							const node = entry.target;
+							const index = this.indexFromElement(node);
+							if (!node.isConnected) {
+								this.observer.unobserve(node);
+								for (const [cacheKey, cachedNode] of this.elementsCache) if (cachedNode === node) {
+									this.elementsCache.delete(cacheKey);
+									break;
+								}
+								return;
+							}
+							if (this.shouldMeasureDuringScroll(index)) this.resizeItem(index, this.options.measureElement(node, entry, this));
+						};
+						this.options.useAnimationFrameWithResizeObserver ? requestAnimationFrame(run) : run();
+					});
+				});
+			};
+			return {
+				disconnect: () => {
+					var _a;
+					(_a = get()) == null || _a.disconnect();
+					_ro = null;
+				},
+				observe: (target) => {
+					var _a;
+					return (_a = get()) == null ? void 0 : _a.observe(target, { box: "border-box" });
+				},
+				unobserve: (target) => {
+					var _a;
+					return (_a = get()) == null ? void 0 : _a.unobserve(target);
+				}
+			};
+		})();
+		this.range = null;
+		this.setOptions = (opts2) => {
+			var _a, _b;
+			const merged = {
+				debug: false,
+				initialOffset: 0,
+				overscan: 1,
+				paddingStart: 0,
+				paddingEnd: 0,
+				scrollPaddingStart: 0,
+				scrollPaddingEnd: 0,
+				horizontal: false,
+				getItemKey: defaultKeyExtractor,
+				rangeExtractor: defaultRangeExtractor,
+				onChange: () => {},
+				measureElement,
+				initialRect: {
+					width: 0,
+					height: 0
+				},
+				scrollMargin: 0,
+				gap: 0,
+				indexAttribute: "data-index",
+				initialMeasurementsCache: [],
+				lanes: 1,
+				anchorTo: "start",
+				followOnAppend: false,
+				scrollEndThreshold: 1,
+				isScrollingResetDelay: 150,
+				enabled: true,
+				isRtl: false,
+				useScrollendEvent: false,
+				useAnimationFrameWithResizeObserver: false,
+				laneAssignmentMode: "estimate",
+				useCachedMeasurements: false
+			};
+			for (const key in opts2) {
+				const v = opts2[key];
+				if (v !== void 0) merged[key] = v;
+			}
+			const prevOptions = this.options;
+			let anchor = null;
+			let followOnAppend = null;
+			let edgeKeysChanged = false;
+			if (prevOptions !== void 0 && prevOptions.enabled && merged.enabled && merged.anchorTo === "end" && this.scrollElement !== null) {
+				const prevCount = prevOptions.count;
+				const nextCount = merged.count;
+				const measurements = this.getMeasurements();
+				const prevFirstKey = prevCount > 0 ? ((_a = measurements[0]) == null ? void 0 : _a.key) ?? prevOptions.getItemKey(0) : null;
+				const prevLastKey = prevCount > 0 ? ((_b = measurements[prevCount - 1]) == null ? void 0 : _b.key) ?? prevOptions.getItemKey(prevCount - 1) : null;
+				if (nextCount !== prevCount || prevCount > 0 && nextCount > 0 && (merged.getItemKey(0) !== prevFirstKey || merged.getItemKey(nextCount - 1) !== prevLastKey)) {
+					edgeKeysChanged = true;
+					const item = prevCount > 0 ? this.getVirtualItemForOffset(this.getScrollOffset()) ?? measurements[0] : null;
+					if (item) anchor = [item.key, this.getScrollOffset() - item.start];
+					const behavior = merged.followOnAppend === true ? "auto" : merged.followOnAppend || null;
+					if (behavior && nextCount > prevCount && this.isAtEnd(prevOptions.scrollEndThreshold) && (prevCount === 0 || merged.getItemKey(nextCount - 1) !== prevLastKey)) followOnAppend = behavior;
+				}
+			}
+			this.options = merged;
+			if (edgeKeysChanged) {
+				this.pendingMin = 0;
+				this.itemSizeCacheVersion++;
+			}
+			let anchorResolved = false;
+			let anchorDelta = 0;
+			if (anchor && this.scrollOffset !== null) {
+				const [anchorKey, anchorOffset] = anchor;
+				const newMeasurements = this.getMeasurements();
+				const { count, getItemKey } = this.options;
+				let idx = 0;
+				while (idx < count && getItemKey(idx) !== anchorKey) idx++;
+				if (idx < count) {
+					const anchorItem = newMeasurements[idx];
+					if (anchorItem) {
+						const newOffset = Math.max(0, anchorItem.start + anchorOffset);
+						if (newOffset !== this.scrollOffset) {
+							anchorDelta = newOffset - this.scrollOffset;
+							this.scrollOffset = newOffset;
+							anchorResolved = true;
+						}
+					}
+				}
+			}
+			if (anchorResolved || followOnAppend) this.pendingScrollAnchor = [
+				anchorResolved ? anchor[0] : null,
+				anchorResolved ? anchor[1] : 0,
+				followOnAppend,
+				anchorDelta
+			];
+		};
+		this.notify = (sync) => {
+			var _a, _b;
+			(_b = (_a = this.options).onChange) == null || _b.call(_a, this, sync);
+		};
+		this.maybeNotify = memo$10(() => {
+			this.calculateRange();
+			return [
+				this.isScrolling,
+				this.range ? this.range.startIndex : null,
+				this.range ? this.range.endIndex : null
+			];
+		}, (isScrolling) => {
+			this.notify(isScrolling);
+		}, {
+			key: false,
+			debug: () => this.options.debug,
+			initialDeps: [
+				this.isScrolling,
+				this.range ? this.range.startIndex : null,
+				this.range ? this.range.endIndex : null
+			]
+		});
+		this.cleanup = () => {
+			this.unsubs.filter(Boolean).forEach((d) => d());
+			this.unsubs = [];
+			this.observer.disconnect();
+			if (this.rafId != null && this.targetWindow) {
+				this.targetWindow.cancelAnimationFrame(this.rafId);
+				this.rafId = null;
+			}
+			this.scrollState = null;
+			this._iosDeferredAdjustment = 0;
+			this._iosTouching = false;
+			this._iosJustTouchEnded = false;
+			this.scrollElement = null;
+			this.targetWindow = null;
+		};
+		this._didMount = () => {
+			return () => {
+				this.cleanup();
+			};
+		};
+		this._willUpdate = () => {
+			var _a;
+			const scrollElement = this.options.enabled ? this.options.getScrollElement() : null;
+			if (this.scrollElement !== scrollElement) {
+				this.cleanup();
+				if (!scrollElement) {
+					this.maybeNotify();
+					return;
+				}
+				this.scrollElement = scrollElement;
+				if (this.scrollElement && "ownerDocument" in this.scrollElement) this.targetWindow = this.scrollElement.ownerDocument.defaultView;
+				else this.targetWindow = ((_a = this.scrollElement) == null ? void 0 : _a.window) ?? null;
+				this.elementsCache.forEach((cached) => {
+					this.observer.observe(cached);
+				});
+				this.unsubs.push(this.options.observeElementRect(this, (rect) => {
+					this.scrollRect = rect;
+					this.maybeNotify();
+				}));
+				this.unsubs.push(this.options.observeElementOffset(this, (offset, isScrolling) => {
+					if (isScrolling && this._intendedScrollOffset === null && offset === this.scrollOffset) return;
+					if (this._intendedScrollOffset !== null && Math.abs(offset - this._intendedScrollOffset) < 1.5) offset = this._intendedScrollOffset;
+					this._intendedScrollOffset = null;
+					this.scrollAdjustments = 0;
+					const prevOffset = this.getScrollOffset();
+					this.scrollDirection = isScrolling ? prevOffset === offset ? this.scrollDirection : prevOffset < offset ? "forward" : "backward" : null;
+					this.scrollOffset = offset;
+					this.isScrolling = isScrolling;
+					this._flushIosDeferredIfReady();
+					if (this.scrollState) this.scheduleScrollReconcile();
+					this.maybeNotify();
+				}));
+				if ("addEventListener" in this.scrollElement) {
+					const scrollEl = this.scrollElement;
+					const onTouchStart = () => {
+						this._iosTouching = true;
+						this._iosJustTouchEnded = false;
+						if (this._iosTouchEndTimerId !== null && this.targetWindow != null) {
+							this.targetWindow.clearTimeout(this._iosTouchEndTimerId);
+							this._iosTouchEndTimerId = null;
+						}
+					};
+					const onTouchEnd = () => {
+						this._iosTouching = false;
+						if (!isIOSWebKit() || this.targetWindow == null) return;
+						this._iosJustTouchEnded = true;
+						this._iosTouchEndTimerId = this.targetWindow.setTimeout(() => {
+							this._iosJustTouchEnded = false;
+							this._iosTouchEndTimerId = null;
+							this._flushIosDeferredIfReady();
+						}, 150);
+					};
+					scrollEl.addEventListener("touchstart", onTouchStart, addEventListenerOptions);
+					scrollEl.addEventListener("touchend", onTouchEnd, addEventListenerOptions);
+					this.unsubs.push(() => {
+						scrollEl.removeEventListener("touchstart", onTouchStart);
+						scrollEl.removeEventListener("touchend", onTouchEnd);
+						if (this._iosTouchEndTimerId !== null && this.targetWindow != null) {
+							this.targetWindow.clearTimeout(this._iosTouchEndTimerId);
+							this._iosTouchEndTimerId = null;
+						}
+					});
+				}
+				this._scrollToOffset(this.getScrollOffset(), {
+					adjustments: void 0,
+					behavior: void 0
+				});
+			}
+			const anchor = this.pendingScrollAnchor;
+			this.pendingScrollAnchor = null;
+			if (anchor && this.scrollElement && this.options.enabled) {
+				const [key, _offset, followOnAppend, anchorDelta] = anchor;
+				if (key !== null && !followOnAppend) if (isIOSWebKit() && (this.isScrolling || this._iosTouching || this._iosJustTouchEnded)) {
+					if (anchorDelta !== 0) this._iosDeferredAdjustment += anchorDelta;
+				} else this._scrollToOffset(this.getScrollOffset(), {
+					adjustments: void 0,
+					behavior: void 0
+				});
+				if (followOnAppend) this.scrollToEnd({ behavior: followOnAppend });
+			}
+		};
+		this._flushIosDeferredIfReady = () => {
+			if (this._iosDeferredAdjustment === 0) return;
+			if (this.isScrolling) return;
+			if (this._iosTouching) return;
+			if (this._iosJustTouchEnded) return;
+			const cur = this.getScrollOffset();
+			const max = this.getMaxScrollOffset();
+			if (cur < 0 || cur > max) return;
+			if (this._iosDeferredAdjustment < 0 && cur >= max - 1) {
+				this._iosDeferredAdjustment = 0;
+				return;
+			}
+			const delta = this._iosDeferredAdjustment;
+			this._iosDeferredAdjustment = 0;
+			this._scrollToOffset(cur, {
+				adjustments: this.scrollAdjustments += delta,
+				behavior: void 0
+			});
+		};
+		this.rafId = null;
+		this.getSize = () => {
+			if (!this.options.enabled) {
+				this.scrollRect = null;
+				return 0;
+			}
+			this.scrollRect = this.scrollRect ?? this.options.initialRect;
+			return this.scrollRect[this.options.horizontal ? "width" : "height"];
+		};
+		this.getScrollOffset = () => {
+			if (!this.options.enabled) {
+				this.scrollOffset = null;
+				return 0;
+			}
+			this.scrollOffset = this.scrollOffset ?? (typeof this.options.initialOffset === "function" ? this.options.initialOffset() : this.options.initialOffset);
+			return this.scrollOffset;
+		};
+		this.getMeasurementOptions = memo$10(() => [
+			this.options.count,
+			this.options.paddingStart,
+			this.options.scrollMargin,
+			this.options.getItemKey,
+			this.options.enabled,
+			this.options.lanes,
+			this.options.laneAssignmentMode,
+			this.options.gap
+		], (count, paddingStart, scrollMargin, getItemKey, enabled, lanes, laneAssignmentMode, gap) => {
+			if (this.prevLanes !== void 0 && this.prevLanes !== lanes) this.lanesChangedFlag = true;
+			this.prevLanes = lanes;
+			this.pendingMin = null;
+			return {
+				count,
+				paddingStart,
+				scrollMargin,
+				getItemKey,
+				enabled,
+				lanes,
+				laneAssignmentMode,
+				gap
+			};
+		}, { key: false });
+		this.getMeasurements = memo$10(() => [this.getMeasurementOptions(), this.itemSizeCacheVersion], ({ count, paddingStart, scrollMargin, getItemKey, enabled, lanes, laneAssignmentMode, gap }, _itemSizeCacheVersion) => {
+			const itemSizeCache = this.itemSizeCache;
+			if (!enabled) {
+				this.measurementsCache = [];
+				this.itemSizeCache.clear();
+				this.laneAssignments.clear();
+				return [];
+			}
+			if (this.laneAssignments.size > count) {
+				for (const index of this.laneAssignments.keys()) if (index >= count) this.laneAssignments.delete(index);
+			}
+			if (this.lanesChangedFlag) {
+				this.lanesChangedFlag = false;
+				this.lanesSettling = true;
+				this.measurementsCache = [];
+				this.itemSizeCache.clear();
+				this.laneAssignments.clear();
+				this.pendingMin = null;
+			}
+			if (this.measurementsCache.length === 0 && !this.lanesSettling) {
+				this.measurementsCache = this.options.initialMeasurementsCache;
+				this.measurementsCache.forEach((item) => {
+					this.itemSizeCache.set(item.key, item.size);
+				});
+			}
+			const min = this.lanesSettling ? 0 : this.pendingMin ?? 0;
+			this.pendingMin = null;
+			if (this.lanesSettling && this.measurementsCache.length === count) this.lanesSettling = false;
+			if (lanes === 1) {
+				const need = count * 2;
+				let flat = this._flatMeasurements;
+				if (!flat || flat.length < need) {
+					const next = new Float64Array(need);
+					if (flat && min > 0) next.set(flat.subarray(0, min * 2));
+					flat = next;
+					this._flatMeasurements = flat;
+				}
+				let runningStart;
+				if (min === 0) runningStart = paddingStart + scrollMargin;
+				else {
+					const prevIdx = min - 1;
+					runningStart = flat[prevIdx * 2] + flat[prevIdx * 2 + 1] + gap;
+				}
+				for (let i = min; i < count; i++) {
+					const key = getItemKey(i);
+					const measuredSize = itemSizeCache.get(key);
+					const size = typeof measuredSize === "number" ? measuredSize : this.options.estimateSize(i);
+					flat[i * 2] = runningStart;
+					flat[i * 2 + 1] = size;
+					runningStart += size + gap;
+				}
+				const view = createLazyMeasurementsView(count, flat, getItemKey);
+				this.measurementsCache = view;
+				return view;
+			}
+			const measurements = this.measurementsCache.slice(0, min);
+			const laneLastIndex = new Array(lanes).fill(void 0);
+			const laneEnds = new Float64Array(lanes);
+			let filledLanes = 0;
+			for (let m = 0; m < min; m++) {
+				const item = measurements[m];
+				if (item) {
+					if (laneLastIndex[item.lane] === void 0) filledLanes++;
+					laneLastIndex[item.lane] = m;
+					laneEnds[item.lane] = item.end;
+				}
+			}
+			for (let i = min; i < count; i++) {
+				const key = getItemKey(i);
+				const cachedLane = this.laneAssignments.get(i);
+				let lane;
+				let start;
+				const shouldCacheLane = laneAssignmentMode === "estimate" || itemSizeCache.has(key);
+				if (cachedLane !== void 0 && this.options.lanes > 1) {
+					lane = cachedLane;
+					const prevIndex = laneLastIndex[lane];
+					const prevInLane = prevIndex !== void 0 ? measurements[prevIndex] : void 0;
+					start = prevInLane ? prevInLane.end + gap : paddingStart + scrollMargin;
+				} else if (filledLanes === lanes) {
+					let bestLane = 0;
+					let bestEnd = laneEnds[0];
+					let bestIdx = laneLastIndex[0];
+					for (let l = 1; l < lanes; l++) {
+						const e = laneEnds[l];
+						if (e < bestEnd || e === bestEnd && laneLastIndex[l] < bestIdx) {
+							bestLane = l;
+							bestEnd = e;
+							bestIdx = laneLastIndex[l];
+						}
+					}
+					lane = bestLane;
+					start = bestEnd + gap;
+					if (shouldCacheLane) this.laneAssignments.set(i, lane);
+				} else {
+					lane = i % this.options.lanes;
+					start = paddingStart + scrollMargin;
+					if (shouldCacheLane) this.laneAssignments.set(i, lane);
+				}
+				const measuredSize = itemSizeCache.get(key);
+				const size = typeof measuredSize === "number" ? measuredSize : this.options.estimateSize(i);
+				const end = start + size;
+				measurements[i] = {
+					index: i,
+					start,
+					size,
+					end,
+					key,
+					lane
+				};
+				if (laneLastIndex[lane] === void 0) filledLanes++;
+				laneLastIndex[lane] = i;
+				laneEnds[lane] = end;
+			}
+			this.measurementsCache = measurements;
+			return measurements;
+		}, {
+			key: false,
+			debug: () => this.options.debug
+		});
+		this.calculateRange = memo$10(() => [
+			this.getMeasurements(),
+			this.getSize(),
+			this.getScrollOffset(),
+			this.options.lanes
+		], (measurements, outerSize, scrollOffset, lanes) => {
+			if (measurements.length === 0 || outerSize === 0) {
+				this.range = null;
+				return null;
+			}
+			this.range = calculateRangeImpl(measurements, outerSize, scrollOffset, lanes, lanes === 1 && this._flatMeasurements != null ? this._flatMeasurements : null);
+			return this.range;
+		}, {
+			key: false,
+			debug: () => this.options.debug
+		});
+		this.getVirtualIndexes = memo$10(() => {
+			let startIndex = null;
+			let endIndex = null;
+			const range = this.calculateRange();
+			if (range) {
+				startIndex = range.startIndex;
+				endIndex = range.endIndex;
+			}
+			this.maybeNotify.updateDeps([
+				this.isScrolling,
+				startIndex,
+				endIndex
+			]);
+			return [
+				this.options.rangeExtractor,
+				this.options.overscan,
+				this.options.count,
+				startIndex,
+				endIndex
+			];
+		}, (rangeExtractor, overscan, count, startIndex, endIndex) => {
+			return startIndex === null || endIndex === null ? [] : rangeExtractor({
+				startIndex,
+				endIndex,
+				overscan,
+				count
+			});
+		}, {
+			key: false,
+			debug: () => this.options.debug
+		});
+		this.indexFromElement = (node) => {
+			const attributeName = this.options.indexAttribute;
+			const indexStr = node.getAttribute(attributeName);
+			if (!indexStr) {
+				console.warn(`Missing attribute name '${attributeName}={index}' on measured element.`);
+				return -1;
+			}
+			return parseInt(indexStr, 10);
+		};
+		this.shouldMeasureDuringScroll = (index) => {
+			var _a;
+			if (!this.scrollState || this.scrollState.behavior !== "smooth") return true;
+			const scrollIndex = this.scrollState.index ?? ((_a = this.getVirtualItemForOffset(this.scrollState.lastTargetOffset)) == null ? void 0 : _a.index);
+			if (scrollIndex !== void 0 && this.range) {
+				const bufferSize = Math.max(this.options.overscan, Math.ceil((this.range.endIndex - this.range.startIndex) / 2));
+				const minIndex = Math.max(0, scrollIndex - bufferSize);
+				const maxIndex = Math.min(this.options.count - 1, scrollIndex + bufferSize);
+				return index >= minIndex && index <= maxIndex;
+			}
+			return true;
+		};
+		this.measureElement = (node) => {
+			if (!node) {
+				this.elementsCache.forEach((cached, key2) => {
+					if (!cached.isConnected) {
+						this.observer.unobserve(cached);
+						this.elementsCache.delete(key2);
+					}
+				});
+				return;
+			}
+			const index = this.indexFromElement(node);
+			const key = this.options.getItemKey(index);
+			const prevNode = this.elementsCache.get(key);
+			if (prevNode !== node) {
+				if (prevNode) this.observer.unobserve(prevNode);
+				this.observer.observe(node);
+				this.elementsCache.set(key, node);
+			}
+			if ((!this.isScrolling || this.scrollState) && this.shouldMeasureDuringScroll(index)) this.resizeItem(index, this.options.measureElement(node, void 0, this));
+		};
+		this.resizeItem = (index, size) => {
+			var _a, _b;
+			if (index < 0 || index >= this.options.count) return;
+			let cachedSize;
+			let itemStart;
+			let key;
+			const flat = this._flatMeasurements;
+			if (this.options.lanes === 1 && flat !== null) {
+				key = this.options.getItemKey(index);
+				itemStart = flat[index * 2];
+				cachedSize = flat[index * 2 + 1];
+			} else {
+				const item = this.measurementsCache[index];
+				if (!item) return;
+				key = item.key;
+				itemStart = item.start;
+				cachedSize = item.size;
+			}
+			const itemSize = this.itemSizeCache.get(key) ?? cachedSize;
+			const delta = size - itemSize;
+			if (delta !== 0) {
+				const wasAtEnd = this.options.anchorTo === "end" && ((_a = this.scrollState) == null ? void 0 : _a.behavior) !== "smooth" && this.getVirtualDistanceFromEnd() <= this.options.scrollEndThreshold;
+				const prevTotalSize = wasAtEnd ? this.getTotalSize() : 0;
+				const scrollOffsetWithAdj = this.getScrollOffset() + this.scrollAdjustments;
+				const defaultShouldAdjust = !this.itemSizeCache.has(key) ? itemStart < scrollOffsetWithAdj : itemStart + itemSize <= scrollOffsetWithAdj && this.scrollDirection !== "backward";
+				const shouldAdjustScroll = ((_b = this.scrollState) == null ? void 0 : _b.behavior) !== "smooth" && (this.shouldAdjustScrollPositionOnItemSizeChange !== void 0 ? this.shouldAdjustScrollPositionOnItemSizeChange(this.measurementsCache[index] ?? {
+					index,
+					key,
+					start: itemStart,
+					size: cachedSize,
+					end: itemStart + cachedSize,
+					lane: 0
+				}, delta, this) : defaultShouldAdjust);
+				if (this.pendingMin === null || index < this.pendingMin) this.pendingMin = index;
+				this.itemSizeCache.set(key, size);
+				this.itemSizeCacheVersion++;
+				let adjustedSync = false;
+				if (wasAtEnd) adjustedSync = this.applyScrollAdjustment(this.getTotalSize() - prevTotalSize);
+				else if (shouldAdjustScroll) adjustedSync = this.applyScrollAdjustment(delta);
+				this.notify(adjustedSync);
+			}
+		};
+		this.getVirtualItems = memo$10(() => [this.getVirtualIndexes(), this.getMeasurements()], (indexes, measurements) => {
+			const virtualItems = [];
+			for (let k = 0, len = indexes.length; k < len; k++) {
+				const measurement = measurements[indexes[k]];
+				virtualItems.push(measurement);
+			}
+			return virtualItems;
+		}, {
+			key: false,
+			debug: () => this.options.debug
+		});
+		this.getVirtualItemForOffset = (offset) => {
+			const measurements = this.getMeasurements();
+			if (measurements.length === 0) return;
+			const flat = this._flatMeasurements;
+			const useFlat = this.options.lanes === 1 && flat != null;
+			return notUndefined(measurements[findNearestBinarySearch(0, measurements.length - 1, useFlat ? (i) => flat[i * 2] : (i) => notUndefined(measurements[i]).start, offset)]);
+		};
+		this.getMaxScrollOffset = () => {
+			if (!this.scrollElement) return 0;
+			if ("scrollHeight" in this.scrollElement) return this.options.horizontal ? this.scrollElement.scrollWidth - this.scrollElement.clientWidth : this.scrollElement.scrollHeight - this.scrollElement.clientHeight;
+			else {
+				const doc = this.scrollElement.document.documentElement;
+				return this.options.horizontal ? doc.scrollWidth - this.scrollElement.innerWidth : doc.scrollHeight - this.scrollElement.innerHeight;
+			}
+		};
+		this.getVirtualDistanceFromEnd = () => {
+			return Math.max(this.getTotalSize() - this.getSize() - this.getScrollOffset(), 0);
+		};
+		this.getDistanceFromEnd = () => {
+			return Math.max(this.getMaxScrollOffset() - this.getScrollOffset(), 0);
+		};
+		this.isAtEnd = (threshold = this.options.scrollEndThreshold) => {
+			return this.getDistanceFromEnd() <= threshold;
+		};
+		this.getOffsetForAlignment = (toOffset, align, itemSize = 0) => {
+			if (!this.scrollElement) return 0;
+			const size = this.getSize();
+			const scrollOffset = this.getScrollOffset();
+			if (align === "auto") align = toOffset >= scrollOffset + size ? "end" : "start";
+			if (align === "center") toOffset += (itemSize - size) / 2;
+			else if (align === "end") toOffset -= size;
+			const maxOffset = this.getMaxScrollOffset();
+			return Math.max(Math.min(maxOffset, toOffset), 0);
+		};
+		this.getOffsetForIndex = (index, align = "auto") => {
+			index = Math.max(0, Math.min(index, this.options.count - 1));
+			const size = this.getSize();
+			const scrollOffset = this.getScrollOffset();
+			const item = this.measurementsCache[index];
+			if (!item) return;
+			if (align === "auto") if (item.end >= scrollOffset + size - this.options.scrollPaddingEnd) align = "end";
+			else if (item.start <= scrollOffset + this.options.scrollPaddingStart) align = "start";
+			else return [scrollOffset, align];
+			if (align === "end" && index === this.options.count - 1) return [this.getMaxScrollOffset(), align];
+			const toOffset = align === "end" ? item.end + this.options.scrollPaddingEnd : item.start - this.options.scrollPaddingStart;
+			return [this.getOffsetForAlignment(toOffset, align, item.size), align];
+		};
+		this.scrollToOffset = (toOffset, { align = "start", behavior = "auto" } = {}) => {
+			this._iosDeferredAdjustment = 0;
+			const offset = this.getOffsetForAlignment(toOffset, align);
+			const now = this.now();
+			this.scrollState = {
+				index: null,
+				align,
+				behavior,
+				startedAt: now,
+				lastTargetOffset: offset,
+				stableFrames: 0
+			};
+			this._scrollToOffset(offset, {
+				adjustments: void 0,
+				behavior
+			});
+			this.scheduleScrollReconcile();
+		};
+		this.scrollToIndex = (index, { align: initialAlign = "auto", behavior = "auto" } = {}) => {
+			this._iosDeferredAdjustment = 0;
+			index = Math.max(0, Math.min(index, this.options.count - 1));
+			const offsetInfo = this.getOffsetForIndex(index, initialAlign);
+			if (!offsetInfo) return;
+			const [offset, align] = offsetInfo;
+			const now = this.now();
+			this.scrollState = {
+				index,
+				align,
+				behavior,
+				startedAt: now,
+				lastTargetOffset: offset,
+				stableFrames: 0
+			};
+			this._scrollToOffset(offset, {
+				adjustments: void 0,
+				behavior
+			});
+			this.scheduleScrollReconcile();
+		};
+		this.scrollBy = (delta, { behavior = "auto" } = {}) => {
+			const offset = this.getScrollOffset() + delta;
+			const now = this.now();
+			this.scrollState = {
+				index: null,
+				align: "start",
+				behavior,
+				startedAt: now,
+				lastTargetOffset: offset,
+				stableFrames: 0
+			};
+			this._scrollToOffset(offset, {
+				adjustments: void 0,
+				behavior
+			});
+			this.scheduleScrollReconcile();
+		};
+		this.scrollToEnd = ({ behavior = "auto" } = {}) => {
+			if (this.options.count > 0) {
+				this.scrollToIndex(this.options.count - 1, {
+					align: "end",
+					behavior
+				});
+				return;
+			}
+			this.scrollToOffset(Math.max(this.getTotalSize() - this.getSize(), 0), { behavior });
+		};
+		this.getTotalSize = () => {
+			var _a;
+			const measurements = this.getMeasurements();
+			let end;
+			if (measurements.length === 0) end = this.options.paddingStart;
+			else if (this.options.lanes === 1) {
+				const lastIdx = measurements.length - 1;
+				const flat = this._flatMeasurements;
+				if (flat != null) end = flat[lastIdx * 2] + flat[lastIdx * 2 + 1];
+				else end = ((_a = measurements[lastIdx]) == null ? void 0 : _a.end) ?? 0;
+			} else {
+				const endByLane = Array(this.options.lanes).fill(null);
+				let endIndex = measurements.length - 1;
+				while (endIndex >= 0 && endByLane.some((val) => val === null)) {
+					const item = measurements[endIndex];
+					if (endByLane[item.lane] === null) endByLane[item.lane] = item.end;
+					endIndex--;
+				}
+				end = Math.max(...endByLane.filter((val) => val !== null));
+			}
+			return Math.max(end - this.options.scrollMargin + this.options.paddingEnd, 0);
+		};
+		this.takeSnapshot = () => {
+			const snapshot = [];
+			if (this.itemSizeCache.size === 0) return snapshot;
+			const m = this.getMeasurements();
+			for (const item of m) if (item && this.itemSizeCache.has(item.key)) snapshot.push({
+				index: item.index,
+				key: item.key,
+				start: item.start,
+				size: item.size,
+				end: item.end,
+				lane: item.lane
+			});
+			return snapshot;
+		};
+		this._scrollToOffset = (offset, { adjustments, behavior }) => {
+			this._intendedScrollOffset = offset + (adjustments ?? 0);
+			this.options.scrollToFn(offset, {
+				behavior,
+				adjustments
+			}, this);
+		};
+		this.measure = () => {
+			this.pendingMin = null;
+			this.itemSizeCache.clear();
+			this.laneAssignments.clear();
+			this.itemSizeCacheVersion++;
+			this.notify(false);
+		};
+		this.setOptions(opts);
+	}
+	applyScrollAdjustment(delta, behavior) {
+		if (delta === 0) return false;
+		if (isIOSWebKit() && (this.isScrolling || this._iosTouching || this._iosJustTouchEnded)) {
+			this._iosDeferredAdjustment += delta;
+			return false;
+		} else {
+			this._scrollToOffset(this.getScrollOffset(), {
+				adjustments: this.scrollAdjustments += delta,
+				behavior
+			});
+			if (this.scrollOffset !== null) {
+				this.scrollOffset += this.scrollAdjustments;
+				if (this.scrollOffset < 0) this.scrollOffset = 0;
+				this.scrollAdjustments = 0;
+			}
+			return true;
+		}
+	}
+	scheduleScrollReconcile() {
+		if (!this.targetWindow) {
+			this.scrollState = null;
+			return;
+		}
+		if (this.rafId != null) return;
+		this.rafId = this.targetWindow.requestAnimationFrame(() => {
+			this.rafId = null;
+			this.reconcileScroll();
+		});
+	}
+	reconcileScroll() {
+		if (!this.scrollState) return;
+		if (!this.scrollElement) return;
+		if (this.now() - this.scrollState.startedAt > 5e3) {
+			this.scrollState = null;
+			return;
+		}
+		const offsetInfo = this.scrollState.index != null ? this.getOffsetForIndex(this.scrollState.index, this.scrollState.align) : void 0;
+		const targetOffset = offsetInfo ? offsetInfo[0] : this.scrollState.lastTargetOffset;
+		const STABLE_FRAMES = 1;
+		const targetChanged = targetOffset !== this.scrollState.lastTargetOffset;
+		if (!targetChanged && approxEqual(targetOffset, this.getScrollOffset())) {
+			this.scrollState.stableFrames++;
+			if (this.scrollState.stableFrames >= STABLE_FRAMES) {
+				if (this.getScrollOffset() !== targetOffset) this._scrollToOffset(targetOffset, {
+					adjustments: void 0,
+					behavior: "auto"
+				});
+				this.scrollState = null;
+				return;
+			}
+		} else {
+			this.scrollState.stableFrames = 0;
+			if (targetChanged) {
+				const viewport = this.getSize() || 600;
+				const distance = Math.abs(targetOffset - this.getScrollOffset());
+				const keepSmooth = this.scrollState.behavior === "smooth" && distance > viewport;
+				this.scrollState.lastTargetOffset = targetOffset;
+				if (!keepSmooth) this.scrollState.behavior = "auto";
+				this._scrollToOffset(targetOffset, {
+					adjustments: void 0,
+					behavior: keepSmooth ? "smooth" : "auto"
+				});
+			}
+		}
+		this.scheduleScrollReconcile();
+	}
+};
+var findNearestBinarySearch = (low, high, getCurrentValue, value) => {
+	while (low <= high) {
+		const middle = (low + high) / 2 | 0;
+		const currentValue = getCurrentValue(middle);
+		if (currentValue < value) low = middle + 1;
+		else if (currentValue > value) high = middle - 1;
+		else return middle;
+	}
+	if (low > 0) return low - 1;
+	else return 0;
+};
+function findNearestBinarySearchFlat(flat, high, value) {
+	let low = 0;
+	while (low <= high) {
+		const middle = (low + high) / 2 | 0;
+		const currentValue = flat[middle * 2];
+		if (currentValue < value) low = middle + 1;
+		else if (currentValue > value) high = middle - 1;
+		else return middle;
+	}
+	return low > 0 ? low - 1 : 0;
+}
+function calculateRangeImpl(measurements, outerSize, scrollOffset, lanes, flat) {
+	const lastIndex = measurements.length - 1;
+	if (measurements.length <= lanes) return {
+		startIndex: 0,
+		endIndex: lastIndex
+	};
+	if (lanes === 1 && flat !== null) {
+		const startIndex2 = findNearestBinarySearchFlat(flat, lastIndex, scrollOffset);
+		let endIndex2 = startIndex2;
+		const limit = scrollOffset + outerSize;
+		while (endIndex2 < lastIndex && flat[endIndex2 * 2] + flat[endIndex2 * 2 + 1] < limit) endIndex2++;
+		return {
+			startIndex: startIndex2,
+			endIndex: endIndex2
+		};
+	}
+	const getStart = (index) => measurements[index].start;
+	let startIndex = findNearestBinarySearch(0, lastIndex, getStart, scrollOffset);
+	let endIndex = startIndex;
+	if (lanes === 1) while (endIndex < lastIndex && measurements[endIndex].end < scrollOffset + outerSize) endIndex++;
+	else if (lanes > 1) {
+		const endPerLane = Array(lanes).fill(0);
+		while (endIndex < lastIndex && endPerLane.some((pos) => pos < scrollOffset + outerSize)) {
+			const item = measurements[endIndex];
+			endPerLane[item.lane] = item.end;
+			endIndex++;
+		}
+		const startPerLane = Array(lanes).fill(scrollOffset + outerSize);
+		while (startIndex >= 0 && startPerLane.some((pos) => pos >= scrollOffset)) {
+			const item = measurements[startIndex];
+			startPerLane[item.lane] = item.start;
+			startIndex--;
+		}
+		startIndex = Math.max(0, startIndex - startIndex % lanes);
+		endIndex = Math.min(lastIndex, endIndex + (lanes - 1 - endIndex % lanes));
+	}
+	return {
+		startIndex,
+		endIndex
+	};
+}
+//#endregion
+//#region ../../node_modules/.pnpm/@tanstack+react-virtual@3.14.9_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/@tanstack/react-virtual/dist/esm/index.js
+var useIsomorphicLayoutEffect = typeof document !== "undefined" ? import_react.useLayoutEffect : import_react.useEffect;
+function useVirtualizerBase({ useFlushSync = true, directDomUpdates = false, directDomUpdatesMode = "transform", ...options }) {
+	const rerender = import_react.useReducer((x) => x + 1, 0)[1];
+	const directRef = import_react.useRef({
+		enabled: directDomUpdates,
+		mode: directDomUpdatesMode,
+		container: null,
+		lastSize: null,
+		lastPositions: /* @__PURE__ */ new WeakMap(),
+		prevRange: null
+	});
+	directRef.current.enabled = directDomUpdates;
+	directRef.current.mode = directDomUpdatesMode;
+	const applyContainerSize = (instance2) => {
+		const state = directRef.current;
+		if (!state.enabled || !state.container) return;
+		const totalSize = instance2.getTotalSize();
+		if (totalSize !== state.lastSize) {
+			state.lastSize = totalSize;
+			const sizeAxis = instance2.options.horizontal ? "width" : "height";
+			state.container.style[sizeAxis] = `${totalSize}px`;
+		}
+	};
+	const applyDirectStyles = (instance2) => {
+		const state = directRef.current;
+		if (!state.enabled || !state.container) return;
+		applyContainerSize(instance2);
+		const horizontal = !!instance2.options.horizontal;
+		const useTransform = state.mode === "transform";
+		const posAxis = horizontal ? "left" : "top";
+		const scrollMargin = instance2.options.scrollMargin;
+		const items = instance2.getVirtualItems();
+		for (const item of items) {
+			const next = item.start - scrollMargin;
+			const el = instance2.elementsCache.get(item.key);
+			if (!el) continue;
+			if (state.lastPositions.get(el) === next) continue;
+			state.lastPositions.set(el, next);
+			if (useTransform) el.style.transform = horizontal ? `translate3d(${next}px, 0, 0)` : `translate3d(0, ${next}px, 0)`;
+			else el.style[posAxis] = `${next}px`;
+		}
+	};
+	const resolvedOptions = {
+		...options,
+		onChange: (instance2, sync) => {
+			var _a;
+			const state = directRef.current;
+			let shouldRerender = true;
+			if (state.enabled) {
+				applyDirectStyles(instance2);
+				const range = instance2.range;
+				const prev = state.prevRange;
+				shouldRerender = !prev || prev.isScrolling !== instance2.isScrolling || prev.startIndex !== (range == null ? void 0 : range.startIndex) || prev.endIndex !== (range == null ? void 0 : range.endIndex);
+				if (shouldRerender) state.prevRange = range ? {
+					startIndex: range.startIndex,
+					endIndex: range.endIndex,
+					isScrolling: instance2.isScrolling
+				} : null;
+			}
+			if (shouldRerender) if (useFlushSync && sync) (0, import_react_dom.flushSync)(rerender);
+			else rerender();
+			(_a = options.onChange) == null || _a.call(options, instance2, sync);
+		}
+	};
+	const [instance] = import_react.useState(() => {
+		const v = new Virtualizer(resolvedOptions);
+		return Object.assign(v, { containerRef: (node) => {
+			const state = directRef.current;
+			state.container = node;
+			state.lastSize = null;
+			if (node && state.enabled) {
+				const total = v.getTotalSize();
+				state.lastSize = total;
+				const axis = v.options.horizontal ? "width" : "height";
+				node.style[axis] = `${total}px`;
+			}
+		} });
+	});
+	instance.setOptions(resolvedOptions);
+	useIsomorphicLayoutEffect(() => {
+		return instance._didMount();
+	}, []);
+	useIsomorphicLayoutEffect(() => {
+		applyContainerSize(instance);
+		return instance._willUpdate();
+	});
+	useIsomorphicLayoutEffect(() => {
+		applyDirectStyles(instance);
+	});
+	return instance;
+}
+function useVirtualizer(options) {
+	return useVirtualizerBase({
+		observeElementRect,
+		observeElementOffset,
+		scrollToFn: elementScroll,
+		...options
+	});
+}
+//#endregion
+//#region ../../packages/react/src/virtual/scale-coordinate-space.ts
+var SAFE_MAX_SPACER = 16e6;
+function computeScale(contentTotal, safeMax) {
+	if (contentTotal <= safeMax) return 1;
+	return contentTotal / safeMax;
+}
+function toContent(spacerScroll, s) {
+	return spacerScroll * s;
+}
+function toSpacer(contentScroll, s) {
+	return contentScroll / s;
+}
+//#endregion
+//#region ../../packages/react/src/virtual/use-scaled-virtualizer.ts
+function useScaledVirtualizer(opts) {
+	const scaleRef = (0, import_react.useRef)(1);
+	const scaledObserveElementOffset = (0, import_react.useMemo)(() => (instance, cb) => {
+		const el = instance.scrollElement;
+		if (!el) return;
+		const onScroll = () => {
+			cb(el.scrollTop * scaleRef.current, true);
+		};
+		const onScrollEnd = () => {
+			cb(el.scrollTop * scaleRef.current, false);
+		};
+		cb(el.scrollTop * scaleRef.current, false);
+		el.addEventListener("scroll", onScroll, { passive: true });
+		el.addEventListener("scrollend", onScrollEnd, { passive: true });
+		return () => {
+			el.removeEventListener("scroll", onScroll);
+			el.removeEventListener("scrollend", onScrollEnd);
+		};
+	}, []);
+	const scaledScrollToFn = (0, import_react.useCallback)((offset, { adjustments, behavior }, instance) => {
+		const el = instance.scrollElement;
+		if (!el) return;
+		const adjusted = offset + (adjustments ?? 0);
+		el.scrollTo({
+			top: adjusted / scaleRef.current,
+			behavior
+		});
+	}, []);
+	const virtualizer = useVirtualizer({
+		count: opts.count,
+		estimateSize: opts.estimateSize,
+		getScrollElement: opts.getScrollElement,
+		overscan: opts.overscan ?? 5,
+		scrollPaddingStart: opts.scrollPaddingStart ?? 0,
+		scrollMargin: opts.scrollMargin ?? 0,
+		observeElementOffset: scaledObserveElementOffset,
+		scrollToFn: scaledScrollToFn
+	});
+	virtualizer.shouldAdjustScrollPositionOnItemSizeChange = (item, _delta, instance) => item.end <= (instance.scrollOffset ?? 0);
+	const contentTotal = virtualizer.getTotalSize();
+	const scale = computeScale(contentTotal, SAFE_MAX_SPACER);
+	scaleRef.current = scale;
+	return {
+		virtualizer,
+		scale,
+		spacerHeight: scale === 1 ? contentTotal : SAFE_MAX_SPACER,
+		toContentScroll: (0, import_react.useCallback)((spacerScroll) => toContent(spacerScroll, scaleRef.current), []),
+		toSpacerScroll: (0, import_react.useCallback)((contentScroll) => toSpacer(contentScroll, scaleRef.current), [])
+	};
+}
+//#endregion
+//#region ../../packages/react/src/virtual/use-virtual-list-state.ts
+var CURRENT_VERSION = 1;
+function useVirtualListState(persistenceKey) {
+	const [stored, setStored] = useProperty(persistenceKey, "snapshot", { defaultValue: null });
+	return {
+		getRestoreSnapshot: (0, import_react.useCallback)(() => {
+			if (!stored) return void 0;
+			if (stored.version !== CURRENT_VERSION) return void 0;
+			return stored;
+		}, [stored]),
+		recordSnapshot: (0, import_react.useCallback)((snapshot) => {
+			setStored(snapshot);
+		}, [setStored])
+	};
+}
+var VirtualList_module_default = {
+	scroller: "_scroller_1rroa_1",
+	spacer: "_spacer_1rroa_7"
+};
+//#endregion
+//#region ../../packages/react/src/virtual/VirtualList.tsx
+var BOTTOM_THRESHOLD_PX = 30;
+var USER_INTERACTION_WINDOW_MS = 400;
+var SMOOTH_SCROLL_MAX_S = 10;
+var PERSIST_DEBOUNCE_MS = 250;
+var DEFAULT_ITEM_HEIGHT_PX = 400;
+var MAX_CHUNK_HEIGHT = 5e6;
+function PaddingChunks({ height, prefix }) {
+	if (height <= 0) return null;
+	const chunks = [];
+	let remaining = height;
+	let i = 0;
+	while (remaining > 0) {
+		const h = Math.min(remaining, MAX_CHUNK_HEIGHT);
+		chunks.push(/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { height: h } }, `${prefix}-${i}`));
+		remaining -= h;
+		i++;
+	}
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(import_jsx_runtime.Fragment, { children: chunks });
+}
+var countMatchesInTexts = (lowerTextsByItem, lowerTerm) => {
+	if (lowerTerm.length === 0) return 0;
+	let total = 0;
+	for (const texts of lowerTextsByItem) for (const lowerText of texts) {
+		let pos = 0;
+		while ((pos = lowerText.indexOf(lowerTerm, pos)) !== -1) {
+			total++;
+			pos += lowerTerm.length;
+		}
+	}
+	return total;
+};
+function VirtualList({ persistenceKey, ref, id, className, scrollRef: externalScroll, data, renderRow, estimatedItemHeight = DEFAULT_ITEM_HEIGHT_PX, overscan, embedded = false, resetScrollOnMount: resetScrollOnMountProp, live, navOwned, followRequested, showProgress, initialIndex, scrollPaddingStart, components, smoothScroll = true, itemSearchText, findScope = "local", scrollToTopOnFinish = false, onVisibleRangeChange }) {
+	const resetScrollOnMount = resetScrollOnMountProp ?? !embedded;
+	const externalScrollRef = externalScroll instanceof HTMLElement ? null : externalScroll ?? null;
+	const externalScrollEl = externalScroll instanceof HTMLElement ? externalScroll : null;
+	const internalScrollRef = (0, import_react.useRef)(null);
+	const wrapperRef = (0, import_react.useRef)(null);
+	const [scrollParent, setScrollParent] = (0, import_react.useState)(null);
+	const [scrollMargin, setScrollMargin] = (0, import_react.useState)(0);
+	const measureScrollMargin = (0, import_react.useCallback)(() => {
+		const wrapper = wrapperRef.current;
+		const parent = embedded ? externalScrollEl ?? scrollParent : null;
+		let margin = 0;
+		if (wrapper && parent && parent !== wrapper) {
+			const parentRect = parent.getBoundingClientRect();
+			if (parentRect.width > 0 || parentRect.height > 0) margin = Math.max(0, Math.round(wrapper.getBoundingClientRect().top - parentRect.top + parent.scrollTop));
+		}
+		setScrollMargin((prev) => prev === margin ? prev : margin);
+	}, [
+		embedded,
+		externalScrollEl,
+		scrollParent
+	]);
+	(0, import_react.useLayoutEffect)(measureScrollMargin);
+	(0, import_react.useEffect)(() => {
+		if (externalScrollRef === null) return;
+		const sync = (records) => {
+			setScrollParent((prev) => prev === externalScrollRef.current ? prev : externalScrollRef.current ?? null);
+			const wrapper = wrapperRef.current;
+			if (records && wrapper && records.every((r) => wrapper.contains(r.target))) return;
+			measureScrollMargin();
+		};
+		sync();
+		const observer = new MutationObserver(sync);
+		observer.observe(document.body, {
+			childList: true,
+			subtree: true
+		});
+		return () => observer.disconnect();
+	}, [externalScrollRef, measureScrollMargin]);
+	const getScrollElement = (0, import_react.useCallback)(() => externalScrollEl ?? scrollParent ?? internalScrollRef.current, [externalScrollEl, scrollParent]);
+	const { virtualizer, scale, toContentScroll, toSpacerScroll } = useScaledVirtualizer({
+		count: data.length,
+		estimateSize: () => estimatedItemHeight,
+		getScrollElement,
+		overscan,
+		scrollPaddingStart: scrollPaddingStart ?? 0,
+		scrollMargin
+	});
+	const { getRestoreSnapshot, recordSnapshot } = useVirtualListState(persistenceKey);
+	const [storedFollow, setFollowOutput] = useProperty(persistenceKey, "follow", { defaultValue: null });
+	const isAutoScrollingRef = (0, import_react.useRef)(false);
+	const followUserActedRef = (0, import_react.useRef)(false);
+	const followSeedRef = (0, import_react.useRef)(null);
+	const resolveInitialFollow = () => followRequested ? true : navOwned ? false : storedFollow ?? !!live;
+	const [followSeed, setFollowSeed] = (0, import_react.useState)(() => ({
+		key: persistenceKey,
+		value: resolveInitialFollow(),
+		applied: false
+	}));
+	if (followSeed.key !== persistenceKey) setFollowSeed({
+		key: persistenceKey,
+		value: resolveInitialFollow(),
+		applied: false
+	});
+	else if (!followSeed.applied && storedFollow === followSeed.value) setFollowSeed((s) => ({
+		...s,
+		applied: true
+	}));
+	const seedActive = followSeed.key === persistenceKey && !followSeed.applied;
+	const followOutput = seedActive ? followSeed.value : storedFollow ?? false;
+	(0, import_react.useLayoutEffect)(() => {
+		followUserActedRef.current = false;
+		followSeedRef.current = null;
+	}, [persistenceKey]);
+	(0, import_react.useLayoutEffect)(() => {
+		if (seedActive && storedFollow !== followSeed.value) {
+			setFollowOutput(followSeed.value);
+			followSeedRef.current = followSeed.value;
+		}
+	}, [
+		seedActive,
+		followSeed,
+		storedFollow,
+		setFollowOutput
+	]);
+	const userInteractingRef = (0, import_react.useRef)(false);
+	const pointerDownRef = (0, import_react.useRef)(false);
+	const interactTimerRef = (0, import_react.useRef)(null);
+	const noteUserInteraction = (0, import_react.useCallback)(() => {
+		userInteractingRef.current = true;
+		if (interactTimerRef.current) clearTimeout(interactTimerRef.current);
+		interactTimerRef.current = setTimeout(() => {
+			userInteractingRef.current = false;
+		}, USER_INTERACTION_WINDOW_MS);
+	}, []);
+	const prevLive = usePreviousValue(live);
+	(0, import_react.useEffect)(() => {
+		if (live && !prevLive && !navOwned && !followRequested && !followUserActedRef.current && !storedFollow && storedFollow === followSeedRef.current) {
+			setFollowOutput(true);
+			followSeedRef.current = true;
+		}
+	}, [
+		live,
+		prevLive,
+		navOwned,
+		followRequested,
+		storedFollow,
+		setFollowOutput
+	]);
+	const finishScrollTimerRef = (0, import_react.useRef)(null);
+	const followOutputRef = (0, import_react.useRef)(followOutput);
+	(0, import_react.useEffect)(() => {
+		followOutputRef.current = followOutput;
+	}, [followOutput]);
+	(0, import_react.useEffect)(() => {
+		if (scrollToTopOnFinish && !live && prevLive && followOutputRef.current) {
+			const el = getScrollElement();
+			if (el) {
+				setFollowOutput(false);
+				finishScrollTimerRef.current = setTimeout(() => {
+					finishScrollTimerRef.current = null;
+					if (!userInteractingRef.current && !pointerDownRef.current) el.scrollTo({
+						top: 0,
+						behavior: "auto"
+					});
+				}, 100);
+			}
+		}
+		return () => {
+			if (finishScrollTimerRef.current) {
+				clearTimeout(finishScrollTimerRef.current);
+				finishScrollTimerRef.current = null;
+			}
+		};
+	}, [
+		live,
+		prevLive,
+		scrollToTopOnFinish,
+		getScrollElement,
+		setFollowOutput
+	]);
+	const handleScroll = useRafThrottle(() => {
+		if (!live) return;
+		const el = getScrollElement();
+		if (!el) return;
+		if (!userInteractingRef.current && !pointerDownRef.current) return;
+		const atBottom = el.scrollHeight - el.scrollTop <= el.clientHeight + BOTTOM_THRESHOLD_PX;
+		if (atBottom && !followOutput) {
+			followUserActedRef.current = true;
+			setFollowOutput(true);
+		} else if (!atBottom && followOutput) {
+			followUserActedRef.current = true;
+			setFollowOutput(false);
+		}
+	});
+	(0, import_react.useEffect)(() => {
+		const el = getScrollElement();
+		if (!el) return;
+		el.addEventListener("scroll", handleScroll);
+		return () => el.removeEventListener("scroll", handleScroll);
+	}, [getScrollElement, handleScroll]);
+	(0, import_react.useEffect)(() => {
+		const el = getScrollElement();
+		if (!el) return;
+		const onWheel = () => noteUserInteraction();
+		const onTouchMove = () => noteUserInteraction();
+		const onKeyDown = (e) => {
+			if (SCROLL_RELEASE_KEYS.has(e.key)) noteUserInteraction();
+		};
+		const onPointerDown = () => {
+			pointerDownRef.current = true;
+			noteUserInteraction();
+		};
+		const onPointerUp = () => {
+			pointerDownRef.current = false;
+		};
+		el.addEventListener("wheel", onWheel, { passive: true });
+		el.addEventListener("touchmove", onTouchMove, { passive: true });
+		el.addEventListener("keydown", onKeyDown);
+		el.addEventListener("pointerdown", onPointerDown, { passive: true });
+		window.addEventListener("pointerup", onPointerUp, { passive: true });
+		window.addEventListener("pointercancel", onPointerUp, { passive: true });
+		return () => {
+			el.removeEventListener("wheel", onWheel);
+			el.removeEventListener("touchmove", onTouchMove);
+			el.removeEventListener("keydown", onKeyDown);
+			el.removeEventListener("pointerdown", onPointerDown);
+			window.removeEventListener("pointerup", onPointerUp);
+			window.removeEventListener("pointercancel", onPointerUp);
+		};
+	}, [getScrollElement, noteUserInteraction]);
+	const contentTotal = virtualizer.getTotalSize();
+	(0, import_react.useEffect)(() => {
+		if (!followOutput || !live) return;
+		const el = getScrollElement();
+		if (!el) return;
+		let releaseFrame = 0;
+		const frame = requestAnimationFrame(() => {
+			isAutoScrollingRef.current = true;
+			el.scrollTo({ top: el.scrollHeight });
+			lastAutoScrollTopRef.current = el.scrollTop;
+			releaseFrame = requestAnimationFrame(() => {
+				isAutoScrollingRef.current = false;
+			});
+		});
+		return () => {
+			cancelAnimationFrame(frame);
+			cancelAnimationFrame(releaseFrame);
+		};
+	}, [
+		contentTotal,
+		followOutput,
+		live,
+		getScrollElement
+	]);
+	const hasInitialScrolledRef = (0, import_react.useRef)(false);
+	const userScrolledRef = (0, import_react.useRef)(false);
+	const lastAutoScrollTopRef = (0, import_react.useRef)(null);
+	const settleFrameRef = (0, import_react.useRef)(0);
+	const releaseFrameRef = (0, import_react.useRef)(0);
+	const settleScrollToIndex = (0, import_react.useCallback)((index, align, onDone) => {
+		const jump = () => virtualizer.scrollToIndex(index, {
+			align,
+			behavior: "auto"
+		});
+		isAutoScrollingRef.current = true;
+		cancelAnimationFrame(releaseFrameRef.current);
+		const finish = () => {
+			const elNow = getScrollElement();
+			if (elNow) lastAutoScrollTopRef.current = elNow.scrollTop;
+			releaseFrameRef.current = requestAnimationFrame(() => {
+				isAutoScrollingRef.current = false;
+			});
+			onDone?.();
+		};
+		jump();
+		const el = getScrollElement();
+		if (!el) {
+			finish();
+			return;
+		}
+		cancelAnimationFrame(settleFrameRef.current);
+		let frames = 0;
+		let stable = 0;
+		let lastTop = el.scrollTop;
+		const settle = () => {
+			if (userInteractingRef.current) {
+				finish();
+				return;
+			}
+			jump();
+			stable = Math.abs(el.scrollTop - lastTop) <= 1 ? stable + 1 : 0;
+			lastTop = el.scrollTop;
+			if (stable < 3 && ++frames < 30) settleFrameRef.current = requestAnimationFrame(settle);
+			else finish();
+		};
+		settleFrameRef.current = requestAnimationFrame(settle);
+	}, [virtualizer, getScrollElement]);
+	(0, import_react.useEffect)(() => () => {
+		cancelAnimationFrame(settleFrameRef.current);
+		cancelAnimationFrame(releaseFrameRef.current);
+	}, []);
+	const lastInitialKeyRef = (0, import_react.useRef)(null);
+	const settleRestoreScroll = (0, import_react.useCallback)((getTargetSpacerTop) => {
+		isAutoScrollingRef.current = true;
+		cancelAnimationFrame(releaseFrameRef.current);
+		cancelAnimationFrame(settleFrameRef.current);
+		const el = getScrollElement();
+		const keyAtStart = lastInitialKeyRef.current;
+		const finish = () => {
+			if (el) lastAutoScrollTopRef.current = el.scrollTop;
+			releaseFrameRef.current = requestAnimationFrame(() => {
+				isAutoScrollingRef.current = false;
+			});
+		};
+		if (!el) {
+			finish();
+			return;
+		}
+		el.scrollTop = getTargetSpacerTop();
+		let frames = 0;
+		let stable = 0;
+		let lastTop = el.scrollTop;
+		const settle = () => {
+			if (userInteractingRef.current || lastInitialKeyRef.current !== keyAtStart) {
+				finish();
+				return;
+			}
+			const preTop = el.scrollTop;
+			el.scrollTop = getTargetSpacerTop();
+			const postTop = el.scrollTop;
+			stable = Math.abs(preTop - lastTop) > 1 || Math.abs(postTop - lastTop) > 1 ? 0 : stable + 1;
+			lastTop = postTop;
+			if (stable < 3 && ++frames < 30) settleFrameRef.current = requestAnimationFrame(settle);
+			else finish();
+		};
+		settleFrameRef.current = requestAnimationFrame(settle);
+	}, [getScrollElement]);
+	const lastInitialIndexRef = (0, import_react.useRef)(void 0);
+	const hasResetTopRef = (0, import_react.useRef)(false);
+	(0, import_react.useEffect)(() => {
+		if (lastInitialKeyRef.current !== persistenceKey || lastInitialIndexRef.current !== initialIndex) {
+			hasInitialScrolledRef.current = false;
+			userScrolledRef.current = false;
+			hasResetTopRef.current = false;
+			lastInitialKeyRef.current = persistenceKey;
+			lastInitialIndexRef.current = initialIndex ?? void 0;
+		}
+		if (hasInitialScrolledRef.current) return;
+		const el = getScrollElement();
+		if (!el) return;
+		const snapshot = getRestoreSnapshot();
+		let releaseFrame = 0;
+		const frame = requestAnimationFrame(() => {
+			isAutoScrollingRef.current = true;
+			const release = () => {
+				lastAutoScrollTopRef.current = el.scrollTop;
+				releaseFrame = requestAnimationFrame(() => {
+					isAutoScrollingRef.current = false;
+				});
+			};
+			if (initialIndex != null) {
+				hasInitialScrolledRef.current = true;
+				settleScrollToIndex(initialIndex, "start");
+			} else if (followOutput && live) {
+				hasInitialScrolledRef.current = true;
+				release();
+			} else if (snapshot) {
+				hasInitialScrolledRef.current = true;
+				if (!userScrolledRef.current) {
+					const clampToMax = snapshot.totalCount !== data.length;
+					settleRestoreScroll(() => {
+						const target = toSpacerScroll(snapshot.scrollOffset);
+						if (!clampToMax) return target;
+						const maxSpacerTop = Math.max(0, toSpacerScroll(virtualizer.getTotalSize()) + scrollMargin - el.clientHeight);
+						return Math.min(target, maxSpacerTop);
+					});
+				} else release();
+			} else if (!userScrolledRef.current && !hasResetTopRef.current && resetScrollOnMount) {
+				el.scrollTop = 0;
+				hasResetTopRef.current = true;
+				release();
+			} else release();
+		});
+		return () => {
+			cancelAnimationFrame(frame);
+			if (releaseFrame) {
+				cancelAnimationFrame(releaseFrame);
+				isAutoScrollingRef.current = false;
+			}
+		};
+	}, [
+		persistenceKey,
+		initialIndex,
+		settleScrollToIndex,
+		settleRestoreScroll,
+		contentTotal,
+		data.length,
+		followOutput,
+		live,
+		getRestoreSnapshot,
+		getScrollElement,
+		toSpacerScroll,
+		virtualizer,
+		scrollMargin,
+		resetScrollOnMount
+	]);
+	const buildSnapshot = (0, import_react.useCallback)((el) => ({
+		version: 1,
+		scrollOffset: toContentScroll(el.scrollTop),
+		totalCount: data.length
+	}), [toContentScroll, data.length]);
+	const persistTimerRef = (0, import_react.useRef)(null);
+	const pendingSnapshotRef = (0, import_react.useRef)(null);
+	const persistOnScroll = useRafThrottle(() => {
+		if (isAutoScrollingRef.current) return;
+		const elNow = getScrollElement();
+		if (elNow && lastAutoScrollTopRef.current !== null && Math.abs(elNow.scrollTop - lastAutoScrollTopRef.current) <= 2) return;
+		userScrolledRef.current = true;
+		if (elNow) pendingSnapshotRef.current = buildSnapshot(elNow);
+		if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
+		persistTimerRef.current = setTimeout(() => {
+			persistTimerRef.current = null;
+			pendingSnapshotRef.current = null;
+			const el = getScrollElement();
+			if (!el) return;
+			recordSnapshot(buildSnapshot(el));
+		}, PERSIST_DEBOUNCE_MS);
+	});
+	(0, import_react.useEffect)(() => {
+		const el = getScrollElement();
+		if (!el) return;
+		el.addEventListener("scroll", persistOnScroll);
+		return () => el.removeEventListener("scroll", persistOnScroll);
+	}, [getScrollElement, persistOnScroll]);
+	(0, import_react.useEffect)(() => () => {
+		if (persistTimerRef.current) {
+			clearTimeout(persistTimerRef.current);
+			persistTimerRef.current = null;
+			if (pendingSnapshotRef.current) recordSnapshot(pendingSnapshotRef.current);
+		}
+		pendingSnapshotRef.current = null;
+	}, [recordSnapshot]);
+	(0, import_react.useEffect)(() => () => {
+		if (interactTimerRef.current) {
+			clearTimeout(interactTimerRef.current);
+			interactTimerRef.current = null;
+		}
+	}, []);
+	const items = virtualizer.getVirtualItems();
+	const startIndex = items[0]?.index ?? 0;
+	const endIndex = items[items.length - 1]?.index ?? 0;
+	const visibleRangeRef = (0, import_react.useRef)({
+		startIndex: 0,
+		endIndex: 0
+	});
+	(0, import_react.useEffect)(() => {
+		const range = {
+			startIndex,
+			endIndex
+		};
+		visibleRangeRef.current = range;
+		onVisibleRangeChange?.(range);
+	}, [
+		startIndex,
+		endIndex,
+		onVisibleRangeChange
+	]);
+	(0, import_react.useImperativeHandle)(ref, () => ({
+		scrollToIndex(opts) {
+			const behavior = scale > SMOOTH_SCROLL_MAX_S ? "auto" : opts.behavior ?? (smoothScroll ? "smooth" : "auto");
+			if (behavior === "auto") {
+				settleScrollToIndex(opts.index, opts.align, opts.onDone);
+				return;
+			}
+			virtualizer.scrollToIndex(opts.index, {
+				align: opts.align,
+				behavior
+			});
+			opts.onDone?.();
+		},
+		scrollTo(opts) {
+			const el = getScrollElement();
+			if (!el) return;
+			const behavior = scale > SMOOTH_SCROLL_MAX_S ? "auto" : opts.behavior ?? (smoothScroll ? "smooth" : "auto");
+			el.scrollTo({
+				top: opts.top,
+				behavior
+			});
+		},
+		getState(callback) {
+			const el = getScrollElement();
+			callback({
+				version: 1,
+				scrollOffset: el ? toContentScroll(el.scrollTop) : 0,
+				totalCount: data.length
+			});
+		},
+		jumpToStart() {
+			const el = getScrollElement();
+			if (el) el.scrollTop = 0;
+		},
+		jumpToEnd() {
+			const el = getScrollElement();
+			if (el) el.scrollTop = el.scrollHeight;
+		}
+	}), [
+		virtualizer,
+		scale,
+		settleScrollToIndex,
+		smoothScroll,
+		getScrollElement,
+		toContentScroll,
+		data.length
+	]);
+	const extendedFind = useExtendedFindOptional();
+	const findContext = findScope === "none" ? null : extendedFind;
+	const searchInData = (0, import_react.useCallback)((term, direction, onContentReady) => {
+		if (!term || data.length === 0) return Promise.resolve(false);
+		const isForward = direction === "forward";
+		const len = data.length;
+		const range = visibleRangeRef.current;
+		const current = isForward ? range.endIndex : range.startIndex;
+		const getText = itemSearchText ?? ((item) => JSON.stringify(item));
+		const prepared = prepareSearchTerm(term);
+		for (let offset = 1; offset < len; offset++) {
+			const i = isForward ? (current + offset) % len : (current - offset + len) % len;
+			const item = data[i];
+			if (item === void 0) continue;
+			const texts = getText(item);
+			if ((Array.isArray(texts) ? texts : [texts]).some((text) => {
+				const lower = text.toLowerCase();
+				if (lower.includes(prepared.simple)) return true;
+				if (prepared.unquoted && lower.includes(prepared.unquoted)) return true;
+				if (prepared.jsonEscaped && lower.includes(prepared.jsonEscaped)) return true;
+				return false;
+			})) {
+				settleScrollToIndex(i, "center");
+				setTimeout(onContentReady, 200);
+				return Promise.resolve(true);
+			}
+		}
+		return Promise.resolve(false);
+	}, [
+		data,
+		itemSearchText,
+		settleScrollToIndex
+	]);
+	const precomputedSearchTexts = (0, import_react.useMemo)(() => {
+		if (!findContext) return [];
+		const getText = itemSearchText ?? ((item) => JSON.stringify(item));
+		return data.map((item) => {
+			const texts = getText(item);
+			return (Array.isArray(texts) ? texts : [texts]).map((t) => t.toLowerCase());
+		});
+	}, [
+		data,
+		itemSearchText,
+		findContext
+	]);
+	const countMatchesInData = (0, import_react.useCallback)((term) => {
+		if (!term || precomputedSearchTexts.length === 0) return 0;
+		return countMatchesInTexts(precomputedSearchTexts, term.toLowerCase());
+	}, [precomputedSearchTexts]);
+	(0, import_react.useEffect)(() => {
+		if (!findContext) return;
+		const u1 = findContext.registerVirtualList(persistenceKey, searchInData);
+		const u2 = findContext.registerMatchCounter(persistenceKey, countMatchesInData);
+		return () => {
+			u1();
+			u2();
+		};
+	}, [
+		findContext,
+		persistenceKey,
+		searchInData,
+		countMatchesInData
+	]);
+	const ItemSlot = components?.Item;
+	const FooterSlot = components?.Footer;
+	const ownsScroll = externalScroll === void 0;
+	const firstItem = items.length > 0 ? items[0] : void 0;
+	const lastItem = items.length > 0 ? items[items.length - 1] : void 0;
+	const bandStart = firstItem?.start ?? 0;
+	const topPaddingSpacer = (firstItem ? firstItem.start - scrollMargin : 0) / scale;
+	const renderedBandHeight = firstItem && lastItem ? lastItem.start + lastItem.size - firstItem.start : 0;
+	const bottomPaddingSpacer = (lastItem ? Math.max(0, virtualizer.getTotalSize() + scrollMargin - (lastItem.start + lastItem.size)) : virtualizer.getTotalSize()) / scale;
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+		id,
+		ref: (el) => {
+			wrapperRef.current = el;
+			if (!ownsScroll) return;
+			internalScrollRef.current = el;
+			setScrollParent((prev) => prev === el ? prev : el);
+		},
+		className: clsx(VirtualList_module_default.scroller, className),
+		style: ownsScroll ? {
+			height: "100%",
+			width: "100%",
+			overflow: "auto"
+		} : { width: "100%" },
+		children: [
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(PaddingChunks, {
+				height: topPaddingSpacer,
+				prefix: "top"
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+				style: {
+					position: "relative",
+					height: renderedBandHeight
+				},
+				children: items.map((vItem) => {
+					const item = data[vItem.index];
+					if (item === void 0) return null;
+					const top = vItem.start - bandStart;
+					const child = renderRow(vItem.index, item);
+					if (ItemSlot) return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+						ref: virtualizer.measureElement,
+						"data-index": vItem.index,
+						style: {
+							position: "absolute",
+							top,
+							left: 0,
+							right: 0
+						},
+						children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ItemSlot, {
+							"data-index": vItem.index,
+							"data-item-index": vItem.index,
+							"data-known-size": vItem.size,
+							style: {},
+							children: child
+						})
+					}, vItem.key);
+					return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+						ref: virtualizer.measureElement,
+						"data-index": vItem.index,
+						"data-item-index": vItem.index,
+						"data-known-size": vItem.size,
+						style: {
+							position: "absolute",
+							top,
+							left: 0,
+							right: 0
+						},
+						children: child
+					}, vItem.key);
+				})
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(PaddingChunks, {
+				height: bottomPaddingSpacer,
+				prefix: "bot"
+			}),
+			showProgress && (FooterSlot ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(FooterSlot, {}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+				style: {
+					display: "flex",
+					justifyContent: "center",
+					padding: "1rem"
+				},
+				children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(PulsingDots, {
+					subtle: false,
+					size: "medium"
+				})
+			}))
+		]
+	});
+}
 //#endregion
 //#region ../../packages/inspect-components/src/content/copyText.ts
 /**
@@ -69895,14 +69097,15 @@ var RenderedContent = ({ id, entry, references, renderOptions = { renderString: 
 		const { rendered } = renderer.render(id, entry, renderOptions, references);
 		if (rendered !== void 0 && (0, import_react.isValidElement)(rendered)) return rendered;
 	}
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: (() => {
+	const displayValue = (() => {
 		try {
 			if (typeof entry.value === "object") return JSON.stringify(entry.value);
 			return String(entry.value).trim();
 		} catch (e) {
 			return "[Unable to display value]";
 		}
-	})() });
+	})();
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: displayValue });
 };
 /**
 * Object containing different content renderers.
@@ -69926,7 +69129,8 @@ var contentRenderers = (icons, renderObject, externalRenderers) => {
 				return false;
 			},
 			render: (_id, entry, _options) => {
-				return { rendered: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(JSONPanel, { data: import_dist.default.parse(entry.value) }) };
+				const obj = import_dist.default.parse(entry.value);
+				return { rendered: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(JSONPanel, { data: obj }) };
 			}
 		},
 		Model: {
@@ -70086,13 +69290,14 @@ var contentRenderers = (icons, renderObject, externalRenderers) => {
 //#endregion
 //#region ../../packages/inspect-components/src/content/RecordTree.tsx
 var kRecordTreeKey = "record-tree-key";
+/** VirtualList persistence-key prefix for record trees. Exported so the app's
+*  per-sample reset can clear the persisted snapshots by this prefix. */
+var kMetadataGridKeyPrefix = "metadata-grid-";
 /**
 * Renders the MetaDataView component.
 */
 var RecordTree = ({ id, record, className, scrollRef, defaultExpandLevel = 1, processStore = false, useBorders = true, copyButton = false }) => {
 	const icons = useContentIcons();
-	const listHandle = (0, import_react.useRef)(null);
-	const { getRestoreState } = useVirtuosoState(listHandle, `metadata-grid-${id}`);
 	const [collapsedIds, setCollapsed, clearIds] = useCollapsibleIds(id);
 	(0, import_react.useEffect)(() => {
 		return () => {
@@ -70145,7 +69350,6 @@ var RecordTree = ({ id, record, className, scrollRef, defaultExpandLevel = 1, pr
 					event.preventDefault();
 					event.stopPropagation();
 					setCollapsed(item.id, true);
-					break;
 			}
 		};
 	}, [
@@ -70208,30 +69412,17 @@ var RecordTree = ({ id, record, className, scrollRef, defaultExpandLevel = 1, pr
 		style: { width: "100%" },
 		children: items.map((_, index) => renderRow(index))
 	});
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(es, {
-		ref: listHandle,
-		customScrollParent: scrollRef?.current ? scrollRef.current : void 0,
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(VirtualList, {
+		persistenceKey: `${kMetadataGridKeyPrefix}${id}`,
 		id,
-		style: {
-			width: "100%",
-			height: "100%"
-		},
+		scrollRef,
 		data: items,
-		defaultItemHeight: 50,
-		itemContent: renderRow,
-		atBottomThreshold: 30,
-		increaseViewportBy: {
-			top: 300,
-			bottom: 300
-		},
-		overscan: {
-			main: 10,
-			reverse: 10
-		},
-		className: clsx(className, "samples-list"),
-		skipAnimationFrameInResizeObserver: true,
-		restoreStateFrom: getRestoreState(),
-		tabIndex: 0
+		renderRow,
+		estimatedItemHeight: 50,
+		overscan: 10,
+		embedded: true,
+		findScope: "none",
+		className: clsx(className, "samples-list")
 	});
 };
 var toTreeItems = (record, isCollapsed, recordProcessors = [], currentDepth = 0, currentPath = []) => {
@@ -70954,10 +70145,13 @@ var ToolOutput = ({ output, className, onDownloadFile }) => {
 */
 var ToolTextOutput = ({ text }) => {
 	const displayMode = useDisplayMode();
-	if (displayMode === "rendered" && isJson(text)) return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(JsonMessageContent, {
-		id: `1-json`,
-		json: JSON.parse(text)
-	});
+	if (displayMode === "rendered" && isJson(text)) {
+		const obj = JSON.parse(text);
+		return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(JsonMessageContent, {
+			id: `1-json`,
+			json: obj
+		});
+	}
 	if (displayMode === "rendered" && isAnsiOutput(text)) return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ANSIDisplay, {
 		className: ToolOutput_module_default.ansiOutput,
 		output: text,
@@ -71611,7 +70805,8 @@ var ToolCallView = ({ id, tool, functionCall, input, selfAnnotation, inputScreen
 * (e.g. images) through MessageContent for normal rendering.
 */
 var MarkdownToolOutput = ({ contents, context }) => {
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(import_jsx_runtime.Fragment, { children: contents.flatMap((c) => c.type === "tool" ? c.content : [c]).map((item, i) => {
+	const items = contents.flatMap((c) => c.type === "tool" ? c.content : [c]);
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(import_jsx_runtime.Fragment, { children: items.map((item, i) => {
 		if (item.type === "text" && item.text) return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(MarkdownDiv, { markdown: item.text }, `md-${i}`);
 		return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(MessageContent, {
 			contents: [item],
@@ -71660,6 +70855,9 @@ var ClientToolCall = ({ id, tool, title, functionCall, input, description, conte
 		children: customView
 	});
 	const hasInput = input !== void 0 && input !== null && input !== "" || !!view?.content;
+	const argsBody = hasInput ? void 0 : fullArgs(functionCall, title || tool);
+	const argsSummary = argsBody?.replace(/\s+/g, " ").trim();
+	const argsInInputZone = !!argsSummary && argsSummary.length > kMaxSummaryArgs;
 	const showError = !!error;
 	const showAnnotation = !!selfAnnotation && !!inputScreenshot;
 	const showOutput = !showError && (hasOutputContent(output) || showAnnotation);
@@ -71667,18 +70865,18 @@ var ClientToolCall = ({ id, tool, title, functionCall, input, description, conte
 		id,
 		icon: iconForTool(tool),
 		title: title || tool,
-		summary: description ?? inlineArgs(functionCall, title || tool),
+		summary: description ?? (argsInInputZone ? void 0 : argsSummary),
 		className,
-		children: [hasInput ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ToolBlockInput, { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ExpandablePanel, {
+		children: [hasInput || argsInInputZone ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ToolBlockInput, { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ExpandablePanel, {
 			id: `${id}-tool-input`,
 			collapse: true,
 			border: false,
 			lines: 20,
 			className: clsx("text-size-small"),
 			children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ToolInput, {
-				contentType,
-				contents: input,
-				toolCallView: view
+				contentType: hasInput ? contentType : void 0,
+				contents: hasInput ? input : argsBody,
+				toolCallView: hasInput ? view : void 0
 			})
 		}) }) : null, showError ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(ToolBlockOutput, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(ToolCallErrorView, { error }), selfAnnotation && inputScreenshot ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(AnnotatedScreenshotOutput, {
 			contents: inputScreenshot,
@@ -71690,11 +70888,14 @@ var ClientToolCall = ({ id, tool, title, functionCall, input, description, conte
 		}) }) : null]
 	});
 };
-/** The args portion of the rendered function call (the text inside the
-* parens), as a single-line header summary. */
-var inlineArgs = (functionCall, tool) => {
+/** Args longer than this can't meaningfully summarize on the single header
+* line; they render in the input zone instead. */
+var kMaxSummaryArgs = 120;
+/** The args portion of the rendered function call with formatting preserved;
+* collapse whitespace for the single-line header summary. */
+var fullArgs = (functionCall, tool) => {
 	if (functionCall.startsWith(`${tool}(`) && functionCall.endsWith(")")) {
-		const inner = functionCall.slice(tool.length + 1, -1).replace(/\s+/g, " ").trim();
+		const inner = functionCall.slice(tool.length + 1, -1).trim();
 		return inner.length > 0 ? inner : void 0;
 	}
 	return functionCall !== tool ? functionCall : void 0;
@@ -72120,1844 +71321,6 @@ var ChatView = ({ id, messages, className, display, labels, linking, tools, refe
 		})
 	});
 };
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+virtual-core@3.17.6/node_modules/@tanstack/virtual-core/dist/esm/lazy-measurements.js
-function createLazyMeasurementsView(count, flat, getItemKey) {
-	const cache = new Array(count);
-	return new Proxy(cache, { get(target, prop, receiver) {
-		if (typeof prop === "string") {
-			const c = prop.charCodeAt(0);
-			if (c >= 48 && c <= 57) {
-				const i = +prop;
-				if (Number.isInteger(i) && i >= 0 && i < count) {
-					let v = target[i];
-					if (!v) {
-						const s = flat[i * 2];
-						v = target[i] = {
-							index: i,
-							key: getItemKey(i),
-							start: s,
-							size: flat[i * 2 + 1],
-							end: s + flat[i * 2 + 1],
-							lane: 0
-						};
-					}
-					return v;
-				}
-			}
-			if (prop === "length") return count;
-		}
-		return Reflect.get(target, prop, receiver);
-	} });
-}
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+virtual-core@3.17.6/node_modules/@tanstack/virtual-core/dist/esm/utils.js
-function memo$8(getDeps, fn, opts) {
-	let deps = opts.initialDeps ?? [];
-	let result;
-	let isInitial = true;
-	function memoizedFunction() {
-		const newDeps = getDeps();
-		if (!(newDeps.length !== deps.length || newDeps.some((dep, index) => deps[index] !== dep))) return result;
-		deps = newDeps;
-		result = fn(...newDeps);
-		if ((opts == null ? void 0 : opts.onChange) && !(isInitial && opts.skipInitialOnChange)) opts.onChange(result);
-		isInitial = false;
-		return result;
-	}
-	memoizedFunction.updateDeps = (newDeps) => {
-		deps = newDeps;
-	};
-	return memoizedFunction;
-}
-function notUndefined(value, msg) {
-	if (value === void 0) throw new Error(`Unexpected undefined${msg ? `: ${msg}` : ""}`);
-	else return value;
-}
-var approxEqual = (a, b) => Math.abs(a - b) < 1.01;
-var debounce = (targetWindow, fn, ms) => {
-	let timeoutId;
-	return function(...args) {
-		targetWindow.clearTimeout(timeoutId);
-		timeoutId = targetWindow.setTimeout(() => fn.apply(this, args), ms);
-	};
-};
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+virtual-core@3.17.6/node_modules/@tanstack/virtual-core/dist/esm/index.js
-var _isIOSResult;
-var isIOSWebKit = () => {
-	if (_isIOSResult !== void 0) return _isIOSResult;
-	if (typeof navigator === "undefined") return _isIOSResult = false;
-	if (/iP(hone|od|ad)/.test(navigator.userAgent)) return _isIOSResult = true;
-	const mtp = navigator.maxTouchPoints;
-	return _isIOSResult = navigator.platform === "MacIntel" && mtp !== void 0 && mtp > 0;
-};
-var getRect = (element) => {
-	const { offsetWidth, offsetHeight } = element;
-	return {
-		width: offsetWidth,
-		height: offsetHeight
-	};
-};
-var defaultKeyExtractor = (index) => index;
-var defaultRangeExtractor = (range) => {
-	const start = Math.max(range.startIndex - range.overscan, 0);
-	const len = Math.min(range.endIndex + range.overscan, range.count - 1) - start + 1;
-	const arr = new Array(len);
-	for (let i = 0; i < len; i++) arr[i] = start + i;
-	return arr;
-};
-var observeElementRect = (instance, cb) => {
-	const element = instance.scrollElement;
-	if (!element) return;
-	const targetWindow = instance.targetWindow;
-	if (!targetWindow) return;
-	const handler = (rect) => {
-		const { width, height } = rect;
-		cb({
-			width: Math.round(width),
-			height: Math.round(height)
-		});
-	};
-	handler(getRect(element));
-	if (!targetWindow.ResizeObserver) return () => {};
-	const observer = new targetWindow.ResizeObserver((entries) => {
-		const run = () => {
-			const entry = entries[0];
-			if (entry == null ? void 0 : entry.borderBoxSize) {
-				const box = entry.borderBoxSize[0];
-				if (box) {
-					handler({
-						width: box.inlineSize,
-						height: box.blockSize
-					});
-					return;
-				}
-			}
-			handler(getRect(element));
-		};
-		instance.options.useAnimationFrameWithResizeObserver ? requestAnimationFrame(run) : run();
-	});
-	observer.observe(element, { box: "border-box" });
-	return () => {
-		observer.unobserve(element);
-	};
-};
-var addEventListenerOptions = { passive: true };
-var supportsScrollend = typeof window == "undefined" ? true : "onscrollend" in window;
-var observeOffset = (instance, cb, readOffset) => {
-	const element = instance.scrollElement;
-	if (!element) return;
-	const targetWindow = instance.targetWindow;
-	if (!targetWindow) return;
-	const registerScrollendEvent = instance.options.useScrollendEvent && supportsScrollend;
-	let offset = 0;
-	const fallback = registerScrollendEvent ? null : debounce(targetWindow, () => cb(offset, false), instance.options.isScrollingResetDelay);
-	const createHandler = (isScrolling) => () => {
-		offset = readOffset(element);
-		fallback?.();
-		cb(offset, isScrolling);
-	};
-	const handler = createHandler(true);
-	const endHandler = createHandler(false);
-	element.addEventListener("scroll", handler, addEventListenerOptions);
-	if (registerScrollendEvent) element.addEventListener("scrollend", endHandler, addEventListenerOptions);
-	return () => {
-		element.removeEventListener("scroll", handler);
-		if (registerScrollendEvent) element.removeEventListener("scrollend", endHandler);
-	};
-};
-var observeElementOffset = (instance, cb) => observeOffset(instance, cb, (el) => {
-	const { horizontal, isRtl } = instance.options;
-	return horizontal ? el.scrollLeft * (isRtl && -1 || 1) : el.scrollTop;
-});
-var measureElement = (element, entry, instance) => {
-	if (instance.options.useCachedMeasurements) {
-		const index = instance.indexFromElement(element);
-		const key = instance.options.getItemKey(index);
-		return instance.itemSizeCache.get(key) ?? instance.options.estimateSize(index);
-	}
-	if (entry == null ? void 0 : entry.borderBoxSize) {
-		const box = entry.borderBoxSize[0];
-		if (box) return Math.round(box[instance.options.horizontal ? "inlineSize" : "blockSize"]);
-	}
-	if (!entry) {
-		const index = instance.indexFromElement(element);
-		const key = instance.options.getItemKey(index);
-		const cachedSize = instance.itemSizeCache.get(key);
-		if (cachedSize !== void 0) return cachedSize;
-	}
-	return element[instance.options.horizontal ? "offsetWidth" : "offsetHeight"];
-};
-var scrollWithAdjustments = (offset, { adjustments = 0, behavior }, instance) => {
-	var _a, _b;
-	(_b = (_a = instance.scrollElement) == null ? void 0 : _a.scrollTo) == null || _b.call(_a, {
-		[instance.options.horizontal ? "left" : "top"]: offset + adjustments,
-		behavior
-	});
-};
-var elementScroll = scrollWithAdjustments;
-var Virtualizer = class {
-	constructor(opts) {
-		this.unsubs = [];
-		this.scrollElement = null;
-		this.targetWindow = null;
-		this.isScrolling = false;
-		this.scrollState = null;
-		this.measurementsCache = [];
-		this._flatMeasurements = null;
-		this.itemSizeCache = /* @__PURE__ */ new Map();
-		this.itemSizeCacheVersion = 0;
-		this.laneAssignments = /* @__PURE__ */ new Map();
-		this.pendingMin = null;
-		this.prevLanes = void 0;
-		this.lanesChangedFlag = false;
-		this.lanesSettling = false;
-		this.pendingScrollAnchor = null;
-		this.scrollRect = null;
-		this.scrollOffset = null;
-		this.scrollDirection = null;
-		this.scrollAdjustments = 0;
-		this._iosDeferredAdjustment = 0;
-		this._iosTouching = false;
-		this._iosJustTouchEnded = false;
-		this._iosTouchEndTimerId = null;
-		this._intendedScrollOffset = null;
-		this.elementsCache = /* @__PURE__ */ new Map();
-		this.now = () => {
-			var _a, _b, _c;
-			return ((_c = (_b = (_a = this.targetWindow) == null ? void 0 : _a.performance) == null ? void 0 : _b.now) == null ? void 0 : _c.call(_b)) ?? Date.now();
-		};
-		this.observer = /* @__PURE__ */ (() => {
-			let _ro = null;
-			const get = () => {
-				if (_ro) return _ro;
-				if (!this.targetWindow || !this.targetWindow.ResizeObserver) return null;
-				return _ro = new this.targetWindow.ResizeObserver((entries) => {
-					entries.forEach((entry) => {
-						const run = () => {
-							const node = entry.target;
-							const index = this.indexFromElement(node);
-							if (!node.isConnected) {
-								this.observer.unobserve(node);
-								for (const [cacheKey, cachedNode] of this.elementsCache) if (cachedNode === node) {
-									this.elementsCache.delete(cacheKey);
-									break;
-								}
-								return;
-							}
-							if (this.shouldMeasureDuringScroll(index)) this.resizeItem(index, this.options.measureElement(node, entry, this));
-						};
-						this.options.useAnimationFrameWithResizeObserver ? requestAnimationFrame(run) : run();
-					});
-				});
-			};
-			return {
-				disconnect: () => {
-					var _a;
-					(_a = get()) == null || _a.disconnect();
-					_ro = null;
-				},
-				observe: (target) => {
-					var _a;
-					return (_a = get()) == null ? void 0 : _a.observe(target, { box: "border-box" });
-				},
-				unobserve: (target) => {
-					var _a;
-					return (_a = get()) == null ? void 0 : _a.unobserve(target);
-				}
-			};
-		})();
-		this.range = null;
-		this.setOptions = (opts2) => {
-			var _a, _b;
-			const merged = {
-				debug: false,
-				initialOffset: 0,
-				overscan: 1,
-				paddingStart: 0,
-				paddingEnd: 0,
-				scrollPaddingStart: 0,
-				scrollPaddingEnd: 0,
-				horizontal: false,
-				getItemKey: defaultKeyExtractor,
-				rangeExtractor: defaultRangeExtractor,
-				onChange: () => {},
-				measureElement,
-				initialRect: {
-					width: 0,
-					height: 0
-				},
-				scrollMargin: 0,
-				gap: 0,
-				indexAttribute: "data-index",
-				initialMeasurementsCache: [],
-				lanes: 1,
-				anchorTo: "start",
-				followOnAppend: false,
-				scrollEndThreshold: 1,
-				isScrollingResetDelay: 150,
-				enabled: true,
-				isRtl: false,
-				useScrollendEvent: false,
-				useAnimationFrameWithResizeObserver: false,
-				laneAssignmentMode: "estimate",
-				useCachedMeasurements: false
-			};
-			for (const key in opts2) {
-				const v = opts2[key];
-				if (v !== void 0) merged[key] = v;
-			}
-			const prevOptions = this.options;
-			let anchor = null;
-			let followOnAppend = null;
-			let edgeKeysChanged = false;
-			if (prevOptions !== void 0 && prevOptions.enabled && merged.enabled && merged.anchorTo === "end" && this.scrollElement !== null) {
-				const prevCount = prevOptions.count;
-				const nextCount = merged.count;
-				const measurements = this.getMeasurements();
-				const prevFirstKey = prevCount > 0 ? ((_a = measurements[0]) == null ? void 0 : _a.key) ?? prevOptions.getItemKey(0) : null;
-				const prevLastKey = prevCount > 0 ? ((_b = measurements[prevCount - 1]) == null ? void 0 : _b.key) ?? prevOptions.getItemKey(prevCount - 1) : null;
-				if (nextCount !== prevCount || prevCount > 0 && nextCount > 0 && (merged.getItemKey(0) !== prevFirstKey || merged.getItemKey(nextCount - 1) !== prevLastKey)) {
-					edgeKeysChanged = true;
-					const item = prevCount > 0 ? this.getVirtualItemForOffset(this.getScrollOffset()) ?? measurements[0] : null;
-					if (item) anchor = [item.key, this.getScrollOffset() - item.start];
-					const behavior = merged.followOnAppend === true ? "auto" : merged.followOnAppend || null;
-					if (behavior && nextCount > prevCount && this.isAtEnd(prevOptions.scrollEndThreshold) && (prevCount === 0 || merged.getItemKey(nextCount - 1) !== prevLastKey)) followOnAppend = behavior;
-				}
-			}
-			this.options = merged;
-			if (edgeKeysChanged) {
-				this.pendingMin = 0;
-				this.itemSizeCacheVersion++;
-			}
-			let anchorResolved = false;
-			let anchorDelta = 0;
-			if (anchor && this.scrollOffset !== null) {
-				const [anchorKey, anchorOffset] = anchor;
-				const newMeasurements = this.getMeasurements();
-				const { count, getItemKey } = this.options;
-				let idx = 0;
-				while (idx < count && getItemKey(idx) !== anchorKey) idx++;
-				if (idx < count) {
-					const anchorItem = newMeasurements[idx];
-					if (anchorItem) {
-						const newOffset = Math.max(0, anchorItem.start + anchorOffset);
-						if (newOffset !== this.scrollOffset) {
-							anchorDelta = newOffset - this.scrollOffset;
-							this.scrollOffset = newOffset;
-							anchorResolved = true;
-						}
-					}
-				}
-			}
-			if (anchorResolved || followOnAppend) this.pendingScrollAnchor = [
-				anchorResolved ? anchor[0] : null,
-				anchorResolved ? anchor[1] : 0,
-				followOnAppend,
-				anchorDelta
-			];
-		};
-		this.notify = (sync) => {
-			var _a, _b;
-			(_b = (_a = this.options).onChange) == null || _b.call(_a, this, sync);
-		};
-		this.maybeNotify = memo$8(() => {
-			this.calculateRange();
-			return [
-				this.isScrolling,
-				this.range ? this.range.startIndex : null,
-				this.range ? this.range.endIndex : null
-			];
-		}, (isScrolling) => {
-			this.notify(isScrolling);
-		}, {
-			key: false,
-			debug: () => this.options.debug,
-			initialDeps: [
-				this.isScrolling,
-				this.range ? this.range.startIndex : null,
-				this.range ? this.range.endIndex : null
-			]
-		});
-		this.cleanup = () => {
-			this.unsubs.filter(Boolean).forEach((d) => d());
-			this.unsubs = [];
-			this.observer.disconnect();
-			if (this.rafId != null && this.targetWindow) {
-				this.targetWindow.cancelAnimationFrame(this.rafId);
-				this.rafId = null;
-			}
-			this.scrollState = null;
-			this._iosDeferredAdjustment = 0;
-			this._iosTouching = false;
-			this._iosJustTouchEnded = false;
-			this.scrollElement = null;
-			this.targetWindow = null;
-		};
-		this._didMount = () => {
-			return () => {
-				this.cleanup();
-			};
-		};
-		this._willUpdate = () => {
-			var _a;
-			const scrollElement = this.options.enabled ? this.options.getScrollElement() : null;
-			if (this.scrollElement !== scrollElement) {
-				this.cleanup();
-				if (!scrollElement) {
-					this.maybeNotify();
-					return;
-				}
-				this.scrollElement = scrollElement;
-				if (this.scrollElement && "ownerDocument" in this.scrollElement) this.targetWindow = this.scrollElement.ownerDocument.defaultView;
-				else this.targetWindow = ((_a = this.scrollElement) == null ? void 0 : _a.window) ?? null;
-				this.elementsCache.forEach((cached) => {
-					this.observer.observe(cached);
-				});
-				this.unsubs.push(this.options.observeElementRect(this, (rect) => {
-					this.scrollRect = rect;
-					this.maybeNotify();
-				}));
-				this.unsubs.push(this.options.observeElementOffset(this, (offset, isScrolling) => {
-					if (isScrolling && this._intendedScrollOffset === null && offset === this.scrollOffset) return;
-					if (this._intendedScrollOffset !== null && Math.abs(offset - this._intendedScrollOffset) < 1.5) offset = this._intendedScrollOffset;
-					this._intendedScrollOffset = null;
-					this.scrollAdjustments = 0;
-					const prevOffset = this.getScrollOffset();
-					this.scrollDirection = isScrolling ? prevOffset === offset ? this.scrollDirection : prevOffset < offset ? "forward" : "backward" : null;
-					this.scrollOffset = offset;
-					this.isScrolling = isScrolling;
-					this._flushIosDeferredIfReady();
-					if (this.scrollState) this.scheduleScrollReconcile();
-					this.maybeNotify();
-				}));
-				if ("addEventListener" in this.scrollElement) {
-					const scrollEl = this.scrollElement;
-					const onTouchStart = () => {
-						this._iosTouching = true;
-						this._iosJustTouchEnded = false;
-						if (this._iosTouchEndTimerId !== null && this.targetWindow != null) {
-							this.targetWindow.clearTimeout(this._iosTouchEndTimerId);
-							this._iosTouchEndTimerId = null;
-						}
-					};
-					const onTouchEnd = () => {
-						this._iosTouching = false;
-						if (!isIOSWebKit() || this.targetWindow == null) return;
-						this._iosJustTouchEnded = true;
-						this._iosTouchEndTimerId = this.targetWindow.setTimeout(() => {
-							this._iosJustTouchEnded = false;
-							this._iosTouchEndTimerId = null;
-							this._flushIosDeferredIfReady();
-						}, 150);
-					};
-					scrollEl.addEventListener("touchstart", onTouchStart, addEventListenerOptions);
-					scrollEl.addEventListener("touchend", onTouchEnd, addEventListenerOptions);
-					this.unsubs.push(() => {
-						scrollEl.removeEventListener("touchstart", onTouchStart);
-						scrollEl.removeEventListener("touchend", onTouchEnd);
-						if (this._iosTouchEndTimerId !== null && this.targetWindow != null) {
-							this.targetWindow.clearTimeout(this._iosTouchEndTimerId);
-							this._iosTouchEndTimerId = null;
-						}
-					});
-				}
-				this._scrollToOffset(this.getScrollOffset(), {
-					adjustments: void 0,
-					behavior: void 0
-				});
-			}
-			const anchor = this.pendingScrollAnchor;
-			this.pendingScrollAnchor = null;
-			if (anchor && this.scrollElement && this.options.enabled) {
-				const [key, _offset, followOnAppend, anchorDelta] = anchor;
-				if (key !== null && !followOnAppend) if (isIOSWebKit() && (this.isScrolling || this._iosTouching || this._iosJustTouchEnded)) {
-					if (anchorDelta !== 0) this._iosDeferredAdjustment += anchorDelta;
-				} else this._scrollToOffset(this.getScrollOffset(), {
-					adjustments: void 0,
-					behavior: void 0
-				});
-				if (followOnAppend) this.scrollToEnd({ behavior: followOnAppend });
-			}
-		};
-		this._flushIosDeferredIfReady = () => {
-			if (this._iosDeferredAdjustment === 0) return;
-			if (this.isScrolling) return;
-			if (this._iosTouching) return;
-			if (this._iosJustTouchEnded) return;
-			const cur = this.getScrollOffset();
-			const max = this.getMaxScrollOffset();
-			if (cur < 0 || cur > max) return;
-			if (this._iosDeferredAdjustment < 0 && cur >= max - 1) {
-				this._iosDeferredAdjustment = 0;
-				return;
-			}
-			const delta = this._iosDeferredAdjustment;
-			this._iosDeferredAdjustment = 0;
-			this._scrollToOffset(cur, {
-				adjustments: this.scrollAdjustments += delta,
-				behavior: void 0
-			});
-		};
-		this.rafId = null;
-		this.getSize = () => {
-			if (!this.options.enabled) {
-				this.scrollRect = null;
-				return 0;
-			}
-			this.scrollRect = this.scrollRect ?? this.options.initialRect;
-			return this.scrollRect[this.options.horizontal ? "width" : "height"];
-		};
-		this.getScrollOffset = () => {
-			if (!this.options.enabled) {
-				this.scrollOffset = null;
-				return 0;
-			}
-			this.scrollOffset = this.scrollOffset ?? (typeof this.options.initialOffset === "function" ? this.options.initialOffset() : this.options.initialOffset);
-			return this.scrollOffset;
-		};
-		this.getMeasurementOptions = memo$8(() => [
-			this.options.count,
-			this.options.paddingStart,
-			this.options.scrollMargin,
-			this.options.getItemKey,
-			this.options.enabled,
-			this.options.lanes,
-			this.options.laneAssignmentMode,
-			this.options.gap
-		], (count, paddingStart, scrollMargin, getItemKey, enabled, lanes, laneAssignmentMode, gap) => {
-			if (this.prevLanes !== void 0 && this.prevLanes !== lanes) this.lanesChangedFlag = true;
-			this.prevLanes = lanes;
-			this.pendingMin = null;
-			return {
-				count,
-				paddingStart,
-				scrollMargin,
-				getItemKey,
-				enabled,
-				lanes,
-				laneAssignmentMode,
-				gap
-			};
-		}, { key: false });
-		this.getMeasurements = memo$8(() => [this.getMeasurementOptions(), this.itemSizeCacheVersion], ({ count, paddingStart, scrollMargin, getItemKey, enabled, lanes, laneAssignmentMode, gap }, _itemSizeCacheVersion) => {
-			const itemSizeCache = this.itemSizeCache;
-			if (!enabled) {
-				this.measurementsCache = [];
-				this.itemSizeCache.clear();
-				this.laneAssignments.clear();
-				return [];
-			}
-			if (this.laneAssignments.size > count) {
-				for (const index of this.laneAssignments.keys()) if (index >= count) this.laneAssignments.delete(index);
-			}
-			if (this.lanesChangedFlag) {
-				this.lanesChangedFlag = false;
-				this.lanesSettling = true;
-				this.measurementsCache = [];
-				this.itemSizeCache.clear();
-				this.laneAssignments.clear();
-				this.pendingMin = null;
-			}
-			if (this.measurementsCache.length === 0 && !this.lanesSettling) {
-				this.measurementsCache = this.options.initialMeasurementsCache;
-				this.measurementsCache.forEach((item) => {
-					this.itemSizeCache.set(item.key, item.size);
-				});
-			}
-			const min = this.lanesSettling ? 0 : this.pendingMin ?? 0;
-			this.pendingMin = null;
-			if (this.lanesSettling && this.measurementsCache.length === count) this.lanesSettling = false;
-			if (lanes === 1) {
-				const need = count * 2;
-				let flat = this._flatMeasurements;
-				if (!flat || flat.length < need) {
-					const next = new Float64Array(need);
-					if (flat && min > 0) next.set(flat.subarray(0, min * 2));
-					flat = next;
-					this._flatMeasurements = flat;
-				}
-				let runningStart;
-				if (min === 0) runningStart = paddingStart + scrollMargin;
-				else {
-					const prevIdx = min - 1;
-					runningStart = flat[prevIdx * 2] + flat[prevIdx * 2 + 1] + gap;
-				}
-				for (let i = min; i < count; i++) {
-					const key = getItemKey(i);
-					const measuredSize = itemSizeCache.get(key);
-					const size = typeof measuredSize === "number" ? measuredSize : this.options.estimateSize(i);
-					flat[i * 2] = runningStart;
-					flat[i * 2 + 1] = size;
-					runningStart += size + gap;
-				}
-				const view = createLazyMeasurementsView(count, flat, getItemKey);
-				this.measurementsCache = view;
-				return view;
-			}
-			const measurements = this.measurementsCache.slice(0, min);
-			const laneLastIndex = new Array(lanes).fill(void 0);
-			const laneEnds = new Float64Array(lanes);
-			let filledLanes = 0;
-			for (let m = 0; m < min; m++) {
-				const item = measurements[m];
-				if (item) {
-					if (laneLastIndex[item.lane] === void 0) filledLanes++;
-					laneLastIndex[item.lane] = m;
-					laneEnds[item.lane] = item.end;
-				}
-			}
-			for (let i = min; i < count; i++) {
-				const key = getItemKey(i);
-				const cachedLane = this.laneAssignments.get(i);
-				let lane;
-				let start;
-				const shouldCacheLane = laneAssignmentMode === "estimate" || itemSizeCache.has(key);
-				if (cachedLane !== void 0 && this.options.lanes > 1) {
-					lane = cachedLane;
-					const prevIndex = laneLastIndex[lane];
-					const prevInLane = prevIndex !== void 0 ? measurements[prevIndex] : void 0;
-					start = prevInLane ? prevInLane.end + gap : paddingStart + scrollMargin;
-				} else if (filledLanes === lanes) {
-					let bestLane = 0;
-					let bestEnd = laneEnds[0];
-					let bestIdx = laneLastIndex[0];
-					for (let l = 1; l < lanes; l++) {
-						const e = laneEnds[l];
-						if (e < bestEnd || e === bestEnd && laneLastIndex[l] < bestIdx) {
-							bestLane = l;
-							bestEnd = e;
-							bestIdx = laneLastIndex[l];
-						}
-					}
-					lane = bestLane;
-					start = bestEnd + gap;
-					if (shouldCacheLane) this.laneAssignments.set(i, lane);
-				} else {
-					lane = i % this.options.lanes;
-					start = paddingStart + scrollMargin;
-					if (shouldCacheLane) this.laneAssignments.set(i, lane);
-				}
-				const measuredSize = itemSizeCache.get(key);
-				const size = typeof measuredSize === "number" ? measuredSize : this.options.estimateSize(i);
-				const end = start + size;
-				measurements[i] = {
-					index: i,
-					start,
-					size,
-					end,
-					key,
-					lane
-				};
-				if (laneLastIndex[lane] === void 0) filledLanes++;
-				laneLastIndex[lane] = i;
-				laneEnds[lane] = end;
-			}
-			this.measurementsCache = measurements;
-			return measurements;
-		}, {
-			key: false,
-			debug: () => this.options.debug
-		});
-		this.calculateRange = memo$8(() => [
-			this.getMeasurements(),
-			this.getSize(),
-			this.getScrollOffset(),
-			this.options.lanes
-		], (measurements, outerSize, scrollOffset, lanes) => {
-			if (measurements.length === 0 || outerSize === 0) {
-				this.range = null;
-				return null;
-			}
-			this.range = calculateRangeImpl(measurements, outerSize, scrollOffset, lanes, lanes === 1 && this._flatMeasurements != null ? this._flatMeasurements : null);
-			return this.range;
-		}, {
-			key: false,
-			debug: () => this.options.debug
-		});
-		this.getVirtualIndexes = memo$8(() => {
-			let startIndex = null;
-			let endIndex = null;
-			const range = this.calculateRange();
-			if (range) {
-				startIndex = range.startIndex;
-				endIndex = range.endIndex;
-			}
-			this.maybeNotify.updateDeps([
-				this.isScrolling,
-				startIndex,
-				endIndex
-			]);
-			return [
-				this.options.rangeExtractor,
-				this.options.overscan,
-				this.options.count,
-				startIndex,
-				endIndex
-			];
-		}, (rangeExtractor, overscan, count, startIndex, endIndex) => {
-			return startIndex === null || endIndex === null ? [] : rangeExtractor({
-				startIndex,
-				endIndex,
-				overscan,
-				count
-			});
-		}, {
-			key: false,
-			debug: () => this.options.debug
-		});
-		this.indexFromElement = (node) => {
-			const attributeName = this.options.indexAttribute;
-			const indexStr = node.getAttribute(attributeName);
-			if (!indexStr) {
-				console.warn(`Missing attribute name '${attributeName}={index}' on measured element.`);
-				return -1;
-			}
-			return parseInt(indexStr, 10);
-		};
-		this.shouldMeasureDuringScroll = (index) => {
-			var _a;
-			if (!this.scrollState || this.scrollState.behavior !== "smooth") return true;
-			const scrollIndex = this.scrollState.index ?? ((_a = this.getVirtualItemForOffset(this.scrollState.lastTargetOffset)) == null ? void 0 : _a.index);
-			if (scrollIndex !== void 0 && this.range) {
-				const bufferSize = Math.max(this.options.overscan, Math.ceil((this.range.endIndex - this.range.startIndex) / 2));
-				const minIndex = Math.max(0, scrollIndex - bufferSize);
-				const maxIndex = Math.min(this.options.count - 1, scrollIndex + bufferSize);
-				return index >= minIndex && index <= maxIndex;
-			}
-			return true;
-		};
-		this.measureElement = (node) => {
-			if (!node) {
-				this.elementsCache.forEach((cached, key2) => {
-					if (!cached.isConnected) {
-						this.observer.unobserve(cached);
-						this.elementsCache.delete(key2);
-					}
-				});
-				return;
-			}
-			const index = this.indexFromElement(node);
-			const key = this.options.getItemKey(index);
-			const prevNode = this.elementsCache.get(key);
-			if (prevNode !== node) {
-				if (prevNode) this.observer.unobserve(prevNode);
-				this.observer.observe(node);
-				this.elementsCache.set(key, node);
-			}
-			if ((!this.isScrolling || this.scrollState) && this.shouldMeasureDuringScroll(index)) this.resizeItem(index, this.options.measureElement(node, void 0, this));
-		};
-		this.resizeItem = (index, size) => {
-			var _a, _b;
-			if (index < 0 || index >= this.options.count) return;
-			let cachedSize;
-			let itemStart;
-			let key;
-			const flat = this._flatMeasurements;
-			if (this.options.lanes === 1 && flat !== null) {
-				key = this.options.getItemKey(index);
-				itemStart = flat[index * 2];
-				cachedSize = flat[index * 2 + 1];
-			} else {
-				const item = this.measurementsCache[index];
-				if (!item) return;
-				key = item.key;
-				itemStart = item.start;
-				cachedSize = item.size;
-			}
-			const itemSize = this.itemSizeCache.get(key) ?? cachedSize;
-			const delta = size - itemSize;
-			if (delta !== 0) {
-				const wasAtEnd = this.options.anchorTo === "end" && ((_a = this.scrollState) == null ? void 0 : _a.behavior) !== "smooth" && this.getVirtualDistanceFromEnd() <= this.options.scrollEndThreshold;
-				const prevTotalSize = wasAtEnd ? this.getTotalSize() : 0;
-				const scrollOffsetWithAdj = this.getScrollOffset() + this.scrollAdjustments;
-				const defaultShouldAdjust = !this.itemSizeCache.has(key) ? itemStart < scrollOffsetWithAdj : itemStart + itemSize <= scrollOffsetWithAdj && this.scrollDirection !== "backward";
-				const shouldAdjustScroll = ((_b = this.scrollState) == null ? void 0 : _b.behavior) !== "smooth" && (this.shouldAdjustScrollPositionOnItemSizeChange !== void 0 ? this.shouldAdjustScrollPositionOnItemSizeChange(this.measurementsCache[index] ?? {
-					index,
-					key,
-					start: itemStart,
-					size: cachedSize,
-					end: itemStart + cachedSize,
-					lane: 0
-				}, delta, this) : defaultShouldAdjust);
-				if (this.pendingMin === null || index < this.pendingMin) this.pendingMin = index;
-				this.itemSizeCache.set(key, size);
-				this.itemSizeCacheVersion++;
-				if (wasAtEnd) this.applyScrollAdjustment(this.getTotalSize() - prevTotalSize);
-				else if (shouldAdjustScroll) this.applyScrollAdjustment(delta);
-				this.notify(false);
-			}
-		};
-		this.getVirtualItems = memo$8(() => [this.getVirtualIndexes(), this.getMeasurements()], (indexes, measurements) => {
-			const virtualItems = [];
-			for (let k = 0, len = indexes.length; k < len; k++) {
-				const measurement = measurements[indexes[k]];
-				virtualItems.push(measurement);
-			}
-			return virtualItems;
-		}, {
-			key: false,
-			debug: () => this.options.debug
-		});
-		this.getVirtualItemForOffset = (offset) => {
-			const measurements = this.getMeasurements();
-			if (measurements.length === 0) return;
-			const flat = this._flatMeasurements;
-			const useFlat = this.options.lanes === 1 && flat != null;
-			return notUndefined(measurements[findNearestBinarySearch(0, measurements.length - 1, useFlat ? (i) => flat[i * 2] : (i) => notUndefined(measurements[i]).start, offset)]);
-		};
-		this.getMaxScrollOffset = () => {
-			if (!this.scrollElement) return 0;
-			if ("scrollHeight" in this.scrollElement) return this.options.horizontal ? this.scrollElement.scrollWidth - this.scrollElement.clientWidth : this.scrollElement.scrollHeight - this.scrollElement.clientHeight;
-			else {
-				const doc = this.scrollElement.document.documentElement;
-				return this.options.horizontal ? doc.scrollWidth - this.scrollElement.innerWidth : doc.scrollHeight - this.scrollElement.innerHeight;
-			}
-		};
-		this.getVirtualDistanceFromEnd = () => {
-			return Math.max(this.getTotalSize() - this.getSize() - this.getScrollOffset(), 0);
-		};
-		this.getDistanceFromEnd = () => {
-			return Math.max(this.getMaxScrollOffset() - this.getScrollOffset(), 0);
-		};
-		this.isAtEnd = (threshold = this.options.scrollEndThreshold) => {
-			return this.getDistanceFromEnd() <= threshold;
-		};
-		this.getOffsetForAlignment = (toOffset, align, itemSize = 0) => {
-			if (!this.scrollElement) return 0;
-			const size = this.getSize();
-			const scrollOffset = this.getScrollOffset();
-			if (align === "auto") align = toOffset >= scrollOffset + size ? "end" : "start";
-			if (align === "center") toOffset += (itemSize - size) / 2;
-			else if (align === "end") toOffset -= size;
-			const maxOffset = this.getMaxScrollOffset();
-			return Math.max(Math.min(maxOffset, toOffset), 0);
-		};
-		this.getOffsetForIndex = (index, align = "auto") => {
-			index = Math.max(0, Math.min(index, this.options.count - 1));
-			const size = this.getSize();
-			const scrollOffset = this.getScrollOffset();
-			const item = this.measurementsCache[index];
-			if (!item) return;
-			if (align === "auto") if (item.end >= scrollOffset + size - this.options.scrollPaddingEnd) align = "end";
-			else if (item.start <= scrollOffset + this.options.scrollPaddingStart) align = "start";
-			else return [scrollOffset, align];
-			if (align === "end" && index === this.options.count - 1) return [this.getMaxScrollOffset(), align];
-			const toOffset = align === "end" ? item.end + this.options.scrollPaddingEnd : item.start - this.options.scrollPaddingStart;
-			return [this.getOffsetForAlignment(toOffset, align, item.size), align];
-		};
-		this.scrollToOffset = (toOffset, { align = "start", behavior = "auto" } = {}) => {
-			this._iosDeferredAdjustment = 0;
-			const offset = this.getOffsetForAlignment(toOffset, align);
-			const now = this.now();
-			this.scrollState = {
-				index: null,
-				align,
-				behavior,
-				startedAt: now,
-				lastTargetOffset: offset,
-				stableFrames: 0
-			};
-			this._scrollToOffset(offset, {
-				adjustments: void 0,
-				behavior
-			});
-			this.scheduleScrollReconcile();
-		};
-		this.scrollToIndex = (index, { align: initialAlign = "auto", behavior = "auto" } = {}) => {
-			this._iosDeferredAdjustment = 0;
-			index = Math.max(0, Math.min(index, this.options.count - 1));
-			const offsetInfo = this.getOffsetForIndex(index, initialAlign);
-			if (!offsetInfo) return;
-			const [offset, align] = offsetInfo;
-			const now = this.now();
-			this.scrollState = {
-				index,
-				align,
-				behavior,
-				startedAt: now,
-				lastTargetOffset: offset,
-				stableFrames: 0
-			};
-			this._scrollToOffset(offset, {
-				adjustments: void 0,
-				behavior
-			});
-			this.scheduleScrollReconcile();
-		};
-		this.scrollBy = (delta, { behavior = "auto" } = {}) => {
-			const offset = this.getScrollOffset() + delta;
-			const now = this.now();
-			this.scrollState = {
-				index: null,
-				align: "start",
-				behavior,
-				startedAt: now,
-				lastTargetOffset: offset,
-				stableFrames: 0
-			};
-			this._scrollToOffset(offset, {
-				adjustments: void 0,
-				behavior
-			});
-			this.scheduleScrollReconcile();
-		};
-		this.scrollToEnd = ({ behavior = "auto" } = {}) => {
-			if (this.options.count > 0) {
-				this.scrollToIndex(this.options.count - 1, {
-					align: "end",
-					behavior
-				});
-				return;
-			}
-			this.scrollToOffset(Math.max(this.getTotalSize() - this.getSize(), 0), { behavior });
-		};
-		this.getTotalSize = () => {
-			var _a;
-			const measurements = this.getMeasurements();
-			let end;
-			if (measurements.length === 0) end = this.options.paddingStart;
-			else if (this.options.lanes === 1) {
-				const lastIdx = measurements.length - 1;
-				const flat = this._flatMeasurements;
-				if (flat != null) end = flat[lastIdx * 2] + flat[lastIdx * 2 + 1];
-				else end = ((_a = measurements[lastIdx]) == null ? void 0 : _a.end) ?? 0;
-			} else {
-				const endByLane = Array(this.options.lanes).fill(null);
-				let endIndex = measurements.length - 1;
-				while (endIndex >= 0 && endByLane.some((val) => val === null)) {
-					const item = measurements[endIndex];
-					if (endByLane[item.lane] === null) endByLane[item.lane] = item.end;
-					endIndex--;
-				}
-				end = Math.max(...endByLane.filter((val) => val !== null));
-			}
-			return Math.max(end - this.options.scrollMargin + this.options.paddingEnd, 0);
-		};
-		this.takeSnapshot = () => {
-			const snapshot = [];
-			if (this.itemSizeCache.size === 0) return snapshot;
-			const m = this.getMeasurements();
-			for (const item of m) if (item && this.itemSizeCache.has(item.key)) snapshot.push({
-				index: item.index,
-				key: item.key,
-				start: item.start,
-				size: item.size,
-				end: item.end,
-				lane: item.lane
-			});
-			return snapshot;
-		};
-		this._scrollToOffset = (offset, { adjustments, behavior }) => {
-			this._intendedScrollOffset = offset + (adjustments ?? 0);
-			this.options.scrollToFn(offset, {
-				behavior,
-				adjustments
-			}, this);
-		};
-		this.measure = () => {
-			this.pendingMin = null;
-			this.itemSizeCache.clear();
-			this.laneAssignments.clear();
-			this.itemSizeCacheVersion++;
-			this.notify(false);
-		};
-		this.setOptions(opts);
-	}
-	applyScrollAdjustment(delta, behavior) {
-		if (delta === 0) return;
-		if (isIOSWebKit() && (this.isScrolling || this._iosTouching || this._iosJustTouchEnded)) this._iosDeferredAdjustment += delta;
-		else {
-			this._scrollToOffset(this.getScrollOffset(), {
-				adjustments: this.scrollAdjustments += delta,
-				behavior
-			});
-			if (this.scrollOffset !== null) {
-				this.scrollOffset += this.scrollAdjustments;
-				if (this.scrollOffset < 0) this.scrollOffset = 0;
-				this.scrollAdjustments = 0;
-			}
-		}
-	}
-	scheduleScrollReconcile() {
-		if (!this.targetWindow) {
-			this.scrollState = null;
-			return;
-		}
-		if (this.rafId != null) return;
-		this.rafId = this.targetWindow.requestAnimationFrame(() => {
-			this.rafId = null;
-			this.reconcileScroll();
-		});
-	}
-	reconcileScroll() {
-		if (!this.scrollState) return;
-		if (!this.scrollElement) return;
-		if (this.now() - this.scrollState.startedAt > 5e3) {
-			this.scrollState = null;
-			return;
-		}
-		const offsetInfo = this.scrollState.index != null ? this.getOffsetForIndex(this.scrollState.index, this.scrollState.align) : void 0;
-		const targetOffset = offsetInfo ? offsetInfo[0] : this.scrollState.lastTargetOffset;
-		const STABLE_FRAMES = 1;
-		const targetChanged = targetOffset !== this.scrollState.lastTargetOffset;
-		if (!targetChanged && approxEqual(targetOffset, this.getScrollOffset())) {
-			this.scrollState.stableFrames++;
-			if (this.scrollState.stableFrames >= STABLE_FRAMES) {
-				if (this.getScrollOffset() !== targetOffset) this._scrollToOffset(targetOffset, {
-					adjustments: void 0,
-					behavior: "auto"
-				});
-				this.scrollState = null;
-				return;
-			}
-		} else {
-			this.scrollState.stableFrames = 0;
-			if (targetChanged) {
-				const viewport = this.getSize() || 600;
-				const distance = Math.abs(targetOffset - this.getScrollOffset());
-				const keepSmooth = this.scrollState.behavior === "smooth" && distance > viewport;
-				this.scrollState.lastTargetOffset = targetOffset;
-				if (!keepSmooth) this.scrollState.behavior = "auto";
-				this._scrollToOffset(targetOffset, {
-					adjustments: void 0,
-					behavior: keepSmooth ? "smooth" : "auto"
-				});
-			}
-		}
-		this.scheduleScrollReconcile();
-	}
-};
-var findNearestBinarySearch = (low, high, getCurrentValue, value) => {
-	while (low <= high) {
-		const middle = (low + high) / 2 | 0;
-		const currentValue = getCurrentValue(middle);
-		if (currentValue < value) low = middle + 1;
-		else if (currentValue > value) high = middle - 1;
-		else return middle;
-	}
-	if (low > 0) return low - 1;
-	else return 0;
-};
-function findNearestBinarySearchFlat(flat, high, value) {
-	let low = 0;
-	while (low <= high) {
-		const middle = (low + high) / 2 | 0;
-		const currentValue = flat[middle * 2];
-		if (currentValue < value) low = middle + 1;
-		else if (currentValue > value) high = middle - 1;
-		else return middle;
-	}
-	return low > 0 ? low - 1 : 0;
-}
-function calculateRangeImpl(measurements, outerSize, scrollOffset, lanes, flat) {
-	const lastIndex = measurements.length - 1;
-	if (measurements.length <= lanes) return {
-		startIndex: 0,
-		endIndex: lastIndex
-	};
-	if (lanes === 1 && flat !== null) {
-		const startIndex2 = findNearestBinarySearchFlat(flat, lastIndex, scrollOffset);
-		let endIndex2 = startIndex2;
-		const limit = scrollOffset + outerSize;
-		while (endIndex2 < lastIndex && flat[endIndex2 * 2] + flat[endIndex2 * 2 + 1] < limit) endIndex2++;
-		return {
-			startIndex: startIndex2,
-			endIndex: endIndex2
-		};
-	}
-	const getStart = (index) => measurements[index].start;
-	let startIndex = findNearestBinarySearch(0, lastIndex, getStart, scrollOffset);
-	let endIndex = startIndex;
-	if (lanes === 1) while (endIndex < lastIndex && measurements[endIndex].end < scrollOffset + outerSize) endIndex++;
-	else if (lanes > 1) {
-		const endPerLane = Array(lanes).fill(0);
-		while (endIndex < lastIndex && endPerLane.some((pos) => pos < scrollOffset + outerSize)) {
-			const item = measurements[endIndex];
-			endPerLane[item.lane] = item.end;
-			endIndex++;
-		}
-		const startPerLane = Array(lanes).fill(scrollOffset + outerSize);
-		while (startIndex >= 0 && startPerLane.some((pos) => pos >= scrollOffset)) {
-			const item = measurements[startIndex];
-			startPerLane[item.lane] = item.start;
-			startIndex--;
-		}
-		startIndex = Math.max(0, startIndex - startIndex % lanes);
-		endIndex = Math.min(lastIndex, endIndex + (lanes - 1 - endIndex % lanes));
-	}
-	return {
-		startIndex,
-		endIndex
-	};
-}
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-virtual@3.14.8_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/@tanstack/react-virtual/dist/esm/index.js
-var useIsomorphicLayoutEffect = typeof document !== "undefined" ? import_react.useLayoutEffect : import_react.useEffect;
-function useVirtualizerBase({ useFlushSync = true, directDomUpdates = false, directDomUpdatesMode = "transform", ...options }) {
-	const rerender = import_react.useReducer((x) => x + 1, 0)[1];
-	const directRef = import_react.useRef({
-		enabled: directDomUpdates,
-		mode: directDomUpdatesMode,
-		container: null,
-		lastSize: null,
-		lastPositions: /* @__PURE__ */ new WeakMap(),
-		prevRange: null
-	});
-	directRef.current.enabled = directDomUpdates;
-	directRef.current.mode = directDomUpdatesMode;
-	const applyContainerSize = (instance2) => {
-		const state = directRef.current;
-		if (!state.enabled || !state.container) return;
-		const totalSize = instance2.getTotalSize();
-		if (totalSize !== state.lastSize) {
-			state.lastSize = totalSize;
-			const sizeAxis = instance2.options.horizontal ? "width" : "height";
-			state.container.style[sizeAxis] = `${totalSize}px`;
-		}
-	};
-	const applyDirectStyles = (instance2) => {
-		const state = directRef.current;
-		if (!state.enabled || !state.container) return;
-		applyContainerSize(instance2);
-		const horizontal = !!instance2.options.horizontal;
-		const useTransform = state.mode === "transform";
-		const posAxis = horizontal ? "left" : "top";
-		const scrollMargin = instance2.options.scrollMargin;
-		const items = instance2.getVirtualItems();
-		for (const item of items) {
-			const next = item.start - scrollMargin;
-			const el = instance2.elementsCache.get(item.key);
-			if (!el) continue;
-			if (state.lastPositions.get(el) === next) continue;
-			state.lastPositions.set(el, next);
-			if (useTransform) el.style.transform = horizontal ? `translate3d(${next}px, 0, 0)` : `translate3d(0, ${next}px, 0)`;
-			else el.style[posAxis] = `${next}px`;
-		}
-	};
-	const resolvedOptions = {
-		...options,
-		onChange: (instance2, sync) => {
-			var _a;
-			const state = directRef.current;
-			let shouldRerender = true;
-			if (state.enabled) {
-				applyDirectStyles(instance2);
-				const range = instance2.range;
-				const prev = state.prevRange;
-				shouldRerender = !prev || prev.isScrolling !== instance2.isScrolling || prev.startIndex !== (range == null ? void 0 : range.startIndex) || prev.endIndex !== (range == null ? void 0 : range.endIndex);
-				if (shouldRerender) state.prevRange = range ? {
-					startIndex: range.startIndex,
-					endIndex: range.endIndex,
-					isScrolling: instance2.isScrolling
-				} : null;
-			}
-			if (shouldRerender) if (useFlushSync && sync) (0, import_react_dom.flushSync)(rerender);
-			else rerender();
-			(_a = options.onChange) == null || _a.call(options, instance2, sync);
-		}
-	};
-	const [instance] = import_react.useState(() => {
-		const v = new Virtualizer(resolvedOptions);
-		return Object.assign(v, { containerRef: (node) => {
-			const state = directRef.current;
-			state.container = node;
-			state.lastSize = null;
-			if (node && state.enabled) {
-				const total = v.getTotalSize();
-				state.lastSize = total;
-				const axis = v.options.horizontal ? "width" : "height";
-				node.style[axis] = `${total}px`;
-			}
-		} });
-	});
-	instance.setOptions(resolvedOptions);
-	useIsomorphicLayoutEffect(() => {
-		return instance._didMount();
-	}, []);
-	useIsomorphicLayoutEffect(() => {
-		applyContainerSize(instance);
-		return instance._willUpdate();
-	});
-	useIsomorphicLayoutEffect(() => {
-		applyDirectStyles(instance);
-	});
-	return instance;
-}
-function useVirtualizer(options) {
-	return useVirtualizerBase({
-		observeElementRect,
-		observeElementOffset,
-		scrollToFn: elementScroll,
-		...options
-	});
-}
-//#endregion
-//#region ../../packages/react/src/virtual/scale-coordinate-space.ts
-var SAFE_MAX_SPACER = 16e6;
-function computeScale(contentTotal, safeMax) {
-	if (contentTotal <= safeMax) return 1;
-	return contentTotal / safeMax;
-}
-//#endregion
-//#region ../../packages/react/src/virtual/use-scaled-virtualizer.ts
-function useScaledVirtualizer(opts) {
-	const scaleRef = (0, import_react.useRef)(1);
-	const scaledObserveElementOffset = (0, import_react.useMemo)(() => (instance, cb) => {
-		const el = instance.scrollElement;
-		if (!el) return;
-		const onScroll = () => {
-			cb(el.scrollTop * scaleRef.current, true);
-		};
-		const onScrollEnd = () => {
-			cb(el.scrollTop * scaleRef.current, false);
-		};
-		cb(el.scrollTop * scaleRef.current, false);
-		el.addEventListener("scroll", onScroll, { passive: true });
-		el.addEventListener("scrollend", onScrollEnd, { passive: true });
-		return () => {
-			el.removeEventListener("scroll", onScroll);
-			el.removeEventListener("scrollend", onScrollEnd);
-		};
-	}, []);
-	const scaledScrollToFn = (0, import_react.useCallback)((offset, { adjustments, behavior }, instance) => {
-		const el = instance.scrollElement;
-		if (!el) return;
-		const adjusted = offset + (adjustments ?? 0);
-		el.scrollTo({
-			top: adjusted / scaleRef.current,
-			behavior
-		});
-	}, []);
-	const virtualizer = useVirtualizer({
-		count: opts.count,
-		estimateSize: opts.estimateSize,
-		getScrollElement: opts.getScrollElement,
-		overscan: opts.overscan ?? 5,
-		scrollPaddingStart: opts.scrollPaddingStart ?? 0,
-		observeElementOffset: scaledObserveElementOffset,
-		scrollToFn: scaledScrollToFn
-	});
-	virtualizer.shouldAdjustScrollPositionOnItemSizeChange = (item, _delta, instance) => item.end <= (instance.scrollOffset ?? 0);
-	const contentTotal = virtualizer.getTotalSize();
-	const scale = computeScale(contentTotal, SAFE_MAX_SPACER);
-	scaleRef.current = scale;
-	return {
-		virtualizer,
-		scale,
-		spacerHeight: scale === 1 ? contentTotal : SAFE_MAX_SPACER,
-		toContentScroll: (0, import_react.useCallback)((spacerScroll) => spacerScroll * scale, [scale]),
-		toSpacerScroll: (0, import_react.useCallback)((contentScroll) => contentScroll / scale, [scale])
-	};
-}
-//#endregion
-//#region ../../packages/react/src/virtual/use-virtual-list-state.ts
-var CURRENT_VERSION = 1;
-function useVirtualListState(persistenceKey) {
-	const [stored, setStored] = useProperty(persistenceKey, "snapshot", { defaultValue: null });
-	return {
-		getRestoreSnapshot: (0, import_react.useCallback)(() => {
-			if (!stored) return void 0;
-			if (stored.version !== CURRENT_VERSION) return void 0;
-			return stored;
-		}, [stored]),
-		recordSnapshot: (0, import_react.useCallback)((snapshot) => {
-			setStored(snapshot);
-		}, [setStored])
-	};
-}
-var VirtualList_module_default = {
-	scroller: "_scroller_1rroa_1",
-	spacer: "_spacer_1rroa_7"
-};
-//#endregion
-//#region ../../packages/react/src/virtual/VirtualList.tsx
-var BOTTOM_THRESHOLD_PX = 30;
-var USER_INTERACTION_WINDOW_MS = 400;
-var SMOOTH_SCROLL_MAX_S = 10;
-var PERSIST_DEBOUNCE_MS = 250;
-var DEFAULT_ITEM_HEIGHT_PX = 400;
-var MAX_CHUNK_HEIGHT = 5e6;
-function PaddingChunks({ height, prefix }) {
-	if (height <= 0) return null;
-	const chunks = [];
-	let remaining = height;
-	let i = 0;
-	while (remaining > 0) {
-		const h = Math.min(remaining, MAX_CHUNK_HEIGHT);
-		chunks.push(/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { height: h } }, `${prefix}-${i}`));
-		remaining -= h;
-		i++;
-	}
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(import_jsx_runtime.Fragment, { children: chunks });
-}
-var countMatchesInTexts = (lowerTextsByItem, lowerTerm) => {
-	if (lowerTerm.length === 0) return 0;
-	let total = 0;
-	for (const texts of lowerTextsByItem) for (const lowerText of texts) {
-		let pos = 0;
-		while ((pos = lowerText.indexOf(lowerTerm, pos)) !== -1) {
-			total++;
-			pos += lowerTerm.length;
-		}
-	}
-	return total;
-};
-function VirtualList({ persistenceKey, ref, className, scrollRef: externalScrollRef, data, renderRow, live, navOwned, followRequested, showProgress, initialIndex, scrollPaddingStart, components, smoothScroll = true, itemSearchText, findScope = "local", scrollToTopOnFinish = false, onVisibleRangeChange }) {
-	const internalScrollRef = (0, import_react.useRef)(null);
-	const [scrollParent, setScrollParent] = (0, import_react.useState)(null);
-	(0, import_react.useEffect)(() => {
-		if (!externalScrollRef) return;
-		const sync = () => {
-			setScrollParent((prev) => prev === externalScrollRef.current ? prev : externalScrollRef.current ?? null);
-		};
-		sync();
-		const observer = new MutationObserver(sync);
-		observer.observe(document.body, {
-			childList: true,
-			subtree: true
-		});
-		return () => observer.disconnect();
-	}, [externalScrollRef]);
-	const getScrollElement = (0, import_react.useCallback)(() => scrollParent ?? internalScrollRef.current, [scrollParent]);
-	const { virtualizer, scale, toContentScroll, toSpacerScroll } = useScaledVirtualizer({
-		count: data.length,
-		estimateSize: () => DEFAULT_ITEM_HEIGHT_PX,
-		getScrollElement,
-		scrollPaddingStart: scrollPaddingStart ?? 0
-	});
-	const { getRestoreSnapshot, recordSnapshot } = useVirtualListState(persistenceKey);
-	const [storedFollow, setFollowOutput] = useProperty(persistenceKey, "follow", { defaultValue: null });
-	const isAutoScrollingRef = (0, import_react.useRef)(false);
-	const followUserActedRef = (0, import_react.useRef)(false);
-	const followSeedRef = (0, import_react.useRef)(null);
-	const resolveInitialFollow = () => followRequested ? true : navOwned ? false : storedFollow ?? !!live;
-	const [followSeed, setFollowSeed] = (0, import_react.useState)(() => ({
-		key: persistenceKey,
-		value: resolveInitialFollow(),
-		applied: false
-	}));
-	if (followSeed.key !== persistenceKey) setFollowSeed({
-		key: persistenceKey,
-		value: resolveInitialFollow(),
-		applied: false
-	});
-	else if (!followSeed.applied && storedFollow === followSeed.value) setFollowSeed((s) => ({
-		...s,
-		applied: true
-	}));
-	const seedActive = followSeed.key === persistenceKey && !followSeed.applied;
-	const followOutput = seedActive ? followSeed.value : storedFollow ?? false;
-	(0, import_react.useLayoutEffect)(() => {
-		followUserActedRef.current = false;
-		followSeedRef.current = null;
-	}, [persistenceKey]);
-	(0, import_react.useLayoutEffect)(() => {
-		if (seedActive && storedFollow !== followSeed.value) {
-			setFollowOutput(followSeed.value);
-			followSeedRef.current = followSeed.value;
-		}
-	}, [
-		seedActive,
-		followSeed,
-		storedFollow,
-		setFollowOutput
-	]);
-	const userInteractingRef = (0, import_react.useRef)(false);
-	const pointerDownRef = (0, import_react.useRef)(false);
-	const interactTimerRef = (0, import_react.useRef)(null);
-	const noteUserInteraction = (0, import_react.useCallback)(() => {
-		userInteractingRef.current = true;
-		if (interactTimerRef.current) clearTimeout(interactTimerRef.current);
-		interactTimerRef.current = setTimeout(() => {
-			userInteractingRef.current = false;
-		}, USER_INTERACTION_WINDOW_MS);
-	}, []);
-	const prevLive = usePreviousValue(live);
-	(0, import_react.useEffect)(() => {
-		if (live && !prevLive && !navOwned && !followRequested && !followUserActedRef.current && !storedFollow && storedFollow === followSeedRef.current) {
-			setFollowOutput(true);
-			followSeedRef.current = true;
-		}
-	}, [
-		live,
-		prevLive,
-		navOwned,
-		followRequested,
-		storedFollow,
-		setFollowOutput
-	]);
-	const finishScrollTimerRef = (0, import_react.useRef)(null);
-	const followOutputRef = (0, import_react.useRef)(followOutput);
-	(0, import_react.useEffect)(() => {
-		followOutputRef.current = followOutput;
-	}, [followOutput]);
-	(0, import_react.useEffect)(() => {
-		if (scrollToTopOnFinish && !live && prevLive && followOutputRef.current) {
-			const el = getScrollElement();
-			if (el) {
-				setFollowOutput(false);
-				finishScrollTimerRef.current = setTimeout(() => {
-					finishScrollTimerRef.current = null;
-					if (!userInteractingRef.current && !pointerDownRef.current) el.scrollTo({
-						top: 0,
-						behavior: "auto"
-					});
-				}, 100);
-			}
-		}
-		return () => {
-			if (finishScrollTimerRef.current) {
-				clearTimeout(finishScrollTimerRef.current);
-				finishScrollTimerRef.current = null;
-			}
-		};
-	}, [
-		live,
-		prevLive,
-		scrollToTopOnFinish,
-		getScrollElement,
-		setFollowOutput
-	]);
-	const handleScroll = useRafThrottle(() => {
-		if (!live) return;
-		const el = getScrollElement();
-		if (!el) return;
-		if (!userInteractingRef.current && !pointerDownRef.current) return;
-		const atBottom = el.scrollHeight - el.scrollTop <= el.clientHeight + BOTTOM_THRESHOLD_PX;
-		if (atBottom && !followOutput) {
-			followUserActedRef.current = true;
-			setFollowOutput(true);
-		} else if (!atBottom && followOutput) {
-			followUserActedRef.current = true;
-			setFollowOutput(false);
-		}
-	});
-	(0, import_react.useEffect)(() => {
-		const el = getScrollElement();
-		if (!el) return;
-		el.addEventListener("scroll", handleScroll);
-		return () => el.removeEventListener("scroll", handleScroll);
-	}, [getScrollElement, handleScroll]);
-	(0, import_react.useEffect)(() => {
-		const el = getScrollElement();
-		if (!el) return;
-		const onWheel = () => noteUserInteraction();
-		const onTouchMove = () => noteUserInteraction();
-		const onKeyDown = (e) => {
-			if (SCROLL_RELEASE_KEYS.has(e.key)) noteUserInteraction();
-		};
-		const onPointerDown = () => {
-			pointerDownRef.current = true;
-			noteUserInteraction();
-		};
-		const onPointerUp = () => {
-			pointerDownRef.current = false;
-		};
-		el.addEventListener("wheel", onWheel, { passive: true });
-		el.addEventListener("touchmove", onTouchMove, { passive: true });
-		el.addEventListener("keydown", onKeyDown);
-		el.addEventListener("pointerdown", onPointerDown, { passive: true });
-		window.addEventListener("pointerup", onPointerUp, { passive: true });
-		window.addEventListener("pointercancel", onPointerUp, { passive: true });
-		return () => {
-			el.removeEventListener("wheel", onWheel);
-			el.removeEventListener("touchmove", onTouchMove);
-			el.removeEventListener("keydown", onKeyDown);
-			el.removeEventListener("pointerdown", onPointerDown);
-			window.removeEventListener("pointerup", onPointerUp);
-			window.removeEventListener("pointercancel", onPointerUp);
-		};
-	}, [getScrollElement, noteUserInteraction]);
-	const contentTotal = virtualizer.getTotalSize();
-	(0, import_react.useEffect)(() => {
-		if (!followOutput || !live) return;
-		const el = getScrollElement();
-		if (!el) return;
-		let releaseFrame = 0;
-		const frame = requestAnimationFrame(() => {
-			isAutoScrollingRef.current = true;
-			el.scrollTo({ top: el.scrollHeight });
-			lastAutoScrollTopRef.current = el.scrollTop;
-			releaseFrame = requestAnimationFrame(() => {
-				isAutoScrollingRef.current = false;
-			});
-		});
-		return () => {
-			cancelAnimationFrame(frame);
-			cancelAnimationFrame(releaseFrame);
-		};
-	}, [
-		contentTotal,
-		followOutput,
-		live,
-		getScrollElement
-	]);
-	const hasInitialScrolledRef = (0, import_react.useRef)(false);
-	const userScrolledRef = (0, import_react.useRef)(false);
-	const lastAutoScrollTopRef = (0, import_react.useRef)(null);
-	const settleFrameRef = (0, import_react.useRef)(0);
-	const releaseFrameRef = (0, import_react.useRef)(0);
-	const settleScrollToIndex = (0, import_react.useCallback)((index, align, onDone) => {
-		const jump = () => virtualizer.scrollToIndex(index, {
-			align,
-			behavior: "auto"
-		});
-		isAutoScrollingRef.current = true;
-		cancelAnimationFrame(releaseFrameRef.current);
-		const finish = () => {
-			const elNow = getScrollElement();
-			if (elNow) lastAutoScrollTopRef.current = elNow.scrollTop;
-			releaseFrameRef.current = requestAnimationFrame(() => {
-				isAutoScrollingRef.current = false;
-			});
-			onDone?.();
-		};
-		jump();
-		const el = getScrollElement();
-		if (!el) {
-			finish();
-			return;
-		}
-		cancelAnimationFrame(settleFrameRef.current);
-		let frames = 0;
-		let stable = 0;
-		let lastTop = el.scrollTop;
-		const settle = () => {
-			if (userInteractingRef.current) {
-				finish();
-				return;
-			}
-			jump();
-			stable = Math.abs(el.scrollTop - lastTop) <= 1 ? stable + 1 : 0;
-			lastTop = el.scrollTop;
-			if (stable < 3 && ++frames < 30) settleFrameRef.current = requestAnimationFrame(settle);
-			else finish();
-		};
-		settleFrameRef.current = requestAnimationFrame(settle);
-	}, [virtualizer, getScrollElement]);
-	(0, import_react.useEffect)(() => () => {
-		cancelAnimationFrame(settleFrameRef.current);
-		cancelAnimationFrame(releaseFrameRef.current);
-	}, []);
-	const lastInitialKeyRef = (0, import_react.useRef)(null);
-	const lastInitialIndexRef = (0, import_react.useRef)(void 0);
-	const hasResetTopRef = (0, import_react.useRef)(false);
-	(0, import_react.useEffect)(() => {
-		if (lastInitialKeyRef.current !== persistenceKey || lastInitialIndexRef.current !== initialIndex) {
-			hasInitialScrolledRef.current = false;
-			userScrolledRef.current = false;
-			hasResetTopRef.current = false;
-			lastInitialKeyRef.current = persistenceKey;
-			lastInitialIndexRef.current = initialIndex ?? void 0;
-		}
-		if (hasInitialScrolledRef.current) return;
-		const el = getScrollElement();
-		if (!el) return;
-		const snapshot = getRestoreSnapshot();
-		let releaseFrame = 0;
-		const frame = requestAnimationFrame(() => {
-			isAutoScrollingRef.current = true;
-			const release = () => {
-				lastAutoScrollTopRef.current = el.scrollTop;
-				releaseFrame = requestAnimationFrame(() => {
-					isAutoScrollingRef.current = false;
-				});
-			};
-			if (initialIndex != null) {
-				hasInitialScrolledRef.current = true;
-				settleScrollToIndex(initialIndex, "start");
-			} else if (followOutput && live) {
-				hasInitialScrolledRef.current = true;
-				release();
-			} else if (snapshot) {
-				hasInitialScrolledRef.current = true;
-				if (!userScrolledRef.current) {
-					const maxScroll = Math.max(0, virtualizer.getTotalSize() - el.clientHeight);
-					const offset = snapshot.totalCount === data.length ? snapshot.scrollOffset : Math.min(snapshot.scrollOffset, maxScroll);
-					el.scrollTop = toSpacerScroll(offset);
-				}
-				release();
-			} else if (!userScrolledRef.current && !hasResetTopRef.current) {
-				el.scrollTop = 0;
-				hasResetTopRef.current = true;
-				release();
-			} else release();
-		});
-		return () => {
-			cancelAnimationFrame(frame);
-			if (releaseFrame) {
-				cancelAnimationFrame(releaseFrame);
-				isAutoScrollingRef.current = false;
-			}
-		};
-	}, [
-		persistenceKey,
-		initialIndex,
-		settleScrollToIndex,
-		contentTotal,
-		data.length,
-		followOutput,
-		live,
-		getRestoreSnapshot,
-		getScrollElement,
-		toSpacerScroll,
-		virtualizer
-	]);
-	const buildSnapshot = (0, import_react.useCallback)((el) => ({
-		version: 1,
-		scrollOffset: toContentScroll(el.scrollTop),
-		totalCount: data.length
-	}), [toContentScroll, data.length]);
-	const persistTimerRef = (0, import_react.useRef)(null);
-	const pendingSnapshotRef = (0, import_react.useRef)(null);
-	const persistOnScroll = useRafThrottle(() => {
-		if (isAutoScrollingRef.current) return;
-		const elNow = getScrollElement();
-		if (elNow && lastAutoScrollTopRef.current !== null && Math.abs(elNow.scrollTop - lastAutoScrollTopRef.current) <= 2) return;
-		userScrolledRef.current = true;
-		if (elNow) pendingSnapshotRef.current = buildSnapshot(elNow);
-		if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
-		persistTimerRef.current = setTimeout(() => {
-			persistTimerRef.current = null;
-			pendingSnapshotRef.current = null;
-			const el = getScrollElement();
-			if (!el) return;
-			recordSnapshot(buildSnapshot(el));
-		}, PERSIST_DEBOUNCE_MS);
-	});
-	(0, import_react.useEffect)(() => {
-		const el = getScrollElement();
-		if (!el) return;
-		el.addEventListener("scroll", persistOnScroll);
-		return () => el.removeEventListener("scroll", persistOnScroll);
-	}, [getScrollElement, persistOnScroll]);
-	(0, import_react.useEffect)(() => () => {
-		if (persistTimerRef.current) {
-			clearTimeout(persistTimerRef.current);
-			persistTimerRef.current = null;
-			if (pendingSnapshotRef.current) recordSnapshot(pendingSnapshotRef.current);
-		}
-		pendingSnapshotRef.current = null;
-	}, [recordSnapshot]);
-	(0, import_react.useEffect)(() => () => {
-		if (interactTimerRef.current) {
-			clearTimeout(interactTimerRef.current);
-			interactTimerRef.current = null;
-		}
-	}, []);
-	const items = virtualizer.getVirtualItems();
-	const startIndex = items[0]?.index ?? 0;
-	const endIndex = items[items.length - 1]?.index ?? 0;
-	const visibleRangeRef = (0, import_react.useRef)({
-		startIndex: 0,
-		endIndex: 0
-	});
-	(0, import_react.useEffect)(() => {
-		const range = {
-			startIndex,
-			endIndex
-		};
-		visibleRangeRef.current = range;
-		onVisibleRangeChange?.(range);
-	}, [
-		startIndex,
-		endIndex,
-		onVisibleRangeChange
-	]);
-	(0, import_react.useImperativeHandle)(ref, () => ({
-		scrollToIndex(opts) {
-			const behavior = scale > SMOOTH_SCROLL_MAX_S ? "auto" : opts.behavior ?? (smoothScroll ? "smooth" : "auto");
-			if (behavior === "auto") {
-				settleScrollToIndex(opts.index, opts.align, opts.onDone);
-				return;
-			}
-			virtualizer.scrollToIndex(opts.index, {
-				align: opts.align,
-				behavior
-			});
-			opts.onDone?.();
-		},
-		scrollTo(opts) {
-			const el = getScrollElement();
-			if (!el) return;
-			const behavior = scale > SMOOTH_SCROLL_MAX_S ? "auto" : opts.behavior ?? (smoothScroll ? "smooth" : "auto");
-			el.scrollTo({
-				top: opts.top,
-				behavior
-			});
-		},
-		getState(callback) {
-			const el = getScrollElement();
-			callback({
-				version: 1,
-				scrollOffset: el ? toContentScroll(el.scrollTop) : 0,
-				totalCount: data.length
-			});
-		},
-		jumpToStart() {
-			const el = getScrollElement();
-			if (el) el.scrollTop = 0;
-		},
-		jumpToEnd() {
-			const el = getScrollElement();
-			if (el) el.scrollTop = el.scrollHeight;
-		}
-	}), [
-		virtualizer,
-		scale,
-		settleScrollToIndex,
-		smoothScroll,
-		getScrollElement,
-		toContentScroll,
-		data.length
-	]);
-	const { registerVirtualList, registerMatchCounter } = useExtendedFind();
-	const searchInData = (0, import_react.useCallback)((term, direction, onContentReady) => {
-		if (!term || data.length === 0) return Promise.resolve(false);
-		const isForward = direction === "forward";
-		const len = data.length;
-		const range = visibleRangeRef.current;
-		const current = isForward ? range.endIndex : range.startIndex;
-		const getText = itemSearchText ?? ((item) => JSON.stringify(item));
-		const prepared = prepareSearchTerm(term);
-		for (let offset = 1; offset < len; offset++) {
-			const i = isForward ? (current + offset) % len : (current - offset + len) % len;
-			const item = data[i];
-			if (item === void 0) continue;
-			const texts = getText(item);
-			if ((Array.isArray(texts) ? texts : [texts]).some((text) => {
-				const lower = text.toLowerCase();
-				if (lower.includes(prepared.simple)) return true;
-				if (prepared.unquoted && lower.includes(prepared.unquoted)) return true;
-				if (prepared.jsonEscaped && lower.includes(prepared.jsonEscaped)) return true;
-				return false;
-			})) {
-				settleScrollToIndex(i, "center");
-				setTimeout(onContentReady, 200);
-				return Promise.resolve(true);
-			}
-		}
-		return Promise.resolve(false);
-	}, [
-		data,
-		itemSearchText,
-		settleScrollToIndex
-	]);
-	const precomputedSearchTexts = (0, import_react.useMemo)(() => {
-		const getText = itemSearchText ?? ((item) => JSON.stringify(item));
-		return data.map((item) => {
-			const texts = getText(item);
-			return (Array.isArray(texts) ? texts : [texts]).map((t) => t.toLowerCase());
-		});
-	}, [data, itemSearchText]);
-	const countMatchesInData = (0, import_react.useCallback)((term) => {
-		if (!term || precomputedSearchTexts.length === 0) return 0;
-		return countMatchesInTexts(precomputedSearchTexts, term.toLowerCase());
-	}, [precomputedSearchTexts]);
-	(0, import_react.useEffect)(() => {
-		if (findScope === "none") return;
-		const u1 = registerVirtualList(persistenceKey, searchInData);
-		const u2 = registerMatchCounter(persistenceKey, countMatchesInData);
-		return () => {
-			u1();
-			u2();
-		};
-	}, [
-		findScope,
-		persistenceKey,
-		registerVirtualList,
-		registerMatchCounter,
-		searchInData,
-		countMatchesInData
-	]);
-	const ItemSlot = components?.Item;
-	const FooterSlot = components?.Footer;
-	const ownsScroll = !externalScrollRef;
-	const firstItem = items.length > 0 ? items[0] : void 0;
-	const lastItem = items.length > 0 ? items[items.length - 1] : void 0;
-	const topPaddingContent = firstItem?.start ?? 0;
-	const topPaddingSpacer = topPaddingContent / scale;
-	const renderedBandHeight = firstItem && lastItem ? lastItem.start + lastItem.size - firstItem.start : 0;
-	const bottomPaddingSpacer = (lastItem ? Math.max(0, virtualizer.getTotalSize() - (lastItem.start + lastItem.size)) : virtualizer.getTotalSize()) / scale;
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-		ref: (el) => {
-			if (!ownsScroll) return;
-			internalScrollRef.current = el;
-			setScrollParent((prev) => prev === el ? prev : el);
-		},
-		className: clsx(VirtualList_module_default.scroller, className),
-		style: ownsScroll ? {
-			height: "100%",
-			width: "100%",
-			overflow: "auto"
-		} : { width: "100%" },
-		children: [
-			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(PaddingChunks, {
-				height: topPaddingSpacer,
-				prefix: "top"
-			}),
-			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-				style: {
-					position: "relative",
-					height: renderedBandHeight
-				},
-				children: items.map((vItem) => {
-					const item = data[vItem.index];
-					if (item === void 0) return null;
-					const top = vItem.start - topPaddingContent;
-					const child = renderRow(vItem.index, item);
-					if (ItemSlot) return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-						ref: virtualizer.measureElement,
-						"data-index": vItem.index,
-						style: {
-							position: "absolute",
-							top,
-							left: 0,
-							right: 0
-						},
-						children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ItemSlot, {
-							"data-index": vItem.index,
-							"data-item-index": vItem.index,
-							"data-known-size": vItem.size,
-							style: {},
-							children: child
-						})
-					}, vItem.key);
-					return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-						ref: virtualizer.measureElement,
-						"data-index": vItem.index,
-						"data-item-index": vItem.index,
-						"data-known-size": vItem.size,
-						style: {
-							position: "absolute",
-							top,
-							left: 0,
-							right: 0
-						},
-						children: child
-					}, vItem.key);
-				})
-			}),
-			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(PaddingChunks, {
-				height: bottomPaddingSpacer,
-				prefix: "bot"
-			}),
-			showProgress && (FooterSlot ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(FooterSlot, {}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-				style: {
-					display: "flex",
-					justifyContent: "center",
-					padding: "1rem"
-				},
-				children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(PulsingDots, {
-					subtle: false,
-					size: "medium"
-				})
-			}))
-		]
-	});
-}
 var GeneratingIndicator_module_default = {
 	bar: "_bar_pg4l8_1",
 	"gen-sweep": "_gen-sweep_pg4l8_1",
@@ -74074,12 +71437,13 @@ var ChatItem = ({ children, ...props }) => {
 };
 var chatComponents = { Item: ChatItem };
 var kChatScrollPaddingStart = -15;
+var kLoadMoreMarginRows = 20;
 /**
 * The chat list over prebuilt rows — hosts that source rows from a data
 * layer render through this; the message-array wrapper below covers callers
 * that still hold raw messages.
 */
-var ChatViewRowsVirtualList = (0, import_react.memo)(function ChatViewRowsVirtualList({ id, rows, initialMessageId, followRequested, className, scrollRef, running, backfilling, scrollToTopOnFinish = true, onNativeFindChanged, display, labels, linking, tools }) {
+var ChatViewRowsVirtualList = (0, import_react.memo)(function ChatViewRowsVirtualList({ id, rows, hasMoreRows, onLoadMoreRows, initialMessageId, followRequested, className, scrollRef, running, backfilling, scrollToTopOnFinish = true, onNativeFindChanged, display, labels, linking, tools }) {
 	const listHandle = (0, import_react.useRef)(null);
 	const [navOwned] = (0, import_react.useState)(() => !!initialMessageId);
 	(0, import_react.useEffect)(() => {
@@ -74090,12 +71454,16 @@ var ChatViewRowsVirtualList = (0, import_react.memo)(function ChatViewRowsVirtua
 		scrollRef,
 		itemCount: rows.length
 	});
+	const handleVisibleRangeChange = (0, import_react.useCallback)((range) => {
+		if (hasMoreRows && onLoadMoreRows && range.endIndex >= rows.length - kLoadMoreMarginRows) onLoadMoreRows();
+	}, [
+		hasMoreRows,
+		onLoadMoreRows,
+		rows.length
+	]);
 	const initialMessageIndex = (0, import_react.useMemo)(() => {
 		if (initialMessageId === null || initialMessageId === void 0) return;
-		const index = rows.findIndex((row) => {
-			if (row.resolved.message.id === initialMessageId) return true;
-			if (row.resolved.toolMessages.find((tm) => tm.id === initialMessageId)) return true;
-		});
+		const index = rows.findIndex((row) => rowContainsMessage(row, initialMessageId));
 		return index !== -1 ? index : void 0;
 	}, [initialMessageId, rows]);
 	const maxLabelLength = (0, import_react.useMemo)(() => computeMaxLabelLength(labels?.messageLabels), [labels?.messageLabels]);
@@ -74154,7 +71522,9 @@ var ChatViewRowsVirtualList = (0, import_react.memo)(function ChatViewRowsVirtua
 		scrollToTopOnFinish,
 		components: chatComponents,
 		smoothScroll: false,
-		itemSearchText: rowSearchText
+		itemSearchText: rowSearchText,
+		showProgress: hasMoreRows,
+		onVisibleRangeChange: handleVisibleRangeChange
 	});
 });
 (0, import_react.memo)(function ChatViewVirtualList({ messages, tools, ...rest }) {
@@ -74256,7 +71626,7 @@ var chunkedConversation = (chunked) => {
 			const messages = await chunked.messages.getRange(rangeLo, rangeHi);
 			return resolve ? withAttachmentsResolved(messages, chunked, `${label} range ${i}`) : messages;
 		}))).flat();
-		log$4.info(`read ${label}: ${messages.length} messages via ${ranges.length} range${ranges.length === 1 ? "" : "s"}`);
+		log$3.info(`read ${label}: ${messages.length} messages via ${ranges.length} range${ranges.length === 1 ? "" : "s"}`);
 		return messages;
 	};
 	return {
@@ -74364,7 +71734,7 @@ var windowedMessageRows = (conversation, options = kDefaultMessageRowOptions) =>
 				const msgLo = facts[sLo]?.start ?? 0;
 				const msgHi = sHi < facts.length ? facts[sHi]?.start ?? index.scanPos : exhausted ? conversation.messageCount : index.scanPos;
 				const folded = buildMessageRowsWindow(await conversation.getMessages(msgLo, msgHi), msgLo, index.startNumber(sLo), options);
-				if (folded.length !== sHi - sLo) log$4.error(`windowed fold mismatch: rows [${sLo}, ${sHi}) folded to ${folded.length} rows from messages [${msgLo}, ${msgHi})`);
+				if (folded.length !== sHi - sLo) log$3.error(`windowed fold mismatch: rows [${sLo}, ${sHi}) folded to ${folded.length} rows from messages [${msgLo}, ${msgHi})`);
 				rows.push(...folded);
 			}
 			return {
@@ -74425,26 +71795,48 @@ var useMessagesExport = (sampleData) => (0, import_react.useMemo)(() => {
 		return parts;
 	};
 }, [sampleData]);
-//#endregion
-//#region src/log_data/messageRowsQuery.ts
+var kNoLoadMore = () => {};
+/** A feed over rows that are already everything there is. */
+var unpagedFeed = (rows) => ({
+	rows,
+	hasMore: false,
+	loadMore: kNoLoadMore
+});
+var kLoadingFeed = unpagedFeed(loading$2);
 /**
-* The settled conversation's rows for a sample, held in react-query.
-* Which feed backs them — inline monolith messages or the windowed source
-* over a chunked sample's conversation — is selected behind the
-* SampleMessagesData seam (`sampleMessagesSource`). This stage reads the
-* whole row space in one getRows call (the chat list renders prebuilt
-* rows); everything below the seam — scanning, chunk fetches, folding —
-* serves that request the same way it will serve real pages when the
-* list virtualizes over them.
+* The settled conversation's rows for a sample, read through react-query's
+* infinite query. Which feed backs them — inline monolith messages or the
+* windowed source over a chunked sample's conversation — is selected behind
+* the SampleMessagesData seam (`sampleMessagesSource`). Chunked samples
+* read in kMessageRowsPageSize pages, so the tab's first paint costs one
+* page even on a huge conversation and scrolling extends the loaded prefix
+* page by page; monolith samples serve the whole row space in one read,
+* exactly like the pre-paging feed — a TEMPORARY gate, because behaviors
+* built on a fully loaded list (find scope, the live-finish row swap)
+* aren't paging-aware yet and customers' non-chunked evals must not lose
+* them. Once those work over a paged prefix, the gate can drop. Pages are
+* forward-contiguous from row 0 (offset cursors); there is deliberately no
+* eviction — `maxPages` would punch holes in the flattened prefix the list
+* renders.
 *
 * Returns undefined while there is no settled conversation to read (a
 * live streaming sample, a sample still fetching, the Messages tab never
-* activated); loading while one is materializing; the caller owns what
-* covers those states (streaming rows, waiting/loading affordances).
+* activated); a loading feed while the first page is materializing; the
+* caller owns what covers those states (streaming rows, waiting/loading
+* affordances).
+*
+* `targetMessageId` is a `?message=` deep link's target: pages drain in
+* serially until a loaded row renders that message (or the conversation
+* is exhausted), and the feed reports loading until then — the list
+* honors its initial scroll index at mount, so it must mount with the
+* target resident. The prefix cost is deliberate: pages are
+* forward-contiguous, so the covering prefix is the minimum the list can
+* render anyway.
 */
-var useMessageRows = (handle, sampleData, activated) => {
+var useMessageRows = (handle, sampleData, activated, targetMessageId) => {
 	const source = sampleMessagesSource(sampleData);
-	const rows = useAsyncDataFromQuery({
+	const paged = sampleData.chunked !== void 0;
+	const { data, isPending, isError, error, hasNextPage, isFetchingNextPage, fetchNextPage } = useInfiniteQuery({
 		queryKey: [
 			"log_data",
 			"message-rows",
@@ -74452,13 +71844,13 @@ var useMessageRows = (handle, sampleData, activated) => {
 			handle?.id ?? null,
 			handle?.epoch ?? null
 		],
-		queryFn: activated && source && handle ? async () => {
-			return (await source.getRows({
-				cursor: null,
-				direction: "forward",
-				limit: Number.MAX_SAFE_INTEGER
-			})).rows;
-		} : skipToken,
+		queryFn: activated && source && handle ? ({ pageParam }) => source.getRows({
+			cursor: pageParam === 0 ? null : { offset: pageParam },
+			direction: "forward",
+			limit: paged ? 100 : Number.MAX_SAFE_INTEGER
+		}) : skipToken,
+		initialPageParam: 0,
+		getNextPageParam: (last) => last.nextCursor?.offset,
 		gcTime: kSampleGcTimeMs,
 		staleTime: Infinity,
 		retry: false,
@@ -74466,13 +71858,51 @@ var useMessageRows = (handle, sampleData, activated) => {
 		refetchOnReconnect: false,
 		structuralSharing: false
 	});
+	const pages = data?.pages;
+	const rows = (0, import_react.useMemo)(() => pages?.flatMap((page) => page.rows), [pages]);
+	const fetchNext = (0, import_react.useCallback)(() => {
+		if (hasNextPage && !isFetchingNextPage) fetchNextPage({ cancelRefetch: false }).catch(() => void 0);
+	}, [
+		hasNextPage,
+		isFetchingNextPage,
+		fetchNextPage
+	]);
+	const targetLoaded = (0, import_react.useMemo)(() => targetMessageId == null || (rows?.some((row) => rowContainsMessage(row, targetMessageId)) ?? false), [rows, targetMessageId]);
+	(0, import_react.useEffect)(() => {
+		if (!targetLoaded && !isError) fetchNext();
+	}, [
+		rows,
+		targetLoaded,
+		isError,
+		fetchNext
+	]);
+	const hasSource = source !== void 0;
 	return (0, import_react.useMemo)(() => {
-		if (!activated || source === void 0) return;
-		return rows;
+		if (!activated || !hasSource) return;
+		if (isPending) return kLoadingFeed;
+		if (isError) return unpagedFeed({
+			error,
+			loading: false
+		});
+		if (!targetLoaded && hasNextPage) return kLoadingFeed;
+		return {
+			rows: {
+				data: rows ?? [],
+				loading: false
+			},
+			hasMore: hasNextPage,
+			loadMore: fetchNext
+		};
 	}, [
 		activated,
-		source,
-		rows
+		hasSource,
+		isPending,
+		isError,
+		error,
+		targetLoaded,
+		hasNextPage,
+		rows,
+		fetchNext
 	]);
 };
 //#endregion
@@ -74587,20 +72017,27 @@ var useStreamingRowsLatch = (active, relieved, runningEvents, sampleKey) => {
 };
 /**
 * The Messages tab's one entry point: the settled conversation's rows read
-* through `useMessageRows`, with the live event stream serving rows until
+* through `useMessageRows` — a paged feed whose loaded prefix the list
+* extends by scrolling — with the live event stream serving rows until
 * a settled feed exists. The view consumes the result and reports two
 * gates it owns: `active` (the tab is open — the settled read and chunked
 * hydration are activation-latched on it, so neither is ever paid at
 * sample open) and `running` (live samples surface "waiting", not
 * "loading", before their first poll lands).
 *
-* `data` is the rows to render (settled, streaming, or an empty settled
-* conversation); `loading` means data that will produce messages is still
-* in flight (monolith fetch, chunked hydration, rows materialization);
-* `error` means the conversation failed to materialize. On loading and
-* error the view renders that affordance, never "No messages".
+* `rows.data` is the rows to render (a settled prefix, streaming rows, or
+* an empty settled conversation); `rows.loading` means data that will
+* produce messages is still in flight (monolith fetch, chunked hydration,
+* first-page materialization); `rows.error` means the conversation failed
+* to materialize. On loading and error the view renders that affordance,
+* never "No messages". Streaming rows are never paged (`hasMore` false):
+* the event feed always renders whole.
+*
+* `targetMessageId` (a `?message=` deep link) keeps the settled feed on
+* loading until the target's covering page prefix is resident — see
+* `useMessageRows`.
 */
-var useSampleMessages = (handle, sampleData, active, running) => {
+var useSampleMessages = (handle, sampleData, active, running, targetMessageId) => {
 	const sampleKey = handle ? `${handle.logFile}|${handle.id}|${handle.epoch}` : null;
 	const [latch, setLatch] = (0, import_react.useState)({
 		key: null,
@@ -74614,27 +72051,20 @@ var useSampleMessages = (handle, sampleData, active, running) => {
 		key: sampleKey,
 		activated: true
 	});
-	const settled = useMessageRows(handle, sampleData, active || latch.key === sampleKey && latch.activated);
-	const streamingRows = useStreamingRowsLatch(active, settled?.data !== void 0 || settled?.error !== void 0, sampleData.running, sampleKey);
+	const settled = useMessageRows(handle, sampleData, active || latch.key === sampleKey && latch.activated, targetMessageId);
+	const streamingRows = useStreamingRowsLatch(active, settled?.rows.data !== void 0 || settled?.rows.error !== void 0, sampleData.running, sampleKey);
 	const status = sampleData.status;
 	return (0, import_react.useMemo)(() => {
-		if (settled?.error !== void 0) return {
-			error: settled.error,
-			loading: false
-		};
-		if (settled?.data !== void 0) return {
-			data: settled.data,
-			loading: false
-		};
-		if (streamingRows !== void 0) return {
+		if (settled?.rows.error !== void 0 || settled?.rows.data !== void 0) return settled;
+		if (streamingRows !== void 0) return unpagedFeed({
 			data: streamingRows,
 			loading: false
-		};
-		if (settled?.loading || status === "loading" && !running) return loading$2;
-		return {
+		});
+		if (settled?.rows.loading || status === "loading" && !running) return unpagedFeed(loading$2);
+		return unpagedFeed({
 			data: kNoRows$1,
 			loading: false
-		};
+		});
 	}, [
 		settled,
 		streamingRows,
@@ -75542,7 +72972,7 @@ function enableMapSet() {
 			markChanged(state);
 			return state.copy_.delete(value) || (state.drafts_.has(value) ? state.copy_.delete(state.drafts_.get(value)) : 
 			/* istanbul ignore next */
-false);
+			false);
 		}
 		clear() {
 			const state = this[DRAFT_STATE];
@@ -75616,7 +73046,7 @@ false);
 }
 var produce = new Immer2().produce;
 //#endregion
-//#region ../../node_modules/.pnpm/zustand@5.0.14_@types+react@19.2.17_immer@11.1.15_react@19.2.8_use-sync-external-store@1.6.0_react@19.2.8_/node_modules/zustand/esm/vanilla.mjs
+//#region ../../node_modules/.pnpm/zustand@5.0.14_@types+react@19.2.18_immer@11.1.15_react@19.2.8_use-sync-external-store@1.6.0_react@19.2.8_/node_modules/zustand/esm/vanilla.mjs
 var createStoreImpl = (createState) => {
 	let state;
 	const listeners = /* @__PURE__ */ new Set();
@@ -75645,7 +73075,7 @@ var createStoreImpl = (createState) => {
 };
 var createStore = ((createState) => createState ? createStoreImpl(createState) : createStoreImpl);
 //#endregion
-//#region ../../node_modules/.pnpm/zustand@5.0.14_@types+react@19.2.17_immer@11.1.15_react@19.2.8_use-sync-external-store@1.6.0_react@19.2.8_/node_modules/zustand/esm/react.mjs
+//#region ../../node_modules/.pnpm/zustand@5.0.14_@types+react@19.2.18_immer@11.1.15_react@19.2.8_use-sync-external-store@1.6.0_react@19.2.8_/node_modules/zustand/esm/react.mjs
 var identity = (arg) => arg;
 function useStore$1(api, selector = identity) {
 	const slice = import_react.useSyncExternalStore(api.subscribe, import_react.useCallback(() => selector(api.getState()), [api, selector]), import_react.useCallback(() => selector(api.getInitialState()), [api, selector]));
@@ -75660,7 +73090,7 @@ var createImpl = (createState) => {
 };
 var create = ((createState) => createState ? createImpl(createState) : createImpl);
 //#endregion
-//#region ../../node_modules/.pnpm/zustand@5.0.14_@types+react@19.2.17_immer@11.1.15_react@19.2.8_use-sync-external-store@1.6.0_react@19.2.8_/node_modules/zustand/esm/middleware.mjs
+//#region ../../node_modules/.pnpm/zustand@5.0.14_@types+react@19.2.18_immer@11.1.15_react@19.2.8_use-sync-external-store@1.6.0_react@19.2.8_/node_modules/zustand/esm/middleware.mjs
 var shouldDispatchFromDevtools = (api) => !!api.dispatchFromDevtools && typeof api.dispatch === "function";
 var trackedConnections = /* @__PURE__ */ new Map();
 var getTrackedConnectionState = (name) => {
@@ -75995,7 +73425,7 @@ var persistImpl = (config, baseOptions) => (set, get, api) => {
 };
 var persist = persistImpl;
 //#endregion
-//#region ../../node_modules/.pnpm/zustand@5.0.14_@types+react@19.2.17_immer@11.1.15_react@19.2.8_use-sync-external-store@1.6.0_react@19.2.8_/node_modules/zustand/esm/middleware/immer.mjs
+//#region ../../node_modules/.pnpm/zustand@5.0.14_@types+react@19.2.18_immer@11.1.15_react@19.2.8_use-sync-external-store@1.6.0_react@19.2.8_/node_modules/zustand/esm/middleware/immer.mjs
 var immerImpl = (initializer) => (set, get, store) => {
 	store.setState = (updater, replace, ...args) => {
 		return set(typeof updater === "function" ? produce(updater) : updater, replace, ...args);
@@ -77281,17 +74711,18 @@ var EventNavs = ({ navs, selectedNav, setSelectedNav }) => {
 		});
 		setLabelWidth(Math.ceil(max));
 	}, [navs]);
+	const containerRef = useResizeObserver((0, import_react.useCallback)((entry) => {
+		const available = entry.contentRect.width;
+		const natural = naturalWidthRef.current;
+		if (natural === 0) return;
+		setMode((current) => {
+			if (current === "tabs" && available < natural - SWITCH_TOLERANCE) return "picker";
+			if (current === "picker" && available >= natural + SWITCH_TOLERANCE) return "tabs";
+			return current;
+		});
+	}, []));
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-		ref: useResizeObserver((0, import_react.useCallback)((entry) => {
-			const available = entry.contentRect.width;
-			const natural = naturalWidthRef.current;
-			if (natural === 0) return;
-			setMode((current) => {
-				if (current === "tabs" && available < natural - SWITCH_TOLERANCE) return "picker";
-				if (current === "picker" && available >= natural + SWITCH_TOLERANCE) return "tabs";
-				return current;
-			});
-		}, [])),
+		ref: containerRef,
 		className: EventNavs_module_default.wrapper,
 		children: [mode === "tabs" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("ul", {
 			className: clsx("nav", "nav-pills", EventNavs_module_default.navs),
@@ -79191,7 +76622,7 @@ var PoolLane = ({ data, timeWindow, retunes, onShowLog }) => {
 		const clamped = Math.min(Math.max(t, timeWindow.start), timeWindow.end);
 		return span > 0 ? (clamped - timeWindow.start) / span * width : 0;
 	};
-	const y = (v) => kBaselineY - v / yMax * (kBaselineY - kPlotTop$1);
+	const y = (v) => kBaselineY - v / yMax * 46;
 	const path = buildStepPath(data, timeWindow.start, x, y, width);
 	const capSegments = capGuideSegments(data, retunes, timeWindow.end, x, 0, width);
 	const finalY = y(data.final);
@@ -79243,7 +76674,7 @@ var PoolLane = ({ data, timeWindow, retunes, onShowLog }) => {
 						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("rect", {
 							className: ConnectionsView_module_default.retuneMarker,
 							x: rx - 4,
-							y: kMarkerTop$1 - 4,
+							y: 6,
 							width: 8,
 							height: 8,
 							transform: `rotate(45 ${rx} ${kMarkerTop$1})`,
@@ -80020,15 +77451,16 @@ var APICodeCell = ({ id, sourceCode }) => {
 	});
 };
 var ToolsConfig = ({ tools, toolChoice }) => {
+	const toolEntries = (0, import_react.useMemo)(() => {
+		const entries = {};
+		tools.forEach((tool, idx) => {
+			const key = entries[tool.name] === void 0 ? tool.name : `${tool.name} (${idx})`;
+			entries[key] = tool.description;
+		});
+		return entries;
+	}, [tools]);
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(MetaDataGrid, {
-		entries: (0, import_react.useMemo)(() => {
-			const entries = {};
-			tools.forEach((tool, idx) => {
-				const key = entries[tool.name] === void 0 ? tool.name : `${tool.name} (${idx})`;
-				entries[key] = tool.description;
-			});
-			return entries;
-		}, [tools]),
+		entries: toolEntries,
 		options: { plain: true },
 		className: ModelEventView_module_default.toolConfig
 	}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
@@ -81837,8 +79269,9 @@ function format(delta, left) {
 * Renders a view displaying a list of state changes.
 */
 var StateDiffView = ({ before, after, className }) => {
+	const html_result = format(diff$1(sanitizeKeys(before), sanitizeKeys(after))) || "Unable to render differences";
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-		dangerouslySetInnerHTML: { __html: sanitizeRenderedHtml(unescapeNewlines(format(diff$1(sanitizeKeys(before), sanitizeKeys(after))) || "Unable to render differences")) },
+		dangerouslySetInnerHTML: { __html: sanitizeRenderedHtml(unescapeNewlines(html_result)) },
 		className: clsx(className)
 	});
 };
@@ -81913,9 +79346,10 @@ var messages = {
 		});
 	},
 	render: (changes) => {
+		const msgs = changes.map((c) => c.value);
 		return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ChatView, {
 			id: "system_msg_event_preview",
-			messages: changes.map((c) => c.value)
+			messages: msgs
 		}, "system_msg_event_preview");
 	}
 };
@@ -81929,7 +79363,7 @@ var human_baseline_session = {
 		replace: [],
 		remove: []
 	},
-	render: (_changes, state) => {
+	render: (_changes, state, eventNodeId) => {
 		const started = state[humanAgentKey("started_running")];
 		const runtime = state[humanAgentKey("accumulated_time")];
 		const answer = state[humanAgentKey("answer")];
@@ -81949,13 +79383,15 @@ var human_baseline_session = {
 			if (type === "input" || type === "output" || type === "timing" || type === "name") entry[type] = value;
 			if (user) entry.user = user;
 		}
+		const sessionLogs = [...partial.values()].filter((s) => !!s.input && !!s.output && !!s.timing);
 		return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(HumanBaselineView, {
+			id: eventNodeId,
 			started: startedDate,
 			running,
 			completed,
 			answer,
 			runtime,
-			sessionLogs: [...partial.values()].filter((s) => !!s.input && !!s.output && !!s.timing)
+			sessionLogs
 		}, "human_baseline_view");
 	}
 };
@@ -82074,11 +79510,12 @@ var StateEventView = ({ eventNode, className, onAutoCollapse, eventCallbacks }) 
 	const changePreview = (0, import_react.useMemo)(() => {
 		const isStore = eventNode.event.event === "store";
 		const afterClone = structuredClone(after) || {};
-		return generatePreview(event.changes, afterClone, isStore);
+		return generatePreview(event.changes, afterClone, isStore, eventNode.id);
 	}, [
 		event.changes,
 		eventNode.event.event,
-		after
+		after,
+		eventNode.id
 	]);
 	const title = event.event === "state" ? "State Updated" : "Store Updated";
 	(0, import_react.useEffect)(() => {
@@ -82111,7 +79548,7 @@ var StateEventView = ({ eventNode, className, onAutoCollapse, eventCallbacks }) 
 /**
 * Renders the value of a change based on its type.
 */
-var generatePreview = (changes, resolvedState, isStore) => {
+var generatePreview = (changes, resolvedState, isStore, eventNodeId) => {
 	const results = [];
 	for (const changeType of [...RenderableChangeTypes, ...isStore ? StoreSpecificRenderableTypes : []]) if (changeType.signature) {
 		const requiredMatchCount = changeType.signature.remove.length + changeType.signature.replace.length + changeType.signature.add.length;
@@ -82127,20 +79564,18 @@ var generatePreview = (changes, resolvedState, isStore) => {
 					if (change.path.match(signature)) matchingOps++;
 				});
 				break;
-			case "replace":
-				if (changeType.signature.replace && changeType.signature.replace.length > 0) changeType.signature.replace.forEach((signature) => {
-					if (change.path.match(signature)) matchingOps++;
-				});
-				break;
+			case "replace": if (changeType.signature.replace && changeType.signature.replace.length > 0) changeType.signature.replace.forEach((signature) => {
+				if (change.path.match(signature)) matchingOps++;
+			});
 		}
 		if (matchingOps === requiredMatchCount) {
-			const el = changeType.render(changes, resolvedState);
+			const el = changeType.render(changes, resolvedState, eventNodeId);
 			results.push(el);
 			break;
 		}
 	} else if (changeType.match) {
 		if (changeType.match(changes)) {
-			const el = changeType.render(changes, resolvedState);
+			const el = changeType.render(changes, resolvedState, eventNodeId);
 			results.push(el);
 			break;
 		}
@@ -82175,9 +79610,7 @@ var summarizeChanges = (changes) => {
 		case "remove":
 			changeMap.remove.push(change.path);
 			break;
-		case "test":
-			changeMap.test.push(change.path);
-			break;
+		case "test": changeMap.test.push(change.path);
 	}
 	const changeList = [];
 	if (Object.keys(changeMap).reduce((prev, current) => {
@@ -82220,8 +79653,6 @@ var synthesizeComparable = (changes) => {
 			initializeArrays(after, change.path);
 			setPath(before, change.path, change.replaced);
 			setPath(after, change.path, change.value);
-			break;
-		case "test": break;
 	}
 	return [before, after];
 };
@@ -82768,9 +80199,7 @@ var extractContentText = (content) => {
 		case "audio":
 		case "video":
 		case "data":
-		case "document":
-			texts.push(`<${item.type} />`);
-			break;
+		case "document": texts.push(`<${item.type} />`);
 	}
 	return texts;
 };
@@ -83887,9 +81316,7 @@ var treeifyWithSteps = (events, depth) => {
 			case SPAN_END:
 				popStack();
 				break;
-			default:
-				createNode(event, parent || null);
-				break;
+			default: createNode(event, parent || null);
 		}
 	};
 	events.forEach(processEvent);
@@ -88234,7 +85661,6 @@ var TimelineSwimLanes = ({ layouts, timeline, header, isSticky, onMarkerNavigate
 			case "Escape":
 				e.preventDefault();
 				clearSelection();
-				break;
 		}
 	}, [
 		visibleLayouts,
@@ -89894,6 +87320,10 @@ function labelForOutlineNode(node) {
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/outline/TranscriptOutline.tsx
 var outlineNodeRunning = ({ running, backfilling, isLast }) => running && !backfilling && isLast;
+/** The outline list's DOM id and VirtualList persistence-key prefix (the full
+*  key appends the transcript's listId). Exported so the app's per-sample
+*  reset can clear the persisted snapshots by this prefix. */
+var kTranscriptOutlineListKey = "transcript-tree";
 var EventPaddingNode = {
 	id: "padding",
 	event: {
@@ -89914,10 +87344,8 @@ var OutlineLoadingNode = {
 	...EventPaddingNode,
 	id: "loading"
 };
-var TranscriptOutline = ({ eventNodes, defaultCollapsedIds, running, backfilling, className, scrollRef, outlineScrollEl, style, agentName, onHasNodesChange, onNavigateToEvent, scrollTrackOffset, getEventUrl, collapse, selectedOutlineId, setSelectedOutlineId, renderLink }) => {
-	const id = "transcript-tree";
-	const listHandle = (0, import_react.useRef)(null);
-	const { getRestoreState } = useVirtuosoState(listHandle, id);
+var TranscriptOutline = ({ eventNodes, defaultCollapsedIds, running, backfilling, className, scrollRef, outlineScrollEl, style, listId, agentName, onHasNodesChange, onNavigateToEvent, scrollTrackOffset, getEventUrl, collapse, selectedOutlineId, setSelectedOutlineId, renderLink }) => {
+	const id = kTranscriptOutlineListKey;
 	const { collapsedIds, getCollapsed, setCollapsed } = useOutlineCollapse(defaultCollapsedIds, collapse);
 	const { outlineNodeList, allNodesList } = useOutlineNodes(eventNodes, collapsedIds);
 	const resolvedSelectedId = (0, import_react.useMemo)(() => resolveOutlineSelection(selectedOutlineId, allNodesList, outlineNodeList), [
@@ -89984,36 +87412,28 @@ var TranscriptOutline = ({ eventNodes, defaultCollapsedIds, running, backfilling
 		setCollapsed,
 		renderLink
 	]);
+	const listData = (0, import_react.useMemo)(() => backfilling ? [
+		...outlineNodeList,
+		OutlineLoadingNode,
+		EventPaddingNode
+	] : [...outlineNodeList, EventPaddingNode], [outlineNodeList, backfilling]);
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 		ref: rootRef,
 		style,
 		children: [agentName && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 			className: clsx(TranscriptOutline_module_default.rootHeader, "text-size-smaller", "text-style-secondary"),
 			children: agentName
-		}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(es, {
-			ref: listHandle,
-			customScrollParent: outlineScrollEl ?? void 0,
+		}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(VirtualList, {
+			persistenceKey: listId ? `${id}:${listId}` : id,
 			id,
-			data: backfilling ? [
-				...outlineNodeList,
-				OutlineLoadingNode,
-				EventPaddingNode
-			] : [...outlineNodeList, EventPaddingNode],
-			defaultItemHeight: 50,
-			itemContent: renderRow,
-			atBottomThreshold: 30,
-			increaseViewportBy: {
-				top: 300,
-				bottom: 300
-			},
-			overscan: {
-				main: 10,
-				reverse: 10
-			},
-			className: clsx(className, "transcript-outline"),
-			skipAnimationFrameInResizeObserver: true,
-			restoreStateFrom: getRestoreState(),
-			tabIndex: 0
+			scrollRef: outlineScrollEl ?? null,
+			data: listData,
+			renderRow,
+			estimatedItemHeight: 50,
+			overscan: 10,
+			embedded: true,
+			findScope: "none",
+			className: clsx(className, "transcript-outline")
 		})]
 	});
 };
@@ -90041,7 +87461,7 @@ var TranscriptLayout_module_default = {
 * button, outline tree) or the collapsed show-outline toggle, pinned below
 * the swimlanes via StickyScroll.
 */
-var OutlineSidebar = ({ outline, isCollapsed, hasNodes, onHasNodesChange, eventNodes, defaultCollapsedIds, scrollRef, running, backfilling, agentName, offsetTop, collapseState, getEventUrl }) => {
+var OutlineSidebar = ({ outline, isCollapsed, hasNodes, onHasNodesChange, eventNodes, defaultCollapsedIds, scrollRef, listId, running, backfilling, agentName, offsetTop, collapseState, getEventUrl }) => {
 	const [outlineScrollEl, setOutlineScrollEl] = (0, import_react.useState)(null);
 	const { scrollRef: externalScrollRef } = outline;
 	const handleOutlineScrollRef = (0, import_react.useCallback)((el) => {
@@ -90078,6 +87498,7 @@ var OutlineSidebar = ({ outline, isCollapsed, hasNodes, onHasNodesChange, eventN
 				defaultCollapsedIds,
 				scrollRef,
 				outlineScrollEl,
+				listId,
 				running,
 				backfilling,
 				agentName,
@@ -90481,7 +87902,7 @@ function positionSelectionAroundTerm(eventId, term, direction) {
 }
 /**
 * If the current selection no longer covers `term` inside the panel
-* (because a late settling pass — Virtuoso re-render, lazy syntax
+* (because a late settling pass — virtual-list re-render, lazy syntax
 * highlighting, ExpandablePanel auto-expand reflow — detached the text
 * node `window.find` was anchored on), re-anchor the selection to the
 * first occurrence of `term` in the panel. Returns false (no-op) when
@@ -90526,7 +87947,7 @@ async function waitForRow(viewNodesRef, eventId) {
 }
 /**
 * Wait until the event panel is actually rendered to the DOM. After
-* `scrollToEvent` triggers a Virtuoso scroll for an off-screen target, the
+* `scrollToEvent` triggers a virtual-list scroll for an off-screen target, the
 * panel takes several frames to mount. Returns false on timeout. The budget
 * is shorter than for row mount because we use this to detect unreachable
 * matches and skip them — too long a wait makes skipping feel laggy.
@@ -90996,11 +88417,12 @@ var TranscriptViewNodes = (0, import_react.forwardRef)(function TranscriptViewNo
 	});
 	const firstAnchorId = turnAnchorIds[0];
 	const totalTurns = (firstAnchorId ? computedTurnMap.get(firstAnchorId)?.totalTurns : 0) ?? turnAnchorIds.length;
+	const stickyScroll = (0, import_react.useMemo)(() => ({
+		stickyTop: offsetTop,
+		scrollRef
+	}), [offsetTop, scrollRef]);
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(StickyScrollProvider, {
-		value: (0, import_react.useMemo)(() => ({
-			stickyTop: offsetTop,
-			scrollRef
-		}), [offsetTop, scrollRef]),
+		value: stickyScroll,
 		children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [turnAnchorIds.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(GoToTurnBar, {
 			ref: goToTurnBarRef,
 			totalTurns,
@@ -91270,6 +88692,7 @@ var TranscriptLayout = ({ events, hiddenEventTypes, running = false, backfilling
 							isCollapsed: isOutlineCollapsed,
 							hasNodes: outlineHasNodes,
 							onHasNodesChange: onOutlineHasNodesChange,
+							listId,
 							eventNodes,
 							defaultCollapsedIds,
 							scrollRef,
@@ -91600,7 +89023,7 @@ var useSearches = ({ api, searchType, count = 20 }) => {
 			count
 		}),
 		queryFn: () => api.listRecentSearches(searchType, count),
-		staleTime: 60 * 1e3
+		staleTime: 6e4
 	});
 };
 var useCreateSearch = ({ api }) => {
@@ -92383,8 +89806,8 @@ var useLogDir = () => useAppConfig().logDir;
 * Works directly with Uint8Array to avoid creating gigabyte-sized strings.
 * Discards all events if the events array exceeds 100MB, leaving an empty array.
 */
-var MAX_EVENTS_SIZE_BYTES = 350 * 1024 * 1024;
-var MAX_TOTAL_SIZE = 512 * 1024 * 1024;
+var MAX_EVENTS_SIZE_BYTES = 367001600;
+var MAX_TOTAL_SIZE = 536870912;
 /**
 * Finds the "events": [ pattern in the byte array.
 * Returns the position of the opening bracket, or -1 if not found.
@@ -93103,7 +90526,8 @@ var rfse = function(dat, bt, mal) {
 	if (sympos) err(0);
 	for (i = 0; i < sz; ++i) {
 		var ns = dstate[syms[i]]++;
-		nstate[i] = (ns << (nbits[i] = al - msb(ns))) - sz;
+		var nb = nbits[i] = al - msb(ns);
+		nstate[i] = (ns << nb) - sz;
 	}
 	return [tpos + 7 >> 3, {
 		b: al,
@@ -93598,7 +91022,7 @@ var kFzstdBase64 = `IWZ1bmN0aW9uKGYpe3R5cGVvZiBtb2R1bGUhPSd1bmRlZmluZWQnJiZ0eXBl
 * Threshold for using Web Worker (1MB compressed).
 * Below this, synchronous decompression is fast enough.
 */
-var WORKER_THRESHOLD = 1024 * 1024;
+var WORKER_THRESHOLD = 1048576;
 /**
 * Maximum window log supported by fzstd (2^25 = 32MB).
 * Ultra compression levels (20+) often use larger windows.
@@ -93784,8 +91208,8 @@ var FileSizeLimitError = class FileSizeLimitError extends Error {
 		Object.setPrototypeOf(this, FileSizeLimitError.prototype);
 	}
 };
-var PARALLEL_CHUNK_THRESHOLD = 8 * 1024 * 1024;
-var PARALLEL_CHUNK_SIZE = 8 * 1024 * 1024;
+var PARALLEL_CHUNK_THRESHOLD = 8388608;
+var PARALLEL_CHUNK_SIZE = 8388608;
 var MAX_PARALLEL_CHUNKS = 10;
 var fetchBytesParallel = async (fetchFn, url, start, end, onProgress) => {
 	const totalSize = end - start + 1;
@@ -94039,7 +91463,7 @@ var parseCentralDirectory = (buffer) => {
 //#endregion
 //#region src/client/remote/remoteLogFile.ts
 var OPEN_RETRY_LIMIT = 5;
-var MAX_SAMPLE_SIZE_BYTES = 2048 * 1024 * 1024;
+var MAX_SAMPLE_SIZE_BYTES = 2147483648;
 var SampleNotFoundError = class SampleNotFoundError extends Error {
 	constructor(message) {
 		super(message || "Sample not found");
@@ -97073,14 +94497,14 @@ var ApplicationIcons = {
 var formatTime = (seconds) => {
 	if (seconds < 60) return `${formatPrettyDecimal(seconds, 1)} sec`;
 	else if (seconds < 3600) return `${Math.floor(seconds / 60)} min ${Math.floor(seconds % 60)} sec`;
-	else if (seconds < 3600 * 24) {
+	else if (seconds < 86400) {
 		const hours = Math.floor(seconds / 3600);
 		const minutes = Math.floor(seconds % 3600 / 60);
 		const remainingSeconds = seconds % 60;
 		return `${hours} hr ${minutes} min ${Math.floor(remainingSeconds)} sec`;
 	} else {
-		const days = Math.floor(seconds / (3600 * 24));
-		const hours = Math.floor(seconds % (3600 * 24) / 3600);
+		const days = Math.floor(seconds / 86400);
+		const hours = Math.floor(seconds % 86400 / 3600);
 		const minutes = Math.floor(seconds % 3600 / 60);
 		const remainingSeconds = seconds % 60;
 		return `${days} days ${hours} hr ${minutes} min ${Math.floor(remainingSeconds)} sec`;
@@ -97944,15 +95368,13 @@ var _parser = (function() {
 						""
 					];
 					break;
-				case 36:
-					this.$ = [
-						"",
-						$$[$0 - 2],
-						", ",
-						$$[$0],
-						""
-					];
-					break;
+				case 36: this.$ = [
+					"",
+					$$[$0 - 2],
+					", ",
+					$$[$0],
+					""
+				];
 			}
 		},
 		table: [
@@ -99810,7 +97232,6 @@ var std = {
 				case "modulo":
 					if (warnedTimes.modulo++ >= warnMax) break;
 					console.warn("The use of '%' as a modulo operator has been deprecated in Filtrex v3 in favor of the 'mod' operator. You can use it like this: '3 mod 2 == 1'. See issue #48 for more information.");
-					break;
 			}
 			return value;
 		};
@@ -100558,24 +97979,32 @@ var useFilteredSamples = () => {
 	const filter = useStore((state) => state.log.filter);
 	const setFilterError = useStore((state) => state.logActions.setFilterError);
 	const clearFilterError = useStore((state) => state.logActions.clearFilterError);
-	return (0, import_react.useMemo)(() => {
+	const { samples, filterError } = (0, import_react.useMemo)(() => {
 		const { result, error, allErrors } = samplesDescriptor && filter ? filterSamples(samplesDescriptor, sampleSummaries, filter) : {
 			result: sampleSummaries,
 			error: void 0,
 			allErrors: false
 		};
-		if (error && allErrors) setFilterError(error);
-		else clearFilterError();
-		const filtered = error === void 0 || !allErrors ? result : sampleSummaries;
-		if (filtered.length < 2 || samplesAreSorted(filtered)) return filtered;
-		return [...filtered].sort(compareSamples);
+		const failedAllSamples = error !== void 0 && allErrors;
+		const filtered = failedAllSamples ? sampleSummaries : result;
+		return {
+			samples: filtered.length < 2 || samplesAreSorted(filtered) ? filtered : [...filtered].sort(compareSamples),
+			filterError: failedAllSamples ? error : void 0
+		};
 	}, [
 		samplesDescriptor,
 		sampleSummaries,
-		filter,
+		filter
+	]);
+	(0, import_react.useEffect)(() => {
+		if (filterError) setFilterError(filterError);
+		else clearFilterError();
+	}, [
+		filterError,
 		setFilterError,
 		clearFilterError
 	]);
+	return samples;
 };
 var useSelectedSampleSummary = () => {
 	const sampleSummaries = useSelectedSampleSummariesData();
@@ -100604,6 +98033,7 @@ var useMessageVisibility = (id, scope) => {
 	const setVisible = useStore((state) => state.appActions.setMessageVisible);
 	const clearVisible = useStore((state) => state.appActions.clearMessageVisible);
 	const isFirstRender = (0, import_react.useRef)(true);
+	const selectedLogFile = useStore((state) => state.logs.selectedLogFile);
 	(0, import_react.useEffect)(() => {
 		if (isFirstRender.current) {
 			isFirstRender.current = false;
@@ -100612,10 +98042,11 @@ var useMessageVisibility = (id, scope) => {
 		log.debug("clear message (eval)", id);
 		clearVisible(id);
 	}, [
-		useStore((state) => state.logs.selectedLogFile),
+		selectedLogFile,
 		clearVisible,
 		id
 	]);
+	const selectedSampleHandle = useStore((state) => state.log.selectedSampleHandle);
 	(0, import_react.useEffect)(() => {
 		if (isFirstRender.current) return;
 		if (scope === "sample") {
@@ -100623,7 +98054,7 @@ var useMessageVisibility = (id, scope) => {
 			clearVisible(id);
 		}
 	}, [
-		useStore((state) => state.log.selectedSampleHandle),
+		selectedSampleHandle,
 		clearVisible,
 		id,
 		scope
@@ -101443,7 +98874,8 @@ var Navbar = ({ fnNavigationUrl, bordered, children, currentPath, backUrl: backU
 						className: clsx("breadcrumb", Navbar_module_default.breadcrumbs),
 						children: visibleSegments?.map((segment, index) => {
 							const isLast = index === visibleSegments.length - 1;
-							return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [showEllipsis && index === 1 && visibleSegments.length >= 2 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("li", {
+							const shouldShowEllipsis = showEllipsis && index === 1 && visibleSegments.length >= 2;
+							return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [shouldShowEllipsis && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("li", {
 								className: clsx("breadcrumb-item", Navbar_module_default.ellipsis),
 								children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "..." })
 							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("li", {
@@ -101511,9 +98943,10 @@ var NavbarButton_module_default = {
 //#endregion
 //#region src/app/navbar/NavbarButton.tsx
 var NavbarButton = (0, import_react.forwardRef)(({ label, className, icon, latched, subtle, dropdown, ...rest }, ref) => {
+	const resolvedLabel = dropdown ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [label, /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: clsx(ApplicationIcons.chevron.down, NavbarButton_module_default.dropdownChevron) })] }) : label;
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ToolButton, {
 		ref,
-		label: dropdown ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [label, /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: clsx(ApplicationIcons.chevron.down, NavbarButton_module_default.dropdownChevron) })] }) : label,
+		label: resolvedLabel,
 		className: clsx(className, NavbarButton_module_default.navbarButton),
 		icon,
 		latched,
@@ -107792,7 +105225,7 @@ var SampleDisplay_module_default = {
 };
 //#endregion
 //#region src/app/samples/SampleJSONView.tsx
-var MAX_JSON_DISPLAY_SIZE = 25 * 1024 * 1024;
+var MAX_JSON_DISPLAY_SIZE = 26214400;
 var SampleJSONView = ({ sample, className }) => {
 	return estimateSize(sample.events) > MAX_JSON_DISPLAY_SIZE ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(NoContentsPanel, { text: "JSON too large to display" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(JSONPanel, {
 		data: sample,
@@ -108151,7 +105584,7 @@ function truncateMarkdown(markdown, maxLength = 250, ellipsis = "...") {
 	if (markdown.trim().length === 0) return markdown.slice(0, maxLength);
 	if (ellipsis.length >= maxLength) return markdown.slice(0, maxLength);
 	if (!hasMarkdownSyntax(markdown)) return simpleMarkdownTruncate(markdown, maxLength, ellipsis);
-	const tokens = new MarkdownIt({
+	const tokens = new MarkdownItCallable({
 		html: true,
 		breaks: true
 	}).parse(markdown, {});
@@ -108924,12 +106357,13 @@ function formatPlainValue(v) {
 * Built on the shared `SegmentedControl` in compact (icon-only) mode.
 */
 var ViewToggle = ({ view, setView }) => {
+	const handleChange = (0, import_react.useCallback)((id) => {
+		if (id === "grid" || id === "chips") setView(id);
+	}, [setView]);
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(SegmentedControl, {
 		compact: true,
 		selectedId: view,
-		onSegmentChange: (0, import_react.useCallback)((id) => {
-			if (id === "grid" || id === "chips") setView(id);
-		}, [setView]),
+		onSegmentChange: handleChange,
 		segments: [{
 			id: "grid",
 			label: "Grid view",
@@ -109521,7 +106955,7 @@ var require_constants = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	};
 	module.exports = {
 		DEFAULT_MAX_EXTGLOB_RECURSION,
-		MAX_LENGTH: 1024 * 64,
+		MAX_LENGTH: 65536,
 		POSIX_REGEX_SOURCE: {
 			__proto__: null,
 			alnum: "a-zA-Z0-9",
@@ -111723,16 +109157,17 @@ var ScannerResultDetailView = ({ data, references, header, interactive = false, 
 };
 var FieldFragment = ({ children }) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)(import_jsx_runtime.Fragment, { children });
 var Section = ({ id, heading, open, onToggle, children }) => {
+	const attachToggleListener = (0, import_react.useCallback)((el) => {
+		if (!el) return;
+		const handler = (e) => {
+			const detail = e.detail;
+			onToggle(id, detail.open);
+		};
+		el.addEventListener("vsc-collapsible-toggle", handler);
+		return () => el.removeEventListener("vsc-collapsible-toggle", handler);
+	}, [id, onToggle]);
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(VscodeCollapsible, {
-		ref: (0, import_react.useCallback)((el) => {
-			if (!el) return;
-			const handler = (e) => {
-				const detail = e.detail;
-				onToggle(id, detail.open);
-			};
-			el.addEventListener("vsc-collapsible-toggle", handler);
-			return () => el.removeEventListener("vsc-collapsible-toggle", handler);
-		}, [id, onToggle]),
+		ref: attachToggleListener,
 		heading,
 		open,
 		className: ScannerResultDetailView_module_default.section,
@@ -113214,7 +110649,9 @@ var SampleDisplay = ({ id, scrollRef, showActivity, focusOnLoad }) => {
 	}, [clearSampleTab]);
 	const effectiveSelectedTab = sampleTabId || selectedTab;
 	const selectedSampleHandle = useStore((state) => state.log.selectedSampleHandle);
-	const sampleMessages = useSampleMessages(selectedSampleHandle, sampleData, effectiveSelectedTab === kSampleMessagesTabId, running);
+	const messagesTabOpen = effectiveSelectedTab === kSampleMessagesTabId;
+	const sampleDetailNavigation = useSampleDetailNavigation();
+	const sampleMessages = useSampleMessages(selectedSampleHandle, sampleData, messagesTabOpen, running, messagesTabOpen ? sampleDetailNavigation.message : null);
 	const exportMessages = useMessagesExport(sampleData);
 	(0, import_react.useEffect)(() => {
 		if (!focusOnLoad) return;
@@ -113431,7 +110868,6 @@ var SampleDisplay = ({ id, scrollRef, showActivity, focusOnLoad }) => {
 		subtle: true
 	}, "sample-print-tool"));
 	const scrollToTopOnFinish = !sample?.error && !selectedSampleSummary?.error && logDetails?.status !== "error" && logDetails?.status !== "cancelled";
-	const sampleDetailNavigation = useSampleDetailNavigation();
 	const displayModeContext = (0, import_react.useMemo)(() => ({ displayMode: displayMode ?? "rendered" }), [displayMode]);
 	const mountsAtDeepLink = !!(sampleDetailNavigation.event || sampleDetailNavigation.message);
 	const { hidden: headerCollapsed, resetAnchor: headerResetAnchor, setHidden: headerSetHidden, navOwnsRef: chromeNavOwnsRef } = useChromeNavOwnership(scrollRef, {
@@ -113591,12 +111027,14 @@ var SampleDisplay = ({ id, scrollRef, showActivity, focusOnLoad }) => {
 								rail: hasRail ? railNode : void 0,
 								panel: hasRail ? railPanel : void 0,
 								label: railLabel,
-								children: sampleMessages.error ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ErrorPanel, {
+								children: sampleMessages.rows.error ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ErrorPanel, {
 									title: "An error occurred while loading messages.",
-									error: sampleMessages.error
+									error: sampleMessages.rows.error
 								}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ChatViewRowsVirtualList, {
 									id: chatListId,
-									rows: sampleMessages.data ?? kNoMessageRows,
+									rows: sampleMessages.rows.data ?? kNoMessageRows,
+									hasMoreRows: sampleMessages.hasMore,
+									onLoadMoreRows: sampleMessages.loadMore,
 									initialMessageId: sampleDetailNavigation.message,
 									followRequested: sampleDetailNavigation.follow,
 									display: chatDisplay,
@@ -113606,7 +111044,7 @@ var SampleDisplay = ({ id, scrollRef, showActivity, focusOnLoad }) => {
 									scrollRef,
 									tools: chatTools,
 									running,
-									backfilling: backfilling || sampleMessages.loading,
+									backfilling: backfilling || sampleMessages.rows.loading,
 									scrollToTopOnFinish,
 									className: SampleDisplay_module_default.fullWidth
 								}, chatListId)
@@ -114966,9 +112404,10 @@ var useInfoTabConfig = (evalSpec, evalPlan, evalError, evalResults, evalStatus, 
 	]);
 };
 var InfoTab = ({ evalSpec, evalPlan, evalResults, evalStatus, metadata, sampleCount, scrollRef }) => {
+	const showWarning = sampleCount === 0 && evalStatus === "success" && evalSpec?.dataset.samples && evalSpec.dataset.samples > 0;
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 		style: { width: "100%" },
-		children: [sampleCount === 0 && evalStatus === "success" && evalSpec?.dataset.samples && evalSpec.dataset.samples > 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(MessageBand, {
+		children: [showWarning ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(MessageBand, {
 			id: "sample-too-large",
 			message: "Unable to display samples (this evaluation log may be too large).",
 			type: "warning"
@@ -115296,6 +112735,22 @@ var SamplesGrid = ({ rowData, columnDefs, columnVisibility, multiline, defaultSo
 	(0, import_react.useEffect)(() => {
 		onDisplayedRowsChange?.(items);
 	}, [items, onDisplayedRowsChange]);
+	const handleColumnFilterChange = (0, import_react.useCallback)((columnId, filterType, spec) => {
+		if (onColumnFilterChange) {
+			onColumnFilterChange(columnId, filterType, spec);
+			return;
+		}
+		setLocalFilters((prev) => {
+			const next = { ...prev };
+			if (spec === null) delete next[columnId];
+			else next[columnId] = {
+				columnId,
+				filterType,
+				spec
+			};
+			return next;
+		});
+	}, [onColumnFilterChange]);
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(DataGrid, {
 		data: items,
 		columns: columnDefs,
@@ -115304,22 +112759,7 @@ var SamplesGrid = ({ rowData, columnDefs, columnVisibility, multiline, defaultSo
 		sorting,
 		onSortingChange: handleSortingChange,
 		columnFilters: effectiveFilters,
-		onColumnFilterChange: (0, import_react.useCallback)((columnId, filterType, spec) => {
-			if (onColumnFilterChange) {
-				onColumnFilterChange(columnId, filterType, spec);
-				return;
-			}
-			setLocalFilters((prev) => {
-				const next = { ...prev };
-				if (spec === null) delete next[columnId];
-				else next[columnId] = {
-					columnId,
-					filterType,
-					spec
-				};
-				return next;
-			});
-		}, [onColumnFilterChange]),
+		onColumnFilterChange: handleColumnFilterChange,
 		hideColumnFilters,
 		columnSizing,
 		onColumnSizingChange: handleColumnSizingChange,
@@ -119950,7 +117390,7 @@ var RangeSet = class RangeSet {
 	if they are equivalent in the given range.
 	*/
 	static eq(oldSets, newSets, from = 0, to) {
-		if (to == null) to = 999999999;
+		if (to == null) to = 1e9 - 1;
 		let a = oldSets.filter((set) => !set.isEmpty && newSets.indexOf(set) < 0);
 		let b = newSets.filter((set) => !set.isEmpty && oldSets.indexOf(set) < 0);
 		if (a.length != b.length) return false;
@@ -125931,7 +123371,7 @@ var ViewState = class {
 		let { top } = this.heightMap.lineAt(from, QueryType.ByPos, this.heightOracle, 0, 0);
 		let { bottom } = this.heightMap.lineAt(to, QueryType.ByPos, this.heightOracle, 0, 0);
 		let { visibleTop, visibleBottom } = this;
-		return (from == 0 || top <= visibleTop - Math.max(10, Math.min(-bias, 250))) && (to == this.state.doc.length || bottom >= visibleBottom + Math.max(10, Math.min(bias, 250))) && top > visibleTop - 2 * 1e3 && bottom < visibleBottom + 2 * 1e3;
+		return (from == 0 || top <= visibleTop - Math.max(10, Math.min(-bias, 250))) && (to == this.state.doc.length || bottom >= visibleBottom + Math.max(10, Math.min(bias, 250))) && top > visibleTop - 2e3 && bottom < visibleBottom + 2e3;
 	}
 	mapLineGaps(gaps, changes) {
 		if (!gaps.length || changes.empty) return gaps;
@@ -126992,7 +124432,7 @@ var EditContextManager = class {
 	}
 	rangeIsValid(state) {
 		let { head } = state.selection.main;
-		return !(this.from > 0 && head - this.from < 500 || this.to < state.doc.length && this.to - head < 500 || this.to - this.from > 1e4 * 3);
+		return !(this.from > 0 && head - this.from < 500 || this.to < state.doc.length && this.to - head < 500 || this.to - this.from > 3e4);
 	}
 	toEditorPos(contextPos, clipLen = this.to - this.from) {
 		contextPos = Math.min(contextPos, clipLen);
@@ -132653,9 +130093,7 @@ var binaryToSpec = (ast, registry) => {
 			case "end":
 				operator = "ends with";
 				break;
-			case "none":
-				operator = "contains";
-				break;
+			case "none": operator = "contains";
 		}
 		return {
 			colId,
@@ -132960,7 +130398,9 @@ function buildSampleColumns(ctx) {
 		},
 		cell: ({ row }) => {
 			const item = row.original;
-			return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(SampleStatusIcon, { status: deriveSampleStatus(item.completed ?? item.data?.completed, item.error ?? item.data?.error) });
+			const completed = item.completed ?? item.data?.completed;
+			const error = item.error ?? item.data?.error;
+			return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(SampleStatusIcon, { status: deriveSampleStatus(completed, error) });
 		}
 	});
 	if (multiLog) cols.push({
@@ -133299,7 +130739,8 @@ function buildScoreColumns(ctx) {
 			cell: ({ getValue }) => {
 				const v = getValue();
 				if (v === "" || v === null || v === void 0) return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ScoreCellDiv, {});
-				return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ScoreCellDiv, { children: Array.isArray(v) ? v.join(", ") : typeof v === "object" ? JSON.stringify(v) : typeof v === "number" ? v.toFixed(3) : String(v) });
+				const text = Array.isArray(v) ? v.join(", ") : typeof v === "object" ? JSON.stringify(v) : typeof v === "number" ? v.toFixed(3) : String(v);
+				return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ScoreCellDiv, { children: text });
 			}
 		};
 	});
@@ -135404,7 +132845,7 @@ function findBlockComment(state, { open, close }, from, to) {
 		}
 	};
 	let startText, endText;
-	if (to - from <= 2 * SearchMargin) startText = endText = state.sliceDoc(from, to);
+	if (to - from <= 100) startText = endText = state.sliceDoc(from, to);
 	else {
 		startText = state.sliceDoc(from, from + SearchMargin);
 		endText = state.sliceDoc(to - SearchMargin, to);
@@ -138708,7 +136149,7 @@ var densestTerminationBin = (dots, window) => {
 	const counts = /* @__PURE__ */ new Map();
 	let max = 0;
 	for (const dot of dots) {
-		const slice = Math.min(slices - 1, Math.floor((dot.time - window.start) / span * slices));
+		const slice = Math.min(149, Math.floor((dot.time - window.start) / span * slices));
 		const next = (counts.get(slice) ?? 0) + 1;
 		counts.set(slice, next);
 		if (next > max) max = next;
@@ -139379,10 +136820,13 @@ var HistoryList = ({ rows, ordinals, scrollRef, selectedCategories, onToggleCate
 				className: clsx(HistoryList_module_default.mono, HistoryList_module_default.muted),
 				children: [" — ", row.detail]
 			})] });
-			case "runEnd": return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [row.status === "cancelled" ? "Run cancelled" : row.status === "error" ? "Run failed" : "Run completed", /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-				className: clsx(HistoryList_module_default.mono, HistoryList_module_default.muted),
-				children: [" — ", row.detail]
-			})] });
+			case "runEnd": {
+				const label = row.status === "cancelled" ? "Run cancelled" : row.status === "error" ? "Run failed" : "Run completed";
+				return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [label, /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+					className: clsx(HistoryList_module_default.mono, HistoryList_module_default.muted),
+					children: [" — ", row.detail]
+				})] });
+			}
 			case "earlyStopping": return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: ["Early stopping", /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
 				className: clsx(HistoryList_module_default.mono, HistoryList_module_default.muted),
 				children: [
@@ -139797,13 +137241,13 @@ var TimelineChart = ({ window: timeWindow, running = false, showActiveSamples, s
 		];
 		return Array.from(new Set(values)).map((value) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("g", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("line", {
 			className: TimelineChart_module_default.axisLine,
-			x1: plotLeft - 3,
+			x1: 27,
 			x2: plotLeft,
 			y1: yOf(value),
 			y2: yOf(value)
 		}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("text", {
 			className: TimelineChart_module_default.yTickLabel,
-			x: plotLeft - 5,
+			x: 25,
 			y: yOf(value) + 3,
 			textAnchor: "end",
 			children: value
@@ -139813,7 +137257,7 @@ var TimelineChart = ({ window: timeWindow, running = false, showActiveSamples, s
 		const guideMax = samplesGuide.reduce((m, s) => Math.max(m, s.value), 0);
 		const dataMax = activeSeries.reduce((m, p) => Math.max(m, p.value), Math.max(guideMax, 1));
 		const yMax = dataMax * 1.1;
-		const y = (v) => band.top + kPlotBottom - v / yMax * (kPlotBottom - kPlotTop);
+		const y = (v) => band.top + kPlotBottom - v / yMax * 50;
 		let path = "";
 		let prev;
 		for (const point of activeSeries) {
@@ -139870,7 +137314,7 @@ var TimelineChart = ({ window: timeWindow, running = false, showActiveSamples, s
 		const capValues = laneCapValues(lane, laneRetunes, timeWindow.end);
 		const dataMax = Math.max(lane.configuredMax ?? 0, lane.peak, ...capValues, 1);
 		const yMax = dataMax * 1.1;
-		const y = (v) => band.top + kPlotBottom - v / yMax * (kPlotBottom - kPlotTop);
+		const y = (v) => band.top + kPlotBottom - v / yMax * 50;
 		const path = buildStepPath(lane, timeWindow.start, x, y, plotRight);
 		const capSegments = capGuideSegments(lane, laneRetunes, timeWindow.end, x, plotLeft, plotRight);
 		return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("g", { children: [
@@ -141952,6 +139396,7 @@ var LogView = () => {
 		...selectedLogDetails?.error ? { error: errorTabConfig } : {},
 		json: jsonTabConfig
 	};
+	const tabKeys = Object.keys(tabs).join(",");
 	const { hidden: titleCollapsed } = useScrollDirection((0, import_react.useMemo)(() => {
 		const refs = [];
 		for (const key of Object.keys(tabs)) {
@@ -141959,7 +139404,7 @@ var LogView = () => {
 			if (ref) refs.push(ref);
 		}
 		return refs;
-	}, [Object.keys(tabs).join(",")]), { stayHiddenOnUpScroll: true });
+	}, [tabKeys]), { stayHiddenOnUpScroll: true });
 	const selectedTab = useStore((state) => state.app.tabs.workspace);
 	const setSelectedTab = useStore((state) => state.appActions.setWorkspaceTab);
 	const onSelected = (0, import_react.useCallback)((e) => {
@@ -142303,8 +139748,12 @@ var LogLoadController = () => {
 };
 //#endregion
 //#region src/app/routing/loaders/SampleLoadController.tsx
-var kSampleListKeys = ["transcript-tree"];
-var kSampleBagKeys = ["scrollPosition", "listPosition"];
+var kSampleBagKeys = [
+	"scrollPosition",
+	"listPosition",
+	kTranscriptOutlineListKey,
+	kMetadataGridKeyPrefix
+];
 /**
 * Reacts to the selected sample changing — no fetching (the sample queries are
 * mounted by the detail views through `useSelectedEvalSampleData`). Resets the per-sample
@@ -142315,21 +139764,18 @@ var kSampleBagKeys = ["scrollPosition", "listPosition"];
 var SampleLoadController = () => {
 	const handle = useStore((state) => state.log.selectedSampleHandle);
 	const identity = handle ? `${handle.logFile}:${handle.id}:${handle.epoch}` : void 0;
-	const clearListPosition = useStore((state) => state.appActions.clearListPosition);
 	const removeBagsByPrefix = useStore((state) => state.appActions.removeBagsByPrefix);
 	const clearCollapsedEvents = useStore((state) => state.sampleActions.clearCollapsedEvents);
 	const setTimelineSelected = useStore((state) => state.sampleActions.setTimelineSelected);
 	const setActiveTimelineIndex = useStore((state) => state.sampleActions.setActiveTimelineIndex);
 	(0, import_react.useEffect)(() => {
 		if (identity === void 0) return;
-		for (const key of kSampleListKeys) clearListPosition(key);
 		for (const bag of kSampleBagKeys) removeBagsByPrefix(bag);
 		clearCollapsedEvents();
 		setTimelineSelected(null);
 		setActiveTimelineIndex(0);
 	}, [
 		identity,
-		clearListPosition,
 		removeBagsByPrefix,
 		clearCollapsedEvents,
 		setTimelineSelected,
@@ -143097,9 +140543,10 @@ var AppLayout = () => {
 	const { sampleId, epoch, sampleTabId, sampleUuid } = useLogRouteParams();
 	const isFocus = sampleId && epoch && sampleTabId === kSampleEventTabId;
 	const isSampleDetail = sampleId && epoch || sampleUuid;
+	const content = useAppConfig().singleFileMode ? isFocus ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(SampleEventView, {}) : isSampleDetail ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(LogSampleDetailView, {}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(LogViewContainer, {}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Outlet, {});
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ComponentNavigationProvider, {
 		navigation: componentNavigation,
-		children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(AppErrorBoundary, { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(LoaderMounts, { children: useAppConfig().singleFileMode ? isFocus ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(SampleEventView, {}) : isSampleDetail ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(LogSampleDetailView, {}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(LogViewContainer, {}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Outlet, {}) }) })
+		children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(AppErrorBoundary, { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(LoaderMounts, { children: content }) })
 	});
 };
 var AppRouter = createHashRouter([{
@@ -143171,9 +140618,10 @@ var componentIcons = {
 * (DOM/theme + storage-event bridging), not data.
 */
 var ThemePreferenceSyncController = () => {
+	const themePreference = useUserSettings((s) => s.themePreference);
 	(0, import_react.useLayoutEffect)(() => {
 		window.__APPLY_BROWSER_THEME__?.();
-	}, [useUserSettings((s) => s.themePreference)]);
+	}, [themePreference]);
 	(0, import_react.useEffect)(() => {
 		const onStorage = (e) => {
 			if (e.key === "inspect-view-user-settings") {
@@ -143297,7 +140745,7 @@ if (!container) {
 	console.error("Root container not found");
 	throw new Error(`Expected a container element with Id '${containerId}' but no such container element was present.`);
 }
-(0, import_client.createRoot)(container).render(/* @__PURE__ */ (0, import_jsx_runtime.jsx)(App, {}));
+(0, import_client.createRoot)(container).render(/* @__PURE__ */ (0, import_jsx_runtime.jsx)(import_react.StrictMode, { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(App, {}) }));
 function restoreHash() {
 	if (storeImplementation && storeImplementation.getState().app.urlHash) {
 		const storedHash = storeImplementation.getState().app.urlHash;
