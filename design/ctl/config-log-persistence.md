@@ -12,7 +12,7 @@ The issue's scope qualifier â€” *"if they're recorded in the log originally"* â€
 
 ## Knob inventory: what's retunable, and what the log records
 
-The full set of `ctl config` knobs is the `_KNOB_SCOPE` table in `src/inspect_ai/_cli/ctl.py`, plus the per-sample limits planned in [control-channel.md](control-channel.md) ("Modify per-sample limits" rides `PATCH /tasks/<task-id>/config` as further config knobs).
+The full set of `ctl config` knobs is the `_KNOB_SCOPE` table in `src/inspect_ai/_cli/ctl/_knobs.py`, plus the per-sample limits planned in [control-channel.md](control-channel.md) ("Modify per-sample limits" rides `PATCH /tasks/<task-id>/config` as further config knobs).
 
 | Knob | Scope | Recorded in the log? | Recorded where |
 |---|---|---|---|

@@ -175,7 +175,7 @@ def test_endpoint_error_becomes_structured_500(monkeypatch: pytest.MonkeyPatch) 
 
 def test_error_detail_prefers_server_body() -> None:
     """The CLI surfaces the server's ``{"error": ...}`` over the bare HTTP error."""
-    from inspect_ai._cli.ctl import _error_detail
+    from inspect_ai._cli.ctl._http import _error_detail
 
     request = httpx.Request("GET", "http://localhost/evals/x/samples")
     response = httpx.Response(
@@ -709,7 +709,7 @@ async def test_404_body_shape_distinguishes_missing_route(
     convention comment in ``_build_app``. A handler 404 that dropped the
     ``error`` key would misreport an entity-not-found as version skew.
     """
-    from inspect_ai._cli.ctl import _handler_404
+    from inspect_ai._cli.ctl._http import _handler_404
     from inspect_ai._control import server as server_mod
 
     monkeypatch.setattr(

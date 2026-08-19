@@ -29,11 +29,11 @@ import pytest
 
 from _control.control_probe import capturing, gate, park_now, probe, render
 from inspect_ai import Task, task
-from inspect_ai._cli.ctl import (
+from inspect_ai._cli.ctl._fetch import _resolve_target_eval
+from inspect_ai._cli.ctl._render import (
     _print_errors_table,
     _print_sample_detail,
     _print_samples_table,
-    _resolve_target_eval,
 )
 from inspect_ai._control.discovery import list_discovered_servers
 from inspect_ai._control.eval_state import get_eval_states
@@ -476,7 +476,7 @@ def test_ctl_ls_aggregates_legacy_batch_retries(short_data_dir: Path) -> None:
     was exactly what matched both. Folding by ``task_id`` alone keeps one row
     and a resolvable selector.
     """
-    from inspect_ai._cli.ctl import _resolve_target_eval
+    from inspect_ai._cli.ctl._fetch import _resolve_target_eval
 
     fail = {"calls": 0}
 
