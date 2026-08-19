@@ -17,39 +17,6 @@ INSTRUCTIONS_FILE = "instructions.txt"
 RECORD_SESSION_DIR = "/var/tmp/user-sessions"
 
 
-# Pre-parse snippet for the tool command's --raw-json-escape-hatch, embedded
-# verbatim in the generated sandbox script (which is standalone — it cannot
-# import inspect_ai). Module-level so tests can exec it directly.
-ESCAPE_HATCH_PREPARSE = dedent("""
-# Pre-parse for --raw-json-escape-hatch (bypasses argparse validation)
-import json
-ESCAPE_HATCH = "--raw-json-escape-hatch"
-if ESCAPE_HATCH in sys.argv:
-    idx = sys.argv.index(ESCAPE_HATCH)
-    # Extract: task.py tool <tool_name> --raw-json-escape-hatch <json>
-    # sys.argv[0] = script, [1] = "tool", [2] = tool_name, [idx] = flag, [idx+1] = json
-    if len(sys.argv) > 2 and sys.argv[1] == "tool" and not sys.argv[2].startswith("-"):
-        tool_name = sys.argv[2]
-        json_str = sys.argv[idx + 1] if idx + 1 < len(sys.argv) else "{}"
-        try:
-            tool_args = json.loads(json_str)
-        except json.JSONDecodeError as e:
-            print(f"Error: Invalid JSON: {e}")
-            sys.exit(1)
-        if not isinstance(tool_args, dict):
-            print("Error: --raw-json-escape-hatch requires a JSON object of arguments, e.g. '{\\"x\\": 1}'")
-            sys.exit(1)
-        if "_tool_name_" in tool_args:
-            print("Error: argument name '_tool_name_' is reserved by the task CLI")
-            sys.exit(1)
-        print(call_human_agent("tool", _tool_name_=tool_name, **tool_args))
-        sys.exit(0)
-    else:
-        print("Error: --raw-json-escape-hatch requires: tool <name> --raw-json-escape-hatch '<json>'")
-        sys.exit(1)
-""")
-
-
 async def install_human_agent(
     user: str | None,
     commands: list[HumanAgentCommand],
@@ -165,21 +132,11 @@ def human_agent_commands(commands: list[HumanAgentCommand]) -> str:
         )
     command_dispatchers.append("else: parser.print_help()")
 
-    # Check if ToolCommand is present (needs escape hatch pre-parsing)
-    has_tool_command = any(isinstance(cmd, ToolCommand) for cmd in commands)
-
-    # Pre-parse logic for escape hatch (bypasses argparse validation)
-    escape_hatch_preparse = ESCAPE_HATCH_PREPARSE if has_tool_command else ""
-
-    dispatch = (
-        escape_hatch_preparse
-        + dedent("""
+    dispatch = dedent("""
     args = parser.parse_args()
     command = args.command
     delattr(args, 'command')
-    """)
-        + "\n".join(command_dispatchers)
-    )
+    """) + "\n".join(command_dispatchers)
 
     return "\n".join([imports, command_handlers, parse, dispatch]) + "\n"
 

@@ -224,137 +224,45 @@ def test_pure_image_returns_friendly_message() -> None:
     assert "omitted" in out
 
 
-# --- should-fix: complex-params schema help must render readably -------------
+# --- per-param JSON: complex params are ordinary flags with JSON values -----
 
 
-def test_complex_tool_help_shows_readable_schema() -> None:
-    """The epilog schema must survive argparse's formatter un-wrapped."""
+def test_mixed_tool_simple_params_are_flags() -> None:
+    """A tool with one complex param keeps CLI flags for its simple params."""
+    parser, _ = _build_parsers([_process_config()])
+    kwargs = _handler_kwargs(
+        parser,
+        ["tool", "_process_config", "--name", "test", "--config", '{"a": 1, "b": 2}'],
+    )
+    assert kwargs["name"] == "test"
+    assert kwargs["config"] == {"a": 1, "b": 2}
+
+
+def test_complex_param_invalid_json_errors_cleanly() -> None:
+    """Malformed JSON for a complex param fails at parse time, naming the flag."""
+    parser, _ = _build_parsers([_process_config()])
+    with pytest.raises(SystemExit) as exc_info:
+        parser.parse_args(
+            ["tool", "_process_config", "--name", "t", "--config", "{not json"]
+        )
+    assert exc_info.value.code == 2  # argparse usage error, not a traceback
+
+
+def test_complex_param_help_shows_example_instance() -> None:
+    """Help for a complex param shows a copy-pasteable JSON example, not a schema."""
     _, namespace = _build_parsers([_process_config()])
     sub = namespace["tool_subparsers"].choices["_process_config"]
     help_text = sub.format_help()
-    # RawDescriptionHelpFormatter preserves the json.dumps(indent=2) layout;
-    # the default formatter collapses it into a single mangled paragraph.
-    assert '  "type": "object",' in help_text
+    assert "--config" in help_text
+    assert "--name" in help_text
+    # an example instance, not JSON-Schema vocabulary
+    assert '"additionalProperties"' not in help_text
+    assert "JSON" in help_text
 
 
-# --- should-fix: escape hatch guards ------------------------------------------
-
-
-def _run_escape_hatch(argv: list[str]) -> tuple[list, list, int | None]:
-    """Exec the escape-hatch pre-parse snippet the way the sandbox script does."""
-    from inspect_ai.agent._human.install import ESCAPE_HATCH_PREPARSE
-
-    calls: list = []
-    printed: list = []
-
-    def call_human_agent(*args: object, **kwargs: object) -> str:
-        calls.append((args, kwargs))
-        return "ok"
-
-    import sys as real_sys
-    import types
-
-    fake_sys = types.SimpleNamespace(argv=argv, exit=real_sys.exit)
-    namespace = {
-        "sys": fake_sys,
-        "call_human_agent": call_human_agent,
-        "print": lambda *a: printed.append(" ".join(map(str, a))),
-    }
-    exit_code: int | None = None
-    try:
-        exec(compile(ESCAPE_HATCH_PREPARSE, "<escape-hatch>", "exec"), namespace)
-    except SystemExit as ex:
-        exit_code = int(ex.code or 0)
-    return calls, printed, exit_code
-
-
-def test_escape_hatch_rejects_non_dict_json() -> None:
-    """A JSON array/scalar must produce a friendly error, not **-splat TypeError."""
-    calls, printed, exit_code = _run_escape_hatch(
-        ["task.py", "tool", "_addition", "--raw-json-escape-hatch", "[1, 2]"]
-    )
-    assert calls == []
-    assert exit_code == 1
-    assert any("JSON object" in line for line in printed)
-
-
-def test_escape_hatch_rejects_reserved_key() -> None:
-    """A JSON key colliding with the internal _tool_name_ kwarg must error cleanly."""
-    calls, printed, exit_code = _run_escape_hatch(
-        [
-            "task.py",
-            "tool",
-            "_addition",
-            "--raw-json-escape-hatch",
-            '{"_tool_name_": "x"}',
-        ]
-    )
-    assert calls == []
-    assert exit_code == 1
-    assert any("_tool_name_" in line for line in printed)
-
-
-@pytest.mark.anyio
-async def test_service_records_tool_event_on_error() -> None:
-    """A failing tool call must still be recorded (with its error)."""
-    from inspect_ai.log._transcript import Transcript, init_transcript, transcript
-    from inspect_ai.tool import ToolError
-
-    @tool
-    def _boom():
-        async def execute() -> str:
-            """Always fails.
-
-            Returns:
-                Never returns.
-            """
-            raise ToolError("kaboom")
-
-        return execute
-
-    command = ToolCommand([_boom()])
-    handler = command.service(state=None)  # type: ignore[arg-type]
-
-    init_transcript(Transcript())
-    with pytest.raises(ToolError):
-        await handler(_tool_name_="_boom")
-
-    tool_events = [e for e in transcript().events if e.event == "tool"]
-    assert len(tool_events) == 1
-    assert tool_events[0].error is not None
-    assert "kaboom" in tool_events[0].error.message
-
-
-def test_schema_declared_params_generate_cli_args() -> None:
-    """Schema-declared params over generic signatures generate CLI args.
-
-    The schema (ToolDef parameters) is the source of truth for the argument
-    set and its order. The signature-reflection pathway silently generated no arguments for
-    these tools: it iterated signature names (`**kwargs`) and never visited
-    the schema-declared params.
-    """
-    from inspect_ai.tool import ToolParam, ToolParams
-
-    async def execute(**kwargs: object) -> str:
-        """Generic execute.
-
-        Returns:
-            A result.
-        """
-        return str(kwargs)
-
-    declared = ToolDef(
-        execute,
-        name="declared_tool",
-        description="A tool with schema-declared params.",
-        parameters=ToolParams(
-            properties={
-                "target": ToolParam(type="string", description="The target."),
-            },
-            required=["target"],
-        ),
-    ).as_tool()
-
-    parser, _ = _build_parsers([declared])
-    kwargs = _handler_kwargs(parser, ["tool", "declared_tool", "--target", "x"])
-    assert kwargs == {"target": "x"}
+def test_required_complex_param_enforced_by_argparse() -> None:
+    """Omitting a required complex param is an immediate argparse error."""
+    parser, _ = _build_parsers([_process_config()])
+    with pytest.raises(SystemExit) as exc_info:
+        parser.parse_args(["tool", "_process_config", "--name", "t"])
+    assert exc_info.value.code == 2

@@ -281,33 +281,6 @@ options:
             )
             assert named_result.stdout.strip() == "46", fmt_err(named_result)
 
-            # Test: JSON escape hatch
-            json_result = subprocess.run(
-                docker_exec
-                + [
-                    "python3 /opt/human_agent/task.py tool addition "
-                    '--raw-json-escape-hatch \'{"x": 12, "y": 34}\''
-                ],
-                capture_output=True,
-                text=True,
-            )
-            assert json_result.stdout.strip() == "46"
-
-            # Json escape hatch only applied to `task tool`, not to other commands
-            invalid_json_result = subprocess.run(
-                docker_exec
-                + [
-                    "python3 /opt/human_agent/task.py submit "
-                    '--raw-json-escape-hatch \'{"answer": "test"}\''
-                ],
-                capture_output=True,
-                text=True,
-            )
-            assert (
-                "Error: --raw-json-escape-hatch requires: tool <name> --raw-json-escape-hatch '<json>'"
-                in invalid_json_result.stdout
-            )
-
         finally:
             # Always call task start/submit to unblock eval thread (otherwise test hangs!)
             submit_task(docker_exec)
@@ -320,10 +293,10 @@ options:
 @pytest.mark.slow
 @skip_if_no_docker
 def test_human_cli_with_tools_complex(capsys: pytest.CaptureFixture[str]):
-    """Test human_cli with a tool that has complex types requiring JSON escape hatch.
+    """Test human_cli with a tool that has structured (JSON-valued) parameters.
 
-    Complex types (dicts, nested objects) can't be mapped to argparse arguments,
-    so users must use --raw-json-escape-hatch to pass them.
+    Complex types (dicts, nested objects) become ordinary named arguments
+    whose values are JSON; simple parameters on the same tool stay typed flags.
     """
 
     @tool
@@ -360,32 +333,25 @@ def test_human_cli_with_tools_complex(capsys: pytest.CaptureFixture[str]):
         wait_for_human_agent(docker_exec)
 
         try:
-            # Test: tool help shows epilog about complex parameters, no CLI args
+            # Test: help shows flags for both params, with a JSON example for
+            # the structured one (no schema dump, no escape hatch)
             help_result = subprocess.run(
                 docker_exec
                 + ["python3 /opt/human_agent/task.py tool process_config --help"],
                 capture_output=True,
                 text=True,
             )
-            # No CLI args shown - user must use escape hatch for all params
-            assert "--name" not in help_result.stdout, fmt_err(help_result)
-            assert "--config" not in help_result.stdout, fmt_err(help_result)
-            assert (
-                "This tool has complex parameters. You must use --raw-json-escape-hatch"
-                in help_result.stdout
-            ), fmt_err(help_result)
-            # JSON schema is shown so user knows what to pass
-            # RawDescriptionHelpFormatter preserves the schema's indentation
-            assert '"type": "object"' in help_result.stdout, fmt_err(help_result)
-            assert '"required": [' in help_result.stdout, fmt_err(help_result)
-            assert '  "properties": {' in help_result.stdout, fmt_err(help_result)
+            assert "--name" in help_result.stdout, fmt_err(help_result)
+            assert "--config JSON" in help_result.stdout, fmt_err(help_result)
+            assert "e.g." in help_result.stdout, fmt_err(help_result)
+            assert "escape-hatch" not in help_result.stdout, fmt_err(help_result)
 
-            # Test: calling with JSON escape hatch works
+            # Test: structured param passed as a JSON value alongside a plain flag
             json_result = subprocess.run(
                 docker_exec
                 + [
                     "python3 /opt/human_agent/task.py tool process_config "
-                    '--raw-json-escape-hatch \'{"config": {"a": 1, "b": 2}, "name": "test"}\''
+                    '--name test --config \'{"a": 1, "b": 2}\''
                 ],
                 capture_output=True,
                 text=True,
@@ -393,6 +359,19 @@ def test_human_cli_with_tools_complex(capsys: pytest.CaptureFixture[str]):
             assert json_result.stdout.strip() == "test: 2 settings", fmt_err(
                 json_result
             )
+
+            # Test: malformed JSON is an immediate usage error naming the flag
+            bad_json_result = subprocess.run(
+                docker_exec
+                + [
+                    "python3 /opt/human_agent/task.py tool process_config "
+                    "--name test --config '{not json'"
+                ],
+                capture_output=True,
+                text=True,
+            )
+            assert bad_json_result.returncode == 2, fmt_err(bad_json_result)
+            assert "invalid JSON" in bad_json_result.stderr, fmt_err(bad_json_result)
 
         finally:
             # Always call task start/submit to unblock eval thread (otherwise test hangs!)

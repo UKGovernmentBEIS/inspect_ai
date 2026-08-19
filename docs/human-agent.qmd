@@ -107,10 +107,10 @@ Each tool becomes a `task tool <name>` subcommand with named arguments generated
 task tool search_incidents --query checkout --limit 3
 ```
 
-Boolean parameters map to `--<flag>` / `--no-<flag>` pairs; when neither is passed the tool's own default applies. Tools whose parameters are too complex for the command line (nested objects, unions) take their arguments as JSON instead — their `--help` displays the parameter schema:
+Boolean parameters map to `--<flag>` / `--no-<flag>` pairs; when neither is passed the tool's own default applies. Structured parameters (nested objects, unions) are ordinary named arguments whose values are JSON — their `--help` shows a copy-pasteable example:
 
 ``` bash
-task tool annotate_incident --raw-json-escape-hatch '{"incident_id": "INC-1042", "annotation": {"root_cause": true}}'
+task tool annotate_incident --incident-id INC-1042 --annotation '{"root_cause": true}'
 ```
 
 Tool calls execute in the main evaluation process (not the sandbox), are validated against the tool's signature exactly as model tool calls are, and record a `ToolEvent` in the sample transcript — so a human run's tool usage is analyzable with the same machinery as a model run's. Note that human-invoked tools do not pass through [approval policies](approval.qmd): the human operator is the oversight in this configuration.

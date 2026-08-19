@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from argparse import Namespace
+from textwrap import dedent
 from typing import Any, Awaitable, Callable, Literal, NamedTuple
 
 from pydantic import JsonValue
@@ -59,9 +60,8 @@ def tool_result_to_str(result: ToolResult) -> str:
 class ToolCommand(HumanAgentCommand):
     """Command for calling tools: 'task tool <name> [args]'
 
-    Supports two argument styles:
-    - Named: task tool addition --x 12 --y 34
-    - JSON escape hatch: task tool addition --raw-json-escape-hatch '{"x": 12}'
+    Every parameter is a named argument (task tool addition --x 12 --y 34);
+    structured parameters take JSON values (task tool annotate --config '{"a": 1}').
     """
 
     def __init__(self, tools: list[Tool]):
@@ -109,6 +109,19 @@ class ToolCommand(HumanAgentCommand):
         """
         lines: list[str] = []
 
+        # JSON value converter for structured parameters (argparse turns
+        # ArgumentTypeError into a standard usage error naming the flag)
+        lines.append(
+            dedent("""
+            def _json_arg(value):
+                import json
+                try:
+                    return json.loads(value)
+                except json.JSONDecodeError as ex:
+                    raise argparse.ArgumentTypeError(f"invalid JSON: {ex}")
+            """).strip()
+        )
+
         # Create main tool parser with subparsers
         lines.append(
             'tool_parser = subparsers.add_parser("tool", help="Call a tool with arguments.")'
@@ -116,20 +129,13 @@ class ToolCommand(HumanAgentCommand):
         lines.append('tool_subparsers = tool_parser.add_subparsers(dest="tool_name")')
 
         # Generate subparser for each tool
-        tools_with_complex_params: set[str] = set()
         for tool_name, tool_def in self._tool_defs.items():
-            parser_code, has_complex = generate_tool_parser(
+            parser_code, _ = generate_tool_parser(
                 tool_name,
                 tool_def.description,
                 tool_def.parameters,
             )
             lines.append(parser_code)
-            if has_complex:
-                tools_with_complex_params.add(tool_name)
-
-        # Generate metadata for tools with complex params (require escape hatch)
-        lines.append("")
-        lines.append(f"TOOLS_WITH_COMPLEX_PARAMS = {tools_with_complex_params!r}")
 
         return "\n".join(lines)
 
@@ -138,7 +144,6 @@ class ToolCommand(HumanAgentCommand):
 
         Returns Python code for the tool() function that:
         - Shows tool list via argparse help if no tool_name
-        - Shows tool help for complex tools (must use --raw-json-escape-hatch)
         - Passes tool args as kwargs to the service
         """
         return """
@@ -148,12 +153,6 @@ def tool(args):
     # Handle: task tool (list all tools via argparse help)
     if not tool_name:
         tool_parser.print_help()
-        return
-
-    # Tools with complex params must use --raw-json-escape-hatch (handled in pre-parse)
-    # If we reach here, show help since they didn't use the escape hatch
-    if tool_name in TOOLS_WITH_COMPLEX_PARAMS:
-        tool_subparsers.choices[tool_name].print_help()
         return
 
     # Build tool args from parsed args (exclude tool_name and command)
@@ -217,7 +216,7 @@ class ParamInfo(NamedTuple):
     """Information about a tool parameter for argparse generation."""
 
     name: str
-    schema_type: str | None  # "string", "integer", "number", "boolean", "array", None
+    schema_type: str | None  # "string", "integer", "number", "boolean", "array", "json"
     is_required: bool
     is_optional: bool  # Has anyOf with null (Optional[T])
     enum: list[Any] | None
@@ -227,10 +226,10 @@ class ParamInfo(NamedTuple):
 
 
 def _complex_info(description: str | None, default: Any) -> ParamInfo:
-    """ParamInfo for a parameter too complex for CLI args (escape hatch only)."""
+    """ParamInfo for a structured parameter (takes a JSON value on the CLI)."""
     return ParamInfo(
         name="",
-        schema_type=None,
+        schema_type="json",
         is_required=False,
         is_optional=False,
         enum=None,
@@ -298,11 +297,6 @@ def _classify_schema(schema: dict[str, Any]) -> ParamInfo:
     return _complex_info(description, default)
 
 
-def _is_simple_type(info: ParamInfo) -> bool:
-    """Check if parameter info represents an argparse-compatible type."""
-    return info.schema_type in ("string", "integer", "number", "boolean", "array")
-
-
 def _escape_string(s: str) -> str:
     """Escape a string for embedding in generated Python code."""
     return (
@@ -311,6 +305,33 @@ def _escape_string(s: str) -> str:
         .replace("\n", "\\n")
         .replace("\r", "\\r")
     )
+
+
+def _example_instance(schema: dict[str, Any]) -> Any:
+    """A minimal example JSON instance for a schema, for help text."""
+    if "anyOf" in schema:
+        non_null = [x for x in schema["anyOf"] if x.get("type") != "null"]
+        return _example_instance(non_null[0]) if non_null else None
+    match schema.get("type"):
+        case "object":
+            properties = schema.get("properties")
+            if properties:
+                return {
+                    k: _example_instance(v) for k, v in list(properties.items())[:2]
+                }
+            return {"key": "value"}
+        case "array":
+            return [_example_instance(schema.get("items", {}))]
+        case "string":
+            return schema.get("enum", ["text"])[0]
+        case "integer":
+            return 1
+        case "number":
+            return 1.5
+        case "boolean":
+            return True
+        case _:
+            return "..."
 
 
 def generate_tool_parser(
@@ -336,14 +357,16 @@ def generate_tool_parser(
 
     # Analyze each parameter (schema order == declaration order)
     param_infos: dict[str, ParamInfo] = {}
+    schema_dicts: dict[str, dict[str, Any]] = {}
     for name, schema in params.properties.items():
         # Convert ToolParam to dict for classification
         schema_dict = schema.model_dump(exclude_none=True)
         info = _classify_schema(schema_dict)
         info = info._replace(name=name, is_required=name in params.required)
         param_infos[name] = info
+        schema_dicts[name] = schema_dict
 
-        if not _is_simple_type(info):
+        if info.schema_type == "json":
             has_complex_params = True
 
     # Create subparser
@@ -354,61 +377,56 @@ def generate_tool_parser(
         f"formatter_class=argparse.RawDescriptionHelpFormatter)"
     )
 
-    # If tool has complex params, don't generate CLI args - user must use escape hatch
-    if has_complex_params:
-        schema_json = json.dumps(params.model_dump(exclude_none=True), indent=2)
-        escaped_schema = _escape_string(schema_json)
-        lines.append(
-            f"{tool_name}_parser.epilog = "
-            f'"This tool has complex parameters. You must use --raw-json-escape-hatch.\\n\\n'
-            f'Parameters:\\n{escaped_schema}"'
-        )
-    else:
-        # Generate arguments in declaration order (all as named args)
-        for name, info in param_infos.items():
-            arg_name = name.replace("_", "-")
-            parts: list[str] = []
+    # Generate arguments in declaration order (all as named args)
+    for name, info in param_infos.items():
+        arg_name = name.replace("_", "-")
+        parts: list[str] = []
 
-            # Always use named args (--x, --y)
-            parts.append(f'"--{arg_name}"')
-            parts.append(f'dest="{name}"')
+        # Always use named args (--x, --y)
+        parts.append(f'"--{arg_name}"')
+        parts.append(f'dest="{name}"')
 
-            # Type conversion
-            if info.schema_type == "integer":
+        # Type conversion
+        if info.schema_type == "integer":
+            parts.append("type=int")
+        elif info.schema_type == "number":
+            parts.append("type=float")
+        elif info.schema_type == "boolean":
+            # --flag / --no-flag pair; default None means "not provided",
+            # which the handler filters out so the tool's own default
+            # applies (an absent flag must not silently send False to a
+            # tool whose default is True)
+            parts.append("action=argparse.BooleanOptionalAction")
+        elif info.schema_type == "array":
+            parts.append('nargs="*"')
+            if info.array_item_type == "integer":
                 parts.append("type=int")
-            elif info.schema_type == "number":
+            elif info.array_item_type == "number":
                 parts.append("type=float")
-            elif info.schema_type == "boolean":
-                # --flag / --no-flag pair; default None means "not provided",
-                # which the handler filters out so the tool's own default
-                # applies (an absent flag must not silently send False to a
-                # tool whose default is True)
-                parts.append("action=argparse.BooleanOptionalAction")
-            elif info.schema_type == "array":
-                parts.append('nargs="*"')
-                if info.array_item_type == "integer":
-                    parts.append("type=int")
-                elif info.array_item_type == "number":
-                    parts.append("type=float")
+        elif info.schema_type == "json":
+            # structured parameter: the flag's value is JSON
+            parts.append("type=_json_arg")
+            parts.append('metavar="JSON"')
 
-            # Enum/choices
-            if info.enum:
-                parts.append(f"choices={info.enum!r}")
+        # Enum/choices
+        if info.enum:
+            parts.append(f"choices={info.enum!r}")
 
-            # Required/default
-            if info.is_optional or not info.is_required:
-                parts.append("default=None")
-            else:
-                parts.append("required=True")
+        # Required/default
+        if info.is_optional or not info.is_required:
+            parts.append("default=None")
+        else:
+            parts.append("required=True")
 
-            # Help text
-            if info.description:
-                escaped = _escape_string(info.description)
-                parts.append(f'help="{escaped}"')
+        # Help text (structured params get a copy-pasteable example instance)
+        help_text = info.description or ""
+        if info.schema_type == "json":
+            example = json.dumps(_example_instance(schema_dicts[name]))
+            help_text = f"{help_text} (JSON, e.g. '{example}')".strip()
+        if help_text:
+            parts.append(f'help="{_escape_string(help_text)}"')
 
-            lines.append(f"{tool_name}_parser.add_argument({', '.join(parts)})")
+        lines.append(f"{tool_name}_parser.add_argument({', '.join(parts)})")
 
     parser_code = "\n".join(lines)
     return parser_code, has_complex_params
-
-
