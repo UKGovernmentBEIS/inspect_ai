@@ -213,6 +213,19 @@ idempotent `changed: false` no-op, with the reason naming the pending type:
 
 - drain on a draining task → no-op ("cancel already requested (drain)").
 - drain on a pending score/error/abort → no-op (drain can't un-interrupt).
+- drain (or plain cancel) on a pending **`"retry"`** stamp — the attempt
+  requested a re-run and is still tearing down, before the dispatcher sets
+  `retry_pending` — **applies** (`changed: true`): the directive stamps the
+  retry-abandoned registry (see "Tasks between attempts") so the intent
+  sticks. Inheriting the cancel skeleton's no-op here ("cancel already
+  requested (retry)") would silently drop the drain — the retry then
+  dispatches the whole task fresh unless the operator notices and
+  re-issues, the same operator-races-the-dispatcher shape Alternatives
+  rejects for the status-quo 409. The tearing-down attempt itself is
+  untouched (its scope has already fired; there is nothing further to
+  interrupt or overwrite). Score/error in this state stay the no-op —
+  the attempt's samples are already resolved, mirroring their
+  between-attempts rejection.
 - score/error on a draining task → **escalates**: the operator decided to
   stop waiting; in-flight samples are interrupted with the resolution and
   the task still completes gracefully. This is drain's "it's taking too
@@ -242,7 +255,10 @@ do not block drain's stamp:
 - **Drain under a hard pause (`pause --now`)**: in-flight samples parked at
   the generate gate stay parked — the generate gate's escape keys on a
   per-sample interrupt (`interrupt_action`), which drain deliberately never
-  stamps. This is correct, not accidental: the hard hold is an operator
+  stamps on an in-flight sample. (The materialization-window self-check does
+  stamp one, but a sample in that window has never reached a generate call,
+  so it is never the one parked at the gate.) This is correct, not
+  accidental: the hard hold is an operator
   intent on *in-flight* work, and drain's contract for in-flight work is
   "don't touch". The task drains fully on `resume` (or as held samples
   resolve at their own limits). An operator who wants the drain to conclude
@@ -288,8 +304,10 @@ an exhausted retry budget produces).
 
 **Mechanics.** The directive stamps a task-id-keyed *retry-abandoned*
 registry (reset at the run boundary like the pause-gate registry), clears
-`EvalState.retry_pending` synchronously, and fires the existing dispatch
-waker. Clearing `retry_pending` at stamp time — rather than leaving it to
+`EvalState.retry_pending` synchronously (and the attempt's `will_retry`
+snapshot, so its cancelled samples stop rendering `pending` — see the read
+surface), and fires the existing dispatch waker. Clearing `retry_pending`
+at stamp time — rather than leaving it to
 the dispatcher pick — makes the task read terminal on the read surface the
 moment the directive returns, and closes the repeat-request window: a
 second `cancel`/`drain` landing before the dispatcher's next pick sees
@@ -310,7 +328,7 @@ latest), wherever the abandonment lands. An implementation may instead
 defer `reinit()` to attempt start (after the self-check below), leaving
 nothing to discard at either site; the contract either way is that an
 abandoned retry leaves no live buffer db and no phantom eval entry behind.
-Two checks consume the registry, sharing the discard:
+Two checks consume the registry for a queued item, sharing the discard:
 
 1. **Dispatch pick** (`pick_balanced`): a pending task whose task id is
    stamped is dropped from the queue instead of dispatched (before the pause
@@ -324,7 +342,30 @@ Two checks consume the registry, sharing the discard:
    same discard. This closes the pick-to-register window: a stamp landing
    after the dispatcher has dequeued the item but before the attempt
    registers must not let the retry run after the operator was told it was
-   abandoned.
+   abandoned. Unlike site 1, this abandon returns through the dispatcher's
+   `run_one`, and every natural return shape misfires there: a `None` log
+   or a cancelled-status log reads as an external (ctrl+c) cancellation and
+   ends the **whole** dispatch loop — sibling tasks and the unstarted
+   eval-set queue included — raising would tear down the dispatcher task
+   group, and an error-status log with no stamped type would queue another
+   retry. So the contract is an explicit sentinel: `TaskRunResult` gains an
+   *abandoned* marker (a dedicated field, not an overload of `log` or
+   `cancel_type`), which `run_one` checks before its external-cancellation
+   branch and maps to a side-effect-free finalize — release the in-flight
+   slot, leave `results[item.idx]` undisturbed (it already holds the
+   errored attempt's log, stored before the retry item was queued), queue
+   no retry, never set the run-level `cancelled` flag.
+
+The same registry stamp is what makes a drain/cancel stick in the earlier
+window where the attempt has *requested* a retry but is still tearing down
+(`cancel_type == "retry"`, before `mark_eval_retry_pending` — see the
+escalation ladder). The dispatcher consumes it at its retry decision:
+`run_one` consults the registry before constructing the retry item, and a
+stamped task skips the construction entirely — no `retry_pending` flag, no
+eager `reinit()`, so nothing to discard; the attempt's error log (already
+in `results`) stands as the task's final state. A stamp landing after that
+decision finds `retry_pending` set or the item queued, and falls through to
+the between-attempts branch and the two consume sites above.
 
 An earlier draft kept a fallback — a narrow 409 for the pick-to-register
 window if discarding the unstarted logger entry proved thorny. Dropped: the
@@ -333,9 +374,10 @@ fallback could only ever rescue site 2 (a request context that can answer
 regardless — so the discard has to be built either way, and site 2 simply
 reuses it.
 
-Everything runs on the eval's single loop, so the stamp-vs-check ordering at
-each site is race-free; the two-site split exists only because dispatch and
-attempt start are separated by awaits.
+Everything runs on the eval's single loop, so the stamp-vs-check ordering
+at each consume point is race-free; the split into multiple points exists
+only because the retry decision, dispatch, and attempt start are separated
+by awaits.
 
 ## Read-surface additions
 
@@ -358,8 +400,9 @@ attempt start are separated by awaits.
   a drained (or score/error-resolved) task with retry budget remaining
   shows its abandoned samples as `pending` forever. Stamping any type other
   than `"retry"` should clear the attempt's `will_retry` so they read
-  `cancelled`. Small, display-only, shared with the shipped graceful
-  cancels.
+  `cancelled`. The retry-abandoned registry stamp clears it too — there the
+  stamped type *is* `"retry"`, but the abandonment means no re-run is
+  coming. Small, display-only, shared with the shipped graceful cancels.
 
 ## Implementation sketch
 
@@ -373,12 +416,17 @@ attempt start are separated by awaits.
 - `_control/cancel.py`: a `drain_task(task_id, dry_run)` sibling of
   `cancel_task` — same resolution/no-op/rejection skeleton, stamps without
   sweeping; `cancel_task` gains the escalation-ladder comparison (replacing
-  the score/error-only escalation special case) and the between-attempts
-  branch swaps its 409 for the retry-abandon path (kept 409 for
-  score/error).
-- Retry-abandoned registry (stamping also clears `retry_pending`), the
-  shared never-started-logger discard, and its two consume sites
-  (`pick_balanced` drop in `_eval/run.py`, attempt-start self-check).
+  the score/error-only escalation special case), the pending-`"retry"`
+  no-op becomes the registry stamp for drain/plain cancel (kept a no-op for
+  score/error), and the between-attempts branch swaps its 409 for the
+  retry-abandon path (kept 409 for score/error).
+- Retry-abandoned registry (stamping also clears `retry_pending` and
+  `will_retry`), the shared never-started-logger discard, and its consume
+  points in `_eval/run.py`: the `pick_balanced` drop, the attempt-start
+  self-check (surfaced to `run_one` as a dedicated *abandoned* field on
+  `TaskRunResult`, checked before the external-cancellation branch), and
+  the `run_one` retry-decision consult that skips constructing a retry item
+  for a stamped task.
 - Route (`POST /tasks/<task-id>/drain`) in `_control/server.py`; CLI verb in
   `_cli/ctl/_task.py` riding the shared mutation renderer with
   `not_found_missing_route`.
