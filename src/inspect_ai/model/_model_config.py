@@ -1,4 +1,3 @@
-import re
 from inspect import isgenerator
 from typing import Any, Iterator
 
@@ -24,70 +23,29 @@ class ModelConfig(BaseModel):
     """Model specific arguments."""
 
 
-# A role bound to a list of models is stored in the log's flat
-# dict[str, ModelConfig] as indexed keys: the first model under the bare role
-# name and subsequent models under 'name#2', 'name#3', etc. This keeps the
-# EvalSpec schema (and therefore the log viewer types) unchanged while
-# round-tripping lists losslessly for eval_retry/score. resolve_model_roles()
-# rejects user role names matching this pattern so the encoding is unambiguous.
-INDEXED_ROLE_KEY_PATTERN = re.compile(r"(.+)#(\d+)$")
-
-
 def model_roles_to_model_roles_config(
     model_roles: dict[str, Model | list[Model]] | None,
-) -> dict[str, ModelConfig] | None:
+) -> dict[str, ModelConfig | list[ModelConfig]] | None:
     if model_roles is not None:
-        config: dict[str, ModelConfig] = {}
-        for k, v in model_roles.items():
-            if isinstance(v, list):
-                for i, model in enumerate(v):
-                    config[k if i == 0 else f"{k}#{i + 1}"] = model_to_model_config(
-                        model
-                    )
-            else:
-                config[k] = model_to_model_config(v)
-        return config
+        return {
+            k: [model_to_model_config(m) for m in v]
+            if isinstance(v, list)
+            else model_to_model_config(v)
+            for k, v in model_roles.items()
+        }
     else:
         return None
 
 
-def model_roles_config_grouped(
-    model_config: dict[str, ModelConfig],
-) -> dict[str, ModelConfig | list[ModelConfig]]:
-    """Regroup indexed keys ('name#N') under their base role name in N order.
-
-    An indexed key is only treated as a list member when its base role name is
-    also present (the encoder always writes the first model under the bare
-    name), so a log written before the reserved suffix existed with a role
-    literally named e.g. 'judge#2' -- but no 'judge' -- is left untouched.
-    Two legacy corners remain: a pre-suffix log with *both* 'judge' and a
-    distinct role 'judge#2' is regrouped into one list-valued 'judge' here,
-    and a preserved lone 'judge#2' is still rejected by resolve_model_roles()
-    on eval_retry because its name is now reserved.
-    """
-    indexed: dict[str, list[tuple[int, ModelConfig]]] = {}
-    for k, v in model_config.items():
-        match = INDEXED_ROLE_KEY_PATTERN.match(k)
-        if match and match.group(1) in model_config:
-            indexed.setdefault(match.group(1), []).append((int(match.group(2)), v))
-        else:
-            indexed.setdefault(k, []).append((1, v))
-    grouped: dict[str, ModelConfig | list[ModelConfig]] = {}
-    for k, entries in indexed.items():
-        configs = [mc for _, mc in sorted(entries, key=lambda e: e[0])]
-        grouped[k] = configs if len(configs) > 1 else configs[0]
-    return grouped
-
-
 def model_roles_config_to_model_roles(
-    model_config: dict[str, ModelConfig] | None,
+    model_config: dict[str, ModelConfig | list[ModelConfig]] | None,
 ) -> dict[str, Model | list[Model]] | None:
     if model_config is not None:
         return {
             k: [model_config_to_model(mc) for mc in v]
             if isinstance(v, list)
             else model_config_to_model(v)
-            for k, v in model_roles_config_grouped(model_config).items()
+            for k, v in model_config.items()
         }
     else:
         return None

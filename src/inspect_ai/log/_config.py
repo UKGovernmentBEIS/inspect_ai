@@ -1,7 +1,7 @@
 from typing import Any
 
 from inspect_ai.log._log import EvalLog
-from inspect_ai.model._model_config import ModelConfig, model_roles_config_grouped
+from inspect_ai.model._model_config import ModelConfig
 
 # EvalConfig fields that control logging, display, and parallelism — not the
 # scientific conditions of the eval. Omitted from exported run configs so that
@@ -52,9 +52,7 @@ def eval_log_to_run_config_dict(log: EvalLog) -> dict[str, Any]:
         model_entry["config"] = model_gc
     out["model"] = model_entry
 
-    # Model roles (dict[str, ModelConfig]; a role bound to a list of models
-    # is stored under indexed keys ('name', 'name#2', ...) which are regrouped
-    # here into a list-valued entry)
+    # Model roles (a role bound to a list of models exports as a list entry)
     if spec.model_roles:
 
         def role_entry(mc: ModelConfig) -> dict[str, Any]:
@@ -69,7 +67,7 @@ def eval_log_to_run_config_dict(log: EvalLog) -> dict[str, Any]:
             return entry
 
         roles: dict[str, Any] = {}
-        for name, mc_group in model_roles_config_grouped(spec.model_roles).items():
+        for name, mc_group in spec.model_roles.items():
             if isinstance(mc_group, list):
                 roles[name] = [role_entry(mc) for mc in mc_group]
             else:

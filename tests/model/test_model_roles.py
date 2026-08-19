@@ -44,7 +44,9 @@ def role_task():
 def test_model_role() -> None:
     log = eval(role_task(), model_roles={RED_TEAM: GEMINI_FLASH_3_PREVIEW})[0]
     assert log.eval.model_roles
-    assert log.eval.model_roles[RED_TEAM].model == GEMINI_FLASH_3_PREVIEW
+    red_team = log.eval.model_roles[RED_TEAM]
+    assert not isinstance(red_team, list)
+    assert red_team.model == GEMINI_FLASH_3_PREVIEW
     check_model_role(log, RED_TEAM, GEMINI_FLASH_3_PREVIEW)
 
 
@@ -62,7 +64,9 @@ def test_model_role_retry() -> None:
     log.samples = []
     log = eval_retry(log)[0]
     assert log.eval.model_roles
-    assert log.eval.model_roles[RED_TEAM].model == GEMINI_FLASH_3_PREVIEW
+    red_team = log.eval.model_roles[RED_TEAM]
+    assert not isinstance(red_team, list)
+    assert red_team.model == GEMINI_FLASH_3_PREVIEW
     check_model_role(log, RED_TEAM, GEMINI_FLASH_3_PREVIEW)
 
 
@@ -427,11 +431,6 @@ def test_resolve_model_roles_single_element_list_collapses() -> None:
     assert isinstance(resolved[GRADER], Model)
 
 
-def test_resolve_model_roles_rejects_reserved_names() -> None:
-    with pytest.raises(PrerequisiteError, match="reserved"):
-        resolve_model_roles({"grader#2": MOCK_A})
-
-
 def test_resolve_model_roles_rejects_empty_list() -> None:
     with pytest.raises(PrerequisiteError, match="empty"):
         resolve_model_roles({GRADER: []})
@@ -454,10 +453,13 @@ def test_model_roles_list_config_round_trip() -> None:
 
     config = model_roles_to_model_roles_config(resolved)
     assert config is not None
-    assert list(config.keys()) == [GRADER, f"{GRADER}#2", f"{GRADER}#3", REVIEWER]
-    assert config[GRADER].model == MOCK_A
-    assert config[f"{GRADER}#2"].model == MOCK_B
-    assert config[f"{GRADER}#3"].model == MOCK_C
+    assert list(config.keys()) == [GRADER, REVIEWER]
+    grader_configs = config[GRADER]
+    assert isinstance(grader_configs, list)
+    assert [mc.model for mc in grader_configs] == [MOCK_A, MOCK_B, MOCK_C]
+    reviewer_config = config[REVIEWER]
+    assert not isinstance(reviewer_config, list)
+    assert reviewer_config.model == MOCK_A
 
     round_tripped = model_roles_config_to_model_roles(config)
     assert round_tripped is not None
@@ -465,18 +467,6 @@ def test_model_roles_list_config_round_trip() -> None:
     assert isinstance(graders, list)
     assert [str(m) for m in graders] == [MOCK_A, MOCK_B, MOCK_C]
     assert isinstance(round_tripped[REVIEWER], Model)
-
-
-def test_model_roles_config_grouped_preserves_legacy_indexed_names() -> None:
-    """A lone 'name#N' key (a legal role name in older logs) is not regrouped."""
-    from inspect_ai.model._model_config import (
-        ModelConfig,
-        model_roles_config_grouped,
-    )
-
-    grouped = model_roles_config_grouped({"judge#2": ModelConfig(model=MOCK_A)})
-    assert list(grouped.keys()) == ["judge#2"]
-    assert isinstance(grouped["judge#2"], ModelConfig)
 
 
 def test_model_role_list_get_model_returns_first() -> None:
@@ -487,10 +477,11 @@ def test_model_role_list_get_model_returns_first() -> None:
     assert log.status == "success"
     # get_model(role=...) resolves to the first model in the list
     check_model_role(log, GRADER, MOCK_A)
-    # the log stores both models under indexed keys
+    # the log stores the role as a list of model configs
     assert log.eval.model_roles is not None
-    assert log.eval.model_roles[GRADER].model == MOCK_A
-    assert log.eval.model_roles[f"{GRADER}#2"].model == MOCK_B
+    graders = log.eval.model_roles[GRADER]
+    assert isinstance(graders, list)
+    assert [mc.model for mc in graders] == [MOCK_A, MOCK_B]
 
 
 def test_model_role_list_eval_set_identity() -> None:
@@ -536,6 +527,7 @@ def test_model_role_list_eval_retry() -> None:
     log_retry = eval_retry(log)[0]
     assert log_retry.status == "success"
     assert log_retry.eval.model_roles is not None
-    assert log_retry.eval.model_roles[GRADER].model == MOCK_A
-    assert log_retry.eval.model_roles[f"{GRADER}#2"].model == MOCK_B
+    graders = log_retry.eval.model_roles[GRADER]
+    assert isinstance(graders, list)
+    assert [mc.model for mc in graders] == [MOCK_A, MOCK_B]
     check_model_role(log_retry, GRADER, MOCK_A)

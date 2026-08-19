@@ -89,11 +89,12 @@ def test_eval_log_to_run_config_dict_model_role_list() -> None:
         limit=1,
     )[0]
 
-    # the log stores the list under indexed keys
+    # the log stores the role as a list of model configs
     assert log.eval.model_roles is not None
-    assert set(log.eval.model_roles.keys()) == {"grader", "grader#2"}
+    assert set(log.eval.model_roles.keys()) == {"grader"}
+    assert isinstance(log.eval.model_roles["grader"], list)
 
-    # the exported run config regroups them into a list
+    # the exported run config carries the list through
     d = eval_log_to_run_config_dict(log)
     exported = d["model_roles"]["grader"]
     assert isinstance(exported, list)
@@ -173,9 +174,11 @@ def test_eval_log_run_config_round_trip() -> None:
     assert log2.plan.config.seed == log1.plan.config.seed
     assert log2.eval.config.limit == log1.eval.config.limit
     assert log2.eval.model_roles is not None
-    assert log2.eval.model_roles["grader"].model == "mockllm/model"
-    assert log2.eval.model_roles["grader"].config.temperature == 0.3
-    assert log2.eval.model_roles["grader"].config.max_tokens == 500
+    grader_config = log2.eval.model_roles["grader"]
+    assert not isinstance(grader_config, list)
+    assert grader_config.model == "mockllm/model"
+    assert grader_config.config.temperature == 0.3
+    assert grader_config.config.max_tokens == 500
 
 
 def test_sandbox_string_config() -> None:

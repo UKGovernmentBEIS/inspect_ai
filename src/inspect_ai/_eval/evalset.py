@@ -1448,14 +1448,17 @@ def task_identifier(
         # base_url is not hashed) and because several providers populate it
         # from env vars during init, which would make the identifier
         # environment-dependent.
+        role_exclude: dict[str, Any] = {
+            "base_url": True,
+            "config": _GENERATE_CONFIG_FIELDS_TO_EXCLUDE,
+        }
         additional_hash_input += to_json_safe(
             model_roles,
             exclude={
-                role: {
-                    "base_url": True,
-                    "config": _GENERATE_CONFIG_FIELDS_TO_EXCLUDE,
-                }
-                for role in model_roles
+                role: {"__all__": role_exclude}
+                if isinstance(value, list)
+                else role_exclude
+                for role, value in model_roles.items()
             },
         )
 
