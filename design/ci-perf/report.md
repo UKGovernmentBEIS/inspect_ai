@@ -35,8 +35,9 @@ top execution-side item after worksteal.
 mechanical blockers, all re-verified today with exact errors (proposal 2): the
 token cannot push `.github/workflows/**`, cannot create a PR on upstream, and the
 sandbox cannot write `.claude/**` — which is where the collector fix this run
-needed lives. Both PRs went to the fork, based on upstream `main` and ready to
-re-open there unchanged.
+needed lives. Both PRs went to the fork; a maintainer promoted them upstream
+(#4946, #4947) and then combined them — plus a skill change making one-PR-per-run
+the policy — into **#4948** (the promoted pair closed in its favor).
 
 ## Data-quality note (read before trusting any trend)
 
@@ -387,9 +388,9 @@ anticipated.
    (meridianlabs-ai/inspect_ai#247, #250). `load` is already nondeterministic, so
    this changes the distribution of co-location rather than introducing it; three
    full-suite runs under a completely different assignment came back green with
-   identical counts. Status: **PR opened** —
-   [meridianlabs-ai/inspect_ai#261](https://github.com/meridianlabs-ai/inspect_ai/pull/261)
-   on the fork, ready to open upstream unchanged.
+   identical counts. Status: **PR opened #4948** (originally fork PR
+   [#261](https://github.com/meridianlabs-ai/inspect_ai/pull/261), promoted
+   upstream as #4946, then combined with this report into #4948).
 
 2. **Unblock the scheduled run.** Three independent mechanical blockers, each
    re-verified today:
@@ -511,7 +512,7 @@ anticipated.
 
 ## PRs opened by this skill
 
-See `prs.md`. This run opened one fix PR
-([#261](https://github.com/meridianlabs-ai/inspect_ai/pull/261), proposal 1) and
-this report PR, both on the fork because upstream PR creation is blocked
-(proposal 2).
+See `prs.md`. This run's fix (proposal 1) and this report were opened as two
+fork PRs (#261, #262) because upstream PR creation is blocked (proposal 2); a
+maintainer promoted and combined them into **#4948**, which also changes the
+skill to ship each run's entire output as a single PR from now on.
