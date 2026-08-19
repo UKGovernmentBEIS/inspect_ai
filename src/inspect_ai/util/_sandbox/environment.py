@@ -32,6 +32,22 @@ from .exec_remote import (
 
 logger = logging.getLogger(__name__)
 
+
+class SandboxUnavailableError(RuntimeError):
+    """Raised when a provider cannot initiate a sandbox exec request.
+
+    This indicates that the sandbox is not running or provider-required
+    execution machinery is unavailable. It is distinct from failure to find
+    a caller-specified executable, which is reported through `ExecResult`.
+    Callers that surface `ExecResult` output to a model must not present the
+    provider's own failure as the command's output.
+
+    Tool calls turn this into a tool error of type `sandbox_unavailable`,
+    leaving the sample running. Other callers (scorers, solvers, setup code)
+    receive it as an ordinary exception.
+    """
+
+
 ST = TypeVar("ST", bound="SandboxEnvironment")
 
 TaskInit = Callable[[str, Union["SandboxEnvironmentConfigType", None]], Awaitable[None]]
@@ -118,7 +134,15 @@ class SandboxEnvironment(abc.ABC):
         The current working directory for execution will be the per-sample
         filesystem context.
 
-        By default, each output stream (stdout and stderr) is limited to 10 MiB. You can override this by setting the `INSPECT_SANDBOX_MAX_EXEC_OUTPUT_SIZE` environment variable (specified in bytes). If exceeded, an `OutputLimitExceededError` will be raised.
+        By default, each output stream (stdout and stderr) is limited to 10 MiB. You can override this by setting the `INSPECT_SANDBOX_MAX_EXEC_OUTPUT_SIZE` environment variable (specified in bytes).
+
+        Behaviour above this limit depends on the sandbox provider. A provider may
+        raise `OutputLimitExceededError`, or return only the trailing portion of
+        the output with the beginning discarded. Callers should therefore not
+        assume that returned output is complete or rely on an exception to detect
+        overflow. This is particularly important when parsing structured output
+        such as JSON. For large output, write to a file and use `read_file()`,
+        which always raises `OutputLimitExceededError` when the limit is exceeded.
 
         Args:
           cmd: Command or command and arguments to execute.
@@ -137,6 +161,10 @@ class SandboxEnvironment(abc.ABC):
           Execution result (status code, stderr/stdout, etc.)
 
         Raises:
+          SandboxUnavailableError: If the provider cannot initiate the exec
+            request because the sandbox is not running or provider-injected
+            execution machinery is unavailable. A missing caller-specified
+            executable is returned as an ordinary failed `ExecResult`.
           TimeoutError: If the specified `timeout` expires
             (and `timeout_retry` attempts also timeout).
           UnicodeDecodeError: May be raised if the sandbox provider
@@ -145,7 +173,7 @@ class SandboxEnvironment(abc.ABC):
             characters which cannot be decoded.
           PermissionError: If the user does not have
             permission to execute the command.
-          OutputLimitExceededError: If an output stream
+          OutputLimitExceededError: May be raised if an output stream
             exceeds the limit.
         """
         ...

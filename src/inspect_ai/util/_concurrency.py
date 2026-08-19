@@ -177,7 +177,7 @@ class ResizableLimiter:
     where a limit must be adjustable through the control channel (the sample,
     sandbox and subprocess limits, and — since the registry backs every static
     entry with one — any named ``concurrency()`` limit; see
-    ``design/control-channel.md`` phase 3).
+    ``design/ctl/control-channel.md`` phase 3).
 
     Each entry acquires on behalf of a fresh borrower token rather than the
     current task, so one task may hold several slots at once — preserving the

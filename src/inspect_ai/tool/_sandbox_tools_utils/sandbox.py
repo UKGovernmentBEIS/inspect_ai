@@ -104,9 +104,7 @@ async def _inject_container_tools_code(sandbox: SandboxEnvironment) -> None:
         # can be hidden from the agent; fall back to the default user for rootless
         # sandboxes (where user-switching will be disabled, auto-detected by the
         # server).
-        if (
-            await sandbox.exec(["mkdir", "-p", SANDBOX_TOOLS_DIR], user="root")
-        ).success:
+        if await _create_tools_dir_as_root(sandbox):
             sandbox._tools_user = "root"
         else:
             result = await sandbox.exec(["mkdir", "-p", SANDBOX_TOOLS_DIR])
@@ -141,6 +139,23 @@ async def _inject_container_tools_code(sandbox: SandboxEnvironment) -> None:
         raise SandboxInjectionError(
             f"Failed to inject sandbox tools into sandbox: {e}", cause=e
         ) from e
+
+
+async def _create_tools_dir_as_root(sandbox: SandboxEnvironment) -> bool:
+    try:
+        return (
+            await sandbox.exec(["mkdir", "-p", SANDBOX_TOOLS_DIR], user="root")
+        ).success
+    except Exception as ex:
+        # Broad catch is deliberate: providers signal "cannot exec as root" by
+        # raising provider-specific exception types, so no narrower type is
+        # available. Trade-off: any probe failure selects the rootless install.
+        trace_message(
+            logger,
+            TRACE_SANDBOX_TOOLS,
+            f"root sandbox tools dir probe failed; falling back to default user: {ex}",
+        )
+        return False
 
 
 async def _extract_tools_tree(
@@ -431,6 +446,14 @@ def _get_install_state() -> InstallState:
 def _check_main_divergence(url: str) -> Literal["clean", "edited"]:
     """Check if there are changes to sandbox tools files relative to main.
 
+    Only changes that ship in the built binary count: docs (`*.md`,
+    `design/`) and `tests/` under the injectable tree are excluded, mirroring
+    the CI `injectable_src` paths-filter (`.github/workflows/build.yml`,
+    `detect-slow` job) — keep the two in sync. CI skips the `-dev` build for
+    such changes, so classifying them "edited" would resolve a `-dev` binary
+    that never gets built (and prompt local developers to build one for a
+    doc-only edit).
+
     Returns:
         Literal["clean", "edited"]: The state of changes to sandbox tools files.
             - "clean": No changes to sandbox tools files relative to main branch,
@@ -467,16 +490,23 @@ def _check_main_divergence(url: str) -> Literal["clean", "edited"]:
             # Not a git repo, assume clean (not sure this is even possible)
             return "clean"
 
-        # Check for staged or unstaged changes to relevant paths
-        paths_to_check = [
-            "src/inspect_ai/tool/_sandbox_tools_utils/sandbox_tools_version.txt",
-            "src/inspect_sandbox_tools",
+        # Check for staged or unstaged changes to relevant paths. Each entry
+        # is a pathspec list: the injectable tree carries excludes matching
+        # the CI injectable_src filter (see docstring).
+        pathspecs_to_check = [
+            ["src/inspect_ai/tool/_sandbox_tools_utils/sandbox_tools_version.txt"],
+            [
+                "src/inspect_sandbox_tools",
+                ":(exclude)src/inspect_sandbox_tools/tests",
+                ":(exclude)src/inspect_sandbox_tools/design",
+                ":(exclude,glob)src/inspect_sandbox_tools/**/*.md",
+            ],
         ]
 
-        for path in paths_to_check:
+        for pathspecs in pathspecs_to_check:
             # Check for uncommitted changes (staged + unstaged)
             result = subprocess.run(
-                ["git", "status", "--porcelain", path],
+                ["git", "status", "--porcelain", "--", *pathspecs],
                 capture_output=True,
                 text=True,
                 check=False,
@@ -486,25 +516,43 @@ def _check_main_divergence(url: str) -> Literal["clean", "edited"]:
                 trace_message(
                     logger,
                     TRACE_SANDBOX_TOOLS,
-                    f"_check_for_changes: uncommitted changes (staged + unstaged) detected for {path}",
+                    f"_check_for_changes: uncommitted changes (staged + unstaged) detected for {pathspecs[0]}",
                 )
                 return "edited"
 
-            # Check for committed changes relative to main
+        main_ref = _resolve_main_ref(git_root)
+        if main_ref is None:
+            trace_message(
+                logger,
+                TRACE_SANDBOX_TOOLS,
+                "_check_for_changes: no main branch ref resolved",
+            )
+            return "clean"
+
+        for pathspecs in pathspecs_to_check:
+            # Check for committed changes relative to the freshest main ref
+            # available in common checkouts.
             result = subprocess.run(
-                ["git", "diff", "main", "--quiet", path],
+                ["git", "diff", main_ref, "--quiet", "--", *pathspecs],
                 capture_output=True,
                 text=True,
                 check=False,
                 cwd=git_root,
             )
-            if result.returncode != 0:
+            if result.returncode == 1:
                 trace_message(
                     logger,
                     TRACE_SANDBOX_TOOLS,
-                    f"_check_for_changes: diff's from main detected for {path}",
+                    f"_check_for_changes: diff's from {main_ref} detected for {pathspecs[0]}",
                 )
                 return "edited"
+            elif result.returncode != 0:
+                trace_message(
+                    logger,
+                    TRACE_SANDBOX_TOOLS,
+                    f"_check_for_changes: git diff failed for {pathspecs[0]}: {result}",
+                )
+                return "clean"
 
         trace_message(
             logger, TRACE_SANDBOX_TOOLS, "_check_for_changes: do changes detected"
@@ -517,3 +565,17 @@ def _check_main_divergence(url: str) -> Literal["clean", "edited"]:
             logger, TRACE_SANDBOX_TOOLS, f"_check_for_changes: caught exception {ex}"
         )
         return "clean"
+
+
+def _resolve_main_ref(git_root: Path) -> str | None:
+    for ref in ("origin/main", "main"):
+        result = subprocess.run(
+            ["git", "rev-parse", "--verify", ref],
+            capture_output=True,
+            text=True,
+            check=False,
+            cwd=git_root,
+        )
+        if result.returncode == 0:
+            return ref
+    return None

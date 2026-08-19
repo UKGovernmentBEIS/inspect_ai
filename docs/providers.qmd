@@ -43,7 +43,7 @@ The `openai` provider supports the following custom model args (other model args
 | `safety_identifier` | A stable identifier used to help detect users of your application. |
 | `prompt_cache_key` | Used by OpenAI to cache responses for similar requests. |
 | `prompt_cache_retention` | Retention policy for the prompt cache. |
-| `http_client` | Custom instance of `httpx.AsyncClient` for handling requests. |
+| `http_client` | Custom instance of `httpx2.AsyncClient` (or legacy `httpx.AsyncClient`) for handling requests. |
 
 : {tbl-colwidths=\[35,65\]}
 
@@ -506,14 +506,41 @@ inspect eval math.py --model mistral/azure/Mistral-Large-2411
 
 ## DeepSeek {#deepseek}
 
-[DeepSeek](https://www.deepseek.com/) provides an OpenAI compatible API endpoint which you can use with Inspect via the `openai-api` provider. To do this, define the `DEEPSEEK_API_KEY` and `DEEPSEEK_BASE_URL` environment variables then refer to models with `openai-api/deepseek/<model-name>`. For example:
+To use the [DeepSeek](https://www.deepseek.com/) provider, install the `openai` package (which the DeepSeek service provides a compatible backend for), set your credentials, and specify a model using the `--model` option:
 
 ``` bash
 pip install openai
 export DEEPSEEK_API_KEY=your-deepseek-api-key
-export DEEPSEEK_BASE_URL=https://api.deepseek.com
-inspect eval arc.py --model openai-api/deepseek/deepseek-reasoner
+inspect eval arc.py --model deepseek/deepseek-v4-pro
 ```
+
+DeepSeek V4 models (`deepseek-v4-pro` and `deepseek-v4-flash`) think by default. Use `--reasoning-effort` to control thinking (`none` disables it entirely) — see [Reasoning Effort](reasoning.qmd#reasoning-effort) for details. While thinking is enabled the API rejects forced tool choice, so the `deepseek` provider submits forced tool choices as `"auto"` (disable thinking to force tool use). Note that the legacy `deepseek-chat` and `deepseek-reasoner` model names were retired from the DeepSeek API on July 24th, 2026.
+
+The following environment variables are supported by the DeepSeek provider
+
+| Variable | Description |
+|----------------------------|--------------------------------------------|
+| `DEEPSEEK_API_KEY` | API key credentials (required). |
+| `DEEPSEEK_BASE_URL` | Base URL for requests (optional, defaults to `https://api.deepseek.com`). |
+
+## Moonshot AI {#moonshot-ai}
+
+To use the [Moonshot AI](https://platform.moonshot.ai/) provider (Kimi models), install the `openai` package (which the Moonshot AI service provides a compatible backend for), set your credentials, and specify a model using the `--model` option:
+
+``` bash
+pip install openai
+export MOONSHOT_API_KEY=your-moonshot-api-key
+inspect eval arc.py --model moonshot/kimi-k3
+```
+
+Note that Kimi K3 uses fixed sampling (Moonshot recommends omitting sampling parameters), so the `moonshot` provider does not pass `temperature`, `top_p`, or penalty options to K3 models. Similarly, K3's thinking effort currently only accepts `max`, so other `--reasoning-effort` values are submitted as `max`.
+
+The following environment variables are supported by the Moonshot AI provider
+
+| Variable | Description |
+|----------------------------|--------------------------------------------|
+| `MOONSHOT_API_KEY` | API key credentials (required). |
+| `MOONSHOT_BASE_URL` | Base URL for requests (optional, defaults to `https://api.moonshot.ai/v1`). |
 
 ## Grok {#grok}
 
@@ -548,6 +575,14 @@ inspect eval arc.py --model grok/grok-3-mini -M disable_retry=true
 ```
 
 This might be done if you are attempting to accurately track sample `working_time`---typically HTTP retries are subtracted from working time but the Grok provider uses GRPC which has no hooks available for requests and responses (while other providers do).
+
+The `grok` provider also supports a `service_tier` model argument that selects the xAI processing tier for requests (introduced alongside Grok 4.6; requires `xai_sdk` >= 1.17). For example, to use [Priority Processing](https://docs.x.ai/developers/grok-4-6) (billed at higher token rates):
+
+``` bash
+inspect eval arc.py --model grok/grok-4.6 -M service_tier=priority
+```
+
+Note that `service_tier` applies to standard requests only — [batch](models-batch.qmd) requests are processed on xAI's own batch tier, so the argument is omitted for them.
 
 Additional custom model args (`-M`) are forwarded to the constructor of the `AsynClient` class.
 
@@ -783,7 +818,7 @@ To use the [Fireworks AI](https://fireworks.ai/) provider, install the `openai` 
 ``` bash
 pip install openai
 export FIREWORKS_API_KEY=your-firewrks-api-key
-inspect eval arc.py --model fireworks/accounts/fireworks/models/deepseek-r1-0528
+inspect eval arc.py --model fireworks/accounts/fireworks/models/kimi-k3
 ```
 
 For the `fireworks` provider, you can enable [Tool Emulation](#tool-emulation-openai) using the `emulate_tools` custom model arg (`-M`). Other custom model args are forwarded to the constructor of the `AsyncOpenAI` class.
@@ -821,8 +856,10 @@ To use the [Cloudflare](https://developers.cloudflare.com/workers-ai/) provider,
 ``` bash
 export CLOUDFLARE_ACCOUNT_ID=account-id
 export CLOUDFLARE_API_TOKEN=api-token
-inspect eval arc.py --model cf/meta/llama-3.1-70b-instruct
+inspect eval arc.py --model cloudflare/@cf/meta/llama-3.1-70b-instruct
 ```
+
+Specify the model id exactly as it appears in Cloudflare's [model catalog](https://developers.cloudflare.com/workers-ai/models/): Workers AI model ids start with `@cf/`, while gateway-hosted models have plain ids (e.g. `cloudflare/moonshotai/kimi-k3`).
 
 For the `cloudflare` provider, custom model args (`-M`) are included as fields in the post body of the chat request.
 
@@ -1429,7 +1466,7 @@ Here is how you would access DeepSeek using the `openai-api` provider:
 ``` bash
 export DEEPSEEK_API_KEY=your-deepseek-api-key
 export DEEPSEEK_BASE_URL=https://api.deepseek.com
-inspect eval arc.py --model openai-api/deepseek/deepseek-reasoner
+inspect eval arc.py --model openai-api/deepseek/deepseek-v4-flash
 ```
 
 ### Responses API

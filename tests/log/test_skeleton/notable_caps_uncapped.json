@@ -1,0 +1,45 @@
+{
+  "description": "Additivity twin of notable_caps.json: identical events with a cap that persists all notables. Suppressing an item row equals summing its adjacent gaps — the capped fixture's gaps [1, 1, 3] are this fixture's [1, 1, 1, 1, 1] with the last two items dropped and their adjacent gaps merged (1 + 1 + 1 = 3).",
+  "policy": {"notable_cap": 4},
+  "events": [
+    {"event": "span_begin", "id": "S1", "name": "agent1", "type": "agent", "timestamp": "2026-01-01T00:00:00+00:00", "working_start": 0.0},
+    {"event": "model", "span_id": "S1", "model": "mockllm/model", "input": [], "tools": [], "tool_choice": "auto", "config": {}, "output": {}, "timestamp": "2026-01-01T00:00:01+00:00", "working_start": 1.0},
+    {"event": "score", "span_id": "S1", "score": {"value": 1}, "timestamp": "2026-01-01T00:00:02+00:00", "working_start": 2.0},
+    {"event": "model", "span_id": "S1", "model": "mockllm/model", "input": [], "tools": [], "tool_choice": "auto", "config": {}, "output": {}, "timestamp": "2026-01-01T00:00:03+00:00", "working_start": 3.0},
+    {"event": "score", "span_id": "S1", "score": {"value": 0}, "timestamp": "2026-01-01T00:00:04+00:00", "working_start": 4.0},
+    {"event": "model", "span_id": "S1", "model": "mockllm/model", "input": [], "tools": [], "tool_choice": "auto", "config": {}, "output": {}, "timestamp": "2026-01-01T00:00:05+00:00", "working_start": 5.0},
+    {"event": "score", "span_id": "S1", "score": {"value": 1}, "timestamp": "2026-01-01T00:00:06+00:00", "working_start": 6.0},
+    {"event": "model", "span_id": "S1", "model": "mockllm/model", "input": [], "tools": [], "tool_choice": "auto", "config": {}, "output": {}, "timestamp": "2026-01-01T00:00:07+00:00", "working_start": 7.0},
+    {"event": "score", "span_id": "S1", "score": {"value": 0}, "timestamp": "2026-01-01T00:00:08+00:00", "working_start": 8.0},
+    {"event": "model", "span_id": "S1", "model": "mockllm/model", "input": [], "tools": [], "tool_choice": "auto", "config": {}, "output": {}, "timestamp": "2026-01-01T00:00:09+00:00", "working_start": 9.0},
+    {"event": "span_end", "id": "S1", "timestamp": "2026-01-01T00:00:10+00:00", "working_start": 10.0},
+    {"event": "checkpoint", "checkpoint_id": 3, "trigger": "turn", "turn": 5, "created_at": "2026-01-01T00:00:11+00:00", "duration_ms": 10, "size_bytes": 100, "host": {"snapshot_id": "snap1", "size_bytes": 100, "duration_ms": 10}, "timestamp": "2026-01-01T00:00:11+00:00", "working_start": 11.0}
+  ],
+  "expected": {
+    "version": 1,
+    "counts": {"events": 12, "models": 5},
+    "spans": [
+      {
+        "id": "S1",
+        "name": "agent1",
+        "type": "agent",
+        "begin": 0,
+        "extent": [0, 10],
+        "t": ["2026-01-01T00:00:00+00:00", "2026-01-01T00:00:10+00:00"],
+        "working": [0.0, 10.0],
+        "events": 11,
+        "models": 5,
+        "gap_models": [1, 1, 1, 1, 1],
+        "children": {"model": 5, "score": 4}
+      }
+    ],
+    "notables": [
+      {"i": 2, "span": 0, "type": "score"},
+      {"i": 4, "span": 0, "type": "score"},
+      {"i": 6, "span": 0, "type": "score"},
+      {"i": 8, "span": 0, "type": "score"},
+      {"i": 11, "type": "checkpoint", "checkpoint_id": 3}
+    ],
+    "overflow": {}
+  }
+}

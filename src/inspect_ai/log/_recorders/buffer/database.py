@@ -5,12 +5,19 @@ import os
 import sqlite3
 import threading
 import time
-from collections.abc import Sequence
 from contextlib import contextmanager
 from logging import getLogger
 from pathlib import Path
 from sqlite3 import Connection, OperationalError
-from typing import TYPE_CHECKING, Callable, Iterable, Iterator, Literal, cast
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Iterable,
+    Iterator,
+    Literal,
+    TypeVar,
+)
 
 import psutil
 from pydantic import BaseModel, JsonValue
@@ -30,9 +37,10 @@ from inspect_ai._util.trace import trace_action
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._pool import (
     _call_pool_json,
-    _compress_refs,
     _msg_pool_json,
     _msg_pool_jsonable,
+    collect_pool_ref_positions,
+    remap_pool_refs,
 )
 from inspect_ai.event._pool_index import (
     CallPoolIndex,
@@ -45,6 +53,7 @@ from inspect_ai.model import ChatMessage
 from ..._condense import (
     ATTACHMENT_PROTOCOL,
     WalkContext,
+    attachment_refs_from_value,
     attachments_content_fn,
     walk_chat_message,
     walk_events,
@@ -55,6 +64,7 @@ from ..._condense import (
 from ..._log import EvalSampleSummary
 from ..types import SampleEvent
 from .filestore import (
+    SAMPLE_METADATA_IN_SUMMARY,
     Manifest,
     SampleBufferFilestore,
     SampleManifest,
@@ -72,6 +82,7 @@ from .types import (
     SampleBuffer,
     SampleData,
     Samples,
+    parse_sample_metadata,
 )
 
 logger = getLogger(__name__)
@@ -99,6 +110,8 @@ class SampleBufferDatabase(SampleBuffer):
         id TEXT,
         epoch INTEGER,
         data TEXT, -- JSON containing all other sample fields
+        sample_metadata TEXT, -- full sample metadata (summaries are intentionally thinned)
+        sample_metadata_hash TEXT, -- sidecar lookup key or exact-summary marker
         PRIMARY KEY (id, epoch)
     );
 
@@ -326,14 +339,41 @@ class SampleBufferDatabase(SampleBuffer):
             # Insert all rows
             conn.execute(sql, values)
 
-    def complete_sample(self, summary: EvalSampleSummary) -> None:
+    def complete_sample(
+        self,
+        summary: EvalSampleSummary,
+        *,
+        sample_metadata: dict[str, Any] | None,
+    ) -> None:
+        metadata_json = (
+            to_json_str_safe(sample_metadata) if sample_metadata is not None else None
+        )
+        metadata_hash = (
+            SAMPLE_METADATA_IN_SUMMARY
+            if sample_metadata is not None and sample_metadata == summary.metadata
+            else (
+                hashlib.sha256(metadata_json.encode("utf-8")).hexdigest()
+                if metadata_json is not None
+                else None
+            )
+        )
         with self._get_connection(write=True) as conn:
             summary = self._condense_sample(conn, summary)
             conn.execute(
                 """
-                UPDATE samples SET data = ? WHERE id = ? and epoch = ?
+                UPDATE samples
+                SET data = ?,
+                    sample_metadata = COALESCE(?, sample_metadata),
+                    sample_metadata_hash = COALESCE(?, sample_metadata_hash)
+                WHERE id = ? and epoch = ?
             """,
-                (to_json_str_safe(summary), str(summary.id), summary.epoch),
+                (
+                    to_json_str_safe(summary),
+                    metadata_json,
+                    metadata_hash,
+                    str(summary.id),
+                    summary.epoch,
+                ),
             )
 
             key = (str(summary.id), summary.epoch)
@@ -560,6 +600,47 @@ class SampleBufferDatabase(SampleBuffer):
         except FileNotFoundError:
             return None
 
+    @override
+    def get_sample_metadata(self, id: str | int, epoch: int) -> dict[str, Any] | None:
+        metadata_json = self._get_sample_metadata_json(id, epoch)
+        if metadata_json is None:
+            return None
+        return parse_sample_metadata(metadata_json, id=id, epoch=epoch)
+
+    def _get_sample_metadata_json(self, id: str | int, epoch: int) -> str | None:
+        return self._get_sample_metadata_value(id, epoch, "sample_metadata")
+
+    def _get_sample_metadata_hash(self, id: str | int, epoch: int) -> str | None:
+        return self._get_sample_metadata_value(id, epoch, "sample_metadata_hash")
+
+    def _get_sample_metadata_value(
+        self,
+        id: str | int,
+        epoch: int,
+        column: Literal["sample_metadata", "sample_metadata_hash"],
+    ) -> str | None:
+        if not self.db_path.exists():
+            return None
+
+        try:
+            with self._get_connection() as conn:
+                try:
+                    row = conn.execute(
+                        f"SELECT {column} FROM samples WHERE id = ? AND epoch = ?",
+                        (str(id), epoch),
+                    ).fetchone()
+                except OperationalError as ex:
+                    # Older buffers may lack either metadata column. Recovery
+                    # can fall back to sample_init; sync can derive the hash.
+                    if "no such column" in str(ex).lower():
+                        return None
+                    raise
+                if row is None or row[column] is None:
+                    return None
+                return str(row[column])
+        except FileNotFoundError:
+            return None
+
     def sample_event_count(self, id: str | int, epoch: int) -> int:
         with self._acquire_sample_read_lease(id, epoch):
             with self._get_connection() as conn:
@@ -670,9 +751,7 @@ class SampleBufferDatabase(SampleBuffer):
                     for row in self._get_events(conn, id, epoch, latest_only=True):
                         transcript_store.merge_condensed_event(
                             row.event_id,
-                            self._remap_pool_refs(
-                                row.event, message_pos_map, call_pos_map
-                            ),
+                            remap_pool_refs(row.event, message_pos_map, call_pos_map),
                             attachment_lookup,
                         )
                         seed_count += 1
@@ -682,27 +761,6 @@ class SampleBufferDatabase(SampleBuffer):
                     conn.rollback()
                     raise
 
-    @staticmethod
-    def _remap_pool_refs(
-        event: JsonData, message_pos_map: dict[int, int], call_pos_map: dict[int, int]
-    ) -> JsonData:
-        """Rewrite a condensed event's pool refs after exporting its pool entries."""
-        remapped = dict(event)
-        input_refs = remapped.get("input_refs")
-        if isinstance(input_refs, list):
-            remapped["input_refs"] = cast(
-                JsonValue, _remap_refs(input_refs, message_pos_map)
-            )
-        call = remapped.get("call")
-        if isinstance(call, dict):
-            call_refs = call.get("call_refs")
-            if isinstance(call_refs, list):
-                remapped["call"] = {
-                    **call,
-                    "call_refs": cast(JsonValue, _remap_refs(call_refs, call_pos_map)),
-                }
-        return remapped
-
     @contextmanager
     def open_sample_history_tail(
         self,
@@ -711,14 +769,18 @@ class SampleBufferDatabase(SampleBuffer):
         n: int,
     ) -> Iterator[SampleHistory]:
         if n <= 0:
-            yield SampleHistory([], [], [], {})
+            yield SampleHistory([], {}, {}, {}, page_scoped=True)
             return
 
         with self._acquire_sample_read_lease(id, epoch):
             with self._get_connection() as conn:
                 conn.execute("BEGIN")
                 history = self._sample_history(
-                    conn, id, epoch, self._get_events_tail(conn, id, epoch, n)
+                    conn,
+                    id,
+                    epoch,
+                    self._get_events_tail(conn, id, epoch, n),
+                    page_scoped=True,
                 )
                 conn.commit()
             yield history
@@ -739,6 +801,7 @@ class SampleBufferDatabase(SampleBuffer):
                     id,
                     epoch,
                     self._get_events_from(conn, id, epoch, start, limit),
+                    page_scoped=True,
                 )
                 conn.commit()
             yield history
@@ -767,18 +830,107 @@ class SampleBufferDatabase(SampleBuffer):
         id: str | int,
         epoch: int,
         events: Iterable[EventData],
+        *,
+        page_scoped: bool = False,
     ) -> SampleHistory:
-        message_pool = [
-            json.loads(entry.data) for entry in self._get_message_pool(conn, id, epoch)
-        ]
-        call_pool = [
-            json.loads(entry.data) for entry in self._get_call_pool(conn, id, epoch)
-        ]
-        attachments = {
-            entry.hash: entry.content
-            for entry in self._get_attachments(conn, id, epoch)
-        }
-        return SampleHistory(list(events), message_pool, call_pool, attachments)
+        """Assemble a ``SampleHistory`` for the given event rows.
+
+        With ``page_scoped``, only the pool entries and attachments actually
+        referenced by ``events`` are loaded, keeping per-page read cost
+        proportional to the page rather than the whole sample. Whole-history
+        reads load everything: their events reference (nearly) all of it
+        anyway, and the .eval recorder needs the complete pools to serialize
+        ``events_data``.
+        """
+        event_rows = list(events)
+        if page_scoped:
+            positions = collect_pool_ref_positions(row.event for row in event_rows)
+            message_pool = {
+                pos: json.loads(data)
+                for pos, data in self._get_pool_entries_at(
+                    conn, "message_pool", id, epoch, positions.message_positions
+                )
+            }
+            call_pool = {
+                pos: json.loads(data)
+                for pos, data in self._get_pool_entries_at(
+                    conn, "call_pool", id, epoch, positions.call_positions
+                )
+            }
+            hashes: set[str] = set()
+            for row in event_rows:
+                hashes.update(attachment_refs_from_value(row.event))
+            for pool_value in (*message_pool.values(), *call_pool.values()):
+                hashes.update(attachment_refs_from_value(pool_value))
+            attachments = self._get_sample_attachments_content(conn, id, epoch, hashes)
+        else:
+            message_pool = {
+                pos: json.loads(entry.data)
+                for pos, entry in enumerate(self._get_message_pool(conn, id, epoch))
+            }
+            call_pool = {
+                pos: json.loads(entry.data)
+                for pos, entry in enumerate(self._get_call_pool(conn, id, epoch))
+            }
+            attachments = {
+                entry.hash: entry.content
+                for entry in self._get_attachments(conn, id, epoch)
+            }
+        return SampleHistory(
+            event_rows, message_pool, call_pool, attachments, page_scoped=page_scoped
+        )
+
+    def _get_pool_entries_at(
+        self,
+        conn: Connection,
+        table: Literal["message_pool", "call_pool"],
+        id: str | int,
+        epoch: int,
+        positions: set[int],
+    ) -> Iterator[tuple[int, str]]:
+        """Pool entries at the given .eval positional indices.
+
+        Position equals insertion rank within the sample (rows are inserted in
+        pool-position order — see ``_condense_model_event``), so rank is
+        recovered with ROW_NUMBER over the autoincrement id.
+        """
+        if not positions:
+            return
+        query = f"""
+            WITH ordered AS (
+                SELECT ROW_NUMBER() OVER (ORDER BY id) - 1 AS pos, data
+                FROM {table}
+                WHERE sample_id = ? AND sample_epoch = ?
+            )
+            SELECT pos, data FROM ordered WHERE pos IN
+        """
+        for chunk in _chunked(sorted(positions), _SQLITE_MAX_VARIABLES):
+            placeholders = ",".join("?" * len(chunk))
+            for row in conn.execute(
+                f"{query} ({placeholders})", [str(id), epoch, *chunk]
+            ):
+                yield int(row["pos"]), str(row["data"])
+
+    def _get_sample_attachments_content(
+        self,
+        conn: Connection,
+        id: str | int,
+        epoch: int,
+        hashes: set[str],
+    ) -> dict[str, str]:
+        """The sample's attachment bodies for the given hashes (missing omitted)."""
+        attachments: dict[str, str] = {}
+        for chunk in _chunked(sorted(hashes), _SQLITE_MAX_VARIABLES):
+            placeholders = ",".join("?" * len(chunk))
+            for row in conn.execute(
+                f"""
+                SELECT hash, content FROM attachments
+                WHERE sample_id = ? AND sample_epoch = ? AND hash IN ({placeholders})
+                """,
+                [str(id), epoch, *chunk],
+            ):
+                attachments[str(row["hash"])] = str(row["content"])
+        return attachments
 
     @contextmanager
     def _acquire_sample_read_lease(
@@ -1592,18 +1744,22 @@ def sync_to_filestore(
     for sample in samples.samples:
         # lookup sample segments in the existing manifest
         # Copy before appending the next segment below.
-        segments = list(
-            next(
-                (
-                    s.segments
-                    for s in manifest.samples
-                    if s.summary.id == sample.id and s.summary.epoch == sample.epoch
-                ),
-                [],
-            )
+        existing = next(
+            (
+                s
+                for s in manifest.samples
+                if s.summary.id == sample.id and s.summary.epoch == sample.epoch
+            ),
+            None,
         )
         # add to manifests
-        sample_manifests.append(SampleManifest(summary=sample, segments=segments))
+        sample_manifests.append(
+            SampleManifest(
+                summary=sample,
+                segments=list(existing.segments) if existing is not None else [],
+                metadata_hash=existing.metadata_hash if existing is not None else None,
+            )
+        )
 
     # draft of new manifest has the new sample list and the existing segments
     manifest.metrics = samples.metrics
@@ -1628,6 +1784,29 @@ def sync_to_filestore(
     segment_files: list[SegmentFile] = []
     segment_by_id = {seg.id: seg for seg in manifest.segments}
     for manifest_sample in manifest.samples:
+        metadata_hash = db._get_sample_metadata_hash(
+            manifest_sample.summary.id, manifest_sample.summary.epoch
+        )
+        if metadata_hash == SAMPLE_METADATA_IN_SUMMARY:
+            manifest_sample.metadata_hash = SAMPLE_METADATA_IN_SUMMARY
+        elif (
+            metadata_hash is not None and metadata_hash != manifest_sample.metadata_hash
+        ):
+            metadata_json = db._get_sample_metadata_json(
+                manifest_sample.summary.id, manifest_sample.summary.epoch
+            )
+            if metadata_json is not None:
+                metadata_hash = hashlib.sha256(
+                    metadata_json.encode("utf-8")
+                ).hexdigest()
+                filestore.write_sample_metadata(
+                    manifest_sample.summary.id,
+                    manifest_sample.summary.epoch,
+                    metadata_hash,
+                    metadata_json.encode("utf-8"),
+                )
+                manifest_sample.metadata_hash = metadata_hash
+
         # take the max of last_*_id across all of this sample's segments, not
         # just the latest: each segment's last_*_id is 0 if no items of that
         # type were added there, so the latest alone can regress the cursor.
@@ -1731,19 +1910,15 @@ def maximum_ids(
     return event_id, attachment_id, message_pool_id, call_pool_id
 
 
-def _remap_refs(
-    refs: Sequence[object], pos_map: dict[int, int]
-) -> list[tuple[int, int]]:
-    """Translate pooled ref ranges after exporting pool entries into a new store."""
-    indices: list[int] = []
-    for ref in refs:
-        if not isinstance(ref, (list, tuple)) or len(ref) != 2:
-            continue
-        start, end = ref
-        if not isinstance(start, int) or not isinstance(end, int):
-            continue
-        indices.extend(pos_map[index] for index in range(start, end))
-    return _compress_refs(indices)
+# stay safely under SQLite's historical 999 bound-parameter limit
+_SQLITE_MAX_VARIABLES = 500
+
+_T = TypeVar("_T")
+
+
+def _chunked(items: list[_T], size: int) -> Iterator[list[_T]]:
+    for i in range(0, len(items), size):
+        yield items[i : i + size]
 
 
 def cleanup_sample_buffer_databases(db_dir: Path | None = None) -> None:

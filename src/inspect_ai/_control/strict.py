@@ -20,16 +20,38 @@ this policy itself by short-circuiting on safe methods, so every mutation
 route — including ones added later — is born strict with no per-route
 annotation to remember.
 
-``route.dependant`` and ``get_flat_dependant`` are FastAPI internals (no
+``route.dependant`` and the ``Dependant`` model are FastAPI internals (no
 public API exposes a route's declared query params), and the fastapi pin is
 unbounded. If a future FastAPI moves them, the error surfaces when
 ``_build_app`` imports this module, and ``control_server()`` degrades to
 running the eval without the control surface (warning logged) — the tests
 exercising this dependency keep that breakage visible in CI on version bumps.
+That already happened once: fastapi 0.140.7 removed ``get_flat_dependant``,
+which this module originally used, hence the local walk in
+:func:`_flat_query_param_names`.
 """
 
 from fastapi import Request
-from fastapi.dependencies.utils import get_flat_dependant
+from fastapi.dependencies.models import Dependant
+
+
+def _flat_query_param_names(dependant: Dependant) -> set[str]:
+    """Names/aliases of query params declared anywhere in a dependant tree.
+
+    Includes params declared by sub-dependencies, which
+    ``dependant.query_params`` alone would miss (falsely 400ing). This is
+    the query-param slice of fastapi's ``get_flat_dependant``, done locally
+    because fastapi 0.140.7 removed that helper and its successor
+    (``get_flat_params``) merges path/header/cookie params in — this walk
+    works on every fastapi version in the supported range.
+    """
+    names: set[str] = set()
+    stack = [dependant]
+    while stack:
+        d = stack.pop()
+        names.update(param.alias or param.name for param in d.query_params)
+        stack.extend(d.dependencies)
+    return names
 
 
 class UnknownQueryParamsError(Exception):
@@ -74,12 +96,7 @@ async def reject_unknown_query_params(request: Request) -> None:
     """
     if request.method in ("GET", "HEAD", "OPTIONS"):
         return
-    # get_flat_dependant includes query params declared by sub-dependencies,
-    # which route.dependant.query_params alone would miss (falsely 400ing).
-    allowed = {
-        param.alias or param.name
-        for param in get_flat_dependant(request.scope["route"].dependant).query_params
-    }
+    allowed = _flat_query_param_names(request.scope["route"].dependant)
     unknown = sorted(set(request.query_params.keys()) - allowed)
     if unknown:
         raise UnknownQueryParamsError(unknown)

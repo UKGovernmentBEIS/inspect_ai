@@ -1834,7 +1834,7 @@ function benchmark({ url, iterations = 10 }, { dispatch }) {
 			}
 			const duration = (performance.now() - startTime) / 1e3;
 			const throughput = byteCount * iterations / duration;
-			const throughputMbs = byteCount / (1024 * 1024) * iterations / duration;
+			const throughputMbs = byteCount / 1048576 * iterations / duration;
 			console.info("benchmark: result", {
 				byteCount,
 				iterations,
@@ -4933,49 +4933,49 @@ function drawBlockGlyph(ctx, codepoint, x, y) {
 			ctx.fillRect(x, y, BLOCK_H_RES, halfY);
 			break;
 		case 9601:
-			ctx.fillRect(x, y + unitY * 7, BLOCK_H_RES, unitY);
+			ctx.fillRect(x, y + 21, BLOCK_H_RES, unitY);
 			break;
 		case 9602:
-			ctx.fillRect(x, y + unitY * 6, BLOCK_H_RES, unitY * 2);
+			ctx.fillRect(x, y + 18, BLOCK_H_RES, 6);
 			break;
 		case 9603:
-			ctx.fillRect(x, y + unitY * 5, BLOCK_H_RES, unitY * 3);
+			ctx.fillRect(x, y + 15, BLOCK_H_RES, 9);
 			break;
 		case 9604:
 			ctx.fillRect(x, y + halfY, BLOCK_H_RES, halfY);
 			break;
 		case 9605:
-			ctx.fillRect(x, y + unitY * 3, BLOCK_H_RES, unitY * 5);
+			ctx.fillRect(x, y + 9, BLOCK_H_RES, 15);
 			break;
 		case 9606:
-			ctx.fillRect(x, y + unitY * 2, BLOCK_H_RES, unitY * 6);
+			ctx.fillRect(x, y + 6, BLOCK_H_RES, 18);
 			break;
 		case 9607:
-			ctx.fillRect(x, y + unitY, BLOCK_H_RES, unitY * 7);
+			ctx.fillRect(x, y + unitY, BLOCK_H_RES, 21);
 			break;
 		case 9608:
 			ctx.fillRect(x, y, BLOCK_H_RES, BLOCK_V_RES);
 			break;
 		case 9632:
-			ctx.fillRect(x, y + unitY * 2, BLOCK_H_RES, unitY * 4);
+			ctx.fillRect(x, y + 6, BLOCK_H_RES, 12);
 			break;
 		case 9609:
-			ctx.fillRect(x, y, unitX * 7, BLOCK_V_RES);
+			ctx.fillRect(x, y, 7, BLOCK_V_RES);
 			break;
 		case 9610:
-			ctx.fillRect(x, y, unitX * 6, BLOCK_V_RES);
+			ctx.fillRect(x, y, 6, BLOCK_V_RES);
 			break;
 		case 9611:
-			ctx.fillRect(x, y, unitX * 5, BLOCK_V_RES);
+			ctx.fillRect(x, y, 5, BLOCK_V_RES);
 			break;
 		case 9612:
 			ctx.fillRect(x, y, halfX, BLOCK_V_RES);
 			break;
 		case 9613:
-			ctx.fillRect(x, y, unitX * 3, BLOCK_V_RES);
+			ctx.fillRect(x, y, 3, BLOCK_V_RES);
 			break;
 		case 9614:
-			ctx.fillRect(x, y, unitX * 2, BLOCK_V_RES);
+			ctx.fillRect(x, y, 2, BLOCK_V_RES);
 			break;
 		case 9615:
 			ctx.fillRect(x, y, unitX, BLOCK_V_RES);
@@ -5005,7 +5005,7 @@ function drawBlockGlyph(ctx, codepoint, x, y) {
 			ctx.fillRect(x, y, BLOCK_H_RES, unitY);
 			break;
 		case 9621:
-			ctx.fillRect(x + unitX * 7, y, unitX, BLOCK_V_RES);
+			ctx.fillRect(x + 7, y, unitX, BLOCK_V_RES);
 			break;
 		case 9622:
 			ctx.fillRect(x, y + halfY, halfX, halfY);
@@ -5050,7 +5050,7 @@ function drawBlockGlyph(ctx, codepoint, x, y) {
 			ctx.fillRect(x + sextantX, y, sextantX, sextantY);
 			break;
 		case 129794:
-			ctx.fillRect(x, y, sextantX * 2, sextantY);
+			ctx.fillRect(x, y, 8, sextantY);
 			break;
 		case 129795:
 			ctx.fillRect(x, y + sextantY, sextantX, sextantY);
@@ -5064,7 +5064,7 @@ function drawBlockGlyph(ctx, codepoint, x, y) {
 			ctx.fillRect(x, y + sextantY, sextantX, sextantY);
 			break;
 		case 129798:
-			ctx.fillRect(x, y, sextantX * 2, sextantY);
+			ctx.fillRect(x, y, 8, sextantY);
 			ctx.fillRect(x, y + sextantY, sextantX, sextantY);
 			break;
 		case 129799:
@@ -5079,209 +5079,208 @@ function drawBlockGlyph(ctx, codepoint, x, y) {
 			ctx.fillRect(x + sextantX, y + sextantY, sextantX, sextantY);
 			break;
 		case 129802:
-			ctx.fillRect(x, y, sextantX * 2, sextantY);
+			ctx.fillRect(x, y, 8, sextantY);
 			ctx.fillRect(x + sextantX, y + sextantY, sextantX, sextantY);
 			break;
 		case 129803:
-			ctx.fillRect(x, y + sextantY, sextantX * 2, sextantY);
+			ctx.fillRect(x, y + sextantY, 8, sextantY);
 			break;
 		case 129804:
 			ctx.fillRect(x, y, sextantX, sextantY);
-			ctx.fillRect(x, y + sextantY, sextantX * 2, sextantY);
+			ctx.fillRect(x, y + sextantY, 8, sextantY);
 			break;
 		case 129805:
 			ctx.fillRect(x + sextantX, y, sextantX, sextantY);
-			ctx.fillRect(x, y + sextantY, sextantX * 2, sextantY);
+			ctx.fillRect(x, y + sextantY, 8, sextantY);
 			break;
 		case 129806:
-			ctx.fillRect(x, y, sextantX * 2, sextantY);
-			ctx.fillRect(x, y + sextantY, sextantX * 2, sextantY);
+			ctx.fillRect(x, y, 8, sextantY);
+			ctx.fillRect(x, y + sextantY, 8, sextantY);
 			break;
 		case 129807:
-			ctx.fillRect(x, y + sextantY * 2, sextantX, sextantY);
+			ctx.fillRect(x, y + 16, sextantX, sextantY);
 			break;
 		case 129808:
 			ctx.fillRect(x, y, sextantX, sextantY);
-			ctx.fillRect(x, y + sextantY * 2, sextantX, sextantY);
+			ctx.fillRect(x, y + 16, sextantX, sextantY);
 			break;
 		case 129809:
 			ctx.fillRect(x + sextantX, y, sextantX, sextantY);
-			ctx.fillRect(x, y + sextantY * 2, sextantX, sextantY);
+			ctx.fillRect(x, y + 16, sextantX, sextantY);
 			break;
 		case 129810:
-			ctx.fillRect(x, y, sextantX * 2, sextantY);
-			ctx.fillRect(x, y + sextantY * 2, sextantX, sextantY);
+			ctx.fillRect(x, y, 8, sextantY);
+			ctx.fillRect(x, y + 16, sextantX, sextantY);
 			break;
 		case 129811:
-			ctx.fillRect(x, y + sextantY, sextantX, sextantY * 2);
+			ctx.fillRect(x, y + sextantY, sextantX, 16);
 			break;
 		case 129812:
 			ctx.fillRect(x + sextantX, y, sextantX, sextantY);
-			ctx.fillRect(x, y + sextantY, sextantX, sextantY * 2);
+			ctx.fillRect(x, y + sextantY, sextantX, 16);
 			break;
 		case 129813:
-			ctx.fillRect(x, y, sextantX * 2, sextantY);
-			ctx.fillRect(x, y + sextantY, sextantX, sextantY * 2);
+			ctx.fillRect(x, y, 8, sextantY);
+			ctx.fillRect(x, y + sextantY, sextantX, 16);
 			break;
 		case 129814:
 			ctx.fillRect(x + sextantX, y + sextantY, sextantX, sextantY);
-			ctx.fillRect(x, y + sextantY * 2, sextantX, sextantY);
+			ctx.fillRect(x, y + 16, sextantX, sextantY);
 			break;
 		case 129815:
 			ctx.fillRect(x, y, sextantX, sextantY);
 			ctx.fillRect(x + sextantX, y + sextantY, sextantX, sextantY);
-			ctx.fillRect(x, y + sextantY * 2, sextantX, sextantY);
+			ctx.fillRect(x, y + 16, sextantX, sextantY);
 			break;
 		case 129816:
-			ctx.fillRect(x + sextantX, y, sextantX, sextantY * 2);
-			ctx.fillRect(x, y + sextantY * 2, sextantX, sextantY);
+			ctx.fillRect(x + sextantX, y, sextantX, 16);
+			ctx.fillRect(x, y + 16, sextantX, sextantY);
 			break;
 		case 129817:
-			ctx.fillRect(x, y, sextantX * 2, sextantY);
+			ctx.fillRect(x, y, 8, sextantY);
 			ctx.fillRect(x + sextantX, y + sextantY, sextantX, sextantY);
-			ctx.fillRect(x, y + sextantY * 2, sextantX, sextantY);
+			ctx.fillRect(x, y + 16, sextantX, sextantY);
 			break;
 		case 129818:
-			ctx.fillRect(x, y + sextantY, sextantX * 2, sextantY);
-			ctx.fillRect(x, y + sextantY * 2, sextantX, sextantY);
+			ctx.fillRect(x, y + sextantY, 8, sextantY);
+			ctx.fillRect(x, y + 16, sextantX, sextantY);
 			break;
 		case 129819:
-			ctx.fillRect(x, y, sextantX, sextantY * 3);
+			ctx.fillRect(x, y, sextantX, 24);
 			ctx.fillRect(x + sextantX, y + sextantY, sextantX, sextantY);
 			break;
 		case 129820:
 			ctx.fillRect(x + sextantX, y, sextantX, sextantY);
-			ctx.fillRect(x, y + sextantY, sextantX * 2, sextantY);
-			ctx.fillRect(x, y + sextantY * 2, sextantX, sextantY);
+			ctx.fillRect(x, y + sextantY, 8, sextantY);
+			ctx.fillRect(x, y + 16, sextantX, sextantY);
 			break;
 		case 129821:
-			ctx.fillRect(x, y, sextantX * 2, sextantY * 2);
-			ctx.fillRect(x, y + sextantY * 2, sextantX, sextantY);
+			ctx.fillRect(x, y, 8, 16);
+			ctx.fillRect(x, y + 16, sextantX, sextantY);
 			break;
 		case 129822:
-			ctx.fillRect(x + sextantX, y + sextantY * 2, sextantX, sextantY);
+			ctx.fillRect(x + sextantX, y + 16, sextantX, sextantY);
 			break;
 		case 129823:
 			ctx.fillRect(x, y, sextantX, sextantY);
-			ctx.fillRect(x + sextantX, y + sextantY * 2, sextantX, sextantY);
+			ctx.fillRect(x + sextantX, y + 16, sextantX, sextantY);
 			break;
 		case 129824:
 			ctx.fillRect(x + sextantX, y, sextantX, sextantY);
-			ctx.fillRect(x + sextantX, y + sextantY * 2, sextantX, sextantY);
+			ctx.fillRect(x + sextantX, y + 16, sextantX, sextantY);
 			break;
 		case 129825:
-			ctx.fillRect(x, y, sextantX * 2, sextantY);
-			ctx.fillRect(x + sextantX, y + sextantY * 2, sextantX, sextantY);
+			ctx.fillRect(x, y, 8, sextantY);
+			ctx.fillRect(x + sextantX, y + 16, sextantX, sextantY);
 			break;
 		case 129826:
 			ctx.fillRect(x, y + sextantY, sextantX, sextantY);
-			ctx.fillRect(x + sextantX, y + sextantY * 2, sextantX, sextantY);
+			ctx.fillRect(x + sextantX, y + 16, sextantX, sextantY);
 			break;
 		case 129827:
-			ctx.fillRect(x, y, sextantX, sextantY * 2);
-			ctx.fillRect(x + sextantX, y + sextantY * 2, sextantX, sextantY);
+			ctx.fillRect(x, y, sextantX, 16);
+			ctx.fillRect(x + sextantX, y + 16, sextantX, sextantY);
 			break;
 		case 129828:
 			ctx.fillRect(x + sextantX, y, sextantX, sextantY);
 			ctx.fillRect(x, y + sextantY, sextantX, sextantY);
-			ctx.fillRect(x + sextantX, y + sextantY * 2, sextantX, sextantY);
+			ctx.fillRect(x + sextantX, y + 16, sextantX, sextantY);
 			break;
 		case 129829:
-			ctx.fillRect(x, y, sextantX * 2, sextantY);
+			ctx.fillRect(x, y, 8, sextantY);
 			ctx.fillRect(x, y + sextantY, sextantX, sextantY);
-			ctx.fillRect(x + sextantX, y + sextantY * 2, sextantX, sextantY);
+			ctx.fillRect(x + sextantX, y + 16, sextantX, sextantY);
 			break;
 		case 129830:
-			ctx.fillRect(x + sextantX, y + sextantY, sextantX, sextantY * 2);
+			ctx.fillRect(x + sextantX, y + sextantY, sextantX, 16);
 			break;
 		case 129831:
 			ctx.fillRect(x, y, sextantX, sextantY);
-			ctx.fillRect(x + sextantX, y + sextantY, sextantX, sextantY * 2);
+			ctx.fillRect(x + sextantX, y + sextantY, sextantX, 16);
 			break;
 		case 129832:
-			ctx.fillRect(x, y, sextantX * 2, sextantY);
-			ctx.fillRect(x + sextantX, y + sextantY, sextantX, sextantY * 2);
+			ctx.fillRect(x, y, 8, sextantY);
+			ctx.fillRect(x + sextantX, y + sextantY, sextantX, 16);
 			break;
 		case 129833:
-			ctx.fillRect(x, y + sextantY, sextantX * 2, sextantY);
-			ctx.fillRect(x + sextantX, y + sextantY * 2, sextantX, sextantY);
+			ctx.fillRect(x, y + sextantY, 8, sextantY);
+			ctx.fillRect(x + sextantX, y + 16, sextantX, sextantY);
 			break;
 		case 129834:
-			ctx.fillRect(x, y, sextantX, sextantY * 2);
-			ctx.fillRect(x + sextantX, y + sextantY, sextantX, sextantY * 2);
+			ctx.fillRect(x, y, sextantX, 16);
+			ctx.fillRect(x + sextantX, y + sextantY, sextantX, 16);
 			break;
 		case 129835:
 			ctx.fillRect(x + sextantX, y, sextantX, sextantY);
-			ctx.fillRect(x, y + sextantY, sextantX * 2, sextantY);
-			ctx.fillRect(x + sextantX, y + sextantY * 2, sextantX, sextantY);
+			ctx.fillRect(x, y + sextantY, 8, sextantY);
+			ctx.fillRect(x + sextantX, y + 16, sextantX, sextantY);
 			break;
 		case 129836:
-			ctx.fillRect(x, y, sextantX * 2, sextantY * 2);
-			ctx.fillRect(x + sextantX, y + sextantY * 2, sextantX, sextantY);
+			ctx.fillRect(x, y, 8, 16);
+			ctx.fillRect(x + sextantX, y + 16, sextantX, sextantY);
 			break;
 		case 129837:
-			ctx.fillRect(x, y + sextantY * 2, sextantX * 2, sextantY);
+			ctx.fillRect(x, y + 16, 8, sextantY);
 			break;
 		case 129838:
 			ctx.fillRect(x, y, sextantX, sextantY);
-			ctx.fillRect(x, y + sextantY * 2, sextantX * 2, sextantY);
+			ctx.fillRect(x, y + 16, 8, sextantY);
 			break;
 		case 129839:
 			ctx.fillRect(x + sextantX, y, sextantX, sextantY);
-			ctx.fillRect(x, y + sextantY * 2, sextantX * 2, sextantY);
+			ctx.fillRect(x, y + 16, 8, sextantY);
 			break;
 		case 129840:
-			ctx.fillRect(x, y, sextantX * 2, sextantY);
-			ctx.fillRect(x, y + sextantY * 2, sextantX * 2, sextantY);
+			ctx.fillRect(x, y, 8, sextantY);
+			ctx.fillRect(x, y + 16, 8, sextantY);
 			break;
 		case 129841:
 			ctx.fillRect(x, y + sextantY, sextantX, sextantY);
-			ctx.fillRect(x, y + sextantY * 2, sextantX * 2, sextantY);
+			ctx.fillRect(x, y + 16, 8, sextantY);
 			break;
 		case 129842:
-			ctx.fillRect(x, y, sextantX, sextantY * 2);
-			ctx.fillRect(x, y + sextantY * 2, sextantX * 2, sextantY);
+			ctx.fillRect(x, y, sextantX, 16);
+			ctx.fillRect(x, y + 16, 8, sextantY);
 			break;
 		case 129843:
 			ctx.fillRect(x + sextantX, y, sextantX, sextantY);
 			ctx.fillRect(x, y + sextantY, sextantX, sextantY);
-			ctx.fillRect(x, y + sextantY * 2, sextantX * 2, sextantY);
+			ctx.fillRect(x, y + 16, 8, sextantY);
 			break;
 		case 129844:
-			ctx.fillRect(x, y, sextantX * 2, sextantY);
+			ctx.fillRect(x, y, 8, sextantY);
 			ctx.fillRect(x, y + sextantY, sextantX, sextantY);
-			ctx.fillRect(x, y + sextantY * 2, sextantX * 2, sextantY);
+			ctx.fillRect(x, y + 16, 8, sextantY);
 			break;
 		case 129845:
 			ctx.fillRect(x + sextantX, y + sextantY, sextantX, sextantY);
-			ctx.fillRect(x, y + sextantY * 2, sextantX * 2, sextantY);
+			ctx.fillRect(x, y + 16, 8, sextantY);
 			break;
 		case 129846:
 			ctx.fillRect(x, y, sextantX, sextantY);
 			ctx.fillRect(x + sextantX, y + sextantY, sextantX, sextantY);
-			ctx.fillRect(x, y + sextantY * 2, sextantX * 2, sextantY);
+			ctx.fillRect(x, y + 16, 8, sextantY);
 			break;
 		case 129847:
-			ctx.fillRect(x + sextantX, y, sextantX, sextantY * 2);
-			ctx.fillRect(x, y + sextantY * 2, sextantX * 2, sextantY);
+			ctx.fillRect(x + sextantX, y, sextantX, 16);
+			ctx.fillRect(x, y + 16, 8, sextantY);
 			break;
 		case 129848:
-			ctx.fillRect(x, y, sextantX * 2, sextantY);
+			ctx.fillRect(x, y, 8, sextantY);
 			ctx.fillRect(x + sextantX, y + sextantY, sextantX, sextantY);
-			ctx.fillRect(x, y + sextantY * 2, sextantX * 2, sextantY);
+			ctx.fillRect(x, y + 16, 8, sextantY);
 			break;
 		case 129849:
-			ctx.fillRect(x, y + sextantY, sextantX * 2, sextantY * 2);
+			ctx.fillRect(x, y + sextantY, 8, 16);
 			break;
 		case 129850:
-			ctx.fillRect(x, y, sextantX, sextantY * 3);
+			ctx.fillRect(x, y, sextantX, 24);
 			ctx.fillRect(x + sextantX, y + sextantY, sextantX, sextantY);
-			ctx.fillRect(x + sextantX, y + sextantY * 2, sextantX, sextantY);
+			ctx.fillRect(x + sextantX, y + 16, sextantX, sextantY);
 			break;
 		case 129851:
 			ctx.fillRect(x + sextantX, y, sextantX, sextantY);
-			ctx.fillRect(x, y + sextantY, sextantX * 2, sextantY * 2);
-			break;
+			ctx.fillRect(x, y + sextantY, 8, 16);
 	}
 }
 var SYMBOL_STROKE = .05;
@@ -5298,16 +5297,12 @@ function getVectorSymbolDef(codepoint) {
 		case 9700: return "<path d=\"M0,0 L1,0 L0,1 Z\" fill=\"currentColor\"/>" + stroked("M0,0 L1,0 L0,1 Z");
 		case 9701: return "<path d=\"M1,0 L1,1 L0,0 Z\" fill=\"currentColor\"/>" + stroked("M1,0 L1,1 L0,0 Z");
 		case 9871: {
-			const horizontalGap = .15;
-			const verticalGap = .2;
-			const lineHeight = .17;
-			const halfHorizontalGap = horizontalGap / 2;
-			const halfVerticalGap = verticalGap / 2;
+			const halfVerticalGap = .2 / 2;
 			const toViewBoxY = (offset) => .5 + offset * CELL_RATIO;
-			const leftX1 = .5 - halfHorizontalGap;
+			const leftX1 = .425;
 			const rightX0 = .575;
 			const rightX1 = 1.02;
-			const topY0 = toViewBoxY(-.1 - lineHeight);
+			const topY0 = toViewBoxY(-.27);
 			const topY1 = toViewBoxY(-.1);
 			const bottomY0 = toViewBoxY(halfVerticalGap);
 			const bottomY1 = toViewBoxY(.27);
@@ -5451,7 +5446,13 @@ var _tmpl$$8 = /*#__PURE__*/ template(`<svg xmlns="http://www.w3.org/2000/svg" v
 var SpeakerOffIcon = (props) => {
 	return _tmpl$$8.cloneNode(true);
 };
-var _tmpl$$7 = /*#__PURE__*/ template(`<button class="ap-button ap-playback-button" type="button"></button>`, 2), _tmpl$2$2 = /*#__PURE__*/ template(`<span class="ap-bar"><span class="ap-gutter ap-gutter-empty"></span><span class="ap-gutter ap-gutter-full"></span></span>`, 6), _tmpl$3$1 = /*#__PURE__*/ template(`<span class="ap-tooltip">Unmute (m)</span>`, 2), _tmpl$4$1 = /*#__PURE__*/ template(`<span class="ap-tooltip">Mute (m)</span>`, 2), _tmpl$5$1 = /*#__PURE__*/ template(`<button class="ap-button ap-speaker-button ap-tooltip-container" type="button" aria-label="Mute / unmute"></button>`, 2), _tmpl$6$1 = /*#__PURE__*/ template(`<div class="ap-control-bar"><span class="ap-timer"><span class="ap-time-elapsed"></span><span class="ap-time-remaining"></span></span><span class="ap-progressbar"></span><button class="ap-button ap-kbd-button ap-tooltip-container" type="button" aria-label="Show keyboard shortcuts"><span class="ap-tooltip">Keyboard shortcuts (?)</span></button><button class="ap-button ap-fullscreen-button ap-tooltip-container" type="button" aria-label="Toggle fullscreen mode"><span class="ap-tooltip">Fullscreen (f)</span></button></div>`, 18), _tmpl$7$1 = /*#__PURE__*/ template(`<span class="ap-marker-container ap-tooltip-container"><span class="ap-marker"></span><span class="ap-tooltip"></span></span>`, 6);
+var _tmpl$$7 = /*#__PURE__*/ template(`<button class="ap-button ap-playback-button" type="button"></button>`, 2);
+var _tmpl$2$2 = /*#__PURE__*/ template(`<span class="ap-bar"><span class="ap-gutter ap-gutter-empty"></span><span class="ap-gutter ap-gutter-full"></span></span>`, 6);
+var _tmpl$3$1 = /*#__PURE__*/ template(`<span class="ap-tooltip">Unmute (m)</span>`, 2);
+var _tmpl$4$1 = /*#__PURE__*/ template(`<span class="ap-tooltip">Mute (m)</span>`, 2);
+var _tmpl$5$1 = /*#__PURE__*/ template(`<button class="ap-button ap-speaker-button ap-tooltip-container" type="button" aria-label="Mute / unmute"></button>`, 2);
+var _tmpl$6$1 = /*#__PURE__*/ template(`<div class="ap-control-bar"><span class="ap-timer"><span class="ap-time-elapsed"></span><span class="ap-time-remaining"></span></span><span class="ap-progressbar"></span><button class="ap-button ap-kbd-button ap-tooltip-container" type="button" aria-label="Show keyboard shortcuts"><span class="ap-tooltip">Keyboard shortcuts (?)</span></button><button class="ap-button ap-fullscreen-button ap-tooltip-container" type="button" aria-label="Toggle fullscreen mode"><span class="ap-tooltip">Fullscreen (f)</span></button></div>`, 18);
+var _tmpl$7$1 = /*#__PURE__*/ template(`<span class="ap-marker-container ap-tooltip-container"><span class="ap-marker"></span><span class="ap-tooltip"></span></span>`, 6);
 function formatTime(seconds) {
 	let s = Math.floor(seconds);
 	const d = Math.floor(s / 86400);
@@ -5656,7 +5657,14 @@ var StartOverlay = (props) => {
 	})();
 };
 delegateEvents(["click"]);
-var _tmpl$$2 = /*#__PURE__*/ template(`<li><kbd>space</kbd> - pause / resume</li>`, 4), _tmpl$2$1 = /*#__PURE__*/ template(`<li><kbd>←</kbd> / <kbd>→</kbd> - rewind / fast-forward by 5 seconds</li>`, 6), _tmpl$3 = /*#__PURE__*/ template(`<li><kbd>Shift</kbd> + <kbd>←</kbd> / <kbd>→</kbd> - rewind / fast-forward by 10%</li>`, 8), _tmpl$4 = /*#__PURE__*/ template(`<li><kbd>[</kbd> / <kbd>]</kbd> - jump to the previous / next marker</li>`, 6), _tmpl$5 = /*#__PURE__*/ template(`<li><kbd>0</kbd>, <kbd>1</kbd>, <kbd>2</kbd> ... <kbd>9</kbd> - jump to 0%, 10%, 20% ... 90%</li>`, 10), _tmpl$6 = /*#__PURE__*/ template(`<li><kbd>,</kbd> / <kbd>.</kbd> - step back / forward, a frame at a time (when paused)</li>`, 6), _tmpl$7 = /*#__PURE__*/ template(`<li><kbd>m</kbd> - mute / unmute audio</li>`, 4), _tmpl$8 = /*#__PURE__*/ template(`<div class="ap-overlay ap-overlay-help"><div><div><p>Keyboard shortcuts</p><ul><li><kbd>f</kbd> - toggle fullscreen mode</li><li><kbd>k</kbd> - toggle keystroke overlay</li><li><kbd>?</kbd> - show this help popup</li></ul></div></div></div>`, 22);
+var _tmpl$$2 = /*#__PURE__*/ template(`<li><kbd>space</kbd> - pause / resume</li>`, 4);
+var _tmpl$2$1 = /*#__PURE__*/ template(`<li><kbd>←</kbd> / <kbd>→</kbd> - rewind / fast-forward by 5 seconds</li>`, 6);
+var _tmpl$3 = /*#__PURE__*/ template(`<li><kbd>Shift</kbd> + <kbd>←</kbd> / <kbd>→</kbd> - rewind / fast-forward by 10%</li>`, 8);
+var _tmpl$4 = /*#__PURE__*/ template(`<li><kbd>[</kbd> / <kbd>]</kbd> - jump to the previous / next marker</li>`, 6);
+var _tmpl$5 = /*#__PURE__*/ template(`<li><kbd>0</kbd>, <kbd>1</kbd>, <kbd>2</kbd> ... <kbd>9</kbd> - jump to 0%, 10%, 20% ... 90%</li>`, 10);
+var _tmpl$6 = /*#__PURE__*/ template(`<li><kbd>,</kbd> / <kbd>.</kbd> - step back / forward, a frame at a time (when paused)</li>`, 6);
+var _tmpl$7 = /*#__PURE__*/ template(`<li><kbd>m</kbd> - mute / unmute audio</li>`, 4);
+var _tmpl$8 = /*#__PURE__*/ template(`<div class="ap-overlay ap-overlay-help"><div><div><p>Keyboard shortcuts</p><ul><li><kbd>f</kbd> - toggle fullscreen mode</li><li><kbd>k</kbd> - toggle keystroke overlay</li><li><kbd>?</kbd> - show this help popup</li></ul></div></div></div>`, 22);
 var HelpOverlay = (props) => {
 	const e = (f) => {
 		return (e) => {
@@ -5704,7 +5712,8 @@ var HelpOverlay = (props) => {
 	})();
 };
 delegateEvents(["click"]);
-var _tmpl$$1 = /*#__PURE__*/ template(`<div><kbd></kbd></div>`, 4), _tmpl$2 = /*#__PURE__*/ template(`<div class="ap-overlay ap-overlay-keystrokes"></div>`, 2);
+var _tmpl$$1 = /*#__PURE__*/ template(`<div><kbd></kbd></div>`, 4);
+var _tmpl$2 = /*#__PURE__*/ template(`<div class="ap-overlay ap-overlay-keystrokes"></div>`, 2);
 var VISIBLE_MS = 2e3;
 function KeystrokePill(props) {
 	const [isFading, setIsFading] = createSignal(false);

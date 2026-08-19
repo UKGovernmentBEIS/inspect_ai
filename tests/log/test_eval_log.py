@@ -1,11 +1,14 @@
 import io
 import math
 import os
+import re
 import tempfile
 from datetime import datetime, timezone
-from typing import Literal
+from typing import Literal, cast
+from zipfile import ZipFile
 
 import pytest
+from pydantic import BaseModel
 from pydantic_core import PydanticSerializationError
 from test_helpers.utils import skip_if_trio
 from typing_extensions import override
@@ -13,10 +16,11 @@ from typing_extensions import override
 from inspect_ai import Task, eval
 from inspect_ai._util.constants import get_deserializing_context
 from inspect_ai._util.content import ContentDocument
-from inspect_ai._util.file import FileInfo, filesystem
+from inspect_ai._util.file import FileInfo, filesystem, local_path
 from inspect_ai.dataset import Sample
 from inspect_ai.event._info import InfoEvent
 from inspect_ai.event._model import ModelEvent
+from inspect_ai.event._sample_init import SampleInitEvent
 from inspect_ai.event._sandbox import SandboxEvent
 from inspect_ai.event._score_edit import ScoreEditEvent
 from inspect_ai.event._span import SpanBeginEvent, SpanEndEvent
@@ -31,13 +35,24 @@ from inspect_ai.log._file import (
     log_files_from_ls,
     read_eval_log_headers,
     read_eval_log_sample,
+    read_eval_log_samples,
     write_eval_log,
 )
 from inspect_ai.log._log import EvalLog, EvalSample
 from inspect_ai.model import get_model
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_output import ModelOutput
-from inspect_ai.scorer import exact
+from inspect_ai.scorer import (
+    Metric,
+    SampleScore,
+    Score,
+    Scorer,
+    Target,
+    exact,
+    mean,
+    metric,
+    scorer,
+)
 from inspect_ai.solver import (
     Generate,
     TaskState,
@@ -257,6 +272,22 @@ def test_can_round_trip_serialize_tool_event_with_document_result():
     assert original == deserialized
 
 
+def test_can_round_trip_serialize_sample_init_event_with_none_state():
+    # the eval recorder writes events with exclude_none=True, so a None state
+    # is omitted from the written JSON and must not fail validation on read
+    original = SampleInitEvent(
+        sample=Sample(input="input"),
+        state=None,
+        timestamp=datetime.now(timezone.utc),
+    )
+
+    serialized = original.model_dump_json(exclude_none=True)
+    assert '"state"' not in serialized
+    deserialized = SampleInitEvent.model_validate_json(serialized)
+
+    assert original == deserialized
+
+
 def test_can_round_trip_serialize_sandbox_event():
     original = SandboxEvent(action="exec", timestamp=datetime.now(timezone.utc))
 
@@ -387,6 +418,67 @@ def test_read_bytes_format(format):
     assert log2.samples
 
 
+def test_rewrite_eval_zip_dedupes_duplicate_members():
+    """A header rewrite keeps one entry per duplicate member name.
+
+    A requeued sample's fresh record supersedes the prior one as a duplicate
+    zip member (last entry wins on read); the rewrite must copy only that
+    winning entry — not double it — and must not emit zipfile's
+    duplicate-name warning.
+    """
+    import warnings
+    from zipfile import ZipFile
+
+    from inspect_ai.log._recorders.eval import _rewrite_eval_zip_with_new_header
+
+    file_path = os.path.join("tests", "log", "test_eval_log", "log_formats.eval")
+    log = read_eval_log(file_path)
+    with open(file_path, "rb") as f:
+        buf = io.BytesIO(f.read())
+
+    member = "samples/1_epoch_1.json"
+    superseding = b'{"superseding": true}'
+    with warnings.catch_warnings(), ZipFile(buf, "a") as zf:
+        warnings.filterwarnings("ignore", message="Duplicate name:")
+        zf.writestr(member, superseding)
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings("error", message="Duplicate name:")
+        rewritten = _rewrite_eval_zip_with_new_header(buf.getvalue(), log)
+
+    with ZipFile(io.BytesIO(rewritten)) as result:
+        assert result.namelist().count(member) == 1
+        assert result.read(member) == superseding
+
+
+def test_read_eval_log_samples_with_duplicate_members(tmp_path):
+    """`read_eval_log_samples` yields the superseding record, once.
+
+    A requeued sample's fresh record is appended as a duplicate zip member
+    (last entry wins on name-based reads); the per-(id, epoch) generator must
+    yield exactly one sample per key, carrying the fresh record.
+    """
+    import shutil
+    import warnings
+    from zipfile import ZipFile
+
+    src = os.path.join("tests", "log", "test_eval_log", "log_formats.eval")
+    log_file = str(tmp_path / "requeued.eval")
+    shutil.copy(src, log_file)
+
+    fresh = read_eval_log_sample(src, id=1, epoch=1)
+    fresh.metadata = {**(fresh.metadata or {}), "requeued": True}
+    with warnings.catch_warnings(), ZipFile(log_file, "a") as zf:
+        warnings.filterwarnings("ignore", message="Duplicate name:")
+        zf.writestr("samples/1_epoch_1.json", fresh.model_dump_json(exclude_none=True))
+
+    samples = list(read_eval_log_samples(log_file))
+    assert len(samples) == 1
+    assert samples[0].id == 1 and samples[0].epoch == 1
+    assert samples[0].metadata is not None
+    assert samples[0].metadata["requeued"] is True
+
+
 @pytest.mark.parametrize("format", ["json", "eval"])
 def test_read_bytes_format_detection(format):
     file_path = os.path.join("tests", "log", "test_eval_log", f"log_formats.{format}")
@@ -495,6 +587,31 @@ def test_read_eval_log_full_trio():
     anyio.run(main, backend="trio")
 
 
+def test_read_eval_log_exclude_fields_trio():
+    """Reading a .eval log with exclude_fields works under the Trio backend.
+
+    exclude_fields routes through ijson's streaming parse_async, whose default
+    yajl2_c backend is asyncio-only and raises "trio.run received unrecognized
+    yield message None" under trio. This pins the pure-Python fallback.
+    """
+    import anyio
+
+    from inspect_ai._util.asyncfiles import AsyncFilesystem
+    from inspect_ai.log._file import read_eval_log_async
+
+    eval_log_file = os.path.join("tests", "log", "test_eval_log", "log_formats.eval")
+
+    async def main() -> None:
+        async with AsyncFilesystem():
+            log = await read_eval_log_async(eval_log_file, exclude_fields={"messages"})
+
+        assert log.eval is not None
+        assert log.samples is not None
+        assert len(log.samples) > 0
+
+    anyio.run(main, backend="trio")
+
+
 def test_read_eval_log_sample_trio():
     """Test reading a sample from .eval log works under the Trio backend."""
     import anyio
@@ -582,6 +699,139 @@ async def test_zip_log_file_flush_cycles() -> None:
         assert len(log.samples) == 6
         read_ids = sorted([s.id for s in log.samples])
         assert read_ids == all_sample_ids
+
+
+async def test_zip_log_write_buffered_samples_yields_between_samples() -> None:
+    """Regression test for the checkpoint in ``write_buffered_samples``.
+
+    Each buffered sample serializes and compresses synchronously on the event
+    loop, so the flush must yield between samples — otherwise a large batch
+    monopolizes the loop (starving in-flight samples and the control-channel
+    server). Assert a sibling task gets scheduled while the flush iterates by
+    recording its progress counter at each zip member write.
+    """
+    from unittest.mock import patch
+
+    import anyio
+    import anyio.lowlevel
+
+    from inspect_ai._util.constants import LOG_SCHEMA_VERSION
+    from inspect_ai.log._log import (
+        EvalConfig,
+        EvalDataset,
+        EvalPlan,
+        EvalSample,
+        EvalSpec,
+    )
+    from inspect_ai.log._recorders.eval import LogStart, ZipLogFile
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        eval_path = os.path.join(temp_dir, "test.eval")
+        eval_spec = EvalSpec(
+            created=datetime.now(timezone.utc).isoformat(),
+            task="yield_test",
+            model="mockllm/model",
+            dataset=EvalDataset(name="test", samples=5),
+            config=EvalConfig(),
+        )
+        log_start = LogStart(
+            version=LOG_SCHEMA_VERSION, eval=eval_spec, plan=EvalPlan()
+        )
+
+        zip_log = ZipLogFile(eval_path)
+        await zip_log.init(log_start=None, summary_counter=0, summaries=[])
+        await zip_log.start(log_start)
+
+        num_samples = 5
+        for i in range(1, num_samples + 1):
+            await zip_log.buffer_sample(
+                EvalSample(id=i, epoch=1, input=f"input {i}", target="", messages=[])
+            )
+
+        counter = 0
+        observed: list[int] = []
+        flush_done = anyio.Event()
+
+        original_writestr = zip_log._zip_writestr
+
+        def recording_writestr(filename: str, data: object) -> None:
+            observed.append(counter)
+            original_writestr(filename, data)
+
+        async def sibling() -> None:
+            nonlocal counter
+            while not flush_done.is_set():
+                counter += 1
+                await anyio.lowlevel.checkpoint()
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(sibling)
+            with patch.object(zip_log, "_zip_writestr", recording_writestr):
+                await zip_log.write_buffered_samples()
+            flush_done.set()
+
+        # release the temp-file handle; flush first because close() on a
+        # zip with unflushed writes closes the temp file out from under the
+        # ZipFile's end-of-archive write
+        await zip_log.flush()
+        await zip_log.close(header_only=True)
+
+        # num_samples sample members plus the summaries journal
+        assert len(observed) == num_samples + 1
+        # the sibling advanced while the flush iterated over the batch: with
+        # no checkpoint in the loop the flush runs await-free, so the counter
+        # would read identical at every sample write (asserting only across
+        # the batch — not per adjacent pair — keeps this deterministic under
+        # trio's batched scheduling as well as asyncio's FIFO)
+        assert observed[num_samples - 1] > observed[0]
+
+
+@skip_if_trio
+async def test_zip_log_streaming_normalizes_unserializable_store() -> None:
+    from inspect_ai._util.constants import LOG_SCHEMA_VERSION
+    from inspect_ai.log._log import (
+        EvalConfig,
+        EvalDataset,
+        EvalPlan,
+        EvalSample,
+        EvalSpec,
+    )
+    from inspect_ai.log._recorders.buffer.history import SampleHistory
+    from inspect_ai.log._recorders.eval import LogStart, ZipLogFile
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        eval_path = os.path.join(temp_dir, "test.eval")
+        eval_spec = EvalSpec(
+            created=datetime.now(timezone.utc).isoformat(),
+            task="streaming_store_test",
+            model="mockllm/model",
+            dataset=EvalDataset(name="test", samples=1),
+            config=EvalConfig(),
+        )
+        log_start = LogStart(
+            version=LOG_SCHEMA_VERSION,
+            eval=eval_spec,
+            plan=EvalPlan(),
+        )
+        sample = EvalSample(
+            id=1,
+            epoch=1,
+            input="input",
+            target="target",
+            messages=[],
+            store={"opaque": object()},
+        )
+
+        zip_log = ZipLogFile(eval_path)
+        await zip_log.init(log_start=None, summary_counter=0, summaries=[])
+        await zip_log.start(log_start)
+        await zip_log.buffer_sample_streaming(sample, SampleHistory([], {}, {}, {}))
+        await zip_log.flush()
+        await zip_log.close(header_only=False)
+
+        log = read_eval_log(eval_path)
+        assert log.samples is not None
+        assert log.samples[0].store["opaque"] is None
 
 
 # =============================================================================
@@ -1066,3 +1316,221 @@ def test_eval_sample_timeline_round_trip():
         # event should be an Event object, not a string
         assert not isinstance(te.event, str)
         assert te.event.uuid is not None
+
+
+@pytest.mark.parametrize("log_format", ["eval", "json"])
+def test_non_finite_scores_survive_log_round_trip(
+    log_format: Literal["eval", "json"],
+) -> None:
+    """NaN score values round-trip through eval logs in every shape.
+
+    NaN marks a sample as unscored (scalar root, dict leaf, or list element).
+    It must serialize as a JSON constant rather than null: a null dict leaf
+    reloads as None and is miscounted as 0.0 by metrics, and a null list
+    element fails Value validation entirely (#4491).
+    """
+
+    @scorer(metrics=[mean()])
+    def scalar_nan() -> Scorer:
+        async def score(state: TaskState, target: Target) -> Score:
+            return Score(value=float("nan"))
+
+        return score
+
+    @scorer(metrics=[mean()])
+    def list_nan() -> Scorer:
+        async def score(state: TaskState, target: Target) -> Score:
+            return Score(value=[float("nan"), 1.0])
+
+        return score
+
+    @scorer(metrics={"a": [mean()], "b": [mean()]})
+    def dict_nan() -> Scorer:
+        async def score(state: TaskState, target: Target) -> Score:
+            return Score(value={"a": float("nan"), "b": 1.0})
+
+        return score
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        log = eval(
+            Task(
+                dataset=[Sample(id=1, input="Say hello.")],
+                scorer=[scalar_nan(), list_nan(), dict_nan()],
+            ),
+            log_dir=log_dir,
+            log_format=log_format,
+            model="mockllm/model",
+        )[0]
+        assert log.status == "success"
+
+        # no score value is serialized as null anywhere in the log file
+        # (samples, summaries, reductions, header)
+        null_value = re.compile(r'"value":\s*(null|\[\s*null|\{"a":\s*null)')
+        location = local_path(log.location)
+        if log_format == "eval":
+            with ZipFile(location) as zf:
+                for name in zf.namelist():
+                    content = zf.read(name).decode(errors="replace")
+                    assert not null_value.search(content), name
+        else:
+            with open(location, "r") as f:
+                assert not null_value.search(f.read())
+
+        reloaded = read_eval_log(log.location)
+        assert reloaded.samples is not None
+        scores = reloaded.samples[0].scores
+        assert scores is not None
+        assert isinstance(scores["scalar_nan"].value, float)
+        assert math.isnan(scores["scalar_nan"].value)
+        list_value = scores["list_nan"].value
+        assert isinstance(list_value, list)
+        assert math.isnan(cast(float, list_value[0]))
+        assert list_value[1] == 1.0
+        dict_value = scores["dict_nan"].value
+        assert isinstance(dict_value, dict)
+        assert math.isnan(cast(float, dict_value["a"]))
+        assert dict_value["b"] == 1.0
+
+        # NaN leaves count as unscored, not as 0.0
+        assert reloaded.results is not None
+        results = {score.name: score for score in reloaded.results.scores}
+        assert results["scalar_nan"].unscored_samples == 1
+        assert results["a"].unscored_samples == 1
+        assert results["b"].scored_samples == 1
+        assert results["b"].metrics["mean"].value == 1.0
+
+
+def test_non_finite_serialization_configured_on_all_wire_roots() -> None:
+    """Known serialization roots for score-bearing data emit NaN constants.
+
+    Pydantic reads ser_json_inf_nan from the dump-root model only -- a
+    nested Score's own config is ignored -- so each model that is itself
+    serialized to logs, the realtime buffer, the store, or view server
+    responses must carry the setting. This test documents the known roots
+    and prevents the config from being dropped; it cannot discover new
+    roots, so anything that dumps score-bearing models directly must be
+    added here and covered by a round-trip test at its call site (see
+    design/nan-serialization.md).
+    """
+    from inspect_ai.agent._human.state import IntermediateScoring
+    from inspect_ai.event._score import ScoreEvent
+    from inspect_ai.event._score_edit import ScoreEditEvent
+    from inspect_ai.log._log import EvalSampleReductions, EvalSampleSummary
+    from inspect_ai.log._recorders.buffer.filestore import Manifest
+    from inspect_ai.log._recorders.buffer.types import SampleData, Samples
+    from inspect_ai.scorer._metric import Score, ScoreEdit
+
+    wire_roots: list[type[BaseModel]] = [
+        Score,
+        ScoreEdit,
+        ScoreEvent,
+        ScoreEditEvent,
+        EvalSample,
+        EvalSampleSummary,
+        EvalSampleReductions,
+        EvalLog,
+        Samples,
+        SampleData,
+        Manifest,
+        IntermediateScoring,
+    ]
+    for model in wire_roots:
+        assert model.model_config.get("ser_json_inf_nan") == "constants", model.__name__
+
+
+def test_negative_infinity_survives_streaming_reads() -> None:
+    """-Infinity takes the NaN/Inf fallback in both ijson streaming readers.
+
+    The yajl2 ijson backend rejects -Infinity with a different message than
+    NaN/Infinity ("a digit is required after the minus sign"), which
+    is_ijson_nan_inf_error must also recognize: the header-only read of
+    .json logs and the exclude_fields sample read of .eval logs both stream
+    with ijson and fall back to standard json parsing on that error.
+    """
+
+    @metric
+    def neg_inf() -> Metric:
+        def compute(scores: list[SampleScore]) -> float:
+            return float("-inf")
+
+        return compute
+
+    @scorer(metrics=[neg_inf()])
+    def neg_inf_scorer() -> Scorer:
+        async def score(state: TaskState, target: Target) -> Score:
+            return Score(value=float("-inf"))
+
+        return score
+
+    task = Task(dataset=[Sample(id=1, input="Say hello.")], scorer=neg_inf_scorer())
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        # .json header-only read streams the header with ijson
+        log = eval(task, log_dir=log_dir, log_format="json", model="mockllm/model")[0]
+        header = read_eval_log(log.location, header_only=True)
+        assert header.results is not None
+        assert header.results.scores[0].metrics["neg_inf"].value == float("-inf")
+
+        # .eval exclude_fields sample read streams the sample with ijson
+        log = eval(task, log_dir=log_dir, log_format="eval", model="mockllm/model")[0]
+        sample = read_eval_log_sample(log.location, 1, exclude_fields={"messages"})
+        assert sample.scores is not None
+        assert sample.scores["neg_inf_scorer"].value == float("-inf")
+
+
+async def test_eval_recorder_log_sample_write_through(tmp_path) -> None:
+    # write_through parks the full sample (events included) in the temp-file
+    # zip immediately, retaining only an event-less copy for pre-flush
+    # control-channel reads — nothing stays in the flush buffer
+    from inspect_ai.log._log import (
+        EvalConfig,
+        EvalDataset,
+        EvalPlan,
+        EvalSpec,
+    )
+    from inspect_ai.log._recorders.eval import EvalRecorder
+
+    spec = EvalSpec(
+        created=datetime.now(timezone.utc).isoformat(),
+        task="write_through_test",
+        model="mockllm/model",
+        dataset=EvalDataset(name="test", samples=1),
+        config=EvalConfig(),
+    )
+    recorder = EvalRecorder(str(tmp_path))
+    location = await recorder.log_init(spec, clean=True)
+    await recorder.log_start(spec, EvalPlan())
+
+    sample = EvalSample(
+        id=1,
+        epoch=1,
+        input="input",
+        target="target",
+        events=[InfoEvent(data="hello")],
+    )
+    await recorder.log_sample(spec, sample, write_through=True)
+
+    zip_log = recorder.data[recorder._log_file_key(spec)]
+    assert zip_log._samples == []
+    assert zip_log._streaming_samples[(1, 1)].events == []
+
+    # summary journalled immediately, exactly once
+    summaries = await recorder.sample_summaries(spec)
+    assert summaries is not None
+    assert [(s.id, s.epoch) for s in summaries] == [(1, 1)]
+
+    # pre-flush reads serve the retained event-less copy
+    buffered = await recorder.buffered_sample(spec, 1, 1)
+    assert buffered is not None
+    assert buffered.events == []
+
+    # a flush drops the retained copy and lands the full sample on disk
+    await recorder.flush(spec)
+    assert await recorder.buffered_sample(spec, 1, 1) is None
+    read_back = await EvalRecorder.read_log_sample(location, 1, 1)
+    assert [e.data for e in read_back.events if isinstance(e, InfoEvent)] == ["hello"]
+
+    # summary still reported exactly once after the flush
+    summaries = await recorder.sample_summaries(spec)
+    assert summaries is not None
+    assert [(s.id, s.epoch) for s in summaries] == [(1, 1)]

@@ -34,6 +34,7 @@ def model_retry_config(
     report_waiting_time: Callable[[float], None] | None = None,
     wait: WaitBaseT | None = None,
     live_overrides: bool = True,
+    report_retry_wait: bool = True,
 ) -> ModelRetryConfig:
     # retry for transient http errors:
     # - use config.max_retries and config.timeout if specified, otherwise retry forever
@@ -56,6 +57,19 @@ def model_retry_config(
         # expire while we are waiting b/c we've already offset it)
         if report_waiting_time is not None:
             report_waiting_time(rs.upcoming_sleep)
+
+        # `report_retry_wait` gates the per-sample record rather than relying
+        # on sample_active() alone: a batcher's admin-op retry loop runs on a
+        # worker task that inherits the context of whichever sample first
+        # triggered it (run_in_background → start_soon copies the spawning
+        # context), so without the gate an admin-op backoff would stamp — and
+        # never clear — a retry wait on an unrelated sample.
+        if report_retry_wait:
+            from inspect_ai.log._samples import report_active_sample_retry_wait
+
+            report_active_sample_retry_wait(
+                model_name, rs.attempt_number, rs.upcoming_sleep
+            )
 
         res = log_model_retry(model_name, rs)
         if res is not None:
@@ -150,7 +164,12 @@ def batch_admin_retry_config(
     ``Model._generate``'s own retry loop. Batching providers must build their
     admin-op retry config through this helper rather than calling
     :func:`model_retry_config` directly, so a new batcher can't drop the
-    opt-out by copying a generate-path call site.
+    opt-outs by copying a generate-path call site.
+
+    Also opts out of the per-sample retry-wait record
+    (``report_retry_wait=False``): the batch worker inherits an arbitrary
+    sample's context, and an admin-op backoff is not that sample's wait
+    (see the gate comment in :func:`model_retry_config`).
     """
     from inspect_ai.model._model import log_model_retry
 
@@ -162,4 +181,5 @@ def batch_admin_retry_config(
         lambda ex: None,
         log_model_retry,
         live_overrides=False,
+        report_retry_wait=False,
     )

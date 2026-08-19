@@ -1553,7 +1553,7 @@ Every `inspect.*` string literal (method names, `_meta` keys, capability allowli
 
 ## asyncio / anyio boundary
 
-The rest of inspect_ai is **anyio-native** so the codebase can run under both asyncio and trio backends (per CLAUDE.md's `tg_collect`, `anyio.sleep`, `anyio.Event` conventions). The ACP implementation is an exception: it's intentionally **asyncio-bound** at the `acp`-library boundary. Documenting that here so future maintainers don't try to migrate the wrong things.
+The rest of inspect_ai is **anyio-native** so the codebase can run under both asyncio and trio backends (per AGENTS.md's `tg_collect`, `anyio.sleep`, `anyio.Event` conventions). The ACP implementation is an exception: it's intentionally **asyncio-bound** at the `acp`-library boundary. Documenting that here so future maintainers don't try to migrate the wrong things.
 
 **Why ACP is asyncio.** The underlying `acp` Python package returns / consumes `asyncio.StreamReader` / `asyncio.StreamWriter` / `asyncio.Future` directly:
 
