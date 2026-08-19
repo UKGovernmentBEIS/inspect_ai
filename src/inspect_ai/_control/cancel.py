@@ -58,7 +58,7 @@ primitive it types. Deliberately a distinct type despite the identical
 values: task ``"cancel"`` aborts the attempt (it does *not* map to the
 sample-level ``"cancel"`` interrupt), the task set may diverge (e.g. a
 future graceful-drain action), and this CLI-light module is importable
-at ``ctl.py`` startup where ``log._samples`` is not.
+at ``inspect_ai._cli.ctl`` startup where ``log._samples`` is not.
 """
 
 

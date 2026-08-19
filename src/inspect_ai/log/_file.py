@@ -1089,7 +1089,7 @@ def read_eval_log_samples(
 def manifest_eval_log_name(info: EvalLogInfo, log_dir: str, sep: str) -> str:
     # ensure that log dir has a trailing seperator
     if not log_dir.endswith(sep):
-        log_dir = f"{log_dir}/"
+        log_dir = f"{log_dir}{sep}"
 
     # slice off log_dir from the front
     log = info.name.replace(log_dir, "")
