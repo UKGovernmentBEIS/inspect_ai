@@ -153,11 +153,11 @@ inspect ctl config --max-tasks clear
 ```
 
 - **Scope: process** — one dispatcher pool per process, shared by every
-  task. `_KNOB_SCOPE["max_tasks"] = "process"`,
-  `_KNOB_SINCE["max_tasks"] = 0` (new knobs are never version-gated:
-  strict servers 400 unknown mutation params, per the skew policy in
-  `inspect_ai._control`). The existing key-set parity assertions and tests
-  pick both entries up.
+  task. `_KNOB_SCOPE["max_tasks"] = "process"` is the only per-knob entry
+  needed: new knobs are never version-gated (strict servers 400 unknown
+  mutation params, per the skew policy in `inspect_ai._control`; the
+  per-knob `_KNOB_SINCE` version table is retired). The existing
+  `knob_values`/`_KNOB_SCOPE` key-parity assertion picks the entry up.
 - **Value domain**: integer ≥ 1, or the keyword `clear` — a
   min-1 variant of the `_IntOrClearType` pattern the retry knobs use (they
   allow 0; `max_tasks` must not, per Semantics).
@@ -333,7 +333,7 @@ controller respects.
    int floored via `_limits_below_one` — see CLI and wire surface),
    included in both `GET` views.
 5. **CLI** (`_cli/ctl.py`): `--max-tasks` option (int ≥ 1 or `clear`),
-   `_KNOB_SCOPE` / `_KNOB_SINCE` entries, `knob_values` wiring,
+   `_KNOB_SCOPE` entry, `knob_values` wiring,
    `_exec_limits` pass-through, human rendering.
 6. **Schema/type regeneration**: none needed — the repo's OpenAPI spec
    (`src/inspect_ai/_view/inspect-openapi.json`, generated from
