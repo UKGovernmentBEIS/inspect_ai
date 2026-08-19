@@ -1,8 +1,13 @@
 import os
 
+from inspect_ai._util.constants import BASE_64_DATA_REMOVED
+from inspect_ai._util.content import ContentImage
+from inspect_ai._util.hash import mm3_hash
 from inspect_ai.event._model import ModelEvent
+from inspect_ai.log import EvalRetryError, EvalSample
 from inspect_ai.log._condense import (
     ATTACHMENT_PROTOCOL,
+    attachment_refs_from_value,
     condense_event,
     condense_sample,
     resolve_sample_attachments,
@@ -43,6 +48,151 @@ def test_log_attachments_migration():
 
     # also confirm that we've preserved (now deprecated) transcript
     assert len(log.samples[0].transcript.events) > 0
+
+
+def test_retry_event_attachments_round_trip() -> None:
+    image_data_uri = "data:image/png;base64," + ("A" * 120)
+    event = ModelEvent(
+        model="test-model",
+        input=[
+            ChatMessageUser(content=[ContentImage(image=image_data_uri)]),
+        ],
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(),
+        output=ModelOutput.from_content("test-model", "response"),
+    )
+    sample = EvalSample(
+        id="sample",
+        epoch=1,
+        input="input",
+        target="target",
+        error_retries=[
+            EvalRetryError(
+                message="retry",
+                traceback="",
+                traceback_ansi="",
+                events=[event],
+            )
+        ],
+    )
+
+    condensed = condense_sample(sample, log_images=True)
+    assert condensed.error_retries is not None
+    condensed_events = condensed.error_retries[0].events
+    assert condensed_events is not None
+    condensed_event = condensed_events[0]
+    assert isinstance(condensed_event, ModelEvent)
+    condensed_content = condensed_event.input[0].content
+    assert isinstance(condensed_content, list)
+    condensed_image = condensed_content[0]
+    assert isinstance(condensed_image, ContentImage)
+    assert condensed_image.image.startswith(ATTACHMENT_PROTOCOL)
+
+    resolved = resolve_sample_attachments(condensed, "full")
+    assert resolved.error_retries is not None
+    resolved_events = resolved.error_retries[0].events
+    assert resolved_events is not None
+    resolved_event = resolved_events[0]
+    assert isinstance(resolved_event, ModelEvent)
+    resolved_content = resolved_event.input[0].content
+    assert isinstance(resolved_content, list)
+    resolved_image = resolved_content[0]
+    assert isinstance(resolved_image, ContentImage)
+    assert resolved_image.image == image_data_uri
+
+
+def test_recondense_without_images_removes_existing_media_attachments() -> None:
+    image_data_uri = "data:image/png;base64," + ("A" * 120)
+    message = ChatMessageUser(content=[ContentImage(image=image_data_uri)])
+    event = ModelEvent(
+        model="test-model",
+        input=[message],
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(),
+        output=ModelOutput.from_content("test-model", "response"),
+    )
+    sample = EvalSample(
+        id="sample",
+        epoch=1,
+        input=[message],
+        target="target",
+        messages=[message],
+        events=[event],
+        error_retries=[
+            EvalRetryError(
+                message="retry",
+                traceback="",
+                traceback_ansi="",
+                events=[event],
+            )
+        ],
+    )
+
+    with_images = condense_sample(sample, log_images=True)
+    assert image_data_uri in with_images.attachments.values()
+
+    without_images = condense_sample(with_images, log_images=False)
+    serialized = without_images.model_dump_json()
+    assert image_data_uri not in serialized
+    assert image_data_uri not in without_images.attachments.values()
+    assert BASE_64_DATA_REMOVED in serialized
+
+
+def test_recondense_preserves_attachment_shared_by_messages_and_events() -> None:
+    long_text = "shared attachment content " * 8
+    attachment_hash = mm3_hash(long_text)
+    attachment_ref = f"{ATTACHMENT_PROTOCOL}{attachment_hash}"
+    message = ChatMessageUser(content=attachment_ref)
+    event = ModelEvent(
+        model="test-model",
+        input=[message],
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(),
+        output=ModelOutput.from_content("test-model", "response"),
+    )
+    sample = EvalSample(
+        id="sample",
+        epoch=1,
+        input="input",
+        target="target",
+        messages=[message],
+        events=[event],
+        attachments={attachment_hash: long_text},
+    )
+
+    condensed = condense_sample(sample)
+    referenced = attachment_refs_from_value(
+        condensed.model_dump(mode="python", exclude={"attachments"})
+    )
+
+    assert condensed.messages[0].content == long_text
+    assert attachment_hash in referenced
+    assert referenced <= set(condensed.attachments)
+
+    resolved = resolve_sample_attachments(condensed, "full")
+    assert resolved.events is not None
+    resolved_event = next(
+        event for event in resolved.events if isinstance(event, ModelEvent)
+    )
+    assert resolved_event.input[0].content == long_text
+
+
+def test_recondense_preserves_unreferenced_existing_attachment() -> None:
+    orphan_hash = mm3_hash("legacy attachment")
+    sample = EvalSample(
+        id="sample",
+        epoch=1,
+        input="input",
+        target="target",
+        attachments={orphan_hash: "legacy attachment"},
+    )
+
+    condensed = condense_sample(sample)
+
+    assert condensed.attachments == {orphan_hash: "legacy attachment"}
 
 
 # def test_transcript_incremental_condense():

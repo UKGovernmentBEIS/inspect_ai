@@ -130,7 +130,8 @@ def parse_answers(state: TaskState, multiple_correct: bool) -> set[str]:
 
         matched = matched.replace(" ", "")
 
-        split_comma = set(matched.split(","))
+        # ignore empty tokens (e.g. from a trailing or Oxford comma)
+        split_comma = set(x for x in matched.split(",") if x)
         if split_comma.issubset(allowed_options):
             answers = split_comma
             return answers
@@ -141,9 +142,11 @@ def parse_answers(state: TaskState, multiple_correct: bool) -> set[str]:
             return answers
 
     else:
-        # Match must contain a single letter in the allowed choices
-        if matched in allowed_options:
-            answers = {matched}
+        # Match must contain a single letter in the allowed choices; tolerate a
+        # stray comma (e.g. "ANSWER: A,") the way the multiple_correct branch does
+        single_tokens = [token for token in matched.split(",") if token]
+        if len(single_tokens) == 1 and single_tokens[0] in allowed_options:
+            answers = {single_tokens[0]}
             return answers
 
     return set()

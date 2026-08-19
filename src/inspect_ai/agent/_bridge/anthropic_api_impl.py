@@ -80,8 +80,11 @@ from .util import (
     apply_message_ids,
     bridge_generate,
     clear_generation_params,
+    relax_tool_choice_for_withheld,
     resolve_generate_config,
     resolve_inspect_model,
+    validate_bridge_media,
+    withheld_bridge_tool,
 )
 
 logger = getLogger(__name__)
@@ -90,8 +93,8 @@ logger = getLogger(__name__)
 async def inspect_anthropic_api_request_impl(
     json_data: dict[str, Any],
     headers: dict[str, str] | None,
-    web_search: WebSearchProviders,
-    code_execution: CodeExecutionProviders,
+    web_search: WebSearchProviders | None,
+    code_execution: CodeExecutionProviders | None,
     bridge: AgentBridge,
     *,
     beta: bool = False,
@@ -114,18 +117,25 @@ async def inspect_anthropic_api_request_impl(
         )
 
     tools = tools_from_anthropic_tools(
-        anthropic_tools, anthropic_mcp_servers, web_search, code_execution
+        anthropic_tools,
+        anthropic_mcp_servers,
+        web_search,
+        code_execution,
+        bridge.allow_remote_mcp,
     )
 
     # tool choice
     anthropic_tool_choice: ToolChoiceParam | None = json_data.get("tool_choice", None)
-    tool_choice = tool_choice_from_anthropic_tool_choice(anthropic_tool_choice)
+    tool_choice = relax_tool_choice_for_withheld(
+        tool_choice_from_anthropic_tool_choice(anthropic_tool_choice), tools
+    )
 
     # convert to inspect messages
     input: list[MessageParam] = json_data["messages"]
     debug_log("SCAFFOLD INPUT", input)
 
     messages = await messages_from_anthropic_input(input, tools)
+    await validate_bridge_media(bridge, messages)
     debug_log("INSPECT MESSAGES", messages)
 
     # extract generate config (hoist instructions into system_message)
@@ -233,8 +243,9 @@ def generate_config_from_anthropic(json_data: dict[str, Any]) -> GenerateConfig:
 def tools_from_anthropic_tools(
     anthropic_tools: list[ToolParamDef] | None,
     anthropic_mcp_servers: list[BetaRequestMCPServerURLDefinitionParam] | None,
-    web_search_providers: WebSearchProviders,
-    code_execution_providers: CodeExecutionProviders,
+    web_search_providers: WebSearchProviders | None,
+    code_execution_providers: CodeExecutionProviders | None,
+    allow_remote_mcp: bool,
 ) -> list[ToolInfo | Tool]:
     tools: list[ToolInfo | Tool] = []
 
@@ -254,22 +265,40 @@ def tools_from_anthropic_tools(
         elif is_computer_tool(anthropic_tool):
             tools.append(computer())
         elif is_web_search_tool(anthropic_tool):
-            tools.append(
-                web_search(
-                    resolve_web_search_providers(anthropic_tool, web_search_providers)
+            if web_search_providers is None:
+                withheld_bridge_tool("web_search")
+            else:
+                tools.append(
+                    web_search(
+                        resolve_web_search_providers(
+                            anthropic_tool, web_search_providers
+                        )
+                    )
                 )
-            )
         elif is_web_fetch_tool(anthropic_tool):
-            # web fetch tool is collapsed into web_search for inspect
-            pass
+            # Inspect has no standalone fetch tool: on Anthropic, fetch rides
+            # along with a granted web_search (the provider emits both), so a
+            # declaration of it maps to nothing of its own. A client that
+            # declares fetch *without* search therefore gets no web tool even
+            # when search is granted — mapping it to web_search would hand it
+            # the search capability it didn't ask for.
+            if web_search_providers is None:
+                withheld_bridge_tool("web_fetch")
         elif is_code_execution_tool(anthropic_tool):
-            tools.append(code_execution(providers=code_execution_providers))
+            if code_execution_providers is None:
+                withheld_bridge_tool("code_execution")
+            else:
+                tools.append(code_execution(providers=code_execution_providers))
         elif is_bash_tool(anthropic_tool):
             tools.append(bash())
         else:
             raise RuntimeError(
                 f"ToolParam of type {anthropic_tool['type']} not supported by agent bridge."
             )
+
+    if anthropic_mcp_servers and not allow_remote_mcp:
+        withheld_bridge_tool("mcp_servers")
+        anthropic_mcp_servers = None
 
     for mcp_server in anthropic_mcp_servers or []:
         # allowed tools (default is 'all')
@@ -495,8 +524,10 @@ def content_block_to_content(
     elif block["type"] == "document":
         source = block["source"]
         if source["type"] == "text":
+            data = base64.b64encode(source["data"].encode("utf-8")).decode("ascii")
             return ContentDocument(
-                document=source["data"], mime_type=source["media_type"]
+                document=as_data_uri(source["media_type"], data),
+                mime_type=source["media_type"],
             )
         elif source["type"] == "url":
             return ContentDocument(document=source["url"])

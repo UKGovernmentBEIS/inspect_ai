@@ -48,6 +48,16 @@ from openai.types.responses import (
     WebSearchToolParam,
 )
 from openai.types.responses import Response as OpenAIResponse
+from openai.types.responses.mcp_tool_call_error import (
+    McpToolCallError,
+    McpToolExecutionError,
+)
+from openai.types.responses.mcp_tool_call_error_param import (
+    McpToolCallErrorParam,
+)
+from openai.types.responses.mcp_tool_call_error_param import (
+    McpToolExecutionError as McpToolExecutionErrorParam,
+)
 from openai.types.responses.namespace_tool_param import (
     NamespaceToolParam,
 )
@@ -143,10 +153,10 @@ from inspect_ai._util.content import (
     ContentToolUse,
     ContentVideo,
 )
-from inspect_ai._util.images import file_as_data_uri
+from inspect_ai._util.images import inline_media_data_uri
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.text import truncate_string_to_bytes
-from inspect_ai._util.url import is_http_url
+from inspect_ai.model._agent_message import validate_agent_message
 from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.model._chat_message import (
     ChatMessage,
@@ -259,6 +269,28 @@ def _extract_compaction_from_content_data(
     return None
 
 
+def _extract_agent_message_from_internal(
+    content: str | list[Content],
+) -> ResponseInputItemParam | None:
+    """Recover a verbatim Codex `agent_message` item stashed by the agent bridge.
+
+    The bridge renders agent_message items as author-attributed user text (which
+    non-OpenAI targets consume) and stashes the original item on
+    ContentText.internal; OpenAI Responses targets replay the item natively so
+    `encrypted_content` parts (decryptable only by OpenAI server-side) survive.
+    """
+    if not isinstance(content, list):
+        return None
+    for item in content:
+        if isinstance(item, ContentText) and isinstance(item.internal, dict):
+            agent_message = item.internal.get("agent_message")
+            if agent_message is not None:
+                return cast(
+                    ResponseInputItemParam, validate_agent_message(agent_message)
+                )
+    return None
+
+
 async def openai_responses_inputs(
     messages: list[ChatMessage],
     model_info: ResponsesModelInfo | None = None,
@@ -289,6 +321,11 @@ async def _openai_input_item_from_chat_message(
         if compaction_param:
             # This is a compaction marker - return compaction item
             return [compaction_param]
+
+        # Check for a verbatim Codex agent_message stashed by the agent bridge
+        agent_message_param = _extract_agent_message_from_internal(message.content)
+        if agent_message_param is not None:
+            return [agent_message_param]
 
         # Regular user message handling
         return [
@@ -402,11 +439,7 @@ async def _openai_responses_function_call_output(
                     ResponseInputImageContentParam(
                         type="input_image",
                         detail=c.detail,
-                        image_url=(
-                            c.image
-                            if is_http_url(c.image)
-                            else await file_as_data_uri(c.image)
-                        ),
+                        image_url=inline_media_data_uri(c.image, "image"),
                     )
                 )
         return outputs
@@ -427,11 +460,7 @@ async def _openai_responses_custom_tool_call_output(
                     ResponseInputImageParam(
                         type="input_image",
                         detail=c.detail,
-                        image_url=(
-                            c.image
-                            if is_http_url(c.image)
-                            else await file_as_data_uri(c.image)
-                        ),
+                        image_url=inline_media_data_uri(c.image, "image"),
                     )
                 )
         return outputs
@@ -455,11 +484,7 @@ async def _openai_responses_content_param(
         return ResponseInputImageParam(
             type="input_image",
             detail=content.detail,
-            image_url=(
-                content.image
-                if is_http_url(content.image)
-                else await file_as_data_uri(content.image)
-            ),
+            image_url=inline_media_data_uri(content.image, "image"),
         )
     elif isinstance(content, ContentAudio | ContentVideo | ContentDocument):
         match content:
@@ -475,7 +500,25 @@ async def _openai_responses_content_param(
             case _:
                 raise TypeError(f"Unexpected content type: {type(content)}")
 
-        file_data_uri = await file_as_data_uri(contents)
+        file_data_uri = inline_media_data_uri(
+            contents,
+            "audio"
+            if isinstance(content, ContentAudio)
+            else "video"
+            if isinstance(content, ContentVideo)
+            else "document",
+            mime_type_hint=(
+                ("audio/mpeg" if content.format == "mp3" else "audio/wav")
+                if isinstance(content, ContentAudio)
+                else {
+                    "mp4": "video/mp4",
+                    "mpeg": "video/mpeg",
+                    "mov": "video/quicktime",
+                }[content.format]
+                if isinstance(content, ContentVideo)
+                else content.mime_type
+            ),
+        )
 
         return ResponseInputFileParam(
             type="input_file", file_data=file_data_uri, filename=filename
@@ -755,6 +798,10 @@ def content_from_response_input_content_param(
             image=input.get("image_url", "") or "", detail=input.get("detail", "auto")
         )
     elif is_input_file(input):
+        # `file_data` must be a resolved `data:` URI (the form the responses
+        # API requires); anything else (a filesystem path, URL, or bare
+        # base64) is preserved as-is so that media validation rejects it
+        # rather than forwarding it disguised as inline data
         return ContentDocument(document=input["file_data"], filename=input["filename"])
     else:
         raise RuntimeError(f"Unexpected input from responses API: {input}")
@@ -1208,6 +1255,42 @@ def mcp_list_tools_to_tool_use(output: McpListTools) -> ContentToolUse:
     )
 
 
+def mcp_error_to_str(error: McpToolCallError | None) -> str | None:
+    """Render a structured MCP tool call error as a display string.
+
+    openai 3.1.0 changed `McpCall.error` from `str | None` to a discriminated
+    union of error objects; `ContentToolUse.error` remains a display string.
+    """
+    match error:
+        case None:
+            return None
+        case McpToolExecutionError():
+            # pass string content through unchanged so the conversion is
+            # idempotent across replay round trips (no compounding JSON quoting)
+            return (
+                error.content
+                if isinstance(error.content, str)
+                else to_json_str_safe(error.content)
+            )
+        case _:
+            # protocol and HTTP errors both carry a code worth surfacing (a
+            # JSON-RPC code or an HTTP status) -- the message alone often
+            # isn't enough to triage the failure from a transcript
+            return f"{error.message} ({error.code})"
+
+
+def mcp_error_from_str(error: str | None) -> McpToolCallErrorParam | None:
+    """Rebuild a structured MCP error from its display string.
+
+    The original variant isn't recoverable from the string, so surface it as a
+    tool execution error. Only reached when no verbatim cached `server_tool_uses`
+    item is available for the call.
+    """
+    if error is None:
+        return None
+    return McpToolExecutionErrorParam(type="mcp_tool_execution_error", content=error)
+
+
 def mcp_call_to_tool_use(output: McpCall) -> ContentToolUse:
     return ContentToolUse(
         tool_type="mcp_call",
@@ -1216,7 +1299,7 @@ def mcp_call_to_tool_use(output: McpCall) -> ContentToolUse:
         context=output.server_label,
         arguments=output.arguments,
         result=output.output or "",
-        error=output.error,
+        error=mcp_error_to_str(output.error),
     )
 
 
@@ -1247,7 +1330,7 @@ def tool_use_to_mcp_call_param(content: ContentToolUse) -> McpCallParam:
         arguments=content.arguments,
         server_label=content.context or "",
         output=content.result,
-        error=content.error,
+        error=mcp_error_from_str(content.error),
     )
 
 
@@ -1441,7 +1524,9 @@ def _openai_input_items_from_chat_message_assistant(
                             "content": [
                                 {
                                     "type": "input_image",
-                                    "image_url": content.image,
+                                    "image_url": inline_media_data_uri(
+                                        content.image, "image"
+                                    ),
                                     "detail": content.detail,
                                 }
                             ],
@@ -1882,9 +1967,11 @@ def _responses_call_to_inspect(
 
     Reverses the todo_write->update_plan swap (only when a todo_write tool is present and no
     first-party update_plan tool is — so we never hijack a user's own update_plan), then
-    falls back to the name-only alias mechanism. Malformed arguments are passed through with
-    the mapped name so parse_tool_call() reports the parse error rather than silently
-    producing an empty plan.
+    falls back to the name-only alias mechanism. Malformed arguments — including ones
+    parse_tool_call() will itself recover (a complete object trailed by stray quotes) — are
+    passed through with the mapped name rather than mapped here, so any resulting error
+    surfaces at the tool (e.g. "Required parameter todos not provided") rather than at the
+    parse.
     """
     if name == UPDATE_PLAN_NAME and _tools_swap_todo_write(tools):
         try:
@@ -2157,6 +2244,14 @@ def is_additional_tools(
     # tolerate items without a "type" key (e.g. simple user messages) since this
     # is scanned over raw input items, some of which omit "type"
     return param.get("type") == "additional_tools"
+
+
+def is_agent_message(param: ResponseInputItemParam) -> bool:
+    # tolerate items without a "type" key (e.g. simple user messages) since this
+    # is scanned over raw input items, some of which omit "type". The OpenAI SDK
+    # has not yet added agent_message to ResponseInputItemParam, so the cast
+    # sidesteps a comparison-overlap error against the SDK's literal union.
+    return cast(dict[str, Any], param).get("type") == "agent_message"
 
 
 def is_function_tool_param(tool_param: ToolParam) -> TypeGuard[FunctionToolParam]:

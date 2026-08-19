@@ -19,6 +19,7 @@ from inspect_ai.dataset import (
     file_dataset,
     json_dataset,
 )
+from inspect_ai.dataset._util import read_choices
 from inspect_ai.model._chat_message import ChatMessageUser
 
 T_ds = TypeVar("T_ds")
@@ -275,6 +276,37 @@ def test_dataset_nan_target_treated_as_missing() -> None:
     assert sample_num.target == "4"
 
 
+def test_dataset_nan_fields_treated_as_missing() -> None:
+    from inspect_ai.dataset._util import record_to_sample_fn
+
+    rec2sample = record_to_sample_fn(FieldSpec())
+
+    # NaN input should raise ValueError("No input in dataset")
+    with pytest.raises(ValueError, match="No input in dataset"):
+        rec2sample({"input": float("nan"), "target": "4"})
+
+    # NaN choices, setup, sandbox, files, metadata should be treated as missing (None)
+    sample = rec2sample(
+        {
+            "input": "x",
+            "target": "y",
+            "choices": float("nan"),
+            "setup": float("nan"),
+            "sandbox": float("nan"),
+            "files": float("nan"),
+            "metadata": float("nan"),
+        }
+    )
+    assert not isinstance(sample, list)
+    assert sample.choices is None, f"expected None for choices, got {sample.choices!r}"
+    assert sample.setup is None, f"expected None for setup, got {sample.setup!r}"
+    assert sample.sandbox is None, f"expected None for sandbox, got {sample.sandbox!r}"
+    assert sample.files is None, f"expected None for files, got {sample.files!r}"
+    assert sample.metadata is None, (
+        f"expected None for metadata, got {sample.metadata!r}"
+    )
+
+
 def test_dataset_zero_seed() -> None:
     dataset1 = json_dataset(dataset_path("dataset.jsonl"), shuffle=True, seed=0)
     dataset2 = json_dataset(dataset_path("dataset.jsonl"), shuffle=True, seed=0)
@@ -313,6 +345,93 @@ def test_json_dataset_supports_kwargs() -> None:
     )
 
 
+def write_ragged_csv(tmp_path: Path, body: str) -> str:
+    path = tmp_path / "data.csv"
+    path.write_text(body, newline="")
+    return str(path)
+
+
+def test_csv_short_blank_row_names_the_line(tmp_path: Path) -> None:
+    csv_file = write_ragged_csv(tmp_path, "input,target,id\n2+2,4,q1\n,\n3+3,6,q2\n")
+
+    with pytest.raises(ValueError) as info:
+        csv_dataset(csv_file)
+
+    message = str(info.value)
+    assert "line 3" in message
+    assert "2 fields, the header has 3" in message
+    assert "id" in message
+
+
+def test_csv_long_row_names_the_line(tmp_path: Path) -> None:
+    csv_file = write_ragged_csv(tmp_path, "input,target\n2+2,4\n,,extra\n")
+
+    with pytest.raises(ValueError) as info:
+        csv_dataset(csv_file)
+
+    message = str(info.value)
+    assert "line 3" in message
+    assert "3 fields, the header has 2" in message
+    assert "extra" in message
+
+
+def test_csv_short_row_with_content_is_not_silently_truncated(tmp_path: Path) -> None:
+    csv_file = write_ragged_csv(tmp_path, "input,target,id\n2+2,4\n")
+
+    with pytest.raises(ValueError, match="No value for: id"):
+        csv_dataset(csv_file)
+
+
+def test_csv_long_row_with_content_is_not_silently_absorbed(tmp_path: Path) -> None:
+    # DictReader collects a long row's extras under the restkey
+    csv_file = write_ragged_csv(tmp_path, "input,target\n2+2,4\n3+3,6,extra\n")
+
+    with pytest.raises(ValueError, match="Unexpected values"):
+        csv_dataset(csv_file)
+
+
+def test_csv_singular_field_count_reads_correctly(tmp_path: Path) -> None:
+    csv_file = write_ragged_csv(tmp_path, "a,b,c,d\n1,2,3,4\nz\n")
+
+    with pytest.raises(ValueError, match="has 1 field, the header has 4"):
+        csv_dataset(csv_file)
+
+
+def test_csv_line_number_with_explicit_fieldnames(tmp_path: Path) -> None:
+    # no header line to skip when fieldnames are supplied
+    csv_file = write_ragged_csv(tmp_path, "2+2,4,q1\n,\n")
+
+    with pytest.raises(ValueError) as info:
+        csv_dataset(csv_file, fieldnames=["input", "target", "id"])
+
+    assert "line 2" in str(info.value)
+
+
+def test_csv_line_number_survives_blank_lines_and_multiline_fields(
+    tmp_path: Path,
+) -> None:
+    # DictReader skips blank lines and a quoted field can span several, so a
+    # count of yielded rows drifts from the physical line. This one is line 7.
+    csv_file = write_ragged_csv(
+        tmp_path, 'input,target\n2+2,4\n\n\n"multi\nline",6\nragged\n'
+    )
+
+    with pytest.raises(ValueError) as info:
+        csv_dataset(csv_file)
+
+    assert "line 7" in str(info.value)
+
+
+def test_csv_well_formed_blank_row_is_still_skipped(tmp_path: Path) -> None:
+    # all columns present and blank: the empty-row filter's actual job
+    csv_file = write_ragged_csv(tmp_path, "input,target\n2+2,4\n,\n3+3,6\n")
+
+    dataset = csv_dataset(csv_file)
+
+    assert len(dataset) == 2
+    assert [sample.input for sample in dataset] == ["2+2", "3+3"]
+
+
 sample_field_spec = FieldSpec(input="input", target="label", metadata=["extra"])
 
 
@@ -341,3 +460,14 @@ def dataset_path(file: str) -> str:
 
 def example_path(*paths: str) -> str:
     return os.path.join("examples", "/".join(paths))
+
+
+def test_read_choices_drops_empty_entries() -> None:
+    assert read_choices("Paris,London,") == ["Paris", "London"]
+    assert read_choices("Paris,,London") == ["Paris", "London"]
+    assert read_choices("Paris, London") == ["Paris", "London"]
+    assert read_choices("Paris London") == ["Paris", "London"]
+    assert read_choices(",,") == []
+    assert read_choices(None) is None
+    assert read_choices(["Paris", "", "London"]) == ["Paris", "London"]
+    assert read_choices(["Paris", " ", "London"]) == ["Paris", "London"]
