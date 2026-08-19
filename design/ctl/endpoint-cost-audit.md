@@ -414,9 +414,9 @@ messages section; finding 1(a)'s terminal-source cache would cover it).
 
 Cheap handlers are the real fix — every guard below failed open in the
 incident only because the handler was expensive — but the failure mode
-compounds silently, so guards are worth having. **None of these exist
-today** (`uvicorn.Config` sets only logging + `timeout_keep_alive`; no
-handler checks disconnects; no coalescing):
+compounds silently, so guards are worth having. Of these, the disconnect
+check has since shipped; the others do not exist (`uvicorn.Config` sets
+only logging + `timeout_keep_alive`; no coalescing):
 
 - **Pile-up guard.** `uvicorn limit_concurrency` rejects (503) rather than
   queues excess connections — a blunt but honest backstop against a
@@ -427,9 +427,14 @@ handler checks disconnects; no coalescing):
   result) is the finer-grained version; only worth building if a legitimate
   multi-client pattern emerges.
 - **Disconnect check.** An `await request.is_disconnected()` before
-  nontrivial work skips serving hung-up clients. Tracked as
-  [meridianlabs-ai/inspect_ai#226](https://github.com/meridianlabs-ai/inspect_ai/issues/226).
-  Only useful if the loop
+  nontrivial work skips serving hung-up clients. **Shipped**
+  ([meridianlabs-ai/inspect_ai#226](https://github.com/meridianlabs-ai/inspect_ai/issues/226)):
+  the read handlers that do nontrivial work (`/tasks`, the samples
+  listing, sample error detail, events, messages) carry a per-route
+  dependency (`_control/disconnect.py`) that answers a hung-up client
+  with an unread 499 instead of serving. Mutations are deliberately unguarded: a directive's intent
+  was expressed when the request was sent, and skipping it because the
+  client gave up waiting would silently drop it. Only useful if the loop
   yields between queued requests — which cheap handlers guarantee and a
   CPU-bound handler defeats; that ordering (handlers first, guard second) is
   the lesson of the incident.

@@ -356,6 +356,10 @@ class ControlServer:
         from fastapi import Depends, FastAPI, Request
         from fastapi.responses import JSONResponse
 
+        from inspect_ai._control.disconnect import (
+            ClientDisconnectedError,
+            reject_disconnected_client,
+        )
         from inspect_ai._control.strict import (
             UnknownQueryParamsError,
             reject_unknown_query_params,
@@ -370,11 +374,27 @@ class ControlServer:
         app = FastAPI(dependencies=[Depends(reject_unknown_query_params)])
         started_at = self._started_at
 
+        # Attached per-route (`dependencies=skip_disconnected`) to the reads
+        # that do nontrivial work — the disconnect module's docstring has the
+        # rationale, including why the mutations and the trivially cheap
+        # handlers deliberately don't carry it.
+        skip_disconnected = [Depends(reject_disconnected_client)]
+
         @app.exception_handler(UnknownQueryParamsError)
         async def on_unknown_params(
             request: Request, exc: UnknownQueryParamsError
         ) -> JSONResponse:
             return JSONResponse(status_code=400, content={"error": str(exc)})
+
+        @app.exception_handler(ClientDisconnectedError)
+        async def on_client_disconnected(
+            request: Request, exc: ClientDisconnectedError
+        ) -> JSONResponse:
+            # 499 (nginx's "client closed request") — nobody reads it (the
+            # client is gone); the status exists for the server-side record.
+            return JSONResponse(
+                status_code=499, content={"error": "client disconnected"}
+            )
 
         @app.exception_handler(Exception)
         async def on_error(request: Request, exc: Exception) -> JSONResponse:
@@ -474,7 +494,7 @@ class ControlServer:
         # Folded per-task summaries (retry attempts of a task collapse into
         # one row keyed by task_id) — the wire behind `inspect ctl task list`
         # and the selector-resolution step of every other command.
-        @app.get("/tasks")
+        @app.get("/tasks", dependencies=skip_disconnected)
         async def list_tasks() -> list[dict[str, Any]]:
             summaries = await current_eval_summaries(started_at)
             # Keep-alive is a process-level property, so every task this
@@ -501,7 +521,7 @@ class ControlServer:
                 summary["api_version"] = CONTROL_API_VERSION
             return summaries
 
-        @app.get("/evals/{eval_id}/samples")
+        @app.get("/evals/{eval_id}/samples", dependencies=skip_disconnected)
         async def list_eval_samples(
             eval_id: str,
             active_since: float | None = None,
@@ -564,7 +584,7 @@ class ControlServer:
         # `content=true` opts into the error free text (message / tracebacks
         # — agent-influenced strings, withheld by default; see
         # sample_error_detail).
-        @app.get("/evals/{eval_id}/sample")
+        @app.get("/evals/{eval_id}/sample", dependencies=skip_disconnected)
         async def get_sample_errors(
             eval_id: str, sample_id: str, epoch: int = 1, content: bool = False
         ) -> Any:
@@ -584,7 +604,7 @@ class ControlServer:
         # is agent-controlled; see events._project), `full` returns raw
         # events, `since_time`/`until` a wall-clock window, `limit` the page
         # size (max events scanned per page).
-        @app.get("/evals/{eval_id}/sample/events")
+        @app.get("/evals/{eval_id}/sample/events", dependencies=skip_disconnected)
         async def get_sample_events(
             eval_id: str,
             sample_id: str,
@@ -641,7 +661,7 @@ class ControlServer:
         # `status` / `count`. `content` opts into truncated message text
         # (metadata only by default — the text is agent-controlled; see
         # messages._project); `full` returns raw ChatMessage JSON.
-        @app.get("/evals/{eval_id}/sample/messages")
+        @app.get("/evals/{eval_id}/sample/messages", dependencies=skip_disconnected)
         async def get_sample_messages(
             eval_id: str,
             sample_id: str,
