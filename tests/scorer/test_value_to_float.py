@@ -39,6 +39,10 @@ def test_value_to_float_custom_numeric():
     assert fn(1.0) == 0.5
     assert fn(0.0) == 0.0
 
+    # a numeric sentinel also matches bools (bool is an int subclass, so
+    # True == 1.0) — the mirror of the partial=True case below
+    assert fn(True) == 0.5
+
     fn = value_to_float(correct=1, incorrect=-1)
     assert fn(1) == 1.0
     assert fn(-1) == 0.0
@@ -46,15 +50,11 @@ def test_value_to_float_custom_numeric():
     fn = value_to_float(partial=True)
     assert fn(True) == 0.5
 
-    # the mirror of the partial=True case above: a numeric sentinel also
-    # matches bools (bool is an int subclass, True == 1.0)
-    fn = value_to_float(correct=2.0, incorrect=0.0, partial=1.0)
-    assert fn(True) == 0.5
-
     # mapped incorrect/noanswer values are returned as floats, matching the
     # ValueToFloat signature (previously the branch returned the int 0)
-    assert value_to_float(incorrect=0.0)(0.0) == 0.0
-    assert isinstance(value_to_float(incorrect=0.0)(0.0), float)
+    mapped = value_to_float(incorrect=0.0)(0.0)
+    assert mapped == 0.0
+    assert isinstance(mapped, float)
 
     # int/float cross-type sentinel equality (2 == 2.0)
     fn = value_to_float(correct=2.0)
