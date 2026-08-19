@@ -30,7 +30,11 @@ self-contained.
   only 3.11). Explicitly ruled out.
 - **Interactive runs: always ask before pushing.** Prepare branch + diff +
   PR body, show the user, push only on their OK. Unattended runs can't ask —
-  see "Scheduled (unattended) mode" for what they may push. One fix per PR.
+  see "Scheduled (unattended) mode" for what they may push.
+- **One PR per run, not per fix.** Every PR costs a full review/approval
+  ritual, so combine everything a run produces — snapshot, report, prs.md
+  update, and all of the run's safe fixes — into a single PR, one commit
+  per logical change. Do not split the run's output across PRs.
   Follow AGENTS.md PR rules (CI-only changes need no CHANGELOG entry;
   test-content changes are product-adjacent — judge per AGENTS.md).
 
@@ -197,7 +201,7 @@ the user whether to commit them at the end of the run.
 ## Phase 4 — Fix
 
 From the ranked proposals, prepare the top safe fixes (typically 1–3 per
-run, one PR each):
+run, shipped together with the report in the run's single PR):
 
 **Safe-fix categories** (auto-PR eligible, still ask-first):
 - Workflow hygiene: add `--durations=50` to pytest, drop unneeded
@@ -212,12 +216,14 @@ renaming/merging required checks (branch protection), moving checks
 between workflows, retry/concurrency policy changes, anything a reviewer
 could reasonably object to on grounds other than correctness.
 
-Procedure per fix: branch off `main`, make the single change, run the
-relevant local validation (`ruff check`, `mypy` for touched Python; the
-affected tests for test fixes), write the PR body per
-`.github/pull_request_template.md`, then **show the user the diff and PR
-body and wait for their OK before any push**. After opening, watch CI per
-AGENTS.md. Record the PR number in the report.
+Procedure: one branch off `main` for the whole run. Each fix is its own
+commit — make the single change, run the relevant local validation
+(`ruff check`, `mypy` for touched Python; the affected tests for test
+fixes) — with the snapshot/report/prs.md commits alongside. Write one PR
+body per `.github/pull_request_template.md` covering everything the run
+ships, then **show the user the diff and PR body and wait for their OK
+before any push**. After opening, watch CI per AGENTS.md. Record the PR
+number in the report and prs.md.
 
 ## Verifying impact
 
@@ -233,20 +239,19 @@ this skill every ~2 days with no user present (it sets `CI_PERF_SCHEDULED=1`
 and says so in the prompt). Differences from an interactive run:
 
 - **Don't ask — act, within these bounds.** Commit the snapshot, report,
-  and prs.md updates on a branch and open ONE report PR. Additionally
-  prepare at most 2 safe-fix PRs per run (safe-fix categories only, one
-  change each, local validation run and passing). Structural proposals
-  remain report-only, always.
-- **Check the previous run's PRs first** (`gh pr list --author i-am-marvin`
-  plus the open entries in prs.md). If the prior report PR is still open,
-  push this run's snapshot/report/prs.md commit onto its branch instead of
-  opening a second report PR. Never open a fix PR duplicating a still-open
-  one, and respect the AGENTS.md open-PR limit (4 per account) — skip fix
-  PRs before skipping the report update.
+  prs.md updates, and up to 2 safe fixes (safe-fix categories only, one
+  commit each, local validation run and passing) on one branch and open
+  ONE PR — the run's entire output ships as a single PR. Structural
+  proposals remain report-only, always.
+- **Check the previous run's PR first** (`gh pr list --author i-am-marvin`
+  plus the open entries in prs.md). If it is still open, push this run's
+  commits onto its branch instead of opening a second PR. Never re-ship a
+  fix that's already sitting in the open PR, and respect the AGENTS.md
+  open-PR limit (4 per account).
 - **Contribution-policy compliance:** the marvin account is recorded as a
   qualified contributor in `.github/qualified.yml`, which satisfies the PR
-  gate; the substantive rules still apply — every fix PR body must carry
-  the measured evidence from the snapshot that motivated it (AGENTS.md
+  gate; the substantive rules still apply — the PR body must carry the
+  measured evidence from the snapshot for every fix it ships (AGENTS.md
   rule 7).
 - **Push mechanics:** the token is the marvin machine account, which has
   write access on the `meridianlabs-ai/inspect_ai` fork but not upstream.
@@ -255,9 +260,9 @@ and says so in the prompt). Differences from an interactive run:
   an org fork" section of AGENTS.md (`gh api` with `head_repo`).
 - **Skip anything doubtful.** If local validation fails, the fix touches
   more than intended, or the change is only arguably in a safe-fix
-  category, drop it to a report proposal instead of opening the PR. An
-  unattended run that opens zero fix PRs is a fine outcome; one that opens
-  a wrong PR is not.
-- Record every opened PR in prs.md before the run ends, and disclose agent
-  involvement in each PR body per AGENTS.md (including the scheduled-run
+  category, drop it to a report proposal instead of shipping it. An
+  unattended run that ships zero fixes is a fine outcome; one that ships
+  a wrong fix is not.
+- Record the opened PR in prs.md before the run ends, and disclose agent
+  involvement in the PR body per AGENTS.md (including the scheduled-run
   context and a link to the workflow run).
