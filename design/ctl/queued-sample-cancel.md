@@ -97,9 +97,11 @@ Notes on the table:
   design rather than by accident of its conditions: a sample re-parked at the
   semaphore mid-`retry_on_error` matches the row (arrival re-stamped by the recursed
   `task_run_sample` — see Wiring) and is accepted — counted `cancelled`, absent from
-  the log (its buffered events were already removed). Un-cancel via requeue resumes
-  the parked retry — attempt N with its remaining `retry_on_error` budget — rather
-  than starting a first run.
+  the log (its buffered events were already removed). No fail-on-error reconciliation
+  is needed despite the errored attempt: with retries remaining, `handle_error`
+  returns the error *without* calling `sample_error()`, so the re-parked attempt never
+  bumped `error_count`. Un-cancel via requeue resumes the parked retry — attempt N
+  with its remaining `retry_on_error` budget — rather than starting a first run.
 - **Only `--action cancel` is meaningful for a queued sample.** `score` would have
   nothing to score and `error` nothing to record; both keep rejecting (409) with a
   message that points at `--action cancel`. This also fixes flavor 1's current 404 for
@@ -414,6 +416,19 @@ this window) — but it's not needed for the queued cases this design targets.
 - **Early stopping** is not notified of a cancel-before-start (no
   `schedule_sample`/`complete_sample` ever fired for the sample) — consistent with the
   drain path, which doesn't notify for abandoned queued samples either.
+- **Cancelling a retry re-park inherits two behaviors from the queue-check abandonment
+  it mirrors** (both match an interrupt landing at the recursion's queue check today —
+  consistent, just worth naming). *Hook shape*: the errored attempt fired
+  `attempt_end(will_retry=True)` before re-parking, so hook consumers see a dangling
+  "will retry" with no subsequent attempt start and no `sample_end`. *Usage
+  accounting*: the errored attempt's real token/message spend never reaches the
+  cumulative counters — nothing was recorded at the retry decision (usage accrues only
+  at terminal recording), a re-parked sample has no `ActiveSample` for the live
+  overlay, and the accept-side `record_sample_cancelled(eval_id)` has no `state` to
+  read usage from. That contrasts with the drain-*window* path (which passes
+  `_sample_usage(state)` when it abandons the same attempt a moment earlier) and with
+  requeue's stance that spend "was real, not rolled back" — but closing it would mean
+  threading usage into the parked stamp, new work for a rare directive.
 - **Crash honesty.** Cancel intent is in-memory only, like all control-channel state: a
   process that dies before the zombie drains recovers from the log, where a
   never-started cancel is (correctly) an absent sample and an un-requeue is (correctly)
