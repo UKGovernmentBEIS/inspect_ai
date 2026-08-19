@@ -33,6 +33,17 @@ def resolve_model_roles(
             if isinstance(v, str | Model):
                 resolved_model_roles[k] = _resolve_role_model(k, v)
             else:
+                # guard against untyped values (e.g. CLI YAML parsing can
+                # yield None or numeric scalars) so they get a clean error
+                # rather than a TypeError/AttributeError downstream
+                if not isinstance(v, Sequence) or not all(
+                    isinstance(m, str | Model) for m in v
+                ):
+                    raise PrerequisiteError(
+                        f"Model role '{k}' has an invalid value ({v!r}): "
+                        + "expected a model name, a Model instance, or a "
+                        + "list of these."
+                    )
                 if len(v) == 0:
                     raise PrerequisiteError(
                         f"Model role '{k}' was assigned an empty list "

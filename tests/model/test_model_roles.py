@@ -437,6 +437,12 @@ def test_resolve_model_roles_rejects_empty_list() -> None:
         resolve_model_roles({GRADER: []})
 
 
+@pytest.mark.parametrize("value", [None, 123, [1, 2]])
+def test_resolve_model_roles_rejects_invalid_values(value) -> None:
+    with pytest.raises(PrerequisiteError, match="invalid value"):
+        resolve_model_roles({GRADER: value})
+
+
 def test_model_roles_list_config_round_trip() -> None:
     from inspect_ai.model._model_config import (
         model_roles_config_to_model_roles,
