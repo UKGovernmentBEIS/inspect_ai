@@ -196,6 +196,33 @@ Three full-suite runs under a completely different test-to-worker assignment, al
 green with identical counts, is also the best available evidence against the
 order-dependence risk noted in proposal 1.
 
+### CI A/B (one run per arm)
+
+The two PRs this run opened are the same base commit differing only in the flag,
+so their Build runs are a real CI A/B — #261 carries `worksteal`, #262 (this
+report) carries `load`:
+
+| PR | Arm | Leg | worker busy times | imbalance | worker efficiency | test-phase wall | pytest step |
+|---|---|---|---|---|---|---|---|
+| #261 | `worksteal` | 3.10 | 161 / 152 / 160 / 154 | **+4s (+3%)** | **95%** | 165s | 260s |
+| #261 | `worksteal` | 3.11 | 190 / 183 / 191 / 192 | **+3s (+2%)** | **95%** | 199s | 401s |
+| #262 | `load` | 3.10 | 203 / 169 / 167 / 178 | +24s (+13%) | 86% | 209s | 314s |
+| #262 | `load` | 3.11 | 160 / 160 / **266** / 156 | **+80s (+43%)** | 68% | 271s | 365s |
+
+The straggler reproduced on #262's 3.11 leg — one worker at 266s against 156–160s
+— and both worksteal legs came in at +3–4s and 95% efficiency. Comparing what a
+Build run actually waits for, the slower of its two legs: 199s of test-phase wall
+under worksteal against 271s under load, a **72s difference** that lands almost
+exactly on the 71s median predicted from the ten-leg table above.
+
+Two honest caveats. It is one run per arm on different runners, and the work
+totals differ (627–755s vs 718–741s), so the *absolute* seconds are not directly
+comparable — worker efficiency is. And #261's 3.11 leg had the longest pytest
+step of the four (401s) despite the best balance, because that leg spent 202s
+outside the test phase against 94–105s for the others: unrelated runner variance
+in install and collection, and a reminder that the ~99s of fixed overhead
+(proposal 8) has a long tail of its own.
+
 ## Slowest tests
 
 Median seconds across 20 CI test jobs, `call` + `setup` + `teardown` combined.
@@ -250,9 +277,10 @@ From the report-log artifacts of the merge run (4 workers, both legs):
   `scorer` 59–61s (689), `log` 45–47s (1,011), `util` 44s (1,368), `model`
   37–42s (1,542), `agent` 37–40s (544).
 - **Collection and startup is ~99s of the 320s step** (step 320s median against
-  a 221s median test-phase wall). Single-process `--collect-only` is 32s, and
-  xdist pays it once on the controller plus once per worker. That is now ~31% of
-  the step — proposal 8.
+  a 221s median test-phase wall). Single-process `--collect-only` is 32s cold,
+  and xdist pays it once on the controller plus once per worker. That is now ~31%
+  of the step — proposal 8, where the `--doctest-modules` hypothesis is measured
+  and ruled out.
 
 ### Growth
 
@@ -312,7 +340,7 @@ deletion was eligible as a safe fix.
 ## Waste
 
 - Cancelled superseded runs: 7/200, 28.2 runner-min (previous: 5/200, 19.0).
-- Failed jobs burned 27.9 runner-min, 25.6 of it in `test` (previous: 46.5 /
+- Failed jobs burned 28.0 runner-min, 25.6 of it in `test` (previous: 48.6 /
   40.3).
 - Compute: **1,489 runner-min** total (Build 1,325; Viewer 160; Changelog Lint
   4), down from 1,573 — `-n logical` shortens the job, so more parallelism cost
@@ -436,12 +464,22 @@ anticipated.
 
 8. **Collection is ~31% of the pytest step.** The step is 320s median against a
    221s test-phase wall, so ~99s is collection, worker startup and reporting —
-   and collection (32s single-process) is paid once on the controller plus once
-   per worker. This is now a bigger slice than the entire ≥5s slow tail (75s of
-   *work*, ~19s of wall). Worth an investigation before more per-test work: is
-   `--doctest-modules` (in both `addopts` and the CI command) collecting
-   anything under `testpaths = ["tests"]`, and can worker collection be
-   trimmed? Structural (needs measurement first). Status: new.
+   and collection (32s single-process cold, 12s with warm bytecode caches; CI is
+   always cold) is paid once on the controller plus once per worker. That is now
+   a bigger slice than the entire ≥5s slow tail (75s of *work*, ~19s of wall),
+   and worksteal does not touch it. Worth an investigation before more per-test
+   work.
+
+   One hypothesis measured and closed this run: **`--doctest-modules` collects
+   nothing.** 13,245 items collected with it and 13,245 without — `testpaths =
+   ["tests"]` confines collection to `tests/`, which contains no doctests — so it
+   costs ~1s and is not the source of the overhead. Two side notes from that
+   check: the flag is dead weight in both `addopts` and the CI command, and the
+   4 doctests that do exist in `src/inspect_ai` (`_util/format.py`,
+   `_util/file.py`, `_util/_json_rpc.py`, `model/_providers/_vllm_lora.py`) are
+   never executed by the PR gate. Collecting `src` directly is not a drop-in fix:
+   it errors on 84 modules under direct-module collection. Structural. Status:
+   new.
 
 9. **Exclude `design/**` from the `test` job's `code` filter.** The filter is
    `'**'` minus `docs/**` and `**/*.md`, so a documentation-only change that
@@ -453,11 +491,12 @@ anticipated.
 
 10. **Un-serialize `slow-tool-tests-release` from `slow-tool-tests-dev`** —
     release consumes no output from dev (it downloads the published artifact and
-    re-runs the same suite), so the `needs` edge is pure ordering. Worth ~13 min
-    on version-bump sandbox-tools PRs only; `release` ran as the last job in 6
-    of 53 Build runs this window (against 0 last window), so it is no longer
-    purely hypothetical. Cost: when dev fails, release burns ~14 runner-min
-    instead of being skipped. The sequence is deliberate and documented in
+    re-runs the same suite), so the `needs` edge is pure ordering. Would cut ~13
+    min off *version-bump* sandbox-tools PRs — the only ones where `release` runs
+    at all, and it ran on none this window (63 skipped, 1 cancelled, 0 executed,
+    against 8 successful `dev` runs), which continues to cap how much this is
+    worth. Cost: when dev fails, release burns ~14 runner-min instead of being
+    skipped. The sequence is deliberate and documented in
     `design/sandbox-tools-ci-gates.md`. Structural. Status: carried.
 
 11. **Merge the 4 Viewer jobs into 1–2** — required-check rename. Worth
