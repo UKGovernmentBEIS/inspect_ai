@@ -51,6 +51,19 @@ recorder — and gets the same 404. But unlike flavor 1 it must *stay* uncancell
 reuse hit re-logs the prior result and records completion on its own, without ever
 passing the queue. See "Reuse in flight" under Mechanism.
 
+There is also a fifth parked-at-the-semaphore state, which this design deliberately
+*does* make cancellable: the **sample-level retry re-park**. When an attempt errors
+with `retry_on_error` budget remaining, the retry recurses into `task_run_sample`
+outside the original semaphore and `active_sample` contexts ("our retry will therefore
+go to the back of the sample queue"), after `logger.remove_sample` has dropped the
+errored attempt's buffered events. While re-parked it presents exactly like flavor 1 —
+planned key, no `ActiveSample`, no record — and today gets the same 404. It is not
+literally "never started", but the never-started row's semantics hold for it anyway
+(the errored attempt recorded nothing terminal and logged nothing), and accepting it
+mirrors the graceful drain's treatment of an interrupt landing at the retry
+recursion's queue check: counted `cancelled`, absent from the log. See the table note
+and the wiring requirement this adds under Mechanism.
+
 ## Semantics
 
 The extended decision table for `sample/cancel`, by the sample's current state
@@ -80,6 +93,13 @@ Notes on the table:
   anyway) and its counter reconciliation would collide with the drain's own recording;
   between attempts / after drain there is no fanout to act on. Same honesty rule, same
   wording style as requeue's `_task_level_reject`.
+- **The never-started row also admits a retry re-park** (fifth state above), by
+  design rather than by accident of its conditions: a sample re-parked at the
+  semaphore mid-`retry_on_error` matches the row (arrival re-stamped by the recursed
+  `task_run_sample` — see Wiring) and is accepted — counted `cancelled`, absent from
+  the log (its buffered events were already removed). Un-cancel via requeue resumes
+  the parked retry — attempt N with its remaining `retry_on_error` budget — rather
+  than starting a first run.
 - **Only `--action cancel` is meaningful for a queued sample.** `score` would have
   nothing to score and `error` nothing to record; both keep rejecting (409) with a
   message that points at `--action cancel`. This also fixes flavor 1's current 404 for
@@ -182,7 +202,14 @@ unambiguous, and the entry-flag machinery below stays re-run-only.
   is read at its top), so it threads a pre-bound queue-hook pair into `task_run_sample`:
   `queue_enter()` stamps the key's arrival synchronously immediately before the
   semaphore acquire, and `queue_exit: Callable[[], bool]` runs at the semaphore-exit
-  point beside the existing drain check. The exit hook does double duty, synchronously:
+  point beside the existing drain check. The pair must also be forwarded through the
+  `retry_on_error` recursion (`task_run_sample` calls itself to re-park at the back of
+  the queue), and the arrival stamp must overwrite a prior departure — a key's
+  queue-lifecycle state cycles arrived → departed → arrived across retry re-parks.
+  Without the forwarding, a re-parked sample would read as *departed* for its whole
+  re-park (arrival never re-stamped after the first attempt left the queue) and get a
+  permanent initializing 409 instead of being cancellable. The exit hook does double
+  duty, synchronously:
   it records the key's departure (every run that parks, cancelled or not — this is what
   the accept-side at-the-queue check reads, so it must cover uncancelled runs too; a
   reuse hit never reaches either hook, which is exactly why accept *requires* the
@@ -204,9 +231,12 @@ unambiguous, and the entry-flag machinery below stays re-run-only.
   becomes a lie for a cancelled key. New rows in the requeue table:
   - key `"parked"` → **applied — un-cancel**: remove the key, decrement the counter
     (reusing `record_sample_requeued(eval_id, "cancelled")`, whose below-zero guard
-    carries over). The *same* parked coroutine serves as the re-run — no new entry is
+    carries over — though the implementation should parameterize or reword its warning
+    message, whose "requeue accepted a prior…" phrasing would mislead if it ever fired
+    from this path). The *same* parked coroutine serves as the re-run — no new entry is
     created, so there is nothing to double-queue; the sample simply runs when it gets a
-    slot, exactly as if never cancelled.
+    slot, exactly as if never cancelled (for a cancelled retry re-park, "runs" means
+    resuming attempt N with its remaining `retry_on_error` budget).
   - key `"discarded"` → **409**: the coroutine is gone and there is no prior record to
     seed a re-run from ("cancelled before start and already discarded — re-run with
     `inspect eval-retry`"). Spawning a fresh scheduler entry with `prior=None` would
@@ -323,7 +353,11 @@ The arrival stamp closes this by construction: a reuse-bound key is never stampe
 `queued`, so the accept's at-the-queue gate refuses it with the truthful, retryable
 not-at-the-queue 409 throughout resolution *and* through the hit path's recording
 awaits; once the reuse records, the key has a terminal record and lands in the ordinary
-already-terminal no-op row. A lookup **miss** (or a `ResumeCheckpoint` /
+already-terminal no-op row. (That convergence assumes `log_samples=True`, the default:
+the reuse hit's re-log is gated on it while `record_sample_completed` is not, so with
+`log_samples=False` the key never gains a readable record and repeat cancels keep the
+retryable 409 — the same permanent answer today's 404 gives, so no regression; it just
+never reaches the no-op row.) A lookup **miss** (or a `ResumeCheckpoint` /
 `PreviousError` seed) falls through into `task_run_sample`, stamps arrival, parks — and
 is cancellable as ordinary flavor 1 from that point.
 
@@ -433,7 +467,8 @@ this window) — but it's not needed for the queued cases this design targets.
   discarded runs (also fixing the drain path's `None` write for abandoned re-runs).
 - `_eval/task/run.py`: queue-entry arrival stamp at the top of `task_run_sample`
   (before the semaphore acquire); queue-exit departure stamp + discard check beside the
-  drain check, ordered before it; `run_sample` top-of-function entry check (before the
+  drain check, ordered before it; the queue-hook pair forwarded through the
+  `retry_on_error` recursion; `run_sample` top-of-function entry check (before the
   requeue seeding side effects); restore-side of `on_requeue_accept` (progress tick +
   score re-insert).
 - `_control/eval_state.py`: `record_sample_unrequeued` (increment inverse of
@@ -451,5 +486,7 @@ this window) — but it's not needed for the queued cases this design targets.
   cancel-before-start → discard → requeue 409, the retry-attempt reuse window (cancel
   during resolution → not-at-the-queue 409; after the reuse records → terminal no-op;
   lookup miss → cancellable once parked), source-added sample cancel-before-start,
-  drain/teardown interplay (no double-count), listing/status rendering, idempotence
-  and dry-run rows.
+  cancel during a `retry_on_error` re-park (counted `cancelled`, absent from the log)
+  and its un-cancel (the parked coroutine resumes the retry with its remaining
+  budget), drain/teardown interplay (no double-count), listing/status rendering,
+  idempotence and dry-run rows.
