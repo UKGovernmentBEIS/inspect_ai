@@ -6,6 +6,7 @@
 - Sandbox: Editable installs now avoid spurious `-dev` sandbox-tools binaries when local main refs are missing, stale, or unavailable.
 - Eval Log: Log directory manifests now strip Windows-style directory prefixes before normalizing paths, avoiding parent directories in bundled listings.
 - Bugfix: Eval-level limits and retry/error options no longer persist on reused `Task` objects, preventing later evals from inheriting prior overrides.
+- Bugfix: Transcript markdown now reliably escapes HTML outside code blocks, so unusual code fences or line separators can no longer inject raw HTML into the rendered transcript.
 - Sandboxes: The HTTP proxy example now disables container network egress, preventing agents from bypassing mitmproxy by ignoring proxy environment variables.
 - Sandboxes: The evals-in-eval example now uses rootless Docker-in-Docker and warns that its privileged sidecar is unsuitable for adversarial agents.
 - Sandbox: Recognized Docker failures to run a command (stopped container; missing or unlaunchable timeout wrapper) now surface as tool errors of type `sandbox_unavailable` rather than as command output; non-tool callers (e.g. scorers) get a `SandboxUnavailableError` or `PermissionError` raise. (#4709)
@@ -288,7 +289,6 @@
 - Bugfix: React agent compaction now works after a checkpoint resume — the restored conversation is no longer treated as an always-preserved prefix, so compaction shrinks the context again.
 - Bugfix: Nested `score_reducer` and `task_source` values in serialized task args now restore as instances rather than their registered factories. (#4374)
 - Bugfix: Properly resolve relative sample file paths and file URIs on windows (#4502)
-- Bugfix: Transcript markdown now reliably escapes HTML outside code blocks, so unusual code fences or line separators can no longer inject raw HTML into the rendered transcript.
 - Viewer: log listing responses include the log dir's canonical URI (`log_dir_uri`) so the viewer can reliably scope its local cache to the directory.
 - Inspect View: Reuse one warm async S3 client and connection pool across requests — for both log reads and directory listings — instead of creating one per operation, eliminating the per-request credential/connection cold-start (e.g. `/log-headers` ~3s -> ~0.3s, `/logs` ~1.5s -> ~0.06s).
 - Model Roles: `resolve_model_roles` now copies a `Model` passed by object (e.g. via `eval(model_roles=...)`) before stamping its role, so roles supplied through the Python API — not just `--model-role` — get a distinct instance and are not misattributed. (#4464)
