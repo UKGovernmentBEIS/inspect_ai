@@ -501,31 +501,41 @@ def test_control_server_rejects_excess_connections_with_503(
     connection saturates it (uvicorn counts the requesting connection itself
     toward the limit).
 
+    This is the only test that sees uvicorn's real rejection response, so it
+    also pins the CLI's classification of it (``_rejection_503``) — the unit
+    tests over in test_ctl.py stub that body, and a future uvicorn switching
+    it to a JSON dict would otherwise regress the CLI to "unreachable"
+    without any test failing.
+
     Isolated ``asyncio.run`` like the other full-start tests here (the idle
     connection also uses an asyncio-only API).
     """
+    from inspect_ai._cli.ctl._http import _rejection_503
     from inspect_ai._control import server as server_mod
 
     monkeypatch.setattr(server_mod, "_MAX_CONCURRENT_CONNECTIONS", 2)
 
-    async def read_status(uds: str) -> int:
+    async def read_tasks(uds: str) -> httpx.Response:
         async with httpx.AsyncClient(
             transport=httpx.AsyncHTTPTransport(uds=uds),
             base_url="http://localhost",
             timeout=5,
         ) as client:
-            return (await client.get("/tasks")).status_code
+            return await client.get("/tasks")
 
-    async def status_settles_to(uds: str, expected: int) -> int:
+    async def status_settles_to(uds: str, expected: int) -> httpx.Response:
         # The accept/close we just triggered lands on this same loop, so one
         # scheduling pass usually suffices — poll briefly rather than racing
-        # it with a fixed sleep; return the last status so a failed wait
+        # it with a fixed sleep; return the last response so a failed wait
         # asserts with what the server actually said.
         deadline = asyncio.get_running_loop().time() + 5
         while True:
-            status = await read_status(uds)
-            if status == expected or asyncio.get_running_loop().time() > deadline:
-                return status
+            response = await read_tasks(uds)
+            if (
+                response.status_code == expected
+                or asyncio.get_running_loop().time() > deadline
+            ):
+                return response
             await asyncio.sleep(0.05)
 
     async def scenario() -> None:
@@ -537,11 +547,16 @@ def test_control_server_rejects_excess_connections_with_503(
             uds = str(server.socket_path)
             # one idle connection + the requesting one reaches the cap of 2
             _, writer = await asyncio.open_unix_connection(uds)
-            assert await status_settles_to(uds, 503) == 503
+            rejected = await status_settles_to(uds, 503)
+            assert rejected.status_code == 503
+            assert _rejection_503(rejected), (
+                "real rejection body no longer classifies as a capacity "
+                f"rejection: {rejected.text!r}"
+            )
             writer.close()
             await writer.wait_closed()
             writer = None
-            assert await status_settles_to(uds, 200) == 200
+            assert (await status_settles_to(uds, 200)).status_code == 200
         finally:
             if writer is not None:
                 writer.close()
