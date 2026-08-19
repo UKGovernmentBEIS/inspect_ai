@@ -183,18 +183,34 @@ POST /tasks/<task-id>/drain?dry_run=true|false
   `"retry"` (which requests a re-run) is a user cancel whose in-run retry
   the dispatcher suppresses; `"drain"` joins the suppressed set, inheriting
   the existing branch with zero new code.
-- **The undispatched remainder stays explicitly resumable.** A drained log
-  reports fewer samples than the dataset × epochs, so eval-set's run-vs-reuse
-  logic (`log_samples_complete`) classifies it incomplete: re-invoking
-  `inspect eval-set` on the same `log_dir` later — or an explicit
-  `inspect eval-retry` of the log — re-runs only the never-dispatched
-  samples, reusing every completed one. This settles the issue's open
-  question: drain is honored for the life of the run (nothing in-process
+- **The undispatched remainder stays explicitly resumable.** An explicit
+  `inspect eval-retry` of the drained log works today with no new code:
+  it has no status gate, and the abandoned samples are absent from the
+  retry's sample source, so they run fresh while every completed sample is
+  reused. Re-invoking `inspect eval-set` on the same `log_dir` needs one
+  addition: its run-vs-reuse logic (`log_samples_complete`) compares
+  `results.total_samples` against the dataset × epochs, and that field
+  records the **planned** count — every finalize path passes
+  `len(dataset) * epochs` — so a drained success log reads *complete*
+  despite its absent samples, and the remainder would silently never
+  re-run (the completeness check catches config drift, not partial
+  execution; `completed_samples` can't stand in — it excludes errored
+  samples, so consulting it would spuriously re-run legitimate
+  complete-with-errors logs). The fix is an additive header count of the
+  samples actually present in the log (e.g. `EvalResults.logged_samples`),
+  written at finalize and preferred by `log_samples_complete` when present
+  (absent on older logs → today's classification); this also repairs the
+  same gap the shipped score/error resolutions already have for their
+  abandoned queued samples. With that in place the issue's open question
+  is settled: drain is honored for the life of the run (nothing in-process
   re-dispatches), while "go run the remainder after all" remains available
-  as a deliberate later action — the same durability story as
-  pause-then-kill, and the same explicit/implicit split the per-sample
-  cancel precedent set (the eval-set never re-runs on its own; an explicit
-  retry does).
+  as a deliberate later action — the same explicit/implicit split the
+  per-sample cancel precedent set (the eval-set never re-runs on its own;
+  an explicit retry does). Note the durability story is *stronger* than
+  pause-then-kill's, not identical: a killed run leaves a non-success log
+  that eval-set's status check re-runs regardless; a drained log is an
+  ordinary success log, which is exactly why the completeness check needs
+  the logged-samples count.
 
 ### Escalation ladder and idempotence
 
@@ -223,7 +239,13 @@ idempotent `changed: false` no-op, with the reason naming the pending type:
   re-issues, the same operator-races-the-dispatcher shape Alternatives
   rejects for the status-quo 409. The tearing-down attempt itself is
   untouched (its scope has already fired; there is nothing further to
-  interrupt or overwrite). Score/error in this state stay the no-op —
+  interrupt or overwrite). One qualification: a `"retry"` stamp is only
+  honored with retry budget remaining (`run_one` gates on
+  `retries_remaining > 0`, mirrored by the handle's `TaskCancel.can_retry`),
+  so when `can_retry` is false no retry is coming and there is nothing to
+  abandon — the honest answer is the no-op ("task already ending — retry
+  request will not be honored"), not a `changed: true` claiming an
+  abandonment. Score/error in this state stay the no-op —
   the attempt's samples are already resolved, mirroring their
   between-attempts rejection.
 - score/error on a draining task → **escalates**: the operator decided to
@@ -362,8 +384,13 @@ window where the attempt has *requested* a retry but is still tearing down
 escalation ladder). The dispatcher consumes it at its retry decision:
 `run_one` consults the registry before constructing the retry item, and a
 stamped task skips the construction entirely — no `retry_pending` flag, no
-eager `reinit()`, so nothing to discard; the attempt's error log (already
-in `results`) stands as the task's final state. A stamp landing after that
+eager `reinit()`, so nothing to discard; the attempt's error log stands as
+the task's final state, landing in `results` through the ordinary finalize
+a few lines after the consult (at decision time it is still the local
+`result` — for a first attempt nothing sits under that index yet — so this
+path must *not* borrow site 2's leave-`results`-undisturbed contract, which
+is correct only because the store has already happened by the time a queued
+item is picked). A stamp landing after that
 decision finds `retry_pending` set or the item queued, and falls through to
 the between-attempts branch and the two consume sites above.
 
@@ -430,6 +457,12 @@ by awaits.
 - Route (`POST /tasks/<task-id>/drain`) in `_control/server.py`; CLI verb in
   `_cli/ctl/_task.py` riding the shared mutation renderer with
   `not_found_missing_route`.
+- Eval-set resumability: `EvalResults` gains an additive `logged_samples`
+  count (samples actually present in the log), written by the finalize
+  paths in `_eval/task/run.py`; `log_samples_complete`
+  (`_eval/evalset.py`) prefers it over the planned `total_samples` when
+  present (see Semantics — without it a drained success log reads
+  complete and eval-set never re-runs the remainder).
 - `GET /tasks` `resolving` field + `will_retry` clear on non-`"retry"`
   stamps; docs
   (`docs/control-channel.qmd` drain section) and CHANGELOG at
