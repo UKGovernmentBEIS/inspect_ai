@@ -1,0 +1,383 @@
+# Queued-Sample Cancel (`inspect ctl sample cancel` of a not-yet-started sample)
+
+> **Status: proposed.** Originating issue: meridianlabs-ai/inspect_ai#113. Companion to
+> [`control-channel.md`](control-channel.md) (which owns the `sample/cancel` surface) and
+> [`sample-requeue.md`](sample-requeue.md) (whose resolved question 3 deferred this).
+> No new endpoint, params, or `CONTROL_API_VERSION` bump — this extends the semantics of
+> the shipped `POST /evals/<id>/sample/cancel` route.
+
+Today `inspect ctl sample cancel` can only act on a *running* sample: the cancel
+primitive is `ActiveSample.interrupt`, which cancels the sample's task group — and a
+sample that hasn't started has no task group. Sample requeue (#97) made the gap
+operator-visible: a requeued-then-regretted sample cannot be un-requeued until it starts
+running, so the operator's recourse is to watch it start and then cancel it (one wasted
+re-run — accepted for requeue v1). This design makes `--action cancel` work on a sample
+that hasn't started yet, covering both the never-started case and the queued-re-run
+(un-requeue) case.
+
+## What "not started" means today — three flavors, three behaviors
+
+A sample that isn't running is in one of three distinct states, and the shipped route
+answers each differently (none of them well):
+
+1. **Never started, parked at the sample semaphore** (initial fanout). No
+   `ActiveSample` exists (`run_sample` enters `active_sample()` only after acquiring the
+   semaphore and materializing), and no log record exists. `cancel_sample` misses on
+   `find_active_sample`, then on `sample_error_detail` → the route returns **404 "not
+   found"** — for a sample that is real, planned, and visible as `pending` in
+   `sample list`. (The requeue resolver already distinguishes this case via
+   `_is_planned`; the cancel resolver never learned to.)
+2. **Initializing** — past the semaphore, mid-materialization / sandbox init: an
+   `ActiveSample` exists with `started is None` (and `tg is None`, so `interrupt` would
+   raise). The route returns the explicit **409** ("still queued — only a running sample
+   can be cancelled"). The message says "queued" but this sample has *left* the queue;
+   the genuinely-queued flavors never reach this check.
+3. **A queued re-run** (post-requeue, parked at the semaphore). The dispatcher
+   `start_soon`s the re-run promptly, so by cancel time it is a coroutine parked at
+   `async with semaphore` inside `task_run_sample` — again no `ActiveSample`. But a
+   prior terminal record *does* exist, and `sample_error_detail`'s pending-requeue
+   rendering returns it as `status: "queued"` — so `cancel_sample` falls into its
+   already-terminal branch and reports **`changed: false`, "sample already finished"**
+   with `status: "queued"`. A success-shaped answer that contradicts itself and does
+   nothing: the re-run still happens. This is the worst of the three (the 404 and 409
+   at least fail loudly).
+
+## Semantics
+
+The extended decision table for `sample/cancel`, by the sample's current state
+(new/changed rows marked; the task-level row guards only the two queued rows — see the
+first note below):
+
+| State | `action=cancel` | `action=score\|error` |
+|---|---|---|
+| task finished / between attempts / task cancel in flight (queued rows only) | **409** (new — mirrors requeue's task-level gates) | same |
+| running (`ActiveSample`, started) | interrupt — unchanged | unchanged (score / error, with the fail-on-error gate) |
+| initializing (`ActiveSample`, `started is None`) | 409 — unchanged, message reworded ("initializing", not "queued") | 409 — unchanged |
+| **queued re-run** (pending-requeue key, no `ActiveSample`) | **applied — un-requeue**: the pending entry is withdrawn and the prior terminal record stands | **409** — there is no work to score and no error to record; the message names `--action cancel` |
+| **never started** (planned, no `ActiveSample`, no record, fanout open) | **applied — cancelled before start**: removed from the queue, counted `cancelled`, absent from the log | **409** — same message (upgrades today's 404 to a truthful answer) |
+| already cancelled-before-start | **`changed: false` no-op** ("already cancelled") | 409 |
+| terminal (record exists, no requeue pending) | `changed: false` no-op — unchanged | unchanged |
+| unknown `(sample_id, epoch)` | 404 — unchanged | unchanged |
+
+Notes on the table:
+
+- **The task-level gates apply to the queued rows only** — unlike requeue, where they
+  genuinely run first for every request. Interrupting a *running* sample while a task
+  cancel is in flight stays permitted (unchanged — the operator explicitly targeting one
+  sample wins, per the shipped first-resolution-wins rules), and a terminal record after
+  the task finishes keeps its `changed: false` no-op. But accepting a queued-row cancel
+  when a task cancel is stamped would be a no-op lie (the drain abandons the sample
+  anyway) and its counter reconciliation would collide with the drain's own recording;
+  between attempts / after drain there is no fanout to act on. Same honesty rule, same
+  wording style as requeue's `_task_level_reject`.
+- **Only `--action cancel` is meaningful for a queued sample.** `score` would have
+  nothing to score and `error` nothing to record; both keep rejecting (409) with a
+  message that points at `--action cancel`. This also fixes flavor 1's current 404 for
+  those actions into a truthful rejection — the cancel resolver gains the same
+  `_is_planned` awareness the requeue resolver has.
+- **Idempotence** (agent-shape constraint): repeat cancels land in the no-op rows —
+  a repeated never-started cancel reports "already cancelled", a repeated un-requeue
+  reports the ordinary already-terminal no-op (the pending key is gone, so the prior
+  record renders terminally again). `dry_run=true` reports every row without mutating.
+- **Un-requeue restores the world, not a variant of it.** After an un-requeue the
+  sample is exactly as if the requeue had never been accepted: the prior terminal record
+  stands (it was only ever superseded when a re-run *logs*), the counters and
+  fail-on-error tally are restored, and the sample is **requeueable again** — including
+  re-requeueing the very same record (see the `_accepted_uuids` note below). One honest
+  carve-out: if the withdrawn re-run (or a cancel-before-start) was the *last*
+  outstanding work, restoring/recording the terminal bucket reaches `terminal == total`,
+  which stamps `completed_at` (and clears `EvalState.sample_ids`) — the task then
+  genuinely finishes as the zombie drains, and a later requeue gets the "task already
+  finished" 409. That is the correct answer, not a gap; but the implementation must not
+  key the cancelled-row rendering or the repeat-cancel no-op off `sample_ids`, which is
+  empty by then.
+
+## Mechanism: stamp now, discard at queue exit
+
+A queued sample has no task group, so there is nothing to cancel *into* — but both
+queued flavors share a structural fact: the parked coroutine passes a check point when
+it leaves the queue (the same point where the stamped task-cancel `cancel_type` and the
+drain checks already run, at the top of `task_run_sample`'s `async with semaphore`
+block). The design splits the cancel into a **synchronous semantic accept** and a
+**deferred mechanical discard**:
+
+- **Accept (synchronous, on the eval's loop).** The resolver validates the row, then the
+  handle mutates all observable state with no await point: sets/flags, counters,
+  fail-on-error tally, progress/metrics. From this moment the sample *is* cancelled (or
+  un-requeued) in every read surface. Single-loop synchronicity makes this race-free —
+  the same argument as requeue's `accept` and task-cancel's stamp-then-interrupt. The
+  resolver's earlier reads (`sample_error_detail` / `_full_sample`) await, so — like the
+  requeue resolver, but with one more gate — it re-runs its checks synchronously right
+  before mutating: the task-level gates, **and the departed-the-queue check**. The
+  queue-exit point stamps departure synchronously (on the entry for a re-run; on the key
+  for a seed) as its very first action after acquiring the semaphore, because a run that
+  leaves the queue is *invisible* until its `ActiveSample` registers much later
+  (materialization awaits sit between — the same blind window the task-cancel
+  fails-on-error gate documents). A `find_active_sample` re-check alone therefore isn't
+  enough; accept consults the departure stamp and answers a departed-but-unregistered
+  run with the initializing 409, never a half-cancel that mutates counters for a run
+  that will also terminal-record on its own.
+- **Discard (deferred).** The parked coroutine becomes a zombie: when it eventually
+  acquires the semaphore, the queue-exit check sees the cancel stamp and returns
+  immediately — no materialization, no recording (the accept already counted it), no
+  result write. Until then it holds no resources beyond a parked coroutine frame; the
+  one thing it briefly consumes is a semaphore slot at exit, released immediately.
+
+**Why deferral is acceptable** (vs. tearing the coroutine down at accept): the deferral
+is long exactly when it doesn't matter and short exactly when it does. While the queue
+is busy, the zombie sits behind real work and delays nothing. When the cancelled sample
+is the *last* outstanding work — the case where a lingering zombie would hold the task
+open — the semaphore necessarily has free slots, so the zombie drains immediately and
+the fanout closes. (The immediate-teardown alternative is considered and rejected
+below.)
+
+The two flavors stamp differently, because their identities differ:
+
+### Never-started (initial fanout): a cancelled-keys map
+
+The seed coroutine has no per-entry object (it's a plan tuple; `run_one` gets
+`entry=None`), so the stamp is keyed: the requeue handle (`SampleRequeue`, which already
+owns the analogous pending-requeue set and has exactly the right lifecycle — registered
+when the fanout starts, detached on retry) grows a
+`cancelled: dict[tuple[str, int], Literal["parked", "discarded"]]`. Accept inserts
+`"parked"`; the queue-exit discard flips it to `"discarded"` (the distinction matters to
+requeue, below). At most one coroutine per seed key exists, so keying is unambiguous —
+the reason re-runs can't use this map (below).
+
+- **Counters.** Accept calls `record_sample_cancelled(eval_id)` — the sample is
+  terminally cancelled from the operator's point of view, and `terminal == total`
+  arithmetic holds (`finalize_eval`'s shortfall fold is unaffected: the sample is
+  already terminal, so a teardown before the zombie drains adds nothing for it). The
+  queue-exit discard must **not** record again — its check runs *before* the stamped
+  task-cancel drain check, which would otherwise double-count via its own
+  `record_sample_cancelled`. When the cancelled sample was the last outstanding work,
+  this recording stamps `completed_at` and clears `sample_ids` — the same
+  last-outstanding-work carve-out described under Semantics above applies.
+- **Log.** Absent from the log, matching the established treatment of queued samples
+  under an abort or a graceful drain (terminal in the counters, no record). The
+  alternative — a synthetic cancelled `EvalSample` — is rejected below.
+- **Wiring.** `run_sample` knows the key before materialization (`get_sample(index).id`
+  is read at its top), so it threads a pre-bound `queue_exit: Callable[[], bool]` hook
+  into `task_run_sample`, invoked at the semaphore-exit point beside the existing drain
+  check. The hook does double duty, synchronously: it records the key's departure
+  (every run, cancelled or not — this is what the accept-side departed-the-queue check
+  reads, so it must cover uncancelled runs too) and returns whether this run was
+  cancelled. On a cancelled hit: mark `"discarded"`, fire `sample_terminal("cancelled")`
+  (the injected-slot outcome bookkeeping, exactly as the drain path does — a cancelled
+  outcome keeps the slot resident), return the discard sentinel.
+- **Listing / show.** Today the sample renders `pending` (planned, no record, no active
+  row) — which reads as "will run", now false. The status derivation gets a
+  cancelled-keys rule exactly parallel to `_pending_requeue_keys`: a key in the map
+  renders **`cancelled`** (synthesized row, terminal fields empty), in both
+  `current_sample_summaries` and `sample_error_detail`, with the same
+  snapshot-after-await discipline. Neither histogram needs code of its own, but for
+  different reasons: the samples listing's `counts` is tallied from the rendered rows,
+  so the new row rule *is* what corrects it, while the tasks listing derives `queued`
+  arithmetically from the counters, which the accept's `cancelled` bump already fixed.
+- **Requeue interplay (un-cancel).** The requeue resolver's `_is_planned` branch
+  currently answers "sample has not started yet — it will run without help", which
+  becomes a lie for a cancelled key. New rows in the requeue table:
+  - key `"parked"` → **applied — un-cancel**: remove the key, decrement the counter
+    (reusing `record_sample_requeued(eval_id, "cancelled")`, whose below-zero guard
+    carries over). The *same* parked coroutine serves as the re-run — no new entry is
+    created, so there is nothing to double-queue; the sample simply runs when it gets a
+    slot, exactly as if never cancelled.
+  - key `"discarded"` → **409**: the coroutine is gone and there is no prior record to
+    seed a re-run from ("cancelled before start and already discarded — re-run with
+    `inspect eval-retry`"). Spawning a fresh scheduler entry with `prior=None` would
+    likely work (the store retains seed samples, and the discard's
+    `sample_terminal("cancelled")` keeps an injected sample's slot resident, exactly so
+    a re-run can find its data) — but it is a new accept shape (no prior record, so
+    none of the staleness guard applies) serving an unproven regret window, so it is
+    deferred as a follow-up rather than shipped speculatively.
+- **Retry semantics fall out.** Absent from the log means an eval-set retry attempt and
+  `inspect eval-retry` treat the sample as never-run and re-run it — the same
+  re-runnable meaning a *recorded* cancelled sample has (error set → re-run), reached
+  without fabricating a record.
+
+### Queued re-run (un-requeue): a flag on the scheduled entry
+
+A re-run has a per-entry identity — the `_ScheduledRun` the dispatcher started — and
+must be stamped *there*, not in a key set: the pending key clears at un-requeue accept
+(the sample becomes requeueable again immediately), so a fresh requeue accepted while
+the old zombie is still parked creates a second coroutine for the same key. A key set
+couldn't tell them apart; an entry flag (`_ScheduledRun.cancelled: bool`) cancels
+exactly the old entry, and the fresh one runs unaffected.
+
+Accept performs the full inverse of `SampleRequeue.accept`'s reconciliation,
+synchronously:
+
+1. **`entry.cancelled = True`.** Checked at the top of the re-run's `run_sample` (fast
+   path — skips the requeue seeding side effects when the cancel lands before the
+   dispatcher-started coroutine first runs) and, authoritatively, at the queue-exit
+   check. **Both checks must read the entry object itself** — plumbed through
+   `run_one` → `run_sample` — never a per-key handle lookup: after an un-requeue plus a
+   fresh requeue, the key aliases to the *fresh* entry, and a key lookup from the old
+   zombie would return it uncancelled — the zombie would then proceed through seeding
+   (including `logger.remove_sample`, dropping the fresh re-run's realtime-buffer
+   entry) before the exit check caught it. The handle does still keep the live
+   `_ScheduledRun` per pending key (today it's fire-and-forget after
+   `scheduler.requeue`), but only so *accept* can find the entry to flag.
+2. **Clear the pending-requeue key — and neutralize the withdrawn entry's
+   `on_terminal`.** The listing and `sample show` immediately revert to rendering the
+   prior terminal record (the "queued" rendering keys off the pending set). The
+   neutralization matters in the fresh-requeue-while-zombie-parked scenario: `run_one`
+   fires `on_terminal` unconditionally when the discarded run returns, and the shipped
+   callback discards the key *by value* — which by then may belong to the fresh
+   requeue, wrongly un-marking it (rendering it as its prior terminal record while
+   parked, turning its repeat-requeue answer into a confusing `stale` 409, and making
+   *its* un-requeue unreachable). Accept therefore disarms the old entry's callback (or
+   the discard becomes entry-identity-guarded) when it clears the key.
+3. **Remove the prior record's uuid from `_accepted_uuids`.** Otherwise a later,
+   legitimate re-requeue of the same terminal record — now fully valid, since its
+   re-run never happened — would be refused as `stale`. Un-requeue restores exactly the
+   pre-accept guard state: the invariant that guard enforces ("each accept consumes a
+   freshly-read prior") is preserved because this prior is *back to being current*.
+4. **Re-increment the prior bucket** — a new `record_sample_unrequeued(eval_id,
+   prior_status)` in `_control/eval_state.py`, the increment inverse of
+   `record_sample_requeued` (including `_maybe_mark_finished`: if the withdrawn re-run
+   was the last outstanding work, the eval may stamp `completed_at` while the zombie
+   drains — the same accepted transient as the requeue design's
+   "`completed_at` can precede the `outstanding` catch-up" note, and short-lived for
+   the free-slots reason above). The prior status is remembered from accept, not
+   re-classified.
+5. **Restore the fail-on-error tally**: if the prior was an error,
+   `SampleErrorHandler.error_count += 1` (undoing accept's decrement), so
+   `_should_eval_fail` again reflects the standing outcome.
+6. **Restore progress and the retracted score.** `on_requeue_accept` unticked the
+   progress bar and popped the prior score from `progress_results`; accept now stashes
+   what it popped (per pending key, on the handle), and un-requeue ticks
+   `+SAMPLE_TOTAL_PROGRESS_UNITS` and re-inserts the popped entry (present only when the
+   prior scored, e.g. `score_on_error`). Without this, an errored-with-score prior would
+   vanish from the live metrics and the cancellation path's partial `eval_results`
+   forever, while its log record still shows the score.
+
+**Result-dict preservation.** `run_one` writes `results[(index, epoch)] = await
+run_sample(...)` — a discarded run must **skip** that write (discard is signalled by a
+sentinel, or by `run_one` checking `entry.cancelled`), or it would clobber the prior
+attempt's keyed result (a `score_on_error` prior's score dict) with `None` and desync
+metrics from the log. The rule is uniform — **a discard never writes** — which is also
+correct for the never-started flavor: its key simply stays absent from the returned
+plan-ordered dict, and `eval_results` runs off score dicts and ignores non-dict entries
+either way. (The task-cancel drain path *does* write `None` for the queued samples it
+abandons — which is in fact a narrow pre-existing bug of the same shape, not a harmless
+contrast: a *requeued re-run* abandoned by a graceful `score|error` drain clobbers a
+`score_on_error` prior's score dict with `None`, and the graceful path still computes
+final `eval_results`, so the prior's score vanishes from metrics while its log record
+keeps it. The new discard must not reuse the drain's return-`None` shape, and the
+implementation should fix the drain path's requeue case to the same never-write rule
+while it's in there.)
+
+**Ordering wart, accepted:** the re-run's seeding calls `logger.remove_sample(id,
+epoch)` (dropping the prior attempt's entry from the *realtime view buffer*, not the
+recorder) before parking at the semaphore — usually before any cancel can land. An
+un-requeued sample's prior record therefore stands in the recorder and the log, but its
+realtime-buffer entry is gone for good (nothing re-inserts removed samples; the flush
+cycle only ever removes). This is view-only (the control channel reads the recorder,
+not the view buffer); noted so nobody hunts it as a bug.
+
+### What stays rejected: the initializing window
+
+Flavor 2 (past the semaphore, `ActiveSample` with `started is None`) keeps its 409,
+reworded to say *initializing* rather than "queued". The sample is mid-materialization —
+sandbox init may be in flight — so neither `interrupt` (no task group) nor a queue-exit
+check (already exited) applies, and tearing it down externally would leak half-built
+state. The window is short and self-resolving: retry the cancel once it's running. A
+possible follow-up mirrors the task-cancel machinery — stamp a per-sample intent the
+sample checks as it starts (the same self-interrupt hook the graceful drain uses for
+this window) — but it's not needed for the queued cases this design targets.
+
+## Failure modes and edges worth naming
+
+- **Cancel accepted, then task cancelled / torn down before the zombie drains.**
+  Never-started: already counted `cancelled`; the shortfall fold sees it as terminal and
+  adds nothing; the scheduler's `finally` drain doesn't know about it (no entry) and
+  needn't. Un-requeue: the bucket was restored at accept and the entry never runs; the
+  `finally` drain fires its `on_terminal` (idempotent key discard). Coherent either way.
+- **Cancel racing the re-run's start.** If the `ActiveSample` has appeared by resolve
+  time, the active row wins (same precedence as the requeue resolver): a started re-run
+  is a running sample (ordinary interrupt); one mid-materialization is the initializing
+  409. A run that left the queue *during the resolver's awaits* — past the exit check
+  but with no `ActiveSample` yet — is caught by the departure stamp accept consults
+  (see Mechanism above), so the flag only ever discards a run that hasn't left the
+  queue.
+- **Double-cancel storms** (a retrying agent): bounded by the no-op rows, like every
+  phase-3 directive.
+- **Cancel of a *pending* (not yet dispatcher-started) re-run entry.** The accept marks
+  the entry; when the dispatcher later `start_soon`s it, `run_sample`'s top check
+  discards before any seeding side effect. The scheduler needs no pending-list surgery.
+- **Version skew.** No new params, no `CONTROL_API_VERSION` bump. New CLI → old server:
+  the queued rows keep today's answers (404 / initializing 409 / the misleading
+  `changed: false` for a queued re-run) — nothing the CLI can detect or fix; matched
+  versions are the supported pairing, as with the listing cap. Old CLI → new server:
+  strictly better answers to the same requests.
+- **Early stopping** is not notified of a cancel-before-start (no
+  `schedule_sample`/`complete_sample` ever fired for the sample) — consistent with the
+  drain path, which doesn't notify for abandoned queued samples either.
+- **Crash honesty.** Cancel intent is in-memory only, like all control-channel state: a
+  process that dies before the zombie drains recovers from the log, where a
+  never-started cancel is (correctly) an absent sample and an un-requeue is (correctly)
+  the standing prior record.
+
+## Alternatives considered
+
+- **Tear the parked coroutine down at accept (per-entry `CancelScope`).** Wrap every
+  fanout coroutine in a scope registered by key; accept cancels the scope and the
+  semaphore wait unwinds immediately. Rejected for v1: it adds a scope registry across
+  *all* planned coroutines to serve a rare directive; it is only safe while the
+  coroutine is verifiably still parked (cancelling mid-materialization tears through
+  sandbox init), which needs a stamped-flag handshake anyway — at which point the flag
+  alone, checked at queue exit, delivers the same semantics; and the deferral it
+  eliminates is harmless (free-slots argument above). If a real consumer needs prompt
+  `outstanding` decrement (e.g. dynamic feeders reading queue depth), this can layer on
+  later without changing the directive's surface.
+- **A synthetic cancelled log record for never-started samples.** Would make the sample
+  visible in the finished log. Rejected: there is no transcript, no `TaskState`, no
+  uuid, and no timestamps to record honestly; the established treatment of queued
+  samples (abort and graceful drain) is counters-terminal, log-absent; and absence
+  already yields the right retry semantics (re-run on `eval-retry` / eval-set retry),
+  identical to a recorded cancellation's.
+- **A dedicated `sample unrequeue` verb.** Rejected: "cancel the thing that is queued"
+  is the natural spelling and covers both flavors with one rule; the requeue design
+  already framed un-requeue as a cancel of the queued re-run (resolved question 3); and
+  a new route would need missing-route version handling that extending `sample/cancel`
+  avoids entirely.
+- **Remove the entry from the scheduler's pending list only.** Insufficient — the
+  dispatcher `start_soon`s entries as they arrive, so the window in which a re-run is
+  still on `SampleScheduler._pending` is a few loop iterations; the durable parked state
+  is the coroutine at the semaphore, which only a queue-exit check (or scope cancel)
+  reaches.
+- **Keep `"discarded"` keys requeueable (a fresh `prior=None` entry).** Deferred, not
+  rejected — see the `"discarded"` row above: mechanically feasible, but a new accept
+  shape for an unproven regret window, and `eval-retry` covers the post-discard case.
+
+## Implementation sketch (blast radius)
+
+- `_control/cancel.py`: `cancel_sample` grows the queued rows — task-level gates
+  (reusing/sharing requeue's `_task_level_reject`), pending-requeue key → un-requeue,
+  `_is_planned` + cancelled-map → cancel-before-start / no-op, score|error → 409 for all
+  queued flavors; synchronous gate re-check before mutating.
+- `_eval/task/scheduler.py`: `_ScheduledRun.cancelled` + departure flags; `SampleRequeue`
+  grows the cancelled-keys map, the per-pending-key entry/stashed-score bookkeeping,
+  `cancel_queued(...)` (un-requeue, disarming the withdrawn entry's `on_terminal`) and
+  `cancel_before_start(...)` accepts, and `uncancel(...)` for the requeue resolver;
+  `run_one` plumbs the entry through to `run_sample` and skips the result write for
+  discarded runs (also fixing the drain path's `None` write for abandoned re-runs).
+- `_eval/task/run.py`: queue-exit departure stamp + discard check beside the drain
+  check, ordered before it; `run_sample` top-of-function entry check (before the
+  requeue seeding side effects); restore-side of `on_requeue_accept` (progress tick +
+  score re-insert).
+- `_control/eval_state.py`: `record_sample_unrequeued` (increment inverse of
+  `record_sample_requeued`).
+- `_control/requeue.py`: un-cancel and discarded rows in the decision table;
+  `_is_planned` branch consults the cancelled map.
+- `_control/state.py`: cancelled-before-start keys render `cancelled` in the listing
+  and `sample show` (parallel to `_pending_requeue_keys`).
+- `_cli/ctl/_sample.py`: no new flags; rejection/detail wording for the new rows.
+- Docs: flip `sample-requeue.md` resolved question 3 and the `control-channel.md`
+  `sample/cancel` bullet to point here when this ships.
+- Tests: route-level decision table (all three flavors × three actions), un-requeue
+  reconciliation (counters, error_count, progress/score restore, re-requeue of the same
+  record succeeds), cancel-before-start → un-cancel → runs normally,
+  cancel-before-start → discard → requeue 409, drain/teardown interplay (no
+  double-count), listing/status rendering, idempotence and dry-run rows.
