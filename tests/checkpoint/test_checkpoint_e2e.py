@@ -484,12 +484,12 @@ def _run_hydrate_interrupted_resume(
 ) -> None:
     """Resume in a child process that ``SIGINT``s itself mid-copy.
 
-    The signal lands on the first repo copy of the greedy startup pass
-    (``copy_resume_payloads``) — after the eval dir's resume-source
-    marker, before the checkpoint files (the commit point) — leaving
-    the new attempt's checkpoints dir torn. The child unwinds
-    gracefully (Ctrl-C semantics), so no signal-death assertion
-    applies; the torn dir itself is asserted by the caller.
+    The signal lands on the first repo copy of the startup pass
+    (``copy_resume_payloads``), which runs before the destination
+    log's first write — so the interrupted attempt leaves no log at
+    all. The child unwinds gracefully (Ctrl-C semantics), so no
+    signal-death assertion applies; the no-log outcome is asserted by
+    the caller.
     """
     env = {
         **os.environ,
@@ -517,21 +517,21 @@ def test_checkpoint_resume_survives_interrupted_hydration(
     """An interrupt *during a resume's own startup* doesn't lose the run.
 
     A resume copies the prior attempt's checkpoint payload into the new
-    attempt's dir (greedily, at retry startup — see ``_resume_copy``).
-    Interrupting that copy used to leave a dir that looked committed
-    (checkpoint files present) with no restic data behind it — every
-    later resume failed on the missing repo, and each retry copied the
-    bad state forward (#4861). Now the dir commits last (checkpoint
-    files after the repos), so a torn copy commits nothing, and the
-    next retry falls through the eval-dir chain to the intact source
-    and resumes from there.
+    attempt's dir at retry startup, before the destination log's first
+    write (see ``_resume_copy``). Interrupting that copy used to leave
+    a dir that looked committed (checkpoint files present) with no
+    restic data behind it — every later resume failed on the missing
+    repo, and each retry copied the bad state forward (#4861). Now an
+    interrupted copy means the attempt never writes a log: the next
+    retry sources the newest log that exists, whose checkpoint dirs are
+    complete by construction.
 
     Flow: SIGKILL a fresh attempt at turn 2 (ck1/ck2 committed) →
     resume and SIGINT it inside the startup copy window → resume
-    again, in-process, to completion. Asserts the torn dir's on-disk
-    shape (marker, no committed checkpoint) and that the final resume
-    genuinely restored (restore span + only the remaining turns ran)
-    rather than re-running from scratch.
+    again, in-process, to completion. Asserts the interrupted attempt
+    left no log and that the final resume genuinely restored (restore
+    span + only the remaining turns ran) rather than re-running from
+    scratch.
     """
     cancel_file = tmp_path / "cancels.txt"
     monkeypatch.setenv(CANCEL_FILE_ENV, str(cancel_file))
@@ -548,30 +548,19 @@ def test_checkpoint_resume_survives_interrupted_hydration(
         _run_interrupted_attempt(log_dir, None, tests_dir)
         source_log = _latest_log(log_dir)
 
-        # --- attempt #1: resume, SIGINT inside the hydration copy window -
+        # --- attempt #1: resume, SIGINT inside the startup copy window ---
         _run_hydrate_interrupted_resume(log_dir, source_log, tests_dir)
-        torn_log = _latest_log(log_dir)
-        assert torn_log != source_log, "the interrupted resume wrote no log"
-
-        # The torn dir must commit nothing: checkpoint files are the copy's
-        # last writes, so none may be present.
-        torn_dir = (
-            Path(local_path(eval_checkpoints_dir(torn_log, None))) / f"resume__{1}"
-        )
-        assert not list(torn_dir.glob("ckpt-*.json")), (
-            "interrupted resume copy left committed checkpoint files — the "
-            "commit-point ordering regressed"
-        )
-        # The eval dir's permanent marker (the pass's first write) must name
-        # the attempt this resume was copying from — the trail the next
-        # retry falls through.
-        assert (torn_dir.parent / "resume-source.json").exists(), (
-            "the eval dir's resume-source marker is missing"
+        # the copy runs before the destination log's first write, so the
+        # interrupted attempt must leave no log — its partial checkpoint
+        # copies are unreachable orphans, and the source log stays newest
+        assert _latest_log(log_dir) == source_log, (
+            "the interrupted resume wrote a destination log — its existence "
+            "would wrongly certify the (incomplete) checkpoint copy"
         )
 
-        # --- final resume: from the torn log, in-process, to completion --
+        # --- final resume: from the source log, in-process, to completion
         reset_generates()
-        resume = eval_retry(read_eval_log(torn_log), log_dir=log_dir)[0]
+        resume = eval_retry(read_eval_log(source_log), log_dir=log_dir)[0]
     finally:
         for name in _inspect_projects() - projects_before:
             _force_remove_project(name)

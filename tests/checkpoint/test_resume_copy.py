@@ -1,24 +1,21 @@
 """Tests for the retry startup copy (``_resume_copy``).
 
 Local-fs coverage of ``copy_resume_payloads``: whole-attempt
-replication, the dirty-flag marker lifecycle, the skip-dirty walk, and
-failure semantics. The s3 legs of the underlying copy helpers are
-covered in ``test_fs_copy_s3.py``.
+replication and failure semantics. Interrupt safety lives one level
+up — the copy runs before the destination log's first write, so a
+failed copy means no log and the next retry falls back — which is why
+these tests only assert copy behavior. The s3 legs of the underlying
+copy helpers are covered in ``test_fs_copy_s3.py``.
 """
 
 from __future__ import annotations
 
-import json
 from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
 
 import inspect_ai.util._checkpoint._resume_copy as resume_copy
-from inspect_ai.util._checkpoint._layout.sample_checkpoints_dir import (
-    RESUME_SOURCE_FILE,
-    write_resume_source_marker,
-)
 from inspect_ai.util._checkpoint._layout.schemas import Checkpoint, SnapshotDetails
 from inspect_ai.util._checkpoint._resume_copy import copy_resume_payloads
 
@@ -72,9 +69,9 @@ async def test_copy_resume_payloads_replicates_every_sample_dir(
 ) -> None:
     """Every sample dir the source has is copied — a complete archive.
 
-    Completed samples' dirs are copied too (checkpoints are a permanent
-    record; future work branches from arbitrary checkpoints), and the
-    dirty marker is deleted once every copy lands.
+    Completed samples' dirs are copied too: checkpoints are a permanent
+    record (future work branches from arbitrary checkpoints), so each
+    attempt with a log is a complete, self-contained archive.
     """
     source_eval = tmp_path / "old.checkpoints"
     _build_payload(source_eval / "s1__1", checkpoint_ids=[1, 2])
@@ -88,20 +85,21 @@ async def test_copy_resume_payloads_replicates_every_sample_dir(
 
     _assert_payload_copied(dest_eval / "s1__1", checkpoint_ids=[1, 2])
     _assert_payload_copied(dest_eval / "s2__1", checkpoint_ids=[1])
-    # the marker's deletion is the pass's commit point: this attempt is clean
-    assert not (dest_eval / RESUME_SOURCE_FILE).exists()
 
 
 async def test_copy_resume_payloads_same_eval_dir_is_noop(tmp_path: Path) -> None:
+    """A same-dir retry (reused log location) leaves the payload untouched."""
     source_eval = tmp_path / "same.checkpoints"
     _build_payload(source_eval / "s1__1", checkpoint_ids=[1])
+    before = {p: p.read_bytes() for p in source_eval.rglob("*") if p.is_file()}
 
     await copy_resume_payloads(
         source_eval_dir=str(source_eval),
         destination_eval_dir=str(source_eval),
     )
 
-    assert not (source_eval / RESUME_SOURCE_FILE).exists()
+    after = {p: p.read_bytes() for p in source_eval.rglob("*") if p.is_file()}
+    assert after == before
 
 
 async def test_copy_resume_payloads_missing_source_eval_dir(tmp_path: Path) -> None:
@@ -113,44 +111,18 @@ async def test_copy_resume_payloads_missing_source_eval_dir(tmp_path: Path) -> N
         destination_eval_dir=str(dest_eval),
     )
 
-    # nothing to copy; the attempt still completes clean
-    assert not (dest_eval / RESUME_SOURCE_FILE).exists()
-    assert not any(p.is_dir() for p in dest_eval.iterdir())
+    # nothing to copy
+    assert not any(dest_eval.iterdir())
 
 
-async def test_copy_resume_payloads_skips_dirty_attempts(tmp_path: Path) -> None:
-    """The walk follows dirty markers past dead attempts to the clean one.
-
-    Attempts 2 and 3 both died during their startup copies (markers
-    still present, nothing of their own); attempt 4 copies from
-    attempt 1 — the newest clean attempt.
-    """
-    attempt1 = tmp_path / "attempt1.checkpoints"
-    _build_payload(attempt1 / "s1__1", checkpoint_ids=[1, 2])
-    attempt2 = tmp_path / "attempt2.checkpoints"
-    attempt2.mkdir()
-    await write_resume_source_marker(str(attempt2), str(attempt1))
-    attempt3 = tmp_path / "attempt3.checkpoints"
-    attempt3.mkdir()
-    await write_resume_source_marker(str(attempt3), str(attempt2))
-    dest_eval = tmp_path / "attempt4.checkpoints"
-
-    await copy_resume_payloads(
-        source_eval_dir=str(attempt3),
-        destination_eval_dir=str(dest_eval),
-    )
-
-    _assert_payload_copied(dest_eval / "s1__1", checkpoint_ids=[1, 2])
-    assert not (dest_eval / RESUME_SOURCE_FILE).exists()
-
-
-async def test_copy_resume_payloads_failure_leaves_marker_and_raises(
+async def test_copy_resume_payloads_failure_raises(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Any copy failure fails the retry; the dirty marker stays.
+    """Any copy failure propagates.
 
-    The next retry then skips this attempt via the marker — the skip is
-    the recovery.
+    The caller runs before the destination log's first write, so the
+    raise means the attempt dies without a log and the next retry falls
+    back to the newest log that exists.
     """
     source_eval = tmp_path / "old.checkpoints"
     _build_payload(source_eval / "s1__1", checkpoint_ids=[1])
@@ -168,9 +140,6 @@ async def test_copy_resume_payloads_failure_leaves_marker_and_raises(
             source_eval_dir=str(source_eval),
             destination_eval_dir=str(dest_eval),
         )
-
-    marker = json.loads((dest_eval / RESUME_SOURCE_FILE).read_text())
-    assert marker["source_dir"] == str(source_eval)
 
 
 async def test_copy_resume_payloads_skips_sample_dir_without_host_repo(
@@ -192,16 +161,40 @@ async def test_copy_resume_payloads_skips_sample_dir_without_host_repo(
     )
 
     _assert_payload_copied(dest_eval / "s1__1", checkpoint_ids=[1])
-    assert not (dest_eval / RESUME_SOURCE_FILE).exists()
+
+
+async def test_copy_resume_payloads_tolerates_empty_sandbox_repo_dir(
+    tmp_path: Path,
+) -> None:
+    """An empty sandbox repo dir in a logged attempt must not poison retries.
+
+    A fire interrupted between the sandbox egress's mkdir and its
+    extract leaves an empty ``restic/sandboxes/<name>/`` on local
+    filesystems. No committed checkpoint can reference it (checkpoint
+    files write only after the egress completes), so the copy skips it
+    instead of failing every future retry of the attempt.
+    """
+    source_eval = tmp_path / "old.checkpoints"
+    _build_payload(source_eval / "s1__1", checkpoint_ids=[1])
+    (source_eval / "s1__1" / "restic" / "sandboxes" / "torn").mkdir()
+    dest_eval = tmp_path / "new.checkpoints"
+
+    await copy_resume_payloads(
+        source_eval_dir=str(source_eval),
+        destination_eval_dir=str(dest_eval),
+    )
+
+    _assert_payload_copied(dest_eval / "s1__1", checkpoint_ids=[1])
+    assert not (dest_eval / "s1__1" / "restic" / "sandboxes" / "torn").exists()
 
 
 async def test_copy_payload_files_commit_point_order(tmp_path: Path) -> None:
     """Checkpoint files copy after everything they index, newest first.
 
-    Interrupt recovery no longer depends on this (the dirty marker
-    covers the whole pass), but the order keeps every intermediate
-    state honest — no checkpoint file ever precedes its data — matching
-    the fire path and ``host_egress``.
+    Interrupt recovery no longer depends on this (the destination
+    log's deferred first write gates the whole pass), but the order
+    keeps every intermediate state honest — no checkpoint file ever
+    precedes its data — matching the fire path and ``host_egress``.
     """
     source = tmp_path / "old.checkpoints" / "s1__1"
     _build_payload(source, checkpoint_ids=[1, 2, 3])
@@ -224,25 +217,3 @@ async def test_copy_payload_files_commit_point_order(tmp_path: Path) -> None:
         "ckpt-00002.json",
         "ckpt-00001.json",
     ], "checkpoint files must copy newest first"
-
-
-def test_same_dir_matches_relative_and_absolute_spellings(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """The own-dir assert must not fire on two spellings of one dir.
-
-    The log location reaches detection absolute but can reach hydrate
-    relativized to the eval working dir (the default ./logs case).
-    """
-    from inspect_ai.util._checkpoint.hydrate import _same_dir
-
-    monkeypatch.chdir(tmp_path)
-    (tmp_path / "logs").mkdir()
-    relative = "logs/x.checkpoints/s__1"
-    absolute = str(tmp_path / "logs" / "x.checkpoints" / "s__1")
-
-    assert _same_dir(relative, absolute)
-    assert _same_dir(absolute, absolute)
-    assert not _same_dir(relative, str(tmp_path / "logs" / "y.checkpoints" / "s__1"))
-    assert _same_dir("s3://b/x.checkpoints/s__1", "s3://b/x.checkpoints/s__1")
-    assert not _same_dir("s3://b/x.checkpoints/s__1", absolute)

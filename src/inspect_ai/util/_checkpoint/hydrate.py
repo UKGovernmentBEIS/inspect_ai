@@ -183,11 +183,7 @@ async def hydrate(
         logger,
         "Checkpoint",
         f"{verb} start: sample={sample_id} epoch={epoch} "
-        + (
-            f"resume from {resume_checkpoint.sample_checkpoints_dir}"
-            if resume_checkpoint
-            else "fresh"
-        ),
+        + (f"resume ({resume_checkpoint.attempt})" if resume_checkpoint else "fresh"),
     )
 
     # Phase 1: synchronous prologue. After this completes, every Phase 2
@@ -225,11 +221,6 @@ async def hydrate(
     )
 
     if resume_checkpoint:
-        # detection resolves only the sample's own dir (the startup copy
-        # already put the payload there)
-        assert resume_checkpoint.sample_checkpoints_dir == new_sample_checkpoints_dir, (
-            "resume source must be this sample's own checkpoints dir"
-        )
         if sample_staging is not None:
             # remote destination: pull the payload into local staging
             # (restic can't run against S3) and prime the egress
@@ -322,19 +313,6 @@ async def hydrate(
         host=host_result,
         sandbox_backup_paths=sandbox_backup_paths,
     )
-
-
-def _same_dir(a: str, b: str) -> bool:
-    """Whether two dir references name the same location.
-
-    Remote URIs compare textually; local paths (including ``file://``
-    and relative forms) compare fully resolved.
-    """
-    if a == b:
-        return True
-    if is_remote_destination(a) or is_remote_destination(b):
-        return False
-    return Path(local_path(a)).resolve() == Path(local_path(b)).resolve()
 
 
 async def _hydrate_host(

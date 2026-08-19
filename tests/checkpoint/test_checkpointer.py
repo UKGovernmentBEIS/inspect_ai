@@ -1587,17 +1587,13 @@ def test_attempt_reflects_resume_checkpoint() -> None:
     assert _make_cp().attempt == "initial"
     assert (
         _make_cp(
-            resume_checkpoint=ResumeCheckpoint(
-                sample_checkpoints_dir="/x", attempt="resume"
-            ),
+            resume_checkpoint=ResumeCheckpoint(attempt="resume"),
         ).attempt
         == "resume"
     )
     assert (
         _make_cp(
-            resume_checkpoint=ResumeCheckpoint(
-                sample_checkpoints_dir="/x", attempt="resume_for_scoring"
-            ),
+            resume_checkpoint=ResumeCheckpoint(attempt="resume_for_scoring"),
         ).attempt
         == "resume_for_scoring"
     )
@@ -2065,13 +2061,7 @@ def _finalize_setup(
     hydration = _fake_hydration(str(tmp_path / "ckpts"), str(tmp_path / "work"))
     Path(hydration.sample_checkpoints_dir).mkdir(parents=True)
     Path(hydration.context_dir).mkdir(parents=True)
-    resume = (
-        ResumeCheckpoint(
-            sample_checkpoints_dir=str(tmp_path / "prior"), attempt=attempt
-        )
-        if attempt is not None
-        else None
-    )
+    resume = ResumeCheckpoint(attempt=attempt) if attempt is not None else None
     setup = _CheckpointerSetup(
         config=ResolvedCheckpointConfig(trigger=TurnInterval(every=1)),
         log_location=str(tmp_path / "t.eval"),
@@ -2176,10 +2166,7 @@ async def test_resume_resets_restored_transcript_store_before_seeding(
         log_location=str(tmp_path / "t.eval"),
         sample_id="s",
         epoch=0,
-        resume_checkpoint=ResumeCheckpoint(
-            sample_checkpoints_dir=str(tmp_path / "prior-ckpts"),
-            attempt="resume",
-        ),
+        resume_checkpoint=ResumeCheckpoint(attempt="resume"),
     )
 
     with (
@@ -2225,10 +2212,7 @@ def test_resume_seed_skips_restored_resident_events(
     cp = _EnteredCheckpointer(
         config=ResolvedCheckpointConfig(trigger=TurnInterval(every=1)),
         hydration=hydration,
-        resume_checkpoint=ResumeCheckpoint(
-            sample_checkpoints_dir=str(tmp_path / "old"),
-            attempt="resume",
-        ),
+        resume_checkpoint=ResumeCheckpoint(attempt="resume"),
         reset_transcript_store=True,
     )
     snapshot = tmp_path / "snapshot"
@@ -2438,9 +2422,7 @@ async def _run_resume_outcome(
         log_location=str(Path(dirs.checkpoints) / "t.eval"),
         sample_id="s",
         epoch=0,
-        resume_checkpoint=ResumeCheckpoint(
-            sample_checkpoints_dir=dirs.checkpoints, attempt="resume"
-        ),
+        resume_checkpoint=ResumeCheckpoint(attempt="resume"),
     )
     with patch(
         "inspect_ai.util._checkpoint.checkpointer_impl.hydrate",
@@ -2534,9 +2516,7 @@ async def test_on_resume_exception_fails_resume(dirs: _Dirs) -> None:
         log_location=str(Path(dirs.checkpoints) / "t.eval"),
         sample_id="s",
         epoch=0,
-        resume_checkpoint=ResumeCheckpoint(
-            sample_checkpoints_dir=dirs.checkpoints, attempt="resume"
-        ),
+        resume_checkpoint=ResumeCheckpoint(attempt="resume"),
     )
     with patch(
         "inspect_ai.util._checkpoint.checkpointer_impl.hydrate",
@@ -2562,10 +2542,7 @@ async def test_on_resume_receives_attempt_resume_for_scoring(dirs: _Dirs) -> Non
         log_location=str(Path(dirs.checkpoints) / "t.eval"),
         sample_id="s",
         epoch=0,
-        resume_checkpoint=ResumeCheckpoint(
-            sample_checkpoints_dir=dirs.checkpoints,
-            attempt="resume_for_scoring",
-        ),
+        resume_checkpoint=ResumeCheckpoint(attempt="resume_for_scoring"),
     )
     with patch(
         "inspect_ai.util._checkpoint.checkpointer_impl.hydrate",
@@ -2604,9 +2581,7 @@ async def test_on_resume_fires_only_once_across_reentry(dirs: _Dirs) -> None:
         log_location=str(Path(dirs.checkpoints) / "t.eval"),
         sample_id="s",
         epoch=0,
-        resume_checkpoint=ResumeCheckpoint(
-            sample_checkpoints_dir=dirs.checkpoints, attempt="resume"
-        ),
+        resume_checkpoint=ResumeCheckpoint(attempt="resume"),
     )
     with patch(
         "inspect_ai.util._checkpoint.checkpointer_impl.hydrate",

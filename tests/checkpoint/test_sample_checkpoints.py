@@ -7,18 +7,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from inspect_ai.util._checkpoint._layout.sample_checkpoints_dir import (
-    RESUME_SOURCE_FILE,
     _read_restic_config,
-    delete_resume_source_marker,
     delete_sample_checkpoints_dir,
     ensure_restic_config,
     ensure_sample_checkpoints_dir,
-    read_resume_source_marker,
     resolve_resumable_sample_dir,
     sample_checkpoints_dir,
     scan_latest_committed_checkpoint,
     write_checkpoint_file,
-    write_resume_source_marker,
 )
 from inspect_ai.util._checkpoint._layout.schemas import (
     Checkpoint,
@@ -266,9 +262,9 @@ async def test_scan_latest_committed_checkpoint_returns_latest_parseable(
 # -- resume resolution ---------------------------------------------------
 #
 # Detection looks only in a sample's own dir: the retry startup copy
-# replicated every sample dir from the newest clean attempt, so a
-# sample either has a committed checkpoint here or runs fresh. The
-# eval-level marker (dirty flag) is exercised in test_resume_copy.py.
+# replicated every sample dir from the retried attempt (whose log's
+# existence proves the copy completed), so a sample either has a
+# committed checkpoint here or runs fresh.
 
 
 async def _dir_with_checkpoint(root: Path, name: str) -> str:
@@ -303,29 +299,6 @@ async def test_resolve_none_when_nothing_committed(tmp_path: Path) -> None:
     assert await resolve_resumable_sample_dir(sample_dir) is None
     # missing dir behaves the same as an empty one
     assert await resolve_resumable_sample_dir(str(tmp_path / "missing")) is None
-
-
-async def test_resume_source_marker_roundtrip(tmp_path: Path) -> None:
-    """Write → read → delete → read None; delete is idempotent."""
-    eval_dir = str(tmp_path / "b.checkpoints")
-    Path(eval_dir).mkdir()
-    await write_resume_source_marker(eval_dir, str(tmp_path / "a.checkpoints"))
-
-    marker = await read_resume_source_marker(eval_dir)
-    assert marker is not None
-    assert marker.source_dir == str(tmp_path / "a.checkpoints")
-
-    await delete_resume_source_marker(eval_dir)
-    assert await read_resume_source_marker(eval_dir) is None
-    await delete_resume_source_marker(eval_dir)  # idempotent
-
-
-async def test_read_resume_source_marker_torn_is_none(tmp_path: Path) -> None:
-    eval_dir = str(tmp_path / "b.checkpoints")
-    Path(eval_dir).mkdir()
-    (Path(eval_dir) / RESUME_SOURCE_FILE).write_text('{"source_d')
-
-    assert await read_resume_source_marker(eval_dir) is None
 
 
 async def test_delete_sample_checkpoints_dir(tmp_path: Path) -> None:

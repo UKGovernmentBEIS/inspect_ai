@@ -99,21 +99,3 @@ class ResticConfig(BaseModel):
     """Password used by every repo (host + each sandbox) under this
     sample. Reaches sandbox-side restic via the per-exec environment;
     never persisted in the sandbox."""
-
-
-class ResumeSource(BaseModel):
-    """Resume-source marker file (``<eval-checkpoints-dir>/resume-source.json``).
-
-    The retry startup copy's dirty flag: its *first* write, naming the
-    attempt being retried, deleted once every sample dir has been
-    copied in. An attempt without a marker is a clean, self-contained
-    archive; an attempt whose marker is still present died during its
-    startup copy and holds nothing of its own, so the next retry
-    follows the marker past it (and past any run of dead attempts) to
-    the newest clean attempt (see ``_resume_copy``).
-    """
-
-    model_config = ConfigDict(extra="allow")
-
-    source_dir: str
-    """The eval checkpoints dir of the attempt this one retried."""

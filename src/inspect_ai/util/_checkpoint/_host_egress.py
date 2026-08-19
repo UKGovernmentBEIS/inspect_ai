@@ -191,7 +191,13 @@ def _safe_order(files: list[str]) -> list[str]:
         # a multi-file ship interrupted part way through must leave the
         # *latest* at the destination — a stale-prefix dir would resolve
         # to an old checkpoint
-        + sorted(checkpoint_files, reverse=True)
+        + sorted(
+            checkpoint_files,
+            key=lambda f: int(
+                f.rsplit("/", 1)[-1].removeprefix("ckpt-").removesuffix(".json")
+            ),
+            reverse=True,
+        )
     )
 
 

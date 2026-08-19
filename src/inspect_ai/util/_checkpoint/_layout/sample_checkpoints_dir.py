@@ -11,12 +11,6 @@ checkpoints dir under the eval checkpoints dir. The dir holds:
   ``sandboxes/<name>/`` (per-sandbox restic repos).
 - ``context/`` — restic backup source (host context JSON files).
 
-The *eval* checkpoints dir additionally holds a ``resume-source.json``
-marker while a retry's startup copy is in flight — written first,
-deleted when the copy completes — naming the attempt being retried
-(see :class:`ResumeSource`). The marker helpers live here alongside
-the per-dir scan.
-
 The optional ``_<retry>`` suffix on the dir name is omitted until
 ``ActiveSample`` exposes the attempt index — see the TODO at the
 ``Checkpointer.__aenter__`` identity capture.
@@ -31,13 +25,13 @@ from logging import getLogger
 from typing import NamedTuple, TypeVar
 
 import anyio.to_thread
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel
 
 from inspect_ai._util.asyncfiles import get_async_filesystem
-from inspect_ai._util.file import filesystem
+from inspect_ai._util.file import filesystem, local_path
 
 from .._async_fs import async_mkdir
-from .schemas import Checkpoint, ResticConfig, ResumeSource
+from .schemas import Checkpoint, ResticConfig
 from .staging_dir import restic_config_path, restic_dir
 
 logger = getLogger(__name__)
@@ -138,41 +132,11 @@ async def _first_parseable_checkpoint(
     return None
 
 
-RESUME_SOURCE_FILE = "resume-source.json"
-
-
 class ResolvedResumeDir(NamedTuple):
     """A sample dir holding a committed checkpoint, plus that checkpoint."""
 
     sample_dir: str
     checkpoint: Checkpoint
-
-
-async def write_resume_source_marker(eval_dir: str, source_eval_dir: str) -> None:
-    """Write the eval dir's resume-source marker (the dirty flag).
-
-    Must be the retry's *first* write into ``eval_dir``; it is deleted
-    once the startup copy fully completes. While present, the attempt
-    is unusable as a resume source and later retries skip past it to
-    the attempt it names (see :class:`ResumeSource`).
-    """
-    await _write_model_json(
-        f"{eval_dir}/{RESUME_SOURCE_FILE}",
-        ResumeSource(source_dir=source_eval_dir),
-    )
-
-
-async def delete_resume_source_marker(eval_dir: str) -> None:
-    """Delete the eval dir's resume-source marker.
-
-    This is the startup copy's commit point: a marker-free attempt is a
-    complete, self-contained archive. Idempotent — a missing marker is
-    a no-op.
-    """
-    try:
-        await get_async_filesystem().delete_file(f"{eval_dir}/{RESUME_SOURCE_FILE}")
-    except FileNotFoundError:
-        pass
 
 
 async def resolve_resumable_sample_dir(sample_dir: str) -> ResolvedResumeDir | None:
@@ -202,27 +166,6 @@ async def resolve_resumable_sample_dir(sample_dir: str) -> ResolvedResumeDir | N
     return None
 
 
-async def read_resume_source_marker(eval_dir: str) -> ResumeSource | None:
-    """The eval dir's resume-source marker, or ``None`` (absent or torn).
-
-    ``None`` means the attempt is clean (a complete archive). A torn
-    marker means the retry died inside its very first write — it copied
-    nothing, but neither did it record which attempt it retried, so the
-    walk treats it as clean-but-empty and anything behind it is only
-    reachable by retrying from an older log. The marker write is
-    deliberately first and fatal-on-failure to keep that window to a
-    single small write. Transient read failures (e.g. an S3 throttle)
-    propagate rather than mapping to ``None``, so a skip-walk is never
-    silently cut short.
-    """
-    try:
-        return await _load_model_json(f"{eval_dir}/{RESUME_SOURCE_FILE}", ResumeSource)
-    except FileNotFoundError:
-        return None
-    except ValidationError:
-        return None
-
-
 async def delete_sample_checkpoints_dir(
     eval_dir: str, sample_id: int | str, epoch: int
 ) -> None:
@@ -233,6 +176,12 @@ async def delete_sample_checkpoints_dir(
     out rather than resumed.
     """
     target = sample_checkpoints_dir(eval_dir, sample_id, epoch)
+    if filesystem(target).is_local():
+        try:
+            await anyio.to_thread.run_sync(partial(shutil.rmtree, local_path(target)))
+        except FileNotFoundError:
+            pass
+        return
     async_fs = get_async_filesystem()
     # collect first: deleting while iterating a paginated S3 listing is
     # undefined
@@ -240,17 +189,14 @@ async def delete_sample_checkpoints_dir(
         files = [uri async for uri in async_fs.iter_files(target, recursive=True)]
     except FileNotFoundError:
         files = []
+    # checkpoint files first: they are the dir's commit point, so an
+    # interrupted delete de-commits the dir before touching its data
+    files.sort(key=lambda uri: not uri.rsplit("/", 1)[-1].startswith("ckpt-"))
     for uri in files:
         try:
             await async_fs.delete_file(uri)
         except FileNotFoundError:
             pass
-    # local filesystems keep the (now empty) dir tree; remove it
-    fs = filesystem(target)
-    if fs.is_local() and fs.exists(target):
-        await anyio.to_thread.run_sync(
-            partial(shutil.rmtree, target, ignore_errors=True)
-        )
 
 
 async def write_checkpoint_file(

@@ -9,28 +9,26 @@ start, and never writes anything a future retry needs.
 
 The design is one rule with two supports:
 
-- **A clean attempt contains everything.** ``copy_resume_payloads``
-  runs once at retry startup, before any sample runs, and copies
-  *every* sample dir the source attempt has — completed samples
-  included. Checkpoints are a permanent record (planned work allows
-  branching from arbitrary checkpoints), so each usable attempt is a
-  complete, self-contained archive and everything older is superseded.
-- **A dirty attempt is skipped.** The pass's first write is the eval
-  dir's ``resume-source.json`` marker (see :class:`ResumeSource`); its
-  deletion, after every copy lands, is the pass's commit point. An
-  attempt whose marker is still present died during its startup copy —
-  it holds nothing of its own, so the next retry follows its marker
-  past it (and past any run of dead attempts) to the newest clean
-  attempt and copies from there.
+- **A retry's log is its checkpoint commit point.** ``copy_resume_payloads``
+  runs at retry startup *before the destination log's first write* — a
+  retry attempt defers every destination log write until its reuse
+  sweep settles (see ``design/retry-deferred-destination-log.md``), and
+  a copy failure raises before ``log_start``, so the attempt dies
+  without a destination log. Retries only ever source the newest log
+  that *exists*, so a log's existence proves its checkpoint dirs are
+  complete; a dead attempt's partial copies are unreachable orphans.
+- **The copy replicates the whole attempt.** Every sample dir the
+  source has is copied — completed samples included. Checkpoints are a
+  permanent record (planned work allows branching from arbitrary
+  checkpoints), so each attempt with a log is a complete,
+  self-contained archive and everything older is superseded.
 
 Resume detection then never looks past a sample's own dir
 (``resolve_resumable_sample_dir``): a sample either has a committed
-checkpoint in this attempt or it runs fresh.
-
-Failures fail the retry. An interrupt or error anywhere in the pass
-leaves the marker in place, this attempt errors, and the next retry
-skips it — the skip *is* the recovery; there is no partial-recovery
-machinery.
+checkpoint in this attempt or it runs fresh. Within one sample, files
+still copy in commit-point order (checkpoint files last, newest-first)
+so every intermediate state stays honest, though recovery no longer
+depends on it.
 """
 
 from __future__ import annotations
@@ -46,19 +44,17 @@ from inspect_ai._util.file import dirname
 from inspect_ai._util.trace import trace_action
 
 from ._async_fs import async_mkdir
-from ._layout.sample_checkpoints_dir import (
-    delete_resume_source_marker,
-    read_resume_source_marker,
-    write_resume_source_marker,
-)
 
 logger = getLogger(__name__)
 
-# How many samples copy concurrently during the startup copy.
-# Each sample already fans its repo copies out in parallel, and the
-# shared S3 client pools 50 connections — a modest sample-level bound
-# keeps the fan-out product under it.
+# How many samples copy concurrently during the startup copy, and how
+# many files copy concurrently within one repo. Each sample fans its
+# repo copies out in parallel (host + each sandbox), so the fan-out
+# product — samples × repos × files — must stay under the shared S3
+# client's 50-connection pool (8 × 2 × 3 = 48 for the common
+# one-sandbox case).
 _STARTUP_COPY_CONCURRENCY = 8
+_REPO_FILE_COPY_CONCURRENCY = 3
 
 
 class _MissingRepoError(RuntimeError):
@@ -76,15 +72,13 @@ async def copy_resume_payloads(
     source_eval_dir: str,
     destination_eval_dir: str,
 ) -> None:
-    """Copy every sample dir from the newest clean attempt into this one.
+    """Copy every sample dir from the retried attempt into this one.
 
-    Runs once at retry startup, before any sample runs.
-    ``source_eval_dir`` is the retried attempt's eval checkpoints dir;
-    if that attempt died during its own startup copy (its marker is
-    still present) the walk follows markers back to the newest clean
-    attempt and copies from there. Any failure propagates: the marker
-    stays, this retry errors, and the next retry skips this attempt
-    the same way.
+    Runs at retry startup, before the destination log's first write —
+    a failure here must raise before ``log_start`` so the attempt dies
+    without a destination log and the next retry falls back to the
+    newest log that exists (whose checkpoint dirs are complete by the
+    same rule).
 
     A same-dir retry (source and destination eval dirs coincide, e.g. a
     log location reused within the same second) has nothing to copy.
@@ -98,21 +92,18 @@ async def copy_resume_payloads(
         f"eval {source_eval_dir} -> {destination_eval_dir}",
     ):
         await async_mkdir(destination_eval_dir)
-        await write_resume_source_marker(destination_eval_dir, source_eval_dir)
-
-        source = await _newest_clean_attempt(source_eval_dir)
-        sample_dirs = await _dir_names(source)
+        sample_dirs = await _dir_names(source_eval_dir)
         if sample_dirs:
             logger.info(
                 f"Checkpoint resume: copying {len(sample_dirs)} sample "
-                f"dir(s) from {source}"
+                f"dir(s) from {source_eval_dir}"
             )
             limiter = anyio.CapacityLimiter(_STARTUP_COPY_CONCURRENCY)
             await tg_collect(
                 [
                     partial(
                         _copy_sample_dir,
-                        source,
+                        source_eval_dir,
                         destination_eval_dir,
                         name,
                         limiter,
@@ -120,30 +111,6 @@ async def copy_resume_payloads(
                     for name in sample_dirs
                 ]
             )
-        await delete_resume_source_marker(destination_eval_dir)
-
-
-async def _newest_clean_attempt(source_eval_dir: str) -> str:
-    """Follow dirty markers back to the newest clean attempt.
-
-    A marker is present only on an attempt that died during its startup
-    copy — clean attempts deleted theirs — so each hop skips one dead
-    attempt. A dangling marker (source since deleted) resolves to the
-    missing dir, which lists no sample dirs and copies nothing. A
-    marker cycle can only come from corrupted markers; failing loudly
-    beats silently building a "clean" attempt from a dead one.
-    """
-    seen: set[str] = set()
-    current = source_eval_dir
-    while current not in seen:
-        seen.add(current)
-        marker = await read_resume_source_marker(current)
-        if marker is None:
-            return current
-        current = marker.source_dir
-    raise RuntimeError(
-        f"resume: cycle in resume-source markers starting at {source_eval_dir}"
-    )
 
 
 async def _copy_sample_dir(
@@ -185,10 +152,11 @@ async def copy_payload_files(source_dir: str, destination_dir: str) -> list[str]
     every ``restic/sandboxes/*`` repo the source actually has — not a
     set filtered by the current sandbox config), then the restic
     config, then checkpoint files, newest-first. Interrupt recovery
-    does not depend on this order — the eval-level dirty marker covers
-    the whole pass — but it keeps every intermediate state honest (no
-    checkpoint file ever precedes the bytes it indexes), matching the
-    order the fire path and ``host_egress`` follow.
+    does not depend on this order — the destination log's deferred
+    first write gates the whole pass — but it keeps every intermediate
+    state honest (no checkpoint file ever precedes the bytes it
+    indexes), matching the order the fire path and ``host_egress``
+    follow.
 
     Also used by ``hydrate`` to pull a remote destination's payload
     into its local staging dir.
@@ -207,11 +175,10 @@ async def copy_payload_files(source_dir: str, destination_dir: str) -> list[str]
             ),
             *[
                 partial(
-                    _fs_copy_repo,
+                    _copy_sandbox_repo,
                     source_dir,
-                    f"restic/sandboxes/{name}",
-                    f"{destination_dir}/restic/sandboxes/{name}",
-                    label=f"sandbox {name!r}",
+                    name,
+                    destination_dir,
                 )
                 for name in sandbox_names
             ],
@@ -221,6 +188,31 @@ async def copy_payload_files(source_dir: str, destination_dir: str) -> list[str]
     written += await _fs_copy_restic_config(source_dir, destination_dir)
     written += await _fs_copy_checkpoint_files(source_dir, destination_dir)
     return written
+
+
+async def _copy_sandbox_repo(
+    source_dir: str, name: str, destination_dir: str
+) -> list[str]:
+    """Copy one sandbox repo, tolerating an empty source dir.
+
+    On local filesystems a fire interrupted between the sandbox
+    egress's ``mkdir`` and its extract leaves an empty
+    ``restic/sandboxes/<name>/`` inside an attempt that has a log. The
+    fire path writes its checkpoint file only after the egress
+    completes, so an empty repo dir can never back a committed
+    checkpoint — skipping it loses nothing, and raising would poison
+    every future retry of that attempt.
+    """
+    try:
+        return await _fs_copy_repo(
+            source_dir,
+            f"restic/sandboxes/{name}",
+            f"{destination_dir}/restic/sandboxes/{name}",
+            label=f"sandbox {name!r}",
+        )
+    except _MissingRepoError as ex:
+        logger.warning(f"Checkpoint resume: skipping empty sandbox repo: {ex}")
+        return []
 
 
 async def _fs_copy_restic_config(old_sample_dir: str, new_sample_dir: str) -> list[str]:
@@ -253,9 +245,8 @@ async def _fs_copy_checkpoint_files(
     bytes it indexes are in place (see ``copy_payload_files``). The
     copy is itself multi-write, so it lands the *latest* checkpoint
     first — a torn prefix must contain the newest file, or a
-    partially-copied dir would resolve to a stale checkpoint
-    (outranking the marker) and the orphan-snapshot drop would then
-    forget every newer snapshot.
+    partially-copied dir would resolve to a stale checkpoint and the
+    orphan-snapshot drop would then forget every newer snapshot.
 
     Names that don't parse as ``ckpt-NNNNN`` are skipped: they can
     never be a committed checkpoint (the resume scan reads only
@@ -302,7 +293,6 @@ async def _fs_copy_repo(
     """
     async_fs = get_async_filesystem()
     src_base = f"{old_sample_dir}/{subpath}"
-    written: list[str] = []
     # `iter_files` yields URIs verbatim-prefixed by `src_base` for S3, but
     # fsspec-normalized (absolute) for local sources — so slicing by
     # `len(src_base)` mangles local relative sources. Relativize against the
@@ -311,12 +301,24 @@ async def _fs_copy_repo(
     # is correct regardless of how the backend normalizes the prefix.
     boundary = f"/{subpath}/"
     with trace_action(logger, "Checkpoint Resume Copy", f"fs-copy {label}"):
-        async for uri in async_fs.iter_files(src_base, recursive=True):
-            rel = uri.rsplit(boundary, 1)[-1]
-            dst = f"{new_repo}/{rel}"
-            await async_mkdir(dirname(dst))
-            await async_fs.copy_file(uri, dst)
-            written.append(f"{subpath}/{rel}")
-        if not written:
+        rels = [
+            uri.rsplit(boundary, 1)[-1]
+            async for uri in async_fs.iter_files(src_base, recursive=True)
+        ]
+        if not rels:
             raise _MissingRepoError(label=label, subpath=subpath, src_base=src_base)
-    return written
+        # one mkdir per distinct parent, then bounded-parallel file copies:
+        # repos hold many small pack files, and one awaited round-trip per
+        # file would serialize the startup path that gates the whole retry.
+        # Intra-repo order doesn't matter (the checkpoint files that index
+        # these bytes copy separately, afterward).
+        for parent in {dirname(f"{new_repo}/{rel}") for rel in rels}:
+            await async_mkdir(parent)
+        limiter = anyio.CapacityLimiter(_REPO_FILE_COPY_CONCURRENCY)
+
+        async def copy_one(rel: str) -> None:
+            async with limiter:
+                await async_fs.copy_file(f"{src_base}/{rel}", f"{new_repo}/{rel}")
+
+        await tg_collect([partial(copy_one, rel) for rel in rels])
+    return [f"{subpath}/{rel}" for rel in rels]

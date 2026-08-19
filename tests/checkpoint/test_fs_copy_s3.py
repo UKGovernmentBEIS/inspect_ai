@@ -240,8 +240,6 @@ async def test_remote_resume_copies_payload_to_new_destination(
             await fs.read_file(f"{new_root}/restic/restic-config.json")
             == b'{"restic_password":"p"}'
         )
-        # the eval-level dirty marker was deleted on completion
-        assert not await fs.exists(f"{new_eval}/resume-source.json")
 
         # Sample start: pull the destination's payload into staging and
         # seed the manifest (as hydrate does).

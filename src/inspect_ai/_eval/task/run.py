@@ -724,6 +724,23 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
         # time, so there is no early settle event to key the release to.
         if sample_source is not None and store_len * epochs > 0:
             logger.hold_destination_writes()
+        # on a retry, replicate the retried attempt's checkpoint sample
+        # dirs into this attempt's checkpoints dir — before the
+        # destination log's first write (the hold above defers it), and
+        # before log_start so a copy failure raises out of `task_run`
+        # without producing a destination log at all. The next retry then
+        # falls back to the newest log that exists, whose checkpoint dirs
+        # are complete by the same rule: a log's existence proves its
+        # startup copy finished.
+        if sample_source is not None and sample_source.prior_checkpoints_dir:
+            copy_destination = eval_checkpoints_dir_from_config(
+                logger.location, checkpoint, eval_checkpoint
+            )
+            if copy_destination is not None:
+                await copy_resume_payloads(
+                    source_eval_dir=sample_source.prior_checkpoints_dir,
+                    destination_eval_dir=copy_destination,
+                )
         await logger.log_start(eval_plan)
 
         try:
@@ -1038,9 +1055,10 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                             # sample's copied checkpoints (the startup copy
                             # replicated them) and run fresh
                             if requeue_checkpoints_dir is not None:
-                                await delete_sample_checkpoints_dir(
-                                    requeue_checkpoints_dir, sample_id, epoch
-                                )
+                                async with resume_probe_limiter:
+                                    await delete_sample_checkpoints_dir(
+                                        requeue_checkpoints_dir, sample_id, epoch
+                                    )
                         else:
                             # non-clean prior (errored or absent from the
                             # log): prefer resuming from a checkpoint in
@@ -1327,25 +1345,12 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                     )
 
                 # this attempt's own eval checkpoints dir: where a requeued
-                # or retried sample's checkpoint (if any) lives, and the
-                # destination of the startup copy below
+                # or retried sample's checkpoint (if any) lives — the
+                # startup copy (before log_start above) put the retried
+                # attempt's payloads there
                 requeue_checkpoints_dir = eval_checkpoints_dir_from_config(
                     logger.location, checkpoint, eval_checkpoint
                 )
-
-                # on a retry, replicate the retried attempt's sample dirs
-                # into this attempt's checkpoints dir — before any sample
-                # runs. Each usable attempt is a complete archive, and
-                # detection only ever looks in a sample's own dir.
-                if (
-                    sample_source is not None
-                    and sample_source.prior_checkpoints_dir is not None
-                    and requeue_checkpoints_dir is not None
-                ):
-                    await copy_resume_payloads(
-                        source_eval_dir=sample_source.prior_checkpoints_dir,
-                        destination_eval_dir=requeue_checkpoints_dir,
-                    )
 
                 # the sample fanout: an injectable scheduler rather than a
                 # one-shot tg_collect, so the control channel's requeue
@@ -2777,10 +2782,7 @@ async def _resume_if_checkpointed(
         if resolved.checkpoint.trigger == "agent_complete"
         else "resume"
     )
-    return ResumeCheckpoint(
-        sample_checkpoints_dir=resolved.sample_dir,
-        attempt=attempt,
-    )
+    return ResumeCheckpoint(attempt=attempt)
 
 
 # we can reuse samples from a previous eval_log if and only if:

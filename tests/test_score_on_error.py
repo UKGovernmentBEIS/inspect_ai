@@ -378,7 +378,6 @@ def test_resume_detection_when_checkpoint_exists(tmp_path: Path) -> None:
     lookup_result, resume = anyio.run(call)
     assert isinstance(lookup_result, PreviousError)
     assert isinstance(resume, ResumeCheckpoint)
-    assert resume.sample_checkpoints_dir == str(sample_dir)
     assert resume.attempt == "resume"
 
 
@@ -403,7 +402,6 @@ def test_resume_detection_scoring_resume_for_agent_complete_checkpoint(
 
     resume = anyio.run(call)
     assert isinstance(resume, ResumeCheckpoint)
-    assert resume.sample_checkpoints_dir == str(sample_dir)
     assert resume.attempt == "resume_for_scoring"
 
 
