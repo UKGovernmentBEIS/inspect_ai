@@ -20,10 +20,7 @@ from inspect_ai.agent._bridge.bridge import agent_bridge
 from inspect_ai.agent._bridge.completions import inspect_completions_api_request
 from inspect_ai.agent._bridge.google_api import inspect_google_api_request
 from inspect_ai.agent._bridge.responses import inspect_responses_api_request
-from inspect_ai.agent._bridge.sandbox.bridge import (
-    _monitor_terminate,
-    _register_bridged_tools,
-)
+from inspect_ai.agent._bridge.sandbox.bridge import _monitor_terminate
 from inspect_ai.agent._bridge.sandbox.service import call_tool as call_host_tool
 from inspect_ai.agent._bridge.sandbox.types import (
     _MAX_TOOL_EXECUTION_GRANTS,
@@ -54,8 +51,6 @@ from inspect_ai.model._compaction import CompactionTrim
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model import get_model
 from inspect_ai.model._model_output import ChatCompletionChoice, ModelOutput
-from inspect_ai.tool import tool
-from inspect_ai.tool._mcp._tools_bridge import BridgedToolsSpec
 from inspect_ai.tool._tool_call import ToolCall, ToolCallView
 
 TASK = "Tidy up the working directory."
@@ -551,19 +546,6 @@ def sandbox_bridge_with_tool(
     )
 
 
-@tool(name="read_file")
-def duplicate_read_file():
-    async def execute(path: str) -> str:
-        """Read a test file.
-
-        Args:
-            path: File to read.
-        """
-        return path
-
-    return execute
-
-
 async def test_forged_host_tool_call_is_rejected_before_execution() -> None:
     tool = AsyncMock(return_value="secret")
     bridge = sandbox_bridge_with_tool(
@@ -652,7 +634,8 @@ async def test_host_tool_grant_matches_namespaced_tool_names(function: str) -> N
     tool.assert_awaited_once_with(path="notes.txt")
 
 
-async def test_ambiguous_host_tool_name_registers_no_grant() -> None:
+async def test_duplicate_host_tool_names_share_one_grant() -> None:
+    """An approver sees only name + args, so the grant spans same-named tools."""
     tool_a = AsyncMock(return_value="a")
     tool_b = AsyncMock(return_value="b")
     bridge = SandboxAgentBridge(
@@ -670,7 +653,37 @@ async def test_ambiguous_host_tool_name_registers_no_grant() -> None:
         [ToolCall(id="approved", function="read_file", arguments={"path": "x"})]
     )
 
+    assert bridge.consume_tool_execution_grant("b", "read_file", {"path": "x"})
+    assert not bridge.consume_tool_execution_grant("a", "read_file", {"path": "x"})
+
+
+async def test_scaffold_local_tool_calls_are_not_stored() -> None:
+    """Calls whose names cannot denote a bridged tool must not fill the store."""
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_tool(
+        tool, [ApprovalPolicy(auto_approver("approve"), "*")]
+    )
+
+    bridge.register_tool_execution_grants(
+        [ToolCall(id="local", function="bash", arguments={"cmd": "ls"})]
+    )
+
     assert len(bridge._tool_execution_grants) == 0
+
+
+async def test_host_tool_grant_matches_numeric_reserialization() -> None:
+    """A JS scaffold's JSON round-trip coerces 5.0 to 5; both must match."""
+    tool = AsyncMock(return_value="contents")
+    bridge = sandbox_bridge_with_tool(
+        tool, [ApprovalPolicy(auto_approver("approve"), "*")]
+    )
+    call = ToolCall(id="approved", function="read_file", arguments={"offset": 5.0})
+
+    await run_bridge([tool_calls_output(call)], bridge=bridge)
+
+    result = await call_host_tool(bridge)("host", "read_file", {"offset": 5})
+
+    assert result == "contents"
 
 
 async def test_host_tool_grant_tolerates_non_json_arguments() -> None:
@@ -684,7 +697,9 @@ async def test_host_tool_grant_tolerates_non_json_arguments() -> None:
 
     await run_bridge([tool_calls_output(call)], bridge=bridge)
 
-    assert bridge.consume_tool_execution_grant("host", "read_file", {"path": "x.txt"})
+    assert bridge.consume_tool_execution_grant(
+        "host", "read_file", {"path": PurePosixPath("x.txt")}
+    )
 
 
 async def test_multi_choice_response_truncated_under_approval() -> None:
@@ -786,20 +801,6 @@ async def test_host_tool_execution_grants_are_bounded() -> None:
     assert len(bridge._tool_execution_grants) == _MAX_TOOL_EXECUTION_GRANTS
     assert not bridge.consume_tool_execution_grant("host", "read_file", {"path": "0"})
     assert bridge.consume_tool_execution_grant("host", "read_file", {"path": "1"})
-
-
-async def test_approval_rejects_duplicate_tool_names_across_servers() -> None:
-    tool_fn = AsyncMock(return_value="contents")
-    bridge = sandbox_bridge_with_tool(
-        tool_fn, [ApprovalPolicy(auto_approver("approve"), "*")]
-    )
-
-    with pytest.raises(ValueError, match="requires unique tool names"):
-        _register_bridged_tools(
-            bridge,
-            BridgedToolsSpec(name="other", tools=[duplicate_read_file()]),
-            13131,
-        )
 
 
 # ---------------------------------------------------------------------------
