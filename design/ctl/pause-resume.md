@@ -123,7 +123,7 @@ So the cross-process resume command already has a spelling: *run the same `eval-
 - **Quiesce auto-flush**: when a paused task's dispatched count reaches zero, invoke the existing on-demand flush (`TaskLogger` flush path, already serialized by its lock).
 - **Display**: the task display shows a `paused` badge on affected tasks (nice-to-have; the ctl read surface is the primary reporting path).
 
-Estimated blast radius: one new module for the gate + registry, ~4 hook sites in `_eval/task/run.py` and `_eval/run.py` (retry loop / scheduler), two route pairs in `_control/server.py`, CLI verbs in `_cli/ctl.py`, and the `GET /tasks` row fields.
+Estimated blast radius: one new module for the gate + registry, ~4 hook sites in `_eval/task/run.py` and `_eval/run.py` (retry loop / scheduler), two route pairs in `_control/server.py`, CLI verbs in `_cli/ctl/`, and the `GET /tasks` row fields.
 
 ## Alternatives considered
 
