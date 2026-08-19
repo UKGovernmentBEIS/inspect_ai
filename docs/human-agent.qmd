@@ -117,6 +117,8 @@ Tool calls execute in the main evaluation process (not the sandbox), are validat
 
 Tools that return non-text content (images, audio, video) display an omission marker in the terminal; the full result is preserved in the transcript.
 
+The generated `task tool` command requires Python 3.9 or later in the sandbox (any maintained base image qualifies).
+
 ### Answer Submission
 
 When the human agent has completed the task, they submit their answer using the `task submit`command. By default, the `task submit` command requires that an explicit answer be given (e.g. `task submit picoCTF{73bfc85c1ba7}`).

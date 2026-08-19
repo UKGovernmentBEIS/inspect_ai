@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import inspect
 import json
 from argparse import Namespace
 from typing import Any, Awaitable, Callable, Literal, NamedTuple
@@ -26,6 +25,11 @@ from ..state import HumanAgentState
 from .command import HumanAgentCommand
 
 
+def _omitted(kind: str) -> str:
+    """Terminal marker for non-text content (the full result is in the ToolEvent)."""
+    return f"[{kind} content omitted (recorded in transcript)]"
+
+
 def tool_result_to_str(result: ToolResult) -> str:
     """Convert ToolResult to string for CLI display."""
     if isinstance(result, str):
@@ -44,11 +48,10 @@ def tool_result_to_str(result: ToolResult) -> str:
             if isinstance(c, ContentText):
                 parts.append(c.text)
             else:
-                kind = getattr(c, "type", "non-text")
-                parts.append(f"[{kind} content omitted (recorded in transcript)]")
+                parts.append(_omitted(getattr(c, "type", "non-text")))
         return "\n".join(parts)
     elif isinstance(result, (ContentImage, ContentAudio, ContentVideo)):
-        return f"[{result.type} content omitted (recorded in transcript)]"
+        return _omitted(result.type)
     else:
         return str(result)
 
@@ -65,7 +68,6 @@ class ToolCommand(HumanAgentCommand):
         self._tools = tools
         self._tool_defs: dict[str, ToolDef] = {}
         self._tool_map: dict[str, Tool] = {}
-        self._tool_param_order: dict[str, list[str]] = {}
         for tool in tools:
             tool_def = ToolDef(tool)
             # tool names are interpolated into the generated sandbox script as
@@ -80,7 +82,6 @@ class ToolCommand(HumanAgentCommand):
                 raise ValueError(f"Duplicate tool name '{tool_def.name}'.")
             self._tool_defs[tool_def.name] = tool_def
             self._tool_map[tool_def.name] = tool
-            self._tool_param_order[tool_def.name] = get_param_order_from_tool(tool)
 
     @property
     def name(self) -> str:
@@ -117,12 +118,10 @@ class ToolCommand(HumanAgentCommand):
         # Generate subparser for each tool
         tools_with_complex_params: set[str] = set()
         for tool_name, tool_def in self._tool_defs.items():
-            param_order = self._tool_param_order[tool_name]
             parser_code, has_complex = generate_tool_parser(
                 tool_name,
                 tool_def.description,
                 tool_def.parameters,
-                param_order,
             )
             lines.append(parser_code)
             if has_complex:
@@ -188,26 +187,25 @@ def tool(args):
             # Call tool (let exceptions propagate naturally for ToolError etc.),
             # recording a ToolEvent either way — for human baselines the human's
             # tool usage is the data, so the transcript must carry it
-            try:
-                result = await tool(**params)
-            except ToolError as ex:
+            def record_event(
+                result: ToolResult = "", error: ToolCallError | None = None
+            ) -> None:
                 transcript()._event(
                     ToolEvent(
                         id=uuid(),
                         function=_tool_name_,
                         arguments=params,
-                        error=ToolCallError("unknown", ex.message),
+                        result=result,
+                        error=error,
                     )
                 )
+
+            try:
+                result = await tool(**params)
+            except ToolError as ex:
+                record_event(error=ToolCallError("unknown", ex.message))
                 raise
-            transcript()._event(
-                ToolEvent(
-                    id=uuid(),
-                    function=_tool_name_,
-                    arguments=params,
-                    result=result,
-                )
-            )
+            record_event(result=result)
 
             # Convert result to string
             return tool_result_to_str(result)
@@ -228,6 +226,20 @@ class ParamInfo(NamedTuple):
     default: Any
 
 
+def _complex_info(description: str | None, default: Any) -> ParamInfo:
+    """ParamInfo for a parameter too complex for CLI args (escape hatch only)."""
+    return ParamInfo(
+        name="",
+        schema_type=None,
+        is_required=False,
+        is_optional=False,
+        enum=None,
+        array_item_type=None,
+        description=description,
+        default=default,
+    )
+
+
 def _classify_schema(schema: dict[str, Any]) -> ParamInfo:
     """Classify a JSON schema property for argparse mapping.
 
@@ -244,16 +256,7 @@ def _classify_schema(schema: dict[str, Any]) -> ParamInfo:
             info = _classify_schema(non_null[0])
             return info._replace(is_optional=True)
         # Complex union - not simple
-        return ParamInfo(
-            name="",
-            schema_type=None,
-            is_required=False,
-            is_optional=False,
-            enum=None,
-            array_item_type=None,
-            description=schema.get("description"),
-            default=schema.get("default"),
-        )
+        return _complex_info(schema.get("description"), schema.get("default"))
 
     schema_type = schema.get("type")
     enum = schema.get("enum")
@@ -276,16 +279,7 @@ def _classify_schema(schema: dict[str, Any]) -> ParamInfo:
                 default=default,
             )
         # Complex array items - not simple
-        return ParamInfo(
-            name="",
-            schema_type=None,
-            is_required=False,
-            is_optional=False,
-            enum=None,
-            array_item_type=None,
-            description=description,
-            default=default,
-        )
+        return _complex_info(description, default)
 
     # Simple types
     if schema_type in ("string", "integer", "number", "boolean"):
@@ -301,16 +295,7 @@ def _classify_schema(schema: dict[str, Any]) -> ParamInfo:
         )
 
     # Object or other complex type
-    return ParamInfo(
-        name="",
-        schema_type=None,
-        is_required=False,
-        is_optional=False,
-        enum=None,
-        array_item_type=None,
-        description=description,
-        default=default,
-    )
+    return _complex_info(description, default)
 
 
 def _is_simple_type(info: ParamInfo) -> bool:
@@ -320,22 +305,26 @@ def _is_simple_type(info: ParamInfo) -> bool:
 
 def _escape_string(s: str) -> str:
     """Escape a string for embedding in generated Python code."""
-    return s.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
+    return (
+        s.replace("\\", "\\\\")
+        .replace('"', '\\"')
+        .replace("\n", "\\n")
+        .replace("\r", "\\r")
+    )
 
 
 def generate_tool_parser(
     tool_name: str,
     tool_description: str,
     params: ToolParams,
-    param_order: list[str],
 ) -> tuple[str, bool]:
     """Generate argparse subparser code for a tool.
 
     Args:
         tool_name: Name of the tool
         tool_description: Tool description for help text
-        params: ToolParams with JSON Schema properties
-        param_order: Parameter names in signature order (for positional args)
+        params: ToolParams with JSON Schema properties (the source of truth
+            for both the argument set and its order)
 
     Returns:
         Tuple of:
@@ -345,13 +334,9 @@ def generate_tool_parser(
     lines: list[str] = []
     has_complex_params = False
 
-    # Analyze each parameter
+    # Analyze each parameter (schema order == declaration order)
     param_infos: dict[str, ParamInfo] = {}
-    for name in param_order:
-        if name not in params.properties:
-            continue
-
-        schema = params.properties[name]
+    for name, schema in params.properties.items():
         # Convert ToolParam to dict for classification
         schema_dict = schema.model_dump(exclude_none=True)
         info = _classify_schema(schema_dict)
@@ -379,12 +364,8 @@ def generate_tool_parser(
             f'Parameters:\\n{escaped_schema}"'
         )
     else:
-        # Generate arguments in signature order (all as named args)
-        for name in param_order:
-            if name not in param_infos:
-                continue
-
-            info = param_infos[name]
+        # Generate arguments in declaration order (all as named args)
+        for name, info in param_infos.items():
             arg_name = name.replace("_", "-")
             parts: list[str] = []
 
@@ -431,14 +412,3 @@ def generate_tool_parser(
     return parser_code, has_complex_params
 
 
-def get_param_order_from_tool(tool: Callable[..., Any]) -> list[str]:
-    """Extract parameter names in order from a tool's signature.
-
-    Args:
-        tool: The tool callable
-
-    Returns:
-        List of parameter names in signature order
-    """
-    sig = inspect.signature(tool)
-    return list(sig.parameters.keys())

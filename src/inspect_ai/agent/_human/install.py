@@ -4,6 +4,7 @@ from textwrap import dedent
 from inspect_ai.util import sandbox
 
 from .commands.command import HumanAgentCommand
+from .commands.tool import ToolCommand
 
 INSTALL_DIR = "human_agent_install"
 HUMAN_AGENT_DIR = "/opt/human_agent"
@@ -86,9 +87,6 @@ async def install_human_agent(
 
 
 def human_agent_commands(commands: list[HumanAgentCommand]) -> str:
-    # Late import to avoid circular dependency
-    from .commands.tool import ToolCommand
-
     # filter out hidden commands
     commands = [command for command in commands if "cli" in command.contexts]
 

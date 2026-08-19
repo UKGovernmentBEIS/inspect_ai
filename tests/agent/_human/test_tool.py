@@ -323,3 +323,38 @@ async def test_service_records_tool_event_on_error() -> None:
     assert len(tool_events) == 1
     assert tool_events[0].error is not None
     assert "kaboom" in tool_events[0].error.message
+
+
+def test_schema_declared_params_generate_cli_args() -> None:
+    """Schema-declared params over generic signatures generate CLI args.
+
+    The schema (ToolDef parameters) is the source of truth for the argument
+    set and its order. The signature-reflection pathway silently generated no arguments for
+    these tools: it iterated signature names (`**kwargs`) and never visited
+    the schema-declared params.
+    """
+    from inspect_ai.tool import ToolParam, ToolParams
+
+    async def execute(**kwargs: object) -> str:
+        """Generic execute.
+
+        Returns:
+            A result.
+        """
+        return str(kwargs)
+
+    declared = ToolDef(
+        execute,
+        name="declared_tool",
+        description="A tool with schema-declared params.",
+        parameters=ToolParams(
+            properties={
+                "target": ToolParam(type="string", description="The target."),
+            },
+            required=["target"],
+        ),
+    ).as_tool()
+
+    parser, _ = _build_parsers([declared])
+    kwargs = _handler_kwargs(parser, ["tool", "declared_tool", "--target", "x"])
+    assert kwargs == {"target": "x"}
