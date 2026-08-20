@@ -362,6 +362,34 @@ and commits/pushes the sums, and the push itself triggers the re-run.
 Note: `.github/workflows/build.yml` edits are part of the implementation PR
 (it is not one of the meridian-only workflows).
 
+### The dev gate: `slow-tool-tests-dev` (no workflow changes)
+
+The other slow-tool gate needs no edits, but the design does change what it
+exercises, differently per PR type:
+
+- **Release PR** (injectable source changed, version bumped). The job builds
+  amd64 `-dev` binaries and the checkout classifies as `edited` (version.txt
+  diverges from main), so the runtime resolves `-dev` names from the
+  just-built local `binaries/` and never reaches the download tier.
+  Verification is not in play, by design ("No `-dev` entries"), and the
+  stale `SHA256SUMS` sitting in the checkout during the review window (it is
+  rewritten only at post-approval upload) is never consulted. This is also
+  why the fast gate must not enforce the bumped direction (see above): a red
+  fast gate would block this job for the whole review window.
+- **Tools-adjacent PR** (matches the `tools` filter without touching the
+  injectable source or version, e.g. `src/inspect_ai/tool/**` or
+  `tests/tools/**`). The `-dev` build step is skipped and, per the workflow's
+  own comment, pytest resolves the published v{N} via the runtime's S3
+  download path — which is now the verified path, checked against the sums
+  the PR shares with main. Every such PR therefore acts as a continuous
+  canary comparing the published amd64 pair against the committed digests. A
+  corrupted or tampered object turns these jobs red with the mismatch raise,
+  not a silent fallback; that is the intended fail-loud behavior, and the
+  recovery is the same stop-the-line path as any other mismatch (investigate;
+  if the object is wrong, bump and republish — never overwrite).
+- **Seeding PR**: analyzed under "Install-state detection" and Rollout — the
+  job classifies `clean` and download-verifies the seeded amd64 digests.
+
 ## Process changes
 
 - **`src/inspect_sandbox_tools/design/RELEASING.md`**: document the new step
@@ -429,7 +457,7 @@ Note: `.github/workflows/build.yml` edits are part of the implementation PR
 | `src/inspect_ai/tool/_sandbox_tools_utils/sandbox.py` | rewrite `_download_from_s3`: lookup, then `download()` via `to_thread`, then chmod; mismatch raises; 404 unchanged; `_check_main_divergence` deliberately untouched (see Install-state detection) |
 | `src/inspect_ai/tool/_sandbox_tools_utils/upload_to_s3.py` | version guard, immutability guard, write sums, round-trip verify, commit reminder |
 | `scripts/pypi-release.py` | digest-verified downloads, digest-based existence check, unconditional pre-build bundle gate, post-build wheel-contents check |
-| `.github/workflows/build.yml` | release-gate lockstep check + `sha256sum -c` over all four artifacts; `check-version-bump` unbumped-direction sums check |
+| `.github/workflows/build.yml` | release-gate lockstep check + `sha256sum -c` over all four artifacts; `check-version-bump` unbumped-direction sums check; `slow-tool-tests-dev` untouched (see "The dev gate") |
 | `pyproject.toml` | add `SHA256SUMS` to package data |
 | `src/inspect_sandbox_tools/design/RELEASING.md` | new commit-sums step; fail-closed window; immutability rule |
 | `.claude/skills/release-sandbox-tools/SKILL.md` | sums commit step; digest-based verify step |
