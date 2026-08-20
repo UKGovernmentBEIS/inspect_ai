@@ -2151,16 +2151,23 @@ def test_config_update_programmatic_patch_records_identically_to_cli(
 ) -> None:
     """A non-ctl mutation produces the same config_updates records as the CLI.
 
-    Open question 3 of design/ctl/config-log-persistence.md: the "the log
-    records every mid-run config change" invariant rests on the PATCH config
-    handlers (and the appliers behind them) being the single mutation choke
-    point. A programmatic client — a Python ``ControlClient``, or any future
-    in-process API — speaks the same PATCH routes the ctl CLI does, so it must
-    flow through the same appliers and produce records identical in shape and
-    provenance handling. Pinned by driving one retune (a task-scoped
-    ``max_samples`` plus a process-scoped ``timeout``, with explicit
-    author/reason provenance) through both paths against the real server app
-    and comparing the recorded updates field-for-field (timestamps aside).
+    Open question 3 of design/ctl/config-log-persistence.md. The property
+    this pins: record construction is entirely server-side, at the PATCH
+    config handler / applier choke point — the ctl CLI contributes nothing to
+    the record beyond assembling query params. That is what makes recording
+    hold for *every* HTTP client: a Python ``ControlClient`` (or curl)
+    speaking the same routes gets correct records for free, with no client
+    cooperation. If any part of the behavior migrated into the CLI (say,
+    provenance assembly the server merely stores), the raw-PATCH leg or the
+    equality assertion below would break.
+
+    Pinned by driving one retune (a task-scoped ``max_samples`` plus a
+    process-scoped ``timeout``) through a raw PATCH and through the real
+    ``inspect ctl config`` command against the same server app, then
+    comparing the recorded updates field-for-field (timestamps aside).
+    Author/reason are passed explicitly on both legs: author *defaulting*
+    (git identity) is deliberately client-side — the server records whatever
+    ``author`` param arrives — so defaulting stays out of the comparison.
     """
     from _control.conftest import cli_runner
     from inspect_ai._cli.ctl import ctl_command
