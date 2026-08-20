@@ -283,15 +283,19 @@ review, meridianlabs-ai/inspect_ai#94):
    provider-specific — `docker pause` has no portable k8s/local
    equivalent), so this is coherent live state, not absolute quiescence.
 
-   A coarse composition of the same idea is available by hand once phase 1
-   ships, before the per-sample hold does: `ctl task pause --now`, poll
-   `task list` until the in-flight samples read as held, `ctl task score`,
-   `ctl task resume`. Whole-task hold for the whole pass rather than
-   per-sample holds — but note that with handler-side scoring the
-   composition has no grader gap: the task-scope hard gate resolves its
-   target through the active sample, which the pass's scoring context
-   doesn't bind, so the pass's own grader calls run even under `task pause
-   --now`.
+   A coarse composition of the same idea becomes available partway through
+   phase 2, before the per-sample hold does: once the `ActiveSample`
+   publication and the pass's scoring context exist (the first phase-2
+   slice below), `ctl task pause --now`, poll `task list` until the
+   in-flight samples read as held, `ctl task score`, `ctl task resume`
+   scores held in-flight samples under a whole-task hold for the whole
+   pass rather than per-sample holds. (Phase 1 alone doesn't get there:
+   without the publication and scoring context, a pass under the same
+   composition reports the held in-flight samples as skipped.) Note that
+   with handler-side scoring the composition has no grader gap: the
+   task-scope hard gate resolves its target through the active sample,
+   which the pass's scoring context doesn't bind, so the pass's own grader
+   calls run even under `task pause --now`.
 
 Pause-and-score buys the best fidelity of the three shapes — the *real*
 `TaskState` (not a copy, not a reconstruction), live store, live sandbox,
@@ -371,11 +375,19 @@ Three sinks, complementary:
    the run dies (the buffer is exactly what `inspect log recover` reads).
    `EvalSample.scores` is untouched: intermediate events never populate final
    scores, an invariant `score()` already established.
-3. **A scores sidecar on disk** (the durable aggregate): each pass appends
+3. **A scores sidecar on disk** (the durable aggregate): each pass adds
    one JSON line — `{as_of, run_id, eval_id, task_id, counts, samples,
    metrics}` — to a sidecar next to the log (e.g.
    `<log-location>.scores.jsonl`), written through the async filesystem
-   layer so S3-backed log dirs work. Append-only JSONL gives a time series
+   layer so S3-backed log dirs work. One caveat on "adds a line": S3 has
+   no append primitive and `AsyncFilesystem` reflects that (whole-object
+   `write_file` / `write_file_streaming` only), so on remote filesystems
+   each pass is a read-modify-write of the whole sidecar — fine with the
+   pass as sole writer and a file this small, but O(passes) rewrite cost
+   and a brief durability window, not a literal append (local paths append
+   genuinely). If that ever matters, one object per pass under a prefix is
+   the escape — dovetailing with the `interim-scores/` directory
+   alternative in open question 1. Append-only JSONL gives a time series
    of interim metrics across repeated passes for free. A sidecar rather than
    a log rewrite because mutating a mid-write log is exactly what the
    view-server editing design refuses to do (`viewer_log_editing.md` rejects
@@ -460,13 +472,16 @@ for the fire-and-poll agent loop.
 - **No `CONTROL_API_VERSION` bump.** New endpoints need none (the
   missing-route 404 policy): the CLI passes `not_found_missing_route` and an
   older server yields the definitive "older inspect — restart the eval"
-  message. Params on the new routes are born strict (the app-wide
-  unknown-query-param rejection).
+  message. Params on the new mutation route (the `POST`) are born strict
+  (the app-wide unknown-query-param rejection short-circuits on safe
+  methods, so the `GET` poll route stays tolerant like every other read).
 - **Security posture.** Non-destructive mutation over the local AF_UNIX
   socket, like `log-flush`: idempotent, dry-runnable from day one, and it
   neither ends samples nor changes eval behavior (beyond the contention
-  noted above). It can ship ahead of the phase-3 SO_PEERCRED hardening on
-  the same reasoning as the buffer directives.
+  noted above). It rides on the shipped access model — filesystem
+  permissions plus the SO_PEERCRED / LOCAL_PEERCRED peer-UID check (see
+  [`ctl/security.md`](ctl/security.md)) — like the other non-destructive
+  mutations.
 
 ## Phasing
 
@@ -476,14 +491,18 @@ Phases 1 and 2 together are the initial implementation:
    dispositions, `_run_score_task` over the live recorder's serialized
    samples, interim metrics, envelope + sidecar. No runner changes; this
    slice already delivers mid-run scoring for `--no-score` runs and interim
-   metrics over everything scored so far (and, composed by hand with `ctl
-   task pause --now` / `resume`, a coarse whole-task form of phase 2).
-2. **In-flight pause-and-score (the headline).** The per-sample hold
+   metrics over everything scored so far (in-flight samples report as
+   skipped until phase 2).
+2. **In-flight pause-and-score (the headline).** Two slices, in order.
+   First the **publication + scoring context**: the `ActiveSample`
+   publication (live `TaskState`, sandbox environments, target), the
+   pass's scoring context, `ScoreEvent(intermediate=True)` recording,
+   per-sample results into the pass — on its own this already enables the
+   hand composition with `ctl task pause --now` / `resume` (the coarse
+   whole-task form described under shape 3). Then the **per-sample hold**
    (sample-keyed gate at `wait_generate_dispatch`, wait-for-park ack, hold
-   timeout, latch independence, release-on-completion), the `ActiveSample`
-   publication (live `TaskState`, sandbox environments, target), the pass's
-   scoring context, `ScoreEvent(intermediate=True)` recording, per-sample
-   results into the pass.
+   timeout, latch independence, release-on-completion), which makes the
+   holds per-sample and retires the hand steps.
 3. **Later.** The deferred in-context companion (shape 1) as an opt-in
    no-hold snapshot mode for recurring polling (spawn point, snapshot copy,
    cancel-on-completion, budget isolation — `suspend_token_limit()` /
