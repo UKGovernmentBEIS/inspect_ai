@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Anthropic: Compatibility with anthropic SDK 0.124.0, which is now the minimum supported version (browser state tool results and file-based image/document sources no longer fail type checking).
 - Bedrock: Converse requests now cache stable prompt prefixes and report cache read and write token usage.
 - OpenAI: Responses API usage now records `cache_write_tokens` as `ModelUsage.input_tokens_cache_write` and excludes it from full-rate `input_tokens` (generate and compaction responses); compaction usage also now excludes cache reads and records reasoning tokens. (#4855)
 - Sandbox: Editable installs now avoid spurious `-dev` sandbox-tools binaries when local main refs are missing, stale, or unavailable.
@@ -16,6 +17,7 @@
 - Control Channel: `inspect ctl sample requeue` can now sweep every currently-errored sample in one command (`--errored`) or requeue several `SAMPLE_ID EPOCH` pairs, reporting each sample's result individually.
 - Breaking: Removed the deprecated hidden flat `inspect ctl` spellings (e.g. `ctl tasks`, `ctl limits`); use the noun-group commands (`ctl task list`, `ctl config`, ...) instead.
 - Control Channel: `inspect ctl config` can now retune a running task's per-sample time/token/message limits mid-flight (`--time-limit` / `--token-limit` / `--message-limit`), reaching in-flight samples as well as ones not yet started.
+- Eval Set: Protocol for capturing eval set inputs rather than executing the eval set.
 - Eval Log: Flushing buffered samples to an `.eval` log now yields between samples, so a large flush no longer stalls in-flight samples and control-channel requests for the whole batch.
 - ACP: Emit an `inspect/turn_state` extension notification (`started` / `ended` / `cancelled`) from the agent turn boundary so ACP clients have an exact "agent working" signal.
 - Inspect CTL: Terminal escape sequences and control characters in agent-generated text are now sanitized in `inspect ctl` human-readable output, preventing spoofing of the operator's terminal.
