@@ -370,6 +370,43 @@ async def test_service_accepts_any_identifier_param_name() -> None:
     assert result == "ok"
 
 
+# --- round 2: parameter names are embedded in generated code — validate them
+
+
+def test_non_identifier_param_name_rejected_at_construction() -> None:
+    """Schema property names are interpolated into generated Python source.
+
+    A custom ToolParams over **kwargs permits arbitrary JSON property
+    names; a name containing a quote produced an unterminated-string
+    SyntaxError in the generated CLI (bricking every task command), and
+    crafted names can inject code. Identifiers only, checked host-side.
+    """
+    from typing import Any
+
+    from inspect_ai.tool import ToolParams
+    from inspect_ai.util import JSONSchema
+
+    async def execute(**kwargs: Any) -> str:
+        """Accept anything.
+
+        Returns:
+            A marker.
+        """
+        return "ok"
+
+    hostile = ToolDef(
+        execute,
+        name="hostile_params",
+        description="Accept anything.",
+        parameters=ToolParams(
+            properties={'value"': JSONSchema(type="string", description="Hostile.")}
+        ),
+    ).as_tool()
+
+    with pytest.raises(ValueError, match="identifier"):
+        ToolCommand([hostile])
+
+
 # --- finding 5: every non-text standalone content uses the omission marker ---
 
 

@@ -43,6 +43,14 @@ def _validate_cli_flags(tool_def: ToolDef) -> None:
     """
     flags: dict[str, str] = {"--help": "argparse help", "-h": "argparse help"}
     for name, schema in tool_def.parameters.properties.items():
+        # parameter names are interpolated into the generated sandbox script
+        # (option strings, dests) — fail closed on names that would break or
+        # inject into the generated code, same rule as tool names
+        if not name.isidentifier():
+            raise ValueError(
+                f"Tool '{tool_def.name}' parameter '{name}' is not a valid "
+                "Python identifier (required for the generated task CLI)."
+            )
         info = _classify_schema(schema.model_dump(exclude_none=True))
         param_flags = [f"--{name.replace('_', '-')}"]
         if info.schema_type == "boolean":
