@@ -110,7 +110,10 @@ Notes on the table:
 - **Idempotence** (agent-shape constraint): repeat cancels land in the no-op rows —
   a repeated never-started cancel reports "already cancelled", a repeated un-requeue
   reports the ordinary already-terminal no-op (the pending key is gone, so the prior
-  record renders terminally again). `dry_run=true` reports every row without mutating.
+  record renders terminally again). `dry_run=true` reports every row without mutating —
+  including the departed 409: the un-requeue dry-run consults the same departed gate
+  (read-only) the real accept enforces, so a probe never reports an accept the real
+  call would refuse.
 - **Un-requeue restores the world, not a variant of it.** After an un-requeue the
   sample is exactly as if the requeue had never been accepted: the prior terminal record
   stands (it was only ever superseded when a re-run *logs*), the counters and

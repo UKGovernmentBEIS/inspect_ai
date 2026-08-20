@@ -390,6 +390,17 @@ class SampleRequeue:
         pending = self._pending.get((sample_id, epoch))
         return pending.prior_status if pending is not None else None
 
+    def pending_departed(self, sample_id: str, epoch: int) -> bool:
+        """Whether a pending requeue's re-run has left the queue (read-only).
+
+        The departed blind window between queue exit and ``ActiveSample``
+        registration: :meth:`cancel_queued` refuses it, so the cancel
+        resolver consults this before its dry-run return — a ``dry_run``
+        probe must report the same 409 the real call would.
+        """
+        pending = self._pending.get((sample_id, epoch))
+        return pending is not None and pending.entry.departed
+
     async def checkpoint_available(self, sample_id: str | int, epoch: int) -> bool:
         """Whether the re-run would resume from an on-disk checkpoint."""
         if self._checkpoints_dir is None:

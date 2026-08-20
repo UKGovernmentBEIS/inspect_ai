@@ -824,11 +824,34 @@ def _requeue_resume_clause(result: dict[str, Any]) -> str:
 def _requeue_changed_message(
     label: str, result: dict[str, Any], *, dry_run: bool
 ) -> str:
-    """The human line for an accepted (or would-be-accepted) requeue."""
+    """The human line for an accepted (or would-be-accepted) requeue.
+
+    The un-cancel row reports what actually happened via `reason` — its
+    parked coroutine keeps its place at the queue, so the resume clause
+    ("re-run from the back of the sample queue") would misdescribe it; the
+    reason wins when the server sends one.
+    """
+    reason = result.get("reason")
+    if reason:
+        reason = _sanitize_line(str(reason))
+        if dry_run:
+            return f"Would requeue {label} — {reason}."
+        return f"Requeue accepted for {label} — {reason}."
     resume = _requeue_resume_clause(result)
     if dry_run:
         return f"Would requeue {label} — it would {resume}."
     return f"Requeue accepted for {label} — it will {resume}."
+
+
+def _requeue_changed_terse(result: dict[str, Any], *, dry_run: bool) -> str:
+    """The terse outcome for an accepted requeue (same reason-wins rule)."""
+    reason = result.get("reason")
+    if reason:
+        reason = _sanitize_line(str(reason))
+        return f"dry-run — {reason}" if dry_run else reason
+    if dry_run:
+        return f"dry-run — would {_requeue_resume_clause(result)}"
+    return f"accepted — will {_requeue_resume_clause(result)}"
 
 
 @_envelope_failures
@@ -849,9 +872,7 @@ def _run_sample_requeue(
         return f"Nothing to do — {reason}."
 
     def terse_changed(result: dict[str, Any]) -> str:
-        if dry_run:
-            return f"dry-run — would {_requeue_resume_clause(result)}"
-        return f"accepted — will {_requeue_resume_clause(result)}"
+        return _requeue_changed_terse(result, dry_run=dry_run)
 
     def terse_noop(result: dict[str, Any]) -> str:
         return f"no-op — {result.get('reason') or 'already in that state'}"
@@ -1062,11 +1083,7 @@ def _requeue_pairs(
                 _echo(f"Rejected {label} — {message}")
         elif (entry.get("detail") or {}).get("changed"):
             if use_terse:
-                terse_outcome = (
-                    f"dry-run — would {_requeue_resume_clause(entry['detail'])}"
-                    if dry_run
-                    else f"accepted — will {_requeue_resume_clause(entry['detail'])}"
-                )
+                terse_outcome = _requeue_changed_terse(entry["detail"], dry_run=dry_run)
                 _echo(_terse_line("requeue", label, terse_outcome))
             else:
                 _echo(_requeue_changed_message(label, entry["detail"], dry_run=dry_run))

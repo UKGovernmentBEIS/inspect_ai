@@ -1116,6 +1116,77 @@ async def test_cancel_queued_rerun_score_error_409(
         release.set()
 
 
+async def test_cancel_unrequeue_departed_window_dry_run_parity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """dry_run reports the departed 409 the real un-requeue would return.
+
+    In the departed blind window (the re-run left the queue, its
+    ActiveSample not yet registered) `cancel_queued` refuses — the dry-run
+    path must consult the same gate rather than report the accept.
+    """
+    register_eval("e1", 2, task_id="t1", sample_ids=["s1", "s2"])
+    handler = SampleErrorHandler(False, 2)
+    handler.error_count = 1
+    scheduler = SampleScheduler()
+    handle = SampleRequeue(
+        eval_id="e1",
+        scheduler=scheduler,
+        sample_error=handler,
+        sample_indexes={"s1": 0, "s2": 1},
+        checkpoints_dir=None,
+        on_accept=lambda sample_id, epoch: None,
+        on_withdraw=lambda sample_id, epoch, score: None,
+    )
+    set_sample_requeue("e1", handle)
+    _patch_active_samples(monkeypatch, [])
+
+    rerun_entries: list[_ScheduledRun] = []
+    release = anyio.Event()
+
+    async def run_sample(
+        sample_index: int, epoch: int, entry: _ScheduledRun | None
+    ) -> Any:
+        if entry is not None and entry.prior is not None:
+            rerun_entries.append(entry)
+        elif sample_index == 0:
+            return "failed"
+        with anyio.fail_after(30):
+            await release.wait()
+        return "done"
+
+    async with anyio.create_task_group() as tg:
+
+        async def go() -> None:
+            await scheduler.run([(0, 1), (1, 1)], run_sample)
+
+        tg.start_soon(go)
+        with anyio.fail_after(30):
+            while not scheduler.open:
+                await anyio.sleep(0.01)
+        record_sample_errored("e1")
+        assert handle.accept(_errored_prior(), "error") == "accepted"
+
+        with anyio.fail_after(30):
+            while not rerun_entries:
+                await anyio.sleep(0.01)
+        # the re-run exits the queue (the runner's queue-exit stamp) but its
+        # ActiveSample has not registered yet: the departed blind window
+        assert handle.queue_depart("s1", 1, rerun_entries[0]) is False
+        assert handle.pending_departed("s1", 1) is True
+
+        for dry_run in (True, False):
+            result = await cancel_sample(
+                "e1", "s1", 1, action="cancel", dry_run=dry_run
+            )
+            assert result is not None, dry_run
+            assert result["ok"] is False, dry_run
+            assert "initializing" in result["error"], dry_run
+        assert handle.is_pending("s1", 1)  # nothing was withdrawn
+
+        release.set()
+
+
 async def test_scheduler_discarded_result_never_written() -> None:
     """run_one skips the results write for a DISCARDED run."""
     scheduler = SampleScheduler()

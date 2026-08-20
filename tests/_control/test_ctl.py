@@ -5145,6 +5145,43 @@ def test_sample_requeue_noop_human_output(monkeypatch: pytest.MonkeyPatch) -> No
     )
 
 
+def test_sample_requeue_uncancel_reason_wins(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The un-cancel accept renders its reason, not the resume clause.
+
+    An un-cancelled sample never ran and its parked coroutine keeps its
+    place at the queue, so "re-run from the back of the sample queue" would
+    misdescribe it on both counts (design/ctl/queued-sample-cancel.md).
+    """
+    summary = _full_summary("aaa111", "t1")
+    summary["epochs"] = 1
+    _patch_surface(monkeypatch, [summary])
+    reason = "cancel-before-start withdrawn — the sample will run when it gets a slot"
+    spy = _RequestSpy(
+        {
+            "ok": True,
+            "sample_id": "s1",
+            "epoch": 1,
+            "changed": True,
+            "status": "pending",
+            "reason": reason,
+        }
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
+
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "requeue", "aaa111", "s1", "--no-terse"]
+    )
+    assert result.exit_code == 0, result.output
+    assert f"Requeue accepted for sample s1 (epoch 1) — {reason}." in result.stdout
+    assert "back of the sample queue" not in result.stdout
+
+    terse = cli_runner().invoke(ctl_command, ["sample", "requeue", "aaa111", "s1"])
+    assert terse.exit_code == 0, terse.output
+    assert terse.stdout == f"requeue t1/s1 (epoch 1): {reason}\n"
+
+
 def test_sample_requeue_multiple_pairs_bulk_envelope(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

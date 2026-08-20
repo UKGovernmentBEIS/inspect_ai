@@ -327,6 +327,16 @@ def _cancel_queued_sample(
             ),
         }
 
+    def departed_reject() -> dict[str, Any]:
+        return {
+            "ok": False,
+            "error": (
+                f"sample {sample_id} (epoch {epoch})'s re-run has left "
+                "the queue and is initializing — retry once it is "
+                "running"
+            ),
+        }
+
     # a queued re-run: withdraw the pending requeue (un-requeue) — the prior
     # terminal record stands, and the sample is requeueable again
     prior_status = handle.pending_prior_status(sample_id, epoch)
@@ -336,6 +346,10 @@ def _cancel_queued_sample(
             return {"ok": False, "error": gated["error"]}
         if action != "cancel":
             return not_cancellable()
+        # read-only departed check ahead of the dry-run return, so a dry_run
+        # probe reports the same 409 the real accept below would
+        if handle.pending_departed(sample_id, epoch):
+            return departed_reject()
         accepted = result(
             True,
             prior_status,
@@ -347,14 +361,7 @@ def _cancel_queued_sample(
         if outcome.outcome == "accepted":
             return accepted
         if outcome.outcome == "departed":
-            return {
-                "ok": False,
-                "error": (
-                    f"sample {sample_id} (epoch {epoch})'s re-run has left "
-                    "the queue and is initializing — retry once it is "
-                    "running"
-                ),
-            }
+            return departed_reject()
         return None  # not_pending: fall through and re-resolve
 
     # already cancelled before start: the idempotent repeat no-op
