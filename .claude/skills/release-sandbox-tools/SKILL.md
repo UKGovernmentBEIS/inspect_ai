@@ -16,9 +16,10 @@ the code and bump the version, but they don't have credentials to upload the
 binaries to S3, so a maintainer performs this final step.
 
 **When to run:** once the PR is approved and the only failing CI check is
-`slow-tool-tests-release` — it fails at the "Fetch published non-dev
-sandbox-tools binaries (glibc + musl)" step with a message naming the missing
-S3 object, because the bumped version's artifacts aren't published yet.
+`slow-tool-tests-release` — it fails at the "Fetch and verify published
+non-dev sandbox-tools binaries" step, either on the `SHA256SUMS` lockstep
+check or with a message naming the missing S3 object, because the bumped
+version's artifacts aren't published (and their digests committed) yet.
 Running earlier wastes builds if review rounds change the injectable source.
 
 **Be on the right branch:** run every step below from a checkout of the PR's
@@ -100,21 +101,41 @@ The script shells out to plain `aws` with no profile; users on AWS SSO may
 need `--profile <profile>` on the login and an `AWS_PROFILE=<profile>` prefix
 on the upload command.
 
-## 5. Verify the upload (no credentials needed)
+The upload also rewrites
+`src/inspect_ai/tool/_sandbox_tools_utils/SHA256SUMS` with the digests of the
+four artifacts (committed in the next step). If the script aborts on its
+immutability guard (an object for `{V}` already exists on S3 with different
+content), never force over it — bump the version and publish fresh artifacts.
 
-Objects are public-read, so confirm each returns HTTP 200:
+## 5. Commit and push `SHA256SUMS` to the PR branch
+
+The upload rewrote the digest file; `slow-tool-tests-release` verifies the S3
+objects against the committed digests, so it stays red until this lands on the
+PR branch:
 
 ```sh
-for f in amd64 arm64 amd64-musl arm64-musl; do
-  curl -sI -o /dev/null -w "%{http_code} inspect-sandbox-tools-$f-v{V}\n" \
-    "https://inspect-sandbox-tools.s3.us-east-2.amazonaws.com/inspect-sandbox-tools-$f-v{V}"
-done
+git add src/inspect_ai/tool/_sandbox_tools_utils/SHA256SUMS
+git commit -m "Pin sandbox-tools v{V} artifact digests"
+git push
 ```
 
-As a sanity check that the right bytes were published, the `content-length`
-from a HEAD request (`curl -sI`) can be compared against the local file sizes.
+## 6. Verify the upload (no credentials needed)
 
-## 6. Get CI green
+Objects are public-read. Download all four and check them against the
+committed digest file:
+
+```sh
+mkdir -p /tmp/sbx-verify && cd /tmp/sbx-verify
+for f in amd64 arm64 amd64-musl arm64-musl; do
+  curl -fsSLO \
+    "https://inspect-sandbox-tools.s3.us-east-2.amazonaws.com/inspect-sandbox-tools-$f-v{V}"
+done
+sha256sum -c <repo>/src/inspect_ai/tool/_sandbox_tools_utils/SHA256SUMS
+```
+
+All four must print `OK` (use `shasum -a 256 -c` on macOS).
+
+## 7. Get CI green
 
 Re-run the failing `slow-tool-tests-release` job (from the PR's checks page,
 or `gh run rerun <run-id> --failed`) and confirm it passes. This skill ends
