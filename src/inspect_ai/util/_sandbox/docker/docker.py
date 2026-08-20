@@ -24,6 +24,7 @@ from ..environment import (
     SandboxEnvironment,
     SandboxEnvironmentConfigType,
     SandboxUnavailableError,
+    sandbox_prebuilt,
 )
 from ..limits import (
     SandboxEnvironmentLimits,
@@ -53,7 +54,7 @@ from .compose import (
 )
 from .diagnostics import sandbox_unavailable_diagnostics, service_dead
 from .failure import InjectedWrapper, classify_exec_failure
-from .internal import build_internal_image, is_internal_image
+from .internal import build_internal_image, is_internal_image, is_internal_image_built
 from .prereqs import validate_prereqs
 from .util import ComposeProject, task_project_name
 
@@ -96,14 +97,15 @@ class DockerSandboxEnvironment(SandboxEnvironment):
             # record auto compose
             project_record_auto_compose(project)
 
-            # build containers which are out of date
-            if os.environ.get("INSPECT_SANDBOX_NO_BUILD", "").lower() in ("1", "true"):
+            prebuilt = sandbox_prebuilt()
+            if prebuilt:
                 await compose_verify_prebuilt_images(project)
             else:
+                # build containers which are out of date
                 await compose_build(project)
 
-            # cleanup images created during build
-            await compose_cleanup_images(project, timeout=300)
+                # cleanup images created during build
+                await compose_cleanup_images(project, timeout=300)
 
             services = await compose_services(project)
             for name, service in services.items():
@@ -118,7 +120,12 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                 # build internal images
                 image = service.get("image", None)
                 if image and is_internal_image(image):
-                    await build_internal_image(image)
+                    if not prebuilt:
+                        await build_internal_image(image)
+                    elif not await is_internal_image_built(image):
+                        raise PrerequisiteError(
+                            f"Sandbox images are expected to be prebuilt (sandbox_prebuilt is set) but the internal image '{image}' is not present in the Docker image store."
+                        )
                 # pull any remote images
                 elif (
                     service.get("build", None) is None

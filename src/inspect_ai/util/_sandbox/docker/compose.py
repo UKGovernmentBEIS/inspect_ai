@@ -16,6 +16,7 @@ from inspect_ai.util._concurrency import concurrency as concurrency_manager
 from inspect_ai.util._display import display_type, display_type_plain
 from inspect_ai.util._subprocess import ExecResult, subprocess
 
+from .config import is_auto_compose_file
 from .prereqs import (
     DOCKER_COMPOSE_REQUIRED_VERSION_PULL_POLICY,
     validate_docker_compose,
@@ -199,11 +200,17 @@ async def compose_verify_prebuilt_images(project: ComposeProject) -> None:
             missing.append(f"{name} ({image})")
     problems: list[str] = []
     if unnamed:
-        problems.append(
-            "no prebuilt image can be located for these services because they have a 'build' "
-            "section but no 'image' key. Add an explicit 'image' name to the compose file and "
-            f"provide the image under that name: {', '.join(unnamed)}"
-        )
+        if project.config is not None and is_auto_compose_file(project.config):
+            problems.append(
+                "this task's sandbox is a bare Dockerfile, so no prebuilt image can be "
+                "located. Provide a compose.yaml that names a prebuilt 'image' instead"
+            )
+        else:
+            problems.append(
+                "no prebuilt image can be located for these services because they have a 'build' "
+                "section but no 'image' key. Add an explicit 'image' name to the compose file and "
+                f"provide the image under that name: {', '.join(unnamed)}"
+            )
     if missing:
         problems.append(
             "these services' images are not present in the Docker image store: "
@@ -211,8 +218,8 @@ async def compose_verify_prebuilt_images(project: ComposeProject) -> None:
         )
     if problems:
         raise PrerequisiteError(
-            "Sandbox builds are disabled (INSPECT_SANDBOX_NO_BUILD is set) but "
-            + " Additionally, ".join(problems)
+            "Sandbox images are expected to be prebuilt (sandbox_prebuilt is set) but "
+            + ". Additionally, ".join(problems)
         )
 
 

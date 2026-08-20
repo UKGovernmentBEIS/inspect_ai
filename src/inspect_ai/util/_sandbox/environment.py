@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import abc
 import logging
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from typing import (
     Annotated,
@@ -49,6 +50,22 @@ class SandboxUnavailableError(RuntimeError):
 
 
 ST = TypeVar("ST", bound="SandboxEnvironment")
+
+_sandbox_prebuilt: ContextVar[bool] = ContextVar("sandbox_prebuilt", default=False)
+
+
+def sandbox_prebuilt() -> bool:
+    """Whether sandbox images should be treated as prebuilt.
+
+    When `True`, sandbox providers with an image build step should skip
+    the build and raise `PrerequisiteError` for images that don't exist.
+    """
+    return _sandbox_prebuilt.get()
+
+
+def set_sandbox_prebuilt(prebuilt: bool) -> None:
+    _sandbox_prebuilt.set(prebuilt)
+
 
 TaskInit = Callable[[str, Union["SandboxEnvironmentConfigType", None]], Awaitable[None]]
 TaskInitEnvironment = Callable[
