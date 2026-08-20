@@ -288,6 +288,10 @@ options:
         done, _ = concurrent.futures.wait([future], timeout=5)
         if future not in done:
             raise Exception("eval() did not complete within timeout")
+        # unwrap the future — a future completed with an exception is
+        # "done", so done-ness alone hides eval failures
+        log = future.result()
+        assert log.status == "success", f"eval failed: {log.error}"
 
 
 @pytest.mark.slow
@@ -380,6 +384,10 @@ def test_human_cli_with_tools_complex(capsys: pytest.CaptureFixture[str]):
         done, _ = concurrent.futures.wait([future], timeout=5)
         if future not in done:
             raise Exception("eval() did not complete within timeout")
+        # unwrap the future — a future completed with an exception is
+        # "done", so done-ness alone hides eval failures
+        log = future.result()
+        assert log.status == "success", f"eval failed: {log.error}"
 
 
 @pytest.mark.slow
@@ -442,6 +450,10 @@ def test_human_cli_with_tools_no_args(capsys: pytest.CaptureFixture[str]):
         done, _ = concurrent.futures.wait([future], timeout=5)
         if future not in done:
             raise Exception("eval() did not complete within timeout")
+        # unwrap the future — a future completed with an exception is
+        # "done", so done-ness alone hides eval failures
+        log = future.result()
+        assert log.status == "success", f"eval failed: {log.error}"
 
 
 @pytest.mark.slow
@@ -554,3 +566,7 @@ def test_human_cli_with_tools_boolean(capsys: pytest.CaptureFixture[str]):
         done, _ = concurrent.futures.wait([future], timeout=5)
         if future not in done:
             raise Exception("eval() did not complete within timeout")
+        # unwrap the future — a future completed with an exception is
+        # "done", so done-ness alone hides eval failures
+        log = future.result()
+        assert log.status == "success", f"eval failed: {log.error}"
