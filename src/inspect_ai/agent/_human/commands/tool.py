@@ -233,6 +233,10 @@ def tool(args):
                     failed=failed,
                     message_id=None,
                 )
+                # publish the completion — mutation alone leaves the event
+                # registered pending (stale live subscribers, pinned forever
+                # in bounded transcripts)
+                transcript()._event_updated(event)
 
             # Validate against the declared JSON Schema exactly as the model
             # path does (tool_params() below converts to the Python signature

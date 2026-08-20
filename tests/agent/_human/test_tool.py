@@ -512,11 +512,14 @@ async def test_schema_constraints_enforced_for_human_calls() -> None:
 
 
 @pytest.mark.anyio
-async def test_ordinary_exception_still_records_event() -> None:
-    """A tool raising a non-ToolError must still leave a transcript event.
+async def test_ordinary_exception_surfaces_and_records() -> None:
+    """A tool raising a non-ToolError surfaces a clean message and records.
 
-    Only ToolError was caught, so a plain RuntimeError propagated with
-    zero events — the human's failed invocation vanished from the data.
+    Raising through the sandbox-service boundary just hands the human a
+    raw RPC traceback (the boundary swallows the exception and polls
+    on), and terminating the sample would destroy hours of human work
+    over a possibly-incidental tool bug. Instead: readable CLI message,
+    failed ToolEvent in the transcript, session continues.
     """
     from inspect_ai.log._transcript import Transcript, init_transcript, transcript
 
@@ -537,13 +540,32 @@ async def test_ordinary_exception_still_records_event() -> None:
 
     handler = ToolCommand([broken]).service(state=None)  # type: ignore[arg-type]
     init_transcript(Transcript())
-    with pytest.raises(RuntimeError, match="boom"):
-        await handler(tool="broken", arguments={})
+    result = await handler(tool="broken", arguments={})
 
+    assert "Error executing tool 'broken'" in str(result)
+    assert "boom" in str(result)
     events = [e for e in transcript().events if e.event == "tool"]
     assert len(events) == 1
     assert events[0].error is not None
     assert "boom" in events[0].error.message
+    assert events[0].failed is True
+
+
+@pytest.mark.anyio
+async def test_finalized_event_leaves_pending_registry() -> None:
+    """Finalization must publish the update, not just mutate the event.
+
+    _set_result() without transcript()._event_updated() leaves the
+    completed event registered pending: live subscribers never see the
+    completion and bounded transcripts pin the event forever.
+    """
+    from inspect_ai.log._transcript import Transcript, init_transcript, transcript
+
+    handler = ToolCommand([_addition()]).service(state=None)  # type: ignore[arg-type]
+    init_transcript(Transcript())
+    await handler(tool="_addition", arguments={"x": 1, "y": 2})
+
+    assert [e for e in transcript().pending_events if e.event == "tool"] == []
 
 
 @pytest.mark.anyio
