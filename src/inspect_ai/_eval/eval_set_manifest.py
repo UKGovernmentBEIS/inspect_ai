@@ -81,7 +81,13 @@ class EvalSetCaptureTask(BaseModel):
     """Model creation args (secrets redacted)."""
 
     model_roles: dict[str, str] | None = None
-    """Model role names mapped to model names (comma-separated for list-valued roles)."""
+    """Model role names mapped to model names.
+
+    A role bound to a list of models is rendered as a comma-separated join of
+    the model names — the same syntax the `--model-role` CLI flag accepts, so
+    the value can be fed back through a model-role flag verbatim. Consumers
+    must not assume the value names a single model.
+    """
 
     sequence: int
     """Sequence of the task within its eval set."""

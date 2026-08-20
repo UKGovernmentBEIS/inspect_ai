@@ -1615,7 +1615,8 @@ def to_eval_set_task(
     model_name = str(ModelName(task.model))
     model_args = task.model.model_args
 
-    # resolve model roles to names (comma-separated for list-valued roles)
+    # resolve model roles to names; a list-valued role is comma-joined (the
+    # same syntax --model-role accepts, so the value round-trips through a flag)
     model_roles = (
         {
             k: ",".join(m.name for m in v) if isinstance(v, list) else v.name
