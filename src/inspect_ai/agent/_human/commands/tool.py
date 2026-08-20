@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from argparse import Namespace
 from textwrap import dedent
 from typing import Any, Awaitable, Callable, Literal, NamedTuple
@@ -22,6 +23,8 @@ from inspect_ai.tool._tool_def import ToolDef
 
 from ..state import HumanAgentState
 from .command import HumanAgentCommand
+
+logger = logging.getLogger(__name__)
 
 
 def _omitted(kind: str) -> str:
@@ -263,8 +266,16 @@ def tool(args):
                 finalize(error=ToolCallError("unknown", ex.message))
                 raise
             except Exception as ex:
+                # unexpected exceptions must not end the human's session (a
+                # human, unlike a model sample, can read the error and work
+                # around a broken tool — and raising here just yields a raw
+                # RPC traceback anyway, as the sandbox-service boundary
+                # swallows exceptions and keeps polling). Surface a clean
+                # message; the failed ToolEvent and this warning keep the
+                # breakage visible to analysts and operators.
+                logger.warning(f"Error executing human agent tool '{tool}': {ex}")
                 finalize(error=ToolCallError("unknown", str(ex)), failed=True)
-                raise
+                return f"Error executing tool '{tool}': {ex}"
             finalize(result=result)
 
             # Convert result to string
