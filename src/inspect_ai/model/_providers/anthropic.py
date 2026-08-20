@@ -31,6 +31,7 @@ from anthropic import (
 from anthropic.lib.streaming import AsyncMessageStream
 from anthropic.types import (
     Base64PDFSourceParam,
+    BrowserStateBlockParam,
     CacheControlEphemeralParam,
     CitationsConfigParam,
     CodeExecutionToolResultBlock,
@@ -2491,7 +2492,9 @@ def _citation_document_blocks(messages: list[MessageParam]) -> list[DocumentBloc
     return documents
 
 
-CitationCandidateBlock = ContentBlock | ContentBlockParam | ToolReferenceBlockParam
+CitationCandidateBlock = (
+    ContentBlock | ContentBlockParam | ToolReferenceBlockParam | BrowserStateBlockParam
+)
 
 
 def _is_citation_document_block(
