@@ -155,6 +155,12 @@ class ToolCommand(HumanAgentCommand):
                     return json.loads(value)
                 except json.JSONDecodeError as ex:
                     raise argparse.ArgumentTypeError(f"invalid JSON: {ex}")
+
+            def _nullable(convert):
+                # nullable parameters accept the literal 'null' (JSON null)
+                def parse(value):
+                    return None if value == "null" else convert(value)
+                return parse
             """).strip()
         )
 
@@ -193,9 +199,11 @@ def tool(args):
         return
 
     # Tool arguments live under prefixed dests ('arg_<name>'), disjoint from
-    # the routing dests ('command', 'tool_name') by construction
+    # the routing dests ('command', 'tool_name') by construction. Absent
+    # optional flags are SUPPRESSed from the namespace, so everything present
+    # was explicitly provided — including explicit nulls.
     tool_args = {k[len('arg_'):]: v for k, v in vars(args).items()
-                 if k.startswith('arg_') and v is not None}
+                 if k.startswith('arg_')}
 
     print(call_human_agent("tool", tool=tool_name, arguments=tool_args))
 """
@@ -468,16 +476,19 @@ def generate_tool_parser(
         parts.append(f'"--{arg_name}"')
         parts.append(f'dest="arg_{name}"')
 
-        # Type conversion
+        # Type conversion; nullable (Optional[T]) scalars accept the literal
+        # 'null' so an explicit JSON null is expressible, not just absence
+        def converter(base: str) -> str:
+            return f"_nullable({base})" if info.is_optional else base
+
         if info.schema_type == "integer":
-            parts.append("type=int")
+            parts.append(f"type={converter('int')}")
         elif info.schema_type == "number":
-            parts.append("type=float")
+            parts.append(f"type={converter('float')}")
         elif info.schema_type == "boolean":
-            # --flag / --no-flag pair; default None means "not provided",
-            # which the handler filters out so the tool's own default
-            # applies (an absent flag must not silently send False to a
-            # tool whose default is True)
+            # --flag / --no-flag pair; absent flags are suppressed from the
+            # namespace so the tool's own default applies (an absent flag
+            # must not silently send False to a tool whose default is True)
             parts.append("action=argparse.BooleanOptionalAction")
         elif info.schema_type == "array":
             parts.append('nargs="*"')
@@ -486,29 +497,37 @@ def generate_tool_parser(
             elif info.array_item_type == "number":
                 parts.append("type=float")
         elif info.schema_type == "json":
-            # structured parameter: the flag's value is JSON
+            # structured parameter: the flag's value is JSON ('null' included)
             parts.append("type=_json_arg")
             parts.append('metavar="JSON"')
+        elif info.is_optional:
+            # nullable string
+            parts.append("type=_nullable(str)")
 
-        # Enum/choices
+        # Enum/choices (a nullable enum additionally admits None)
         if info.enum:
-            parts.append(f"choices={info.enum!r}")
+            choices = [*info.enum, None] if info.is_optional else info.enum
+            parts.append(f"choices={choices!r}")
         elif info.schema_type not in ("boolean", "json"):
             # metavar must come from the parameter name — argparse would
             # otherwise derive it from the internal prefixed dest (ARG_X)
             parts.append(f'metavar="{name.upper()}"')
 
-        # Required/default
+        # Required/default: absent optional flags are suppressed entirely so
+        # the handler can distinguish "not provided" from an explicit null
         if info.is_optional or not info.is_required:
-            parts.append("default=None")
+            parts.append("default=argparse.SUPPRESS")
         else:
             parts.append("required=True")
 
-        # Help text (structured params get a copy-pasteable example instance)
+        # Help text (structured params get a copy-pasteable example instance;
+        # nullable params advertise the 'null' literal)
         help_text = info.description or ""
         if info.schema_type == "json":
             example = json.dumps(_example_instance(schema_dicts[name]))
             help_text = f"{help_text} (JSON, e.g. '{example}')".strip()
+        elif info.is_optional:
+            help_text = f"{help_text} ('null' for null)".strip()
         if help_text:
             parts.append(f'help="{_escape_string(help_text)}"')
 

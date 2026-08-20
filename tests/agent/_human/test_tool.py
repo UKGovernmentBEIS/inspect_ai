@@ -116,12 +116,10 @@ def _build_parsers(tools: list) -> tuple[argparse.ArgumentParser, dict]:
 
 
 def _handler_kwargs(parser: argparse.ArgumentParser, argv: list[str]) -> dict:
-    """Mirror the generated handler's tool-args extraction (drops None values)."""
+    """Mirror the generated handler's tool-args extraction (absent = suppressed)."""
     args = parser.parse_args(argv)
     return {
-        k[len("arg_") :]: v
-        for k, v in vars(args).items()
-        if k.startswith("arg_") and v is not None
+        k[len("arg_") :]: v for k, v in vars(args).items() if k.startswith("arg_")
     }
 
 
@@ -368,6 +366,56 @@ async def test_service_accepts_any_identifier_param_name() -> None:
     init_transcript(Transcript())
     result = await handler(tool="hostile", arguments={"_tool_name_": "ok"})
     assert result == "ok"
+
+
+# --- round 2: explicit JSON null must be expressible ------------------------
+
+
+@tool
+def _maybe():
+    async def execute(value: int | None = None, config: dict | None = None) -> str:
+        """Accept nullable parameters.
+
+        Args:
+            value: A nullable integer.
+            config: A nullable configuration object.
+
+        Returns:
+            A rendering of what was received.
+        """
+        return f"{value}/{config}"
+
+    return execute
+
+
+def test_explicit_null_for_structured_param_is_sent() -> None:
+    """--config null must send {"config": None}, not silently drop it.
+
+    The handler's None filter conflated "absent" with "explicit null",
+    so a null a model could send was unsendable by the human.
+    """
+    parser, _ = _build_parsers([_maybe()])
+    kwargs = _handler_kwargs(parser, ["tool", "_maybe", "--config", "null"])
+    assert kwargs == {"config": None}
+
+
+def test_explicit_null_for_nullable_scalar_is_sent() -> None:
+    """--value null must parse for int|None (type=int rejected the token)."""
+    parser, _ = _build_parsers([_maybe()])
+    kwargs = _handler_kwargs(parser, ["tool", "_maybe", "--value", "null"])
+    assert kwargs == {"value": None}
+
+
+def test_absent_optional_params_stay_absent() -> None:
+    """Absence still means absence — the tool's own defaults apply."""
+    parser, _ = _build_parsers([_maybe()])
+    assert _handler_kwargs(parser, ["tool", "_maybe"]) == {}
+
+
+def test_nullable_scalar_still_accepts_values() -> None:
+    parser, _ = _build_parsers([_maybe()])
+    kwargs = _handler_kwargs(parser, ["tool", "_maybe", "--value", "3"])
+    assert kwargs == {"value": 3}
 
 
 # --- round 2: parameter names are embedded in generated code — validate them
