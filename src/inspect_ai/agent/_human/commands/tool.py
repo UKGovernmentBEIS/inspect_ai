@@ -21,6 +21,8 @@ from inspect_ai.tool._tool import ToolResult
 from inspect_ai.tool._tool_call import ToolCallError
 from inspect_ai.tool._tool_def import ToolDef
 
+from inspect_ai.util._span import span
+
 from ..state import HumanAgentState
 from .command import HumanAgentCommand
 
@@ -225,79 +227,88 @@ def tool(args):
             if tool_fn is None:
                 return f"Error: Unknown tool '{tool}'"
 
-            # Record the event pending, before conversion/execution, with the
-            # arguments exactly as sent (they arrived as JSON so they are
-            # JSON-safe by construction), then finalize it on every outcome —
-            # for human baselines the human's tool usage is the data, so the
-            # transcript must carry successes, tool errors, and crashes alike
-            event = ToolEvent(
-                id=uuid(),
-                function=tool,
-                arguments=kwargs,
-                pending=True,
-            )
-            transcript()._event(event)
-
-            def finalize(
-                result: ToolResult = "",
-                error: ToolCallError | None = None,
-                failed: bool | None = None,
-            ) -> None:
-                event._set_result(
-                    result=result,
-                    truncated=None,
-                    error=error,
-                    waiting_time=0,
-                    agent=None,
-                    failed=failed,
-                    message_id=None,
-                )
-                # publish the completion — mutation alone leaves the event
-                # registered pending (stale live subscribers, pinned forever
-                # in bounded transcripts)
-                transcript()._event_updated(event)
-
-            # Validate against the declared JSON Schema exactly as the model
-            # path does (tool_params() below converts to the Python signature
-            # but cannot enforce schema constraints — a ToolDef over **kwargs
-            # has no typed signature at all, so this is the only gate that
-            # keeps the human's action space identical to the model's)
-            validation_errors = validate_tool_input(
-                kwargs, self._tool_defs[tool].parameters
-            )
-            if validation_errors:
-                finalize(error=ToolCallError("parsing", validation_errors))
-                return f"Error: {validation_errors}"
-
-            # Convert args using tool_params()
-            try:
-                params = tool_params(kwargs, tool_fn)
-            except Exception as e:
-                finalize(error=ToolCallError("parsing", str(e)))
-                return f"Error parsing tool arguments: {e}"
-
-            try:
-                result = await tool_fn(**params)
-            except ToolError as ex:
-                finalize(error=ToolCallError("unknown", ex.message))
-                raise
-            except Exception as ex:
-                # unexpected exceptions must not end the human's session (a
-                # human, unlike a model sample, can read the error and work
-                # around a broken tool — and raising here just yields a raw
-                # RPC traceback anyway, as the sandbox-service boundary
-                # swallows exceptions and keeps polling). Surface a clean
-                # message; the failed ToolEvent and this warning keep the
-                # breakage visible to analysts and operators.
-                logger.warning(f"Error executing human agent tool '{tool}': {ex}")
-                finalize(error=ToolCallError("unknown", str(ex)), failed=True)
-                return f"Error executing tool '{tool}': {ex}"
-            finalize(result=result)
-
-            # Convert result to string
-            return tool_result_to_str(result)
+            # model tool calls run inside span(type="tool") — mirror that so
+            # nested activity (e.g. model calls made by the tool) attributes
+            # to the tool in timelines rather than to the enclosing agent
+            async with span(name=tool, type="tool"):
+                return await self._execute_tool(tool, tool_fn, kwargs)
 
         return call_tool
+
+    async def _execute_tool(
+        self, tool: str, tool_fn: Tool, kwargs: dict[str, Any]
+    ) -> str:
+        # Record the event pending, before conversion/execution, with the
+        # arguments exactly as sent (they arrived as JSON so they are
+        # JSON-safe by construction), then finalize it on every outcome —
+        # for human baselines the human's tool usage is the data, so the
+        # transcript must carry successes, tool errors, and crashes alike
+        event = ToolEvent(
+            id=uuid(),
+            function=tool,
+            arguments=kwargs,
+            pending=True,
+        )
+        transcript()._event(event)
+
+        def finalize(
+            result: ToolResult = "",
+            error: ToolCallError | None = None,
+            failed: bool | None = None,
+        ) -> None:
+            event._set_result(
+                result=result,
+                truncated=None,
+                error=error,
+                waiting_time=0,
+                agent=None,
+                failed=failed,
+                message_id=None,
+            )
+            # publish the completion — mutation alone leaves the event
+            # registered pending (stale live subscribers, pinned forever
+            # in bounded transcripts)
+            transcript()._event_updated(event)
+
+        # Validate against the declared JSON Schema exactly as the model
+        # path does (tool_params() below converts to the Python signature
+        # but cannot enforce schema constraints — a ToolDef over **kwargs
+        # has no typed signature at all, so this is the only gate that
+        # keeps the human's action space identical to the model's)
+        validation_errors = validate_tool_input(
+            kwargs, self._tool_defs[tool].parameters
+        )
+        if validation_errors:
+            finalize(error=ToolCallError("parsing", validation_errors))
+            return f"Error: {validation_errors}"
+
+        # Convert args using tool_params()
+        try:
+            params = tool_params(kwargs, tool_fn)
+        except Exception as e:
+            finalize(error=ToolCallError("parsing", str(e)))
+            return f"Error parsing tool arguments: {e}"
+
+        try:
+            result = await tool_fn(**params)
+        except ToolError as ex:
+            finalize(error=ToolCallError("unknown", ex.message))
+            raise
+        except Exception as ex:
+            # unexpected exceptions must not end the human's session (a
+            # human, unlike a model sample, can read the error and work
+            # around a broken tool — and raising here just yields a raw
+            # RPC traceback anyway, as the sandbox-service boundary
+            # swallows exceptions and keeps polling). Surface a clean
+            # message; the failed ToolEvent and this warning keep the
+            # breakage visible to analysts and operators.
+            logger.warning(f"Error executing human agent tool '{tool}': {ex}")
+            finalize(error=ToolCallError("unknown", str(ex)), failed=True)
+            return f"Error executing tool '{tool}': {ex}"
+        finalize(result=result)
+
+        # Convert result to string
+        return tool_result_to_str(result)
 
 
 class ParamInfo(NamedTuple):

@@ -418,6 +418,29 @@ def test_nullable_scalar_still_accepts_values() -> None:
     assert kwargs == {"value": 3}
 
 
+# --- round 2: human tool execution runs inside a tool span -------------------
+
+
+@pytest.mark.anyio
+async def test_tool_execution_runs_in_tool_span() -> None:
+    """Human tool calls get a span(type="tool") like model tool calls.
+
+    Without it, nested activity (e.g. model calls made by the tool)
+    appears as top-level human-agent activity in timelines.
+    """
+    from inspect_ai.log._transcript import Transcript, init_transcript, transcript
+
+    handler = ToolCommand([_addition()]).service(state=None)  # type: ignore[arg-type]
+    init_transcript(Transcript())
+    await handler(tool="_addition", arguments={"x": 1, "y": 2})
+
+    spans = [e for e in transcript().events if e.event == "span_begin"]
+    assert any(s.type == "tool" and s.name == "_addition" for s in spans)
+    tool_event = next(e for e in transcript().events if e.event == "tool")
+    tool_span = next(s for s in spans if s.type == "tool")
+    assert tool_event.span_id == tool_span.id
+
+
 # --- round 2: parameter names are embedded in generated code — validate them
 
 
