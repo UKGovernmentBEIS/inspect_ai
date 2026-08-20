@@ -29,7 +29,7 @@ from typing import Any, NamedTuple
 from inspect_ai._control.events import _to_text, _truncate
 from inspect_ai._control.terminal_cache import (
     TerminalSourceCache,
-    invalidate_terminal_sources,
+    resolve_sample_source,
 )
 
 
@@ -37,7 +37,7 @@ class StoreSource(NamedTuple):
     """One resolvable source of a sample's store.
 
     Produced by :func:`_running_source` (live ``TaskState``) and
-    :func:`_logged_source` (recorder / on-disk log); consumed by
+    :func:`_resolve_logged_source` (recorder / on-disk log); consumed by
     :func:`sample_store`. ``store`` holds the *raw* values (not yet
     JSON-serialized) so the ``--key`` filter can run before serialization —
     a targeted read of one small key never pays serialization of a sibling
@@ -94,15 +94,12 @@ async def sample_store(
     # `count`s can't miss a change that lands mid-read.
     as_of = time.time()
 
-    source = _running_source(eval_id, sample_id, epoch)
-    if source is not None:
-        # a running attempt (a retry) supersedes any cached terminal source
-        # for this sample — drop it (from every projection's cache, not just
-        # this endpoint's) so the attempt's own terminal source is resolved
-        # fresh once it finishes (see terminal_cache)
-        invalidate_terminal_sources((eval_id, sample_id, epoch))
-    else:
-        source = await _logged_source(eval_id, sample_id, epoch)
+    source = await resolve_sample_source(
+        (eval_id, sample_id, epoch),
+        running=lambda: _running_source(eval_id, sample_id, epoch),
+        cache=_terminal_sources,
+        resolve_terminal=lambda: _resolve_logged_source(eval_id, sample_id, epoch),
+    )
     if source is None:
         return None
 
@@ -158,21 +155,6 @@ def _running_source(eval_id: str, sample_id: str, epoch: int) -> StoreSource | N
     return StoreSource(
         store=dict(s.live_state.store.items()),
         status="completed" if s.completed is not None else "running",
-    )
-
-
-async def _logged_source(
-    eval_id: str, sample_id: str, epoch: int
-) -> StoreSource | None:
-    """The terminal source for a sample, resolved through the short-TTL cache.
-
-    A terminal attempt's store is immutable, so the resolved source is reused
-    across polls instead of re-paying the whole-sample parse per request (see
-    ``_terminal_sources`` and ``TerminalSourceCache.get_or_resolve``).
-    """
-    return await _terminal_sources.get_or_resolve(
-        (eval_id, sample_id, epoch),
-        lambda: _resolve_logged_source(eval_id, sample_id, epoch),
     )
 
 

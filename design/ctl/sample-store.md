@@ -235,8 +235,9 @@ standard "older inspect — restart the eval" message via
 Implementation shape (mirroring `_control/messages.py`):
 
 - `_control/store.py`: `sample_store(eval_id, sample_id, epoch, *, keys,
-  content, full)` + `_running_source` / `_logged_source` /
-  `TerminalSourceCache` + the per-key projection.
+  content, full)` + `_running_source` / `_resolve_logged_source` (resolved
+  through the shared `resolve_sample_source` / `TerminalSourceCache`) + the
+  per-key projection.
 - `server.py`: `GET /evals/{eval_id}/sample/store` (repeatable `key` query
   param; 404 envelope on unknown sample).
 - `_cli/ctl/_sample.py` + `_sample_read.py`: the `sample store` command,

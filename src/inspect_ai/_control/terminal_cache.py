@@ -18,8 +18,9 @@ Staleness is bounded by construction:
   entry alive forever) re-resolves at least once per TTL, and a served
   source is never more than ``ttl`` seconds old.
 - The one way a terminal source is superseded is a retry — a fresh attempt
-  under the same ``(eval_id, sample_id, epoch)``. Each per-sample reader
-  calls :func:`invalidate_terminal_sources` whenever it resolves a
+  under the same ``(eval_id, sample_id, epoch)``. Every per-sample reader
+  resolves through :func:`resolve_sample_source`, which calls
+  :func:`invalidate_terminal_sources` whenever it resolves a
   *running* source for the key, dropping it from *every* registered cache —
   so a poll on any endpoint that observes the retry in flight drops the
   prior attempt's entry immediately rather than waiting out the TTL, for
@@ -158,6 +159,32 @@ class TerminalSourceCache(Generic[T]):
     def clear(self) -> None:
         """Drop every entry."""
         self._entries.clear()
+
+
+async def resolve_sample_source(
+    key: SourceKey,
+    *,
+    running: "Callable[[], T | None]",
+    cache: TerminalSourceCache[T],
+    resolve_terminal: "Callable[[], Awaitable[T | None]]",
+) -> T | None:
+    """The source for a per-sample read: live if running, else cached terminal.
+
+    The one shared rule across the per-sample readers (events / messages /
+    store) lives here so a new reader can't forget it: resolving a *running*
+    source means a retry attempt is in flight, which supersedes any cached
+    terminal source for the key in *every* projection of the sample — so it
+    is dropped from every registered cache (see
+    :func:`invalidate_terminal_sources`), and the attempt's own terminal
+    source is resolved fresh once it finishes. Otherwise the terminal source
+    is served through ``cache`` (see :meth:`TerminalSourceCache
+    .get_or_resolve` for what a cached ``None`` would break).
+    """
+    source = running()
+    if source is not None:
+        invalidate_terminal_sources(key)
+        return source
+    return await cache.get_or_resolve(key, resolve_terminal)
 
 
 def invalidate_terminal_sources(key: SourceKey) -> None:

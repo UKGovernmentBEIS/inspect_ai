@@ -192,7 +192,7 @@ than total transcript size. Three sources, three answers:
 - **Terminal, streaming-completion sample not yet flushed — bounded.** The
   recorder's retained sample is event-less; pages go through the eval's
   buffer-backed events provider, again `limit`-bounded.
-- **Terminal, flushed to disk — NOT bounded.** `_logged_source` calls
+- **Terminal, flushed to disk — NOT bounded.** `_resolve_logged_source` calls
   `_full_sample(...)` with **no `exclude_fields`**: the entire sample —
   including its full event list — is read, JSON-parsed, and
   pydantic-validated per page request, then sliced in memory
@@ -325,7 +325,7 @@ needs no work of its own. **Findings 3 and 4 are now fixed** (the
 finding 1 remains open.
 
 1. **Events pages over a flushed sample re-parse the whole transcript per
-   page** (`events.py` `_logged_source` → `_full_sample` with no
+   page** (`events.py` `_resolve_logged_source` → `_full_sample` with no
    `exclude_fields`). Per-request CPU proportional to total transcript size —
    an invariant violation. Amplified by pagination (O(N²/limit) to walk a
    transcript) and by cursor-polling a finished sample (full parse per poll,
