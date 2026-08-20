@@ -16,6 +16,7 @@ things that Phase 6 left optional/absent:
   looked up via ``get_model_info``.
 """
 
+from collections.abc import Iterator
 from typing import Any
 from uuid import UUID
 
@@ -44,8 +45,14 @@ from inspect_ai.agent._acp.transport_live import LiveAcpTransport
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log._transcript import Transcript, _transcript
-from inspect_ai.model import ChatMessageAssistant, ModelInfo, set_model_info
+from inspect_ai.model import (
+    ChatMessageAssistant,
+    ModelInfo,
+    get_model_info,
+    set_model_info,
+)
 from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.model._model_info import _custom_models, _result_cache
 from inspect_ai.model._model_output import (
     ChatCompletionChoice,
     ModelOutput,
@@ -58,17 +65,25 @@ from inspect_ai.tool._tool_call import ToolCall
 # broken by changes to the canonical model data files.
 _TEST_MODEL = "phase2-router-test/synthetic"
 _TEST_CONTEXT_LENGTH = 100_000
+_NOT_REGISTERED = "registry lost the test model (see _register_test_model)"
 
 
 # Re-registered before every test: other modules' fixtures call
-# clear_model_info_cache(), which wipes a one-off registration when
-# xdist interleaves their tests with ours on the same worker.
+# clear_model_info_cache(), which wipes a one-off registration whenever
+# one of their tests runs before ours in the same process (no xdist
+# needed — worksteal interleaving is just how CI hits it).
 @pytest.fixture(autouse=True)
-def _register_test_model() -> None:
+def _register_test_model() -> Iterator[None]:
     set_model_info(
         _TEST_MODEL,
         ModelInfo(context_length=_TEST_CONTEXT_LENGTH, output_tokens=4096),
     )
+    yield
+    # Drop only our synthetic entries; clearing the whole registry is the
+    # cross-module pollution this fixture exists to defend against.
+    for name in [n for n in _custom_models if n.startswith("phase2-router-test/")]:
+        del _custom_models[name]
+    _result_cache.clear()
 
 
 def _new_session() -> LiveAcpTransport:
@@ -290,6 +305,9 @@ def test_chunks_from_different_events_can_carry_different_models() -> None:
 
 
 def test_usage_update_emitted_after_text_chunk() -> None:
+    # Named precondition: without it a wiped registration fails four tests
+    # with an opaque `assert 0 == 1` (how the xdist flake first presented).
+    assert get_model_info(_TEST_MODEL) is not None, _NOT_REGISTERED
     tr = Transcript()
     token = _transcript.set(tr)
     try:
@@ -312,6 +330,7 @@ def test_usage_update_emitted_after_text_chunk() -> None:
 
 
 def test_usage_update_includes_cached_tokens() -> None:
+    assert get_model_info(_TEST_MODEL) is not None, _NOT_REGISTERED
     tr = Transcript()
     token = _transcript.set(tr)
     try:
@@ -367,6 +386,7 @@ def test_usage_update_order_after_chunks() -> None:
     updates so the chip change visually corresponds to the model call
     just rendered.
     """
+    assert get_model_info(_TEST_MODEL) is not None, _NOT_REGISTERED
     tr = Transcript()
     token = _transcript.set(tr)
     try:
@@ -397,6 +417,7 @@ def test_usage_update_emitted_for_tool_call_only_response() -> None:
     real flow: pending fires when the model call begins, complete
     fires when it returns (tool-only).
     """
+    assert get_model_info(_TEST_MODEL) is not None, _NOT_REGISTERED
     tr = Transcript()
     token = _transcript.set(tr)
     try:
