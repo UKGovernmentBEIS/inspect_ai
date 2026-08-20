@@ -620,6 +620,108 @@ def sync_item(row) -> None:
             actions.append(f"#{issue}: approval dismissed -> Sign-off")
 
 
+def lifecycle_item(issue: int):
+    """The Atlas item + current Stage for a fork issue, or None.
+
+    Pilot-scoped like the rest of the sync: only open issues assigned to
+    REVIEWER, and only their item on THIS project.
+    """
+    d = gql(
+        """query($o:String!,$r:String!,$n:Int!){ repository(owner:$o,name:$r){
+             issue(number:$n){ state assignees(first:10){nodes{login}}
+               projectItems(first:10){nodes{id project{id}
+                 fieldValueByName(name:"Stage"){
+                   ... on ProjectV2ItemFieldSingleSelectValue{name}}}}}}}""",
+        o=FORK.split("/")[0],
+        r=FORK.split("/")[1],
+        n=issue,
+    )["repository"]["issue"]
+    if d is None or d["state"] != "OPEN":
+        return None
+    if REVIEWER not in [a["login"] for a in d["assignees"]["nodes"]]:
+        return None
+    for node in d["projectItems"]["nodes"]:
+        if node["project"]["id"] == PROJECT_ID:
+            fv = node.get("fieldValueByName") or {}
+            return (node["id"], fv.get("name"))
+    return None
+
+
+def reflect_companion_loops() -> None:
+    """Reflect companion auto-loops onto their anchors' lifecycle stage.
+
+    An auto-labeled ts-mono PR named by the dev-agent convention
+    (claude/issue-N-*) is the active half of fork issue N. The loop's
+    ending contract makes ball ownership readable from marker comments:
+    a round ends with exactly one of a continue signal (a bare re-review
+    trigger comment, or a `claude-review-verdict:suggestions` marker) or
+    a stop signal (`auto-handoff` / `auto-converged` /
+    `claude-review-verdict:clean`). Newer continue than stop -> the
+    machinery owns the issue (Agent); otherwise a human does (Review).
+    Only items already in Agent/Review move — parked stages are left
+    alone, same as the promotion tail.
+    """
+    try:
+        prs = gh_json(
+            "pr",
+            "list",
+            "--repo",
+            TS_MONO,
+            "--label",
+            "auto",
+            "--state",
+            "open",
+            "--json",
+            "number,headRefName",
+        )
+    except RuntimeError as e:
+        print(f"::warning::companion reflection: pr list failed: {e}")
+        return
+    for cpr in prs:
+        m = re.match(r"claude/issue-(\d+)-", cpr.get("headRefName") or "")
+        if not m:
+            continue
+        n = int(m.group(1))
+        anchor = lifecycle_item(n)
+        if anchor is None:
+            continue
+        item, stage = anchor
+        if stage not in ("Agent", "Review"):
+            continue
+        comments = gh_json(
+            "api",
+            "--paginate",
+            f"repos/{TS_MONO}/issues/{cpr['number']}/comments?per_page=100",
+            "--jq",
+            "[.[] | {body: .body, ts: .created_at}]",
+        )
+        # --paginate concatenates arrays as JSON streams only for objects;
+        # normalize: gh emits one array per page back-to-back
+        if isinstance(comments, dict):
+            comments = [comments]
+        go_ts, stop_ts = "", ""
+        for c in comments if isinstance(comments, list) else []:
+            body, ts = c.get("body") or "", c.get("ts") or ""
+            if (
+                "auto-handoff" in body
+                or "auto-converged" in body
+                or "claude-review-verdict:clean" in body
+            ):
+                stop_ts = max(stop_ts, ts)
+            elif (
+                body.strip() == "@" + "review"
+                or "claude-review-verdict:suggestions" in body
+            ):
+                go_ts = max(go_ts, ts)
+        engaged = go_ts > stop_ts
+        target = "Agent" if engaged else "Review"
+        if set_stage(item, target, stage):
+            state = "engaged" if engaged else "handed back"
+            actions.append(
+                f"#{n}: companion {TS_MONO}#{cpr['number']} loop {state} -> {target}"
+            )
+
+
 def main() -> int:
     discover()
     for row in board_items():
@@ -627,6 +729,10 @@ def main() -> int:
             sync_item(row)
         except Exception as e:  # noqa: BLE001 — per-item isolation
             print(f"::warning::sync failed for #{row['issue']}: {e}")
+    try:
+        reflect_companion_loops()
+    except Exception as e:  # noqa: BLE001 — reflection must not break the sync
+        print(f"::warning::companion reflection failed: {e}")
 
     print("\n=== Atlas sync summary ===")
     for a in actions or ["no changes"]:
