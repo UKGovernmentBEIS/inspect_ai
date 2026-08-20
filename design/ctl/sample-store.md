@@ -76,6 +76,10 @@ only the reconstruct-current-state use of it).
 }
 ```
 
+- The identifier echo (`task_id` / `sample_id` / `epoch`) is added at the CLI
+  `--json` layer, exactly as in `messages` — the server response carries only
+  `as_of` / `status` / `count` / `store` / `missing` (the server is keyed by
+  `eval_id` and has no notion of `task_id`).
 - `count` is always the whole store's key count, so a filtered read still
   shows how much it didn't ask for (the "no silent truncation" rule —
   structural signal, not inference from `len(store)`).
@@ -149,9 +153,12 @@ plumbing on either side**:
   exactly why a sample whose transcript is bounded (or buffered-only) still
   answers.
 - **Terminal** ← `_full_sample(eval_id, sample_id, epoch,
-  exclude_fields={"messages", "events", "attachments", "output"})` — the
-  shared recorder-then-on-disk-log source, keeping only `store` (plus the
-  identity/error fields the envelope needs). Resolved through a
+  exclude_fields={"messages", "events", "attachments", "output",
+  "error_retries"})` — the shared recorder-then-on-disk-log source, keeping
+  only `store` (plus the identity/error fields the envelope needs).
+  `error_retries` is excluded too: each retry can carry a full transcript of
+  its own, which this read never uses (`status` needs only `error`, and the
+  field defaults to `None`, so exclusion is safe). Resolved through a
   `TerminalSourceCache` like the sibling reads (a terminal sample's store is
   immutable; don't re-pay the sample parse per poll), invalidated when a
   running attempt supersedes it. `status` reads `error` / `completed` off the
@@ -178,7 +185,12 @@ serialization, so a targeted read of one small key never pays serialization
 of a sibling megabyte blob. The metadata tier does serialize every
 (post-filter) value once to measure `size` — O(store) work of the same order
 the store-event recording path already pays per step, and bounded by the
-filter for targeted reads. That satisfies the cheap-shoveling invariant the
+filter for targeted reads. Serialization applies on **both** sources: the
+terminal path's pre-flush recorder samples hold raw Python store values
+(`create_eval_sample` copies `state.store` verbatim — an agent may have
+stashed a non-JSON-serializable object), so the terminal path must run values
+through `store_jsonable` just like the live path, never return `sample.store`
+verbatim in `--full`. That satisfies the cheap-shoveling invariant the
 same way `messages` does (O(conversation) per request): request-shaped work,
 no background tasks, no cross-request state beyond the terminal cache.
 
@@ -191,7 +203,7 @@ no background tasks, no cross-request state beyond the terminal cache.
   of events), on a bounded live transcript it requires re-materializing
   evicted events from the buffer just to fold them down to a dict that
   already exists in memory, and it computes a value the live path can read in
-  O(1) and the terminal path already has serialized. Replay is the fallback
+  O(1) and the terminal path already holds as a plain dict on the sample. Replay is the fallback
   shape for when state *doesn't* exist anywhere — not the case here on either
   side of the running/terminal split.
 - **Folding into `sample show`.** Same answer as the messages read: `show` is
