@@ -39,6 +39,7 @@ from openai.types.responses import (
     ResponseReasoningItem,
     ResponseReasoningItemParam,
     ResponseToolSearchCall,
+    ResponseToolSearchOutputItem,
     ResponseUsage,
     ToolChoiceFunctionParam,
     ToolChoiceMcpParam,
@@ -735,7 +736,8 @@ class _AssistantInternal:
         | ResponseComputerToolCallParam
         | ResponseFunctionWebSearchParam
         | ResponseCodeInterpreterToolCallParam
-        | ToolSearchCall,
+        | ToolSearchCall
+        | ResponseToolSearchOutputItemParamParam,
     ] = field(default_factory=dict)
     server_tool_uses: dict[str, ResponseInputItemParam] = field(default_factory=dict)
 
@@ -1041,6 +1043,23 @@ def _process_response_output_items(
                     ToolSearchCall, output.model_dump(exclude_none=True)
                 )
                 tool_calls.append(tool_call)
+            case ResponseToolSearchOutputItem():
+                # Companion of ResponseToolSearchCall: when a tool_search call
+                # resolves, OpenAI emits a tool_search_output item with the
+                # discovered tools. Cache it (keyed by call_id) so the bridge
+                # can replay it verbatim within the sample.
+                #
+                # Source: issue #4968. If we fall through to the `case _:`
+                # below, ``raise ValueError("Unexpected output type: ...")`
+                # crashes any agent that exercises native OpenAI tool search
+                # (e.g. Pydantic AI's DeferredLoadingToolset).
+                if output.call_id is not None:
+                    assistant_internal().tool_calls[output.call_id] = cast(
+                        ResponseToolSearchOutputItemParamParam,
+                        output.model_dump(
+                            exclude_none=True, warnings=False
+                        ),
+                    )
             case _:
                 raise ValueError(f"Unexpected output type: {output.__class__}")
 
