@@ -7,6 +7,7 @@ from os import PathLike
 from typing import IO, Any, Literal, cast
 
 from anthropic.types import (
+    BrowserStateBlockParam,
     ContentBlock,
     ContentBlockParam,
     DocumentBlockParam,
@@ -135,7 +136,7 @@ async def inspect_anthropic_api_request_impl(
     debug_log("SCAFFOLD INPUT", input)
 
     messages = await messages_from_anthropic_input(input, tools)
-    validate_bridge_media(bridge, messages)
+    await validate_bridge_media(bridge, messages)
     debug_log("INSPECT MESSAGES", messages)
 
     # extract generate config (hoist instructions into system_message)
@@ -496,7 +497,8 @@ def content_block_to_content(
     | ImageBlockParam
     | DocumentBlockParam
     | SearchResultBlockParam
-    | ToolReferenceBlockParam,
+    | ToolReferenceBlockParam
+    | BrowserStateBlockParam,
 ) -> Content:
     if block["type"] == "text":
         text = block["text"]
@@ -519,13 +521,19 @@ def content_block_to_content(
                     data=data,
                 )
             )
-        else:
+        elif block["source"]["type"] == "url":
             return ContentImage(image=block["source"]["url"])
+        else:
+            raise RuntimeError(
+                f"Unsupported image source type: {block['source']['type']}"
+            )
     elif block["type"] == "document":
         source = block["source"]
         if source["type"] == "text":
+            data = base64.b64encode(source["data"].encode("utf-8")).decode("ascii")
             return ContentDocument(
-                document=source["data"], mime_type=source["media_type"]
+                document=as_data_uri(source["media_type"], data),
+                mime_type=source["media_type"],
             )
         elif source["type"] == "url":
             return ContentDocument(document=source["url"])
@@ -541,8 +549,10 @@ def content_block_to_content(
                 return ContentText(text=c)
             else:
                 return content_block_to_content(list(c)[0])
+        else:
+            raise RuntimeError(f"Unsupported document source type: {source['type']}")
     else:
-        raise RuntimeError(f"Unsupported content block type: {type(block)}")
+        raise RuntimeError(f"Unsupported content block type: {block['type']}")
 
 
 def base_64_data(data: str | IO[bytes] | PathLike[str]) -> str:

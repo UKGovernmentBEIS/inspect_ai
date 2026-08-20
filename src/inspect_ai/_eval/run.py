@@ -2,6 +2,7 @@ import functools
 import logging
 import os
 import sys
+from copy import copy
 from dataclasses import dataclass, replace
 from typing import Any, Awaitable, Callable, Iterable, NamedTuple, Set, cast
 
@@ -204,7 +205,12 @@ async def eval_run(
                 # token_limit, time_limit, and fail_on_error so broadcast these
                 # into the eval config (so long as they aren't overriding a
                 # value specified from eval() or the CLI)
-                task = resolved_task.task
+                # Resolve eval-level overrides against a per-run task view so
+                # repeated eval() calls on the same Task do not retain them.
+                # The copy is shallow: it guards only the direct attribute
+                # rebinds below — nested state (dataset, config, reducer list
+                # contents) is still shared, so don't write to it in place.
+                task = copy(resolved_task.task)
                 task_eval_config = eval_config.model_copy()
 
                 # sample_ids can be specified per task
@@ -397,6 +403,7 @@ async def eval_run(
                         initial_role_usage=resolved_task.initial_role_usage,
                         task_source=task_source,
                         startup_sandboxes=startup_sandboxes,
+                        input_media_policy=resolved_task.input_media_policy,
                     )
                 )
                 # register the prepared task so a failed run can clean it up
