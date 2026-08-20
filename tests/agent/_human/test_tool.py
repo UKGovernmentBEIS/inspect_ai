@@ -116,12 +116,12 @@ def _build_parsers(tools: list) -> tuple[argparse.ArgumentParser, dict]:
 
 
 def _handler_kwargs(parser: argparse.ArgumentParser, argv: list[str]) -> dict:
-    """Mirror the generated handler's kwargs filter (drops None values)."""
+    """Mirror the generated handler's tool-args extraction (drops None values)."""
     args = parser.parse_args(argv)
     return {
-        k: v
+        k[len("arg_") :]: v
         for k, v in vars(args).items()
-        if k not in ("tool_name", "command") and v is not None
+        if k.startswith("arg_") and v is not None
     }
 
 
@@ -166,7 +166,7 @@ async def test_service_records_tool_event() -> None:
     handler = command.service(state=None)  # type: ignore[arg-type]
 
     init_transcript(Transcript())
-    result = await handler(_tool_name_="_addition", x=1, y=2)
+    result = await handler(tool="_addition", arguments={"x": 1, "y": 2})
     assert result == "3"
 
     tool_events = [e for e in transcript().events if e.event == "tool"]
@@ -266,3 +266,105 @@ def test_required_complex_param_enforced_by_argparse() -> None:
     with pytest.raises(SystemExit) as exc_info:
         parser.parse_args(["tool", "_process_config", "--name", "t"])
     assert exc_info.value.code == 2
+
+
+# =============================================================================
+# Review findings (2026-08-20): failing-first tests for the five issues found
+# in the final pre-merge review pass.
+# =============================================================================
+
+# --- finding 3: parameter names must not collide with parser/service routing
+
+
+@tool
+def _shadowing_params():
+    async def execute(command: str, tool_name: str) -> str:
+        """Echo parameters whose names shadow parser routing dests.
+
+        Args:
+            command: Shadows the top-level dispatch dest.
+            tool_name: Shadows the tool-selection dest.
+
+        Returns:
+            The combined values.
+        """
+        return f"{command}/{tool_name}"
+
+    return execute
+
+
+def _handler_call(parser: argparse.ArgumentParser, argv: list[str]) -> tuple[str, dict]:
+    """Mirror the generated handler: routing dests vs prefixed tool-arg dests."""
+    args = parser.parse_args(argv)
+    tool_name = getattr(args, "tool_name", None) or ""
+    tool_args = {
+        k[len("arg_") :]: v
+        for k, v in vars(args).items()
+        if k.startswith("arg_") and v is not None
+    }
+    return tool_name, tool_args
+
+
+def test_params_shadowing_routing_names_route_correctly() -> None:
+    """Params named `command`/`tool_name` must not hijack dispatch.
+
+    Today `--tool-name n` overwrites the selected subcommand (the tool
+    lookup then fails) and `--command c` overwrites top-level dispatch
+    (the tool handler never runs).
+    """
+    parser, _ = _build_parsers([_shadowing_params()])
+    args = parser.parse_args(
+        ["tool", "_shadowing_params", "--command", "c", "--tool-name", "n"]
+    )
+    assert args.command == "tool"  # top-level dispatch intact
+    tool_name, tool_args = _handler_call(
+        parser, ["tool", "_shadowing_params", "--command", "c", "--tool-name", "n"]
+    )
+    assert tool_name == "_shadowing_params"  # tool selection intact
+    assert tool_args == {"command": "c", "tool_name": "n"}
+
+
+def test_prefixed_dests_do_not_leak_into_help() -> None:
+    """Help metavars show the parameter name, not the internal dest.
+
+    The collision-proof arg_ dest prefix must stay invisible: help must
+    read `--x X`, not `--x ARG_X`.
+    """
+    _, namespace = _build_parsers([_addition()])
+    help_text = namespace["tool_subparsers"].choices["_addition"].format_help()
+    assert "--x X" in help_text
+    assert "ARG_" not in help_text
+
+
+@pytest.mark.anyio
+async def test_service_accepts_any_identifier_param_name() -> None:
+    """The service transports tool args out-of-band of its own params.
+
+    Passing tool args as **kwargs next to the tool-name param means a
+    tool parameter named `_tool_name_` is a duplicate-keyword TypeError.
+    """
+    from inspect_ai.log._transcript import Transcript, init_transcript
+
+    async def execute(_tool_name_: str) -> str:
+        """Echo a hostile parameter name.
+
+        Args:
+            _tool_name_: Parameter named after the old routing kwarg.
+
+        Returns:
+            The value.
+        """
+        return _tool_name_
+
+    hostile = ToolDef(
+        execute,
+        name="hostile",
+        description="Echo a hostile parameter name.",
+        parameters={"_tool_name_": "Parameter named after the old routing kwarg."},
+    ).as_tool()
+
+    command = ToolCommand([hostile])
+    handler = command.service(state=None)  # type: ignore[arg-type]
+    init_transcript(Transcript())
+    result = await handler(tool="hostile", arguments={"_tool_name_": "ok"})
+    assert result == "ok"

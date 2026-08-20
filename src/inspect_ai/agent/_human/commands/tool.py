@@ -144,7 +144,8 @@ class ToolCommand(HumanAgentCommand):
 
         Returns Python code for the tool() function that:
         - Shows tool list via argparse help if no tool_name
-        - Passes tool args as kwargs to the service
+        - Passes tool args to the service as a single dict, out-of-band of
+          the routing parameters (so no tool argument name can collide)
         """
         return """
 def tool(args):
@@ -155,11 +156,12 @@ def tool(args):
         tool_parser.print_help()
         return
 
-    # Build tool args from parsed args (exclude tool_name and command)
-    tool_args = {k: v for k, v in vars(args).items()
-                 if k not in ('tool_name', 'command') and v is not None}
+    # Tool arguments live under prefixed dests ('arg_<name>'), disjoint from
+    # the routing dests ('command', 'tool_name') by construction
+    tool_args = {k[len('arg_'):]: v for k, v in vars(args).items()
+                 if k.startswith('arg_') and v is not None}
 
-    print(call_human_agent("tool", _tool_name_=tool_name, **tool_args))
+    print(call_human_agent("tool", tool=tool_name, arguments=tool_args))
 """
 
     def cli(self, args: Namespace) -> None:
@@ -169,17 +171,19 @@ def tool(args):
         raise Exception("This should never appear in the generated code")
 
     def service(self, state: HumanAgentState) -> Callable[..., Awaitable[JsonValue]]:
-        # Note: _tool_name_ chosen to avoid collision with tool arguments.
-        # Will still collide if a tool has a parameter called '_tool_name_'.
-        async def call_tool(_tool_name_: str, **kwargs: Any) -> str:
+        # Tool arguments arrive as a single dict, out-of-band of this
+        # function's own parameters — no tool argument name can collide
+        async def call_tool(tool: str, arguments: dict[str, Any] | None = None) -> str:
+            kwargs = arguments or {}
+
             # Look up tool
-            tool = self._tool_map.get(_tool_name_)
-            if tool is None:
-                return f"Error: Unknown tool '{_tool_name_}'"
+            tool_fn = self._tool_map.get(tool)
+            if tool_fn is None:
+                return f"Error: Unknown tool '{tool}'"
 
             # Convert args using tool_params()
             try:
-                params = tool_params(kwargs, tool)
+                params = tool_params(kwargs, tool_fn)
             except Exception as e:
                 return f"Error parsing tool arguments: {e}"
 
@@ -192,7 +196,7 @@ def tool(args):
                 transcript()._event(
                     ToolEvent(
                         id=uuid(),
-                        function=_tool_name_,
+                        function=tool,
                         arguments=params,
                         result=result,
                         error=error,
@@ -200,7 +204,7 @@ def tool(args):
                 )
 
             try:
-                result = await tool(**params)
+                result = await tool_fn(**params)
             except ToolError as ex:
                 record_event(error=ToolCallError("unknown", ex.message))
                 raise
@@ -382,9 +386,11 @@ def generate_tool_parser(
         arg_name = name.replace("_", "-")
         parts: list[str] = []
 
-        # Always use named args (--x, --y)
+        # Always use named args (--x, --y); dests are prefixed so tool
+        # argument names can never shadow the parser's routing dests
+        # ('command', 'tool_name')
         parts.append(f'"--{arg_name}"')
-        parts.append(f'dest="{name}"')
+        parts.append(f'dest="arg_{name}"')
 
         # Type conversion
         if info.schema_type == "integer":
@@ -411,6 +417,10 @@ def generate_tool_parser(
         # Enum/choices
         if info.enum:
             parts.append(f"choices={info.enum!r}")
+        elif info.schema_type not in ("boolean", "json"):
+            # metavar must come from the parameter name — argparse would
+            # otherwise derive it from the internal prefixed dest (ARG_X)
+            parts.append(f'metavar="{name.upper()}"')
 
         # Required/default
         if info.is_optional or not info.is_required:
