@@ -57,7 +57,10 @@ Running earlier wastes builds if review rounds change the injectable source.
    when a recorded fingerprint proves they already ran against the current
    source, so stopping and re-running (or dry-run then real run) is cheap.
 4. **Confirm CI goes green.** The digest push triggers a fresh run; watch
-   `slow-tool-tests-release` pass. Do not merge the PR — that happens through
+   `slow-tool-tests-release` pass. If the wizard ended without pushing the
+   digests (its closing summary lists the commit as still to do), commit the
+   rewritten `SHA256SUMS` to the PR branch and push it yourself — CI stays
+   red until it lands. Do not merge the PR — that happens through
    the normal review process. PyPI bundling is also not part of this process:
    the release script pulls the glibc binaries from S3 automatically.
 
