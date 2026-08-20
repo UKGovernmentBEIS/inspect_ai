@@ -1,0 +1,371 @@
+# Verifying sandbox-tools binaries against digests pinned in git
+
+Design for meridianlabs-ai/inspect_ai#283. Status: **proposed** (not yet
+implemented).
+
+## Problem
+
+The `inspect-sandbox-tools` injectable artifacts are fetched from S3 with no
+integrity verification anywhere in the pipeline. The only controls are TLS and
+the bucket ACL. Anyone able to modify bucket contents gets code execution as
+root inside every sandbox that triggers a download, and the bad copy is cached
+permanently in the installed package's `binaries/` directory. Three unverified
+fetch sites exist today:
+
+1. **Runtime** — `_download_from_s3` in
+   `src/inspect_ai/tool/_sandbox_tools_utils/sandbox.py`: plain HTTPS GET,
+   `response.content` written directly into `inspect_ai/binaries/`, chmod 755.
+   Non-atomic (a crashed download leaves a partial file that tier 1 will
+   happily use forever).
+2. **PyPI release** — `scripts/pypi-release.py`: `urllib.request.urlretrieve`,
+   "verification" is exists-and-non-empty. An unverified S3 object propagates
+   into the wheel for every PyPI user.
+3. **CI release gate** — `.github/workflows/build.yml`
+   (`slow-tool-tests-release`): bare `curl` + `chmod +x`.
+
+The publish side (`upload_to_s3.py`) emits no digests, so there is currently
+nothing to verify against. `aws s3 cp` also silently overwrites an existing
+object, so a version's bytes can change after publication with no signal.
+
+## Trust model
+
+**Trust anchor: the ability to merge to this repository.** Per-variant SHA256
+digests are committed in git, updated in the same PR as the version bump, and
+every consumer verifies fetched bytes against the committed digests. S3
+becomes an untrusted cache. No signatures or key management.
+
+What this defends against:
+
+- Compromise or corruption of the S3 bucket (the headline threat).
+- Anything TLS termination onward (CDN/proxy tampering).
+- Truncated or corrupted uploads/downloads.
+- Accidental overwrite of a published version with different bytes (e.g. the
+  "stale checkout" hazard called out in the release skill, or two release PRs
+  racing to the same version number).
+
+Residual risks, explicitly out of scope:
+
+- Compromise of the releasing maintainer's build machine — the digests pin
+  *what the maintainer built*, wherever it came from.
+- Malicious commits that merge — the anchor *is* merge rights.
+- PyInstaller builds are not reproducible, so third parties cannot rebuild and
+  compare. The digest binds "the bytes validated by `validate_distros` and
+  blessed in the release PR", not "bytes anyone can reproduce".
+- Local-filesystem tampering on the host (an attacker who can write to
+  `site-packages` can patch `inspect_ai` itself; hashing local files buys
+  nothing — see "What is deliberately NOT verified").
+- The legacy `inspect_tool_support` Docker-image path (separate distribution
+  mechanism; image digest pinning would be a separate piece of work).
+
+## The digest file
+
+`src/inspect_ai/tool/_sandbox_tools_utils/SHA256SUMS`, mirroring the vendored
+`src/inspect_ai/util/_restic/SHA256SUMS` pattern, in standard `sha256sum`
+format so `sha256sum -c` works in CI:
+
+```
+<64-hex>  inspect-sandbox-tools-amd64-v123
+<64-hex>  inspect-sandbox-tools-amd64-musl-v123
+<64-hex>  inspect-sandbox-tools-arm64-v123
+<64-hex>  inspect-sandbox-tools-arm64-musl-v123
+```
+
+Decisions:
+
+- **Exactly one version, exactly four entries** (arch × libc — the same four
+  artifacts `upload_to_s3.py` publishes). `sandbox_tools_version.txt` pins
+  exactly one version and the runtime never fetches any other, so a
+  single-version file makes "digests updated together with the bump"
+  mechanically checkable: every entry's filename must embed
+  `-v{version.txt}`. This also resolves the issue's variant-count note: the
+  sums file covers all four uploaded artifacts even though the wheel bundles
+  only the two glibc ones and `pypi-release.py` downloads only those two.
+- **No `-dev` entries.** Dev-suffixed artifacts are built locally and never
+  fetched from the network, so they are never verified (and can't be —
+  builds aren't reproducible).
+- **Ships in the wheel.** Add `"tool/_sandbox_tools_utils/SHA256SUMS"` to the
+  package-data list in `pyproject.toml` (next to the existing
+  `sandbox_tools_version.txt` entry). PyPI installs need it at runtime to
+  verify the on-demand musl download; the version file and sums file must
+  always travel together.
+- **Lives outside the injectable tree**, so editing it never triggers the
+  `injectable_src` CI filter or flips `_check_main_divergence` to "edited" on
+  its own (see "Install-state detection" below for why it *is* added to the
+  version-file pathspec group).
+
+A small stdlib-only module `_digests.py` in `_sandbox_tools_utils` owns
+reading/writing/parsing (parse tolerates the optional `*` binary marker, as
+`_restic/resolver.py::_extract_expected_hash` does). Stdlib-only matters
+because `upload_to_s3.py` supports plain-file execution outside an installed
+`inspect_ai` (same constraint `_build_config.py` documents); `_digests.py`
+must be importable the same two ways. Longer term the parsing could be shared
+with the restic resolver via `inspect_ai._util`, but the runtime consumer in
+`sandbox.py` can import from `_sandbox_tools_utils` directly, so the local
+module is sufficient and keeps the uploader dependency-free.
+
+## Producer: `upload_to_s3.py`
+
+Reworked to be the single writer of `SHA256SUMS`:
+
+1. **Version guard.** Refuse to run unless the `version` argument equals the
+   committed `sandbox_tools_version.txt` — the sums file is keyed to the
+   pinned version, and uploading digests for any other version would desync
+   them.
+2. **Compute digests** of all four local artifacts in
+   `src/inspect_ai/binaries/` (existence of all four is already checked).
+3. **Immutability guard.** Before uploading, HEAD/GET each S3 object. If an
+   object already exists with **different** bytes (compare digest of the
+   fetched object), abort with an error instructing the operator to bump the
+   version instead. Published wheels vendor digests for their version forever,
+   so a published `v{N}` must never change meaning. Re-uploading *identical*
+   bytes is fine (idempotent retry after a partial upload). No `--force`
+   escape hatch: there is no legitimate reason to change a published version's
+   bytes, and an escape hatch is exactly what an attacker or a rushed operator
+   would reach for.
+4. **Write `SHA256SUMS`** (sorted, all four entries) *before* uploading, so a
+   crash mid-upload leaves a correct committed-able sums file and the CI gate
+   simply stays red until the upload is completed/retried.
+5. **Upload**, then **verify the round trip**: GET each uploaded object and
+   check its digest (catches truncation and eventual-consistency surprises
+   before the operator walks away).
+6. **Print the follow-up**: `git add .../SHA256SUMS && git commit` on the PR
+   branch — the digests must land in the same PR as the version bump.
+
+## Consumers
+
+### 1. Runtime — `sandbox.py`
+
+`_download_from_s3(filename)` changes from "GET + write bytes" to:
+
+1. Look up `filename` in the vendored `SHA256SUMS`.
+   - **Entry missing → hard fail** (raise; surfaces via
+     `SandboxInjectionError`). For any state that reaches the download tier
+     the requested name is `inspect-sandbox-tools-{arch}[-musl]-v{version.txt}`
+     and version file + sums file come from the same checkout/wheel, so a
+     missing entry means a corrupt install or a desynced commit — never a
+     situation where downloading unverified bytes is the right answer.
+2. Fetch and verify via the existing
+   `inspect_ai._util.download.download(url, sha256, dest, timeout=60)`
+   helper, which already streams to a sibling `.partial`, hashes while
+   streaming, rejects on mismatch, retries transient HTTP errors, and only
+   renames into place after verification — closing the current non-atomic
+   write as a side effect. `download()` is sync (sync httpx client, local
+   disk, no fsspec), so call it via `anyio.to_thread.run_sync`, exactly as
+   `_restic/resolver.py` does. The existing
+   `concurrency(executable_name, 1)` guard in `_open_executable_for_arch`
+   already serializes resolution per artifact; cross-process races are safe
+   under `download()`'s last-write-wins rename. `chmod 0o755` after (the
+   helper doesn't set the execute bit). A bonus of the helper's
+   skip-if-checksum-matches behavior: a previously verified artifact is
+   re-blessed for free if the resolver ever re-downloads.
+3. Failure semantics (see matrix below): **404/403 keeps its current meaning**
+   ("not published yet") and returns `False` so the resolver falls through to
+   the local-build tier; **digest mismatch raises** — it must never be
+   conflated with "missing" and must never silently fall through, because a
+   mismatch is the attack/corruption signal this design exists to surface.
+
+Failure-mode matrix for a download attempt:
+
+| Condition | Behavior | Rationale |
+|---|---|---|
+| Object missing on S3 (403/404) | return `False` → fall through to local build prompt | Pre-upload window on a release branch; correct and expected |
+| Digest mismatch | raise (`PrerequisiteError` wrapped in `SandboxInjectionError`), `.partial` discarded, nothing cached | Tampering or corruption; fail closed and loud |
+| No entry in `SHA256SUMS` for the resolved name | raise | Desynced/corrupt install; never fetch unverified |
+| Transient HTTP (408/429/5xx) | retried by `download()`; raise after exhaustion | Availability issue, not integrity |
+| `SHA256SUMS` unreadable/missing from install | raise | Same contract as restic's `_read_sha256sums` |
+
+The mismatch error message should state the expected and actual digests, name
+the file, and say explicitly that this may indicate a compromised or corrupted
+artifact and should be reported — not "please retry".
+
+#### Runtime variation walkthrough
+
+Every path through `_open_executable_for_arch` (install state × libc × tier):
+
+| Install state | Variant | Tier that resolves it | Verified? |
+|---|---|---|---|
+| `pypi` | glibc (amd64/arm64) | bundled in wheel (`binaries/`) | at bundling time by `pypi-release.py` (see consumer 2); not re-hashed at use |
+| `pypi` | glibc, missing from wheel (broken install; today warns) | S3 download fallback | **yes** — wheel vendors `SHA256SUMS` |
+| `pypi` | musl (deliberately not bundled) | S3 download — the normal musl path | **yes** — the highest-traffic unverified site today |
+| `clean` (editable, no sandbox-tools edits) | any | S3 download | **yes** — repo checkout vendors `SHA256SUMS` consistent with `version.txt` |
+| `clean`, artifact not yet on S3 (404) | any | falls through to prompted local Docker build | n/a — see below |
+| `edited` (editable, sandbox-tools changed) | any (`-dev` name) | local `binaries/` or prompted local build; **never downloads** | n/a by design |
+| `INSPECT_SANDBOX_TOOLS_INSTALL_STATE` override (CI release gate forces `clean`) | glibc + musl | pre-fetched into `binaries/` by the workflow | **yes** — verified by the workflow at fetch (consumer 3) |
+| `pypi` misdetected for an editable checkout (`UV_NO_INSTALLER_METADATA=1`, noted in code) | any | same download path | **yes** — same lookup, from checkout's sums |
+
+Derived artifact: the uncompressed-`tar` cache written by
+`_uncompressed_tar_bytes` (fallback for gzip-less containers) is decompressed
+in-process from an artifact that was already verified at acquisition, and its
+existing atomic write stays; it needs no digest entry.
+
+#### What is deliberately NOT verified
+
+Tier 1 ("local executable check") does **not** hash files already present in
+`binaries/`. Reasons:
+
+- Locally built artifacts (the `_build_it` fallback for `clean` installs, and
+  all `edited`/dev artifacts) can never match the committed digests
+  (non-reproducible builds); hashing tier 1 would break both fallbacks.
+- The threat model is the network/bucket, not the local filesystem. Bytes are
+  verified **at acquisition** — every path by which a release artifact enters
+  `binaries/` (runtime download, release-script download, CI fetch) verifies —
+  so an unverified release artifact can no longer get in. Re-hashing ~40 MB on
+  every injection would buy nothing against an attacker who can already write
+  to `site-packages`.
+
+One acknowledged gap inherits from this: `binaries/` contents that predate
+this change (downloaded unverified by an older inspect_ai) remain trusted by
+tier 1. The rollout section covers why this is acceptable.
+
+#### Install-state detection
+
+Add `SHA256SUMS` to the *first* pathspec group in `_check_main_divergence`
+(alongside `sandbox_tools_version.txt`), and to any CI filter that mirrors
+that group. The two files are two halves of one pin; a checkout whose sums
+diverge from main is in the same "release in flight" condition as one whose
+version diverges and should classify as `edited` (resolve a `-dev` build)
+rather than attempt downloads against in-flight digests. The keep-in-sync
+comments in `sandbox.py` and `build.yml` both get updated.
+
+### 2. PyPI release — `scripts/pypi-release.py`
+
+The script stays stdlib-only; it parses `SHA256SUMS` itself (or imports
+`_digests.py` as a plain file — either is fine, the format is one regex).
+
+- `download_file` verifies the streamed bytes against the expected digest and
+  writes via tempfile + `os.rename` (mirroring `download()`'s semantics);
+  exists-and-non-empty dies.
+- `check_sandbox_tools_exist` (the "already downloaded, skip" path) must
+  compare digests, not sizes — today a stale or tampered local file is
+  silently bundled into the wheel. Wrong digest → treat as missing →
+  clean + re-download.
+- **Unconditional pre-build gate**, regardless of how files got there
+  (including `--skip-sandbox-download`): immediately before `python -m build`,
+  assert that `binaries/` contains *exactly* the two glibc artifacts for
+  `version.txt`'s version and that each matches its committed digest. This is
+  the last line of defense for the wheel and must not be skippable.
+- The glibc-only download set is now checked against a four-entry sums file —
+  the lookup is by filename, so the two musl entries are simply unused here.
+
+### 3. CI release gate — `.github/workflows/build.yml`
+
+`slow-tool-tests-release`'s fetch step becomes verify-then-trust:
+
+```sh
+VERSION=$(tr -d '[:space:]' < src/inspect_ai/tool/_sandbox_tools_utils/sandbox_tools_version.txt)
+SUMS=src/inspect_ai/tool/_sandbox_tools_utils/SHA256SUMS
+# Digest file must be in lockstep with the version bump.
+if grep -vq -- "-v${VERSION}$" <(awk '{print $2}' "$SUMS") || [ "$(wc -l < "$SUMS")" -ne 4 ]; then
+  echo "::error::${SUMS} is not updated for v${VERSION}. Build+upload the artifacts (upload_to_s3.py rewrites it) and commit it in this PR."
+  exit 1
+fi
+for FILENAME in ...; do
+  curl -fSL -o "src/inspect_ai/binaries/${FILENAME}" "$URL"   # 404 keeps today's friendlier "not uploaded yet" error
+  (cd src/inspect_ai/binaries && grep " ${FILENAME}$" "$OLDPWD/$SUMS" | sha256sum -c -) || {
+    echo "::error::Digest mismatch for ${FILENAME}: the published S3 object does not match the digests committed in this PR. Do NOT re-upload over it — investigate (wrong-checkout build, truncated upload, or tampering), and if the object is wrong, bump the version and publish fresh artifacts."
+    exit 1
+  }
+  chmod +x "src/inspect_ai/binaries/${FILENAME}"
+done
+```
+
+Two distinct failure messages matter operationally: **404** stays "run
+`upload_to_s3.py {V}` then rerun this job" (routine); **mismatch** must not
+suggest re-uploading (an operator "fixing" CI by re-uploading is exactly the
+overwrite the design forbids — and the uploader's immutability guard will
+refuse anyway).
+
+Additionally, extend the fast `check-version-bump` job with the *unbumped*
+direction only: if `sandbox_tools_version.txt` is unchanged relative to base,
+`SHA256SUMS` must be unchanged too (a sums-only change is a re-publication of
+an existing version — forbidden). The *bumped* direction (sums must be
+updated) is deliberately **not** enforced in the fast gate: the sums can only
+be written after the maintainer builds the artifacts, which happens post-
+approval, and failing the fast gate early would also block the independent
+`slow-tool-tests-dev` job. The release gate above enforces it at the point
+where it can actually be satisfied, preserving today's landing flow: gate is
+red until the maintainer uploads **and commits/pushes the sums**, and the
+push itself triggers the re-run.
+
+Note: `.github/workflows/build.yml` edits are part of the implementation PR
+(it is not one of the meridian-only workflows).
+
+## Process changes
+
+- **`design/RELEASING.md`**: document the new step between "Upload to S3" and
+  "Merge the PR" — commit the rewritten `SHA256SUMS` to the release PR. State
+  the fail-closed window explicitly: after the version bump merges but before
+  artifacts are uploaded, downloads 404 and fall back to local build (today's
+  behavior, now documented); after upload, a digest mismatch anywhere is a
+  stop-the-line signal, and published S3 objects are immutable — never fix a
+  mismatch by re-uploading, always bump.
+- **`.claude/skills/release-sandbox-tools/SKILL.md`**: step 4's user-run
+  upload now also rewrites `SHA256SUMS`; add "commit and push the sums file to
+  the PR branch" as the step after upload; replace the content-length sanity
+  check in step 5 with `sha256sum -c` against the committed file (the
+  uploader's round-trip verification makes this belt-and-braces, but it's one
+  command).
+
+## Rollout
+
+- Verification code, the sums file, `pyproject.toml` package-data, script and
+  workflow changes all land in one PR.
+- **Seeding the first `SHA256SUMS`**: hash the four currently published S3
+  objects for the current version (trust-on-first-use). This blesses today's
+  bucket contents rather than freshly built ones — acceptable because (a) a
+  rebuild couldn't do better (non-reproducible builds would just bless a
+  different unverifiable binary, while invalidating the bytes already bundled
+  in released wheels), and (b) TOFU converts a *standing* exposure into a
+  *point-in-time* one; every subsequent version is pinned end-to-end at build
+  time. Record the seeding provenance in the PR. If the maintainers prefer a
+  clean anchor, the alternative is a no-op source change + version bump
+  releasing fresh binaries through the new pipeline; not required.
+- Since the sums file is outside the injectable tree, the seeding PR does not
+  itself require a version bump.
+- Old released wheels keep their current unverified fallback behavior (they
+  lack both the code and the sums file); nothing breaks for them, and the S3
+  immutability rule keeps their already-bundled glibc binaries and any musl
+  objects they fetch by name stable.
+- Previously downloaded artifacts already sitting in `binaries/` are not
+  retroactively checked (see "What is deliberately NOT verified"). Users who
+  want a clean slate delete `inspect_ai/binaries/` cached downloads;
+  subsequent fetches are verified.
+
+## Implementation checklist
+
+| File | Change |
+|---|---|
+| `src/inspect_ai/tool/_sandbox_tools_utils/SHA256SUMS` | new, seeded via TOFU (four entries, current version) |
+| `src/inspect_ai/tool/_sandbox_tools_utils/_digests.py` | new, stdlib-only read/write/lookup (dual import style like `_build_config.py`) |
+| `src/inspect_ai/tool/_sandbox_tools_utils/sandbox.py` | `_download_from_s3` → lookup + `download()` via `to_thread` + chmod; mismatch raises; 404 unchanged; add `SHA256SUMS` to `_check_main_divergence` version pathspec group |
+| `src/inspect_ai/tool/_sandbox_tools_utils/upload_to_s3.py` | version guard, immutability guard, write sums, round-trip verify, commit reminder |
+| `scripts/pypi-release.py` | digest-verified downloads, digest-based existence check, unconditional pre-build bundle gate |
+| `.github/workflows/build.yml` | release-gate lockstep check + `sha256sum -c`; `check-version-bump` unbumped-direction sums check |
+| `pyproject.toml` | add `SHA256SUMS` to package data |
+| `src/inspect_sandbox_tools/design/RELEASING.md` | new commit-sums step; fail-closed window; immutability rule |
+| `.claude/skills/release-sandbox-tools/SKILL.md` | sums commit step; digest-based verify step |
+| `CHANGELOG.md` | user-facing entry (downloads now verified against pinned digests) |
+| tests | see below |
+
+## Testing
+
+Unit tests (existing sandbox-tools test area; httpx mocked via respx or a
+local test server, no real S3):
+
+- `_digests.py`: round-trip write/parse; `*` marker tolerated; missing-entry
+  lookup raises.
+- `_download_from_s3`: success verifies, chmods, and lands atomically; digest
+  mismatch raises and leaves neither `dest` nor `.partial` in `binaries/`;
+  404 returns `False`; missing sums entry raises without any network call.
+- Sums/version lockstep: a test asserting every `SHA256SUMS` entry filename
+  parses via `filename_to_config` to exactly `version.txt`'s version, no
+  `-dev` suffix, and the four arch×libc combinations are each present exactly
+  once — this makes "bump without updating sums" fail fast in the *fast* test
+  suite, complementing the CI release gate. (`inspect_ai._util.download` is
+  already covered by restic's tests.)
+- `pypi-release.py` verification helpers: mismatch on download and mismatch on
+  pre-existing file both fail; pre-build gate rejects extra/missing/wrong
+  files.
+
+End-to-end: the existing `slow-tool-tests-release` gate exercises the real
+S3 fetch + verify on every release PR; no new slow test needed.
