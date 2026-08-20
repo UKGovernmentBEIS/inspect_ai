@@ -368,3 +368,120 @@ async def test_service_accepts_any_identifier_param_name() -> None:
     init_transcript(Transcript())
     result = await handler(tool="hostile", arguments={"_tool_name_": "ok"})
     assert result == "ok"
+
+
+# --- finding 2: a ToolEvent must be recorded on every outcome ----------------
+
+
+@pytest.mark.anyio
+async def test_ordinary_exception_still_records_event() -> None:
+    """A tool raising a non-ToolError must still leave a transcript event.
+
+    Only ToolError was caught, so a plain RuntimeError propagated with
+    zero events — the human's failed invocation vanished from the data.
+    """
+    from inspect_ai.log._transcript import Transcript, init_transcript, transcript
+
+    async def execute() -> str:
+        """Raise an ordinary exception.
+
+        Returns:
+            Never returns.
+        """
+        raise RuntimeError("boom")
+
+    broken = ToolDef(
+        execute, name="broken", description="Raise an ordinary exception.", parameters={}
+    ).as_tool()
+
+    handler = ToolCommand([broken]).service(state=None)  # type: ignore[arg-type]
+    init_transcript(Transcript())
+    with pytest.raises(RuntimeError, match="boom"):
+        await handler(tool="broken", arguments={})
+
+    events = [e for e in transcript().events if e.event == "tool"]
+    assert len(events) == 1
+    assert events[0].error is not None
+    assert "boom" in events[0].error.message
+
+
+@pytest.mark.anyio
+async def test_typed_param_records_raw_arguments() -> None:
+    """Events must record the JSON arguments as sent, not converted values.
+
+    tool_params() converts an ISO string to datetime; recording the
+    converted value made ToolEvent creation fail *after* the tool had
+    already executed (side effects done, nothing recorded).
+    """
+    from datetime import datetime
+
+    from inspect_ai.log._transcript import Transcript, init_transcript, transcript
+
+    async def execute(when: datetime) -> str:
+        """Format a timestamp.
+
+        Args:
+            when: The timestamp.
+
+        Returns:
+            The year.
+        """
+        return str(when.year)
+
+    dated = ToolDef(
+        execute,
+        name="dated",
+        description="Format a timestamp.",
+        parameters={"when": "The timestamp."},
+    ).as_tool()
+
+    handler = ToolCommand([dated]).service(state=None)  # type: ignore[arg-type]
+    init_transcript(Transcript())
+    result = await handler(tool="dated", arguments={"when": "2026-01-02T03:04:05"})
+    assert result == "2026"
+
+    events = [e for e in transcript().events if e.event == "tool"]
+    assert len(events) == 1
+    assert events[0].arguments == {"when": "2026-01-02T03:04:05"}
+    assert events[0].result == "2026"
+
+
+@pytest.mark.anyio
+async def test_event_is_pending_during_execution() -> None:
+    """The event is recorded before execution, then finalized.
+
+    A pending-first event survives even if the tool (or Inspect) dies
+    mid-call, matching how model tool calls are recorded.
+    """
+    from inspect_ai.log._transcript import Transcript, init_transcript, transcript
+
+    seen: dict = {}
+
+    async def execute() -> str:
+        """Observe the transcript mid-execution.
+
+        Returns:
+            A marker.
+        """
+        pending = [e for e in transcript().events if e.event == "tool"]
+        seen["count"] = len(pending)
+        seen["pending"] = pending[0].pending if pending else None
+        return "done"
+
+    observer = ToolDef(
+        execute,
+        name="observer",
+        description="Observe the transcript mid-execution.",
+        parameters={},
+    ).as_tool()
+
+    handler = ToolCommand([observer]).service(state=None)  # type: ignore[arg-type]
+    init_transcript(Transcript())
+    await handler(tool="observer", arguments={})
+
+    assert seen["count"] == 1
+    assert seen["pending"] is True
+    events = [e for e in transcript().events if e.event == "tool"]
+    assert len(events) == 1
+    assert events[0].pending is None  # finalized
+    assert events[0].completed is not None

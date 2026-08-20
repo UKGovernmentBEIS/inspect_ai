@@ -181,34 +181,50 @@ def tool(args):
             if tool_fn is None:
                 return f"Error: Unknown tool '{tool}'"
 
+            # Record the event pending, before conversion/execution, with the
+            # arguments exactly as sent (they arrived as JSON so they are
+            # JSON-safe by construction), then finalize it on every outcome —
+            # for human baselines the human's tool usage is the data, so the
+            # transcript must carry successes, tool errors, and crashes alike
+            event = ToolEvent(
+                id=uuid(),
+                function=tool,
+                arguments=kwargs,
+                pending=True,
+            )
+            transcript()._event(event)
+
+            def finalize(
+                result: ToolResult = "",
+                error: ToolCallError | None = None,
+                failed: bool | None = None,
+            ) -> None:
+                event._set_result(
+                    result=result,
+                    truncated=None,
+                    error=error,
+                    waiting_time=0,
+                    agent=None,
+                    failed=failed,
+                    message_id=None,
+                )
+
             # Convert args using tool_params()
             try:
                 params = tool_params(kwargs, tool_fn)
             except Exception as e:
+                finalize(error=ToolCallError("parsing", str(e)))
                 return f"Error parsing tool arguments: {e}"
-
-            # Call tool (let exceptions propagate naturally for ToolError etc.),
-            # recording a ToolEvent either way — for human baselines the human's
-            # tool usage is the data, so the transcript must carry it
-            def record_event(
-                result: ToolResult = "", error: ToolCallError | None = None
-            ) -> None:
-                transcript()._event(
-                    ToolEvent(
-                        id=uuid(),
-                        function=tool,
-                        arguments=params,
-                        result=result,
-                        error=error,
-                    )
-                )
 
             try:
                 result = await tool_fn(**params)
             except ToolError as ex:
-                record_event(error=ToolCallError("unknown", ex.message))
+                finalize(error=ToolCallError("unknown", ex.message))
                 raise
-            record_event(result=result)
+            except Exception as ex:
+                finalize(error=ToolCallError("unknown", str(ex)), failed=True)
+                raise
+            finalize(result=result)
 
             # Convert result to string
             return tool_result_to_str(result)
