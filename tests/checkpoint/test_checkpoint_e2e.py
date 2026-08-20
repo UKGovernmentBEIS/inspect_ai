@@ -480,22 +480,22 @@ def test_checkpoint_resume_rehydrated_event_layout(
 
 
 def _run_hydrate_interrupted_resume(
-    log_dir: str, retry_from: str, tests_dir: Path
+    log_dir: str, retry_from: str, tests_dir: Path, interrupt: str
 ) -> None:
-    """Resume in a child process that ``SIGINT``s itself mid-copy.
+    """Resume in a child process that signals itself mid-copy.
 
     The signal lands on the first repo copy of the startup pass
     (``copy_resume_payloads``), which runs before the destination
     log's first write — so the interrupted attempt leaves no log at
-    all. The child unwinds gracefully (Ctrl-C semantics), so no
-    signal-death assertion applies; the no-log outcome is asserted by
-    the caller.
+    all. ``SIGKILL`` dies on the spot; ``SIGINT`` unwinds gracefully
+    (Ctrl-C semantics). The no-log outcome is asserted by the caller.
     """
     env = {
         **os.environ,
         "PYTHONPATH": os.pathsep.join(
             p for p in (str(tests_dir), os.environ.get("PYTHONPATH", "")) if p
         ),
+        SIGNAL_ENV: interrupt,
     }
     harness = str(tests_dir / "checkpoint" / "hydrate_interrupt_harness.py")
     proc = subprocess.run(
@@ -503,16 +503,25 @@ def _run_hydrate_interrupted_resume(
         env=env,
         timeout=600,
     )
-    assert proc.returncode != HOOK_NEVER_FIRED_EXIT_CODE, (
-        "the harness's hydration hook never fired — the repo-copy seam it "
-        "patches has moved; this run was an ordinary uninterrupted resume"
-    )
+    if interrupt == "SIGKILL":
+        # also catches HOOK_NEVER_FIRED_EXIT_CODE: an un-fired hook means
+        # the resume ran to completion and exited normally, not by signal
+        assert proc.returncode == -signal.SIGKILL, (
+            f"expected the child to die by SIGKILL (-{signal.SIGKILL}); "
+            f"got returncode {proc.returncode}"
+        )
+    else:
+        assert proc.returncode != HOOK_NEVER_FIRED_EXIT_CODE, (
+            "the harness's hydration hook never fired — the repo-copy seam it "
+            "patches has moved; this run was an ordinary uninterrupted resume"
+        )
 
 
 @skip_if_no_docker
 @pytest.mark.slow
+@pytest.mark.parametrize("interrupt", ["SIGINT", "SIGKILL"])
 def test_checkpoint_resume_survives_interrupted_hydration(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, interrupt: str
 ) -> None:
     """An interrupt *during a resume's own startup* doesn't lose the run.
 
@@ -527,9 +536,11 @@ def test_checkpoint_resume_survives_interrupted_hydration(
     complete by construction.
 
     Flow: SIGKILL a fresh attempt at turn 2 (ck1/ck2 committed) →
-    resume and SIGINT it inside the startup copy window → resume
-    again, in-process, to completion. Asserts the interrupted attempt
-    left no log and that the final resume genuinely restored (restore
+    resume and interrupt it inside the startup copy window (a real
+    SIGINT or SIGKILL, parametrized: graceful unwind vs. instant
+    death must land in the same no-log state) → resume again,
+    in-process, to completion. Asserts the interrupted attempt left
+    no log and that the final resume genuinely restored (restore
     span + only the remaining turns ran) rather than re-running from
     scratch.
     """
@@ -548,8 +559,8 @@ def test_checkpoint_resume_survives_interrupted_hydration(
         _run_interrupted_attempt(log_dir, None, tests_dir)
         source_log = _latest_log(log_dir)
 
-        # --- attempt #1: resume, SIGINT inside the startup copy window ---
-        _run_hydrate_interrupted_resume(log_dir, source_log, tests_dir)
+        # --- attempt #1: resume, interrupted inside the startup copy window
+        _run_hydrate_interrupted_resume(log_dir, source_log, tests_dir, interrupt)
         # the copy runs before the destination log's first write, so the
         # interrupted attempt must leave no log — its partial checkpoint
         # copies are unreachable orphans, and the source log stays newest
