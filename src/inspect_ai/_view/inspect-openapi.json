@@ -10584,6 +10584,7 @@
               "limit",
               "approval",
               "cancelled",
+              "sandbox_unavailable",
               "unknown",
               "output_limit"
             ],

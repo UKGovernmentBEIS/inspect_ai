@@ -3,6 +3,9 @@ services:
     image: aisiuk/inspect-computer-tool
     init: true
 
+    # network_mode is omitted because container networking is required for the
+    # VNC port mappings. This also permits Internet access, although the tasks
+    # do not require it.
     # You can VNC into each container by using the following port mapping, which
     # dynamically binds to loopback host ports. Find the specific bindings with
     # `docker inspect <container_id_or_name>`. This info is also included in the

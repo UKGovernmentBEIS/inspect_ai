@@ -1422,6 +1422,16 @@ button._segment_1d1i3_10._disabled_1d1i3_41:hover {
   overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
+._scroller_1rroa_1 {
+  position: relative;
+  /* One scroll owner: native anchoring must not fight the virtualizer's own resize compensation. */
+  overflow-anchor: none;
+}
+
+._spacer_1rroa_7 {
+  position: relative;
+  width: 100%;
+}
 ._keyPairContainer_1u1d5_1 {
   display: grid;
   grid-template-columns: max-content auto;
@@ -2383,16 +2393,6 @@ a._citationLink_1ggvf_9:hover {
 
 ._interactive_1c7cn_25:hover {
   background: var(--inspect-msg-label-bg-hover);
-}
-._scroller_1rroa_1 {
-  position: relative;
-  /* One scroll owner: native anchoring must not fight the virtualizer's own resize compensation. */
-  overflow-anchor: none;
-}
-
-._spacer_1rroa_7 {
-  position: relative;
-  width: 100%;
 }
 ._bar_pg4l8_1 {
   --glint: rgba(64, 72, 104, 0.1);
@@ -23958,53 +23958,6 @@ li > ul {
 ._option_1jsd7_82 input {
   margin: 0;
   cursor: pointer;
-}
-._wrapper_44dmw_1 {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  height: 0;
-  overflow-y: visible;
-  overflow-x: visible;
-  text-align: center;
-}
-
-._container_44dmw_12 {
-  width: 100%;
-  height: 1px;
-  background-color: transparent;
-  position: sticky;
-  overflow: hidden;
-  z-index: 1200;
-}
-
-._animate_44dmw_21 {
-  width: 5%;
-  height: 1px;
-  animation: _leftToRight_44dmw_1 2s linear infinite;
-  background-color: #3b82f6;
-  position: absolute;
-  left: 0;
-  top: 0;
-}
-
-._determinate_44dmw_31 {
-  height: 1px;
-  background-color: #3b82f6;
-  position: absolute;
-  left: 0;
-  top: 0;
-  transition: width 150ms ease-out;
-}
-
-@keyframes _leftToRight_44dmw_1 {
-  0% {
-    transform: translateX(-100%);
-  }
-  100% {
-    transform: translateX(2000%);
-  }
 }
 ._button_1bbut_1 {
   border: none;

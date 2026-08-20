@@ -74,8 +74,19 @@ def _run_killed_attempt(log_dir: str, retry_from: str | None, tests_dir: Path) -
     )
 
 
+# compose-project name prefix for the harness's `resume_scoring_task` evals
+# (mirrors `task_project_name`: `inspect-{task[:12].rstrip('_')}-i{suffix}`)
+_PROJECT_PREFIX = "inspect-resume_scori-"
+
+
 def _inspect_projects() -> set[str]:
-    """Names of inspect docker compose projects currently known to docker."""
+    """Names of this harness's docker compose projects currently known to docker.
+
+    Must be scoped to this test's own task: docker state is machine-global,
+    and under xdist a global before/after diff sweeps up — and force-removes —
+    live containers belonging to concurrently running tests on other workers
+    (meridianlabs-ai/actions#264).
+    """
     result = subprocess.run(
         ["docker", "compose", "ls", "--all", "--format", "json"],
         capture_output=True,
@@ -88,7 +99,9 @@ def _inspect_projects() -> set[str]:
     except json.JSONDecodeError:
         return set()
     return {
-        p.get("Name", "") for p in projects if p.get("Name", "").startswith("inspect-")
+        p.get("Name", "")
+        for p in projects
+        if p.get("Name", "").startswith(_PROJECT_PREFIX)
     }
 
 
