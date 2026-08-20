@@ -91,9 +91,8 @@ Decisions:
   always travel together.
 - **Lives outside the injectable tree**, so editing it never triggers the
   `injectable_src` CI filter (which would demand a version bump). It is
-  deliberately added to the version-file pathspec group in
-  `_check_main_divergence`, so a checkout whose sums diverge from main
-  classifies as "edited". See "Install-state detection" below.
+  deliberately not added to `_check_main_divergence`'s pathspec groups
+  either; see "Install-state detection" below.
 
 A small stdlib-only module `_digests.py` in `_sandbox_tools_utils` owns
 reading/writing/parsing (parse tolerates the optional `*` binary marker, as
@@ -239,13 +238,23 @@ tier 1. The rollout section covers why this is acceptable.
 
 #### Install-state detection
 
-Add `SHA256SUMS` to the first pathspec group in `_check_main_divergence`
-(alongside `sandbox_tools_version.txt`), and to any CI filter that mirrors
-that group. The two files are two halves of one pin; a checkout whose sums
-diverge from main is in the same "release in flight" condition as one whose
-version diverges and should classify as `edited` (resolve a `-dev` build)
-rather than attempt downloads against in-flight digests. The keep-in-sync
-comments in `sandbox.py` and `build.yml` both get updated.
+`_check_main_divergence` needs no change: `SHA256SUMS` is deliberately not
+added to its version-file pathspec group. In every sanctioned flow the sums
+change only together with a version bump (the extended `check-version-bump`
+rule forbids sums-only changes), and version divergence already classifies
+the checkout as `edited`, so on a release PR the addition would be redundant.
+The one PR where it would have an effect is the seeding PR (sums diverge from
+main, version doesn't), and there `edited` is the wrong answer:
+`slow-tool-tests-dev` runs on that PR (the `tools` filter matches
+`_sandbox_tools_utils/`) but skips its `-dev` build step (both
+`injectable_src_changed` and `version_correctly_bumped` are false), so an
+`edited` classification would resolve a `-dev` artifact that was never built,
+skip the download tier (`edited` never downloads), and die in `_build_it`'s
+interactive prompt on the non-interactive runner. Classified `clean`, the
+same job instead downloads `v{N}` through the new verified path, which also
+CI-checks the seeded amd64 digests (see Rollout). A locally hand-edited sums
+file on a checkout that then classifies `clean` is local-filesystem
+tampering, already out of scope per the threat model.
 
 ### 2. PyPI release: `scripts/pypi-release.py`
 
@@ -302,7 +311,16 @@ for FILENAME in \
     exit 1
   fi
   curl -fSL -o "src/inspect_ai/binaries/${FILENAME}" "$URL"
-  echo "$(awk -v f="$FILENAME" '$2 == f {print $1}' "$SUMS")  src/inspect_ai/binaries/${FILENAME}" | sha256sum -c - || {
+  # Exactly-one-match assertion: without it, zero or duplicate entries feed
+  # sha256sum a malformed line and its "no properly formatted checksum lines"
+  # failure would be mislabeled a digest mismatch below. (The fast unit test
+  # enforces distinctness too, but it runs in a different job; this keeps
+  # this job's own error accurate.)
+  DIGEST=$(awk -v f="$FILENAME" '$2 == f { print $1; n++ } END { exit n != 1 }' "$SUMS") || {
+    echo "::error::Expected exactly one ${SUMS} entry for ${FILENAME}; found none or duplicates (malformed sums file)."
+    exit 1
+  }
+  echo "${DIGEST}  src/inspect_ai/binaries/${FILENAME}" | sha256sum -c - || {
     echo "::error::Digest mismatch for ${FILENAME}: the published S3 object does not match the digests committed in this PR. Do NOT re-upload over it. Investigate (wrong-checkout build, truncated upload, or tampering), and if the object is wrong, bump the version and publish fresh artifacts."
     exit 1
   }
@@ -365,6 +383,22 @@ Note: `.github/workflows/build.yml` edits are part of the implementation PR
   time. Record the seeding provenance in the PR. If the maintainers prefer a
   clean anchor, the alternative is a no-op source change plus a version bump
   releasing fresh binaries through the new pipeline; not required.
+- **Seeding verification (required).** `slow-tool-tests-release` — the only
+  CI job that runs `sha256sum -c` against the bucket — is skipped on the
+  seeding PR (no version bump), so nothing in CI fully checks the seed
+  against S3. Two mitigations, both mandatory: `slow-tool-tests-dev` runs on
+  the PR with install state `clean` (see Install-state detection) and so
+  downloads and verifies the amd64 pair through the new path, and before
+  merging, the seeder runs the release gate's fetch + `sha256sum -c` loop
+  over all four artifacts locally and pastes the output into the PR next to
+  the provenance note. Without this, a typo'd or wrong-object seed merges
+  green and then hard-fails every clean/pypi download at runtime.
+- **Recovery from a wrong committed digest post-merge**: the fast-gate rule
+  blocks the direct fix (a sums-only change) by design, so the remedy is a
+  no-op injectable change plus a version bump, publishing fresh artifacts
+  through the full pipeline. This is deliberate; cheap digest edits are the
+  attack surface, and the seeding-verification step above exists to make
+  this path never needed.
 - Since the sums file is outside the injectable tree, the seeding PR does not
   itself require a version bump.
 - Old released wheels keep their current unverified fallback behavior (they
@@ -382,7 +416,7 @@ Note: `.github/workflows/build.yml` edits are part of the implementation PR
 |---|---|
 | `src/inspect_ai/tool/_sandbox_tools_utils/SHA256SUMS` | new, seeded via TOFU (four entries, current version) |
 | `src/inspect_ai/tool/_sandbox_tools_utils/_digests.py` | new, stdlib-only read/write/lookup (dual import style like `_build_config.py`) |
-| `src/inspect_ai/tool/_sandbox_tools_utils/sandbox.py` | rewrite `_download_from_s3`: lookup, then `download()` via `to_thread`, then chmod; mismatch raises; 404 unchanged; add `SHA256SUMS` to `_check_main_divergence` version pathspec group |
+| `src/inspect_ai/tool/_sandbox_tools_utils/sandbox.py` | rewrite `_download_from_s3`: lookup, then `download()` via `to_thread`, then chmod; mismatch raises; 404 unchanged; `_check_main_divergence` deliberately untouched (see Install-state detection) |
 | `src/inspect_ai/tool/_sandbox_tools_utils/upload_to_s3.py` | version guard, immutability guard, write sums, round-trip verify, commit reminder |
 | `scripts/pypi-release.py` | digest-verified downloads, digest-based existence check, unconditional pre-build bundle gate |
 | `.github/workflows/build.yml` | release-gate lockstep check + `sha256sum -c` over all four artifacts; `check-version-bump` unbumped-direction sums check |
@@ -394,8 +428,9 @@ Note: `.github/workflows/build.yml` edits are part of the implementation PR
 
 ## Testing
 
-Unit tests (existing sandbox-tools test area; httpx mocked via respx or a
-local test server, no real S3):
+Unit tests (existing sandbox-tools test area; httpx mocked by patching
+`httpx.stream` with a fake, following the pattern in
+`tests/util/test_download.py`, or via a local test server — no real S3):
 
 - `_digests.py`: round-trip write/parse; `*` marker tolerated; missing-entry
   lookup raises.
@@ -411,7 +446,8 @@ local test server, no real S3):
   assertion here would keep the fast test suite red for the whole review
   window. Version lockstep belongs solely to the release gate, the job that
   is legitimately red during that window.
-  (`inspect_ai._util.download` is already covered by restic's tests.)
+  (`inspect_ai._util.download` itself already has direct coverage in
+  `tests/util/test_download.py`.)
 - `pypi-release.py` verification helpers: mismatch on download and mismatch on
   pre-existing file both fail; pre-build gate rejects extra/missing/wrong
   files.
