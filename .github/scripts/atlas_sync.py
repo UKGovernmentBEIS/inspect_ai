@@ -17,7 +17,8 @@ hourly Atlas sync"):
        in Merge without a standing approval -> Review; while in Contributor,
        contributor activity newer than the reviewer's last activity (or a
        re-review request) -> Review.
-     - Promotions: APPROVED -> Merge; CHANGES_REQUESTED -> Review;
+     - Promotions: APPROVED -> Merge (gated on any ts-mono companion
+       being merged or approved); CHANGES_REQUESTED -> Review;
        approval dismissed -> Merge->Sign-off only; merged ->
        close (Done); closed unmerged -> Review + comment.
 
@@ -428,6 +429,8 @@ def companion_pr(issue: int, head_ref: str):
         gh_json("api", f"repos/{FORK}/issues/{issue}", "--jq", "{body: .body}")["body"]
         or ""
     )
+    if re.search(r"Companion PR:\s*none\b", body, re.I):
+        return None  # explicit opt-out: no companion, convention disabled
     m = re.search(
         r"Companion PR:\s*(https://github\.com/[^/\s]+/[^/\s]+/pull/\d+)",
         body,
@@ -438,7 +441,8 @@ def companion_pr(issue: int, head_ref: str):
         owner, repo, num = cm.group(1), cm.group(2), int(cm.group(3))
         d = gql(
             """query($o:String!,$r:String!,$n:Int!){ repository(owner:$o,name:$r){
-                 pullRequest(number:$n){number state merged reviewDecision}}}""",
+                 pullRequest(number:$n){number state merged reviewDecision
+                   latestOpinionatedReviews(first:10){nodes{state}}}}}""",
             o=owner,
             r=repo,
             n=num,
@@ -451,7 +455,8 @@ def companion_pr(issue: int, head_ref: str):
     nodes = gql(
         """query($o:String!,$r:String!,$h:String!){ repository(owner:$o,name:$r){
              pullRequests(headRefName:$h, first:5, orderBy:{field:UPDATED_AT,direction:DESC}){
-               nodes{number state merged reviewDecision}}}}""",
+               nodes{number state merged reviewDecision
+                 latestOpinionatedReviews(first:10){nodes{state}}}}}}""",
         o=owner,
         r=repo,
         h=head_ref,
@@ -463,6 +468,19 @@ def companion_pr(issue: int, head_ref: str):
     return pick
 
 
+def companion_approved(comp) -> bool:
+    """Approval that works without required-review branch protection.
+
+    `reviewDecision` is null on repos without a required-review rule
+    (ts-mono), even with APPROVED reviews standing — so fall back to the
+    per-reviewer latest opinionated reviews.
+    """
+    if comp.get("reviewDecision") == "APPROVED":
+        return True
+    reviews = (comp.get("latestOpinionatedReviews") or {}).get("nodes") or []
+    return any(r.get("state") == "APPROVED" for r in reviews)
+
+
 def companion_blocks_merge(issue: int, pr) -> bool:
     """True when an existing companion is open and unreviewed.
 
@@ -472,7 +490,7 @@ def companion_blocks_merge(issue: int, pr) -> bool:
     companion at all passes trivially.
     """
     comp = companion_pr(issue, pr.get("headRefName") or "")
-    if comp is None or comp["merged"] or comp.get("reviewDecision") == "APPROVED":
+    if comp is None or comp["merged"] or companion_approved(comp):
         return False
     if comp["state"] == "CLOSED":  # closed unmerged: not a blocker, but note it
         actions.append(
@@ -506,7 +524,10 @@ def sync_item(row) -> None:
     stage, item, issue = row["stage"], row["item"], row["issue"]
 
     if pr["merged"]:
-        companion_leftover_warning(issue, pr)
+        try:
+            companion_leftover_warning(issue, pr)
+        except Exception as e:  # noqa: BLE001 — warn-only, never blocks Done
+            print(f"::warning::companion leftover check failed for #{issue}: {e}")
         close_issue(
             issue, f"Upstream PR {row['url']} was merged — closing. (Atlas sync)"
         )
@@ -556,7 +577,7 @@ def sync_item(row) -> None:
             # APPROVED is sticky, so this holds the proxy in Merge each hour —
             # deliberate: to pull a queued external back, dismiss the approval
             # or request changes upstream, not just move the card.
-            if companion_blocks_merge(issue, pr):
+            if stage != "Merge" and companion_blocks_merge(issue, pr):
                 return
             if set_stage(item, "Merge", stage):
                 actions.append(f"#{issue}: upstream approved -> Merge")
@@ -608,7 +629,7 @@ def sync_item(row) -> None:
         # decision persists until the reviewer acts. Treat as review-pending.
         decision = None
     if decision == "APPROVED":
-        if companion_blocks_merge(issue, pr):
+        if stage != "Merge" and companion_blocks_merge(issue, pr):
             return
         if set_stage(item, "Merge", stage):
             actions.append(f"#{issue}: upstream approved -> Merge")
