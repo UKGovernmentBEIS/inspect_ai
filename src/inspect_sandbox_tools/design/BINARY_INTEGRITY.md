@@ -1,13 +1,7 @@
 # Verifying sandbox-tools binaries against digests pinned in git
 
-Design for meridianlabs-ai/inspect_ai#283. Status: implemented (in the same
-PR as this design), except two files the implementing agent could not push
-and which must be applied by a maintainer: the `.github/workflows/build.yml`
-changes described under "CI release gate" (the automation token lacks
-`workflow` scope — the exact tested change is committed alongside this doc
-as `binary-integrity-build-yml.patch`, apply with `git am`) and the
-`.claude/skills/release-sandbox-tools/SKILL.md` update described under
-"Process changes" (path write-protected for agents).
+Design for meridianlabs-ai/inspect_ai#283. Status: implemented in the same
+PR as this design.
 
 ## Problem
 
@@ -157,7 +151,12 @@ Reworked to be the single writer of `SHA256SUMS`:
    `inspect-sandbox-tools-{arch}[-musl]-v{version.txt}` and the version file
    and sums file come from the same checkout or wheel, so a missing entry
    means a corrupt install or a desynced commit, never a situation where
-   downloading unverified bytes is the right answer.
+   downloading unverified bytes is the right answer. One benign case reaches
+   this raise: a non-editable git install of a release-PR branch during the
+   review window (version bumped, sums not yet rewritten) classifies `clean`
+   and hard-fails where the old code would 404 into the local-build prompt.
+   Accepted: the state is transient and self-describing, and falling through
+   on a missing entry would blur the fail-closed contract.
 2. Fetch and verify via the existing
    `inspect_ai._util.download.download(url, sha256, dest, timeout=60)`
    helper, which streams to a tempfile, hashes while streaming, rejects on
@@ -313,7 +312,7 @@ fi
 # upload_to_s3.py's upload order (amd64 first) would leave the gate green
 # with the arm64 objects missing, and the committed arm64 digests would
 # never be compared against S3 by anything but the maintainer-run round
-# trip. The extra ~80 MB download is trivial for CI.
+# trip. The extra ~30 MB download is trivial for CI.
 for FILENAME in \
   "inspect-sandbox-tools-amd64-v${VERSION}" \
   "inspect-sandbox-tools-amd64-musl-v${VERSION}" \
@@ -401,11 +400,14 @@ exercises, differently per PR type:
 - **`src/inspect_sandbox_tools/design/RELEASING.md`**: document the new step
   between "Upload to S3" and "Merge the PR": commit the rewritten
   `SHA256SUMS` to the release PR. State the fail-closed window explicitly.
-  After the version bump merges but before artifacts are uploaded, downloads
-  404 and fall back to local build (today's behavior, now documented). After
-  upload, a digest mismatch anywhere is a stop-the-line signal, and published
-  S3 objects are immutable. Never fix a mismatch by re-uploading; always
-  bump.
+  While a version bump is merged (or installed non-editably from the PR
+  branch) with the sums not yet rewritten, clean/pypi downloads raise on the
+  missing sums entry — fail closed, by design. Once the rewritten sums are
+  committed but before the S3 objects land, downloads 404 and fall back to
+  local build (today's behavior); the upload-before-commit ordering makes
+  this window hard to reach. After upload, a digest mismatch anywhere is a
+  stop-the-line signal, and published S3 objects are immutable. Never fix a
+  mismatch by re-uploading; always bump.
 - **`.claude/skills/release-sandbox-tools/SKILL.md`**: step 4's user-run
   upload now also rewrites `SHA256SUMS`; add "commit and push the sums file to
   the PR branch" as the step after upload; replace the content-length sanity
