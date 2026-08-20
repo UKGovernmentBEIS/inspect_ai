@@ -1,6 +1,6 @@
 ---
 title: Control Channel
-llms-description: Launch evals from scripts and agents (inspect eval --json launch handoff, and --detach to run an eval in the background, detached from the terminal), then observe and direct them from another process with the inspect ctl commands - live task and sample status, error and retry detail, transcript events, conversation snapshots, stall diagnosis from trace logs, task and sample cancellation, sample requeue, pause and resume, launch-config retuning, log flushing, and keep-alive.
+llms-description: Launch evals from scripts and agents (inspect eval --json launch handoff, and --detach to run an eval in the background, detached from the terminal), then observe and direct them from another process with the inspect ctl commands - live task and sample status, error and retry detail, transcript events, conversation and store snapshots, stall diagnosis from trace logs, task and sample cancellation, sample requeue, pause and resume, launch-config retuning, log flushing, and keep-alive.
 ---
 
 ## Overview
@@ -21,6 +21,7 @@ Commands are grouped by resource noun (`task`, `sample`, `model`, `process`), pl
 | `inspect ctl sample show` | Show one sample's summary and error history. |
 | `inspect ctl sample events` | Read one sample's transcript events. |
 | `inspect ctl sample messages` | Read one sample's current conversation. |
+| `inspect ctl sample store` | Read one sample's current store (shared solver/agent state). |
 | `inspect ctl sample cancel` | Cancel one running sample. |
 | `inspect ctl sample requeue` | Re-run one errored or cancelled sample inside the live run. |
 | `inspect ctl config` | View or retune launch configuration mid-flight. |
@@ -35,7 +36,7 @@ Commands are grouped by resource noun (`task`, `sample`, `model`, `process`), pl
 
 : {tbl-colwidths=[35,65]}
 
-A bare noun implies `list`: `inspect ctl task` ≡ `inspect ctl task list`, and likewise for `sample` and `process`. All commands accept `--json` for structured output, which makes them straightforward to use from scripts and from coding agents like Claude Code. The `list` / `show` / `errors` / `events` / `messages` / `anomalies` commands are read-only. The others direct the run deliberately: `config` retunes launch parameters (concurrency changes never interrupt in-flight work; the per-sample limit overrides deliberately reach in-flight samples), `task log-flush` forces a log write that would happen anyway, `process keep`/`release` only affect what happens after the eval finishes, `task pause`/`resume`, `model pause`/`resume`, and `process pause`/`resume` stop and restart dispatch reversibly — leaving in-flight work untouched unless `pause --now` asks for a hard pause (which also holds in-flight samples at their next model call), `task cancel` / `sample cancel` interrupt work explicitly, and `sample requeue` re-runs an errored or cancelled sample (all three idempotently, with `--dry-run` support).
+A bare noun implies `list`: `inspect ctl task` ≡ `inspect ctl task list`, and likewise for `sample` and `process`. All commands accept `--json` for structured output, which makes them straightforward to use from scripts and from coding agents like Claude Code. The `list` / `show` / `errors` / `events` / `messages` / `store` / `anomalies` commands are read-only. The others direct the run deliberately: `config` retunes launch parameters (concurrency changes never interrupt in-flight work; the per-sample limit overrides deliberately reach in-flight samples), `task log-flush` forces a log write that would happen anyway, `process keep`/`release` only affect what happens after the eval finishes, `task pause`/`resume`, `model pause`/`resume`, and `process pause`/`resume` stop and restart dispatch reversibly — leaving in-flight work untouched unless `pause --now` asks for a hard pause (which also holds in-flight samples at their next model call), `task cancel` / `sample cancel` interrupt work explicitly, and `sample requeue` re-runs an errored or cancelled sample (all three idempotently, with `--dry-run` support).
 
 The endpoint is a Unix domain socket under the current user's Inspect data directory. It is not reachable over the network or by other users on the same machine, and it requires no configuration.
 
@@ -283,6 +284,35 @@ As with events, the default rows are metadata only — index, role, tool-call fu
 : {tbl-colwidths=[35,65]}
 
 With `--json` the response is an `{as_of, status, count, messages}` envelope, prefixed with the resolved `task_id` / `sample_id` / `epoch` (so a defaulted epoch is visible). As with events, `EPOCH` defaults to 1, and conversations of samples that have already completed are also readable — they are served from the eval's log.
+
+## Store Snapshots
+
+`inspect ctl sample store` reads one sample's current store — the shared state that solvers, tools, and agents coordinate through (progress flags, scratchpads, `StoreModel` fields) — as it stands right now:
+
+```bash
+$ inspect ctl sample store gpqa 17
+key                  type    size
+-------------------  ------  ----
+phase                string  10
+attempts             number  1
+Scratchpad:i0:notes  string  2048
+
+3 of 3 keys  ·  running  ·  metadata only (pass --content for values)
+```
+
+Like `sample messages`, this is a snapshot, not a stream: the store is rewritable (a key can be overwritten or deleted between reads), so there is no resume cursor. Poll and compare the reported key `count`, or use `inspect ctl sample events --type store` when you want the change *stream* rather than the current state. While the sample runs the store is read from the live task state — no log involved, so it works even for samples whose transcript is buffered or bounded; once the sample finishes it is served from the eval's log.
+
+The default rows are metadata only — each key's JSON type and its serialized size in bytes (for spotting the big keys; the `--json` rows also carry a length hint), with none of the values, which are agent-controlled text (see [Agent-controlled content](#agent-controlled-content) above). `--content` adds a truncated single-line preview of each value; `--full` returns the raw values.
+
+| Option | Description |
+|----|----|
+| `--key NAME` | Only these keys (repeatable), selected server-side so one large key doesn't drag the whole store over the wire. An exact name, or a trailing-`*` prefix (e.g. `--key 'AgentState:*'` for one `StoreModel`'s fields). Requested keys that aren't present are reported as `missing` — not an error. |
+| `--content` | Include a truncated single-line preview of each value. |
+| `--full` | Return raw values instead of the compact summary (unbounded — combine with `--key` to keep the response bounded). |
+
+: {tbl-colwidths=[35,65]}
+
+With `--json` the response is an `{as_of, status, count, store}` envelope (plus `missing` when `--key` was given), prefixed with the resolved `task_id` / `sample_id` / `epoch`. `count` is always the whole store's key count, so a filtered read still shows how much it left out. As with the other reads, `EPOCH` defaults to 1, and stores of samples that have already completed are also readable — they are served from the eval's log.
 
 ## Cancellation
 
