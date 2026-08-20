@@ -16,11 +16,9 @@ things that Phase 6 left optional/absent:
   looked up via ``get_model_info``.
 """
 
-from collections.abc import Iterator
 from typing import Any
 from uuid import UUID
 
-import pytest
 from acp.schema import (
     AgentMessageChunk,
     AgentThoughtChunk,
@@ -52,7 +50,6 @@ from inspect_ai.model import (
     set_model_info,
 )
 from inspect_ai.model._generate_config import GenerateConfig
-from inspect_ai.model._model_info import _custom_models, _result_cache
 from inspect_ai.model._model_output import (
     ChatCompletionChoice,
     ModelOutput,
@@ -65,25 +62,17 @@ from inspect_ai.tool._tool_call import ToolCall
 # broken by changes to the canonical model data files.
 _TEST_MODEL = "phase2-router-test/synthetic"
 _TEST_CONTEXT_LENGTH = 100_000
-_NOT_REGISTERED = "registry lost the test model (see _register_test_model)"
+_NOT_REGISTERED = (
+    "registry lost the test model (see isolate_custom_model_info in conftest)"
+)
 
 
-# Re-registered before every test: other modules' fixtures call
-# clear_model_info_cache(), which wipes a one-off registration whenever
-# one of their tests runs before ours in the same process (no xdist
-# needed — worksteal interleaving is just how CI hits it).
-@pytest.fixture(autouse=True)
-def _register_test_model() -> Iterator[None]:
-    set_model_info(
-        _TEST_MODEL,
-        ModelInfo(context_length=_TEST_CONTEXT_LENGTH, output_tokens=4096),
-    )
-    yield
-    # Drop only our synthetic entries; clearing the whole registry is the
-    # cross-module pollution this fixture exists to defend against.
-    for name in [n for n in _custom_models if n.startswith("phase2-router-test/")]:
-        del _custom_models[name]
-    _result_cache.clear()
+# Import-time registration is safe: conftest's isolate_custom_model_info
+# heals the wipe when another module's fixture calls clear_model_info_cache().
+set_model_info(
+    _TEST_MODEL,
+    ModelInfo(context_length=_TEST_CONTEXT_LENGTH, output_tokens=4096),
+)
 
 
 def _new_session() -> LiveAcpTransport:
@@ -306,7 +295,7 @@ def test_chunks_from_different_events_can_carry_different_models() -> None:
 
 def test_usage_update_emitted_after_text_chunk() -> None:
     # Named precondition: without it a wiped registration fails four tests
-    # with an opaque `assert 0 == 1` (how the xdist flake first presented).
+    # with an opaque `assert 0 == 1` (how the #4972 xdist flake presented).
     assert get_model_info(_TEST_MODEL) is not None, _NOT_REGISTERED
     tr = Transcript()
     token = _transcript.set(tr)
