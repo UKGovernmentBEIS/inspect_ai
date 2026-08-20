@@ -2916,7 +2916,7 @@ def test_ctl_task_drain_finishes_in_flight_and_abandons_queued(
     assert result["ok"] is True and result["changed"] is True
     repeat = p.result["repeat"]
     assert repeat is not None and repeat["changed"] is False
-    assert repeat["reason"] == "cancel already requested (drain)"
+    assert repeat["reason"] == "drain already requested"
     # the read surface says the drain is in effect while the tail runs
     assert p.result["row"]["resolving"] == "drain"
 

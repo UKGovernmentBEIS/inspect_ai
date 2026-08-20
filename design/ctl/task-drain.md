@@ -232,7 +232,10 @@ interrupted samples keep their resolution, per the first-resolution-wins
 rule; for abort, the scope fires). Anything equal or weaker is the
 idempotent `changed: false` no-op, with the reason naming the pending type:
 
-- drain on a draining task → no-op ("cancel already requested (drain)").
+- drain on a draining task → no-op ("drain already requested" — a
+  pending drain is only ever reported to a repeat drain, since any other
+  verb outranks it, so the reason speaks the operator's verb rather than
+  the cancel machinery's).
 - drain on a pending score/error/abort → no-op (drain can't un-interrupt).
 - drain (or plain cancel) on a pending **`"retry"`** stamp — the attempt
   requested a re-run and is still tearing down, before the dispatcher sets

@@ -4672,14 +4672,14 @@ def test_task_drain_terse_line(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_task_drain_noop_reports_unapplied(monkeypatch: pytest.MonkeyPatch) -> None:
     _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
     spy = _RequestSpy(
-        {"ok": True, "changed": False, "reason": "cancel already requested (drain)"}
+        {"ok": True, "changed": False, "reason": "drain already requested"}
     )
     monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
     result = cli_runner().invoke(ctl_command, ["task", "drain", "aaa111", "--json"])
     assert result.exit_code == 0, result.output
     payload = json.loads(result.stdout)
     assert payload["applied"] is False
-    assert payload["detail"]["reason"] == "cancel already requested (drain)"
+    assert payload["detail"]["reason"] == "drain already requested"
 
 
 def test_task_drain_retry_abandoned_output(monkeypatch: pytest.MonkeyPatch) -> None:

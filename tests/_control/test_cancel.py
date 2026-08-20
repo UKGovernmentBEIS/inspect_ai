@@ -610,7 +610,7 @@ def test_drain_task_repeat_is_idempotent_noop(
     assert (drain_task("t1") or {})["changed"] is True
     repeat = drain_task("t1")
     assert repeat is not None and repeat["changed"] is False
-    assert repeat["reason"] == "cancel already requested (drain)"
+    assert repeat["reason"] == "drain already requested"
     assert handle.fired == ["drain"]  # stamped exactly once
 
 
@@ -942,7 +942,7 @@ async def test_task_drain_route_ok_404_noop() -> None:
         assert repeat.status_code == 200
         body = repeat.json()
         assert body["changed"] is False
-        assert body["reason"] == "cancel already requested (drain)"
+        assert body["reason"] == "drain already requested"
 
         missing = await client.post("/tasks/missing/drain")
         assert missing.status_code == 404

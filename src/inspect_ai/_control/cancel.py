@@ -48,7 +48,7 @@ a cancel scope from a route handler is safe. Results are dicts: ``None``
 means the target isn't in this process (the route 404s); ``{"ok": False,
 "error": ...}`` is a rejection (the route maps it to a 409); otherwise the
 result carries ``changed`` — ``False`` is the idempotent already-in-that-state
-no-op (task already finished / cancel already requested / sample already
+no-op (task already finished / cancel or drain already requested / sample already
 terminal), so an agent retrying on confusion gets a clean answer rather than
 an error.
 
@@ -284,10 +284,15 @@ def _task_cancel_directive(
             abandon_task_retry(state.task_id)
         return {**result, "changed": True, "retry_abandoned": True}
     if pending is not None and _ESCALATION_LADDER[stamp] <= _ESCALATION_LADDER[pending]:
+        # "drain" is pending only when the request is itself a repeat drain
+        # (any other stamp outranks it on the ladder), so speak the
+        # operator's verb rather than the cancel machinery's
         return {
             **result,
             "changed": False,
-            "reason": f"cancel already requested ({pending})",
+            "reason": "drain already requested"
+            if pending == "drain"
+            else f"cancel already requested ({pending})",
         }
     # a sample mid-materialization — past the queue check but not yet
     # registered in active_samples() — is invisible to this gate; its
