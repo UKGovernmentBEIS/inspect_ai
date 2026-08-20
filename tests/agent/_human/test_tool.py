@@ -418,6 +418,31 @@ def test_nullable_scalar_still_accepts_values() -> None:
     assert kwargs == {"value": 3}
 
 
+# --- round 2: help examples must be schema-valid -----------------------------
+
+
+def test_example_instance_includes_all_required_properties() -> None:
+    """The 'copy-pasteable' example must satisfy the schema it illustrates.
+
+    Truncating an object example to its first two properties can drop
+    required ones — help then shows an example the service rejects.
+    """
+    from inspect_ai.agent._human.commands.tool import _example_instance
+
+    schema = {
+        "type": "object",
+        "properties": {
+            "a": {"type": "string"},
+            "b": {"type": "string"},
+            "c": {"type": "string"},
+            "d": {"type": "string"},
+        },
+        "required": ["a", "b", "c"],
+    }
+    example = _example_instance(schema)
+    assert {"a", "b", "c"} <= set(example.keys())
+
+
 # --- round 2: human tool execution runs inside a tool span -------------------
 
 

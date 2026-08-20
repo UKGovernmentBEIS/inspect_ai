@@ -415,9 +415,12 @@ def _example_instance(schema: dict[str, Any]) -> Any:
         case "object":
             properties = schema.get("properties")
             if properties:
-                return {
-                    k: _example_instance(v) for k, v in list(properties.items())[:2]
-                }
+                # the example must satisfy the schema it illustrates: every
+                # required property, then up to two optional ones for flavor
+                required = set(schema.get("required", []))
+                keys = [k for k in properties if k in required]
+                keys += [k for k in properties if k not in required][:2]
+                return {k: _example_instance(properties[k]) for k in keys}
             return {"key": "value"}
         case "array":
             return [_example_instance(schema.get("items", {}))]
