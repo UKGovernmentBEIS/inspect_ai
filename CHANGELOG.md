@@ -1,7 +1,9 @@
 ## Unreleased
 
-- Anthropic: Compatibility with anthropic SDK 0.124.0, which is now the minimum supported version (browser state tool results and file-based image/document sources no longer fail type checking).
+- Anthropic: Compatibility with anthropic SDK 1.0.0, which is now the minimum supported version (browser state tool results and file-based image/document sources no longer fail type checking).
 - OpenAI: Responses API usage now records `cache_write_tokens` as `ModelUsage.input_tokens_cache_write` and excludes it from full-rate `input_tokens` (generate and compaction responses); compaction usage also now excludes cache reads and records reasoning tokens. (#4855)
+- Models: OpenAI, OpenAI-compatible, Anthropic and Groq now allow 60s rather than 5s for connection setup, so a busy event loop is much less likely to cause `APIConnectionError`.
+- Models: A network error that interrupts a streamed response from an OpenAI or Anthropic model is now retried instead of failing the sample.
 - Sandbox: Editable installs now avoid spurious `-dev` sandbox-tools binaries when local main refs are missing, stale, or unavailable.
 - Eval Log: Log directory manifests now strip Windows-style directory prefixes before normalizing paths, avoiding parent directories in bundled listings.
 - Bugfix: Eval-level limits and retry/error options no longer persist on reused `Task` objects, preventing later evals from inheriting prior overrides.

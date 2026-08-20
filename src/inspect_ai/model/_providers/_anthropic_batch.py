@@ -1,6 +1,6 @@
 from typing import TypeAlias, cast
 
-import httpx
+import httpx2
 from anthropic import (
     APIConnectionError,
     APITimeoutError,
@@ -145,10 +145,10 @@ def _get_individual_result(
                 error_class = anthropic.InternalServerError
         response = error_class(
             message=message,
-            response=httpx.Response(
+            response=httpx2.Response(
                 status_code=500,
                 text=message,
-                request=httpx.Request(
+                request=httpx2.Request(
                     method="POST",
                     url="https://api.anthropic.com/v1/messages/batches",
                 ),
@@ -159,14 +159,14 @@ def _get_individual_result(
         return response
     elif individual_response.result.type == "canceled":
         return APIConnectionError(
-            request=httpx.Request(
+            request=httpx2.Request(
                 method="POST",
                 url="https://api.anthropic.com/v1/messages/batches",
             )
         )
     elif individual_response.result.type == "expired":
         return APITimeoutError(
-            request=httpx.Request(
+            request=httpx2.Request(
                 method="POST",
                 url="https://api.anthropic.com/v1/messages/batches",
             )

@@ -1,18 +1,41 @@
 import logging
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING, Callable, TypeAlias, cast
 
 import httpcore
 import httpx
-from httpx import HTTPStatusError
 from tenacity import RetryCallState
 
 from inspect_ai._util.constants import HTTP
 from inspect_ai._util.http import is_retryable_http_status, parse_retry_after
 
 if TYPE_CHECKING:
+    import httpx2
+
     from inspect_ai.model._model import RetryDecision
 
+    AnyStatusError: TypeAlias = httpx.HTTPStatusError | httpx2.HTTPStatusError
+
 logger = logging.getLogger(__name__)
+
+# openai >= 3 and anthropic >= 1 are built on `httpx2`, a separate distribution
+# whose exception classes are unrelated to httpx's, so `isinstance` against one
+# flavor misses the other. It matters here because errors raised while iterating
+# a streamed response body escape those SDKs unwrapped, reaching this module in
+# whichever flavor the SDK uses. httpx2 is not a core dependency of inspect_ai.
+_STATUS_ERRORS: tuple[type[BaseException], ...] = (httpx.HTTPStatusError,)
+_TRANSPORT_ERRORS: tuple[type[BaseException], ...] = (httpx.TransportError,)
+try:
+    import httpx2 as _httpx2
+
+    _STATUS_ERRORS += (_httpx2.HTTPStatusError,)
+    _TRANSPORT_ERRORS += (_httpx2.TransportError,)
+except ImportError:
+    pass
+
+
+def _as_status_error(ex: BaseException) -> "AnyStatusError | None":
+    """The exception as an `HTTPStatusError` of either httpx flavor, if it is one."""
+    return cast("AnyStatusError", ex) if isinstance(ex, _STATUS_ERRORS) else None
 
 
 def httpx_should_retry(ex: BaseException) -> bool:
@@ -26,8 +49,9 @@ def httpx_should_retry(ex: BaseException) -> bool:
     Returns:
       True if a retry should occur
     """
-    if isinstance(ex, HTTPStatusError):
-        return is_retryable_http_status(ex.response.status_code)
+    status_error = _as_status_error(ex)
+    if status_error is not None:
+        return is_retryable_http_status(status_error.response.status_code)
 
     elif httpx_should_retry_no_status_code(ex):
         return True
@@ -45,9 +69,10 @@ def httpx_classify_retry(ex: BaseException) -> "RetryDecision | None":
     """
     from inspect_ai.model._model import RetryDecision
 
-    if isinstance(ex, HTTPStatusError):
-        status = ex.response.status_code
-        retry_after = parse_retry_after(ex.response.headers)
+    status_error = _as_status_error(ex)
+    if status_error is not None:
+        status = status_error.response.status_code
+        retry_after = parse_retry_after(status_error.response.headers)
         if status == 429:
             return RetryDecision.rate_limit(retry_after=retry_after)
         if is_retryable_http_status(status):
@@ -152,7 +177,7 @@ def httpx_should_retry_no_status_code(ex: BaseException) -> bool:
         +-- WriteError
     """
     # Base class for all exceptions that occur at the level of the Transport API.
-    is_transport_error = isinstance(ex, httpx.TransportError)
+    is_transport_error = isinstance(ex, _TRANSPORT_ERRORS)
 
     # Sometimes exceptions are raised directly by httpcore, the lower-level library that httpx uses
     is_httpcore_network_error = isinstance(ex, httpcore.NetworkError)

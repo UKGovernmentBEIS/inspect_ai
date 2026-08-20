@@ -331,13 +331,13 @@ def test_anthropic_full_thinking_beta_via_client_default_header() -> None:
 
 @skip_if_no_anthropic
 def test_anthropic_should_retry():
-    import httpx
+    import httpx2
     from anthropic import APIStatusError
 
     # scaffold for should_retry
     model = get_model("anthropic/claude-sonnet-4-6")
-    response = httpx.Response(
-        status_code=405, request=httpx.Request("GET", "https://example.com")
+    response = httpx2.Response(
+        status_code=405, request=httpx2.Request("GET", "https://example.com")
     )
 
     # check whether we handle overloaded_error correctly
@@ -355,8 +355,8 @@ def test_anthropic_should_retry():
     model.api.should_retry(ex)
 
     # truncated request body (TCP interruption) should be retried
-    truncation_response = httpx.Response(
-        status_code=400, request=httpx.Request("POST", "https://example.com")
+    truncation_response = httpx2.Response(
+        status_code=400, request=httpx2.Request("POST", "https://example.com")
     )
     ex = APIStatusError(
         "error",
@@ -372,8 +372,8 @@ def test_anthropic_should_retry():
     assert model.api.should_retry(ex)
 
     # genuine 400 errors should NOT be retried
-    genuine_400_response = httpx.Response(
-        status_code=400, request=httpx.Request("POST", "https://example.com")
+    genuine_400_response = httpx2.Response(
+        status_code=400, request=httpx2.Request("POST", "https://example.com")
     )
     ex = APIStatusError(
         "error",
@@ -391,8 +391,8 @@ def test_anthropic_should_retry():
     # deterministic encoding errors (e.g. surrogate pairs) should NOT be retried
     ex = APIStatusError(
         "error",
-        response=httpx.Response(
-            status_code=400, request=httpx.Request("POST", "https://example.com")
+        response=httpx2.Response(
+            status_code=400, request=httpx2.Request("POST", "https://example.com")
         ),
         body={
             "type": "error",
@@ -414,7 +414,7 @@ def test_anthropic_handle_bad_request_content_filter_apistatuserror() -> None:
     rather than BadRequestError. handle_bad_request() must still convert
     "content filtering" messages into a content_filter refusal.
     """
-    import httpx
+    import httpx2
     from anthropic import APIStatusError
 
     from inspect_ai.model._model_output import ModelOutput
@@ -422,9 +422,9 @@ def test_anthropic_handle_bad_request_content_filter_apistatuserror() -> None:
     api = AnthropicAPI(model_name="claude-opus-4-6", api_key="test-key")
     ex = APIStatusError(
         "Output blocked by content filtering policy",
-        response=httpx.Response(
+        response=httpx2.Response(
             status_code=200,
-            request=httpx.Request("POST", "https://api.anthropic.com/v1/messages"),
+            request=httpx2.Request("POST", "https://api.anthropic.com/v1/messages"),
         ),
         body={
             "type": "error",
@@ -448,7 +448,7 @@ async def test_anthropic_generate_handles_midstream_content_filter() -> None:
     status_code == 413 and re-raised everything else, so content-filter errors
     that surfaced mid-stream killed the eval instead of becoming a refusal.
     """
-    import httpx
+    import httpx2
     from anthropic import APIStatusError
 
     from inspect_ai.model._model_output import ModelOutput
@@ -466,9 +466,9 @@ async def test_anthropic_generate_handles_midstream_content_filter() -> None:
     ) -> tuple[dict[str, Any], ModelOutput]:
         raise APIStatusError(
             "Output blocked by content filtering policy",
-            response=httpx.Response(
+            response=httpx2.Response(
                 status_code=200,
-                request=httpx.Request("POST", "https://api.anthropic.com/v1/messages"),
+                request=httpx2.Request("POST", "https://api.anthropic.com/v1/messages"),
             ),
             body={
                 "type": "error",

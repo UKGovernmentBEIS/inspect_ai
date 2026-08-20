@@ -14,7 +14,6 @@ from typing import (
     cast,
 )
 
-import httpx
 from pydantic import BaseModel, Field, ValidationError
 from pydantic_core import to_json
 
@@ -380,6 +379,10 @@ def init_anthropic_request_patch() -> None:
 
     validate_anthropic_client("agent bridge")
 
+    # deferred with the anthropic imports below: httpx2 is not a dependency of
+    # inspect_ai (we only get it transitively via anthropic >= 1), and this
+    # module must import without anthropic installed
+    import httpx2
     from anthropic._base_client import AsyncAPIClient, _AsyncStreamT
     from anthropic._constants import RAW_RESPONSE_HEADER
     from anthropic._models import FinalRequestOptions
@@ -422,7 +425,7 @@ def init_anthropic_request_patch() -> None:
         if not raw_response:
             return result
 
-        response = httpx.Response(
+        response = httpx2.Response(
             status_code=200,
             headers={"content-type": "application/json"},
             content=result.model_dump_json().encode(),

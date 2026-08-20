@@ -20,6 +20,7 @@ from openai.types.responses import Response
 from openai.types.shared_params.reasoning import Reasoning
 from typing_extensions import override
 
+from inspect_ai._util.http_defaults_httpx2 import default_client_kwargs
 from inspect_ai._util.logger import warn_once
 from inspect_ai.model._generate_config import has_image_output, normalized_batch_config
 from inspect_ai.model._providers.openai_completions import (
@@ -239,8 +240,8 @@ class OpenAIAPI(ModelAPI):
                 )
 
         # extract http_client and api_version before storing model_args
-        self.http_client = (
-            model_args.pop("http_client", None) or DefaultAsyncHttpxClient()
+        self.http_client = model_args.pop("http_client", None) or (
+            DefaultAsyncHttpxClient(**default_client_kwargs())
         )
         if self.is_azure():
             # resolve version
@@ -316,7 +317,7 @@ class OpenAIAPI(ModelAPI):
         super().initialize()
 
         if self.http_client.is_closed:
-            self.http_client = DefaultAsyncHttpxClient()
+            self.http_client = DefaultAsyncHttpxClient(**default_client_kwargs())
 
         self.client = self._create_client()
 
