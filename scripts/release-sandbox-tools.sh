@@ -194,16 +194,44 @@ finish() {
 #
 # --dry-run: build and validate only — skips the S3 upload and everything
 # downstream of it (digest commit/push, published-artifact verify, CI watch).
+#
+# --auto: unattended mode, for agents. Pauses vanish and every confirmation
+# resolves to the safe answer printed at its call site; anything genuinely
+# needing a human mid-run (starting Docker, aws sso login) aborts with
+# instructions instead of assuming. The checks guarding the irreversible step
+# (PR approval, version-vs-main, fingerprints, the upload immutability guard)
+# are mechanical and run in both modes.
 
 TOTAL_STAGES=7
 
 DRY_RUN=0
+AUTO=0
 for arg in "$@"; do
   case "$arg" in
     --dry-run) DRY_RUN=1 ;;
-    *) printf 'unknown option: %s (usage: %s [--dry-run])\n' "$arg" "$0" >&2; exit 2 ;;
+    --auto) AUTO=1 ;;
+    *) printf 'unknown option: %s (usage: %s [--dry-run] [--auto])\n' "$arg" "$0" >&2; exit 2 ;;
   esac
 done
+if [[ "$AUTO" == 0 && ! -t 0 ]]; then
+  printf 'stdin is not a terminal — prompts cannot be answered. Re-run with --auto.\n' >&2
+  exit 2
+fi
+
+if [[ "$AUTO" == 1 ]]; then
+  pause() { :; }
+fi
+
+# confirm_or y|n "question" — confirm, resolving to the given answer on
+# --auto runs.
+confirm_or() {
+  if [[ "$AUTO" == 0 ]]; then
+    confirm "$2"
+  else
+    printf '  %s? %s [--auto: %s]%s\n' "$YELLOW" "$2" "$1" "$RESET"
+    [[ "$1" == y ]]
+  fi
+}
 
 UPSTREAM_REPO="UKGovernmentBEIS/inspect_ai"
 VERSION_FILE="src/inspect_ai/tool/_sandbox_tools_utils/sandbox_tools_version.txt"
@@ -273,19 +301,22 @@ if [[ "$BRANCH" == "main" ]]; then
   warn "check it out (a worktree is ideal) and re-run this wizard."
   exit 1
 fi
-if ! confirm "Is '$BRANCH' the head branch of the PR being landed?"; then
+if ! confirm_or y "Is '$BRANCH' the head branch of the PR being landed?"; then
   warn "Check out the PR's head branch, then re-run."
   exit 1
 fi
 
 say "Checking that the PR is approved..."
+PR_NUMBER=""
 REVIEW_DECISION=""
 if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
-  REVIEW_DECISION=$(gh pr view "$BRANCH" --repo "$UPSTREAM_REPO" \
-    --json reviewDecision --jq '.reviewDecision' 2>/dev/null || true)
+  # gh pr view <branch> can't resolve cross-fork heads; pr list --head can.
+  read -r PR_NUMBER REVIEW_DECISION < <(gh pr list --repo "$UPSTREAM_REPO" \
+    --head "$BRANCH" --state open --json number,reviewDecision \
+    --jq '"\(.[0].number // "") \(.[0].reviewDecision // "")"' 2>/dev/null) || true
 fi
 if [[ "$REVIEW_DECISION" == "APPROVED" ]]; then
-  say "✓ PR is approved."
+  say "✓ PR #$PR_NUMBER is approved."
 elif [[ "$DRY_RUN" == 1 ]]; then
   warn "PR IS NOT APPROVED (review decision: ${REVIEW_DECISION:-unknown — no PR found or gh unavailable})."
   warn "Continuing because this is a dry run — a real release requires an approved PR."
@@ -306,6 +337,10 @@ fi
 
 while ! docker info >/dev/null 2>&1; do
   warn "Docker isn't running."
+  if [[ "$AUTO" == 1 ]]; then
+    warn "Start Docker, then re-run."
+    exit 1
+  fi
   pause "Start Docker, then press Enter to re-check"
 done
 if ! docker buildx version >/dev/null 2>&1; then
@@ -341,7 +376,7 @@ STATE_FILE="src/inspect_ai/binaries/.release-wizard-state-v$V"
 if [[ -n "$(git status --porcelain --untracked-files=no)" ]]; then
   warn "Working tree has uncommitted changes — binaries must be built from the"
   warn "exact code being merged."
-  confirm "Continue anyway?" || exit 1
+  confirm_or n "Continue anyway?" || exit 1
 fi
 pause
 
@@ -356,7 +391,7 @@ done
 if [[ "$ALL_PRESENT" == 1 && -n "$SRC_FP" && "$(state_get built_from)" == "$SRC_FP" ]]; then
   say "✓ All four v$V artifacts exist and were built from this exact source"
   say "  (recorded fingerprint matches) — skipping the rebuild."
-  if ! confirm "Rebuild anyway?"; then
+  if ! confirm_or n "Rebuild anyway?"; then
     BUILD_NEEDED=0
   fi
 elif [[ "$ALL_PRESENT" == 1 ]]; then
@@ -411,7 +446,7 @@ ART_FP=$(artifacts_fingerprint || true)
 RUN_VALIDATION=1
 if [[ -n "$ART_FP" && "$(state_get validated)" == "$ART_FP" ]]; then
   say "✓ These exact artifact bytes already passed validation — skipping."
-  if ! confirm "Re-validate anyway?"; then
+  if ! confirm_or n "Re-validate anyway?"; then
     RUN_VALIDATION=0
   fi
 fi
@@ -438,6 +473,8 @@ if [[ "$DRY_RUN" == 1 ]]; then
 else
   if [[ -n "${AWS_PROFILE:-}" ]]; then
     note "Using AWS_PROFILE=$AWS_PROFILE from your environment."
+  elif [[ "$AUTO" == 1 ]]; then
+    note "No AWS_PROFILE set — using default credentials."
   else
     ask AWS_PROFILE_IN "AWS profile for the upload (Enter to use default credentials):"
     if [[ -n "${AWS_PROFILE_IN:-}" ]]; then
@@ -446,6 +483,10 @@ else
   fi
   while ! aws sts get-caller-identity >/dev/null 2>&1; do
     warn "AWS credentials are missing or stale."
+    if [[ "$AUTO" == 1 ]]; then
+      warn "Run 'aws sso login', then re-run."
+      exit 1
+    fi
     if confirm "Run 'aws sso login' now?"; then
       aws sso login || true
     else
@@ -475,7 +516,7 @@ else
     say "✓ Nothing to commit — digests are already committed."
   else
     git --no-pager diff -- "$SUMS_FILE"
-    if confirm "Commit the change above to '$BRANCH' and push?"; then
+    if confirm_or y "Commit the change above to '$BRANCH' and push?"; then
       git add "$SUMS_FILE"
       git commit -m "Pin sandbox-tools v$V artifact digests"
       git push
@@ -526,12 +567,12 @@ else
   say "The digest push triggers a fresh CI run; slow-tool-tests-release should"
   say "now pass. Merging then happens through the normal review process —"
   say "PyPI bundling is automatic at inspect_ai release time."
-  if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
-    if confirm "Watch the PR's checks now (blocks until they finish)?"; then
-      gh pr checks "$BRANCH" --repo "$UPSTREAM_REPO" --watch || \
+  if [[ -n "$PR_NUMBER" ]]; then
+    if confirm_or n "Watch the PR's checks now (blocks until they finish)?"; then
+      gh pr checks "$PR_NUMBER" --repo "$UPSTREAM_REPO" --watch || \
         warn "Some checks failed — investigate before merging."
     else
-      note "Later: gh pr checks $BRANCH --repo $UPSTREAM_REPO --watch"
+      note "Later: gh pr checks $PR_NUMBER --repo $UPSTREAM_REPO --watch"
     fi
   else
     SKIPPED+=("verify PR checks pass (gh unavailable — use the PR page on GitHub)")
