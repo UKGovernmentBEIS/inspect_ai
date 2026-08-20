@@ -13,7 +13,12 @@ import httpx
 import pytest
 from test_helpers.live_eval_data import FakeLiveEvalData
 
-from inspect_ai._control.cancel import cancel_sample, cancel_task, drain_task
+from inspect_ai._control.cancel import (
+    TaskCancelAction,
+    cancel_sample,
+    cancel_task,
+    drain_task,
+)
 from inspect_ai._control.eval_state import (
     clear_all_eval_states,
     get_eval_state,
@@ -21,7 +26,9 @@ from inspect_ai._control.eval_state import (
     record_sample_errored,
     register_completed_eval,
     register_eval,
+    reset_gracefully_resolved,
     reset_retry_abandoned,
+    task_gracefully_resolved,
     task_retry_abandoned,
 )
 from inspect_ai._display.core.display import CancelType, TaskCancel
@@ -31,9 +38,11 @@ from inspect_ai._display.core.display import CancelType, TaskCancel
 def _clear_states():
     clear_all_eval_states()
     reset_retry_abandoned()
+    reset_gracefully_resolved()
     yield
     clear_all_eval_states()
     reset_retry_abandoned()
+    reset_gracefully_resolved()
 
 
 class _FakeTaskCancel(TaskCancel):
@@ -542,6 +551,42 @@ def test_drain_task_reports_in_flight_queued_split(
     assert result is not None
     assert result["in_flight"] == 1 and result["queued"] == 4
     assert handle.fired == []  # dry run
+
+
+def test_graceful_resolutions_mark_task_gracefully_resolved(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Graceful stamps mark the graceful-resolution registry; abort does not.
+
+    Drain and score/error stamps record the task in the registry (eval-set's
+    completeness check honors the resolution for the life of the run — see
+    log_samples_complete); an abort does not (its log never reads as a
+    success), and a dry run stamps nothing.
+    """
+    cases: list[tuple[TaskCancelAction | None, bool]] = [
+        (None, True),  # drain
+        ("score", True),
+        ("error", True),
+        ("cancel", False),  # abort
+    ]
+    for action, marked in cases:
+        clear_all_eval_states()
+        reset_gracefully_resolved()
+        handle = _FakeTaskCancel()
+        register_eval("e1", 5, task_id="t1", task_cancel=handle)
+        _patch_active_samples(monkeypatch, [])
+
+        if action is None:
+            assert (drain_task("t1", dry_run=True) or {})["changed"] is True
+            assert not task_gracefully_resolved("t1")
+            drain_task("t1")
+        else:
+            assert (cancel_task("t1", action=action, dry_run=True) or {})[
+                "changed"
+            ] is True
+            assert not task_gracefully_resolved("t1")
+            cancel_task("t1", action=action)
+        assert task_gracefully_resolved("t1") is marked
 
 
 def test_drain_task_unknown_is_none() -> None:

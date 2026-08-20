@@ -69,6 +69,9 @@ class JSONRecorder(FileRecorder):
     class JSONLogFile(BaseModel):
         file: str
         data: EvalLog
+        # whether a flush has written the destination file (so a discard of a
+        # never-finished log knows to remove it)
+        written: bool = False
         # Per-sample summaries cached as samples are logged. Computing a
         # summary is expensive for large samples (thin_data runs
         # textwrap.shorten / JSON size probes over full-size fields), and
@@ -203,10 +206,20 @@ class JSONRecorder(FileRecorder):
         return log.data
 
     @override
+    async def log_discard(self, eval: EvalSpec) -> None:
+        log = self.data.pop(self._log_file_key(eval), None)
+        if log is not None and log.written:
+            try:
+                self.fs.rm(log.file)
+            except FileNotFoundError:
+                pass
+
+    @override
     async def flush(self, eval: EvalSpec) -> None:
         log = self.data[self._log_file_key(eval)]
         # intermediate snapshot: skip fsync (see _write_log_impl)
         await self._write_log_impl(log.file, log.data, fsync=False)
+        log.written = True
 
     @override
     @classmethod

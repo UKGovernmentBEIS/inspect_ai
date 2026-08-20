@@ -724,7 +724,8 @@ async def run_task_retry_attempts(
                     # a drain/cancel abandoned this queued retry between the
                     # dispatcher's pick and the attempt registering its
                     # EvalState: side-effect-free finalize — discard the
-                    # attempt's never-started log entry, release the slot,
+                    # attempt's never-started log entry (including a header
+                    # log_start already flushed), release the slot,
                     # leave results[item.idx] undisturbed (it already holds
                     # the errored attempt's log, stored before the retry item
                     # was queued), queue no retry, and never set the
@@ -732,7 +733,7 @@ async def run_task_retry_attempts(
                     # external-cancellation branch below (run.log is None
                     # here, which would otherwise end the whole run).
                     if run.abandoned:
-                        await options.logger.cleanup()
+                        await options.logger.discard()
                         in_flight -= 1
                         model_counts[options.model] -= 1
                         wake.set()
@@ -870,7 +871,7 @@ async def run_task_retry_attempts(
                         if task_retry_abandoned(p.options.logger.eval.task_id)
                     ]:
                         pending.remove(abandoned)
-                        await abandoned.options.logger.cleanup()
+                        await abandoned.options.logger.discard()
 
                     # dispatch up to the concurrency cap (model-balanced)
                     while not cancelled and in_flight < parallel and pending:

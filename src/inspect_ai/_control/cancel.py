@@ -180,6 +180,7 @@ def _task_cancel_directive(
     from inspect_ai._control.eval_state import (
         abandon_task_retry,
         latest_eval_for_task,
+        mark_task_gracefully_resolved,
         task_retry_abandoned,
     )
 
@@ -312,11 +313,18 @@ def _task_cancel_directive(
         if stamp == "abort":
             state.task_cancel.cancel_task("abort")
         elif stamp == "drain":
+            # a graceful resolution finishes with a success log deliberately
+            # holding fewer samples than planned — record the task so
+            # eval-set's completeness check honors the resolution for the
+            # life of the run (see task_gracefully_resolved)
+            mark_task_gracefully_resolved(state.task_id)
             # the stamp alone: queued samples check it as they leave the
             # queue, initializing samples as they start; in-flight samples
             # are never touched and finish naturally
             state.task_cancel.cancel_task("drain")
         else:
+            # graceful like drain — record for the completeness check
+            mark_task_gracefully_resolved(state.task_id)
             # stamp the resolution first (queued samples check it as they
             # leave the queue, initializing samples as they start), then
             # interrupt the samples already running. First resolution wins:

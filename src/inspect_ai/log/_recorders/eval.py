@@ -228,6 +228,12 @@ class EvalRecorder(FileRecorder):
             await log.flush(fsync=False)
 
     @override
+    async def log_discard(self, eval: EvalSpec) -> None:
+        log = self.data.pop(self._log_file_key(eval), None)
+        if log is not None:
+            await log.discard()
+
+    @override
     async def flush(self, eval: EvalSpec) -> None:
         # get the zip log
         log = self.data[self._log_file_key(eval)]
@@ -807,6 +813,9 @@ class ZipLogFile:
         self._config_updates: list[ConfigUpdate] = []
         self._log_start: LogStart | None = None
         self._destination_written = False
+        # whether the destination existed before this log (init seeded from
+        # it) — such a file is never ours to remove on discard
+        self._destination_seeded = False
 
     async def init(
         self,
@@ -825,6 +834,7 @@ class ZipLogFile:
             self._config_updates = config_updates or []
             self._log_start = log_start
             self._destination_written = destination_exists
+            self._destination_seeded = destination_exists
 
     @property
     def log_start(self) -> LogStart | None:
@@ -1112,6 +1122,28 @@ class ZipLogFile:
             if written:
                 self._streaming_samples.clear()
                 self._destination_written = True
+
+    async def discard(self) -> None:
+        """Release this never-finished log's resources without writing.
+
+        Removes the destination file when this log wrote it (a header flushed
+        by ``log_start``, e.g. a zero-seed retry attempt with no destination
+        hold) — a stray ``started`` log would otherwise win the end-of-run
+        retry-cleanup sweep by mtime over the errored prior attempt's log. A
+        pre-existing file the log was seeded from is left in place.
+        """
+        async with self._lock:
+            try:
+                if self._zip:
+                    self._zip.close()
+                    self._zip = None
+            finally:
+                self._temp_file.close()
+            if self._destination_written and not self._destination_seeded:
+                try:
+                    self._fs.rm(self._file)
+                except FileNotFoundError:
+                    pass
 
     async def close(self, header_only: bool) -> EvalLog:
         async with self._lock:

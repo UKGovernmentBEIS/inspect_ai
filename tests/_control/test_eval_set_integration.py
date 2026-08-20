@@ -2947,6 +2947,100 @@ def test_ctl_task_drain_finishes_in_flight_and_abandons_queued(
     assert resumed.samples is not None and len(resumed.samples) == 3
 
 
+def test_ctl_task_drain_honored_across_outer_retry_pass(short_data_dir: Path) -> None:
+    """A drained log stays reused within the run under `retry_immediate=False`.
+
+    With `retry_immediate=False`, a sibling failure sends eval-set back
+    through its run-vs-reuse classification in the same invocation — and the
+    drained task's success log deliberately holds fewer samples than planned.
+    The in-process graceful-resolution registry keeps it classified complete,
+    so the abandoned remainder is not re-dispatched mid-run (drain is honored
+    for the life of the run — design/ctl/task-drain.md); a later invocation
+    (fresh process, empty registry) still re-runs it.
+    """
+    from inspect_ai._control.cancel import drain_task
+    from inspect_ai.log import read_eval_log
+
+    calls = {"drained": 0}
+
+    @solver
+    def counting_gate() -> Solver:
+        inner = gate()
+
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            calls["drained"] += 1
+            return await inner(state, generate)
+
+        return solve
+
+    @task
+    def task_drained() -> Task:
+        return Task(
+            dataset=[Sample(id=i, input="x", target="y") for i in (1, 2, 3)],
+            solver=[counting_gate()],
+            name="task_drained",
+        )
+
+    @solver
+    def always_fail() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            raise RuntimeError("synthetic failure")
+
+        return solve
+
+    @task
+    def task_flaky() -> Task:
+        return Task(
+            dataset=[Sample(input="x", target="y")],
+            solver=[always_fail()],
+            name="task_flaky",
+        )
+
+    log_dir = str(short_data_dir / "logs")
+    Path(log_dir).mkdir()
+
+    async def ready() -> bool:
+        evals = await current_eval_summaries(0.0)
+        drained = next((e for e in evals if e["task"] == "task_drained"), None)
+        if drained is None:
+            return False
+        samples = drained["samples"]
+        return samples["in_flight"] == 1 and samples["queued"] == 2
+
+    async def capture() -> dict:
+        evals = await current_eval_summaries(0.0)
+        drained = next(e for e in evals if e["task"] == "task_drained")
+        return {"result": drain_task(drained["task_id"])}
+
+    with probe(ready, capture) as p:
+        success, logs = eval_set(
+            tasks=[task_drained(), task_flaky()],
+            log_dir=log_dir,
+            model="mockllm/model",
+            max_tasks=2,
+            max_samples=1,
+            retry_attempts=2,
+            retry_wait=0.05,
+            retry_immediate=False,
+        )
+
+    assert p.result is not None, "one-in-flight/two-queued never observed"
+    result = p.result["result"]
+    assert result is not None and result["changed"] is True
+
+    # the drain held for the life of the run: the in-flight sample ran once
+    # and the abandoned remainder was never re-dispatched, even though the
+    # sibling's failure drove a second classification pass
+    assert calls["drained"] == 1
+    assert not success
+    drained_log = next(log for log in logs if log.eval.task == "task_drained")
+    assert drained_log.status == "success"
+    read = read_eval_log(drained_log.location)
+    assert read.samples is not None and len(read.samples) == 1
+    flaky_log = next(log for log in logs if log.eval.task == "task_flaky")
+    assert flaky_log.status == "error"
+
+
 def test_ctl_task_cancel_between_attempts_abandons_retry(
     short_data_dir: Path,
 ) -> None:

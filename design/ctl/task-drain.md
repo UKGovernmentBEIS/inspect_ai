@@ -562,3 +562,27 @@ and the attempt-start self-check raises a dedicated
 `TaskRetryAbandonedError` (from the synchronous check adjacent to
 `register_eval`) which `_run_task` maps to the `TaskRunResult.abandoned`
 sentinel.
+
+Implementation review surfaced two gaps the sketch missed; both are closed:
+
+- **"Honored for the life of the run" needs an in-process registry, not
+  just the logged-samples count.** With `retry_immediate=False`, eval-set's
+  outer tenacity pass re-enters the run-vs-reuse classification after a
+  sibling task fails — and the logged-samples count alone would re-classify
+  the drained (or score/error-resolved) success log as incomplete and
+  re-dispatch the abandoned remainder in the same invocation. The
+  directives therefore record gracefully-resolved task ids in a
+  run-boundary registry (`mark_task_gracefully_resolved`, reset with the
+  other run registries), and `log_samples_complete` treats those logs as
+  complete for the life of the run; a later invocation (fresh process,
+  empty registry) sees the shortfall and re-runs the remainder as designed.
+- **The abandoned-attempt discard also unwinds `log_start`.** The
+  attempt-start self-check sits after `log_start`, and on a zero-seed retry
+  (no destination hold) the header has already been flushed — the stray
+  `started` log would win the end-of-run retry-cleanup sweep by mtime,
+  deleting the errored attempt's log the abandon promised would stand.
+  `task_run` consults the registry once more before `log_start`
+  (best-effort; the pre-register check stays the race-free backstop), and
+  every abandon path discards via `TaskLogger.discard`, which drops the
+  recorder's in-memory entry (otherwise leaked for the rest of the run)
+  and removes a destination file the abandoned attempt itself flushed.

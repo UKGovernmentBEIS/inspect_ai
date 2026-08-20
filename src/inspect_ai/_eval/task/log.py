@@ -910,6 +910,22 @@ class TaskLogger:
             self._buffer_db.cleanup()
             self._buffer_db = None
 
+    async def discard(self) -> None:
+        """Discard this attempt's never-started log (an abandoned retry).
+
+        Beyond :meth:`cleanup` (stale-flush timer + realtime buffer db),
+        drops the recorder's in-memory entry for this eval — ``log_finish``
+        never runs for an abandoned attempt, so the entry would otherwise
+        live for the rest of the run — and removes a destination file the
+        attempt already flushed (``log_start`` flushes a header when no
+        destination hold is active, i.e. a zero-seed retry): a stray
+        ``started`` log would otherwise win the end-of-run retry-cleanup
+        sweep by mtime, deleting the errored attempt's log that must stand
+        as the task's final state.
+        """
+        await self.cleanup()
+        await self.recorder.log_discard(self.eval)
+
     async def _clear_stale_flush_timer(
         self, cancel_scope: anyio.CancelScope, stopped: anyio.Event
     ) -> None:

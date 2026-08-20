@@ -25,6 +25,7 @@ from inspect_ai._control.eval_state import (
     invalidate_log_sample_summaries,
     register_completed_eval,
     reset_run_registries,
+    task_gracefully_resolved,
 )
 from inspect_ai._control.server import (
     control_server,
@@ -1220,7 +1221,15 @@ def log_samples_complete(
     metadata = log.header.results.metadata or {}
     logged_samples = metadata.get("logged_samples")
     if isinstance(logged_samples, int):
-        return logged_samples >= planned
+        if logged_samples >= planned:
+            return True
+        # a resolution stamped in this process is honored for the life of
+        # the run: with `retry_immediate=False` the outer tenacity pass
+        # re-enters this classification after a sibling task fails, and
+        # without the registry it would re-dispatch the abandoned remainder
+        # in-process. A later invocation (fresh process, empty registry)
+        # sees the shortfall and re-runs the remainder as designed.
+        return task_gracefully_resolved(log.header.eval.task_id)
 
     if log.header.results.total_samples < planned:
         return False

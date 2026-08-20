@@ -807,6 +807,36 @@ def reset_retry_abandoned() -> None:
         _retry_abandoned_tasks.clear()
 
 
+# Tasks resolved by a graceful cancel/drain (a stamped "score" / "error" /
+# "drain") in this process. Their success logs deliberately hold fewer
+# samples than planned, so eval-set's completeness check consults this
+# registry to keep honoring the resolution for the life of the run — without
+# it, a `retry_immediate=False` eval-set's outer retry pass would re-classify
+# the resolved log as incomplete (via its logged-samples count) and
+# re-dispatch the abandoned remainder in-process. Task-id keyed and reset at
+# the run boundary like the retry-abandoned registry; a later invocation
+# (fresh process) sees the shortfall and re-runs the remainder as designed.
+_gracefully_resolved_tasks: set[str] = set()
+
+
+def mark_task_gracefully_resolved(task_id: str) -> None:
+    """Record a graceful cancel/drain resolution of this task (see design/ctl/task-drain.md)."""
+    with _lock:
+        _gracefully_resolved_tasks.add(task_id)
+
+
+def task_gracefully_resolved(task_id: str) -> bool:
+    """Whether a graceful cancel/drain resolved this task in this process."""
+    with _lock:
+        return task_id in _gracefully_resolved_tasks
+
+
+def reset_gracefully_resolved() -> None:
+    """Reset the graceful-resolution registry (run boundary — see :func:`reset_run_registries`)."""
+    with _lock:
+        _gracefully_resolved_tasks.clear()
+
+
 def detach_eval_live(eval_id: str) -> None:
     """Detach a superseded attempt's live data source.
 
@@ -965,6 +995,7 @@ def reset_run_registries() -> None:
 
     clear_all_eval_states()
     reset_retry_abandoned()
+    reset_gracefully_resolved()
     reset_generate_config_overrides()
     reset_sample_limit_overrides()
     reset_process_config_updates()
