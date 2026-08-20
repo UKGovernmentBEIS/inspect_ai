@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from copy import copy
-from typing import TYPE_CHECKING, Mapping, Sequence
+from typing import TYPE_CHECKING, Sequence
 
 from inspect_ai._util.error import PrerequisiteError
-from inspect_ai.model._model import Model, get_model
+from inspect_ai.model._model import Model, ModelRoles, get_model
 from inspect_ai.model._model_info import _get_model_info_direct
 
 if TYPE_CHECKING:
@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 
 
 def resolve_model_roles(
-    model_roles: Mapping[str, str | Model | Sequence[str | Model]] | None,
+    model_roles: ModelRoles | None,
 ) -> dict[str, Model | list[Model]] | None:
     if model_roles is not None:
         resolved_model_roles: dict[str, Model | list[Model]] = {}

@@ -18,6 +18,7 @@ from typing import (
     Callable,
     Iterator,
     Literal,
+    Mapping,
     NamedTuple,
     Protocol,
     Sequence,
@@ -2519,9 +2520,9 @@ def active_model() -> Model | None:
     return active_model_context_var.get(None)
 
 
-ModelRoles: TypeAlias = dict[
-    str, str | Model | list[str] | list[Model] | list[str | Model]
-]
+# Mapping (not dict) so that pre-typed user dicts like dict[str, list[str]]
+# type-check — dict is invariant in its value type, Mapping is covariant
+ModelRoles: TypeAlias = Mapping[str, str | Model | Sequence[str | Model]]
 """Assignment of models to named roles (e.g. the `model_roles` argument to `eval()` or `Task`).
 
 Maps a role name to a model (name or `Model` instance) or to a list of

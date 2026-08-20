@@ -1775,7 +1775,7 @@ async def eval_retry_async(
                     log_info=None,
                 ),
                 model=model,
-                model_roles=cast(ModelRoles, model_roles),
+                model_roles=model_roles,
                 task_args=task_args,
                 sandbox=eval_log.eval.sandbox,
                 sandbox_cleanup=sandbox_cleanup,

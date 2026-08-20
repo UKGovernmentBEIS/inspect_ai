@@ -274,7 +274,8 @@ def parse_model_role_cli_args(
         # else assume it is just a model name and leave it as a string
         return cast(str, params)
 
-    resolved_args: ModelRoles = {}
+    # concrete dict type (ModelRoles is a read-only Mapping alias)
+    resolved_args: dict[str, str | Model | list[str | Model]] = {}
     for role_name, params in parsed_args.items():
         # comma-separated model names (or a YAML list) yield a list of models
         if isinstance(params, list):
