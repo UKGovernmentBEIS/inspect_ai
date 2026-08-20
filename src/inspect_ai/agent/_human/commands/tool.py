@@ -9,10 +9,8 @@ from pydantic import JsonValue
 from shortuuid import uuid
 
 from inspect_ai._util.content import (
-    ContentAudio,
-    ContentImage,
+    ContentBase,
     ContentText,
-    ContentVideo,
 )
 from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log._transcript import transcript
@@ -75,7 +73,9 @@ def tool_result_to_str(result: ToolResult) -> str:
             else:
                 parts.append(_omitted(getattr(c, "type", "non-text")))
         return "\n".join(parts)
-    elif isinstance(result, (ContentImage, ContentAudio, ContentVideo)):
+    elif isinstance(result, ContentBase):
+        # any non-text content (image, audio, video, document, data, ...) —
+        # never dump raw payloads (e.g. base64 data URIs) into the terminal
         return _omitted(result.type)
     else:
         return str(result)

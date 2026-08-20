@@ -370,6 +370,20 @@ async def test_service_accepts_any_identifier_param_name() -> None:
     assert result == "ok"
 
 
+# --- finding 5: every non-text standalone content uses the omission marker ---
+
+
+def test_standalone_document_not_dumped_to_terminal() -> None:
+    """A standalone ContentDocument must not print its base64 data URI."""
+    from inspect_ai._util.content import ContentDocument
+
+    out = tool_result_to_str(
+        ContentDocument(document="data:application/pdf;base64,JVBERi0xLjQK")
+    )
+    assert "omitted" in out
+    assert "base64" not in out
+
+
 # --- finding 4: parameters that would break the generated CLI fail closed ----
 
 
@@ -472,9 +486,7 @@ async def test_schema_constraints_enforced_for_human_calls() -> None:
         description="Set the level.",
         parameters=ToolParams(
             properties={
-                "level": JSONSchema(
-                    type="integer", minimum=1, description="The level."
-                )
+                "level": JSONSchema(type="integer", minimum=1, description="The level.")
             },
             required=["level"],
         ),
@@ -517,7 +529,10 @@ async def test_ordinary_exception_still_records_event() -> None:
         raise RuntimeError("boom")
 
     broken = ToolDef(
-        execute, name="broken", description="Raise an ordinary exception.", parameters={}
+        execute,
+        name="broken",
+        description="Raise an ordinary exception.",
+        parameters={},
     ).as_tool()
 
     handler = ToolCommand([broken]).service(state=None)  # type: ignore[arg-type]
