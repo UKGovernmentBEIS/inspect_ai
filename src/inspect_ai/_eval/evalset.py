@@ -75,6 +75,7 @@ from inspect_ai.log._log import EvalConfig
 from inspect_ai.model import (
     GenerateConfigArgs,
     Model,
+    ModelRoles,
 )
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model import ModelName
@@ -142,8 +143,7 @@ def eval_set(
     model: str | Model | list[str] | list[Model] | None | NotGiven = NOT_GIVEN,
     model_base_url: str | None = None,
     model_args: dict[str, Any] | str = dict(),
-    model_roles: dict[str, str | Model | list[str] | list[Model] | list[str | Model]]
-    | None = None,
+    model_roles: ModelRoles | None = None,
     task_args: dict[str, Any] | str = dict(),
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,

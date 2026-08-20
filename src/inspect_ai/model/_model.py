@@ -2519,6 +2519,17 @@ def active_model() -> Model | None:
     return active_model_context_var.get(None)
 
 
+ModelRoles: TypeAlias = dict[
+    str, str | Model | list[str] | list[Model] | list[str | Model]
+]
+"""Assignment of models to named roles (e.g. the `model_roles` argument to `eval()` or `Task`).
+
+Maps a role name to a model (name or `Model` instance) or to a list of
+models. Assigned roles are looked up with `get_model(role=...)` or
+`model_roles()` (to *reference* a role, e.g. from a scorer, see `ModelRole`).
+"""
+
+
 def init_model_roles(roles: dict[str, Model | list[Model]]) -> None:
     _model_roles.set(roles)
 

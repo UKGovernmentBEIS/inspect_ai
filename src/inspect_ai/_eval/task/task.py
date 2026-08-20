@@ -44,7 +44,7 @@ from inspect_ai.approval._policy import (
 from inspect_ai.dataset import Dataset, MemoryDataset, Sample
 from inspect_ai.log import EvalLog, EvalLogInfo
 from inspect_ai.model import GenerateConfig
-from inspect_ai.model._model import Model
+from inspect_ai.model._model import Model, ModelRoles
 from inspect_ai.model._util import resolve_model, resolve_model_roles
 from inspect_ai.scorer import Metric, Scorer
 from inspect_ai.scorer._reducer import ScoreReducers, create_reducers
@@ -91,10 +91,7 @@ class Task:
         | None = None,
         model: str | Model | None = None,
         config: GenerateConfig = GenerateConfig(),
-        model_roles: dict[
-            str, str | Model | list[str] | list[Model] | list[str | Model]
-        ]
-        | None = None,
+        model_roles: ModelRoles | None = None,
         sandbox: SandboxEnvironmentType | None = None,
         checkpoint: CheckpointConfig | bool | None = None,
         on_checkpoint: OnCheckpointCallback | None = None,
@@ -300,8 +297,7 @@ def task_with(
     | NotGiven = NOT_GIVEN,
     model: str | Model | NotGiven = NOT_GIVEN,
     config: GenerateConfig | NotGiven = NOT_GIVEN,
-    model_roles: dict[str, str | Model | list[str] | list[Model] | list[str | Model]]
-    | NotGiven = NOT_GIVEN,
+    model_roles: ModelRoles | NotGiven = NOT_GIVEN,
     sandbox: SandboxEnvironmentType | None | NotGiven = NOT_GIVEN,
     checkpoint: CheckpointConfig | bool | None | NotGiven = NOT_GIVEN,
     on_checkpoint: OnCheckpointCallback | None | NotGiven = NOT_GIVEN,

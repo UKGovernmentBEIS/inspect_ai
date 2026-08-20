@@ -6,7 +6,7 @@ from pydantic import ValidationError
 
 from inspect_ai._util.config import resolve_args
 from inspect_ai._util.error import PrerequisiteError
-from inspect_ai.model import GenerateConfig, Model, get_model
+from inspect_ai.model import GenerateConfig, Model, ModelRoles, get_model
 from inspect_ai.util._limit import TokenLimit, parse_token_limit
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 
@@ -230,7 +230,7 @@ def parse_cli_args(
 
 def parse_model_role_cli_args(
     model_roles: tuple[str, ...] | None,
-) -> dict[str, str | Model | list[str] | list[Model] | list[str | Model]]:
+) -> ModelRoles:
     """Parse model roles from CLI args. Supports key-value, YAML, and JSON formats.
 
     Args:
@@ -274,9 +274,7 @@ def parse_model_role_cli_args(
         # else assume it is just a model name and leave it as a string
         return cast(str, params)
 
-    resolved_args: dict[
-        str, str | Model | list[str] | list[Model] | list[str | Model]
-    ] = {}
+    resolved_args: ModelRoles = {}
     for role_name, params in parsed_args.items():
         # comma-separated model names (or a YAML list) yield a list of models
         if isinstance(params, list):
