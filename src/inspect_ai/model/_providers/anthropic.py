@@ -18,7 +18,7 @@ from typing import (
 )
 
 import anthropic
-import httpx
+import httpx2
 from anthropic import (
     APIConnectionError,
     APIStatusError,
@@ -139,7 +139,7 @@ from inspect_ai._util.http import (
     is_retryable_http_status,
     parse_retry_after_from_exception,
 )
-from inspect_ai._util.http_defaults import default_async_client, default_timeout
+from inspect_ai._util.http_defaults_httpx2 import default_async_client, default_timeout
 from inspect_ai._util.images import inline_media_data, inline_media_data_uri
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.logger import warn_once
@@ -334,7 +334,7 @@ class AnthropicAPI(ModelAPI):
             return model_args
         # Handing httpx objects to an httpx2-based SDK is what broke every
         # OpenAI request under openai 3.0.
-        if not isinstance(getattr(anthropic, "DEFAULT_TIMEOUT", None), httpx.Timeout):
+        if not isinstance(getattr(anthropic, "DEFAULT_TIMEOUT", None), httpx2.Timeout):
             return model_args
         model_args.setdefault("timeout", default_timeout())
         model_args["http_client"] = default_async_client()

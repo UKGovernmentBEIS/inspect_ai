@@ -232,7 +232,7 @@ async def consume_anthropic_raw_response() -> AnthropicMessage:
             messages=ANTHROPIC_MESSAGES,  # type: ignore[arg-type]
         )
         assert raw.headers is not None
-        message = raw.parse()
+        message = await raw.parse()
         assert isinstance(message, AnthropicMessage)
         return message
 
@@ -283,7 +283,7 @@ def anthropic_raw_response_beta_agent() -> Agent:
                     messages=ANTHROPIC_MESSAGES,  # type: ignore[arg-type]
                 )
                 assert raw.headers is not None
-                message = raw.parse()
+                message = await raw.parse()
                 assert isinstance(message, BetaMessage)
                 block = message.content[0]
                 assert isinstance(block, BetaTextBlock)
@@ -306,7 +306,6 @@ def anthropic_streaming_response_agent() -> Agent:
                     messages=ANTHROPIC_MESSAGES,  # type: ignore[arg-type]
                 ) as raw:
                     assert raw.headers is not None
-                    # unlike the legacy raw wrapper, this one parses async
                     message = await raw.parse()
                     assert isinstance(message, AnthropicMessage)
                     block = message.content[0]

@@ -59,10 +59,14 @@ def clean_proxy_env(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
-def timeout_of(client: Any) -> httpx.Timeout:
-    """The SDK client's timeout, which it types as `float | Timeout | None`."""
+def timeout_of(client: Any) -> Any:
+    """The SDK client's timeout, which it types as `float | Timeout | None`.
+
+    Returns `Any` because the two httpx flavors' `Timeout` classes are
+    unrelated, and which one a provider yields depends on its SDK.
+    """
     timeout = client.timeout
-    assert isinstance(timeout, httpx.Timeout)
+    assert isinstance(timeout, (httpx.Timeout, httpx2.Timeout))
     return timeout
 
 
@@ -530,7 +534,7 @@ _MESSAGE = {
 
 
 async def anthropic_transport_timeout(api: AnthropicAPI) -> dict[str, float]:
-    seen = capture_timeout(api.client._client, _MESSAGE)
+    seen = capture_timeout(api.client._client, _MESSAGE, httpx2)
     await api.client.messages.create(
         model="m", max_tokens=1, messages=[{"role": "user", "content": "hi"}]
     )
@@ -555,14 +559,15 @@ class TestAnthropicDefaults:
         assert seen["connect"] == DEFAULT_CONNECT_TIMEOUT
 
     def test_caller_http_client_wins(self) -> None:
-        supplied = httpx.AsyncClient()
+        supplied = httpx2.AsyncClient()
         assert anthropic_api(http_client=supplied).client._client is supplied
 
     def test_skipped_when_sdk_is_not_httpx_based(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        # A future httpx2-based SDK would reject our httpx objects, which is
-        # exactly how openai 3.0 broke every OpenAI-compatible request.
+        # The SDK's own default timeout is our flavor sentinel: if anthropic
+        # ever moves off httpx2, it would reject the httpx2 objects we build,
+        # which is exactly how openai 3.0 broke every OpenAI-compatible request.
         sdk_default = anthropic.DEFAULT_TIMEOUT
         monkeypatch.setattr(anthropic, "DEFAULT_TIMEOUT", object())
         assert timeout_of(anthropic_api().client).connect == sdk_default.connect
@@ -590,7 +595,7 @@ class TestAnthropicClientLifetime:
         # Only that we leave it alone. The SDK closes a caller-supplied client
         # on `aclose()` and the caller owns rebuilding it; that predates this
         # module, so do not read this as the client still being usable.
-        supplied = httpx.AsyncClient()
+        supplied = httpx2.AsyncClient()
         api = anthropic_api(http_client=supplied)
         await api.aclose()
         api.initialize()
