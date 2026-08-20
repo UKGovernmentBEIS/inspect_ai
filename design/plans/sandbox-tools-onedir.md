@@ -143,7 +143,7 @@ For the common remote-tool path the process only forwards bytes to the socket. T
 Estimated effect: ~200–400ms → ~50–150ms per `exec`. Separable; ship Phase 1 first.
 
 ## What stays unchanged (no edits)
-`scripts/pypi-release.py`, `.github/workflows/build_sandbox_tools.yml` (artifact glob),
+`scripts/pypi-release.py`,
 `pyproject.toml` (`binaries/*`) — all reference only the glibc names, so the wheel
 bundles glibc-only automatically. All tool controllers / RPC methods, `user_switch.py`,
 and both user-switching paths are untouched.
