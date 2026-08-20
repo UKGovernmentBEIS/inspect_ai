@@ -1,8 +1,13 @@
 # Verifying sandbox-tools binaries against digests pinned in git
 
 Design for meridianlabs-ai/inspect_ai#283. Status: implemented (in the same
-PR as this design; the `.claude/skills/release-sandbox-tools/SKILL.md` update
-described under "Process changes" is tracked separately).
+PR as this design), except two files the implementing agent could not push
+and which must be applied by a maintainer: the `.github/workflows/build.yml`
+changes described under "CI release gate" (the automation token lacks
+`workflow` scope — the exact tested change is committed alongside this doc
+as `binary-integrity-build-yml.patch`, apply with `git am`) and the
+`.claude/skills/release-sandbox-tools/SKILL.md` update described under
+"Process changes" (path write-protected for agents).
 
 ## Problem
 
