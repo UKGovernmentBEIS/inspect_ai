@@ -81,7 +81,7 @@ class EvalSetCaptureTask(BaseModel):
     """Model creation args (secrets redacted)."""
 
     model_roles: dict[str, str] | None = None
-    """Model role names mapped to model names."""
+    """Model role names mapped to model names (comma-separated for list-valued roles)."""
 
     sequence: int
     """Sequence of the task within its eval set."""
@@ -203,7 +203,12 @@ def build_eval_set_capture(
                 model=str(ModelName(task.model)),
                 model_args=model_args_for_log(task.model.model_args),
                 model_roles=(
-                    {k: str(ModelName(v)) for k, v in task.model_roles.items()}
+                    {
+                        k: ",".join(str(ModelName(m)) for m in v)
+                        if isinstance(v, list)
+                        else str(ModelName(v))
+                        for k, v in task.model_roles.items()
+                    }
                     if task.model_roles
                     else None
                 ),
