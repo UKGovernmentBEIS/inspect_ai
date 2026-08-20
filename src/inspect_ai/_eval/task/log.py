@@ -274,9 +274,9 @@ class TaskLogger:
         self.recorder = recorder
         self.header_only = header_only
 
-        # number of samples logged without error / logged at all
+        # number of samples logged without error / distinct samples logged
         self._samples_completed = 0
-        self._samples_logged = 0
+        self._logged_sample_keys: set[tuple[str | int, int]] = set()
 
         # size of flush buffer (how many samples we buffer before hitting storage)
         self.flush_buffer = eval_config.log_buffer or recorder.default_log_buffer(
@@ -364,7 +364,7 @@ class TaskLogger:
         await self._stop_stale_flush_timer()
         self.eval = self.eval.model_copy(update=dict(eval_id=uuid(), created=iso_now()))
         self._samples_completed = 0
-        self._samples_logged = 0
+        self._logged_sample_keys = set()
         self.flush_pending = []
         self.flush_quiet = []
         self.flush_quiet_retry = False
@@ -428,12 +428,15 @@ class TaskLogger:
 
         Unlike :attr:`samples_completed` this counts every logged sample —
         completed, errored, cancelled-with-transcript, and retry-reused
-        alike. Consumed at finalize when a graceful cancel/drain abandoned
-        queued samples, so eval-set's run-vs-reuse completeness check can
-        see that the log holds fewer samples than planned (see
+        alike — as *distinct* ``(id, epoch)`` keys: a re-log of the same
+        sample (a requeued sample's re-run superseding its errored record)
+        replaces the log entry rather than adding one, so it must not
+        inflate the count. Consumed at finalize when a graceful cancel/drain
+        abandoned queued samples, so eval-set's run-vs-reuse completeness
+        check can see that the log holds fewer samples than planned (see
         ``design/ctl/task-drain.md``).
         """
-        return self._samples_logged
+        return len(self._logged_sample_keys)
 
     @property
     def buffer_db(self) -> SampleBufferDatabase | None:
@@ -573,7 +576,7 @@ class TaskLogger:
             async with self._flush_pending_lock:
                 self.flush_quiet.append((sample.id, sample.epoch))
 
-        self._samples_logged += 1
+        self._logged_sample_keys.add((sample.id, sample.epoch))
         if sample.error is None:
             self._samples_completed += 1
 

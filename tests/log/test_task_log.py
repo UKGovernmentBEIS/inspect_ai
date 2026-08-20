@@ -283,6 +283,25 @@ async def test_task_logger_forwards_full_metadata_to_buffer() -> None:
     assert buffer_db.completed_metadata == [metadata]
 
 
+@pytest.mark.anyio
+async def test_task_logger_samples_logged_counts_distinct_samples() -> None:
+    # a re-log of the same (id, epoch) — a requeued sample's re-run — replaces
+    # the sample's log entry rather than adding one, so it must not inflate
+    # samples_logged (consumed by eval-set's completeness check: an inflated
+    # count could classify a drained log complete and silently drop the
+    # abandoned remainder)
+    logger = _flush_logger(flush_buffer=10)
+
+    await logger.complete_sample(_sample(), flush=False)
+    assert logger.samples_logged == 1
+    await logger.complete_sample(_sample(), flush=False)
+    assert logger.samples_logged == 1
+
+    other_epoch = EvalSample(id="sample", epoch=2, input="question", target="answer")
+    await logger.complete_sample(other_epoch, flush=False)
+    assert logger.samples_logged == 2
+
+
 @pytest.mark.parametrize(
     ("appended_key", "expected_pending"),
     [
