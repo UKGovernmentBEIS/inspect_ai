@@ -65,6 +65,14 @@ future graceful-drain action), and this CLI-light module is importable
 at ``inspect_ai._cli.ctl`` startup where ``log._samples`` is not.
 """
 
+SAMPLE_ALREADY_FINISHED_REASON = "sample already finished"
+"""``reason`` on the already-terminal cancel no-op row.
+
+Shared with the CLI renderer, which matches this literal to swap in a
+status-suffixed message — a constant keeps the coupling explicit so a
+rewording here can't silently degrade the rendering.
+"""
+
 
 def cancel_task(
     task_id: str,
@@ -279,7 +287,7 @@ async def cancel_sample(
         "dry_run": dry_run,
         "changed": False,
         "status": detail.get("status"),
-        "reason": "sample already finished",
+        "reason": SAMPLE_ALREADY_FINISHED_REASON,
     }
 
 
@@ -367,7 +375,16 @@ def _cancel_queued_sample(
     # already cancelled before start: the idempotent repeat no-op
     if handle.cancelled_state(sample_id, epoch) is not None:
         if action != "cancel":
-            return not_cancellable()
+            # not not_cancellable(): its "use `--action cancel`" hint would
+            # point at the no-op row below
+            return {
+                "ok": False,
+                "error": (
+                    f"sample {sample_id} (epoch {epoch}) was cancelled "
+                    "before it started — there is no work to score and "
+                    "no error to record"
+                ),
+            }
         return result(False, "cancelled", "already cancelled")
 
     # never started (or a retry_on_error re-park), parked at the queue

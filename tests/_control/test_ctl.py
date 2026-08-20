@@ -5565,6 +5565,61 @@ def test_sample_cancel_noop_human_output(monkeypatch: pytest.MonkeyPatch) -> Non
     assert "status: completed" in result.stdout
 
 
+def test_sample_cancel_queued_reason_wins(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The queued cancel rows render their reason, not the generic outcome.
+
+    "It will be recorded as cancelled" would misdescribe a sample that never
+    runs (design/ctl/queued-sample-cancel.md), so the accept renders the
+    server's reason; the "already cancelled" repeat renders its reason too
+    (only the already-finished row gets the status-suffixed message).
+    """
+    summary = _full_summary("aaa111", "t1")
+    summary["epochs"] = 1
+    _patch_surface(monkeypatch, [summary])
+    reason = "cancelled before start — removed from the queue"
+    spy = _RequestSpy(
+        {
+            "ok": True,
+            "sample_id": "s1",
+            "epoch": 1,
+            "changed": True,
+            "status": "cancelled",
+            "reason": reason,
+        }
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
+
+    args = ["sample", "cancel", "aaa111", "s1", "--action", "cancel"]
+    result = cli_runner().invoke(ctl_command, args + ["--no-terse"])
+    assert result.exit_code == 0, result.output
+    assert f"Cancelled sample s1 (epoch 1) — {reason}." in result.stdout
+    assert "will be recorded as cancelled" not in result.stdout
+
+    terse = cli_runner().invoke(ctl_command, args)
+    assert terse.exit_code == 0, terse.output
+    assert terse.stdout == f"cancel t1/s1 (epoch 1): {reason}\n"
+
+    noop_spy = _RequestSpy(
+        {
+            "ok": True,
+            "sample_id": "s1",
+            "epoch": 1,
+            "changed": False,
+            "status": "cancelled",
+            "reason": "already cancelled",
+        }
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", noop_spy)
+    noop = cli_runner().invoke(ctl_command, args + ["--no-terse"])
+    assert noop.exit_code == 0, noop.output
+    assert "Nothing to do — sample s1 (epoch 1): already cancelled." in noop.stdout
+    assert "has already finished" not in noop.stdout
+
+    terse_noop = cli_runner().invoke(ctl_command, args)
+    assert terse_noop.exit_code == 0, terse_noop.output
+    assert terse_noop.stdout == "cancel t1/s1 (epoch 1): no-op — already cancelled\n"
+
+
 def test_sample_mutation_terse_default_and_flags(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

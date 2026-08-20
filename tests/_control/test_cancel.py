@@ -795,11 +795,14 @@ async def test_cancel_never_started_accepted(
     assert repeat["reason"] == "already cancelled"
     assert state.cancelled == 1  # not double-counted
 
-    # score/error have nothing to act on — 409 pointing at --action cancel
+    # score/error have nothing to act on — a row-specific 409 (the parked
+    # rows' "--action cancel" hint would just point at the no-op above)
     for action in ("score", "error"):
         rejected = await cancel_sample("e1", "s2", 1, action=action)
         assert rejected is not None
-        assert rejected["ok"] is False and "--action cancel" in rejected["error"]
+        assert rejected["ok"] is False
+        assert "was cancelled before it started" in rejected["error"]
+        assert "--action cancel" not in rejected["error"]
 
 
 async def test_cancel_never_started_score_error_409_when_parked(

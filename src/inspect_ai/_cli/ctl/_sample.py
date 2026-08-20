@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 import click
 
+from inspect_ai._control.cancel import SAMPLE_ALREADY_FINISHED_REASON
 from inspect_ai._control.state import DEFAULT_SAMPLE_LIST_LIMIT, SAMPLE_STATUSES
 
 # Patch seam: tests monkeypatch functions on their defining module
@@ -766,7 +767,7 @@ def _run_sample_cancel(
 
     def noop_message(label: str, result: dict[str, Any]) -> str:
         reason = result.get("reason")
-        if reason and reason != "sample already finished":
+        if reason and reason != SAMPLE_ALREADY_FINISHED_REASON:
             return f"Nothing to do — {label}: {_sanitize_line(str(reason))}."
         status = result.get("status")
         suffix = f" (status: {_sanitize_line(str(status))})" if status else ""
@@ -783,7 +784,7 @@ def _run_sample_cancel(
 
     def terse_noop(result: dict[str, Any]) -> str:
         reason = result.get("reason")
-        if reason and reason != "sample already finished":
+        if reason and reason != SAMPLE_ALREADY_FINISHED_REASON:
             return f"no-op — {_sanitize_line(str(reason))}"
         status = result.get("status")
         suffix = f" (status: {_sanitize_line(str(status))})" if status else ""
