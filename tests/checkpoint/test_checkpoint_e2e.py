@@ -157,8 +157,23 @@ def _run_interrupted_attempt(
         )
 
 
-def _inspect_projects() -> set[str]:
-    """Names of inspect docker compose projects currently known to docker."""
+def _project_prefix(task_name: str) -> str:
+    """Compose-project name prefix for evals of `task_name`.
+
+    Mirrors `task_project_name` in inspect's docker provider
+    (`inspect-{task[:12].rstrip('_')}-i{suffix}`), minus the random suffix.
+    """
+    return f"inspect-{task_name[:12].rstrip('_')}-"
+
+
+def _inspect_projects(prefix: str) -> set[str]:
+    """Names of this harness's docker compose projects currently known to docker.
+
+    Must be scoped to this test's own task (`prefix`): docker state is
+    machine-global, and under xdist a global before/after diff sweeps up —
+    and force-removes — live containers belonging to concurrently running
+    tests on other workers (#264).
+    """
     result = subprocess.run(
         ["docker", "compose", "ls", "--all", "--format", "json"],
         capture_output=True,
@@ -170,9 +185,7 @@ def _inspect_projects() -> set[str]:
         projects = json.loads(result.stdout or "[]")
     except json.JSONDecodeError:
         return set()
-    return {
-        p.get("Name", "") for p in projects if p.get("Name", "").startswith("inspect-")
-    }
+    return {p.get("Name", "") for p in projects if p.get("Name", "").startswith(prefix)}
 
 
 def _project_container_ids(name: str) -> list[str]:
@@ -306,7 +319,8 @@ def test_checkpoint_resume_restores_assistant_internal(
     crash_file.unlink(missing_ok=True)
     shutil.rmtree(log_dir, ignore_errors=True)
 
-    projects_before = _inspect_projects()
+    prefix = _project_prefix("resume_thinking_task")
+    projects_before = _inspect_projects(prefix)
     try:
         _run_interrupted_attempt(
             log_dir, None, tests_dir, harness_name="resume_kill_thinking_harness.py"
@@ -323,7 +337,7 @@ def test_checkpoint_resume_restores_assistant_internal(
             read_eval_log(killed_log), log_dir=log_dir, display="plain"
         )[0]
     finally:
-        for name in _inspect_projects() - projects_before:
+        for name in _inspect_projects(prefix) - projects_before:
             _force_remove_project(name)
 
     assert resume.status == "success"
@@ -369,16 +383,18 @@ def test_checkpoint_resume_rehydrated_event_layout(
     tests_dir = Path(__file__).parent.parent
 
     # A hard kill skips sandbox teardown, so each killed attempt leaks its
-    # sandbox container. Track inspect projects before/after and force-remove
-    # the ones this test leaks (the final resume cleans up its own).
-    projects_before = _inspect_projects()
+    # sandbox container. Track this harness's projects before/after and
+    # force-remove the ones this test leaks (the final resume cleans up its
+    # own).
+    prefix = _project_prefix("resume_decode_task")
+    projects_before = _inspect_projects(prefix)
     try:
         # --- attempt #0: fresh eval, interrupted at turn 2 (after ck1/ck2) --
         _run_interrupted_attempt(log_dir, None, tests_dir, interrupt)
 
         leaked = [
             cid
-            for name in _inspect_projects() - projects_before
+            for name in _inspect_projects(prefix) - projects_before
             for cid in _project_container_ids(name)
         ]
         if interrupt == "SIGKILL":
@@ -396,7 +412,7 @@ def test_checkpoint_resume_rehydrated_event_layout(
         reset_generates()
         resume = eval_retry(read_eval_log(_latest_log(log_dir)), log_dir=log_dir)[0]
     finally:
-        for name in _inspect_projects() - projects_before:
+        for name in _inspect_projects(prefix) - projects_before:
             _force_remove_project(name)
 
     assert resume.status == "success"
