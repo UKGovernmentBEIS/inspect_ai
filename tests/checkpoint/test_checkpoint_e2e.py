@@ -161,7 +161,7 @@ def _inspect_projects(prefix: str) -> set[str]:
     Must be scoped to this test's own task (`prefix`): docker state is
     machine-global, and under xdist a global before/after diff sweeps up —
     and force-removes — live containers belonging to concurrently running
-    tests on other workers (meridianlabs-ai/actions#264).
+    tests on other workers (#264).
     """
     result = subprocess.run(
         ["docker", "compose", "ls", "--all", "--format", "json"],
