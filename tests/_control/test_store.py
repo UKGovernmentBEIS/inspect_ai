@@ -109,6 +109,16 @@ async def test_running_sample_serves_live_store(
     assert page["count"] == 3
     assert "best_score" in page["store"]
 
+    # a just-finished sample still lingering in active_samples is "completed"
+    monkeypatch.setattr(
+        samples_mod,
+        "active_samples",
+        lambda: [_fake_running_sample(store, completed=True)],
+    )
+    page = await sample_store("e1", "1", 1)
+    assert page is not None
+    assert page["status"] == "completed"
+
 
 async def test_running_sample_key_filter_and_projection_tiers(
     monkeypatch: pytest.MonkeyPatch,
