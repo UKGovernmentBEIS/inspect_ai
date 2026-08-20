@@ -32,6 +32,7 @@ from ._group import (
 )
 from ._mutate import (
     _CANCEL_ROUTE_MISSING,
+    _DRAIN_ROUTE_MISSING,
     _HELD_CAVEAT,
     _PAUSE_ROUTE_MISSING,
     _mutation_envelope,
@@ -60,7 +61,7 @@ def task_group(ctx: click.Context, /, **mirrored: Any) -> None:
     """Operate on the tasks of running evals (bare `task` lists them).
 
     Task ids are stable across retries and are the TASK selector other
-    commands take. `add` / `drain` are planned but not yet available.
+    commands take. `add` is planned but not yet available.
     """
     if ctx.invoked_subcommand is None:
         ctx.invoke(task_list_command, **mirrored)
@@ -140,12 +141,14 @@ def task_cancel_command(
     In-flight samples are resolved per `--action`; completed samples are
     always kept, and an eval-set will not retry a cancelled task.
     Idempotent — cancelling a finished or already-cancelling task is a
-    clean no-op (a plain cancel does escalate over a pending score/error
-    resolution, so a stalled graceful cancel can still be torn down). A
-    task between attempts (last attempt errored, retry queued but not
-    started) is rejected — re-issue once the retry starts. To cancel a
-    single sample, use `inspect ctl sample cancel`. TASK (a task-id prefix
-    or name) is always required.
+    clean no-op (a strictly weaker pending resolution is escalated over,
+    per the ladder drain < score/error < cancel, so a stalled graceful
+    cancel or drain can still be resolved or torn down). A task between
+    attempts (last attempt errored, retry queued but not started) has its
+    pending retry abandoned by a plain cancel — the task ends with its
+    last attempt's error log — while score/error are rejected there. To
+    cancel a single sample, use `inspect ctl sample cancel`. TASK (a
+    task-id prefix or name) is always required.
     """
     _run_task_cancel(
         task,
@@ -154,6 +157,42 @@ def task_cancel_command(
         as_json=as_json,
         terse=terse,
     )
+
+
+@task_group.command("drain")
+@click.argument("task")
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    default=False,
+    help="Report what would be drained without doing it.",
+)
+@_json_option(_MUTATION_ENVELOPE_HELP)
+@_terse_option()
+def task_drain_command(
+    task: str, dry_run: bool, as_json: bool, terse: bool | None
+) -> None:
+    """Drain a running task: stop new samples, let in-flight ones finish.
+
+    In-flight samples run to natural completion — solving, scoring, log
+    writes, on their own clock (an hour-long agentic sample runs for its
+    hour); queued samples are abandoned as slots free; the task then
+    completes with its ordinary terminal status, and an eval-set will not
+    retry it. Not reversible (to stop and later continue, use `inspect ctl
+    task pause` instead); the abandoned remainder stays runnable via a later
+    explicit `inspect eval-retry` (or re-invoking `inspect eval-set` on the
+    log dir). Watch the `resolving` field in `inspect ctl task list --json`
+    to tell a draining tail from a stall. If the drain is taking too long,
+    escalate: `task cancel --action score` resolves in-flight samples now
+    (and concludes a drain held up by a hard `pause --now`, whose held
+    samples a drain never touches), and a plain `task cancel` tears the task
+    down. A task between attempts (last attempt errored, retry queued but
+    not started) has its pending retry abandoned — the task ends with its
+    last attempt's error log. Idempotent — draining a finished, draining, or
+    already-cancelling task is a clean no-op. TASK (a task-id prefix or
+    name) is always required.
+    """
+    _run_task_drain(task, dry_run=dry_run, as_json=as_json, terse=terse)
 
 
 @task_group.command("pause")
@@ -341,7 +380,9 @@ def _run_task_cancel(
     if not terse_mode:
         _echo(scope.header)
         _echo()
-    if result.get("changed"):
+    if result.get("changed") and result.get("retry_abandoned"):
+        _echo_retry_abandoned("cancel", target_label, dry_run=dry_run, terse=terse_mode)
+    elif result.get("changed"):
         in_flight = int(result.get("in_flight", 0) or 0)
         outcome = {
             "cancel": "interrupted",
@@ -376,6 +417,111 @@ def _run_task_cancel(
         reason = _sanitize_line(str(result.get("reason") or "already in that state"))
         if terse_mode:
             _echo(_terse_line("cancel", target_label, f"no-op — {reason}"))
+        else:
+            _echo(f"Nothing to do: {reason}.")
+
+
+def _echo_retry_abandoned(
+    verb: str, target_label: str, *, dry_run: bool, terse: bool
+) -> None:
+    """The between-attempts outcome shared by cancel and drain.
+
+    Both verbs resolve a task between attempts (last attempt errored, retry
+    queued but not started) the same way — the pending retry is abandoned
+    and the task ends with its last attempt's error log — so both render it
+    identically.
+    """
+    body = (
+        f"pending retry {'would be' if dry_run else 'is'} abandoned — the task "
+        f"{'would end' if dry_run else 'ends'} with its last attempt's error log"
+    )
+    if terse:
+        status = "dry-run" if dry_run else "requested"
+        _echo(_terse_line(verb, target_label, f"{status} — {body}"))
+    elif dry_run:
+        _echo(f"Would {verb} — {body}.")
+    else:
+        _echo(f"{verb.capitalize()} requested — {body}.")
+
+
+@_envelope_failures
+def _run_task_drain(
+    task: str,
+    *,
+    dry_run: bool,
+    as_json: bool,
+    terse: bool | None = None,
+) -> None:
+    servers = _http.list_discovered_servers()
+    summaries = _fetch._fetch_summaries(servers).summaries
+    scope = _resolve_scope(servers, summaries, task, per_task_option="task drain")
+    if scope is None:
+        if as_json:
+            _echo_raw("null")
+            return
+        _echo_no_running_evals()
+        return
+    assert scope.task_id is not None
+
+    params: dict[str, Any] = {}
+    if dry_run:
+        params["dry_run"] = True
+    # idempotent (a repeat drain is a clean no-op), so it may ride the
+    # narrated busy-retry policy like cancel
+    result = _http._request_json(
+        scope.socket_path,
+        f"/tasks/{scope.task_id}/drain",
+        params=params,
+        what=f"drain of task {scope.task_id}",
+        not_found=(
+            f"Task '{scope.task_id}' not found in this process (it may have finished)."
+        ),
+        not_found_missing_route=_DRAIN_ROUTE_MISSING,
+        mutate="post",
+        retry_mutation=True,
+        pid=scope.pid,
+    )
+
+    if as_json:
+        target = {"task_id": scope.task_id, "task": scope.task}
+        _echo_raw(
+            json_lib.dumps(
+                _mutation_envelope(target, result, dry_run=dry_run), indent=2
+            )
+        )
+        return
+
+    terse_mode = _use_terse(terse)
+    target_label = scope.task or scope.task_id
+    if not terse_mode:
+        _echo(scope.header)
+        _echo()
+    if result.get("changed") and result.get("retry_abandoned"):
+        _echo_retry_abandoned("drain", target_label, dry_run=dry_run, terse=terse_mode)
+    elif result.get("changed"):
+        in_flight = int(result.get("in_flight", 0) or 0)
+        queued = int(result.get("queued", 0) or 0)
+        will = "would" if dry_run else "will"
+        body = (
+            f"{in_flight} in-flight sample{'' if in_flight == 1 else 's'} "
+            f"{will} finish naturally; "
+            f"{queued} queued sample{'' if queued == 1 else 's'} "
+            f"{will} be abandoned and the task {will} complete"
+        )
+        if terse_mode:
+            status = "dry-run" if dry_run else "requested"
+            _echo(_terse_line("drain", target_label, f"{status} — {body}"))
+        elif dry_run:
+            _echo(f"Would drain — {body}.")
+        else:
+            _echo(
+                f"Drain requested — {body}. Escalate with `inspect ctl task "
+                "cancel --action score` to resolve in-flight samples now."
+            )
+    else:
+        reason = _sanitize_line(str(result.get("reason") or "already in that state"))
+        if terse_mode:
+            _echo(_terse_line("drain", target_label, f"no-op — {reason}"))
         else:
             _echo(f"Nothing to do: {reason}.")
 

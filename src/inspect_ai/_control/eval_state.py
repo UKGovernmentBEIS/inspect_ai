@@ -332,9 +332,11 @@ class EvalState:
     :attr:`completed_at` as "task finished" (eg. task cancel) can answer
     honestly during the window between attempts — the retry registers its
     own :class:`EvalState` only when it actually starts, and until then
-    this errored attempt is the task's latest. Never cleared: once the
-    retry starts, :func:`latest_eval_for_task` resolves to its fresh
-    state and this one is no longer consulted."""
+    this errored attempt is the task's latest. Cleared only by
+    :func:`abandon_task_retry` (a task drain/cancel abandoning the queued
+    retry, so the task reads terminal the moment the directive returns);
+    otherwise never — once the retry starts, :func:`latest_eval_for_task`
+    resolves to its fresh state and this one is no longer consulted."""
 
     total_tokens: int = 0
     """Cumulative model tokens used by this eval's terminal samples.
@@ -761,6 +763,50 @@ def mark_eval_retry_pending(eval_id: str) -> None:
             state.retry_pending = True
 
 
+# Tasks whose queued/requested eval-set retry has been abandoned by a task
+# drain/cancel (see design/ctl/task-drain.md "Tasks between attempts").
+# Task-id keyed (the stable across-retry handle) and reset at the run
+# boundary like the pause-gate registries.
+_retry_abandoned_tasks: set[str] = set()
+
+
+def abandon_task_retry(task_id: str) -> None:
+    """Abandon a task's queued/requested eval-set retry (task drain/cancel).
+
+    Stamps the task in the retry-abandoned registry — consumed by the run
+    dispatcher, which drops a queued retry at its next pick, skips
+    constructing one at its retry decision, and bails a retry attempt that
+    was dequeued but has not yet registered its :class:`EvalState` (see
+    ``_eval/run.py``). Synchronously clears :attr:`EvalState.retry_pending`
+    on the task's attempts (so the task reads terminal on the read surface
+    the moment the directive returns, and a repeat request takes the
+    idempotent no-op) and :attr:`EvalState.will_retry` (no re-run is coming,
+    so cancelled samples must render terminal rather than ``pending``).
+    Fires the dispatch wakers so a queued retry is dropped promptly.
+    """
+    from inspect_ai._control.pause import fire_dispatch_wakers
+
+    with _lock:
+        _retry_abandoned_tasks.add(task_id)
+        for state in _eval_states.values():
+            if state.task_id == task_id:
+                state.retry_pending = False
+                state.will_retry = False
+    fire_dispatch_wakers()
+
+
+def task_retry_abandoned(task_id: str) -> bool:
+    """Whether a task drain/cancel has abandoned this task's pending retry."""
+    with _lock:
+        return task_id in _retry_abandoned_tasks
+
+
+def reset_retry_abandoned() -> None:
+    """Reset the retry-abandoned registry (run boundary — see :func:`reset_run_registries`)."""
+    with _lock:
+        _retry_abandoned_tasks.clear()
+
+
 def detach_eval_live(eval_id: str) -> None:
     """Detach a superseded attempt's live data source.
 
@@ -918,6 +964,7 @@ def reset_run_registries() -> None:
     from inspect_ai.util._limit_overrides import reset_sample_limit_overrides
 
     clear_all_eval_states()
+    reset_retry_abandoned()
     reset_generate_config_overrides()
     reset_sample_limit_overrides()
     reset_process_config_updates()

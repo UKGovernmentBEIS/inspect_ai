@@ -1209,8 +1209,20 @@ def log_samples_complete(
     epoch_count = epochs.epochs if epochs else 1
 
     count = samples_for_limit(len(task.task.dataset), limit)
+    planned = count * epoch_count
 
-    if log.header.results.total_samples < count * epoch_count:
+    # a graceful cancel/drain abandons queued samples but still finishes with
+    # a success log whose total_samples records the *planned* count — such
+    # logs carry the count of samples actually logged (stamped at finalize;
+    # see _finish_task_log in task/run.py), so prefer it when present. Absent
+    # on ordinary logs (and logs from older versions), which fall through to
+    # the planned-count comparison below.
+    metadata = log.header.results.metadata or {}
+    logged_samples = metadata.get("logged_samples")
+    if isinstance(logged_samples, int):
+        return logged_samples >= planned
+
+    if log.header.results.total_samples < planned:
         return False
     return True
 

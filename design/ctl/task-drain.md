@@ -1,6 +1,11 @@
 # Task Drain (`inspect ctl task drain`)
 
-> **Status: designed, not implemented.** Companion to
+> **Status: implemented** (`inspect ctl task drain` / `POST
+> /tasks/<task-id>/drain`, the between-attempts retry-abandon, the
+> `resolving` read-surface field, the `will_retry` fix, and the eval-set
+> resumability count — see "Implementation notes" at the end for the two
+> places the implementation spells a mechanism differently than sketched
+> here). Companion to
 > [`control-channel.md`](control-channel.md) (which owns the control-channel
 > architecture and reserved this directive's endpoint slot) and
 > [`pause-resume.md`](pause-resume.md) (which built the stop-dispatching gate
@@ -525,3 +530,35 @@ by awaits.
 - **A drain deadline** (`--for DURATION`, auto-escalate to `--action score`
   after N minutes). An agent can compose this with two commands and a poll
   of `resolving`; build only on demonstrated demand.
+
+## Implementation notes
+
+Two places the shipped implementation spells a mechanism differently than
+the sketch above; the semantics are as designed.
+
+- **The logged-samples count lives in `results.metadata`, not a first-class
+  `EvalResults` field.** Adding a field to `EvalResults` changes the log
+  schema, which requires the coordinated ts-mono type-regeneration dance
+  (cross-repo PR + gitlink bump — see `.claude/skills/land-ts-mono`);
+  `EvalResults.metadata` is an existing free-form field, so
+  `results.metadata["logged_samples"]` is additive with no schema change.
+  `log_samples_complete` prefers it when present exactly as designed
+  (absent on ordinary and older logs → today's classification). Promotion
+  to a first-class `EvalResults.logged_samples` can ride a future schema
+  regeneration.
+- **The count is stamped only on graceful-resolution finalizes** (a stamped
+  `"score"` / `"error"` / `"drain"`), not on every finalize. A blanket
+  stamp would flip *legitimately* fewer-samples success logs — early
+  stopping being the concrete case — to "incomplete", and an eval-set
+  re-invocation would wrongly re-run their unrun samples. Scoping the stamp
+  to the graceful resolutions repairs exactly the gap this design targets
+  (abandoned queued samples) while leaving every other success log's
+  classification untouched.
+
+Two mechanics from the sketch also landed slightly differently, without
+changing behavior: the dispatch-pick drop runs at the top of the dispatch
+loop (immediately before `pick_balanced`, still ahead of its pause filter),
+and the attempt-start self-check raises a dedicated
+`TaskRetryAbandonedError` (from the synchronous check adjacent to
+`register_eval`) which `_run_task` maps to the `TaskRunResult.abandoned`
+sentinel.

@@ -638,7 +638,13 @@ def remove_dispatch_waker(waker: Callable[[], None]) -> None:
         pass
 
 
-def _fire_dispatch_wakers() -> None:
+def fire_dispatch_wakers() -> None:
+    """Wake the run dispatcher(s) so they re-evaluate dispatch state.
+
+    Fired on any state change the dispatch loop must react to: pause/resume
+    latch changes, and a task drain/cancel abandoning a queued retry (the
+    dispatch pick drops it — see ``eval_state.abandon_task_retry``).
+    """
     for waker in list(_dispatch_wakers):
         waker()
 
@@ -658,7 +664,7 @@ def wake_pause_waiters() -> None:
         gate.wake()
     for gate in _model_gates.values():
         gate.wake()
-    _fire_dispatch_wakers()
+    fire_dispatch_wakers()
 
 
 def reset_task_pause_gates() -> None:
@@ -760,7 +766,7 @@ async def resume_task(task_id: str, *, dry_run: bool = False) -> dict[str, Any] 
         result["paused_now"] = (
             task_pause_now_sources(state.task_id, state.model or None) or None
         )
-        _fire_dispatch_wakers()
+        fire_dispatch_wakers()
     return {**result, "changed": True}
 
 
@@ -807,7 +813,7 @@ async def resume_process(*, dry_run: bool = False) -> dict[str, Any]:
     changed = _process_gate.paused
     if changed and not dry_run:
         _process_gate.resume()
-        _fire_dispatch_wakers()
+        fire_dispatch_wakers()
     return {
         "ok": True,
         "paused": _process_gate.paused,
@@ -938,7 +944,7 @@ async def resume_model(model: str, *, dry_run: bool = False) -> dict[str, Any] |
         gate.resume()
         result["paused"] = False
         result["now"] = False
-        _fire_dispatch_wakers()
+        fire_dispatch_wakers()
     return {**result, "changed": True}
 
 

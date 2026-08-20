@@ -269,6 +269,9 @@ async def current_eval_summaries(started_at: float) -> list[dict[str, Any]]:
                 "paused_now": ["process"] if process_paused_now() else None,
                 "quiesced": False,
                 "held": 0,
+                # pre-registration, so no cancel handle exists to carry a
+                # pending graceful resolution
+                "resolving": None,
                 "attempts": 1,
                 "samples": {
                     "total": 0,
@@ -1220,6 +1223,21 @@ def _build_summary(
     )
     held = task_held_count(latest.task_id)
 
+    # the pending graceful resolution, if any — "drain" / "score" / "error"
+    # (never "abort"/"retry", which tear the task down rather than leaving it
+    # running toward a resolution). What lets a poller tell a draining tail
+    # from a stall: drain's window is long by design and the counters offer
+    # no early signal (queued samples abandon only as slots free), and the
+    # same field makes a stalled score/error resolution (hung scorer)
+    # visible. Purely additive — an older CLI ignores it.
+    resolving = (
+        latest.task_cancel.cancel_type
+        if completed_at is None
+        and latest.task_cancel is not None
+        and latest.task_cancel.cancel_type in ("drain", "score", "error")
+        else None
+    )
+
     # Usage = the accumulated total for terminal samples (survives them
     # leaving active_samples — "usage so far") plus the live usage of the
     # in-flight ones. A sample is in exactly one bucket: it's accumulated at
@@ -1260,6 +1278,7 @@ def _build_summary(
         "paused_now": paused_now,
         "quiesced": quiesced,
         "held": held,
+        "resolving": resolving,
         "attempts": attempts,
         # Planned epoch count. `ctl sample cancel` uses it to require an
         # explicit EPOCH when the task runs more than one (a defaulted epoch

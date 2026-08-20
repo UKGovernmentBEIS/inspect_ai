@@ -1,9 +1,10 @@
-"""Tests for the control-channel cancel directives (phase 3).
+"""Tests for the control-channel cancel and drain directives (phase 3).
 
-Covers the directive functions in ``inspect_ai._control.cancel`` (task cancel:
-task-keyed, resolved to the latest attempt's registered ``TaskCancel``; sample
-cancel: interrupt via ``ActiveSample.interrupt``) and the server routes that
-wrap them (``POST /tasks/<id>/cancel``, ``POST /evals/<id>/sample/cancel``).
+Covers the directive functions in ``inspect_ai._control.cancel`` (task
+cancel/drain: task-keyed, resolved to the latest attempt's registered
+``TaskCancel``; sample cancel: interrupt via ``ActiveSample.interrupt``) and
+the server routes that wrap them (``POST /tasks/<id>/cancel``,
+``POST /tasks/<id>/drain``, ``POST /evals/<id>/sample/cancel``).
 """
 
 from typing import Any, Literal
@@ -12,7 +13,7 @@ import httpx
 import pytest
 from test_helpers.live_eval_data import FakeLiveEvalData
 
-from inspect_ai._control.cancel import cancel_sample, cancel_task
+from inspect_ai._control.cancel import cancel_sample, cancel_task, drain_task
 from inspect_ai._control.eval_state import (
     clear_all_eval_states,
     get_eval_state,
@@ -20,6 +21,8 @@ from inspect_ai._control.eval_state import (
     record_sample_errored,
     register_completed_eval,
     register_eval,
+    reset_retry_abandoned,
+    task_retry_abandoned,
 )
 from inspect_ai._display.core.display import CancelType, TaskCancel
 
@@ -27,8 +30,10 @@ from inspect_ai._display.core.display import CancelType, TaskCancel
 @pytest.fixture(autouse=True)
 def _clear_states():
     clear_all_eval_states()
+    reset_retry_abandoned()
     yield
     clear_all_eval_states()
+    reset_retry_abandoned()
 
 
 class _FakeTaskCancel(TaskCancel):
@@ -125,13 +130,15 @@ def test_cancel_task_repeat_is_idempotent_noop() -> None:
     assert handle.fired == ["abort"]  # fired exactly once
 
 
-def test_cancel_task_pending_retry_cancel_named_in_noop() -> None:
-    """A no-op against a pending *retry* cancel must say so.
+def test_cancel_task_pending_retry_abandons_requested_retry() -> None:
+    """A plain cancel against a pending *retry* stamp abandons the retry.
 
-    The TUI's cancel dialog can fire a retry-cancel on the same handle; an
-    abort issued while that tears down no-ops, but the task will be
-    re-queued — the reason names the pending type so the caller knows the
-    task is not going away.
+    The attempt requested a re-run and is still tearing down (before the
+    dispatcher queues the retry). A no-op here would silently drop the
+    intent — the retry would dispatch the whole task fresh — so the
+    directive stamps the retry-abandoned registry instead; the tearing-down
+    attempt itself is untouched (no abort is fired — its scope has already
+    fired).
     """
     handle = _FakeTaskCancel(can_retry=True)
     register_eval("e1", 5, task_id="t1", task_cancel=handle)
@@ -139,9 +146,52 @@ def test_cancel_task_pending_retry_cancel_named_in_noop() -> None:
 
     result = cancel_task("t1")
     assert result is not None
+    assert result["changed"] is True and result["retry_abandoned"] is True
+    assert handle.fired == ["retry"]  # the abort was not fired
+    assert task_retry_abandoned("t1")
+
+    # a repeat consults the registry and takes the idempotent no-op — only
+    # the first request reports the abandonment
+    repeat = cancel_task("t1")
+    assert repeat is not None
+    assert repeat["changed"] is False
+    assert repeat["reason"] == "pending retry already abandoned"
+
+
+def test_cancel_task_pending_retry_score_error_stay_noop() -> None:
+    """Score/error against a pending retry stamp stay the named no-op.
+
+    The attempt's samples are already resolved — there is nothing for a
+    resolution to apply to, mirroring their between-attempts rejection.
+    """
+    handle = _FakeTaskCancel(can_retry=True)
+    register_eval("e1", 5, task_id="t1", task_cancel=handle)
+    handle.cancel_task("retry")
+
+    result = cancel_task("t1", action="score")
+    assert result is not None
     assert result["changed"] is False
     assert result["reason"] == "cancel already requested (retry)"
-    assert handle.fired == ["retry"]  # the abort was not fired
+    assert not task_retry_abandoned("t1")
+
+
+def test_cancel_task_pending_retry_without_budget_is_noop() -> None:
+    """A retry request that will not be honored has nothing to abandon.
+
+    The dispatcher honors a "retry" stamp only with budget remaining
+    (mirrored by ``TaskCancel.can_retry``), so when it is false no retry is
+    coming — ``changed: true`` would claim an abandonment that never
+    happens.
+    """
+    handle = _FakeTaskCancel(can_retry=False)
+    register_eval("e1", 5, task_id="t1", task_cancel=handle)
+    handle.cancel_task("retry")
+
+    result = cancel_task("t1")
+    assert result is not None
+    assert result["changed"] is False
+    assert "retry request will not be honored" in result["reason"]
+    assert not task_retry_abandoned("t1")
 
 
 def test_cancel_task_finished_is_idempotent_noop() -> None:
@@ -151,8 +201,15 @@ def test_cancel_task_finished_is_idempotent_noop() -> None:
     assert result["changed"] is False and "finished" in result["reason"]
 
 
-def test_cancel_task_between_attempts_rejected() -> None:
-    """An errored attempt with a retry queued must not report "finished"."""
+def test_cancel_task_between_attempts_abandons_pending_retry() -> None:
+    """A plain cancel of a between-attempts task abandons the queued retry.
+
+    The task ends with its last attempt's error log (exactly the shape an
+    exhausted retry budget produces): the registry is stamped for the
+    dispatcher to consume, ``retry_pending`` is cleared synchronously so the
+    task reads terminal the moment the directive returns, and ``will_retry``
+    is cleared so cancelled samples stop rendering ``pending``.
+    """
     handle = _FakeTaskCancel(can_retry=True)
     register_eval("e1", 1, task_id="t1", will_retry=True, task_cancel=handle)
     record_sample_errored("e1")  # attempt finishes (completed_at stamped) ...
@@ -160,8 +217,53 @@ def test_cancel_task_between_attempts_rejected() -> None:
 
     result = cancel_task("t1")
     assert result is not None
+    assert result["ok"] is True
+    assert result["changed"] is True and result["retry_abandoned"] is True
+    assert handle.fired == []  # nothing running to fire
+    assert task_retry_abandoned("t1")
+    state = get_eval_state("e1")
+    assert state is not None
+    assert state.retry_pending is False and state.will_retry is False
+
+    # a repeat sees the registry stamp, not "task already finished"
+    repeat = cancel_task("t1")
+    assert repeat is not None
+    assert repeat["changed"] is False
+    assert repeat["reason"] == "pending retry already abandoned"
+
+
+def test_cancel_task_between_attempts_dry_run_does_not_abandon() -> None:
+    handle = _FakeTaskCancel(can_retry=True)
+    register_eval("e1", 1, task_id="t1", will_retry=True, task_cancel=handle)
+    record_sample_errored("e1")
+    mark_eval_retry_pending("e1")
+
+    result = cancel_task("t1", dry_run=True)
+    assert result is not None
+    assert result["changed"] is True and result["retry_abandoned"] is True
+    assert not task_retry_abandoned("t1")
+    state = get_eval_state("e1")
+    assert state is not None and state.retry_pending is True
+
+
+def test_cancel_task_between_attempts_score_error_rejected() -> None:
+    """Score/error on a between-attempts task remain a rejection.
+
+    There are no samples, queued or in-flight, for a resolution to apply to
+    — the error points at a plain cancel (or drain) instead of the old
+    "re-issue once the retry is running".
+    """
+    handle = _FakeTaskCancel(can_retry=True)
+    register_eval("e1", 1, task_id="t1", will_retry=True, task_cancel=handle)
+    record_sample_errored("e1")
+    mark_eval_retry_pending("e1")
+
+    result = cancel_task("t1", action="score")
+    assert result is not None
     assert result["ok"] is False and "between attempts" in result["error"]
+    assert "drain" in result["error"]
     assert handle.fired == []
+    assert not task_retry_abandoned("t1")
 
 
 def test_cancel_task_after_pending_retry_starts() -> None:
@@ -376,6 +478,192 @@ def test_cancel_task_abort_escalates_over_pending_resolution(
     assert repeat["reason"] == "cancel already requested (abort)"
 
 
+def test_cancel_task_stamp_clears_will_retry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Stamping any type but "retry" clears the attempt's will_retry.
+
+    Every other stamped type suppresses the eval-set's in-run retry, so a
+    cancelled sample must render terminal rather than `pending` ("re-run
+    coming") on the read surface.
+    """
+    handle = _FakeTaskCancel(can_retry=True)
+    register_eval("e1", 5, task_id="t1", will_retry=True, task_cancel=handle)
+    _patch_active_samples(monkeypatch, [])
+
+    assert (cancel_task("t1", action="score") or {})["changed"] is True
+    state = get_eval_state("e1")
+    assert state is not None and state.will_retry is False
+
+
+# ---------------------------------------------------------------------------
+# drain_task directive
+# ---------------------------------------------------------------------------
+
+
+def test_drain_task_stamps_without_sweeping(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Drain stamps the handle and interrupts nothing.
+
+    In-flight samples are never touched (they finish naturally); the stamp
+    alone is what queued/initializing samples observe.
+    """
+    handle = _FakeTaskCancel(can_retry=True)
+    register_eval(
+        "e1", 5, task_id="t1", task="my_task", will_retry=True, task_cancel=handle
+    )
+    running = _FakeActiveSample(sample_id="s1")
+    initializing = _FakeActiveSample(sample_id="s2", started=None)
+    _patch_active_samples(monkeypatch, [running, initializing])
+
+    result = drain_task("t1")
+    assert result is not None
+    assert result["ok"] is True and result["changed"] is True
+    assert result["task_id"] == "t1" and result["eval_id"] == "e1"
+    assert "action" not in result
+    assert handle.fired == ["drain"]  # stamped, nothing torn down
+    assert running.interrupts == [] and initializing.interrupts == []
+    # no re-run is coming — cancelled samples must read terminal
+    state = get_eval_state("e1")
+    assert state is not None and state.will_retry is False
+
+
+def test_drain_task_reports_in_flight_queued_split(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The result carries the split the operator weighs: finish vs abandon."""
+    handle = _FakeTaskCancel()
+    register_eval("e1", 5, task_id="t1", task_cancel=handle)
+    running = _FakeActiveSample(sample_id="s1")
+    _patch_active_samples(monkeypatch, [running])
+
+    result = drain_task("t1", dry_run=True)
+    assert result is not None
+    assert result["in_flight"] == 1 and result["queued"] == 4
+    assert handle.fired == []  # dry run
+
+
+def test_drain_task_unknown_is_none() -> None:
+    assert drain_task("nope") is None
+
+
+def test_drain_task_finished_is_idempotent_noop() -> None:
+    register_completed_eval("e1", total=5, completed=5, task_id="t1")
+    result = drain_task("t1")
+    assert result is not None
+    assert result["changed"] is False and "finished" in result["reason"]
+
+
+def test_drain_task_repeat_is_idempotent_noop(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    handle = _FakeTaskCancel()
+    register_eval("e1", 5, task_id="t1", task_cancel=handle)
+    _patch_active_samples(monkeypatch, [])
+
+    assert (drain_task("t1") or {})["changed"] is True
+    repeat = drain_task("t1")
+    assert repeat is not None and repeat["changed"] is False
+    assert repeat["reason"] == "cancel already requested (drain)"
+    assert handle.fired == ["drain"]  # stamped exactly once
+
+
+def test_drain_task_never_escalates_over_pending_resolution(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Drain is the weakest rung of the ladder: it can't un-interrupt."""
+    handle = _FakeTaskCancel()
+    register_eval("e1", 5, task_id="t1", task_cancel=handle)
+    running = _FakeActiveSample(sample_id="s1")
+    _patch_active_samples(monkeypatch, [running])
+
+    assert (cancel_task("t1", action="score") or {})["changed"] is True
+    result = drain_task("t1")
+    assert result is not None and result["changed"] is False
+    assert result["reason"] == "cancel already requested (score)"
+    assert handle.fired == ["score"]
+
+
+def test_score_escalates_over_pending_drain(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The "it's taking too long" relief valve: score interrupts a drain.
+
+    The operator decided to stop waiting — in-flight samples are interrupted
+    with the resolution and the task still completes gracefully.
+    """
+    handle = _FakeTaskCancel()
+    register_eval("e1", 5, task_id="t1", task_cancel=handle)
+    running = _FakeActiveSample(sample_id="s1")
+    _patch_active_samples(monkeypatch, [running])
+
+    assert (drain_task("t1") or {})["changed"] is True
+    assert running.interrupts == []
+    escalated = cancel_task("t1", action="score")
+    assert escalated is not None and escalated["changed"] is True
+    assert handle.fired == ["drain", "score"]
+    assert running.interrupts == ["score"]
+
+
+def test_abort_escalates_over_pending_drain(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Teardown must always remain reachable: force is spelled `task cancel`."""
+    handle = _FakeTaskCancel()
+    register_eval("e1", 5, task_id="t1", task_cancel=handle)
+    _patch_active_samples(monkeypatch, [])
+
+    assert (drain_task("t1") or {})["changed"] is True
+    escalated = cancel_task("t1")
+    assert escalated is not None and escalated["changed"] is True
+    assert handle.fired == ["drain", "abort"]
+
+
+def test_drain_task_between_attempts_abandons_pending_retry() -> None:
+    """Drain of a between-attempts task abandons the retry, like cancel.
+
+    The retry attempt is new dispatch, which drain forbids; "finish with
+    what you have" means the existing error log.
+    """
+    handle = _FakeTaskCancel(can_retry=True)
+    register_eval("e1", 1, task_id="t1", will_retry=True, task_cancel=handle)
+    record_sample_errored("e1")
+    mark_eval_retry_pending("e1")
+
+    result = drain_task("t1")
+    assert result is not None
+    assert result["changed"] is True and result["retry_abandoned"] is True
+    assert task_retry_abandoned("t1")
+    state = get_eval_state("e1")
+    assert state is not None
+    assert state.retry_pending is False and state.will_retry is False
+
+    repeat = drain_task("t1")
+    assert repeat is not None and repeat["changed"] is False
+    assert repeat["reason"] == "pending retry already abandoned"
+
+
+def test_drain_task_pending_retry_abandons_requested_retry() -> None:
+    """Drain in the tearing-down window (pending "retry" stamp) sticks."""
+    handle = _FakeTaskCancel(can_retry=True)
+    register_eval("e1", 5, task_id="t1", task_cancel=handle)
+    handle.cancel_task("retry")
+
+    result = drain_task("t1")
+    assert result is not None
+    assert result["changed"] is True and result["retry_abandoned"] is True
+    assert task_retry_abandoned("t1")
+    assert handle.fired == ["retry"]  # the attempt itself is untouched
+
+
+def test_drain_task_running_without_handle_rejected() -> None:
+    register_eval("e1", 5, task_id="t1")
+    result = drain_task("t1")
+    assert result is not None
+    assert result["ok"] is False and "not cancellable" in result["error"]
+
+
 # ---------------------------------------------------------------------------
 # cancel_sample directive
 # ---------------------------------------------------------------------------
@@ -570,8 +858,10 @@ async def test_task_cancel_route_action(monkeypatch: pytest.MonkeyPatch) -> None
         assert running.interrupts == ["score"]
 
 
-async def test_task_cancel_route_between_attempts_409() -> None:
-    register_eval("e1", 1, task_id="t1", will_retry=True)
+async def test_task_cancel_route_between_attempts() -> None:
+    """A plain cancel abandons the pending retry; score/error still 409."""
+    handle = _FakeTaskCancel(can_retry=True)
+    register_eval("e1", 1, task_id="t1", will_retry=True, task_cancel=handle)
     record_sample_errored("e1")
     mark_eval_retry_pending("e1")
 
@@ -579,9 +869,66 @@ async def test_task_cancel_route_between_attempts_409() -> None:
     async with httpx.AsyncClient(
         transport=transport, base_url="http://localhost"
     ) as client:
-        rejected = await client.post("/tasks/t1/cancel")
+        rejected = await client.post("/tasks/t1/cancel", params={"action": "score"})
         assert rejected.status_code == 409
         assert "between attempts" in rejected.json()["error"]
+
+        abandoned = await client.post("/tasks/t1/cancel")
+        assert abandoned.status_code == 200, abandoned.text
+        body = abandoned.json()
+        assert body["changed"] is True and body["retry_abandoned"] is True
+        assert task_retry_abandoned("t1")
+
+
+async def test_task_drain_route_ok_404_noop() -> None:
+    handle = _FakeTaskCancel()
+    register_eval("e1", 5, task_id="t1", task_cancel=handle)
+
+    transport = httpx.ASGITransport(app=_app())
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://localhost"
+    ) as client:
+        ok = await client.post("/tasks/t1/drain")
+        assert ok.status_code == 200, ok.text
+        assert ok.json()["changed"] is True
+        assert handle.fired == ["drain"]
+
+        repeat = await client.post("/tasks/t1/drain")
+        assert repeat.status_code == 200
+        body = repeat.json()
+        assert body["changed"] is False
+        assert body["reason"] == "cancel already requested (drain)"
+
+        missing = await client.post("/tasks/missing/drain")
+        assert missing.status_code == 404
+
+
+async def test_task_drain_route_dry_run() -> None:
+    handle = _FakeTaskCancel()
+    register_eval("e1", 5, task_id="t1", task_cancel=handle)
+
+    transport = httpx.ASGITransport(app=_app())
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://localhost"
+    ) as client:
+        dry = await client.post("/tasks/t1/drain", params={"dry_run": True})
+        assert dry.status_code == 200, dry.text
+        body = dry.json()
+        assert body["changed"] is True and body["dry_run"] is True
+        assert handle.fired == []
+
+
+async def test_task_drain_route_rejection_409() -> None:
+    # running (not finished) state with no cancel handle can't be drained
+    register_eval("e1", 5, task_id="t1")
+
+    transport = httpx.ASGITransport(app=_app())
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://localhost"
+    ) as client:
+        rejected = await client.post("/tasks/t1/drain")
+        assert rejected.status_code == 409
+        assert "not cancellable" in rejected.json()["error"]
 
 
 async def test_task_cancel_route_dry_run() -> None:

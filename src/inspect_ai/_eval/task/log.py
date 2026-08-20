@@ -274,8 +274,9 @@ class TaskLogger:
         self.recorder = recorder
         self.header_only = header_only
 
-        # number of samples logged
+        # number of samples logged without error / logged at all
         self._samples_completed = 0
+        self._samples_logged = 0
 
         # size of flush buffer (how many samples we buffer before hitting storage)
         self.flush_buffer = eval_config.log_buffer or recorder.default_log_buffer(
@@ -363,6 +364,7 @@ class TaskLogger:
         await self._stop_stale_flush_timer()
         self.eval = self.eval.model_copy(update=dict(eval_id=uuid(), created=iso_now()))
         self._samples_completed = 0
+        self._samples_logged = 0
         self.flush_pending = []
         self.flush_quiet = []
         self.flush_quiet_retry = False
@@ -419,6 +421,19 @@ class TaskLogger:
     @property
     def samples_completed(self) -> int:
         return self._samples_completed
+
+    @property
+    def samples_logged(self) -> int:
+        """Samples this attempt's log actually contains (errored ones included).
+
+        Unlike :attr:`samples_completed` this counts every logged sample —
+        completed, errored, cancelled-with-transcript, and retry-reused
+        alike. Consumed at finalize when a graceful cancel/drain abandoned
+        queued samples, so eval-set's run-vs-reuse completeness check can
+        see that the log holds fewer samples than planned (see
+        ``design/ctl/task-drain.md``).
+        """
+        return self._samples_logged
 
     @property
     def buffer_db(self) -> SampleBufferDatabase | None:
@@ -558,6 +573,7 @@ class TaskLogger:
             async with self._flush_pending_lock:
                 self.flush_quiet.append((sample.id, sample.epoch))
 
+        self._samples_logged += 1
         if sample.error is None:
             self._samples_completed += 1
 

@@ -22,7 +22,10 @@ import anyio
 from anyio.abc import TaskGroup
 from typing_extensions import Unpack
 
-from inspect_ai._control.eval_state import mark_eval_retry_pending
+from inspect_ai._control.eval_state import (
+    mark_eval_retry_pending,
+    task_retry_abandoned,
+)
 from inspect_ai._control.pause import (
     add_dispatch_waker,
     dispatch_model_name,
@@ -39,6 +42,7 @@ from inspect_ai._display.core.active import (
 from inspect_ai._display.core.display import CancelType, TaskCancel, TaskSpec
 from inspect_ai._eval.task.scan import Scanners
 from inspect_ai._util.error import PrerequisiteError, exception_message
+from inspect_ai._util.exception import TaskRetryAbandonedError
 from inspect_ai._util.path import chdir
 from inspect_ai.dataset._dataset import Dataset, Sample
 from inspect_ai.log import EvalConfig, EvalLog
@@ -494,6 +498,17 @@ class TaskRunResult(NamedTuple):
     cancel_type: CancelType
     """How the task was cancelled (``None`` if it ran to completion)."""
 
+    abandoned: bool = False
+    """The attempt was abandoned at start: a task drain/cancel stamped the
+    retry-abandoned registry after the dispatcher dequeued this retry but
+    before the attempt registered its ``EvalState``. A dedicated field
+    (not an overload of ``log`` or ``cancel_type``) because every natural
+    return shape misfires in ``run_one``: a ``None``/cancelled-status log
+    reads as an external cancellation and ends the whole dispatch loop,
+    and an unstamped error log would queue another retry. ``run_one``
+    checks it before the external-cancellation branch and maps it to a
+    side-effect-free finalize."""
+
 
 async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRunResult:
     """Run one task in its own cancel scope so cancelling it can't affect siblings.
@@ -549,6 +564,13 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
 
                 task_tg.start_soon(run)
     except Exception as ex:
+        # abandoned at attempt start (a drain/cancel stamped the
+        # retry-abandoned registry between the dispatcher's pick and the
+        # attempt registering) — surface the dedicated sentinel; writing an
+        # errored EvalLog here would supersede the errored prior attempt's
+        # log, which must remain the task's final state
+        if isinstance(inner_exception(ex), TaskRetryAbandonedError):
+            return TaskRunResult(None, None, abandoned=True)
         # errors generally don't escape from tasks -- the exception is a
         # failure to write the log itself (e.g. the log_start() header flush,
         # or the log_finish() of an already-errored task, when log storage is
@@ -699,6 +721,23 @@ async def run_task_retry_attempts(
                     run = await _run_task(options, can_retry=item.retries_remaining > 0)
                     result = run.log
 
+                    # a drain/cancel abandoned this queued retry between the
+                    # dispatcher's pick and the attempt registering its
+                    # EvalState: side-effect-free finalize — discard the
+                    # attempt's never-started log entry, release the slot,
+                    # leave results[item.idx] undisturbed (it already holds
+                    # the errored attempt's log, stored before the retry item
+                    # was queued), queue no retry, and never set the
+                    # run-level cancelled flag. Checked before the
+                    # external-cancellation branch below (run.log is None
+                    # here, which would otherwise end the whole run).
+                    if run.abandoned:
+                        await options.logger.cleanup()
+                        in_flight -= 1
+                        model_counts[options.model] -= 1
+                        wake.set()
+                        return
+
                     # decide whether to retry: on an error or an explicit retry
                     # request, but never on an abort or external (ctrl+c)
                     # cancellation (which ends the whole run)
@@ -726,6 +765,20 @@ async def run_task_retry_attempts(
                     elif result.status == "error":
                         retry = True
                     retry = retry and item.retries_remaining > 0
+
+                    # a drain/plain cancel issued while this attempt was
+                    # tearing down (or between run_one iterations) stamped
+                    # the retry-abandoned registry: skip constructing the
+                    # retry entirely — no retry_pending flag, no eager
+                    # reinit, nothing to discard; the attempt's error log
+                    # lands in results via the ordinary finalize below and
+                    # stands as the task's final state
+                    if retry and task_retry_abandoned(options.logger.eval.task_id):
+                        log.info(
+                            f"Task '{options.task.name}' retry abandoned by "
+                            "operator — task ends with this attempt's error log"
+                        )
+                        retry = False
 
                     # build the requeued task before releasing the in-flight slot:
                     # reinit is async, and were the slot freed first the dispatcher
@@ -798,6 +851,26 @@ async def run_task_retry_attempts(
                     injected = await feed.drain()
                     if injected:
                         add(injected)
+
+                    # drop pending retries abandoned by a task drain/cancel
+                    # (design/ctl/task-drain.md "Tasks between attempts") —
+                    # ahead of pick_balanced's pause filter, so a
+                    # paused-and-held retry is droppable too. The directive
+                    # fired the dispatch waker, so this runs promptly after
+                    # the stamp; a retry item still mid-construction when the
+                    # stamp landed is covered because its pending.append
+                    # fires the waker and the next cycle drops it here. Only
+                    # retry items can carry a stamped task id (the directive
+                    # stamps only tasks with a queued/requested retry), and
+                    # each drop discards the eagerly reinitialized,
+                    # never-started log entry the item carries.
+                    for abandoned in [
+                        p
+                        for p in pending
+                        if task_retry_abandoned(p.options.logger.eval.task_id)
+                    ]:
+                        pending.remove(abandoned)
+                        await abandoned.options.logger.cleanup()
 
                     # dispatch up to the concurrency cap (model-balanced)
                     while not cancelled and in_flight < parallel and pending:
