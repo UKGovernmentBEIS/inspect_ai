@@ -37,6 +37,7 @@ import sys
 
 UPSTREAM = "UKGovernmentBEIS/inspect_ai"
 FORK = "meridianlabs-ai/inspect_ai"
+TS_MONO = "meridianlabs-ai/ts-mono"
 ORG = "meridianlabs-ai"
 REVIEWER = os.environ.get("REVIEWER", "ransomr")
 
@@ -344,7 +345,7 @@ def upstream_pr(url: str):
     d = gql(
         """query($o:String!,$r:String!,$n:Int!){ repository(owner:$o,name:$r){
              pullRequest(number:$n){
-               state merged reviewDecision author{login}
+               state merged reviewDecision headRefName author{login}
                reviewRequests(first:20){nodes{requestedReviewer{... on User{login}}}}
                requestEvents: timelineItems(itemTypes:[REVIEW_REQUESTED_EVENT], last:20){
                  nodes{... on ReviewRequestedEvent{createdAt}}}
@@ -414,12 +415,98 @@ def comment(number: int, body: str) -> None:
     gh("api", f"repos/{FORK}/issues/{number}/comments", "-f", f"body={body}")
 
 
+def companion_pr(issue: int, head_ref: str):
+    """The ts-mono companion PR folded into this issue's stage, or None.
+
+    Join key (design: agents design/atlas-tracking.md -> "Multi-repo
+    issues"): an explicit `Companion PR: <url>` line in the anchor issue
+    body wins; otherwise the branch-name convention — the ts-mono PR whose
+    head equals the upstream PR's headRefName (the dev agent names
+    companion branches identically in both repos).
+    """
+    body = (
+        gh_json("api", f"repos/{FORK}/issues/{issue}", "--jq", "{body: .body}")["body"]
+        or ""
+    )
+    m = re.search(
+        r"Companion PR:\s*(https://github\.com/[^/\s]+/[^/\s]+/pull/\d+)",
+        body,
+        re.I,
+    )
+    if m:
+        cm = re.match(r"https://github\.com/([^/]+)/([^/]+)/pull/(\d+)", m.group(1))
+        owner, repo, num = cm.group(1), cm.group(2), int(cm.group(3))
+        d = gql(
+            """query($o:String!,$r:String!,$n:Int!){ repository(owner:$o,name:$r){
+                 pullRequest(number:$n){number state merged reviewDecision}}}""",
+            o=owner,
+            r=repo,
+            n=num,
+        )["repository"]["pullRequest"]
+        d["_repo"] = f"{owner}/{repo}"
+        return d
+    if not head_ref:
+        return None
+    owner, repo = TS_MONO.split("/")
+    nodes = gql(
+        """query($o:String!,$r:String!,$h:String!){ repository(owner:$o,name:$r){
+             pullRequests(headRefName:$h, first:5, orderBy:{field:UPDATED_AT,direction:DESC}){
+               nodes{number state merged reviewDecision}}}}""",
+        o=owner,
+        r=repo,
+        h=head_ref,
+    )["repository"]["pullRequests"]["nodes"]
+    # prefer an open PR; else the most recently updated (merged counts)
+    pick = next((n for n in nodes if n["state"] == "OPEN"), nodes[0] if nodes else None)
+    if pick:
+        pick["_repo"] = TS_MONO
+    return pick
+
+
+def companion_blocks_merge(issue: int, pr) -> bool:
+    """True when an existing companion is open and unreviewed.
+
+    The merge queue can merge an OPEN companion (it sequences ts-mono
+    first), but a substantive viewer change should pass ts-mono's own
+    review before queueing — merged or APPROVED companions pass. No
+    companion at all passes trivially.
+    """
+    comp = companion_pr(issue, pr.get("headRefName") or "")
+    if comp is None or comp["merged"] or comp.get("reviewDecision") == "APPROVED":
+        return False
+    if comp["state"] == "CLOSED":  # closed unmerged: not a blocker, but note it
+        actions.append(
+            f"#{issue}: note — companion {comp['_repo']}#{comp['number']} closed unmerged"
+        )
+        return False
+    actions.append(
+        f"#{issue}: upstream approved but waiting on companion "
+        f"{comp['_repo']}#{comp['number']} (open, unreviewed) — holding stage"
+    )
+    return True
+
+
+def companion_leftover_warning(issue: int, pr) -> None:
+    """Warn about a companion left open after the upstream merge.
+
+    CI forces the companion onto ts-mono main before upstream can merge,
+    so an OPEN companion here is a leftover to close by hand — warn only.
+    """
+    comp = companion_pr(issue, pr.get("headRefName") or "")
+    if comp is not None and comp["state"] == "OPEN":
+        actions.append(
+            f"#{issue}: WARNING companion {comp['_repo']}#{comp['number']} "
+            f"still open after upstream merge — close it manually"
+        )
+
+
 def sync_item(row) -> None:
     pr = upstream_pr(row["url"])
     owner, repo, num = pr["_ref"]
     stage, item, issue = row["stage"], row["item"], row["issue"]
 
     if pr["merged"]:
+        companion_leftover_warning(issue, pr)
         close_issue(
             issue, f"Upstream PR {row['url']} was merged — closing. (Atlas sync)"
         )
@@ -469,6 +556,8 @@ def sync_item(row) -> None:
             # APPROVED is sticky, so this holds the proxy in Merge each hour —
             # deliberate: to pull a queued external back, dismiss the approval
             # or request changes upstream, not just move the card.
+            if companion_blocks_merge(issue, pr):
+                return
             if set_stage(item, "Merge", stage):
                 actions.append(f"#{issue}: upstream approved -> Merge")
             return
@@ -519,6 +608,8 @@ def sync_item(row) -> None:
         # decision persists until the reviewer acts. Treat as review-pending.
         decision = None
     if decision == "APPROVED":
+        if companion_blocks_merge(issue, pr):
+            return
         if set_stage(item, "Merge", stage):
             actions.append(f"#{issue}: upstream approved -> Merge")
     elif decision == "CHANGES_REQUESTED":
