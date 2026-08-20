@@ -2,11 +2,15 @@
 
 > **Implementation status.** Phase 1 (the Protocol boundary,
 > `ResticIncrementalStrategy`) and the core of Phase 2 (the `archive`
-> strategy, `SnapshotRetention`/`keep_last`, per-sandbox strategy
-> selection via `SandboxSnapshotConfig` values of `sandbox_paths` in
-> the Python API and the
+> strategy, per-sandbox strategy selection via `SandboxSnapshotConfig`
+> values of `sandbox_paths` in the Python API and the
 > `--checkpoint` YAML, and the §4.7 strategy pin) are implemented in
-> `src/inspect_ai/util/_checkpoint/_snapshot/`. Three deliberate
+> `src/inspect_ai/util/_checkpoint/_snapshot/`. Mid-run retention
+> (§4.4, `keep_last`) is designed but not yet offered — self-contained
+> archives make it possible, and it lands as an additive
+> `ArchiveSnapshots` field plus an `apply_retention` Protocol method
+> once its policy questions (cross-sandbox coupling of effective
+> retention, failure handling, who may set it) are settled. Deliberate
 > deviations from the target state below, all forward-compatible:
 >
 > 1. **Shipping stays in core host egress for now.** Strategies write

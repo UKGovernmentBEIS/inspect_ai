@@ -11,11 +11,6 @@ at the checkpointer call sites (see the extraction table in
 - ``restore``  ← ``ingress_sandbox``
 - ``adopt``    ← the per-sandbox ``fs_copy_repo``
 - ``discard_orphans`` ← ``drop_orphan_snapshots``
-
-``apply_retention`` is a documented no-op: restic snapshots share pack
-files, and the ship-once egress protocol cannot tolerate the pack-file
-rewrites of ``restic prune`` — space reclamation for this strategy is
-deferred to generation rotation (design §10 Phase 4).
 """
 
 from __future__ import annotations
@@ -34,10 +29,9 @@ from .._sandbox_restic import (
     inject_restic,
     run_sandbox_backup,
 )
-from ..config import MAX_LISTED_FILES, SnapshotRetention
+from ..config import MAX_LISTED_FILES
 from ..sandbox_paths import SandboxBackupPaths
 from .types import (
-    CommittedSnapshot,
     PriorAttempt,
     SandboxSnapshotStrategy,
     SnapshotContext,
@@ -119,22 +113,6 @@ class ResticIncrementalStrategy(SandboxSnapshotStrategy):
         await drop_orphan_snapshots(
             await self._host_restic(), ctx.storage_dir, ctx.secret, latest_committed_id
         )
-
-    async def apply_retention(
-        self,
-        policy: SnapshotRetention,
-        committed: list[CommittedSnapshot],
-        ctx: SnapshotContext,
-    ) -> None:
-        # No-op by design: retaining more than the policy asks is always
-        # legal (§4.4), and restic cannot reclaim space without pack-file
-        # rewrites that the ship-once egress protocol cannot tolerate.
-        return
-
-    async def cleanup(self, ctx: SnapshotContext) -> None:
-        # Eval-end deletion removes the whole checkpoints dir, which
-        # contains the storage area; nothing strategy-specific to do.
-        return
 
     async def _host_restic(self) -> Path:
         # `resolve_restic()` caches the resolved binary path internally;

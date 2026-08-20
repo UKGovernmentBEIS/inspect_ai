@@ -20,7 +20,6 @@ from .config import (
     CheckpointSampleConfig,
     ResticSnapshots,
     SandboxSnapshotConfig,
-    SnapshotRetention,
     SnapshotStrategyConfig,
     normalize_checkpoint,
 )
@@ -35,7 +34,6 @@ __all__ = [
     "ResticSnapshots",
     "ResumeReport",
     "SandboxSnapshotConfig",
-    "SnapshotRetention",
     "SnapshotStrategyConfig",
     "TimeInterval",
     "TokenInterval",

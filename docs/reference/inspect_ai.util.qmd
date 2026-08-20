@@ -99,7 +99,6 @@ description: Miscellaneous utility functions.
 ### SnapshotStrategyConfig
 ### ResticSnapshots
 ### ArchiveSnapshots
-### SnapshotRetention
 
 ## Registry
 

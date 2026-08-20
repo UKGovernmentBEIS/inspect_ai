@@ -218,24 +218,23 @@ Cache directories are never backed up: any `.cache` directory at any depth (`**/
 
 ### Snapshot Strategies {#snapshot-strategies}
 
-By default, sandbox filesystem state is captured with an incremental [restic](https://restic.net) backup: each checkpoint stores only the data that changed since the previous one. That is the right default when most files are stable across checkpoints — but for sandbox data dominated by large, high-entropy, frequently-rewritten files (training state, database files, encrypted containers), every checkpoint effectively stores the full dataset again, and storage is never reclaimed during the run.
+By default, sandbox filesystem state is captured with an incremental [restic](https://restic.net) backup: each checkpoint stores only the data that changed since the previous one. Restic requires injecting a restic binary into the sandbox, and its incremental model pays off when most files are stable across checkpoints. The alternative `archive` strategy captures with tools already present in effectively every image (tar plus zstd or gzip) — nothing is injected — and writes one self-contained archive per checkpoint.
 
 To select a snapshot strategy for a sandbox, use a `SandboxSnapshotConfig` as its `sandbox_paths` value in place of a bare path list:
 
 | Strategy | Description |
 |------------------------------|------------------------------------------|
-| `ResticSnapshots` | Incremental restic backup (the default). Cheapest when most files are stable across checkpoints; all checkpoints remain restorable for the life of the sample. |
-| `ArchiveSnapshots` | One complete compressed tar archive per checkpoint (zstd when available in the sandbox image, gzip otherwise). Best for large frequently-rewritten data; combined with `retention`, storage for old checkpoints is reclaimed mid-run. |
+| `ResticSnapshots` | Incremental restic backup (the default). Cheapest when most files are stable across checkpoints; requires injecting a restic binary into the sandbox. |
+| `ArchiveSnapshots` | One complete compressed tar archive per checkpoint (zstd when available in the sandbox image, gzip otherwise). Uses only tools already present in the image — nothing is injected — and each checkpoint restores from a single self-contained file. |
 
 : {tbl-colwidths=\[30,70\]}
 
-For example, capturing a directory of large rewritten files as archives while keeping only the last two checkpoints' data:
+For example, capturing a directory of large rewritten files as archives:
 
 ``` python
 from inspect_ai import eval
 from inspect_ai.util import (
-    ArchiveSnapshots, CheckpointConfig,
-    SandboxSnapshotConfig, SnapshotRetention,
+    ArchiveSnapshots, CheckpointConfig, SandboxSnapshotConfig,
 )
 
 eval(
@@ -244,9 +243,7 @@ eval(
         sandbox_paths={
             "default": SandboxSnapshotConfig(
                 paths=["/home/user", "/data"],
-                strategy=ArchiveSnapshots(
-                    retention=SnapshotRetention(keep_last=2)
-                ),
+                strategy=ArchiveSnapshots(),
             )
         }
     ),
@@ -263,8 +260,6 @@ sandbox_paths:
   default:
     paths: ["/home/user", "/data"]
     strategy: archive
-    retention:
-      keep_last: 2
 ```
 
 Notes on semantics:
@@ -274,8 +269,6 @@ Notes on semantics:
 -   Strategy selection is available at every layer: `SandboxSnapshotConfig` values are accepted in `CheckpointConfig.sandbox_paths` (task/eval, and the YAML equivalent) and in per-sample `CheckpointSampleConfig.sandbox_paths`. The strategy suits the workload's data, and the workload is often sample-specific — one sample training a large model wants `archive`, another doing a coding exercise is best served by the restic default.
 
 -   Strategy selection merges independently of the capture paths. While `sandbox_paths` itself merges as a whole-dict value (highest layer wins), the `strategy` values resolve per-sandbox across all layers (eval \> sample \> task). A bare path list — or a `SandboxSnapshotConfig` (YAML mapping) without a `strategy` — expresses no opinion, so a higher layer that overrides paths never silently resets a lower-selected strategy back to the default; to change a strategy, a higher layer sets one explicitly (e.g. `strategy=ResticSnapshots()`). A sandbox with a selected strategy that is absent from the winning paths dict is still captured (with the default home-directory paths) under that strategy.
-
--   `retention=SnapshotRetention(keep_last=N)` deletes the data of older checkpoints after each new commit — the latest committed checkpoint (and its checkpoint record) is always retained, and thinned checkpoints are removed record-first so every remaining checkpoint stays restorable. Retention applies only to `ArchiveSnapshots` (restic retains everything). Because a checkpoint is only restorable as a whole, the strictest `keep_last` across all sandboxes bounds every sandbox's effective retention: with sandbox A at `keep_last=2` and sandbox B at `keep_last=5`, checkpoint records older than the last 2 are removed, so B effectively retains 2 as well.
 
 -   **The strategy is pinned per sample.** The strategy that takes a sample's first checkpoint is recorded (in each checkpoint record and in a per-sample pin file) and is the strategy for that sample's lifetime. If a retry runs with a different strategy configured, resume fails with a clear error naming the sandbox and both strategies — restore the original configuration and resume, or start a fresh eval. Checkpoint directories written before strategy selection existed resume unchanged (they are treated as restic).
 

@@ -1,11 +1,14 @@
 """``archive``: one complete compressed tar per checkpoint.
 
-Best for sandbox data dominated by large, high-entropy,
-frequently-rewritten files, where restic's incremental model stores
-roughly the full dataset again at every checkpoint and can never
-reclaim space mid-run. Each checkpoint's archive is self-contained, so
-``discard_orphans`` and ``apply_retention`` are one file-delete per
-checkpoint — mid-run reclamation is trivial, which is the point.
+Captures with tools already present in effectively every image (tar,
+dd, sha256sum, zstd or gzip) — nothing is injected into the sandbox,
+unlike restic. Each checkpoint's archive is self-contained: restore
+reads one file, and ``discard_orphans`` is one file-delete per
+checkpoint. Self-contained archives also make mid-run storage
+reclamation possible (deleting an old checkpoint's data is a plain
+file delete, where restic's shared pack files can never be reclaimed);
+a retention policy exposing that is designed (§4.4) but not yet
+offered.
 
 Capture mechanics (design §7.2/§8, first implementation):
 
@@ -52,10 +55,8 @@ from inspect_ai.util._sandbox.limits import override_max_read_file_size
 
 from .._layout.schemas import SnapshotDetails
 from .._repo_ops import checkpoint_tag
-from ..config import SnapshotRetention
 from ..sandbox_paths import SandboxBackupPaths
 from .types import (
-    CommittedSnapshot,
     PriorAttempt,
     SandboxSnapshotStrategy,
     SnapshotContext,
@@ -434,11 +435,11 @@ class ArchiveStrategy(SandboxSnapshotStrategy):
         return max(candidates, key=lambda name: _archive_checkpoint_id(name) or 0)
 
     async def adopt(self, prior: PriorAttempt, ctx: SnapshotContext) -> None:
-        """Copy the prior attempt's retained archives into this attempt.
+        """Copy the prior attempt's archives into this attempt.
 
-        The prior dir holds only the archives that survived retention,
-        so this is bounded by ``keep_last`` — the simple choice
-        compliant with §4.5 (retained snapshots durable at this
+        Cost is proportional to the prior attempt's checkpoint count —
+        the same shape as restic's whole-repo ``fs_copy_repo`` — and the
+        simple choice compliant with §4.5 (snapshots durable at this
         attempt's destination before agent work runs, via the same
         end-of-hydration host egress that ships the restic repos).
         """
@@ -470,48 +471,6 @@ class ArchiveStrategy(SandboxSnapshotStrategy):
             checkpoint_id = _archive_checkpoint_id(entry.name)
             if checkpoint_id is None or checkpoint_id > latest_committed_id:
                 entry.unlink(missing_ok=True)
-
-    async def apply_retention(
-        self,
-        policy: SnapshotRetention,
-        committed: list[CommittedSnapshot],
-        ctx: SnapshotContext,
-    ) -> None:
-        """Delete archives for checkpoints outside ``committed``.
-
-        The core has already removed the thinned checkpoints'
-        ``ckpt-*.json`` files (destination first, then local), so no
-        checkpoint file references the archives deleted here.
-        Destination copies are deleted before local ones for the same
-        reason the core orders its deletes that way: a crash mid-way
-        must not leave the destination referencing data that only
-        exists locally.
-
-        Entries whose names don't parse as archives — e.g. a
-        ``.partial`` left by a hard host crash — are deleted too, so
-        residue is reclaimed (and stops being shipped to remote
-        destinations) at the next commit rather than the next resume.
-        Safe because fires are serialized per sample, so no copy-out
-        can be in flight while retention runs.
-        """
-        keep = {snapshot.checkpoint_id for snapshot in committed}
-        storage = Path(ctx.storage_dir)
-        if not storage.is_dir():
-            return
-        async_fs = get_async_filesystem()
-        for entry in sorted(storage.iterdir()):
-            checkpoint_id = _archive_checkpoint_id(entry.name)
-            if checkpoint_id in keep:
-                continue
-            destination = ctx.destination_uri(entry.name)
-            if destination is not None:
-                await async_fs.delete_file(destination)
-            entry.unlink(missing_ok=True)
-
-    async def cleanup(self, ctx: SnapshotContext) -> None:
-        # Eval-end deletion removes the whole checkpoints dir, which
-        # contains the storage area; nothing strategy-specific to do.
-        return
 
     async def _clean_staging(self, env: SandboxEnvironment) -> None:
         """Best-effort removal of the in-sandbox staging root.

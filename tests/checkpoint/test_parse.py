@@ -14,7 +14,6 @@ from inspect_ai.util._checkpoint import (
     Manual,
     ResticSnapshots,
     SandboxSnapshotConfig,
-    SnapshotRetention,
     TimeInterval,
     TokenInterval,
     TurnInterval,
@@ -197,8 +196,6 @@ def test_yaml_file_sandbox_paths_with_strategies(tmp_path: Path) -> None:
         "  default:\n"
         "    paths: ['/data']\n"
         "    strategy: archive\n"
-        "    retention:\n"
-        "      keep_last: 2\n"
         "  web:\n"
         "    strategy: restic-incremental\n"
         "  scratch: ['/scratch']\n"
@@ -207,7 +204,7 @@ def test_yaml_file_sandbox_paths_with_strategies(tmp_path: Path) -> None:
     assert cfg.sandbox_paths == {
         "default": SandboxSnapshotConfig(
             paths=["/data"],
-            strategy=ArchiveSnapshots(retention=SnapshotRetention(keep_last=2)),
+            strategy=ArchiveSnapshots(),
         ),
         "web": SandboxSnapshotConfig(paths=None, strategy=ResticSnapshots()),
         "scratch": ["/scratch"],
@@ -230,19 +227,6 @@ def test_yaml_file_sandbox_paths_omitted_strategy_inherits(
     assert cfg.sandbox_paths == {
         "default": SandboxSnapshotConfig(paths=["/data"], strategy=None)
     }
-
-
-def test_yaml_file_retention_requires_archive(tmp_path: Path) -> None:
-    path = tmp_path / "ckpt.yaml"
-    path.write_text(
-        "trigger: manual\n"
-        "sandbox_paths:\n"
-        "  default:\n"
-        "    retention:\n"
-        "      keep_last: 2\n"
-    )
-    with pytest.raises(ValueError, match="archive"):
-        parse_checkpoint(str(path))
 
 
 def test_yaml_file_unknown_strategy_rejected(tmp_path: Path) -> None:

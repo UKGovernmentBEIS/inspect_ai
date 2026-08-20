@@ -29,7 +29,6 @@ from typing import Any, Literal, TypeVar
 from pydantic import BaseModel, JsonValue, TypeAdapter
 
 from inspect_ai._util._async import tg_collect
-from inspect_ai._util.asyncfiles import get_async_filesystem
 from inspect_ai._util.file import write_text_atomic
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.trace import trace_action
@@ -62,19 +61,18 @@ from ._layout.host_context import (
     STORE,
 )
 from ._layout.sample_checkpoints_dir import (
-    scan_checkpoint_ids,
     scan_latest_committed_id,
     write_checkpoint_file,
 )
 from ._layout.schemas import Checkpoint, SnapshotDetails
 from ._repo_ops import checkpoint_tag
-from ._snapshot import SandboxSnapshotSession, committed_snapshots_for
+from ._snapshot import SandboxSnapshotSession
 from ._triggers import CheckpointTriggerKind, create_trigger
 from .checkpointer import (
     Checkpointer,
     ResumeCheckpoint,
 )
-from .config import ResolvedCheckpointConfig, SnapshotRetention
+from .config import ResolvedCheckpointConfig
 from .hydrate import HydrationResult, hydrate
 
 logger = getLogger(__name__)
@@ -558,12 +556,6 @@ class _EnteredCheckpointer:
                 # event from the latest checkpoint file (working.md §8a).
                 transcript()._event(CheckpointEvent.from_details(checkpoint))
 
-                # Mid-run retention (best-effort, after the commit): thin
-                # checkpoints that fall outside the strictest configured
-                # `keep_last`, checkpoint-file-first so a checkpoint file
-                # never outlives the data it references.
-                await self._apply_retention(next_checkpoint_id)
-
             finally:
                 # Reopen even if checkpointing fails after closing the prior
                 # span; subsequent agent events should stay nested under a
@@ -685,86 +677,6 @@ class _EnteredCheckpointer:
         return await session.strategy.snapshot(
             sandbox(name), session.paths, checkpoint_id, session.context
         )
-
-    async def _apply_retention(self, latest_committed_id: int) -> None:
-        """Thin committed checkpoints per the configured retention policies.
-
-        The effective checkpoint-file retention is the strictest
-        ``keep_last`` across the sandboxes that configure one (a
-        checkpoint file must be removed before *any* sandbox's data for
-        it can be; strategies without a policy simply retain their data
-        for thinned checkpoints, which is always legal). Order per
-        design §4.4: delete thinned ``ckpt-*.json`` files (destination
-        copy first, then local), then hand each strategy the surviving
-        snapshots via ``apply_retention``. Best-effort: failures are
-        logged, never fail the (already committed) fire — and one
-        sandbox's failure doesn't skip retention for the others.
-        """
-        policies: dict[str, SnapshotRetention] = {}
-        for name in self._sandbox_sessions:
-            policy = self._config.sandbox_retention_policy(name)
-            if policy is not None and policy.keep_last is not None:
-                policies[name] = policy
-        if not policies:
-            return
-        try:
-            keep_last = min(
-                policy.keep_last
-                for policy in policies.values()
-                if policy.keep_last is not None
-            )
-            committed_ids = sorted(
-                checkpoint_id
-                for checkpoint_id in await scan_checkpoint_ids(self._sample_root)
-                if checkpoint_id <= latest_committed_id
-            )
-            thinned = committed_ids[:-keep_last]
-            if not thinned:
-                return
-            async_fs = get_async_filesystem()
-            for checkpoint_id in thinned:
-                filename = f"ckpt-{checkpoint_id:05d}.json"
-                if self._sample_staging_dir is not None:
-                    await async_fs.delete_file(
-                        f"{self._sample_checkpoints_dir}/{filename}"
-                    )
-                await async_fs.delete_file(f"{self._sample_root}/{filename}")
-
-            surviving = await self._read_committed_checkpoints(
-                committed_ids[-keep_last:]
-            )
-        except Exception as err:
-            logger.warning(
-                "Checkpoint retention failed (non-fatal, latest checkpoint "
-                "unaffected): %s",
-                err,
-            )
-            return
-        for name, policy in policies.items():
-            session = self._sandbox_sessions[name]
-            try:
-                await session.strategy.apply_retention(
-                    policy, committed_snapshots_for(surviving, name), session.context
-                )
-            except Exception as err:
-                logger.warning(
-                    "Checkpoint retention failed for sandbox %r (non-fatal, "
-                    "latest checkpoint unaffected): %s",
-                    name,
-                    err,
-                )
-
-    async def _read_committed_checkpoints(
-        self, checkpoint_ids: list[int]
-    ) -> list[Checkpoint]:
-        async_fs = get_async_filesystem()
-        checkpoints: list[Checkpoint] = []
-        for checkpoint_id in checkpoint_ids:
-            raw = await async_fs.read_file(
-                f"{self._sample_root}/ckpt-{checkpoint_id:05d}.json"
-            )
-            checkpoints.append(Checkpoint.model_validate_json(raw))
-        return checkpoints
 
 
 async def _scan_next_checkpoint_id(sample_root: str) -> int:

@@ -2,7 +2,7 @@
 
 Covers the §4.7 strategy pin semantics and the ``archive`` strategy's
 mechanics (snapshot → restore roundtrip, hash verification, orphan
-discard, retention) against a *local shell* sandbox fake: ``exec`` runs
+discard) against a *local shell* sandbox fake: ``exec`` runs
 the scripts with the host's ``sh`` and file APIs map to host paths, so
 the strategy's real shell pipelines (tar | compress, dd chunking,
 sha256 verify-then-extract) execute for real — no Docker required. The
@@ -38,11 +38,9 @@ from inspect_ai.util._checkpoint._snapshot.registry import (
     STRATEGY_RESTIC,
 )
 from inspect_ai.util._checkpoint._snapshot.types import (
-    CommittedSnapshot,
     PriorAttempt,
     SnapshotContext,
 )
-from inspect_ai.util._checkpoint.config import SnapshotRetention
 from inspect_ai.util._checkpoint.sandbox_paths import SandboxBackupPaths
 from inspect_ai.util._sandbox.environment import (
     SandboxEnvironment,
@@ -117,7 +115,6 @@ def _context(sample_root: Path, *, resuming: bool = False) -> SnapshotContext:
         sample_root=str(sample_root),
         storage_dir=str(sample_root / subpath),
         storage_subpath=subpath,
-        destination_dir=None,
         secret="test-secret",
         resuming=resuming,
     )
@@ -398,52 +395,6 @@ async def test_archive_discard_orphans(tmp_path: Path) -> None:
         "ckpt-00001.tar.gz",
         "ckpt-00002.tar.gz",
     ]
-
-
-async def test_archive_apply_retention_keeps_committed_only(tmp_path: Path) -> None:
-    strategy = ArchiveStrategy(sandbox_dir=str(tmp_path / "sandbox-tools"))
-    ctx = _context(tmp_path / "sample")
-    storage = Path(ctx.storage_dir)
-    storage.mkdir(parents=True)
-    for checkpoint_id in (1, 2, 3):
-        (storage / f"ckpt-{checkpoint_id:05d}.tar.gz").write_bytes(b"x")
-
-    committed = [
-        CommittedSnapshot(
-            checkpoint_id,
-            SnapshotDetails(
-                snapshot_id=f"ckpt-{checkpoint_id:05d}", size_bytes=1, duration_ms=1
-            ),
-        )
-        for checkpoint_id in (2, 3)
-    ]
-    await strategy.apply_retention(SnapshotRetention(keep_last=2), committed, ctx)
-
-    assert sorted(p.name for p in storage.iterdir()) == [
-        "ckpt-00002.tar.gz",
-        "ckpt-00003.tar.gz",
-    ]
-
-
-async def test_archive_apply_retention_reclaims_non_parsing_residue(
-    tmp_path: Path,
-) -> None:
-    """A ``.partial`` left by a hard crash is reclaimed at the next commit."""
-    strategy = ArchiveStrategy(sandbox_dir=str(tmp_path / "sandbox-tools"))
-    ctx = _context(tmp_path / "sample")
-    storage = Path(ctx.storage_dir)
-    storage.mkdir(parents=True)
-    (storage / "ckpt-00002.tar.gz").write_bytes(b"x")
-    (storage / ".ckpt-00002.tar.gz.partial").write_bytes(b"torn")
-
-    committed = [
-        CommittedSnapshot(
-            2, SnapshotDetails(snapshot_id="ckpt-00002", size_bytes=1, duration_ms=1)
-        )
-    ]
-    await strategy.apply_retention(SnapshotRetention(keep_last=1), committed, ctx)
-
-    assert sorted(p.name for p in storage.iterdir()) == ["ckpt-00002.tar.gz"]
 
 
 async def test_archive_adopt_copies_prior_attempt(tmp_path: Path) -> None:

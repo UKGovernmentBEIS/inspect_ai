@@ -40,34 +40,12 @@ this is recorded in ``additional_files``."""
 
 
 @dataclass(frozen=True)
-class SnapshotRetention:
-    """Mid-run retention policy for a sandbox snapshot strategy.
-
-    Applied after each committed checkpoint, best-effort. The policy
-    always retains at least the latest committed checkpoint (the hard
-    floor); a strategy may retain more than the policy asks (restic
-    keeps everything).
-    """
-
-    keep_last: int | None = None
-    """Keep the last N committed checkpoints' sandbox snapshot data,
-    reclaiming storage for older ones. ``None`` = keep everything."""
-
-    def __post_init__(self) -> None:
-        if self.keep_last is not None and self.keep_last < 1:
-            raise ValueError(
-                f"SnapshotRetention.keep_last must be >= 1 (the latest "
-                f"committed checkpoint is always retained), got {self.keep_last}"
-            )
-
-
-@dataclass(frozen=True)
 class ResticSnapshots:
     """Incremental restic-based sandbox snapshots (the default).
 
     Each checkpoint stores only data changed since the previous one.
-    Best choice when most files are stable across checkpoints. Storage
-    is never reclaimed mid-run (restic retains all snapshots).
+    Best choice when most files are stable across checkpoints. Requires
+    injecting a restic binary into the sandbox.
     """
 
 
@@ -75,17 +53,14 @@ class ResticSnapshots:
 class ArchiveSnapshots:
     """One complete compressed tar archive per checkpoint.
 
-    Best choice when the captured data is dominated by large,
-    high-entropy, frequently-rewritten files (training state, database
-    files, encrypted containers), where incremental backup stores
-    roughly the full dataset again at every checkpoint. Combined with
-    ``retention=SnapshotRetention(keep_last=N)``, storage is reclaimed
-    mid-run as older checkpoints are thinned.
+    Captures with tools already present in effectively every image
+    (tar, dd, sha256sum, zstd or gzip) — nothing is injected into the
+    sandbox. Each checkpoint's archive is self-contained, so restore
+    reads a single file. Best choice when restic injection is
+    impractical, or when the captured data is dominated by large,
+    high-entropy, frequently-rewritten files where incremental backup
+    stores roughly the full dataset again at every checkpoint anyway.
     """
-
-    retention: SnapshotRetention | None = None
-    """Mid-run retention policy. ``None`` = keep every checkpoint's
-    archive for the life of the sample."""
 
 
 SnapshotStrategyConfig = ResticSnapshots | ArchiveSnapshots
@@ -232,11 +207,6 @@ class ResolvedCheckpointConfig:
         if entry is not None and entry.strategy is not None:
             return entry.strategy
         return ResticSnapshots()
-
-    def sandbox_retention_policy(self, sandbox_name: str) -> SnapshotRetention | None:
-        """Mid-run retention policy for one sandbox, if its strategy has one."""
-        strategy = self.sandbox_strategy_config(sandbox_name)
-        return getattr(strategy, "retention", None)
 
 
 def merge_checkpoint_configs(

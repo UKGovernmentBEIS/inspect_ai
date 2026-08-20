@@ -2672,7 +2672,7 @@ def test_task_stores_checkpoint_callbacks() -> None:
     assert t3.on_checkpoint is on_checkpoint  # unchanged
 
 
-# --- snapshot strategy fan-out + mid-run retention -------------------
+# --- snapshot strategy fan-out ---------------------------------------
 
 
 class _StubStrategy:
@@ -2682,7 +2682,6 @@ class _StubStrategy:
 
     def __init__(self) -> None:
         self.snapshot_ids: list[int] = []
-        self.retention_calls: list[list[int]] = []
 
     async def setup(self, env: object, ctx: object) -> None:
         pass
@@ -2709,19 +2708,11 @@ class _StubStrategy:
     async def discard_orphans(self, latest_committed_id: int, ctx: object) -> None:
         pass
 
-    async def apply_retention(
-        self, policy: object, committed: list[Any], ctx: object
-    ) -> None:
-        self.retention_calls.append([c.checkpoint_id for c in committed])
 
-    async def cleanup(self, ctx: object) -> None:
-        pass
-
-
-async def test_fire_routes_sandbox_snapshot_through_strategy_and_retains(
+async def test_fire_routes_sandbox_snapshot_through_strategy(
     dirs: _Dirs,
 ) -> None:
-    """Fires fan out to the sandbox strategy; `keep_last` thins old checkpoints."""
+    """Fires fan out to the sandbox strategy with sequential checkpoint ids."""
     from inspect_ai.util._checkpoint._snapshot import (
         SandboxSnapshotSession,
         SnapshotContext,
@@ -2729,7 +2720,6 @@ async def test_fire_routes_sandbox_snapshot_through_strategy_and_retains(
     from inspect_ai.util._checkpoint.config import (
         ArchiveSnapshots,
         SandboxSnapshotConfig,
-        SnapshotRetention,
     )
     from inspect_ai.util._checkpoint.sandbox_paths import SandboxBackupPaths
 
@@ -2744,7 +2734,6 @@ async def test_fire_routes_sandbox_snapshot_through_strategy_and_retains(
                 sample_root=dirs.checkpoints,
                 storage_dir=f"{dirs.checkpoints}/{subpath}",
                 storage_subpath=subpath,
-                destination_dir=None,
                 secret="test-pwd",
                 resuming=False,
             ),
@@ -2754,9 +2743,7 @@ async def test_fire_routes_sandbox_snapshot_through_strategy_and_retains(
     config = ResolvedCheckpointConfig(
         trigger=Manual(),
         sandbox_snapshots={
-            "default": SandboxSnapshotConfig(
-                strategy=ArchiveSnapshots(retention=SnapshotRetention(keep_last=1))
-            )
+            "default": SandboxSnapshotConfig(strategy=ArchiveSnapshots())
         },
     )
     cp = _CountingCheckpointer(
@@ -2775,12 +2762,6 @@ async def test_fire_routes_sandbox_snapshot_through_strategy_and_retains(
 
     # Every fire routed through the strategy with sequential ids.
     assert stub.snapshot_ids == [1, 2, 3]
-    # Retention thinned all but the latest checkpoint file
-    # (checkpoint-file-first: the file is gone before the data).
-    remaining = sorted(p.name for p in Path(dirs.checkpoints).glob("ckpt-*.json"))
-    assert remaining == ["ckpt-00003.json"]
-    # The strategy saw only surviving snapshots in `committed`.
-    assert stub.retention_calls[-1] == [3]
     # Recorded details carry the strategy identity.
     checkpoint = Checkpoint.model_validate_json(
         (Path(dirs.checkpoints) / "ckpt-00003.json").read_bytes()

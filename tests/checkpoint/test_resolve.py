@@ -15,7 +15,6 @@ from inspect_ai.util._checkpoint import (
     Manual,
     ResticSnapshots,
     SandboxSnapshotConfig,
-    SnapshotRetention,
     TimeInterval,
     TokenInterval,
     TurnInterval,
@@ -369,7 +368,7 @@ def test_sandbox_paths_mixed_values_resolve() -> None:
             sandbox_paths={
                 "default": SandboxSnapshotConfig(
                     paths=["/data"],
-                    strategy=ArchiveSnapshots(retention=SnapshotRetention(keep_last=2)),
+                    strategy=ArchiveSnapshots(),
                 ),
                 "web": SandboxSnapshotConfig(),
                 "tools": [],
@@ -385,15 +384,11 @@ def test_sandbox_paths_mixed_values_resolve() -> None:
         "tools": [],
         "scratch": ["/scratch"],
     }
-    assert out.sandbox_strategy_config("default") == ArchiveSnapshots(
-        retention=SnapshotRetention(keep_last=2)
-    )
+    assert out.sandbox_strategy_config("default") == ArchiveSnapshots()
     assert out.sandbox_strategy_config("web") == ResticSnapshots()
     assert out.sandbox_strategy_config("scratch") == ResticSnapshots()
     # No entry at all → default strategy.
     assert out.sandbox_strategy_config("other") == ResticSnapshots()
-    assert out.sandbox_retention_policy("default") == SnapshotRetention(keep_last=2)
-    assert out.sandbox_retention_policy("web") is None
 
 
 def test_sandbox_paths_bare_list_normalizes_into_snapshot_config() -> None:
@@ -432,20 +427,15 @@ def test_sample_paths_override_preserves_task_strategy() -> None:
     """
     task = CheckpointConfig(
         trigger=Manual(),
-        sandbox_paths={
-            "default": SandboxSnapshotConfig(
-                strategy=ArchiveSnapshots(retention=SnapshotRetention(keep_last=2))
-            )
-        },
+        sandbox_paths={"default": SandboxSnapshotConfig(strategy=ArchiveSnapshots())},
     )
     sample = CheckpointSampleConfig(sandbox_paths={"default": ["/data"]})
     out = merge_checkpoint_configs(task, sample)
     assert out is not None
     assert out.sandbox_paths == {"default": ["/data"]}  # sample chose *what*
-    assert out.sandbox_strategy_config("default") == ArchiveSnapshots(
-        retention=SnapshotRetention(keep_last=2)
+    assert (
+        out.sandbox_strategy_config("default") == ArchiveSnapshots()
     )  # task chose *how*
-    assert out.sandbox_retention_policy("default") == SnapshotRetention(keep_last=2)
 
 
 def test_eval_bare_paths_preserve_task_strategy() -> None:
@@ -481,17 +471,11 @@ def test_sample_selects_strategy() -> None:
     """A sample selects the strategy suiting its own workload."""
     task = CheckpointConfig(trigger=Manual(), sandbox_paths={"default": ["/data"]})
     sample = CheckpointSampleConfig(
-        sandbox_paths={
-            "default": SandboxSnapshotConfig(
-                strategy=ArchiveSnapshots(retention=SnapshotRetention(keep_last=2))
-            )
-        }
+        sandbox_paths={"default": SandboxSnapshotConfig(strategy=ArchiveSnapshots())}
     )
     out = merge_checkpoint_configs(task, sample)
     assert out is not None
-    assert out.sandbox_strategy_config("default") == ArchiveSnapshots(
-        retention=SnapshotRetention(keep_last=2)
-    )
+    assert out.sandbox_strategy_config("default") == ArchiveSnapshots()
 
 
 def test_sample_strategy_overrides_task_and_yields_to_eval() -> None:
@@ -541,8 +525,3 @@ def test_strategy_applies_to_sandbox_absent_from_winning_paths() -> None:
     assert out.sandbox_paths == {"other": ["/x"]}
     assert out.sandbox_strategy_config("default") == ArchiveSnapshots()
     assert out.sandbox_strategy_config("other") == ResticSnapshots()
-
-
-def test_snapshot_retention_keep_last_floor_enforced() -> None:
-    with pytest.raises(ValueError, match="keep_last"):
-        SnapshotRetention(keep_last=0)

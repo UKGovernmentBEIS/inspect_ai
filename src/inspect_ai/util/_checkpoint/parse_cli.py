@@ -25,7 +25,7 @@ import re
 from datetime import timedelta
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from inspect_ai._util.config import resolve_args
 
@@ -41,7 +41,6 @@ from .config import (
     CheckpointConfig,
     ResticSnapshots,
     SandboxSnapshotConfig,
-    SnapshotRetention,
     SnapshotStrategyConfig,
 )
 
@@ -156,11 +155,6 @@ _TriggerModel = Annotated[
 ]
 
 
-class _SnapshotRetentionModel(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    keep_last: int | None = Field(default=None, ge=1)
-
-
 class _SandboxSnapshotModel(BaseModel):
     """One sandbox's snapshot config: capture paths + strategy.
 
@@ -179,26 +173,10 @@ class _SandboxSnapshotModel(BaseModel):
     lower-priority layer's selection for this sandbox (matching a bare
     path-list value), falling back to the default (restic)."""
 
-    retention: _SnapshotRetentionModel | None = None
-    """Mid-run retention (``keep_last: N``); ``archive`` only."""
-
-    @model_validator(mode="after")
-    def _retention_requires_archive(self) -> "_SandboxSnapshotModel":
-        if self.retention is not None and self.strategy != "archive":
-            raise ValueError(
-                "retention is only supported with `strategy: archive` "
-                "(restic-incremental retains all checkpoints)"
-            )
-        return self
-
     def to_dataclass(self) -> SandboxSnapshotConfig:
         strategy: SnapshotStrategyConfig | None
         if self.strategy == "archive":
-            strategy = ArchiveSnapshots(
-                retention=SnapshotRetention(keep_last=self.retention.keep_last)
-                if self.retention is not None
-                else None
-            )
+            strategy = ArchiveSnapshots()
         elif self.strategy == "restic-incremental":
             strategy = ResticSnapshots()
         else:
@@ -212,8 +190,8 @@ class _CheckpointConfigModel(BaseModel):
     Fields that differ from the real dataclass:
     - ``trigger`` accepts a discriminated dict (``{"type": "turn", "every": 5}``)
       or the literal ``"manual"``, and translates to a strategy instance.
-    - ``sandbox_paths`` mapping values accept a strategy *name* plus
-      optional retention, and translate to the strategy config dataclasses.
+    - ``sandbox_paths`` mapping values accept a strategy *name* and
+      translate to the strategy config dataclasses.
     - All other fields validate directly against their dataclass counterparts.
     """
 

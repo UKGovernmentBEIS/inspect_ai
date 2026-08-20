@@ -16,9 +16,6 @@ sandbox's bulk state for checkpointing, honoring these guarantees:
 - **Restore into a fresh sandbox (§4.3)**: ``restore()`` receives a
   fresh sandbox and must leave the captured paths byte-identical to
   capture time at their original absolute paths.
-- **Retention is a policy (§4.4)**: never delete data required to
-  restore a snapshot in ``committed``; retaining more than the policy
-  asks is always legal.
 - **Security (§4.6)**: tooling placed in the sandbox must be root-only
   and invisible to the agent; bytes read out of the sandbox are
   untrusted; secrets reach the sandbox only via per-exec environment
@@ -28,12 +25,11 @@ sandbox's bulk state for checkpointing, honoring these guarantees:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import NamedTuple, Protocol, runtime_checkable
+from typing import NamedTuple, Protocol
 
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
 
-from .._layout.schemas import Checkpoint, SnapshotDetails
-from ..config import SnapshotRetention
+from .._layout.schemas import SnapshotDetails
 from ..sandbox_paths import SandboxBackupPaths
 
 DEFAULT_STRATEGY_NAME = "restic-incremental"
@@ -69,24 +65,12 @@ class SnapshotContext:
     path locates the storage area at the destination and in prior
     attempts' sample dirs)."""
 
-    destination_dir: str | None
-    """Remote sample checkpoints dir (e.g. ``s3://...``) when the
-    destination is remote, else ``None`` (``sample_root`` *is* the
-    destination). Strategies need it only to delete retired data at
-    the destination in ``apply_retention``."""
-
     secret: str
     """Per-sample capture secret (today's restic password). Must reach
     the sandbox only via per-exec environment variables."""
 
     resuming: bool
     """Whether this attempt resumes a prior attempt's checkpoints."""
-
-    def destination_uri(self, filename: str) -> str | None:
-        """Destination URI for ``filename`` within the storage area."""
-        if self.destination_dir is None:
-            return None
-        return f"{self.destination_dir}/{self.storage_subpath}/{filename}"
 
 
 @dataclass(frozen=True)
@@ -106,14 +90,6 @@ class PriorAttempt:
         return f"{self.sample_checkpoints_dir}/{self.storage_subpath}"
 
 
-class CommittedSnapshot(NamedTuple):
-    """A committed checkpoint's snapshot record for one sandbox."""
-
-    checkpoint_id: int
-    details: SnapshotDetails
-
-
-@runtime_checkable
 class SandboxSnapshotStrategy(Protocol):
     """Captures and restores one sandbox's bulk state for checkpointing.
 
@@ -192,27 +168,6 @@ class SandboxSnapshotStrategy(Protocol):
         """
         ...
 
-    async def apply_retention(
-        self,
-        policy: SnapshotRetention,
-        committed: list[CommittedSnapshot],
-        ctx: SnapshotContext,
-    ) -> None:
-        """Reclaim storage per ``policy``, best-effort.
-
-        ``committed`` lists the snapshots that survive the policy; the
-        core has already deleted the thinned checkpoints' ``ckpt-*.json``
-        files (destination first), so a checkpoint file never outlives
-        the data it references. Hard floor: never delete data required
-        to restore a snapshot in ``committed``. Retaining more than the
-        policy asks is always legal.
-        """
-        ...
-
-    async def cleanup(self, ctx: SnapshotContext) -> None:
-        """Delete all strategy data (eval-end ``retention="delete"``)."""
-        ...
-
 
 class SandboxSnapshotSession(NamedTuple):
     """One sandbox's live snapshot machinery for the current attempt."""
@@ -233,14 +188,3 @@ def snapshot_strategy_name(details: SnapshotDetails) -> str:
     extra = details.model_extra or {}
     name = extra.get("strategy")
     return name if isinstance(name, str) else DEFAULT_STRATEGY_NAME
-
-
-def committed_snapshots_for(
-    checkpoints: list[Checkpoint], sandbox_name: str
-) -> list[CommittedSnapshot]:
-    """Extract one sandbox's committed snapshot records from checkpoint files."""
-    return [
-        CommittedSnapshot(cp.checkpoint_id, details)
-        for cp in checkpoints
-        if (details := cp.sandboxes.get(sandbox_name)) is not None
-    ]

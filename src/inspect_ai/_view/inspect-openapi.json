@@ -339,19 +339,8 @@
         "type": "object"
       },
       "ArchiveSnapshots": {
-        "description": "One complete compressed tar archive per checkpoint.\n\nBest choice when the captured data is dominated by large,\nhigh-entropy, frequently-rewritten files (training state, database\nfiles, encrypted containers), where incremental backup stores\nroughly the full dataset again at every checkpoint. Combined with\n``retention=SnapshotRetention(keep_last=N)``, storage is reclaimed\nmid-run as older checkpoints are thinned.",
-        "properties": {
-          "retention": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/SnapshotRetention"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
+        "description": "One complete compressed tar archive per checkpoint.\n\nCaptures with tools already present in effectively every image\n(tar, dd, sha256sum, zstd or gzip) \u2014 nothing is injected into the\nsandbox. Each checkpoint's archive is self-contained, so restore\nreads a single file. Best choice when restic injection is\nimpractical, or when the captured data is dominated by large,\nhigh-entropy, frequently-rewritten files where incremental backup\nstores roughly the full dataset again at every checkpoint anyway.",
+        "properties": {},
         "title": "ArchiveSnapshots",
         "type": "object"
       },
@@ -7845,7 +7834,7 @@
         "type": "object"
       },
       "ResticSnapshots": {
-        "description": "Incremental restic-based sandbox snapshots (the default).\n\nEach checkpoint stores only data changed since the previous one.\nBest choice when most files are stable across checkpoints. Storage\nis never reclaimed mid-run (restic retains all snapshots).",
+        "description": "Incremental restic-based sandbox snapshots (the default).\n\nEach checkpoint stores only data changed since the previous one.\nBest choice when most files are stable across checkpoints. Requires\ninjecting a restic binary into the sandbox.",
         "properties": {},
         "title": "ResticSnapshots",
         "type": "object"
@@ -9349,24 +9338,6 @@
           "duration_ms"
         ],
         "title": "SnapshotDetails",
-        "type": "object"
-      },
-      "SnapshotRetention": {
-        "description": "Mid-run retention policy for a sandbox snapshot strategy.\n\nApplied after each committed checkpoint, best-effort. The policy\nalways retains at least the latest committed checkpoint (the hard\nfloor); a strategy may retain more than the policy asks (restic\nkeeps everything).",
-        "properties": {
-          "keep_last": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Keep Last"
-          }
-        },
-        "title": "SnapshotRetention",
         "type": "object"
       },
       "SpanBeginEvent": {

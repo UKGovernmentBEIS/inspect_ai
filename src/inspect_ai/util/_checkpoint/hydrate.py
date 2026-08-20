@@ -294,7 +294,6 @@ async def hydrate(
         await write_strategy_pin(sample_root, configured_strategies)
 
     # One strategy instance + frozen context per sandbox for this attempt.
-    destination_dir = new_sample_checkpoints_dir if sample_staging is not None else None
     sandbox_sessions: dict[str, SandboxSnapshotSession] = {}
     for name, paths in sandbox_backup_paths.items():
         strategy_config = config.sandbox_strategy_config(name)
@@ -308,7 +307,6 @@ async def hydrate(
                 sample_root=sample_root,
                 storage_dir=f"{sample_root}/{storage_subpath}",
                 storage_subpath=storage_subpath,
-                destination_dir=destination_dir,
                 secret=restic_config.restic_password,
                 resuming=resume_checkpoint is not None,
             ),

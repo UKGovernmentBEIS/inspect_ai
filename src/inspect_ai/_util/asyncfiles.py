@@ -470,27 +470,6 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
         else:
             filesystem(remote).get_file(remote, local)
 
-    async def delete_file(self, filename: str) -> None:
-        """Delete `filename` if it exists; deleting a missing file is a no-op.
-
-        (S3 DeleteObject succeeds for missing keys; other filesystems
-        swallow the missing-file error.)
-        """
-        if is_s3_filename(filename):
-            bucket, key = s3_bucket_and_key(filename)
-            if current_async_backend() == "asyncio":
-                client = await self.s3_client_async()
-                await client.delete_object(Bucket=bucket, Key=key)
-            else:
-                await anyio.to_thread.run_sync(
-                    s3_delete_file, self.s3_client(), bucket, key
-                )
-        else:
-            try:
-                filesystem(filename).rm(filename)
-            except FileNotFoundError:
-                pass
-
     @overload
     def iter_files(
         self,
@@ -914,10 +893,6 @@ async def _s3_put_with_retry(
 
 def s3_get_file(s3: Any, bucket: str, key: str, filename: str) -> None:
     s3.download_file(Bucket=bucket, Key=key, Filename=filename)
-
-
-def s3_delete_file(s3: Any, bucket: str, key: str) -> None:
-    s3.delete_object(Bucket=bucket, Key=key)
 
 
 def s3_iter_files(
