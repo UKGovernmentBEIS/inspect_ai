@@ -392,9 +392,9 @@ def skip_if_github_action(func):
     return skip_if_env_var("GITHUB_ACTIONS", exists=True)(func)
 
 
-def skip_if_no_docker(func):
+def is_docker_installed() -> bool:
     try:
-        is_docker_installed = (
+        return (
             subprocess.run(
                 ["docker", "--version"],
                 check=False,
@@ -404,11 +404,13 @@ def skip_if_no_docker(func):
             == 0
         )
     except FileNotFoundError:
-        is_docker_installed = False
+        return False
 
+
+def skip_if_no_docker(func):
     func._needs_flaky_retry = True
     return pytest.mark.skipif(
-        not is_docker_installed, reason="Test doesn't work without Docker installed."
+        not is_docker_installed(), reason="Test doesn't work without Docker installed."
     )(func)
 
 
