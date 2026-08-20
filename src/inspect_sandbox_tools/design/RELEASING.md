@@ -81,7 +81,7 @@ Fail-closed window: while a version bump is merged (or installed non-editably fr
 
 ### 7. Merge the PR
 
-The GitHub Actions workflow (`.github/workflows/build_sandbox_tools.yml`) can build executables on PR, but is currently manual-trigger only (`workflow_dispatch`).
+Once `slow-tool-tests-release` is green, merge through the normal review process.
 
 ### 8. PyPI release (when releasing inspect_ai)
 
@@ -120,5 +120,4 @@ The install state detection (`_get_install_state`) determines which tiers are at
 | `src/inspect_ai/tool/_sandbox_tools_utils/build_executable.py` | Runs inside Docker container |
 | `src/inspect_ai/tool/_sandbox_tools_utils/validate_distros.py` | Cross-distro validation |
 | `src/inspect_ai/tool/_sandbox_tools_utils/sandbox.py` | Runtime resolution and injection |
-| `.github/workflows/build_sandbox_tools.yml` | CI build workflow |
 | `scripts/pypi-release.py` | PyPI release script (downloads from S3) |
