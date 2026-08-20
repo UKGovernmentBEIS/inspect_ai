@@ -7,6 +7,8 @@ from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
 class TaskLoggerShim(TaskLogger):
     def __init__(self, buffer_db: Any) -> None:
         self._buffer_db = cast(SampleBufferDatabase, buffer_db)
+        self._samples_completed = 0
+        self._samples_logged = 0
         self.flush_quiet = []
         self.flush_quiet_retry = False
         self._init_stale_flush_state()
