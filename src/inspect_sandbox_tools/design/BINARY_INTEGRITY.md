@@ -89,19 +89,21 @@ Decisions:
   verify the on-demand musl download; the version file and sums file must
   always travel together.
 - **Lives outside the injectable tree**, so editing it never triggers the
-  `injectable_src` CI filter or flips `_check_main_divergence` to "edited" on
-  its own (see "Install-state detection" below for why it *is* added to the
-  version-file pathspec group).
+  `injectable_src` CI filter (which would demand a version bump). It *is*
+  deliberately added to the version-file pathspec group in
+  `_check_main_divergence`, so a checkout whose sums diverge from main
+  classifies as "edited" — see "Install-state detection" below.
 
 A small stdlib-only module `_digests.py` in `_sandbox_tools_utils` owns
 reading/writing/parsing (parse tolerates the optional `*` binary marker, as
 `_restic/resolver.py::_extract_expected_hash` does). Stdlib-only matters
 because `upload_to_s3.py` supports plain-file execution outside an installed
-`inspect_ai` (same constraint `_build_config.py` documents); `_digests.py`
-must be importable the same two ways. Longer term the parsing could be shared
-with the restic resolver via `inspect_ai._util`, but the runtime consumer in
-`sandbox.py` can import from `_sandbox_tools_utils` directly, so the local
-module is sufficient and keeps the uploader dependency-free.
+`inspect_ai` (the constraint `_build_config.py` documents is importable
+without an installed `inspect_ai`; stdlib-only keeps `_digests.py` trivially
+so), and `_digests.py` must be importable the same two ways. Longer term the
+parsing could be shared with the restic resolver via `inspect_ai._util`, but
+the runtime consumer in `sandbox.py` can import from `_sandbox_tools_utils`
+directly, so the local module is sufficient.
 
 ## Producer: `upload_to_s3.py`
 
@@ -112,7 +114,10 @@ Reworked to be the single writer of `SHA256SUMS`:
    pinned version, and uploading digests for any other version would desync
    them.
 2. **Compute digests** of all four local artifacts in
-   `src/inspect_ai/binaries/` (existence of all four is already checked).
+   `src/inspect_ai/binaries/` upfront. This also moves the existence check
+   upfront — today it is interleaved with the uploads, so a missing
+   `arm64-musl` artifact aborts mid-publish with the amd64 variants already
+   on S3.
 3. **Immutability guard.** Before uploading, HEAD/GET each S3 object. If an
    object already exists with **different** bytes (compare digest of the
    fetched object), abort with an error instructing the operator to bump the
@@ -146,18 +151,27 @@ Reworked to be the single writer of `SHA256SUMS`:
      situation where downloading unverified bytes is the right answer.
 2. Fetch and verify via the existing
    `inspect_ai._util.download.download(url, sha256, dest, timeout=60)`
-   helper, which already streams to a sibling `.partial`, hashes while
-   streaming, rejects on mismatch, retries transient HTTP errors, and only
-   renames into place after verification — closing the current non-atomic
-   write as a side effect. `download()` is sync (sync httpx client, local
-   disk, no fsspec), so call it via `anyio.to_thread.run_sync`, exactly as
-   `_restic/resolver.py` does. The existing
-   `concurrency(executable_name, 1)` guard in `_open_executable_for_arch`
-   already serializes resolution per artifact; cross-process races are safe
-   under `download()`'s last-write-wins rename. `chmod 0o755` after (the
-   helper doesn't set the execute bit). A bonus of the helper's
-   skip-if-checksum-matches behavior: a previously verified artifact is
-   re-blessed for free if the resolver ever re-downloads.
+   helper, which streams to a tempfile, hashes while streaming, rejects on
+   mismatch, retries transient HTTP errors, and only renames into place after
+   verification — closing the current non-atomic write as a side effect.
+   `download()` is sync (sync httpx client, local disk, no fsspec), so call
+   it via `anyio.to_thread.run_sync`, exactly as `_restic/resolver.py` does.
+   `chmod 0o755` after (the helper doesn't set the execute bit).
+
+   **Cross-process caveat**: `download()`'s tempfile is the *fixed* sibling
+   path `dest + ".partial"`, so two processes downloading the same `dest`
+   truncate each other's tempfile while each hashes only its own stream — a
+   winner can rename an interleaved file into place, recreating exactly the
+   "unverified bytes trusted forever by tier 1" hole this design closes. The
+   in-process `concurrency(executable_name, 1)` guard in
+   `_open_executable_for_arch` does not cover multiple eval processes on one
+   host (e.g. parallel evals on a fresh install racing to fetch the musl
+   artifact). `_restic/resolver.py` avoids this by passing `download()` a
+   unique `mkstemp` destination and doing its own final `os.replace`; do the
+   same here — `mkstemp` in `binaries/`, `download(url, sha256, tmp)`,
+   chmod, `os.replace(tmp, dest)`. (Alternatively fix `download()` itself to
+   use a unique tempfile and re-verify the on-disk file before rename; the
+   mkstemp-at-the-call-site approach requires no change to a shared helper.)
 3. Failure semantics (see matrix below): **404/403 keeps its current meaning**
    ("not published yet") and returns `False` so the resolver falls through to
    the local-build tier; **digest mismatch raises** — it must never be
@@ -169,7 +183,7 @@ Failure-mode matrix for a download attempt:
 | Condition | Behavior | Rationale |
 |---|---|---|
 | Object missing on S3 (403/404) | return `False` → fall through to local build prompt | Pre-upload window on a release branch; correct and expected |
-| Digest mismatch | raise (`PrerequisiteError` wrapped in `SandboxInjectionError`), `.partial` discarded, nothing cached | Tampering or corruption; fail closed and loud |
+| Digest mismatch | raise (`PrerequisiteError` wrapped in `SandboxInjectionError`), tempfile discarded, nothing cached | Tampering or corruption; fail closed and loud |
 | No entry in `SHA256SUMS` for the resolved name | raise | Desynced/corrupt install; never fetch unverified |
 | Transient HTTP (408/429/5xx) | retried by `download()`; raise after exhaustion | Availability issue, not integrity |
 | `SHA256SUMS` unreadable/missing from install | raise | Same contract as restic's `_read_sha256sums` |
@@ -254,14 +268,25 @@ The script stays stdlib-only; it parses `SHA256SUMS` itself (or imports
 ```sh
 VERSION=$(tr -d '[:space:]' < src/inspect_ai/tool/_sandbox_tools_utils/sandbox_tools_version.txt)
 SUMS=src/inspect_ai/tool/_sandbox_tools_utils/SHA256SUMS
-# Digest file must be in lockstep with the version bump.
-if grep -vq -- "-v${VERSION}$" <(awk '{print $2}' "$SUMS") || [ "$(wc -l < "$SUMS")" -ne 4 ]; then
+# Digest file must be in lockstep with the version bump: four non-blank
+# entries, all named -v${VERSION}. (Entry format/distinctness is enforced by
+# a fast unit test — see Testing.)
+if ! awk -v v="v${VERSION}" 'NF { n++; if ($2 !~ ("-" v "$")) exit 1 } END { exit n != 4 }' "$SUMS"; then
   echo "::error::${SUMS} is not updated for v${VERSION}. Build+upload the artifacts (upload_to_s3.py rewrites it) and commit it in this PR."
   exit 1
 fi
-for FILENAME in ...; do
-  curl -fSL -o "src/inspect_ai/binaries/${FILENAME}" "$URL"   # 404 keeps today's friendlier "not uploaded yet" error
-  (cd src/inspect_ai/binaries && grep " ${FILENAME}$" "$OLDPWD/$SUMS" | sha256sum -c -) || {
+for FILENAME in \
+  "inspect-sandbox-tools-amd64-v${VERSION}" \
+  "inspect-sandbox-tools-amd64-musl-v${VERSION}"; do
+  URL="https://inspect-sandbox-tools.s3.us-east-2.amazonaws.com/${FILENAME}"
+  # Keep today's explicit not-yet-uploaded error (a bare curl -f 404 is terse
+  # and carries no ::error annotation).
+  if ! curl -fsI "$URL" >/dev/null; then
+    echo "::error::Published binary ${FILENAME} not found at ${URL}. Run: python src/inspect_ai/tool/_sandbox_tools_utils/upload_to_s3.py ${VERSION}, commit the rewritten SHA256SUMS, then rerun this job."
+    exit 1
+  fi
+  curl -fSL -o "src/inspect_ai/binaries/${FILENAME}" "$URL"
+  echo "$(awk -v f="$FILENAME" '$2 == f {print $1}' "$SUMS")  src/inspect_ai/binaries/${FILENAME}" | sha256sum -c - || {
     echo "::error::Digest mismatch for ${FILENAME}: the published S3 object does not match the digests committed in this PR. Do NOT re-upload over it — investigate (wrong-checkout build, truncated upload, or tampering), and if the object is wrong, bump the version and publish fresh artifacts."
     exit 1
   }
@@ -278,14 +303,18 @@ refuse anyway).
 Additionally, extend the fast `check-version-bump` job with the *unbumped*
 direction only: if `sandbox_tools_version.txt` is unchanged relative to base,
 `SHA256SUMS` must be unchanged too (a sums-only change is a re-publication of
-an existing version — forbidden). The *bumped* direction (sums must be
-updated) is deliberately **not** enforced in the fast gate: the sums can only
-be written after the maintainer builds the artifacts, which happens post-
-approval, and failing the fast gate early would also block the independent
-`slow-tool-tests-dev` job. The release gate above enforces it at the point
-where it can actually be satisfied, preserving today's landing flow: gate is
-red until the maintainer uploads **and commits/pushes the sums**, and the
-push itself triggers the re-run.
+an existing version — forbidden). One carve-out: the rule applies only when
+`SHA256SUMS` *exists on the base ref* — otherwise the seeding PR (which
+creates the file without a version bump, see Rollout) would fail the very
+rule it introduces, since `pull_request` runs use the PR's own workflow file.
+The *bumped* direction (sums must be updated) is deliberately **not**
+enforced in the fast gate: the sums can only be written after the maintainer
+builds the artifacts, which happens post-approval, and failing the fast gate
+early would also block the independent `slow-tool-tests-dev` job. The
+release gate above enforces it at the point where it can actually be
+satisfied, preserving today's landing flow: gate is red until the maintainer
+uploads **and commits/pushes the sums**, and the push itself triggers the
+re-run.
 
 Note: `.github/workflows/build.yml` edits are part of the implementation PR
 (it is not one of the meridian-only workflows).
@@ -355,14 +384,18 @@ local test server, no real S3):
 - `_digests.py`: round-trip write/parse; `*` marker tolerated; missing-entry
   lookup raises.
 - `_download_from_s3`: success verifies, chmods, and lands atomically; digest
-  mismatch raises and leaves neither `dest` nor `.partial` in `binaries/`;
+  mismatch raises and leaves neither `dest` nor any tempfile in `binaries/`;
   404 returns `False`; missing sums entry raises without any network call.
-- Sums/version lockstep: a test asserting every `SHA256SUMS` entry filename
-  parses via `filename_to_config` to exactly `version.txt`'s version, no
-  `-dev` suffix, and the four arch×libc combinations are each present exactly
-  once — this makes "bump without updating sums" fail fast in the *fast* test
-  suite, complementing the CI release gate. (`inspect_ai._util.download` is
-  already covered by restic's tests.)
+- Sums format: a test asserting every `SHA256SUMS` entry filename parses via
+  `filename_to_config`, has no `-dev` suffix, all entries share one version,
+  and the four arch×libc combinations are each present exactly once. This
+  test deliberately does **not** assert that the shared version equals
+  `version.txt`'s — on every release PR the version bumps at PR-open while
+  the sums are rewritten only at post-approval upload, so a lockstep
+  assertion here would keep the fast test suite red for the whole review
+  window; version lockstep belongs solely to the release gate, which is the
+  job that is legitimately red during that window.
+  (`inspect_ai._util.download` is already covered by restic's tests.)
 - `pypi-release.py` verification helpers: mismatch on download and mismatch on
   pre-existing file both fail; pre-build gate rejects extra/missing/wrong
   files.
