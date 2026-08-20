@@ -2961,25 +2961,29 @@ var PARSERS = /* @__PURE__ */ new Map([
 ]);
 function getDriver(src) {
 	if (typeof src === "function") return src;
-	if (typeof src === "string") if (src.substring(0, 5) == "ws://" || src.substring(0, 6) == "wss://") src = {
-		driver: "websocket",
-		url: src
-	};
-	else if (src.substring(0, 6) == "clock:") src = { driver: "clock" };
-	else if (src.substring(0, 7) == "random:") src = { driver: "random" };
-	else if (src.substring(0, 10) == "benchmark:") src = {
-		driver: "benchmark",
-		url: src.substring(10)
-	};
-	else src = {
-		driver: "recording",
-		url: src
-	};
+	if (typeof src === "string") {
+		if (src.substring(0, 5) == "ws://" || src.substring(0, 6) == "wss://") src = {
+			driver: "websocket",
+			url: src
+		};
+		else if (src.substring(0, 6) == "clock:") src = { driver: "clock" };
+		else if (src.substring(0, 7) == "random:") src = { driver: "random" };
+		else if (src.substring(0, 10) == "benchmark:") src = {
+			driver: "benchmark",
+			url: src.substring(10)
+		};
+		else src = {
+			driver: "recording",
+			url: src
+		};
+	}
 	if (src.driver === void 0) src.driver = "recording";
 	if (src.driver == "recording") {
 		if (src.format !== "segmented" && src.parser === void 0) src.parser = "asciicast";
-		if (typeof src.parser === "string") if (PARSERS.has(src.parser)) src.parser = PARSERS.get(src.parser);
-		else throw new Error(`unknown parser: ${src.parser}`);
+		if (typeof src.parser === "string") {
+			if (PARSERS.has(src.parser)) src.parser = PARSERS.get(src.parser);
+			else throw new Error(`unknown parser: ${src.parser}`);
+		}
 	}
 	if (DRIVERS.has(src.driver)) {
 		const driver = DRIVERS.get(src.driver);
@@ -3102,12 +3106,14 @@ function children(fn) {
 	return memo;
 }
 function readSignal() {
-	if (this.sources && this.state) if (this.state === STALE) updateComputation(this);
-	else {
-		const updates = Updates;
-		Updates = null;
-		runUpdates(() => lookUpstream(this), false);
-		Updates = updates;
+	if (this.sources && this.state) {
+		if (this.state === STALE) updateComputation(this);
+		else {
+			const updates = Updates;
+			Updates = null;
+			runUpdates(() => lookUpstream(this), false);
+			Updates = updates;
+		}
 	}
 	if (Listener) {
 		const sSlot = this.observers ? this.observers.length : 0;
@@ -3195,8 +3201,10 @@ function createComputation(fn, init, pure, state = STALE, options) {
 		pure
 	};
 	if (Owner === null);
-	else if (Owner !== UNOWNED) if (!Owner.owned) Owner.owned = [c];
-	else Owner.owned.push(c);
+	else if (Owner !== UNOWNED) {
+		if (!Owner.owned) Owner.owned = [c];
+		else Owner.owned.push(c);
+	}
 	return c;
 }
 function runTop(node) {
@@ -3502,18 +3510,19 @@ function reconcileArrays(parentNode, a, b) {
 				while (i < bEnd) map.set(b[i], i++);
 			}
 			const index = map.get(a[aStart]);
-			if (index != null) if (bStart < index && index < bEnd) {
-				let i = aStart, sequence = 1, t;
-				while (++i < aEnd && i < bEnd) {
-					if ((t = map.get(a[i])) == null || t !== index + sequence) break;
-					sequence++;
-				}
-				if (sequence > index - bStart) {
-					const node = a[aStart];
-					while (bStart < index) parentNode.insertBefore(b[bStart++], node);
-				} else parentNode.replaceChild(b[bStart++], a[aStart++]);
-			} else aStart++;
-			else a[aStart++].remove();
+			if (index != null) {
+				if (bStart < index && index < bEnd) {
+					let i = aStart, sequence = 1, t;
+					while (++i < aEnd && i < bEnd) {
+						if ((t = map.get(a[i])) == null || t !== index + sequence) break;
+						sequence++;
+					}
+					if (sequence > index - bStart) {
+						const node = a[aStart];
+						while (bStart < index) parentNode.insertBefore(b[bStart++], node);
+					} else parentNode.replaceChild(b[bStart++], a[aStart++]);
+				} else aStart++;
+			} else a[aStart++].remove();
 		}
 	}
 }
@@ -3672,9 +3681,10 @@ function insertExpression(parent, value, current, marker, unwrapArray) {
 		if (array.length === 0) {
 			current = cleanChildren(parent, current, marker);
 			if (multi) return current;
-		} else if (currentArray) if (current.length === 0) appendNodes(parent, array, marker);
-		else reconcileArrays(parent, current, array);
-		else {
+		} else if (currentArray) {
+			if (current.length === 0) appendNodes(parent, array, marker);
+			else reconcileArrays(parent, current, array);
+		} else {
 			current && cleanChildren(parent);
 			appendNodes(parent, array);
 		}
@@ -3696,14 +3706,15 @@ function normalizeIncomingArray(normalized, array, current, unwrap) {
 		if (item == null || item === true || item === false);
 		else if ((t = typeof item) === "object" && item.nodeType) normalized.push(item);
 		else if (Array.isArray(item)) dynamic = normalizeIncomingArray(normalized, item, prev) || dynamic;
-		else if (t === "function") if (unwrap) {
-			while (typeof item === "function") item = item();
-			dynamic = normalizeIncomingArray(normalized, Array.isArray(item) ? item : [item], Array.isArray(prev) ? prev : [prev]) || dynamic;
+		else if (t === "function") {
+			if (unwrap) {
+				while (typeof item === "function") item = item();
+				dynamic = normalizeIncomingArray(normalized, Array.isArray(item) ? item : [item], Array.isArray(prev) ? prev : [prev]) || dynamic;
+			} else {
+				normalized.push(item);
+				dynamic = true;
+			}
 		} else {
-			normalized.push(item);
-			dynamic = true;
-		}
-		else {
 			const value = String(item);
 			if (prev && prev.nodeType === 3 && prev.data === value) normalized.push(prev);
 			else normalized.push(document.createTextNode(value));
@@ -4217,16 +4228,20 @@ function __wbg_finalize_init(instance, module) {
 }
 function initSync(module) {
 	if (wasm !== void 0) return wasm;
-	if (typeof module !== "undefined") if (Object.getPrototypeOf(module) === Object.prototype) ({module} = module);
-	else console.warn("using deprecated parameters for `initSync()`; pass a single object instead");
+	if (typeof module !== "undefined") {
+		if (Object.getPrototypeOf(module) === Object.prototype) ({module} = module);
+		else console.warn("using deprecated parameters for `initSync()`; pass a single object instead");
+	}
 	const imports = __wbg_get_imports();
 	if (!(module instanceof WebAssembly.Module)) module = new WebAssembly.Module(module);
 	return __wbg_finalize_init(new WebAssembly.Instance(module, imports), module);
 }
 async function __wbg_init(module_or_path) {
 	if (wasm !== void 0) return wasm;
-	if (typeof module_or_path !== "undefined") if (Object.getPrototypeOf(module_or_path) === Object.prototype) ({module_or_path} = module_or_path);
-	else console.warn("using deprecated parameters for the initialization function; pass a single object instead");
+	if (typeof module_or_path !== "undefined") {
+		if (Object.getPrototypeOf(module_or_path) === Object.prototype) ({module_or_path} = module_or_path);
+		else console.warn("using deprecated parameters for the initialization function; pass a single object instead");
+	}
 	const imports = __wbg_get_imports();
 	if (typeof module_or_path === "string" || typeof Request === "function" && module_or_path instanceof Request || typeof URL === "function" && module_or_path instanceof URL) module_or_path = fetch(module_or_path);
 	const { instance, module } = await __wbg_load(await module_or_path, imports);
@@ -6124,8 +6139,10 @@ var Player = (props) => {
 		const terminalH = charH * terminalRows() + bordersH;
 		let fit = props.fit ?? "width";
 		const currentContainerSize = containerSize();
-		if (fit === "both" || isFullscreen()) if (currentContainerSize.width / (currentContainerSize.height - controlBarHeight()) > terminalW / terminalH) fit = "height";
-		else fit = "width";
+		if (fit === "both" || isFullscreen()) {
+			if (currentContainerSize.width / (currentContainerSize.height - controlBarHeight()) > terminalW / terminalH) fit = "height";
+			else fit = "width";
+		}
 		if (fit === false || fit === "none") return {};
 		else if (fit === "width") {
 			const scale = currentContainerSize.width / terminalW;
@@ -6178,11 +6195,13 @@ var Player = (props) => {
 			core.seek(`${pos * 100}%`);
 		} else if (e.key == "?") toggleHelp();
 		else if (e.key == "k") toggleKeystrokeOverlay();
-		else if (e.key == "ArrowLeft") if (e.shiftKey) core.seek("<<<");
-		else core.seek("<<");
-		else if (e.key == "ArrowRight") if (e.shiftKey) core.seek(">>>");
-		else core.seek(">>");
-		else if (e.key == "Escape") setIsHelpVisible(false);
+		else if (e.key == "ArrowLeft") {
+			if (e.shiftKey) core.seek("<<<");
+			else core.seek("<<");
+		} else if (e.key == "ArrowRight") {
+			if (e.shiftKey) core.seek(">>>");
+			else core.seek(">>");
+		} else if (e.key == "Escape") setIsHelpVisible(false);
 		else return;
 		e.stopPropagation();
 		e.preventDefault();
@@ -6218,10 +6237,12 @@ var Player = (props) => {
 	const embeddedTheme = createMemo(() => preferEmbeddedTheme ? originalTheme() : null);
 	const playerStyle = () => {
 		const style = {};
-		if ((props.fit === false || props.fit === "none") && props.terminalFontSize !== void 0) if (props.terminalFontSize === "small") style["font-size"] = "12px";
-		else if (props.terminalFontSize === "medium") style["font-size"] = "18px";
-		else if (props.terminalFontSize === "big") style["font-size"] = "24px";
-		else style["font-size"] = props.terminalFontSize;
+		if ((props.fit === false || props.fit === "none") && props.terminalFontSize !== void 0) {
+			if (props.terminalFontSize === "small") style["font-size"] = "12px";
+			else if (props.terminalFontSize === "medium") style["font-size"] = "18px";
+			else if (props.terminalFontSize === "big") style["font-size"] = "24px";
+			else style["font-size"] = props.terminalFontSize;
+		}
 		const size = terminalElementSize();
 		if (size.width !== void 0) {
 			style["width"] = `${size.width}px`;

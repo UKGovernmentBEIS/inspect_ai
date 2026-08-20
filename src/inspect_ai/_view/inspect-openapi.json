@@ -338,6 +338,23 @@
         "title": "ApproverPolicyConfig",
         "type": "object"
       },
+      "ArchiveSnapshots": {
+        "description": "One complete compressed tar archive per checkpoint.\n\nBest choice when the captured data is dominated by large,\nhigh-entropy, frequently-rewritten files (training state, database\nfiles, encrypted containers), where incremental backup stores\nroughly the full dataset again at every checkpoint. Combined with\n``retention=SnapshotRetention(keep_last=N)``, storage is reclaimed\nmid-run as older checkpoints are thinned.",
+        "properties": {
+          "retention": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SnapshotRetention"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "ArchiveSnapshots",
+        "type": "object"
+      },
       "AttachmentData": {
         "properties": {
           "content": {
@@ -1278,7 +1295,7 @@
         "type": "object"
       },
       "CheckpointSampleConfig": {
-        "description": "Checkpoint configuration fields that may be set at the sample layer.\n\nThese fields can be specified on ``Sample(checkpoint=...)`` and are\nalso accepted at the task and eval layers (where they participate in\nthe per-field merge \u2014 precedence: eval > sample > task).\n\nThe fields excluded from this base class \u2014 ``checkpoints_location``\nand ``retention`` \u2014 are eval-wide concerns that the sample layer must\nnot influence. They live only on the derived :class:`CheckpointConfig`,\nwhich is the type used at the task and eval layers.",
+        "description": "Checkpoint configuration fields that may be set at the sample layer.\n\nThese fields can be specified on ``Sample(checkpoint=...)`` and are\nalso accepted at the task and eval layers (where they participate in\nthe per-field merge \u2014 precedence: eval > sample > task). Capture\nconfiguration \u2014 what to snapshot and with which strategy \u2014 is a\nproperty of the sample's workload, so it lives here.\n\nExcluded from the sample layer: ``checkpoints_location`` and\n``retention``. These are eval-wide storage-policy concerns that the\nsample layer must not influence; they live only on\n:class:`CheckpointConfig`, the subclass used at the task and eval\nlayers.",
         "properties": {
           "max_consecutive_failures": {
             "anyOf": [
@@ -1295,10 +1312,17 @@
             "anyOf": [
               {
                 "additionalProperties": {
-                  "items": {
-                    "type": "string"
-                  },
-                  "type": "array"
+                  "anyOf": [
+                    {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    {
+                      "$ref": "#/components/schemas/SandboxSnapshotConfig"
+                    }
+                  ]
                 },
                 "type": "object"
               },
@@ -7820,6 +7844,12 @@
         "title": "ResponseSchema",
         "type": "object"
       },
+      "ResticSnapshots": {
+        "description": "Incremental restic-based sandbox snapshots (the default).\n\nEach checkpoint stores only data changed since the previous one.\nBest choice when most files are stable across checkpoints. Storage\nis never reclaimed mid-run (restic retains all snapshots).",
+        "properties": {},
+        "title": "ResticSnapshots",
+        "type": "object"
+      },
       "Result": {
         "description": "Scan result.",
         "properties": {
@@ -8545,6 +8575,41 @@
           "action"
         ],
         "title": "SandboxEvent",
+        "type": "object"
+      },
+      "SandboxSnapshotConfig": {
+        "description": "Per-sandbox snapshot configuration: what to capture and how.\n\nUsed as a ``sandbox_paths`` value in place of a bare path list when\na sandbox needs a non-default snapshot strategy. The ``paths``\nfield carries the same semantics as a bare path-list value\n(``None`` = the sandbox default user's home directory; an empty\nlist opts the sandbox out entirely).",
+        "properties": {
+          "paths": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paths"
+          },
+          "strategy": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ResticSnapshots"
+              },
+              {
+                "$ref": "#/components/schemas/ArchiveSnapshots"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Strategy"
+          }
+        },
+        "title": "SandboxSnapshotConfig",
         "type": "object"
       },
       "ScannerResultField": {
@@ -9284,6 +9349,24 @@
           "duration_ms"
         ],
         "title": "SnapshotDetails",
+        "type": "object"
+      },
+      "SnapshotRetention": {
+        "description": "Mid-run retention policy for a sandbox snapshot strategy.\n\nApplied after each committed checkpoint, best-effort. The policy\nalways retains at least the latest committed checkpoint (the hard\nfloor); a strategy may retain more than the policy asks (restic\nkeeps everything).",
+        "properties": {
+          "keep_last": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Keep Last"
+          }
+        },
+        "title": "SnapshotRetention",
         "type": "object"
       },
       "SpanBeginEvent": {

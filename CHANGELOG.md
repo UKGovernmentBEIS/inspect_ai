@@ -31,7 +31,7 @@
 - Mistral: Provider-generated images remain available when replayed in subsequent conversation turns.
 - Eval Log: A retry attempt killed before it finishes reusing the prior log's completed samples no longer causes the next retry to re-run (and eventually lose) those samples.
 - Docs: Clarify that the sandbox `exec()` output limit is enforced by front-truncating the output streams rather than by raising `OutputLimitExceededError` (which remains the behaviour for `read_file()`). (#4778)
-- Checkpointing: Sandbox snapshots now support selectable strategies — incremental restic (default) or complete per-checkpoint archives with mid-run storage reclamation.
+- Checkpointing: Sandbox snapshots now support selectable strategies (per sandbox, settable at the sample, task, or eval layer) — incremental restic (default) or complete per-checkpoint archives with mid-run storage reclamation.
 
 ## 0.3.259 (16 August 2026)
 

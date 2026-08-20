@@ -7,6 +7,7 @@ from typing import Literal
 
 import pytest
 
+from inspect_ai.dataset import Sample
 from inspect_ai.util._checkpoint import (
     ArchiveSnapshots,
     CheckpointConfig,
@@ -426,9 +427,8 @@ def test_sandbox_paths_higher_layer_replaces_whole_dict() -> None:
 def test_sample_paths_override_preserves_task_strategy() -> None:
     """A sample-level bare path list must not reset the task's strategy.
 
-    Samples narrow *what* is captured; storage policy is settable only
-    at the task/eval layers, so the sample layer must not be able to
-    unset it either.
+    A bare path list expresses no strategy opinion, so a sample that
+    only narrows *what* is captured leaves the task's selection alone.
     """
     task = CheckpointConfig(
         trigger=Manual(),
@@ -475,6 +475,52 @@ def test_eval_explicit_strategy_overrides_task_strategy() -> None:
     assert out is not None
     assert out.sandbox_paths == {"default": ["/data"]}
     assert out.sandbox_strategy_config("default") == ResticSnapshots()
+
+
+def test_sample_selects_strategy() -> None:
+    """A sample selects the strategy suiting its own workload."""
+    task = CheckpointConfig(trigger=Manual(), sandbox_paths={"default": ["/data"]})
+    sample = CheckpointSampleConfig(
+        sandbox_paths={
+            "default": SandboxSnapshotConfig(
+                strategy=ArchiveSnapshots(retention=SnapshotRetention(keep_last=2))
+            )
+        }
+    )
+    out = merge_checkpoint_configs(task, sample)
+    assert out is not None
+    assert out.sandbox_strategy_config("default") == ArchiveSnapshots(
+        retention=SnapshotRetention(keep_last=2)
+    )
+
+
+def test_sample_strategy_overrides_task_and_yields_to_eval() -> None:
+    """Strategy selection resolves per-sandbox at eval > sample > task."""
+    task = CheckpointConfig(
+        trigger=Manual(),
+        sandbox_paths={"default": SandboxSnapshotConfig(strategy=ResticSnapshots())},
+    )
+    sample = CheckpointSampleConfig(
+        sandbox_paths={"default": SandboxSnapshotConfig(strategy=ArchiveSnapshots())}
+    )
+    out = merge_checkpoint_configs(task, sample)
+    assert out is not None
+    assert out.sandbox_strategy_config("default") == ArchiveSnapshots()
+
+    eval_ = _cfg(
+        "sandbox_paths",
+        {"default": SandboxSnapshotConfig(strategy=ResticSnapshots())},
+    )
+    out = merge_checkpoint_configs(task, sample, eval_)
+    assert out is not None
+    assert out.sandbox_strategy_config("default") == ResticSnapshots()
+
+
+def test_checkpoint_config_accepted_at_sample_layer() -> None:
+    """CheckpointConfig subclasses the sample config, so Sample accepts it."""
+    assert issubclass(CheckpointConfig, CheckpointSampleConfig)
+    sample = Sample(input="x", checkpoint=CheckpointConfig(trigger=Manual()))
+    assert sample.checkpoint is not None and sample.checkpoint.trigger == Manual()
 
 
 def test_strategy_applies_to_sandbox_absent_from_winning_paths() -> None:

@@ -15,7 +15,7 @@ filled in with their canonical defaults.
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable, Mapping
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Literal
 
@@ -118,58 +118,15 @@ class CheckpointSampleConfig:
 
     These fields can be specified on ``Sample(checkpoint=...)`` and are
     also accepted at the task and eval layers (where they participate in
-    the per-field merge — precedence: eval > sample > task).
+    the per-field merge — precedence: eval > sample > task). Capture
+    configuration — what to snapshot and with which strategy — is a
+    property of the sample's workload, so it lives here.
 
-    Excluded from the sample layer: ``checkpoints_location``,
-    ``retention``, and snapshot-strategy selection
-    (:class:`SandboxSnapshotConfig` values in ``sandbox_paths``). These
-    are storage-policy concerns that the sample layer must not
-    influence; they live only on :class:`CheckpointConfig`, the type
-    used at the task and eval layers. Keeping strategy selection out of
-    this class also keeps it out of the log schema — ``Sample`` (and
-    with it this class) is recorded in eval logs, so its shape is a
-    public schema commitment in a way the task/eval config surface is
-    not.
-    """
-
-    trigger: CheckpointTrigger | None = None
-    """Checkpoint trigger strategy — any implementer of
-    :class:`CheckpointTrigger` (see :mod:`.triggers`). ``None`` means
-    "inherit from a lower-priority layer"; when no layer sets a
-    trigger, resolution falls back to
-    :data:`DEFAULT_CHECKPOINT_TRIGGER`."""
-
-    sandbox_paths: dict[str, list[str]] | None = None
-    """Per-sandbox-name list of absolute paths to capture inside the
-    sandbox (snapshotted with each sandbox's configured strategy).
-    ``None`` = inherit; sandboxes without an entry are captured with
-    the defaults (home directory); an empty path list opts that
-    sandbox out."""
-
-    max_consecutive_failures: int | None = None
-    """If set, the sample fails after N consecutive failed checkpoint
-    attempts. ``None`` = inherit / unlimited tolerance. ``0`` = any
-    failure is fatal."""
-
-
-@dataclass
-class CheckpointConfig:
-    """User-facing checkpoint configuration for the task and eval layers.
-
-    Specify on ``Task(checkpoint=...)`` or ``eval(checkpoint=...)``. All
-    fields default to ``None`` so that each level can supply a partial
-    config; the layers are combined per-field at sample-run time
-    (precedence: eval > sample > task).
-
-    Shares the sample-permitted fields with
-    :class:`CheckpointSampleConfig` and adds the storage-policy surface:
-    the eval-wide fields (``checkpoints_location``, ``retention``) and
-    snapshot-strategy selection (:class:`SandboxSnapshotConfig` values
-    in ``sandbox_paths``). Deliberately not a subclass: widening
-    ``sandbox_paths`` in a subclass is an unsound (and mypy-rejected)
-    override, and the independent sample class keeps the log schema —
-    which records ``Sample.checkpoint`` — unaffected by the task/eval
-    config surface.
+    Excluded from the sample layer: ``checkpoints_location`` and
+    ``retention``. These are eval-wide storage-policy concerns that the
+    sample layer must not influence; they live only on
+    :class:`CheckpointConfig`, the subclass used at the task and eval
+    layers.
     """
 
     trigger: CheckpointTrigger | None = None
@@ -192,6 +149,21 @@ class CheckpointConfig:
     """If set, the sample fails after N consecutive failed checkpoint
     attempts. ``None`` = inherit / unlimited tolerance. ``0`` = any
     failure is fatal."""
+
+
+@dataclass
+class CheckpointConfig(CheckpointSampleConfig):
+    """User-facing checkpoint configuration for the task and eval layers.
+
+    Specify on ``Task(checkpoint=...)`` or ``eval(checkpoint=...)``. All
+    fields default to ``None`` so that each level can supply a partial
+    config; the layers are combined per-field at sample-run time
+    (precedence: eval > sample > task).
+
+    Adds the eval-wide storage-policy fields (``checkpoints_location``,
+    ``retention``) to the sample-permitted surface it inherits from
+    :class:`CheckpointSampleConfig`.
+    """
 
     checkpoints_location: str | None = None
     """Override the parent directory under which the eval checkpoints
@@ -280,13 +252,11 @@ def merge_checkpoint_configs(
     Precedence: **eval > sample > task** — the layer closest to the run
     wins on per-field conflicts.
 
-    The sample layer is typed :class:`CheckpointSampleConfig`, so it can
-    only contribute to the fields it shares with the task/eval config
-    (``trigger``, ``sandbox_paths``, ``max_consecutive_failures``), and
-    its ``sandbox_paths`` values are bare path lists (no strategy
-    selection). The storage-policy surface — ``checkpoints_location``,
-    ``retention``, and strategy selection — comes only from the task or
-    eval layers.
+    The sample layer is typed :class:`CheckpointSampleConfig`, so it
+    contributes capture configuration (``trigger``, ``sandbox_paths``
+    including strategy selection, ``max_consecutive_failures``) but not
+    the eval-wide storage-policy fields (``checkpoints_location``,
+    ``retention``), which come only from the task or eval layers.
 
     For every field, the highest-priority layer with a non-None value
     wins; lower layers supply defaults that higher layers can override.
@@ -296,14 +266,13 @@ def merge_checkpoint_configs(
       whole-dict value (not key-wise): the highest-priority layer that
       set ``sandbox_paths`` wins.
     - **Snapshot-strategy selection** (*how* to snapshot — the
-      ``strategy`` values on :class:`SandboxSnapshotConfig` entries) is
-      storage policy and resolves per-sandbox from the task and eval
-      layers only (eval > task), independently of which layer won the
-      paths dict. A bare path list (and ``strategy=None``) expresses no
-      opinion on strategy, so a sample- or eval-level paths override
-      narrows *what* is captured without silently resetting a
-      task-selected strategy back to the default; a higher layer resets
-      a strategy by setting one explicitly (e.g.
+      ``strategy`` values on :class:`SandboxSnapshotConfig` entries)
+      resolves per-sandbox (eval > sample > task), independently of
+      which layer won the paths dict. A bare path list (and
+      ``strategy=None``) expresses no opinion on strategy, so a
+      higher-layer paths override narrows *what* is captured without
+      silently resetting a lower-selected strategy back to the default;
+      a higher layer resets a strategy by setting one explicitly (e.g.
       ``strategy=ResticSnapshots()``). A sandbox named only by a
       strategy selection (absent from the winning paths dict) is
       captured with the default paths under the configured strategy.
@@ -327,9 +296,7 @@ def merge_checkpoint_configs(
         return None
 
     trigger: CheckpointTrigger | None = None
-    # Mapping (not dict) so the sample layer's narrower value type is
-    # assignable (dict is invariant in its value type).
-    winning_paths: Mapping[str, list[str] | SandboxSnapshotConfig] | None = None
+    winning_paths: dict[str, list[str] | SandboxSnapshotConfig] | None = None
     max_consecutive_failures: int | None = None
     for layer in (task, sample, eval_):
         if layer is None:
@@ -354,12 +321,12 @@ def merge_checkpoint_configs(
     if trigger is None:
         trigger = DEFAULT_CHECKPOINT_TRIGGER
 
-    # Strategy selection resolves per-sandbox from the task/eval layers
-    # only, independently of the whole-dict paths merge above — see the
-    # docstring. Without this, a sample-level bare-path-list entry would
-    # silently revert a task-selected strategy to the default.
+    # Strategy selection resolves per-sandbox across all layers,
+    # independently of the whole-dict paths merge above — see the
+    # docstring. Without this, a higher layer's bare-path-list entry
+    # would silently revert a lower-selected strategy to the default.
     sandbox_strategies: dict[str, SnapshotStrategyConfig] = {}
-    for layer in (task, eval_):
+    for layer in (task, sample, eval_):
         if layer is None or layer.sandbox_paths is None:
             continue
         for name, value in layer.sandbox_paths.items():
