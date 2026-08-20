@@ -158,6 +158,7 @@ async def test_download_from_s3_mismatch_raises_and_caches_nothing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     filename = "inspect-sandbox-tools-amd64-v999"
+    monkeypatch.setenv(sandbox_module.STRICT_DIGESTS_VAR, "1")
     monkeypatch.setattr(sandbox_module, "_binaries_dir", lambda: tmp_path)
     monkeypatch.setattr(sandbox_module, "lookup_digest", lambda name: "0" * 64)
 
@@ -167,6 +168,29 @@ async def test_download_from_s3_mismatch_raises_and_caches_nothing(
             await sandbox_module._download_from_s3(filename)
 
     assert list(tmp_path.iterdir()) == []
+
+
+async def test_download_from_s3_mismatch_warns_and_proceeds_by_default(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    filename = "inspect-sandbox-tools-amd64-v999"
+    monkeypatch.delenv(sandbox_module.STRICT_DIGESTS_VAR, raising=False)
+    monkeypatch.setattr(sandbox_module, "_binaries_dir", lambda: tmp_path)
+    monkeypatch.setattr(sandbox_module, "lookup_digest", lambda name: "0" * 64)
+
+    # First response feeds the (failing) verified attempt; second feeds the
+    # unverified re-fetch. Patching httpx.stream via either importer patches
+    # the shared httpx module attribute, so one patch covers both call sites.
+    stream_mock = _stream_factory(
+        _FakeStream(200, b"tampered bytes"), _FakeStream(200, b"tampered bytes")
+    )
+    with patch("inspect_ai._util.download.httpx.stream", stream_mock):
+        assert await sandbox_module._download_from_s3(filename) is True
+
+    dest = tmp_path / filename
+    assert dest.read_bytes() == b"tampered bytes"
+    assert dest.stat().st_mode & 0o755 == 0o755
+    assert [p.name for p in tmp_path.iterdir()] == [filename]
 
 
 async def test_download_from_s3_404_returns_false(
@@ -188,6 +212,7 @@ async def test_download_from_s3_missing_sums_entry_raises_without_network(
 ) -> None:
     sums = tmp_path / "SHA256SUMS"
     write_sha256sums({"some-other-file": "d" * 64}, sums)
+    monkeypatch.setenv(sandbox_module.STRICT_DIGESTS_VAR, "1")
     monkeypatch.setattr(sandbox_module, "_binaries_dir", lambda: tmp_path)
     monkeypatch.setattr(
         sandbox_module, "lookup_digest", lambda name: lookup_digest(name, sums)
@@ -199,6 +224,29 @@ async def test_download_from_s3_missing_sums_entry_raises_without_network(
             await sandbox_module._download_from_s3("inspect-sandbox-tools-amd64-v999")
 
     stream_mock.assert_not_called()
+
+
+async def test_download_from_s3_missing_sums_entry_warns_and_downloads_by_default(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    filename = "inspect-sandbox-tools-amd64-v999"
+    sums = tmp_path / "SHA256SUMS"
+    write_sha256sums({"some-other-file": "d" * 64}, sums)
+    monkeypatch.delenv(sandbox_module.STRICT_DIGESTS_VAR, raising=False)
+    monkeypatch.setattr(sandbox_module, "_binaries_dir", lambda: tmp_path)
+    monkeypatch.setattr(
+        sandbox_module, "lookup_digest", lambda name: lookup_digest(name, sums)
+    )
+
+    content = b"unverified binary bytes"
+    stream_mock = _stream_factory(_FakeStream(200, content))
+    with patch("inspect_ai._util.download.httpx.stream", stream_mock):
+        assert await sandbox_module._download_from_s3(filename) is True
+
+    dest = tmp_path / filename
+    assert dest.read_bytes() == content
+    assert dest.stat().st_mode & 0o755 == 0o755
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["SHA256SUMS", filename]
 
 
 # ---------------------------------------------------------------------------

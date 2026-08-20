@@ -352,31 +352,79 @@ def _binaries_dir() -> Path:
     return Path(inspect_ai.__file__).parent / "binaries"
 
 
+# Soft launch of digest verification: failures warn by default and are fatal
+# only when this env var is set (any value other than "", "0", "false"). A
+# follow-on release makes them fatal unconditionally and removes the var.
+STRICT_DIGESTS_VAR = "INSPECT_SANDBOX_TOOLS_STRICT_DIGESTS"
+
+
+def _strict_digests() -> bool:
+    return os.environ.get(STRICT_DIGESTS_VAR, "").lower() not in ("", "0", "false")
+
+
 async def _download_from_s3(filename: str) -> bool:
     """Download executable from S3, verified against the vendored SHA256SUMS.
 
-    Returns True on a verified download, False when the object is missing from
-    S3 (403/404 — not yet published; the caller falls through to the
-    local-build tier). Everything else raises: a digest mismatch or a missing
-    sums entry must never be conflated with "missing" and never silently fall
-    through, because they are the tampering/corruption signals this
-    verification exists to surface (they reach the user wrapped in
-    SandboxInjectionError).
+    Returns True on a download, False when the object is missing from S3
+    (403/404 — not yet published; the caller falls through to the local-build
+    tier). A digest mismatch or a missing sums entry must never be conflated
+    with "missing" — they are the tampering/corruption signals this
+    verification exists to surface. With ``STRICT_DIGESTS_VAR`` set they raise
+    (reaching the user wrapped in SandboxInjectionError); by default they log
+    a warning and the unverified bytes are used anyway.
     """
-    # Raises if the sums file is unreadable or has no entry for this name —
-    # deliberately before any network I/O.
-    expected_sha256 = lookup_digest(filename)
+    expected_sha256: str | None
+    try:
+        # Raises if the sums file is unreadable or has no entry for this name —
+        # deliberately before any network I/O.
+        expected_sha256 = lookup_digest(filename)
+    except RuntimeError as e:
+        if _strict_digests():
+            raise
+        warn_once(
+            logger,
+            f"Sandbox tools digest lookup failed ({e}); downloading without "
+            f"verification. This will become a fatal error in a future "
+            f"release; set {STRICT_DIGESTS_VAR}=1 to make it fatal now.",
+        )
+        expected_sha256 = None
 
     binaries_path = _binaries_dir()
     binaries_path.mkdir(exist_ok=True)
     executable_path = binaries_path / filename
+    url = f"{_BUCKET_BASE_URL}/{filename}"
 
     try:
+        if expected_sha256 is not None:
+            try:
+                await anyio.to_thread.run_sync(
+                    _download_and_verify_blocking,
+                    url,
+                    expected_sha256,
+                    executable_path,
+                )
+                return True
+            except ValueError as e:
+                message = (
+                    f"Digest verification failed for {filename} downloaded from "
+                    f"S3: {e}. The published artifact does not match the digest "
+                    f"pinned in this inspect_ai release, which may indicate a "
+                    f"compromised or corrupted artifact — please report this to "
+                    f"the inspect_ai maintainers rather than retrying."
+                )
+                if _strict_digests():
+                    raise PrerequisiteError(message) from e
+                warn_once(
+                    logger,
+                    f"{message} Proceeding with the unverified artifact. This "
+                    f"will become a fatal error in a future release; set "
+                    f"{STRICT_DIGESTS_VAR}=1 to make it fatal now.",
+                )
+        # Unverified download — no pinned digest, or verification failed and
+        # strict mode is off (download() discarded the mismatching bytes, so
+        # fetch again without verification).
         await anyio.to_thread.run_sync(
-            _download_and_verify_blocking,
-            f"{_BUCKET_BASE_URL}/{filename}",
-            expected_sha256,
-            executable_path,
+            _download_unverified_blocking, url, executable_path
         )
         return True
     except httpx.HTTPStatusError as e:
@@ -384,14 +432,6 @@ async def _download_from_s3(filename: str) -> bool:
             print(f"Executable '{filename}' not found on S3")
             return False
         raise
-    except ValueError as e:
-        raise PrerequisiteError(
-            f"Digest verification failed for {filename} downloaded from S3: {e}. "
-            f"The published artifact does not match the digest pinned in this "
-            f"inspect_ai release, which may indicate a compromised or corrupted "
-            f"artifact — please report this to the inspect_ai maintainers rather "
-            f"than retrying."
-        ) from e
 
 
 def _download_and_verify_blocking(url: str, sha256: str, dest: Path) -> None:
@@ -412,6 +452,29 @@ def _download_and_verify_blocking(url: str, sha256: str, dest: Path) -> None:
     tmp = Path(tmp_path)
     try:
         download(url, sha256, tmp, timeout=60)
+        tmp.chmod(0o755)
+        os.replace(tmp, dest)
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
+def _download_unverified_blocking(url: str, dest: Path) -> None:
+    """Download ``url`` to ``dest`` with no digest check (blocking).
+
+    Soft-launch fallback only (see ``_download_from_s3``). Same unique-tempfile
+    + ``os.replace`` discipline as ``_download_and_verify_blocking``.
+
+    Raises ``httpx.HTTPStatusError`` on HTTP errors (no transient retries).
+    """
+    fd, tmp_path = tempfile.mkstemp(prefix=f"{dest.name}.", dir=dest.parent)
+    os.close(fd)
+    tmp = Path(tmp_path)
+    try:
+        with httpx.stream("GET", url, timeout=60, follow_redirects=True) as response:
+            response.raise_for_status()
+            with open(tmp, "wb") as f:
+                for chunk in response.iter_bytes():
+                    f.write(chunk)
         tmp.chmod(0o755)
         os.replace(tmp, dest)
     finally:

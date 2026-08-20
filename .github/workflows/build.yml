@@ -480,6 +480,9 @@ jobs:
         env:
           DOCKER_BUILDKIT: 1
           BUILDKIT_PROGRESS: plain
+          # Digest verification is warning-only by default during its soft
+          # launch; CI exercises strict mode.
+          INSPECT_SANDBOX_TOOLS_STRICT_DIGESTS: 1
         run: uv run pytest --runslow -m slow tests/tools/ -x
 
       - name: Minimize uv cache
@@ -580,6 +583,9 @@ jobs:
           # the non-dev name; _check_main_divergence would otherwise return
           # "edited" on this PR (version.txt differs from main).
           INSPECT_SANDBOX_TOOLS_INSTALL_STATE: clean
+          # Digest verification is warning-only by default during its soft
+          # launch; CI exercises strict mode.
+          INSPECT_SANDBOX_TOOLS_STRICT_DIGESTS: 1
         run: uv run pytest --runslow -m slow tests/tools/ -x
 
       - name: Minimize uv cache
