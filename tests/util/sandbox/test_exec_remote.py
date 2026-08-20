@@ -13,6 +13,7 @@ from unittest.mock import AsyncMock, patch
 
 import anyio
 import pytest
+from tenacity.wait import wait_none
 from test_helpers.utils import skip_if_no_docker
 
 from inspect_ai.tool._sandbox_tools_utils.sandbox import (
@@ -173,11 +174,15 @@ class TestPollRetryExhaustion:
         )
         proc = ExecRemoteProcess(sandbox, ["cmd"], ExecRemoteCommonOptions(), 5)
 
-        # The retry backoff would take ~30s to exhaust; make the async sleep a
-        # no-op so the test exercises the retry loop quickly. tenacity resolves
-        # asyncio.sleep lazily inside its portable sleep helper, so patching
-        # the asyncio module is sufficient.
-        with patch("asyncio.sleep", new=AsyncMock()):
+        # The retry backoff would take ~30s to exhaust; zero out the wait the
+        # same way conftest's fast_retry_waits does for model retries. Patching
+        # asyncio.sleep would be a no-op under the trio variant (tenacity routes
+        # through its portable sleep helper), and with real sleeps the attempt
+        # count assertion becomes timing-sensitive.
+        with patch(
+            "inspect_ai.util._sandbox.exec_remote.wait_exponential_jitter",
+            new=lambda *a, **k: wait_none(),
+        ):
             with pytest.raises(RuntimeError, match="exit code 137"):
                 await proc._poll()
 
@@ -672,9 +677,13 @@ async def docker_sandbox(request):
 
     # Smoke test: verify the injected binary accepts the current RPC schema.
     # Fails when the binary predates host-side schema changes (e.g. ack_seq).
+    # Only skip on ValueError (response-validation/schema mismatch). RuntimeError
+    # — including poll-retry exhaustion, which is now reraised — must propagate
+    # so a genuinely broken docker exec fails loudly instead of silently skipping
+    # this whole integration suite.
     try:
         await exec_remote_awaitable(proxy, ["true"], proxy.default_polling_interval())
-    except (ValueError, RuntimeError):
+    except ValueError:
         await cleanup()
         pytest.skip("Injected binary incompatible with current host-side RPC schema")
 
