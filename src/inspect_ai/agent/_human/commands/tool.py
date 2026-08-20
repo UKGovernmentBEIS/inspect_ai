@@ -31,6 +31,30 @@ def _omitted(kind: str) -> str:
     return f"[{kind} content omitted (recorded in transcript)]"
 
 
+def _validate_cli_flags(tool_def: ToolDef) -> None:
+    """Fail closed on parameters whose generated flags collide.
+
+    Argparse raises at parser *construction* on a duplicate option string,
+    which bricks the entire generated CLI (including `task submit`), so
+    collisions must be rejected host-side before install. Two sources:
+    argparse's automatic -h/--help, and the --no-<flag> negative alias that
+    BooleanOptionalAction generates for boolean parameters.
+    """
+    flags: dict[str, str] = {"--help": "argparse help", "-h": "argparse help"}
+    for name, schema in tool_def.parameters.properties.items():
+        info = _classify_schema(schema.model_dump(exclude_none=True))
+        param_flags = [f"--{name.replace('_', '-')}"]
+        if info.schema_type == "boolean":
+            param_flags.append(f"--no-{name.replace('_', '-')}")
+        for flag in param_flags:
+            if flag in flags:
+                raise ValueError(
+                    f"Tool '{tool_def.name}' parameter '{name}' generates "
+                    f"CLI flag '{flag}', which collides with {flags[flag]}."
+                )
+            flags[flag] = f"parameter '{name}'"
+
+
 def tool_result_to_str(result: ToolResult) -> str:
     """Convert ToolResult to string for CLI display."""
     if isinstance(result, str):
@@ -80,6 +104,7 @@ class ToolCommand(HumanAgentCommand):
                 )
             if tool_def.name in self._tool_defs:
                 raise ValueError(f"Duplicate tool name '{tool_def.name}'.")
+            _validate_cli_flags(tool_def)
             self._tool_defs[tool_def.name] = tool_def
             self._tool_map[tool_def.name] = tool
 

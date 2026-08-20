@@ -370,6 +370,73 @@ async def test_service_accepts_any_identifier_param_name() -> None:
     assert result == "ok"
 
 
+# --- finding 4: parameters that would break the generated CLI fail closed ----
+
+
+def test_param_named_help_rejected_at_construction() -> None:
+    """A parameter named `help` would brick the whole generated CLI.
+
+    add_argument("--help") collides with argparse's automatic flag and
+    raises at parser construction — taking down every command including
+    `task submit`. Reject it host-side, before install.
+    """
+
+    async def execute(help: str) -> str:
+        """Echo help.
+
+        Args:
+            help: A parameter named help.
+
+        Returns:
+            The value.
+        """
+        return help
+
+    bad = ToolDef(
+        execute,
+        name="helper",
+        description="Echo help.",
+        parameters={"help": "A parameter named help."},
+    ).as_tool()
+
+    with pytest.raises(ValueError, match="help"):
+        ToolCommand([bad])
+
+
+def test_boolean_negative_alias_collision_rejected() -> None:
+    """A bool `x` generates --no-x, colliding with a param named `no_x`."""
+
+    async def execute(dry_run: bool = False, no_dry_run: str = "") -> str:
+        """Collide a boolean's negative alias.
+
+        Args:
+            dry_run: A boolean (generates --dry-run/--no-dry-run).
+            no_dry_run: A parameter whose flag is also --no-dry-run.
+
+        Returns:
+            A marker.
+        """
+        return "ok"
+
+    bad = ToolDef(
+        execute,
+        name="collider",
+        description="Collide a boolean's negative alias.",
+        parameters={
+            "dry_run": "A boolean.",
+            "no_dry_run": "Collides with the boolean's negative alias.",
+        },
+    ).as_tool()
+
+    with pytest.raises(ValueError, match="no-dry-run"):
+        ToolCommand([bad])
+
+
+def test_plain_boolean_param_still_accepted() -> None:
+    """Control: an ordinary boolean parameter constructs fine."""
+    ToolCommand([_format_text()])
+
+
 # --- finding 1: human calls must honor the declared JSON Schema --------------
 
 
