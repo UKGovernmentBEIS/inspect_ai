@@ -129,7 +129,9 @@ Reworked to be the single writer of `SHA256SUMS`:
    would reach for.
 4. **Write `SHA256SUMS`** (sorted, all four entries) *before* uploading, so a
    crash mid-upload leaves a correct committed-able sums file and the CI gate
-   simply stays red until the upload is completed/retried.
+   simply stays red until the upload is completed/retried. (This holds only
+   because the gate checks all four objects — see consumer 3; a crash during
+   the later arm64 uploads would otherwise slip past an amd64-only gate.)
 5. **Upload**, then **verify the round trip**: GET each uploaded object and
    check its digest (catches truncation and eventual-consistency surprises
    before the operator walks away).
@@ -270,14 +272,24 @@ VERSION=$(tr -d '[:space:]' < src/inspect_ai/tool/_sandbox_tools_utils/sandbox_t
 SUMS=src/inspect_ai/tool/_sandbox_tools_utils/SHA256SUMS
 # Digest file must be in lockstep with the version bump: four non-blank
 # entries, all named -v${VERSION}. (Entry format/distinctness is enforced by
-# a fast unit test — see Testing.)
-if ! awk -v v="v${VERSION}" 'NF { n++; if ($2 !~ ("-" v "$")) exit 1 } END { exit n != 4 }' "$SUMS"; then
+# a fast unit test — see Testing.) A flag records the failure rather than an
+# early exit: `exit 1` in the awk body jumps to END, whose own exit would
+# override the status.
+if ! awk -v v="v${VERSION}" 'NF { n++; if ($2 !~ ("-" v "$")) bad = 1 } END { exit (bad || n != 4) }' "$SUMS"; then
   echo "::error::${SUMS} is not updated for v${VERSION}. Build+upload the artifacts (upload_to_s3.py rewrites it) and commit it in this PR."
   exit 1
 fi
+# All four artifacts are fetched and digest-checked, not just the amd64 pair
+# the slow tests exercise on this runner. Otherwise a crash partway through
+# upload_to_s3.py's upload order (amd64 first) would leave the gate green
+# with the arm64 objects missing, and the committed arm64 digests would
+# never be compared against S3 by anything but the maintainer-run round
+# trip. The extra ~80 MB download is trivial for CI.
 for FILENAME in \
   "inspect-sandbox-tools-amd64-v${VERSION}" \
-  "inspect-sandbox-tools-amd64-musl-v${VERSION}"; do
+  "inspect-sandbox-tools-amd64-musl-v${VERSION}" \
+  "inspect-sandbox-tools-arm64-v${VERSION}" \
+  "inspect-sandbox-tools-arm64-musl-v${VERSION}"; do
   URL="https://inspect-sandbox-tools.s3.us-east-2.amazonaws.com/${FILENAME}"
   # Keep today's explicit not-yet-uploaded error (a bare curl -f 404 is terse
   # and carries no ::error annotation).
@@ -321,8 +333,9 @@ Note: `.github/workflows/build.yml` edits are part of the implementation PR
 
 ## Process changes
 
-- **`design/RELEASING.md`**: document the new step between "Upload to S3" and
-  "Merge the PR" — commit the rewritten `SHA256SUMS` to the release PR. State
+- **`src/inspect_sandbox_tools/design/RELEASING.md`**: document the new step
+  between "Upload to S3" and "Merge the PR" — commit the rewritten
+  `SHA256SUMS` to the release PR. State
   the fail-closed window explicitly: after the version bump merges but before
   artifacts are uploaded, downloads 404 and fall back to local build (today's
   behavior, now documented); after upload, a digest mismatch anywhere is a
@@ -369,7 +382,7 @@ Note: `.github/workflows/build.yml` edits are part of the implementation PR
 | `src/inspect_ai/tool/_sandbox_tools_utils/sandbox.py` | `_download_from_s3` → lookup + `download()` via `to_thread` + chmod; mismatch raises; 404 unchanged; add `SHA256SUMS` to `_check_main_divergence` version pathspec group |
 | `src/inspect_ai/tool/_sandbox_tools_utils/upload_to_s3.py` | version guard, immutability guard, write sums, round-trip verify, commit reminder |
 | `scripts/pypi-release.py` | digest-verified downloads, digest-based existence check, unconditional pre-build bundle gate |
-| `.github/workflows/build.yml` | release-gate lockstep check + `sha256sum -c`; `check-version-bump` unbumped-direction sums check |
+| `.github/workflows/build.yml` | release-gate lockstep check + `sha256sum -c` over all four artifacts; `check-version-bump` unbumped-direction sums check |
 | `pyproject.toml` | add `SHA256SUMS` to package data |
 | `src/inspect_sandbox_tools/design/RELEASING.md` | new commit-sums step; fail-closed window; immutability rule |
 | `.claude/skills/release-sandbox-tools/SKILL.md` | sums commit step; digest-based verify step |
