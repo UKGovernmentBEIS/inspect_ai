@@ -358,9 +358,9 @@ def _cancel_queued_sample(
         if dry_run:
             return accepted
         outcome = handle.cancel_queued(sample_id, epoch)
-        if outcome.outcome == "accepted":
+        if outcome == "accepted":
             return accepted
-        if outcome.outcome == "departed":
+        if outcome == "departed":
             return departed_reject()
         return None  # not_pending: fall through and re-resolve
 

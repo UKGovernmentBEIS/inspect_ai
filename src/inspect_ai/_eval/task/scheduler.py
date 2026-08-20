@@ -30,11 +30,9 @@ import sys
 from dataclasses import dataclass
 from typing import (
     TYPE_CHECKING,
-    Any,
     Awaitable,
     Callable,
     Literal,
-    NamedTuple,
     TypeVar,
 )
 
@@ -48,6 +46,7 @@ if sys.version_info < (3, 11):
 if TYPE_CHECKING:
     from inspect_ai._eval.task.error import SampleErrorHandler
     from inspect_ai.log._log import EvalSample
+    from inspect_ai.scorer._metric import SampleScore
 
 T = TypeVar("T")
 
@@ -284,21 +283,18 @@ class _PendingRequeue:
     """The bucket ``accept`` decremented — restored verbatim on withdraw,
     never re-classified."""
     prior_uuid: str | None
-    popped_score: Any
+    popped_score: dict[str, SampleScore] | None
     """The superseded score ``on_accept`` retracted (``None`` when the prior
     was unscored), re-inserted on withdraw."""
 
 
-class CancelQueuedOutcome(NamedTuple):
-    """Result of :meth:`SampleRequeue.cancel_queued`.
+CancelQueuedOutcome = Literal["accepted", "departed", "not_pending"]
+"""Result of :meth:`SampleRequeue.cancel_queued`.
 
-    ``departed`` means the re-run left the queue while the request resolved
-    (invisible until its ``ActiveSample`` registers, so it can't be safely
-    withdrawn); ``not_pending`` means no requeue is pending for the key.
-    """
-
-    outcome: Literal["accepted", "departed", "not_pending"]
-    prior_status: Literal["error", "cancelled"] | None
+``departed`` means the re-run left the queue while the request resolved
+(invisible until its ``ActiveSample`` registers, so it can't be safely
+withdrawn); ``not_pending`` means no requeue is pending for the key.
+"""
 
 
 class SampleRequeue:
@@ -326,8 +322,8 @@ class SampleRequeue:
         sample_error: "SampleErrorHandler",
         sample_indexes: dict[str, int],
         checkpoints_dir: str | None,
-        on_accept: Callable[[str | int, int], Any],
-        on_withdraw: Callable[[str | int, int, Any], None],
+        on_accept: Callable[[str | int, int], dict[str, SampleScore] | None],
+        on_withdraw: Callable[[str | int, int, dict[str, SampleScore] | None], None],
     ) -> None:
         self._eval_id = eval_id
         self._scheduler = scheduler
@@ -486,9 +482,9 @@ class SampleRequeue:
         key = (sample_id, epoch)
         pending = self._pending.get(key)
         if pending is None:
-            return CancelQueuedOutcome("not_pending", None)
+            return "not_pending"
         if pending.entry.departed:
-            return CancelQueuedOutcome("departed", pending.prior_status)
+            return "departed"
         pending.entry.cancelled = True
         pending.entry.on_terminal = None
         del self._pending[key]
@@ -498,7 +494,7 @@ class SampleRequeue:
         if pending.prior_status == "error":
             self._sample_error.error_count += 1
         self._on_withdraw(pending.sample_id, epoch, pending.popped_score)
-        return CancelQueuedOutcome("accepted", pending.prior_status)
+        return "accepted"
 
     def queue_arrive(
         self, sample_id: str | int, epoch: int, entry: _ScheduledRun | None
