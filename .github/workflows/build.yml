@@ -261,7 +261,10 @@ jobs:
         # uncompressed: reportlog flushes every line, and flushing a .gz forces
         # a zlib flush per line (~4x the per-test cost). upload-artifact
         # compresses on upload anyway.
-        run: uv run pytest -rA --doctest-modules --color=yes -n auto --timeout=900 --timeout-method=thread --durations=50 --durations-min=1 --report-log=test-report-log.jsonl --report-log-exclude-logs-on-passed-tests
+        # -n logical, not auto: auto means physical cores when psutil is
+        # importable (it always is — a runtime dependency), using only 2 of
+        # the runner's 4 vCPUs. Measured: 449s → 334s of pytest wall.
+        run: uv run pytest -rA --doctest-modules --color=yes -n logical --timeout=900 --timeout-method=thread --durations=50 --durations-min=1 --report-log=test-report-log.jsonl --report-log-exclude-logs-on-passed-tests
 
       - name: Upload test order log
         if: ${{ !cancelled() && env.RUN_TESTS == 'true' }}
@@ -378,6 +381,7 @@ jobs:
         with:
           fetch-depth: 0
           fetch-tags: true
+          filter: "blob:none"
 
       - name: Check version bump
         id: bump
@@ -420,6 +424,7 @@ jobs:
         with:
           fetch-depth: 0
           fetch-tags: true
+          filter: "blob:none"
           submodules: true
 
       - name: Create local main ref
@@ -481,6 +486,7 @@ jobs:
         with:
           fetch-depth: 0
           fetch-tags: true
+          filter: "blob:none"
           submodules: true
 
       - name: Setup Docker Buildx
@@ -555,6 +561,7 @@ jobs:
         with:
           fetch-depth: 0
           fetch-tags: true
+          filter: "blob:none"
           submodules: true
 
       - name: Install uv

@@ -31,9 +31,22 @@ def gh_api(path: str) -> Any:
 
 
 def gh_api_text(path: str) -> str:
+    """Fetch a text API response (job logs).
+
+    gh >= 2.97 refuses to print a response containing terminal escape
+    sequences (pytest runs --color=yes, so logs always have them) unless
+    --allow-escape-sequences is passed; older gh rejects that flag as
+    unknown, hence the flagless retry.
+    """
     result = subprocess.run(
-        ["gh", "api", path], capture_output=True, text=True, check=True
+        ["gh", "api", "--allow-escape-sequences", path],
+        capture_output=True,
+        text=True,
     )
+    if result.returncode != 0:
+        result = subprocess.run(
+            ["gh", "api", path], capture_output=True, text=True, check=True
+        )
     return result.stdout
 
 
@@ -135,15 +148,52 @@ def parse_durations(log_text: str) -> list[Duration]:
     ]
 
 
-def collect_durations(
-    repo: str, runs: list[dict[str, Any]], max_runs: int
-) -> dict[str, list[dict[str, Any]]]:
-    """Parse pytest --durations from test-job logs of recent Build runs.
+# pytest final summary line, e.g.
+# "== 1234 passed, 56 skipped, 7 deselected, 2 xfailed in 412.34s =="
+SUMMARY_SECONDS = re.compile(r"=+.* in (\d+(?:\.\d+)?)s(?: \([^)]*\))? =+\s*$")
+SUMMARY_COUNT = re.compile(
+    r"(\d+) (passed|failed|skipped|deselected|xfailed|xpassed|errors?|warnings?)"
+)
+# CI runs pytest with --color=yes, so the summary line (unlike --durations
+# lines) carries ANSI escapes that break both regexes unless stripped.
+ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;]*m")
 
-    Returns {} silently when the durations flag isn't in CI yet — the
+
+def parse_summary(log_text: str) -> dict[str, Any] | None:
+    """Outcome counts + total wall seconds from pytest's final summary line.
+
+    The counts track suite size over time — distinct from --durations, which
+    only sees the slow tail.
+    """
+    for raw in reversed(log_text.splitlines()):
+        line = ANSI_ESCAPE.sub("", raw)
+        if m := SUMMARY_SECONDS.search(line):
+            counts = {
+                # "1 error"/"2 errors" (and warning/warnings) would otherwise
+                # produce different keys across runs, breaking aggregation.
+                (kind.removesuffix("s") if kind in ("errors", "warnings") else kind): (
+                    int(n)
+                )
+                for n, kind in SUMMARY_COUNT.findall(line)
+            }
+            if counts:
+                return {**counts, "seconds": float(m.group(1))}
+    return None
+
+
+class TestLogData(NamedTuple):
+    durations: dict[str, list[dict[str, Any]]]
+    summaries: dict[str, dict[str, Any]]
+
+
+def mine_test_logs(repo: str, runs: list[dict[str, Any]], max_runs: int) -> TestLogData:
+    """Parse pytest --durations and summary lines from recent Build test-job logs.
+
+    Durations come back empty silently when the flag isn't in CI yet — the
     skill's first proposed safe fix is adding it.
     """
     durations: dict[str, list[dict[str, Any]]] = {}
+    summaries: dict[str, dict[str, Any]] = {}
     build_runs = [
         r for r in runs if r["name"] == "Build" and r["conclusion"] == "success"
     ][:max_runs]
@@ -155,9 +205,12 @@ def collect_durations(
                 log = gh_api_text(f"repos/{repo}/actions/jobs/{job['id']}/logs")
             except subprocess.CalledProcessError:
                 continue  # logs expire after 90 days / may 404
+            key = f"{run['id']}/{job['name']}"
             if parsed := parse_durations(log):
-                durations[f"{run['id']}/{job['name']}"] = [d._asdict() for d in parsed]
-    return durations
+                durations[key] = [d._asdict() for d in parsed]
+            if summary := parse_summary(log):
+                summaries[key] = summary
+    return TestLogData(durations, summaries)
 
 
 def main() -> None:
@@ -196,16 +249,18 @@ def main() -> None:
         for run in raw_runs
     ]
 
+    log_data = (
+        mine_test_logs(args.repo, runs, args.durations_runs)
+        if args.durations_runs
+        else TestLogData({}, {})
+    )
     snapshot = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "repo": args.repo,
         "run_count": len(runs),
         "runs": runs,
-        "pytest_durations": (
-            collect_durations(args.repo, runs, args.durations_runs)
-            if args.durations_runs
-            else {}
-        ),
+        "pytest_durations": log_data.durations,
+        "pytest_summaries": log_data.summaries,
     }
 
     args.out.parent.mkdir(parents=True, exist_ok=True)

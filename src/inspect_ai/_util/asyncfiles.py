@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import errno
 import functools
 import io
 import logging
@@ -48,6 +49,28 @@ from inspect_ai._util.constants import HTTP
 from inspect_ai._util.file import FileInfo, file, filesystem, local_path
 
 logger = logging.getLogger(__name__)
+
+_S3_MISSING_OBJECT_CODES = ("404", "NoSuchKey", "NotFound")
+
+
+@contextmanager
+def _map_missing_s3_object(filename: str) -> Iterator[None]:
+    """Normalize S3 missing-object errors to ``FileNotFoundError``.
+
+    Local reads raise ``FileNotFoundError`` for an absent file, but botocore
+    surfaces a raw ``ClientError`` (404/NoSuchKey). Read callers treat an
+    absent log file as a routine state (e.g. a retry attempt's destination
+    log deferred until its reuse sweep settles, or a crashed attempt that
+    never wrote one), so S3 reads must degrade the same way local reads do.
+    """
+    try:
+        yield
+    except ClientError as ex:
+        if ex.response.get("Error", {}).get("Code") in _S3_MISSING_OBJECT_CODES:
+            raise FileNotFoundError(
+                errno.ENOENT, "No such file or directory", filename
+            ) from ex
+        raise
 
 
 class _BytesByteReceiveStream(ByteReceiveStream):
@@ -212,14 +235,15 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
     async def info(self, filename: str) -> FileInfo:
         if is_s3_filename(filename):
             bucket, key = s3_bucket_and_key(filename)
-            if current_async_backend() == "asyncio":
-                response = await (await self.s3_client_async()).head_object(
-                    Bucket=bucket, Key=key
+            with _map_missing_s3_object(filename):
+                if current_async_backend() == "asyncio":
+                    response = await (await self.s3_client_async()).head_object(
+                        Bucket=bucket, Key=key
+                    )
+                    return _s3_head_to_file_info(filename, response)
+                return await anyio.to_thread.run_sync(
+                    s3_info, self.s3_client(), bucket, key, filename
                 )
-                return _s3_head_to_file_info(filename, response)
-            return await anyio.to_thread.run_sync(
-                s3_info, self.s3_client(), bucket, key, filename
-            )
         else:
             return filesystem(filename).info(filename)
 
@@ -236,10 +260,9 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                     )
                     return True
                 except ClientError as e:
-                    if e.response.get("Error", {}).get("Code") in (
-                        "404",
-                        "NoSuchKey",
-                        "NotFound",
+                    if (
+                        e.response.get("Error", {}).get("Code")
+                        in _S3_MISSING_OBJECT_CODES
                     ):
                         return False
                     raise
@@ -252,20 +275,21 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
     async def read_file(self, filename: str) -> bytes:
         if is_s3_filename(filename):
             bucket, key = s3_bucket_and_key(filename)
-            if current_async_backend() == "asyncio":
-                response = await (await self.s3_client_async()).get_object(
-                    Bucket=bucket, Key=key
-                )
-                body = response["Body"]
-                try:
-                    return cast(bytes, await body.read())
-                finally:
-                    body.close()
+            with _map_missing_s3_object(filename):
+                if current_async_backend() == "asyncio":
+                    response = await (await self.s3_client_async()).get_object(
+                        Bucket=bucket, Key=key
+                    )
+                    body = response["Body"]
+                    try:
+                        return cast(bytes, await body.read())
+                    finally:
+                        body.close()
 
-            else:
-                return await anyio.to_thread.run_sync(
-                    s3_read_file, self.s3_client(), bucket, key
-                )
+                else:
+                    return await anyio.to_thread.run_sync(
+                        s3_read_file, self.s3_client(), bucket, key
+                    )
         else:
             with file(filename, "rb") as f:
                 return f.read()
@@ -276,16 +300,17 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
         """Stream the byte range [start, end) of a file (end=None reads to EOF)."""
         if is_s3_filename(filename):
             bucket, key = s3_bucket_and_key(filename)
-            if current_async_backend() == "asyncio":
-                response = await (await self.s3_client_async()).get_object(
-                    Bucket=bucket, Key=key, Range=s3_range_header(start, end)
+            with _map_missing_s3_object(filename):
+                if current_async_backend() == "asyncio":
+                    response = await (await self.s3_client_async()).get_object(
+                        Bucket=bucket, Key=key, Range=s3_range_header(start, end)
+                    )
+                    return _StreamingBodyByteReceiveStream(response["Body"])
+                return _BytesByteReceiveStream(
+                    await anyio.to_thread.run_sync(
+                        s3_read_file_bytes, self.s3_client(), bucket, key, start, end
+                    )
                 )
-                return _StreamingBodyByteReceiveStream(response["Body"])
-            return _BytesByteReceiveStream(
-                await anyio.to_thread.run_sync(
-                    s3_read_file_bytes, self.s3_client(), bucket, key, start, end
-                )
-            )
         else:
             fs = filesystem(filename)
             if fs.is_local():
@@ -327,28 +352,29 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
         """
         if is_s3_filename(filename):
             bucket, key = s3_bucket_and_key(filename)
-            if current_async_backend() == "asyncio":
-                response = await (await self.s3_client_async()).get_object(
-                    Bucket=bucket, Key=key, Range=f"bytes=-{suffix_length}"
-                )
-                content_range: str = response["ContentRange"]
-                total_size = int(content_range.split("/")[-1])
-                etag_raw = response.get("ETag")
-                etag = cast(str, etag_raw).strip('"') if etag_raw else None
-                body = response["Body"]
-                try:
-                    data = cast(bytes, await body.read())
-                finally:
-                    body.close()
-                return SuffixResult(data, total_size, etag)
-            else:
-                return await anyio.to_thread.run_sync(
-                    s3_read_file_suffix,
-                    self.s3_client(),
-                    bucket,
-                    key,
-                    suffix_length,
-                )
+            with _map_missing_s3_object(filename):
+                if current_async_backend() == "asyncio":
+                    response = await (await self.s3_client_async()).get_object(
+                        Bucket=bucket, Key=key, Range=f"bytes=-{suffix_length}"
+                    )
+                    content_range: str = response["ContentRange"]
+                    total_size = int(content_range.split("/")[-1])
+                    etag_raw = response.get("ETag")
+                    etag = cast(str, etag_raw).strip('"') if etag_raw else None
+                    body = response["Body"]
+                    try:
+                        data = cast(bytes, await body.read())
+                    finally:
+                        body.close()
+                    return SuffixResult(data, total_size, etag)
+                else:
+                    return await anyio.to_thread.run_sync(
+                        s3_read_file_suffix,
+                        self.s3_client(),
+                        bucket,
+                        key,
+                        suffix_length,
+                    )
         else:
             file_size = filesystem(filename).info(filename).size
             start = max(0, file_size - suffix_length)
@@ -433,13 +459,14 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
         """Download `remote` to local path `local`."""
         if is_s3_filename(remote):
             bucket, key = s3_bucket_and_key(remote)
-            if current_async_backend() == "asyncio":
-                client = await self.s3_client_async()
-                await client.download_file(Bucket=bucket, Key=key, Filename=local)
-            else:
-                await anyio.to_thread.run_sync(
-                    s3_get_file, self.s3_client(), bucket, key, local
-                )
+            with _map_missing_s3_object(remote):
+                if current_async_backend() == "asyncio":
+                    client = await self.s3_client_async()
+                    await client.download_file(Bucket=bucket, Key=key, Filename=local)
+                else:
+                    await anyio.to_thread.run_sync(
+                        s3_get_file, self.s3_client(), bucket, key, local
+                    )
         else:
             filesystem(remote).get_file(remote, local)
 
@@ -927,7 +954,7 @@ def s3_exists(s3: Any, bucket: str, key: str) -> bool:
         s3.head_object(Bucket=bucket, Key=key)
         return True
     except ClientError as e:
-        if e.response.get("Error", {}).get("Code") in ("404", "NoSuchKey", "NotFound"):
+        if e.response.get("Error", {}).get("Code") in _S3_MISSING_OBJECT_CODES:
             return False
         raise
 
