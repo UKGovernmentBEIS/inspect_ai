@@ -273,6 +273,16 @@ The script stays stdlib-only; it parses `SHA256SUMS` itself (or imports
   assert that `binaries/` contains exactly the two glibc artifacts for
   `version.txt`'s version and that each matches its committed digest. This is
   the last line of defense for the wheel and must not be skippable.
+- **Post-build wheel-contents check**: after `python -m build`, open the
+  built wheel (a zip) and assert it contains
+  `inspect_ai/tool/_sandbox_tools_utils/SHA256SUMS` (and
+  `sandbox_tools_version.txt`, which has the same unprotected dependency
+  today) alongside the two bundled binaries. Every other gate runs from a
+  repo checkout, which always has the committed sums file, so a dropped or
+  broken `pyproject.toml` package-data entry is exercised nowhere else — and
+  per the failure-mode table a wheel missing the sums file turns every PyPI
+  musl download into a hard runtime raise instead of today's silent
+  fallback, discovered only by users.
 - The glibc-only download set is now checked against a four-entry sums file.
   The lookup is by filename, so the two musl entries are simply unused here.
 
@@ -418,7 +428,7 @@ Note: `.github/workflows/build.yml` edits are part of the implementation PR
 | `src/inspect_ai/tool/_sandbox_tools_utils/_digests.py` | new, stdlib-only read/write/lookup (dual import style like `_build_config.py`) |
 | `src/inspect_ai/tool/_sandbox_tools_utils/sandbox.py` | rewrite `_download_from_s3`: lookup, then `download()` via `to_thread`, then chmod; mismatch raises; 404 unchanged; `_check_main_divergence` deliberately untouched (see Install-state detection) |
 | `src/inspect_ai/tool/_sandbox_tools_utils/upload_to_s3.py` | version guard, immutability guard, write sums, round-trip verify, commit reminder |
-| `scripts/pypi-release.py` | digest-verified downloads, digest-based existence check, unconditional pre-build bundle gate |
+| `scripts/pypi-release.py` | digest-verified downloads, digest-based existence check, unconditional pre-build bundle gate, post-build wheel-contents check |
 | `.github/workflows/build.yml` | release-gate lockstep check + `sha256sum -c` over all four artifacts; `check-version-bump` unbumped-direction sums check |
 | `pyproject.toml` | add `SHA256SUMS` to package data |
 | `src/inspect_sandbox_tools/design/RELEASING.md` | new commit-sums step; fail-closed window; immutability rule |
@@ -450,7 +460,8 @@ Unit tests (existing sandbox-tools test area; httpx mocked by patching
   `tests/util/test_download.py`.)
 - `pypi-release.py` verification helpers: mismatch on download and mismatch on
   pre-existing file both fail; pre-build gate rejects extra/missing/wrong
-  files.
+  files; wheel-contents check rejects a wheel missing `SHA256SUMS` or
+  `sandbox_tools_version.txt`.
 
 End-to-end: the existing `slow-tool-tests-release` gate exercises the real
 S3 fetch + verify on every release PR; no new slow test needed.
