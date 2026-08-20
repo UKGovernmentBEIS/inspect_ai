@@ -501,7 +501,7 @@ def sample_store_command(
     snapshot, not a stream: the store is rewritable, so there is no resume
     cursor; poll, or follow `inspect ctl sample events --type store` for the
     change stream. The default is metadata-only rows per key (JSON type,
-    serialized size in bytes — for spotting the big keys, it differs from
+    serialized size in UTF-8 bytes — for spotting the big keys, it differs from
     in-memory size — and a length hint); pass `--content` for truncated
     value previews, `--full` for raw values, and `--key` (repeatable; exact
     name or trailing-* prefix) to select keys server-side. EPOCH defaults

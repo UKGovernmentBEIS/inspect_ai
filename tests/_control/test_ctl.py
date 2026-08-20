@@ -4342,6 +4342,21 @@ def test_print_store_table_footer_and_missing(
     assert "metadata only" not in out
 
 
+def test_print_store_value_cell_truncated(capsys: pytest.CaptureFixture[str]) -> None:
+    """A long server preview (up to 256 chars) is clamped client-side."""
+    from inspect_ai._cli.ctl._render import _print_store
+
+    page = {
+        "status": "running",
+        "count": 1,
+        "store": {"notes": {"type": "string", "size": 300, "value": "x" * 256}},
+    }
+    _print_store(page, content=True, full=False)
+    row = next(line for line in capsys.readouterr().out.splitlines() if "notes" in line)
+    assert "x" * 99 + "…" in row
+    assert "x" * 100 not in row
+
+
 def test_print_store_metadata_rows_and_footer_hint(
     capsys: pytest.CaptureFixture[str],
 ) -> None:

@@ -31,6 +31,9 @@ def test_project_metadata_types_size_and_len() -> None:
         "size": len('"hello"'),
         "len": 5,
     }
+    # non-ASCII text counts real UTF-8 bytes, not the \uXXXX escape length
+    assert _project("日本語", content=False)["size"] == len('"日本語"'.encode())
+
     assert _project([1, 2, 3], content=False)["type"] == "array"
     assert _project([1, 2, 3], content=False)["len"] == 3
     # scalars carry no length hint

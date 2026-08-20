@@ -2,7 +2,7 @@
 
 > **Status: implemented** (the read helpers live in
 > `src/inspect_ai/_control/store.py`; the open questions below resolved as
-> proposed — no `--full` size guard, `size` = bytes of compact JSON).
+> proposed — no `--full` size guard, `size` = UTF-8 bytes of compact JSON).
 > Companion to [`control-channel.md`](control-channel.md), which
 > owns the control-channel architecture and conventions this read inherits (the
 > read-surface phasing, selector rules, projection tiers, and the "cheap
@@ -116,7 +116,8 @@ same three tiers as `events` / `messages` ("Trust boundary for readers" in
 helpers so renderings can't drift:
 
 - **Default: metadata only.** Per key: JSON `type` (`object` / `array` /
-  `string` / `number` / `boolean` / `null`), serialized `size` in bytes, and
+  `string` / `number` / `boolean` / `null`), serialized `size` in UTF-8
+  bytes, and
   a length hint (`len` — string length, array length, or object key count).
   No values. This is the effortless poll target: a monitor can watch keys
   appear and sizes move without ever ingesting agent-authored content.
@@ -253,7 +254,8 @@ Implementation shape (mirroring `_control/messages.py`):
    values. Proposed: ship without a cap (consistent; `--key` + the
    metadata-tier `size` field make targeted reads the documented pattern),
    revisit with a structural `truncated` flag if it bites.
-2. **Value `size` semantics.** Bytes of compact JSON serialization is
+2. **Value `size` semantics.** UTF-8 bytes of compact JSON serialization
+   (`ensure_ascii=False`, so non-ASCII text counts its real bytes) is
    proposed (cheap, deterministic); it will differ from Python-side
    `sys.getsizeof` and from the log's on-disk size. Fine for its purpose
    (spotting the big keys) — worth one sentence in the CLI help.

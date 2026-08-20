@@ -302,7 +302,7 @@ Scratchpad:i0:notes  string  2048
 
 Like `sample messages`, this is a snapshot, not a stream: the store is rewritable (a key can be overwritten or deleted between reads), so there is no resume cursor. Poll and compare the reported key `count`, or use `inspect ctl sample events --type store` when you want the change *stream* rather than the current state. While the sample runs the store is read from the live task state — no log involved, so it works even for samples whose transcript is buffered or bounded; once the sample finishes it is served from the eval's log.
 
-The default rows are metadata only — each key's JSON type and its serialized size in bytes (for spotting the big keys; the `--json` rows also carry a length hint), with none of the values, which are agent-controlled text (see [Agent-controlled content](#agent-controlled-content) above). `--content` adds a truncated single-line preview of each value; `--full` returns the raw values.
+The default rows are metadata only — each key's JSON type and its serialized size in UTF-8 bytes (for spotting the big keys; the `--json` rows also carry a length hint), with none of the values, which are agent-controlled text (see [Agent-controlled content](#agent-controlled-content) above). `--content` adds a truncated single-line preview of each value; `--full` returns the raw values.
 
 | Option | Description |
 |----|----|

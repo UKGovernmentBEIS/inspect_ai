@@ -394,7 +394,10 @@ def _print_store(page: dict[str, Any], *, content: bool, full: bool) -> None:
                 str(projected.get("size", "") or ""),
             )
             if content:
-                row += (str(projected.get("value", "") or ""),)
+                # clamp client-side like the sibling tables (the server
+                # preview can be 256 chars, which would blow out the padded
+                # table width); the full preview remains available via --json
+                row += (_truncate(str(projected.get("value", "") or ""), 100),)
             rows.append(row)
         headers = ("key", "type", "size") + (("value",) if content else ())
         _render_table(headers, rows)

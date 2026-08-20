@@ -239,8 +239,9 @@ def _project(value: Any, *, content: bool) -> dict[str, Any]:
     """Compact, context-cheap summary of one (already jsonable) store value.
 
     The metadata form carries the value's JSON ``type``, its serialized
-    ``size`` in bytes (compact JSON — cheap and deterministic, for spotting
-    the big keys; it differs from Python memory size and on-disk size), and a
+    ``size`` in UTF-8 bytes (compact JSON — cheap and deterministic, for
+    spotting the big keys; it differs from Python memory size and on-disk
+    size), and a
     ``len`` hint (string length, array length, or object key count) — no
     values. ``content`` adds ``value``, a truncated single-line preview.
     Store values are agent-controlled text, so the metadata default exists
@@ -250,8 +251,12 @@ def _project(value: Any, *, content: bool) -> dict[str, Any]:
     """
     projected: dict[str, Any] = {
         "type": _json_type(value),
+        # ensure_ascii=False so non-ASCII text counts its real UTF-8 bytes
+        # rather than the ~3x-larger \uXXXX escape form
         "size": len(
-            json.dumps(value, separators=(",", ":"), default=str).encode("utf-8")
+            json.dumps(
+                value, separators=(",", ":"), default=str, ensure_ascii=False
+            ).encode("utf-8")
         ),
     }
     length = _length_hint(value)
