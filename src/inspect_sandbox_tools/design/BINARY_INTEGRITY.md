@@ -145,16 +145,19 @@ Reworked to be the single writer of `SHA256SUMS`:
 
 `_download_from_s3(filename)` changes from "GET + write bytes" to:
 
-1. Look up `filename` in the vendored `SHA256SUMS`. A missing entry is a
-   hard failure (raise; surfaces via `SandboxInjectionError`). For any state
+1. Look up `filename` in the vendored `SHA256SUMS`. A missing entry is an
+   integrity failure — fatal in strict mode (raise, surfacing via
+   `SandboxInjectionError`), a warning by default (see Soft launch below).
+   For any state
    that reaches the download tier the requested name is
    `inspect-sandbox-tools-{arch}[-musl]-v{version.txt}` and the version file
    and sums file come from the same checkout or wheel, so a missing entry
    means a corrupt install or a desynced commit, never a situation where
    downloading unverified bytes is the right answer. One benign case reaches
-   this raise: a non-editable git install of a release-PR branch during the
+   this failure: a non-editable git install of a release-PR branch during the
    review window (version bumped, sums not yet rewritten) classifies `clean`
-   and hard-fails where the old code would 404 into the local-build prompt.
+   and, in strict mode, hard-fails where a 404 would fall into the
+   local-build prompt.
    Accepted: the state is transient and self-describing, and falling through
    on a missing entry would blur the fail-closed contract.
 2. Fetch and verify via the existing
@@ -183,20 +186,30 @@ Reworked to be the single writer of `SHA256SUMS`:
    the call site requires no change to a shared helper.)
 3. Failure semantics (see the matrix below). 404/403 keeps its current
    meaning, "not published yet": return `False` so the resolver falls
-   through to the local-build tier. A digest mismatch raises. It must never
-   be conflated with "missing" and must never silently fall through, because
-   a mismatch is the attack or corruption signal this design exists to
-   surface.
+   through to the local-build tier. A digest mismatch is fatal in strict
+   mode and a loud warning by default (see Soft launch below). Either way it
+   is never conflated with "missing" — a mismatch is the attack or
+   corruption signal this design exists to surface.
 
 Failure-mode matrix for a download attempt:
 
 | Condition | Behavior | Rationale |
 |---|---|---|
 | Object missing on S3 (403/404) | return `False`; fall through to local build prompt | Pre-upload window on a release branch; correct and expected |
-| Digest mismatch | raise (`PrerequisiteError` wrapped in `SandboxInjectionError`), tempfile discarded, nothing cached | Tampering or corruption; fail closed and loud |
-| No entry in `SHA256SUMS` for the resolved name | raise | Desynced/corrupt install; never fetch unverified |
+| Digest mismatch | strict: raise (`PrerequisiteError` wrapped in `SandboxInjectionError`), tempfile discarded, nothing cached; default: warn once, re-fetch unverified | Tampering or corruption; loud either way |
+| No entry in `SHA256SUMS` for the resolved name | strict: raise; default: warn once, download unverified | Desynced/corrupt install |
 | Transient HTTP (408/429/5xx) | retried by `download()`; raise after exhaustion | Availability issue, not integrity |
-| `SHA256SUMS` unreadable/missing from install | raise | Same contract as restic's `_read_sha256sums` |
+
+**Soft launch.** While the digest machinery beds in, the integrity failures
+above are warnings by default: `_download_from_s3` logs once and proceeds
+with the unverified bytes unless `INSPECT_SANDBOX_TOOLS_STRICT_DIGESTS` is
+set (any value other than empty/`0`/`false`), which makes them fatal. CI's
+slow-tool jobs set the variable so strict mode stays exercised. The
+operator-facing checks (`upload_to_s3.py`, `pypi-release.py`, the release CI
+gate's `sha256sum -c`) are always fatal — softening those would let a bad
+release ship quietly. A follow-on PR makes the runtime failures fatal
+unconditionally and removes the variable.
+| `SHA256SUMS` unreadable/missing from install | strict: raise; default: warn once, download unverified | Corrupt install |
 
 The mismatch error message should state the expected and actual digests, name
 the file, and say explicitly that this may indicate a compromised or corrupted
@@ -286,8 +299,8 @@ The script stays stdlib-only; it parses `SHA256SUMS` itself (or imports
   repo checkout, which always has the committed sums file, so a dropped or
   broken `pyproject.toml` package-data entry is exercised nowhere else — and
   per the failure-mode table a wheel missing the sums file turns every PyPI
-  musl download into a hard runtime raise instead of today's silent
-  fallback, discovered only by users.
+  musl download into a runtime integrity failure (fatal in strict mode, a
+  loud warning by default), discovered only by users.
 - The glibc-only download set is now checked against a four-entry sums file.
   The lookup is by filename, so the two musl entries are simply unused here.
 
@@ -388,8 +401,9 @@ exercises, differently per PR type:
   download path — which is now the verified path, checked against the sums
   the PR shares with main. Every such PR therefore acts as a continuous
   canary comparing the published amd64 pair against the committed digests. A
-  corrupted or tampered object turns these jobs red with the mismatch raise,
-  not a silent fallback; that is the intended fail-loud behavior, and the
+  corrupted or tampered object turns these jobs red with the mismatch raise
+  (the jobs set `INSPECT_SANDBOX_TOOLS_STRICT_DIGESTS`), not a silent
+  fallback; that is the intended fail-loud behavior, and the
   recovery is the same stop-the-line path as any other mismatch (investigate;
   if the object is wrong, bump and republish — never overwrite).
 - **Seeding PR**: analyzed under "Install-state detection" and Rollout — the
@@ -401,8 +415,9 @@ exercises, differently per PR type:
   between "Upload to S3" and "Merge the PR": commit the rewritten
   `SHA256SUMS` to the release PR. State the fail-closed window explicitly.
   While a version bump is merged (or installed non-editably from the PR
-  branch) with the sums not yet rewritten, clean/pypi downloads raise on the
-  missing sums entry — fail closed, by design. Once the rewritten sums are
+  branch) with the sums not yet rewritten, clean/pypi downloads treat the
+  missing sums entry as an integrity failure (fatal in strict mode, a
+  warning by default during the soft launch). Once the rewritten sums are
   committed but before the S3 objects land, downloads 404 and fall back to
   local build; the upload-before-commit ordering makes
   this window hard to reach. After upload, a digest mismatch anywhere is a
@@ -462,7 +477,7 @@ exercises, differently per PR type:
 |---|---|
 | `src/inspect_ai/tool/_sandbox_tools_utils/SHA256SUMS` | new, seeded via TOFU (four entries, current version) |
 | `src/inspect_ai/tool/_sandbox_tools_utils/_digests.py` | new, stdlib-only read/write/lookup (dual import style like `_build_config.py`) |
-| `src/inspect_ai/tool/_sandbox_tools_utils/sandbox.py` | rewrite `_download_from_s3`: lookup, then `download()` via `to_thread`, then chmod; mismatch raises; 404 unchanged; `_check_main_divergence` deliberately untouched (see Install-state detection) |
+| `src/inspect_ai/tool/_sandbox_tools_utils/sandbox.py` | rewrite `_download_from_s3`: lookup, then `download()` via `to_thread`, then chmod; integrity failures fatal in strict mode, warn-by-default (soft launch); 404 unchanged; `_check_main_divergence` deliberately untouched (see Install-state detection) |
 | `src/inspect_ai/tool/_sandbox_tools_utils/upload_to_s3.py` | version guard, immutability guard, write sums, round-trip verify, commit reminder |
 | `scripts/pypi-release.py` | digest-verified downloads, digest-based existence check, unconditional pre-build bundle gate, post-build wheel-contents check |
 | `.github/workflows/build.yml` | release-gate lockstep check + `sha256sum -c` over all four artifacts; `check-version-bump` unbumped-direction sums check; `slow-tool-tests-dev` untouched (see "The dev gate") |
@@ -481,8 +496,10 @@ Unit tests (existing sandbox-tools test area; httpx mocked by patching
 - `_digests.py`: round-trip write/parse; `*` marker tolerated; missing-entry
   lookup raises.
 - `_download_from_s3`: success verifies, chmods, and lands atomically; digest
-  mismatch raises and leaves neither `dest` nor any tempfile in `binaries/`;
-  404 returns `False`; missing sums entry raises without any network call.
+  mismatch in strict mode raises and leaves neither `dest` nor any tempfile
+  in `binaries/`, by default warns and installs the unverified bytes; 404
+  returns `False`; missing sums entry in strict mode raises without any
+  network call, by default warns and downloads unverified.
 - Sums format: a test asserting every `SHA256SUMS` entry filename parses via
   `filename_to_config`, has no `-dev` suffix, all entries share one version,
   and the four arch×libc combinations are each present exactly once. This
