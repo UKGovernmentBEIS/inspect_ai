@@ -513,9 +513,10 @@ Phases 1 and 2 together are the initial implementation:
    instead of no score — see open questions); scheduled/periodic passes
    (`--every`, or shell composition with a watchdog loop).
 
-When this ships, `control-channel.md`'s endpoint table and CLI hierarchy
-gain the corresponding rows (this doc is referenced from there rather than
-duplicating the tables now).
+`control-channel.md`'s endpoint table and CLI hierarchy carry
+planned-status entries for the directive that point back to this doc
+(rather than duplicating its detail); they gain the shipped markers when
+this lands.
 
 ## Open questions
 
