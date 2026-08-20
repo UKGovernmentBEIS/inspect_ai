@@ -2,6 +2,7 @@ import gzip
 import os
 import subprocess
 import sys
+import tempfile
 import warnings
 from contextlib import asynccontextmanager
 from importlib import resources
@@ -10,10 +11,12 @@ from pathlib import Path
 from typing import AsyncIterator, BinaryIO, Literal, get_args
 from urllib.parse import unquote, urlparse
 
+import anyio
 import httpx
 from rich.prompt import Prompt
 
 import inspect_ai
+from inspect_ai._util.download import download
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.package import get_package_direct_url
@@ -33,6 +36,7 @@ from ._build_config import (
     SandboxToolsBuildConfig,
     config_to_filename,
 )
+from ._digests import lookup_digest
 
 _BUCKET_BASE_URL = "https://inspect-sandbox-tools.s3.us-east-2.amazonaws.com"
 
@@ -206,7 +210,7 @@ def _uncompressed_tar_bytes(name: str, gz_bytes: bytes) -> bytes:
     best-effort: if the binaries dir isn't writable (e.g. a locked-down install) we
     just return the decompressed bytes rather than failing injection.
     """
-    binaries_path = Path(inspect_ai.__file__).parent / "binaries"
+    binaries_path = _binaries_dir()
     cache_path = binaries_path / f"{name}.tar"
     if cache_path.exists():
         return cache_path.read_bytes()
@@ -344,34 +348,74 @@ def _get_executable_name(arch: Architecture, dev: bool, musl: bool) -> str:
     )
 
 
+def _binaries_dir() -> Path:
+    return Path(inspect_ai.__file__).parent / "binaries"
+
+
 async def _download_from_s3(filename: str) -> bool:
-    """Download executable from S3. Returns True if successful, False otherwise.
+    """Download executable from S3, verified against the vendored SHA256SUMS.
 
-    Handles expected failures (404 - not yet promoted) silently.
-    Logs unexpected failures but doesn't raise exceptions.
+    Returns True on a verified download, False when the object is missing from
+    S3 (403/404 — not yet published; the caller falls through to the
+    local-build tier). Everything else raises: a digest mismatch or a missing
+    sums entry must never be conflated with "missing" and never silently fall
+    through, because they are the tampering/corruption signals this
+    verification exists to surface (they reach the user wrapped in
+    SandboxInjectionError).
     """
+    # Raises if the sums file is unreadable or has no entry for this name —
+    # deliberately before any network I/O.
+    expected_sha256 = lookup_digest(filename)
+
+    binaries_path = _binaries_dir()
+    binaries_path.mkdir(exist_ok=True)
+    executable_path = binaries_path / filename
+
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            # Download the executable
-            response = await client.get(f"{_BUCKET_BASE_URL}/{filename}")
-            response.raise_for_status()
-
-            # Save to binaries directory
-            binaries_path = Path(inspect_ai.__file__).parent / "binaries"
-            binaries_path.mkdir(exist_ok=True)
-
-            # Save with versioned name to match what we're looking for
-            executable_path = binaries_path / filename
-            executable_path.write_bytes(response.content)
-            executable_path.chmod(0o755)
-
-            return True
-
+        await anyio.to_thread.run_sync(
+            _download_and_verify_blocking,
+            f"{_BUCKET_BASE_URL}/{filename}",
+            expected_sha256,
+            executable_path,
+        )
+        return True
     except httpx.HTTPStatusError as e:
         if e.response.status_code in (403, 404):
             print(f"Executable '{filename}' not found on S3")
             return False
         raise
+    except ValueError as e:
+        raise PrerequisiteError(
+            f"Digest verification failed for {filename} downloaded from S3: {e}. "
+            f"The published artifact does not match the digest pinned in this "
+            f"inspect_ai release, which may indicate a compromised or corrupted "
+            f"artifact — please report this to the inspect_ai maintainers rather "
+            f"than retrying."
+        ) from e
+
+
+def _download_and_verify_blocking(url: str, sha256: str, dest: Path) -> None:
+    """Download ``url`` to ``dest``, verified against ``sha256`` (blocking).
+
+    ``download()`` streams to a *fixed* sibling tempfile, so two processes
+    fetching the same ``dest`` (e.g. parallel evals on a fresh install racing
+    for the musl artifact — the in-process ``concurrency()`` guard doesn't
+    cover that) could interleave writes and rename unverified bytes into
+    place. Mirror ``_restic/resolver.py``: give ``download()`` a unique
+    mkstemp destination and do our own final ``os.replace``.
+
+    Raises ``ValueError`` on digest mismatch and ``httpx.HTTPStatusError`` on
+    non-retryable HTTP errors (both from ``download()``).
+    """
+    fd, tmp_path = tempfile.mkstemp(prefix=f"{dest.name}.", dir=dest.parent)
+    os.close(fd)
+    tmp = Path(tmp_path)
+    try:
+        download(url, sha256, tmp, timeout=60)
+        tmp.chmod(0o755)
+        os.replace(tmp, dest)
+    finally:
+        tmp.unlink(missing_ok=True)
 
 
 async def _build_it(arch: Architecture, musl: bool, dev_executable_name: str) -> None:
