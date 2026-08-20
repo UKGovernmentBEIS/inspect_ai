@@ -569,7 +569,8 @@ def test_checkpoint_resume_survives_interrupted_hydration(
     log_dir = str(tmp_path / "logs")
     tests_dir = Path(__file__).parent.parent
 
-    projects_before = _inspect_projects()
+    prefix = _project_prefix("resume_decode_task")
+    projects_before = _inspect_projects(prefix)
     try:
         # --- attempt #0: fresh eval, hard-killed at turn 2 (ck1/ck2) -----
         _run_interrupted_attempt(log_dir, None, tests_dir)
@@ -589,7 +590,7 @@ def test_checkpoint_resume_survives_interrupted_hydration(
         reset_generates()
         resume = eval_retry(read_eval_log(source_log), log_dir=log_dir)[0]
     finally:
-        for name in _inspect_projects() - projects_before:
+        for name in _inspect_projects(prefix) - projects_before:
             _force_remove_project(name)
 
     assert resume.status == "success"
@@ -656,7 +657,8 @@ def test_checkpoint_retry_preserves_queued_sample_checkpoints(
 
     tests_dir = Path(__file__).parent.parent
 
-    projects_before = _inspect_projects()
+    prefix = _project_prefix("resume_two_sample_task")
+    projects_before = _inspect_projects(prefix)
     try:
         # --- attempt #0: both samples in flight, killed once B checkpointed
         _run_interrupted_attempt(log_dir, None, tests_dir)
@@ -683,7 +685,7 @@ def test_checkpoint_retry_preserves_queued_sample_checkpoints(
             0
         ]
     finally:
-        for name in _inspect_projects() - projects_before:
+        for name in _inspect_projects(prefix) - projects_before:
             _force_remove_project(name)
 
     assert resume.status == "success"
