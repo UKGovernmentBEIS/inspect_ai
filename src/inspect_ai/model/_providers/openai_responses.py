@@ -45,6 +45,7 @@ from .._openai import (
 )
 from .._openai_responses import (
     ResponsesModelInfo,
+    model_usage_from_response_usage,
     openai_responses_chat_choices,
     openai_responses_inputs,
     openai_responses_tool_choice,
@@ -234,23 +235,7 @@ async def generate_responses(
 
 
 def model_usage_from_response(model_response: Response) -> ModelUsage | None:
-    if model_response.usage is None:
-        return None
-    cached_tokens = (
-        model_response.usage.input_tokens_details.cached_tokens
-        if model_response.usage.input_tokens_details is not None
-        and model_response.usage.input_tokens_details.cached_tokens is not None
-        else 0
-    )
-    return ModelUsage(
-        input_tokens=model_response.usage.input_tokens - cached_tokens,
-        output_tokens=model_response.usage.output_tokens,
-        input_tokens_cache_read=cached_tokens if cached_tokens > 0 else None,
-        reasoning_tokens=model_response.usage.output_tokens_details.reasoning_tokens
-        if model_response.usage.output_tokens_details is not None
-        else None,
-        total_tokens=model_response.usage.total_tokens,
-    )
+    return model_usage_from_response_usage(model_response.usage)
 
 
 async def wait_for_background_response(
