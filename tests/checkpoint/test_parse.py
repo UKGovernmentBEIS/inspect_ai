@@ -120,35 +120,28 @@ def test_yaml_file(tmp_path: Path) -> None:
     assert cfg.retention == "retain"
 
 
-def test_yaml_file_omitted_fields_inherit(tmp_path: Path) -> None:
-    """Fields omitted from a config file stay None so lower-priority layers survive.
+def test_yaml_file_omitted_fields_get_defaults(tmp_path: Path) -> None:
+    """Fields omitted from a config file take the parser's defaults.
 
-    A non-None default (e.g. an empty ``sandbox_paths`` dict) would count
-    as "explicitly set" in ``merge_checkpoint_configs`` and silently stomp
-    a task-level value — including its snapshot-strategy selection.
+    These non-None defaults count as "explicitly set" in
+    ``merge_checkpoint_configs`` and override lower-priority layers.
+    Changing omitted fields to inherit instead is a planned follow-up
+    behavior change, deliberately kept out of the strategy-selection PR.
     """
     path = tmp_path / "ckpt.yaml"
     path.write_text("trigger: manual\n")
     cfg = _parse(str(path))
-    assert cfg.sandbox_paths is None
-    assert cfg.retention is None
+    assert cfg.sandbox_paths == {}
+    assert cfg.retention == "delete"
     assert cfg.max_consecutive_failures is None
     assert cfg.checkpoints_location is None
 
 
-def test_yaml_file_omitted_trigger_inherits(tmp_path: Path) -> None:
-    """A config file need not pin a trigger.
-
-    E.g. a file used purely for strategy selection inherits the trigger
-    from a lower-priority layer.
-    """
+def test_yaml_file_requires_trigger(tmp_path: Path) -> None:
     path = tmp_path / "ckpt.yaml"
     path.write_text("sandbox_paths:\n  default:\n    strategy: archive\n")
-    cfg = _parse(str(path))
-    assert cfg.trigger is None
-    assert cfg.sandbox_paths == {
-        "default": SandboxSnapshotConfig(strategy=ArchiveSnapshots())
-    }
+    with pytest.raises(ValueError, match="trigger"):
+        _parse(str(path))
 
 
 def test_yaml_file_manual_trigger(tmp_path: Path) -> None:

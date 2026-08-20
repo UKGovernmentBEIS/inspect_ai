@@ -11,10 +11,7 @@ Accepted forms (in order of detection):
 - The literal ``"manual"`` → ``trigger=Manual()``.
 - Otherwise → treat as a file path; load YAML/JSON via
   :func:`inspect_ai._util.config.resolve_args` and validate against
-  :class:`_CheckpointConfigModel`. Every field — including
-  ``trigger`` — may be omitted to inherit from lower-priority layers,
-  so a file can configure a single concern (e.g. snapshot-strategy
-  selection) without stomping the rest of a task's config.
+  :class:`_CheckpointConfigModel`.
 
 The CLI's bare ``--checkpoint`` flag is mapped to ``"default"`` by
 Click's ``flag_value``; the merge resolver supplies the concrete
@@ -222,36 +219,24 @@ class _CheckpointConfigModel(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    trigger: _TriggerModel | Literal["manual"] | None = None
-    """``None`` (omitted) = inherit — a config file used purely for
-    other concerns (e.g. strategy selection) need not pin a trigger
-    that would stomp a lower-priority layer's (see ``sandbox_paths``)."""
-
+    trigger: _TriggerModel | Literal["manual"]
     checkpoints_location: str | None = None
-    sandbox_paths: dict[str, list[str] | _SandboxSnapshotModel] | None = None
-    """``None`` (omitted) = inherit from lower-priority layers — a non-None
-    default would count as "explicitly set" in ``merge_checkpoint_configs``
-    and silently stomp a task-level value (including its strategy
-    selection)."""
-
+    sandbox_paths: dict[str, list[str] | _SandboxSnapshotModel] = Field(
+        default_factory=dict
+    )
     max_consecutive_failures: int | None = None
-    retention: Literal["delete", "retain"] | None = None
-    """``None`` (omitted) = inherit (see ``sandbox_paths``)."""
+    retention: Literal["delete", "retain"] = "delete"
 
     def to_dataclass(self) -> CheckpointConfig:
         return CheckpointConfig(
-            trigger=_trigger_model_to_strategy(self.trigger)
-            if self.trigger is not None
-            else None,
+            trigger=_trigger_model_to_strategy(self.trigger),
             checkpoints_location=self.checkpoints_location,
             sandbox_paths={
                 name: value.to_dataclass()
                 if isinstance(value, _SandboxSnapshotModel)
                 else value
                 for name, value in self.sandbox_paths.items()
-            }
-            if self.sandbox_paths is not None
-            else None,
+            },
             max_consecutive_failures=self.max_consecutive_failures,
             retention=self.retention,
         )

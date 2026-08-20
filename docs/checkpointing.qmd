@@ -267,8 +267,6 @@ sandbox_paths:
       keep_last: 2
 ```
 
-(In a config file every field is optional — a file used purely for strategy selection can omit `trigger` and inherit it from the task's config.)
-
 Notes on semantics:
 
 -   `paths` carries the same meaning as a bare path-list value (omitted = the sandbox user's home directory; an empty list opts the sandbox out), and the two value forms can be mixed in one `sandbox_paths` map. Sandboxes without an entry get the defaults (home directory, restic).
