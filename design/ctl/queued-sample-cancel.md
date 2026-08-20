@@ -1,6 +1,6 @@
 # Queued-Sample Cancel (`inspect ctl sample cancel` of a not-yet-started sample)
 
-> **Status: proposed.** Originating issue: meridianlabs-ai/inspect_ai#113. Companion to
+> **Status: implemented.** Originating issue: meridianlabs-ai/inspect_ai#113. Companion to
 > [`control-channel.md`](control-channel.md) (which owns the `sample/cancel` surface) and
 > [`sample-requeue.md`](sample-requeue.md) (whose resolved question 3 deferred this).
 > No new endpoint, params, or `CONTROL_API_VERSION` bump — this extends the semantics of

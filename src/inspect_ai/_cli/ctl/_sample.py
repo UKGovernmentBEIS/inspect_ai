@@ -477,13 +477,17 @@ def sample_cancel_command(
     as_json: bool,
     terse: bool | None,
 ) -> None:
-    """Cancel one running sample.
+    """Cancel one sample.
 
-    The sample is resolved per `--action`; the rest of the task is
-    unaffected. Idempotent — cancelling a sample that has already finished
-    is a clean no-op. EPOCH defaults to 1 but is required whenever the
-    task runs more than one epoch (a defaulted epoch would silently cancel
-    a different attempt).
+    A running sample is resolved per `--action`; the rest of the task is
+    unaffected. `--action cancel` also works on a sample that hasn't
+    started: it withdraws a queued re-run's pending requeue (the prior
+    terminal record stands) and cancels a never-started sample before it
+    starts (removed from the queue, absent from the final log). Idempotent —
+    cancelling a sample that has already finished (or was already cancelled
+    before start) is a clean no-op. EPOCH defaults to 1 but is required
+    whenever the task runs more than one epoch (a defaulted epoch would
+    silently cancel a different attempt).
     """
     _run_sample_cancel(
         task,
@@ -745,22 +749,42 @@ def _run_sample_cancel(
         "cancel": "recorded as cancelled",
     }[action]
 
+    # the queued rows (cancel-before-start / un-requeue — see
+    # design/ctl/queued-sample-cancel.md) report what actually happened via
+    # `reason`; "it will be scored/cancelled" would misdescribe a sample that
+    # never runs, so the reason wins when the server sends one
     def changed_message(label: str, result: dict[str, Any]) -> str:
+        reason = result.get("reason")
+        if reason:
+            reason = _sanitize_line(str(reason))
+            if dry_run:
+                return f"Would cancel {label} — {reason}."
+            return f"Cancelled {label} — {reason}."
         if dry_run:
             return f"Would cancel {label} — it would be {outcome}."
         return f"Cancel requested for {label} — it will be {outcome}."
 
     def noop_message(label: str, result: dict[str, Any]) -> str:
+        reason = result.get("reason")
+        if reason and reason != "sample already finished":
+            return f"Nothing to do — {label}: {_sanitize_line(str(reason))}."
         status = result.get("status")
         suffix = f" (status: {_sanitize_line(str(status))})" if status else ""
         return f"Nothing to do — {label} has already finished{suffix}."
 
     def terse_changed(result: dict[str, Any]) -> str:
+        reason = result.get("reason")
+        if reason:
+            reason = _sanitize_line(str(reason))
+            return f"dry-run — {reason}" if dry_run else reason
         if dry_run:
             return f"dry-run — would be {outcome}"
         return f"requested — will be {outcome}"
 
     def terse_noop(result: dict[str, Any]) -> str:
+        reason = result.get("reason")
+        if reason and reason != "sample already finished":
+            return f"no-op — {_sanitize_line(str(reason))}"
         status = result.get("status")
         suffix = f" (status: {_sanitize_line(str(status))})" if status else ""
         return f"no-op — already finished{suffix}"

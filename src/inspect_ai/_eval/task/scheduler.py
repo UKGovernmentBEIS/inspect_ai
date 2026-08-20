@@ -28,7 +28,15 @@ from __future__ import annotations
 
 import sys
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Awaitable, Callable, Literal, TypeVar
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Awaitable,
+    Callable,
+    Literal,
+    NamedTuple,
+    TypeVar,
+)
 
 import anyio
 
@@ -42,6 +50,25 @@ if TYPE_CHECKING:
     from inspect_ai.log._log import EvalSample
 
 T = TypeVar("T")
+
+
+class Discarded:
+    """Type of the :data:`DISCARDED` sentinel (for return annotations)."""
+
+    def __repr__(self) -> str:
+        return "DISCARDED"
+
+
+DISCARDED = Discarded()
+"""Sentinel result for a discarded sample run.
+
+Returned instead of a real result when a run is abandoned without recording
+anything (a queued-sample cancel's deferred discard, or a task-cancel drain
+abandoning a still-queued sample — see ``design/ctl/queued-sample-cancel.md``).
+``run_one`` skips the results write for it: writing (even ``None``) would
+clobber a prior attempt's keyed result — e.g. a ``score_on_error`` prior's
+score dict — and desync metrics from the log.
+"""
 
 RequeueOutcome = Literal["accepted", "already_pending", "stale", "closed", "unknown"]
 """Result of :meth:`SampleRequeue.accept`.
@@ -68,7 +95,22 @@ class _ScheduledRun:
     ``None`` for a fresh (source-added) entry."""
     on_terminal: Callable[[], None] | None = None
     """Invoked when a re-run reaches a terminal outcome (clears the
-    pending-requeue key, making the sample requeueable again)."""
+    pending-requeue key, making the sample requeueable again). Disarmed
+    (set ``None``) when the entry is withdrawn by an un-requeue: the key may
+    by then belong to a fresh requeue, which the withdrawn zombie must not
+    un-mark (see ``design/ctl/queued-sample-cancel.md``)."""
+    cancelled: bool = False
+    """Set by an un-requeue accept: the run discards at its next check point
+    (``run_sample``'s top, or the queue-exit check) without seeding,
+    recording, or writing a result. Always read off the entry object itself,
+    never via a key lookup — after an un-requeue plus a fresh requeue the key
+    aliases to the fresh entry."""
+    departed: bool = False
+    """Whether this run has left the sample queue (stamped at the queue-exit
+    check; re-cleared when a ``retry_on_error`` re-park re-arrives). A
+    departed run is invisible until its ``ActiveSample`` registers, so the
+    un-requeue accept refuses it rather than half-cancelling a run that will
+    also terminal-record on its own."""
 
 
 class SampleScheduler:
@@ -134,7 +176,7 @@ class SampleScheduler:
     async def run(
         self,
         plan: list[tuple[int, int]],
-        run_sample: Callable[[int, int, "EvalSample | None"], Awaitable[T]],
+        run_sample: Callable[[int, int, "_ScheduledRun | None"], Awaitable[T]],
         *,
         feeder: Callable[[], Awaitable[None]] | None = None,
         on_settle: Callable[[], None] | None = None,
@@ -183,9 +225,12 @@ class SampleScheduler:
                     sample_index: int, epoch: int, entry: _ScheduledRun | None
                 ) -> None:
                     try:
-                        results[(sample_index, epoch)] = await run_sample(
-                            sample_index, epoch, entry.prior if entry else None
-                        )
+                        result = await run_sample(sample_index, epoch, entry)
+                        # a discard never writes: even a None write would
+                        # clobber a prior attempt's keyed result (see
+                        # DISCARDED)
+                        if result is not DISCARDED:
+                            results[(sample_index, epoch)] = result
                     finally:
                         if entry is not None and entry.on_terminal is not None:
                             entry.on_terminal()
@@ -223,6 +268,39 @@ class SampleScheduler:
         return {key: results[key] for key in self._plan if key in results}
 
 
+@dataclass
+class _PendingRequeue:
+    """Bookkeeping for one accepted, not-yet-terminal requeue.
+
+    Kept per pending key so an un-requeue (``cancel_queued``) can find the
+    live entry to flag and perform the full inverse of ``accept``'s
+    reconciliation (see ``design/ctl/queued-sample-cancel.md``).
+    """
+
+    entry: _ScheduledRun
+    sample_id: str | int
+    """The prior record's dataset-typed id (progress/score restore keys on it)."""
+    prior_status: Literal["error", "cancelled"]
+    """The bucket ``accept`` decremented — restored verbatim on withdraw,
+    never re-classified."""
+    prior_uuid: str | None
+    popped_score: Any
+    """The superseded score ``on_accept`` retracted (``None`` when the prior
+    was unscored), re-inserted on withdraw."""
+
+
+class CancelQueuedOutcome(NamedTuple):
+    """Result of :meth:`SampleRequeue.cancel_queued`.
+
+    ``departed`` means the re-run left the queue while the request resolved
+    (invisible until its ``ActiveSample`` registers, so it can't be safely
+    withdrawn); ``not_pending`` means no requeue is pending for the key.
+    """
+
+    outcome: Literal["accepted", "departed", "not_pending"]
+    prior_status: Literal["error", "cancelled"] | None
+
+
 class SampleRequeue:
     """Attempt-scoped requeue capability (``design/ctl/sample-requeue.md``).
 
@@ -231,6 +309,13 @@ class SampleRequeue:
     control channel's requeue resolver (``_control/requeue.py``) on the
     eval's own loop. Detached when a task retry supersedes the attempt, like
     ``EvalState.live``.
+
+    Also owns the queued-sample cancel state
+    (``design/ctl/queued-sample-cancel.md``): the per-key queue-lifecycle
+    stamps the cancel resolver's at-the-queue gate reads, the
+    cancelled-before-start keys, and the withdraw (un-requeue) / un-cancel
+    accepts — it has exactly the right lifecycle (registered when the fanout
+    starts, detached on retry).
     """
 
     def __init__(
@@ -241,7 +326,8 @@ class SampleRequeue:
         sample_error: "SampleErrorHandler",
         sample_indexes: dict[str, int],
         checkpoints_dir: str | None,
-        on_accept: Callable[[str | int, int], None],
+        on_accept: Callable[[str | int, int], Any],
+        on_withdraw: Callable[[str | int, int, Any], None],
     ) -> None:
         self._eval_id = eval_id
         self._scheduler = scheduler
@@ -249,11 +335,13 @@ class SampleRequeue:
         self._sample_indexes = sample_indexes
         self._checkpoints_dir = checkpoints_dir
         self._on_accept = on_accept
+        self._on_withdraw = on_withdraw
         # keys accepted but not yet re-terminal — the idempotent double-queue
         # guard, covering the whole window from accept until the re-run
         # records its terminal outcome (including the park at the sample
-        # semaphore, where the re-run has no ActiveSample yet)
-        self._pending: set[tuple[str, int]] = set()
+        # semaphore, where the re-run has no ActiveSample yet). The value is
+        # the bookkeeping an un-requeue needs to withdraw the entry.
+        self._pending: dict[tuple[str, int], _PendingRequeue] = {}
         # uuids of prior records already accepted once: a directive whose
         # reads straddled a full accept → re-run → terminal cycle arrives
         # with a stale `prior` after the pending key has cleared, and
@@ -261,6 +349,20 @@ class SampleRequeue:
         # double-decrement the counters). A legitimate re-requeue after a
         # second failure carries the re-run's fresh uuid, so it still passes.
         self._accepted_uuids: set[str] = set()
+        # queue-lifecycle stamps for the key-based runs (initial seeds and
+        # source adds — re-runs stamp their entry instead): a key cycles
+        # absent → "arrived" (immediately before the semaphore park) →
+        # "departed" (at queue exit) → "arrived" again across retry_on_error
+        # re-parks. The cancel-before-start accept requires exactly
+        # "arrived": absence fails closed (a reuse-bound key on a retry
+        # attempt never queues), and "departed" is the blind window before
+        # the run's ActiveSample registers.
+        self._queue: dict[tuple[str, int], Literal["arrived", "departed"]] = {}
+        # cancelled-before-start keys: "parked" until the zombie coroutine
+        # drains at the queue-exit check, then "discarded". The distinction
+        # matters to the requeue resolver — a parked key can be un-cancelled
+        # (the same coroutine still serves), a discarded one cannot.
+        self._cancelled: dict[tuple[str, int], Literal["parked", "discarded"]] = {}
 
     @property
     def open(self) -> bool:
@@ -280,6 +382,13 @@ class SampleRequeue:
         terminal record.
         """
         return frozenset(self._pending)
+
+    def pending_prior_status(
+        self, sample_id: str, epoch: int
+    ) -> Literal["error", "cancelled"] | None:
+        """The pending requeue's prior terminal status, or ``None`` if not pending."""
+        pending = self._pending.get((sample_id, epoch))
+        return pending.prior_status if pending is not None else None
 
     async def checkpoint_available(self, sample_id: str | int, epoch: int) -> bool:
         """Whether the re-run would resume from an on-disk checkpoint."""
@@ -306,7 +415,8 @@ class SampleRequeue:
         ``SampleErrorHandler.error_count`` is un-counted so end-of-task
         ``fail_on_error`` reflects final outcomes, and ``on_accept`` receives
         the prior's ``(id, epoch)`` so the runner can retract its superseded
-        progress and score.
+        progress and score (returning the retracted score, stashed here for
+        a possible withdraw — see :meth:`cancel_queued`).
         """
         from inspect_ai._control.eval_state import record_sample_requeued
 
@@ -318,22 +428,160 @@ class SampleRequeue:
         sample_index = self._sample_indexes.get(str(prior.id))
         if sample_index is None:
             return "unknown"
-        self._pending.add(key)
-        accepted = self._scheduler.requeue(
-            _ScheduledRun(
-                sample_index=sample_index,
-                epoch=prior.epoch,
-                prior=prior,
-                on_terminal=lambda: self._pending.discard(key),
-            )
+
+        def discard_pending() -> None:
+            self._pending.pop(key, None)
+
+        entry = _ScheduledRun(
+            sample_index=sample_index,
+            epoch=prior.epoch,
+            prior=prior,
+            on_terminal=discard_pending,
         )
-        if not accepted:
-            self._pending.discard(key)
+        pending = _PendingRequeue(
+            entry=entry,
+            sample_id=prior.id,
+            prior_status=prior_status,
+            prior_uuid=prior.uuid,
+            popped_score=None,
+        )
+        self._pending[key] = pending
+        if not self._scheduler.requeue(entry):
+            self._pending.pop(key, None)
             return "closed"
         if prior.uuid is not None:
             self._accepted_uuids.add(prior.uuid)
         record_sample_requeued(self._eval_id, prior_status)
         if prior_status == "error":
             self._sample_error.error_count -= 1
-        self._on_accept(prior.id, prior.epoch)
+        pending.popped_score = self._on_accept(prior.id, prior.epoch)
         return "accepted"
+
+    def cancel_queued(self, sample_id: str, epoch: int) -> CancelQueuedOutcome:
+        """Withdraw a pending requeue (un-requeue) — the inverse of :meth:`accept`.
+
+        Synchronous end to end, on the eval's loop, so the entry can't leave
+        the queue between the departed check and the flag. The withdrawn
+        entry's ``on_terminal`` is disarmed (the key may come to belong to a
+        fresh requeue, which the zombie's terminal must not un-mark), the
+        prior record's uuid leaves the staleness guard (its re-run never
+        happened, so the record is back to being current and re-requeueable),
+        the prior terminal bucket / fail-on-error tally are restored, and
+        ``on_withdraw`` re-inserts the retracted progress and score. See
+        ``design/ctl/queued-sample-cancel.md``.
+        """
+        from inspect_ai._control.eval_state import record_sample_unrequeued
+
+        key = (sample_id, epoch)
+        pending = self._pending.get(key)
+        if pending is None:
+            return CancelQueuedOutcome("not_pending", None)
+        if pending.entry.departed:
+            return CancelQueuedOutcome("departed", pending.prior_status)
+        pending.entry.cancelled = True
+        pending.entry.on_terminal = None
+        del self._pending[key]
+        if pending.prior_uuid is not None:
+            self._accepted_uuids.discard(pending.prior_uuid)
+        record_sample_unrequeued(self._eval_id, pending.prior_status)
+        if pending.prior_status == "error":
+            self._sample_error.error_count += 1
+        self._on_withdraw(pending.sample_id, epoch, pending.popped_score)
+        return CancelQueuedOutcome("accepted", pending.prior_status)
+
+    def queue_arrive(
+        self, sample_id: str | int, epoch: int, entry: _ScheduledRun | None
+    ) -> None:
+        """Stamp a run's arrival at the sample queue (immediately pre-park).
+
+        A re-run stamps its entry (a key stamp could alias a fresh requeue's
+        coroutine after an un-requeue); key-based runs — initial seeds and
+        source adds — stamp the key map. Arrival overwrites a prior
+        departure: a ``retry_on_error`` re-park cycles the state back.
+        """
+        if entry is not None and entry.prior is not None:
+            entry.departed = False
+        else:
+            self._queue[(str(sample_id), epoch)] = "arrived"
+
+    def queue_depart(
+        self, sample_id: str | int, epoch: int, entry: _ScheduledRun | None
+    ) -> bool:
+        """Stamp a run's queue exit; ``True`` when it was cancelled while parked.
+
+        Called for every run that parks, cancelled or not — the accept-side
+        at-the-queue gate reads the stamp, so it must cover uncancelled runs
+        too. A cancelled hit flips a ``"parked"`` key to ``"discarded"``
+        (the requeue resolver's un-cancel window closes with the coroutine).
+        """
+        if entry is not None and entry.prior is not None:
+            entry.departed = True
+            return entry.cancelled
+        key = (str(sample_id), epoch)
+        self._queue[key] = "departed"
+        if self._cancelled.get(key) == "parked":
+            self._cancelled[key] = "discarded"
+            return True
+        return False
+
+    def queue_state(
+        self, sample_id: str, epoch: int
+    ) -> Literal["arrived", "departed"] | None:
+        """The key's queue-lifecycle stamp (``None`` = never reached the queue)."""
+        return self._queue.get((sample_id, epoch))
+
+    def cancelled_state(
+        self, sample_id: str, epoch: int
+    ) -> Literal["parked", "discarded"] | None:
+        """The key's cancelled-before-start state, or ``None`` if not cancelled."""
+        return self._cancelled.get((sample_id, epoch))
+
+    def cancelled_keys(self) -> frozenset[tuple[str, int]]:
+        """The cancelled-before-start keys, for the status derivation.
+
+        The samples listing renders these ``cancelled`` (synthesized row —
+        the sample has, and will have, no log record).
+        """
+        return frozenset(self._cancelled)
+
+    def cancel_before_start(
+        self, sample_id: str, epoch: int
+    ) -> Literal["accepted", "not_at_queue", "departed"]:
+        """Cancel a never-started (or retry-re-parked) sample parked at the queue.
+
+        Synchronous: requires the key to be exactly *at the queue* (arrived,
+        not departed) — a departed run is mid-materialization and will
+        terminal-record on its own; an unarrived key may be reuse-bound on a
+        retry attempt and never queue at all. On accept the sample is
+        terminally cancelled in the counters immediately; the parked
+        coroutine discards later, at the queue-exit check, without recording
+        again. See ``design/ctl/queued-sample-cancel.md``.
+        """
+        from inspect_ai._control.eval_state import record_sample_cancelled
+
+        key = (sample_id, epoch)
+        state = self._queue.get(key)
+        if state is None:
+            return "not_at_queue"
+        if state == "departed":
+            return "departed"
+        self._cancelled[key] = "parked"
+        record_sample_cancelled(self._eval_id)
+        return "accepted"
+
+    def uncancel(self, sample_id: str, epoch: int) -> bool:
+        """Withdraw a cancel-before-start while its coroutine is still parked.
+
+        The same parked coroutine serves as the re-run — no new entry is
+        created, so there is nothing to double-queue; the sample simply runs
+        when it gets a slot, exactly as if never cancelled. ``False`` when
+        the key isn't ``"parked"`` (never cancelled, or already discarded).
+        """
+        from inspect_ai._control.eval_state import record_sample_requeued
+
+        key = (sample_id, epoch)
+        if self._cancelled.get(key) != "parked":
+            return False
+        del self._cancelled[key]
+        record_sample_requeued(self._eval_id, "cancelled", op="un-cancel")
+        return True

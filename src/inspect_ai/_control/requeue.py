@@ -78,7 +78,27 @@ class RequeueAccepted(TypedDict):
     resume_from_checkpoint: bool
 
 
-RequeueResult = RequeueRejected | RequeueScheduled | RequeueAccepted
+class RequeueUncancelled(TypedDict):
+    """An accepted un-cancel of a cancelled-before-start sample.
+
+    The cancel-before-start is withdrawn while its coroutine is still parked
+    (``design/ctl/queued-sample-cancel.md``): the same parked coroutine
+    serves as the run, so ``status`` reports it ``pending`` — it runs when
+    it gets a slot, exactly as if never cancelled.
+    """
+
+    ok: Literal[True]
+    sample_id: str | int
+    epoch: int
+    dry_run: bool
+    changed: Literal[True]
+    status: Literal["pending"]
+    reason: str
+
+
+RequeueResult = (
+    RequeueRejected | RequeueScheduled | RequeueAccepted | RequeueUncancelled
+)
 
 
 async def requeue_sample(
@@ -151,6 +171,36 @@ async def requeue_sample(
             "queued",
             "a requeue of this sample is already pending",
         )
+
+    # a cancelled-before-start key (design/ctl/queued-sample-cancel.md):
+    # `_is_planned` below would answer "will run without help" — a lie for a
+    # cancelled key. A parked key is un-cancelled (the same parked coroutine
+    # serves as the run); a discarded one is gone, with no prior record to
+    # seed a re-run from. No await separates the resolver's top from here,
+    # so the un-cancel accept needs no synchronous re-check.
+    cancelled = handle.cancelled_state(sample_id, epoch)
+    if cancelled == "discarded":
+        return _reject(
+            f"sample {sample_id} (epoch {epoch}) was cancelled before it "
+            "started and its run has been discarded — re-run it with "
+            "`inspect eval-retry` (or re-invoke `inspect eval-set`)"
+        )
+    if cancelled == "parked":
+        uncancelled: RequeueUncancelled = {
+            "ok": True,
+            "sample_id": sample_id,
+            "epoch": epoch,
+            "dry_run": dry_run,
+            "changed": True,
+            "status": "pending",
+            "reason": (
+                "cancel-before-start withdrawn — the sample will run when "
+                "it gets a slot"
+            ),
+        }
+        if not dry_run:
+            handle.uncancel(sample_id, epoch)
+        return uncancelled
 
     # terminal read: the live recorder, then the on-disk log — the full
     # sample, since its events seed the re-run's retry history
