@@ -7,6 +7,7 @@ from os import PathLike
 from typing import IO, Any, Literal, cast
 
 from anthropic.types import (
+    BrowserStateBlockParam,
     ContentBlock,
     ContentBlockParam,
     DocumentBlockParam,
@@ -496,7 +497,8 @@ def content_block_to_content(
     | ImageBlockParam
     | DocumentBlockParam
     | SearchResultBlockParam
-    | ToolReferenceBlockParam,
+    | ToolReferenceBlockParam
+    | BrowserStateBlockParam,
 ) -> Content:
     if block["type"] == "text":
         text = block["text"]
@@ -519,8 +521,12 @@ def content_block_to_content(
                     data=data,
                 )
             )
-        else:
+        elif block["source"]["type"] == "url":
             return ContentImage(image=block["source"]["url"])
+        else:
+            raise RuntimeError(
+                f"Unsupported image source type: {block['source']['type']}"
+            )
     elif block["type"] == "document":
         source = block["source"]
         if source["type"] == "text":
@@ -543,8 +549,10 @@ def content_block_to_content(
                 return ContentText(text=c)
             else:
                 return content_block_to_content(list(c)[0])
+        else:
+            raise RuntimeError(f"Unsupported document source type: {source['type']}")
     else:
-        raise RuntimeError(f"Unsupported content block type: {type(block)}")
+        raise RuntimeError(f"Unsupported content block type: {block['type']}")
 
 
 def base_64_data(data: str | IO[bytes] | PathLike[str]) -> str:
