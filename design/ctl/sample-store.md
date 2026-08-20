@@ -1,6 +1,9 @@
 # Sample Store Read (`inspect ctl sample store`)
 
-> **Status: proposed.** Companion to [`control-channel.md`](control-channel.md), which
+> **Status: implemented** (the read helpers live in
+> `src/inspect_ai/_control/store.py`; the open questions below resolved as
+> proposed — no `--full` size guard, `size` = bytes of compact JSON).
+> Companion to [`control-channel.md`](control-channel.md), which
 > owns the control-channel architecture and conventions this read inherits (the
 > read-surface phasing, selector rules, projection tiers, and the "cheap
 > shoveling" invariant); this doc owns the store-read semantics. Originating

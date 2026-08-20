@@ -46,6 +46,7 @@ from ._sample_read import (
     _run_sample_list,
     _run_sample_messages,
     _run_sample_show,
+    _run_sample_store,
 )
 
 if TYPE_CHECKING:
@@ -439,6 +440,80 @@ def sample_messages_command(
         epoch,
         tail=tail,
         show_all=show_all,
+        content=content,
+        full=full,
+        as_json=as_json,
+    )
+
+
+@sample_group.command("store")
+@click.argument("task")
+@click.argument("sample_id")
+@click.argument("epoch", required=False, type=int, default=1)
+@click.option(
+    "--key",
+    "keys",
+    multiple=True,
+    help=(
+        "Only these keys (repeatable), selected server-side so one large "
+        "key doesn't drag the whole store over the wire. An exact name, or "
+        "a trailing-* prefix (e.g. 'AgentState:*' for one StoreModel's "
+        "fields). Unknown exact keys land in `missing` (not an error)."
+    ),
+)
+@click.option(
+    "--content",
+    is_flag=True,
+    default=False,
+    help=(
+        "Include a truncated single-line preview of each value "
+        "(agent-controlled text, withheld by default) in the compact "
+        "summary."
+    ),
+)
+@click.option(
+    "--full",
+    is_flag=True,
+    default=False,
+    help=(
+        "Return raw values instead of the compact summary. Unbounded — "
+        "combine with --key to keep the response bounded."
+    ),
+)
+@_json_option(
+    "the `{task_id, sample_id, epoch, as_of, status, count, store}` envelope, "
+    "plus `missing` when --key was given"
+)
+def sample_store_command(
+    task: str,
+    sample_id: str,
+    epoch: int,
+    keys: tuple[str, ...],
+    content: bool,
+    full: bool,
+    as_json: bool,
+) -> None:
+    """Read one sample's current store (a snapshot).
+
+    Returns the sample's `Store` — the shared state solvers, tools, and
+    agents coordinate through — as it looks right now: read from the live
+    task state while the sample runs, and from the log once it finishes. A
+    snapshot, not a stream: the store is rewritable, so there is no resume
+    cursor; poll, or follow `inspect ctl sample events --type store` for the
+    change stream. The default is metadata-only rows per key (JSON type,
+    serialized size in bytes — for spotting the big keys, it differs from
+    in-memory size — and a length hint); pass `--content` for truncated
+    value previews, `--full` for raw values, and `--key` (repeatable; exact
+    name or trailing-* prefix) to select keys server-side. EPOCH defaults
+    to 1 (the response echoes the resolved epoch).
+
+    Example: inspect ctl sample store my-task sample-1 --key phase --content
+    """
+    _run_sample_store(
+        task,
+        sample_id,
+        epoch,
+        keys=keys,
         content=content,
         full=full,
         as_json=as_json,

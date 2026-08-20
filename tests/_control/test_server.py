@@ -642,6 +642,74 @@ async def test_sample_messages_endpoint_round_trips_and_404(
         assert missing.status_code == 404
 
 
+async def test_sample_store_endpoint_round_trips_and_404(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The sample-store route passes repeatable `key`/`full`, round-trips a reserved id, 404s.
+
+    `GET /evals/<id>/sample/store`: `sample_id` as a query param (so reserved
+    chars address), `key` repeatable on the wire, `content`/`full` forwarded,
+    and a missing sample → 404. The helper logic is unit-tested in
+    test_store.py; this pins the route wiring.
+    """
+    from inspect_ai._control import server as server_mod
+
+    seen: dict[str, object] = {}
+
+    async def _fake(
+        eval_id: str,
+        sample_id: str,
+        epoch: int,
+        *,
+        keys: object,
+        content: object,
+        full: object,
+    ) -> dict[str, object] | None:
+        seen["sample_id"] = sample_id
+        seen["keys"] = keys
+        seen["content"] = content
+        seen["full"] = full
+        if sample_id == "missing":
+            return None
+        return {"as_of": 1.0, "status": "running", "count": 0, "store": {}}
+
+    monkeypatch.setattr(server_mod, "sample_store", _fake)
+
+    app = server_mod.ControlServer(run_id="test")._build_app()
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://localhost"
+    ) as client:
+        ok = await client.get(
+            "/evals/e1/sample/store",
+            params=[
+                ("sample_id", "case/001"),
+                ("key", "phase"),
+                ("key", "AgentState:*"),
+                ("full", "true"),
+            ],
+        )
+        assert ok.status_code == 200, ok.text
+        assert seen["sample_id"] == "case/001"  # reserved-char id round-trips
+        assert seen["keys"] == ["phase", "AgentState:*"]  # `key` repeats
+        assert seen["full"] is True
+        assert seen["content"] is False  # metadata-only default
+
+        # an unfiltered read reaches the helper with no key selection
+        unfiltered = await client.get(
+            "/evals/e1/sample/store",
+            params={"sample_id": "case/001", "content": "true"},
+        )
+        assert unfiltered.status_code == 200, unfiltered.text
+        assert seen["keys"] is None
+        assert seen["content"] is True
+
+        missing = await client.get(
+            "/evals/e1/sample/store", params={"sample_id": "missing"}
+        )
+        assert missing.status_code == 404
+
+
 async def test_samples_endpoint_parses_filter(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

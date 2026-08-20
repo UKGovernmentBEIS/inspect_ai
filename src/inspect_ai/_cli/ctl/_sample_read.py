@@ -1,4 +1,4 @@
-"""Sample read runners: list/errors/show/events/messages.
+"""Sample read runners: list/errors/show/events/messages/store.
 
 Also the option validators these runners apply and the idle/truncation
 footers of the listing outputs.
@@ -52,6 +52,7 @@ from ._render import (
     _print_messages,
     _print_sample_detail,
     _print_samples_table,
+    _print_store,
     _task_header,
 )
 
@@ -804,6 +805,71 @@ def _run_sample_messages(
     _echo(_task_header(target))
     _echo()
     _print_messages(page, content=content, full=full)
+
+
+@_envelope_failures
+def _run_sample_store(
+    task: str,
+    sample_id: str,
+    epoch: int,
+    *,
+    keys: tuple[str, ...],
+    content: bool,
+    full: bool,
+    as_json: bool,
+) -> None:
+    fetched = _fetch_sample_summaries()
+    summaries = fetched.summaries
+    if not summaries:
+        if as_json:
+            # Uniform --json shape even on the empty page (task_id is
+            # unresolvable with no running evals; as_of is None because no
+            # server stamped a read time). `missing` appears only when keys
+            # were requested, as on a served page — empty, since no store
+            # was read to be missing from.
+            empty_page: dict[str, Any] = {
+                "task_id": None,
+                "sample_id": sample_id,
+                "epoch": epoch,
+                "as_of": None,
+                "status": None,
+                "count": 0,
+                "store": {},
+            }
+            if keys:
+                empty_page["missing"] = []
+            _echo_raw(json_lib.dumps(empty_page, indent=2))
+            return
+        _echo_no_running_evals()
+        return
+
+    target = _resolve_target_eval(summaries, task, busy_pids=fetched.busy_pids)
+    page = _fetch._fetch_sample_store(
+        target["socket_path"],
+        target["eval_id"],
+        sample_id,
+        epoch,
+        keys=keys,
+        content=content,
+        full=full,
+        pid=target.get("pid"),
+    )
+    # Echo the resolved identifiers so a defaulted epoch is visible and the
+    # row round-trips into other commands' selectors.
+    page = {
+        "task_id": target.get("task_id"),
+        "sample_id": sample_id,
+        "epoch": epoch,
+        **page,
+    }
+
+    if as_json:
+        _echo_raw(json_lib.dumps(page, indent=2))
+        return
+
+    _echo(_task_header(target))
+    _echo()
+    _print_store(page, content=content, full=full)
 
 
 def _looks_like_timestamp(value: str) -> bool:

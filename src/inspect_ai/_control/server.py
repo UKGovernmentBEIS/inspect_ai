@@ -17,8 +17,9 @@ Current scope is the phase 1-2 read surface — ``GET /tasks`` (per-task
 summaries), ``GET /evals/{id}/samples`` (capped sample listing with a
 status histogram and an ``active_since`` recency delta), ``GET
 /evals/{id}/sample`` (summary + error detail), ``GET
-/evals/{id}/sample/events`` (cursored transcript pull), and
-``GET /evals/{id}/sample/messages`` (conversation snapshot) —
+/evals/{id}/sample/events`` (cursored transcript pull),
+``GET /evals/{id}/sample/messages`` (conversation snapshot), and
+``GET /evals/{id}/sample/store`` (store snapshot) —
 plus ``POST /release`` / ``POST /keep`` for keep-alive control
 and the first phase-3 directives: the config/log-flush mutations,
 ``POST /tasks/{id}/cancel`` / ``POST /evals/{id}/sample/cancel``,
@@ -83,6 +84,7 @@ from inspect_ai._control.state import (
     parse_status_filter,
     sample_error_detail,
 )
+from inspect_ai._control.store import sample_store
 from inspect_ai._util.discovery import (
     prepare_discovery_dir,
     write_discovery_file,
@@ -353,7 +355,7 @@ class ControlServer:
         Imported lazily so module import doesn't pay the FastAPI cost
         when control is disabled.
         """
-        from fastapi import Depends, FastAPI, Request
+        from fastapi import Depends, FastAPI, Query, Request
         from fastapi.responses import JSONResponse
 
         from inspect_ai._control.strict import (
@@ -652,6 +654,34 @@ class ControlServer:
         ) -> Any:
             page = await sample_messages(
                 eval_id, sample_id, epoch, tail=tail, content=content, full=full
+            )
+            if page is None:
+                return JSONResponse(
+                    status_code=404,
+                    content={"error": f"sample {sample_id} (epoch {epoch}) not found"},
+                )
+            return page
+
+        # Per-sample store snapshot (the sample's `Store` — solver/agent
+        # shared state). Like the other per-sample routes, `sample_id` is a
+        # query param (ids may carry URL-reserved characters). Deliberately
+        # not cursored — the store is rewritable, so each call returns the
+        # current snapshot, enveloped with `as_of` / `status` / `count`.
+        # `key` (repeatable) selects keys server-side — exact names plus
+        # trailing-`*` prefixes; `content` opts into truncated value previews
+        # (metadata only by default — values are agent-controlled; see
+        # store._project); `full` returns raw jsonable values.
+        @app.get("/evals/{eval_id}/sample/store")
+        async def get_sample_store(
+            eval_id: str,
+            sample_id: str,
+            epoch: int = 1,
+            key: list[str] | None = Query(default=None),
+            content: bool = False,
+            full: bool = False,
+        ) -> Any:
+            page = await sample_store(
+                eval_id, sample_id, epoch, keys=key, content=content, full=full
             )
             if page is None:
                 return JSONResponse(
