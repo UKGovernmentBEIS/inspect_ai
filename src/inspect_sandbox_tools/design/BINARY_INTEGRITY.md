@@ -233,7 +233,7 @@ Tier 1 ("local executable check") does not hash files already present in
 - The threat model is the network/bucket, not the local filesystem. Bytes are
   verified at acquisition: every path by which a release artifact enters
   `binaries/` (runtime download, release-script download, CI fetch) verifies,
-  so an unverified release artifact can no longer get in. Re-hashing ~40 MB
+  so an unverified release artifact cannot get in. Re-hashing ~40 MB
   on every injection would buy nothing against an attacker who can already
   write to `site-packages`.
 
@@ -404,7 +404,7 @@ exercises, differently per PR type:
   branch) with the sums not yet rewritten, clean/pypi downloads raise on the
   missing sums entry — fail closed, by design. Once the rewritten sums are
   committed but before the S3 objects land, downloads 404 and fall back to
-  local build (today's behavior); the upload-before-commit ordering makes
+  local build; the upload-before-commit ordering makes
   this window hard to reach. After upload, a digest mismatch anywhere is a
   stop-the-line signal, and published S3 objects are immutable. Never fix a
   mismatch by re-uploading; always bump.
