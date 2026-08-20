@@ -10185,7 +10185,7 @@ function parseISODate(value, parse = Date.parse) {
 //#region ../../node_modules/.pnpm/arquero@8.0.3/node_modules/arquero/src/op/functions/date.js
 var date_exports = /* @__PURE__ */ __exportAll$1({
 	date: () => date,
-	datetime: () => datetime$1,
+	datetime: () => datetime,
 	dayofweek: () => dayofweek,
 	dayofyear: () => dayofyear,
 	format_date: () => format_date,
@@ -10277,7 +10277,7 @@ function timestamp$2(date) {
 * @param {number} [milliseconds=0] The milliseconds within the second.
 * @return {Date} The Date value.
 */
-function datetime$1(year, month, date, hours, minutes, seconds, milliseconds) {
+function datetime(year, month, date, hours, minutes, seconds, milliseconds) {
 	return !arguments.length ? new Date(Date.now()) : new Date(year, month || 0, date == null ? 1 : date, hours || 0, minutes || 0, seconds || 0, milliseconds || 0);
 }
 /**
@@ -12212,7 +12212,7 @@ function rowObjectExpression(node, table, props = table.columnNames()) {
 	return node;
 }
 //#endregion
-//#region ../../node_modules/.pnpm/acorn@8.17.0/node_modules/acorn/dist/acorn.mjs
+//#region ../../node_modules/.pnpm/acorn@8.18.0/node_modules/acorn/dist/acorn.mjs
 var astralIdentifierCodes = [
 	509,
 	0,
@@ -13392,7 +13392,7 @@ var skipWhiteSpace = /(?:\s|\/\/.*|\/\*[^]*?\*\/)*/g;
 var ref = Object.prototype;
 var hasOwnProperty$2 = ref.hasOwnProperty;
 var toString$1 = ref.toString;
-var hasOwn$1 = Object.hasOwn || (function(obj, propName) {
+var hasOwn$2 = Object.hasOwn || (function(obj, propName) {
 	return hasOwnProperty$2.call(obj, propName);
 });
 var isArray$1 = Array.isArray || (function(obj) {
@@ -13442,6 +13442,7 @@ var defaultOptions$1 = {
 	allowHashBang: false,
 	checkPrivateFields: true,
 	locations: false,
+	startLocation: null,
 	onToken: null,
 	onComment: null,
 	ranges: false,
@@ -13453,7 +13454,7 @@ var defaultOptions$1 = {
 var warnedAboutEcmaVersion = false;
 function getOptions(opts) {
 	var options = {};
-	for (var opt in defaultOptions$1) options[opt] = opts && hasOwn$1(opts, opt) ? opts[opt] : defaultOptions$1[opt];
+	for (var opt in defaultOptions$1) options[opt] = opts && hasOwn$2(opts, opt) ? opts[opt] : defaultOptions$1[opt];
 	if (options.ecmaVersion === "latest") options.ecmaVersion = 1e8;
 	else if (options.ecmaVersion == null) {
 		if (!warnedAboutEcmaVersion && typeof console === "object" && console.warn) {
@@ -13523,14 +13524,15 @@ var Parser$2 = function Parser(options, input, startPos) {
 	this.reservedWordsStrictBind = wordsRegexp(reservedStrict + " " + reservedWords.strictBind);
 	this.input = String(input);
 	this.containsEsc = false;
-	if (startPos) {
-		this.pos = startPos;
+	this.pos = startPos || 0;
+	this.curLine = 1;
+	if (options.startLocation) {
+		this.lineStart = this.pos - options.startLocation.column;
+		this.curLine = options.startLocation.line;
+	} else if (startPos) {
 		this.lineStart = this.input.lastIndexOf("\n", startPos - 1) + 1;
-		this.curLine = this.input.slice(0, this.lineStart).split(lineBreak).length;
-	} else {
-		this.pos = this.lineStart = 0;
-		this.curLine = 1;
-	}
+		if (this.options.locations) this.curLine = this.input.slice(0, this.lineStart).split(lineBreak).length;
+	} else this.lineStart = 0;
 	this.type = types$1.eof;
 	this.value = null;
 	this.start = this.end = this.pos;
@@ -14259,13 +14261,17 @@ pp$8.parseClassElement = function(constructorAllowsSuper) {
 		else keyName = "static";
 	}
 	node.static = isStatic;
-	if (!keyName && ecmaVersion >= 8 && this.eatContextual("async")) if ((this.isClassElementNameStart() || this.type === types$1.star) && !this.canInsertSemicolon()) isAsync = true;
-	else keyName = "async";
+	if (!keyName && ecmaVersion >= 8 && this.eatContextual("async")) {
+		if ((this.isClassElementNameStart() || this.type === types$1.star) && !this.canInsertSemicolon()) isAsync = true;
+		else keyName = "async";
+	}
 	if (!keyName && (ecmaVersion >= 9 || !isAsync) && this.eat(types$1.star)) isGenerator = true;
 	if (!keyName && !isAsync && !isGenerator) {
 		var lastValue = this.value;
-		if (this.eatContextual("get") || this.eatContextual("set")) if (this.isClassElementNameStart()) kind = lastValue;
-		else keyName = lastValue;
+		if (this.eatContextual("get") || this.eatContextual("set")) {
+			if (this.isClassElementNameStart()) kind = lastValue;
+			else keyName = lastValue;
+		}
 	}
 	if (keyName) {
 		node.computed = false;
@@ -14358,8 +14364,10 @@ pp$8.exitClassBody = function() {
 	var parent = len === 0 ? null : this.privateNameStack[len - 1];
 	for (var i = 0; i < used.length; ++i) {
 		var id = used[i];
-		if (!hasOwn$1(declared, id.name)) if (parent) parent.used.push(id);
-		else this.raiseRecoverable(id.start, "Private field '#" + id.name + "' must be declared in an enclosing class");
+		if (!hasOwn$2(declared, id.name)) {
+			if (parent) parent.used.push(id);
+			else this.raiseRecoverable(id.start, "Private field '#" + id.name + "' must be declared in an enclosing class");
+		}
 	}
 };
 function isPrivateNameConflicted(privateNameMap, element) {
@@ -14381,10 +14389,12 @@ function checkKeyName(node, name) {
 	return !computed && (key.type === "Identifier" && key.name === name || key.type === "Literal" && key.value === name);
 }
 pp$8.parseExportAllDeclaration = function(node, exports$1) {
-	if (this.options.ecmaVersion >= 11) if (this.eatContextual("as")) {
-		node.exported = this.parseModuleExportName();
-		this.checkExport(exports$1, node.exported, this.lastTokStart);
-	} else node.exported = null;
+	if (this.options.ecmaVersion >= 11) {
+		if (this.eatContextual("as")) {
+			node.exported = this.parseModuleExportName();
+			this.checkExport(exports$1, node.exported, this.lastTokStart);
+		} else node.exported = null;
+	}
 	this.expectContextual("from");
 	if (this.type !== types$1.string) this.unexpected();
 	node.source = this.parseExprAtom();
@@ -14450,7 +14460,7 @@ pp$8.parseExportDefaultDeclaration = function() {
 pp$8.checkExport = function(exports$1, name, pos) {
 	if (!exports$1) return;
 	if (typeof name !== "string") name = name.type === "Identifier" ? name.name : name.value;
-	if (hasOwn$1(exports$1, name)) this.raiseRecoverable(pos, "Duplicate export '" + name + "'");
+	if (hasOwn$2(exports$1, name)) this.raiseRecoverable(pos, "Duplicate export '" + name + "'");
 	exports$1[name] = true;
 };
 pp$8.checkPatternExport = function(exports$1, pat) {
@@ -14569,7 +14579,7 @@ pp$8.parseWithClause = function() {
 		} else first = false;
 		var attr = this.parseImportAttribute();
 		var keyName = attr.key.type === "Identifier" ? attr.key.name : attr.key.value;
-		if (hasOwn$1(attributeKeys, keyName)) this.raiseRecoverable(attr.key.start, "Duplicate attribute key '" + keyName + "'");
+		if (hasOwn$2(attributeKeys, keyName)) this.raiseRecoverable(attr.key.start, "Duplicate attribute key '" + keyName + "'");
 		attributeKeys[keyName] = true;
 		nodes.push(attr);
 	}
@@ -14727,7 +14737,7 @@ pp$7.checkLValSimple = function(expr, bindingType, checkClashes) {
 			if (isBind) {
 				if (bindingType === BIND_LEXICAL && expr.name === "let") this.raiseRecoverable(expr.start, "let is disallowed as a lexically bound name");
 				if (checkClashes) {
-					if (hasOwn$1(checkClashes, expr.name)) this.raiseRecoverable(expr.start, "Argument name clash");
+					if (hasOwn$2(checkClashes, expr.name)) this.raiseRecoverable(expr.start, "Argument name clash");
 					checkClashes[expr.name] = true;
 				}
 				if (bindingType !== BIND_OUTSIDE) this.declareName(expr.name, bindingType, expr.start);
@@ -14902,9 +14912,11 @@ pp$5.checkPropClash = function(prop, propHash, refDestructuringErrors) {
 	var kind = prop.kind;
 	if (this.options.ecmaVersion >= 6) {
 		if (name === "__proto__" && kind === "init") {
-			if (propHash.proto) if (refDestructuringErrors) {
-				if (refDestructuringErrors.doubleProto < 0) refDestructuringErrors.doubleProto = key.start;
-			} else this.raiseRecoverable(key.start, "Redefinition of __proto__ property");
+			if (propHash.proto) {
+				if (refDestructuringErrors) {
+					if (refDestructuringErrors.doubleProto < 0) refDestructuringErrors.doubleProto = key.start;
+				} else this.raiseRecoverable(key.start, "Redefinition of __proto__ property");
+			}
 			propHash.proto = true;
 		}
 		return;
@@ -14938,8 +14950,10 @@ pp$5.parseExpression = function(forInit, refDestructuringErrors) {
 	});
 };
 pp$5.parseMaybeAssign = function(forInit, refDestructuringErrors, afterLeftParse) {
-	if (this.isContextual("yield")) if (this.inGenerator) return this.parseYield(forInit);
-	else this.exprAllowed = false;
+	if (this.isContextual("yield")) {
+		if (this.inGenerator) return this.parseYield(forInit);
+		else this.exprAllowed = false;
+	}
 	var ownDestructuringErrors = false, oldParenAssign = -1, oldTrailingComma = -1, oldDoubleProto = -1;
 	if (refDestructuringErrors) {
 		oldParenAssign = refDestructuringErrors.parenthesizedAssign;
@@ -15055,9 +15069,10 @@ pp$5.parseMaybeUnary = function(refDestructuringErrors, sawUnary, incDec, forIni
 			expr = this.finishNode(node$1, "UpdateExpression");
 		}
 	}
-	if (!incDec && this.eat(types$1.starstar)) if (sawUnary) this.unexpected(this.lastTokStart);
-	else return this.buildBinary(startPos, startLoc, expr, this.parseMaybeUnary(null, false, false, forInit), "**", false);
-	else return expr;
+	if (!incDec && !(expr.type === "ArrowFunctionExpression" && expr.start === startPos) && this.eat(types$1.starstar)) {
+		if (sawUnary) this.unexpected(this.lastTokStart);
+		else return this.buildBinary(startPos, startLoc, expr, this.parseMaybeUnary(null, false, false, forInit), "**", false);
+	} else return expr;
 };
 function isLocalVariableAccess(node) {
 	return node.type === "Identifier" || node.type === "ParenthesizedExpression" && isLocalVariableAccess(node.expression);
@@ -15243,17 +15258,18 @@ pp$5.parseExprImport = function(forNew) {
 pp$5.parseDynamicImport = function(node) {
 	this.next();
 	node.source = this.parseMaybeAssign();
-	if (this.options.ecmaVersion >= 16) if (!this.eat(types$1.parenR)) {
-		this.expect(types$1.comma);
-		if (!this.afterTrailingComma(types$1.parenR)) {
-			node.options = this.parseMaybeAssign();
-			if (!this.eat(types$1.parenR)) {
-				this.expect(types$1.comma);
-				if (!this.afterTrailingComma(types$1.parenR)) this.unexpected();
-			}
+	if (this.options.ecmaVersion >= 16) {
+		if (!this.eat(types$1.parenR)) {
+			this.expect(types$1.comma);
+			if (!this.afterTrailingComma(types$1.parenR)) {
+				node.options = this.parseMaybeAssign();
+				if (!this.eat(types$1.parenR)) {
+					this.expect(types$1.comma);
+					if (!this.afterTrailingComma(types$1.parenR)) this.unexpected();
+				}
+			} else node.options = null;
 		} else node.options = null;
-	} else node.options = null;
-	else if (!this.eat(types$1.parenR)) {
+	} else if (!this.eat(types$1.parenR)) {
 		var errorPos = this.start;
 		if (this.eat(types$1.comma) && this.eat(types$1.parenR)) this.raiseRecoverable(errorPos, "Trailing comma is not allowed in import()");
 		else this.unexpected(errorPos);
@@ -15487,12 +15503,14 @@ pp$5.parsePropertyValue = function(prop, isPattern, isGenerator, isAsync, startP
 	} else this.unexpected();
 };
 pp$5.parsePropertyName = function(prop) {
-	if (this.options.ecmaVersion >= 6) if (this.eat(types$1.bracketL)) {
-		prop.computed = true;
-		prop.key = this.parseMaybeAssign();
-		this.expect(types$1.bracketR);
-		return prop.key;
-	} else prop.computed = false;
+	if (this.options.ecmaVersion >= 6) {
+		if (this.eat(types$1.bracketL)) {
+			prop.computed = true;
+			prop.key = this.parseMaybeAssign();
+			this.expect(types$1.bracketR);
+			return prop.key;
+		} else prop.computed = false;
+	}
 	return prop.key = this.type === types$1.num || this.type === types$1.string ? this.parseExprAtom() : this.parseIdent(this.options.allowReserved !== "never");
 };
 pp$5.initFunction = function(node) {
@@ -15627,8 +15645,10 @@ pp$5.parsePrivateIdent = function() {
 	else this.unexpected();
 	this.next();
 	this.finishNode(node, "PrivateIdentifier");
-	if (this.options.checkPrivateFields) if (this.privateNameStack.length === 0) this.raise(node.start, "Private field '#" + node.name + "' must be declared in an enclosing class");
-	else this.privateNameStack[this.privateNameStack.length - 1].used.push(node);
+	if (this.options.checkPrivateFields) {
+		if (this.privateNameStack.length === 0) this.raise(node.start, "Private field '#" + node.name + "' must be declared in an enclosing class");
+		else this.privateNameStack[this.privateNameStack.length - 1].used.push(node);
+	}
 	return node;
 };
 pp$5.parseYield = function(forInit) {
@@ -16163,9 +16183,11 @@ pp$1.regexp_groupSpecifier = function(state) {
 		if (!this.regexp_eatGroupName(state)) state.raise("Invalid group");
 		var trackDisjunction = this.options.ecmaVersion >= 16;
 		var known = state.groupNames[state.lastStringValue];
-		if (known) if (trackDisjunction) {
-			for (var i = 0, list = known; i < list.length; i += 1) if (!list[i].separatedFrom(state.branchID)) state.raise("Duplicate capture group name");
-		} else state.raise("Duplicate capture group name");
+		if (known) {
+			if (trackDisjunction) {
+				for (var i = 0, list = known; i < list.length; i += 1) if (!list[i].separatedFrom(state.branchID)) state.raise("Duplicate capture group name");
+			} else state.raise("Duplicate capture group name");
+		}
 		if (trackDisjunction) (known || (state.groupNames[state.lastStringValue] = [])).push(state.branchID);
 		else state.groupNames[state.lastStringValue] = true;
 	}
@@ -16413,7 +16435,7 @@ pp$1.regexp_eatUnicodePropertyValueExpression = function(state) {
 	return CharSetNone;
 };
 pp$1.regexp_validateUnicodePropertyNameAndValue = function(state, name, value) {
-	if (!hasOwn$1(state.unicodeProperties.nonBinary, name)) state.raise("Invalid property name");
+	if (!hasOwn$2(state.unicodeProperties.nonBinary, name)) state.raise("Invalid property name");
 	if (!state.unicodeProperties.nonBinary[name].test(value)) state.raise("Invalid property value");
 };
 pp$1.regexp_validateUnicodePropertyNameOrValue = function(state, nameOrValue) {
@@ -17179,12 +17201,14 @@ pp.readTmplToken = function() {
 		if (this.pos >= this.input.length) this.raise(this.start, "Unterminated template");
 		var ch = this.input.charCodeAt(this.pos);
 		if (ch === 96 || ch === 36 && this.input.charCodeAt(this.pos + 1) === 123) {
-			if (this.pos === this.start && (this.type === types$1.template || this.type === types$1.invalidTemplate)) if (ch === 36) {
-				this.pos += 2;
-				return this.finishToken(types$1.dollarBraceL);
-			} else {
-				++this.pos;
-				return this.finishToken(types$1.backQuote);
+			if (this.pos === this.start && (this.type === types$1.template || this.type === types$1.invalidTemplate)) {
+				if (ch === 36) {
+					this.pos += 2;
+					return this.finishToken(types$1.dollarBraceL);
+				} else {
+					++this.pos;
+					return this.finishToken(types$1.backQuote);
+				}
 			}
 			out += this.input.slice(chunkStart, this.pos);
 			return this.finishToken(types$1.template, out);
@@ -17312,7 +17336,7 @@ pp.readWord = function() {
 };
 Parser$2.acorn = {
 	Parser: Parser$2,
-	version: "8.17.0",
+	version: "8.18.0",
 	defaultOptions: defaultOptions$1,
 	Position,
 	SourceLocation,
@@ -17728,18 +17752,19 @@ var require_xxh32 = /* @__PURE__ */ __commonJSMin(((exports) => {
 		}
 	}
 	function sliceArray(array, start, end) {
-		if (typeof array.buffer !== void 0) if (Uint8Array.prototype.slice) return array.slice(start, end);
-		else {
-			var len = array.length;
-			start = start | 0;
-			start = start < 0 ? Math.max(len + start, 0) : Math.min(start, len);
-			end = end === void 0 ? len : end | 0;
-			end = end < 0 ? Math.max(len + end, 0) : Math.min(end, len);
-			var arraySlice = new Uint8Array(end - start);
-			for (var i = start, n = 0; i < end;) arraySlice[n++] = array[i++];
-			return arraySlice;
-		}
-		else return array.slice(start, end);
+		if (typeof array.buffer !== void 0) {
+			if (Uint8Array.prototype.slice) return array.slice(start, end);
+			else {
+				var len = array.length;
+				start = start | 0;
+				start = start < 0 ? Math.max(len + start, 0) : Math.min(start, len);
+				end = end === void 0 ? len : end | 0;
+				end = end < 0 ? Math.max(len + end, 0) : Math.min(end, len);
+				var arraySlice = new Uint8Array(end - start);
+				for (var i = start, n = 0; i < end;) arraySlice[n++] = array[i++];
+				return arraySlice;
+			}
+		} else return array.slice(start, end);
 	}
 	exports.compressBound = function compressBound(n) {
 		return n + n / 255 + 16 | 0;
@@ -18615,26 +18640,28 @@ var import_dist = /* @__PURE__ */ __toESM((/* @__PURE__ */ __commonJSMin(((expor
 		};
 		function internalize(holder, name, reviver) {
 			var value = holder[name];
-			if (value != null && typeof value === "object") if (Array.isArray(value)) for (var i = 0; i < value.length; i++) {
-				var key = String(i);
-				var replacement = internalize(value, key, reviver);
-				if (replacement === void 0) delete value[key];
-				else Object.defineProperty(value, key, {
-					value: replacement,
-					writable: true,
-					enumerable: true,
-					configurable: true
-				});
-			}
-			else for (var key$1 in value) {
-				var replacement$1 = internalize(value, key$1, reviver);
-				if (replacement$1 === void 0) delete value[key$1];
-				else Object.defineProperty(value, key$1, {
-					value: replacement$1,
-					writable: true,
-					enumerable: true,
-					configurable: true
-				});
+			if (value != null && typeof value === "object") {
+				if (Array.isArray(value)) for (var i = 0; i < value.length; i++) {
+					var key = String(i);
+					var replacement = internalize(value, key, reviver);
+					if (replacement === void 0) delete value[key];
+					else Object.defineProperty(value, key, {
+						value: replacement,
+						writable: true,
+						enumerable: true,
+						configurable: true
+					});
+				}
+				else for (var key$1 in value) {
+					var replacement$1 = internalize(value, key$1, reviver);
+					if (replacement$1 === void 0) delete value[key$1];
+					else Object.defineProperty(value, key$1, {
+						value: replacement$1,
+						writable: true,
+						enumerable: true,
+						configurable: true
+					});
+				}
 			}
 			return reviver.call(holder, name, value);
 		}
@@ -19521,15 +19548,16 @@ var JsonWorkerPool = class {
 		const pending = this.pendingRequests.get(requestId);
 		if (!pending) return;
 		this.pendingRequests.delete(requestId);
-		if (success) if (reparse) try {
-			const parsed = JSON.parse(sourceText ?? pending.sourceText ?? "");
-			if (nonFinitePaths && sentinels) applyNonFinitePaths(parsed, nonFinitePaths, sentinels);
-			pending.resolve(parsed);
-		} catch (parseError) {
-			pending.reject(parseError);
-		}
-		else pending.resolve(result);
-		else {
+		if (success) {
+			if (reparse) try {
+				const parsed = JSON.parse(sourceText ?? pending.sourceText ?? "");
+				if (nonFinitePaths && sentinels) applyNonFinitePaths(parsed, nonFinitePaths, sentinels);
+				pending.resolve(parsed);
+			} catch (parseError) {
+				pending.reject(parseError);
+			}
+			else pending.resolve(result);
+		} else {
 			const err = new Error(error);
 			if (stack) err.stack = stack;
 			pending.reject(err);
@@ -20418,6 +20446,65 @@ var isRecord = (value) => {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
 };
 //#endregion
+//#region ../../packages/util/src/uri.ts
+/** First segment of a relative path ("" when empty). */
+var rootName = (relativePath) => relativePath.split("/")[0] ?? "";
+var encodePathSegments = (path) => path.split("/").map((segment) => encodeURIComponent(segment)).join("/");
+var directoryRelativeUrl = (file, dir) => {
+	if (!dir) return encodePathSegments(file);
+	const normalizedFile = file.replace(/\\/g, "/");
+	const normalizedLogDir = dir.replace(/\\/g, "/");
+	const dirWithSlash = normalizedLogDir.endsWith("/") ? normalizedLogDir : normalizedLogDir + "/";
+	if (normalizedFile.startsWith(dirWithSlash)) return encodePathSegments(normalizedFile.substring(dirWithSlash.length));
+	return encodePathSegments(normalizedFile);
+};
+var join = (file, dir) => {
+	if (!dir) return file;
+	let normalizedFile = file.replace(/\\/g, "/");
+	if (normalizedFile.startsWith("./")) normalizedFile = normalizedFile.slice(2);
+	const normalizedLogDir = dir.replace(/\\/g, "/");
+	const dirWithSlash = normalizedLogDir.endsWith("/") ? normalizedLogDir : normalizedLogDir + "/";
+	if (normalizedFile + "/" === dirWithSlash || normalizedFile.startsWith(dirWithSlash)) return normalizedFile;
+	return dirWithSlash + normalizedFile;
+};
+/**
+* Encodes the path segments of a URL or relative path to ensure special characters
+* (like `+`, spaces, etc.) are properly encoded without affecting legal characters like `/`.
+*
+* This function will encode file names and path portions of both absolute URLs and
+* relative paths. It ensures that components of a full URL, such as the protocol and
+* query parameters, remain intact, while only encoding the path.
+*/
+function encodePathParts(url) {
+	if (!url) return url;
+	try {
+		const fullUrl = new URL(url);
+		fullUrl.pathname = fullUrl.pathname.split("/").map((segment) => segment ? encodeURIComponent(decodeURIComponent(segment)) : "").join("/");
+		return fullUrl.toString();
+	} catch {
+		return url.split("/").map((segment) => segment ? encodeURIComponent(decodeURIComponent(segment)) : "").join("/");
+	}
+}
+/**
+* Tests whether a string is a valid URI.
+*
+* @param value - The string to test
+* @returns true if the string is a valid URI, false otherwise
+*/
+var isUri = (value) => {
+	if (!value) return false;
+	try {
+		new URL(value);
+		return true;
+	} catch {
+		return false;
+	}
+};
+var prettyDirUri = (uri) => {
+	if (uri.startsWith("file://")) return uri.replace("file://", "");
+	else return uri;
+};
+//#endregion
 //#region ../../packages/util/src/vscode.ts
 /**
 * The cached instance of the VS Code API
@@ -20532,9 +20619,10 @@ var foldConfig = (launch, updates, family, knownKeys) => {
 		for (const change of update.changes) {
 			if (!isChangeRecord(change)) continue;
 			if (change.config !== family || !Object.hasOwn(knownKeys, change.name)) continue;
-			if (change.cleared) if (Object.hasOwn(launchRecord, change.name)) result[change.name] = launchRecord[change.name];
-			else delete result[change.name];
-			else result[change.name] = change.value;
+			if (change.cleared) {
+				if (Object.hasOwn(launchRecord, change.name)) result[change.name] = launchRecord[change.name];
+				else delete result[change.name];
+			} else result[change.name] = change.value;
 		}
 	}
 	return result;
@@ -20677,6 +20765,20 @@ var totalModelFallbacks = (fallbacks) => (fallbacks ?? []).reduce((sum, f) => su
 */
 var modelFallbackLines = (fallbacks) => (fallbacks ?? []).map((f) => `${f.model} → ${f.fallback_model}${(f.count ?? 1) > 1 ? ` (×${f.count})` : ""}`);
 //#endregion
+//#region ../../packages/inspect-common/src/utils/modelRoles.ts
+/**
+* Normalize a model role binding to a list of model configs. A role may be
+* bound to a single model or to a list of models (e.g. an ensemble of
+* graders); this collapses both shapes for consumers that iterate.
+*/
+var modelRoleConfigs = (value) => Array.isArray(value) ? value : [value];
+/**
+* Display string for a model role binding: the model name, comma-separated
+* when the role is bound to a list of models (matching inspect_ai's
+* `LogOverview` rendering).
+*/
+var modelRoleModelNames = (value) => modelRoleConfigs(value).map((config) => config.model).join(", ");
+//#endregion
 //#region ../../packages/inspect-common/src/utils/time.ts
 /** ISO timestamp → epoch seconds (the timeline/connection-history unit). */
 var isoToEpoch = (iso) => {
@@ -20693,7 +20795,7 @@ var deriveLogFields = (header) => {
 		for (const usage of Object.values(header.stats.model_usage)) total_tokens += usage.total_tokens;
 	}
 	let duration;
-	if (header.stats?.started_at && header.stats?.completed_at) {
+	if (header.stats?.started_at && header.stats.completed_at) {
 		const start = new Date(header.stats.started_at).getTime();
 		const end = new Date(header.stats.completed_at).getTime();
 		if (start && end && end > start) duration = (end - start) / 1e3;
@@ -20814,7 +20916,7 @@ var prepareLogDetails = (details) => {
 	};
 };
 var toLogPreview = (header) => {
-	const model_roles = header.eval.model_roles ? Object.fromEntries(Object.entries(header.eval.model_roles).map(([role, cfg]) => [role, cfg.model])) : void 0;
+	const model_roles = header.eval.model_roles ? Object.fromEntries(Object.entries(header.eval.model_roles).map(([role, cfg]) => [role, modelRoleModelNames(cfg)])) : void 0;
 	return {
 		eval_id: header.eval.eval_id,
 		run_id: header.eval.run_id,
@@ -20850,6 +20952,7 @@ var WorkPriority = /* @__PURE__ */ function(WorkPriority) {
 var WorkQueue = class {
 	itemsById = /* @__PURE__ */ new Map();
 	activeWorkers = 0;
+	generation = 0;
 	options;
 	constructor(options) {
 		this.options = {
@@ -20892,6 +20995,7 @@ var WorkQueue = class {
 	async runWorker() {
 		try {
 			while (this.itemsById.size > 0) {
+				const generation = this.generation;
 				const batch = this.claimNextBatch();
 				if (batch.length === 0) break;
 				const inputs = batch.map((item) => item.data);
@@ -20905,6 +21009,7 @@ var WorkQueue = class {
 						error: err
 					}));
 				}
+				if (generation !== this.generation) continue;
 				const settledResults = [];
 				const settledInputs = [];
 				for (const [i, item] of batch.entries()) {
@@ -20949,7 +21054,12 @@ var WorkQueue = class {
 		batch.forEach((item) => this.itemsById.delete(item.id));
 		return batch;
 	}
+	/**
+	* Drop all queued work AND invalidate in-flight batches: their results
+	* are discarded without retry or onComplete.
+	*/
 	clear() {
+		this.generation++;
 		this.itemsById.clear();
 	}
 	removeByIds(ids) {
@@ -22085,7 +22195,7 @@ var import_dexie_min = /* @__PURE__ */ __toESM((/* @__PURE__ */ __commonJSMin(((
 			},
 			timeout: function(r, i) {
 				var o = this;
-				return r < Infinity ? new K(function(e, t) {
+				return r < 1 / 0 ? new K(function(e, t) {
 					var n = setTimeout(function() {
 						return t(new k.Timeout(i));
 					}, r);
@@ -22292,7 +22402,7 @@ var import_dexie_min = /* @__PURE__ */ __toESM((/* @__PURE__ */ __commonJSMin(((
 		}
 		var yt = {
 			type: 3,
-			lower: -Infinity,
+			lower: -1 / 0,
 			lowerOpen: !1,
 			upper: [[]],
 			upperOpen: !1
@@ -23083,7 +23193,7 @@ var import_dexie_min = /* @__PURE__ */ __toESM((/* @__PURE__ */ __commonJSMin(((
 							});
 						});
 					}
-					var d = Et(k) && k.limit === Infinity && ("function" != typeof x || _) && {
+					var d = Et(k) && k.limit === 1 / 0 && ("function" != typeof x || _) && {
 						index: k.index,
 						range: k.range
 					};
@@ -23287,7 +23397,7 @@ var import_dexie_min = /* @__PURE__ */ __toESM((/* @__PURE__ */ __commonJSMin(((
 				}), !1);
 			}), e);
 		}, d.prototype.notEqual = function(e) {
-			return this.inAnyRange([[-Infinity, e], [e, this.db._maxKey]], {
+			return this.inAnyRange([[-1 / 0, e], [e, this.db._maxKey]], {
 				includeLowers: !1,
 				includeUppers: !1
 			});
@@ -23300,7 +23410,7 @@ var import_dexie_min = /* @__PURE__ */ __toESM((/* @__PURE__ */ __commonJSMin(((
 				return j(this, A);
 			}
 			var t = e.reduce(function(e, t) {
-				return e ? e.concat([[e[e.length - 1][1], t]]) : [[-Infinity, t]];
+				return e ? e.concat([[e[e.length - 1][1], t]]) : [[-1 / 0, t]];
 			}, null);
 			return t.push([e[e.length - 1], this.db._maxKey]), this.inAnyRange(t, {
 				includeLowers: !1,
@@ -23426,7 +23536,7 @@ var import_dexie_min = /* @__PURE__ */ __toESM((/* @__PURE__ */ __commonJSMin(((
 				return i;
 			}) : (r._waitingFor = i, r._waitingQueue = [], t = r.idbtrans.objectStore(r.storeNames[0]), function e() {
 				for (++r._spinCount; r._waitingQueue.length;) r._waitingQueue.shift()();
-				r._waitingFor && (t.get(-Infinity).onsuccess = e);
+				r._waitingFor && (t.get(-1 / 0).onsuccess = e);
 			}()), r._waitingFor);
 			return new K(function(t, n) {
 				i.then(function(e) {
@@ -23589,7 +23699,7 @@ var import_dexie_min = /* @__PURE__ */ __toESM((/* @__PURE__ */ __commonJSMin(((
 					query: (p = a, y = u, function(d) {
 						return new Promise(function(t, e) {
 							t = E(t);
-							var n, r, i, o, a = d.trans, u = d.values, s = d.limit, c = d.query, l = null != (l = d.direction) ? l : "next", f = s === Infinity ? void 0 : s, h = c.index, c = c.range, a = a.objectStore(w), a = h.isPrimaryKey ? a : a.index(h.name), h = _(c);
+							var n, r, i, o, a = d.trans, u = d.values, s = d.limit, c = d.query, l = null != (l = d.direction) ? l : "next", f = s === 1 / 0 ? void 0 : s, h = c.index, c = c.range, a = a.objectStore(w), a = h.isPrimaryKey ? a : a.index(h.name), h = _(c);
 							if (0 === s) return t({ result: [] });
 							y ? (c = {
 								query: h,
@@ -23708,7 +23818,7 @@ var import_dexie_min = /* @__PURE__ */ __toESM((/* @__PURE__ */ __commonJSMin(((
 					if (c[e]) return c[e];
 					throw new Error("Table '".concat(e, "' not found"));
 				},
-				MIN_KEY: -Infinity,
+				MIN_KEY: -1 / 0,
 				MAX_KEY: Xt(i),
 				schema: o
 			};
@@ -24237,8 +24347,8 @@ var import_dexie_min = /* @__PURE__ */ __toESM((/* @__PURE__ */ __commonJSMin(((
 				var n;
 				return b && (n = {}, h.tables.forEach(function(t) {
 					t.schema.indexes.forEach(function(e) {
-						e.name && (n["idb://".concat(h.name, "/").concat(t.name, "/").concat(e.name)] = new q(-Infinity, [[[]]]));
-					}), n["idb://".concat(h.name, "/").concat(t.name, "/")] = n["idb://".concat(h.name, "/").concat(t.name, "/:dels")] = new q(-Infinity, [[[]]]);
+						e.name && (n["idb://".concat(h.name, "/").concat(t.name, "/").concat(e.name)] = new q(-1 / 0, [[[]]]));
+					}), n["idb://".concat(h.name, "/").concat(t.name, "/")] = n["idb://".concat(h.name, "/").concat(t.name, "/:dels")] = new q(-1 / 0, [[[]]]);
 				}), Wt(zt).fire(n), Bn(n, !0)), h;
 			});
 		}
@@ -24669,7 +24779,7 @@ var import_dexie_min = /* @__PURE__ */ __toESM((/* @__PURE__ */ __commonJSMin(((
 				return C(a(e), a(t)) || C(v(e), v(t));
 			}, n.sort("prev" === d.direction || "prevunique" === d.direction ? function(e, t) {
 				return u(t, e);
-			} : u), d.limit && d.limit < Infinity && (n.length > d.limit ? n.length = d.limit : e.length === d.limit && n.length < d.limit && (r.dirty = !0)), i ? Object.freeze(n) : n);
+			} : u), d.limit && d.limit < 1 / 0 && (n.length > d.limit ? n.length = d.limit : e.length === d.limit && n.length < d.limit && (r.dirty = !0)), i ? Object.freeze(n) : n);
 		}
 		function Zn(e, t) {
 			return 0 === C(e.lower, t.lower) && 0 === C(e.upper, t.upper) && !!e.lowerOpen == !!t.lowerOpen && !!e.upperOpen == !!t.upperOpen;
@@ -24796,7 +24906,7 @@ var import_dexie_min = /* @__PURE__ */ __toESM((/* @__PURE__ */ __commonJSMin(((
 											] : [
 												o.find(function(e) {
 													var t;
-													return ("limit" in e.req ? e.req.limit : Infinity) >= r.limit && (null != (t = e.req.direction) ? t : "next") === a && (!r.values || e.req.values) && er(e.req.query.range, r.query.range);
+													return ("limit" in e.req ? e.req.limit : 1 / 0) >= r.limit && (null != (t = e.req.direction) ? t : "next") === a && (!r.values || e.req.values) && er(e.req.query.range, r.query.range);
 												}),
 												!1,
 												i,
@@ -25090,7 +25200,7 @@ var import_dexie_min = /* @__PURE__ */ __toESM((/* @__PURE__ */ __commonJSMin(((
 					justLimit: !0,
 					isMatch: null,
 					offset: 0,
-					limit: Infinity,
+					limit: 1 / 0,
 					error: r,
 					or: t.or,
 					valueMapper: i !== ve ? i : null
@@ -25336,7 +25446,7 @@ var import_dexie_min = /* @__PURE__ */ __toESM((/* @__PURE__ */ __commonJSMin(((
 			getObjectDiff: Un,
 			cmp: C,
 			asap: Q,
-			minKey: -Infinity,
+			minKey: -1 / 0,
 			addons: [],
 			connections: { get: gn.toArray },
 			errnames: de,
@@ -25367,7 +25477,7 @@ var import_dexie_min = /* @__PURE__ */ __toESM((/* @__PURE__ */ __commonJSMin(((
 				for (var t = 0, n = gn.toArray(); t < n.length; t++) n[t].close({ disableAutoOpen: !1 });
 			}
 		}), addEventListener("pageshow", function(e) {
-			!y.disableBfCache && e.persisted && (l && console.debug("Dexie: handling persisted pageshow"), hr(), cr({ all: new q(-Infinity, [[]]) }));
+			!y.disableBfCache && e.persisted && (l && console.debug("Dexie: handling persisted pageshow"), hr(), cr({ all: new q(-1 / 0, [[]]) }));
 		})), K.rejectionMapper = function(e, t) {
 			return !e || e instanceof ce || e instanceof TypeError || e instanceof SyntaxError || !e.name || !ye[e.name] ? e : (t = new ye[e.name](t || e.message, e), "stack" in e && u(t, "stack", { get: function() {
 				return this.inner.stack;
@@ -25847,13 +25957,17 @@ var syncListing = async (api, engine) => {
 	if (localFiles.length > 0 && mtime === 0) {
 		const serverLogs = await api.get_logs(0, 0);
 		const localNames = new Set(localFiles.map((file) => file.name));
-		if (serverLogs.files.length !== localFiles.length || serverLogs.files.some((file) => !localNames.has(file.name))) return engine.applyListing({
-			listing: serverLogs.files,
-			invalidated: localFiles.map((file) => file.name),
-			deleted: [],
-			persistListing: false,
-			epoch
-		});
+		if (serverLogs.files.length !== localFiles.length || serverLogs.files.some((file) => !localNames.has(file.name))) {
+			const serverNames = new Set(serverLogs.files.map((file) => file.name));
+			const deleted = localFiles.filter((file) => !serverNames.has(file.name)).map((file) => file.name);
+			return engine.applyListing({
+				listing: serverLogs.files,
+				invalidated: serverLogs.files.map((file) => file.name),
+				deleted,
+				persistListing: true,
+				epoch
+			});
+		}
 		return engine.applyListing({
 			listing: localFiles,
 			invalidated: [],
@@ -25957,8 +26071,10 @@ function getRawTag(value) {
 		var unmasked = true;
 	} catch (e) {}
 	var result = nativeObjectToString$1.call(value);
-	if (unmasked) if (isOwn) value[symToStringTag$1] = tag;
-	else delete value[symToStringTag$1];
+	if (unmasked) {
+		if (isOwn) value[symToStringTag$1] = tag;
+		else delete value[symToStringTag$1];
+	}
 	return result;
 }
 //#endregion
@@ -26520,7 +26636,7 @@ function partialMatchKey(a, b) {
 	}
 	return false;
 }
-var hasOwn = Object.prototype.hasOwnProperty;
+var hasOwn$1 = Object.prototype.hasOwnProperty;
 function replaceEqualDeep(a, b, depth = 0) {
 	if (a === b) return a;
 	if (depth > 500) return b;
@@ -26537,7 +26653,7 @@ function replaceEqualDeep(a, b, depth = 0) {
 		const bItem = b[key];
 		if (aItem === bItem) {
 			copy[key] = aItem;
-			if (array ? i < aSize : hasOwn.call(a, key)) equalItems++;
+			if (array ? i < aSize : hasOwn$1.call(a, key)) equalItems++;
 			continue;
 		}
 		if (aItem === null || bItem === null || typeof aItem !== "object" || typeof bItem !== "object") {
@@ -27137,8 +27253,10 @@ var Query = class extends Removable {
 		if (this.observers.includes(observer)) {
 			this.observers = this.observers.filter((x) => x !== observer);
 			if (!this.observers.length) {
-				if (this.#retryer) if (this.#abortSignalConsumed || this.#isInitialPausedFetch()) this.#retryer.cancel({ revert: true });
-				else this.#retryer.cancelRetry();
+				if (this.#retryer) {
+					if (this.#abortSignalConsumed || this.#isInitialPausedFetch()) this.#retryer.cancel({ revert: true });
+					else this.#retryer.cancelRetry();
+				}
 				this.scheduleGc();
 			}
 			this.#cache.notify({
@@ -27575,15 +27693,17 @@ var QueryObserver = class extends Subscribable {
 				isPlaceholderData = true;
 			}
 		}
-		if (options.select && data !== void 0 && !skipSelect) if (prevResult && data === prevResultState?.data && options.select === this.#selectFn) data = this.#selectResult;
-		else try {
-			this.#selectFn = options.select;
-			data = options.select(data);
-			data = replaceData(prevResult?.data, data, options);
-			this.#selectResult = data;
-			this.#selectError = null;
-		} catch (selectError) {
-			this.#selectError = selectError;
+		if (options.select && data !== void 0 && !skipSelect) {
+			if (prevResult && data === prevResultState?.data && options.select === this.#selectFn) data = this.#selectResult;
+			else try {
+				this.#selectFn = options.select;
+				data = options.select(data);
+				data = replaceData(prevResult?.data, data, options);
+				this.#selectResult = data;
+				this.#selectError = null;
+			} catch (selectError) {
+				this.#selectError = selectError;
+			}
 		}
 		if (this.#selectError) {
 			error = this.#selectError;
@@ -27820,8 +27940,10 @@ var Mutation = class extends Removable {
 		});
 	}
 	optionalRemove() {
-		if (!this.#observers.length) if (this.state.status === "pending") this.scheduleGc();
-		else this.#mutationCache.remove(this);
+		if (!this.#observers.length) {
+			if (this.state.status === "pending") this.scheduleGc();
+			else this.#mutationCache.remove(this);
+		}
 	}
 	continue() {
 		return this.#retryer?.continue() ?? this.execute(this.state.variables);
@@ -36008,8 +36130,10 @@ var import_prism = (/* @__PURE__ */ __commonJSMin(((exports, module) => {
 				language
 			};
 			var aliases = o.alias;
-			if (aliases) if (Array.isArray(aliases)) Array.prototype.push.apply(env.classes, aliases);
-			else env.classes.push(aliases);
+			if (aliases) {
+				if (Array.isArray(aliases)) Array.prototype.push.apply(env.classes, aliases);
+				else env.classes.push(aliases);
+			}
 			_.hooks.run("wrap", env);
 			var attributes = "";
 			for (var name in env.attributes) attributes += " " + name + "=\"" + (env.attributes[name] || "").replace(/"/g, "&quot;") + "\"";
@@ -36659,9 +36783,11 @@ value: function(attrName, lang) {
 			var xhr = new XMLHttpRequest();
 			xhr.open("GET", src, true);
 			xhr.onreadystatechange = function() {
-				if (xhr.readyState == 4) if (xhr.status < 400 && xhr.responseText) success(xhr.responseText);
-				else if (xhr.status >= 400) error(FAILURE_MESSAGE(xhr.status, xhr.statusText));
-				else error(FAILURE_EMPTY_MESSAGE);
+				if (xhr.readyState == 4) {
+					if (xhr.status < 400 && xhr.responseText) success(xhr.responseText);
+					else if (xhr.status >= 400) error(FAILURE_MESSAGE(xhr.status, xhr.statusText));
+					else error(FAILURE_EMPTY_MESSAGE);
+				}
 			};
 			xhr.send(null);
 		}
@@ -36772,7 +36898,7 @@ var usePrismHighlight = (containerRef, contentLength) => {
 				if (mutation.type === "childList") return Array.from(mutation.addedNodes).some((node) => {
 					if (node.nodeType === Node.ELEMENT_NODE) {
 						const el = node;
-						return el.querySelector?.("pre code") || el.matches?.("pre code");
+						return el.querySelector("pre code") || el.matches("pre code");
 					}
 					return false;
 				});
@@ -37179,9 +37305,10 @@ function useListKeyboardNavigation({ listHandle, scrollRef, itemCount, disabled 
 			event.preventDefault();
 			event.stopImmediatePropagation();
 			const handle = listHandle.current;
-			if (isUp) if (handle) handle.jumpToStart();
-			else scrollRef?.current?.scrollTo({ top: 0 });
-			else if (handle) handle.jumpToEnd();
+			if (isUp) {
+				if (handle) handle.jumpToStart();
+				else scrollRef?.current?.scrollTo({ top: 0 });
+			} else if (handle) handle.jumpToEnd();
 			else {
 				const el = scrollRef?.current;
 				if (el) el.scrollTop = el.scrollHeight;
@@ -37766,7 +37893,7 @@ var AutocompleteInput = ({ id, value, onChange, onCommit, onCancel, disabled, su
 		suggestions
 	]);
 	(0, import_react.useEffect)(() => {
-		if (listRef.current && showDropdown && highlightedIndex >= 0) listRef.current.children[highlightedIndex]?.scrollIntoView({ block: "nearest" });
+		if (listRef.current && showDropdown && highlightedIndex >= 0) listRef.current.children.item(highlightedIndex)?.scrollIntoView({ block: "nearest" });
 	}, [highlightedIndex, showDropdown]);
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 		ref: containerRef,
@@ -37981,19 +38108,21 @@ var import_ansi_output = (/* @__PURE__ */ __commonJSMin(((exports, module) => {
 						this._pendingNewline = false;
 					}
 					const char = output.charAt(i);
-					if (this._parserState === ParserState.BufferingOutput) if (char === "\x1B") {
-						this.flushBuffer();
-						this._parserState = ParserState.ControlSequenceStarted;
-					} else if (char === "") {
-						this.flushBuffer();
-						this._parserState = ParserState.ParsingControlSequence;
-					} else this.processCharacter(char);
-					else if (this._parserState === ParserState.ControlSequenceStarted) if (char === "[") this._parserState = ParserState.ParsingControlSequence;
-					else {
-						this._parserState = ParserState.BufferingOutput;
-						this.processCharacter(char);
-					}
-					else if (this._parserState === ParserState.ParsingControlSequence) {
+					if (this._parserState === ParserState.BufferingOutput) {
+						if (char === "\x1B") {
+							this.flushBuffer();
+							this._parserState = ParserState.ControlSequenceStarted;
+						} else if (char === "") {
+							this.flushBuffer();
+							this._parserState = ParserState.ParsingControlSequence;
+						} else this.processCharacter(char);
+					} else if (this._parserState === ParserState.ControlSequenceStarted) {
+						if (char === "[") this._parserState = ParserState.ParsingControlSequence;
+						else {
+							this._parserState = ParserState.BufferingOutput;
+							this.processCharacter(char);
+						}
+					} else if (this._parserState === ParserState.ParsingControlSequence) {
 						this._controlSequence += char;
 						if (char.match(/^[A-Za-z]$/)) this.processControlSequence();
 					}
@@ -39551,7 +39680,7 @@ var y$1 = class extends HTMLElement {
 	static finalizeStyles(s) {
 		const i = [];
 		if (Array.isArray(s)) {
-			const e = new Set(s.flat(Infinity).reverse());
+			const e = new Set(s.flat(1 / 0).reverse());
 			for (const s of e) i.unshift(c$5(s));
 		} else void 0 !== s && i.push(c$5(s));
 		return i;
@@ -39677,7 +39806,7 @@ var y$1 = class extends HTMLElement {
 };
 y$1.elementStyles = [], y$1.shadowRootOptions = { mode: "open" }, y$1[d$2("elementProperties")] = /* @__PURE__ */ new Map(), y$1[d$2("finalized")] = /* @__PURE__ */ new Map(), p$2?.({ ReactiveElement: y$1 }), (a$1.reactiveElementVersions ??= []).push("2.1.2");
 //#endregion
-//#region ../../node_modules/.pnpm/lit-html@3.3.2/node_modules/lit-html/lit-html.js
+//#region ../../node_modules/.pnpm/lit-html@3.3.3/node_modules/lit-html/lit-html.js
 /**
 * @license
 * Copyright 2017 Google LLC
@@ -39961,7 +40090,7 @@ var j$1 = {
 	F: Z$1
 };
 var B = t$3.litHtmlPolyfillSupport;
-B?.(S$1, k), (t$3.litHtmlVersions ??= []).push("3.3.2");
+B?.(S$1, k), (t$3.litHtmlVersions ??= []).push("3.3.3");
 var D = (t, i, s) => {
 	const e = s?.renderBefore ?? i;
 	let h = e._$litPart$;
@@ -40142,8 +40271,8 @@ function r$1(r) {
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/includes/VscElement.js
-var VERSION = "2.5.0";
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/includes/VscElement.js
+var VERSION = "2.5.1";
 var CONFIG_KEY = "__vscodeElements_disableRegistryWarning__";
 var warn = (message, componentInstance) => {
 	const prefix = "[VSCode Elements] ";
@@ -40180,7 +40309,7 @@ var customElement = (tagName) => {
 	};
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/includes/default.styles.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/includes/default.styles.js
 var default_styles_default = i$8`
   :host([hidden]) {
     display: none;
@@ -40251,7 +40380,7 @@ var styles$35 = [default_styles_default, i$8`
     }
   `];
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-badge/vscode-badge.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-badge/vscode-badge.js
 var __decorate$40 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -40289,7 +40418,7 @@ o$7({
 	displayName: "VscodeBadge"
 });
 //#endregion
-//#region ../../node_modules/.pnpm/lit-html@3.3.2/node_modules/lit-html/directive.js
+//#region ../../node_modules/.pnpm/lit-html@3.3.3/node_modules/lit-html/directive.js
 /**
 * @license
 * Copyright 2017 Google LLC
@@ -40323,7 +40452,7 @@ var i$4 = class {
 	}
 };
 //#endregion
-//#region ../../node_modules/.pnpm/lit-html@3.3.2/node_modules/lit-html/directives/class-map.js
+//#region ../../node_modules/.pnpm/lit-html@3.3.3/node_modules/lit-html/directives/class-map.js
 /**
 * @license
 * Copyright 2018 Google LLC
@@ -40351,14 +40480,14 @@ var i$4 = class {
 	}
 });
 //#endregion
-//#region ../../node_modules/.pnpm/lit-html@3.3.2/node_modules/lit-html/directives/if-defined.js
+//#region ../../node_modules/.pnpm/lit-html@3.3.3/node_modules/lit-html/directives/if-defined.js
 /**
 * @license
 * Copyright 2018 Google LLC
 * SPDX-License-Identifier: BSD-3-Clause
 */ var o = (o) => o ?? A;
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/includes/style-property-map.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/includes/style-property-map.js
 var StylePropertyMap = class extends i$4 {
 	constructor(partInfo) {
 		super(partInfo);
@@ -40387,7 +40516,7 @@ var StylePropertyMap = class extends i$4 {
 */
 var stylePropertyMap = e$4(StylePropertyMap);
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-icon/vscode-icon.styles.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-icon/vscode-icon.styles.js
 var styles$34 = [default_styles_default, i$8`
     :host {
       color: var(--vscode-icon-foreground, #cccccc);
@@ -40450,7 +40579,7 @@ var styles$34 = [default_styles_default, i$8`
     }
   `];
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-icon/vscode-icon.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-icon/vscode-icon.js
 var __decorate$39 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -40514,6 +40643,10 @@ var VscodeIcon$1 = VscodeIcon_1 = class VscodeIcon extends VscElement {
 	* id.
 	*/
 	_getStylesheetConfig() {
+		if (typeof document === "undefined") return {
+			nonce: void 0,
+			href: void 0
+		};
 		const linkElement = document.getElementById("vscode-codicon-stylesheet");
 		const href = linkElement?.getAttribute("href") || void 0;
 		const nonce = linkElement?.nonce || void 0;
@@ -40767,7 +40900,7 @@ var styles$33 = [default_styles_default, i$8`
     }
   `];
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-button/vscode-button.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-button/vscode-button.js
 var __decorate$38 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -40871,10 +41004,12 @@ var VscodeButton$1 = class VscodeButton extends VscElement {
 	update(changedProperties) {
 		super.update(changedProperties);
 		if (changedProperties.has("value")) this._internals.setFormValue(this.value);
-		if (changedProperties.has("disabled")) if (this.disabled) {
-			this._prevTabindex = this.tabIndex;
-			this.tabIndex = -1;
-		} else this.tabIndex = this._prevTabindex;
+		if (changedProperties.has("disabled")) {
+			if (this.disabled) {
+				this._prevTabindex = this.tabIndex;
+				this.tabIndex = -1;
+			} else this.tabIndex = this._prevTabindex;
+		}
 	}
 	_executeAction() {
 		if (this.type === "submit" && this._internals.form) this._internals.form.requestSubmit();
@@ -41007,7 +41142,7 @@ o$7({
 	displayName: "VscodeButton"
 });
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-button-group/vscode-button-group.styles.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-button-group/vscode-button-group.styles.js
 var styles$32 = [default_styles_default, i$8`
     :host {
       display: inline-block;
@@ -41043,7 +41178,7 @@ var styles$32 = [default_styles_default, i$8`
     }
   `];
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-button-group/vscode-button-group.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-button-group/vscode-button-group.js
 var __decorate$37 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -41081,7 +41216,7 @@ o$7({
 	displayName: "VscodeButtonGroup"
 });
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/includes/form-button-widget/FormButtonWidgetBase.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/includes/form-button-widget/FormButtonWidgetBase.js
 var __decorate$36 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -41123,7 +41258,7 @@ __decorate$36([n$4({
 	reflect: true
 })], FormButtonWidgetBase.prototype, "focused", void 0);
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/includes/form-button-widget/LabelledCheckboxOrRadio.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/includes/form-button-widget/LabelledCheckboxOrRadio.js
 var __decorate$35 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -41156,7 +41291,7 @@ var LabelledCheckboxOrRadioMixin = (superClass) => {
 	return LabelledCheckboxOrRadio;
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/includes/form-button-widget/base.styles.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/includes/form-button-widget/base.styles.js
 var base_styles_default = [i$8`
     :host {
       display: inline-block;
@@ -41247,7 +41382,7 @@ var base_styles_default = [i$8`
     }
   `];
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-checkbox/vscode-checkbox.styles.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-checkbox/vscode-checkbox.styles.js
 var styles$31 = [
 	default_styles_default,
 	base_styles_default,
@@ -41347,7 +41482,7 @@ var styles$31 = [
   `
 ];
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-checkbox/vscode-checkbox.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-checkbox/vscode-checkbox.js
 var __decorate$34 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -41612,7 +41747,7 @@ o$7({
 	events: { onChange: "change" }
 });
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-checkbox-group/vscode-checkbox-group.styles.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-checkbox-group/vscode-checkbox-group.styles.js
 var styles$30 = [default_styles_default, i$8`
     :host {
       display: block;
@@ -41645,7 +41780,7 @@ var styles$30 = [default_styles_default, i$8`
     }
   `];
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-checkbox-group/vscode-checkbox-group.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-checkbox-group/vscode-checkbox-group.js
 var __decorate$33 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -41683,7 +41818,7 @@ o$7({
 	displayName: "VscodeCheckboxGroup"
 });
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-collapsible/vscode-collapsible.styles.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-collapsible/vscode-collapsible.styles.js
 var styles$29 = [default_styles_default, i$8`
     :host {
       display: block;
@@ -41780,7 +41915,7 @@ var styles$29 = [default_styles_default, i$8`
     }
   `];
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-collapsible/vscode-collapsible.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-collapsible/vscode-collapsible.js
 var __decorate$32 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -41921,7 +42056,7 @@ var VscodeCollapsible = o$7({
 	displayName: "VscodeCollapsible"
 });
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-context-menu-item/vscode-context-menu-item.styles.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-context-menu-item/vscode-context-menu-item.styles.js
 var styles$28 = [default_styles_default, i$8`
     :host {
       display: block;
@@ -41993,7 +42128,7 @@ var styles$28 = [default_styles_default, i$8`
     }
   `];
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-context-menu-item/vscode-context-menu-item.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-context-menu-item/vscode-context-menu-item.js
 var __decorate$31 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -42066,7 +42201,7 @@ __decorate$31([n$4({
 __decorate$31([n$4({ type: Number })], VscodeContextMenuItem$1.prototype, "tabindex", void 0);
 VscodeContextMenuItem$1 = __decorate$31([customElement("vscode-context-menu-item")], VscodeContextMenuItem$1);
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-context-menu/vscode-context-menu.styles.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-context-menu/vscode-context-menu.styles.js
 var styles$27 = [default_styles_default, i$8`
     :host {
       display: block;
@@ -42094,7 +42229,7 @@ var styles$27 = [default_styles_default, i$8`
     }
   `];
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-context-menu/vscode-context-menu.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-context-menu/vscode-context-menu.js
 var __decorate$30 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -42278,7 +42413,7 @@ o$7({
 	displayName: "VscodeContextMenuItem"
 });
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-divider/vscode-divider.styles.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-divider/vscode-divider.styles.js
 var styles$26 = [default_styles_default, i$8`
     :host {
       display: block;
@@ -42293,7 +42428,7 @@ var styles$26 = [default_styles_default, i$8`
     }
   `];
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-divider/vscode-divider.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-divider/vscode-divider.js
 var __decorate$29 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -42324,7 +42459,7 @@ o$7({
 	displayName: "VscodeDivider"
 });
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-form-container/vscode-form-container.styles.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-form-container/vscode-form-container.styles.js
 var styles$25 = [default_styles_default, i$8`
     :host {
       display: block;
@@ -42332,7 +42467,7 @@ var styles$25 = [default_styles_default, i$8`
     }
   `];
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-form-container/vscode-form-container.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-form-container/vscode-form-container.js
 var __decorate$28 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -42357,8 +42492,10 @@ var VscodeFormContainer$1 = class VscodeFormContainer extends VscElement {
 	}
 	set responsive(isResponsive) {
 		this._responsive = isResponsive;
-		if (this._firstUpdateComplete) if (isResponsive) this._activateResponsiveLayout();
-		else this._deactivateResizeObserver();
+		if (this._firstUpdateComplete) {
+			if (isResponsive) this._activateResponsiveLayout();
+			else this._deactivateResizeObserver();
+		}
 	}
 	get responsive() {
 		return this._responsive;
@@ -42422,7 +42559,7 @@ o$7({
 	displayName: "VscodeFormContainer"
 });
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-form-group/vscode-form-group.styles.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-form-group/vscode-form-group.styles.js
 var styles$24 = [default_styles_default, i$8`
     :host {
       --label-right-margin: 14px;
@@ -42510,7 +42647,7 @@ var styles$24 = [default_styles_default, i$8`
     }
   `];
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-form-group/vscode-form-group.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-form-group/vscode-form-group.js
 var __decorate$27 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -42546,7 +42683,7 @@ o$7({
 	displayName: "VscodeFormGroup"
 });
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-form-helper/vscode-form-helper.styles.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-form-helper/vscode-form-helper.styles.js
 var styles$23 = [default_styles_default, i$8`
     :host {
       display: block;
@@ -42562,23 +42699,26 @@ var styles$23 = [default_styles_default, i$8`
     }
   `];
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-form-helper/vscode-form-helper.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-form-helper/vscode-form-helper.js
 var __decorate$26 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
 	else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
 	return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
-var lightDOMStyles = new CSSStyleSheet();
-lightDOMStyles.replaceSync(`
-  vscode-form-helper * {
-    margin: 0;
-  }
+var lightDOMStyles;
+if (typeof CSSStyleSheet !== "undefined") {
+	lightDOMStyles = new CSSStyleSheet();
+	lightDOMStyles.replaceSync(`
+    vscode-form-helper * {
+      margin: 0;
+    }
 
-  vscode-form-helper *:not(:last-child) {
-    margin-bottom: 8px;
-  }
-`);
+    vscode-form-helper *:not(:last-child) {
+      margin-bottom: 8px;
+    }
+  `);
+}
 /**
 * Adds more detailed description to a [FromGroup](https://bendera.github.io/vscode-webview-elements/components/vscode-form-group/)
 *
@@ -42592,6 +42732,7 @@ var VscodeFormHelper$1 = class VscodeFormHelper extends VscElement {
 		this._injectLightDOMStyles();
 	}
 	_injectLightDOMStyles() {
+		if (typeof document === "undefined" || !lightDOMStyles) return;
 		if (!document.adoptedStyleSheets.find((s) => s === lightDOMStyles)) document.adoptedStyleSheets.push(lightDOMStyles);
 	}
 	render() {
@@ -42613,14 +42754,14 @@ o$7({
 	displayName: "VscodeIcon"
 });
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/includes/uniqueId.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/includes/uniqueId.js
 var counter = 0;
 var uniqueId = (prefix = "") => {
 	counter++;
 	return `${prefix}${counter}`;
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-label/vscode-label.styles.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-label/vscode-label.styles.js
 var styles$22 = [default_styles_default, i$8`
     :host {
       display: block;
@@ -42651,7 +42792,7 @@ var styles$22 = [default_styles_default, i$8`
     }
   `];
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-label/vscode-label.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-label/vscode-label.js
 var __decorate$25 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -42755,7 +42896,7 @@ o$7({
 	displayName: "VscodeLabel"
 });
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/includes/vscode-select/template-elements.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/includes/vscode-select/template-elements.js
 var chevronDownIcon = b`
   <span class="icon">
     <svg
@@ -42812,7 +42953,7 @@ var checkIcon = w`<svg
 	o._$AR(), o._$AA.remove();
 };
 //#endregion
-//#region ../../node_modules/.pnpm/lit-html@3.3.2/node_modules/lit-html/directives/repeat.js
+//#region ../../node_modules/.pnpm/lit-html@3.3.3/node_modules/lit-html/directives/repeat.js
 /**
 * @license
 * Copyright 2017 Google LLC
@@ -42873,7 +43014,7 @@ var c$1 = e$4(class extends i$4 {
 	}
 });
 //#endregion
-//#region ../../node_modules/.pnpm/lit-html@3.3.2/node_modules/lit-html/directives/when.js
+//#region ../../node_modules/.pnpm/lit-html@3.3.3/node_modules/lit-html/directives/when.js
 /**
 * @license
 * Copyright 2021 Google LLC
@@ -42883,10 +43024,10 @@ function n$1(n, r, t) {
 	return n ? r(n) : t?.(n);
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-option/vscode-option.styles.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-option/vscode-option.styles.js
 var vscode_option_styles_default = default_styles_default;
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-option/vscode-option.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-option/vscode-option.js
 var __decorate$24 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -42937,7 +43078,7 @@ __decorate$24([n$4({
 })], VscodeOption$1.prototype, "disabled", void 0);
 VscodeOption$1 = __decorate$24([customElement("vscode-option")], VscodeOption$1);
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/includes/vscode-select/helpers.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/includes/vscode-select/helpers.js
 var startsWithPerTermSearch = (subject, pattern) => {
 	const result = {
 		match: false,
@@ -43052,7 +43193,7 @@ var highlightRanges = (text, ranges) => {
 	return res;
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/includes/vscode-select/OptionListController.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/includes/vscode-select/OptionListController.js
 var OptionListController = class {
 	constructor(host) {
 		this._activeIndex = -1;
@@ -43351,7 +43492,7 @@ var OptionListController = class {
 	}
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-scrollable/vscode-scrollable.styles.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-scrollable/vscode-scrollable.styles.js
 var styles$21 = [default_styles_default, i$8`
     :host {
       display: block;
@@ -43457,7 +43598,7 @@ var styles$21 = [default_styles_default, i$8`
     }
   `];
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-scrollable/vscode-scrollable.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-scrollable/vscode-scrollable.js
 var __decorate$23 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -43766,7 +43907,7 @@ __decorate$23([e$6(".scrollable-container")], VscodeScrollable$1.prototype, "_sc
 __decorate$23([o$1()], VscodeScrollable$1.prototype, "_assignedElements", void 0);
 VscodeScrollable$1 = __decorate$23([customElement("vscode-scrollable")], VscodeScrollable$1);
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/includes/vscode-select/vscode-select-base.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/includes/vscode-select/vscode-select-base.js
 var __decorate$22 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -43942,17 +44083,19 @@ var VscodeSelectBase = class extends VscElement {
 	}
 	willUpdate(changedProperties) {
 		if (changedProperties.has("required") && this._firstUpdateCompleted) this._manageRequired();
-		if (changedProperties.has("open") && this._firstUpdateCompleted) if (this.open) {
-			this._dropdownEl.showPopover();
-			const { x, y } = this.getBoundingClientRect();
-			this._prevXPos = x;
-			this._prevYPos = y;
-			window.addEventListener("scroll", this._handleWindowScroll, { capture: true });
-			this._opts.activateDefault();
-			this._scrollActiveElementToTop();
-		} else {
-			this._dropdownEl.hidePopover();
-			window.removeEventListener("scroll", this._handleWindowScroll);
+		if (changedProperties.has("open") && this._firstUpdateCompleted) {
+			if (this.open) {
+				this._dropdownEl.showPopover();
+				const { x, y } = this.getBoundingClientRect();
+				this._prevXPos = x;
+				this._prevYPos = y;
+				window.addEventListener("scroll", this._handleWindowScroll, { capture: true });
+				this._opts.activateDefault();
+				this._scrollActiveElementToTop();
+			} else {
+				this._dropdownEl.hidePopover();
+				window.removeEventListener("scroll", this._handleWindowScroll);
+			}
 		}
 	}
 	get _filteredOptions() {
@@ -44308,7 +44451,7 @@ __decorate$22([r$2()], VscodeSelectBase.prototype, "_isPlaceholderOptionActive",
 __decorate$22([r$2()], VscodeSelectBase.prototype, "_isBeingFiltered", void 0);
 __decorate$22([r$2()], VscodeSelectBase.prototype, "_optionListScrollPos", void 0);
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/includes/vscode-select/styles.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/includes/vscode-select/styles.js
 var styles_default = [default_styles_default, i$8`
     :host {
       display: inline-block;
@@ -44719,10 +44862,10 @@ var styles_default = [default_styles_default, i$8`
     }
   `];
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-multi-select/vscode-multi-select.styles.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-multi-select/vscode-multi-select.styles.js
 var vscode_multi_select_styles_default = styles_default;
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-multi-select/vscode-multi-select.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-multi-select/vscode-multi-select.js
 var __decorate$21 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -45092,7 +45235,7 @@ var VscodeOption = o$7({
 	displayName: "VscodeOption"
 });
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-progress-bar/vscode-progress-bar.styles.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-progress-bar/vscode-progress-bar.styles.js
 var styles$20 = [default_styles_default, i$8`
     :host {
       display: block;
@@ -45169,7 +45312,7 @@ var styles$20 = [default_styles_default, i$8`
     }
   `];
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-progress-bar/vscode-progress-bar.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-progress-bar/vscode-progress-bar.js
 var __decorate$20 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -45294,7 +45437,7 @@ o$7({
 	displayName: "VscodeProgressBar"
 });
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-progress-ring/vscode-progress-ring.styles.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-progress-ring/vscode-progress-ring.styles.js
 var styles$19 = [default_styles_default, i$8`
     :host {
       display: block;
@@ -45342,7 +45485,7 @@ var styles$19 = [default_styles_default, i$8`
     }
   `];
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-progress-ring/vscode-progress-ring.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-progress-ring/vscode-progress-ring.js
 var __decorate$19 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -45398,7 +45541,7 @@ o$7({
 	displayName: "VscodeProgressRing"
 });
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-radio/vscode-radio.styles.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-radio/vscode-radio.styles.js
 var styles$18 = [
 	default_styles_default,
 	base_styles_default,
@@ -45432,7 +45575,7 @@ var styles$18 = [
   `
 ];
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-radio/vscode-radio.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-radio/vscode-radio.js
 var __decorate$18 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -45685,7 +45828,7 @@ o$7({
 	}
 });
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-radio-group/vscode-radio-group.styles.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-radio-group/vscode-radio-group.styles.js
 var styles$17 = [default_styles_default, i$8`
     :host {
       display: block;
@@ -45718,7 +45861,7 @@ var styles$17 = [default_styles_default, i$8`
     }
   `];
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-radio-group/vscode-radio-group.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-radio-group/vscode-radio-group.js
 var __decorate$17 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -45841,10 +45984,10 @@ o$7({
 	displayName: "VscodeScrollable"
 });
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-single-select/vscode-single-select.styles.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-single-select/vscode-single-select.styles.js
 var vscode_single_select_styles_default = styles_default;
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-single-select/vscode-single-select.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-single-select/vscode-single-select.js
 var __decorate$16 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -46015,17 +46158,19 @@ var VscodeSingleSelect$1 = class VscodeSingleSelect extends VscodeSelectBase {
 	_onEnterKeyDown(ev) {
 		super._onEnterKeyDown(ev);
 		let valueChanged = false;
-		if (this.combobox) if (this.open) if (this._isPlaceholderOptionActive) this._createAndSelectSuggestedOption();
-		else {
-			valueChanged = this._opts.activeIndex !== this._opts.selectedIndex;
-			this._opts.selectedIndex = this._opts.activeIndex;
-			this.open = false;
-		}
-		else {
-			this.open = true;
-			this._scrollActiveElementToTop();
-		}
-		else if (this.open) {
+		if (this.combobox) {
+			if (this.open) {
+				if (this._isPlaceholderOptionActive) this._createAndSelectSuggestedOption();
+				else {
+					valueChanged = this._opts.activeIndex !== this._opts.selectedIndex;
+					this._opts.selectedIndex = this._opts.activeIndex;
+					this.open = false;
+				}
+			} else {
+				this.open = true;
+				this._scrollActiveElementToTop();
+			}
+		} else if (this.open) {
 			valueChanged = this._opts.activeIndex !== this._opts.selectedIndex;
 			this._opts.selectedIndex = this._opts.activeIndex;
 			this.open = false;
@@ -46052,7 +46197,7 @@ var VscodeSingleSelect$1 = class VscodeSingleSelect extends VscodeSelectBase {
 		} else {
 			this._opts.selectedIndex = Number(optEl.dataset.index);
 			this.open = false;
-			this._internals.setFormValue(this._value);
+			this._internals.setFormValue(this._opts.value);
 			this._manageRequired();
 			this._dispatchChangeEvent();
 		}
@@ -46163,7 +46308,7 @@ var VscodeSingleSelect = o$7({
 	}
 });
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-split-layout/vscode-split-layout.styles.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-split-layout/vscode-split-layout.styles.js
 var styles$16 = [default_styles_default, i$8`
     :host {
       --separator-border: var(--vscode-editorWidget-border, #454545);
@@ -46273,7 +46418,7 @@ var styles$16 = [default_styles_default, i$8`
     }
   `];
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-split-layout/vscode-split-layout.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-split-layout/vscode-split-layout.js
 var __decorate$15 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -46672,7 +46817,7 @@ o$7({
 	events: { onVscSplitLayoutChange: "vsc-split-layout-change" }
 });
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-tab-header/vscode-tab-header.styles.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-tab-header/vscode-tab-header.styles.js
 var styles$15 = [default_styles_default, i$8`
     :host {
       cursor: pointer;
@@ -46774,7 +46919,7 @@ var styles$15 = [default_styles_default, i$8`
     }
   `];
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-tab-header/vscode-tab-header.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-tab-header/vscode-tab-header.js
 var __decorate$14 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -46863,7 +47008,7 @@ o$7({
 	displayName: "VscTabHeader"
 });
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/includes/sizes.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/includes/sizes.js
 var px = (value) => value;
 var percent = (value) => value;
 var toPercent = (px, container) => percent(px / container * 100);
@@ -47019,13 +47164,13 @@ var styles$14 = [default_styles_default, i$8`
 
     .sash .sash-clickable {
       height: 100%;
-      left: ${0 - 4 / 2}px;
+      left: ${-2}px;
       position: absolute;
       width: ${5}px;
     }
   `];
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-table/calculations.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-table/calculations.js
 function calculateColumnWidths(widths, splitterIndex, delta, minWidths) {
 	const result = [...widths];
 	if (delta === 0 || splitterIndex < 0 || splitterIndex >= widths.length - 1) return result;
@@ -47059,7 +47204,7 @@ function calculateColumnWidths(widths, splitterIndex, delta, minWidths) {
 	return result;
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-table/ColumnResizeController.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-table/ColumnResizeController.js
 var ColumnResizeController = class {
 	constructor(host) {
 		this._hostWidth = px(0);
@@ -47179,7 +47324,7 @@ var ColumnResizeController = class {
 	}
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-table/vscode-table.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-table/vscode-table.js
 var __decorate$13 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -47659,7 +47804,7 @@ o$7({
 	displayName: "VscodeTable"
 });
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-table-body/vscode-table-body.styles.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-table-body/vscode-table-body.styles.js
 var styles$13 = [default_styles_default, i$8`
     :host {
       display: table;
@@ -47676,7 +47821,7 @@ var styles$13 = [default_styles_default, i$8`
     }
   `];
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-table-body/vscode-table-body.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-table-body/vscode-table-body.js
 var __decorate$12 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -47706,7 +47851,7 @@ o$7({
 	displayName: "VscodeTableBody"
 });
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-table-cell/vscode-table-cell.styles.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-table-cell/vscode-table-cell.styles.js
 var styles$12 = [default_styles_default, i$8`
     :host {
       border-bottom-color: var(
@@ -47755,7 +47900,7 @@ var styles$12 = [default_styles_default, i$8`
     }
   `];
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-table-cell/vscode-table-cell.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-table-cell/vscode-table-cell.js
 var __decorate$11 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -47810,7 +47955,7 @@ o$7({
 	displayName: "VscodeTableCell"
 });
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-table-header/vscode-table-header.styles.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-table-header/vscode-table-header.styles.js
 var styles$11 = [default_styles_default, i$8`
     :host {
       background-color: var(
@@ -47823,7 +47968,7 @@ var styles$11 = [default_styles_default, i$8`
     }
   `];
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-table-header/vscode-table-header.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-table-header/vscode-table-header.js
 var __decorate$10 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -47855,7 +48000,7 @@ o$7({
 	displayName: "VscodeTableHeader"
 });
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-table-header-cell/vscode-table-header-cell.styles.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-table-header-cell/vscode-table-header-cell.styles.js
 var styles$10 = [default_styles_default, i$8`
     :host {
       box-sizing: border-box;
@@ -47883,7 +48028,7 @@ var styles$10 = [default_styles_default, i$8`
     }
   `];
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-table-header-cell/vscode-table-header-cell.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-table-header-cell/vscode-table-header-cell.js
 var __decorate$9 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -47937,7 +48082,7 @@ o$7({
 	displayName: "VscodeTableHeaderCell"
 });
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-table-row/vscode-table-row.styles.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-table-row/vscode-table-row.styles.js
 var styles$9 = [default_styles_default, i$8`
     :host {
       border-top-color: var(
@@ -47951,7 +48096,7 @@ var styles$9 = [default_styles_default, i$8`
     }
   `];
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-table-row/vscode-table-row.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-table-row/vscode-table-row.js
 var __decorate$8 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -47983,7 +48128,7 @@ o$7({
 	displayName: "VscodeTableRow"
 });
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-tab-panel/vscode-tab-panel.styles.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-tab-panel/vscode-tab-panel.styles.js
 var styles$8 = [default_styles_default, i$8`
     :host {
       display: block;
@@ -48002,7 +48147,7 @@ var styles$8 = [default_styles_default, i$8`
     }
   `];
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-tab-panel/vscode-tab-panel.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-tab-panel/vscode-tab-panel.js
 var __decorate$7 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -48060,7 +48205,7 @@ o$7({
 	displayName: "VscodeTabPanel"
 });
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-tabs/vscode-tabs.styles.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-tabs/vscode-tabs.styles.js
 var styles$7 = [default_styles_default, i$8`
     :host {
       display: block;
@@ -48100,7 +48245,7 @@ var styles$7 = [default_styles_default, i$8`
     }
   `];
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-tabs/vscode-tabs.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-tabs/vscode-tabs.js
 var __decorate$6 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -48258,7 +48403,7 @@ o$7({
 	displayName: "VscodeTabs"
 });
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-textarea/vscode-textarea.styles.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-textarea/vscode-textarea.styles.js
 var styles$6 = [default_styles_default, i$8`
     :host {
       display: inline-block;
@@ -48392,7 +48537,7 @@ var styles$6 = [default_styles_default, i$8`
     }
   `];
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-textarea/vscode-textarea.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-textarea/vscode-textarea.js
 var __decorate$5 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -48673,7 +48818,7 @@ var VscodeTextarea = o$7({
 	}
 });
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-textfield/vscode-textfield.styles.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-textfield/vscode-textfield.styles.js
 var defaultFontStack = r$6(getDefaultFontStack());
 var styles$5 = [default_styles_default, i$8`
     :host {
@@ -48781,7 +48926,7 @@ var styles$5 = [default_styles_default, i$8`
     }
   `];
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-textfield/vscode-textfield.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-textfield/vscode-textfield.js
 var __decorate$4 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -49097,7 +49242,7 @@ o$7({
 	}
 });
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-toolbar-button/vscode-toolbar-button.styles.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-toolbar-button/vscode-toolbar-button.styles.js
 var styles$4 = [default_styles_default, i$8`
     :host {
       display: inline-flex;
@@ -49169,7 +49314,7 @@ var styles$4 = [default_styles_default, i$8`
     }
   `];
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-toolbar-button/vscode-toolbar-button.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-toolbar-button/vscode-toolbar-button.js
 var __decorate$3 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -49243,7 +49388,7 @@ o$7({
 	events: { onChange: "change" }
 });
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-toolbar-container/vscode-toolbar-container.styles.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-toolbar-container/vscode-toolbar-container.styles.js
 var styles$3 = [default_styles_default, i$8`
     :host {
       display: block;
@@ -49256,7 +49401,7 @@ var styles$3 = [default_styles_default, i$8`
     }
   `];
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-toolbar-container/vscode-toolbar-container.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-toolbar-container/vscode-toolbar-container.js
 var __decorate$2 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -49488,7 +49633,7 @@ var i$2 = class extends s {
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-tree/vscode-tree.styles.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-tree/vscode-tree.styles.js
 var styles$2 = [default_styles_default, i$8`
     :host {
       --vsc-tree-item-arrow-display: flex;
@@ -49544,11 +49689,11 @@ var styles$2 = [default_styles_default, i$8`
     }
   `];
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-tree/tree-context.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-tree/tree-context.js
 var treeContext = n("vscode-list");
 var configContext = n(Symbol("configContext"));
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-tree/helpers.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-tree/helpers.js
 var isTreeItem = (item) => item instanceof Element && item.matches("vscode-tree-item");
 var isTreeRoot = (item) => item instanceof Element && item.matches("vscode-tree");
 var initPathTrackerProps = (parentElement, items) => {
@@ -49614,7 +49759,7 @@ function findParentItem(childItem) {
 	return childItem.parentElement;
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-tree/vscode-tree.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-tree/vscode-tree.js
 var __decorate$1 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -49889,8 +50034,10 @@ var VscodeTree$2 = class VscodeTree extends VscElement {
 	_handleArrowRightPress() {
 		if (!this._treeContextState.focusedItem) return;
 		const { focusedItem } = this._treeContextState;
-		if (focusedItem.branch) if (focusedItem.open) this._focusNextItem();
-		else focusedItem.open = true;
+		if (focusedItem.branch) {
+			if (focusedItem.open) this._focusNextItem();
+			else focusedItem.open = true;
+		}
 	}
 	_handleArrowLeftPress(ev) {
 		if (ev.ctrlKey) {
@@ -49970,7 +50117,7 @@ o$7({
 	events: { onVscTreeSelect: "vsc-tree-select" }
 });
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-tree-item/vscode-tree-item.styles.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-tree-item/vscode-tree-item.styles.js
 var styles$1 = [default_styles_default, i$8`
     :host {
       --hover-outline-color: transparent;
@@ -50261,7 +50408,7 @@ var styles$1 = [default_styles_default, i$8`
     }
   `];
 //#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.0_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-tree-item/vscode-tree-item.js
+//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-tree-item/vscode-tree-item.js
 var __decorate = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -51068,7 +51215,7 @@ var LoadingBar = ({ loading }) => {
 			className: clsx(LoadingBar_module_default.container),
 			role: "progressbar",
 			"aria-label": "Progress bar",
-			"aria-valuenow": 25,
+			"aria-hidden": !loading,
 			"aria-valuemin": 0,
 			"aria-valuemax": 100,
 			children: loading && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: LoadingBar_module_default.animate })
@@ -55236,7 +55383,7 @@ function isTerminatorChar(ch) {
 		default: return false;
 	}
 }
-function text$4(state, silent) {
+function text$3(state, silent) {
 	let pos = state.pos;
 	while (pos < state.posMax && !isTerminatorChar(state.src.charCodeAt(pos))) pos++;
 	if (pos === state.pos) return false;
@@ -55531,7 +55678,7 @@ var emphasis_default = {
 	tokenize: emphasis_tokenize,
 	postProcess: emphasis_post_process
 };
-function link$1(state, silent) {
+function link$2(state, silent) {
 	let code, label, res, ref;
 	let href = "";
 	let title = "";
@@ -55892,14 +56039,14 @@ function fragments_join(state) {
 	if (curr !== last) tokens.length = last;
 }
 var _rules = [
-	["text", text$4],
+	["text", text$3],
 	["linkify", linkify],
 	["newline", newline],
 	["escape", escape],
 	["backticks", backtick],
 	["strikethrough", strikethrough_default.tokenize],
 	["emphasis", emphasis_default.tokenize],
-	["link", link$1],
+	["link", link$2],
 	["image", image$1],
 	["autolink", autolink],
 	["html_inline", html_inline],
@@ -56805,9 +56952,11 @@ function clone$1(object) {
 		var _ref3 = _slicedToArray(_ref2, 2);
 		const property = _ref3[0];
 		const value = _ref3[1];
-		if (objectHasOwnProperty(object, property)) if (arrayIsArray(value)) newObject[property] = cleanArray(value);
-		else if (value && typeof value === "object" && value.constructor === Object) newObject[property] = clone$1(value);
-		else newObject[property] = value;
+		if (objectHasOwnProperty(object, property)) {
+			if (arrayIsArray(value)) newObject[property] = cleanArray(value);
+			else if (value && typeof value === "object" && value.constructor === Object) newObject[property] = clone$1(value);
+			else newObject[property] = value;
+		}
 	}
 	return newObject;
 }
@@ -57138,7 +57287,7 @@ var mathMlDisallowed = freeze$1([
 	"mprescripts",
 	"none"
 ]);
-var text$3 = freeze$1(["#text"]);
+var text$2 = freeze$1(["#text"]);
 var html = freeze$1([
 	"accept",
 	"action",
@@ -57685,7 +57834,7 @@ function createDOMPurify() {
 		...svg$1$1,
 		...svgFilters,
 		...mathMl$1,
-		...text$3
+		...text$2
 	]);
 	let ALLOWED_ATTR = null;
 	const DEFAULT_ALLOWED_ATTR = addToSet({}, [
@@ -57897,7 +58046,7 @@ function createDOMPurify() {
 		if (SAFE_FOR_TEMPLATES) ALLOW_DATA_ATTR = false;
 		if (RETURN_DOM_FRAGMENT) RETURN_DOM = true;
 		if (USE_PROFILES) {
-			ALLOWED_TAGS = addToSet({}, text$3);
+			ALLOWED_TAGS = addToSet({}, text$2);
 			ALLOWED_ATTR = create$1(null);
 			if (USE_PROFILES.html === true) {
 				addToSet(ALLOWED_TAGS, html$1);
@@ -58113,12 +58262,14 @@ function createDOMPurify() {
 			});
 		}
 		element.removeAttribute(name);
-		if (name === "is") if (RETURN_DOM || RETURN_DOM_FRAGMENT) try {
-			_forceRemove(element);
-		} catch (_) {}
-		else try {
-			element.setAttribute(name, "");
-		} catch (_) {}
+		if (name === "is") {
+			if (RETURN_DOM || RETURN_DOM_FRAGMENT) try {
+				_forceRemove(element);
+			} catch (_) {}
+			else try {
+				element.setAttribute(name, "");
+			} catch (_) {}
+		}
 	};
 	/**
 	* _stripDisallowedAttributes
@@ -58525,9 +58676,10 @@ function createDOMPurify() {
 		const nameIsPermitted = ALLOWED_ATTR[lcName] || EXTRA_ELEMENT_HANDLING.attributeCheck instanceof Function && EXTRA_ELEMENT_HANDLING.attributeCheck(lcName, lcTag);
 		if (ALLOW_DATA_ATTR && regExpTest(DATA_ATTR$1, lcName));
 		else if (ALLOW_ARIA_ATTR && regExpTest(ARIA_ATTR$1, lcName));
-		else if (!nameIsPermitted) if (_isBasicCustomElement(lcTag) && (CUSTOM_ELEMENT_HANDLING.tagNameCheck instanceof RegExp && regExpTest(CUSTOM_ELEMENT_HANDLING.tagNameCheck, lcTag) || CUSTOM_ELEMENT_HANDLING.tagNameCheck instanceof Function && CUSTOM_ELEMENT_HANDLING.tagNameCheck(lcTag)) && (CUSTOM_ELEMENT_HANDLING.attributeNameCheck instanceof RegExp && regExpTest(CUSTOM_ELEMENT_HANDLING.attributeNameCheck, lcName) || CUSTOM_ELEMENT_HANDLING.attributeNameCheck instanceof Function && CUSTOM_ELEMENT_HANDLING.attributeNameCheck(lcName, lcTag)) || lcName === "is" && CUSTOM_ELEMENT_HANDLING.allowCustomizedBuiltInElements && (CUSTOM_ELEMENT_HANDLING.tagNameCheck instanceof RegExp && regExpTest(CUSTOM_ELEMENT_HANDLING.tagNameCheck, value) || CUSTOM_ELEMENT_HANDLING.tagNameCheck instanceof Function && CUSTOM_ELEMENT_HANDLING.tagNameCheck(value)));
-		else return false;
-		else if (URI_SAFE_ATTRIBUTES[lcName]);
+		else if (!nameIsPermitted) {
+			if (_isBasicCustomElement(lcTag) && (CUSTOM_ELEMENT_HANDLING.tagNameCheck instanceof RegExp && regExpTest(CUSTOM_ELEMENT_HANDLING.tagNameCheck, lcTag) || CUSTOM_ELEMENT_HANDLING.tagNameCheck instanceof Function && CUSTOM_ELEMENT_HANDLING.tagNameCheck(lcTag)) && (CUSTOM_ELEMENT_HANDLING.attributeNameCheck instanceof RegExp && regExpTest(CUSTOM_ELEMENT_HANDLING.attributeNameCheck, lcName) || CUSTOM_ELEMENT_HANDLING.attributeNameCheck instanceof Function && CUSTOM_ELEMENT_HANDLING.attributeNameCheck(lcName, lcTag)) || lcName === "is" && CUSTOM_ELEMENT_HANDLING.allowCustomizedBuiltInElements && (CUSTOM_ELEMENT_HANDLING.tagNameCheck instanceof RegExp && regExpTest(CUSTOM_ELEMENT_HANDLING.tagNameCheck, value) || CUSTOM_ELEMENT_HANDLING.tagNameCheck instanceof Function && CUSTOM_ELEMENT_HANDLING.tagNameCheck(value)));
+			else return false;
+		} else if (URI_SAFE_ATTRIBUTES[lcName]);
 		else if (regExpTest(IS_ALLOWED_URI$1, stringReplace(value, ATTR_WHITESPACE$1, "")));
 		else if ((lcName === "src" || lcName === "xlink:href" || lcName === "href") && lcTag !== "script" && stringIndexOf(value, "data:") === 0 && DATA_URI_TAGS[lcTag]);
 		else if (ALLOW_UNKNOWN_PROTOCOLS && !regExpTest(IS_SCRIPT_OR_DATA$1, stringReplace(value, ATTR_WHITESPACE$1, "")));
@@ -59259,7 +59411,7 @@ var fromEntries = function fromEntries(entries) {
 /**
 * Small wrapper around `useLayoutEffect` to get rid of the warning on SSR envs
 */
-var useIsomorphicLayoutEffect$1 = typeof window !== "undefined" && window.document && window.document.createElement ? import_react.useLayoutEffect : import_react.useEffect;
+var useIsomorphicLayoutEffect$2 = typeof window !== "undefined" && window.document && window.document.createElement ? import_react.useLayoutEffect : import_react.useEffect;
 var bottom = "bottom";
 var right$4 = "right";
 var left$4 = "left";
@@ -59340,7 +59492,7 @@ function applyStyles(_ref) {
 		});
 	});
 }
-function effect$2(_ref2) {
+function effect$3(_ref2) {
 	var state = _ref2.state;
 	var initialStyles = {
 		popper: {
@@ -59376,7 +59528,7 @@ var applyStyles_default = {
 	enabled: true,
 	phase: "write",
 	fn: applyStyles,
-	effect: effect$2,
+	effect: effect$3,
 	requires: ["computeStyles"]
 };
 //#endregion
@@ -59386,8 +59538,8 @@ function getBasePlacement(placement) {
 }
 //#endregion
 //#region ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/utils/math.js
-var max$2 = Math.max;
-var min$1 = Math.min;
+var max$1 = Math.max;
+var min = Math.min;
 var round = Math.round;
 //#endregion
 //#region ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/utils/userAgent.js
@@ -59520,8 +59672,8 @@ function getMainAxisFromPlacement(placement) {
 }
 //#endregion
 //#region ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/utils/within.js
-function within(min, value, max) {
-	return max$2(min, min$1(value, max));
+function within(min$2, value, max) {
+	return max$1(min$2, min(value, max));
 }
 function withinMaxClamp(min, value, max) {
 	var v = within(min, value, max);
@@ -59581,7 +59733,7 @@ function arrow(_ref) {
 	var axisProp = axis;
 	state.modifiersData[name] = (_state$modifiersData$ = {}, _state$modifiersData$[axisProp] = offset, _state$modifiersData$.centerOffset = offset - center, _state$modifiersData$);
 }
-function effect$1(_ref2) {
+function effect$2(_ref2) {
 	var state = _ref2.state;
 	var _options$element = _ref2.options.element, arrowElement = _options$element === void 0 ? "[data-popper-arrow]" : _options$element;
 	if (arrowElement == null) return;
@@ -59597,7 +59749,7 @@ var arrow_default = {
 	enabled: true,
 	phase: "main",
 	fn: arrow,
-	effect: effect$1,
+	effect: effect$2,
 	requires: ["popperOffsets"],
 	requiresIfExists: ["preventOverflow"]
 };
@@ -59716,7 +59868,7 @@ var computeStyles_default = {
 //#endregion
 //#region ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/modifiers/eventListeners.js
 var passive = { passive: true };
-function effect(_ref) {
+function effect$1(_ref) {
 	var state = _ref.state, instance = _ref.instance, options = _ref.options;
 	var _options$scroll = options.scroll, scroll = _options$scroll === void 0 ? true : _options$scroll, _options$resize = options.resize, resize = _options$resize === void 0 ? true : _options$resize;
 	var window = getWindow(state.elements.popper);
@@ -59737,7 +59889,7 @@ var eventListeners_default = {
 	enabled: true,
 	phase: "write",
 	fn: function fn() {},
-	effect,
+	effect: effect$1,
 	data: {}
 };
 //#endregion
@@ -59811,11 +59963,11 @@ function getDocumentRect(element) {
 	var html = getDocumentElement(element);
 	var winScroll = getWindowScroll(element);
 	var body = (_element$ownerDocumen = element.ownerDocument) == null ? void 0 : _element$ownerDocumen.body;
-	var width = max$2(html.scrollWidth, html.clientWidth, body ? body.scrollWidth : 0, body ? body.clientWidth : 0);
-	var height = max$2(html.scrollHeight, html.clientHeight, body ? body.scrollHeight : 0, body ? body.clientHeight : 0);
+	var width = max$1(html.scrollWidth, html.clientWidth, body ? body.scrollWidth : 0, body ? body.clientWidth : 0);
+	var height = max$1(html.scrollHeight, html.clientHeight, body ? body.scrollHeight : 0, body ? body.clientHeight : 0);
 	var x = -winScroll.scrollLeft + getWindowScrollBarX(element);
 	var y = -winScroll.scrollTop;
-	if (getComputedStyle$1(body || html).direction === "rtl") x += max$2(html.clientWidth, body ? body.clientWidth : 0) - width;
+	if (getComputedStyle$1(body || html).direction === "rtl") x += max$1(html.clientWidth, body ? body.clientWidth : 0) - width;
 	return {
 		width,
 		height,
@@ -59893,10 +60045,10 @@ function getClippingRect(element, boundary, rootBoundary, strategy) {
 	var firstClippingParent = clippingParents[0];
 	var clippingRect = clippingParents.reduce(function(accRect, clippingParent) {
 		var rect = getClientRectFromMixedType(element, clippingParent, strategy);
-		accRect.top = max$2(rect.top, accRect.top);
-		accRect.right = min$1(rect.right, accRect.right);
-		accRect.bottom = min$1(rect.bottom, accRect.bottom);
-		accRect.left = max$2(rect.left, accRect.left);
+		accRect.top = max$1(rect.top, accRect.top);
+		accRect.right = min(rect.right, accRect.right);
+		accRect.bottom = min(rect.bottom, accRect.bottom);
+		accRect.left = max$1(rect.left, accRect.left);
 		return accRect;
 	}, getClientRectFromMixedType(element, firstClippingParent, strategy));
 	clippingRect.width = clippingRect.right - clippingRect.left;
@@ -60261,7 +60413,7 @@ function preventOverflow(_ref) {
 		var altSide = mainAxis === "y" ? bottom : right$4;
 		var len = mainAxis === "y" ? "height" : "width";
 		var offset = popperOffsets[mainAxis];
-		var min = offset + overflow[mainSide];
+		var min$1 = offset + overflow[mainSide];
 		var max = offset - overflow[altSide];
 		var additive = tether ? -popperRect[len] / 2 : 0;
 		var minLen = variation === "start" ? referenceRect[len] : popperRect[len];
@@ -60282,7 +60434,7 @@ function preventOverflow(_ref) {
 		var offsetModifierValue = (_offsetModifierState$ = offsetModifierState == null ? void 0 : offsetModifierState[mainAxis]) != null ? _offsetModifierState$ : 0;
 		var tetherMin = offset + minOffset - offsetModifierValue - clientOffset;
 		var tetherMax = offset + maxOffset - offsetModifierValue;
-		var preventedOffset = within(tether ? min$1(min, tetherMin) : min, offset, tether ? max$2(max, tetherMax) : max);
+		var preventedOffset = within(tether ? min(min$1, tetherMin) : min$1, offset, tether ? max$1(max, tetherMax) : max);
 		popperOffsets[mainAxis] = preventedOffset;
 		data[mainAxis] = preventedOffset - offset;
 	}
@@ -60682,10 +60834,10 @@ var usePopper = function usePopper(referenceElement, popperElement, options) {
 		updateStateModifier
 	]);
 	var popperInstanceRef = import_react.useRef();
-	useIsomorphicLayoutEffect$1(function() {
+	useIsomorphicLayoutEffect$2(function() {
 		if (popperInstanceRef.current) popperInstanceRef.current.setOptions(popperOptions);
 	}, [popperOptions]);
-	useIsomorphicLayoutEffect$1(function() {
+	useIsomorphicLayoutEffect$2(function() {
 		if (referenceElement == null || popperElement == null) return;
 		var popperInstance = (options.createPopper || createPopper)(referenceElement, popperElement, popperOptions);
 		popperInstanceRef.current = popperInstance;
@@ -60838,7 +60990,7 @@ var PopOver = ({ id, isOpen, setIsOpen, positionEl, children, placement = "botto
 		],
 		options: { padding: 8 },
 		fn({ state, name, options }) {
-			const padding = typeof options?.padding === "number" ? options.padding : 8;
+			const padding = typeof options.padding === "number" ? options.padding : 8;
 			state.modifiersData[name] = {
 				width: Math.max(0, window.innerWidth - 2 * padding),
 				height: Math.max(0, window.innerHeight - 2 * padding)
@@ -61651,7 +61803,7 @@ var NavPills_module_default = {
 //#endregion
 //#region ../../packages/react/src/components/NavPills.tsx
 var NavPills = ({ id, children }) => {
-	const [activeItem, setActiveItem] = useProperty(id, "active", { defaultValue: children ? children?.[0]?.props["title"] : "" });
+	const [activeItem, setActiveItem] = useProperty(id, "active", { defaultValue: children ? children[0]?.props["title"] : "" });
 	if (!activeItem || !children) return;
 	const navPills = children.map((nav, idx) => {
 		const title = typeof nav === "object" ? nav["props"]?.title || `Tab ${idx}` : `Tab ${idx}`;
@@ -63706,66 +63858,6 @@ var pageRows = (rows, pagination) => {
 		items: rows.slice(offset, end),
 		next_cursor: end < rows.length ? { offset: end } : null
 	};
-};
-//#endregion
-//#region src/utils/uri.ts
-/** First segment of a relative path ("" when empty). */
-var rootName = (relativePath) => relativePath.split("/")[0] ?? "";
-var directoryRelativeUrl = (file, dir) => {
-	if (!dir) return uriEncodePathSegments(file);
-	const normalizedFile = file.replace(/\\/g, "/");
-	const normalizedLogDir = dir.replace(/\\/g, "/");
-	const dirWithSlash = normalizedLogDir.endsWith("/") ? normalizedLogDir : normalizedLogDir + "/";
-	if (normalizedFile.startsWith(dirWithSlash)) return normalizedFile.substring(dirWithSlash.length).split("/").map((segment) => encodeURIComponent(segment)).join("/");
-	return uriEncodePathSegments(normalizedFile);
-};
-var uriEncodePathSegments = (path) => {
-	return path.split("/").map((segment) => encodeURIComponent(segment)).join("/");
-};
-var join = (file, dir) => {
-	if (!dir) return file;
-	const normalizedFile = file.replace(/\\/g, "/");
-	const normalizedLogDir = dir.replace(/\\/g, "/");
-	const dirWithSlash = normalizedLogDir.endsWith("/") ? normalizedLogDir : normalizedLogDir + "/";
-	if (normalizedFile.startsWith(dirWithSlash)) return normalizedFile;
-	return dirWithSlash + normalizedFile;
-};
-/**
-* Encodes the path segments of a URL or relative path to ensure special characters
-* (like `+`, spaces, etc.) are properly encoded without affecting legal characters like `/`.
-*
-* This function will encode file names and path portions of both absolute URLs and
-* relative paths. It ensures that components of a full URL, such as the protocol and
-* query parameters, remain intact, while only encoding the path.
-*/
-function encodePathParts(url) {
-	if (!url) return url;
-	try {
-		const fullUrl = new URL(url);
-		fullUrl.pathname = fullUrl.pathname.split("/").map((segment) => segment ? encodeURIComponent(decodeURIComponent(segment)) : "").join("/");
-		return fullUrl.toString();
-	} catch {
-		return url.split("/").map((segment) => segment ? encodeURIComponent(decodeURIComponent(segment)) : "").join("/");
-	}
-}
-/**
-* Tests whether a string is a valid URI.
-*
-* @param value - The string to test
-* @returns true if the string is a valid URI, false otherwise
-*/
-var isUri = (value) => {
-	if (!value) return false;
-	try {
-		new URL(value);
-		return true;
-	} catch {
-		return false;
-	}
-};
-var prettyDirUri = (uri) => {
-	if (uri.startsWith("file://")) return uri.replace("file://", "");
-	else return uri;
 };
 //#endregion
 //#region src/log_data/logListing.ts
@@ -67344,12 +67436,14 @@ var Virtualizer = class {
 			this.pendingScrollAnchor = null;
 			if (anchor && this.scrollElement && this.options.enabled) {
 				const [key, _offset, followOnAppend, anchorDelta] = anchor;
-				if (key !== null && !followOnAppend) if (isIOSWebKit() && (this.isScrolling || this._iosTouching || this._iosJustTouchEnded)) {
-					if (anchorDelta !== 0) this._iosDeferredAdjustment += anchorDelta;
-				} else this._scrollToOffset(this.getScrollOffset(), {
-					adjustments: void 0,
-					behavior: void 0
-				});
+				if (key !== null && !followOnAppend) {
+					if (isIOSWebKit() && (this.isScrolling || this._iosTouching || this._iosJustTouchEnded)) {
+						if (anchorDelta !== 0) this._iosDeferredAdjustment += anchorDelta;
+					} else this._scrollToOffset(this.getScrollOffset(), {
+						adjustments: void 0,
+						behavior: void 0
+					});
+				}
 				if (followOnAppend) this.scrollToEnd({ behavior: followOnAppend });
 			}
 		};
@@ -67713,9 +67807,11 @@ var Virtualizer = class {
 			const scrollOffset = this.getScrollOffset();
 			const item = this.measurementsCache[index];
 			if (!item) return;
-			if (align === "auto") if (item.end >= scrollOffset + size - this.options.scrollPaddingEnd) align = "end";
-			else if (item.start <= scrollOffset + this.options.scrollPaddingStart) align = "start";
-			else return [scrollOffset, align];
+			if (align === "auto") {
+				if (item.end >= scrollOffset + size - this.options.scrollPaddingEnd) align = "end";
+				else if (item.start <= scrollOffset + this.options.scrollPaddingStart) align = "start";
+				else return [scrollOffset, align];
+			}
 			if (align === "end" && index === this.options.count - 1) return [this.getMaxScrollOffset(), align];
 			const toOffset = align === "end" ? item.end + this.options.scrollPaddingEnd : item.start - this.options.scrollPaddingStart;
 			return [this.getOffsetForAlignment(toOffset, align, item.size), align];
@@ -67970,7 +68066,7 @@ function calculateRangeImpl(measurements, outerSize, scrollOffset, lanes, flat) 
 }
 //#endregion
 //#region ../../node_modules/.pnpm/@tanstack+react-virtual@3.14.9_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/@tanstack/react-virtual/dist/esm/index.js
-var useIsomorphicLayoutEffect = typeof document !== "undefined" ? import_react.useLayoutEffect : import_react.useEffect;
+var useIsomorphicLayoutEffect$1 = typeof document !== "undefined" ? import_react.useLayoutEffect : import_react.useEffect;
 function useVirtualizerBase({ useFlushSync = true, directDomUpdates = false, directDomUpdatesMode = "transform", ...options }) {
 	const rerender = import_react.useReducer((x) => x + 1, 0)[1];
 	const directRef = import_react.useRef({
@@ -68029,8 +68125,10 @@ function useVirtualizerBase({ useFlushSync = true, directDomUpdates = false, dir
 					isScrolling: instance2.isScrolling
 				} : null;
 			}
-			if (shouldRerender) if (useFlushSync && sync) (0, import_react_dom.flushSync)(rerender);
-			else rerender();
+			if (shouldRerender) {
+				if (useFlushSync && sync) (0, import_react_dom.flushSync)(rerender);
+				else rerender();
+			}
 			(_a = options.onChange) == null || _a.call(options, instance2, sync);
 		}
 	};
@@ -68049,14 +68147,14 @@ function useVirtualizerBase({ useFlushSync = true, directDomUpdates = false, dir
 		} });
 	});
 	instance.setOptions(resolvedOptions);
-	useIsomorphicLayoutEffect(() => {
+	useIsomorphicLayoutEffect$1(() => {
 		return instance._didMount();
 	}, []);
-	useIsomorphicLayoutEffect(() => {
+	useIsomorphicLayoutEffect$1(() => {
 		applyContainerSize(instance);
 		return instance._willUpdate();
 	});
-	useIsomorphicLayoutEffect(() => {
+	useIsomorphicLayoutEffect$1(() => {
 		applyDirectStyles(instance);
 	});
 	return instance;
@@ -70124,13 +70222,14 @@ var ToolOutput = ({ output, className, onDownloadFile }) => {
 			document: out,
 			onDownloadFile
 		}, key));
-		else if (out.type === "image") if (isRenderableImageSource(out.image)) outputs.push(/* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
-			className: clsx(ToolOutput_module_default.toolImage),
-			src: out.image,
-			alt: "Tool output"
-		}, key));
-		else outputs.push(/* @__PURE__ */ (0, import_jsx_runtime.jsx)(MediaReference, { source: out.image }, key));
-		else if (out.type === "reasoning") {
+		else if (out.type === "image") {
+			if (isRenderableImageSource(out.image)) outputs.push(/* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
+				className: clsx(ToolOutput_module_default.toolImage),
+				src: out.image,
+				alt: "Tool output"
+			}, key));
+			else outputs.push(/* @__PURE__ */ (0, import_jsx_runtime.jsx)(MediaReference, { source: out.image }, key));
+		} else if (out.type === "reasoning") {
 			if (out.reasoning) outputs.push(/* @__PURE__ */ (0, import_jsx_runtime.jsx)(ToolTextOutput, { text: out.reasoning }, key));
 		} else if (out.type === "data" && out.data) outputs.push(/* @__PURE__ */ (0, import_jsx_runtime.jsx)(ToolTextOutput, { text: JSON.stringify(out.data) }, key));
 	});
@@ -70943,8 +71042,10 @@ var ChatMessage = (0, import_react.memo)(function ChatMessage({ id, message, dis
 	const hideRole = unlabeledRoles?.includes(message.role) ?? false;
 	let toolSearchNamespaces;
 	let toolMarkdown;
-	if (displayMode === "rendered" && isNonSubagentTool && message.role === "tool" && message.function) if (message.function === "tool_search") toolSearchNamespaces = parseToolSearchCatalog(message.content);
-	else toolMarkdown = codexToolMarkdown(message.function, message.content);
+	if (displayMode === "rendered" && isNonSubagentTool && message.role === "tool" && message.function) {
+		if (message.function === "tool_search") toolSearchNamespaces = parseToolSearchCatalog(message.content);
+		else toolMarkdown = codexToolMarkdown(message.function, message.content);
+	}
 	const subagentNotifications = displayMode === "rendered" && message.role === "user" ? formatSubagentNotifications(message.content) : void 0;
 	if (hideRole) {
 		const content = message.content;
@@ -72174,7 +72275,7 @@ var FetchEngineController = () => {
 	return null;
 };
 //#endregion
-//#region ../../node_modules/.pnpm/immer@11.1.15/node_modules/immer/dist/immer.mjs
+//#region ../../node_modules/.pnpm/immer@11.1.16/node_modules/immer/dist/immer.mjs
 var NOTHING = Symbol.for("immer-nothing");
 var DRAFTABLE = Symbol.for("immer-draftable");
 var DRAFT_STATE = Symbol.for("immer-state");
@@ -73046,7 +73147,7 @@ function enableMapSet() {
 }
 var produce = new Immer2().produce;
 //#endregion
-//#region ../../node_modules/.pnpm/zustand@5.0.14_@types+react@19.2.18_immer@11.1.15_react@19.2.8_use-sync-external-store@1.6.0_react@19.2.8_/node_modules/zustand/esm/vanilla.mjs
+//#region ../../node_modules/.pnpm/zustand@5.0.14_@types+react@19.2.18_immer@11.1.16_react@19.2.8_use-sync-external-store@1.6.0_react@19.2.8_/node_modules/zustand/esm/vanilla.mjs
 var createStoreImpl = (createState) => {
 	let state;
 	const listeners = /* @__PURE__ */ new Set();
@@ -73075,7 +73176,7 @@ var createStoreImpl = (createState) => {
 };
 var createStore = ((createState) => createState ? createStoreImpl(createState) : createStoreImpl);
 //#endregion
-//#region ../../node_modules/.pnpm/zustand@5.0.14_@types+react@19.2.18_immer@11.1.15_react@19.2.8_use-sync-external-store@1.6.0_react@19.2.8_/node_modules/zustand/esm/react.mjs
+//#region ../../node_modules/.pnpm/zustand@5.0.14_@types+react@19.2.18_immer@11.1.16_react@19.2.8_use-sync-external-store@1.6.0_react@19.2.8_/node_modules/zustand/esm/react.mjs
 var identity = (arg) => arg;
 function useStore$1(api, selector = identity) {
 	const slice = import_react.useSyncExternalStore(api.subscribe, import_react.useCallback(() => selector(api.getState()), [api, selector]), import_react.useCallback(() => selector(api.getInitialState()), [api, selector]));
@@ -73090,7 +73191,7 @@ var createImpl = (createState) => {
 };
 var create = ((createState) => createState ? createImpl(createState) : createImpl);
 //#endregion
-//#region ../../node_modules/.pnpm/zustand@5.0.14_@types+react@19.2.18_immer@11.1.15_react@19.2.8_use-sync-external-store@1.6.0_react@19.2.8_/node_modules/zustand/esm/middleware.mjs
+//#region ../../node_modules/.pnpm/zustand@5.0.14_@types+react@19.2.18_immer@11.1.16_react@19.2.8_use-sync-external-store@1.6.0_react@19.2.8_/node_modules/zustand/esm/middleware.mjs
 var shouldDispatchFromDevtools = (api) => !!api.dispatchFromDevtools && typeof api.dispatch === "function";
 var trackedConnections = /* @__PURE__ */ new Map();
 var getTrackedConnectionState = (name) => {
@@ -73366,14 +73467,16 @@ var persistImpl = (config, baseOptions) => (set, get, api) => {
 		});
 		const postRehydrationCallback = ((_b = options.onRehydrateStorage) == null ? void 0 : _b.call(options, (_a = get()) != null ? _a : configResult)) || void 0;
 		return toThenable(storage.getItem.bind(storage))(options.name).then((deserializedStorageValue) => {
-			if (deserializedStorageValue) if (typeof deserializedStorageValue.version === "number" && deserializedStorageValue.version !== options.version) {
-				if (options.migrate) {
-					const migration = options.migrate(deserializedStorageValue.state, deserializedStorageValue.version);
-					if (migration instanceof Promise) return migration.then((result) => [true, result]);
-					return [true, migration];
-				}
-				console.error(`State loaded from storage couldn't be migrated since no migrate function was provided`);
-			} else return [false, deserializedStorageValue.state];
+			if (deserializedStorageValue) {
+				if (typeof deserializedStorageValue.version === "number" && deserializedStorageValue.version !== options.version) {
+					if (options.migrate) {
+						const migration = options.migrate(deserializedStorageValue.state, deserializedStorageValue.version);
+						if (migration instanceof Promise) return migration.then((result) => [true, result]);
+						return [true, migration];
+					}
+					console.error(`State loaded from storage couldn't be migrated since no migrate function was provided`);
+				} else return [false, deserializedStorageValue.state];
+			}
 			return [false, void 0];
 		}).then((migrationResult) => {
 			var _a2;
@@ -73425,7 +73528,7 @@ var persistImpl = (config, baseOptions) => (set, get, api) => {
 };
 var persist = persistImpl;
 //#endregion
-//#region ../../node_modules/.pnpm/zustand@5.0.14_@types+react@19.2.18_immer@11.1.15_react@19.2.8_use-sync-external-store@1.6.0_react@19.2.8_/node_modules/zustand/esm/middleware/immer.mjs
+//#region ../../node_modules/.pnpm/zustand@5.0.14_@types+react@19.2.18_immer@11.1.16_react@19.2.8_use-sync-external-store@1.6.0_react@19.2.8_/node_modules/zustand/esm/middleware/immer.mjs
 var immerImpl = (initializer) => (set, get, store) => {
 	store.setState = (updater, replace, ...args) => {
 		return set(typeof updater === "function" ? produce(updater) : updater, replace, ...args);
@@ -73683,10 +73786,12 @@ var createAppSlice = (set, get, _store) => {
 						delete next[key];
 						changed = true;
 					}
-					if (changed) if (Object.keys(next).length === 0) {
-						const { [bagName]: _, ...rest } = state.app.propertyBags;
-						state.app.propertyBags = rest;
-					} else state.app.propertyBags[bagName] = next;
+					if (changed) {
+						if (Object.keys(next).length === 0) {
+							const { [bagName]: _, ...rest } = state.app.propertyBags;
+							state.app.propertyBags = rest;
+						} else state.app.propertyBags[bagName] = next;
+					}
 				});
 			},
 			setUrlHash: (urlHash) => {
@@ -73968,7 +74073,7 @@ var processPendingEvents = (events, filter) => {
 			return acc;
 		}
 		const lastIndex = acc.length - 1;
-		if (lastIndex >= 0 && event.uuid != null && acc[lastIndex]?.pending && acc[lastIndex]?.uuid === event.uuid) acc[lastIndex] = event;
+		if (lastIndex >= 0 && event.uuid != null && acc[lastIndex]?.pending && acc[lastIndex].uuid === event.uuid) acc[lastIndex] = event;
 		else acc.push(event);
 		return acc;
 	}, []);
@@ -74988,7 +75093,7 @@ var EventPanel = ({ eventNodeId, className, title, subTitle, text, icon, childre
 			titleEl,
 			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 				className: clsx("tab-content", EventPanel_module_default.cardContent, isCollapsible && collapsed && collapsibleContent ? EventPanel_module_default.hidden : void 0),
-				children: filteredArrChildren?.map((child, index) => {
+				children: filteredArrChildren.map((child, index) => {
 					const id = pillId(index);
 					const isSelected = id === selectedNav;
 					if (!isSelected) return null;
@@ -76852,11 +76957,6 @@ var UsagePanel = ({ label, model_usage, role_usage, configs_by_model, configs_by
 };
 //#endregion
 //#region ../../packages/inspect-components/src/usage/configsForUsage.ts
-var stripNullish = (obj) => {
-	const out = {};
-	for (const [k, v] of Object.entries(obj)) if (v !== null && v !== void 0) out[k] = v;
-	return out;
-};
 var mergeDefined = (target, source) => {
 	for (const [k, v] of Object.entries(source)) if (v !== null && v !== void 0) target[k] = v;
 	return target;
@@ -76874,13 +76974,13 @@ var buildConfigsByModel = (evalSpec) => {
 		acc[modelId] = mergeDefined(acc[modelId] ?? {}, cfg);
 	};
 	add(evalSpec.model, evalSpec.model_generate_config);
-	if (evalSpec.model_roles) for (const rc of Object.values(evalSpec.model_roles)) add(rc.model, rc.config);
+	if (evalSpec.model_roles) for (const rc of Object.values(evalSpec.model_roles).flatMap(modelRoleConfigs)) add(rc.model, rc.config);
 	return finalize(acc);
 };
 var buildConfigsByRole = (evalSpec) => {
 	if (!evalSpec?.model_roles) return void 0;
 	const acc = {};
-	for (const [role, rc] of Object.entries(evalSpec.model_roles)) if (rc.config) acc[role] = stripNullish(rc.config);
+	for (const [role, value] of Object.entries(evalSpec.model_roles)) for (const rc of modelRoleConfigs(value)) if (rc.config) acc[role] = mergeDefined(acc[role] ?? {}, rc.config);
 	return finalize(acc);
 };
 var buildArgsByModel = (evalSpec) => {
@@ -76891,13 +76991,13 @@ var buildArgsByModel = (evalSpec) => {
 		acc[modelId] = mergeDefined(acc[modelId] ?? {}, args);
 	};
 	add(evalSpec.model, evalSpec.model_args);
-	if (evalSpec.model_roles) for (const rc of Object.values(evalSpec.model_roles)) add(rc.model, rc.args);
+	if (evalSpec.model_roles) for (const rc of Object.values(evalSpec.model_roles).flatMap(modelRoleConfigs)) add(rc.model, rc.args);
 	return finalize(acc);
 };
 var buildArgsByRole = (evalSpec) => {
 	if (!evalSpec?.model_roles) return void 0;
 	const acc = {};
-	for (const [role, rc] of Object.entries(evalSpec.model_roles)) if (rc.args) acc[role] = stripNullish(rc.args);
+	for (const [role, value] of Object.entries(evalSpec.model_roles)) for (const rc of modelRoleConfigs(value)) if (rc.args) acc[role] = mergeDefined(acc[role] ?? {}, rc.args);
 	return finalize(acc);
 };
 //#endregion
@@ -77725,19 +77825,22 @@ var ScoreEditEventView_module_default = {
 };
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/ScoreValue.tsx
-var ScoreValue = ({ score, className, maxRows }) => {
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-		className: clsx(className),
-		children: renderScore(score, maxRows)
-	});
-};
-var renderScore = (value, maxRows) => {
+var ScoreValue = ({ score, className, maxRows, expandable = true }) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+	className: clsx(className),
+	children: renderScore(score, maxRows, expandable)
+});
+var renderScore = (value, maxRows, expandable = true) => {
 	if (Array.isArray(value)) return value.join(", ");
-	else if (isRecord(value) && typeof value === "object") return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(MetaDataGrid, {
-		entries: value,
-		maxRows
-	});
-	else return String(value);
+	else if (isRecord(value)) {
+		if (maxRows != null && !expandable) {
+			const visibleEntries = Object.fromEntries(Object.entries(value).slice(0, maxRows));
+			return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(MetaDataGrid, { entries: visibleEntries });
+		}
+		return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(MetaDataGrid, {
+			entries: value,
+			maxRows
+		});
+	} else return String(value);
 };
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/ScoreEditEventView.tsx
@@ -77951,16 +78054,17 @@ var spanDescriptor = (event) => {
 	const rootStepDescriptor = { endSpace: true };
 	if (event.type === "solver") return { ...rootStepDescriptor };
 	else if (event.type === "scorer") return { ...rootStepDescriptor };
-	else if (event.event === "span_begin") if (event.span_id === "53787D8A-D3FC-426D-B383-9F880B70E4AA") return {
-		...rootStepDescriptor,
-		name: "Sandbox Events"
-	};
-	else if (event.name === "init") return {
-		...rootStepDescriptor,
-		name: "Init"
-	};
-	else return { ...rootStepDescriptor };
-	else switch (event.name) {
+	else if (event.event === "span_begin") {
+		if (event.span_id === "53787D8A-D3FC-426D-B383-9F880B70E4AA") return {
+			...rootStepDescriptor,
+			name: "Sandbox Events"
+		};
+		else if (event.name === "init") return {
+			...rootStepDescriptor,
+			name: "Init"
+		};
+		else return { ...rootStepDescriptor };
+	} else switch (event.name) {
 		case "sample_init": return {
 			...rootStepDescriptor,
 			name: "Sample Init"
@@ -78440,20 +78544,22 @@ var patchFilter$3 = function nestedPatchFilter(context) {
 	let toRemove = [];
 	let toInsert = [];
 	const toModify = [];
-	for (index in delta) if (index !== "_t") if (index[0] === "_") {
-		const removedOrMovedIndex = index;
-		if (delta[removedOrMovedIndex] !== void 0 && (delta[removedOrMovedIndex][2] === 0 || delta[removedOrMovedIndex][2] === ARRAY_MOVE)) toRemove.push(Number.parseInt(index.slice(1), 10));
-		else throw new Error(`only removal or move can be applied at original array indices, invalid diff type: ${(_a = delta[removedOrMovedIndex]) === null || _a === void 0 ? void 0 : _a[2]}`);
-	} else {
-		const numberIndex = index;
-		if (delta[numberIndex].length === 1) toInsert.push({
-			index: Number.parseInt(numberIndex, 10),
-			value: delta[numberIndex][0]
-		});
-		else toModify.push({
-			index: Number.parseInt(numberIndex, 10),
-			delta: delta[numberIndex]
-		});
+	for (index in delta) if (index !== "_t") {
+		if (index[0] === "_") {
+			const removedOrMovedIndex = index;
+			if (delta[removedOrMovedIndex] !== void 0 && (delta[removedOrMovedIndex][2] === 0 || delta[removedOrMovedIndex][2] === ARRAY_MOVE)) toRemove.push(Number.parseInt(index.slice(1), 10));
+			else throw new Error(`only removal or move can be applied at original array indices, invalid diff type: ${(_a = delta[removedOrMovedIndex]) === null || _a === void 0 ? void 0 : _a[2]}`);
+		} else {
+			const numberIndex = index;
+			if (delta[numberIndex].length === 1) toInsert.push({
+				index: Number.parseInt(numberIndex, 10),
+				value: delta[numberIndex][0]
+			});
+			else toModify.push({
+				index: Number.parseInt(numberIndex, 10),
+				delta: delta[numberIndex]
+			});
+		}
 	}
 	toRemove = toRemove.sort(compare$1.numerically);
 	for (index = toRemove.length - 1; index >= 0; index--) {
@@ -78570,9 +78676,10 @@ collectChildrenReverseFilter$1.filterName = "arraysCollectChildren";
 //#region ../../node_modules/.pnpm/jsondiffpatch@0.7.6/node_modules/jsondiffpatch/lib/filters/dates.js
 var diffFilter$2 = function datesDiffFilter(context) {
 	if (context.left instanceof Date) {
-		if (context.right instanceof Date) if (context.left.getTime() !== context.right.getTime()) context.setResult([context.left, context.right]);
-		else context.setResult(void 0);
-		else context.setResult([context.left, context.right]);
+		if (context.right instanceof Date) {
+			if (context.left.getTime() !== context.right.getTime()) context.setResult([context.left, context.right]);
+			else context.setResult(void 0);
+		} else context.setResult([context.left, context.right]);
 		context.exit();
 	} else if (context.right instanceof Date) context.setResult([context.left, context.right]).exit();
 };
@@ -78835,8 +78942,10 @@ var diffFilter = function trivialMatchesDiffFilter(context) {
 		context.setResult([context.left, context.right]).exit();
 		return;
 	}
-	if (context.left instanceof RegExp) if (context.right instanceof RegExp) context.setResult([context.left.toString(), context.right.toString()]).exit();
-	else context.setResult([context.left, context.right]).exit();
+	if (context.left instanceof RegExp) {
+		if (context.right instanceof RegExp) context.setResult([context.left.toString(), context.right.toString()]).exit();
+		else context.setResult([context.left, context.right]).exit();
+	}
 };
 diffFilter.filterName = "trivial";
 var patchFilter = function trivialMatchesPatchFilter(context) {
@@ -79035,12 +79144,13 @@ var BaseFormatter = class {
 					key: `_${movedFromIndex}`,
 					value: leftArray ? leftArray[movedFromIndex] : void 0
 				} : void 0, false);
-				if (Array.isArray(itemDelta)) if (itemDelta[2] === 0) {
-					rightLength--;
-					leftIndex++;
-				} else if (itemDelta[2] === 3) leftIndex++;
-				else leftIndex++;
-				else leftIndex++;
+				if (Array.isArray(itemDelta)) {
+					if (itemDelta[2] === 0) {
+						rightLength--;
+						leftIndex++;
+					} else if (itemDelta[2] === 3) leftIndex++;
+					else leftIndex++;
+				} else leftIndex++;
 			}
 			if (rightIndexKey in arrayDelta) {
 				hasDelta = true;
@@ -79414,12 +79524,14 @@ var renderTools = (changes, resolvedState) => {
 		children: toolName(resolvedState.tool_choice)
 	});
 	const tools = resolvedState.tools;
-	if (tools.length > 0) if (toolIndexes.length === 0) toolsInfo["Tools"] = /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Tools, { toolDefinitions: resolvedState.tools });
-	else {
-		const filtered = tools.filter((_, index) => {
-			return toolIndexes.includes(index.toString());
-		});
-		toolsInfo["Tools"] = /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Tools, { toolDefinitions: filtered });
+	if (tools.length > 0) {
+		if (toolIndexes.length === 0) toolsInfo["Tools"] = /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Tools, { toolDefinitions: resolvedState.tools });
+		else {
+			const filtered = tools.filter((_, index) => {
+				return toolIndexes.includes(index.toString());
+			});
+			toolsInfo["Tools"] = /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Tools, { toolDefinitions: filtered });
+		}
 	}
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 		className: clsx(StateEventRenderers_module_default.tools),
@@ -79760,16 +79872,17 @@ var stepDescriptor = (event) => {
 	const rootStepDescriptor = { endSpace: true };
 	if (event.type === "solver") return { ...rootStepDescriptor };
 	else if (event.type === "scorer") return { ...rootStepDescriptor };
-	else if (event.event === "step") if (event.name === "53787D8A-D3FC-426D-B383-9F880B70E4AA") return {
-		...rootStepDescriptor,
-		name: "Sandbox Events"
-	};
-	else if (event.name === "init") return {
-		...rootStepDescriptor,
-		name: "Init"
-	};
-	else return { ...rootStepDescriptor };
-	else switch (event.name) {
+	else if (event.event === "step") {
+		if (event.name === "53787D8A-D3FC-426D-B383-9F880B70E4AA") return {
+			...rootStepDescriptor,
+			name: "Sandbox Events"
+		};
+		else if (event.name === "init") return {
+			...rootStepDescriptor,
+			name: "Init"
+		};
+		else return { ...rootStepDescriptor };
+	} else switch (event.name) {
 		case "sample_init": return {
 			...rootStepDescriptor,
 			name: "Sample Init"
@@ -79844,9 +79957,10 @@ var Rendered = ({ values }) => {
 	if (Array.isArray(values)) return values.map((val, index) => {
 		return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Rendered, { values: val }, index);
 	});
-	else if (values && typeof values === "object") if (Object.keys(values).length === 0) return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(None, {});
-	else return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(MetaDataGrid, { entries: values });
-	else return String(values);
+	else if (values && typeof values === "object") {
+		if (Object.keys(values).length === 0) return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(None, {});
+		else return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(MetaDataGrid, { entries: values });
+	} else return String(values);
 };
 var None = () => {
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
@@ -79895,7 +80009,7 @@ var ToolEventView = ({ eventNode, childNodes, className, context, eventCallbacks
 	const toolLabels = (0, import_react.useMemo)(() => {
 		const messageLabels = context?.messageLabels;
 		if (!messageLabels) return { show: false };
-		const label = (event.message_id ? messageLabels[event.message_id] : void 0) ?? context?.toolLabels?.[event.id];
+		const label = (event.message_id ? messageLabels[event.message_id] : void 0) ?? context.toolLabels?.[event.id];
 		return { messageLabels: label ? { [event.id]: label } : {} };
 	}, [
 		context?.messageLabels,
@@ -80022,8 +80136,10 @@ var extractEventFields = (event) => {
 			}
 			if (toolEvent.function) fields.push(["function", toolEvent.function]);
 			if (toolEvent.arguments) fields.push(["arguments", JSON.stringify(toolEvent.arguments)]);
-			if (toolEvent.result) if (typeof toolEvent.result === "string") fields.push(["result", toolEvent.result]);
-			else for (const text of extractToolResultText(toolEvent.result)) fields.push(["result", text]);
+			if (toolEvent.result) {
+				if (typeof toolEvent.result === "string") fields.push(["result", toolEvent.result]);
+				else for (const text of extractToolResultText(toolEvent.result)) fields.push(["result", text]);
+			}
 			if (toolEvent.error?.message) fields.push(["error", toolEvent.error.message]);
 			break;
 		}
@@ -80042,8 +80158,10 @@ var extractEventFields = (event) => {
 		case "info": {
 			const infoEvent = event;
 			if (infoEvent.source) fields.push(["source", infoEvent.source]);
-			if (infoEvent.data) if (typeof infoEvent.data === "string") fields.push(["data", infoEvent.data]);
-			else fields.push(["data", sanitizeStringify(infoEvent.data)]);
+			if (infoEvent.data) {
+				if (typeof infoEvent.data === "string") fields.push(["data", infoEvent.data]);
+				else fields.push(["data", sanitizeStringify(infoEvent.data)]);
+			}
 			break;
 		}
 		case "branch":
@@ -80104,8 +80222,10 @@ var extractEventFields = (event) => {
 		}
 		case "sample_init": {
 			const sample = event.sample;
-			if (sample.target) if (typeof sample.target === "string") fields.push(["target", sample.target]);
-			else fields.push(["target", JSON.stringify(sample.target)]);
+			if (sample.target) {
+				if (typeof sample.target === "string") fields.push(["target", sample.target]);
+				else fields.push(["target", JSON.stringify(sample.target)]);
+			}
 			if (sample.metadata && Object.keys(sample.metadata).length > 0) fields.push(["metadata", sanitizeStringify(sample.metadata)]);
 			break;
 		}
@@ -80612,7 +80732,7 @@ function focusedTurnNodes(flat, eventId) {
 	const target = slice[0];
 	if (!target) return [];
 	const end = flat.indexOf(slice[slice.length - 1]) + 1;
-	const trailing = target?.event.event === "model" && !flat.slice(end).some((n) => n.event.event === "model") ? flat.slice(end).filter((n) => kSampleTerminalEvents.has(n.event.event)) : [];
+	const trailing = target.event.event === "model" && !flat.slice(end).some((n) => n.event.event === "model") ? flat.slice(end).filter((n) => kSampleTerminalEvents.has(n.event.event)) : [];
 	return [...slice, ...trailing].filter((n) => !kFocusExcludedEvents.has(n.event.event));
 }
 /**
@@ -81176,20 +81296,20 @@ var transformers = () => {
 		},
 		{
 			name: "unwrap_agent_solver",
-			matches: (node) => node.event.event === "span_begin" && node.event["type"] === "solver" && node.children.length === 2 && node.children[0]?.event.event === "span_begin" && node.children[0]?.event.type === "agent" && node.children[1]?.event.event === "state",
+			matches: (node) => node.event.event === "span_begin" && node.event["type"] === "solver" && node.children.length === 2 && node.children[0]?.event.event === "span_begin" && node.children[0].event.type === "agent" && node.children[1]?.event.event === "state",
 			process: (node) => skipFirstChildNode(node)
 		},
 		{
 			name: "unwrap_agent_solver w/store",
-			matches: (node) => node.event.event === "span_begin" && node.event["type"] === "solver" && node.children.length === 3 && node.children[0]?.event.event === "span_begin" && node.children[0]?.event.type === "agent" && node.children[1]?.event.event === "state" && node.children[2]?.event.event === "store",
+			matches: (node) => node.event.event === "span_begin" && node.event["type"] === "solver" && node.children.length === 3 && node.children[0]?.event.event === "span_begin" && node.children[0].event.type === "agent" && node.children[1]?.event.event === "state" && node.children[2]?.event.event === "store",
 			process: (node) => skipFirstChildNode(node)
 		},
 		{
 			name: "unwrap_handoff",
 			matches: (node) => {
 				if (!(node.event.event === "span_begin" && node.event["type"] === "handoff")) return false;
-				if (node.children.length === 1) return node.children[0]?.event.event === "tool" && !!node.children[0]?.event.agent;
-				else return node.children.length === 2 && node.children[0]?.event.event === "tool" && node.children[1]?.event.event === "store" && node.children[0]?.children.length === 2 && node.children[0]?.children[0]?.event.event === "span_begin" && node.children[0]?.children[0]?.event.type === "agent";
+				if (node.children.length === 1) return node.children[0]?.event.event === "tool" && !!node.children[0].event.agent;
+				else return node.children.length === 2 && node.children[0]?.event.event === "tool" && node.children[1]?.event.event === "store" && node.children[0].children.length === 2 && node.children[0].children[0]?.event.event === "span_begin" && node.children[0].children[0].event.type === "agent";
 			},
 			process: (node) => skipThisNode(node)
 		},
@@ -81408,12 +81528,13 @@ var injectScorersSpan = (events) => {
 	for (const event of events) {
 		if (event.event === "span_begin" && event.type === "scorers") return events;
 		if (event.event === "span_begin" && event.type === "scorer" && !hasCollectedScorers) collecting = event.span_id ?? null;
-		if (collecting) if (event.event === "span_end" && event.span_id === collecting) {
-			collecting = null;
-			results.push(...flushCollected());
-			results.push(event);
-		} else collectedScorerEvents.push(event);
-		else results.push(event);
+		if (collecting) {
+			if (event.event === "span_end" && event.span_id === collecting) {
+				collecting = null;
+				results.push(...flushCollected());
+				results.push(event);
+			} else collectedScorerEvents.push(event);
+		} else results.push(event);
 	}
 	return results;
 };
@@ -81935,9 +82056,10 @@ function isAgentSpan(span) {
 * or null if the resulting span would be empty.
 */
 function treeItemToNode(item) {
-	if (isSpanNode(item)) if (item.type === "agent" || item.type === "solver") return buildSpanFromAgentSpan(item);
-	else return buildSpanFromGenericSpan(item);
-	else return eventToNode(item);
+	if (isSpanNode(item)) {
+		if (item.type === "agent" || item.type === "solver") return buildSpanFromAgentSpan(item);
+		else return buildSpanFromGenericSpan(item);
+	} else return eventToNode(item);
 }
 /**
 * Build a TimelineSpan from a SpanNode with type='agent'.
@@ -82048,14 +82170,15 @@ function buildAgentFromTree(tree) {
 function unrollSpan(span, into) {
 	into.push(createTimelineEvent(span.beginEvent));
 	const parentIsTool = span.type === "tool";
-	for (const child of span.children) if (isSpanNode(child)) if (isAgentSpan(child)) {
-		const node = treeItemToNode(child);
-		if (node === null) continue;
-		if (node.type === "span" && node.content.length === 0) continue;
-		if (parentIsTool && node.type === "span") node.toolInvoked = true;
-		into.push(node);
-	} else unrollSpan(child, into);
-	else into.push(eventToNode(child));
+	for (const child of span.children) if (isSpanNode(child)) {
+		if (isAgentSpan(child)) {
+			const node = treeItemToNode(child);
+			if (node === null) continue;
+			if (node.type === "span" && node.content.length === 0) continue;
+			if (parentIsTool && node.type === "span") node.toolInvoked = true;
+			into.push(node);
+		} else unrollSpan(child, into);
+	} else into.push(eventToNode(child));
 	if (span.endEvent) into.push(createTimelineEvent(span.endEvent));
 }
 /**
@@ -84807,13 +84930,13 @@ function useTranscriptTimeline(options) {
 			timeline: spliceToTimeline(baseTimeline.root, branch),
 			priorSelected: timelineProps?.selected ?? null
 		}]);
-		timelineProps?.onSelect?.(null);
+		timelineProps?.onSelect(null);
 	}, [baseTimeline.root, timelineProps]);
 	const popView = (0, import_react.useCallback)(() => {
 		const top = viewStack.at(-1);
 		if (!top) return;
 		setViewStack((s) => s.slice(0, -1));
-		timelineProps?.onSelect?.(top.priorSelected);
+		timelineProps?.onSelect(top.priorSelected);
 	}, [viewStack, timelineProps]);
 	const state = useTimeline(timeline, timelineOptions, timelineProps);
 	const visibleRows = (0, import_react.useMemo)(() => state.rows.filter((row) => row.depth === 0 || rowHasEvents(row)), [state.rows]);
@@ -86053,12 +86176,14 @@ var RegionBarFill = ({ span, isParent, isBarSelected, isBarDimmed, selectedRegio
 		const isFirst = i === 0;
 		const isLast = i === regionCount - 1;
 		let opacityClass;
-		if (hasRegionSelection) if (isSegmentSelected) opacityClass = TimelineSwimLanes_module_default.fillSelected;
-		else if (hoveredIndex === i) opacityClass = TimelineSwimLanes_module_default.regionHover;
-		else opacityClass = TimelineSwimLanes_module_default.fillDimmed;
-		else if (isBarSelected) if (hoveredIndex !== null && hoveredIndex !== i) opacityClass = isParent ? TimelineSwimLanes_module_default.fillParent : TimelineSwimLanes_module_default.regionDefault;
-		else opacityClass = TimelineSwimLanes_module_default.fillSelected;
-		else if (hoveredIndex !== null) opacityClass = TimelineSwimLanes_module_default.regionHover;
+		if (hasRegionSelection) {
+			if (isSegmentSelected) opacityClass = TimelineSwimLanes_module_default.fillSelected;
+			else if (hoveredIndex === i) opacityClass = TimelineSwimLanes_module_default.regionHover;
+			else opacityClass = TimelineSwimLanes_module_default.fillDimmed;
+		} else if (isBarSelected) {
+			if (hoveredIndex !== null && hoveredIndex !== i) opacityClass = isParent ? TimelineSwimLanes_module_default.fillParent : TimelineSwimLanes_module_default.regionDefault;
+			else opacityClass = TimelineSwimLanes_module_default.fillSelected;
+		} else if (hoveredIndex !== null) opacityClass = TimelineSwimLanes_module_default.regionHover;
 		else opacityClass = isParent ? TimelineSwimLanes_module_default.fillParent : TimelineSwimLanes_module_default.regionDefault;
 		return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 			className: clsx(TimelineSwimLanes_module_default.regionSegment, opacityClass, isFirst && TimelineSwimLanes_module_default.regionFirst, isLast && TimelineSwimLanes_module_default.regionLast, !isFirst && !isLast && TimelineSwimLanes_module_default.regionMiddle),
@@ -90049,7 +90174,7 @@ var fdt = new u8$1(32);
 for (var i$1 = 0; i$1 < 32; ++i$1) fdt[i$1] = 5;
 var flrm = /*#__PURE__*/ hMap(flt, 9, 1);
 var fdrm = /*#__PURE__*/ hMap(fdt, 5, 1);
-var max$1 = function(a) {
+var max = function(a) {
 	var m = a[0];
 	for (var i = 1; i < a.length; ++i) if (a[i] > m) m = a[i];
 	return m;
@@ -90134,7 +90259,7 @@ var inflt = function(dat, st, buf, dict) {
 				var clt = new u8$1(19);
 				for (var i = 0; i < hcLen; ++i) clt[clim[i]] = bits(dat, pos + i * 3, 7);
 				pos += hcLen * 3;
-				var clb = max$1(clt), clbmsk = (1 << clb) - 1;
+				var clb = max(clt), clbmsk = (1 << clb) - 1;
 				var clm = hMap(clt, clb, 1);
 				for (var i = 0; i < tl;) {
 					var r = clm[bits(dat, pos, clbmsk)];
@@ -90150,8 +90275,8 @@ var inflt = function(dat, st, buf, dict) {
 					}
 				}
 				var lt = ldt.subarray(0, hLit), dt = ldt.subarray(hLit);
-				lbt = max$1(lt);
-				dbt = max$1(dt);
+				lbt = max(lt);
+				dbt = max(dt);
 				lm = hMap(lt, lbt, 1);
 				dm = hMap(dt, dbt, 1);
 			} else err$1(1);
@@ -90225,14 +90350,15 @@ var wcln = function(fn, fnStr, td) {
 		if (typeof v == "function") {
 			fnStr += ";" + k + "=";
 			var st_1 = v.toString();
-			if (v.prototype) if (st_1.indexOf("[native code]") != -1) {
-				var spInd = st_1.indexOf(" ", 8) + 1;
-				fnStr += st_1.slice(spInd, st_1.indexOf("(", spInd));
-			} else {
-				fnStr += st_1;
-				for (var t in v.prototype) fnStr += ";" + k + ".prototype." + t + "=" + v.prototype[t].toString();
-			}
-			else fnStr += st_1;
+			if (v.prototype) {
+				if (st_1.indexOf("[native code]") != -1) {
+					var spInd = st_1.indexOf(" ", 8) + 1;
+					fnStr += st_1.slice(spInd, st_1.indexOf("(", spInd));
+				} else {
+					fnStr += st_1;
+					for (var t in v.prototype) fnStr += ";" + k + ".prototype." + t + "=" + v.prototype[t].toString();
+				}
+			} else fnStr += st_1;
 		} else td[k] = v;
 	}
 	return fnStr;
@@ -90270,7 +90396,7 @@ var bInflt = function() {
 		rev,
 		ec$1,
 		hMap,
-		max$1,
+		max,
 		bits,
 		bits16,
 		shft,
@@ -90764,9 +90890,10 @@ var rzb = function(dat, st, out) {
 	if (btype == 2) {
 		var b3 = dat[bt], lbt = b3 & 3, sf = b3 >> 2 & 3;
 		var lss = b3 >> 4, lcs = 0, s4 = 0;
-		if (lbt < 2) if (sf & 1) lss |= dat[++bt] << 4 | (sf & 2 && dat[++bt] << 12);
-		else lss = b3 >> 3;
-		else {
+		if (lbt < 2) {
+			if (sf & 1) lss |= dat[++bt] << 4 | (sf & 2 && dat[++bt] << 12);
+			else lss = b3 >> 3;
+		} else {
 			s4 = sf;
 			if (sf < 2) lss |= (dat[++bt] & 63) << 4, lcs = dat[bt] >> 6 | dat[++bt] << 2;
 			else if (sf == 2) lss |= dat[++bt] << 4 | (dat[++bt] & 3) << 12, lcs = dat[bt] >> 2 | dat[++bt] << 6;
@@ -91258,8 +91385,10 @@ var openRemoteZipFile = async (url, contentLength, fetchBytes = fetchRange) => {
 	contentLength = contentLength ?? await fetchSize(url);
 	const eocdrBuffer = await fetchBytes(url, contentLength - 22, contentLength - 1);
 	const eocdrView = new DataView(eocdrBuffer.buffer);
-	if (eocdrView.getUint32(0, true) !== 101010256) if (eocdrBuffer.length !== 22) throw new Error("Unexpected central directory size - does the HTTP server serving this file support HTTP range requests?");
-	else throw new Error("End of central directory record not found");
+	if (eocdrView.getUint32(0, true) !== 101010256) {
+		if (eocdrBuffer.length !== 22) throw new Error("Unexpected central directory size - does the HTTP server serving this file support HTTP range requests?");
+		else throw new Error("End of central directory record not found");
+	}
 	let centralDirOffset = eocdrView.getUint32(16, true);
 	let centralDirSize = eocdrView.getUint32(12, true);
 	if (centralDirOffset === 4294967295 || centralDirSize === 4294967295) {
@@ -91972,7 +92101,7 @@ var clientApi = (api, debug = false) => {
 			/**
 			* @type {import("./Types.js").SampleSummary[]}
 			*/
-			const sampleSummaries = logContents.parsed.samples ? logContents.parsed.samples?.map((sample) => {
+			const sampleSummaries = logContents.parsed.samples ? logContents.parsed.samples.map((sample) => {
 				return {
 					id: sample.id,
 					epoch: sample.epoch,
@@ -92551,7 +92680,7 @@ function viewServerApi(options) {
 		const metric = Object.values(header.results?.scores || {})[0]?.metrics;
 		const evalMetrics = Object.values(metric || {});
 		const primary_metric = evalMetrics.length > 0 ? evalMetrics[0] : void 0;
-		const model_roles = header.eval.model_roles ? Object.fromEntries(Object.entries(header.eval.model_roles).map(([role, cfg]) => [role, cfg.model])) : void 0;
+		const model_roles = header.eval.model_roles ? Object.fromEntries(Object.entries(header.eval.model_roles).map(([role, cfg]) => [role, modelRoleModelNames(cfg)])) : void 0;
 		return {
 			eval_id: header.eval.eval_id,
 			run_id: header.eval.run_id,
@@ -93701,10 +93830,12 @@ var require_clipboard = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 						var options = arguments.length > 0 && arguments[0] !== void 0 ? arguments[0] : {};
 						var _options$action = options.action, action = _options$action === void 0 ? "copy" : _options$action, container = options.container, target = options.target, text = options.text;
 						if (action !== "copy" && action !== "cut") throw new Error("Invalid \"action\" value, use either \"copy\" or \"cut\"");
-						if (target !== void 0) if (target && _typeof(target) === "object" && target.nodeType === 1) {
-							if (action === "copy" && target.hasAttribute("disabled")) throw new Error("Invalid \"target\" attribute. Please use \"readonly\" instead of \"disabled\" attribute");
-							if (action === "cut" && (target.hasAttribute("readonly") || target.hasAttribute("disabled"))) throw new Error("Invalid \"target\" attribute. You can't cut text from elements with \"readonly\" or \"disabled\" attributes");
-						} else throw new Error("Invalid \"target\" value, use a valid Element");
+						if (target !== void 0) {
+							if (target && _typeof(target) === "object" && target.nodeType === 1) {
+								if (action === "copy" && target.hasAttribute("disabled")) throw new Error("Invalid \"target\" attribute. Please use \"readonly\" instead of \"disabled\" attribute");
+								if (action === "cut" && (target.hasAttribute("readonly") || target.hasAttribute("disabled"))) throw new Error("Invalid \"target\" attribute. You can't cut text from elements with \"readonly\" or \"disabled\" attributes");
+							} else throw new Error("Invalid \"target\" value, use a valid Element");
+						}
 						if (text) return actions_copy(text, { container });
 						if (target) return action === "cut" ? actions_cut(target) : actions_copy(target, { container });
 					};
@@ -94783,8 +94914,10 @@ var scoreCategorizers = [
 		if (types && types.length !== 0 && types[0] === "number") return numericScoreDescriptor(values);
 	} },
 	{ describe: (values, types) => {
-		if (types && types.length !== 0 && types[0] === "object") if (values.length > 0 && Array.isArray(values[0])) return listScoreDescriptor(values);
-		else return objectScoreDescriptor(values);
+		if (types && types.length !== 0 && types[0] === "object") {
+			if (values.length > 0 && Array.isArray(values[0])) return listScoreDescriptor(values);
+			else return objectScoreDescriptor(values);
+		}
 	} },
 	{ describe: (_values, _types) => {
 		return otherScoreDescriptor();
@@ -94796,9 +94929,10 @@ var createEvalDescriptor = (scores, samples) => {
 	if (!samples) return;
 	const scoreValue = (sample, scoreLabel) => {
 		if (!sample.scores || Object.keys(sample.scores).length === 0 || !scoreLabel) return;
-		if (scoreLabel.scorer !== scoreLabel.name && sample.scores[scoreLabel.scorer] && sample.scores[scoreLabel.scorer].value) if (typeof sample.scores[scoreLabel.scorer].value === "object") return sample.scores[scoreLabel.scorer].value[scoreLabel.name];
-		else return sample.scores[scoreLabel.scorer].value;
-		else if (sample.scores[scoreLabel.name]) return sample.scores[scoreLabel.name].value;
+		if (scoreLabel.scorer !== scoreLabel.name && sample.scores[scoreLabel.scorer] && sample.scores[scoreLabel.scorer].value) {
+			if (typeof sample.scores[scoreLabel.scorer].value === "object") return sample.scores[scoreLabel.scorer].value[scoreLabel.name];
+			else return sample.scores[scoreLabel.scorer].value;
+		} else if (sample.scores[scoreLabel.name]) return sample.scores[scoreLabel.name].value;
 		else return;
 	};
 	const scoreAnswer = (sample, scorer) => {
@@ -94935,7 +95069,7 @@ var createSamplesDescriptor = (samples, evalDescriptor, selectedScores) => {
 		fallbacksSize: 0,
 		errorSize: 0
 	});
-	const firstSelectedScore = selectedScores?.[0];
+	const firstSelectedScore = selectedScores[0];
 	return {
 		evalDescriptor,
 		messageShape,
@@ -94944,7 +95078,7 @@ var createSamplesDescriptor = (samples, evalDescriptor, selectedScores) => {
 	};
 };
 var scoreLabelKey = (scoreLabel) => {
-	return `${scoreLabel?.scorer}.${scoreLabel.name}`;
+	return `${scoreLabel.scorer}.${scoreLabel.name}`;
 };
 //#endregion
 //#region ../../node_modules/.pnpm/filtrex@3.1.0/node_modules/filtrex/dist/esm/filtrex.mjs
@@ -97591,8 +97725,6 @@ var sampleFilterItems = (evalDescriptor) => {
 		const canonicalName = shortName || qualifiedName;
 		if (!canonicalName) throw new Error("Unable to create a canonical name for a score");
 		const descriptor = evalDescriptor.scoreDescriptor(scoreLabel);
-		if (descriptor.filterable === false) return;
-		const scoreType = descriptor?.scoreType;
 		if (!descriptor) {
 			items.push({
 				shortName,
@@ -97600,10 +97732,12 @@ var sampleFilterItems = (evalDescriptor) => {
 				canonicalName,
 				tooltip: void 0,
 				categories: [],
-				scoreType
+				scoreType: void 0
 			});
 			return;
 		}
+		if (descriptor.filterable === false) return;
+		const scoreType = descriptor.scoreType;
 		let tooltip = `${canonicalName}: ${descriptor.scoreType}`;
 		let categories = [];
 		if (descriptor.min !== void 0 || descriptor.max !== void 0) {
@@ -98152,21 +98286,22 @@ var useLogRouteParams = () => {
 		const sampleUrlMatch = splatPath.match(/^(.+?)\/samples(?:\/([^/]+)(?:\/([^/]+))?)?$/);
 		if (sampleUrlMatch) {
 			const [, logPath, firstSegment, secondSegment] = sampleUrlMatch;
-			if (firstSegment) if (new Set(kSampleTabIds).has(firstSegment) && !secondSegment) return {
-				logPath: decodeUrlParam(logPath),
-				tabId: "samples",
-				sampleTabId: decodeUrlParam(firstSegment),
-				sampleId: void 0,
-				epoch: void 0
-			};
-			else return {
-				logPath: decodeUrlParam(logPath),
-				tabId: void 0,
-				sampleTabId: void 0,
-				sampleId: decodeUrlParam(firstSegment),
-				epoch: secondSegment ? decodeUrlParam(secondSegment) : void 0
-			};
-			else return {
+			if (firstSegment) {
+				if (new Set(kSampleTabIds).has(firstSegment) && !secondSegment) return {
+					logPath: decodeUrlParam(logPath),
+					tabId: "samples",
+					sampleTabId: decodeUrlParam(firstSegment),
+					sampleId: void 0,
+					epoch: void 0
+				};
+				else return {
+					logPath: decodeUrlParam(logPath),
+					tabId: void 0,
+					sampleTabId: void 0,
+					sampleId: decodeUrlParam(firstSegment),
+					epoch: secondSegment ? decodeUrlParam(secondSegment) : void 0
+				};
+			} else return {
 				logPath: decodeUrlParam(logPath),
 				tabId: "samples",
 				sampleTabId: void 0,
@@ -98611,32 +98746,6 @@ var subscribe = (onChange) => {
 * subscription re-renders on external changes the preference can't see.
 */
 var useResolvedIsDark = (preference) => (0, import_react.useSyncExternalStore)(subscribe, () => resolveIsDark(preference), () => false);
-var ActivityBar_module_default = {
-	wrapper: "_wrapper_44dmw_1",
-	container: "_container_44dmw_12",
-	animate: "_animate_44dmw_21",
-	leftToRight: "_leftToRight_44dmw_1",
-	determinate: "_determinate_44dmw_31"
-};
-//#endregion
-//#region src/components/ActivityBar.tsx
-var ActivityBar = ({ animating, progress }) => {
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-		className: clsx(ActivityBar_module_default.wrapper),
-		children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-			className: clsx(ActivityBar_module_default.container),
-			role: "progressbar",
-			"aria-label": "Progress bar",
-			"aria-valuenow": progress !== void 0 ? Math.round(progress * 100) : void 0,
-			"aria-valuemin": 0,
-			"aria-valuemax": 100,
-			children: animating && (progress !== void 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-				className: ActivityBar_module_default.determinate,
-				style: { width: `${progress * 100}%` }
-			}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: ActivityBar_module_default.animate }))
-		})
-	});
-};
 //#endregion
 //#region src/state/selectedLogDetails.ts
 /** Selection binding: the selected log's details — the fetch trigger and
@@ -98872,7 +98981,7 @@ var Navbar = ({ fnNavigationUrl, bordered, children, currentPath, backUrl: backU
 					ref: pathContainerRef,
 					children: logDir ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("ol", {
 						className: clsx("breadcrumb", Navbar_module_default.breadcrumbs),
-						children: visibleSegments?.map((segment, index) => {
+						children: visibleSegments.map((segment, index) => {
 							const isLast = index === visibleSegments.length - 1;
 							const shouldShowEllipsis = showEllipsis && index === 1 && visibleSegments.length >= 2;
 							return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [shouldShowEllipsis && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("li", {
@@ -98934,7 +99043,7 @@ var ApplicationNavbar = ({ currentPath, fnNavigationUrl, backUrl, homeUrl, borde
 				setShowing
 			})
 		]
-	}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ActivityBar, { animating: loading })] });
+	}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(LoadingBar, { loading })] });
 };
 var NavbarButton_module_default = {
 	navbarButton: "_navbarButton_i4zyi_1",
@@ -99968,1198 +100077,5024 @@ var useLogListColumns = (mode = "logs", scopeDir, viewMode = "by-metric") => {
 	};
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+table-core@8.21.3/node_modules/@tanstack/table-core/build/lib/index.mjs
+//#region ../../node_modules/.pnpm/@tanstack+react-table@9.1.2_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/@tanstack/react-table/dist/FlexRender.js
+function isReactComponent(component) {
+	return isClassComponent(component) || typeof component === "function" || isExoticComponent(component);
+}
+function isClassComponent(component) {
+	return typeof component === "function" && (() => {
+		const proto = Object.getPrototypeOf(component);
+		return proto.prototype && proto.prototype.isReactComponent;
+	})();
+}
+function isExoticComponent(component) {
+	return typeof component === "object" && typeof component.$$typeof === "symbol" && ["react.memo", "react.forward_ref"].includes(component.$$typeof.description);
+}
 /**
-* table-core
+* If rendering headers, cells, or footers with custom markup, use flexRender instead of `cell.getValue()` or `cell.renderValue()`.
+* @example flexRender(cell.column.columnDef.cell, cell.getContext())
+*/
+function flexRender(Comp, props) {
+	if (Comp === null || Comp === void 0) return null;
+	return isReactComponent(Comp) ? /* @__PURE__ */ import_react.createElement(Comp, props) : Comp;
+}
+/**
+* Simplified component wrapper of `flexRender`. Use this utility component to render headers, cells, or footers with custom markup.
+* Only one prop (`cell`, `header`, or `footer`) may be passed.
+* @example
+* ```tsx
+* <FlexRender cell={cell} />
+* <FlexRender header={header} />
+* <FlexRender footer={footer} />
+* ```
 *
-* Copyright (c) TanStack
+* This replaces calling `flexRender` directly like this:
+* ```tsx
+* flexRender(cell.column.columnDef.cell, cell.getContext())
+* flexRender(header.column.columnDef.header, header.getContext())
+* flexRender(footer.column.columnDef.footer, footer.getContext())
+* ```
+*/
+function FlexRender(props) {
+	if ("cell" in props && props.cell) {
+		const cell = props.cell;
+		const def = cell.column.columnDef;
+		const groupingCell = cell;
+		const groupingDef = def;
+		if (groupingCell.getIsAggregated?.()) return flexRender(groupingDef.aggregatedCell ?? def.cell, cell.getContext());
+		if (groupingCell.getIsPlaceholder?.()) return null;
+		return flexRender(def.cell, cell.getContext());
+	}
+	if ("header" in props && props.header) return flexRender(props.header.column.columnDef.header, props.header.getContext());
+	if ("footer" in props && props.footer) return flexRender(props.footer.column.columnDef.footer, props.footer.getContext());
+	return null;
+}
+//#endregion
+//#region ../../node_modules/.pnpm/@tanstack+store@0.11.1/node_modules/@tanstack/store/dist/alien.js
+/* @__NO_SIDE_EFFECTS__ */
+function createReactiveSystem({ update, notify, unwatched }) {
+	return {
+		link,
+		unlink,
+		propagate,
+		checkDirty,
+		shallowPropagate
+	};
+	function link(dep, sub, version) {
+		const prevDep = sub.depsTail;
+		if (prevDep !== void 0 && prevDep.dep === dep) return;
+		const nextDep = prevDep !== void 0 ? prevDep.nextDep : sub.deps;
+		if (nextDep !== void 0 && nextDep.dep === dep) {
+			nextDep.version = version;
+			sub.depsTail = nextDep;
+			return;
+		}
+		const prevSub = dep.subsTail;
+		if (prevSub !== void 0 && prevSub.version === version && prevSub.sub === sub) return;
+		const newLink = sub.depsTail = dep.subsTail = {
+			version,
+			dep,
+			sub,
+			prevDep,
+			nextDep,
+			prevSub,
+			nextSub: void 0
+		};
+		if (nextDep !== void 0) nextDep.prevDep = newLink;
+		if (prevDep !== void 0) prevDep.nextDep = newLink;
+		else sub.deps = newLink;
+		if (prevSub !== void 0) prevSub.nextSub = newLink;
+		else dep.subs = newLink;
+	}
+	function unlink(link, sub = link.sub) {
+		const dep = link.dep;
+		const prevDep = link.prevDep;
+		const nextDep = link.nextDep;
+		const nextSub = link.nextSub;
+		const prevSub = link.prevSub;
+		if (nextDep !== void 0) nextDep.prevDep = prevDep;
+		else sub.depsTail = prevDep;
+		if (prevDep !== void 0) prevDep.nextDep = nextDep;
+		else sub.deps = nextDep;
+		if (nextSub !== void 0) nextSub.prevSub = prevSub;
+		else dep.subsTail = prevSub;
+		if (prevSub !== void 0) prevSub.nextSub = nextSub;
+		else if ((dep.subs = nextSub) === void 0) unwatched(dep);
+		return nextDep;
+	}
+	function propagate(link) {
+		let next = link.nextSub;
+		let stack;
+		top: do {
+			const sub = link.sub;
+			let flags = sub.flags;
+			if (!(flags & 60)) sub.flags = flags | 32;
+			else if (!(flags & 12)) flags = 0;
+			else if (!(flags & 4)) sub.flags = flags & -9 | 32;
+			else if (!(flags & 48) && isValidLink(link, sub)) {
+				sub.flags = flags | 40;
+				flags &= 1;
+			} else flags = 0;
+			if (flags & 2) notify(sub);
+			if (flags & 1) {
+				const subSubs = sub.subs;
+				if (subSubs !== void 0) {
+					const nextSub = (link = subSubs).nextSub;
+					if (nextSub !== void 0) {
+						stack = {
+							value: next,
+							prev: stack
+						};
+						next = nextSub;
+					}
+					continue;
+				}
+			}
+			if ((link = next) !== void 0) {
+				next = link.nextSub;
+				continue;
+			}
+			while (stack !== void 0) {
+				link = stack.value;
+				stack = stack.prev;
+				if (link !== void 0) {
+					next = link.nextSub;
+					continue top;
+				}
+			}
+			break;
+		} while (true);
+	}
+	function checkDirty(link, sub) {
+		let stack;
+		let checkDepth = 0;
+		let dirty = false;
+		top: do {
+			const dep = link.dep;
+			const flags = dep.flags;
+			if (sub.flags & 16) dirty = true;
+			else if ((flags & 17) === 17) {
+				if (update(dep)) {
+					const subs = dep.subs;
+					if (subs.nextSub !== void 0) shallowPropagate(subs);
+					dirty = true;
+				}
+			} else if ((flags & 33) === 33) {
+				if (link.nextSub !== void 0 || link.prevSub !== void 0) stack = {
+					value: link,
+					prev: stack
+				};
+				link = dep.deps;
+				sub = dep;
+				++checkDepth;
+				continue;
+			}
+			if (!dirty) {
+				const nextDep = link.nextDep;
+				if (nextDep !== void 0) {
+					link = nextDep;
+					continue;
+				}
+			}
+			while (checkDepth--) {
+				const firstSub = sub.subs;
+				const hasMultipleSubs = firstSub.nextSub !== void 0;
+				if (hasMultipleSubs) {
+					link = stack.value;
+					stack = stack.prev;
+				} else link = firstSub;
+				if (dirty) {
+					if (update(sub)) {
+						if (hasMultipleSubs) shallowPropagate(firstSub);
+						sub = link.sub;
+						continue;
+					}
+					dirty = false;
+				} else sub.flags &= -33;
+				sub = link.sub;
+				const nextDep = link.nextDep;
+				if (nextDep !== void 0) {
+					link = nextDep;
+					continue top;
+				}
+			}
+			return dirty;
+		} while (true);
+	}
+	function shallowPropagate(link) {
+		do {
+			const sub = link.sub;
+			const flags = sub.flags;
+			if ((flags & 48) === 32) {
+				sub.flags = flags | 16;
+				if ((flags & 6) === 2) notify(sub);
+			}
+		} while ((link = link.nextSub) !== void 0);
+	}
+	function isValidLink(checkLink, sub) {
+		let link = sub.depsTail;
+		while (link !== void 0) {
+			if (link === checkLink) return true;
+			link = link.prevDep;
+		}
+		return false;
+	}
+}
+//#endregion
+//#region ../../node_modules/.pnpm/@tanstack+store@0.11.1/node_modules/@tanstack/store/dist/atom.js
+function toObserver(nextHandler, errorHandler, completionHandler) {
+	const isObserver = typeof nextHandler === "object";
+	const self = isObserver ? nextHandler : void 0;
+	return {
+		next: (isObserver ? nextHandler.next : nextHandler)?.bind(self),
+		error: (isObserver ? nextHandler.error : errorHandler)?.bind(self),
+		complete: (isObserver ? nextHandler.complete : completionHandler)?.bind(self)
+	};
+}
+var queuedEffects = [];
+var cycle = 0;
+var { link: link$1, unlink, propagate, checkDirty, shallowPropagate } = /* @__PURE__ */ createReactiveSystem({
+	update(atom) {
+		return atom._update();
+	},
+	notify(effect) {
+		queuedEffects[queuedEffectsLength++] = effect;
+		effect.flags &= -3;
+	},
+	unwatched(atom) {
+		if (atom.depsTail !== void 0) {
+			atom.depsTail = void 0;
+			atom.flags = 17;
+			purgeDeps(atom);
+		}
+	}
+});
+var notifyIndex = 0;
+var queuedEffectsLength = 0;
+var activeSub;
+var batchDepth = 0;
+function batch(fn) {
+	try {
+		++batchDepth;
+		fn();
+	} finally {
+		if (!--batchDepth) flush();
+	}
+}
+function purgeDeps(sub) {
+	const depsTail = sub.depsTail;
+	let dep = depsTail !== void 0 ? depsTail.nextDep : sub.deps;
+	while (dep !== void 0) dep = unlink(dep, sub);
+}
+function flush() {
+	if (batchDepth > 0) return;
+	while (notifyIndex < queuedEffectsLength) {
+		const effect = queuedEffects[notifyIndex];
+		queuedEffects[notifyIndex++] = void 0;
+		effect.notify();
+	}
+	notifyIndex = 0;
+	queuedEffectsLength = 0;
+}
+function createAtom(valueOrFn, options) {
+	const isComputed = typeof valueOrFn === "function";
+	const getter = valueOrFn;
+	const atom = {
+		_snapshot: isComputed ? void 0 : valueOrFn,
+		subs: void 0,
+		subsTail: void 0,
+		deps: void 0,
+		depsTail: void 0,
+		flags: isComputed ? 0 : 1,
+		get() {
+			if (activeSub !== void 0) link$1(atom, activeSub, cycle);
+			return atom._snapshot;
+		},
+		subscribe(observerOrFn) {
+			const obs = toObserver(observerOrFn);
+			const observed = { current: false };
+			const e = effect(() => {
+				atom.get();
+				if (!observed.current) observed.current = true;
+				else obs.next?.(atom._snapshot);
+			});
+			return { unsubscribe: () => {
+				e.stop();
+			} };
+		},
+		_update(getValue) {
+			const prevSub = activeSub;
+			const compare = options?.compare ?? Object.is;
+			if (isComputed) {
+				activeSub = atom;
+				++cycle;
+				atom.depsTail = void 0;
+			} else if (getValue === void 0) return false;
+			if (isComputed) atom.flags = 5;
+			try {
+				const oldValue = atom._snapshot;
+				const newValue = typeof getValue === "function" ? getValue(oldValue) : getValue === void 0 && isComputed ? getter(oldValue) : getValue;
+				if (oldValue === void 0 || !compare(oldValue, newValue)) {
+					atom._snapshot = newValue;
+					return true;
+				}
+				return false;
+			} finally {
+				activeSub = prevSub;
+				if (isComputed) atom.flags &= -5;
+				purgeDeps(atom);
+			}
+		}
+	};
+	if (isComputed) {
+		atom.flags = 17;
+		atom.get = function() {
+			const flags = atom.flags;
+			if (flags & 16 || flags & 32 && checkDirty(atom.deps, atom)) {
+				if (atom._update()) {
+					const subs = atom.subs;
+					if (subs !== void 0) shallowPropagate(subs);
+				}
+			} else if (flags & 32) atom.flags = flags & -33;
+			if (activeSub !== void 0) link$1(atom, activeSub, cycle);
+			return atom._snapshot;
+		};
+	} else atom.set = function(valueOrFn) {
+		if (atom._update(valueOrFn)) {
+			const subs = atom.subs;
+			if (subs !== void 0) {
+				propagate(subs);
+				shallowPropagate(subs);
+				flush();
+			}
+		}
+	};
+	return atom;
+}
+function effect(fn) {
+	const run = () => {
+		const prevSub = activeSub;
+		activeSub = effectObj;
+		++cycle;
+		effectObj.depsTail = void 0;
+		effectObj.flags = 6;
+		try {
+			return fn();
+		} finally {
+			activeSub = prevSub;
+			effectObj.flags &= -5;
+			purgeDeps(effectObj);
+		}
+	};
+	const effectObj = {
+		deps: void 0,
+		depsTail: void 0,
+		subs: void 0,
+		subsTail: void 0,
+		flags: 6,
+		notify() {
+			const flags = this.flags;
+			if (flags & 16 || flags & 32 && checkDirty(this.deps, this)) run();
+			else this.flags = 2;
+		},
+		stop() {
+			this.flags = 0;
+			this.depsTail = void 0;
+			purgeDeps(this);
+		}
+	};
+	run();
+	return effectObj;
+}
+//#endregion
+//#region ../../node_modules/.pnpm/@tanstack+store@0.11.1/node_modules/@tanstack/store/dist/shallow.js
+function shallow(objA, objB) {
+	if (Object.is(objA, objB)) return true;
+	if (typeof objA !== "object" || objA === null || typeof objB !== "object" || objB === null) return false;
+	if (objA instanceof Map && objB instanceof Map) {
+		if (objA.size !== objB.size) return false;
+		for (const [k, v] of objA) if (!objB.has(k) || !Object.is(v, objB.get(k))) return false;
+		return true;
+	}
+	if (objA instanceof Set && objB instanceof Set) {
+		if (objA.size !== objB.size) return false;
+		for (const v of objA) if (!objB.has(v)) return false;
+		return true;
+	}
+	if (objA instanceof Date && objB instanceof Date) {
+		if (objA.getTime() !== objB.getTime()) return false;
+		return true;
+	}
+	const keysA = getOwnKeys(objA);
+	if (keysA.length !== getOwnKeys(objB).length) return false;
+	for (let i = 0; i < keysA.length; i++) if (!Object.prototype.hasOwnProperty.call(objB, keysA[i]) || !Object.is(objA[keysA[i]], objB[keysA[i]])) return false;
+	return true;
+}
+function getOwnKeys(obj) {
+	return Object.keys(obj).concat(Object.getOwnPropertySymbols(obj));
+}
+//#endregion
+//#region ../../node_modules/.pnpm/use-sync-external-store@1.6.0_react@19.2.8/node_modules/use-sync-external-store/cjs/use-sync-external-store-shim.production.js
+/**
+* @license React
+* use-sync-external-store-shim.production.js
+*
+* Copyright (c) Meta Platforms, Inc. and affiliates.
 *
 * This source code is licensed under the MIT license found in the
-* LICENSE.md file in the root directory of this source tree.
+* LICENSE file in the root directory of this source tree.
+*/
+var require_use_sync_external_store_shim_production = /* @__PURE__ */ __commonJSMin(((exports) => {
+	var React = require_react();
+	function is(x, y) {
+		return x === y && (0 !== x || 1 / x === 1 / y) || x !== x && y !== y;
+	}
+	var objectIs = "function" === typeof Object.is ? Object.is : is;
+	var useState = React.useState;
+	var useEffect = React.useEffect;
+	var useLayoutEffect = React.useLayoutEffect;
+	var useDebugValue = React.useDebugValue;
+	function useSyncExternalStore$2(subscribe, getSnapshot) {
+		var value = getSnapshot(), _useState = useState({ inst: {
+			value,
+			getSnapshot
+		} }), inst = _useState[0].inst, forceUpdate = _useState[1];
+		useLayoutEffect(function() {
+			inst.value = value;
+			inst.getSnapshot = getSnapshot;
+			checkIfSnapshotChanged(inst) && forceUpdate({ inst });
+		}, [
+			subscribe,
+			value,
+			getSnapshot
+		]);
+		useEffect(function() {
+			checkIfSnapshotChanged(inst) && forceUpdate({ inst });
+			return subscribe(function() {
+				checkIfSnapshotChanged(inst) && forceUpdate({ inst });
+			});
+		}, [subscribe]);
+		useDebugValue(value);
+		return value;
+	}
+	function checkIfSnapshotChanged(inst) {
+		var latestGetSnapshot = inst.getSnapshot;
+		inst = inst.value;
+		try {
+			var nextValue = latestGetSnapshot();
+			return !objectIs(inst, nextValue);
+		} catch (error) {
+			return !0;
+		}
+	}
+	function useSyncExternalStore$1(subscribe, getSnapshot) {
+		return getSnapshot();
+	}
+	var shim = "undefined" === typeof window || "undefined" === typeof window.document || "undefined" === typeof window.document.createElement ? useSyncExternalStore$1 : useSyncExternalStore$2;
+	exports.useSyncExternalStore = void 0 !== React.useSyncExternalStore ? React.useSyncExternalStore : shim;
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/use-sync-external-store@1.6.0_react@19.2.8/node_modules/use-sync-external-store/shim/index.js
+var require_shim = /* @__PURE__ */ __commonJSMin(((exports, module) => {
+	module.exports = require_use_sync_external_store_shim_production();
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/use-sync-external-store@1.6.0_react@19.2.8/node_modules/use-sync-external-store/cjs/use-sync-external-store-shim/with-selector.production.js
+/**
+* @license React
+* use-sync-external-store-shim/with-selector.production.js
 *
-* @license MIT
+* Copyright (c) Meta Platforms, Inc. and affiliates.
+*
+* This source code is licensed under the MIT license found in the
+* LICENSE file in the root directory of this source tree.
+*/
+var require_with_selector_production = /* @__PURE__ */ __commonJSMin(((exports) => {
+	var React = require_react();
+	var shim = require_shim();
+	function is(x, y) {
+		return x === y && (0 !== x || 1 / x === 1 / y) || x !== x && y !== y;
+	}
+	var objectIs = "function" === typeof Object.is ? Object.is : is;
+	var useSyncExternalStore = shim.useSyncExternalStore;
+	var useRef = React.useRef;
+	var useEffect = React.useEffect;
+	var useMemo = React.useMemo;
+	var useDebugValue = React.useDebugValue;
+	exports.useSyncExternalStoreWithSelector = function(subscribe, getSnapshot, getServerSnapshot, selector, isEqual) {
+		var instRef = useRef(null);
+		if (null === instRef.current) {
+			var inst = {
+				hasValue: !1,
+				value: null
+			};
+			instRef.current = inst;
+		} else inst = instRef.current;
+		instRef = useMemo(function() {
+			function memoizedSelector(nextSnapshot) {
+				if (!hasMemo) {
+					hasMemo = !0;
+					memoizedSnapshot = nextSnapshot;
+					nextSnapshot = selector(nextSnapshot);
+					if (void 0 !== isEqual && inst.hasValue) {
+						var currentSelection = inst.value;
+						if (isEqual(currentSelection, nextSnapshot)) return memoizedSelection = currentSelection;
+					}
+					return memoizedSelection = nextSnapshot;
+				}
+				currentSelection = memoizedSelection;
+				if (objectIs(memoizedSnapshot, nextSnapshot)) return currentSelection;
+				var nextSelection = selector(nextSnapshot);
+				if (void 0 !== isEqual && isEqual(currentSelection, nextSelection)) return memoizedSnapshot = nextSnapshot, currentSelection;
+				memoizedSnapshot = nextSnapshot;
+				return memoizedSelection = nextSelection;
+			}
+			var hasMemo = !1, memoizedSnapshot, memoizedSelection, maybeGetServerSnapshot = void 0 === getServerSnapshot ? null : getServerSnapshot;
+			return [function() {
+				return memoizedSelector(getSnapshot());
+			}, null === maybeGetServerSnapshot ? void 0 : function() {
+				return memoizedSelector(maybeGetServerSnapshot());
+			}];
+		}, [
+			getSnapshot,
+			getServerSnapshot,
+			selector,
+			isEqual
+		]);
+		var value = useSyncExternalStore(subscribe, instRef[0], instRef[1]);
+		useEffect(function() {
+			inst.hasValue = !0;
+			inst.value = value;
+		}, [value]);
+		useDebugValue(value);
+		return value;
+	};
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/@tanstack+react-store@0.11.1_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/@tanstack/react-store/dist/useSelector.js
+var import_with_selector = (/* @__PURE__ */ __commonJSMin(((exports, module) => {
+	module.exports = require_with_selector_production();
+})))();
+function defaultCompare$1(a, b) {
+	return a === b;
+}
+/**
+* Selects a slice of state from an atom or store and subscribes the component
+* to that selection.
+*
+* This is the primary React read hook for TanStack Store. It works with any
+* source that exposes `get()` and `subscribe()`, including atoms, readonly
+* atoms, stores, and readonly stores.
+*
+* Omit the selector to subscribe to the whole value.
+*
+* @example
+* ```tsx
+* const count = useSelector(counterStore, (state) => state.count)
+* ```
+*
+* @example
+* ```tsx
+* const value = useSelector(countAtom)
+* ```
+*/
+function useSelector(source, selector = (s) => s, options) {
+	const compare = options?.compare ?? defaultCompare$1;
+	const subscribe = (0, import_react.useCallback)((handleStoreChange) => {
+		const { unsubscribe } = source.subscribe(handleStoreChange);
+		return unsubscribe;
+	}, [source]);
+	const getSnapshot = (0, import_react.useCallback)(() => source.get(), [source]);
+	return (0, import_with_selector.useSyncExternalStoreWithSelector)(subscribe, getSnapshot, getSnapshot, selector, compare);
+}
+//#endregion
+//#region ../../node_modules/.pnpm/@tanstack+react-table@9.1.2_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/@tanstack/react-table/dist/Subscribe.js
+function Subscribe(props) {
+	const selected = useSelector(props.source, props.selector, { compare: shallow });
+	return typeof props.children === "function" ? props.children(selected) : props.children;
+}
+//#endregion
+//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/core/reactivity/coreReactivityFeature.utils.js
+/**
+* Bridges atom instances to the `Store`/`ReadonlyStore` API by exposing
+* a `state` getter backed by `atom.get()`, and wiring `setState` for
+* writable atoms.
+*
+* @example
+* ```ts
+* const store = atomToStore(atom)
+* ```
+*/
+function atomToStore(atom) {
+	const store = atom;
+	Object.defineProperty(atom, "state", { get() {
+		return atom.get();
+	} });
+	if ("set" in atom) store.setState = atom.set.bind(atom);
+	return store;
+}
+//#endregion
+//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/core/reactivity/renderPhaseReactivity.js
+/**
+* Creates reactivity bindings for render-phase adapters (React, Preact, Lit):
+* frameworks with plain, non-reactive options that are re-synchronized during
+* component render, where store notifications must not fire until the host
+* commits.
+*
+* Readonly atoms are exposed as live facades. `get()` re-evaluates the
+* resolver against the options of the render in progress — a normal computed
+* cannot know that plain `options.state` changed — and caches the result
+* through the configured comparator so external-store consumers (e.g. React's
+* `useSyncExternalStore`) see referentially stable snapshots. `subscribe()`
+* goes through a hidden computed that tracks the resolver's real atom
+* dependencies plus a commit version, so subscribers are invalidated by
+* actual reactive writes and by the adapter's post-commit publication.
+*
+* @example
+* ```ts
+* import { batch, createAtom } from '@tanstack/react-store'
+*
+* export const reactReactivity = () =>
+*   renderPhaseReactivity({ createAtom, batch })
+* ```
+*/
+function renderPhaseReactivity(primitives) {
+	const { createAtom, batch } = primitives;
+	const commitAtom = createAtom(0);
+	return {
+		createOptionsStore: false,
+		wrapExternalAtoms: false,
+		addSubscription: () => {
+			throw new Error("Feature not supported in current reactivity implementation");
+		},
+		unmount: () => {
+			throw new Error("Feature not supported in current reactivity implementation");
+		},
+		schedule: primitives.schedule ?? ((fn) => queueMicrotask(fn)),
+		batch,
+		untrack: (fn) => fn(),
+		createReadonlyAtom: (fn, atomOptions) => {
+			const compare = atomOptions?.compare ?? Object.is;
+			let hasSnapshot = false;
+			let snapshot;
+			const getSnapshot = () => {
+				const nextSnapshot = fn();
+				if (!hasSnapshot || !compare(snapshot, nextSnapshot)) {
+					snapshot = nextSnapshot;
+					hasSnapshot = true;
+				}
+				return snapshot;
+			};
+			const reactiveAtom = createAtom(() => {
+				commitAtom.get();
+				return getSnapshot();
+			}, { compare });
+			return {
+				get: getSnapshot,
+				subscribe: reactiveAtom.subscribe.bind(reactiveAtom)
+			};
+		},
+		createWritableAtom: (value, atomOptions) => {
+			return createAtom(value, { compare: atomOptions?.compare });
+		},
+		commit: () => {
+			commitAtom.set((version) => version + 1);
+		}
+	};
+}
+/**
+* Creates a render-phase source with an explicit commit baseline.
+*
+* Render-phase adapters publish controlled state after the host framework
+* commits so isolated subscribers update, but the component that owns the
+* table already rendered that exact snapshot — forwarding the notification to
+* its root subscription would produce a redundant render. Unlike a last-read
+* filter, speculative reads do not change notification behavior: only
+* `markCommitted()` advances the baseline.
+*/
+function createRenderPhaseSource(source, compare = Object.is) {
+	let hasCommittedSnapshot = false;
+	let committedSnapshot;
+	return {
+		get: source.get,
+		markCommitted: (snapshot) => {
+			committedSnapshot = snapshot;
+			hasCommittedSnapshot = true;
+		},
+		subscribe: (listener) => source.subscribe((value) => {
+			if (!hasCommittedSnapshot || !compare(committedSnapshot, value)) listener(value);
+		})
+	};
+}
+//#endregion
+//#region ../../node_modules/.pnpm/@tanstack+react-table@9.1.2_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/@tanstack/react-table/dist/reactivity.js
+/**
+* Creates the table-core reactivity bindings used by the React adapter.
+*
+* React stores table state in TanStack Store atoms and leaves options as plain
+* resolved data because `useTable` synchronizes options during render. The
+* render-phase preset supplies the live readonly-atom facades and the `commit`
+* hook; the store primitives are passed in from `@tanstack/react-store` so all
+* atoms share one store instance with user-provided external atoms.
+*/
+function reactReactivity() {
+	return renderPhaseReactivity({
+		createAtom,
+		batch
+	});
+}
+//#endregion
+//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/utils.js
+/**
+* Applies a TanStack updater to a value.
+*
+* If the updater is a function it is called with the previous value; otherwise the updater value is returned directly.
 */
 function functionalUpdate(updater, input) {
 	return typeof updater === "function" ? updater(input) : updater;
 }
+/**
+* Clones table state values while preserving non-plain objects.
+*
+* Plain objects and arrays are copied recursively so state updates can avoid mutating existing references.
+*/
+function cloneState(value) {
+	if (Array.isArray(value)) return value.map(cloneState);
+	if (value && typeof value === "object") {
+		const proto = Object.getPrototypeOf(value);
+		if (proto !== Object.prototype && proto !== null) return value;
+		const copy = proto === null ? makeObjectMap() : {};
+		const keys = Object.keys(value);
+		for (let i = 0; i < keys.length; i++) {
+			const key = keys[i];
+			Object.defineProperty(copy, key, {
+				configurable: true,
+				enumerable: true,
+				value: cloneState(value[key]),
+				writable: true
+			});
+		}
+		return copy;
+	}
+	return value;
+}
+/**
+* Copies prototype-instance own properties without carrying over lazy memo
+* closures or the per-row cell cache, both of which are bound to the source
+* instance (cached cells reference the source row).
+*/
+function copyInstancePropertiesWithoutMemos(target, source) {
+	const keys = Object.keys(source);
+	const targetRecord = target;
+	for (let i = 0; i < keys.length; i++) {
+		const key = keys[i];
+		if (!key.startsWith("_memo_") && key !== "_cellsCache") targetRecord[key] = source[key];
+	}
+	return target;
+}
+/**
+* Creates an object intended only for string-keyed dictionary lookups.
+*
+* The null prototype keeps user-controlled ids such as `__proto__` and
+* `hasOwnProperty` as plain data keys.
+*/
+function makeObjectMap() {
+	return Object.create(null);
+}
+/**
+* Checks whether an object owns a key, including null-prototype dictionaries.
+*/
+function hasOwn(obj, key) {
+	return Object.prototype.hasOwnProperty.call(obj, key);
+}
+/**
+* Creates a table state updater for a single state slice.
+*
+* The updater writes through the table base atom for the slice and supports both value and functional updater forms.
+*/
 function makeStateUpdater(key, instance) {
 	return (updater) => {
-		instance.setState((old) => {
-			return {
-				...old,
-				[key]: functionalUpdate(updater, old[key])
-			};
-		});
+		(instance.options.atoms?.[key] ?? instance.baseAtoms[key]).set((old) => functionalUpdate(updater, old));
 	};
 }
+/**
+* Checks whether a value is an array or a plain (or null-prototype) object.
+* Class instances, dates, and other exotic values compare by reference only,
+* mirroring the `cloneState` plain-object policy.
+*/
+function isPlainContainer(value) {
+	if (typeof value !== "object" || value === null) return false;
+	if (Array.isArray(value)) return true;
+	const proto = Object.getPrototypeOf(value);
+	return proto === Object.prototype || proto === null;
+}
+/**
+* Returns every enumerable own key, including symbols and non-index array
+* properties. Keeping key presence explicit distinguishes sparse array holes
+* from entries whose value is `undefined`.
+*/
+function getEnumerableOwnKeys(value) {
+	return Reflect.ownKeys(value).filter((key) => Object.prototype.propertyIsEnumerable.call(value, key));
+}
+var MAX_STATE_COMPARE_DEPTH = 3;
+/**
+* Structurally compares two state slice values as deeply as stock feature
+* state can nest and no deeper.
+*
+* Three container levels cover flat maps and arrays, arrays of state objects,
+* array-valued filter values, and `columnResizing.columnSizingStart` tuples.
+* Deeper containers and non-plain values compare by reference. A `false`
+* result is always safe: the state update simply proceeds.
+*/
+function stateSlicesEqual(a, b) {
+	return stateSlicesEqualAtDepth(a, b, MAX_STATE_COMPARE_DEPTH);
+}
+function stateSlicesEqualAtDepth(a, b, depth) {
+	if (Object.is(a, b)) return true;
+	if (depth <= 0 || !isPlainContainer(a) || !isPlainContainer(b)) return false;
+	if (Array.isArray(a) || Array.isArray(b)) {
+		if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+	}
+	const keysA = getEnumerableOwnKeys(a);
+	const keysB = getEnumerableOwnKeys(b);
+	if (keysA.length !== keysB.length) return false;
+	const recordA = a;
+	const recordB = b;
+	for (let i = 0; i < keysA.length; i++) {
+		const key = keysA[i];
+		if (!Object.prototype.propertyIsEnumerable.call(b, key)) return false;
+		if (!stateSlicesEqualAtDepth(recordA[key], recordB[key], depth - 1)) return false;
+	}
+	return true;
+}
+/**
+* Routes a state slice update through the slice's `on<State>Change` handler,
+* preserving the owner's current reference for structural no-ops.
+*
+* Equality is evaluated inside the updater received by the state owner, never
+* against the table's potentially stale controlled snapshot. This keeps
+* same-tick updates composable in queued host containers such as React state,
+* evaluates the original updater only when the owner applies it, and lets atom
+* owners suppress notifications by returning their existing reference.
+*
+* A user-provided change handler is still invoked for a no-op because only that
+* handler's state container can know its latest queued value. The guarded
+* updater returns that container's previous reference, preventing a state write
+* or render in state containers with identity bailout semantics.
+*
+* Hot-path slices that skip guarding entirely (selection maps that scale with
+* row count, pointer-frequency resize state) call their change handler
+* directly instead of routing through this util. Custom feature slices with a
+* cheaper or semantic-aware comparison can pass `isEqual` to override the
+* structural default.
+*/
+function setStateSlice(instance, key, updater, isEqual = stateSlicesEqual) {
+	const onChangeKey = `on${key.charAt(0).toUpperCase()}${key.slice(1)}Change`;
+	const onChange = instance.options[onChangeKey];
+	if (!onChange) return;
+	onChange((current) => {
+		const next = functionalUpdate(updater, current);
+		return isEqual(current, next) ? current : next;
+	});
+}
+/**
+* Returns whether a value is a function.
+*/
 function isFunction(d) {
 	return d instanceof Function;
 }
-function isNumberArray(d) {
-	return Array.isArray(d) && d.every((val) => typeof val === "number");
-}
+/**
+* Flattens a tree of nodes by recursively reading child nodes.
+*
+* The original nodes are preserved in depth-first order.
+*/
 function flattenBy(arr, getChildren) {
 	const flat = [];
 	const recurse = (subArr) => {
 		subArr.forEach((item) => {
 			flat.push(item);
 			const children = getChildren(item);
-			if (children != null && children.length) recurse(children);
+			if (children.length) recurse(children);
 		});
 	};
 	recurse(arr);
 	return flat;
 }
-function memo$3(getDeps, fn, opts) {
+/**
+* Creates a dependency-tracked memoized function for table internals.
+*
+* The memo recomputes only when its dependency tuple changes and can emit debug timing information.
+*/
+var memo$3 = ({ fn, memoDeps, onAfterCompare, onAfterUpdate, onBeforeCompare, onBeforeUpdate }) => {
 	let deps = [];
 	let result;
-	return (depArgs) => {
-		let depTime;
-		if (opts.key && opts.debug) depTime = Date.now();
-		const newDeps = getDeps(depArgs);
-		if (!(newDeps.length !== deps.length || newDeps.some((dep, index) => deps[index] !== dep))) return result;
-		deps = newDeps;
-		let resultTime;
-		if (opts.key && opts.debug) resultTime = Date.now();
-		result = fn(...newDeps);
-		opts == null || opts.onChange == null || opts.onChange(result);
-		if (opts.key && opts.debug) {
-			if (opts != null && opts.debug()) {
-				const depEndTime = Math.round((Date.now() - depTime) * 100) / 100;
-				const resultEndTime = Math.round((Date.now() - resultTime) * 100) / 100;
-				const resultFpsPercentage = resultEndTime / 16;
-				const pad = (str, num) => {
-					str = String(str);
-					while (str.length < num) str = " " + str;
-					return str;
-				};
-				console.info(`%c⏱ ${pad(resultEndTime, 5)} /${pad(depEndTime, 5)} ms`, `
-            font-size: .6rem;
-            font-weight: bold;
-            color: hsl(${Math.max(0, Math.min(120 - 120 * resultFpsPercentage, 120))}deg 100% 31%);`, opts == null ? void 0 : opts.key);
+	const memoizedFn = (depArgs) => {
+		onBeforeCompare?.();
+		const newDeps = memoDeps?.(depArgs);
+		let depsChanged = !newDeps || newDeps.length !== deps?.length;
+		if (!depsChanged && newDeps) {
+			for (let i = 0; i < newDeps.length; i++) if (newDeps[i] !== deps[i]) {
+				depsChanged = true;
+				break;
 			}
 		}
+		onAfterCompare?.(depsChanged);
+		if (!depsChanged) return result;
+		deps = newDeps;
+		onBeforeUpdate?.();
+		result = fn(...newDeps ?? []);
+		onAfterUpdate?.(result);
 		return result;
 	};
+	return memoizedFn;
+};
+/**
+* Wraps a callback so that its first invocation is skipped.
+*
+* Row-model `onAfterUpdate` hooks schedule auto-resets when their inputs
+* change. The initial computation of a row model is not a change, so state
+* resets must not fire for it — otherwise merely reading a row model on mount
+* would wipe initial or controlled state.
+*/
+function skipFirstRun(fn) {
+	let hasRun = false;
+	return () => {
+		if (!hasRun) {
+			hasRun = true;
+			return;
+		}
+		fn();
+	};
 }
-function getMemoOptions(tableOptions, debugLevel, key, onChange) {
+/**
+* Creates a table-aware memoized function.
+*
+* This wraps `memo` with table debug options and feature metadata so row models and derived APIs can share consistent diagnostics.
+*/
+function tableMemo({ feature, fnName, objectId, onAfterUpdate, table, ...memoOptions }) {
+	const onAfterUpdateHandler = () => {
+		if (!onAfterUpdate) return;
+		const { schedule, untrack } = table._reactivity;
+		schedule(() => untrack(() => onAfterUpdate()));
+	};
+	const debugOptions = { onAfterUpdate: () => {
+		onAfterUpdateHandler();
+	} };
+	return memo$3({
+		...memoOptions,
+		...debugOptions
+	});
+}
+/**
+* Assumes that a function name is in the format of `parentName_fnKey` and returns the `fnKey` and `fnName` in the format of `parentName.fnKey`.
+*/
+function getFunctionNameInfo(staticFnName, splitBy = "_") {
+	const [parentName, fnKey] = staticFnName.split(splitBy);
 	return {
-		debug: () => {
-			var _tableOptions$debugAl;
-			return (_tableOptions$debugAl = tableOptions == null ? void 0 : tableOptions.debugAll) != null ? _tableOptions$debugAl : tableOptions[debugLevel];
-		},
-		key: false,
-		onChange
+		fnKey,
+		fnName: `${parentName}.${fnKey}`,
+		parentName
 	};
 }
-function createCell(table, row, column, columnId) {
-	const getRenderValue = () => {
-		var _cell$getValue;
-		return (_cell$getValue = cell.getValue()) != null ? _cell$getValue : table.options.renderFallbackValue;
-	};
-	const cell = {
-		id: `${row.id}_${column.id}`,
-		row,
-		column,
-		getValue: () => row.getValue(columnId),
-		renderValue: getRenderValue,
-		getContext: memo$3(() => [
+/**
+* Assigns Table API methods directly to the table instance.
+* Unlike row/cell/column/header, the table is a singleton so methods are assigned directly.
+*/
+function assignTableAPIs(feature, table, apis) {
+	for (const [staticFnName, { fn, memoDeps }] of Object.entries(apis)) {
+		const { fnKey, fnName } = getFunctionNameInfo(staticFnName);
+		table[fnKey] = memoDeps ? tableMemo({
+			memoDeps,
+			fn,
+			fnName,
 			table,
-			column,
-			row,
-			cell
-		], (table, column, row, cell) => ({
-			table,
-			column,
-			row,
-			cell,
-			getValue: cell.getValue,
-			renderValue: cell.renderValue
-		}), getMemoOptions(table.options, "debugCells", "cell.getContext"))
-	};
-	table._features.forEach((feature) => {
-		feature.createCell == null || feature.createCell(cell, column, row, table);
-	}, {});
-	return cell;
+			feature
+		}) : fn;
+	}
 }
-function createColumn(table, columnDef, depth, parent) {
-	var _ref, _resolvedColumnDef$id;
+/**
+* Assigns API methods to a prototype object for memory-efficient method sharing.
+* All instances created with this prototype will share the same method references.
+*
+* For memoized methods, the memo state is lazily created and stored on each instance.
+* This provides the best of both worlds: shared method code + per-instance caching.
+*/
+function assignPrototypeAPIs(feature, prototype, table, apis) {
+	for (const [staticFnName, { fn, memoDeps }] of Object.entries(apis)) {
+		const { fnKey, fnName } = getFunctionNameInfo(staticFnName);
+		if (memoDeps) {
+			const memoKey = `_memo_${fnKey}`;
+			prototype[fnKey] = function(...args) {
+				if (!this[memoKey]) {
+					const self = this;
+					this[memoKey] = tableMemo({
+						memoDeps: (depArgs) => memoDeps(self, depArgs),
+						fn: (...deps) => fn(self, ...deps),
+						fnName,
+						objectId: self.id,
+						table,
+						feature
+					});
+				}
+				return this[memoKey](...args);
+			};
+		} else prototype[fnKey] = function(...args) {
+			return fn(this, ...args);
+		};
+	}
+}
+/**
+* Looks to run the memoized function with the builder pattern on the object if it exists, otherwise fall back to the static method passed in.
+*/
+function callMemoOrStaticFn(obj, fnKey, staticFn, ...args) {
+	return obj[fnKey]?.(...args) ?? staticFn(obj, ...args);
+}
+//#endregion
+//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/core/cells/coreCellsFeature.utils.js
+/**
+* Reads this cell's accessor value from its owning row and column.
+*
+* This is the standalone implementation behind `cell.getValue()`, useful when
+* importing static APIs instead of calling methods from the cell prototype.
+*
+* @example
+* ```ts
+* const value = cell_getValue(cell)
+* ```
+*/
+function cell_getValue(cell) {
+	return cell.row.getValue(cell.column.id);
+}
+/**
+* Reads the value that should be rendered for this cell.
+*
+* Nullish accessor values are replaced with `table.options.renderFallbackValue`,
+* matching the behavior of `cell.renderValue()`.
+*
+* @example
+* ```ts
+* const rendered = cell_renderValue(cell)
+* ```
+*/
+function cell_renderValue(cell) {
+	return cell.getValue() ?? cell.table.options.renderFallbackValue;
+}
+/**
+* Builds the render context passed to a column's `cell` template.
+*
+* The returned object includes stable references to the table, row, column, and
+* cell, plus bound `getValue` and `renderValue` helpers for render functions.
+*
+* @example
+* ```ts
+* const context = cell_getContext(cell)
+* ```
+*/
+function cell_getContext(cell) {
+	return {
+		table: cell.table,
+		column: cell.column,
+		row: cell.row,
+		cell,
+		getValue: () => cell.getValue(),
+		renderValue: () => cell.renderValue()
+	};
+}
+//#endregion
+//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/core/cells/coreCellsFeature.js
+/**
+* Core feature that adds cell value, render, and context APIs.
+*/
+var coreCellsFeature = { assignCellPrototype: (prototype, table) => {
+	assignPrototypeAPIs("coreCellsFeature", prototype, table, {
+		cell_getValue: { fn: (cell) => cell_getValue(cell) },
+		cell_renderValue: { fn: (cell) => cell_renderValue(cell) },
+		cell_getContext: {
+			fn: (cell) => cell_getContext(cell),
+			memoDeps: (cell) => [cell]
+		}
+	});
+} };
+//#endregion
+//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/core/headers/constructHeader.js
+/**
+* Creates or retrieves the header prototype for a table.
+* The prototype is cached on the table and shared by all header instances.
+*/
+function getHeaderPrototype(table) {
+	if (!table._headerPrototype) {
+		table._headerPrototype = { table };
+		const features = Object.values(table._features);
+		for (let i = 0; i < features.length; i++) features[i].assignHeaderPrototype?.(table._headerPrototype, table);
+	}
+	return table._headerPrototype;
+}
+/**
+* Constructs a header instance from normalized table internals.
+*
+* This wires core properties, feature prototype APIs, and instance data used by table rendering and row-model operations.
+*/
+function constructHeader(table, column, options) {
+	const headerPrototype = getHeaderPrototype(table);
+	const header = Object.create(headerPrototype);
+	header.colSpan = 0;
+	header.column = column;
+	header.depth = options.depth;
+	header.headerGroup = null;
+	header.id = options.id ?? column.id;
+	header.index = options.index;
+	header.isPlaceholder = !!options.isPlaceholder;
+	header.placeholderId = options.placeholderId;
+	header.rowSpan = 0;
+	header.subHeaders = [];
+	const initFns = table._headerInstanceInitFns;
+	for (let i = 0; i < initFns.length; i++) initFns[i](header);
+	return header;
+}
+//#endregion
+//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/features/column-pinning/columnPinningFeature.utils.js
+/**
+* Creates the default column pinning state.
+*
+* Both pinning regions start empty. Reset APIs use this value when
+* `defaultState` is `true`.
+*
+* @example
+* ```ts
+* const pinning = getDefaultColumnPinningState()
+* ```
+*/
+function getDefaultColumnPinningState() {
+	return {
+		start: [],
+		end: []
+	};
+}
+/**
+* Moves this column's leaf column ids into a pinning region.
+*
+* Pinning a group column pins all of its leaves. The leaf ids are first removed
+* from both regions, then appended to the requested `'start'` or `'end'`
+* region. Passing `false` unpins them back to the center.
+*
+* `start` and `end` are logical positions. In LTR languages/layouts, `start`
+* usually corresponds to left and `end` to right. In RTL languages/layouts,
+* `start` usually corresponds to right and `end` to left.
+*
+* @example
+* ```ts
+* column_pin(column, 'start')
+* ```
+*/
+function column_pin(column, position) {
+	const leafColumns = column.getLeafColumns();
+	const columnIds = [];
+	for (let i = 0; i < leafColumns.length; i++) {
+		const id = leafColumns[i].id;
+		if (id) columnIds.push(id);
+	}
+	table_setColumnPinning(column.table, (old) => {
+		if (position === "end") return {
+			start: old.start.filter((d) => !columnIds.includes(d)),
+			end: [...old.end.filter((d) => !columnIds.includes(d)), ...columnIds]
+		};
+		if (position === "start") return {
+			start: [...old.start.filter((d) => !columnIds.includes(d)), ...columnIds],
+			end: old.end.filter((d) => !columnIds.includes(d))
+		};
+		return {
+			start: old.start.filter((d) => !columnIds.includes(d)),
+			end: old.end.filter((d) => !columnIds.includes(d))
+		};
+	});
+}
+/**
+* Checks whether this column or any of its leaf columns can be pinned.
+*
+* Column-level `enablePinning` and table `enableColumnPinning` both default to
+* `true`; at least one leaf column must allow pinning.
+*
+* @example
+* ```ts
+* const canPin = column_getCanPin(column)
+* ```
+*/
+function column_getCanPin(column) {
+	return column.getLeafColumns().some((leafColumn) => (leafColumn.columnDef.enablePinning ?? true) && (column.table.options.enableColumnPinning ?? true));
+}
+/**
+* Reads this column's current pinning region.
+*
+* Group columns report `'start'` or `'end'` when any leaf column is pinned in
+* that region. Unpinned columns return `false`.
+*
+* `start` and `end` are logical positions. In LTR languages/layouts, `start`
+* usually corresponds to left and `end` to right. In RTL languages/layouts,
+* `start` usually corresponds to right and `end` to left.
+*
+* @example
+* ```ts
+* const position = column_getIsPinned(column)
+* ```
+*/
+function column_getIsPinned(column) {
+	const leafColumns = column.getLeafColumns();
+	const { start, end } = column.table.atoms.columnPinning?.get() ?? getDefaultColumnPinningState();
+	for (let i = 0; i < leafColumns.length; i++) if (start.includes(leafColumns[i].id)) return "start";
+	for (let i = 0; i < leafColumns.length; i++) if (end.includes(leafColumns[i].id)) return "end";
+	return false;
+}
+/**
+* Finds this column's index within its pinned region.
+*
+* Unpinned columns return `0`; pinned columns return their position in
+* `state.columnPinning.start` or `state.columnPinning.end`.
+*
+* @example
+* ```ts
+* const index = column_getPinnedIndex(column)
+* ```
+*/
+function column_getPinnedIndex(column) {
+	const position = column_getIsPinned(column);
+	return position ? column.table.atoms.columnPinning?.get()?.[position].indexOf(column.id) ?? -1 : 0;
+}
+/**
+* Collects visible cells whose columns are not pinned start or end.
+*
+* The result preserves the row's visible-cell order for center columns.
+*
+* @example
+* ```ts
+* const centerCells = row_getCenterVisibleCells(row)
+* ```
+*/
+function row_getCenterVisibleCells(row) {
+	const allCells = callMemoOrStaticFn(row, "getVisibleCells", row_getVisibleCells);
+	const { start, end } = row.table.atoms.columnPinning?.get() ?? getDefaultColumnPinningState();
+	if (!start.length && !end.length) return allCells;
+	const startAndEnd = [...start, ...end];
+	return allCells.filter((d) => !startAndEnd.includes(d.column.id));
+}
+/**
+* Collects visible cells for columns pinned to the start region.
+*
+* Cells are returned in `state.columnPinning.start` order and are marked with
+* `cell.position = 'start'`.
+*
+* @example
+* ```ts
+* const startCells = row_getStartVisibleCells(row)
+* ```
+*/
+function row_getStartVisibleCells(row) {
+	const { start } = row.table.atoms.columnPinning?.get() ?? getDefaultColumnPinningState();
+	if (!start.length) return [];
+	const allVisibleCells = callMemoOrStaticFn(row, "getVisibleCellsByColumnId", row_getVisibleCellsByColumnId);
+	const cells = [];
+	for (let i = 0; i < start.length; i++) {
+		const cell = allVisibleCells[start[i]];
+		if (cell) {
+			cell.position = "start";
+			cells.push(cell);
+		}
+	}
+	return cells;
+}
+/**
+* Collects visible cells for columns pinned to the end region.
+*
+* Cells are returned in `state.columnPinning.end` order and are marked with
+* `cell.position = 'end'`.
+*
+* @example
+* ```ts
+* const endCells = row_getEndVisibleCells(row)
+* ```
+*/
+function row_getEndVisibleCells(row) {
+	const { end } = row.table.atoms.columnPinning?.get() ?? getDefaultColumnPinningState();
+	if (!end.length) return [];
+	const allVisibleCells = callMemoOrStaticFn(row, "getVisibleCellsByColumnId", row_getVisibleCellsByColumnId);
+	const cells = [];
+	for (let i = 0; i < end.length; i++) {
+		const cell = allVisibleCells[end[i]];
+		if (cell) {
+			cell.position = "end";
+			cells.push(cell);
+		}
+	}
+	return cells;
+}
+/**
+* Routes a column pinning updater through the table's pinning change handler.
+*
+* The updater may be a next `{ start, end }` state or a function of the
+* previous state, matching the instance `table.setColumnPinning` behavior.
+*
+* @example
+* ```ts
+* table_setColumnPinning(table, (old) => ({ ...old, start: ['select'] }))
+* ```
+*/
+function table_setColumnPinning(table, updater) {
+	setStateSlice(table, "columnPinning", updater);
+}
+/**
+* Resets `columnPinning` to the configured initial state or feature default.
+*
+* With no argument, the reset clones `table.initialState.columnPinning` when it
+* exists. Passing `true` ignores initial state and resets to empty start/end
+* arrays.
+*
+* @example
+* ```ts
+* table_resetColumnPinning(table)
+* table_resetColumnPinning(table, true)
+* ```
+*/
+function table_resetColumnPinning(table, defaultState) {
+	table_setColumnPinning(table, defaultState ? getDefaultColumnPinningState() : cloneState(table.initialState.columnPinning ?? getDefaultColumnPinningState()));
+}
+/**
+* Checks whether any columns are pinned.
+*
+* Omit `position` to check both sides, or pass `'start'`/`'end'` to inspect a
+* single pinning region.
+*
+* @example
+* ```ts
+* const hasPinnedColumns = table_getIsSomeColumnsPinned(table)
+* ```
+*/
+function table_getIsSomeColumnsPinned(table, position) {
+	const pinningState = table.atoms.columnPinning?.get();
+	if (!position) return Boolean(pinningState?.start.length || pinningState?.end.length);
+	return Boolean(pinningState?.[position].length);
+}
+/**
+* Builds header groups for visible columns pinned to the start region.
+*
+* The leaf columns are read in `state.columnPinning.start` order and then passed
+* through the same header-group builder as the unpinned table.
+*
+* @example
+* ```ts
+* const headerGroups = table_getStartHeaderGroups(table)
+* ```
+*/
+function table_getStartHeaderGroups(table) {
+	const allColumns = table.getAllColumns();
+	const leafColumnsById = table.getAllLeafColumnsById();
+	const { start } = table.atoms.columnPinning?.get() ?? getDefaultColumnPinningState();
+	const orderedLeafColumns = [];
+	for (let i = 0; i < start.length; i++) {
+		const column = leafColumnsById[start[i]];
+		if (column && callMemoOrStaticFn(column, "getIsVisible", column_getIsVisible)) orderedLeafColumns.push(column);
+	}
+	return buildHeaderGroups(allColumns, orderedLeafColumns, table, "start");
+}
+/**
+* Builds header groups for visible columns pinned to the end region.
+*
+* The leaf columns are read in `state.columnPinning.end` order and then
+* passed through the same header-group builder as the unpinned table.
+*
+* @example
+* ```ts
+* const headerGroups = table_getEndHeaderGroups(table)
+* ```
+*/
+function table_getEndHeaderGroups(table) {
+	const allColumns = table.getAllColumns();
+	const leafColumnsById = table.getAllLeafColumnsById();
+	const { end } = table.atoms.columnPinning?.get() ?? getDefaultColumnPinningState();
+	const orderedLeafColumns = [];
+	for (let i = 0; i < end.length; i++) {
+		const column = leafColumnsById[end[i]];
+		if (column && callMemoOrStaticFn(column, "getIsVisible", column_getIsVisible)) orderedLeafColumns.push(column);
+	}
+	return buildHeaderGroups(allColumns, orderedLeafColumns, table, "end");
+}
+/**
+* Builds header groups for visible columns that are not pinned.
+*
+* Start- and end-pinned column ids are removed from the visible leaf column
+* list before header groups are built for the center region.
+*
+* @example
+* ```ts
+* const headerGroups = table_getCenterHeaderGroups(table)
+* ```
+*/
+function table_getCenterHeaderGroups(table) {
+	const allColumns = table.getAllColumns();
+	let leafColumns = callMemoOrStaticFn(table, "getVisibleLeafColumns", table_getVisibleLeafColumns);
+	const { start, end } = table.atoms.columnPinning?.get() ?? getDefaultColumnPinningState();
+	if (start.length || end.length) {
+		const startAndEnd = [...start, ...end];
+		leafColumns = leafColumns.filter((column) => !startAndEnd.includes(column.id));
+	}
+	return buildHeaderGroups(allColumns, leafColumns, table, "center");
+}
+/**
+* Builds footer groups for the start pinned region.
+*
+* Footer groups reuse the start header groups in reverse order.
+*
+* @example
+* ```ts
+* const footerGroups = table_getStartFooterGroups(table)
+* ```
+*/
+function table_getStartFooterGroups(table) {
+	return [...callMemoOrStaticFn(table, "getStartHeaderGroups", table_getStartHeaderGroups)].reverse();
+}
+/**
+* Builds footer groups for the end pinned region.
+*
+* Footer groups reuse the end header groups in reverse order.
+*
+* @example
+* ```ts
+* const footerGroups = table_getEndFooterGroups(table)
+* ```
+*/
+function table_getEndFooterGroups(table) {
+	return [...callMemoOrStaticFn(table, "getEndHeaderGroups", table_getEndHeaderGroups)].reverse();
+}
+/**
+* Builds footer groups for the center, unpinned region.
+*
+* Footer groups reuse the center header groups in reverse order.
+*
+* @example
+* ```ts
+* const footerGroups = table_getCenterFooterGroups(table)
+* ```
+*/
+function table_getCenterFooterGroups(table) {
+	return [...callMemoOrStaticFn(table, "getCenterHeaderGroups", table_getCenterHeaderGroups)].reverse();
+}
+/**
+* Flattens every header from the start pinned header groups.
+*
+* Parent headers and placeholder headers are included.
+*
+* @example
+* ```ts
+* const headers = table_getStartFlatHeaders(table)
+* ```
+*/
+function table_getStartFlatHeaders(table) {
+	const leftHeaderGroups = callMemoOrStaticFn(table, "getStartHeaderGroups", table_getStartHeaderGroups);
+	const result = [];
+	for (let i = 0; i < leftHeaderGroups.length; i++) {
+		const headers = leftHeaderGroups[i].headers;
+		for (let j = 0; j < headers.length; j++) result.push(headers[j]);
+	}
+	return result;
+}
+/**
+* Flattens every header from the end pinned header groups.
+*
+* Parent headers and placeholder headers are included.
+*
+* @example
+* ```ts
+* const headers = table_getEndFlatHeaders(table)
+* ```
+*/
+function table_getEndFlatHeaders(table) {
+	const rightHeaderGroups = callMemoOrStaticFn(table, "getEndHeaderGroups", table_getEndHeaderGroups);
+	const result = [];
+	for (let i = 0; i < rightHeaderGroups.length; i++) {
+		const headers = rightHeaderGroups[i].headers;
+		for (let j = 0; j < headers.length; j++) result.push(headers[j]);
+	}
+	return result;
+}
+/**
+* Flattens every header from the center header groups.
+*
+* Parent headers and placeholder headers are included.
+*
+* @example
+* ```ts
+* const headers = table_getCenterFlatHeaders(table)
+* ```
+*/
+function table_getCenterFlatHeaders(table) {
+	const centerHeaderGroups = callMemoOrStaticFn(table, "getCenterHeaderGroups", table_getCenterHeaderGroups);
+	const result = [];
+	for (let i = 0; i < centerHeaderGroups.length; i++) {
+		const headers = centerHeaderGroups[i].headers;
+		for (let j = 0; j < headers.length; j++) result.push(headers[j]);
+	}
+	return result;
+}
+/**
+* Collects leaf headers for the start pinned region.
+*
+* Parent headers are filtered out from the start flat header list.
+*
+* @example
+* ```ts
+* const headers = table_getStartLeafHeaders(table)
+* ```
+*/
+function table_getStartLeafHeaders(table) {
+	return callMemoOrStaticFn(table, "getStartFlatHeaders", table_getStartFlatHeaders).filter((header) => !header.subHeaders.length);
+}
+/**
+* Collects leaf headers for the end pinned region.
+*
+* Parent headers are filtered out from the end flat header list.
+*
+* @example
+* ```ts
+* const headers = table_getEndLeafHeaders(table)
+* ```
+*/
+function table_getEndLeafHeaders(table) {
+	return callMemoOrStaticFn(table, "getEndFlatHeaders", table_getEndFlatHeaders).filter((header) => !header.subHeaders.length);
+}
+/**
+* Collects leaf headers for the center, unpinned region.
+*
+* Parent headers are filtered out from the center flat header list.
+*
+* @example
+* ```ts
+* const headers = table_getCenterLeafHeaders(table)
+* ```
+*/
+function table_getCenterLeafHeaders(table) {
+	return callMemoOrStaticFn(table, "getCenterFlatHeaders", table_getCenterFlatHeaders).filter((header) => !header.subHeaders.length);
+}
+/**
+* Resolves leaf columns pinned to the start region.
+*
+* The result follows `state.columnPinning.start` order and skips stale ids that
+* no longer correspond to a leaf column.
+*
+* @example
+* ```ts
+* const columns = table_getStartLeafColumns(table)
+* ```
+*/
+function table_getStartLeafColumns(table) {
+	const { start } = table.atoms.columnPinning?.get() ?? getDefaultColumnPinningState();
+	const leafColumnsById = table.getAllLeafColumnsById();
+	const result = [];
+	for (let i = 0; i < start.length; i++) {
+		const column = leafColumnsById[start[i]];
+		if (column) result.push(column);
+	}
+	return result;
+}
+/**
+* Resolves leaf columns pinned to the end region.
+*
+* The result follows `state.columnPinning.end` order and skips stale ids that
+* no longer correspond to a leaf column.
+*
+* @example
+* ```ts
+* const columns = table_getEndLeafColumns(table)
+* ```
+*/
+function table_getEndLeafColumns(table) {
+	const { end } = table.atoms.columnPinning?.get() ?? getDefaultColumnPinningState();
+	const leafColumnsById = table.getAllLeafColumnsById();
+	const result = [];
+	for (let i = 0; i < end.length; i++) {
+		const column = leafColumnsById[end[i]];
+		if (column) result.push(column);
+	}
+	return result;
+}
+/**
+* Resolves leaf columns that are not pinned to either logical side.
+*
+* Start- and end-pinned ids are removed from `table.getAllLeafColumns()`.
+*
+* @example
+* ```ts
+* const columns = table_getCenterLeafColumns(table)
+* ```
+*/
+function table_getCenterLeafColumns(table) {
+	const { start, end } = table.atoms.columnPinning?.get() ?? getDefaultColumnPinningState();
+	if (!start.length && !end.length) return table.getAllLeafColumns();
+	const startAndEnd = [...start, ...end];
+	return table.getAllLeafColumns().filter((d) => !startAndEnd.includes(d.id));
+}
+/**
+* Resolves leaf columns for a requested pinning region.
+*
+* Pass `'start'`, `'center'`, or `'end'` for a partition, or pass `false` to
+* read all leaf columns without partitioning.
+*
+* @example
+* ```ts
+* const columns = table_getPinnedLeafColumns(table, 'center')
+* ```
+*/
+function table_getPinnedLeafColumns(table, position) {
+	return !position ? table.getAllLeafColumns() : position === "start" ? callMemoOrStaticFn(table, "getStartLeafColumns", table_getStartLeafColumns) : position === "end" ? callMemoOrStaticFn(table, "getEndLeafColumns", table_getEndLeafColumns) : callMemoOrStaticFn(table, "getCenterLeafColumns", table_getCenterLeafColumns);
+}
+/**
+* Resolves visible leaf columns pinned to the start region.
+*
+* Hidden pinned columns are filtered out after the start pin order is applied.
+*
+* @example
+* ```ts
+* const columns = table_getStartVisibleLeafColumns(table)
+* ```
+*/
+function table_getStartVisibleLeafColumns(table) {
+	return callMemoOrStaticFn(table, "getStartLeafColumns", table_getStartLeafColumns).filter((column) => callMemoOrStaticFn(column, "getIsVisible", column_getIsVisible));
+}
+/**
+* Resolves visible leaf columns pinned to the end region.
+*
+* Hidden pinned columns are filtered out after the end pin order is applied.
+*
+* @example
+* ```ts
+* const columns = table_getEndVisibleLeafColumns(table)
+* ```
+*/
+function table_getEndVisibleLeafColumns(table) {
+	return callMemoOrStaticFn(table, "getEndLeafColumns", table_getEndLeafColumns).filter((column) => callMemoOrStaticFn(column, "getIsVisible", column_getIsVisible));
+}
+/**
+* Resolves visible leaf columns that are not pinned.
+*
+* This is the center partition used by layouts that render pinned columns
+* separately from the scrollable middle region.
+*
+* @example
+* ```ts
+* const columns = table_getCenterVisibleLeafColumns(table)
+* ```
+*/
+function table_getCenterVisibleLeafColumns(table) {
+	return callMemoOrStaticFn(table, "getCenterLeafColumns", table_getCenterLeafColumns).filter((column) => callMemoOrStaticFn(column, "getIsVisible", column_getIsVisible));
+}
+/**
+* Resolves visible leaf columns for a requested pinning region.
+*
+* Omit `position` to get all visible leaf columns, or pass `'start'`, `'center'`,
+* or `'end'` to get one partition.
+*
+* @example
+* ```ts
+* const columns = table_getPinnedVisibleLeafColumns(table, 'start')
+* ```
+*/
+function table_getPinnedVisibleLeafColumns(table, position) {
+	return !position ? callMemoOrStaticFn(table, "getVisibleLeafColumns", table_getVisibleLeafColumns) : position === "start" ? callMemoOrStaticFn(table, "getStartVisibleLeafColumns", table_getStartVisibleLeafColumns) : position === "end" ? callMemoOrStaticFn(table, "getEndVisibleLeafColumns", table_getEndVisibleLeafColumns) : callMemoOrStaticFn(table, "getCenterVisibleLeafColumns", table_getCenterVisibleLeafColumns);
+}
+//#endregion
+//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/features/column-visibility/columnVisibilityFeature.utils.js
+/**
+* Creates the default column visibility state.
+*
+* The feature default is an empty object, where missing column ids are treated
+* as visible. Reset APIs use this value when `defaultState` is `true`.
+*
+* @example
+* ```ts
+* const visibility = getDefaultColumnVisibilityState()
+* ```
+*/
+function getDefaultColumnVisibilityState() {
+	return makeObjectMap();
+}
+/**
+* Updates this column's visibility when hiding is allowed.
+*
+* Passing `visible` stores that value. Omitting it flips the column's current
+* visibility state. Group columns update their hideable leaf columns because
+* visibility state is keyed by leaf column ids. Columns that cannot hide stay
+* unchanged.
+*
+* @example
+* ```ts
+* column_toggleVisibility(column)
+* ```
+*/
+function column_toggleVisibility(column, visible) {
+	if (column_getCanHide(column)) table_setColumnVisibility(column.table, (old) => {
+		const next = Object.assign(makeObjectMap(), old);
+		const nextVisible = visible ?? !callMemoOrStaticFn(column, "getIsVisible", column_getIsVisible);
+		const leafColumns = column.getLeafColumns();
+		for (let i = 0; i < leafColumns.length; i++) {
+			const leafColumn = leafColumns[i];
+			if (column_getCanHide(leafColumn)) next[leafColumn.id] = nextVisible;
+		}
+		return next;
+	});
+}
+/**
+* Checks whether this column is visible.
+*
+* Leaf columns read `state.columnVisibility[column.id]`, where missing entries
+* default to visible. Parent columns are visible when at least one child column
+* is visible.
+*
+* @example
+* ```ts
+* const visible = column_getIsVisible(column)
+* ```
+*/
+function column_getIsVisible(column) {
+	const columnVisibility = column.table.atoms.columnVisibility?.get();
+	if (!columnVisibility) return true;
+	const childColumns = column.columns;
+	if (childColumns.length) return childColumns.some((childColumn) => callMemoOrStaticFn(childColumn, "getIsVisible", column_getIsVisible));
+	return (hasOwn(columnVisibility, column.id) ? columnVisibility[column.id] : void 0) ?? true;
+}
+/**
+* Checks whether this column is allowed to be hidden.
+*
+* Both `columnDef.enableHiding` and table `enableHiding` default to `true`.
+*
+* @example
+* ```ts
+* const canHide = column_getCanHide(column)
+* ```
+*/
+function column_getCanHide(column) {
+	return (column.columnDef.enableHiding ?? true) && (column.table.options.enableHiding ?? true);
+}
+/**
+* Creates a checkbox-style handler that writes this column's visibility.
+*
+* The handler reads `event.target.checked`, so it is intended for visibility
+* controls whose checked state means "visible".
+*
+* @example
+* ```ts
+* const onChange = column_getToggleVisibilityHandler(column)
+* ```
+*/
+function column_getToggleVisibilityHandler(column) {
+	return (e) => {
+		column_toggleVisibility(column, e.target.checked);
+	};
+}
+/**
+* Collects the cells from this row whose columns are visible.
+*
+* When column pinning is active, the result is ordered as start-pinned cells,
+* center cells, then end-pinned cells.
+*
+* @example
+* ```ts
+* const visibleCells = row_getVisibleCells(row)
+* ```
+*/
+function row_getVisibleCells(row) {
+	const allCells = row.getAllCells();
+	const visibleCells = [];
+	for (let i = 0; i < allCells.length; i++) {
+		const cell = allCells[i];
+		if (callMemoOrStaticFn(cell.column, "getIsVisible", column_getIsVisible)) visibleCells.push(cell);
+	}
+	const { start, end } = row.table.atoms.columnPinning?.get() ?? getDefaultColumnPinningState();
+	if (!start.length && !end.length) return visibleCells;
+	const visibleCellsByColumnId = callMemoOrStaticFn(row, "getVisibleCellsByColumnId", row_getVisibleCellsByColumnId);
+	const startCells = [];
+	for (let i = 0; i < start.length; i++) {
+		const cell = visibleCellsByColumnId[start[i]];
+		if (cell) startCells.push(cell);
+	}
+	const endCells = [];
+	for (let i = 0; i < end.length; i++) {
+		const cell = visibleCellsByColumnId[end[i]];
+		if (cell) endCells.push(cell);
+	}
+	const centerCells = [];
+	for (let i = 0; i < visibleCells.length; i++) {
+		const cell = visibleCells[i];
+		const id = cell.column.id;
+		if (!start.includes(id) && !end.includes(id)) centerCells.push(cell);
+	}
+	return [
+		...startCells,
+		...centerCells,
+		...endCells
+	];
+}
+/**
+* Builds a lookup map of this row's visible cells keyed by column id.
+*
+* Hidden columns are omitted from the map.
+*
+* @example
+* ```ts
+* const visibleCellsById = row_getVisibleCellsByColumnId(row)
+* ```
+*/
+function row_getVisibleCellsByColumnId(row) {
+	const result = makeObjectMap();
+	const allCells = row.getAllCells();
+	for (let i = 0; i < allCells.length; i++) {
+		const cell = allCells[i];
+		if (callMemoOrStaticFn(cell.column, "getIsVisible", column_getIsVisible)) result[cell.column.id] = cell;
+	}
+	return result;
+}
+/**
+* Filters the flat column list down to visible columns.
+*
+* Parent/group columns are included when `column_getIsVisible` considers them
+* visible.
+*
+* @example
+* ```ts
+* const columns = table_getVisibleFlatColumns(table)
+* ```
+*/
+function table_getVisibleFlatColumns(table) {
+	return table.getAllFlatColumns().filter((column) => callMemoOrStaticFn(column, "getIsVisible", column_getIsVisible));
+}
+/**
+* Filters leaf columns down to those currently visible.
+*
+* This is the column list most row rendering code uses before pinning-specific
+* partitioning.
+*
+* @example
+* ```ts
+* const columns = table_getVisibleLeafColumns(table)
+* ```
+*/
+function table_getVisibleLeafColumns(table) {
+	return table.getAllLeafColumns().filter((column) => callMemoOrStaticFn(column, "getIsVisible", column_getIsVisible));
+}
+/**
+* Routes a column visibility updater through the table's visibility change handler.
+*
+* The updater may be a next visibility map or a function of the previous map,
+* matching the instance `table.setColumnVisibility` behavior.
+*
+* @example
+* ```ts
+* table_setColumnVisibility(table, (old) => ({ ...old, age: false }))
+* ```
+*/
+function table_setColumnVisibility(table, updater) {
+	setStateSlice(table, "columnVisibility", updater);
+}
+/**
+* Resets `columnVisibility` to the configured initial state or feature default.
+*
+* With no argument, the reset clones `table.initialState.columnVisibility` when
+* it exists. Passing `true` ignores initial state and resets to `{}`.
+*
+* @example
+* ```ts
+* table_resetColumnVisibility(table)
+* table_resetColumnVisibility(table, true)
+* ```
+*/
+function table_resetColumnVisibility(table, defaultState) {
+	table_setColumnVisibility(table, defaultState ? makeObjectMap() : Object.assign(makeObjectMap(), cloneState(table.initialState.columnVisibility ?? {})));
+}
+/**
+* Shows or hides every hideable leaf column.
+*
+* Columns that cannot hide stay visible when toggling all columns off.
+*
+* @example
+* ```ts
+* table_toggleAllColumnsVisible(table)
+* ```
+*/
+function table_toggleAllColumnsVisible(table, value) {
+	value = value ?? !table_getIsAllColumnsVisible(table);
+	const visibility = makeObjectMap();
+	const leafColumns = table.getAllLeafColumns();
+	for (let i = 0; i < leafColumns.length; i++) {
+		const column = leafColumns[i];
+		visibility[column.id] = !value ? !column_getCanHide(column) : value;
+	}
+	table_setColumnVisibility(table, visibility);
+}
+/**
+* Checks whether every leaf column is currently visible.
+*
+* Non-hideable columns are naturally visible because missing visibility entries
+* default to `true`.
+*
+* @example
+* ```ts
+* const allVisible = table_getIsAllColumnsVisible(table)
+* ```
+*/
+function table_getIsAllColumnsVisible(table) {
+	return !table.getAllLeafColumns().some((column) => !callMemoOrStaticFn(column, "getIsVisible", column_getIsVisible));
+}
+/**
+* Checks whether at least one leaf column is currently visible.
+*
+* This is useful for tri-state "show all columns" controls.
+*
+* @example
+* ```ts
+* const someVisible = table_getIsSomeColumnsVisible(table)
+* ```
+*/
+function table_getIsSomeColumnsVisible(table) {
+	return table.getAllLeafColumns().some((column) => callMemoOrStaticFn(column, "getIsVisible", column_getIsVisible));
+}
+/**
+* Creates a checkbox-style handler that shows or hides all columns.
+*
+* The handler reads `event.target.checked`, so it is intended for controls whose
+* checked state means "all columns visible".
+*
+* @example
+* ```ts
+* const onChange = table_getToggleAllColumnsVisibilityHandler(table)
+* ```
+*/
+function table_getToggleAllColumnsVisibilityHandler(table) {
+	return (e) => {
+		table_toggleAllColumnsVisible(table, e.target.checked);
+	};
+}
+//#endregion
+//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/core/headers/buildHeaderGroups.js
+function getMaxHeaderDepth(columns, depth = 1) {
+	let maxDepth = depth;
+	for (let i = 0; i < columns.length; i++) {
+		const column = columns[i];
+		if (callMemoOrStaticFn(column, "getIsVisible", column_getIsVisible) && column.columns.length) maxDepth = Math.max(maxDepth, getMaxHeaderDepth(column.columns, depth + 1));
+	}
+	return maxDepth;
+}
+function formatHeaderGroupId(headerFamily, depth) {
+	return headerFamily ? `${headerFamily}_${depth}` : String(depth);
+}
+function formatHeaderId(headerFamily, depth, columnId, childHeaderId) {
+	let id = headerFamily ?? "";
+	if (depth) id = id ? `${id}_${depth}` : String(depth);
+	if (columnId) id = id ? `${id}_${columnId}` : columnId;
+	if (childHeaderId) id = id ? `${id}_${childHeaderId}` : childHeaderId;
+	return id;
+}
+function countPendingHeadersForColumn(headers, column) {
+	let count = 0;
+	for (let i = 0; i < headers.length; i++) if (headers[i].column === column) count++;
+	return count;
+}
+function constructHeaderGroup(headersToGroup, depth, table, headerFamily, headerGroups, headerGroupInitFns) {
+	const headerGroup = {
+		depth,
+		id: formatHeaderGroupId(headerFamily, depth),
+		headers: []
+	};
+	const pendingParentHeaders = [];
+	for (let i = 0; i < headersToGroup.length; i++) {
+		if (!(i in headersToGroup)) continue;
+		const headerToGroup = headersToGroup[i];
+		const latestPendingParentHeader = pendingParentHeaders[pendingParentHeaders.length - 1];
+		const isLeafHeader = headerToGroup.column.depth === headerGroup.depth;
+		let column;
+		let isPlaceholder = false;
+		if (isLeafHeader && headerToGroup.column.parent) column = headerToGroup.column.parent;
+		else {
+			column = headerToGroup.column;
+			isPlaceholder = true;
+		}
+		if (latestPendingParentHeader && latestPendingParentHeader.column === column) latestPendingParentHeader.subHeaders.push(headerToGroup);
+		else {
+			const header = constructHeader(table, column, {
+				id: formatHeaderId(headerFamily, depth, column.id, headerToGroup.id),
+				isPlaceholder,
+				placeholderId: isPlaceholder ? String(countPendingHeadersForColumn(pendingParentHeaders, column)) : void 0,
+				depth,
+				index: pendingParentHeaders.length
+			});
+			header.subHeaders.push(headerToGroup);
+			pendingParentHeaders.push(header);
+		}
+		headerGroup.headers.push(headerToGroup);
+		headerToGroup.headerGroup = headerGroup;
+	}
+	for (let i = 0; i < headerGroupInitFns.length; i++) headerGroupInitFns[i](headerGroup);
+	headerGroups.push(headerGroup);
+	if (depth > 0) constructHeaderGroup(pendingParentHeaders, depth - 1, table, headerFamily, headerGroups, headerGroupInitFns);
+}
+function updateHeaderSpans(headers) {
+	for (let i = 0; i < headers.length; i++) {
+		const header = headers[i];
+		if (!callMemoOrStaticFn(header.column, "getIsVisible", column_getIsVisible)) continue;
+		let colSpan = 0;
+		if (header.subHeaders.length) {
+			updateHeaderSpans(header.subHeaders);
+			for (let j = 0; j < header.subHeaders.length; j++) {
+				const child = header.subHeaders[j];
+				if (!callMemoOrStaticFn(child.column, "getIsVisible", column_getIsVisible)) continue;
+				colSpan += child.colSpan;
+			}
+		} else colSpan = 1;
+		header.colSpan = colSpan;
+		if (header.isPlaceholder && header.subHeaders.length === 1 && header.subHeaders[0].column === header.column) {
+			let rowSpan = 1;
+			let chainChild = header.subHeaders[0];
+			while (chainChild) {
+				chainChild.rowSpan = 0;
+				rowSpan++;
+				chainChild = chainChild.subHeaders.length === 1 && chainChild.subHeaders[0].column === header.column ? chainChild.subHeaders[0] : void 0;
+			}
+			header.rowSpan = rowSpan;
+		} else header.rowSpan = 1;
+	}
+}
+/**
+* Builds the nested header group structure for a table.
+*
+* The result accounts for visible leaf columns, pinned column groups, and placeholder headers needed to render multi-level headers.
+*/
+function buildHeaderGroups(allColumns, columnsToGroup, table, headerFamily) {
+	const maxDepth = getMaxHeaderDepth(allColumns);
+	const headerGroups = [];
+	const headerGroupInitFns = table._headerGroupInstanceInitFns;
+	const bottomHeaders = new Array(columnsToGroup.length);
+	for (let i = 0; i < columnsToGroup.length; i++) {
+		if (!(i in columnsToGroup)) continue;
+		bottomHeaders[i] = constructHeader(table, columnsToGroup[i], {
+			depth: maxDepth,
+			index: i
+		});
+	}
+	constructHeaderGroup(bottomHeaders, maxDepth - 1, table, headerFamily, headerGroups, headerGroupInitFns);
+	headerGroups.reverse();
+	updateHeaderSpans(headerGroups[0]?.headers ?? []);
+	return headerGroups;
+}
+//#endregion
+//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/core/columns/constructColumn.js
+/**
+* Creates or retrieves the column prototype for a table.
+* The prototype is cached on the table and shared by all column instances.
+*/
+function getColumnPrototype(table) {
+	if (!table._columnPrototype) {
+		table._columnPrototype = { table };
+		const features = Object.values(table._features);
+		for (let i = 0; i < features.length; i++) features[i].assignColumnPrototype?.(table._columnPrototype, table);
+	}
+	return table._columnPrototype;
+}
+/**
+* Constructs a column instance from normalized table internals.
+*
+* This wires core properties, feature prototype APIs, and instance data used by table rendering and row-model operations.
+*/
+function constructColumn(table, columnDef, depth, parent) {
 	const resolvedColumnDef = {
-		...table._getDefaultColumnDef(),
+		...table.getDefaultColumnDef(),
 		...columnDef
 	};
 	const accessorKey = resolvedColumnDef.accessorKey;
-	let id = (_ref = (_resolvedColumnDef$id = resolvedColumnDef.id) != null ? _resolvedColumnDef$id : accessorKey ? typeof String.prototype.replaceAll === "function" ? accessorKey.replaceAll(".", "_") : accessorKey.replace(/\./g, "_") : void 0) != null ? _ref : typeof resolvedColumnDef.header === "string" ? resolvedColumnDef.header : void 0;
+	const accessorKeyString = accessorKey === void 0 ? void 0 : String(accessorKey);
+	const id = resolvedColumnDef.id ?? accessorKeyString?.replaceAll(".", "_") ?? (typeof resolvedColumnDef.header === "string" ? resolvedColumnDef.header : void 0);
 	let accessorFn;
 	if (resolvedColumnDef.accessorFn) accessorFn = resolvedColumnDef.accessorFn;
-	else if (accessorKey) if (accessorKey.includes(".")) accessorFn = (originalRow) => {
-		let result = originalRow;
-		for (const key of accessorKey.split(".")) {
-			var _result;
-			result = (_result = result) == null ? void 0 : _result[key];
-		}
-		return result;
-	};
-	else accessorFn = (originalRow) => originalRow[resolvedColumnDef.accessorKey];
+	else if (accessorKey !== void 0) if (typeof accessorKey === "string" && accessorKey.includes(".")) {
+		const keys = accessorKey.split(".");
+		accessorFn = (originalRow) => {
+			let result = originalRow;
+			for (let i = 0; i < keys.length; i++) {
+				const key = keys[i];
+				result = result?.[key];
+			}
+			return result;
+		};
+	} else accessorFn = (originalRow) => originalRow[resolvedColumnDef.accessorKey];
 	if (!id) throw new Error();
-	let column = {
-		id: `${String(id)}`,
-		accessorFn,
-		parent,
-		depth,
-		columnDef: resolvedColumnDef,
-		columns: [],
-		getFlatColumns: memo$3(() => [true], () => {
-			var _column$columns;
-			return [column, ...(_column$columns = column.columns) == null ? void 0 : _column$columns.flatMap((d) => d.getFlatColumns())];
-		}, getMemoOptions(table.options, "debugColumns", "column.getFlatColumns")),
-		getLeafColumns: memo$3(() => [table._getOrderColumnsFn()], (orderColumns) => {
-			var _column$columns2;
-			if ((_column$columns2 = column.columns) != null && _column$columns2.length) return orderColumns(column.columns.flatMap((column) => column.getLeafColumns()));
-			return [column];
-		}, getMemoOptions(table.options, "debugColumns", "column.getLeafColumns"))
-	};
-	for (const feature of table._features) feature.createColumn == null || feature.createColumn(column, table);
+	const columnPrototype = getColumnPrototype(table);
+	const column = Object.create(columnPrototype);
+	column.accessorFn = accessorFn;
+	column.columnDef = resolvedColumnDef;
+	column.columns = [];
+	column.depth = depth;
+	column.id = `${String(id)}`;
+	column.parent = parent;
+	const initFns = table._columnInstanceInitFns;
+	for (let i = 0; i < initFns.length; i++) initFns[i](column);
 	return column;
 }
-var debug = "debugHeaders";
-function createHeader(table, column, options) {
-	var _options$id;
-	let header = {
-		id: (_options$id = options.id) != null ? _options$id : column.id,
-		column,
-		index: options.index,
-		isPlaceholder: !!options.isPlaceholder,
-		placeholderId: options.placeholderId,
-		depth: options.depth,
-		subHeaders: [],
-		colSpan: 0,
-		rowSpan: 0,
-		headerGroup: null,
-		getLeafHeaders: () => {
-			const leafHeaders = [];
-			const recurseHeader = (h) => {
-				if (h.subHeaders && h.subHeaders.length) h.subHeaders.map(recurseHeader);
-				leafHeaders.push(h);
-			};
-			recurseHeader(header);
-			return leafHeaders;
-		},
-		getContext: () => ({
-			table,
-			header,
-			column
-		})
-	};
-	table._features.forEach((feature) => {
-		feature.createHeader == null || feature.createHeader(header, table);
-	});
-	return header;
+//#endregion
+//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/features/column-ordering/columnOrderingFeature.utils.js
+/**
+* Creates the default column order state.
+*
+* The feature default is an empty array, meaning leaf columns keep their natural
+* definition order. Reset APIs use this value when `defaultState` is `true`.
+*
+* @example
+* ```ts
+* const order = getDefaultColumnOrderState()
+* ```
+*/
+function getDefaultColumnOrderState() {
+	return [];
 }
-var Headers$1 = { createTable: (table) => {
-	table.getHeaderGroups = memo$3(() => [
-		table.getAllColumns(),
-		table.getVisibleLeafColumns(),
-		table.getState().columnPinning.left,
-		table.getState().columnPinning.right
-	], (allColumns, leafColumns, left, right) => {
-		var _left$map$filter, _right$map$filter;
-		const leftColumns = (_left$map$filter = left == null ? void 0 : left.map((columnId) => leafColumns.find((d) => d.id === columnId)).filter(Boolean)) != null ? _left$map$filter : [];
-		const rightColumns = (_right$map$filter = right == null ? void 0 : right.map((columnId) => leafColumns.find((d) => d.id === columnId)).filter(Boolean)) != null ? _right$map$filter : [];
-		const centerColumns = leafColumns.filter((column) => !(left != null && left.includes(column.id)) && !(right != null && right.includes(column.id)));
-		return buildHeaderGroups(allColumns, [
-			...leftColumns,
-			...centerColumns,
-			...rightColumns
-		], table);
-	}, getMemoOptions(table.options, debug, "getHeaderGroups"));
-	table.getCenterHeaderGroups = memo$3(() => [
-		table.getAllColumns(),
-		table.getVisibleLeafColumns(),
-		table.getState().columnPinning.left,
-		table.getState().columnPinning.right
-	], (allColumns, leafColumns, left, right) => {
-		leafColumns = leafColumns.filter((column) => !(left != null && left.includes(column.id)) && !(right != null && right.includes(column.id)));
-		return buildHeaderGroups(allColumns, leafColumns, table, "center");
-	}, getMemoOptions(table.options, debug, "getCenterHeaderGroups"));
-	table.getLeftHeaderGroups = memo$3(() => [
-		table.getAllColumns(),
-		table.getVisibleLeafColumns(),
-		table.getState().columnPinning.left
-	], (allColumns, leafColumns, left) => {
-		var _left$map$filter2;
-		return buildHeaderGroups(allColumns, (_left$map$filter2 = left == null ? void 0 : left.map((columnId) => leafColumns.find((d) => d.id === columnId)).filter(Boolean)) != null ? _left$map$filter2 : [], table, "left");
-	}, getMemoOptions(table.options, debug, "getLeftHeaderGroups"));
-	table.getRightHeaderGroups = memo$3(() => [
-		table.getAllColumns(),
-		table.getVisibleLeafColumns(),
-		table.getState().columnPinning.right
-	], (allColumns, leafColumns, right) => {
-		var _right$map$filter2;
-		return buildHeaderGroups(allColumns, (_right$map$filter2 = right == null ? void 0 : right.map((columnId) => leafColumns.find((d) => d.id === columnId)).filter(Boolean)) != null ? _right$map$filter2 : [], table, "right");
-	}, getMemoOptions(table.options, debug, "getRightHeaderGroups"));
-	table.getFooterGroups = memo$3(() => [table.getHeaderGroups()], (headerGroups) => {
-		return [...headerGroups].reverse();
-	}, getMemoOptions(table.options, debug, "getFooterGroups"));
-	table.getLeftFooterGroups = memo$3(() => [table.getLeftHeaderGroups()], (headerGroups) => {
-		return [...headerGroups].reverse();
-	}, getMemoOptions(table.options, debug, "getLeftFooterGroups"));
-	table.getCenterFooterGroups = memo$3(() => [table.getCenterHeaderGroups()], (headerGroups) => {
-		return [...headerGroups].reverse();
-	}, getMemoOptions(table.options, debug, "getCenterFooterGroups"));
-	table.getRightFooterGroups = memo$3(() => [table.getRightHeaderGroups()], (headerGroups) => {
-		return [...headerGroups].reverse();
-	}, getMemoOptions(table.options, debug, "getRightFooterGroups"));
-	table.getFlatHeaders = memo$3(() => [table.getHeaderGroups()], (headerGroups) => {
-		return headerGroups.map((headerGroup) => {
-			return headerGroup.headers;
-		}).flat();
-	}, getMemoOptions(table.options, debug, "getFlatHeaders"));
-	table.getLeftFlatHeaders = memo$3(() => [table.getLeftHeaderGroups()], (left) => {
-		return left.map((headerGroup) => {
-			return headerGroup.headers;
-		}).flat();
-	}, getMemoOptions(table.options, debug, "getLeftFlatHeaders"));
-	table.getCenterFlatHeaders = memo$3(() => [table.getCenterHeaderGroups()], (left) => {
-		return left.map((headerGroup) => {
-			return headerGroup.headers;
-		}).flat();
-	}, getMemoOptions(table.options, debug, "getCenterFlatHeaders"));
-	table.getRightFlatHeaders = memo$3(() => [table.getRightHeaderGroups()], (left) => {
-		return left.map((headerGroup) => {
-			return headerGroup.headers;
-		}).flat();
-	}, getMemoOptions(table.options, debug, "getRightFlatHeaders"));
-	table.getCenterLeafHeaders = memo$3(() => [table.getCenterFlatHeaders()], (flatHeaders) => {
-		return flatHeaders.filter((header) => {
-			var _header$subHeaders;
-			return !((_header$subHeaders = header.subHeaders) != null && _header$subHeaders.length);
-		});
-	}, getMemoOptions(table.options, debug, "getCenterLeafHeaders"));
-	table.getLeftLeafHeaders = memo$3(() => [table.getLeftFlatHeaders()], (flatHeaders) => {
-		return flatHeaders.filter((header) => {
-			var _header$subHeaders2;
-			return !((_header$subHeaders2 = header.subHeaders) != null && _header$subHeaders2.length);
-		});
-	}, getMemoOptions(table.options, debug, "getLeftLeafHeaders"));
-	table.getRightLeafHeaders = memo$3(() => [table.getRightFlatHeaders()], (flatHeaders) => {
-		return flatHeaders.filter((header) => {
-			var _header$subHeaders3;
-			return !((_header$subHeaders3 = header.subHeaders) != null && _header$subHeaders3.length);
-		});
-	}, getMemoOptions(table.options, debug, "getRightLeafHeaders"));
-	table.getLeafHeaders = memo$3(() => [
-		table.getLeftHeaderGroups(),
-		table.getCenterHeaderGroups(),
-		table.getRightHeaderGroups()
-	], (left, center, right) => {
-		var _left$0$headers, _left$, _center$0$headers, _center$, _right$0$headers, _right$;
-		return [
-			...(_left$0$headers = (_left$ = left[0]) == null ? void 0 : _left$.headers) != null ? _left$0$headers : [],
-			...(_center$0$headers = (_center$ = center[0]) == null ? void 0 : _center$.headers) != null ? _center$0$headers : [],
-			...(_right$0$headers = (_right$ = right[0]) == null ? void 0 : _right$.headers) != null ? _right$0$headers : []
-		].map((header) => {
-			return header.getLeafHeaders();
-		}).flat();
-	}, getMemoOptions(table.options, debug, "getLeafHeaders"));
-} };
-function buildHeaderGroups(allColumns, columnsToGroup, table, headerFamily) {
-	var _headerGroups$0$heade, _headerGroups$;
-	let maxDepth = 0;
-	const findMaxDepth = function(columns, depth) {
-		if (depth === void 0) depth = 1;
-		maxDepth = Math.max(maxDepth, depth);
-		columns.filter((column) => column.getIsVisible()).forEach((column) => {
-			var _column$columns;
-			if ((_column$columns = column.columns) != null && _column$columns.length) findMaxDepth(column.columns, depth + 1);
-		}, 0);
+/**
+* Builds column-id to index records for each visible pinning region.
+*
+* All four regions are built in one pass so a single memo entry serves every
+* `column_getIndex` lookup without per-column scans.
+*
+* @example
+* ```ts
+* const indexes = table_getColumnIndexes(table)
+* ```
+*/
+function table_getColumnIndexes(table) {
+	const buildIndexes = (columns) => {
+		const indexes = makeObjectMap();
+		for (let i = 0; i < columns.length; i++) indexes[columns[i].id] = i;
+		return indexes;
 	};
-	findMaxDepth(allColumns);
-	let headerGroups = [];
-	const createHeaderGroup = (headersToGroup, depth) => {
-		const headerGroup = {
-			depth,
-			id: [headerFamily, `${depth}`].filter(Boolean).join("_"),
-			headers: []
-		};
-		const pendingParentHeaders = [];
-		headersToGroup.forEach((headerToGroup) => {
-			const latestPendingParentHeader = [...pendingParentHeaders].reverse()[0];
-			const isLeafHeader = headerToGroup.column.depth === headerGroup.depth;
-			let column;
-			let isPlaceholder = false;
-			if (isLeafHeader && headerToGroup.column.parent) column = headerToGroup.column.parent;
-			else {
-				column = headerToGroup.column;
-				isPlaceholder = true;
-			}
-			if (latestPendingParentHeader && (latestPendingParentHeader == null ? void 0 : latestPendingParentHeader.column) === column) latestPendingParentHeader.subHeaders.push(headerToGroup);
-			else {
-				const header = createHeader(table, column, {
-					id: [
-						headerFamily,
-						depth,
-						column.id,
-						headerToGroup == null ? void 0 : headerToGroup.id
-					].filter(Boolean).join("_"),
-					isPlaceholder,
-					placeholderId: isPlaceholder ? `${pendingParentHeaders.filter((d) => d.column === column).length}` : void 0,
-					depth,
-					index: pendingParentHeaders.length
-				});
-				header.subHeaders.push(headerToGroup);
-				pendingParentHeaders.push(header);
-			}
-			headerGroup.headers.push(headerToGroup);
-			headerToGroup.headerGroup = headerGroup;
-		});
-		headerGroups.push(headerGroup);
-		if (depth > 0) createHeaderGroup(pendingParentHeaders, depth - 1);
+	return {
+		all: buildIndexes(table_getPinnedVisibleLeafColumns(table)),
+		center: buildIndexes(table_getPinnedVisibleLeafColumns(table, "center")),
+		start: buildIndexes(table_getPinnedVisibleLeafColumns(table, "start")),
+		end: buildIndexes(table_getPinnedVisibleLeafColumns(table, "end"))
 	};
-	createHeaderGroup(columnsToGroup.map((column, index) => createHeader(table, column, {
-		depth: maxDepth,
-		index
-	})), maxDepth - 1);
-	headerGroups.reverse();
-	const recurseHeadersForSpans = (headers) => {
-		return headers.filter((header) => header.column.getIsVisible()).map((header) => {
-			let colSpan = 0;
-			let rowSpan = 0;
-			let childRowSpans = [0];
-			if (header.subHeaders && header.subHeaders.length) {
-				childRowSpans = [];
-				recurseHeadersForSpans(header.subHeaders).forEach((_ref) => {
-					let { colSpan: childColSpan, rowSpan: childRowSpan } = _ref;
-					colSpan += childColSpan;
-					childRowSpans.push(childRowSpan);
-				});
-			} else colSpan = 1;
-			const minChildRowSpan = Math.min(...childRowSpans);
-			rowSpan = rowSpan + minChildRowSpan;
-			header.colSpan = colSpan;
-			header.rowSpan = rowSpan;
-			return {
-				colSpan,
-				rowSpan
-			};
-		});
-	};
-	recurseHeadersForSpans((_headerGroups$0$heade = (_headerGroups$ = headerGroups[0]) == null ? void 0 : _headerGroups$.headers) != null ? _headerGroups$0$heade : []);
-	return headerGroups;
 }
-var createRow = (table, id, original, rowIndex, depth, subRows, parentId) => {
-	let row = {
-		id,
-		index: rowIndex,
-		original,
-		depth,
-		parentId,
-		_valuesCache: {},
-		_uniqueValuesCache: {},
-		getValue: (columnId) => {
-			if (row._valuesCache.hasOwnProperty(columnId)) return row._valuesCache[columnId];
-			const column = table.getColumn(columnId);
-			if (!(column != null && column.accessorFn)) return;
-			row._valuesCache[columnId] = column.accessorFn(row.original, rowIndex);
-			return row._valuesCache[columnId];
-		},
-		getUniqueValues: (columnId) => {
-			if (row._uniqueValuesCache.hasOwnProperty(columnId)) return row._uniqueValuesCache[columnId];
-			const column = table.getColumn(columnId);
-			if (!(column != null && column.accessorFn)) return;
-			if (!column.columnDef.getUniqueValues) {
-				row._uniqueValuesCache[columnId] = [row.getValue(columnId)];
-				return row._uniqueValuesCache[columnId];
-			}
-			row._uniqueValuesCache[columnId] = column.columnDef.getUniqueValues(row.original, rowIndex);
-			return row._uniqueValuesCache[columnId];
-		},
-		renderValue: (columnId) => {
-			var _row$getValue;
-			return (_row$getValue = row.getValue(columnId)) != null ? _row$getValue : table.options.renderFallbackValue;
-		},
-		subRows: subRows != null ? subRows : [],
-		getLeafRows: () => flattenBy(row.subRows, (d) => d.subRows),
-		getParentRow: () => row.parentId ? table.getRow(row.parentId, true) : void 0,
-		getParentRows: () => {
-			let parentRows = [];
-			let currentRow = row;
-			while (true) {
-				const parentRow = currentRow.getParentRow();
-				if (!parentRow) break;
-				parentRows.push(parentRow);
-				currentRow = parentRow;
-			}
-			return parentRows.reverse();
-		},
-		getAllCells: memo$3(() => [table.getAllLeafColumns()], (leafColumns) => {
-			return leafColumns.map((column) => {
-				return createCell(table, row, column, column.id);
-			});
-		}, getMemoOptions(table.options, "debugRows", "getAllCells")),
-		_getAllCellsByColumnId: memo$3(() => [row.getAllCells()], (allCells) => {
-			return allCells.reduce((acc, cell) => {
-				acc[cell.column.id] = cell;
-				return acc;
-			}, {});
-		}, getMemoOptions(table.options, "debugRows", "getAllCellsByColumnId"))
-	};
-	for (let i = 0; i < table._features.length; i++) {
-		const feature = table._features[i];
-		feature == null || feature.createRow == null || feature.createRow(row, table);
-	}
-	return row;
-};
-var ColumnFaceting = { createColumn: (column, table) => {
-	column._getFacetedRowModel = table.options.getFacetedRowModel && table.options.getFacetedRowModel(table, column.id);
-	column.getFacetedRowModel = () => {
-		if (!column._getFacetedRowModel) return table.getPreFilteredRowModel();
-		return column._getFacetedRowModel();
-	};
-	column._getFacetedUniqueValues = table.options.getFacetedUniqueValues && table.options.getFacetedUniqueValues(table, column.id);
-	column.getFacetedUniqueValues = () => {
-		if (!column._getFacetedUniqueValues) return /* @__PURE__ */ new Map();
-		return column._getFacetedUniqueValues();
-	};
-	column._getFacetedMinMaxValues = table.options.getFacetedMinMaxValues && table.options.getFacetedMinMaxValues(table, column.id);
-	column.getFacetedMinMaxValues = () => {
-		if (!column._getFacetedMinMaxValues) return;
-		return column._getFacetedMinMaxValues();
-	};
-} };
-var includesString = (row, columnId, filterValue) => {
-	var _filterValue$toString, _row$getValue;
-	const search = filterValue == null || (_filterValue$toString = filterValue.toString()) == null ? void 0 : _filterValue$toString.toLowerCase();
-	return Boolean((_row$getValue = row.getValue(columnId)) == null || (_row$getValue = _row$getValue.toString()) == null || (_row$getValue = _row$getValue.toLowerCase()) == null ? void 0 : _row$getValue.includes(search));
-};
-includesString.autoRemove = (val) => testFalsey(val);
-var includesStringSensitive = (row, columnId, filterValue) => {
-	var _row$getValue2;
-	return Boolean((_row$getValue2 = row.getValue(columnId)) == null || (_row$getValue2 = _row$getValue2.toString()) == null ? void 0 : _row$getValue2.includes(filterValue));
-};
-includesStringSensitive.autoRemove = (val) => testFalsey(val);
-var equalsString = (row, columnId, filterValue) => {
-	var _row$getValue3;
-	return ((_row$getValue3 = row.getValue(columnId)) == null || (_row$getValue3 = _row$getValue3.toString()) == null ? void 0 : _row$getValue3.toLowerCase()) === (filterValue == null ? void 0 : filterValue.toLowerCase());
-};
-equalsString.autoRemove = (val) => testFalsey(val);
-var arrIncludes = (row, columnId, filterValue) => {
-	var _row$getValue4;
-	return (_row$getValue4 = row.getValue(columnId)) == null ? void 0 : _row$getValue4.includes(filterValue);
-};
-arrIncludes.autoRemove = (val) => testFalsey(val);
-var arrIncludesAll = (row, columnId, filterValue) => {
-	return !filterValue.some((val) => {
-		var _row$getValue5;
-		return !((_row$getValue5 = row.getValue(columnId)) != null && _row$getValue5.includes(val));
-	});
-};
-arrIncludesAll.autoRemove = (val) => testFalsey(val) || !(val != null && val.length);
-var arrIncludesSome = (row, columnId, filterValue) => {
-	return filterValue.some((val) => {
-		var _row$getValue6;
-		return (_row$getValue6 = row.getValue(columnId)) == null ? void 0 : _row$getValue6.includes(val);
-	});
-};
-arrIncludesSome.autoRemove = (val) => testFalsey(val) || !(val != null && val.length);
-var equals = (row, columnId, filterValue) => {
-	return row.getValue(columnId) === filterValue;
-};
-equals.autoRemove = (val) => testFalsey(val);
-var weakEquals = (row, columnId, filterValue) => {
-	return row.getValue(columnId) == filterValue;
-};
-weakEquals.autoRemove = (val) => testFalsey(val);
-var inNumberRange = (row, columnId, filterValue) => {
-	let [min, max] = filterValue;
-	const rowValue = row.getValue(columnId);
-	return rowValue >= min && rowValue <= max;
-};
-inNumberRange.resolveFilterValue = (val) => {
-	let [unsafeMin, unsafeMax] = val;
-	let parsedMin = typeof unsafeMin !== "number" ? parseFloat(unsafeMin) : unsafeMin;
-	let parsedMax = typeof unsafeMax !== "number" ? parseFloat(unsafeMax) : unsafeMax;
-	let min = unsafeMin === null || Number.isNaN(parsedMin) ? -Infinity : parsedMin;
-	let max = unsafeMax === null || Number.isNaN(parsedMax) ? Infinity : parsedMax;
-	if (min > max) {
-		const temp = min;
-		min = max;
-		max = temp;
-	}
-	return [min, max];
-};
-inNumberRange.autoRemove = (val) => testFalsey(val) || testFalsey(val[0]) && testFalsey(val[1]);
-var filterFns = {
-	includesString,
-	includesStringSensitive,
-	equalsString,
-	arrIncludes,
-	arrIncludesAll,
-	arrIncludesSome,
-	equals,
-	weakEquals,
-	inNumberRange
-};
-function testFalsey(val) {
-	return val === void 0 || val === null || val === "";
+/**
+* Finds this column's index within a visible pinning region.
+*
+* Pass `'start'`, `'center'`, or `'end'` to search that region; omit the
+* position to search the full visible leaf column list.
+*
+* @example
+* ```ts
+* const index = column_getIndex(column, 'center')
+* ```
+*/
+function column_getIndex(column, position) {
+	return callMemoOrStaticFn(column.table, "getColumnIndexes", table_getColumnIndexes)[position === "start" ? "start" : position === "end" ? "end" : position === "center" ? "center" : "all"][column.id] ?? -1;
 }
-var ColumnFiltering = {
-	getDefaultColumnDef: () => {
-		return { filterFn: "auto" };
-	},
-	getInitialState: (state) => {
-		return {
-			columnFilters: [],
-			...state
-		};
-	},
-	getDefaultOptions: (table) => {
-		return {
-			onColumnFiltersChange: makeStateUpdater("columnFilters", table),
-			filterFromLeafRows: false,
-			maxLeafRowFilterDepth: 100
-		};
-	},
-	createColumn: (column, table) => {
-		column.getAutoFilterFn = () => {
-			const firstRow = table.getCoreRowModel().flatRows[0];
-			const value = firstRow == null ? void 0 : firstRow.getValue(column.id);
-			if (typeof value === "string") return filterFns.includesString;
-			if (typeof value === "number") return filterFns.inNumberRange;
-			if (typeof value === "boolean") return filterFns.equals;
-			if (value !== null && typeof value === "object") return filterFns.equals;
-			if (Array.isArray(value)) return filterFns.arrIncludes;
-			return filterFns.weakEquals;
-		};
-		column.getFilterFn = () => {
-			var _table$options$filter, _table$options$filter2;
-			return isFunction(column.columnDef.filterFn) ? column.columnDef.filterFn : column.columnDef.filterFn === "auto" ? column.getAutoFilterFn() : (_table$options$filter = (_table$options$filter2 = table.options.filterFns) == null ? void 0 : _table$options$filter2[column.columnDef.filterFn]) != null ? _table$options$filter : filterFns[column.columnDef.filterFn];
-		};
-		column.getCanFilter = () => {
-			var _column$columnDef$ena, _table$options$enable, _table$options$enable2;
-			return ((_column$columnDef$ena = column.columnDef.enableColumnFilter) != null ? _column$columnDef$ena : true) && ((_table$options$enable = table.options.enableColumnFilters) != null ? _table$options$enable : true) && ((_table$options$enable2 = table.options.enableFilters) != null ? _table$options$enable2 : true) && !!column.accessorFn;
-		};
-		column.getIsFiltered = () => column.getFilterIndex() > -1;
-		column.getFilterValue = () => {
-			var _table$getState$colum;
-			return (_table$getState$colum = table.getState().columnFilters) == null || (_table$getState$colum = _table$getState$colum.find((d) => d.id === column.id)) == null ? void 0 : _table$getState$colum.value;
-		};
-		column.getFilterIndex = () => {
-			var _table$getState$colum2, _table$getState$colum3;
-			return (_table$getState$colum2 = (_table$getState$colum3 = table.getState().columnFilters) == null ? void 0 : _table$getState$colum3.findIndex((d) => d.id === column.id)) != null ? _table$getState$colum2 : -1;
-		};
-		column.setFilterValue = (value) => {
-			table.setColumnFilters((old) => {
-				const filterFn = column.getFilterFn();
-				const previousFilter = old == null ? void 0 : old.find((d) => d.id === column.id);
-				const newFilter = functionalUpdate(value, previousFilter ? previousFilter.value : void 0);
-				if (shouldAutoRemoveFilter(filterFn, newFilter, column)) {
-					var _old$filter;
-					return (_old$filter = old == null ? void 0 : old.filter((d) => d.id !== column.id)) != null ? _old$filter : [];
+/**
+* Checks whether this column is the first visible column in a pinning region.
+*
+* The same `position` semantics as `column_getIndex` apply.
+*
+* @example
+* ```ts
+* const isFirst = column_getIsFirstColumn(column, 'start')
+* ```
+*/
+function column_getIsFirstColumn(column, position) {
+	return table_getPinnedVisibleLeafColumns(column.table, position)[0]?.id === column.id;
+}
+/**
+* Checks whether this column is the last visible column in a pinning region.
+*
+* The same `position` semantics as `column_getIndex` apply.
+*
+* @example
+* ```ts
+* const isLast = column_getIsLastColumn(column, 'end')
+* ```
+*/
+function column_getIsLastColumn(column, position) {
+	const columns = table_getPinnedVisibleLeafColumns(column.table, position);
+	return columns[columns.length - 1]?.id === column.id;
+}
+/**
+* Routes a column order updater through the table's column-order change handler.
+*
+* The updater may be a next ordered id array or a function of the previous
+* array, matching the instance `table.setColumnOrder` behavior.
+*
+* @example
+* ```ts
+* table_setColumnOrder(table, ['firstName', 'lastName', 'age'])
+* ```
+*/
+function table_setColumnOrder(table, updater) {
+	setStateSlice(table, "columnOrder", updater);
+}
+/**
+* Resets `columnOrder` to the configured initial state or feature default.
+*
+* With no argument, the reset clones `table.initialState.columnOrder` when it
+* exists. Passing `true` ignores initial state and resets to `[]`.
+*
+* @example
+* ```ts
+* table_resetColumnOrder(table)
+* table_resetColumnOrder(table, true)
+* ```
+*/
+function table_resetColumnOrder(table, defaultState) {
+	table_setColumnOrder(table, defaultState ? [] : cloneState(table.initialState.columnOrder ?? []));
+}
+/**
+* Creates the ordering function used to arrange leaf columns.
+*
+* The returned function applies `state.columnOrder`, preserves unspecified
+* columns in their original order, then delegates to grouping rules.
+*
+* @example
+* ```ts
+* const orderColumnsForTable = table_getOrderColumnsFn(table)
+* ```
+*/
+function table_getOrderColumnsFn(table) {
+	const columnOrder = table.atoms.columnOrder?.get();
+	return (columns) => {
+		let orderedColumns = [];
+		if (!columnOrder?.length) orderedColumns = columns;
+		else {
+			const remaining = /* @__PURE__ */ new Map();
+			for (let i = 0; i < columns.length; i++) {
+				const column = columns[i];
+				remaining.set(column.id, column);
+			}
+			for (let i = 0; i < columnOrder.length; i++) {
+				const id = columnOrder[i];
+				const column = remaining.get(id);
+				if (column) {
+					orderedColumns.push(column);
+					remaining.delete(id);
 				}
-				const newFilterObj = {
-					id: column.id,
-					value: newFilter
-				};
-				if (previousFilter) {
-					var _old$map;
-					return (_old$map = old == null ? void 0 : old.map((d) => {
-						if (d.id === column.id) return newFilterObj;
-						return d;
-					})) != null ? _old$map : [];
-				}
-				if (old != null && old.length) return [...old, newFilterObj];
-				return [newFilterObj];
-			});
-		};
-	},
-	createRow: (row, _table) => {
-		row.columnFilters = {};
-		row.columnFiltersMeta = {};
-	},
-	createTable: (table) => {
-		table.setColumnFilters = (updater) => {
-			const leafColumns = table.getAllLeafColumns();
-			const updateFn = (old) => {
-				var _functionalUpdate;
-				return (_functionalUpdate = functionalUpdate(updater, old)) == null ? void 0 : _functionalUpdate.filter((filter) => {
-					const column = leafColumns.find((d) => d.id === filter.id);
-					if (column) {
-						if (shouldAutoRemoveFilter(column.getFilterFn(), filter.value, column)) return false;
-					}
-					return true;
-				});
-			};
-			table.options.onColumnFiltersChange == null || table.options.onColumnFiltersChange(updateFn);
-		};
-		table.resetColumnFilters = (defaultState) => {
-			var _table$initialState$c, _table$initialState;
-			table.setColumnFilters(defaultState ? [] : (_table$initialState$c = (_table$initialState = table.initialState) == null ? void 0 : _table$initialState.columnFilters) != null ? _table$initialState$c : []);
-		};
-		table.getPreFilteredRowModel = () => table.getCoreRowModel();
-		table.getFilteredRowModel = () => {
-			if (!table._getFilteredRowModel && table.options.getFilteredRowModel) table._getFilteredRowModel = table.options.getFilteredRowModel(table);
-			if (table.options.manualFiltering || !table._getFilteredRowModel) return table.getPreFilteredRowModel();
-			return table._getFilteredRowModel();
-		};
-	}
-};
-function shouldAutoRemoveFilter(filterFn, value, column) {
-	return (filterFn && filterFn.autoRemove ? filterFn.autoRemove(value, column) : false) || typeof value === "undefined" || typeof value === "string" && !value;
-}
-var sum = (columnId, _leafRows, childRows) => {
-	return childRows.reduce((sum, next) => {
-		const nextValue = next.getValue(columnId);
-		return sum + (typeof nextValue === "number" ? nextValue : 0);
-	}, 0);
-};
-var min = (columnId, _leafRows, childRows) => {
-	let min;
-	childRows.forEach((row) => {
-		const value = row.getValue(columnId);
-		if (value != null && (min > value || min === void 0 && value >= value)) min = value;
-	});
-	return min;
-};
-var max = (columnId, _leafRows, childRows) => {
-	let max;
-	childRows.forEach((row) => {
-		const value = row.getValue(columnId);
-		if (value != null && (max < value || max === void 0 && value >= value)) max = value;
-	});
-	return max;
-};
-var extent = (columnId, _leafRows, childRows) => {
-	let min;
-	let max;
-	childRows.forEach((row) => {
-		const value = row.getValue(columnId);
-		if (value != null) if (min === void 0) {
-			if (value >= value) min = max = value;
-		} else {
-			if (min > value) min = value;
-			if (max < value) max = value;
+			}
+			for (let i = 0; i < columns.length; i++) {
+				const column = columns[i];
+				if (remaining.has(column.id)) orderedColumns.push(column);
+			}
 		}
-	});
-	return [min, max];
-};
-var mean = (columnId, leafRows) => {
-	let count = 0;
-	let sum = 0;
-	leafRows.forEach((row) => {
-		let value = row.getValue(columnId);
-		if (value != null && (value = +value) >= value) ++count, sum += value;
-	});
-	if (count) return sum / count;
-};
-var median = (columnId, leafRows) => {
-	if (!leafRows.length) return;
-	const values = leafRows.map((row) => row.getValue(columnId));
-	if (!isNumberArray(values)) return;
-	if (values.length === 1) return values[0];
-	const mid = Math.floor(values.length / 2);
-	const nums = values.sort((a, b) => a - b);
-	return values.length % 2 !== 0 ? nums[mid] : (nums[mid - 1] + nums[mid]) / 2;
-};
-var unique = (columnId, leafRows) => {
-	return Array.from(new Set(leafRows.map((d) => d.getValue(columnId))).values());
-};
-var uniqueCount = (columnId, leafRows) => {
-	return new Set(leafRows.map((d) => d.getValue(columnId))).size;
-};
-var count = (_columnId, leafRows) => {
-	return leafRows.length;
-};
-var aggregationFns = {
-	sum,
-	min,
-	max,
-	extent,
-	mean,
-	median,
-	unique,
-	uniqueCount,
-	count
-};
-var ColumnGrouping = {
-	getDefaultColumnDef: () => {
-		return {
-			aggregatedCell: (props) => {
-				var _toString, _props$getValue;
-				return (_toString = (_props$getValue = props.getValue()) == null || _props$getValue.toString == null ? void 0 : _props$getValue.toString()) != null ? _toString : null;
-			},
-			aggregationFn: "auto"
-		};
-	},
-	getInitialState: (state) => {
-		return {
-			grouping: [],
-			...state
-		};
-	},
-	getDefaultOptions: (table) => {
-		return {
-			onGroupingChange: makeStateUpdater("grouping", table),
-			groupedColumnMode: "reorder"
-		};
-	},
-	createColumn: (column, table) => {
-		column.toggleGrouping = () => {
-			table.setGrouping((old) => {
-				if (old != null && old.includes(column.id)) return old.filter((d) => d !== column.id);
-				return [...old != null ? old : [], column.id];
-			});
-		};
-		column.getCanGroup = () => {
-			var _column$columnDef$ena, _table$options$enable;
-			return ((_column$columnDef$ena = column.columnDef.enableGrouping) != null ? _column$columnDef$ena : true) && ((_table$options$enable = table.options.enableGrouping) != null ? _table$options$enable : true) && (!!column.accessorFn || !!column.columnDef.getGroupingValue);
-		};
-		column.getIsGrouped = () => {
-			var _table$getState$group;
-			return (_table$getState$group = table.getState().grouping) == null ? void 0 : _table$getState$group.includes(column.id);
-		};
-		column.getGroupedIndex = () => {
-			var _table$getState$group2;
-			return (_table$getState$group2 = table.getState().grouping) == null ? void 0 : _table$getState$group2.indexOf(column.id);
-		};
-		column.getToggleGroupingHandler = () => {
-			const canGroup = column.getCanGroup();
-			return () => {
-				if (!canGroup) return;
-				column.toggleGrouping();
-			};
-		};
-		column.getAutoAggregationFn = () => {
-			const firstRow = table.getCoreRowModel().flatRows[0];
-			const value = firstRow == null ? void 0 : firstRow.getValue(column.id);
-			if (typeof value === "number") return aggregationFns.sum;
-			if (Object.prototype.toString.call(value) === "[object Date]") return aggregationFns.extent;
-		};
-		column.getAggregationFn = () => {
-			var _table$options$aggreg, _table$options$aggreg2;
-			if (!column) throw new Error();
-			return isFunction(column.columnDef.aggregationFn) ? column.columnDef.aggregationFn : column.columnDef.aggregationFn === "auto" ? column.getAutoAggregationFn() : (_table$options$aggreg = (_table$options$aggreg2 = table.options.aggregationFns) == null ? void 0 : _table$options$aggreg2[column.columnDef.aggregationFn]) != null ? _table$options$aggreg : aggregationFns[column.columnDef.aggregationFn];
-		};
-	},
-	createTable: (table) => {
-		table.setGrouping = (updater) => table.options.onGroupingChange == null ? void 0 : table.options.onGroupingChange(updater);
-		table.resetGrouping = (defaultState) => {
-			var _table$initialState$g, _table$initialState;
-			table.setGrouping(defaultState ? [] : (_table$initialState$g = (_table$initialState = table.initialState) == null ? void 0 : _table$initialState.grouping) != null ? _table$initialState$g : []);
-		};
-		table.getPreGroupedRowModel = () => table.getFilteredRowModel();
-		table.getGroupedRowModel = () => {
-			if (!table._getGroupedRowModel && table.options.getGroupedRowModel) table._getGroupedRowModel = table.options.getGroupedRowModel(table);
-			if (table.options.manualGrouping || !table._getGroupedRowModel) return table.getPreGroupedRowModel();
-			return table._getGroupedRowModel();
-		};
-	},
-	createRow: (row, table) => {
-		row.getIsGrouped = () => !!row.groupingColumnId;
-		row.getGroupingValue = (columnId) => {
-			if (row._groupingValuesCache.hasOwnProperty(columnId)) return row._groupingValuesCache[columnId];
-			const column = table.getColumn(columnId);
-			if (!(column != null && column.columnDef.getGroupingValue)) return row.getValue(columnId);
-			row._groupingValuesCache[columnId] = column.columnDef.getGroupingValue(row.original);
-			return row._groupingValuesCache[columnId];
-		};
-		row._groupingValuesCache = {};
-	},
-	createCell: (cell, column, row, table) => {
-		cell.getIsGrouped = () => column.getIsGrouped() && column.id === row.groupingColumnId;
-		cell.getIsPlaceholder = () => !cell.getIsGrouped() && column.getIsGrouped();
-		cell.getIsAggregated = () => {
-			var _row$subRows;
-			return !cell.getIsGrouped() && !cell.getIsPlaceholder() && !!((_row$subRows = row.subRows) != null && _row$subRows.length);
-		};
-	}
-};
-function orderColumns(leafColumns, grouping, groupedColumnMode) {
-	if (!(grouping != null && grouping.length) || !groupedColumnMode) return leafColumns;
+		return orderColumns(table, orderedColumns);
+	};
+}
+/**
+* Applies grouped-column placement rules to an already ordered leaf-column list.
+*
+* `groupedColumnMode: 'remove'` drops grouped columns from the list.
+* `groupedColumnMode: 'reorder'` moves grouped columns to the front in grouping
+* state order.
+*
+* @example
+* ```ts
+* const orderedColumns = orderColumns(table, leafColumns)
+* ```
+*/
+function orderColumns(table, leafColumns) {
+	const grouping = table.atoms.grouping?.get() ?? [];
+	const { groupedColumnMode } = table.options;
+	if (!grouping.length || !groupedColumnMode) return leafColumns;
 	const nonGroupingColumns = leafColumns.filter((col) => !grouping.includes(col.id));
 	if (groupedColumnMode === "remove") return nonGroupingColumns;
-	return [...grouping.map((g) => leafColumns.find((col) => col.id === g)).filter(Boolean), ...nonGroupingColumns];
+	const leafColumnsById = /* @__PURE__ */ new Map();
+	for (let i = 0; i < leafColumns.length; i++) {
+		const col = leafColumns[i];
+		leafColumnsById.set(col.id, col);
+	}
+	const groupingColumns = [];
+	for (let i = 0; i < grouping.length; i++) {
+		const col = leafColumnsById.get(grouping[i]);
+		if (col) groupingColumns.push(col);
+	}
+	return [...groupingColumns, ...nonGroupingColumns];
 }
-var ColumnOrdering = {
-	getInitialState: (state) => {
+//#endregion
+//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/core/columns/coreColumnsFeature.utils.js
+/**
+* Flattens this column and every descendant column into a single array.
+*
+* Group columns appear before their child columns, which matches the normalized
+* column hierarchy produced during table construction.
+*
+* @example
+* ```ts
+* const flatColumns = column_getFlatColumns(column)
+* ```
+*/
+function column_getFlatColumns(column) {
+	return [column, ...column.columns.flatMap((col) => col.getFlatColumns())];
+}
+/**
+* Collects the terminal leaf columns below this column.
+*
+* Group columns return their ordered descendants. Non-group columns return an
+* array containing only the column itself.
+*
+* @example
+* ```ts
+* const leafColumns = column_getLeafColumns(column)
+* ```
+*/
+function column_getLeafColumns(column) {
+	if (column.columns.length) {
+		const leafColumns = column.columns.flatMap((col) => col.getLeafColumns());
+		return callMemoOrStaticFn(column.table, "getOrderColumns", table_getOrderColumnsFn)(leafColumns);
+	}
+	return [column];
+}
+/**
+* Merges built-in, feature, and user default column definitions.
+*
+* Built-in defaults provide a header and fallback cell renderer, feature
+* defaults can add feature-specific column options, and
+* `options.defaultColumn` wins last.
+*
+* @example
+* ```ts
+* const defaultColumn = table_getDefaultColumnDef(table)
+* ```
+*/
+function table_getDefaultColumnDef(table) {
+	return {
+		header: (props) => {
+			const resolvedColumnDef = props.header.column.columnDef;
+			if (resolvedColumnDef.accessorKey) return resolvedColumnDef.accessorKey;
+			if (resolvedColumnDef.accessorFn) return resolvedColumnDef.id;
+			return null;
+		},
+		cell: (props) => props.renderValue()?.toString?.() ?? null,
+		...Object.values(table._features).reduce((obj, feature) => {
+			return Object.assign(obj, feature.getDefaultColumnDef?.());
+		}, {}),
+		...table.options.defaultColumn
+	};
+}
+function constructColumns(table, columnDefs, parent, depth = 0) {
+	const columns = new Array(columnDefs.length);
+	for (let i = 0; i < columnDefs.length; i++) {
+		if (!(i in columnDefs)) continue;
+		const columnDef = columnDefs[i];
+		const column = constructColumn(table, columnDef, depth, parent);
+		const groupingColumnDef = columnDef;
+		column.columns = groupingColumnDef.columns ? constructColumns(table, groupingColumnDef.columns, column, depth + 1) : [];
+		columns[i] = column;
+	}
+	return columns;
+}
+/**
+* Normalizes `options.columns` into the table's nested column tree.
+*
+* Each column definition is constructed with its parent and depth, and group
+* column children are recursively constructed.
+*
+* @example
+* ```ts
+* const columns = table_getAllColumns(table)
+* ```
+*/
+function table_getAllColumns(table) {
+	return constructColumns(table, table.options.columns);
+}
+/**
+* Flattens every table column, including group columns and leaf columns.
+*
+* Use this when parent/group columns must be included in addition to data leaf
+* columns.
+*
+* @example
+* ```ts
+* const flatColumns = table_getAllFlatColumns(table)
+* ```
+*/
+function table_getAllFlatColumns(table) {
+	return table.getAllColumns().flatMap((column) => column.getFlatColumns());
+}
+/**
+* Builds an id lookup for every flat column in the table.
+*
+* Group columns and leaf columns are included. Later columns with the same id
+* replace earlier entries.
+*
+* @example
+* ```ts
+* const columnsById = table_getAllFlatColumnsById(table)
+* ```
+*/
+function table_getAllFlatColumnsById(table) {
+	const result = makeObjectMap();
+	const flatColumns = table.getAllFlatColumns();
+	for (let i = 0; i < flatColumns.length; i++) {
+		const column = flatColumns[i];
+		result[column.id] = column;
+	}
+	return result;
+}
+/**
+* Collects all terminal leaf columns in their current table order.
+*
+* Column ordering features can reorder the collected leaves before the result
+* is returned.
+*
+* @example
+* ```ts
+* const leafColumns = table_getAllLeafColumns(table)
+* ```
+*/
+function table_getAllLeafColumns(table) {
+	const leafColumns = table.getAllColumns().flatMap((c) => c.getLeafColumns());
+	return callMemoOrStaticFn(table, "getOrderColumns", table_getOrderColumnsFn)(leafColumns);
+}
+/**
+* Builds an id lookup for terminal leaf columns only.
+*
+* Parent/group columns are excluded, making this lookup appropriate for row
+* cells and feature state keyed by data columns.
+*
+* @example
+* ```ts
+* const leavesById = table_getAllLeafColumnsById(table)
+* ```
+*/
+function table_getAllLeafColumnsById(table) {
+	const result = makeObjectMap();
+	const leafColumns = table.getAllLeafColumns();
+	for (let i = 0; i < leafColumns.length; i++) {
+		const column = leafColumns[i];
+		result[column.id] = column;
+	}
+	return result;
+}
+/**
+* Looks up a column by id from the flat column map.
+*
+* The lookup can return group columns or leaf columns. In development, a
+* missing id logs a warning to help catch stale column references.
+*
+* @example
+* ```ts
+* const column = table_getColumn(table, 'firstName')
+* ```
+*/
+function table_getColumn(table, columnId) {
+	return table.getAllFlatColumnsById()[columnId];
+}
+//#endregion
+//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/core/columns/coreColumnsFeature.js
+/**
+* Core feature that builds the column tree and exposes table/column APIs.
+*/
+var coreColumnsFeature = {
+	assignColumnPrototype: (prototype, table) => {
+		assignPrototypeAPIs("coreColumnsFeature", prototype, table, {
+			column_getFlatColumns: {
+				fn: (column) => column_getFlatColumns(column),
+				memoDeps: (column) => [column.table.options.columns]
+			},
+			column_getLeafColumns: {
+				fn: (column) => column_getLeafColumns(column),
+				memoDeps: (column) => [
+					column.table.atoms.columnOrder?.get(),
+					column.table.atoms.grouping?.get(),
+					column.table.options.columns,
+					column.table.options.groupedColumnMode
+				]
+			}
+		});
+	},
+	constructTableAPIs: (table) => {
+		assignTableAPIs("coreColumnsFeature", table, {
+			table_getDefaultColumnDef: {
+				fn: () => table_getDefaultColumnDef(table),
+				memoDeps: () => [table.options.defaultColumn]
+			},
+			table_getAllColumns: {
+				fn: () => table_getAllColumns(table),
+				memoDeps: () => [table.options.columns]
+			},
+			table_getAllFlatColumns: {
+				fn: () => table_getAllFlatColumns(table),
+				memoDeps: () => [table.options.columns]
+			},
+			table_getAllFlatColumnsById: {
+				fn: () => table_getAllFlatColumnsById(table),
+				memoDeps: () => [table.options.columns]
+			},
+			table_getAllLeafColumns: {
+				fn: () => table_getAllLeafColumns(table),
+				memoDeps: () => [
+					table.atoms.columnOrder?.get(),
+					table.atoms.grouping?.get(),
+					table.options.columns,
+					table.options.groupedColumnMode
+				]
+			},
+			table_getAllLeafColumnsById: {
+				fn: () => table_getAllLeafColumnsById(table),
+				memoDeps: () => [table.getAllLeafColumns()]
+			},
+			table_getColumn: { fn: (columnId) => table_getColumn(table, columnId) }
+		});
+	}
+};
+//#endregion
+//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/core/headers/coreHeadersFeature.utils.js
+function collectLeafHeaders(header, leafHeaders) {
+	for (let i = 0; i < header.subHeaders.length; i++) collectLeafHeaders(header.subHeaders[i], leafHeaders);
+	leafHeaders.push(header);
+}
+/**
+* Walks a header tree and collects all descendant leaf headers.
+*
+* The header itself is included after its descendants, matching the recursive
+* shape used by nested header groups.
+*
+* @example
+* ```ts
+* const leafHeaders = header_getLeafHeaders(header)
+* ```
+*/
+function header_getLeafHeaders(header) {
+	const leafHeaders = [];
+	collectLeafHeaders(header, leafHeaders);
+	return leafHeaders;
+}
+/**
+* Builds the render context passed to a column's `header` or `footer` template.
+*
+* The context contains the header, its column, and the owning table instance.
+*
+* @example
+* ```ts
+* const context = header_getContext(header)
+* ```
+*/
+function header_getContext(header) {
+	return {
+		column: header.column,
+		header,
+		table: header.column.table
+	};
+}
+/**
+* Builds visible header groups for the current column tree.
+*
+* Column visibility and pinning are applied before groups are built. When no
+* columns are pinned, the fast path skips pin partitioning.
+*
+* @example
+* ```ts
+* const headerGroups = table_getHeaderGroups(table)
+* ```
+*/
+function table_getHeaderGroups(table) {
+	const { start, end } = table.atoms.columnPinning?.get() ?? getDefaultColumnPinningState();
+	const allColumns = table.getAllColumns();
+	const leafColumns = callMemoOrStaticFn(table, "getVisibleLeafColumns", table_getVisibleLeafColumns);
+	if (!start.length && !end.length) return buildHeaderGroups(allColumns, leafColumns, table);
+	const leafColumnsById = table.getAllLeafColumnsById();
+	const leftColumns = [];
+	for (let i = 0; i < start.length; i++) {
+		const column = leafColumnsById[start[i]];
+		if (column && callMemoOrStaticFn(column, "getIsVisible", column_getIsVisible)) leftColumns.push(column);
+	}
+	const rightColumns = [];
+	for (let i = 0; i < end.length; i++) {
+		const column = leafColumnsById[end[i]];
+		if (column && callMemoOrStaticFn(column, "getIsVisible", column_getIsVisible)) rightColumns.push(column);
+	}
+	const centerColumns = leafColumns.filter((column) => !start.includes(column.id) && !end.includes(column.id));
+	return buildHeaderGroups(allColumns, [
+		...leftColumns,
+		...centerColumns,
+		...rightColumns
+	], table);
+}
+/**
+* Builds footer groups by reversing the current header groups.
+*
+* Footer rendering uses the same header objects and grouping structure, but
+* renders them from leaf level back toward the root.
+*
+* @example
+* ```ts
+* const footerGroups = table_getFooterGroups(table)
+* ```
+*/
+function table_getFooterGroups(table) {
+	return [...table.getHeaderGroups()].reverse();
+}
+/**
+* Flattens every header from every header group into one array.
+*
+* The result includes parent headers and placeholder headers, in header-group
+* order from top to bottom.
+*
+* @example
+* ```ts
+* const flatHeaders = table_getFlatHeaders(table)
+* ```
+*/
+function table_getFlatHeaders(table) {
+	const headerGroups = table.getHeaderGroups();
+	const result = [];
+	for (let i = 0; i < headerGroups.length; i++) {
+		const headers = headerGroups[i].headers;
+		for (let j = 0; j < headers.length; j++) result.push(headers[j]);
+	}
+	return result;
+}
+/**
+* Collects only the leaf headers from the current header tree.
+*
+* Parent/group headers are skipped, making the result suitable for rendering
+* one header per visible leaf column.
+*
+* @example
+* ```ts
+* const leafHeaders = table_getLeafHeaders(table)
+* ```
+*/
+function table_getLeafHeaders(table) {
+	const topHeaders = table.getHeaderGroups()[0]?.headers ?? [];
+	const result = [];
+	for (let i = 0; i < topHeaders.length; i++) {
+		const leafHeaders = topHeaders[i].getLeafHeaders();
+		for (let j = 0; j < leafHeaders.length; j++) result.push(leafHeaders[j]);
+	}
+	return result;
+}
+//#endregion
+//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/core/headers/coreHeadersFeature.js
+/**
+* Core feature that builds header groups and exposes header context APIs.
+*/
+var coreHeadersFeature = {
+	assignHeaderPrototype: (prototype, table) => {
+		assignPrototypeAPIs("coreHeadersFeature", prototype, table, {
+			header_getLeafHeaders: {
+				fn: (header) => header_getLeafHeaders(header),
+				memoDeps: (header) => [header.column.table.options.columns]
+			},
+			header_getContext: {
+				fn: (header) => header_getContext(header),
+				memoDeps: (header) => [header.column.table.options.columns]
+			}
+		});
+	},
+	constructTableAPIs: (table) => {
+		assignTableAPIs("coreHeadersFeature", table, {
+			table_getHeaderGroups: {
+				fn: () => table_getHeaderGroups(table),
+				memoDeps: () => [
+					table.options.columns,
+					table.atoms.columnOrder?.get(),
+					table.atoms.grouping?.get(),
+					table.atoms.columnPinning?.get(),
+					table.atoms.columnVisibility?.get(),
+					table.options.groupedColumnMode
+				]
+			},
+			table_getFooterGroups: {
+				fn: () => table_getFooterGroups(table),
+				memoDeps: () => [table.getHeaderGroups()]
+			},
+			table_getFlatHeaders: {
+				fn: () => table_getFlatHeaders(table),
+				memoDeps: () => [table.getHeaderGroups()]
+			},
+			table_getLeafHeaders: {
+				fn: () => table_getLeafHeaders(table),
+				memoDeps: () => [table.getHeaderGroups()]
+			}
+		});
+	}
+};
+//#endregion
+//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/core/rows/constructRow.js
+/**
+* Creates or retrieves the row prototype for a table.
+* The prototype is cached on the table and shared by all row instances.
+*/
+function getRowPrototype(table) {
+	if (!table._rowPrototype) {
+		table._rowPrototype = { table };
+		const features = Object.values(table._features);
+		for (let i = 0; i < features.length; i++) features[i].assignRowPrototype?.(table._rowPrototype, table);
+	}
+	return table._rowPrototype;
+}
+/**
+* Constructs a row instance from normalized table internals.
+*
+* This wires core properties, feature prototype APIs, and instance data used by table rendering and row-model operations.
+*/
+var constructRow = (table, id, original, rowIndex, depth, subRows, parentId) => {
+	const rowPrototype = getRowPrototype(table);
+	const row = Object.create(rowPrototype);
+	row._displayIndexCache = -1;
+	row._uniqueValuesCache = makeObjectMap();
+	row._valuesCache = makeObjectMap();
+	row.depth = depth;
+	row.id = id;
+	row.index = rowIndex;
+	row.original = original;
+	row.parentId = parentId;
+	row.subRows = subRows ?? [];
+	const initFns = table._rowInstanceInitFns;
+	for (let i = 0; i < initFns.length; i++) initFns[i](row);
+	return row;
+};
+//#endregion
+//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/features/row-sorting/sortFns.js
+/**
+* Regular expression used to split mixed text and numeric chunks.
+*
+* The alphanumeric sort functions use these chunks for natural sorting of
+* strings like `item2` before `item10`.
+*/
+var reSplitAlphaNumeric = /([0-9]+)/gm;
+/**
+* Builds a `SortFn` from a value-level comparator plus an optional
+* `resolveDataValue` normalizer.
+*
+* The `sort` comparator receives both rows' data values, each already passed
+* through `resolveDataValue` when one is defined. Keeping normalization in the
+* resolver means a variant of an existing sorting function only has to swap
+* the resolver, not re-implement the comparison.
+*
+* The definition is attached to the returned function, so a variant can be
+* created by spreading a built-in sorting function and overriding what
+* differs:
+*
+* ```ts
+* const stripDiacritics = (value: string) =>
+*   value.normalize('NFD').replace(/\p{Diacritic}/gu, '')
+*
+* const alphanumericIgnoreDiacritics = constructSortFn({
+*   ...sortFn_alphanumeric,
+*   resolveDataValue: (value) =>
+*     stripDiacritics(sortFn_alphanumeric.resolveDataValue!(value)),
+* })
+* ```
+*/
+function constructSortFn(def) {
+	const sortFn = Object.assign((rowA, rowB, columnId) => {
+		let dataValueA = rowA.getValue(columnId);
+		let dataValueB = rowB.getValue(columnId);
+		const resolveDataValue = sortFn.resolveDataValue;
+		if (resolveDataValue) {
+			dataValueA = resolveDataValue(dataValueA);
+			dataValueB = resolveDataValue(dataValueB);
+		}
+		return sortFn.sort(dataValueA, dataValueB, rowA, rowB, columnId);
+	}, def);
+	return sortFn;
+}
+/**
+* Sorts rows with the built-in alphanumeric strategy.
+*
+* This comparator returns ascending-order results; descending order is applied by the sorting row model.
+*/
+var sortFn_alphanumeric = constructSortFn({
+	resolveDataValue: (dataValue) => toString(dataValue).toLowerCase(),
+	sort: (dataValueA, dataValueB) => compareAlphanumeric(dataValueA, dataValueB)
+});
+constructSortFn({
+	resolveDataValue: (dataValue) => toString(dataValue),
+	sort: (dataValueA, dataValueB) => compareAlphanumeric(dataValueA, dataValueB)
+});
+/**
+* Sorts rows with the built-in text strategy.
+*
+* This comparator returns ascending-order results; descending order is applied by the sorting row model.
+*/
+var sortFn_text = constructSortFn({
+	resolveDataValue: (dataValue) => toString(dataValue).toLowerCase(),
+	sort: (dataValueA, dataValueB) => compareBasic(dataValueA, dataValueB)
+});
+constructSortFn({
+	resolveDataValue: (dataValue) => toString(dataValue),
+	sort: (dataValueA, dataValueB) => compareBasic(dataValueA, dataValueB)
+});
+constructSortFn({
+	resolveDataValue: (dataValue) => toDateSortValue(dataValue),
+	sort: (dataValueA, dataValueB) => dataValueA > dataValueB ? 1 : dataValueA < dataValueB ? -1 : 0
+});
+/**
+* Sorts rows with the built-in basic strategy.
+*
+* This comparator returns ascending-order results; descending order is applied by the sorting row model.
+*/
+var sortFn_basic = constructSortFn({ sort: (dataValueA, dataValueB) => compareBasic(dataValueA, dataValueB) });
+function compareBasic(a, b) {
+	return a === b ? 0 : a > b ? 1 : -1;
+}
+function toDateSortValue(value) {
+	return value instanceof Date ? value.getTime() : value;
+}
+function toString(a) {
+	if (typeof a === "number") {
+		if (isNaN(a) || a === Infinity || a === -Infinity) return "";
+		return String(a);
+	}
+	if (typeof a === "string") return a;
+	return "";
+}
+function compareAlphanumeric(aStr, bStr) {
+	let ai = 0;
+	let bi = 0;
+	const aLen = aStr.length;
+	const bLen = bStr.length;
+	while (ai < aLen && bi < bLen) {
+		const aIsNumeric = isDigit(aStr.charCodeAt(ai));
+		const bIsNumeric = isDigit(bStr.charCodeAt(bi));
+		const aEnd = findChunkEnd(aStr, ai, aIsNumeric);
+		const bEnd = findChunkEnd(bStr, bi, bIsNumeric);
+		if (!aIsNumeric && !bIsNumeric) {
+			const stringComparison = compareStringChunks(aStr, ai, aEnd, bStr, bi, bEnd);
+			if (stringComparison) return stringComparison;
+			ai = aEnd;
+			bi = bEnd;
+			continue;
+		}
+		if (aIsNumeric !== bIsNumeric) return aIsNumeric ? 1 : -1;
+		const numericComparison = compareNumericChunks(aStr, ai, aEnd, bStr, bi, bEnd);
+		if (numericComparison) return numericComparison;
+		ai = aEnd;
+		bi = bEnd;
+	}
+	return countRemainingChunks(aStr, ai) - countRemainingChunks(bStr, bi);
+}
+function isDigit(charCode) {
+	return charCode >= 48 && charCode <= 57;
+}
+function findChunkEnd(str, start, isNumeric) {
+	let end = start + 1;
+	while (end < str.length && isDigit(str.charCodeAt(end)) === isNumeric) end++;
+	return end;
+}
+function compareStringChunks(aStr, aStart, aEnd, bStr, bStart, bEnd) {
+	const aLength = aEnd - aStart;
+	const bLength = bEnd - bStart;
+	const minLength = aLength < bLength ? aLength : bLength;
+	for (let i = 0; i < minLength; i++) {
+		const aCode = aStr.charCodeAt(aStart + i);
+		const bCode = bStr.charCodeAt(bStart + i);
+		if (aCode > bCode) return 1;
+		if (bCode > aCode) return -1;
+	}
+	if (aLength > bLength) return 1;
+	if (bLength > aLength) return -1;
+	return 0;
+}
+function compareNumericChunks(aStr, aStart, aEnd, bStr, bStart, bEnd) {
+	let aSignificantStart = aStart;
+	while (aSignificantStart < aEnd && aStr.charCodeAt(aSignificantStart) === 48) aSignificantStart++;
+	let bSignificantStart = bStart;
+	while (bSignificantStart < bEnd && bStr.charCodeAt(bSignificantStart) === 48) bSignificantStart++;
+	const aSignificantLength = aEnd - aSignificantStart;
+	const bSignificantLength = bEnd - bSignificantStart;
+	if (aSignificantLength === 0 && bSignificantLength === 0) return 0;
+	if (aSignificantLength <= 15 && bSignificantLength <= 15) {
+		const an = parseSmallInt(aStr, aSignificantStart, aEnd);
+		const bn = parseSmallInt(bStr, bSignificantStart, bEnd);
+		if (an > bn) return 1;
+		if (bn > an) return -1;
+		return 0;
+	}
+	const an = parseInt(aStr.slice(aStart, aEnd), 10);
+	const bn = parseInt(bStr.slice(bStart, bEnd), 10);
+	if (an > bn) return 1;
+	if (bn > an) return -1;
+	return 0;
+}
+function parseSmallInt(str, start, end) {
+	let result = 0;
+	for (let i = start; i < end; i++) result = result * 10 + str.charCodeAt(i) - 48;
+	return result;
+}
+function countRemainingChunks(str, start) {
+	let count = 0;
+	let index = start;
+	while (index < str.length) {
+		count++;
+		index = findChunkEnd(str, index, isDigit(str.charCodeAt(index)));
+	}
+	return count;
+}
+//#endregion
+//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/features/cell-selection/cellSelectionFeature.utils.js
+/**
+* Creates the default cell selection state.
+*
+* The feature default is an empty selection. Reset APIs use this value when
+* `defaultState` is `true`.
+*
+* @example
+* ```ts
+* const selection = getDefaultCellSelectionState()
+* ```
+*/
+function getDefaultCellSelectionState() {
+	return [];
+}
+/**
+* Resets `cellSelection` to the configured initial state or feature default.
+*
+* With no argument, the reset clones `table.initialState.cellSelection` when it
+* exists. Passing `true` ignores initial state and resets to an empty selection.
+*
+* @example
+* ```ts
+* table_resetCellSelection(table, true)
+* ```
+*/
+function table_resetCellSelection(table, defaultState) {
+	setStateSlice(table, "cellSelection", defaultState ? getDefaultCellSelectionState() : cloneState(table.initialState.cellSelection) ?? getDefaultCellSelectionState());
+}
+/**
+* Schedules a cell selection reset after `data` changes.
+*
+* Ranges are stored as row and column ids, so without this a data swap would
+* leave a selection pointing at rows that no longer exist, or silently
+* re-select cells whenever new data reuses ids. The reset runs when
+* `autoResetAll` or `autoResetCellSelection` allows it, defaulting to on.
+*
+* Resetting to `initialState.cellSelection` rather than to empty means the
+* first row-model computation is a no-op, matching `table_autoResetExpanded`.
+*
+* @example
+* ```ts
+* table_autoResetCellSelection(table)
+* ```
+*/
+function table_autoResetCellSelection(table) {
+	if (!table.atoms.cellSelection) return;
+	if (table.options.autoResetAll ?? table.options.autoResetCellSelection ?? true) table._reactivity.schedule(() => table_resetCellSelection(table));
+}
+//#endregion
+//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/features/row-expanding/rowExpandingFeature.utils.js
+/**
+* Schedules an expanded-state reset after row-structure changes.
+*
+* The reset runs when `autoResetAll`, `autoResetExpanded`, or the default
+* client-side expanding behavior allows it. Manual expanding opts out unless
+* the reset options explicitly opt back in.
+*
+* @example
+* ```ts
+* table_autoResetExpanded(table)
+* ```
+*/
+function table_autoResetExpanded(table) {
+	if (!table.atoms.expanded) return;
+	if (table.options.autoResetAll ?? table.options.autoResetExpanded ?? !table.options.manualExpanding) table._reactivity.schedule(() => table_resetExpanded(table));
+}
+/**
+* Resets `expanded` to the configured initial state or feature default.
+*
+* With no argument, the reset clones `table.initialState.expanded` when it
+* exists. Passing `true` ignores initial state and resets to `{}`.
+*
+* @example
+* ```ts
+* table_resetExpanded(table)
+* table_resetExpanded(table, true)
+* ```
+*/
+function table_resetExpanded(table, defaultState) {
+	const initialExpanded = table.initialState.expanded;
+	setStateSlice(table, "expanded", defaultState ? makeObjectMap() : initialExpanded === true ? true : Object.assign(makeObjectMap(), cloneState(initialExpanded ?? {})));
+}
+//#endregion
+//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/features/row-pagination/rowPaginationFeature.utils.js
+var defaultPageIndex = 0;
+/**
+* Resets the page index when a page-altering change should return to page 0.
+*
+* The reset runs when `autoResetAll`, `autoResetPageIndex`, or the default
+* client-side pagination behavior allows it. Manual pagination opts out unless
+* the reset options explicitly opt back in.
+*
+* @example
+* ```ts
+* table_autoResetPageIndex(table)
+* ```
+*/
+function table_autoResetPageIndex(table) {
+	if (table.options.autoResetAll ?? table.options.autoResetPageIndex ?? !table.options.manualPagination) {
+		if ((table.atoms.pagination?.get()?.pageIndex ?? defaultPageIndex) === defaultPageIndex) return;
+		table_resetPageIndex(table, true);
+	}
+}
+/**
+* Routes a pagination updater through the table's pagination change handler.
+*
+* The updater may be a next state object or a function of the previous
+* `PaginationState`; controlled state and external atoms observe the same
+* updater path as the instance API.
+*
+* @example
+* ```ts
+* table_setPagination(table, (old) => old)
+* ```
+*/
+function table_setPagination(table, updater) {
+	setStateSlice(table, "pagination", updater);
+}
+/**
+* Updates `pagination.pageIndex` and clamps it to the known page range.
+*
+* Unknown page counts (`undefined` or `-1`) allow any non-negative page index.
+* Known page counts clamp the index between `0` and `pageCount - 1`.
+*
+* @example
+* ```ts
+* table_setPageIndex(table, (old) => old)
+* ```
+*/
+function table_setPageIndex(table, updater) {
+	table_setPagination(table, (old) => {
+		let pageIndex = functionalUpdate(updater, old.pageIndex);
+		const maxPageIndex = typeof table.options.pageCount === "undefined" || table.options.pageCount === -1 ? Number.MAX_SAFE_INTEGER : table.options.pageCount - 1;
+		pageIndex = Math.max(0, Math.min(pageIndex, maxPageIndex));
 		return {
-			columnOrder: [],
-			...state
+			...old,
+			pageIndex
+		};
+	});
+}
+/**
+* Resets only `pagination.pageIndex`.
+*
+* With no argument, the reset uses `table.initialState.pagination?.pageIndex`
+* or `0`. Passing `true` always resets the page index to `0`.
+*
+* @example
+* ```ts
+* table_resetPageIndex(table)
+* table_resetPageIndex(table, true)
+* ```
+*/
+function table_resetPageIndex(table, defaultState) {
+	table_setPageIndex(table, defaultState ? defaultPageIndex : table.initialState.pagination?.pageIndex ?? defaultPageIndex);
+}
+//#endregion
+//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/features/row-sorting/rowSortingFeature.utils.js
+/**
+* Creates the default sorting state.
+*
+* The feature default is an empty array, meaning no columns are sorted. Reset
+* APIs use this value when `defaultState` is `true`.
+*
+* @example
+* ```ts
+* const sorting = getDefaultSortingState()
+* ```
+*/
+function getDefaultSortingState() {
+	return [];
+}
+/**
+* Routes a sorting updater through the table's sorting change handler.
+*
+* The updater may be a next `SortingState` array or a function of the previous
+* sorting state, matching the instance `table.setSorting` behavior. State
+* owners receive an equality-guarded updater so structurally equal sorting
+* values preserve the owner's existing reference.
+*
+* @example
+* ```ts
+* table_setSorting(table, (old) => [...old, { id: 'age', desc: true }])
+* ```
+*/
+function table_setSorting(table, updater) {
+	setStateSlice(table, "sorting", updater);
+}
+/**
+* Resets `sorting` to the configured initial state or feature default.
+*
+* With no argument, the reset clones `table.initialState.sorting` when it
+* exists. Passing `true` ignores initial state and resets to `[]`.
+*
+* @example
+* ```ts
+* table_resetSorting(table)
+* table_resetSorting(table, true)
+* ```
+*/
+function table_resetSorting(table, defaultState) {
+	table_setSorting(table, defaultState ? [] : cloneState(table.initialState.sorting ?? []));
+}
+/**
+* Resets sorting after the table data changes when explicitly enabled.
+*
+* Unlike other auto-reset behaviors, sorting is preserved by default. An
+* explicit `autoResetAll` value takes precedence over `autoResetSorting`.
+*
+* @example
+* ```ts
+* table_autoResetSorting(table)
+* ```
+*/
+function table_autoResetSorting(table) {
+	if (!table.atoms.sorting) return;
+	if (table.options.autoResetAll ?? table.options.autoResetSorting ?? false) table_resetSorting(table);
+}
+/**
+* Chooses a built-in sorting function from sampled filtered row values.
+*
+* Date-like values use `datetime`, mixed text/numeric strings use
+* `alphanumeric`, plain strings use `text`, and unknown values fall back to
+* `basic`.
+*
+* @example
+* ```ts
+* const sortFn = column_getAutoSortFn(column)
+* ```
+*/
+function column_getAutoSortFn(column) {
+	const sortFns = column.table._rowModelFns.sortFns;
+	const firstRows = column.table.getFilteredRowModel().flatRows.slice(0, 10);
+	let sortFnName;
+	let isString = false;
+	for (let i = 0; i < firstRows.length; i++) {
+		const value = firstRows[i].getValue(column.id);
+		if (Object.prototype.toString.call(value) === "[object Date]") {
+			sortFnName = "datetime";
+			break;
+		}
+		if (typeof value === "string") {
+			isString = true;
+			if (value.split(reSplitAlphaNumeric).length > 1) {
+				sortFnName = "alphanumeric";
+				break;
+			}
+		}
+	}
+	if (!sortFnName && isString) sortFnName = "text";
+	if (sortFnName) {
+		let sortFn = sortFns?.[sortFnName];
+		if (!sortFn) {
+			if (sortFnName === "alphanumeric") sortFn = sortFns?.text;
+		}
+		if (sortFn) return sortFn;
+	}
+	return sortFn_basic;
+}
+/**
+* Chooses the default first sort direction from sampled filtered row values.
+*
+* The first non-nullish value among the sampled rows decides: string columns
+* start ascending so alphabetical order is natural; other value types (or
+* columns with no non-nullish sample) start descending. Sampling past leading
+* nullish values keeps the toggle cycle stable when sorting or a data swap
+* moves an empty value into the first row.
+*
+* @example
+* ```ts
+* const direction = column_getAutoSortDir(column)
+* ```
+*/
+function column_getAutoSortDir(column) {
+	const firstRows = column.table.getFilteredRowModel().flatRows.slice(0, 10);
+	for (let i = 0; i < firstRows.length; i++) {
+		const value = firstRows[i].getValue(column.id);
+		if (value == null) continue;
+		return typeof value === "string" ? "asc" : "desc";
+	}
+	return "desc";
+}
+/**
+* Resolves the sorting function configured for a column.
+*
+* Function-valued `columnDef.sortFn` is returned directly, `'auto'` delegates
+* to `column_getAutoSortFn`, and string values are looked up in the table's
+* sorting function registry before falling back to `basic`.
+*
+* @example
+* ```ts
+* const sortFn = column_getSortFn(column)
+* ```
+*/
+function column_getSortFn(column) {
+	const sortFns = column.table._rowModelFns.sortFns;
+	if (isFunction(column.columnDef.sortFn)) return column.columnDef.sortFn;
+	if (column.columnDef.sortFn === "auto") return column_getAutoSortFn(column);
+	return sortFns?.[column.columnDef.sortFn] ?? sortFn_basic;
+}
+/**
+* Applies the next sorting state for this column.
+*
+* The toggle can add, replace, flip, or remove this column's sort entry. Multi
+* sorting respects `enableMultiSort`, `enableMultiRemove`,
+* `maxMultiSortColCount`, and the `multi` argument.
+*
+* @example
+* ```ts
+* column_toggleSorting(column, undefined, true)
+* ```
+*/
+function column_toggleSorting(column, desc, multi) {
+	const nextSortingOrder = column_getNextSortingOrder(column, multi && column_getCanMultiSort(column));
+	const hasManualValue = typeof desc !== "undefined";
+	table_setSorting(column.table, (old) => {
+		const existingIndex = old.findIndex((d) => d.id === column.id);
+		const existingSorting = existingIndex === -1 ? void 0 : old[existingIndex];
+		let newSorting = [];
+		let sortAction;
+		const nextDesc = hasManualValue ? desc : nextSortingOrder === "desc";
+		const isMultiMode = !!(old.length && column_getCanMultiSort(column) && multi);
+		if (isMultiMode) if (existingSorting) sortAction = "toggle";
+		else sortAction = "add";
+		else if (existingSorting) sortAction = "toggle";
+		else sortAction = "replace";
+		if (sortAction === "toggle") {
+			if (!hasManualValue) {
+				if (!nextSortingOrder) sortAction = "remove";
+			}
+		}
+		if (sortAction === "add") {
+			newSorting = [...old, {
+				id: column.id,
+				desc: nextDesc
+			}];
+			newSorting.splice(0, newSorting.length - (column.table.options.maxMultiSortColCount ?? Number.MAX_SAFE_INTEGER));
+		} else if (sortAction === "toggle") newSorting = isMultiMode ? old.map((d) => {
+			if (d.id === column.id) return {
+				...d,
+				desc: nextDesc
+			};
+			return d;
+		}) : [{
+			id: column.id,
+			desc: nextDesc
+		}];
+		else if (sortAction === "remove") newSorting = isMultiMode ? old.filter((d) => d.id !== column.id) : [];
+		else newSorting = [{
+			id: column.id,
+			desc: nextDesc
+		}];
+		return newSorting;
+	});
+}
+/**
+* Resolves the first direction used when this column begins sorting.
+*
+* Column-level `sortDescFirst` wins, then table-level `sortDescFirst`, then the
+* auto direction inferred from sampled values.
+*
+* @example
+* ```ts
+* const firstDirection = column_getFirstSortDir(column)
+* ```
+*/
+function column_getFirstSortDir(column) {
+	return column.columnDef.sortDescFirst ?? column.table.options.sortDescFirst ?? column_getAutoSortDir(column) === "desc" ? "desc" : "asc";
+}
+/**
+* Resolves the next sort order for this column's toggle cycle.
+*
+* The cycle starts with the first sort direction, flips between `asc` and
+* `desc`, and can return `false` when sorting removal is enabled.
+*
+* @example
+* ```ts
+* const nextOrder = column_getNextSortingOrder(column)
+* ```
+*/
+function column_getNextSortingOrder(column, multi) {
+	const firstSortDirection = column_getFirstSortDir(column);
+	const isSorted = column_getIsSorted(column);
+	if (!isSorted) return firstSortDirection;
+	if (isSorted !== firstSortDirection && (column.table.options.enableSortingRemoval ?? true) && (multi ? column.table.options.enableMultiRemove ?? true : true)) return false;
+	return isSorted === "desc" ? "asc" : "desc";
+}
+/**
+* Checks whether this accessor column can participate in sorting.
+*
+* The column must have an accessor and sorting must be enabled by both the
+* column definition and table options.
+*
+* @example
+* ```ts
+* const canSort = column_getCanSort(column)
+* ```
+*/
+function column_getCanSort(column) {
+	return (column.columnDef.enableSorting ?? true) && (column.table.options.enableSorting ?? true) && !!column.accessorFn;
+}
+/**
+* Checks whether this column can be added to a multi-sort state.
+*
+* Column-level `enableMultiSort` wins over table-level `enableMultiSort`; if
+* neither is set, accessor columns can multi-sort by default.
+*
+* @example
+* ```ts
+* const canMultiSort = column_getCanMultiSort(column)
+* ```
+*/
+function column_getCanMultiSort(column) {
+	return column.columnDef.enableMultiSort ?? column.table.options.enableMultiSort ?? !!column.accessorFn;
+}
+/**
+* Reads this column's current sort direction.
+*
+* The result is `false` when the column is not sorted, otherwise `'asc'` or
+* `'desc'` based on the column's entry in `state.sorting`.
+*
+* @example
+* ```ts
+* const direction = column_getIsSorted(column)
+* ```
+*/
+function column_getIsSorted(column) {
+	const columnSort = column.table.atoms.sorting?.get()?.find((d) => d.id === column.id);
+	return !columnSort ? false : columnSort.desc ? "desc" : "asc";
+}
+/**
+* Finds this column's position in the ordered `state.sorting` array.
+*
+* The result is `-1` when the column is not sorted.
+*
+* @example
+* ```ts
+* const index = column_getSortIndex(column)
+* ```
+*/
+function column_getSortIndex(column) {
+	return column.table.atoms.sorting?.get()?.findIndex((d) => d.id === column.id) ?? -1;
+}
+/**
+* Removes this column from the sorting state.
+*
+* Other sorted columns are preserved, including their relative order.
+*
+* @example
+* ```ts
+* column_clearSorting(column)
+* ```
+*/
+function column_clearSorting(column) {
+	table_setSorting(column.table, (old) => old.length ? old.filter((d) => d.id !== column.id) : []);
+}
+/**
+* Creates a header event handler that toggles this column's sorting.
+*
+* The handler ignores events when the column cannot sort, and asks
+* `options.isMultiSortEvent` whether the event should add to a multi-sort.
+*
+* @example
+* ```ts
+* const onClick = column_getToggleSortingHandler(column)
+* ```
+*/
+function column_getToggleSortingHandler(column) {
+	const canSort = column_getCanSort(column);
+	return (e) => {
+		if (!canSort) return;
+		column_toggleSorting(column, void 0, column_getCanMultiSort(column) ? column.table.options.isMultiSortEvent?.(e) : false);
+	};
+}
+//#endregion
+//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/core/row-models/createCoreRowModel.js
+/**
+* Creates a memoized core row model factory.
+*
+* The factory reads the relevant table state atoms and options, then returns a row model function used by the table row-model pipeline.
+*/
+function createCoreRowModel() {
+	return (table) => {
+		return tableMemo({
+			feature: "coreRowModelsFeature",
+			table,
+			fnName: "table.getCoreRowModel",
+			memoDeps: () => [table.options.data],
+			fn: () => _createCoreRowModel(table, table.options.data),
+			onAfterUpdate: skipFirstRun(() => {
+				table_autoResetExpanded(table);
+				table_autoResetPageIndex(table);
+				table_autoResetSorting(table);
+				table_autoResetCellSelection(table);
+			})
+		});
+	};
+}
+function accessRows(table, rowModel, originalRows, depth = 0, parentRow) {
+	const rows = [];
+	for (let i = 0; i < originalRows.length; i++) {
+		const originalRow = originalRows[i];
+		const row = constructRow(table, table.getRowId(originalRow, i, parentRow), originalRow, i, depth, void 0, parentRow?.id);
+		rowModel.flatRows.push(row);
+		rowModel.rowsById[row.id] = row;
+		rows.push(row);
+		if (table.options.getSubRows) {
+			row.originalSubRows = table.options.getSubRows(originalRow, i);
+			if (row.originalSubRows?.length) row.subRows = accessRows(table, rowModel, row.originalSubRows, depth + 1, row);
+		}
+	}
+	return rows;
+}
+function _createCoreRowModel(table, data) {
+	const rowModel = {
+		rows: [],
+		flatRows: [],
+		rowsById: makeObjectMap()
+	};
+	rowModel.rows = accessRows(table, rowModel, data);
+	return rowModel;
+}
+//#endregion
+//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/core/row-models/coreRowModelsFeature.utils.js
+/**
+* Resolves the table's unmodified core row model.
+*
+* The factory is created once per table, either from the `coreRowModel` slot on the `features` option
+* or the built-in `createCoreRowModel()`, then reused for later calls.
+*
+* @example
+* ```ts
+* const coreRows = table_getCoreRowModel(table)
+* ```
+*/
+function table_getCoreRowModel(table) {
+	if (!table._rowModels.coreRowModel) table._rowModels.coreRowModel = table.options.features.coreRowModel?.(table) ?? createCoreRowModel()(table);
+	return table._rowModels.coreRowModel();
+}
+/**
+* Reads the row model immediately before column/global filtering.
+*
+* Filtering is the first derived row-model stage, so this currently aliases
+* `table.getCoreRowModel()`.
+*
+* @example
+* ```ts
+* const rowsBeforeFiltering = table_getPreFilteredRowModel(table)
+* ```
+*/
+function table_getPreFilteredRowModel(table) {
+	return table.getCoreRowModel();
+}
+/**
+* Resolves the row model after column and global filtering.
+*
+* When `manualFiltering` is enabled, or no filtered row-model factory was
+* registered, this returns the pre-filtered row model because filtering is
+* expected to happen outside the table.
+*
+* @example
+* ```ts
+* const filteredRows = table_getFilteredRowModel(table)
+* ```
+*/
+function table_getFilteredRowModel(table) {
+	if (!table._rowModels.filteredRowModel) table._rowModels.filteredRowModel = table.options.features.filteredRowModel?.(table);
+	if (table.options.manualFiltering || !table._rowModels.filteredRowModel) return table.getPreFilteredRowModel();
+	return table._rowModels.filteredRowModel();
+}
+/**
+* Reads the row model immediately before grouping.
+*
+* Grouping runs after filtering, so this aliases `table.getFilteredRowModel()`.
+*
+* @example
+* ```ts
+* const rowsBeforeGrouping = table_getPreGroupedRowModel(table)
+* ```
+*/
+function table_getPreGroupedRowModel(table) {
+	return table.getFilteredRowModel();
+}
+/**
+* Resolves the row model after grouping has produced grouped rows.
+*
+* When `manualGrouping` is enabled, or no grouped row-model factory was
+* registered, this returns the pre-grouped row model unchanged.
+*
+* @example
+* ```ts
+* const groupedRows = table_getGroupedRowModel(table)
+* ```
+*/
+function table_getGroupedRowModel(table) {
+	if (!table._rowModels.groupedRowModel) table._rowModels.groupedRowModel = table.options.features.groupedRowModel?.(table);
+	if (table.options.manualGrouping || !table._rowModels.groupedRowModel) return table.getPreGroupedRowModel();
+	return table._rowModels.groupedRowModel();
+}
+/**
+* Reads the row model immediately before sorting.
+*
+* Sorting runs after grouping, so this aliases `table.getGroupedRowModel()`.
+*
+* @example
+* ```ts
+* const rowsBeforeSorting = table_getPreSortedRowModel(table)
+* ```
+*/
+function table_getPreSortedRowModel(table) {
+	return table.getGroupedRowModel();
+}
+/**
+* Resolves the row model after sorting has been applied.
+*
+* When `manualSorting` is enabled, or no sorted row-model factory was
+* registered, this returns the pre-sorted row model because sorted data is
+* expected to be supplied by the caller.
+*
+* @example
+* ```ts
+* const sortedRows = table_getSortedRowModel(table)
+* ```
+*/
+function table_getSortedRowModel(table) {
+	if (!table._rowModels.sortedRowModel) table._rowModels.sortedRowModel = table.options.features.sortedRowModel?.(table);
+	if (table.options.manualSorting || !table._rowModels.sortedRowModel) return table.getPreSortedRowModel();
+	return table._rowModels.sortedRowModel();
+}
+/**
+* Reads the row model immediately before row expansion.
+*
+* Expansion runs after sorting, so this aliases `table.getSortedRowModel()`.
+*
+* @example
+* ```ts
+* const rowsBeforeExpansion = table_getPreExpandedRowModel(table)
+* ```
+*/
+function table_getPreExpandedRowModel(table) {
+	return table.getSortedRowModel();
+}
+/**
+* Resolves the row model after expanded rows have been flattened into view.
+*
+* When `manualExpanding` is enabled, or no expanded row-model factory was
+* registered, this returns the pre-expanded row model unchanged.
+*
+* @example
+* ```ts
+* const expandedRows = table_getExpandedRowModel(table)
+* ```
+*/
+function table_getExpandedRowModel(table) {
+	if (!table._rowModels.expandedRowModel) table._rowModels.expandedRowModel = table.options.features.expandedRowModel?.(table);
+	if (table.options.manualExpanding || !table._rowModels.expandedRowModel) return table.getPreExpandedRowModel();
+	return table._rowModels.expandedRowModel();
+}
+/**
+* Reads the row model immediately before pagination.
+*
+* Pagination is the final built-in row-model stage, so this aliases
+* `table.getExpandedRowModel()`.
+*
+* @example
+* ```ts
+* const rowsBeforePagination = table_getPrePaginatedRowModel(table)
+* ```
+*/
+function table_getPrePaginatedRowModel(table) {
+	return table.getExpandedRowModel();
+}
+/**
+* Resolves the row model after pagination has sliced rows for the current page.
+*
+* When `manualPagination` is enabled, or no paginated row-model factory was
+* registered, this returns the pre-paginated row model because pagination is
+* expected to happen before data reaches the table.
+*
+* @example
+* ```ts
+* const pageRows = table_getPaginatedRowModel(table)
+* ```
+*/
+function table_getPaginatedRowModel(table) {
+	if (!table._rowModels.paginatedRowModel) table._rowModels.paginatedRowModel = table.options.features.paginatedRowModel?.(table);
+	if (table.options.manualPagination || !table._rowModels.paginatedRowModel) return table.getPrePaginatedRowModel();
+	return table._rowModels.paginatedRowModel();
+}
+/**
+* Resolves the final row model consumed by renderers.
+*
+* This is the end of the built-in row-model pipeline: core -> filtering ->
+* grouping -> sorting -> expanding -> pagination.
+*
+* @example
+* ```ts
+* const visibleRows = table_getRowModel(table)
+* ```
+*/
+function table_getRowModel(table) {
+	return table.getPaginatedRowModel();
+}
+//#endregion
+//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/core/row-models/coreRowModelsFeature.js
+/**
+* Core feature that wires table row-model accessors and row-model caches.
+*/
+var coreRowModelsFeature = { constructTableAPIs: (table) => {
+	assignTableAPIs("coreRowModelsFeature", table, {
+		table_getCoreRowModel: { fn: () => table_getCoreRowModel(table) },
+		table_getPreFilteredRowModel: { fn: () => table_getPreFilteredRowModel(table) },
+		table_getFilteredRowModel: { fn: () => table_getFilteredRowModel(table) },
+		table_getPreGroupedRowModel: { fn: () => table_getPreGroupedRowModel(table) },
+		table_getGroupedRowModel: { fn: () => table_getGroupedRowModel(table) },
+		table_getPreSortedRowModel: { fn: () => table_getPreSortedRowModel(table) },
+		table_getSortedRowModel: { fn: () => table_getSortedRowModel(table) },
+		table_getPreExpandedRowModel: { fn: () => table_getPreExpandedRowModel(table) },
+		table_getExpandedRowModel: { fn: () => table_getExpandedRowModel(table) },
+		table_getPrePaginatedRowModel: { fn: () => table_getPrePaginatedRowModel(table) },
+		table_getPaginatedRowModel: { fn: () => table_getPaginatedRowModel(table) },
+		table_getRowModel: { fn: () => table_getRowModel(table) }
+	});
+} };
+//#endregion
+//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/core/cells/constructCell.js
+/**
+* Creates or retrieves the cell prototype for a table.
+* The prototype is cached on the table and shared by all cell instances.
+*/
+function getCellPrototype(table) {
+	if (!table._cellPrototype) {
+		table._cellPrototype = { table };
+		const features = Object.values(table._features);
+		for (let i = 0; i < features.length; i++) features[i].assignCellPrototype?.(table._cellPrototype, table);
+	}
+	return table._cellPrototype;
+}
+/**
+* Constructs a cell instance from normalized table internals.
+*
+* This wires core properties, feature prototype APIs, and instance data used by table rendering and row-model operations.
+*/
+function constructCell(column, row, table) {
+	const cellPrototype = getCellPrototype(table);
+	const cell = Object.create(cellPrototype);
+	cell.column = column;
+	cell.id = `${row.id}_${column.id}`;
+	cell.row = row;
+	const initFns = table._cellInstanceInitFns;
+	for (let i = 0; i < initFns.length; i++) initFns[i](cell);
+	return cell;
+}
+//#endregion
+//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/core/rows/coreRowsFeature.utils.js
+/**
+* Returns this row's zero-based position in the current pre-pagination row
+* model. Rows outside that model return `-1`.
+*/
+function row_getDisplayIndex(row) {
+	const rows = row.table.getRowsInDisplayOrder();
+	const displayIndex = row._displayIndexCache;
+	return rows[displayIndex] === row ? displayIndex : -1;
+}
+/**
+* Returns the rows in the current display order after assigning their
+* zero-based display indexes.
+*
+* When expanded rows bypass pagination, expanded descendants are inserted into
+* the returned order even though they are absent from the pre-pagination row
+* model.
+*/
+function table_getRowsInDisplayOrder(table) {
+	const rows = table.getPrePaginatedRowModel().rows;
+	if (table.options.paginateExpandedRows === false) {
+		const displayRows = [];
+		const handleRow = (row) => {
+			row._displayIndexCache = displayRows.length;
+			displayRows.push(row);
+			if (row.subRows.length && row.getIsExpanded?.()) row.subRows.forEach(handleRow);
+		};
+		rows.forEach(handleRow);
+		return displayRows;
+	}
+	for (let i = 0; i < rows.length; i++) rows[i]._displayIndexCache = i;
+	return rows;
+}
+/**
+* Reads and caches this row's value for a column.
+*
+* The value is produced by the column accessor. Missing columns or display
+* columns without an accessor return `undefined`.
+*
+* @example
+* ```ts
+* const firstName = row_getValue(row, 'firstName')
+* ```
+*/
+function row_getValue(row, columnId) {
+	if (hasOwn(row._valuesCache, columnId)) return row._valuesCache[columnId];
+	const column = row.table.getColumn(columnId);
+	if (!column?.accessorFn) return;
+	row._valuesCache[columnId] = column.accessorFn(row.original, row.index);
+	return row._valuesCache[columnId];
+}
+/**
+* Reads and caches the values used by faceting/grouping for a column.
+*
+* If the column defines `getUniqueValues`, that result is used. Otherwise the
+* row's accessor value is wrapped in a single-item array.
+*
+* @example
+* ```ts
+* const values = row_getUniqueValues(row, 'tags')
+* ```
+*/
+function row_getUniqueValues(row, columnId) {
+	if (hasOwn(row._uniqueValuesCache, columnId)) return row._uniqueValuesCache[columnId];
+	const column = row.table.getColumn(columnId);
+	if (!column?.accessorFn) return;
+	if (!column.columnDef.getUniqueValues) {
+		row._uniqueValuesCache[columnId] = [row.getValue(columnId)];
+		return row._uniqueValuesCache[columnId];
+	}
+	row._uniqueValuesCache[columnId] = column.columnDef.getUniqueValues(row.original, row.index);
+	return row._uniqueValuesCache[columnId];
+}
+/**
+* Returns a renderable row value for a column.
+*
+* If the accessor value is nullish, the table's `renderFallbackValue` is used
+* instead.
+*
+* @example
+* ```ts
+* const value = row_renderValue(row, 'firstName')
+* ```
+*/
+function row_renderValue(row, columnId) {
+	return row.getValue(columnId) ?? row.table.options.renderFallbackValue;
+}
+/**
+* Flattens this row's descendant tree into leaf rows.
+*
+* The row itself is not included; only nested `subRows` are walked.
+*
+* @example
+* ```ts
+* const descendants = row_getLeafRows(row)
+* ```
+*/
+function row_getLeafRows(row) {
+	return flattenBy(row.subRows, (d) => d.subRows);
+}
+/**
+* Returns the deepest structural row depth in the core row model.
+* Root rows are depth `0`, their direct sub-rows are depth `1`, and so on.
+*/
+function table_getMaxSubRowDepth(table) {
+	const rows = table.getCoreRowModel().flatRows;
+	let maxDepth = 0;
+	for (let i = 0; i < rows.length; i++) maxDepth = Math.max(maxDepth, rows[i].depth);
+	return maxDepth;
+}
+/**
+* Looks up this row's direct parent, if it has one.
+*
+* Parent lookup prefers the core row model for structural parents, then falls
+* back to the pre-pagination row model for generated parent rows.
+*
+* @example
+* ```ts
+* const parent = row_getParentRow(row)
+* ```
+*/
+function row_getParentRow(row) {
+	if (!row.parentId) return;
+	return row.table.getCoreRowModel().rowsById[row.parentId] ?? row.table.getRow(row.parentId, true);
+}
+/**
+* Collects this row's ancestor chain from root to direct parent.
+*
+* The current row is not included. Rows without a parent return an empty array.
+*
+* @example
+* ```ts
+* const ancestors = row_getParentRows(row)
+* ```
+*/
+function row_getParentRows(row) {
+	const parentRows = [];
+	let currentRow = row;
+	while (true) {
+		const parentRow = currentRow.getParentRow();
+		if (!parentRow) break;
+		parentRows.push(parentRow);
+		currentRow = parentRow;
+	}
+	return parentRows.reverse();
+}
+/**
+* Constructs one cell for each leaf column in this row.
+*
+* The result follows `table.getAllLeafColumns()` order and includes hidden
+* columns; visibility-specific APIs filter this list later.
+*
+* @example
+* ```ts
+* const cells = row_getAllCells(row)
+* ```
+*/
+function row_getAllCells(row) {
+	const columns = row.table.getAllLeafColumns();
+	let cache = row._cellsCache;
+	if (!cache) cache = row._cellsCache = /* @__PURE__ */ new WeakMap();
+	const cells = new Array(columns.length);
+	for (let i = 0; i < columns.length; i++) {
+		const column = columns[i];
+		let cell = cache.get(column);
+		if (!cell) {
+			cell = constructCell(column, row, row.table);
+			cache.set(column, cell);
+		}
+		cells[i] = cell;
+	}
+	return cells;
+}
+/**
+* Builds a lookup map of this row's cells keyed by column id.
+*
+* This is the static implementation behind `row.getAllCellsByColumnId()`.
+*
+* @example
+* ```ts
+* const cellsById = row_getAllCellsByColumnId(row)
+* ```
+*/
+function row_getAllCellsByColumnId(row) {
+	const result = makeObjectMap();
+	const cells = row.getAllCells();
+	for (let i = 0; i < cells.length; i++) {
+		const cell = cells[i];
+		result[cell.column.id] = cell;
+	}
+	return result;
+}
+/**
+* Resolves the stable id for a row.
+*
+* `options.getRowId` wins when provided. Otherwise root rows use their index
+* and child rows append their index to the parent id, such as `0.2`.
+*
+* @example
+* ```ts
+* const id = table_getRowId(originalRow, table, index, parentRow)
+* ```
+*/
+function table_getRowId(originalRow, table, index, parent) {
+	return table.options.getRowId?.(originalRow, index, parent) ?? (parent ? `${parent.id}.${index}` : String(index));
+}
+/**
+* Looks up a row by id from the current or full row model.
+*
+* By default this searches `table.getRowModel()`. Passing `searchAll` searches
+* the pre-pagination model first, then falls back to the core model.
+*
+* @example
+* ```ts
+* const row = table_getRow(table, rowId, true)
+* ```
+*/
+function table_getRow(table, rowId, searchAll) {
+	let row = (searchAll ? table.getPrePaginatedRowModel() : table.getRowModel()).rowsById[rowId];
+	if (!row) {
+		row = table.getCoreRowModel().rowsById[rowId];
+		if (!row) throw new Error();
+	}
+	return row;
+}
+//#endregion
+//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/core/rows/coreRowsFeature.js
+/**
+* Core feature that creates row APIs for values, cells, and tree traversal.
+*/
+var coreRowsFeature = {
+	assignRowPrototype: (prototype, table) => {
+		assignPrototypeAPIs("coreRowsFeature", prototype, table, {
+			row_getDisplayIndex: { fn: (row) => row_getDisplayIndex(row) },
+			row_getAllCellsByColumnId: {
+				fn: (row) => row_getAllCellsByColumnId(row),
+				memoDeps: (row) => [row.getAllCells()]
+			},
+			row_getAllCells: {
+				fn: (row) => row_getAllCells(row),
+				memoDeps: (row) => [row.table.getAllLeafColumns()]
+			},
+			row_getLeafRows: {
+				fn: (row) => row_getLeafRows(row),
+				memoDeps: (row) => [row.subRows]
+			},
+			row_getParentRow: { fn: (row) => row_getParentRow(row) },
+			row_getParentRows: { fn: (row) => row_getParentRows(row) },
+			row_getUniqueValues: { fn: (row, columnId) => row_getUniqueValues(row, columnId) },
+			row_getValue: { fn: (row, columnId) => row_getValue(row, columnId) },
+			row_renderValue: { fn: (row, columnId) => row_renderValue(row, columnId) }
+		});
+	},
+	constructTableAPIs: (table) => {
+		assignTableAPIs("coreRowsFeature", table, {
+			table_getRowsInDisplayOrder: {
+				fn: () => table_getRowsInDisplayOrder(table),
+				memoDeps: () => [
+					table.getPrePaginatedRowModel().rows,
+					table.options.paginateExpandedRows,
+					table.options.paginateExpandedRows === false ? table.atoms.expanded?.get() : void 0
+				]
+			},
+			table_getRowId: { fn: (originalRow, index, parent) => table_getRowId(originalRow, table, index, parent) },
+			table_getRow: { fn: (id, searchAll) => table_getRow(table, id, searchAll) },
+			table_getMaxSubRowDepth: {
+				fn: () => table_getMaxSubRowDepth(table),
+				memoDeps: () => [table.getCoreRowModel()]
+			}
+		});
+	}
+};
+//#endregion
+//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/core/table/coreTablesFeature.utils.js
+/**
+* Synchronizes externally controlled state slices into the table's base atoms.
+*
+* This keeps `options.state` values mirrored in the atom graph so derived
+* atoms, stores, and table APIs read a consistent snapshot.
+*
+* Adapters that update options during their host's render phase pass the
+* state snapshot captured by the committed render as `capturedState` — the
+* shared options object may already hold values from a newer render that
+* never commits. Pass `null` to publish nothing (a captured "no controlled
+* state"); omitting the argument reads the current `table.options.state`
+* instead. An optional `compare` suppresses semantically unchanged slice
+* writes; the default remains reference equality.
+*
+* @example
+* ```ts
+* table_syncExternalStateToBaseAtoms(table)
+* table_syncExternalStateToBaseAtoms(table, capturedState ?? null, shallow)
+* ```
+*/
+function table_syncExternalStateToBaseAtoms(table, capturedState, compare = (currentState, externalState) => currentState === externalState) {
+	const state = capturedState === void 0 ? table.options.state : capturedState;
+	table._reactivity.batch(() => {
+		if (state) for (const key in state) {
+			const baseAtom = table.baseAtoms[key];
+			if (!baseAtom) continue;
+			const rawExternalState = state[key];
+			const externalState = rawExternalState === void 0 ? table.initialState[key] : rawExternalState;
+			if (!compare(table._reactivity.untrack(() => baseAtom.get()), externalState)) baseAtom.set(() => externalState);
+		}
+	});
+}
+/**
+* Publishes captured controlled state after a host framework commits.
+*
+* Render-phase adapters stage options without synchronizing base atoms, then
+* pass the state captured by the committed render here. The commit signal also
+* invalidates ownership changes when no base atom was written.
+*/
+function table_publishExternalState(table, state, compare = (currentState, externalState) => currentState === externalState) {
+	table._reactivity.batch(() => {
+		table_syncExternalStateToBaseAtoms(table, state, compare);
+		table._reactivity.commit?.();
+	});
+}
+/**
+* Resets all internal table base atoms to `table.initialState`, then clears
+* transient instance data through registered feature reset hooks.
+*
+* This resets internally owned state slices in a single reactivity batch. Use
+* feature-specific reset APIs when a slice may be externally owned.
+*
+* @example
+* ```ts
+* table_reset(table)
+* ```
+*/
+function table_reset(table) {
+	const snap = cloneState(table.initialState);
+	table._reactivity.batch(() => {
+		const keys = Object.keys(snap);
+		for (let i = 0; i < keys.length; i++) {
+			const key = keys[i];
+			table.baseAtoms[key].set(snap[key]);
+		}
+	});
+	const features = Object.values(table._features);
+	for (let i = 0; i < features.length; i++) features[i].resetTableInstanceData?.(table);
+}
+/**
+* Merges new table options with the current resolved options.
+*
+* If `options.mergeOptions` is provided, it owns the merge behavior; otherwise
+* options are shallow-merged. Static options that should never change after
+* initialization are restored on a fresh object so framework merge helpers may
+* return readonly getter/proxy objects.
+*
+* @example
+* ```ts
+* const options = table_mergeOptions(table, nextOptions)
+* ```
+*/
+function table_mergeOptions(table, newOptions) {
+	const { features, atoms, initialState } = table.options;
+	if (!table.options.mergeOptions) return {
+		...table.options,
+		...newOptions,
+		features,
+		atoms,
+		initialState
+	};
+	const mergedOptions = table.options.mergeOptions(table.options, newOptions);
+	const descriptors = { ...Object.getOwnPropertyDescriptors(mergedOptions) };
+	return Object.defineProperties(Object.create(Object.getPrototypeOf(mergedOptions)), {
+		...descriptors,
+		features: {
+			value: features,
+			enumerable: true,
+			configurable: true,
+			writable: true
+		},
+		atoms: {
+			value: atoms,
+			enumerable: true,
+			configurable: true,
+			writable: true
+		},
+		initialState: {
+			value: initialState,
+			enumerable: true,
+			configurable: true,
+			writable: true
+		}
+	});
+}
+/**
+* Updates the table options object.
+*
+* The updater receives the current resolved options and the merged result is
+* immediately assigned to the table instance.
+*
+* @example
+* ```ts
+* table_setOptions(table, (old) => old)
+* table_setOptions(table, (old) => old, { syncExternalState: false })
+* ```
+*/
+function table_setOptions(table, updater, options) {
+	const mergedOptions = table_mergeOptions(table, functionalUpdate(updater, table.options));
+	if (table.optionsStore) table.optionsStore.set(() => mergedOptions);
+	else table.options = mergedOptions;
+	if (options?.syncExternalState !== false) table_publishExternalState(table, mergedOptions.state ?? null);
+}
+//#endregion
+//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/core/coreFeatures.js
+/**
+* The built-in core feature set required by every table.
+*
+* These features provide table, column, row, header, cell, and core row-model behavior before optional feature plugins are added.
+*/
+var coreFeatures = {
+	coreCellsFeature,
+	coreColumnsFeature,
+	coreHeadersFeature,
+	coreRowModelsFeature,
+	coreRowsFeature,
+	coreTablesFeature: { constructTableAPIs: (table) => {
+		assignTableAPIs("coreTablesFeature", table, {
+			table_reset: { fn: () => table_reset(table) },
+			table_setOptions: { fn: (updater) => table_setOptions(table, updater) }
+		});
+	} }
+};
+//#endregion
+//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/helpers/tableFeatures.js
+/**
+* A helper function to help define the features that are to be imported and applied to a table instance.
+* Use this utility to make it easier to have the correct type inference for the features that are being imported.
+* **Note:** It is recommended to use this utility statically outside of a component.
+*
+* Alongside feature modules, this object carries everything else that is
+* statically stitched into the table:
+*
+* - Row model factories (`sortedRowModel`, `filteredRowModel`, etc.)
+* - Row model function registries (`sortFns`, `filterFns`, `aggregationFns`),
+*   whose keys become the valid string values for `sortFn`, `filterFn`,
+*   `globalFilterFn`, and `aggregationFn` with full inference
+* - Type-only `tableMeta`/`columnMeta` slots for declaring per-table meta types
+*   instead of using global declaration merging. The values are phantom
+*   (ignored and stripped at runtime); only their types are used.
+* @example
+* ```
+* import {
+*   columnFilteringFeature,
+*   createFilteredRowModel,
+*   createSortedRowModel,
+*   filterFn_includesString,
+*   rowSortingFeature,
+*   sortFn_alphanumeric,
+*   sortFn_text,
+*   tableFeatures,
+* } from '@tanstack/react-table'
+* const features = tableFeatures({
+*   columnFilteringFeature,
+*   rowSortingFeature,
+*   filteredRowModel: createFilteredRowModel(),
+*   sortedRowModel: createSortedRowModel(),
+*   filterFns: { includesString: filterFn_includesString, myCustomFilterFn },
+*   sortFns: { alphanumeric: sortFn_alphanumeric, text: sortFn_text },
+*   tableMeta: {} as { updateData: (rowIndex: number, columnId: string, value: unknown) => void },
+*   columnMeta: {} as { align?: 'left' | 'right' },
+* });
+* const table = useTable({ features, columns, data });
+* ```
+*/
+function tableFeatures(features) {
+	return features;
+}
+//#endregion
+//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/core/table/constructTable.js
+/**
+* Builds the initial table state from registered features and user initial state.
+*
+* Each feature contributes its default state before user-provided `initialState` values are merged in.
+*/
+function getInitialTableState(features, initialState = {}) {
+	Object.values(features).forEach((feature) => {
+		initialState = feature.getInitialState?.(initialState) ?? initialState;
+	});
+	return cloneState(initialState);
+}
+/**
+* Constructs a table instance from normalized table internals.
+*
+* This wires core properties, feature prototype APIs, and instance data used by table rendering and row-model operations.
+*/
+function constructTable(tableOptions) {
+	const _reactivity = tableOptions.features.coreReactivityFeature;
+	const { aggregationFns, columnMeta: _columnMeta, coreRowModel, expandedRowModel, facetedMinMaxValues, facetedRowModel, facetedUniqueValues, filterFns, filterMeta: _filterMeta, filteredRowModel, groupedRowModel, paginatedRowModel, sortFns, sortedRowModel, tableMeta: _tableMeta, ...features } = tableOptions.features;
+	const table = {
+		_cellInstanceInitFns: [],
+		_columnInstanceInitFns: [],
+		_features: {
+			...coreFeatures,
+			...features
+		},
+		_headerGroupInstanceInitFns: [],
+		_headerInstanceInitFns: [],
+		_reactivity,
+		_rowInstanceInitFns: [],
+		_rowModelFns: {
+			aggregationFns,
+			filterFns,
+			sortFns
+		},
+		_rowModels: {},
+		atoms: {},
+		baseAtoms: {}
+	};
+	const featuresList = Object.values(table._features);
+	const mergedOptions = {
+		...featuresList.reduce((obj, feature) => {
+			return Object.assign(obj, feature.getDefaultTableOptions?.(table));
+		}, {}),
+		...tableOptions
+	};
+	if (_reactivity.wrapExternalAtoms && mergedOptions.atoms) for (const [atomKey, _atom] of Object.entries(mergedOptions.atoms)) {
+		const atom = _atom;
+		const wrappedAtom = _reactivity.createWritableAtom(atom.get(), { debugName: `externalAtom/${atomKey}` });
+		mergedOptions.atoms[atomKey] = wrappedAtom;
+		let syncExternal = false;
+		const syncAtomToWrappedSub = atom.subscribe((value) => {
+			if (syncExternal) return;
+			wrappedAtom.set(value);
+		});
+		const syncWrappedToAtomSub = wrappedAtom.subscribe((value) => {
+			syncExternal = true;
+			atom.set(value);
+			syncExternal = false;
+		});
+		_reactivity.addSubscription(syncAtomToWrappedSub);
+		_reactivity.addSubscription(syncWrappedToAtomSub);
+	}
+	if (_reactivity.createOptionsStore) {
+		table.optionsStore = _reactivity.createWritableAtom(mergedOptions, { debugName: "table/optionsStore" });
+		Object.defineProperty(table, "options", {
+			configurable: true,
+			enumerable: true,
+			get() {
+				return table.optionsStore.get();
+			},
+			set(value) {
+				table.optionsStore.set(() => value);
+			}
+		});
+	} else table.options = mergedOptions;
+	table.initialState = getInitialTableState(table._features, table.options.initialState);
+	const stateKeys = Object.keys(table.initialState);
+	for (let i = 0; i < stateKeys.length; i++) {
+		const key = stateKeys[i];
+		table.baseAtoms[key] = _reactivity.createWritableAtom(table.initialState[key], { debugName: `table/baseAtoms/${key}` });
+		table.atoms[key] = _reactivity.createReadonlyAtom(() => {
+			const options = table.options;
+			const externalAtom = options.atoms?.[key];
+			const reactiveState = externalAtom ? externalAtom.get() : table.baseAtoms[key].get();
+			if (externalAtom) return reactiveState;
+			const controlledState = options.state;
+			if (controlledState && hasOwn(controlledState, key)) {
+				const controlledValue = controlledState[key];
+				return controlledValue === void 0 ? table.initialState[key] : controlledValue;
+			}
+			return reactiveState;
+		}, { debugName: `table/atoms/${key}` });
+	}
+	table_syncExternalStateToBaseAtoms(table);
+	table.store = atomToStore(_reactivity.createReadonlyAtom(() => {
+		const snapshot = {};
+		for (let i = 0; i < stateKeys.length; i++) {
+			const key = stateKeys[i];
+			snapshot[key] = table.atoms[key].get();
+		}
+		return snapshot;
+	}, {
+		compare: shallow,
+		debugName: "table/store"
+	}));
+	for (let i = 0; i < featuresList.length; i++) {
+		const feature = featuresList[i];
+		feature.initTableInstanceData?.(table);
+		if (feature.initCellInstanceData) table._cellInstanceInitFns.push(feature.initCellInstanceData.bind(feature));
+		if (feature.initColumnInstanceData) table._columnInstanceInitFns.push(feature.initColumnInstanceData.bind(feature));
+		if (feature.initHeaderGroupInstanceData) table._headerGroupInstanceInitFns.push(feature.initHeaderGroupInstanceData.bind(feature));
+		if (feature.initHeaderInstanceData) table._headerInstanceInitFns.push(feature.initHeaderInstanceData.bind(feature));
+		if (feature.initRowInstanceData) table._rowInstanceInitFns.push(feature.initRowInstanceData.bind(feature));
+		feature.constructTableAPIs?.(table);
+	}
+	return table;
+}
+//#endregion
+//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/features/column-ordering/columnOrderingFeature.js
+/**
+* Feature that adds column ordering state and APIs for ordering leaf columns.
+*/
+var columnOrderingFeature = {
+	getInitialState: (initialState) => {
+		return {
+			columnOrder: getDefaultColumnOrderState(),
+			...initialState
 		};
 	},
-	getDefaultOptions: (table) => {
+	getDefaultTableOptions: (table) => {
 		return { onColumnOrderChange: makeStateUpdater("columnOrder", table) };
 	},
-	createColumn: (column, table) => {
-		column.getIndex = memo$3((position) => [_getVisibleLeafColumns(table, position)], (columns) => columns.findIndex((d) => d.id === column.id), getMemoOptions(table.options, "debugColumns", "getIndex"));
-		column.getIsFirstColumn = (position) => {
-			var _columns$;
-			return ((_columns$ = _getVisibleLeafColumns(table, position)[0]) == null ? void 0 : _columns$.id) === column.id;
-		};
-		column.getIsLastColumn = (position) => {
-			var _columns;
-			const columns = _getVisibleLeafColumns(table, position);
-			return ((_columns = columns[columns.length - 1]) == null ? void 0 : _columns.id) === column.id;
-		};
+	assignColumnPrototype: (prototype, table) => {
+		assignPrototypeAPIs("columnOrderingFeature", prototype, table, {
+			column_getIndex: { fn: (column, position) => column_getIndex(column, position) },
+			column_getIsFirstColumn: { fn: (column, position) => column_getIsFirstColumn(column, position) },
+			column_getIsLastColumn: { fn: (column, position) => column_getIsLastColumn(column, position) }
+		});
 	},
-	createTable: (table) => {
-		table.setColumnOrder = (updater) => table.options.onColumnOrderChange == null ? void 0 : table.options.onColumnOrderChange(updater);
-		table.resetColumnOrder = (defaultState) => {
-			var _table$initialState$c;
-			table.setColumnOrder(defaultState ? [] : (_table$initialState$c = table.initialState.columnOrder) != null ? _table$initialState$c : []);
-		};
-		table._getOrderColumnsFn = memo$3(() => [
-			table.getState().columnOrder,
-			table.getState().grouping,
-			table.options.groupedColumnMode
-		], (columnOrder, grouping, groupedColumnMode) => (columns) => {
-			let orderedColumns = [];
-			if (!(columnOrder != null && columnOrder.length)) orderedColumns = columns;
-			else {
-				const columnOrderCopy = [...columnOrder];
-				const columnsCopy = [...columns];
-				while (columnsCopy.length && columnOrderCopy.length) {
-					const targetColumnId = columnOrderCopy.shift();
-					const foundIndex = columnsCopy.findIndex((d) => d.id === targetColumnId);
-					if (foundIndex > -1) orderedColumns.push(columnsCopy.splice(foundIndex, 1)[0]);
-				}
-				orderedColumns = [...orderedColumns, ...columnsCopy];
+	constructTableAPIs: (table) => {
+		assignTableAPIs("columnOrderingFeature", table, {
+			table_getColumnIndexes: {
+				fn: () => table_getColumnIndexes(table),
+				memoDeps: () => [
+					table.options.columns,
+					table.atoms.columnOrder?.get(),
+					table.atoms.columnPinning?.get(),
+					table.atoms.columnVisibility?.get(),
+					table.atoms.grouping?.get(),
+					table.options.groupedColumnMode
+				]
+			},
+			table_setColumnOrder: { fn: (updater) => table_setColumnOrder(table, updater) },
+			table_resetColumnOrder: { fn: (defaultState) => table_resetColumnOrder(table, defaultState) },
+			table_getOrderColumnsFn: {
+				fn: () => table_getOrderColumnsFn(table),
+				memoDeps: () => [
+					table.atoms.columnOrder?.get(),
+					table.atoms.grouping?.get(),
+					table.options.groupedColumnMode
+				]
 			}
-			return orderColumns(orderedColumns, grouping, groupedColumnMode);
-		}, getMemoOptions(table.options, "debugTable", "_getOrderColumnsFn"));
+		});
 	}
 };
-var getDefaultColumnPinningState = () => ({
-	left: [],
-	right: []
-});
-var ColumnPinning = {
-	getInitialState: (state) => {
+//#endregion
+//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/features/column-pinning/columnPinningFeature.js
+/**
+* Feature that adds column pinning state and APIs for logical start, center,
+* and end regions.
+*
+* In LTR languages/layouts, start usually corresponds to left and end to
+* right. In RTL languages/layouts, start usually corresponds to right and end
+* to left.
+*/
+var columnPinningFeature = {
+	getInitialState: (initialState) => {
 		return {
-			columnPinning: getDefaultColumnPinningState(),
-			...state
+			columnPinning: {
+				...getDefaultColumnPinningState(),
+				...initialState.columnPinning
+			},
+			...initialState
 		};
 	},
-	getDefaultOptions: (table) => {
+	getDefaultTableOptions: (table) => {
 		return { onColumnPinningChange: makeStateUpdater("columnPinning", table) };
 	},
-	createColumn: (column, table) => {
-		column.pin = (position) => {
-			const columnIds = column.getLeafColumns().map((d) => d.id).filter(Boolean);
-			table.setColumnPinning((old) => {
-				var _old$left3, _old$right3;
-				if (position === "right") {
-					var _old$left, _old$right;
-					return {
-						left: ((_old$left = old == null ? void 0 : old.left) != null ? _old$left : []).filter((d) => !(columnIds != null && columnIds.includes(d))),
-						right: [...((_old$right = old == null ? void 0 : old.right) != null ? _old$right : []).filter((d) => !(columnIds != null && columnIds.includes(d))), ...columnIds]
-					};
-				}
-				if (position === "left") {
-					var _old$left2, _old$right2;
-					return {
-						left: [...((_old$left2 = old == null ? void 0 : old.left) != null ? _old$left2 : []).filter((d) => !(columnIds != null && columnIds.includes(d))), ...columnIds],
-						right: ((_old$right2 = old == null ? void 0 : old.right) != null ? _old$right2 : []).filter((d) => !(columnIds != null && columnIds.includes(d)))
-					};
-				}
-				return {
-					left: ((_old$left3 = old == null ? void 0 : old.left) != null ? _old$left3 : []).filter((d) => !(columnIds != null && columnIds.includes(d))),
-					right: ((_old$right3 = old == null ? void 0 : old.right) != null ? _old$right3 : []).filter((d) => !(columnIds != null && columnIds.includes(d)))
-				};
-			});
-		};
-		column.getCanPin = () => {
-			return column.getLeafColumns().some((d) => {
-				var _d$columnDef$enablePi, _ref, _table$options$enable;
-				return ((_d$columnDef$enablePi = d.columnDef.enablePinning) != null ? _d$columnDef$enablePi : true) && ((_ref = (_table$options$enable = table.options.enableColumnPinning) != null ? _table$options$enable : table.options.enablePinning) != null ? _ref : true);
-			});
-		};
-		column.getIsPinned = () => {
-			const leafColumnIds = column.getLeafColumns().map((d) => d.id);
-			const { left, right } = table.getState().columnPinning;
-			const isLeft = leafColumnIds.some((d) => left == null ? void 0 : left.includes(d));
-			const isRight = leafColumnIds.some((d) => right == null ? void 0 : right.includes(d));
-			return isLeft ? "left" : isRight ? "right" : false;
-		};
-		column.getPinnedIndex = () => {
-			var _table$getState$colum, _table$getState$colum2;
-			const position = column.getIsPinned();
-			return position ? (_table$getState$colum = (_table$getState$colum2 = table.getState().columnPinning) == null || (_table$getState$colum2 = _table$getState$colum2[position]) == null ? void 0 : _table$getState$colum2.indexOf(column.id)) != null ? _table$getState$colum : -1 : 0;
-		};
+	assignColumnPrototype: (prototype, table) => {
+		assignPrototypeAPIs("columnPinningFeature", prototype, table, {
+			column_pin: { fn: (column, position) => column_pin(column, position) },
+			column_getCanPin: { fn: (column) => column_getCanPin(column) },
+			column_getPinnedIndex: { fn: (column) => column_getPinnedIndex(column) },
+			column_getIsPinned: { fn: (column) => column_getIsPinned(column) }
+		});
 	},
-	createRow: (row, table) => {
-		row.getCenterVisibleCells = memo$3(() => [
-			row._getAllVisibleCells(),
-			table.getState().columnPinning.left,
-			table.getState().columnPinning.right
-		], (allCells, left, right) => {
-			const leftAndRight = [...left != null ? left : [], ...right != null ? right : []];
-			return allCells.filter((d) => !leftAndRight.includes(d.column.id));
-		}, getMemoOptions(table.options, "debugRows", "getCenterVisibleCells"));
-		row.getLeftVisibleCells = memo$3(() => [row._getAllVisibleCells(), table.getState().columnPinning.left], (allCells, left) => {
-			return (left != null ? left : []).map((columnId) => allCells.find((cell) => cell.column.id === columnId)).filter(Boolean).map((d) => ({
-				...d,
-				position: "left"
-			}));
-		}, getMemoOptions(table.options, "debugRows", "getLeftVisibleCells"));
-		row.getRightVisibleCells = memo$3(() => [row._getAllVisibleCells(), table.getState().columnPinning.right], (allCells, right) => {
-			return (right != null ? right : []).map((columnId) => allCells.find((cell) => cell.column.id === columnId)).filter(Boolean).map((d) => ({
-				...d,
-				position: "right"
-			}));
-		}, getMemoOptions(table.options, "debugRows", "getRightVisibleCells"));
-	},
-	createTable: (table) => {
-		table.setColumnPinning = (updater) => table.options.onColumnPinningChange == null ? void 0 : table.options.onColumnPinningChange(updater);
-		table.resetColumnPinning = (defaultState) => {
-			var _table$initialState$c, _table$initialState;
-			return table.setColumnPinning(defaultState ? getDefaultColumnPinningState() : (_table$initialState$c = (_table$initialState = table.initialState) == null ? void 0 : _table$initialState.columnPinning) != null ? _table$initialState$c : getDefaultColumnPinningState());
-		};
-		table.getIsSomeColumnsPinned = (position) => {
-			var _pinningState$positio;
-			const pinningState = table.getState().columnPinning;
-			if (!position) {
-				var _pinningState$left, _pinningState$right;
-				return Boolean(((_pinningState$left = pinningState.left) == null ? void 0 : _pinningState$left.length) || ((_pinningState$right = pinningState.right) == null ? void 0 : _pinningState$right.length));
+	assignRowPrototype: (prototype, table) => {
+		assignPrototypeAPIs("columnPinningFeature", prototype, table, {
+			row_getCenterVisibleCells: {
+				fn: (row) => row_getCenterVisibleCells(row),
+				memoDeps: (row) => [
+					row.getAllCells(),
+					row.table.atoms.columnPinning?.get(),
+					row.table.atoms.columnVisibility?.get()
+				]
+			},
+			row_getStartVisibleCells: {
+				fn: (row) => row_getStartVisibleCells(row),
+				memoDeps: (row) => [
+					row.getAllCells(),
+					row.table.atoms.columnPinning?.get()?.start,
+					row.table.atoms.columnVisibility?.get()
+				]
+			},
+			row_getEndVisibleCells: {
+				fn: (row) => row_getEndVisibleCells(row),
+				memoDeps: (row) => [
+					row.getAllCells(),
+					row.table.atoms.columnPinning?.get()?.end,
+					row.table.atoms.columnVisibility?.get()
+				]
 			}
-			return Boolean((_pinningState$positio = pinningState[position]) == null ? void 0 : _pinningState$positio.length);
-		};
-		table.getLeftLeafColumns = memo$3(() => [table.getAllLeafColumns(), table.getState().columnPinning.left], (allColumns, left) => {
-			return (left != null ? left : []).map((columnId) => allColumns.find((column) => column.id === columnId)).filter(Boolean);
-		}, getMemoOptions(table.options, "debugColumns", "getLeftLeafColumns"));
-		table.getRightLeafColumns = memo$3(() => [table.getAllLeafColumns(), table.getState().columnPinning.right], (allColumns, right) => {
-			return (right != null ? right : []).map((columnId) => allColumns.find((column) => column.id === columnId)).filter(Boolean);
-		}, getMemoOptions(table.options, "debugColumns", "getRightLeafColumns"));
-		table.getCenterLeafColumns = memo$3(() => [
-			table.getAllLeafColumns(),
-			table.getState().columnPinning.left,
-			table.getState().columnPinning.right
-		], (allColumns, left, right) => {
-			const leftAndRight = [...left != null ? left : [], ...right != null ? right : []];
-			return allColumns.filter((d) => !leftAndRight.includes(d.id));
-		}, getMemoOptions(table.options, "debugColumns", "getCenterLeafColumns"));
+		});
+	},
+	constructTableAPIs: (table) => {
+		assignTableAPIs("columnPinningFeature", table, {
+			table_setColumnPinning: { fn: (updater) => table_setColumnPinning(table, updater) },
+			table_resetColumnPinning: { fn: (defaultState) => table_resetColumnPinning(table, defaultState) },
+			table_getIsSomeColumnsPinned: { fn: (position) => table_getIsSomeColumnsPinned(table, position) },
+			table_getStartHeaderGroups: {
+				fn: () => table_getStartHeaderGroups(table),
+				memoDeps: () => [
+					table.getAllColumns(),
+					callMemoOrStaticFn(table, "getVisibleLeafColumns", table_getVisibleLeafColumns),
+					table.atoms.columnPinning?.get()?.start,
+					table.atoms.columnOrder?.get()
+				]
+			},
+			table_getCenterHeaderGroups: {
+				fn: () => table_getCenterHeaderGroups(table),
+				memoDeps: () => [
+					table.getAllColumns(),
+					callMemoOrStaticFn(table, "getVisibleLeafColumns", table_getVisibleLeafColumns),
+					table.atoms.columnPinning?.get(),
+					table.atoms.columnOrder?.get()
+				]
+			},
+			table_getEndHeaderGroups: {
+				fn: () => table_getEndHeaderGroups(table),
+				memoDeps: () => [
+					table.getAllColumns(),
+					callMemoOrStaticFn(table, "getVisibleLeafColumns", table_getVisibleLeafColumns),
+					table.atoms.columnPinning?.get()?.end,
+					table.atoms.columnOrder?.get()
+				]
+			},
+			table_getStartFooterGroups: {
+				fn: () => table_getStartFooterGroups(table),
+				memoDeps: () => [callMemoOrStaticFn(table, "getStartHeaderGroups", table_getStartHeaderGroups)]
+			},
+			table_getCenterFooterGroups: {
+				fn: () => table_getCenterFooterGroups(table),
+				memoDeps: () => [callMemoOrStaticFn(table, "getCenterHeaderGroups", table_getCenterHeaderGroups)]
+			},
+			table_getEndFooterGroups: {
+				fn: () => table_getEndFooterGroups(table),
+				memoDeps: () => [callMemoOrStaticFn(table, "getEndHeaderGroups", table_getEndHeaderGroups)]
+			},
+			table_getStartFlatHeaders: {
+				fn: () => table_getStartFlatHeaders(table),
+				memoDeps: () => [callMemoOrStaticFn(table, "getStartHeaderGroups", table_getStartHeaderGroups)]
+			},
+			table_getEndFlatHeaders: {
+				fn: () => table_getEndFlatHeaders(table),
+				memoDeps: () => [callMemoOrStaticFn(table, "getEndHeaderGroups", table_getEndHeaderGroups)]
+			},
+			table_getCenterFlatHeaders: {
+				fn: () => table_getCenterFlatHeaders(table),
+				memoDeps: () => [callMemoOrStaticFn(table, "getCenterHeaderGroups", table_getCenterHeaderGroups)]
+			},
+			table_getStartLeafHeaders: {
+				fn: () => table_getStartLeafHeaders(table),
+				memoDeps: () => [callMemoOrStaticFn(table, "getStartHeaderGroups", table_getStartHeaderGroups)]
+			},
+			table_getEndLeafHeaders: {
+				fn: () => table_getEndLeafHeaders(table),
+				memoDeps: () => [callMemoOrStaticFn(table, "getEndHeaderGroups", table_getEndHeaderGroups)]
+			},
+			table_getCenterLeafHeaders: {
+				fn: () => table_getCenterLeafHeaders(table),
+				memoDeps: () => [callMemoOrStaticFn(table, "getCenterHeaderGroups", table_getCenterHeaderGroups)]
+			},
+			table_getStartLeafColumns: {
+				fn: () => table_getStartLeafColumns(table),
+				memoDeps: () => [
+					table.options.columns,
+					table.atoms.columnPinning?.get(),
+					table.atoms.columnOrder?.get(),
+					table.atoms.grouping?.get(),
+					table.options.groupedColumnMode
+				]
+			},
+			table_getEndLeafColumns: {
+				fn: () => table_getEndLeafColumns(table),
+				memoDeps: () => [
+					table.options.columns,
+					table.atoms.columnPinning?.get(),
+					table.atoms.columnOrder?.get(),
+					table.atoms.grouping?.get(),
+					table.options.groupedColumnMode
+				]
+			},
+			table_getCenterLeafColumns: {
+				fn: () => table_getCenterLeafColumns(table),
+				memoDeps: () => [
+					table.options.columns,
+					table.atoms.columnPinning?.get(),
+					table.atoms.columnOrder?.get(),
+					table.atoms.grouping?.get(),
+					table.options.groupedColumnMode
+				]
+			},
+			table_getPinnedLeafColumns: { fn: (position) => table_getPinnedLeafColumns(table, position) },
+			table_getStartVisibleLeafColumns: {
+				fn: () => table_getStartVisibleLeafColumns(table),
+				memoDeps: () => [
+					table.options.columns,
+					table.atoms.columnPinning?.get(),
+					table.atoms.columnVisibility?.get(),
+					table.atoms.columnOrder?.get(),
+					table.atoms.grouping?.get(),
+					table.options.groupedColumnMode
+				]
+			},
+			table_getCenterVisibleLeafColumns: {
+				fn: () => table_getCenterVisibleLeafColumns(table),
+				memoDeps: () => [
+					table.options.columns,
+					table.atoms.columnPinning?.get(),
+					table.atoms.columnVisibility?.get(),
+					table.atoms.columnOrder?.get(),
+					table.atoms.grouping?.get(),
+					table.options.groupedColumnMode
+				]
+			},
+			table_getEndVisibleLeafColumns: {
+				fn: () => table_getEndVisibleLeafColumns(table),
+				memoDeps: () => [
+					table.options.columns,
+					table.atoms.columnPinning?.get(),
+					table.atoms.columnVisibility?.get(),
+					table.atoms.columnOrder?.get(),
+					table.atoms.grouping?.get(),
+					table.options.groupedColumnMode
+				]
+			},
+			table_getPinnedVisibleLeafColumns: { fn: (position) => table_getPinnedVisibleLeafColumns(table, position) }
+		});
 	}
 };
-function safelyAccessDocument(_document) {
-	return _document || (typeof document !== "undefined" ? document : null);
+//#endregion
+//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/features/column-sizing/columnSizingFeature.utils.js
+/**
+* Creates the default committed column sizing state.
+*
+* The feature default is an empty map, so columns fall back to their column def
+* size or the built-in sizing defaults.
+*
+* @example
+* ```ts
+* const sizing = getDefaultColumnSizingState()
+* ```
+*/
+function getDefaultColumnSizingState() {
+	return makeObjectMap();
 }
-var defaultColumnSizing = {
-	size: 150,
-	minSize: 20,
-	maxSize: Number.MAX_SAFE_INTEGER
-};
-var getDefaultColumnSizingInfoState = () => ({
-	startOffset: null,
-	startSize: null,
-	deltaOffset: null,
-	deltaPercentage: null,
-	isResizingColumn: false,
-	columnSizingStart: []
-});
-var ColumnSizing = {
-	getDefaultColumnDef: () => {
-		return defaultColumnSizing;
-	},
-	getInitialState: (state) => {
-		return {
-			columnSizing: {},
-			columnSizingInfo: getDefaultColumnSizingInfoState(),
-			...state
-		};
-	},
-	getDefaultOptions: (table) => {
-		return {
-			columnResizeMode: "onEnd",
-			columnResizeDirection: "ltr",
-			onColumnSizingChange: makeStateUpdater("columnSizing", table),
-			onColumnSizingInfoChange: makeStateUpdater("columnSizingInfo", table)
-		};
-	},
-	createColumn: (column, table) => {
-		column.getSize = () => {
-			var _column$columnDef$min, _ref, _column$columnDef$max;
-			const columnSize = table.getState().columnSizing[column.id];
-			return Math.min(Math.max((_column$columnDef$min = column.columnDef.minSize) != null ? _column$columnDef$min : defaultColumnSizing.minSize, (_ref = columnSize != null ? columnSize : column.columnDef.size) != null ? _ref : defaultColumnSizing.size), (_column$columnDef$max = column.columnDef.maxSize) != null ? _column$columnDef$max : defaultColumnSizing.maxSize);
-		};
-		column.getStart = memo$3((position) => [
-			position,
-			_getVisibleLeafColumns(table, position),
-			table.getState().columnSizing
-		], (position, columns) => columns.slice(0, column.getIndex(position)).reduce((sum, column) => sum + column.getSize(), 0), getMemoOptions(table.options, "debugColumns", "getStart"));
-		column.getAfter = memo$3((position) => [
-			position,
-			_getVisibleLeafColumns(table, position),
-			table.getState().columnSizing
-		], (position, columns) => columns.slice(column.getIndex(position) + 1).reduce((sum, column) => sum + column.getSize(), 0), getMemoOptions(table.options, "debugColumns", "getAfter"));
-		column.resetSize = () => {
-			table.setColumnSizing((_ref2) => {
-				let { [column.id]: _, ...rest } = _ref2;
-				return rest;
+/**
+* Creates the built-in sizing defaults for column definitions.
+*
+* Columns default to `size: 150`, `minSize: 20`, and
+* `maxSize: Number.MAX_SAFE_INTEGER` unless overridden by column definitions or
+* table defaults.
+*
+* @example
+* ```ts
+* const defaults = getDefaultColumnSizingColumnDef()
+* ```
+*/
+function getDefaultColumnSizingColumnDef() {
+	return {
+		size: 150,
+		minSize: 20,
+		maxSize: Number.MAX_SAFE_INTEGER
+	};
+}
+/**
+* Resolves a column's current pixel size.
+*
+* Committed `state.columnSizing[column.id]` wins over `columnDef.size`, then the
+* built-in default size. The result is clamped between min and max size.
+*
+* @example
+* ```ts
+* const width = column_getSize(column)
+* ```
+*/
+function column_getSize(column) {
+	const defaultSizes = getDefaultColumnSizingColumnDef();
+	const columnSizing = column.table.atoms.columnSizing?.get();
+	const columnSize = columnSizing && hasOwn(columnSizing, column.id) ? columnSizing[column.id] : void 0;
+	return Math.min(Math.max(column.columnDef.minSize ?? defaultSizes.minSize, columnSize ?? column.columnDef.size ?? defaultSizes.size), column.columnDef.maxSize ?? defaultSizes.maxSize);
+}
+function buildColumnOffsets(columns) {
+	const starts = makeObjectMap();
+	const afters = makeObjectMap();
+	const sizes = new Array(columns.length);
+	let start = 0;
+	for (let i = 0; i < columns.length; i++) {
+		const column = columns[i];
+		const size = callMemoOrStaticFn(column, "getSize", column_getSize);
+		sizes[i] = size;
+		starts[column.id] = start;
+		start += size;
+	}
+	let after = 0;
+	for (let i = columns.length - 1; i >= 0; i--) {
+		afters[columns[i].id] = after;
+		after += sizes[i];
+	}
+	return {
+		starts,
+		afters
+	};
+}
+/**
+* Builds start and after offset maps for every visible leaf column, computed
+* once per pinning region plus the full visible list.
+*
+* A single table-level memo of this result backs all `column.getStart()` and
+* `column.getAfter()` calls with O(1) lookups.
+*
+* @example
+* ```ts
+* const offsets = table_getColumnOffsets(table)
+* const startOffset = offsets.start.starts[column.id]
+* ```
+*/
+function table_getColumnOffsets(table) {
+	return {
+		all: buildColumnOffsets(table_getPinnedVisibleLeafColumns(table)),
+		center: buildColumnOffsets(table_getPinnedVisibleLeafColumns(table, "center")),
+		start: buildColumnOffsets(table_getPinnedVisibleLeafColumns(table, "start")),
+		end: buildColumnOffsets(table_getPinnedVisibleLeafColumns(table, "end"))
+	};
+}
+function toOffsetsKey(position) {
+	return position === "start" ? "start" : position === "end" ? "end" : position === "center" ? "center" : "all";
+}
+/**
+* Computes the offset from the start edge of a pinning region to this column.
+*
+* The value is the sum of all previous visible leaf column sizes in the
+* requested `'start'`, `'center'`, or `'end'` region.
+*
+* `start` and `end` are logical positions. In LTR languages/layouts, `start`
+* usually corresponds to left and `end` to right. In RTL languages/layouts,
+* `start` usually corresponds to right and `end` to left.
+*
+* @example
+* ```ts
+* const startOffset = column_getStart(column, 'start')
+* ```
+*/
+function column_getStart(column, position) {
+	return callMemoOrStaticFn(column.table, "getColumnOffsets", table_getColumnOffsets)[toOffsetsKey(position)].starts[column.id] ?? 0;
+}
+/**
+* Computes the offset from the end edge of a pinning region after this column.
+*
+* The value is the sum of all following visible leaf column sizes in the
+* requested region.
+*
+* @example
+* ```ts
+* const endOffset = column_getAfter(column, 'end')
+* ```
+*/
+function column_getAfter(column, position) {
+	return callMemoOrStaticFn(column.table, "getColumnOffsets", table_getColumnOffsets)[toOffsetsKey(position)].afters[column.id] ?? 0;
+}
+/**
+* Removes this column's committed size override.
+*
+* After reset, the column resolves size from `columnDef.size` or built-in
+* defaults again.
+*
+* @example
+* ```ts
+* column_resetSize(column)
+* ```
+*/
+function column_resetSize(column) {
+	table_setColumnSizing(column.table, (old) => {
+		const rest = makeObjectMap();
+		const columnIds = Object.keys(old);
+		for (let i = 0; i < columnIds.length; i++) {
+			const columnId = columnIds[i];
+			if (columnId !== column.id) rest[columnId] = old[columnId];
+		}
+		return rest;
+	});
+}
+function sumHeaderSize(header) {
+	if (!header.subHeaders.length) return column_getSize(header.column);
+	let sum = 0;
+	for (let i = 0; i < header.subHeaders.length; i++) sum += sumHeaderSize(header.subHeaders[i]);
+	return sum;
+}
+/**
+* Computes a header's rendered size from its leaf headers.
+*
+* Group headers sum the sizes of all descendant leaf columns. Leaf headers use
+* their column's current size.
+*
+* @example
+* ```ts
+* const width = header_getSize(header)
+* ```
+*/
+function header_getSize(header) {
+	return sumHeaderSize(header);
+}
+/**
+* Computes a header's offset from the start of its header group.
+*
+* The offset is the previous sibling header's start plus size, or `0` for the
+* first header in the group.
+*
+* @example
+* ```ts
+* const offset = header_getStart(header)
+* ```
+*/
+function header_getStart(header) {
+	if (header.index > 0) {
+		const prevSiblingHeader = header.headerGroup?.headers[header.index - 1];
+		if (prevSiblingHeader) return callMemoOrStaticFn(prevSiblingHeader, "getStart", header_getStart) + callMemoOrStaticFn(prevSiblingHeader, "getSize", header_getSize);
+	}
+	return 0;
+}
+/**
+* Routes a committed column sizing updater through the table's sizing handler.
+*
+* The updater may be a next size map or a function of the previous map,
+* matching the instance `table.setColumnSizing` behavior.
+*
+* @example
+* ```ts
+* table_setColumnSizing(table, (old) => ({ ...old, age: 96 }))
+* ```
+*/
+function table_setColumnSizing(table, updater) {
+	table.options.onColumnSizingChange?.(updater);
+}
+/**
+* Resets `columnSizing` to the configured initial state or feature default.
+*
+* With no argument, the reset clones `table.initialState.columnSizing` when it
+* exists. Passing `true` ignores initial state and resets to `{}`.
+*
+* @example
+* ```ts
+* table_resetColumnSizing(table)
+* table_resetColumnSizing(table, true)
+* ```
+*/
+function table_resetColumnSizing(table, defaultState) {
+	table_setColumnSizing(table, defaultState ? makeObjectMap() : Object.assign(makeObjectMap(), cloneState(table.initialState.columnSizing ?? {})));
+}
+/**
+* Sums the rendered size of the full table header row.
+*
+* This includes start, center, and end columns in the main header group.
+*
+* @example
+* ```ts
+* const width = table_getTotalSize(table)
+* ```
+*/
+function table_getTotalSize(table) {
+	return table.getHeaderGroups()[0]?.headers.reduce((sum, header) => {
+		return sum + header_getSize(header);
+	}, 0) ?? 0;
+}
+/**
+* Sums the rendered size of the logical start pinned header region.
+*
+* An empty start pinning region returns `0`.
+*
+* @example
+* ```ts
+* const width = table_getStartTotalSize(table)
+* ```
+*/
+function table_getStartTotalSize(table) {
+	return callMemoOrStaticFn(table, "getStartHeaderGroups", table_getStartHeaderGroups)[0]?.headers.reduce((sum, header) => {
+		return sum + header_getSize(header);
+	}, 0) ?? 0;
+}
+/**
+* Sums the rendered size of the center, unpinned header region.
+*
+* An empty center region returns `0`.
+*
+* @example
+* ```ts
+* const width = table_getCenterTotalSize(table)
+* ```
+*/
+function table_getCenterTotalSize(table) {
+	return callMemoOrStaticFn(table, "getCenterHeaderGroups", table_getCenterHeaderGroups)[0]?.headers.reduce((sum, header) => {
+		return sum + header_getSize(header);
+	}, 0) ?? 0;
+}
+/**
+* Sums the rendered size of the logical end pinned header region.
+*
+* An empty end pinning region returns `0`.
+*
+* @example
+* ```ts
+* const width = table_getEndTotalSize(table)
+* ```
+*/
+function table_getEndTotalSize(table) {
+	return callMemoOrStaticFn(table, "getEndHeaderGroups", table_getEndHeaderGroups)[0]?.headers.reduce((sum, header) => {
+		return sum + header_getSize(header);
+	}, 0) ?? 0;
+}
+//#endregion
+//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/features/column-resizing/columnResizingFeature.utils.js
+/**
+* Creates the default transient column resizing state.
+*
+* The feature default represents no active drag interaction. Reset APIs use
+* this value when `defaultState` is `true`.
+*
+* @example
+* ```ts
+* const resizeInfo = getDefaultColumnResizingState()
+* ```
+*/
+function getDefaultColumnResizingState() {
+	return {
+		startOffset: null,
+		startSize: null,
+		deltaOffset: null,
+		deltaPercentage: null,
+		isResizingColumn: false,
+		columnSizingStart: []
+	};
+}
+/**
+* Checks whether this column can start a resize interaction.
+*
+* Both `columnDef.enableResizing` and table `enableColumnResizing` default to
+* `true`.
+*
+* @example
+* ```ts
+* const canResize = column_getCanResize(column)
+* ```
+*/
+function column_getCanResize(column) {
+	return (column.columnDef.enableResizing ?? true) && (column.table.options.enableColumnResizing ?? true);
+}
+/**
+* Checks whether this column is the active column resize target.
+*
+* The value is read from `state.columnResizing.isResizingColumn`.
+*
+* @example
+* ```ts
+* const isResizing = column_getIsResizing(column)
+* ```
+*/
+function column_getIsResizing(column) {
+	return column.table.atoms.columnResizing?.get()?.isResizingColumn === column.id;
+}
+/**
+* Creates the pointer/touch start handler for resizing a header.
+*
+* The handler records starting sizes for all leaf headers, tracks drag deltas,
+* writes transient resize info, and commits column sizes on change or drag end
+* depending on `columnResizeMode`.
+*
+* @example
+* ```ts
+* const onMouseDown = header_getResizeHandler(header)
+* ```
+*/
+function header_getResizeHandler(header, _contextDocument) {
+	const column = header.table.getColumn(header.column.id);
+	const canResize = column_getCanResize(column);
+	return (event) => {
+		if (!canResize) return;
+		if (isTouchStartEvent(event)) {
+			if (event.touches.length > 1) return;
+		}
+		const startSize = header_getSize(header);
+		const columnSizingStart = header.getLeafHeaders().map((leafHeader) => [leafHeader.column.id, column_getSize(leafHeader.column)]);
+		const clientX = isTouchStartEvent(event) ? Math.round(event.touches[0].clientX) : event.clientX;
+		const newColumnSizing = makeObjectMap();
+		const updateOffset = (eventType, clientXPos) => {
+			if (typeof clientXPos !== "number") return;
+			const table = column.table;
+			const isCommit = table.options.columnResizeMode === "onChange" || eventType === "end";
+			table._reactivity.batch(() => {
+				table_setColumnResizing(table, (old) => {
+					const deltaDirection = table.options.columnResizeDirection === "rtl" ? -1 : 1;
+					const deltaOffset = (clientXPos - (old.startOffset ?? 0)) * deltaDirection;
+					const startSize = old.startSize ?? 0;
+					const deltaPercentage = Math.max(startSize > 0 ? deltaOffset / startSize : 0, -.999999);
+					if (isCommit) {
+						const columnSizingStart = old.columnSizingStart;
+						for (let i = 0; i < columnSizingStart.length; i++) {
+							const entry = columnSizingStart[i];
+							const headerSize = entry[1];
+							newColumnSizing[entry[0]] = Math.round(Math.max(headerSize > 0 ? headerSize + headerSize * deltaPercentage : deltaOffset / columnSizingStart.length, 0) * 100) / 100;
+						}
+					}
+					return {
+						...old,
+						deltaOffset,
+						deltaPercentage
+					};
+				});
+				if (isCommit) table_setColumnSizing(table, (old) => Object.assign(makeObjectMap(), old, newColumnSizing));
 			});
 		};
-		column.getCanResize = () => {
-			var _column$columnDef$ena, _table$options$enable;
-			return ((_column$columnDef$ena = column.columnDef.enableResizing) != null ? _column$columnDef$ena : true) && ((_table$options$enable = table.options.enableColumnResizing) != null ? _table$options$enable : true);
+		let moveRafId = null;
+		let hasPendingMove = false;
+		let latestMoveX;
+		const flushMove = () => {
+			if (hasPendingMove) {
+				hasPendingMove = false;
+				updateOffset("move", latestMoveX);
+				moveRafId = requestAnimationFrame(flushMove);
+			} else moveRafId = null;
 		};
-		column.getIsResizing = () => {
-			return table.getState().columnSizingInfo.isResizingColumn === column.id;
-		};
-	},
-	createHeader: (header, table) => {
-		header.getSize = () => {
-			let sum = 0;
-			const recurse = (header) => {
-				if (header.subHeaders.length) header.subHeaders.forEach(recurse);
-				else {
-					var _header$column$getSiz;
-					sum += (_header$column$getSiz = header.column.getSize()) != null ? _header$column$getSiz : 0;
-				}
-			};
-			recurse(header);
-			return sum;
-		};
-		header.getStart = () => {
-			if (header.index > 0) {
-				const prevSiblingHeader = header.headerGroup.headers[header.index - 1];
-				return prevSiblingHeader.getStart() + prevSiblingHeader.getSize();
+		const onMove = (clientXPos) => {
+			latestMoveX = clientXPos;
+			if (typeof requestAnimationFrame !== "function") {
+				updateOffset("move", clientXPos);
+				return;
 			}
-			return 0;
+			if (moveRafId !== null) {
+				hasPendingMove = true;
+				return;
+			}
+			updateOffset("move", clientXPos);
+			moveRafId = requestAnimationFrame(flushMove);
 		};
-		header.getResizeHandler = (_contextDocument) => {
-			const column = table.getColumn(header.column.id);
-			const canResize = column == null ? void 0 : column.getCanResize();
-			return (e) => {
-				if (!column || !canResize) return;
-				e.persist == null || e.persist();
-				if (isTouchStartEvent(e)) {
-					if (e.touches && e.touches.length > 1) return;
-				}
-				const startSize = header.getSize();
-				const columnSizingStart = header ? header.getLeafHeaders().map((d) => [d.column.id, d.column.getSize()]) : [[column.id, column.getSize()]];
-				const clientX = isTouchStartEvent(e) ? Math.round(e.touches[0].clientX) : e.clientX;
-				const newColumnSizing = {};
-				const updateOffset = (eventType, clientXPos) => {
-					if (typeof clientXPos !== "number") return;
-					table.setColumnSizingInfo((old) => {
-						var _old$startOffset, _old$startSize;
-						const deltaDirection = table.options.columnResizeDirection === "rtl" ? -1 : 1;
-						const deltaOffset = (clientXPos - ((_old$startOffset = old == null ? void 0 : old.startOffset) != null ? _old$startOffset : 0)) * deltaDirection;
-						const deltaPercentage = Math.max(deltaOffset / ((_old$startSize = old == null ? void 0 : old.startSize) != null ? _old$startSize : 0), -.999999);
-						old.columnSizingStart.forEach((_ref3) => {
-							let [columnId, headerSize] = _ref3;
-							newColumnSizing[columnId] = Math.round(Math.max(headerSize + headerSize * deltaPercentage, 0) * 100) / 100;
-						});
-						return {
-							...old,
-							deltaOffset,
-							deltaPercentage
-						};
-					});
-					if (table.options.columnResizeMode === "onChange" || eventType === "end") table.setColumnSizing((old) => ({
-						...old,
-						...newColumnSizing
-					}));
-				};
-				const onMove = (clientXPos) => updateOffset("move", clientXPos);
-				const onEnd = (clientXPos) => {
-					updateOffset("end", clientXPos);
-					table.setColumnSizingInfo((old) => ({
-						...old,
-						isResizingColumn: false,
-						startOffset: null,
-						startSize: null,
-						deltaOffset: null,
-						deltaPercentage: null,
-						columnSizingStart: []
-					}));
-				};
-				const contextDocument = safelyAccessDocument(_contextDocument);
-				const mouseEvents = {
-					moveHandler: (e) => onMove(e.clientX),
-					upHandler: (e) => {
-						contextDocument?.removeEventListener("mousemove", mouseEvents.moveHandler);
-						contextDocument?.removeEventListener("mouseup", mouseEvents.upHandler);
-						onEnd(e.clientX);
-					}
-				};
-				const touchEvents = {
-					moveHandler: (e) => {
-						if (e.cancelable) {
-							e.preventDefault();
-							e.stopPropagation();
-						}
-						onMove(e.touches[0].clientX);
-						return false;
-					},
-					upHandler: (e) => {
-						var _e$touches$;
-						contextDocument?.removeEventListener("touchmove", touchEvents.moveHandler);
-						contextDocument?.removeEventListener("touchend", touchEvents.upHandler);
-						if (e.cancelable) {
-							e.preventDefault();
-							e.stopPropagation();
-						}
-						onEnd((_e$touches$ = e.touches[0]) == null ? void 0 : _e$touches$.clientX);
-					}
-				};
-				const passiveIfSupported = passiveEventSupported() ? { passive: false } : false;
-				if (isTouchStartEvent(e)) {
-					contextDocument?.addEventListener("touchmove", touchEvents.moveHandler, passiveIfSupported);
-					contextDocument?.addEventListener("touchend", touchEvents.upHandler, passiveIfSupported);
-				} else {
-					contextDocument?.addEventListener("mousemove", mouseEvents.moveHandler, passiveIfSupported);
-					contextDocument?.addEventListener("mouseup", mouseEvents.upHandler, passiveIfSupported);
-				}
-				table.setColumnSizingInfo((old) => ({
+		const onEnd = (clientXPos) => {
+			if (moveRafId !== null) {
+				cancelAnimationFrame(moveRafId);
+				moveRafId = null;
+				hasPendingMove = false;
+			}
+			column.table._reactivity.batch(() => {
+				updateOffset("end", clientXPos ?? latestMoveX);
+				table_setColumnResizing(column.table, (old) => ({
 					...old,
-					startOffset: clientX,
-					startSize,
-					deltaOffset: 0,
-					deltaPercentage: 0,
-					columnSizingStart,
-					isResizingColumn: column.id
+					isResizingColumn: false,
+					startOffset: null,
+					startSize: null,
+					deltaOffset: null,
+					deltaPercentage: null,
+					columnSizingStart: []
 				}));
-			};
+			});
 		};
-	},
-	createTable: (table) => {
-		table.setColumnSizing = (updater) => table.options.onColumnSizingChange == null ? void 0 : table.options.onColumnSizingChange(updater);
-		table.setColumnSizingInfo = (updater) => table.options.onColumnSizingInfoChange == null ? void 0 : table.options.onColumnSizingInfoChange(updater);
-		table.resetColumnSizing = (defaultState) => {
-			var _table$initialState$c;
-			table.setColumnSizing(defaultState ? {} : (_table$initialState$c = table.initialState.columnSizing) != null ? _table$initialState$c : {});
+		const contextDocument = _contextDocument || (typeof document !== "undefined" ? document : null);
+		const mouseEvents = {
+			moveHandler: (e) => onMove(e.clientX),
+			upHandler: (e) => {
+				contextDocument?.removeEventListener("mousemove", mouseEvents.moveHandler);
+				contextDocument?.removeEventListener("mouseup", mouseEvents.upHandler);
+				onEnd(e.clientX);
+			}
 		};
-		table.resetHeaderSizeInfo = (defaultState) => {
-			var _table$initialState$c2;
-			table.setColumnSizingInfo(defaultState ? getDefaultColumnSizingInfoState() : (_table$initialState$c2 = table.initialState.columnSizingInfo) != null ? _table$initialState$c2 : getDefaultColumnSizingInfoState());
+		const touchEvents = {
+			moveHandler: (touchEvent) => {
+				if (touchEvent.cancelable) {
+					touchEvent.preventDefault();
+					touchEvent.stopPropagation();
+				}
+				onMove(touchEvent.touches[0].clientX);
+				return false;
+			},
+			upHandler: (e) => {
+				removeTouchEvents();
+				if (e.cancelable) {
+					e.preventDefault();
+					e.stopPropagation();
+				}
+				onEnd(e.touches[0]?.clientX);
+			},
+			cancelHandler: () => {
+				removeTouchEvents();
+				onEnd();
+			}
 		};
-		table.getTotalSize = () => {
-			var _table$getHeaderGroup, _table$getHeaderGroup2;
-			return (_table$getHeaderGroup = (_table$getHeaderGroup2 = table.getHeaderGroups()[0]) == null ? void 0 : _table$getHeaderGroup2.headers.reduce((sum, header) => {
-				return sum + header.getSize();
-			}, 0)) != null ? _table$getHeaderGroup : 0;
+		const removeTouchEvents = () => {
+			contextDocument?.removeEventListener("touchmove", touchEvents.moveHandler);
+			contextDocument?.removeEventListener("touchend", touchEvents.upHandler);
+			contextDocument?.removeEventListener("touchcancel", touchEvents.cancelHandler);
 		};
-		table.getLeftTotalSize = () => {
-			var _table$getLeftHeaderG, _table$getLeftHeaderG2;
-			return (_table$getLeftHeaderG = (_table$getLeftHeaderG2 = table.getLeftHeaderGroups()[0]) == null ? void 0 : _table$getLeftHeaderG2.headers.reduce((sum, header) => {
-				return sum + header.getSize();
-			}, 0)) != null ? _table$getLeftHeaderG : 0;
-		};
-		table.getCenterTotalSize = () => {
-			var _table$getCenterHeade, _table$getCenterHeade2;
-			return (_table$getCenterHeade = (_table$getCenterHeade2 = table.getCenterHeaderGroups()[0]) == null ? void 0 : _table$getCenterHeade2.headers.reduce((sum, header) => {
-				return sum + header.getSize();
-			}, 0)) != null ? _table$getCenterHeade : 0;
-		};
-		table.getRightTotalSize = () => {
-			var _table$getRightHeader, _table$getRightHeader2;
-			return (_table$getRightHeader = (_table$getRightHeader2 = table.getRightHeaderGroups()[0]) == null ? void 0 : _table$getRightHeader2.headers.reduce((sum, header) => {
-				return sum + header.getSize();
-			}, 0)) != null ? _table$getRightHeader : 0;
-		};
-	}
-};
+		const passiveIfSupported = passiveEventSupported() ? { passive: false } : false;
+		if (isTouchStartEvent(event)) {
+			contextDocument?.addEventListener("touchmove", touchEvents.moveHandler, passiveIfSupported);
+			contextDocument?.addEventListener("touchend", touchEvents.upHandler, passiveIfSupported);
+			contextDocument?.addEventListener("touchcancel", touchEvents.cancelHandler, passiveIfSupported);
+		} else {
+			contextDocument?.addEventListener("mousemove", mouseEvents.moveHandler, passiveIfSupported);
+			contextDocument?.addEventListener("mouseup", mouseEvents.upHandler, passiveIfSupported);
+		}
+		table_setColumnResizing(column.table, (old) => ({
+			...old,
+			startOffset: clientX,
+			startSize,
+			deltaOffset: 0,
+			deltaPercentage: 0,
+			columnSizingStart,
+			isResizingColumn: column.id
+		}));
+	};
+}
+/**
+* Routes a transient column resizing updater through the table's resize handler.
+*
+* This state tracks the active drag interaction; committed widths live in
+* `columnSizing`.
+*
+* @example
+* ```ts
+* table_setColumnResizing(table, (old) => ({ ...old, deltaOffset: 12 }))
+* ```
+*/
+function table_setColumnResizing(table, updater) {
+	table.options.onColumnResizingChange?.(updater);
+}
+/**
+* Resets `columnResizing` to the configured initial state or feature default.
+*
+* With no argument, the reset clones `table.initialState.columnResizing` when
+* it exists. Passing `true` ignores initial state and resets to the no-drag
+* default state.
+*
+* @example
+* ```ts
+* table_resetHeaderSizeInfo(table)
+* table_resetHeaderSizeInfo(table, true)
+* ```
+*/
+function table_resetHeaderSizeInfo(table, defaultState) {
+	table_setColumnResizing(table, defaultState ? getDefaultColumnResizingState() : cloneState(table.initialState.columnResizing ?? getDefaultColumnResizingState()));
+}
 var passiveSupported = null;
+/**
+* Detects whether the current environment supports passive event listeners.
+*
+* Column resizing uses this to register pointer and touch listeners with
+* `passive: false` only when the environment understands passive options.
+*
+* @example
+* ```ts
+* const canUsePassiveListeners = passiveEventSupported()
+* ```
+*/
 function passiveEventSupported() {
 	if (typeof passiveSupported === "boolean") return passiveSupported;
 	let supported = false;
@@ -101177,1222 +105112,443 @@ function passiveEventSupported() {
 	passiveSupported = supported;
 	return passiveSupported;
 }
+/**
+* Narrows an unknown event to a `touchstart` event.
+*
+* Column resizing uses this before reading touch coordinates and installing
+* touch-specific listeners.
+*
+* @example
+* ```ts
+* const isTouch = isTouchStartEvent(event)
+* ```
+*/
 function isTouchStartEvent(e) {
 	return e.type === "touchstart";
 }
-var ColumnVisibility = {
-	getInitialState: (state) => {
+//#endregion
+//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/features/column-resizing/columnResizingFeature.js
+/**
+* Feature that adds column resizing state, options, and resize handlers.
+*/
+var columnResizingFeature = {
+	getInitialState: (initialState) => {
 		return {
-			columnVisibility: {},
-			...state
+			columnResizing: getDefaultColumnResizingState(),
+			...initialState
 		};
 	},
-	getDefaultOptions: (table) => {
+	getDefaultTableOptions: (table) => {
+		return {
+			columnResizeMode: "onEnd",
+			columnResizeDirection: "ltr",
+			onColumnResizingChange: makeStateUpdater("columnResizing", table)
+		};
+	},
+	assignColumnPrototype: (prototype, table) => {
+		assignPrototypeAPIs("columnResizingFeature", prototype, table, {
+			column_getCanResize: { fn: (column) => column_getCanResize(column) },
+			column_getIsResizing: { fn: (column) => column_getIsResizing(column) }
+		});
+	},
+	assignHeaderPrototype: (prototype, table) => {
+		assignPrototypeAPIs("columnResizingFeature", prototype, table, { header_getResizeHandler: { fn: (header, _contextDocument) => header_getResizeHandler(header, _contextDocument) } });
+	},
+	constructTableAPIs: (table) => {
+		assignTableAPIs("columnResizingFeature", table, {
+			table_setColumnResizing: { fn: (updater) => table_setColumnResizing(table, updater) },
+			table_resetHeaderSizeInfo: { fn: (defaultState) => table_resetHeaderSizeInfo(table, defaultState) }
+		});
+	}
+};
+//#endregion
+//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/features/column-sizing/columnSizingFeature.js
+/**
+* Feature that adds column sizing state, defaults, and size measurement APIs.
+*/
+var columnSizingFeature = {
+	getInitialState: (initialState) => {
+		return {
+			columnSizing: getDefaultColumnSizingState(),
+			...initialState
+		};
+	},
+	getDefaultColumnDef: () => {
+		return getDefaultColumnSizingColumnDef();
+	},
+	getDefaultTableOptions: (table) => {
+		return { onColumnSizingChange: makeStateUpdater("columnSizing", table) };
+	},
+	assignColumnPrototype: (prototype, table) => {
+		assignPrototypeAPIs("columnSizingFeature", prototype, table, {
+			column_getSize: {
+				fn: (column) => column_getSize(column),
+				memoDeps: (column) => [table.options.columns, table.atoms.columnSizing?.get()?.[column.id]]
+			},
+			column_getStart: { fn: (column, position) => column_getStart(column, position) },
+			column_getAfter: { fn: (column, position) => column_getAfter(column, position) },
+			column_resetSize: { fn: (column) => column_resetSize(column) }
+		});
+	},
+	assignHeaderPrototype: (prototype, table) => {
+		assignPrototypeAPIs("columnSizingFeature", prototype, table, {
+			header_getSize: {
+				fn: (header) => header_getSize(header),
+				memoDeps: (header) => [table.options.columns, header.column.columns.length > 0 ? table.atoms.columnSizing?.get() : table.atoms.columnSizing?.get()?.[header.column.id]]
+			},
+			header_getStart: {
+				fn: (header) => header_getStart(header),
+				memoDeps: () => [
+					table.options.columns,
+					table.atoms.columnSizing?.get(),
+					table.atoms.columnOrder?.get(),
+					table.atoms.columnPinning?.get(),
+					table.atoms.columnVisibility?.get(),
+					table.atoms.grouping?.get(),
+					table.options.groupedColumnMode
+				]
+			}
+		});
+	},
+	constructTableAPIs: (table) => {
+		assignTableAPIs("columnSizingFeature", table, {
+			table_getColumnOffsets: {
+				fn: () => table_getColumnOffsets(table),
+				memoDeps: () => [
+					table.options.columns,
+					table.atoms.columnSizing?.get(),
+					table.atoms.columnOrder?.get(),
+					table.atoms.columnPinning?.get(),
+					table.atoms.columnVisibility?.get(),
+					table.atoms.grouping?.get(),
+					table.options.groupedColumnMode
+				]
+			},
+			table_setColumnSizing: { fn: (updater) => table_setColumnSizing(table, updater) },
+			table_resetColumnSizing: { fn: (defaultState) => table_resetColumnSizing(table, defaultState) },
+			table_getTotalSize: {
+				fn: () => table_getTotalSize(table),
+				memoDeps: () => [table.atoms.columnSizing?.get(), table.getHeaderGroups()]
+			},
+			table_getStartTotalSize: {
+				fn: () => table_getStartTotalSize(table),
+				memoDeps: () => [table.atoms.columnSizing?.get(), table.getHeaderGroups()]
+			},
+			table_getCenterTotalSize: {
+				fn: () => table_getCenterTotalSize(table),
+				memoDeps: () => [table.atoms.columnSizing?.get(), table.getHeaderGroups()]
+			},
+			table_getEndTotalSize: {
+				fn: () => table_getEndTotalSize(table),
+				memoDeps: () => [table.atoms.columnSizing?.get(), table.getHeaderGroups()]
+			}
+		});
+	}
+};
+//#endregion
+//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/features/column-visibility/columnVisibilityFeature.js
+/**
+* Feature that adds column visibility state and APIs for hiding and showing columns.
+*/
+var columnVisibilityFeature = {
+	getInitialState: (initialState) => {
+		return {
+			columnVisibility: getDefaultColumnVisibilityState(),
+			...initialState
+		};
+	},
+	getDefaultTableOptions: (table) => {
 		return { onColumnVisibilityChange: makeStateUpdater("columnVisibility", table) };
 	},
-	createColumn: (column, table) => {
-		column.toggleVisibility = (value) => {
-			if (column.getCanHide()) table.setColumnVisibility((old) => ({
-				...old,
-				[column.id]: value != null ? value : !column.getIsVisible()
-			}));
-		};
-		column.getIsVisible = () => {
-			var _ref, _table$getState$colum;
-			const childColumns = column.columns;
-			return (_ref = childColumns.length ? childColumns.some((c) => c.getIsVisible()) : (_table$getState$colum = table.getState().columnVisibility) == null ? void 0 : _table$getState$colum[column.id]) != null ? _ref : true;
-		};
-		column.getCanHide = () => {
-			var _column$columnDef$ena, _table$options$enable;
-			return ((_column$columnDef$ena = column.columnDef.enableHiding) != null ? _column$columnDef$ena : true) && ((_table$options$enable = table.options.enableHiding) != null ? _table$options$enable : true);
-		};
-		column.getToggleVisibilityHandler = () => {
-			return (e) => {
-				column.toggleVisibility == null || column.toggleVisibility(e.target.checked);
-			};
-		};
+	assignColumnPrototype: (prototype, table) => {
+		assignPrototypeAPIs("columnVisibilityFeature", prototype, table, {
+			column_getIsVisible: {
+				fn: (column) => column_getIsVisible(column),
+				memoDeps: (column) => [
+					table.options.columns,
+					table.atoms.columnVisibility?.get(),
+					column.columns
+				]
+			},
+			column_getCanHide: { fn: (column) => column_getCanHide(column) },
+			column_getToggleVisibilityHandler: { fn: (column) => column_getToggleVisibilityHandler(column) },
+			column_toggleVisibility: { fn: (column, visible) => column_toggleVisibility(column, visible) }
+		});
 	},
-	createRow: (row, table) => {
-		row._getAllVisibleCells = memo$3(() => [row.getAllCells(), table.getState().columnVisibility], (cells) => {
-			return cells.filter((cell) => cell.column.getIsVisible());
-		}, getMemoOptions(table.options, "debugRows", "_getAllVisibleCells"));
-		row.getVisibleCells = memo$3(() => [
-			row.getLeftVisibleCells(),
-			row.getCenterVisibleCells(),
-			row.getRightVisibleCells()
-		], (left, center, right) => [
-			...left,
-			...center,
-			...right
-		], getMemoOptions(table.options, "debugRows", "getVisibleCells"));
+	assignRowPrototype: (prototype, table) => {
+		assignPrototypeAPIs("columnVisibilityFeature", prototype, table, {
+			row_getVisibleCells: {
+				fn: (row) => row_getVisibleCells(row),
+				memoDeps: (row) => [
+					row.getAllCells(),
+					table.atoms.columnPinning?.get(),
+					table.atoms.columnVisibility?.get()
+				]
+			},
+			row_getVisibleCellsByColumnId: {
+				fn: (row) => row_getVisibleCellsByColumnId(row),
+				memoDeps: (row) => [row.getAllCells(), table.atoms.columnVisibility?.get()]
+			}
+		});
 	},
-	createTable: (table) => {
-		const makeVisibleColumnsMethod = (key, getColumns) => {
-			return memo$3(() => [getColumns(), getColumns().filter((d) => d.getIsVisible()).map((d) => d.id).join("_")], (columns) => {
-				return columns.filter((d) => d.getIsVisible == null ? void 0 : d.getIsVisible());
-			}, getMemoOptions(table.options, "debugColumns", key));
-		};
-		table.getVisibleFlatColumns = makeVisibleColumnsMethod("getVisibleFlatColumns", () => table.getAllFlatColumns());
-		table.getVisibleLeafColumns = makeVisibleColumnsMethod("getVisibleLeafColumns", () => table.getAllLeafColumns());
-		table.getLeftVisibleLeafColumns = makeVisibleColumnsMethod("getLeftVisibleLeafColumns", () => table.getLeftLeafColumns());
-		table.getRightVisibleLeafColumns = makeVisibleColumnsMethod("getRightVisibleLeafColumns", () => table.getRightLeafColumns());
-		table.getCenterVisibleLeafColumns = makeVisibleColumnsMethod("getCenterVisibleLeafColumns", () => table.getCenterLeafColumns());
-		table.setColumnVisibility = (updater) => table.options.onColumnVisibilityChange == null ? void 0 : table.options.onColumnVisibilityChange(updater);
-		table.resetColumnVisibility = (defaultState) => {
-			var _table$initialState$c;
-			table.setColumnVisibility(defaultState ? {} : (_table$initialState$c = table.initialState.columnVisibility) != null ? _table$initialState$c : {});
-		};
-		table.toggleAllColumnsVisible = (value) => {
-			var _value;
-			value = (_value = value) != null ? _value : !table.getIsAllColumnsVisible();
-			table.setColumnVisibility(table.getAllLeafColumns().reduce((obj, column) => ({
-				...obj,
-				[column.id]: !value ? !(column.getCanHide != null && column.getCanHide()) : value
-			}), {}));
-		};
-		table.getIsAllColumnsVisible = () => !table.getAllLeafColumns().some((column) => !(column.getIsVisible != null && column.getIsVisible()));
-		table.getIsSomeColumnsVisible = () => table.getAllLeafColumns().some((column) => column.getIsVisible == null ? void 0 : column.getIsVisible());
-		table.getToggleAllColumnsVisibilityHandler = () => {
-			return (e) => {
-				var _target;
-				table.toggleAllColumnsVisible((_target = e.target) == null ? void 0 : _target.checked);
-			};
-		};
+	constructTableAPIs: (table) => {
+		assignTableAPIs("columnVisibilityFeature", table, {
+			table_getVisibleFlatColumns: {
+				fn: () => table_getVisibleFlatColumns(table),
+				memoDeps: () => [
+					table.atoms.columnVisibility?.get(),
+					table.atoms.columnOrder?.get(),
+					table.atoms.grouping?.get(),
+					table.options.columns,
+					table.options.groupedColumnMode
+				]
+			},
+			table_getVisibleLeafColumns: {
+				fn: () => table_getVisibleLeafColumns(table),
+				memoDeps: () => [
+					table.atoms.columnVisibility?.get(),
+					table.atoms.columnOrder?.get(),
+					table.atoms.grouping?.get(),
+					table.options.columns,
+					table.options.groupedColumnMode
+				]
+			},
+			table_setColumnVisibility: { fn: (updater) => table_setColumnVisibility(table, updater) },
+			table_resetColumnVisibility: { fn: (defaultState) => table_resetColumnVisibility(table, defaultState) },
+			table_toggleAllColumnsVisible: { fn: (value) => table_toggleAllColumnsVisible(table, value) },
+			table_getIsAllColumnsVisible: { fn: () => table_getIsAllColumnsVisible(table) },
+			table_getIsSomeColumnsVisible: { fn: () => table_getIsSomeColumnsVisible(table) },
+			table_getToggleAllColumnsVisibilityHandler: { fn: () => table_getToggleAllColumnsVisibilityHandler(table) }
+		});
 	}
 };
-function _getVisibleLeafColumns(table, position) {
-	return !position ? table.getVisibleLeafColumns() : position === "center" ? table.getCenterVisibleLeafColumns() : position === "left" ? table.getLeftVisibleLeafColumns() : table.getRightVisibleLeafColumns();
+//#endregion
+//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/features/row-sorting/rowSortingFeature.js
+/**
+* Feature that adds row sorting state, defaults, and column/table sorting APIs.
+*/
+var rowSortingFeature = {
+	getInitialState(initialState) {
+		return {
+			sorting: getDefaultSortingState(),
+			...initialState
+		};
+	},
+	getDefaultColumnDef() {
+		return {
+			sortFn: "auto",
+			sortUndefined: 1
+		};
+	},
+	getDefaultTableOptions(table) {
+		return {
+			autoResetSorting: false,
+			onSortingChange: makeStateUpdater("sorting", table),
+			isMultiSortEvent: (e) => {
+				return e.shiftKey;
+			}
+		};
+	},
+	assignColumnPrototype(prototype, table) {
+		assignPrototypeAPIs("rowSortingFeature", prototype, table, {
+			column_getAutoSortFn: { fn: (column) => column_getAutoSortFn(column) },
+			column_getAutoSortDir: { fn: (column) => column_getAutoSortDir(column) },
+			column_getSortFn: { fn: (column) => column_getSortFn(column) },
+			column_toggleSorting: { fn: (column, desc, multi) => column_toggleSorting(column, desc, multi) },
+			column_getFirstSortDir: { fn: (column) => column_getFirstSortDir(column) },
+			column_getNextSortingOrder: { fn: (column, multi) => column_getNextSortingOrder(column, multi) },
+			column_getCanSort: { fn: (column) => column_getCanSort(column) },
+			column_getCanMultiSort: { fn: (column) => column_getCanMultiSort(column) },
+			column_getIsSorted: { fn: (column) => column_getIsSorted(column) },
+			column_getSortIndex: { fn: (column) => column_getSortIndex(column) },
+			column_clearSorting: { fn: (column) => column_clearSorting(column) },
+			column_getToggleSortingHandler: { fn: (column) => column_getToggleSortingHandler(column) }
+		});
+	},
+	constructTableAPIs(table) {
+		assignTableAPIs("rowSortingFeature", table, {
+			table_setSorting: { fn: (updater) => table_setSorting(table, updater) },
+			table_resetSorting: { fn: (defaultState) => table_resetSorting(table, defaultState) }
+		});
+	}
+};
+//#endregion
+//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/features/row-sorting/createSortedRowModel.js
+/**
+* Creates a memoized sorted row model factory.
+*
+* The factory reads the relevant table state atoms and options, then returns a row model function used by the table row-model pipeline.
+*
+* Register the sorting functions you use with the `sortFns` slot on the
+* `features` option:
+* `tableFeatures({ rowSortingFeature, sortedRowModel: createSortedRowModel(), sortFns: { alphanumeric: sortFn_alphanumeric } })`.
+* Importing individual `sortFn_*` functions keeps unused built-ins out of
+* your bundle; sorting functions passed directly to the `sortFn` column
+* option need no registration at all.
+*/
+function createSortedRowModel() {
+	return (_table) => {
+		const table = _table;
+		return tableMemo({
+			feature: "rowSortingFeature",
+			table,
+			fnName: "table.getSortedRowModel",
+			memoDeps: () => [table.atoms.sorting?.get(), table.getPreSortedRowModel()],
+			fn: () => _createSortedRowModel(table),
+			onAfterUpdate: skipFirstRun(() => table_autoResetPageIndex(table))
+		});
+	};
 }
-var GlobalFaceting = { createTable: (table) => {
-	table._getGlobalFacetedRowModel = table.options.getFacetedRowModel && table.options.getFacetedRowModel(table, "__global__");
-	table.getGlobalFacetedRowModel = () => {
-		if (table.options.manualFiltering || !table._getGlobalFacetedRowModel) return table.getPreFilteredRowModel();
-		return table._getGlobalFacetedRowModel();
-	};
-	table._getGlobalFacetedUniqueValues = table.options.getFacetedUniqueValues && table.options.getFacetedUniqueValues(table, "__global__");
-	table.getGlobalFacetedUniqueValues = () => {
-		if (!table._getGlobalFacetedUniqueValues) return /* @__PURE__ */ new Map();
-		return table._getGlobalFacetedUniqueValues();
-	};
-	table._getGlobalFacetedMinMaxValues = table.options.getFacetedMinMaxValues && table.options.getFacetedMinMaxValues(table, "__global__");
-	table.getGlobalFacetedMinMaxValues = () => {
-		if (!table._getGlobalFacetedMinMaxValues) return;
-		return table._getGlobalFacetedMinMaxValues();
-	};
-} };
-var GlobalFiltering = {
-	getInitialState: (state) => {
-		return {
-			globalFilter: void 0,
-			...state
-		};
-	},
-	getDefaultOptions: (table) => {
-		return {
-			onGlobalFilterChange: makeStateUpdater("globalFilter", table),
-			globalFilterFn: "auto",
-			getColumnCanGlobalFilter: (column) => {
-				var _table$getCoreRowMode;
-				const value = (_table$getCoreRowMode = table.getCoreRowModel().flatRows[0]) == null || (_table$getCoreRowMode = _table$getCoreRowMode._getAllCellsByColumnId()[column.id]) == null ? void 0 : _table$getCoreRowMode.getValue();
-				return typeof value === "string" || typeof value === "number";
-			}
-		};
-	},
-	createColumn: (column, table) => {
-		column.getCanGlobalFilter = () => {
-			var _column$columnDef$ena, _table$options$enable, _table$options$enable2, _table$options$getCol;
-			return ((_column$columnDef$ena = column.columnDef.enableGlobalFilter) != null ? _column$columnDef$ena : true) && ((_table$options$enable = table.options.enableGlobalFilter) != null ? _table$options$enable : true) && ((_table$options$enable2 = table.options.enableFilters) != null ? _table$options$enable2 : true) && ((_table$options$getCol = table.options.getColumnCanGlobalFilter == null ? void 0 : table.options.getColumnCanGlobalFilter(column)) != null ? _table$options$getCol : true) && !!column.accessorFn;
-		};
-	},
-	createTable: (table) => {
-		table.getGlobalAutoFilterFn = () => {
-			return filterFns.includesString;
-		};
-		table.getGlobalFilterFn = () => {
-			var _table$options$filter, _table$options$filter2;
-			const { globalFilterFn } = table.options;
-			return isFunction(globalFilterFn) ? globalFilterFn : globalFilterFn === "auto" ? table.getGlobalAutoFilterFn() : (_table$options$filter = (_table$options$filter2 = table.options.filterFns) == null ? void 0 : _table$options$filter2[globalFilterFn]) != null ? _table$options$filter : filterFns[globalFilterFn];
-		};
-		table.setGlobalFilter = (updater) => {
-			table.options.onGlobalFilterChange == null || table.options.onGlobalFilterChange(updater);
-		};
-		table.resetGlobalFilter = (defaultState) => {
-			table.setGlobalFilter(defaultState ? void 0 : table.initialState.globalFilter);
-		};
-	}
-};
-var RowExpanding = {
-	getInitialState: (state) => {
-		return {
-			expanded: {},
-			...state
-		};
-	},
-	getDefaultOptions: (table) => {
-		return {
-			onExpandedChange: makeStateUpdater("expanded", table),
-			paginateExpandedRows: true
-		};
-	},
-	createTable: (table) => {
-		let registered = false;
-		let queued = false;
-		table._autoResetExpanded = () => {
-			var _ref, _table$options$autoRe;
-			if (!registered) {
-				table._queue(() => {
-					registered = true;
-				});
-				return;
-			}
-			if ((_ref = (_table$options$autoRe = table.options.autoResetAll) != null ? _table$options$autoRe : table.options.autoResetExpanded) != null ? _ref : !table.options.manualExpanding) {
-				if (queued) return;
-				queued = true;
-				table._queue(() => {
-					table.resetExpanded();
-					queued = false;
-				});
-			}
-		};
-		table.setExpanded = (updater) => table.options.onExpandedChange == null ? void 0 : table.options.onExpandedChange(updater);
-		table.toggleAllRowsExpanded = (expanded) => {
-			if (expanded != null ? expanded : !table.getIsAllRowsExpanded()) table.setExpanded(true);
-			else table.setExpanded({});
-		};
-		table.resetExpanded = (defaultState) => {
-			var _table$initialState$e, _table$initialState;
-			table.setExpanded(defaultState ? {} : (_table$initialState$e = (_table$initialState = table.initialState) == null ? void 0 : _table$initialState.expanded) != null ? _table$initialState$e : {});
-		};
-		table.getCanSomeRowsExpand = () => {
-			return table.getPrePaginationRowModel().flatRows.some((row) => row.getCanExpand());
-		};
-		table.getToggleAllRowsExpandedHandler = () => {
-			return (e) => {
-				e.persist == null || e.persist();
-				table.toggleAllRowsExpanded();
-			};
-		};
-		table.getIsSomeRowsExpanded = () => {
-			const expanded = table.getState().expanded;
-			return expanded === true || Object.values(expanded).some(Boolean);
-		};
-		table.getIsAllRowsExpanded = () => {
-			const expanded = table.getState().expanded;
-			if (typeof expanded === "boolean") return expanded === true;
-			if (!Object.keys(expanded).length) return false;
-			if (table.getRowModel().flatRows.some((row) => !row.getIsExpanded())) return false;
-			return true;
-		};
-		table.getExpandedDepth = () => {
-			let maxDepth = 0;
-			(table.getState().expanded === true ? Object.keys(table.getRowModel().rowsById) : Object.keys(table.getState().expanded)).forEach((id) => {
-				const splitId = id.split(".");
-				maxDepth = Math.max(maxDepth, splitId.length);
-			});
-			return maxDepth;
-		};
-		table.getPreExpandedRowModel = () => table.getSortedRowModel();
-		table.getExpandedRowModel = () => {
-			if (!table._getExpandedRowModel && table.options.getExpandedRowModel) table._getExpandedRowModel = table.options.getExpandedRowModel(table);
-			if (table.options.manualExpanding || !table._getExpandedRowModel) return table.getPreExpandedRowModel();
-			return table._getExpandedRowModel();
-		};
-	},
-	createRow: (row, table) => {
-		row.toggleExpanded = (expanded) => {
-			table.setExpanded((old) => {
-				var _expanded;
-				const exists = old === true ? true : !!(old != null && old[row.id]);
-				let oldExpanded = {};
-				if (old === true) Object.keys(table.getRowModel().rowsById).forEach((rowId) => {
-					oldExpanded[rowId] = true;
-				});
-				else oldExpanded = old;
-				expanded = (_expanded = expanded) != null ? _expanded : !exists;
-				if (!exists && expanded) return {
-					...oldExpanded,
-					[row.id]: true
-				};
-				if (exists && !expanded) {
-					const { [row.id]: _, ...rest } = oldExpanded;
-					return rest;
-				}
-				return old;
-			});
-		};
-		row.getIsExpanded = () => {
-			var _table$options$getIsR;
-			const expanded = table.getState().expanded;
-			return !!((_table$options$getIsR = table.options.getIsRowExpanded == null ? void 0 : table.options.getIsRowExpanded(row)) != null ? _table$options$getIsR : expanded === true || (expanded == null ? void 0 : expanded[row.id]));
-		};
-		row.getCanExpand = () => {
-			var _table$options$getRow, _table$options$enable, _row$subRows;
-			return (_table$options$getRow = table.options.getRowCanExpand == null ? void 0 : table.options.getRowCanExpand(row)) != null ? _table$options$getRow : ((_table$options$enable = table.options.enableExpanding) != null ? _table$options$enable : true) && !!((_row$subRows = row.subRows) != null && _row$subRows.length);
-		};
-		row.getIsAllParentsExpanded = () => {
-			let isFullyExpanded = true;
-			let currentRow = row;
-			while (isFullyExpanded && currentRow.parentId) {
-				currentRow = table.getRow(currentRow.parentId, true);
-				isFullyExpanded = currentRow.getIsExpanded();
-			}
-			return isFullyExpanded;
-		};
-		row.getToggleExpandedHandler = () => {
-			const canExpand = row.getCanExpand();
-			return () => {
-				if (!canExpand) return;
-				row.toggleExpanded();
-			};
-		};
-	}
-};
-var defaultPageIndex = 0;
-var defaultPageSize = 10;
-var getDefaultPaginationState = () => ({
-	pageIndex: defaultPageIndex,
-	pageSize: defaultPageSize
-});
-var RowPagination = {
-	getInitialState: (state) => {
-		return {
-			...state,
-			pagination: {
-				...getDefaultPaginationState(),
-				...state == null ? void 0 : state.pagination
-			}
-		};
-	},
-	getDefaultOptions: (table) => {
-		return { onPaginationChange: makeStateUpdater("pagination", table) };
-	},
-	createTable: (table) => {
-		let registered = false;
-		let queued = false;
-		table._autoResetPageIndex = () => {
-			var _ref, _table$options$autoRe;
-			if (!registered) {
-				table._queue(() => {
-					registered = true;
-				});
-				return;
-			}
-			if ((_ref = (_table$options$autoRe = table.options.autoResetAll) != null ? _table$options$autoRe : table.options.autoResetPageIndex) != null ? _ref : !table.options.manualPagination) {
-				if (queued) return;
-				queued = true;
-				table._queue(() => {
-					table.resetPageIndex();
-					queued = false;
-				});
-			}
-		};
-		table.setPagination = (updater) => {
-			const safeUpdater = (old) => {
-				return functionalUpdate(updater, old);
-			};
-			return table.options.onPaginationChange == null ? void 0 : table.options.onPaginationChange(safeUpdater);
-		};
-		table.resetPagination = (defaultState) => {
-			var _table$initialState$p;
-			table.setPagination(defaultState ? getDefaultPaginationState() : (_table$initialState$p = table.initialState.pagination) != null ? _table$initialState$p : getDefaultPaginationState());
-		};
-		table.setPageIndex = (updater) => {
-			table.setPagination((old) => {
-				let pageIndex = functionalUpdate(updater, old.pageIndex);
-				const maxPageIndex = typeof table.options.pageCount === "undefined" || table.options.pageCount === -1 ? Number.MAX_SAFE_INTEGER : table.options.pageCount - 1;
-				pageIndex = Math.max(0, Math.min(pageIndex, maxPageIndex));
-				return {
-					...old,
-					pageIndex
-				};
-			});
-		};
-		table.resetPageIndex = (defaultState) => {
-			var _table$initialState$p2, _table$initialState;
-			table.setPageIndex(defaultState ? defaultPageIndex : (_table$initialState$p2 = (_table$initialState = table.initialState) == null || (_table$initialState = _table$initialState.pagination) == null ? void 0 : _table$initialState.pageIndex) != null ? _table$initialState$p2 : defaultPageIndex);
-		};
-		table.resetPageSize = (defaultState) => {
-			var _table$initialState$p3, _table$initialState2;
-			table.setPageSize(defaultState ? defaultPageSize : (_table$initialState$p3 = (_table$initialState2 = table.initialState) == null || (_table$initialState2 = _table$initialState2.pagination) == null ? void 0 : _table$initialState2.pageSize) != null ? _table$initialState$p3 : defaultPageSize);
-		};
-		table.setPageSize = (updater) => {
-			table.setPagination((old) => {
-				const pageSize = Math.max(1, functionalUpdate(updater, old.pageSize));
-				const topRowIndex = old.pageSize * old.pageIndex;
-				const pageIndex = Math.floor(topRowIndex / pageSize);
-				return {
-					...old,
-					pageIndex,
-					pageSize
-				};
-			});
-		};
-		table.setPageCount = (updater) => table.setPagination((old) => {
-			var _table$options$pageCo;
-			let newPageCount = functionalUpdate(updater, (_table$options$pageCo = table.options.pageCount) != null ? _table$options$pageCo : -1);
-			if (typeof newPageCount === "number") newPageCount = Math.max(-1, newPageCount);
-			return {
-				...old,
-				pageCount: newPageCount
-			};
+function _createSortedRowModel(table) {
+	const preSortedRowModel = table.getPreSortedRowModel();
+	const sorting = table.atoms.sorting?.get();
+	if (!preSortedRowModel.rows.length || !sorting?.length) return preSortedRowModel;
+	const sortedFlatRows = [];
+	const availableSorting = sorting.filter((sort) => {
+		const column = table.getColumn(sort.id);
+		return column ? column_getCanSort(column) : false;
+	});
+	if (!availableSorting.length) return preSortedRowModel;
+	const resolvedSorting = [];
+	for (let i = 0; i < availableSorting.length; i++) {
+		const sortEntry = availableSorting[i];
+		const column = table.getColumn(sortEntry.id);
+		if (!column) continue;
+		resolvedSorting.push({
+			id: sortEntry.id,
+			desc: sortEntry.desc,
+			sortUndefined: column.columnDef.sortUndefined,
+			invertSorting: column.columnDef.invertSorting,
+			sortFn: column_getSortFn(column)
 		});
-		table.getPageOptions = memo$3(() => [table.getPageCount()], (pageCount) => {
-			let pageOptions = [];
-			if (pageCount && pageCount > 0) pageOptions = [...new Array(pageCount)].fill(null).map((_, i) => i);
-			return pageOptions;
-		}, getMemoOptions(table.options, "debugTable", "getPageOptions"));
-		table.getCanPreviousPage = () => table.getState().pagination.pageIndex > 0;
-		table.getCanNextPage = () => {
-			const { pageIndex } = table.getState().pagination;
-			const pageCount = table.getPageCount();
-			if (pageCount === -1) return true;
-			if (pageCount === 0) return false;
-			return pageIndex < pageCount - 1;
-		};
-		table.previousPage = () => {
-			return table.setPageIndex((old) => old - 1);
-		};
-		table.nextPage = () => {
-			return table.setPageIndex((old) => {
-				return old + 1;
-			});
-		};
-		table.firstPage = () => {
-			return table.setPageIndex(0);
-		};
-		table.lastPage = () => {
-			return table.setPageIndex(table.getPageCount() - 1);
-		};
-		table.getPrePaginationRowModel = () => table.getExpandedRowModel();
-		table.getPaginationRowModel = () => {
-			if (!table._getPaginationRowModel && table.options.getPaginationRowModel) table._getPaginationRowModel = table.options.getPaginationRowModel(table);
-			if (table.options.manualPagination || !table._getPaginationRowModel) return table.getPrePaginationRowModel();
-			return table._getPaginationRowModel();
-		};
-		table.getPageCount = () => {
-			var _table$options$pageCo2;
-			return (_table$options$pageCo2 = table.options.pageCount) != null ? _table$options$pageCo2 : Math.ceil(table.getRowCount() / table.getState().pagination.pageSize);
-		};
-		table.getRowCount = () => {
-			var _table$options$rowCou;
-			return (_table$options$rowCou = table.options.rowCount) != null ? _table$options$rowCou : table.getPrePaginationRowModel().rows.length;
-		};
 	}
-};
-var getDefaultRowPinningState = () => ({
-	top: [],
-	bottom: []
-});
-var RowPinning = {
-	getInitialState: (state) => {
-		return {
-			rowPinning: getDefaultRowPinningState(),
-			...state
-		};
-	},
-	getDefaultOptions: (table) => {
-		return { onRowPinningChange: makeStateUpdater("rowPinning", table) };
-	},
-	createRow: (row, table) => {
-		row.pin = (position, includeLeafRows, includeParentRows) => {
-			const leafRowIds = includeLeafRows ? row.getLeafRows().map((_ref) => {
-				let { id } = _ref;
-				return id;
-			}) : [];
-			const parentRowIds = includeParentRows ? row.getParentRows().map((_ref2) => {
-				let { id } = _ref2;
-				return id;
-			}) : [];
-			const rowIds = /* @__PURE__ */ new Set([
-				...parentRowIds,
-				row.id,
-				...leafRowIds
-			]);
-			table.setRowPinning((old) => {
-				var _old$top3, _old$bottom3;
-				if (position === "bottom") {
-					var _old$top, _old$bottom;
-					return {
-						top: ((_old$top = old == null ? void 0 : old.top) != null ? _old$top : []).filter((d) => !(rowIds != null && rowIds.has(d))),
-						bottom: [...((_old$bottom = old == null ? void 0 : old.bottom) != null ? _old$bottom : []).filter((d) => !(rowIds != null && rowIds.has(d))), ...Array.from(rowIds)]
-					};
+	const compareRows = (rowA, rowB) => {
+		for (let i = 0; i < resolvedSorting.length; i++) {
+			const sortEntry = resolvedSorting[i];
+			const sortUndefined = sortEntry.sortUndefined;
+			const isDesc = sortEntry.desc;
+			let sortInt = 0;
+			if (sortUndefined) {
+				const aValue = rowA.getValue(sortEntry.id);
+				const bValue = rowB.getValue(sortEntry.id);
+				const aUndefined = aValue === void 0;
+				const bUndefined = bValue === void 0;
+				if (aUndefined && bUndefined) continue;
+				if (aUndefined || bUndefined) {
+					if (sortUndefined === "first") return aUndefined ? -1 : 1;
+					if (sortUndefined === "last") return aUndefined ? 1 : -1;
+					sortInt = aUndefined ? sortUndefined : -sortUndefined;
 				}
-				if (position === "top") {
-					var _old$top2, _old$bottom2;
-					return {
-						top: [...((_old$top2 = old == null ? void 0 : old.top) != null ? _old$top2 : []).filter((d) => !(rowIds != null && rowIds.has(d))), ...Array.from(rowIds)],
-						bottom: ((_old$bottom2 = old == null ? void 0 : old.bottom) != null ? _old$bottom2 : []).filter((d) => !(rowIds != null && rowIds.has(d)))
-					};
+			}
+			if (sortInt === 0) sortInt = sortEntry.sortFn(rowA, rowB, sortEntry.id);
+			if (sortInt !== 0) {
+				if (isDesc) sortInt *= -1;
+				if (sortEntry.invertSorting) sortInt *= -1;
+				return sortInt;
+			}
+		}
+		return rowA.index - rowB.index;
+	};
+	const sortData = (rows) => {
+		const sortedData = rows.slice();
+		sortedData.sort(compareRows);
+		let changed = false;
+		for (let i = 0; i < sortedData.length; i++) {
+			const row = sortedData[i];
+			if (row !== rows[i]) changed = true;
+			const flatIndex = sortedFlatRows.length;
+			sortedFlatRows.push(row);
+			if (row.subRows.length) {
+				const sortedSubRows = sortData(row.subRows);
+				if (sortedSubRows.changed) {
+					const cloned = Object.create(Object.getPrototypeOf(row));
+					copyInstancePropertiesWithoutMemos(cloned, row);
+					cloned.subRows = sortedSubRows.rows;
+					sortedData[i] = cloned;
+					sortedFlatRows[flatIndex] = cloned;
+					changed = true;
 				}
-				return {
-					top: ((_old$top3 = old == null ? void 0 : old.top) != null ? _old$top3 : []).filter((d) => !(rowIds != null && rowIds.has(d))),
-					bottom: ((_old$bottom3 = old == null ? void 0 : old.bottom) != null ? _old$bottom3 : []).filter((d) => !(rowIds != null && rowIds.has(d)))
-				};
-			});
-		};
-		row.getCanPin = () => {
-			var _ref3;
-			const { enableRowPinning, enablePinning } = table.options;
-			if (typeof enableRowPinning === "function") return enableRowPinning(row);
-			return (_ref3 = enableRowPinning != null ? enableRowPinning : enablePinning) != null ? _ref3 : true;
-		};
-		row.getIsPinned = () => {
-			const rowIds = [row.id];
-			const { top, bottom } = table.getState().rowPinning;
-			const isTop = rowIds.some((d) => top == null ? void 0 : top.includes(d));
-			const isBottom = rowIds.some((d) => bottom == null ? void 0 : bottom.includes(d));
-			return isTop ? "top" : isBottom ? "bottom" : false;
-		};
-		row.getPinnedIndex = () => {
-			var _ref4, _visiblePinnedRowIds$;
-			const position = row.getIsPinned();
-			if (!position) return -1;
-			const visiblePinnedRowIds = (_ref4 = position === "top" ? table.getTopRows() : table.getBottomRows()) == null ? void 0 : _ref4.map((_ref5) => {
-				let { id } = _ref5;
-				return id;
-			});
-			return (_visiblePinnedRowIds$ = visiblePinnedRowIds == null ? void 0 : visiblePinnedRowIds.indexOf(row.id)) != null ? _visiblePinnedRowIds$ : -1;
-		};
-	},
-	createTable: (table) => {
-		table.setRowPinning = (updater) => table.options.onRowPinningChange == null ? void 0 : table.options.onRowPinningChange(updater);
-		table.resetRowPinning = (defaultState) => {
-			var _table$initialState$r, _table$initialState;
-			return table.setRowPinning(defaultState ? getDefaultRowPinningState() : (_table$initialState$r = (_table$initialState = table.initialState) == null ? void 0 : _table$initialState.rowPinning) != null ? _table$initialState$r : getDefaultRowPinningState());
-		};
-		table.getIsSomeRowsPinned = (position) => {
-			var _pinningState$positio;
-			const pinningState = table.getState().rowPinning;
-			if (!position) {
-				var _pinningState$top, _pinningState$bottom;
-				return Boolean(((_pinningState$top = pinningState.top) == null ? void 0 : _pinningState$top.length) || ((_pinningState$bottom = pinningState.bottom) == null ? void 0 : _pinningState$bottom.length));
 			}
-			return Boolean((_pinningState$positio = pinningState[position]) == null ? void 0 : _pinningState$positio.length);
-		};
-		table._getPinnedRows = (visibleRows, pinnedRowIds, position) => {
-			var _table$options$keepPi;
-			return (((_table$options$keepPi = table.options.keepPinnedRows) != null ? _table$options$keepPi : true) ? (pinnedRowIds != null ? pinnedRowIds : []).map((rowId) => {
-				const row = table.getRow(rowId, true);
-				return row.getIsAllParentsExpanded() ? row : null;
-			}) : (pinnedRowIds != null ? pinnedRowIds : []).map((rowId) => visibleRows.find((row) => row.id === rowId))).filter(Boolean).map((d) => ({
-				...d,
-				position
-			}));
-		};
-		table.getTopRows = memo$3(() => [table.getRowModel().rows, table.getState().rowPinning.top], (allRows, topPinnedRowIds) => table._getPinnedRows(allRows, topPinnedRowIds, "top"), getMemoOptions(table.options, "debugRows", "getTopRows"));
-		table.getBottomRows = memo$3(() => [table.getRowModel().rows, table.getState().rowPinning.bottom], (allRows, bottomPinnedRowIds) => table._getPinnedRows(allRows, bottomPinnedRowIds, "bottom"), getMemoOptions(table.options, "debugRows", "getBottomRows"));
-		table.getCenterRows = memo$3(() => [
-			table.getRowModel().rows,
-			table.getState().rowPinning.top,
-			table.getState().rowPinning.bottom
-		], (allRows, top, bottom) => {
-			const topAndBottom = /* @__PURE__ */ new Set([...top != null ? top : [], ...bottom != null ? bottom : []]);
-			return allRows.filter((d) => !topAndBottom.has(d.id));
-		}, getMemoOptions(table.options, "debugRows", "getCenterRows"));
-	}
-};
-var RowSelection = {
-	getInitialState: (state) => {
+		}
 		return {
-			rowSelection: {},
-			...state
+			rows: sortedData,
+			changed
 		};
-	},
-	getDefaultOptions: (table) => {
-		return {
-			onRowSelectionChange: makeStateUpdater("rowSelection", table),
-			enableRowSelection: true,
-			enableMultiRowSelection: true,
-			enableSubRowSelection: true
-		};
-	},
-	createTable: (table) => {
-		table.setRowSelection = (updater) => table.options.onRowSelectionChange == null ? void 0 : table.options.onRowSelectionChange(updater);
-		table.resetRowSelection = (defaultState) => {
-			var _table$initialState$r;
-			return table.setRowSelection(defaultState ? {} : (_table$initialState$r = table.initialState.rowSelection) != null ? _table$initialState$r : {});
-		};
-		table.toggleAllRowsSelected = (value) => {
-			table.setRowSelection((old) => {
-				value = typeof value !== "undefined" ? value : !table.getIsAllRowsSelected();
-				const rowSelection = { ...old };
-				const preGroupedFlatRows = table.getPreGroupedRowModel().flatRows;
-				if (value) preGroupedFlatRows.forEach((row) => {
-					if (!row.getCanSelect()) return;
-					rowSelection[row.id] = true;
-				});
-				else preGroupedFlatRows.forEach((row) => {
-					delete rowSelection[row.id];
-				});
-				return rowSelection;
-			});
-		};
-		table.toggleAllPageRowsSelected = (value) => table.setRowSelection((old) => {
-			const resolvedValue = typeof value !== "undefined" ? value : !table.getIsAllPageRowsSelected();
-			const rowSelection = { ...old };
-			table.getRowModel().rows.forEach((row) => {
-				mutateRowIsSelected(rowSelection, row.id, resolvedValue, true, table);
-			});
-			return rowSelection;
-		});
-		table.getPreSelectedRowModel = () => table.getCoreRowModel();
-		table.getSelectedRowModel = memo$3(() => [table.getState().rowSelection, table.getCoreRowModel()], (rowSelection, rowModel) => {
-			if (!Object.keys(rowSelection).length) return {
-				rows: [],
-				flatRows: [],
-				rowsById: {}
-			};
-			return selectRowsFn(table, rowModel);
-		}, getMemoOptions(table.options, "debugTable", "getSelectedRowModel"));
-		table.getFilteredSelectedRowModel = memo$3(() => [table.getState().rowSelection, table.getFilteredRowModel()], (rowSelection, rowModel) => {
-			if (!Object.keys(rowSelection).length) return {
-				rows: [],
-				flatRows: [],
-				rowsById: {}
-			};
-			return selectRowsFn(table, rowModel);
-		}, getMemoOptions(table.options, "debugTable", "getFilteredSelectedRowModel"));
-		table.getGroupedSelectedRowModel = memo$3(() => [table.getState().rowSelection, table.getSortedRowModel()], (rowSelection, rowModel) => {
-			if (!Object.keys(rowSelection).length) return {
-				rows: [],
-				flatRows: [],
-				rowsById: {}
-			};
-			return selectRowsFn(table, rowModel);
-		}, getMemoOptions(table.options, "debugTable", "getGroupedSelectedRowModel"));
-		table.getIsAllRowsSelected = () => {
-			const preGroupedFlatRows = table.getFilteredRowModel().flatRows;
-			const { rowSelection } = table.getState();
-			let isAllRowsSelected = Boolean(preGroupedFlatRows.length && Object.keys(rowSelection).length);
-			if (isAllRowsSelected) {
-				if (preGroupedFlatRows.some((row) => row.getCanSelect() && !rowSelection[row.id])) isAllRowsSelected = false;
-			}
-			return isAllRowsSelected;
-		};
-		table.getIsAllPageRowsSelected = () => {
-			const paginationFlatRows = table.getPaginationRowModel().flatRows.filter((row) => row.getCanSelect());
-			const { rowSelection } = table.getState();
-			let isAllPageRowsSelected = !!paginationFlatRows.length;
-			if (isAllPageRowsSelected && paginationFlatRows.some((row) => !rowSelection[row.id])) isAllPageRowsSelected = false;
-			return isAllPageRowsSelected;
-		};
-		table.getIsSomeRowsSelected = () => {
-			var _table$getState$rowSe;
-			const totalSelected = Object.keys((_table$getState$rowSe = table.getState().rowSelection) != null ? _table$getState$rowSe : {}).length;
-			return totalSelected > 0 && totalSelected < table.getFilteredRowModel().flatRows.length;
-		};
-		table.getIsSomePageRowsSelected = () => {
-			const paginationFlatRows = table.getPaginationRowModel().flatRows;
-			return table.getIsAllPageRowsSelected() ? false : paginationFlatRows.filter((row) => row.getCanSelect()).some((d) => d.getIsSelected() || d.getIsSomeSelected());
-		};
-		table.getToggleAllRowsSelectedHandler = () => {
-			return (e) => {
-				table.toggleAllRowsSelected(e.target.checked);
-			};
-		};
-		table.getToggleAllPageRowsSelectedHandler = () => {
-			return (e) => {
-				table.toggleAllPageRowsSelected(e.target.checked);
-			};
-		};
-	},
-	createRow: (row, table) => {
-		row.toggleSelected = (value, opts) => {
-			const isSelected = row.getIsSelected();
-			table.setRowSelection((old) => {
-				var _opts$selectChildren;
-				value = typeof value !== "undefined" ? value : !isSelected;
-				if (row.getCanSelect() && isSelected === value) return old;
-				const selectedRowIds = { ...old };
-				mutateRowIsSelected(selectedRowIds, row.id, value, (_opts$selectChildren = opts == null ? void 0 : opts.selectChildren) != null ? _opts$selectChildren : true, table);
-				return selectedRowIds;
-			});
-		};
-		row.getIsSelected = () => {
-			const { rowSelection } = table.getState();
-			return isRowSelected(row, rowSelection);
-		};
-		row.getIsSomeSelected = () => {
-			const { rowSelection } = table.getState();
-			return isSubRowSelected(row, rowSelection) === "some";
-		};
-		row.getIsAllSubRowsSelected = () => {
-			const { rowSelection } = table.getState();
-			return isSubRowSelected(row, rowSelection) === "all";
-		};
-		row.getCanSelect = () => {
-			var _table$options$enable;
-			if (typeof table.options.enableRowSelection === "function") return table.options.enableRowSelection(row);
-			return (_table$options$enable = table.options.enableRowSelection) != null ? _table$options$enable : true;
-		};
-		row.getCanSelectSubRows = () => {
-			var _table$options$enable2;
-			if (typeof table.options.enableSubRowSelection === "function") return table.options.enableSubRowSelection(row);
-			return (_table$options$enable2 = table.options.enableSubRowSelection) != null ? _table$options$enable2 : true;
-		};
-		row.getCanMultiSelect = () => {
-			var _table$options$enable3;
-			if (typeof table.options.enableMultiRowSelection === "function") return table.options.enableMultiRowSelection(row);
-			return (_table$options$enable3 = table.options.enableMultiRowSelection) != null ? _table$options$enable3 : true;
-		};
-		row.getToggleSelectedHandler = () => {
-			const canSelect = row.getCanSelect();
-			return (e) => {
-				var _target;
-				if (!canSelect) return;
-				row.toggleSelected((_target = e.target) == null ? void 0 : _target.checked);
-			};
-		};
-	}
-};
-var mutateRowIsSelected = (selectedRowIds, id, value, includeChildren, table) => {
-	var _row$subRows;
-	const row = table.getRow(id, true);
-	if (value) {
-		if (!row.getCanMultiSelect()) Object.keys(selectedRowIds).forEach((key) => delete selectedRowIds[key]);
-		if (row.getCanSelect()) selectedRowIds[id] = true;
-	} else delete selectedRowIds[id];
-	if (includeChildren && (_row$subRows = row.subRows) != null && _row$subRows.length && row.getCanSelectSubRows()) row.subRows.forEach((row) => mutateRowIsSelected(selectedRowIds, row.id, value, includeChildren, table));
-};
-function selectRowsFn(table, rowModel) {
-	const rowSelection = table.getState().rowSelection;
-	const newSelectedFlatRows = [];
-	const newSelectedRowsById = {};
-	const recurseRows = function(rows, depth) {
-		return rows.map((row) => {
-			var _row$subRows2;
-			const isSelected = isRowSelected(row, rowSelection);
-			if (isSelected) {
-				newSelectedFlatRows.push(row);
-				newSelectedRowsById[row.id] = row;
-			}
-			if ((_row$subRows2 = row.subRows) != null && _row$subRows2.length) row = {
-				...row,
-				subRows: recurseRows(row.subRows)
-			};
-			if (isSelected) return row;
-		}).filter(Boolean);
 	};
 	return {
-		rows: recurseRows(rowModel.rows),
-		flatRows: newSelectedFlatRows,
-		rowsById: newSelectedRowsById
+		rows: sortData(preSortedRowModel.rows).rows,
+		flatRows: sortedFlatRows,
+		rowsById: preSortedRowModel.rowsById
 	};
-}
-function isRowSelected(row, selection) {
-	var _selection$row$id;
-	return (_selection$row$id = selection[row.id]) != null ? _selection$row$id : false;
-}
-function isSubRowSelected(row, selection, table) {
-	var _row$subRows3;
-	if (!((_row$subRows3 = row.subRows) != null && _row$subRows3.length)) return false;
-	let allChildrenSelected = true;
-	let someSelected = false;
-	row.subRows.forEach((subRow) => {
-		if (someSelected && !allChildrenSelected) return;
-		if (subRow.getCanSelect()) if (isRowSelected(subRow, selection)) someSelected = true;
-		else allChildrenSelected = false;
-		if (subRow.subRows && subRow.subRows.length) {
-			const subRowChildrenSelected = isSubRowSelected(subRow, selection);
-			if (subRowChildrenSelected === "all") someSelected = true;
-			else if (subRowChildrenSelected === "some") {
-				someSelected = true;
-				allChildrenSelected = false;
-			} else allChildrenSelected = false;
-		}
-	});
-	return allChildrenSelected ? "all" : someSelected ? "some" : false;
-}
-var reSplitAlphaNumeric = /([0-9]+)/gm;
-var alphanumeric = (rowA, rowB, columnId) => {
-	return compareAlphanumeric(toString(rowA.getValue(columnId)).toLowerCase(), toString(rowB.getValue(columnId)).toLowerCase());
-};
-var alphanumericCaseSensitive = (rowA, rowB, columnId) => {
-	return compareAlphanumeric(toString(rowA.getValue(columnId)), toString(rowB.getValue(columnId)));
-};
-var text$2 = (rowA, rowB, columnId) => {
-	return compareBasic(toString(rowA.getValue(columnId)).toLowerCase(), toString(rowB.getValue(columnId)).toLowerCase());
-};
-var textCaseSensitive = (rowA, rowB, columnId) => {
-	return compareBasic(toString(rowA.getValue(columnId)), toString(rowB.getValue(columnId)));
-};
-var datetime = (rowA, rowB, columnId) => {
-	const a = rowA.getValue(columnId);
-	const b = rowB.getValue(columnId);
-	return a > b ? 1 : a < b ? -1 : 0;
-};
-var basic = (rowA, rowB, columnId) => {
-	return compareBasic(rowA.getValue(columnId), rowB.getValue(columnId));
-};
-function compareBasic(a, b) {
-	return a === b ? 0 : a > b ? 1 : -1;
-}
-function toString(a) {
-	if (typeof a === "number") {
-		if (isNaN(a) || a === Infinity || a === -Infinity) return "";
-		return String(a);
-	}
-	if (typeof a === "string") return a;
-	return "";
-}
-function compareAlphanumeric(aStr, bStr) {
-	const a = aStr.split(reSplitAlphaNumeric).filter(Boolean);
-	const b = bStr.split(reSplitAlphaNumeric).filter(Boolean);
-	while (a.length && b.length) {
-		const aa = a.shift();
-		const bb = b.shift();
-		const an = parseInt(aa, 10);
-		const bn = parseInt(bb, 10);
-		const combo = [an, bn].sort();
-		if (isNaN(combo[0])) {
-			if (aa > bb) return 1;
-			if (bb > aa) return -1;
-			continue;
-		}
-		if (isNaN(combo[1])) return isNaN(an) ? -1 : 1;
-		if (an > bn) return 1;
-		if (bn > an) return -1;
-	}
-	return a.length - b.length;
-}
-var sortingFns = {
-	alphanumeric,
-	alphanumericCaseSensitive,
-	text: text$2,
-	textCaseSensitive,
-	datetime,
-	basic
-};
-var builtInFeatures = [
-	Headers$1,
-	ColumnVisibility,
-	ColumnOrdering,
-	ColumnPinning,
-	ColumnFaceting,
-	ColumnFiltering,
-	GlobalFaceting,
-	GlobalFiltering,
-	{
-		getInitialState: (state) => {
-			return {
-				sorting: [],
-				...state
-			};
-		},
-		getDefaultColumnDef: () => {
-			return {
-				sortingFn: "auto",
-				sortUndefined: 1
-			};
-		},
-		getDefaultOptions: (table) => {
-			return {
-				onSortingChange: makeStateUpdater("sorting", table),
-				isMultiSortEvent: (e) => {
-					return e.shiftKey;
-				}
-			};
-		},
-		createColumn: (column, table) => {
-			column.getAutoSortingFn = () => {
-				const firstRows = table.getFilteredRowModel().flatRows.slice(10);
-				let isString = false;
-				for (const row of firstRows) {
-					const value = row == null ? void 0 : row.getValue(column.id);
-					if (Object.prototype.toString.call(value) === "[object Date]") return sortingFns.datetime;
-					if (typeof value === "string") {
-						isString = true;
-						if (value.split(reSplitAlphaNumeric).length > 1) return sortingFns.alphanumeric;
-					}
-				}
-				if (isString) return sortingFns.text;
-				return sortingFns.basic;
-			};
-			column.getAutoSortDir = () => {
-				const firstRow = table.getFilteredRowModel().flatRows[0];
-				if (typeof (firstRow == null ? void 0 : firstRow.getValue(column.id)) === "string") return "asc";
-				return "desc";
-			};
-			column.getSortingFn = () => {
-				var _table$options$sortin, _table$options$sortin2;
-				if (!column) throw new Error();
-				return isFunction(column.columnDef.sortingFn) ? column.columnDef.sortingFn : column.columnDef.sortingFn === "auto" ? column.getAutoSortingFn() : (_table$options$sortin = (_table$options$sortin2 = table.options.sortingFns) == null ? void 0 : _table$options$sortin2[column.columnDef.sortingFn]) != null ? _table$options$sortin : sortingFns[column.columnDef.sortingFn];
-			};
-			column.toggleSorting = (desc, multi) => {
-				const nextSortingOrder = column.getNextSortingOrder();
-				const hasManualValue = typeof desc !== "undefined" && desc !== null;
-				table.setSorting((old) => {
-					const existingSorting = old == null ? void 0 : old.find((d) => d.id === column.id);
-					const existingIndex = old == null ? void 0 : old.findIndex((d) => d.id === column.id);
-					let newSorting = [];
-					let sortAction;
-					let nextDesc = hasManualValue ? desc : nextSortingOrder === "desc";
-					if (old != null && old.length && column.getCanMultiSort() && multi) if (existingSorting) sortAction = "toggle";
-					else sortAction = "add";
-					else if (old != null && old.length && existingIndex !== old.length - 1) sortAction = "replace";
-					else if (existingSorting) sortAction = "toggle";
-					else sortAction = "replace";
-					if (sortAction === "toggle") {
-						if (!hasManualValue) {
-							if (!nextSortingOrder) sortAction = "remove";
-						}
-					}
-					if (sortAction === "add") {
-						var _table$options$maxMul;
-						newSorting = [...old, {
-							id: column.id,
-							desc: nextDesc
-						}];
-						newSorting.splice(0, newSorting.length - ((_table$options$maxMul = table.options.maxMultiSortColCount) != null ? _table$options$maxMul : Number.MAX_SAFE_INTEGER));
-					} else if (sortAction === "toggle") newSorting = old.map((d) => {
-						if (d.id === column.id) return {
-							...d,
-							desc: nextDesc
-						};
-						return d;
-					});
-					else if (sortAction === "remove") newSorting = old.filter((d) => d.id !== column.id);
-					else newSorting = [{
-						id: column.id,
-						desc: nextDesc
-					}];
-					return newSorting;
-				});
-			};
-			column.getFirstSortDir = () => {
-				var _ref, _column$columnDef$sor;
-				return ((_ref = (_column$columnDef$sor = column.columnDef.sortDescFirst) != null ? _column$columnDef$sor : table.options.sortDescFirst) != null ? _ref : column.getAutoSortDir() === "desc") ? "desc" : "asc";
-			};
-			column.getNextSortingOrder = (multi) => {
-				var _table$options$enable, _table$options$enable2;
-				const firstSortDirection = column.getFirstSortDir();
-				const isSorted = column.getIsSorted();
-				if (!isSorted) return firstSortDirection;
-				if (isSorted !== firstSortDirection && ((_table$options$enable = table.options.enableSortingRemoval) != null ? _table$options$enable : true) && (multi ? (_table$options$enable2 = table.options.enableMultiRemove) != null ? _table$options$enable2 : true : true)) return false;
-				return isSorted === "desc" ? "asc" : "desc";
-			};
-			column.getCanSort = () => {
-				var _column$columnDef$ena, _table$options$enable3;
-				return ((_column$columnDef$ena = column.columnDef.enableSorting) != null ? _column$columnDef$ena : true) && ((_table$options$enable3 = table.options.enableSorting) != null ? _table$options$enable3 : true) && !!column.accessorFn;
-			};
-			column.getCanMultiSort = () => {
-				var _ref2, _column$columnDef$ena2;
-				return (_ref2 = (_column$columnDef$ena2 = column.columnDef.enableMultiSort) != null ? _column$columnDef$ena2 : table.options.enableMultiSort) != null ? _ref2 : !!column.accessorFn;
-			};
-			column.getIsSorted = () => {
-				var _table$getState$sorti;
-				const columnSort = (_table$getState$sorti = table.getState().sorting) == null ? void 0 : _table$getState$sorti.find((d) => d.id === column.id);
-				return !columnSort ? false : columnSort.desc ? "desc" : "asc";
-			};
-			column.getSortIndex = () => {
-				var _table$getState$sorti2, _table$getState$sorti3;
-				return (_table$getState$sorti2 = (_table$getState$sorti3 = table.getState().sorting) == null ? void 0 : _table$getState$sorti3.findIndex((d) => d.id === column.id)) != null ? _table$getState$sorti2 : -1;
-			};
-			column.clearSorting = () => {
-				table.setSorting((old) => old != null && old.length ? old.filter((d) => d.id !== column.id) : []);
-			};
-			column.getToggleSortingHandler = () => {
-				const canSort = column.getCanSort();
-				return (e) => {
-					if (!canSort) return;
-					e.persist == null || e.persist();
-					column.toggleSorting == null || column.toggleSorting(void 0, column.getCanMultiSort() ? table.options.isMultiSortEvent == null ? void 0 : table.options.isMultiSortEvent(e) : false);
-				};
-			};
-		},
-		createTable: (table) => {
-			table.setSorting = (updater) => table.options.onSortingChange == null ? void 0 : table.options.onSortingChange(updater);
-			table.resetSorting = (defaultState) => {
-				var _table$initialState$s, _table$initialState;
-				table.setSorting(defaultState ? [] : (_table$initialState$s = (_table$initialState = table.initialState) == null ? void 0 : _table$initialState.sorting) != null ? _table$initialState$s : []);
-			};
-			table.getPreSortedRowModel = () => table.getGroupedRowModel();
-			table.getSortedRowModel = () => {
-				if (!table._getSortedRowModel && table.options.getSortedRowModel) table._getSortedRowModel = table.options.getSortedRowModel(table);
-				if (table.options.manualSorting || !table._getSortedRowModel) return table.getPreSortedRowModel();
-				return table._getSortedRowModel();
-			};
-		}
-	},
-	ColumnGrouping,
-	RowExpanding,
-	RowPagination,
-	RowPinning,
-	RowSelection,
-	ColumnSizing
-];
-function createTable(options) {
-	var _options$_features, _options$initialState;
-	const _features = [...builtInFeatures, ...(_options$_features = options._features) != null ? _options$_features : []];
-	let table = { _features };
-	const defaultOptions = table._features.reduce((obj, feature) => {
-		return Object.assign(obj, feature.getDefaultOptions == null ? void 0 : feature.getDefaultOptions(table));
-	}, {});
-	const mergeOptions = (options) => {
-		if (table.options.mergeOptions) return table.options.mergeOptions(defaultOptions, options);
-		return {
-			...defaultOptions,
-			...options
-		};
-	};
-	let initialState = { ...(_options$initialState = options.initialState) != null ? _options$initialState : {} };
-	table._features.forEach((feature) => {
-		var _feature$getInitialSt;
-		initialState = (_feature$getInitialSt = feature.getInitialState == null ? void 0 : feature.getInitialState(initialState)) != null ? _feature$getInitialSt : initialState;
-	});
-	const queued = [];
-	let queuedTimeout = false;
-	const coreInstance = {
-		_features,
-		options: {
-			...defaultOptions,
-			...options
-		},
-		initialState,
-		_queue: (cb) => {
-			queued.push(cb);
-			if (!queuedTimeout) {
-				queuedTimeout = true;
-				Promise.resolve().then(() => {
-					while (queued.length) queued.shift()();
-					queuedTimeout = false;
-				}).catch((error) => setTimeout(() => {
-					throw error;
-				}));
-			}
-		},
-		reset: () => {
-			table.setState(table.initialState);
-		},
-		setOptions: (updater) => {
-			const newOptions = functionalUpdate(updater, table.options);
-			table.options = mergeOptions(newOptions);
-		},
-		getState: () => {
-			return table.options.state;
-		},
-		setState: (updater) => {
-			table.options.onStateChange == null || table.options.onStateChange(updater);
-		},
-		_getRowId: (row, index, parent) => {
-			var _table$options$getRow;
-			return (_table$options$getRow = table.options.getRowId == null ? void 0 : table.options.getRowId(row, index, parent)) != null ? _table$options$getRow : `${parent ? [parent.id, index].join(".") : index}`;
-		},
-		getCoreRowModel: () => {
-			if (!table._getCoreRowModel) table._getCoreRowModel = table.options.getCoreRowModel(table);
-			return table._getCoreRowModel();
-		},
-		getRowModel: () => {
-			return table.getPaginationRowModel();
-		},
-		getRow: (id, searchAll) => {
-			let row = (searchAll ? table.getPrePaginationRowModel() : table.getRowModel()).rowsById[id];
-			if (!row) {
-				row = table.getCoreRowModel().rowsById[id];
-				if (!row) throw new Error();
-			}
-			return row;
-		},
-		_getDefaultColumnDef: memo$3(() => [table.options.defaultColumn], (defaultColumn) => {
-			var _defaultColumn;
-			defaultColumn = (_defaultColumn = defaultColumn) != null ? _defaultColumn : {};
-			return {
-				header: (props) => {
-					const resolvedColumnDef = props.header.column.columnDef;
-					if (resolvedColumnDef.accessorKey) return resolvedColumnDef.accessorKey;
-					if (resolvedColumnDef.accessorFn) return resolvedColumnDef.id;
-					return null;
-				},
-				cell: (props) => {
-					var _props$renderValue$to, _props$renderValue;
-					return (_props$renderValue$to = (_props$renderValue = props.renderValue()) == null || _props$renderValue.toString == null ? void 0 : _props$renderValue.toString()) != null ? _props$renderValue$to : null;
-				},
-				...table._features.reduce((obj, feature) => {
-					return Object.assign(obj, feature.getDefaultColumnDef == null ? void 0 : feature.getDefaultColumnDef());
-				}, {}),
-				...defaultColumn
-			};
-		}, getMemoOptions(options, "debugColumns", "_getDefaultColumnDef")),
-		_getColumnDefs: () => table.options.columns,
-		getAllColumns: memo$3(() => [table._getColumnDefs()], (columnDefs) => {
-			const recurseColumns = function(columnDefs, parent, depth) {
-				if (depth === void 0) depth = 0;
-				return columnDefs.map((columnDef) => {
-					const column = createColumn(table, columnDef, depth, parent);
-					const groupingColumnDef = columnDef;
-					column.columns = groupingColumnDef.columns ? recurseColumns(groupingColumnDef.columns, column, depth + 1) : [];
-					return column;
-				});
-			};
-			return recurseColumns(columnDefs);
-		}, getMemoOptions(options, "debugColumns", "getAllColumns")),
-		getAllFlatColumns: memo$3(() => [table.getAllColumns()], (allColumns) => {
-			return allColumns.flatMap((column) => {
-				return column.getFlatColumns();
-			});
-		}, getMemoOptions(options, "debugColumns", "getAllFlatColumns")),
-		_getAllFlatColumnsById: memo$3(() => [table.getAllFlatColumns()], (flatColumns) => {
-			return flatColumns.reduce((acc, column) => {
-				acc[column.id] = column;
-				return acc;
-			}, {});
-		}, getMemoOptions(options, "debugColumns", "getAllFlatColumnsById")),
-		getAllLeafColumns: memo$3(() => [table.getAllColumns(), table._getOrderColumnsFn()], (allColumns, orderColumns) => {
-			return orderColumns(allColumns.flatMap((column) => column.getLeafColumns()));
-		}, getMemoOptions(options, "debugColumns", "getAllLeafColumns")),
-		getColumn: (columnId) => {
-			return table._getAllFlatColumnsById()[columnId];
-		}
-	};
-	Object.assign(table, coreInstance);
-	for (let index = 0; index < table._features.length; index++) {
-		const feature = table._features[index];
-		feature == null || feature.createTable == null || feature.createTable(table);
-	}
-	return table;
-}
-function getCoreRowModel() {
-	return (table) => memo$3(() => [table.options.data], (data) => {
-		const rowModel = {
-			rows: [],
-			flatRows: [],
-			rowsById: {}
-		};
-		const accessRows = function(originalRows, depth, parentRow) {
-			if (depth === void 0) depth = 0;
-			const rows = [];
-			for (let i = 0; i < originalRows.length; i++) {
-				const row = createRow(table, table._getRowId(originalRows[i], i, parentRow), originalRows[i], i, depth, void 0, parentRow == null ? void 0 : parentRow.id);
-				rowModel.flatRows.push(row);
-				rowModel.rowsById[row.id] = row;
-				rows.push(row);
-				if (table.options.getSubRows) {
-					var _row$originalSubRows;
-					row.originalSubRows = table.options.getSubRows(originalRows[i], i);
-					if ((_row$originalSubRows = row.originalSubRows) != null && _row$originalSubRows.length) row.subRows = accessRows(row.originalSubRows, depth + 1, row);
-				}
-			}
-			return rows;
-		};
-		rowModel.rows = accessRows(data);
-		return rowModel;
-	}, getMemoOptions(table.options, "debugTable", "getRowModel", () => table._autoResetPageIndex()));
-}
-function getSortedRowModel() {
-	return (table) => memo$3(() => [table.getState().sorting, table.getPreSortedRowModel()], (sorting, rowModel) => {
-		if (!rowModel.rows.length || !(sorting != null && sorting.length)) return rowModel;
-		const sortingState = table.getState().sorting;
-		const sortedFlatRows = [];
-		const availableSorting = sortingState.filter((sort) => {
-			var _table$getColumn;
-			return (_table$getColumn = table.getColumn(sort.id)) == null ? void 0 : _table$getColumn.getCanSort();
-		});
-		const columnInfoById = {};
-		availableSorting.forEach((sortEntry) => {
-			const column = table.getColumn(sortEntry.id);
-			if (!column) return;
-			columnInfoById[sortEntry.id] = {
-				sortUndefined: column.columnDef.sortUndefined,
-				invertSorting: column.columnDef.invertSorting,
-				sortingFn: column.getSortingFn()
-			};
-		});
-		const sortData = (rows) => {
-			const sortedData = rows.map((row) => ({ ...row }));
-			sortedData.sort((rowA, rowB) => {
-				for (let i = 0; i < availableSorting.length; i += 1) {
-					var _sortEntry$desc;
-					const sortEntry = availableSorting[i];
-					const columnInfo = columnInfoById[sortEntry.id];
-					const sortUndefined = columnInfo.sortUndefined;
-					const isDesc = (_sortEntry$desc = sortEntry == null ? void 0 : sortEntry.desc) != null ? _sortEntry$desc : false;
-					let sortInt = 0;
-					if (sortUndefined) {
-						const aValue = rowA.getValue(sortEntry.id);
-						const bValue = rowB.getValue(sortEntry.id);
-						const aUndefined = aValue === void 0;
-						const bUndefined = bValue === void 0;
-						if (aUndefined || bUndefined) {
-							if (sortUndefined === "first") return aUndefined ? -1 : 1;
-							if (sortUndefined === "last") return aUndefined ? 1 : -1;
-							sortInt = aUndefined && bUndefined ? 0 : aUndefined ? sortUndefined : -sortUndefined;
-						}
-					}
-					if (sortInt === 0) sortInt = columnInfo.sortingFn(rowA, rowB, sortEntry.id);
-					if (sortInt !== 0) {
-						if (isDesc) sortInt *= -1;
-						if (columnInfo.invertSorting) sortInt *= -1;
-						return sortInt;
-					}
-				}
-				return rowA.index - rowB.index;
-			});
-			sortedData.forEach((row) => {
-				var _row$subRows;
-				sortedFlatRows.push(row);
-				if ((_row$subRows = row.subRows) != null && _row$subRows.length) row.subRows = sortData(row.subRows);
-			});
-			return sortedData;
-		};
-		return {
-			rows: sortData(rowModel.rows),
-			flatRows: sortedFlatRows,
-			rowsById: rowModel.rowsById
-		};
-	}, getMemoOptions(table.options, "debugTable", "getSortedRowModel", () => table._autoResetPageIndex()));
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-table@8.21.3_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/@tanstack/react-table/build/lib/index.mjs
+//#region ../../node_modules/.pnpm/@tanstack+react-table@9.1.2_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/@tanstack/react-table/dist/useTable.js
+var useIsomorphicLayoutEffect = typeof window === "undefined" ? import_react.useEffect : import_react.useLayoutEffect;
 /**
-* react-table
+* Creates a React table instance backed by TanStack Store atoms.
 *
-* Copyright (c) TanStack
+* The optional selector projects from `table.store`; the selected value is
+* exposed on `table.state` and compared shallowly for React re-renders. Omit
+* the selector to subscribe to every registered table state slice, or pass a
+* narrower selector and use `table.Subscribe` lower in the tree for targeted
+* subscriptions.
 *
-* This source code is licensed under the MIT license found in the
-* LICENSE.md file in the root directory of this source tree.
+* @example
+* ```tsx
+* const table = useTable(
+*   {
+*     features,
+*     columns,
+*     data,
+*   },
+*   (state) => ({ pagination: state.pagination }),
+* )
 *
-* @license MIT
+* table.state.pagination
+* ```
 */
-/**
-* If rendering headers, cells, or footers with custom markup, use flexRender instead of `cell.getValue()` or `cell.renderValue()`.
-*/
-function flexRender(Comp, props) {
-	return !Comp ? null : isReactComponent(Comp) ? /*#__PURE__*/ import_react.createElement(Comp, props) : Comp;
-}
-function isReactComponent(component) {
-	return isClassComponent(component) || typeof component === "function" || isExoticComponent(component);
-}
-function isClassComponent(component) {
-	return typeof component === "function" && (() => {
-		const proto = Object.getPrototypeOf(component);
-		return proto.prototype && proto.prototype.isReactComponent;
-	})();
-}
-function isExoticComponent(component) {
-	return typeof component === "object" && typeof component.$$typeof === "symbol" && ["react.memo", "react.forward_ref"].includes(component.$$typeof.description);
-}
-function useReactTable(options) {
-	const resolvedOptions = {
-		state: {},
-		onStateChange: () => {},
-		renderFallbackValue: null,
-		...options
-	};
-	const [tableRef] = import_react.useState(() => ({ current: createTable(resolvedOptions) }));
-	const [state, setState] = import_react.useState(() => tableRef.current.initialState);
-	tableRef.current.setOptions((prev) => ({
+function useTable(tableOptions, selector) {
+	const [{ table, rootSource }] = (0, import_react.useState)(() => {
+		const tableInstance = constructTable({
+			...tableOptions,
+			features: {
+				coreReactivityFeature: reactReactivity(),
+				...tableOptions.features
+			}
+		});
+		tableInstance.Subscribe = ((props) => {
+			return Subscribe({
+				...props,
+				source: props.source ?? tableInstance.store
+			});
+		});
+		tableInstance.FlexRender = FlexRender;
+		return {
+			table: tableInstance,
+			rootSource: createRenderPhaseSource(tableInstance.store, shallow)
+		};
+	});
+	const coreTable = table;
+	table_setOptions(coreTable, (prev) => ({
 		...prev,
-		...options,
-		state: {
-			...state,
-			...options.state
-		},
-		onStateChange: (updater) => {
-			setState(updater);
-			options.onStateChange == null || options.onStateChange(updater);
-		}
-	}));
-	return tableRef.current;
+		...tableOptions
+	}), { syncExternalState: false });
+	const controlledState = coreTable.options.state;
+	const renderSnapshot = rootSource.get();
+	const state = useSelector(rootSource, selector, { compare: shallow });
+	useIsomorphicLayoutEffect(() => {
+		rootSource.markCommitted(renderSnapshot);
+		table_publishExternalState(coreTable, controlledState ?? null, shallow);
+	});
+	return (0, import_react.useMemo)(() => ({
+		...table,
+		options: tableOptions,
+		state
+	}), [
+		table,
+		tableOptions,
+		state
+	]);
 }
 var ColumnFilterButton_module_default = {
 	filterButton: "_filterButton_b38ko_1",
@@ -102433,6 +105589,7 @@ var ColumnFilterEditor_module_default = {
 //#region ../../packages/inspect-components/src/columnFilter/DurationInput.tsx
 var DurationInput = ({ id, value, onChange, disabled, autoFocus, ariaLabel }) => {
 	const parsedSeconds = (0, import_react.useMemo)(() => {
+		if (value.trim() === "") return null;
 		const num = Number(value);
 		return Number.isFinite(num) && num >= 0 ? num : null;
 	}, [value]);
@@ -102738,6 +105895,39 @@ var ColumnFilterEditor = ({ columnId, filterType, operatorOptions, condition, se
 		]
 	});
 };
+//#endregion
+//#region ../../packages/inspect-components/src/columnFilter/editorConditionProps.ts
+/**
+* Map filter-popover state to `ColumnFilterEditor`'s `condition`/`second`/
+* `join` props, so the editor's call sites don't each hand-wire the ~20
+* fields (and drift apart as the editor grows).
+*/
+function editorConditionProps(state) {
+	return {
+		condition: {
+			operator: state.operator,
+			onOperatorChange: state.setOperator,
+			value: state.value,
+			onValueChange: state.setValue,
+			value2: state.value2,
+			onValue2Change: state.setValue2,
+			isValueDisabled: state.isValueDisabled,
+			isRangeOperator: state.isRangeOperator
+		},
+		second: state.showSecond ? {
+			operator: state.secondOperator,
+			onOperatorChange: state.setSecondOperator,
+			value: state.secondValue,
+			onValueChange: state.setSecondValue,
+			value2: state.secondValue2,
+			onValue2Change: state.setSecondValue2,
+			isValueDisabled: !state.secondUsesValue,
+			isRangeOperator: state.secondUsesRangeValue
+		} : void 0,
+		join: state.join,
+		onJoinChange: state.setJoin
+	};
+}
 //#endregion
 //#region ../../packages/inspect-common/src/query/types.ts
 var isScalarArray = (val) => Array.isArray(val) && !isTuple(val);
@@ -103054,13 +106244,14 @@ function useColumnFilterPopover({ columnId, filterType, spec, onChange, operator
 //#region ../../packages/inspect-components/src/columnFilter/ColumnFilterControl.tsx
 var ColumnFilterControl = ({ columnId, filterType, spec, onChange, operators, suggestions = [], onOpenChange, anchorEl, placement = "bottom-end" }) => {
 	const buttonRef = (0, import_react.useRef)(null);
-	const { isOpen, setIsOpen, operator, setOperator, operatorOptions, value: rawValue, setValue: setRawValue, value2: rawValue2, setValue2: setRawValue2, isValueDisabled, isRangeOperator, join, setJoin, secondOperator, setSecondOperator, secondValue, setSecondValue, secondValue2, setSecondValue2, showSecond, secondUsesValue, secondUsesRangeValue, commitAndClose, cancelAndClose } = useColumnFilterPopover({
+	const popover = useColumnFilterPopover({
 		columnId,
 		filterType,
 		spec,
 		onChange,
 		operators
 	});
+	const { isOpen, setIsOpen, operatorOptions, commitAndClose, cancelAndClose } = popover;
 	const handlePopoverOpenChange = (0, import_react.useCallback)((nextOpen) => {
 		setIsOpen(nextOpen);
 		onOpenChange?.(nextOpen ? columnId : null);
@@ -103097,28 +106288,7 @@ var ColumnFilterControl = ({ columnId, filterType, spec, onChange, operators, su
 				columnId,
 				filterType,
 				operatorOptions,
-				condition: {
-					operator,
-					onOperatorChange: setOperator,
-					value: rawValue,
-					onValueChange: setRawValue,
-					value2: rawValue2,
-					onValue2Change: setRawValue2,
-					isValueDisabled,
-					isRangeOperator
-				},
-				second: showSecond ? {
-					operator: secondOperator,
-					onOperatorChange: setSecondOperator,
-					value: secondValue,
-					onValueChange: setSecondValue,
-					value2: secondValue2,
-					onValue2Change: setSecondValue2,
-					isValueDisabled: !secondUsesValue,
-					isRangeOperator: secondUsesRangeValue
-				} : void 0,
-				join,
-				onJoinChange: setJoin,
+				...editorConditionProps(popover),
 				onCommit: commitAndClose,
 				onCancel: cancelAndClose,
 				suggestions
@@ -103172,6 +106342,21 @@ var isColumnFilter = (value) => {
 	if (hasSecond && !isConditionShaped(spec.second)) return false;
 	return true;
 };
+//#endregion
+//#region ../../packages/inspect-components/src/columnFilter/combineFilters.ts
+/**
+* AND-combine a scope's per-column filter specs into a single `Condition`
+* (`undefined` when none are active). Entries are `unknown` because they come
+* from persisted grid state: pre-FilterSpec builds stored a compiled
+* `condition` instead of a `spec`, and those fail the guard and are dropped.
+*
+* @param excludeColumnId - Optional column ID to exclude, so a column's own
+* editor can fetch suggestions constrained by every *other* active filter.
+*/
+function combineFilters(columnFilters, excludeColumnId) {
+	if (!columnFilters) return void 0;
+	return Object.values(columnFilters).map((f) => isColumnFilter(f) && f.columnId !== excludeColumnId ? specToCondition(f.columnId, f.filterType, f.spec) : null).filter((c) => c !== null && c !== void 0).reduce((acc, c) => acc ? acc.and(c) : c, void 0);
+}
 /**
 * Width that fits the widest rendered cell (or the header label) without
 * truncation, clamped to the column's min/max. Mirrors the AG grid's
@@ -103367,6 +106552,16 @@ function resolveKeyboardNavTarget({ key, metaKey, ctrlKey, currentIndex, rowCoun
 	}
 }
 //#endregion
+//#region src/app/shared/data-grid/tableFeatures.ts
+var dataGridFeatures = tableFeatures({
+	columnOrderingFeature,
+	columnPinningFeature,
+	columnSizingFeature,
+	columnResizingFeature,
+	columnVisibilityFeature,
+	rowSortingFeature
+});
+//#endregion
 //#region src/app/shared/data-grid/DataGrid.tsx
 var kRowHeight = 30;
 var kPageJump = 10;
@@ -103411,7 +106606,7 @@ function SortIndicator({ header }) {
 	const sorted = header.column.getIsSorted();
 	if (!sorted) return null;
 	const sortIndex = header.column.getSortIndex();
-	const multiSorted = header.getContext().table.getState().sorting.length > 1;
+	const multiSorted = header.getContext().table.store.state.sorting.length > 1;
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
 		className: DataGrid_module_default.sortIndicator,
 		children: [multiSorted && sortIndex >= 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
@@ -103478,8 +106673,11 @@ function DataGrid({ data, columns, getRowId, columnVisibility, sorting, onSortin
 		if (onColumnOrderChange) onColumnOrderChange(next);
 		else setInternalOrder(next);
 	}, [onColumnOrderChange]);
-	const columnPinning = (0, import_react.useMemo)(() => ({ left: columns.flatMap((c) => c.pinned === "left" && c.id !== void 0 ? [c.id] : []) }), [columns]);
-	const pinnedLeft = (0, import_react.useMemo)(() => new Set(columnPinning.left), [columnPinning]);
+	const columnPinning = (0, import_react.useMemo)(() => ({
+		start: columns.flatMap((c) => c.pinned === "start" && c.id !== void 0 ? [c.id] : []),
+		end: []
+	}), [columns]);
+	const pinnedStart = (0, import_react.useMemo)(() => new Set(columnPinning.start), [columnPinning]);
 	const [draggedColId, setDraggedColId] = (0, import_react.useState)(null);
 	const [dropTarget, setDropTarget] = (0, import_react.useState)(null);
 	const dragGhostRef = (0, import_react.useRef)(null);
@@ -103505,7 +106703,7 @@ function DataGrid({ data, columns, getRowId, columnVisibility, sorting, onSortin
 		}, 0);
 	}, []);
 	const handleHeaderDragOver = (0, import_react.useCallback)((e, colId) => {
-		if (!draggedColId || pinnedLeft.has(colId)) return;
+		if (!draggedColId || pinnedStart.has(colId)) return;
 		e.preventDefault();
 		e.dataTransfer.dropEffect = "move";
 		if (draggedColId === colId) {
@@ -103520,7 +106718,7 @@ function DataGrid({ data, columns, getRowId, columnVisibility, sorting, onSortin
 	}, [
 		draggedColId,
 		effectiveColumnOrder,
-		pinnedLeft
+		pinnedStart
 	]);
 	const handleHeaderDragLeave = (0, import_react.useCallback)((e) => {
 		if (e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget)) return;
@@ -103528,7 +106726,7 @@ function DataGrid({ data, columns, getRowId, columnVisibility, sorting, onSortin
 	}, []);
 	const handleHeaderDrop = (0, import_react.useCallback)((e, colId) => {
 		e.preventDefault();
-		if (draggedColId && !pinnedLeft.has(colId)) {
+		if (draggedColId && !pinnedStart.has(colId)) {
 			const next = moveColumn(effectiveColumnOrder, draggedColId, colId);
 			if (next) commitColumnOrder(next);
 		}
@@ -103538,7 +106736,7 @@ function DataGrid({ data, columns, getRowId, columnVisibility, sorting, onSortin
 		draggedColId,
 		effectiveColumnOrder,
 		commitColumnOrder,
-		pinnedLeft
+		pinnedStart
 	]);
 	const handleHeaderDragEnd = (0, import_react.useCallback)(() => {
 		dragSessionRef.current = null;
@@ -103549,14 +106747,14 @@ function DataGrid({ data, columns, getRowId, columnVisibility, sorting, onSortin
 	const orderedVisibleDefs = (0, import_react.useMemo)(() => {
 		const byId = /* @__PURE__ */ new Map();
 		for (const c of columns) if (c.id !== void 0) byId.set(c.id, c);
-		const rest = effectiveColumnOrder.filter((id) => !pinnedLeft.has(id));
-		return [...columnPinning.left, ...rest].filter((id) => (columnVisibility?.[id] ?? true) && byId.has(id)).map((id) => byId.get(id));
+		const rest = effectiveColumnOrder.filter((id) => !pinnedStart.has(id));
+		return [...columnPinning.start, ...rest].filter((id) => (columnVisibility?.[id] ?? true) && byId.has(id)).map((id) => byId.get(id));
 	}, [
 		columns,
 		columnVisibility,
 		effectiveColumnOrder,
 		columnPinning,
-		pinnedLeft
+		pinnedStart
 	]);
 	const { anyRotated, afterRotatedIds } = (0, import_react.useMemo)(() => {
 		const anyRotated = orderedVisibleDefs.some((c) => c.meta?.rotateHeader);
@@ -103618,10 +106816,10 @@ function DataGrid({ data, columns, getRowId, columnVisibility, sorting, onSortin
 			[column.id]: width
 		}));
 	}, [handleColumnSizingChange]);
-	const table = useReactTable({
+	const table = useTable({
+		features: dataGridFeatures,
 		data,
 		columns,
-		getCoreRowModel: getCoreRowModel(),
 		getRowId,
 		manualSorting: true,
 		sortDescFirst: false,
@@ -103776,14 +106974,14 @@ function DataGrid({ data, columns, getRowId, columnVisibility, sorting, onSortin
 							}, header.id);
 							const align = columnDef.meta?.align;
 							const filterType = columnDef.meta?.filterType;
-							const pinned = header.column.getIsPinned() === "left";
+							const pinned = header.column.getIsPinned() === "start";
 							const sorted = header.column.getIsSorted();
 							const sortCaret = /* @__PURE__ */ (0, import_jsx_runtime.jsx)(SortIndicator, { header });
 							const headerLabel = header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext());
 							const filterControl = columnDef.meta?.filterable && filterType && !hideColumnFilters ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ColumnFilterControl, {
 								columnId: header.column.id,
 								filterType,
-								operators: columnDef.meta?.operators,
+								operators: columnDef.meta.operators,
 								spec: filterSpec,
 								placement: "bottom-start",
 								onChange: (spec) => onColumnFilterChange?.(header.column.id, filterType, spec)
@@ -103794,7 +106992,7 @@ function DataGrid({ data, columns, getRowId, columnVisibility, sorting, onSortin
 									width: header.getSize() + (afterRotatedIds.has(header.column.id) ? kAfterRotatedGap : 0),
 									...pinned && {
 										position: "sticky",
-										left: header.column.getStart("left"),
+										left: header.column.getStart("start"),
 										zIndex: 3
 									}
 								},
@@ -103890,14 +107088,14 @@ function GridRowInner({ row, ariaRowIndex, isSelected, rowHeight, width, top, af
 			const cellDef = cell.column.columnDef;
 			const align = cellDef.meta?.align;
 			const cellStyle = cellDef.meta?.cellStyle?.(row.original);
-			const pinned = cell.column.getIsPinned() === "left";
+			const pinned = cell.column.getIsPinned() === "start";
 			return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 				className: clsx(DataGrid_module_default.cell, align === "center" && DataGrid_module_default.cellCenter, pinned && DataGrid_module_default.cellPinned),
 				style: {
 					width: cell.column.getSize() + (afterRotatedIds.has(cell.column.id) ? kAfterRotatedGap : 0),
 					...pinned && {
 						position: "sticky",
-						left: cell.column.getStart("left"),
+						left: cell.column.getStart("start"),
 						zIndex: 1
 					},
 					...cellStyle
@@ -103965,7 +107163,7 @@ function RotatedHeaderCell({ header, ariaColIndex, filterSpec, onColumnFilterCha
 						children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ColumnFilterControl, {
 							columnId: header.column.id,
 							filterType,
-							operators: columnDef.meta?.operators,
+							operators: columnDef.meta.operators,
 							spec: filterSpec,
 							anchorEl,
 							placement: "bottom-start",
@@ -104574,18 +107772,6 @@ function useKeyedMemo(source, getKey, itemDeps, build) {
 	cacheRef.current = next;
 	if (changed) resultRef.current = result;
 	return resultRef.current;
-}
-//#endregion
-//#region src/app/log-list/listing/combineFilters.ts
-/**
-* AND-combine a scope's per-column filter specs into a single `Condition`
-* (`undefined` when none are active). Mirrors scout's `useFilterConditions`.
-* Entries persisted by pre-FilterSpec builds (which stored a compiled
-* `condition`) fail the guard and are dropped.
-*/
-function combineFilters(columnFilters) {
-	if (!columnFilters) return void 0;
-	return Object.values(columnFilters).map((f) => isColumnFilter(f) ? specToCondition(f.columnId, f.filterType, f.spec) : null).filter((c) => c !== null && c !== void 0).reduce((acc, c) => acc ? acc.and(c) : c, void 0);
 }
 //#endregion
 //#region src/app/log-list/grid/useLogListData.ts
@@ -105565,7 +108751,7 @@ var SampleRetriedErrors = ({ id, retries, error, limit, scrollRef }) => {
 var formatModelText = (evalSpec) => {
 	if (!evalSpec) return void 0;
 	const roles = evalSpec.model_roles;
-	if (roles && Object.keys(roles).length > 0) return Object.entries(roles).map(([role, data]) => `${role}: ${data.model}`).join(", ");
+	if (roles && Object.keys(roles).length > 0) return Object.entries(roles).map(([role, data]) => `${role}: ${modelRoleModelNames(data)}`).join(", ");
 	if (evalSpec.model && evalSpec.model !== "none/none") return evalSpec.model;
 };
 //#endregion
@@ -106665,10 +109851,10 @@ var SampleSummaryView = ({ parent_id, sample, collapsed = false }) => {
 	const evalScoreView = useEvalScorePanelView();
 	if (!sampleDescriptor) return;
 	const fields = resolveSample(sample, sampleDescriptor);
-	const visibleScores = selectedScores?.filter((scoreLabel) => {
+	const visibleScores = selectedScores.filter((scoreLabel) => {
 		const rendered = sampleDescriptor.evalDescriptor.score(sample, scoreLabel)?.render();
 		return rendered !== void 0 && rendered !== "";
-	}) ?? [];
+	});
 	const scoreCount = visibleScores.length;
 	const wideRight = scoreCount >= 3;
 	const compactScores = scoreCount > 0 && scoreCount <= 2;
@@ -107833,10 +111019,12 @@ var require_parse = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 				}
 				return esc ? m : `\\${m}`;
 			});
-			if (backslashes === true) if (opts.unescape === true) output = output.replace(/\\/g, "");
-			else output = output.replace(/\\+/g, (m) => {
-				return m.length % 2 === 0 ? "\\\\" : m ? "\\" : "";
-			});
+			if (backslashes === true) {
+				if (opts.unescape === true) output = output.replace(/\\/g, "");
+				else output = output.replace(/\\+/g, (m) => {
+					return m.length % 2 === 0 ? "\\\\" : m ? "\\" : "";
+				});
+			}
 			if (output === input && opts.contains === true) {
 				state.output = input;
 				return state;
@@ -108606,8 +111794,10 @@ var require_picomatch$1 = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 			output = format ? format(input) : input;
 			match = output === glob;
 		}
-		if (match === false || opts.capture === true) if (opts.matchBase === true || opts.basename === true) match = picomatch.matchBase(input, regex, options, posix);
-		else match = regex.exec(output);
+		if (match === false || opts.capture === true) {
+			if (opts.matchBase === true || opts.basename === true) match = picomatch.matchBase(input, regex, options, posix);
+			else match = regex.exec(output);
+		}
 		return {
 			isMatch: Boolean(match),
 			match,
@@ -110959,7 +114149,7 @@ var SampleDisplay = ({ id, scrollRef, showActivity, focusOnLoad }) => {
 					})
 				})
 			}) : void 0,
-			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(ActivityBar, { animating: showActivity }),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(LoadingBar, { loading: showActivity }),
 			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 				style: tabsContainerStyle,
 				children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(TabSet, {
@@ -111092,7 +114282,7 @@ var SampleDisplay = ({ id, scrollRef, showActivity, focusOnLoad }) => {
 							selected: effectiveSelectedTab === kSampleErrorTabId,
 							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 								className: clsx(SampleDisplay_module_default.error),
-								children: sample?.error ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Card, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(CardHeader, { label: `Sample Error` }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CardBody, { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ANSIDisplay, {
+								children: sample.error ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Card, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(CardHeader, { label: `Sample Error` }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CardBody, { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ANSIDisplay, {
 									output: sample.error.traceback_ansi,
 									className: clsx("text-size-small", SampleDisplay_module_default.ansi),
 									style: {
@@ -111163,7 +114353,10 @@ var SampleUsagePanel = ({ id, sample, evalSpec }) => {
 	const roleAliases = (0, import_react.useMemo)(() => {
 		if (!evalSpec?.model_roles) return void 0;
 		const roles = {};
-		for (const [role, config] of Object.entries(evalSpec.model_roles)) if (config.model) roles[role] = config.model;
+		for (const [role, value] of Object.entries(evalSpec.model_roles)) {
+			const names = modelRoleModelNames(value);
+			if (names) roles[role] = names;
+		}
 		return Object.keys(roles).length > 0 ? roles : void 0;
 	}, [evalSpec]);
 	const configsByModel = (0, import_react.useMemo)(() => buildConfigsByModel(evalSpec), [evalSpec]);
@@ -111242,21 +114435,21 @@ var metadataViewsForSample = (id, scrollRef, sample) => {
 			})
 		})] }, `sample-invalidation-${id}`));
 	}
-	if (Object.keys(sample?.metadata).length > 0) sampleMetadatas.push(/* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Card, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(CardHeader, { label: "Metadata" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CardBody, {
+	if (Object.keys(sample.metadata).length > 0) sampleMetadatas.push(/* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Card, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(CardHeader, { label: "Metadata" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CardBody, {
 		padded: false,
 		children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(RecordTree, {
 			id: `task-sample-metadata-${id}`,
-			record: sample?.metadata,
+			record: sample.metadata,
 			className: clsx("tab-pane", SampleDisplay_module_default.noTop),
 			scrollRef,
 			copyButton: true
 		})
 	})] }, `sample-metadata-${id}`));
-	if (Object.keys(sample?.store).length > 0) sampleMetadatas.push(/* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Card, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(CardHeader, { label: "Store" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CardBody, {
+	if (Object.keys(sample.store).length > 0) sampleMetadatas.push(/* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Card, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(CardHeader, { label: "Store" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CardBody, {
 		padded: false,
 		children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(RecordTree, {
 			id: `task-sample-store-${id}`,
-			record: sample?.store,
+			record: sample.store,
 			className: clsx("tab-pane", SampleDisplay_module_default.noTop),
 			scrollRef,
 			processStore: true,
@@ -111893,7 +115086,7 @@ var EditMetadataDialog = ({ showing, setShowing, currentMetadata, logFile, onSav
 	(0, import_react.useEffect)(() => {
 		if (!showing) return;
 		let cancelled = false;
-		if (api?.get_user_info) api.get_user_info().then((info) => {
+		if (api.get_user_info) api.get_user_info().then((info) => {
 			if (!cancelled && info.name) setAuthor((current) => current || info.name || "");
 		}).catch(() => {});
 		return () => {
@@ -111962,10 +115155,10 @@ var EditMetadataDialog = ({ showing, setShowing, currentMetadata, logFile, onSav
 			addKey();
 		}
 	};
-	const canSave = !submitting && hasChanges && author.trim().length > 0 && !!api?.edit_log;
+	const canSave = !submitting && hasChanges && author.trim().length > 0 && !!api.edit_log;
 	const inFlightRef = (0, import_react.useRef)(false);
 	const handleSave = async () => {
-		if (!canSave || inFlightRef.current || !api?.edit_log) return;
+		if (!canSave || inFlightRef.current || !api.edit_log) return;
 		inFlightRef.current = true;
 		const indicatorTimer = window.setTimeout(() => setSubmitting(true), 200);
 		try {
@@ -112242,7 +115435,7 @@ var SolversDetailView = ({ steps }) => {
 		className: clsx(SolverDetailView_module_default.items, "text-size-small", SolverDetailView_module_default.separator),
 		children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: ApplicationIcons.arrows.right })
 	});
-	const details = steps?.map((step, index) => {
+	const details = steps.map((step, index) => {
 		return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(DetailStep, {
 			name: step.solver,
 			className: clsx(SolverDetailView_module_default.items, "text-size-small")
@@ -112627,7 +115820,10 @@ var ModelTab = ({ evalSpec, evalStats, evalStatus, configUpdates }) => {
 	const roleAliases = (0, import_react.useMemo)(() => {
 		if (!evalSpec?.model_roles) return void 0;
 		const roles = {};
-		for (const [role, config] of Object.entries(evalSpec.model_roles)) if (config.model) roles[role] = config.model;
+		for (const [role, value] of Object.entries(evalSpec.model_roles)) {
+			const names = modelRoleModelNames(value);
+			if (names) roles[role] = names;
+		}
 		return Object.keys(roles).length > 0 ? roles : void 0;
 	}, [evalSpec]);
 	const meta = (0, import_react.useMemo)(() => {
@@ -112664,8 +115860,8 @@ var ModelTab = ({ evalSpec, evalStats, evalStatus, configUpdates }) => {
 				gap: "0.75rem"
 			},
 			children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(UsagePanel, {
-				model_usage: hasModelUsage ? evalStats?.model_usage : void 0,
-				role_usage: hasRoleUsage ? evalStats?.role_usage : void 0,
+				model_usage: hasModelUsage ? evalStats.model_usage : void 0,
+				role_usage: hasRoleUsage ? evalStats.role_usage : void 0,
 				configs_by_model: configsByModel,
 				configs_by_role: configsByRole,
 				args_by_model: argsByModel,
@@ -112851,7 +116047,7 @@ var SampleList = (0, import_react.memo)((props) => {
 			type: "info",
 			msg: `INFO: ${limitCount} of ${sampleCount} samples (${formatNoDecimal(percentLimit)}%) completed due to exceeding a limit.`
 		});
-		if (earlyStopping?.early_stops && earlyStopping?.early_stops?.length > 0) result.push({
+		if (earlyStopping?.early_stops && earlyStopping.early_stops.length > 0) result.push({
 			type: "info",
 			msg: `Skipped ${earlyStopping.early_stops.length} samples due to early stopping (${earlyStopping.manager}). `
 		});
@@ -114200,9 +117396,10 @@ function buildTree(data) {
 			let nodeStart = fork.start;
 			fork.next();
 			while (fork.pos > startPos) {
-				if (fork.size < 0) if (fork.size == -3 || fork.size == -4) localSkipped += 4;
-				else break scan;
-				else if (fork.id >= minRepeatType) localSkipped += 4;
+				if (fork.size < 0) {
+					if (fork.size == -3 || fork.size == -4) localSkipped += 4;
+					else break scan;
+				} else if (fork.id >= minRepeatType) localSkipped += 4;
 				fork.next();
 			}
 			start = nodeStart;
@@ -114934,12 +118131,13 @@ var LineCursor = class {
 		} else if (done) {
 			this.done = true;
 			this.value = "";
-		} else if (lineBreak) if (this.afterBreak) this.value = "";
-		else {
-			this.afterBreak = true;
-			this.next();
-		}
-		else {
+		} else if (lineBreak) {
+			if (this.afterBreak) this.value = "";
+			else {
+				this.afterBreak = true;
+				this.next();
+			}
+		} else {
 			this.value = value;
 			this.afterBreak = false;
 		}
@@ -118082,7 +121280,7 @@ function add(elt, child) {
 	else throw new RangeError("Unsupported child node: " + child);
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@codemirror+view@6.43.7/node_modules/@codemirror/view/dist/index.js
+//#region ../../node_modules/.pnpm/@codemirror+view@6.43.8/node_modules/@codemirror/view/dist/index.js
 var nav = typeof navigator != "undefined" ? navigator : {
 	userAgent: "",
 	vendor: "",
@@ -118597,27 +121795,29 @@ function scrollRectIntoView(dom, rect, side, x, y, xMargin, yMargin, ltr) {
 				if (side < 0 && rect.left < bounding.left + moveX) moveX = rect.left - (bounding.left + xMargin);
 			}
 		} else moveX = (x == "center" ? rect.left + (rect.right - rect.left) / 2 - (bounding.right - bounding.left) / 2 : x == "start" == ltr ? rect.left - xMargin : rect.right - (bounding.right - bounding.left) + xMargin) - bounding.left;
-		if (moveX || moveY) if (top) win.scrollBy(moveX, moveY);
-		else {
-			let movedX = 0, movedY = 0;
-			if (moveY) {
-				let start = cur.scrollTop;
-				cur.scrollTop += moveY / scaleY;
-				movedY = (cur.scrollTop - start) * scaleY;
+		if (moveX || moveY) {
+			if (top) win.scrollBy(moveX, moveY);
+			else {
+				let movedX = 0, movedY = 0;
+				if (moveY) {
+					let start = cur.scrollTop;
+					cur.scrollTop += moveY / scaleY;
+					movedY = (cur.scrollTop - start) * scaleY;
+				}
+				if (moveX) {
+					let start = cur.scrollLeft;
+					cur.scrollLeft += moveX / scaleX;
+					movedX = (cur.scrollLeft - start) * scaleX;
+				}
+				rect = {
+					left: rect.left - movedX,
+					top: rect.top - movedY,
+					right: rect.right - movedX,
+					bottom: rect.bottom - movedY
+				};
+				if (movedX && Math.abs(movedX - moveX) < 1) x = "nearest";
+				if (movedY && Math.abs(movedY - moveY) < 1) y = "nearest";
 			}
-			if (moveX) {
-				let start = cur.scrollLeft;
-				cur.scrollLeft += moveX / scaleX;
-				movedX = (cur.scrollLeft - start) * scaleX;
-			}
-			rect = {
-				left: rect.left - movedX,
-				top: rect.top - movedY,
-				right: rect.right - movedX,
-				bottom: rect.bottom - movedY
-			};
-			if (movedX && Math.abs(movedX - moveX) < 1) x = "nearest";
-			if (movedY && Math.abs(movedY - moveY) < 1) y = "nearest";
 		}
 		if (top) break;
 		if (rect.top < bounding.top || rect.bottom > bounding.bottom || rect.left < bounding.left || rect.right > bounding.right) rect = {
@@ -118665,27 +121865,34 @@ var DOMSelectionState = class {
 		this.focusOffset = focusOffset;
 	}
 };
+function getScrollStack(target) {
+	let stack = [];
+	for (let cur = target; cur; cur = cur.nodeType == 11 ? cur.host : cur.parentNode) if (cur.nodeType == 1) stack.push({
+		node: cur,
+		left: cur.scrollLeft,
+		top: cur.scrollTop
+	});
+	return stack;
+}
+function restoreScrollStack(stack, vert = true) {
+	for (let { node, left, top } of stack) {
+		if (vert && node.scrollTop != top) node.scrollTop = top;
+		if (node.scrollLeft != left) node.scrollLeft = left;
+	}
+}
 var preventScrollSupported = null;
 if (browser.safari && browser.safari_version >= 26) preventScrollSupported = false;
 function focusPreventScroll(dom) {
 	if (dom.setActive) return dom.setActive();
 	if (preventScrollSupported) return dom.focus(preventScrollSupported);
-	let stack = [];
-	for (let cur = dom; cur; cur = cur.parentNode) {
-		stack.push(cur, cur.scrollTop, cur.scrollLeft);
-		if (cur == cur.ownerDocument) break;
-	}
+	let stack = getScrollStack(dom);
 	dom.focus(preventScrollSupported == null ? { get preventScroll() {
 		preventScrollSupported = { preventScroll: true };
 		return true;
 	} } : void 0);
 	if (!preventScrollSupported) {
 		preventScrollSupported = false;
-		for (let i = 0; i < stack.length;) {
-			let elt = stack[i++], top = stack[i++], left = stack[i++];
-			if (elt.scrollTop != top) elt.scrollTop = top;
-			if (elt.scrollLeft != left) elt.scrollLeft = left;
-		}
+		restoreScrollStack(stack);
 	}
 }
 var scratchRange;
@@ -118890,9 +122097,10 @@ function computeCharTypes(line, rFrom, rTo, isolates, outerType) {
 		}
 		for (let i = from, prev = prevType, prevStrong = prevType; i < to; i++) {
 			let type = types[i];
-			if (type == 128) if (i < to - 1 && prev == types[i + 1] && prev & 24) type = types[i] = prev;
-			else types[i] = 256;
-			else if (type == 64) {
+			if (type == 128) {
+				if (i < to - 1 && prev == types[i + 1] && prev & 24) type = types[i] = prev;
+				else types[i] = 256;
+			} else if (type == 64) {
 				let end = i + 1;
 				while (end < to && types[end] == 64) end++;
 				let replace = i && prev == 8 || end < rTo && types[end] == 8 ? prevStrong == 1 ? 1 : 8 : 256;
@@ -118908,21 +122116,22 @@ function processBracketPairs(line, rFrom, rTo, isolates, outerType) {
 	let oppositeType = outerType == 1 ? 2 : 1;
 	for (let iI = 0, sI = 0, context = 0; iI <= isolates.length; iI++) {
 		let from = iI ? isolates[iI - 1].to : rFrom, to = iI < isolates.length ? isolates[iI].from : rTo;
-		for (let i = from, ch, br, type; i < to; i++) if (br = Brackets[ch = line.charCodeAt(i)]) if (br < 0) {
-			for (let sJ = sI - 3; sJ >= 0; sJ -= 3) if (BracketStack[sJ + 1] == -br) {
-				let flags = BracketStack[sJ + 2];
-				let type = flags & 2 ? outerType : !(flags & 4) ? 0 : flags & 1 ? oppositeType : outerType;
-				if (type) types[i] = types[BracketStack[sJ]] = type;
-				sI = sJ;
-				break;
+		for (let i = from, ch, br, type; i < to; i++) if (br = Brackets[ch = line.charCodeAt(i)]) {
+			if (br < 0) {
+				for (let sJ = sI - 3; sJ >= 0; sJ -= 3) if (BracketStack[sJ + 1] == -br) {
+					let flags = BracketStack[sJ + 2];
+					let type = flags & 2 ? outerType : !(flags & 4) ? 0 : flags & 1 ? oppositeType : outerType;
+					if (type) types[i] = types[BracketStack[sJ]] = type;
+					sI = sJ;
+					break;
+				}
+			} else if (BracketStack.length == 189) break;
+			else {
+				BracketStack[sI++] = i;
+				BracketStack[sI++] = ch;
+				BracketStack[sI++] = context;
 			}
-		} else if (BracketStack.length == 189) break;
-		else {
-			BracketStack[sI++] = i;
-			BracketStack[sI++] = ch;
-			BracketStack[sI++] = context;
-		}
-		else if ((type = types[i]) == 2 || type == 1) {
+		} else if ((type = types[i]) == 2 || type == 1) {
 			let embed = type == outerType;
 			context = embed ? 0 : 1;
 			for (let sJ = sI - 3; sJ >= 0; sJ -= 3) {
@@ -120263,19 +123472,20 @@ var TileUpdate = class {
 		let activeMarks = getMarks(this.old), openMarks = this.openMarks;
 		this.old.advance(length, incEnd ? 1 : -1, {
 			skip: (tile, from, to) => {
-				if (tile.isWidget()) if (this.openWidget) this.builder.continueWidget(to - from);
-				else {
-					let widget = to > 0 || from < tile.length ? WidgetTile.of(tile.widget, this.view, to - from, tile.flags & 496, this.cache.maybeReuse(tile)) : this.cache.reuse(tile);
-					if (widget.flags & 256) {
-						widget.flags &= -2;
-						this.builder.addBlockWidget(widget);
-					} else {
-						this.builder.ensureLine(null);
-						this.builder.addInlineWidget(widget, activeMarks, openMarks);
-						openMarks = activeMarks.length;
+				if (tile.isWidget()) {
+					if (this.openWidget) this.builder.continueWidget(to - from);
+					else {
+						let widget = to > 0 || from < tile.length ? WidgetTile.of(tile.widget, this.view, to - from, tile.flags & 496, this.cache.maybeReuse(tile)) : this.cache.reuse(tile);
+						if (widget.flags & 256) {
+							widget.flags &= -2;
+							this.builder.addBlockWidget(widget);
+						} else {
+							this.builder.ensureLine(null);
+							this.builder.addInlineWidget(widget, activeMarks, openMarks);
+							openMarks = activeMarks.length;
+						}
 					}
-				}
-				else if (tile.isText()) {
+				} else if (tile.isText()) {
 					this.builder.ensureLine(null);
 					if (!from && to == tile.length && !this.cache.reused.has(tile)) this.builder.addText(tile.text, activeMarks, openMarks, this.cache.reuse(tile));
 					else {
@@ -120485,10 +123695,12 @@ var DocView = class {
 	update(update) {
 		var _a;
 		let changedRanges = update.changedRanges;
-		if (this.minWidth > 0 && changedRanges.length) if (!changedRanges.every(({ fromA, toA }) => toA < this.minWidthFrom || fromA > this.minWidthTo)) this.minWidth = this.minWidthFrom = this.minWidthTo = 0;
-		else {
-			this.minWidthFrom = update.changes.mapPos(this.minWidthFrom, 1);
-			this.minWidthTo = update.changes.mapPos(this.minWidthTo, 1);
+		if (this.minWidth > 0 && changedRanges.length) {
+			if (!changedRanges.every(({ fromA, toA }) => toA < this.minWidthFrom || fromA > this.minWidthTo)) this.minWidth = this.minWidthFrom = this.minWidthTo = 0;
+			else {
+				this.minWidthFrom = update.changes.mapPos(this.minWidthFrom, 1);
+				this.minWidthTo = update.changes.mapPos(this.minWidthTo, 1);
+			}
 		}
 		this.updateEditContextFormatting(update);
 		let readCompositionAt = -1;
@@ -120648,8 +123860,10 @@ var DocView = class {
 				for (;;) {
 					let parent = node.parentNode;
 					if (parent == tile.dom) break;
-					if (bias == 0 && parent.firstChild != parent.lastChild) if (node == parent.firstChild) bias = -1;
-					else bias = 1;
+					if (bias == 0 && parent.firstChild != parent.lastChild) {
+						if (node == parent.firstChild) bias = -1;
+						else bias = 1;
+					}
 					node = parent;
 				}
 				if (bias < 0) after = node;
@@ -120889,9 +124103,13 @@ var DocView = class {
 		};
 		let { offsetWidth, offsetHeight } = this.view.scrollDOM;
 		scrollRectIntoView(this.view.scrollDOM, targetRect, range.head < range.anchor ? -1 : 1, target.x, target.y, Math.max(Math.min(target.xMargin, offsetWidth), -offsetWidth), Math.max(Math.min(target.yMargin, offsetHeight), -offsetHeight), this.view.textDirection == Direction.LTR);
-		if (window.visualViewport && window.innerHeight - window.visualViewport.height > 1 && (rect.top > window.pageYOffset + window.visualViewport.offsetTop + window.visualViewport.height || rect.bottom < window.pageYOffset + window.visualViewport.offsetTop)) {
+		if (window.visualViewport && window.innerHeight - window.visualViewport.height > 1 && (rect.top > window.visualViewport.offsetTop + window.visualViewport.height || rect.bottom < window.visualViewport.offsetTop)) {
 			let line = this.view.docView.lineAt(range.head, 1);
-			if (line) line.dom.scrollIntoView({ block: "nearest" });
+			if (line) {
+				let stack = getScrollStack(line.dom);
+				line.dom.scrollIntoView({ block: "nearest" });
+				restoreScrollStack(stack, false);
+			}
 		}
 	}
 	lineHasWidget(pos) {
@@ -121165,8 +124383,10 @@ function skipAtomsForSelection(atoms, sel) {
 		} else {
 			let from = skipAtomicRanges(atoms, range.from, -1);
 			let to = skipAtomicRanges(atoms, range.to, 1);
-			if (from != range.from || to != range.to) if (range.undirectional) updated = EditorSelection.undirectionalRange(range.from, range.to);
-			else updated = EditorSelection.range(range.from == range.anchor ? from : to, range.from == range.head ? from : to);
+			if (from != range.from || to != range.to) {
+				if (range.undirectional) updated = EditorSelection.undirectionalRange(range.from, range.to);
+				else updated = EditorSelection.range(range.from == range.anchor ? from : to, range.from == range.head ? from : to);
+			}
 		}
 		if (updated) {
 			if (!ranges) ranges = sel.ranges.slice();
@@ -121249,21 +124469,20 @@ var InlineCoordsScan = class {
 		search: while (lo < hi) {
 			let dist = hi - lo, mid = lo + hi >> 1;
 			adjust: if (seen.has(mid)) {
-				let scan = lo + Math.floor(Math.random() * dist);
-				for (let i = 0; i < dist; i++) {
+				for (let i = 1; i < dist; i++) {
+					let scan = mid + i;
+					if (scan >= hi) scan -= dist;
 					if (!seen.has(scan)) {
 						mid = scan;
 						break adjust;
 					}
-					scan++;
-					if (scan == hi) scan = lo;
 				}
 				break search;
 			}
 			seen.add(mid);
-			let rects = getRects(mid);
+			let rects = getRects(mid), side = 0;
 			if (rects) for (let i = 0; i < rects.length; i++) {
-				let rect = rects[i], side = 0;
+				let rect = rects[i];
 				if (rect.width == 0 && rects.length > 1) continue;
 				if (rect.bottom < this.y) {
 					if (!above || above.bottom < rect.bottom) above = rect;
@@ -121281,9 +124500,9 @@ var InlineCoordsScan = class {
 					}
 					if (off) side = off < 0 == (this.baseDir == Direction.LTR) ? -1 : 1;
 				}
-				if (side == -1 && (!bidi || this.baseDirAt(positions[mid], 1))) hi = mid;
-				else if (side == 1 && (!bidi || this.baseDirAt(positions[mid + 1], -1))) lo = mid + 1;
 			}
+			if (side == -1 && (!bidi || this.baseDirAt(positions[mid], 1))) hi = mid;
+			else if (side == 1 && (!bidi || this.baseDirAt(positions[mid + 1], -1))) lo = mid + 1;
 		}
 		if (!closestRect) {
 			if (!below && !above) return {
@@ -122634,20 +125853,21 @@ var HeightMap = class HeightMap {
 	static of(nodes) {
 		if (nodes.length == 1) return nodes[0];
 		let i = 0, j = nodes.length, before = 0, after = 0;
-		for (;;) if (i == j) if (before > after * 2) {
-			let split = nodes[i - 1];
-			if (split.break) nodes.splice(--i, 1, split.left, null, split.right);
-			else nodes.splice(--i, 1, split.left, split.right);
-			j += 1 + split.break;
-			before -= split.size;
-		} else if (after > before * 2) {
-			let split = nodes[j];
-			if (split.break) nodes.splice(j, 1, split.left, null, split.right);
-			else nodes.splice(j, 1, split.left, split.right);
-			j += 2 + split.break;
-			after -= split.size;
-		} else break;
-		else if (before < after) {
+		for (;;) if (i == j) {
+			if (before > after * 2) {
+				let split = nodes[i - 1];
+				if (split.break) nodes.splice(--i, 1, split.left, null, split.right);
+				else nodes.splice(--i, 1, split.left, split.right);
+				j += 1 + split.break;
+				before -= split.size;
+			} else if (after > before * 2) {
+				let split = nodes[j];
+				if (split.break) nodes.splice(j, 1, split.left, null, split.right);
+				else nodes.splice(j, 1, split.left, split.right);
+				j += 2 + split.break;
+				after -= split.size;
+			} else break;
+		} else if (before < after) {
 			let next = nodes[i++];
 			if (next) before += next.size;
 		} else {
@@ -123357,7 +126577,7 @@ var ViewState = class {
 				if (scrollTarget.y == "center") topPos = (block.top + block.bottom) / 2 - viewHeight / 2;
 				else if (scrollTarget.y == "start" || scrollTarget.y == "nearest" && head < viewport.from) topPos = block.top;
 				else topPos = block.bottom - viewHeight;
-				viewport = new Viewport(map.lineAt(topPos - 1e3 / 2, QueryType.ByHeight, oracle, 0, 0).from, map.lineAt(topPos + viewHeight + 1e3 / 2, QueryType.ByHeight, oracle, 0, 0).to);
+				viewport = new Viewport(map.lineAt(topPos - 500, QueryType.ByHeight, oracle, 0, 0).from, map.lineAt(topPos + viewHeight + 500, QueryType.ByHeight, oracle, 0, 0).to);
 			}
 		}
 		return viewport;
@@ -124188,18 +127408,20 @@ var DOMObserver = class {
 	}
 	addWindowListeners(win) {
 		win.addEventListener("resize", this.onResize);
-		if (this.printQuery) if (this.printQuery.addEventListener) this.printQuery.addEventListener("change", this.onPrint);
-		else this.printQuery.addListener(this.onPrint);
-		else win.addEventListener("beforeprint", this.onPrint);
+		if (this.printQuery) {
+			if (this.printQuery.addEventListener) this.printQuery.addEventListener("change", this.onPrint);
+			else this.printQuery.addListener(this.onPrint);
+		} else win.addEventListener("beforeprint", this.onPrint);
 		win.addEventListener("scroll", this.onScroll);
 		win.document.addEventListener("selectionchange", this.onSelectionChange);
 	}
 	removeWindowListeners(win) {
 		win.removeEventListener("scroll", this.onScroll);
 		win.removeEventListener("resize", this.onResize);
-		if (this.printQuery) if (this.printQuery.removeEventListener) this.printQuery.removeEventListener("change", this.onPrint);
-		else this.printQuery.removeListener(this.onPrint);
-		else win.removeEventListener("beforeprint", this.onPrint);
+		if (this.printQuery) {
+			if (this.printQuery.removeEventListener) this.printQuery.removeEventListener("change", this.onPrint);
+			else this.printQuery.removeListener(this.onPrint);
+		} else win.removeEventListener("beforeprint", this.onPrint);
 		win.document.removeEventListener("selectionchange", this.onSelectionChange);
 	}
 	update(update) {
@@ -124371,14 +127593,16 @@ var EditContextManager = class {
 		update.changes.iterChanges((fromA, toA, _fromB, _toB, insert) => {
 			if (abort) return;
 			let dLen = insert.length - (toA - fromA);
-			if (pending && toA >= pending.to) if (pending.from == fromA && pending.to == toA && pending.insert.eq(insert)) {
-				pending = this.pendingContextChange = null;
-				off += dLen;
-				this.to += dLen;
-				return;
-			} else {
-				pending = null;
-				this.revertPending(update.state);
+			if (pending && toA >= pending.to) {
+				if (pending.from == fromA && pending.to == toA && pending.insert.eq(insert)) {
+					pending = this.pendingContextChange = null;
+					off += dLen;
+					this.to += dLen;
+					return;
+				} else {
+					pending = null;
+					this.revertPending(update.state);
+				}
 			}
 			fromA += off;
 			toA += off;
@@ -124741,13 +127965,15 @@ var EditorView = class EditorView {
 		this.viewState.scrollAnchorHeight = -1;
 		try {
 			for (let i = 0;; i++) {
-				if (scrollAnchorHeight < 0) if (isScrolledToBottom(scroll || this.win)) {
-					scrollAnchorPos = -1;
-					scrollAnchorHeight = this.viewState.heightMap.height;
-				} else {
-					let block = this.viewState.scrollAnchorAt(scrollOffset);
-					scrollAnchorPos = block.from;
-					scrollAnchorHeight = block.top;
+				if (scrollAnchorHeight < 0) {
+					if (isScrolledToBottom(scroll || this.win)) {
+						scrollAnchorPos = -1;
+						scrollAnchorHeight = this.viewState.heightMap.height;
+					} else {
+						let block = this.viewState.scrollAnchorAt(scrollOffset);
+						scrollAnchorPos = block.from;
+						scrollAnchorHeight = block.top;
+					}
 				}
 				this.updateState = 1;
 				let changed = this.viewState.measure();
@@ -124786,19 +128012,21 @@ var EditorView = class EditorView {
 				}
 				if (redrawn) this.docView.updateSelection(true);
 				if (!update.viewportChanged && this.measureRequests.length == 0) {
-					if (this.viewState.editorHeight) if (this.viewState.scrollTarget) {
-						this.docView.scrollIntoView(this.viewState.scrollTarget);
-						this.viewState.scrollTarget = null;
-						scrollAnchorHeight = -1;
-						continue;
-					} else {
-						let diff = ((scrollAnchorPos < 0 ? this.viewState.heightMap.height : this.viewState.lineBlockAt(scrollAnchorPos).top) - scrollAnchorHeight) / this.scaleY;
-						if ((diff > 1 || diff < -1) && !(browser.ios && this.inputState.lastIOSMomentumScroll > Date.now() - 100) && (scroll == this.scrollDOM || this.hasFocus || Math.max(this.inputState.lastWheelEvent, this.inputState.lastTouchTime) > Date.now() - 100)) {
-							scrollOffset = scrollOffset + diff;
-							if (scroll) scroll.scrollTop += diff;
-							else this.win.scrollBy(0, diff);
+					if (this.viewState.editorHeight) {
+						if (this.viewState.scrollTarget) {
+							this.docView.scrollIntoView(this.viewState.scrollTarget);
+							this.viewState.scrollTarget = null;
 							scrollAnchorHeight = -1;
 							continue;
+						} else {
+							let diff = ((scrollAnchorPos < 0 ? this.viewState.heightMap.height : this.viewState.lineBlockAt(scrollAnchorPos).top) - scrollAnchorHeight) / this.scaleY;
+							if ((diff > 1 || diff < -1) && !(browser.ios && this.inputState.lastIOSMomentumScroll > Date.now() - 100) && (scroll == this.scrollDOM || this.hasFocus || Math.max(this.inputState.lastWheelEvent, this.inputState.lastTouchTime) > Date.now() - 100)) {
+								scrollOffset = scrollOffset + diff;
+								if (scroll) scroll.scrollTop += diff;
+								else this.win.scrollBy(0, diff);
+								scrollAnchorHeight = -1;
+								continue;
+							}
 						}
 					}
 					break;
@@ -125554,9 +128782,10 @@ function normalizeKeyName(name, platform) {
 		else if (/^a(lt)?$/i.test(mod)) alt = true;
 		else if (/^(c|ctrl|control)$/i.test(mod)) ctrl = true;
 		else if (/^s(hift)?$/i.test(mod)) shift = true;
-		else if (/^mod$/i.test(mod)) if (platform == "mac") meta = true;
-		else ctrl = true;
-		else throw new Error("Unrecognized modifier name: " + mod);
+		else if (/^mod$/i.test(mod)) {
+			if (platform == "mac") meta = true;
+			else ctrl = true;
+		} else throw new Error("Unrecognized modifier name: " + mod);
 	}
 	if (alt) result = "Alt-" + result;
 	if (ctrl) result = "Ctrl-" + result;
@@ -126008,7 +129237,7 @@ var selectionLayer = /*@__PURE__*/ layer({
 	},
 	class: "cm-selectionLayer"
 });
-var selectionBg = browser.gecko && browser.gecko_version >= 153 ? "#ffffff01" : "transparent";
+var selectionBg = browser.gecko && browser.gecko_version == 153 ? "#ffffff01" : "transparent";
 var hideNativeSelection = /*@__PURE__*/ Prec.highest(/*@__PURE__*/ EditorView.theme({
 	".cm-line": {
 		"& ::selection, &::selection": { backgroundColor: `${selectionBg} !important` },
@@ -126438,13 +129667,15 @@ var tooltipPlugin = /*@__PURE__*/ ViewPlugin.fromClass(class {
 				makeAbsolute = Math.abs(rect.top + 1e4) > 1 || Math.abs(rect.left) > 1;
 			} else makeAbsolute = !!dom.offsetParent && dom.offsetParent != this.container.ownerDocument.body;
 		}
-		if (makeAbsolute || this.position == "absolute") if (this.parent) {
-			let rect = this.parent.getBoundingClientRect();
-			if (rect.width && rect.height) {
-				scaleX = rect.width / this.parent.offsetWidth;
-				scaleY = rect.height / this.parent.offsetHeight;
-			}
-		} else ({scaleX, scaleY} = this.view.viewState);
+		if (makeAbsolute || this.position == "absolute") {
+			if (this.parent) {
+				let rect = this.parent.getBoundingClientRect();
+				if (rect.width && rect.height) {
+					scaleX = rect.width / this.parent.offsetWidth;
+					scaleY = rect.height / this.parent.offsetHeight;
+				}
+			} else ({scaleX, scaleY} = this.view.viewState);
+		}
 		let visible = this.view.scrollDOM.getBoundingClientRect(), margins = getScrollMargins(this.view);
 		return {
 			visible: {
@@ -128541,18 +131772,20 @@ var IndentContext = class {
 	lineAt(pos, bias = 1) {
 		let line = this.state.doc.lineAt(pos);
 		let { simulateBreak, simulateDoubleBreak } = this.options;
-		if (simulateBreak != null && simulateBreak >= line.from && simulateBreak <= line.to) if (simulateDoubleBreak && simulateBreak == pos) return {
-			text: "",
-			from: pos
-		};
-		else if (bias < 0 ? simulateBreak < pos : simulateBreak <= pos) return {
-			text: line.text.slice(simulateBreak - line.from),
-			from: simulateBreak
-		};
-		else return {
-			text: line.text.slice(0, simulateBreak - line.from),
-			from: line.from
-		};
+		if (simulateBreak != null && simulateBreak >= line.from && simulateBreak <= line.to) {
+			if (simulateDoubleBreak && simulateBreak == pos) return {
+				text: "",
+				from: pos
+			};
+			else if (bias < 0 ? simulateBreak < pos : simulateBreak <= pos) return {
+				text: line.text.slice(simulateBreak - line.from),
+				from: simulateBreak
+			};
+			else return {
+				text: line.text.slice(0, simulateBreak - line.from),
+				from: line.from
+			};
+		}
 		return line;
 	}
 	/**
@@ -128972,12 +132205,14 @@ var bracketMatchingUnique = [/* @__PURE__ */ ViewPlugin.fromClass(class {
 		this.decorations = bracketDeco(view.state);
 	}
 	update(update) {
-		if (update.docChanged || update.selectionSet || this.paused) if (update.view.composing) {
-			this.decorations = this.decorations.map(update.changes);
-			this.paused = true;
-		} else {
-			this.decorations = bracketDeco(update.state);
-			this.paused = false;
+		if (update.docChanged || update.selectionSet || this.paused) {
+			if (update.view.composing) {
+				this.decorations = this.decorations.map(update.changes);
+				this.paused = true;
+			} else {
+				this.decorations = bracketDeco(update.state);
+				this.paused = false;
+			}
 		}
 	}
 }, { decorations: (v) => v.decorations }), baseTheme$2];
@@ -129576,9 +132811,10 @@ function createTokenType(extra, tagStr) {
 		for (let part of name.split(".")) {
 			let value = extra[part] || tags[part];
 			if (!value) warnForPart(part, `Unknown highlighting tag ${part}`);
-			else if (typeof value == "function") if (!found.length) warnForPart(part, `Modifier ${part} used at start of tag`);
-			else found = found.map(value);
-			else if (found.length) warnForPart(part, `Tag ${part} used as modifier`);
+			else if (typeof value == "function") {
+				if (!found.length) warnForPart(part, `Modifier ${part} used at start of tag`);
+				else found = found.map(value);
+			} else if (found.length) warnForPart(part, `Tag ${part} used as modifier`);
 			else found = Array.isArray(value) ? value : [value];
 		}
 		for (let tag of found) tags$1.push(tag);
@@ -130375,7 +133611,7 @@ function buildSampleColumns(ctx) {
 		maxSize: 80,
 		enableSorting: false,
 		enableResizing: false,
-		pinned: "left",
+		pinned: "start",
 		accessorFn: (row) => row.displayIndex,
 		cell: ({ row }) => {
 			const value = row.original.displayIndex;
@@ -131202,11 +134438,13 @@ var FuzzyMatcher = class {
 			let next = codePointAt(word, i);
 			if (direct < 0) {
 				if (preciseTo < len && next == chars[preciseTo]) precise[preciseTo++] = i;
-				if (adjacentTo < len) if (next == chars[adjacentTo] || next == folded[adjacentTo]) {
-					if (adjacentTo == 0) adjacentStart = i;
-					adjacentEnd = i + 1;
-					adjacentTo++;
-				} else adjacentTo = 0;
+				if (adjacentTo < len) {
+					if (next == chars[adjacentTo] || next == folded[adjacentTo]) {
+						if (adjacentTo == 0) adjacentStart = i;
+						adjacentEnd = i + 1;
+						adjacentTo++;
+					} else adjacentTo = 0;
+				}
 			}
 			let ch, type = next < 255 ? next >= 48 && next <= 57 || next >= 97 && next <= 122 ? 2 : next >= 65 && next <= 90 ? 1 : 0 : (ch = fromCodePoint(next)) != ch.toLowerCase() ? 1 : ch != ch.toUpperCase() ? 2 : 0;
 			if (!i || type == 1 && hasLower || prevType == 0 && type != 0) {
@@ -131530,10 +134768,12 @@ var CompletionTooltip = class {
 		return this.view.state.facet(completionConfig).positionInfo(this.view, listRect, selRect, infoRect, space, this.dom);
 	}
 	placeInfo(pos) {
-		if (this.info) if (pos) {
-			if (pos.style) this.info.style.cssText = pos.style;
-			this.info.className = "cm-tooltip cm-completionInfo " + (pos.class || "");
-		} else this.info.style.cssText = "top: -1e6px";
+		if (this.info) {
+			if (pos) {
+				if (pos.style) this.info.style.cssText = pos.style;
+				this.info.className = "cm-tooltip cm-completionInfo " + (pos.class || "");
+			} else this.info.style.cssText = "top: -1e6px";
+		}
 	}
 	createListBox(options, id, range) {
 		const ul = document.createElement("ul");
@@ -131988,11 +135228,13 @@ var completionPlugin = /*@__PURE__*/ ViewPlugin.fromClass(class {
 				}
 			}
 			let current = cState.active.find((a) => a.source == query.active.source);
-			if (current && current.isPending) if (query.done == null) {
-				let active = new ActiveSource(query.active.source, 0);
-				for (let tr of query.updates) active = active.update(tr, conf);
-				if (!active.isPending) updated.push(active);
-			} else this.startQuery(current);
+			if (current && current.isPending) {
+				if (query.done == null) {
+					let active = new ActiveSource(query.active.source, 0);
+					for (let tr of query.updates) active = active.update(tr, conf);
+					if (!active.isPending) updated.push(active);
+				} else this.startQuery(current);
+			}
 		}
 		if (updated.length || cState.open && cState.open.disabled) this.view.dispatch({ effects: setActiveEffect.of(updated) });
 	}
@@ -132783,7 +136025,7 @@ var lintExtensions = [
 	baseTheme
 ];
 //#endregion
-//#region ../../node_modules/.pnpm/@codemirror+commands@6.10.3/node_modules/@codemirror/commands/dist/index.js
+//#region ../../node_modules/.pnpm/@codemirror+commands@6.10.4/node_modules/@codemirror/commands/dist/index.js
 /**
 Comment or uncomment the current selection. Will use line comments
 if available, otherwise falling back to block comments.
@@ -133459,8 +136701,9 @@ Move the selection to the bracket matching the one it is currently
 on, if any.
 */
 var cursorMatchingBracket = ({ state, dispatch }) => toMatchingBracket(state, dispatch, false);
-function extendSel(target, how) {
+function extendSel(target, forward, how) {
 	let selection = updateSel(target.state.selection, (range) => {
+		if (range.undirectional && range.head >= range.anchor != forward) range = EditorSelection.range(range.head, range.anchor);
 		let head = how(range);
 		return EditorSelection.range(range.anchor, head.head, head.goalColumn, head.bidiLevel || void 0, head.assoc);
 	});
@@ -133469,7 +136712,7 @@ function extendSel(target, how) {
 	return true;
 }
 function selectByChar(view, forward) {
-	return extendSel(view, (range) => view.moveByChar(range, forward));
+	return extendSel(view, forward, (range) => view.moveByChar(range, forward));
 }
 /**
 Move the selection head one character to the left, while leaving
@@ -133481,7 +136724,7 @@ Move the selection head one character to the right.
 */
 var selectCharRight = (view) => selectByChar(view, ltrAtCursor(view));
 function selectByGroup(view, forward) {
-	return extendSel(view, (range) => view.moveByGroup(range, forward));
+	return extendSel(view, forward, (range) => view.moveByGroup(range, forward));
 }
 /**
 Move the selection head one [group](https://codemirror.net/6/docs/ref/#commands.cursorGroupLeft) to
@@ -133495,13 +136738,19 @@ var selectGroupRight = (view) => selectByGroup(view, ltrAtCursor(view));
 /**
 Move the selection head over the next syntactic element to the left.
 */
-var selectSyntaxLeft = (view) => extendSel(view, (range) => moveBySyntax(view.state, range, !ltrAtCursor(view)));
+var selectSyntaxLeft = (view) => {
+	let forward = !ltrAtCursor(view);
+	return extendSel(view, forward, (range) => moveBySyntax(view.state, range, forward));
+};
 /**
 Move the selection head over the next syntactic element to the right.
 */
-var selectSyntaxRight = (view) => extendSel(view, (range) => moveBySyntax(view.state, range, ltrAtCursor(view)));
+var selectSyntaxRight = (view) => {
+	let forward = ltrAtCursor(view);
+	return extendSel(view, forward, (range) => moveBySyntax(view.state, range, forward));
+};
 function selectByLine(view, forward) {
-	return extendSel(view, (range) => view.moveVertically(range, forward));
+	return extendSel(view, forward, (range) => view.moveVertically(range, forward));
 }
 /**
 Move the selection head one line up.
@@ -133512,7 +136761,7 @@ Move the selection head one line down.
 */
 var selectLineDown = (view) => selectByLine(view, true);
 function selectByPage(view, forward) {
-	return extendSel(view, (range) => view.moveVertically(range, forward, pageInfo(view).height));
+	return extendSel(view, forward, (range) => view.moveVertically(range, forward, pageInfo(view).height));
 }
 /**
 Move the selection head one page up.
@@ -133525,27 +136774,33 @@ var selectPageDown = (view) => selectByPage(view, true);
 /**
 Move the selection head to the next line boundary.
 */
-var selectLineBoundaryForward = (view) => extendSel(view, (range) => moveByLineBoundary(view, range, true));
+var selectLineBoundaryForward = (view) => extendSel(view, true, (range) => moveByLineBoundary(view, range, true));
 /**
 Move the selection head to the previous line boundary.
 */
-var selectLineBoundaryBackward = (view) => extendSel(view, (range) => moveByLineBoundary(view, range, false));
+var selectLineBoundaryBackward = (view) => extendSel(view, false, (range) => moveByLineBoundary(view, range, false));
 /**
 Move the selection head one line boundary to the left.
 */
-var selectLineBoundaryLeft = (view) => extendSel(view, (range) => moveByLineBoundary(view, range, !ltrAtCursor(view)));
+var selectLineBoundaryLeft = (view) => {
+	let forward = !ltrAtCursor(view);
+	return extendSel(view, forward, (range) => moveByLineBoundary(view, range, forward));
+};
 /**
 Move the selection head one line boundary to the right.
 */
-var selectLineBoundaryRight = (view) => extendSel(view, (range) => moveByLineBoundary(view, range, ltrAtCursor(view)));
+var selectLineBoundaryRight = (view) => {
+	let forward = ltrAtCursor(view);
+	return extendSel(view, forward, (range) => moveByLineBoundary(view, range, forward));
+};
 /**
 Move the selection head to the start of the line.
 */
-var selectLineStart = (view) => extendSel(view, (range) => EditorSelection.cursor(view.lineBlockAt(range.head).from));
+var selectLineStart = (view) => extendSel(view, false, (range) => EditorSelection.cursor(view.lineBlockAt(range.head).from));
 /**
 Move the selection head to the end of the line.
 */
-var selectLineEnd = (view) => extendSel(view, (range) => EditorSelection.cursor(view.lineBlockAt(range.head).to));
+var selectLineEnd = (view) => extendSel(view, true, (range) => EditorSelection.cursor(view.lineBlockAt(range.head).to));
 /**
 Move the selection to the start of the document.
 */
@@ -134504,13 +137759,13 @@ var isLiteral = (token) => [
 	"string",
 	"unterminatedString",
 	"number"
-].includes(token?.type);
+].includes(token.type);
 var isLogicalOp = (token) => [
 	"and",
 	"or",
 	"not"
-].includes(token?.text);
-var autocompleteImmediatelyAfter = (token) => ["(", "."].includes(token?.text);
+].includes(token.text);
+var autocompleteImmediatelyAfter = (token) => ["(", "."].includes(token.text);
 var applyWithCall = (view, completion, from, to) => {
 	view.dispatch({
 		changes: {
@@ -134586,7 +137841,7 @@ var makeMemberAccessCompletion = (item) => ({
 	info: item.tooltip,
 	boost: 40
 });
-var getMemberScoreItems = (filterItems, scorer) => filterItems.filter((item) => item?.qualifiedName?.startsWith(`${scorer}.`));
+var getMemberScoreItems = (filterItems, scorer) => filterItems.filter((item) => item.qualifiedName?.startsWith(`${scorer}.`));
 var getSampleIds = (samples) => {
 	const ids = /* @__PURE__ */ new Set();
 	for (const sample of samples) ids.add(sample.id);
@@ -134641,9 +137896,10 @@ var buildMetadataPropertyPath = (tokens, currentTokenIndex) => {
 	while (index <= currentTokenIndex) {
 		const token = tokens[currentTokenIndex - index];
 		if (!token) break;
-		if (token.type === "variable") if (token.text === "metadata") return parts.reverse().join(".");
-		else parts.push(token.text);
-		else if (token.text !== ".") break;
+		if (token.type === "variable") {
+			if (token.text === "metadata") return parts.reverse().join(".");
+			else parts.push(token.text);
+		} else if (token.text !== ".") break;
 		index++;
 	}
 	return null;
@@ -134821,7 +138077,7 @@ function getCompletions(context, filterItems, samples) {
 	});
 	const rhsCompletions = (options) => makeCompletions(options.map(makeLiteralCompletion));
 	if (!prevToken(1)) return newExpressionCompletions();
-	if (prevToken(1)?.text === ".") {
+	if (prevToken(1).text === ".") {
 		const varName = prevToken(2)?.text;
 		const metadataPath = buildMetadataPath(tokens, currentTokenIndex);
 		if (metadataPath !== null && samples) return makeCompletions(Array.from(getMetadataKeysForPath(samples, metadataPath)).map(makeMetadataKeyCompletion), {
@@ -134830,14 +138086,14 @@ function getCompletions(context, filterItems, samples) {
 		});
 		else if (varName) return memberAccessCompletions(getMemberScoreItems(filterItems, varName));
 	}
-	if (prevToken(1)?.text === "(") {
+	if (prevToken(1).text === "(") {
 		if (prevToken(2)?.type === "mathFunction") return variableCompletions();
 		if (prevToken(2)?.type === "sampleFunction") return noCompletions();
 		return newExpressionCompletions();
 	}
-	if (prevToken(1)?.text === ")") return noCompletions();
-	if (prevToken(1)?.type === "variable") {
-		const varName = prevToken(1)?.text;
+	if (prevToken(1).text === ")") return noCompletions();
+	if (prevToken(1).type === "variable") {
+		const varName = prevToken(1).text;
 		if (isMetadataProperty(tokens, currentTokenIndex)) return customRelationCompletions();
 		if (varName === "epoch") return continuousRelationCompletions();
 		if (varName === "id") return discreteRelationCompletions();
@@ -134853,7 +138109,7 @@ function getCompletions(context, filterItems, samples) {
 			default: return noCompletions();
 		}
 	}
-	if (prevToken(1)?.type === "relation") {
+	if (prevToken(1).type === "relation") {
 		const varName = prevToken(2)?.text;
 		const metadataPropertyPath = buildMetadataPropertyPath(tokens, currentTokenIndex);
 		if (metadataPropertyPath !== null && samples) {
@@ -134880,7 +138136,7 @@ function getCompletions(context, filterItems, samples) {
 			return makeCompletions(epochCompletions, { includeDefault: epochCompletions.length === 0 });
 		}
 		const item = findFilterItem(2);
-		if (item?.categories?.length) return rhsCompletions(item.categories);
+		if (item?.categories.length) return rhsCompletions(item.categories);
 		return variableCompletions();
 	}
 	if (isLiteral(prevToken(1)) && prevToken(2)?.type === "relation") return logicalOpCompletions();
@@ -135479,9 +138735,11 @@ var SamplesTab = ({ running, scrollRef, showColumnSelector, setShowColumnSelecto
 		title: "An error occurred while loading samples.",
 		error: summariesState.error
 	});
-	if (totalSampleCount === 0) if (running) return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(RunningNoSamples, {});
-	else if (summariesState.loading) return null;
-	else return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(NoContentsPanel, { text: "No samples" });
+	if (totalSampleCount === 0) {
+		if (running) return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(RunningNoSamples, {});
+		else if (summariesState.loading) return null;
+		else return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(NoContentsPanel, { text: "No samples" });
+	}
 	const inlineDisplay = samplesDescriptor && totalSampleCount === 1;
 	const listDisplay = samplesDescriptor && totalSampleCount > 1;
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [
@@ -135588,7 +138846,7 @@ var EditTagsDialog = ({ showing, setShowing, currentTags, logFile, onSaved }) =>
 	(0, import_react.useEffect)(() => {
 		if (!showing) return;
 		let cancelled = false;
-		if (api?.get_user_info) api.get_user_info().then((info) => {
+		if (api.get_user_info) api.get_user_info().then((info) => {
 			if (!cancelled && info.name) setAuthor((current) => current || info.name || "");
 		}).catch(() => {});
 		return () => {
@@ -135626,10 +138884,10 @@ var EditTagsDialog = ({ showing, setShowing, currentTags, logFile, onSaved }) =>
 	const removeTag = (tag) => {
 		setTags((prev) => prev.filter((t) => t !== tag));
 	};
-	const canSave = !submitting && hasChanges && author.trim().length > 0 && !!api?.edit_log;
+	const canSave = !submitting && hasChanges && author.trim().length > 0 && !!api.edit_log;
 	const inFlightRef = (0, import_react.useRef)(false);
 	const handleSave = async () => {
-		if (!canSave || inFlightRef.current || !api?.edit_log) return;
+		if (!canSave || inFlightRef.current || !api.edit_log) return;
 		inFlightRef.current = true;
 		const indicatorTimer = window.setTimeout(() => setSubmitting(true), 200);
 		try {
@@ -136004,12 +139262,14 @@ var TaskTab = ({ evalSpec, evalStats, earlyStopping, tags, configUpdates }) => {
 		tags: tagList,
 		className: TaskTab_module_default.tagPillAlign
 	}) };
-	if (evalSpec?.sandbox) if (Array.isArray(evalSpec?.sandbox)) {
-		taskInformation["sandbox"] = evalSpec.sandbox[0];
-		if (evalSpec.sandbox[1]) taskInformation["sandbox_config"] = evalSpec.sandbox[1];
-	} else {
-		taskInformation["sandbox"] = evalSpec?.sandbox.type;
-		taskInformation["sandbox_config"] = evalSpec?.sandbox.config;
+	if (evalSpec?.sandbox) {
+		if (Array.isArray(evalSpec.sandbox)) {
+			taskInformation["sandbox"] = evalSpec.sandbox[0];
+			if (evalSpec.sandbox[1]) taskInformation["sandbox_config"] = evalSpec.sandbox[1];
+		} else {
+			taskInformation["sandbox"] = evalSpec.sandbox.type;
+			taskInformation["sandbox_config"] = evalSpec.sandbox.config;
+		}
 	}
 	const totalDuration = formatDuration(new Date(evalStats?.started_at || 0), new Date(evalStats?.completed_at || 0));
 	const task_args = evalSpec?.task_args || {};
@@ -138519,6 +141779,15 @@ var UnscoredSamples = ({ scoredSamples, unscoredSamples }) => {
 };
 //#endregion
 //#region src/app/log-view/title-view/ScoreGrid.tsx
+var scoreGridFeatures = tableFeatures({
+	columnVisibilityFeature,
+	rowSortingFeature,
+	sortedRowModel: createSortedRowModel(),
+	sortFns: {
+		alphanumeric: sortFn_alphanumeric,
+		text: sortFn_text
+	}
+});
 var kScorerColWidth = 180;
 var kMetricColWidth = 120;
 var kScorerColWidthCompact = 110;
@@ -138599,13 +141868,12 @@ var ScoreGroupTable = ({ scoreGroup, showReducer, compact }) => {
 		scorerColWidth,
 		metricColWidth
 	]);
-	const table = useReactTable({
+	const table = useTable({
+		features: scoreGridFeatures,
 		data: rows,
 		columns,
 		state: { sorting },
 		onSortingChange: setSorting,
-		getCoreRowModel: getCoreRowModel(),
-		getSortedRowModel: getSortedRowModel(),
 		enableMultiSort: false
 	});
 	const leafColumns = table.getVisibleLeafColumns();
@@ -138981,7 +142249,8 @@ var ModelRolesView = ({ roles }) => {
 	const singleLine = Object.keys(modelRoles).length !== 1;
 	const modelEls = Object.keys(modelRoles).map((key) => {
 		const role = key;
-		const model = modelRoles[role]?.model;
+		const roleData = modelRoles[role];
+		const model = roleData ? modelRoleModelNames(roleData) : void 0;
 		return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 			className: clsx(singleLine ? ModelRolesView_module_default.grid : void 0, "text-style-secondary", "text-size-smallest"),
 			children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
@@ -139108,8 +142377,8 @@ var PrimaryBar = ({ status, evalResults, runningMetrics, evalSpec, sampleCount, 
 								evalSpec?.model && evalSpec.model !== "none/none" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 									id: "task-model",
 									className: clsx("task-model", "text-truncate", PrimaryBar_module_default.taskModel, "text-size-base"),
-									title: evalSpec?.model,
-									children: evalSpec?.model
+									title: evalSpec.model,
+									children: evalSpec.model
 								}) : "",
 								/* @__PURE__ */ (0, import_jsx_runtime.jsx)(TagsField, {
 									tags: tagList,
@@ -139215,7 +142484,7 @@ var SecondaryBar = ({ evalSpec, evalPlan, evalResults, evalStats, status, sample
 		}, "sb-params")
 	});
 	if (evalStats) {
-		const totalDuration = formatDuration(new Date(evalStats?.started_at), new Date(evalStats?.completed_at));
+		const totalDuration = formatDuration(new Date(evalStats.started_at), new Date(evalStats.completed_at));
 		values.push({
 			size: "minmax(12%, auto)",
 			value: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(LabeledValue, {
@@ -139408,7 +142677,7 @@ var LogView = () => {
 	const selectedTab = useStore((state) => state.app.tabs.workspace);
 	const setSelectedTab = useStore((state) => state.appActions.setWorkspaceTab);
 	const onSelected = (0, import_react.useCallback)((e) => {
-		const id = e.currentTarget?.id;
+		const id = e.currentTarget.id;
 		if (id) {
 			setSelectedTab(id);
 			navigation.selectTab(id);
@@ -139496,7 +142765,7 @@ var LogViewLayout = () => {
 			!singleFileMode ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ApplicationNavbar, {
 				fnNavigationUrl: navigationUrl,
 				currentPath: logPath
-			}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ActivityBar, { animating: logLoading }),
+			}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(LoadingBar, { loading: logLoading }),
 			logError ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ErrorPanel, {
 				title: "An error occurred while loading this task.",
 				error: logError
@@ -139999,8 +143268,8 @@ var PrintMetadata = ({ sample }) => {
 		Working: formatTime(sample.working_time),
 		Total: formatTime(sample.total_time)
 	} }) })] }, "print-time"));
-	if (Object.keys(sample?.metadata).length > 0) sampleMetadatas.push(/* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Card, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(CardHeader, { label: "Metadata" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CardBody, { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(MetaDataGrid, { entries: sample?.metadata }) })] }, "print-metadata"));
-	if (Object.keys(sample?.store).length > 0) sampleMetadatas.push(/* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Card, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(CardHeader, { label: "Store" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CardBody, { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(MetaDataGrid, { entries: sample?.store }) })] }, "print-store"));
+	if (Object.keys(sample.metadata).length > 0) sampleMetadatas.push(/* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Card, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(CardHeader, { label: "Metadata" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CardBody, { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(MetaDataGrid, { entries: sample.metadata }) })] }, "print-metadata"));
+	if (Object.keys(sample.store).length > 0) sampleMetadatas.push(/* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Card, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(CardHeader, { label: "Store" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CardBody, { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(MetaDataGrid, { entries: sample.store }) })] }, "print-store"));
 	if (sampleMetadatas.length === 0) return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(NoContentsPanel, { text: "No sample metadata available" });
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { children: sampleMetadatas });
 };
@@ -140430,7 +143699,7 @@ var SamplesPanel = () => {
 				filteredFields,
 				scoresHeading: "Scores"
 			}),
-			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(ActivityBar, { animating: listing.busy }),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(LoadingBar, { loading: listing.busy }),
 			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 				className: clsx(SamplesPanel_module_default.list, "text-size-smaller"),
 				children: error ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ErrorPanel, {
@@ -140488,7 +143757,9 @@ var SampleRouteSelectionController = () => {
 	(0, import_react.useEffect)(() => {
 		if (routeLogPath && sampleId && epoch) {
 			if (selectedLogFile !== routeLogPath) selectLogFile(routeLogPath);
-			selectSample(sampleId, parseInt(epoch, 10), routeLogPath);
+			const targetEpoch = parseInt(epoch, 10);
+			if (isNaN(targetEpoch)) return;
+			selectSample(sampleId, targetEpoch, routeLogPath);
 		}
 	}, [
 		routeLogPath,
@@ -140655,9 +143926,10 @@ var AppContent = () => {
 			case "backgroundUpdate": {
 				const decodedUrl = decodeURIComponent(e.data.url);
 				const log_dir = e.data.log_dir;
-				if (!document.hasFocus()) if (log_dir === logDir) selectLogFile(decodedUrl);
-				else api.open_log_file(e.data.url, e.data.log_dir);
-				else imperativeLogData.invalidateLogListing();
+				if (!document.hasFocus()) {
+					if (log_dir === logDir) selectLogFile(decodedUrl);
+					else api.open_log_file(e.data.url, e.data.log_dir);
+				} else imperativeLogData.invalidateLogListing();
 				break;
 			}
 		}
@@ -140749,9 +144021,11 @@ if (!container) {
 function restoreHash() {
 	if (storeImplementation && storeImplementation.getState().app.urlHash) {
 		const storedHash = storeImplementation.getState().app.urlHash;
-		if (storedHash) if (storedHash.startsWith("/")) window.location.hash = storedHash;
-		else if (storedHash.startsWith("#")) window.location.hash = storedHash;
-		else window.location.hash = "#" + storedHash;
+		if (storedHash) {
+			if (storedHash.startsWith("/")) window.location.hash = storedHash;
+			else if (storedHash.startsWith("#")) window.location.hash = storedHash;
+			else window.location.hash = "#" + storedHash;
+		}
 	}
 }
 //#endregion
