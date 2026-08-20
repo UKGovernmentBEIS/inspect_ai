@@ -13,14 +13,17 @@ them to S3, and commits the pinned digests back to the PR branch.
 The whole procedure is scripted as an interactive wizard:
 
 ```sh
-scripts/release-sandbox-tools.sh [--dry-run]
+scripts/release-sandbox-tools.sh [--dry-run] [--auto]
 ```
 
-**The user runs the wizard, not you.** It stops for confirmation prompts and
-the S3 upload needs the user's AWS credentials, so it must run in the user's
-own terminal (not through your shell or the `!` prefix — its prompts block).
-Your job is to confirm the trigger, get the right checkout in place, hand the
-command to the user, and follow up on CI.
+**Agents: run it with `--auto`.** In auto mode every confirmation resolves to
+a safe default, and anything that needs a human mid-run (starting Docker,
+`aws sso login`) aborts with instructions instead of waiting. Without
+`--auto` the prompts need a terminal, so a run from your shell exits
+immediately. Before starting, check `aws sts get-caller-identity`; if
+credentials are stale, ask the user to run `aws sso login` first — the upload
+uses their ambient AWS session. Run the wizard in the background and monitor
+it: build plus validation can exceed 20 minutes.
 
 Typically run by a maintainer. The PR is often a contributor's — they can write
 the code and bump the version, but they don't have credentials to upload the
@@ -44,9 +47,9 @@ Running earlier wastes builds if review rounds change the injectable source.
 2. **Get a checkout of the PR's head branch** (a git worktree is ideal) and
    make sure it's up to date — the binaries must be built from the exact code
    being merged. Offer to set this up.
-3. **Hand the user the command** to run from that checkout's repo root:
-   `scripts/release-sandbox-tools.sh`. Suggest `--dry-run` to build and
-   validate without publishing anything. The wizard itself checks
+3. **Run the wizard** from that checkout's repo root:
+   `scripts/release-sandbox-tools.sh --auto` (add `--dry-run` to build and
+   validate without publishing anything). The wizard itself checks
    preconditions (branch, PR approval, version bump, Docker), builds,
    validates across distros, uploads to S3, commits and pushes the rewritten
    `SHA256SUMS`, and verifies the published bytes — don't redo those steps

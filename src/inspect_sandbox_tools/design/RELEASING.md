@@ -14,10 +14,12 @@ The version is a simple integer in `src/inspect_ai/tool/_sandbox_tools_utils/san
 ## Release Steps
 
 Steps 3–6 are scripted as an interactive wizard — run it from a checkout of
-the PR's head branch (`--dry-run` builds and validates without publishing):
+the PR's head branch (`--dry-run` builds and validates without publishing;
+`--auto` answers every prompt with its safe default, for agents/unattended
+runs):
 
 ```sh
-scripts/release-sandbox-tools.sh [--dry-run]
+scripts/release-sandbox-tools.sh [--dry-run] [--auto]
 ```
 
 The sections below document the underlying commands.
