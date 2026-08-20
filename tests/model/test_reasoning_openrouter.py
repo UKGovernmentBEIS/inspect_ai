@@ -2,8 +2,13 @@ import json
 from unittest.mock import patch
 
 from inspect_ai._util.content import ContentReasoning
+from inspect_ai.model._chat_message import ChatMessageAssistant
+from inspect_ai.model._openrouter_reasoning import (
+    sanitize_reasoning_details_for_replay,
+)
 from inspect_ai.model._providers.openrouter import (
     OPENROUTER_REASONING_DETAILS_SIGNATURE,
+    OpenRouterAPI,
     openrouter_reasoning_details_to_reasoning,
     reasoning_to_openrouter_reasoning_details,
 )
@@ -110,16 +115,71 @@ class TestOpenrouterReasoningDetailsToReasoning:
         assert result.summary == "Let me think about this step by step..."
         assert result.redacted is True
 
-    def test_empty_list_logs_warning(self):
-        """Empty reasoning_details list logs warning and returns raw JSON."""
-        with patch("inspect_ai.model._openrouter_reasoning.logger") as mock_logger:
-            details = []
-            result = openrouter_reasoning_details_to_reasoning(details)
+    def test_signature_only_text_is_opaque(self):
+        """A Gemini thought carried only as a signature (no `text`) parses.
 
-            mock_logger.warning.assert_called_once()
-            call_args = mock_logger.warning.call_args[0][0]
-            assert "Reasoning content not provided" in call_args
-            assert result.reasoning == "[]"
+        This is the common Gemini terminal-turn shape. It must not fail
+        validation or surface the raw JSON as reasoning: represent it as opaque
+        (no readable text) with the signature preserved for replay, no warning.
+        """
+        details = [
+            {
+                "type": "reasoning.text",
+                "signature": "AY89abc",
+                "format": "google-gemini-v1",
+                "index": 0,
+            }
+        ]
+        with patch("inspect_ai.model._openrouter_reasoning.logger") as mock_logger:
+            result = openrouter_reasoning_details_to_reasoning(details)
+            mock_logger.warning.assert_not_called()
+
+        assert result.reasoning == ""
+        assert result.redacted is True
+        assert result.summary is None
+        assert result.signature is not None
+        assert result.signature.startswith(OPENROUTER_REASONING_DETAILS_SIGNATURE)
+        # no raw JSON leaks into the rendered reasoning text
+        assert "reasoning.text" not in result.text
+
+    def test_signature_only_text_with_encrypted_keeps_encrypted(self):
+        """A signature-only text beside a valid encrypted block keeps encrypted.
+
+        Making `text` optional avoids the whole-array validation failure that
+        would otherwise lose the encrypted continuity block.
+        """
+        details = [
+            {
+                "type": "reasoning.text",
+                "signature": "AY89abc",
+                "format": "google-gemini-v1",
+                "index": 0,
+            },
+            {
+                "type": "reasoning.encrypted",
+                "data": "ENCRYPTED_BLOB",
+                "format": "google-gemini-v1",
+                "id": "e1",
+                "index": 1,
+            },
+        ]
+        result = openrouter_reasoning_details_to_reasoning(details)
+
+        assert result.reasoning == "ENCRYPTED_BLOB"
+        assert result.redacted is True
+        assert result.summary is None
+
+    def test_empty_list_is_opaque_without_warning(self):
+        """An empty reasoning_details list is a valid (empty) continuity slot.
+
+        It is not an error: no warning, and no raw JSON stored as reasoning.
+        """
+        with patch("inspect_ai.model._openrouter_reasoning.logger") as mock_logger:
+            result = openrouter_reasoning_details_to_reasoning([])
+            mock_logger.warning.assert_not_called()
+
+        assert result.reasoning == ""
+        assert result.redacted is False
 
     def test_invalid_format_logs_warning(self):
         """Invalid/malformed data logs warning and returns raw JSON."""
@@ -288,3 +348,187 @@ class TestRoundTrip:
 
         assert result is not None
         assert result["reasoning_details"] == original
+
+
+# =============================================================================
+# Tests for sanitize_reasoning_details_for_replay()
+# =============================================================================
+
+
+class TestSanitizeReasoningDetailsForReplay:
+    """Tests for the reasoning-detail replay filter.
+
+    Mirrors OpenRouter's own SDK: for signed formats (Gemini, Anthropic) an
+    unsigned reasoning.text is dropped while the encrypted continuity blob and
+    everything else is preserved.
+    """
+
+    def test_gemini_unsigned_text_dropped_encrypted_kept(self):
+        details = [
+            {"type": "reasoning.text", "text": "hi", "format": "google-gemini-v1"},
+            {
+                "type": "reasoning.encrypted",
+                "data": "BLOB",
+                "format": "google-gemini-v1",
+                "id": "call_1",
+            },
+        ]
+        result = sanitize_reasoning_details_for_replay(details)
+        assert [d["type"] for d in result] == ["reasoning.encrypted"]
+        assert result[0]["data"] == "BLOB"
+
+    def test_gemini_signed_text_kept(self):
+        details = [
+            {
+                "type": "reasoning.text",
+                "text": "hi",
+                "format": "google-gemini-v1",
+                "signature": "sig",
+            }
+        ]
+        assert sanitize_reasoning_details_for_replay(details) == details
+
+    def test_anthropic_signed_text_kept(self):
+        details = [
+            {
+                "type": "reasoning.text",
+                "text": "hi",
+                "format": "anthropic-claude-v1",
+                "signature": "sig",
+            }
+        ]
+        assert sanitize_reasoning_details_for_replay(details) == details
+
+    def test_anthropic_unsigned_text_dropped(self):
+        details = [
+            {"type": "reasoning.text", "text": "hi", "format": "anthropic-claude-v1"}
+        ]
+        assert sanitize_reasoning_details_for_replay(details) == []
+
+    def test_missing_format_defaults_to_anthropic_and_drops_unsigned(self):
+        # No format => anthropic-claude-v1 (SDK default), which is a signed
+        # format, so unsigned text is dropped.
+        details = [{"type": "reasoning.text", "text": "hi"}]
+        assert sanitize_reasoning_details_for_replay(details) == []
+
+    def test_non_signed_format_text_kept(self):
+        # e.g. OpenAI/xAI-style formats do not gate on signature.
+        details = [
+            {"type": "reasoning.text", "text": "hi", "format": "openai-responses-v1"}
+        ]
+        assert sanitize_reasoning_details_for_replay(details) == details
+
+    def test_summary_and_encrypted_pass_through(self):
+        details = [
+            {"type": "reasoning.summary", "summary": "s", "format": "google-gemini-v1"},
+            {"type": "reasoning.encrypted", "data": "B", "format": "google-gemini-v1"},
+        ]
+        assert sanitize_reasoning_details_for_replay(details) == details
+
+    def test_entry_without_type_passes_through(self):
+        # Only reasoning.text entries are ever filtered; anything else is kept.
+        details = [{"foo": "bar"}, {"type": "reasoning.encrypted", "data": "B"}]
+        assert sanitize_reasoning_details_for_replay(details) == details
+
+    def test_mixed_array_filters_per_rule_and_preserves_order(self):
+        details = [
+            {
+                "type": "reasoning.text",
+                "text": "signed",
+                "format": "google-gemini-v1",
+                "signature": "sig",
+            },
+            {
+                "type": "reasoning.text",
+                "text": "unsigned",
+                "format": "google-gemini-v1",
+            },
+            {
+                "type": "reasoning.text",
+                "text": "openai",
+                "format": "openai-responses-v1",
+            },
+            {
+                "type": "reasoning.summary",
+                "summary": "sum",
+                "format": "google-gemini-v1",
+            },
+            {"type": "reasoning.encrypted", "data": "B", "format": "google-gemini-v1"},
+        ]
+        result = sanitize_reasoning_details_for_replay(details)
+        # the unsigned signed-format text (index 1) is the only entry dropped
+        assert result == [details[0], details[2], details[3], details[4]]
+
+    def test_unsigned_signed_format_text_only_yields_empty_list(self):
+        details = [
+            {"type": "reasoning.text", "text": "hi", "format": "google-gemini-v1"}
+        ]
+        assert sanitize_reasoning_details_for_replay(details) == []
+
+
+# =============================================================================
+# End-to-end: messages_to_openai replays reasoning structurally (no <think>)
+# =============================================================================
+
+
+class TestGeminiReplayIsStructural:
+    """Regression for the Gemini `<think>`-tag fallback.
+
+    Reasoning must be replayed as structural reasoning_details, never
+    serialized into the assistant text channel (where a later turn could echo
+    it back as output).
+    """
+
+    GEMINI_DETAILS = [
+        {
+            "type": "reasoning.text",
+            "text": "let me think",
+            "format": "google-gemini-v1",
+        },
+        {
+            "type": "reasoning.encrypted",
+            "data": "ENCRYPTED_BLOB",
+            "format": "google-gemini-v1",
+            "id": "call_1",
+        },
+    ]
+
+    async def test_replay_emits_structural_details_without_think_tag(self):
+        api = OpenRouterAPI(
+            model_name="google/gemini-3.1-pro-preview", api_key="test-key"
+        )
+        reasoning = openrouter_reasoning_details_to_reasoning(self.GEMINI_DETAILS)
+        message = ChatMessageAssistant(content=[reasoning], model="gemini")
+
+        result = await api.messages_to_openai([message])
+
+        assert len(result) == 1
+        param = result[0]
+        # structural details present, unsigned text filtered, encrypted kept
+        assert "reasoning_details" in param
+        details = param["reasoning_details"]
+        assert [d["type"] for d in details] == ["reasoning.encrypted"]
+        # nothing leaked into the text channel
+        serialized = json.dumps(param)
+        assert "<think" not in serialized
+        assert "reasoning-details://" not in serialized
+
+    async def test_replay_keeps_signed_text(self):
+        api = OpenRouterAPI(
+            model_name="google/gemini-3.1-pro-preview", api_key="test-key"
+        )
+        signed = [
+            {
+                "type": "reasoning.text",
+                "text": "signed thought",
+                "format": "google-gemini-v1",
+                "signature": "abc",
+            }
+        ]
+        reasoning = openrouter_reasoning_details_to_reasoning(signed)
+        message = ChatMessageAssistant(content=[reasoning], model="gemini")
+
+        result = await api.messages_to_openai([message])
+        details = result[0]["reasoning_details"]
+        assert [d["type"] for d in details] == ["reasoning.text"]
+        assert "<think" not in json.dumps(result[0])

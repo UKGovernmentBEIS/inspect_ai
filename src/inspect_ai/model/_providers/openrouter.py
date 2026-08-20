@@ -218,38 +218,28 @@ class OpenRouterAPI(OpenAICompatibleAPI):
     async def messages_to_openai(
         self, input: list[ChatMessage]
     ) -> list[ChatCompletionMessageParam]:
-        # For Gemini-family models, do not replay stored reasoning_details
-        # back to OpenRouter. Gemini's openai-compat translation produces
-        # reasoning_details whose `id` field is missing or stale relative to
-        # the new tool_calls[].id on sequential function-call retries; the
-        # upstream Gemini provider then rejects with HTTP 200 + body
-        # {code:400, message:"Provider returned error"} (raw upstream error:
-        # "function call ... missing a thought_signature"). Falling through
-        # to the `<think>` tag path keeps assistant CoT visible to the model
-        # without triggering signature validation. Non-Gemini providers
-        # (Anthropic / Grok / OpenAI reasoning models) retain reasoning
-        # replay since they require it for correct CoT continuation.
+        # Reasoning captured as OpenRouter reasoning_details is replayed
+        # structurally (see sanitize_reasoning_details_for_replay), never via
+        # the assistant text channel. The prior Gemini `<think>`-tag path could
+        # be echoed back into a later turn's `content` and stored as model
+        # output, and it dropped the encrypted thought signature Gemini needs
+        # for multi-turn tool continuity. Reasoning that has no OpenRouter
+        # reasoning_details (e.g. replayed cross-model) still falls back to a
+        # `<think>` tag, as for every other family.
         family = self.model_family()
-        _strip_reasoning_details = "gemini" in family.lower()
         _replay_reasoning_content = _requires_reasoning_content(family)
 
         # convert reasoning_details to an extra body parameter
         def handle_reasoning_details(
             content: ContentReasoning,
         ) -> dict[str, JsonValue] | str:
-            if _strip_reasoning_details:
-                # Gemini can't use reasoning_details on replay — emit only the
-                # readable text so the model sees clean CoT without the
-                # HTML-escaped JSON signature or encrypted blob.
-                text = (
-                    content.summary if content.redacted else content.reasoning
-                ) or ""
-                if not text.strip():
-                    # no readable text (e.g. redacted reasoning with no
-                    # summary) — skip the tag rather than emit an empty one
-                    return {}
-                return f"<think>\n{text}\n</think>"
             details = reasoning_to_openrouter_reasoning_details(content)
+            if details is not None:
+                details["reasoning_details"] = (
+                    _openrouter_reasoning.sanitize_reasoning_details_for_replay(
+                        cast(list[dict[str, Any]], details["reasoning_details"])
+                    )
+                )
             if _replay_reasoning_content:
                 reasoning_content: dict[str, JsonValue] = {
                     "reasoning_content": content.reasoning
@@ -257,8 +247,7 @@ class OpenRouterAPI(OpenAICompatibleAPI):
                 return (details or {}) | reasoning_content
             if details is not None:
                 return details
-            else:
-                return reasoning_to_think_tag(content)
+            return reasoning_to_think_tag(content)
 
         return [
             await openai_chat_message(message, "system", handle_reasoning_details)
