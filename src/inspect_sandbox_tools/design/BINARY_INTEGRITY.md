@@ -1,7 +1,8 @@
 # Verifying sandbox-tools binaries against digests pinned in git
 
-Design for meridianlabs-ai/inspect_ai#283. Status: proposed, not yet
-implemented.
+Design for meridianlabs-ai/inspect_ai#283. Status: implemented (in the same
+PR as this design; the `.claude/skills/release-sandbox-tools/SKILL.md` update
+described under "Process changes" is tracked separately).
 
 ## Problem
 
