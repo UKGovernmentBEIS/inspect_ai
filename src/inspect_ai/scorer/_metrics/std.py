@@ -255,6 +255,124 @@ def ci(
     return metric_fn
 
 
+@metric
+def ci_wilson(
+    level: float = 0.95,
+    to_float: ValueToFloat = value_to_float(),
+    cluster: str | None = None,
+) -> Metric:
+    """Wilson score confidence interval for the mean of binary (0/1) scores.
+
+    Treats the mean score as a binomial proportion and reports the two-sided
+    `level` Wilson score interval as a mapping with `lower` and `upper`
+    bounds. Unlike the t interval from `ci()`, the bounds are always within
+    [0, 1] and remain well calibrated for small samples and for proportions
+    near 0 or 1 — prefer this metric over `ci()` for binary scores such as
+    accuracy.
+
+    Score values must lie in [0, 1]: values outside that range raise a
+    `ValueError` (there is no binomial reading of such data). Non-binary
+    values within [0, 1] (e.g. PARTIAL scored as 0.5) are accepted; because
+    the variance of any [0, 1]-bounded variable is at most `p̂(1 − p̂)`, the
+    resulting interval is conservative (a little wider than necessary) rather
+    than misleadingly narrow.
+
+    Args:
+       level: Confidence level for the interval (e.g. `0.95` for a 95%
+          interval). Must be in the open interval (0, 1).
+       to_float: Function for mapping `Value` to float for computing metrics. The
+          default `value_to_float()` maps CORRECT ("C") to 1.0, INCORRECT ("I") to
+          0, PARTIAL ("P") to 0.5, and NOANSWER ("N") to 0, casts numeric values to
+          float directly, and prints a warning and returns 0 if the `Value` is a
+          complex object (list or dict).
+       cluster (str | None): The key from the Sample metadata corresponding to
+          a cluster identifier for computing
+          [clustered](https://en.wikipedia.org/wiki/Clustered_standard_errors)
+          intervals. When set, the interval uses the effective sample size
+          `n / DEFF` (Korn & Graubard), where the design effect `DEFF` is the
+          ratio of the clustered variance of the mean to the Bessel-corrected
+          simple-random-sampling variance `p̂(1 − p̂)/(n − 1)`, so the interval
+          accounts for within-cluster correlation. The effective sample size
+          is capped at `n`, and whenever the design effect cannot be estimated
+          (either variance is zero: `p̂` exactly 0 or 1, fewer than two
+          clusters, or perfectly cancelling clusters) the unadjusted `n` is
+          used.
+
+    Returns:
+       ci_wilson metric returning a mapping `{"lower": ..., "upper": ...}`.
+    """
+    from statistics import NormalDist
+
+    if not 0.0 < level < 1.0:
+        raise ValueError(
+            f"ci_wilson `level` must be in the open interval (0, 1), got {level}"
+        )
+
+    z = NormalDist().inv_cdf(1.0 - (1.0 - level) / 2.0)
+
+    def metric_fn(scores: list[SampleScore]) -> Value:
+        # validate and partition clusters before any short-circuit, so a
+        # misconfigured cluster key fails loudly even on singleton inputs
+        # (mirroring ci()'s behavior)
+        partition = (
+            _cluster_partition(scores, cluster, to_float, "ci_wilson")
+            if cluster is not None
+            else None
+        )
+
+        values: list[float] = []
+        for sample_score in scores:
+            value = to_float(sample_score.score.value)
+            if not 0.0 <= value <= 1.0:
+                raise ValueError(
+                    f"Sample {sample_score.sample_id} has score value {value}. "
+                    "`ci_wilson` treats the mean score as a binomial proportion, "
+                    "so all score values must be between 0 and 1."
+                )
+            values.append(value)
+
+        if len(values) == 0:
+            return {"lower": 0.0, "upper": 0.0}
+
+        n = float(len(values))
+        p_hat = sum(values) / n
+
+        # clustered intervals use the effective sample size n / DEFF, where
+        # the design effect compares the clustered variance of the mean to
+        # the simple-random-sampling variance. The SRS reference uses the
+        # Bessel-corrected p(1-p)/(n-1) to match the finite-cluster
+        # correction inside _clustered_stderr — with the uncorrected p(1-p)/n
+        # reference, singleton clusters (which carry no correlation
+        # information) would produce a spurious DEFF of exactly n/(n-1)
+        # instead of 1.
+        if partition is not None and len(values) > 1:
+            srs_variance = p_hat * (1.0 - p_hat) / (n - 1.0)
+            clustered_variance = _clustered_stderr(partition) ** 2
+            # zero variance on either side makes the ratio meaningless
+            # (p_hat of exactly 0 or 1, a single cluster, or perfectly
+            # cancelling clusters): fall back to the unadjusted sample size
+            if srs_variance > 0.0 and clustered_variance > 0.0:
+                design_effect = clustered_variance / srs_variance
+                # cap at n so negative intra-cluster correlation cannot
+                # produce an interval narrower than the unclustered one
+                n = min(n / design_effect, n)
+
+        denominator = 1.0 + z * z / n
+        center = (p_hat + z * z / (2.0 * n)) / denominator
+        half_width = (
+            z
+            * math.sqrt(p_hat * (1.0 - p_hat) / n + z * z / (4.0 * n * n))
+            / denominator
+        )
+        # bounds are analytically within [0, 1]; clamp for float safety only
+        return {
+            "lower": max(center - half_width, 0.0),
+            "upper": min(center + half_width, 1.0),
+        }
+
+    return metric_fn
+
+
 def _clt_stderr(values: list[float]) -> float:
     """Central Limit Theorem standard error of the mean of `values`."""
     import numpy as np
