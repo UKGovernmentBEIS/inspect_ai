@@ -280,6 +280,8 @@ state_get() { grep -E "^$1=" "$STATE_FILE" 2>/dev/null | tail -n1 | cut -d= -f2-
 state_set() {
   local tmp; tmp=$(mktemp)
   { grep -vE "^$1=" "$STATE_FILE" 2>/dev/null || true; printf '%s=%s\n' "$1" "$2"; } > "$tmp"
+  # In a fresh checkout the (gitignored) binaries dir doesn't exist yet.
+  mkdir -p "$(dirname "$STATE_FILE")"
   mv "$tmp" "$STATE_FILE"
 }
 
@@ -330,7 +332,7 @@ if [[ ! -x "$PYTHON" ]]; then
   warn "No repo venv at .venv/bin/python — create it and install deps first."
   exit 1
 fi
-if ! command -v aws >/dev/null 2>&1; then
+if [[ "$DRY_RUN" == 0 ]] && ! command -v aws >/dev/null 2>&1; then
   warn "The aws CLI is required for the S3 upload — install it first."
   exit 1
 fi
