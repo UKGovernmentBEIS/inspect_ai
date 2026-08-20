@@ -115,16 +115,71 @@ class TestOpenrouterReasoningDetailsToReasoning:
         assert result.summary == "Let me think about this step by step..."
         assert result.redacted is True
 
-    def test_empty_list_logs_warning(self):
-        """Empty reasoning_details list logs warning and returns raw JSON."""
-        with patch("inspect_ai.model._openrouter_reasoning.logger") as mock_logger:
-            details = []
-            result = openrouter_reasoning_details_to_reasoning(details)
+    def test_signature_only_text_is_opaque(self):
+        """A Gemini thought carried only as a signature (no `text`) parses.
 
-            mock_logger.warning.assert_called_once()
-            call_args = mock_logger.warning.call_args[0][0]
-            assert "Reasoning content not provided" in call_args
-            assert result.reasoning == "[]"
+        This is the common Gemini terminal-turn shape. It must not fail
+        validation or surface the raw JSON as reasoning: represent it as opaque
+        (no readable text) with the signature preserved for replay, no warning.
+        """
+        details = [
+            {
+                "type": "reasoning.text",
+                "signature": "AY89abc",
+                "format": "google-gemini-v1",
+                "index": 0,
+            }
+        ]
+        with patch("inspect_ai.model._openrouter_reasoning.logger") as mock_logger:
+            result = openrouter_reasoning_details_to_reasoning(details)
+            mock_logger.warning.assert_not_called()
+
+        assert result.reasoning == ""
+        assert result.redacted is True
+        assert result.summary is None
+        assert result.signature is not None
+        assert result.signature.startswith(OPENROUTER_REASONING_DETAILS_SIGNATURE)
+        # no raw JSON leaks into the rendered reasoning text
+        assert "reasoning.text" not in result.text
+
+    def test_signature_only_text_with_encrypted_keeps_encrypted(self):
+        """A signature-only text beside a valid encrypted block keeps encrypted.
+
+        Making `text` optional avoids the whole-array validation failure that
+        would otherwise lose the encrypted continuity block.
+        """
+        details = [
+            {
+                "type": "reasoning.text",
+                "signature": "AY89abc",
+                "format": "google-gemini-v1",
+                "index": 0,
+            },
+            {
+                "type": "reasoning.encrypted",
+                "data": "ENCRYPTED_BLOB",
+                "format": "google-gemini-v1",
+                "id": "e1",
+                "index": 1,
+            },
+        ]
+        result = openrouter_reasoning_details_to_reasoning(details)
+
+        assert result.reasoning == "ENCRYPTED_BLOB"
+        assert result.redacted is True
+        assert result.summary is None
+
+    def test_empty_list_is_opaque_without_warning(self):
+        """An empty reasoning_details list is a valid (empty) continuity slot.
+
+        It is not an error: no warning, and no raw JSON stored as reasoning.
+        """
+        with patch("inspect_ai.model._openrouter_reasoning.logger") as mock_logger:
+            result = openrouter_reasoning_details_to_reasoning([])
+            mock_logger.warning.assert_not_called()
+
+        assert result.reasoning == ""
+        assert result.redacted is False
 
     def test_invalid_format_logs_warning(self):
         """Invalid/malformed data logs warning and returns raw JSON."""

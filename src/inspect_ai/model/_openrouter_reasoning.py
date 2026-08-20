@@ -38,7 +38,11 @@ class ReasoningDetailEncrypted(ReasoningDetailBase):
 
 class ReasoningDetailText(ReasoningDetailBase):
     type: Literal["reasoning.text"]
-    text: str
+    # `text` is optional: Gemini (and per OpenRouter's own SDK, any signed
+    # format) can return a thought carried only as a `signature`, with no
+    # readable text. Requiring `text` here would fail validation for the whole
+    # array and lose any sibling blocks (e.g. an encrypted continuity entry).
+    text: str | None = Field(default=None)
     signature: str | None = Field(default=None)
 
 
@@ -71,7 +75,10 @@ def openrouter_reasoning_details_to_reasoning(
             case "reasoning.summary":
                 summary = detail.summary
             case "reasoning.text":
-                reasoning = detail.text
+                # skip signature-only text (no readable content) so it can't
+                # clobber an encrypted sibling regardless of ordering
+                if detail.text:
+                    reasoning = detail.text
             case "reasoning.encrypted":
                 if reasoning is not None:
                     summary = reasoning
@@ -83,10 +90,13 @@ def openrouter_reasoning_details_to_reasoning(
             reasoning = summary
             summary = None
         else:
-            logger.warning(
-                f"Error parsing OpenRouter reasoning details: Reasoning content not provided.\n\n{details_json}"
-            )
-            return ContentReasoning(reasoning=details_json, signature=signature)
+            # A successfully-parsed array with no human-readable text: a thought
+            # carried only as a signature, or an empty continuity slot. This is
+            # valid, not an error — the raw details still round-trip via
+            # `signature`. Represent it as opaque with no visible text rather
+            # than surfacing the raw JSON as reasoning.
+            reasoning = ""
+            redacted = bool(details)
 
     return ContentReasoning(
         reasoning=reasoning, summary=summary, redacted=redacted, signature=signature
