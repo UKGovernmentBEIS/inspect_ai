@@ -91,7 +91,7 @@ never dangles across a retry):
 
 | Operation | Endpoint |
 |---|---|
-| Start a scoring pass | `POST /tasks/<task-id>/score?dry_run=<bool>` |
+| Start a scoring pass | `POST /tasks/<task-id>/score?dry_run=<bool>&completed_only=<bool>` |
 | Read pass status / result | `GET /tasks/<task-id>/score` |
 
 A per-sample variant (`ctl sample score TASK SID [EPOCH]`, `POST
@@ -244,9 +244,15 @@ review, meridianlabs-ai/inspect_ai#94):
      commands in progress run to completion), so a tool-heavy sample parks
      only when its current tool call ends. For a sample running concurrent
      solver branches (parallel subagents), one branch parking doesn't by
-     itself still the others — the precise quiescence predicate (parked
-     attempts covering the sample's outstanding generate activity) is a
-     build detail to pin down with tests;
+     itself still the others — and a quiescence predicate over generate
+     attempts alone cannot be made sound, because a sibling branch *between*
+     model calls (mid-tool-call, mid-sandbox-exec, or in pure Python)
+     presents no generate attempt to cover yet is about to mutate the shared
+     `TaskState`. The predicate therefore needs a non-generate activity
+     signal (the activity accounting open question 6 reaches for), or —
+     simpler and safe — multi-branch samples without full coverage time out
+     to the "did not park" row like non-parking samples do. Which of the two
+     ships first is a build detail to pin down with tests;
    - a **hold timeout**, so a sample that neither parks nor completes (a
      long sandbox command, a solver phase with no model calls) can't wedge
      the pass. On timeout the sample's row reports "did not park", and it
