@@ -16,7 +16,7 @@ from inspect_ai._util.content import (
 )
 from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log._transcript import transcript
-from inspect_ai.model._call_tools import tool_params
+from inspect_ai.model._call_tools import tool_params, validate_tool_input
 from inspect_ai.tool import Tool, ToolError, ToolParams
 from inspect_ai.tool._tool import ToolResult
 from inspect_ai.tool._tool_call import ToolCallError
@@ -208,6 +208,18 @@ def tool(args):
                     failed=failed,
                     message_id=None,
                 )
+
+            # Validate against the declared JSON Schema exactly as the model
+            # path does (tool_params() below converts to the Python signature
+            # but cannot enforce schema constraints — a ToolDef over **kwargs
+            # has no typed signature at all, so this is the only gate that
+            # keeps the human's action space identical to the model's)
+            validation_errors = validate_tool_input(
+                kwargs, self._tool_defs[tool].parameters
+            )
+            if validation_errors:
+                finalize(error=ToolCallError("parsing", validation_errors))
+                return f"Error: {validation_errors}"
 
             # Convert args using tool_params()
             try:

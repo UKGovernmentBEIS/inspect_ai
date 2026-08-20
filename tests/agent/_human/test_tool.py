@@ -370,6 +370,65 @@ async def test_service_accepts_any_identifier_param_name() -> None:
     assert result == "ok"
 
 
+# --- finding 1: human calls must honor the declared JSON Schema --------------
+
+
+@pytest.mark.anyio
+async def test_schema_constraints_enforced_for_human_calls() -> None:
+    """Human calls validate against the declared schema like model calls do.
+
+    A ToolDef(parameters=...) over **kwargs has no typed signature for
+    tool_params() to convert against, so schema constraints (minimum,
+    enum, required) were only enforced on the model path — the human
+    could execute calls a model would have had rejected.
+    """
+    from typing import Any
+
+    from inspect_ai.log._transcript import Transcript, init_transcript, transcript
+    from inspect_ai.tool import ToolParams
+    from inspect_ai.util import JSONSchema
+
+    executed: dict = {}
+
+    async def execute(**kwargs: Any) -> str:
+        """Set the level.
+
+        Returns:
+            Confirmation.
+        """
+        executed["level"] = kwargs.get("level")
+        return "set"
+
+    leveled = ToolDef(
+        execute,
+        name="set_level",
+        description="Set the level.",
+        parameters=ToolParams(
+            properties={
+                "level": JSONSchema(
+                    type="integer", minimum=1, description="The level."
+                )
+            },
+            required=["level"],
+        ),
+    ).as_tool()
+
+    handler = ToolCommand([leveled]).service(state=None)  # type: ignore[arg-type]
+    init_transcript(Transcript())
+    result = await handler(tool="set_level", arguments={"level": 0})
+
+    assert executed == {}  # the tool must not run
+    assert "validation" in str(result).lower()
+    events = [e for e in transcript().events if e.event == "tool"]
+    assert len(events) == 1
+    assert events[0].error is not None and events[0].error.type == "parsing"
+
+    # and a conforming call goes through
+    result = await handler(tool="set_level", arguments={"level": 2})
+    assert result == "set"
+    assert executed == {"level": 2}
+
+
 # --- finding 2: a ToolEvent must be recorded on every outcome ----------------
 
 
