@@ -1,4 +1,5 @@
 ## Unreleased
+- Bugfix: Bump the `fsspec` upper bound from `<=2025.9.0` to `<=2026.6.0` to align with the current `huggingface/datasets` cap. (#4761)
 - OpenAI: Chat Completions usage now preserves prompt-cache read and write tokens for accurate cache-aware costing.
 - Scoring: `model_graded_qa`/`model_graded_fact` no longer score a malformed multi-character verdict such as `GRADE: CI` as correct; such verdicts now leave the sample unscored with `grade_parse_failure` recorded.
 - OpenAI: Fixed background responses failing on transient connection and timeout errors.
