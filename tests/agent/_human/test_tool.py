@@ -625,6 +625,50 @@ def test_percent_in_descriptions_survives_help_rendering() -> None:
     assert "50% cutoff" in tool_help
 
 
+# --- round 7: limit failures wrapped by task groups still end the sample -----
+
+
+@pytest.mark.anyio
+async def test_limit_exceeded_inside_task_group_reraises() -> None:
+    """A LimitExceededError raised by a task-group child must still propagate.
+
+    AnyIO wraps child exceptions in an ExceptionGroup, which the generic
+    handler caught and stringified — the sample ran past its limit. The
+    inner limit error must be extracted (nested groups included) and
+    re-raised so the sandbox-service boundary can end the sample.
+    """
+    import anyio
+
+    from inspect_ai.log._transcript import Transcript, init_transcript, transcript
+    from inspect_ai.util._limit import LimitExceededError
+
+    async def execute() -> str:
+        """Exceed a limit inside a task group.
+
+        Returns:
+            Never returns.
+        """
+
+        async def child() -> None:
+            raise LimitExceededError("token", value=1001, limit=1000)
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(child)
+        return "unreachable"
+
+    grouped = ToolDef(
+        execute, name="grouped", description="Exceed a limit in a group.", parameters={}
+    ).as_tool()
+
+    handler = ToolCommand([grouped]).service(state=None)  # type: ignore[arg-type]
+    init_transcript(Transcript())
+    with pytest.raises(LimitExceededError):
+        await handler(tool="grouped", arguments={})
+
+    events = [e for e in transcript().events if e.event == "tool"]
+    assert len(events) == 1 and events[0].error is not None
+
+
 # --- round 6: limit violations must reach the sample boundary -----------------
 
 

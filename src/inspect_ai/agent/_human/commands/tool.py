@@ -22,6 +22,7 @@ from inspect_ai.tool import Tool, ToolError, ToolParams
 from inspect_ai.tool._tool import ToolResult
 from inspect_ai.tool._tool_call import ToolCallError
 from inspect_ai.tool._tool_def import ToolDef
+from inspect_ai.util._anyio import _flatten_exception
 from inspect_ai.util._limit import LimitExceededError
 from inspect_ai.util._span import span
 
@@ -325,6 +326,21 @@ def tool(args):
             finalize(error=ToolCallError("unknown", str(ex)))
             raise
         except Exception as ex:
+            # anyio task groups wrap child exceptions in an ExceptionGroup —
+            # a contained limit violation must still end the sample, so
+            # extract it (nested groups included) and re-raise it
+            limit_error = next(
+                (
+                    e
+                    for e in _flatten_exception(ex)
+                    if isinstance(e, LimitExceededError)
+                ),
+                None,
+            )
+            if limit_error is not None:
+                finalize(error=ToolCallError("unknown", str(limit_error)))
+                raise limit_error from ex
+
             # unexpected exceptions must not end the human's session (a
             # human, unlike a model sample, can read the error and work
             # around a broken tool — and raising here just yields a raw
