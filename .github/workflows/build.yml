@@ -236,6 +236,7 @@ jobs:
             code:
               - '**'
               - '!docs/**'
+              - '!design/**'
               - '!**/*.md'
 
       - name: Set RUN_TESTS
