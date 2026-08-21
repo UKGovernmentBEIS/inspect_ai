@@ -700,12 +700,10 @@ def reflect_companion_loops() -> None:
             "list",
             "--repo",
             TS_MONO,
-            "--label",
-            "auto",
             "--state",
             "open",
             "--json",
-            "number,headRefName",
+            "number,headRefName,labels",
         )
     except RuntimeError as e:
         print(f"::warning::companion reflection: pr list failed: {e}")
@@ -713,6 +711,14 @@ def reflect_companion_loops() -> None:
     for cpr in prs:
         m = re.match(r"claude/issue-(\d+)-", cpr.get("headRefName") or "")
         if not m:
+            continue
+        # Companion, not ts-mono-native: the SAME branch must exist on the
+        # fork (ts-mono's own dev agent mints identically-shaped names whose
+        # numbers reference ts-mono issues — a bare number match would drive
+        # an unrelated fork issue's stage).
+        try:
+            gh("api", f"repos/{FORK}/branches/{cpr['headRefName']}")
+        except RuntimeError:
             continue
         n = int(m.group(1))
         anchor = lifecycle_item(n)
@@ -746,7 +752,13 @@ def reflect_companion_loops() -> None:
                 or "claude-review-verdict:suggestions" in body
             ):
                 go_ts = max(go_ts, ts)
-        engaged = go_ts > stop_ts
+        # The no-progress escalation posts NO marker — it exits the loop by
+        # REMOVING the auto label (observed: ts-mono#557 escalated and the
+        # label-filtered enumeration went blind, freezing the anchor at
+        # Agent). Label absence therefore means the ball is with a human,
+        # regardless of marker recency.
+        labeled = any(lb.get("name") == "auto" for lb in cpr.get("labels") or [])
+        engaged = labeled and go_ts > stop_ts
         target = "Agent" if engaged else "Review"
         if set_stage(item, target, stage):
             state = "engaged" if engaged else "handed back"
