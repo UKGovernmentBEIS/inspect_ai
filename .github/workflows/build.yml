@@ -492,9 +492,11 @@ jobs:
   # Release gate: runs only when the version bumped to N+1. Verifies the
   # new v{N+1} artifact is published to S3 (fails fast with upload_to_s3.py
   # hint if not), then re-runs the slow tests against it. Maintainer reruns
-  # from the Actions UI after uploading.
+  # from the Actions UI after uploading. Runs in parallel with
+  # slow-tool-tests-dev: it consumes only the published S3 artifacts,
+  # nothing the dev job produces.
   slow-tool-tests-release:
-    needs: [detect-slow, check-version-bump, slow-tool-tests-dev]
+    needs: [detect-slow, check-version-bump]
     if: needs.detect-slow.outputs.tools_changed == 'true' && needs.check-version-bump.outputs.version_correctly_bumped == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 60
