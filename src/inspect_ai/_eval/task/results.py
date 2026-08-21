@@ -454,6 +454,16 @@ def scorer_for_metrics(
 
         # the metric is a float, str, or int
         else:
+            # Recover grouped()'s aggregate key when no score can invoke it.
+            if (
+                len(sample_scores_with_values) == 0
+                and registry_info(metric).name == "inspect_ai/grouped"
+                and params.get("all", "samples")
+            ):
+                all_label = params.get("all_label", "all")
+                if isinstance(all_label, str):
+                    key = metrics_unique_key(all_label, list(list_metrics.keys()))
+                    base_metric_name = all_label
             list_metrics[key] = EvalMetric(
                 name=base_metric_name, value=float(metric_value), params=params
             )
