@@ -7,8 +7,13 @@ parametrized zoos here are the shared contract; path-specific dispositions
 (fail-the-sample vs surface-and-continue) are tested with each path.
 """
 
+import sys
+
 import anyio
 import pytest
+
+if sys.version_info < (3, 11):
+    from exceptiongroup import ExceptionGroup
 
 from inspect_ai._util.content import ContentImage, ContentText
 from inspect_ai._util.exception import TerminateSampleError, TerminateTaskError
@@ -87,11 +92,11 @@ def test_terminate_errors_unclassified():
     assert classify_tool_exception(TerminateTaskError("kill"), "t") is None
 
 
-def test_other_value_errors_reraise():
-    # historical model-path behavior: only embedded-null-byte ValueErrors
-    # are tool errors; anything else is not swallowed into a classification
-    with pytest.raises(ValueError, match="unrelated"):
-        classify_tool_exception(ValueError("unrelated"), "some_tool")
+def test_other_value_errors_unclassified():
+    # only embedded-null-byte ValueErrors are tool errors; other ValueErrors
+    # are unexpected — the classifier stays policy-free and returns None
+    # (the model call site applies its historical immediate-rethrow itself)
+    assert classify_tool_exception(ValueError("unrelated"), "some_tool") is None
 
 
 # ---------------------------------------------------------------------------
@@ -143,7 +148,7 @@ async def test_terminate_reraised_from_task_group():
     # anyio task groups wrap child exceptions in an ExceptionGroup — the
     # service's error handling must unwrap before matching
     async def child() -> None:
-        raise TerminateTaskError("kill")
+        raise TerminateSampleError("kill")
 
     try:
         async with anyio.create_task_group() as tg:
@@ -153,8 +158,93 @@ async def test_terminate_reraised_from_task_group():
         group = ex
 
     assert group is not None
-    with pytest.raises(TerminateTaskError):
+    with pytest.raises(TerminateSampleError):
         raise_if_control_flow(group)
+
+
+def test_terminate_found_in_mixed_group():
+    # a mixed group must not hide a termination behind an ordinary sibling
+    # (first-leaf unwrapping missed it depending on flattening order)
+    group = ExceptionGroup(
+        "mixed", [RuntimeError("noise"), TerminateSampleError("kill")]
+    )
+    with pytest.raises(TerminateSampleError):
+        raise_if_control_flow(group)
+
+
+def test_task_terminate_not_routed():
+    # TerminateTaskError has no task-boundary consumer in the sample
+    # runner, so the service protocol deliberately excludes it
+    raise_if_control_flow(TerminateTaskError("kill"))  # no-op
+
+
+def _fake_service(method, monkeypatch, responses: list):
+    """A SandboxService whose sandbox I/O is faked, dispatching for real.
+
+    _handle_request runs its actual parse/dispatch/error-handling code —
+    including the outer except that previously recaught re-raised
+    terminations — with only the sandbox exec and response write faked.
+    """
+    import json as json_module
+
+    from inspect_ai.util._sandbox.service import SandboxService
+    from inspect_ai.util._subprocess import ExecResult
+
+    service = SandboxService.__new__(SandboxService)
+    service._name = "svc"
+    service._methods = {"boom": method}
+    service._requests_dir = "/req"
+
+    request_json = json_module.dumps({"id": "r1", "method": "boom", "params": {}})
+
+    async def fake_exec(cmd, **kwargs):
+        return ExecResult(success=True, returncode=0, stdout=request_json, stderr="")
+
+    async def fake_write_response(request_file, request_id, result, error=None):
+        responses.append((result, error))
+
+    async def fake_remove(request_file):
+        pass
+
+    monkeypatch.setattr(service, "_exec", fake_exec)
+    monkeypatch.setattr(service, "_write_response", fake_write_response)
+    monkeypatch.setattr(service, "_remove_request_file", fake_remove)
+    return service
+
+
+@pytest.mark.anyio
+async def test_terminate_propagates_through_real_handler(monkeypatch):
+    """_handle_request's own outer handler must not recatch the re-raise.
+
+    The inner control-flow branch answers the RPC then re-raises; the
+    outer except Exception previously caught it immediately and logged
+    it as an ordinary failure, so nothing ever terminated.
+    """
+    responses: list = []
+
+    async def method() -> str:
+        raise TerminateSampleError("kill")
+
+    service = _fake_service(method, monkeypatch, responses)
+    with pytest.raises(TerminateSampleError):
+        await service._handle_request_logging_errors("/req/r1.json")
+
+    # the RPC was answered exactly once before propagation
+    assert len(responses) == 1
+    assert responses[0][1] is not None and "Terminating" in responses[0][1]
+
+
+@pytest.mark.anyio
+async def test_ordinary_method_errors_still_swallowed(monkeypatch):
+    responses: list = []
+
+    async def method() -> str:
+        raise RuntimeError("ordinary failure")
+
+    service = _fake_service(method, monkeypatch, responses)
+    await service._handle_request_logging_errors("/req/r1.json")  # no raise
+    assert len(responses) == 1
+    assert responses[0][1] is not None and "ordinary failure" in responses[0][1]
 
 
 def test_ordinary_exceptions_not_reraised():
