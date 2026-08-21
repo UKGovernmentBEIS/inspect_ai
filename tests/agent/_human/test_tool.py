@@ -464,6 +464,50 @@ async def test_tool_execution_runs_in_tool_span() -> None:
     assert tool_event.span_id == tool_span.id
 
 
+# --- round 3: only advertise null where it is actually accepted --------------
+
+
+@tool
+def _nullable_menagerie():
+    async def execute(
+        value: int | None = None,
+        tags: list[str] | None = None,
+        strict: bool | None = None,
+    ) -> str:
+        """Exercise nullable parameter varieties.
+
+        Args:
+            value: A nullable integer.
+            tags: A nullable array.
+            strict: A nullable boolean.
+
+        Returns:
+            A marker.
+        """
+        return "ok"
+
+    return execute
+
+
+def test_null_advertised_only_where_supported() -> None:
+    """Arrays and booleans have no null spelling — help must not offer one.
+
+    Nullable scalars and JSON values accept the null literal; nullable
+    arrays reject it during item conversion and nullable booleans have
+    only --flag/--no-flag. Advertising null there documents a lie.
+    """
+    code = ToolCommand([_nullable_menagerie()]).get_cli_parser_code()
+    args = {
+        name: next(
+            ln for ln in code.splitlines() if f"dest='arg_{name}'" in ln
+        )
+        for name in ("value", "tags", "strict")
+    }
+    assert "'null' for null" in args["value"]
+    assert "'null' for null" not in args["tags"]
+    assert "'null' for null" not in args["strict"]
+
+
 # --- round 3: nullability and requiredness are independent --------------------
 
 

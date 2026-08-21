@@ -528,12 +528,14 @@ def generate_tool_parser(
             parts.append("default=argparse.SUPPRESS")
 
         # Help text (structured params get a copy-pasteable example instance;
-        # nullable params advertise the 'null' literal)
+        # nullable params advertise the 'null' literal only where it is
+        # actually accepted — scalars via _nullable(); arrays reject it
+        # during item conversion and booleans have no null spelling)
         help_text = info.description or ""
         if info.schema_type == "json":
             example = json.dumps(_example_instance(schema_dicts[name]))
             help_text = f"{help_text} (JSON, e.g. '{example}')".strip()
-        elif info.is_optional:
+        elif info.is_optional and info.schema_type in ("integer", "number", "string"):
             help_text = f"{help_text} ('null' for null)".strip()
         if help_text:
             parts.append(f"help={help_text!r}")
