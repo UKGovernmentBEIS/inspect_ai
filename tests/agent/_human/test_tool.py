@@ -605,9 +605,7 @@ def test_null_advertised_only_where_supported() -> None:
     """
     code = ToolCommand([_nullable_menagerie()]).get_cli_parser_code()
     args = {
-        name: next(
-            ln for ln in code.splitlines() if f"dest='arg_{name}'" in ln
-        )
+        name: next(ln for ln in code.splitlines() if f"dest='arg_{name}'" in ln)
         for name in ("value", "tags", "strict")
     }
     assert "'null' for null" in args["value"]

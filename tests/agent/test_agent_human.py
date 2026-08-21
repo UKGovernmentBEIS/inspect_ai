@@ -196,9 +196,8 @@ def submit_task(docker_exec: list[str], answer: str = "done") -> None:
 def test_human_cli_with_tools(capsys: pytest.CaptureFixture[str]):
     """Test human_cli with tools parameter.
 
-    Tests two argument styles:
-    - Named: task tool addition --x 12 --y 34
-    - JSON escape hatch: task tool addition --raw-json-escape-hatch '{"x": 12, "y": 34}'
+    Exercises typed named arguments (task tool addition --x 12 --y 34)
+    and the generated per-tool help.
     """
 
     @tool

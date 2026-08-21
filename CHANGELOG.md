@@ -1,6 +1,6 @@
 ## Unreleased
 
-- Human Agent: `human_cli()` now accepts `tools`, exposing inspect tools to the human via `task tool <name>` — named arguments generated from each tool's schema (with `--flag/--no-flag` boolean pairs that preserve tool defaults), JSON values for structured parameter types, and a `ToolEvent` recorded in the transcript for every invocation. (#3053)
+- Human Agent: `human_cli()` now accepts `tools`, letting humans call inspect tools via `task tool <name>` with typed named arguments; invocations are recorded in the transcript.
 - Anthropic: Compatibility with anthropic SDK 0.124.0, which is now the minimum supported version (browser state tool results and file-based image/document sources no longer fail type checking).
 - OpenAI: Responses API usage now records `cache_write_tokens` as `ModelUsage.input_tokens_cache_write` and excludes it from full-rate `input_tokens` (generate and compaction responses); compaction usage also now excludes cache reads and records reasoning tokens. (#4855)
 - Sandbox: Editable installs now avoid spurious `-dev` sandbox-tools binaries when local main refs are missing, stale, or unavailable.
