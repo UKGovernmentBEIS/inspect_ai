@@ -527,6 +527,38 @@ def test_tool_named_tool_does_not_shadow_parent_parser() -> None:
     assert args.tool_name == "tool"
 
 
+# --- round 6: percent signs in descriptions must not break argparse ----------
+
+
+@tool
+def _percenter():
+    async def execute(threshold: float) -> str:
+        """Return 100% of matches.
+
+        Args:
+            threshold: A 50% cutoff.
+
+        Returns:
+            A marker.
+        """
+        return "ok"
+
+    return execute
+
+
+def test_percent_in_descriptions_survives_help_rendering() -> None:
+    """Argparse percent-interpolates help text at formatting time.
+
+    repr() makes the generated source safe but a bare % in a tool or
+    parameter description still raises at `task tool` / `--help` time.
+    """
+    parser, namespace = _build_parsers([_percenter()])
+    listing = namespace["tool_parser"].format_help()
+    assert "100% of matches" in listing
+    tool_help = namespace["tool_subparsers"].choices["_percenter"].format_help()
+    assert "50% cutoff" in tool_help
+
+
 # --- round 6: limit violations must reach the sample boundary -----------------
 
 

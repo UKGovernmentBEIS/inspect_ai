@@ -544,9 +544,12 @@ def generate_tool_parser(
     # text is data, never code)
     # caller-supplied indexed variable (parser_<i>) so no tool name can
     # shadow routing variables or produce an invalid identifier
+    # argparse percent-interpolates help text at render time, so a literal
+    # % in a description must be escaped as %% (repr() alone only makes the
+    # generated *source* safe)
     lines.append(
         f"{parser_var} = tool_subparsers.add_parser({tool_name!r}, "
-        f"help={tool_description!r}, "
+        f"help={tool_description.replace('%', '%%')!r}, "
         f"formatter_class=argparse.RawDescriptionHelpFormatter)"
     )
 
@@ -624,7 +627,8 @@ def generate_tool_parser(
         elif info.is_optional and info.schema_type in ("integer", "number", "string"):
             help_text = f"{help_text} ('null' for null)".strip()
         if help_text:
-            parts.append(f"help={help_text!r}")
+            # escape argparse's %-interpolation (see add_parser above)
+            parts.append(f"help={help_text.replace('%', '%%')!r}")
 
         lines.append(f"{parser_var}.add_argument({', '.join(parts)})")
 
