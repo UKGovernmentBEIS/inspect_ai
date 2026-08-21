@@ -17,6 +17,7 @@ from inspect_ai._util.content import (
     ContentBase,
     ContentText,
 )
+from inspect_ai._util.exception import TerminateSampleError, TerminateTaskError
 from inspect_ai._util.registry import registry_unqualified_name
 from inspect_ai._util.working import sample_waiting_time
 from inspect_ai.event._tool import ToolEvent
@@ -24,14 +25,17 @@ from inspect_ai.log._transcript import transcript
 from inspect_ai.model._call_tools import (
     tool_call_view,
     tool_params,
+    truncate_tool_output,
     validate_tool_input,
 )
 from inspect_ai.tool import Tool, ToolError, ToolParams
 from inspect_ai.tool._tool import ToolResult
 from inspect_ai.tool._tool_call import ToolCall, ToolCallError
 from inspect_ai.tool._tool_def import ToolDef
-from inspect_ai.util._anyio import _flatten_exception
+from inspect_ai.util._anyio import inner_exception
 from inspect_ai.util._limit import LimitExceededError
+from inspect_ai.util._sandbox.events import SandboxTimeoutError
+from inspect_ai.util._sandbox.limits import OutputLimitExceededError
 from inspect_ai.util._span import span
 
 from ..._handoff import AgentTool
@@ -256,10 +260,11 @@ def tool(args):
         async def call_tool(tool: str, arguments: dict[str, Any] | None = None) -> str:
             kwargs = arguments or {}
 
-            # Look up tool
+            # Look up tool (unknown-tool attempts still record an event —
+            # the human's failed invocation is data too)
             tool_fn = self._tool_map.get(tool)
             if tool_fn is None:
-                return f"Error: Unknown tool '{tool}'"
+                return await self._execute_tool(tool, None, kwargs)
 
             # SandboxService handles pending request files concurrently, so
             # two shell invocations can arrive at once — serialize tools that
@@ -280,7 +285,7 @@ def tool(args):
         return call_tool
 
     async def _execute_tool(
-        self, tool: str, tool_fn: Tool, kwargs: dict[str, Any]
+        self, tool: str, tool_fn: Tool | None, kwargs: dict[str, Any]
     ) -> str:
         # Record the event pending, before conversion/execution, with the
         # arguments exactly as sent (they arrived as JSON so they are
@@ -290,9 +295,13 @@ def tool(args):
         # apply the tool's custom viewer (if any) so human events render the
         # same way model-invoked events for the same tool do
         call_id = uuid()
-        view = tool_call_view(
-            ToolCall(id=call_id, function=tool, arguments=kwargs),
-            [self._tool_defs[tool]],
+        view = (
+            tool_call_view(
+                ToolCall(id=call_id, function=tool, arguments=kwargs),
+                [self._tool_defs[tool]],
+            )
+            if tool in self._tool_defs
+            else None
         )
         event = ToolEvent(
             id=call_id,
@@ -312,10 +321,11 @@ def tool(args):
             result: ToolResult = "",
             error: ToolCallError | None = None,
             failed: bool | None = None,
+            truncated: tuple[int, int] | None = None,
         ) -> None:
             event._set_result(
                 result=result,
-                truncated=None,
+                truncated=truncated,
                 error=error,
                 waiting_time=sample_waiting_time() - waiting_start,
                 agent=None,
@@ -326,6 +336,11 @@ def tool(args):
             # registered pending (stale live subscribers, pinned forever
             # in bounded transcripts)
             transcript()._event_updated(event)
+
+        # Unknown tool: record the failed attempt and surface a clean error
+        if tool_fn is None:
+            finalize(error=ToolCallError("parsing", f"Unknown tool '{tool}'"))
+            return f"Error: Unknown tool '{tool}'"
 
         # Validate against the declared JSON Schema exactly as the model
         # path does (tool_params() below converts to the Python signature
@@ -348,47 +363,99 @@ def tool(args):
 
         try:
             result = await tool_fn(**params)
-        except ToolError as ex:
-            # an expected tool failure — surface the message the way a model
-            # receives it (raising would reach the human as an RPC traceback)
-            finalize(error=ToolCallError("unknown", ex.message))
-            return f"Error: {ex.message}"
-        except LimitExceededError as ex:
-            # must reach the sandbox-service boundary, which routes it to
-            # sample_active().limit_exceeded() and ends the sample — the
-            # generic handler below would silently run past the limit
-            finalize(error=ToolCallError("unknown", str(ex)))
-            raise
-        except Exception as ex:
-            # anyio task groups wrap child exceptions in an ExceptionGroup —
-            # a contained limit violation must still end the sample, so
-            # extract it (nested groups included) and re-raise it
-            limit_error = next(
-                (
-                    e
-                    for e in _flatten_exception(ex)
-                    if isinstance(e, LimitExceededError)
+        except Exception as raw_ex:
+            # normalize before classifying, as the model path does — anyio
+            # task groups wrap child exceptions in ExceptionGroups (nested
+            # included), and classification must see the real exception
+            ex = inner_exception(raw_ex)
+
+            if isinstance(ex, ToolError):
+                # an expected tool failure — surface the message the way a
+                # model receives it (raising would reach the human as an
+                # RPC traceback)
+                finalize(error=ToolCallError("unknown", ex.message))
+                return f"Error: {ex.message}"
+            elif isinstance(
+                ex, (LimitExceededError, TerminateSampleError, TerminateTaskError)
+            ):
+                # control flow: limit violations must reach the sandbox-
+                # service boundary (which routes them to
+                # sample_active().limit_exceeded() and ends the sample);
+                # terminate errors likewise must not be stringified
+                finalize(error=ToolCallError("unknown", str(ex)))
+                raise ex from raw_ex
+            elif isinstance(ex, OutputLimitExceededError):
+                # like the model path, an output-limit hit is a truncated
+                # result, not a failure
+                result = ex.truncated_output or ""
+                finalize(
+                    result=result,
+                    error=ToolCallError(
+                        "limit",
+                        f"The tool exceeded its output limit of {ex.limit_str}.",
+                    ),
+                )
+                return f"{result}\n[output truncated: exceeded {ex.limit_str} limit]"
+            elif isinstance(ex, TimeoutError):
+                message = "Command timed out before completing."
+                result = (
+                    ex.truncated_output
+                    if isinstance(ex, SandboxTimeoutError) and ex.truncated_output
+                    else ""
+                )
+                finalize(result=result, error=ToolCallError("timeout", message))
+                return f"Error: {message}"
+            elif isinstance(ex, UnicodeDecodeError):
+                message = f"Error decoding bytes to {ex.encoding}: {ex.reason}"
+                finalize(error=ToolCallError("unicode_decode", message))
+                return f"Error: {message}"
+            elif isinstance(ex, PermissionError):
+                message = f"{ex.strerror or str(ex)}."
+                if isinstance(ex.filename, str):
+                    message = f"{message} Filename '{ex.filename}'."
+                finalize(error=ToolCallError("permission", message))
+                return f"Error: {message}"
+            elif isinstance(ex, FileNotFoundError):
+                if isinstance(ex.filename, str):
+                    message = f"File '{ex.filename}' was not found."
+                else:
+                    message = ex.strerror or str(ex)
+                finalize(error=ToolCallError("file_not_found", message))
+                return f"Error: {message}"
+            elif isinstance(ex, IsADirectoryError):
+                message = f"{ex.strerror or str(ex)}."
+                if isinstance(ex.filename, str):
+                    message = f"{message} Filename '{ex.filename}'."
+                finalize(error=ToolCallError("is_a_directory", message))
+                return f"Error: {message}"
+            else:
+                # unexpected exceptions must not end the human's session (a
+                # human, unlike a model sample, can read the error and work
+                # around a broken tool — and raising here just yields a raw
+                # RPC traceback anyway, as the sandbox-service boundary
+                # swallows exceptions and keeps polling). Surface a clean
+                # message; the failed ToolEvent and this warning keep the
+                # breakage visible to analysts and operators.
+                logger.warning(f"Error executing human agent tool '{tool}': {ex}")
+                finalize(error=ToolCallError("unknown", str(ex)), failed=True)
+                return f"Error executing tool '{tool}': {ex}"
+
+        # Convert result to string, truncating oversize output exactly as
+        # the model path does (both in the terminal and the recorded event)
+        output = tool_result_to_str(result)
+        truncated_output = truncate_tool_output(tool, output, None)
+        if truncated_output:
+            finalize(
+                result=truncated_output.output,
+                truncated=(
+                    truncated_output.raw_bytes,
+                    truncated_output.truncated_bytes,
                 ),
-                None,
             )
-            if limit_error is not None:
-                finalize(error=ToolCallError("unknown", str(limit_error)))
-                raise limit_error from ex
+            return truncated_output.output
 
-            # unexpected exceptions must not end the human's session (a
-            # human, unlike a model sample, can read the error and work
-            # around a broken tool — and raising here just yields a raw
-            # RPC traceback anyway, as the sandbox-service boundary
-            # swallows exceptions and keeps polling). Surface a clean
-            # message; the failed ToolEvent and this warning keep the
-            # breakage visible to analysts and operators.
-            logger.warning(f"Error executing human agent tool '{tool}': {ex}")
-            finalize(error=ToolCallError("unknown", str(ex)), failed=True)
-            return f"Error executing tool '{tool}': {ex}"
         finalize(result=result)
-
-        # Convert result to string
-        return tool_result_to_str(result)
+        return output
 
 
 class ParamInfo(NamedTuple):

@@ -4,7 +4,7 @@ import pytest
 
 from inspect_ai._util.content import ContentImage, ContentText
 from inspect_ai.agent._human.commands.tool import ToolCommand, tool_result_to_str
-from inspect_ai.tool import ToolDef, tool
+from inspect_ai.tool import ToolDef, ToolError, tool
 from inspect_ai.util import JSONSchema
 
 
@@ -822,6 +822,159 @@ async def test_waiting_time_excluded_from_working_time() -> None:
     event = next(e for e in transcript().events if e.event == "tool")
     assert event.working_time is not None
     assert 0 <= event.working_time < 0.04  # ~0.06 elapsed minus 0.05 waited
+
+
+# --- drift sweep: mirror the model path's exception taxonomy -----------------
+
+
+def _raising_tool(name: str, exc_factory):
+    async def execute() -> str:
+        """Raise a specific exception.
+
+        Returns:
+            Never returns.
+        """
+        raise exc_factory()
+
+    return ToolDef(
+        execute, name=name, description="Raise an exception.", parameters={}
+    ).as_tool()
+
+
+async def _invoke_raising(exc_factory) -> tuple:
+    from inspect_ai.log._transcript import Transcript, init_transcript, transcript
+
+    handler = ToolCommand([_raising_tool("raiser", exc_factory)]).service(state=None)  # type: ignore[arg-type]
+    init_transcript(Transcript())
+    result = await handler(tool="raiser", arguments={})
+    event = next(e for e in transcript().events if e.event == "tool")
+    return result, event
+
+
+@pytest.mark.anyio
+async def test_tool_error_in_task_group_surfaces_cleanly() -> None:
+    """Exception groups are normalized before classification.
+
+    As on the model path — a ToolError from a task-group child is an
+    expected failure, not an 'unhandled errors in a TaskGroup' hard error.
+    """
+    from inspect_ai.log._transcript import Transcript, init_transcript, transcript
+
+    async def execute() -> str:
+        """Raise ToolError from a task-group child.
+
+        Returns:
+            Never returns.
+        """
+
+        async def child() -> None:
+            raise ToolError("expected failure")
+
+        import anyio
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(child)
+        return "unreachable"
+
+    grouped = ToolDef(
+        execute, name="grouped", description="Group ToolError.", parameters={}
+    ).as_tool()
+    handler = ToolCommand([grouped]).service(state=None)  # type: ignore[arg-type]
+    init_transcript(Transcript())
+    result = await handler(tool="grouped", arguments={})
+    assert "expected failure" in str(result)
+    assert "TaskGroup" not in str(result)
+    event = next(e for e in transcript().events if e.event == "tool")
+    assert event.failed is None
+
+
+@pytest.mark.anyio
+async def test_file_not_found_classified() -> None:
+    result, event = await _invoke_raising(
+        lambda: FileNotFoundError(2, "No such file", "missing.txt")
+    )
+    assert event.error is not None and event.error.type == "file_not_found"
+    assert "missing.txt" in str(result)
+    assert event.failed is None
+
+
+@pytest.mark.anyio
+async def test_timeout_classified() -> None:
+    result, event = await _invoke_raising(lambda: TimeoutError())
+    assert event.error is not None and event.error.type == "timeout"
+    assert "timed out" in str(result)
+
+
+@pytest.mark.anyio
+async def test_output_limit_returns_truncated_output() -> None:
+    """An output-limit hit is a truncated result, not a failure."""
+    from inspect_ai.util import OutputLimitExceededError
+
+    result, event = await _invoke_raising(
+        lambda: OutputLimitExceededError("1 KiB", "partial output here")
+    )
+    assert event.error is not None and event.error.type == "limit"
+    assert event.result == "partial output here"
+    assert "partial output here" in str(result)
+
+
+@pytest.mark.anyio
+async def test_terminate_errors_propagate() -> None:
+    """Control-flow terminations must not be stringified."""
+    from inspect_ai._util.exception import TerminateSampleError
+    from inspect_ai.log._transcript import Transcript, init_transcript
+
+    handler = ToolCommand(
+        [_raising_tool("terminator", lambda: TerminateSampleError("operator kill"))]
+    ).service(state=None)  # type: ignore[arg-type]
+    init_transcript(Transcript())
+    with pytest.raises(TerminateSampleError):
+        await handler(tool="terminator", arguments={})
+
+
+# --- drift sweep: results are truncated like model tool results --------------
+
+
+@pytest.mark.anyio
+async def test_oversize_result_truncated_in_event_and_terminal() -> None:
+    from inspect_ai.log._transcript import Transcript, init_transcript, transcript
+
+    async def execute() -> str:
+        """Return a huge result.
+
+        Returns:
+            A very long string.
+        """
+        return "x" * (64 * 1024)
+
+    big = ToolDef(
+        execute, name="big", description="Huge output.", parameters={}
+    ).as_tool()
+    handler = ToolCommand([big]).service(state=None)  # type: ignore[arg-type]
+    init_transcript(Transcript())
+    result = await handler(tool="big", arguments={})
+
+    assert len(str(result)) < 64 * 1024
+    assert "truncated" in str(result)
+    event = next(e for e in transcript().events if e.event == "tool")
+    assert event.truncated is not None
+
+
+# --- drift sweep: unknown-tool invocations are recorded ----------------------
+
+
+@pytest.mark.anyio
+async def test_unknown_tool_records_event() -> None:
+    from inspect_ai.log._transcript import Transcript, init_transcript, transcript
+
+    handler = ToolCommand([_addition()]).service(state=None)  # type: ignore[arg-type]
+    init_transcript(Transcript())
+    result = await handler(tool="nope", arguments={"x": 1})
+    assert "Unknown tool" in str(result)
+    events = [e for e in transcript().events if e.event == "tool"]
+    assert len(events) == 1
+    assert events[0].function == "nope"
+    assert events[0].error is not None and events[0].error.type == "parsing"
 
 
 # --- round 7: limit failures wrapped by task groups still end the sample -----
