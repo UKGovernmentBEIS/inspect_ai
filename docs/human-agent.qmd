@@ -107,7 +107,7 @@ Each tool becomes a `task tool <name>` subcommand with named arguments generated
 task tool search_incidents --query checkout --limit 3
 ```
 
-Boolean parameters map to `--<flag>` / `--no-<flag>` pairs; when neither is passed the tool's own default applies. Structured parameters (nested objects, unions) are ordinary named arguments whose values are JSON — their `--help` shows a copy-pasteable example:
+Boolean parameters map to `--<flag>` / `--no-<flag>` pairs; when neither is passed the tool's own default applies. Structured parameters (nested objects, unions) are ordinary named arguments whose values are JSON — their `--help` shows a copy-pasteable example. Nullable parameters accept the literal `null` (e.g. `--value null` sends a JSON null; leaving the flag off sends nothing, so the tool's default applies):
 
 ``` bash
 task tool annotate_incident --incident-id INC-1042 --annotation '{"root_cause": true}'
