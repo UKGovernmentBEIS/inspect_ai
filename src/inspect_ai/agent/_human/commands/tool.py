@@ -350,12 +350,20 @@ def _classify_schema(schema: dict[str, Any]) -> ParamInfo:
     Returns:
         ParamInfo with extracted type information
     """
-    # Handle anyOf (typically Optional[T])
+    # Handle anyOf (typically Optional[T]); pydantic places the description
+    # and default on the outer anyOf schema, so carry them over when the
+    # non-null branch doesn't declare its own
     if "anyOf" in schema:
         non_null = [s for s in schema["anyOf"] if s.get("type") != "null"]
         if len(non_null) == 1:
             info = _classify_schema(non_null[0])
-            return info._replace(is_optional=True)
+            return info._replace(
+                is_optional=True,
+                description=info.description or schema.get("description"),
+                default=info.default
+                if info.default is not None
+                else schema.get("default"),
+            )
         # Complex union - not simple
         return _complex_info(schema.get("description"), schema.get("default"))
 

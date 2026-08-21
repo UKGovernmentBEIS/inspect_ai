@@ -464,6 +464,29 @@ async def test_tool_execution_runs_in_tool_span() -> None:
     assert tool_event.span_id == tool_span.id
 
 
+# --- round 3: Optional[...] descriptions live on the outer anyOf schema ------
+
+
+def test_optional_param_keeps_outer_description() -> None:
+    """Pydantic puts Optional[T] descriptions on the outer anyOf schema.
+
+    Recursing into the non-null branch dropped them, so generated help
+    lost the parameter's docstring text for every nullable parameter.
+    """
+    from inspect_ai.agent._human.commands.tool import _classify_schema
+
+    info = _classify_schema(
+        {
+            "anyOf": [{"type": "integer"}, {"type": "null"}],
+            "description": "The retry budget.",
+            "default": 3,
+        }
+    )
+    assert info.is_optional
+    assert info.description == "The retry budget."
+    assert info.default == 3
+
+
 # --- round 3: a tool named `tool` must not shadow the parent parser ----------
 
 
