@@ -14,14 +14,37 @@ from typing import (
 import anyio
 from pydantic import JsonValue
 
-from inspect_ai._util._async import coro_log_exceptions
 from inspect_ai._util.error import PrerequisiteError
+from inspect_ai._util.exception import TerminateSampleError, TerminateTaskError
+from inspect_ai.util._anyio import inner_exception
 from inspect_ai.util._subprocess import ExecResult
 
 from .environment import SandboxEnvironment
 from .limits import OutputLimitExceededError, override_max_exec_output_size
 
 logger = getLogger(__name__)
+
+# Control-flow exceptions that a service method may raise and that must
+# propagate out of sandbox_service() to be enacted (in contrast to ordinary
+# exceptions, which become RPC error responses, and LimitExceededError,
+# which is routed to the active sample). ExceptionGroups are unwrapped
+# before matching.
+CONTROL_FLOW_EXCEPTIONS: tuple[type[BaseException], ...] = (
+    TerminateSampleError,
+    TerminateTaskError,
+)
+
+
+def raise_if_control_flow(ex: Exception) -> None:
+    """Re-raise a control-flow exception (unwrapping ExceptionGroups).
+
+    No-op for ordinary exceptions. Used at each layer of the service's
+    error handling so terminations raised by service methods propagate out
+    of sandbox_service() instead of being logged and swallowed.
+    """
+    inner = inner_exception(ex)
+    if isinstance(inner, CONTROL_FLOW_EXCEPTIONS):
+        raise inner from ex
 
 
 REQUESTS_DIR = "requests"
@@ -172,6 +195,9 @@ async def sandbox_service(
         try:
             await service.handle_requests()
         except Exception as ex:
+            # let control-flow exceptions (terminate) propagate — they are
+            # raised by service methods precisely to end the sample/task
+            raise_if_control_flow(ex)
             logger.warning(f"Error waiting for sandbox rpc: {ex}")
 
     # wait for and process methods
@@ -321,10 +347,7 @@ class SandboxService:
                 async with anyio.create_task_group() as tg:
                     for file in request_files:
                         tg.start_soon(
-                            coro_log_exceptions,
-                            logger,
-                            "handling sandbox service request",
-                            self._handle_request,
+                            self._handle_request_logging_errors,
                             file,
                         )
         else:
@@ -332,6 +355,16 @@ class SandboxService:
                 f"Error listing requests for sandbox service '{self._name}': "
                 f"{result.stderr}"
             )
+
+    async def _handle_request_logging_errors(self, request_file: str) -> None:
+        # log-and-continue for ordinary errors (one bad request must not tear
+        # down the polling loop), but control-flow exceptions raised by
+        # service methods must propagate to be enacted
+        try:
+            await self._handle_request(request_file)
+        except Exception as ex:
+            raise_if_control_flow(ex)
+            logger.warning(f"Error handling sandbox service request: {ex}")
 
     async def _handle_request(self, request_file: str) -> None:
         request_path = PurePosixPath(request_file)
@@ -480,6 +513,17 @@ class SandboxService:
                         None,
                         f"Limit exceeded calling method {method_name}: {ex.message}",
                     )
+                except CONTROL_FLOW_EXCEPTIONS as ex:
+                    # control-flow exceptions (sample/task termination) must
+                    # propagate out of the service to be enacted — answer the
+                    # RPC first so the sandbox-side caller isn't left hanging
+                    await self._write_response(
+                        request_file,
+                        request_id,
+                        None,
+                        f"Terminating: {ex}",
+                    )
+                    raise
             except Exception as err:
                 # Log the host-side traceback, but do NOT put it in the response.
                 # This text is delivered into the sandbox and, for bridged MCP
