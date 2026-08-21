@@ -130,10 +130,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                             + f"the internal image '{image}' is not present in the Docker image store."
                         )
                 # pull any remote images
-                elif (
-                    service.get("build", None) is None
-                    and service.get("x-local", None) is None
-                ):
+                elif service.get("build", None) is None and not service.get("x-local"):
                     # skip the pull if the image is already available locally
                     # (avoids noisy errors for images loaded via 'docker load')
                     if image and await docker_image_exists_locally(image):

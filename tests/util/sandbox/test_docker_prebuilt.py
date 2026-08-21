@@ -74,6 +74,15 @@ async def test_verify_prebuilt_images_missing_x_local_image(monkeypatch):
     assert "local (local-image)" in str(excinfo.value)
 
 
+async def test_verify_prebuilt_images_treats_x_local_false_as_pulled(monkeypatch):
+    stub_image_exists(monkeypatch, set())
+
+    await compose_verify_prebuilt_images(
+        compose_project(),
+        {"local": {"image": "local-image", "x-local": False}},
+    )
+
+
 async def test_verify_prebuilt_images_passes_x_local_image_present(monkeypatch):
     stub_image_exists(monkeypatch, {"local-image"})
 
@@ -241,6 +250,19 @@ async def test_task_init_prebuilt_pull_failure_raises(monkeypatch):
     with pytest.raises(PrerequisiteError) as excinfo:
         await DockerSandboxEnvironment.task_init("startup", None)
     assert "remote-image" in str(excinfo.value)
+    assert "could not be pulled" in str(excinfo.value)
+
+
+async def test_task_init_pulls_x_local_false_service(monkeypatch):
+    TaskInitStubs(
+        monkeypatch,
+        {"pulled": {"image": "remote-image", "x-local": False}},
+        prebuilt=True,
+    )
+    stub_pull_failure(monkeypatch)
+
+    with pytest.raises(PrerequisiteError) as excinfo:
+        await DockerSandboxEnvironment.task_init("startup", None)
     assert "could not be pulled" in str(excinfo.value)
 
 
