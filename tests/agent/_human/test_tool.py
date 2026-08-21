@@ -118,9 +118,7 @@ def _build_parsers(tools: list) -> tuple[argparse.ArgumentParser, dict]:
 def _handler_kwargs(parser: argparse.ArgumentParser, argv: list[str]) -> dict:
     """Mirror the generated handler's tool-args extraction (absent = suppressed)."""
     args = parser.parse_args(argv)
-    return {
-        k[len("arg_") :]: v for k, v in vars(args).items() if k.startswith("arg_")
-    }
+    return {k[len("arg_") :]: v for k, v in vars(args).items() if k.startswith("arg_")}
 
 
 # --- blocker 1: booleans must preserve the tool's own defaults ---------------
