@@ -235,6 +235,29 @@ async def test_terminate_propagates_through_real_handler(monkeypatch):
 
 
 @pytest.mark.anyio
+async def test_grouped_terminate_answers_rpc_then_propagates(monkeypatch):
+    """A grouped termination still answers the RPC exactly once.
+
+    A method exiting with an ExceptionGroup containing the termination
+    previously propagated before _write_response() ran — the sandbox
+    client polled forever for a response that never came.
+    """
+    responses: list = []
+
+    async def method() -> str:
+        raise ExceptionGroup(
+            "mixed", [RuntimeError("noise"), TerminateSampleError("kill")]
+        )
+
+    service = _fake_service(method, monkeypatch, responses)
+    with pytest.raises(TerminateSampleError):
+        await service._handle_request_logging_errors("/req/r1.json")
+
+    assert len(responses) == 1
+    assert responses[0][1] is not None and "Terminating" in responses[0][1]
+
+
+@pytest.mark.anyio
 async def test_ordinary_method_errors_still_swallowed(monkeypatch):
     responses: list = []
 

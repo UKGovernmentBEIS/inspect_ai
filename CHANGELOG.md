@@ -1,6 +1,6 @@
 ## Unreleased
 
-- Sandbox Services: sample/task termination errors raised by service methods now propagate and end the sample, instead of being logged and swallowed by the request loop.
+- Sandbox Services: sample termination raised by a service method (`TerminateSampleError`) now propagates and ends the sample, instead of being logged and swallowed by the request loop.
 
 ## 0.3.260 (21 August 2026)
 
