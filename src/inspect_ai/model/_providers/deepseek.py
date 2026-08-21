@@ -8,6 +8,7 @@ from inspect_ai._util.logger import warn_once
 from inspect_ai.tool import ToolChoice, ToolFunction, ToolInfo
 
 from .._generate_config import GenerateConfig
+from .._model import ModelGenerateError, RetryDecision
 from .._model_output import ModelOutput
 from .openai_compatible import OpenAICompatibleAPI
 
@@ -110,6 +111,21 @@ class DeepSeekAPI(OpenAICompatibleAPI):
         return super().handle_bad_request(ex)
 
     @override
+    def should_retry(self, ex: BaseException) -> bool | RetryDecision:
+        # `ModelGenerateError` raised from `completion_params` (e.g. when
+        # DeepSeek is asked for `response_format type json_schema` which it
+        # rejects) is a configuration mismatch: the same request shape
+        # will fail on every retry because the caller's config didn't
+        # change. The OpenAI-compatible base classifier doesn't know
+        # about `ModelGenerateError`, so we opt out explicitly here —
+        # without this override the base would silently fall through to
+        # `RetryDecision.no()` once it returns `None`. Make the no-retry
+        # intent visible at the call site that raises the error.
+        if isinstance(ex, ModelGenerateError):
+            return RetryDecision.no()
+        return super().should_retry(ex)
+
+    @override
     def completion_params(self, config: GenerateConfig, tools: bool) -> dict[str, Any]:
         params = super().completion_params(config, tools)
         effort = params.get("reasoning_effort")
@@ -122,4 +138,17 @@ class DeepSeekAPI(OpenAICompatibleAPI):
             params["extra_body"] = extra_body
         elif effort in DEEPSEEK_EFFORT_MAP:
             params["reasoning_effort"] = DEEPSEEK_EFFORT_MAP[effort]
+        # DeepSeek only accepts response_format type "json_object"; the
+        # OpenAI-compatible base sets type "json_schema" whenever
+        # response_schema is configured. Silently rewriting to "json_object"
+        # would drop the schema envelope (the model would not see field
+        # names, types, or the required list, and inspect would not validate
+        # the output). Surface the incompatibility as an inspect-level error
+        # up front instead. See issue #4916.
+        if config.response_schema is not None:
+            raise ModelGenerateError(
+                "DeepSeek does not accept a ResponseSchema via response_format. "
+                "Either remove response_schema or convey the schema in the "
+                "system prompt."
+            )
         return params

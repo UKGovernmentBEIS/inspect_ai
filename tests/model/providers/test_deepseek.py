@@ -100,6 +100,67 @@ def test_deepseek_no_reasoning_effort_omits_param(mock_deepseek_env):
     assert "extra_body" not in params
 
 
+def test_deepseek_response_schema_raises_model_generate_error(mock_deepseek_env):
+    """DeepSeek returns 400 for response_format type "json_schema" and a
+    silent rewrite to "json_object" would lose the schema envelope
+    entirely. The provider must surface the incompatibility as an
+    inspect-level error rather than send a malformed request or
+    silently degrade the output. See issue #4916.
+    """
+    from inspect_ai.model._generate_config import ResponseSchema
+    from inspect_ai.model._model import ModelGenerateError
+    from inspect_ai.model._providers.deepseek import DeepSeekAPI
+
+    api = DeepSeekAPI(model_name="deepseek-v4-pro")
+    with pytest.raises(ModelGenerateError) as excinfo:
+        api.completion_params(
+            config=GenerateConfig(
+                response_schema=ResponseSchema(
+                    name="answer",
+                    json_schema={
+                        "type": "object",
+                        "properties": {"answer": {"type": "string"}},
+                        "required": ["answer"],
+                    },
+                )
+            ),
+            tools=False,
+        )
+    assert "response_schema" in str(excinfo.value).lower()
+
+
+def test_deepseek_no_response_schema_does_not_set_response_format(mock_deepseek_env):
+    """Without a ResponseSchema we must not inject a response_format
+    value, otherwise callers without structured output would have their
+    request shape silently changed.
+    """
+    from inspect_ai.model._providers.deepseek import DeepSeekAPI
+
+    api = DeepSeekAPI(model_name="deepseek-v4-pro")
+    params = api.completion_params(config=GenerateConfig(max_tokens=100), tools=False)
+    assert "response_format" not in params
+
+
+def test_deepseek_should_retry_skips_model_generate_error(mock_deepseek_env):
+    """`ModelGenerateError` from `completion_params` (DeepSeek rejecting a
+    `response_format type json_schema` request) is a configuration
+    mismatch: the same call will fail on every retry because the
+    caller's config hasn't changed. The DeepSeek override must
+    explicitly opt out so the inspect-level error surfaces immediately
+    rather than the base classifier silently falling through to
+    `RetryDecision.no()` once `openai_classify_retry` returns `None` on
+    a `RuntimeError`-shaped exception it doesn't recognise. Regression
+    for #4943 round-2 feedback.
+    """
+    from inspect_ai.model._model import ModelGenerateError, RetryDecision
+    from inspect_ai.model._providers.deepseek import DeepSeekAPI
+
+    api = DeepSeekAPI(model_name="deepseek-v4-pro")
+    decision = api.should_retry(ModelGenerateError("test"))
+    assert isinstance(decision, RetryDecision)
+    assert decision.retry is False
+
+
 def test_deepseek_coerces_forced_tool_choice(mock_deepseek_env, _warn_once_messages):
     """Thinking mode 400s on forced tool_choice — coerce to "auto" with a warning."""
     from inspect_ai.model._providers.deepseek import DeepSeekAPI
