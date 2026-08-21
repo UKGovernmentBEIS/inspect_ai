@@ -41,6 +41,12 @@ from inspect_sandbox_tools._util.process_tree import (
 # the session — see _stdout_reader.
 _DEFAULT_READLINE_LIMIT = 256 * 1024 * 1024  # 256 MiB
 
+_READLINE_LIMIT: int = (
+    int(os.environ["INSPECT_MCP_READLINE_LIMIT_BYTES"])
+    if "INSPECT_MCP_READLINE_LIMIT_BYTES" in os.environ
+    else _DEFAULT_READLINE_LIMIT
+)
+
 # Validator for JSON-RPC messages read from the server's stdout, spanning both
 # mcp major versions. mcp 1.x models a wire message as the `JSONRPCMessage`
 # RootModel (parse via `model_validate_json`, concrete model under `.root`);
@@ -55,11 +61,6 @@ _JSONRPC_MESSAGE_ADAPTER: pydantic.TypeAdapter[
     JSONRPCRequest | JSONRPCNotification | JSONRPCResponse | JSONRPCError
 ] = pydantic.TypeAdapter(
     JSONRPCRequest | JSONRPCNotification | JSONRPCResponse | JSONRPCError
-)
-_READLINE_LIMIT: int = (
-    int(os.environ["INSPECT_MCP_READLINE_LIMIT_BYTES"])
-    if "INSPECT_MCP_READLINE_LIMIT_BYTES" in os.environ
-    else _DEFAULT_READLINE_LIMIT
 )
 
 

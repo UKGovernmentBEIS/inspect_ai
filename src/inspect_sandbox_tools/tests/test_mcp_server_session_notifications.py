@@ -89,7 +89,9 @@ async def test_null_id_error_response_does_not_kill_reader() -> None:
         request = JSONRPCRequest(jsonrpc="2.0", id=7, method="tools/list", params={})
 
         # Under mcp 2.x without the null-id guard, the reader's resolve step
-        # asserts on the uncorrelatable response and dies; this never resolves.
+        # asserts on the uncorrelatable response and dies; the pending request
+        # is then failed with a synthetic error (or send_request fails fast if
+        # the reader died first) instead of receiving its real response.
         response = await asyncio.wait_for(session.send_request(request), timeout=2.0)
 
         assert isinstance(response, JSONRPCResponse)
