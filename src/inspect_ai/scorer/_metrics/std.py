@@ -55,18 +55,22 @@ def bootstrap_stderr(
 
 
 def _cluster_partition(
-    scores: list[SampleScore], cluster: str, to_float: ValueToFloat, metric_name: str
+    scores: list[SampleScore], cluster: str, values: list[float], metric_name: str
 ) -> list[list[float]]:
-    """Validate cluster metadata and partition score values by cluster id.
+    """Validate cluster metadata and partition pre-converted values by cluster id.
 
     Single source of truth for cluster identity: every consumer (clustered
     standard error, t degrees of freedom, cluster bootstrap) must derive its
     cluster count from the same partition, so equality semantics cannot drift
     between them. A missing key, `None`, or float NaN cluster id raises
     (float NaN metadata means "missing", matching the dataset convention).
+
+    Takes the already-converted `values` (aligned with `scores`) rather than a
+    `ValueToFloat`: converters are arbitrary callables and need not be pure, so
+    each score must be converted exactly once per metric evaluation.
     """
     groups: dict[object, list[float]] = {}
-    for sample_score in scores:
+    for sample_score, value in zip(scores, values):
         metadata = sample_score.sample_metadata
         cluster_id = metadata.get(cluster) if metadata is not None else None
         if cluster_id is None or (
@@ -75,7 +79,7 @@ def _cluster_partition(
             raise ValueError(
                 f"Sample {sample_score.sample_id} has no cluster metadata. To compute `{metric_name}` with clustering, each sample metadata must have a value for '{cluster}'"
             )
-        groups.setdefault(cluster_id, []).append(to_float(sample_score.score.value))
+        groups.setdefault(cluster_id, []).append(value)
     return list(groups.values())
 
 
@@ -136,9 +140,8 @@ def stderr(
 
     def clustered_metric(scores: list[SampleScore]) -> float:
         assert cluster is not None
-        return _clustered_stderr(
-            _cluster_partition(scores, cluster, to_float, "stderr")
-        )
+        values = [to_float(score.score.value) for score in scores]
+        return _clustered_stderr(_cluster_partition(scores, cluster, values, "stderr"))
 
     def metric(scores: list[SampleScore]) -> float:
         import numpy as np
@@ -226,7 +229,7 @@ def ci(
         # of truth for cluster identity across the SE, the degrees of
         # freedom, and the cluster bootstrap.
         partition = (
-            _cluster_partition(scores, cluster, to_float, "ci")
+            _cluster_partition(scores, cluster, values, "ci")
             if cluster is not None
             else None
         )
@@ -288,15 +291,16 @@ def ci_wilson(
        cluster (str | None): The key from the Sample metadata corresponding to
           a cluster identifier for computing
           [clustered](https://en.wikipedia.org/wiki/Clustered_standard_errors)
-          intervals. When set, the interval uses the effective sample size
-          `n / DEFF` (Korn & Graubard), where the design effect `DEFF` is the
-          ratio of the clustered variance of the mean to the Bessel-corrected
-          simple-random-sampling variance `p̂(1 − p̂)/(n − 1)`, so the interval
-          accounts for within-cluster correlation. The effective sample size
-          is capped at `n`, and whenever the design effect cannot be estimated
-          (either variance is zero: `p̂` exactly 0 or 1, fewer than two
-          clusters, or perfectly cancelling clusters) the unadjusted `n` is
-          used.
+          intervals. When set, the interval uses the Korn-Graubard effective
+          sample size `p̂(1 − p̂) / v̂` (capped at `n`), where `v̂` is the
+          clustered variance of the mean, and a Student-t critical value with
+          `clusters − 1` degrees of freedom in place of the normal one, so the
+          interval accounts for within-cluster correlation and for the
+          uncertainty of the variance estimate when clusters are few. Requires
+          at least two clusters (the clustered variance is unestimable
+          otherwise); when the effective size cannot be estimated (`p̂` exactly
+          0 or 1, or zero clustered variance) the unadjusted `n` is used. See
+          Franco et al. (https://pmc.ncbi.nlm.nih.gov/articles/PMC6690503/).
 
     Returns:
        ci_wilson metric returning a mapping `{"lower": ..., "upper": ...}`.
@@ -308,18 +312,15 @@ def ci_wilson(
             f"ci_wilson `level` must be in the open interval (0, 1), got {level}"
         )
 
-    z = NormalDist().inv_cdf(1.0 - (1.0 - level) / 2.0)
+    tail = (1.0 - level) / 2.0
+    # compute z from the lower tail: 1 - tail can round to exactly 1.0 for
+    # levels within one ulp of 1, which inv_cdf rejects
+    z = -NormalDist().inv_cdf(tail)
 
     def metric_fn(scores: list[SampleScore]) -> Value:
-        # validate and partition clusters before any short-circuit, so a
-        # misconfigured cluster key fails loudly even on singleton inputs
-        # (mirroring ci()'s behavior)
-        partition = (
-            _cluster_partition(scores, cluster, to_float, "ci_wilson")
-            if cluster is not None
-            else None
-        )
-
+        # convert (and range-validate) each score exactly once: converters
+        # are arbitrary callables and need not be pure, so p_hat and the
+        # cluster partition must see the same values
         values: list[float] = []
         for sample_score in scores:
             value = to_float(sample_score.score.value)
@@ -331,37 +332,54 @@ def ci_wilson(
                 )
             values.append(value)
 
+        # validate and partition clusters before any short-circuit, so a
+        # misconfigured cluster key fails loudly even on degenerate inputs
+        # (mirroring ci()'s behavior)
+        partition = (
+            _cluster_partition(scores, cluster, values, "ci_wilson")
+            if cluster is not None
+            else None
+        )
+        if partition is not None and len(partition) < 2:
+            raise ValueError(
+                "Computing `ci_wilson` with clustering requires at least two "
+                f"clusters, but the '{cluster}' metadata contains "
+                f"{len(partition)}. The clustered variance is unestimable "
+                "from a single cluster."
+            )
+
         if len(values) == 0:
             return {"lower": 0.0, "upper": 0.0}
 
         n = float(len(values))
         p_hat = sum(values) / n
 
-        # clustered intervals use the effective sample size n / DEFF, where
-        # the design effect compares the clustered variance of the mean to
-        # the simple-random-sampling variance. The SRS reference uses the
-        # Bessel-corrected p(1-p)/(n-1) to match the finite-cluster
-        # correction inside _clustered_stderr — with the uncorrected p(1-p)/n
-        # reference, singleton clusters (which carry no correlation
-        # information) would produce a spurious DEFF of exactly n/(n-1)
-        # instead of 1.
-        if partition is not None and len(values) > 1:
-            srs_variance = p_hat * (1.0 - p_hat) / (n - 1.0)
+        if partition is None:
+            critical = z
+        else:
+            # Korn-Graubard: effective sample size p(1-p) / clustered_var,
+            # capped at n so negative intra-cluster correlation cannot
+            # produce an interval narrower than the unclustered one
             clustered_variance = _clustered_stderr(partition) ** 2
-            # zero variance on either side makes the ratio meaningless
-            # (p_hat of exactly 0 or 1, a single cluster, or perfectly
-            # cancelling clusters): fall back to the unadjusted sample size
-            if srs_variance > 0.0 and clustered_variance > 0.0:
-                design_effect = clustered_variance / srs_variance
-                # cap at n so negative intra-cluster correlation cannot
-                # produce an interval narrower than the unclustered one
-                n = min(n / design_effect, n)
+            numerator = p_hat * (1.0 - p_hat)
+            # zero on either side makes the ratio meaningless (p_hat exactly
+            # 0 or 1, or perfectly cancelling clusters): use the unadjusted n
+            if numerator > 0.0 and clustered_variance > 0.0:
+                n = min(numerator / clustered_variance, n)
+            # t critical value with clusters - 1 degrees of freedom accounts
+            # for the uncertainty of the variance estimate with few clusters.
+            # _t_inv_cdf takes the upper-tail argument, which rounds to 1.0
+            # for levels within one ulp of 1: degrade to the largest float
+            # below 1 (a huge but finite critical value) rather than raise
+            critical = _t_inv_cdf(
+                min(1.0 - tail, math.nextafter(1.0, 0.0)), len(partition) - 1
+            )
 
-        denominator = 1.0 + z * z / n
-        center = (p_hat + z * z / (2.0 * n)) / denominator
+        denominator = 1.0 + critical * critical / n
+        center = (p_hat + critical * critical / (2.0 * n)) / denominator
         half_width = (
-            z
-            * math.sqrt(p_hat * (1.0 - p_hat) / n + z * z / (4.0 * n * n))
+            critical
+            * math.sqrt(p_hat * (1.0 - p_hat) / n + critical * critical / (4.0 * n * n))
             / denominator
         )
         # bounds are analytically within [0, 1]; clamp for float safety only

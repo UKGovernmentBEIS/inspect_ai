@@ -1417,10 +1417,27 @@ def test_ci_wilson_empty_and_singleton():
     assert interval["upper"] == pytest.approx(1.0)
 
 
+def test_ci_wilson_extreme_level_does_not_round_to_one():
+    # the largest float below 1.0 passes 0 < level < 1 but makes
+    # 1 - (1 - level)/2 round to exactly 1.0; the z computation must use the
+    # lower tail so inv_cdf never sees 1.0
+    level = math.nextafter(1.0, 0.0)
+    interval = ci_wilson(level=level)(binary_scores(5, 10))
+    assert 0.0 <= interval["lower"] < interval["upper"] <= 1.0
+    # clustered path (t critical value) must not crash either
+    scores = [
+        SampleScore(score=Score(value=float(i % 2)), sample_metadata={"c": i % 4})
+        for i in range(16)
+    ]
+    interval = ci_wilson(level=level, cluster="c")(scores)
+    assert 0.0 <= interval["lower"] <= interval["upper"] <= 1.0
+
+
 def test_ci_wilson_clustered_widens_with_positive_icc():
     # perfectly correlated clusters: strong design effect, interval must be
-    # wider than the unclustered one and match the effective-sample-size
-    # construction computed from the (public) clustered stderr
+    # wider than the unclustered one and match the Korn-Graubard construction
+    # (n_eff = p(1-p) / clustered_var, t critical value with clusters - 1 df)
+    # computed from the (public) clustered stderr
     scores = [
         SampleScore(score=Score(value=float(c % 2)), sample_metadata={"c": c})
         for c in range(6)
@@ -1432,35 +1449,49 @@ def test_ci_wilson_clustered_widens_with_positive_icc():
         unclustered["upper"] - unclustered["lower"]
     )
 
-    n = len(scores)
     p_hat = 0.5
-    se_clustered = stderr(cluster="c")(scores)
-    # the DEFF reference is the Bessel-corrected SRS variance of the mean,
-    # matching the finite-cluster-corrected clustered variance
-    deff = (se_clustered**2) / (p_hat * (1.0 - p_hat) / (n - 1))
-    n_eff = min(n / deff, n)
-    lower, upper = wilson_reference(p_hat, n_eff, Z_975)
+    n_eff = p_hat * (1.0 - p_hat) / stderr(cluster="c")(scores) ** 2
+    t_crit = _t_inv_cdf(0.975, 5)  # 6 clusters -> df = 5
+    lower, upper = wilson_reference(p_hat, n_eff, t_crit)
     assert clustered["lower"] == pytest.approx(lower, rel=1e-9)
     assert clustered["upper"] == pytest.approx(upper, rel=1e-9)
 
 
-def test_ci_wilson_singleton_clusters_match_unclustered():
-    # one sample per cluster carries no correlation information: DEFF must be
-    # exactly 1 (dof-consistent variance estimators), not n/(n-1)
+def test_ci_wilson_perfectly_correlated_pair_of_clusters():
+    # two clusters [0, 0] and [1, 1]: each perfectly-correlated cluster is one
+    # effective observation, so n_eff must be exactly 1 (not 4/3, the artifact
+    # of a dof-inconsistent design-effect reference)
+    scores = [
+        SampleScore(score=Score(value=v), sample_metadata={"c": c})
+        for c, v in (("a", 0.0), ("a", 0.0), ("b", 1.0), ("b", 1.0))
+    ]
+    interval = ci_wilson(cluster="c")(scores)
+    lower, upper = wilson_reference(0.5, 1.0, _t_inv_cdf(0.975, 1))
+    assert interval["lower"] == pytest.approx(lower, rel=1e-9)
+    assert interval["upper"] == pytest.approx(upper, rel=1e-9)
+
+
+def test_ci_wilson_singleton_clusters_slightly_conservative():
+    # one sample per cluster: the finite-cluster-corrected variance gives
+    # n_eff = n - 1 (mildly conservative), with t on n - 1 df
     scores = [
         SampleScore(score=Score(value=float(i % 2)), sample_metadata={"c": i})
         for i in range(4)
     ]
     clustered = ci_wilson(cluster="c")(scores)
     unclustered = ci_wilson()(scores)
-    assert clustered["lower"] == pytest.approx(unclustered["lower"], rel=1e-12)
-    assert clustered["upper"] == pytest.approx(unclustered["upper"], rel=1e-12)
+    assert (clustered["upper"] - clustered["lower"]) > (
+        unclustered["upper"] - unclustered["lower"]
+    )
+    lower, upper = wilson_reference(0.5, 3.0, _t_inv_cdf(0.975, 3))
+    assert clustered["lower"] == pytest.approx(lower, rel=1e-9)
+    assert clustered["upper"] == pytest.approx(upper, rel=1e-9)
 
 
-def test_ci_wilson_clustered_capped_at_unclustered():
+def test_ci_wilson_clustered_n_eff_capped_at_n():
     # negative intra-cluster correlation with strictly positive clustered
-    # variance (0 < DEFF < 1): n_eff is capped at n, so the clustered
-    # interval must equal (not be narrower than) the unclustered one
+    # variance: p(1-p)/clustered_var exceeds n, so n_eff is capped at n
+    # (only the t critical value differs from the unclustered interval)
     scores = [
         SampleScore(score=Score(value=float(i % 2)), sample_metadata={"c": i // 2})
         for i in range(16)
@@ -1470,38 +1501,56 @@ def test_ci_wilson_clustered_capped_at_unclustered():
     ]
     n = len(scores)
     p_hat = 0.5
-    se_clustered = stderr(cluster="c")(scores)
-    deff = (se_clustered**2) / (p_hat * (1.0 - p_hat) / (n - 1))
-    assert 0.0 < deff < 1.0  # the config must actually reach the cap branch
+    clustered_var = stderr(cluster="c")(scores) ** 2
+    assert p_hat * (1.0 - p_hat) / clustered_var > n  # must actually hit the cap
     clustered = ci_wilson(cluster="c")(scores)
-    unclustered = ci_wilson()(scores)
-    assert clustered["lower"] == pytest.approx(unclustered["lower"], rel=1e-12)
-    assert clustered["upper"] == pytest.approx(unclustered["upper"], rel=1e-12)
+    lower, upper = wilson_reference(p_hat, float(n), _t_inv_cdf(0.975, 9))
+    assert clustered["lower"] == pytest.approx(lower, rel=1e-9)
+    assert clustered["upper"] == pytest.approx(upper, rel=1e-9)
 
 
 def test_ci_wilson_zero_clustered_variance_falls_back():
     # perfectly cancelling clusters make the clustered variance exactly 0
-    # (0/0 design effect): fall back to the unadjusted sample size
+    # (n_eff would be infinite): fall back to the unadjusted sample size,
+    # keeping the clusters - 1 df critical value
     scores = [
         SampleScore(score=Score(value=float(i % 2)), sample_metadata={"c": i // 2})
         for i in range(20)
     ]
     clustered = ci_wilson(cluster="c")(scores)
-    unclustered = ci_wilson()(scores)
-    assert clustered["lower"] == pytest.approx(unclustered["lower"], rel=1e-12)
-    assert clustered["upper"] == pytest.approx(unclustered["upper"], rel=1e-12)
+    lower, upper = wilson_reference(0.5, 20.0, _t_inv_cdf(0.975, 9))
+    assert clustered["lower"] == pytest.approx(lower, rel=1e-9)
+    assert clustered["upper"] == pytest.approx(upper, rel=1e-9)
 
 
 def test_ci_wilson_clustered_degenerate_proportion_falls_back():
-    # p_hat of 0 or 1 makes DEFF 0/0: fall back to the unadjusted n
+    # p_hat of 0 or 1 makes the design effect 0/0: fall back to the
+    # unadjusted n, keeping the clusters - 1 df critical value
     scores = [
         SampleScore(score=Score(value=1.0), sample_metadata={"c": i // 5})
         for i in range(20)
     ]
     clustered = ci_wilson(cluster="c")(scores)
-    unclustered = ci_wilson()(scores)
-    assert clustered == pytest.approx(unclustered)
+    lower, upper = wilson_reference(1.0, 20.0, _t_inv_cdf(0.975, 3))
+    assert clustered["lower"] == pytest.approx(lower, rel=1e-9)
     assert clustered["upper"] == pytest.approx(1.0)
+
+
+def test_ci_wilson_fewer_than_two_clusters_raises():
+    # cluster variance is unestimable from a single cluster (or none): raise
+    # rather than silently reporting the unclustered interval
+    single_cluster = [
+        SampleScore(score=Score(value=float(i % 2)), sample_metadata={"c": "only"})
+        for i in range(10)
+    ]
+    with pytest.raises(ValueError, match="at least two clusters"):
+        ci_wilson(cluster="c")(single_cluster)
+    with pytest.raises(ValueError, match="at least two clusters"):
+        ci_wilson(cluster="c")(
+            [SampleScore(score=Score(value=1.0), sample_metadata={"c": "only"})]
+        )
+    with pytest.raises(ValueError, match="at least two clusters"):
+        ci_wilson(cluster="c")([])
 
 
 def test_ci_wilson_cluster_validation():
@@ -1518,6 +1567,27 @@ def test_ci_wilson_cluster_validation():
                 SampleScore(score=Score(value=0.0), sample_metadata={"c": "a"}),
             ]
         )
+
+
+def test_ci_wilson_converts_values_exactly_once():
+    # ValueToFloat is an arbitrary callable and need not be pure: the metric
+    # must convert each score exactly once and reuse the cached values for
+    # p_hat and the cluster partition
+    calls = {"count": 0}
+
+    def counting_to_float(value):
+        calls["count"] += 1
+        return float(value)
+
+    scores = [
+        SampleScore(score=Score(value=float(i % 2)), sample_metadata={"c": i % 3})
+        for i in range(12)
+    ]
+    ci_wilson(to_float=counting_to_float, cluster="c")(scores)
+    assert calls["count"] == len(scores)
+    calls["count"] = 0
+    ci_wilson(to_float=counting_to_float)(scores)
+    assert calls["count"] == len(scores)
 
 
 def test_ci_wilson_metric_end_to_end():

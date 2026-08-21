@@ -1,6 +1,6 @@
 ## Unreleased
 
-- Metrics: Add `ci_wilson()` metric reporting the Wilson score confidence interval for the mean of binary scores (as `{"lower", "upper"}`), with bounds always within [0, 1]; `cluster=` computes an effective-sample-size interval accounting for within-cluster correlation. (#4980)
+- Metrics: Add `ci_wilson()` metric reporting the Wilson score confidence interval for the mean of binary scores (as `{"lower", "upper"}`), with bounds always within [0, 1]; `cluster=` computes an effective-sample-size interval accounting for within-cluster correlation.
 
 - Metrics: Add `ci()` metric reporting a confidence interval for the mean (as `{"lower", "upper"}`). Defaults to `mean ± t · stderr` with a Student-t critical value (`n - 1` degrees of freedom; `clusters - 1` when `cluster=` is set) so small samples get honest widths; `method="bootstrap"` gives a percentile (cluster) bootstrap interval. (#4160)
 - Anthropic: Compatibility with anthropic SDK 0.124.0, which is now the minimum supported version (browser state tool results and file-based image/document sources no longer fail type checking).
