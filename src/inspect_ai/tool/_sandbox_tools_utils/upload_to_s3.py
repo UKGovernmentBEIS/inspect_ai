@@ -85,6 +85,12 @@ def _sha256_of_s3_object(filename: str) -> str | None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Upload sandbox tools to S3")
     parser.add_argument("version", type=int, help="Version number to upload")
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Run the version guard, hashing, immutability check, and SHA256SUMS "
+        "write (all credential-free), but skip the upload and round-trip verify.",
+    )
     args = parser.parse_args()
 
     # Version guard: the sums file is keyed to the committed pinned version, so
@@ -145,6 +151,11 @@ def main() -> None:
     # upload is completed/retried.
     write_sha256sums(digests)
     print(f"Wrote {SHA256SUMS_PATH}")
+
+    if args.dry_run:
+        print("Dry run: skipping upload and round-trip verify. Not committable")
+        print("until a real upload publishes these artifacts.")
+        return
 
     for filename in filenames:
         cmd = [

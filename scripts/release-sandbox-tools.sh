@@ -192,8 +192,10 @@ finish() {
 # Run it from a checkout of the PR's head branch:
 #   scripts/release-sandbox-tools.sh [--dry-run]
 #
-# --dry-run: build and validate only — skips the S3 upload and everything
-# downstream of it (digest commit/push, published-artifact verify, CI watch).
+# --dry-run: build, validate, and rewrite SHA256SUMS locally (uncommitted,
+# for inspection; includes the credential-free immutability check) — skips
+# the S3 upload and everything downstream of it (digest commit/push,
+# published-artifact verify, CI watch).
 #
 # --auto: unattended mode, for agents. Pauses vanish and every confirmation
 # resolves to the safe answer printed at its call site; anything genuinely
@@ -253,17 +255,19 @@ _sha256() {
   else shasum -a 256 | awk '{print $1}'; fi
 }
 
-# build_fingerprint — hash of the build inputs: the committed trees of the
-# injectable sources and build tooling, plus any uncommitted changes to them.
-# Prints nothing when untracked files make the inputs unhashable.
+# build_fingerprint — hash of the worktree state of the build inputs (index
+# listing + unstaged diff). SHA256SUMS is excluded: it's release output the
+# build never reads, and including it would force a rebuild whenever the
+# upload step rewrites it. Prints nothing when untracked files make the
+# inputs unhashable.
 build_fingerprint() {
   # shellcheck disable=SC2086
   [[ -z "$(git ls-files --others --exclude-standard -- $BUILD_SRC_PATHS)" ]] || return 0
   {
-    git rev-parse "HEAD:src/inspect_sandbox_tools" \
-      "HEAD:src/inspect_ai/tool/_sandbox_tools_utils"
     # shellcheck disable=SC2086
-    git diff HEAD -- $BUILD_SRC_PATHS
+    git ls-files -s -- $BUILD_SRC_PATHS ":(exclude)$SUMS_FILE"
+    # shellcheck disable=SC2086
+    git diff -- $BUILD_SRC_PATHS ":(exclude)$SUMS_FILE"
   } | _sha256
 }
 
@@ -375,7 +379,9 @@ fi
 V=$LOCAL_V
 STATE_FILE="src/inspect_ai/binaries/.release-wizard-state-v$V"
 
-if [[ -n "$(git status --porcelain --untracked-files=no)" ]]; then
+# SHA256SUMS is excluded: it's release output (rewritten by the upload step,
+# including on dry runs), not a build input.
+if [[ -n "$(git status --porcelain --untracked-files=no -- . ":(exclude)$SUMS_FILE")" ]]; then
   warn "Working tree has uncommitted changes — binaries must be built from the"
   warn "exact code being merged."
   confirm_or n "Continue anyway?" || exit 1
@@ -470,8 +476,12 @@ stage "Upload to S3"
 say "Uploads all four artifacts to s3://inspect-sandbox-tools/ (public-read),"
 say "rewrites $SUMS_FILE, and round-trip verifies each object."
 if [[ "$DRY_RUN" == 1 ]]; then
-  note "Dry run — skipping. The real run executes:"
-  note "  .venv/bin/python src/inspect_ai/tool/_sandbox_tools_utils/upload_to_s3.py $V"
+  say "Dry run — hashing, checking immutability against S3 (public reads, no"
+  say "credentials), and writing $SUMS_FILE locally; no upload."
+  if ! "$PYTHON" src/inspect_ai/tool/_sandbox_tools_utils/upload_to_s3.py "$V" --dry-run; then
+    warn "Dry-run upload checks failed — see above."
+    exit 1
+  fi
 else
   if [[ -n "${AWS_PROFILE:-}" ]]; then
     note "Using AWS_PROFILE=$AWS_PROFILE from your environment."
@@ -511,7 +521,8 @@ stage "Commit and push digests"
 say "slow-tool-tests-release verifies the S3 objects against the committed"
 say "digests, so it stays red until $SUMS_FILE lands on the PR branch."
 if [[ "$DRY_RUN" == 1 ]]; then
-  note "Dry run — nothing was uploaded, so there are no digests to commit. Skipping."
+  note "Dry run — $SUMS_FILE was rewritten locally for inspection, but nothing"
+  note "was uploaded, so it must not be committed yet. Skipping."
 else
   CHANGED=$(git status --porcelain -- "$SUMS_FILE")
   if [[ -z "$CHANGED" ]]; then
