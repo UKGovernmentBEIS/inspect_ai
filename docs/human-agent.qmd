@@ -101,13 +101,13 @@ Pass `tools` to give the human the same [tools](tools.qmd) a model agent would g
 human_cli(tools=[search_incidents(), get_incident()])
 ```
 
-Each tool becomes a `task tool <name>` subcommand with named arguments generated from the tool's schema (run `task tool` to list tools, `task tool <name> --help` for a tool's arguments):
+Each tool becomes a `task tool <name>` subcommand with named arguments generated from the tool's schema (run `task tool` to list tools, `task tool <name> --help` for a tool's arguments; a tool whose name begins with a dash is invoked as `task tool -- <name>`):
 
 ``` bash
 task tool search_incidents --query checkout --limit 3
 ```
 
-Boolean parameters map to `--<flag>` / `--no-<flag>` pairs; when neither is passed the tool's own default applies. Structured parameters (nested objects, unions) are ordinary named arguments whose values are JSON — their `--help` shows a copy-pasteable example. Nullable scalar and JSON parameters accept the literal `null` (e.g. `--value null` sends a JSON null; leaving the flag off sends nothing, so the tool's default applies — nullable arrays and booleans have no null spelling):
+Boolean parameters map to `--<flag>` / `--no-<flag>` pairs; when neither is passed the tool's own default applies. Structured parameters (nested objects, unions) are ordinary named arguments whose values are JSON — their `--help` shows an example instance validated against the schema (when no valid example can be generated, it is labeled an illustrative shape instead). Nullable scalar and JSON parameters accept the literal `null` (e.g. `--value null` sends a JSON null; leaving the flag off sends nothing, so the tool's default applies — nullable arrays and booleans have no null spelling):
 
 ``` bash
 task tool annotate_incident --incident-id INC-1042 --annotation '{"root_cause": true}'

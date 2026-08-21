@@ -527,6 +527,29 @@ def test_tool_named_tool_does_not_shadow_parent_parser() -> None:
     assert args.tool_name == "tool"
 
 
+# --- round 5: option-like tool names are invocable via the -- separator ------
+
+
+def test_option_like_tool_name_invocable_with_separator() -> None:
+    """A tool named like an option is reachable as `task tool -- <name>`.
+
+    Bare `task tool -find` is an unrecognized-argument error (argparse
+    treats leading-dash tokens as options), so the documented contract
+    is the standard `--` separator.
+    """
+    parser, _ = _build_parsers([_named_tool("-find")])
+    args = parser.parse_args(["tool", "--", "-find"])
+    assert args.tool_name == "-find"
+
+
+def test_option_like_tool_name_bare_invocation_errors_cleanly() -> None:
+    """Bare invocation of an option-like name is a usage error, not a crash."""
+    parser, _ = _build_parsers([_named_tool("-find")])
+    with pytest.raises(SystemExit) as exc_info:
+        parser.parse_args(["tool", "-find"])
+    assert exc_info.value.code == 2
+
+
 # --- round 4: examples are validated; invalid ones marked illustrative -------
 
 
