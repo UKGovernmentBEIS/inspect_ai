@@ -5,6 +5,7 @@ import pytest
 from inspect_ai._util.content import ContentImage, ContentText
 from inspect_ai.agent._human.commands.tool import ToolCommand, tool_result_to_str
 from inspect_ai.tool import ToolDef, tool
+from inspect_ai.util import JSONSchema
 
 
 # Test tool_result_to_str() with various ToolResult types
@@ -537,7 +538,7 @@ def test_example_instance_honors_ceil_and_maxlength() -> None:
     assert len(_example_instance({"type": "string", "maxLength": 2})) <= 2
 
 
-def _one_param_tool(schema: "JSONSchema"):  # noqa: F821
+def _one_param_tool(schema: JSONSchema):
     from typing import Any
 
     from inspect_ai.tool import ToolParams
