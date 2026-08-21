@@ -114,8 +114,10 @@ delivered +3–6s and 97–99%.
 
 The leg-to-leg spread inside a Build run tells the same story from the job side:
 legs differing by more than 60s fell from **21% of runs (13/61) at 2 workers**
-and 13% of the small 4-worker `load` sample to **6% (3/47) under worksteal**,
-with the median spread at 23s.
+to **6% (3/47) under worksteal**, with the median spread at 23s. (The 4-worker
+`load` arm is only 4 runs — 0 of them over 60s — so it contributes nothing
+here; the straggler evidence for that arm is the previous report's leg-level
+table.)
 
 ## Slowest tests
 
@@ -183,25 +185,29 @@ not a per-test regression — no individual test in the top 30 grew.
 
 From the report-log artifacts (4 workers, both legs):
 
-- **Test-phase work 733s (3.10) / 788s (3.11)**, of which call 693/754s, setup
-  27/22s, teardown 14/12s.
-- **Tail vs body:** 9–11 tests ≥5s = 58–83s (~10%); 123–166 tests ≥1s =
-  261–338s (~40%); the remaining **~13,200 tests = 404–496s (55–60%)**.
+- **Test-phase work 687–835s per leg** (733s / 788s on the 3.10 / 3.11 legs of
+  run 32462533819), of which call 693/754s, setup 27/22s, teardown 14/12s.
+- **Tail vs body:** 9–11 tests ≥5s = 58–83s (7–11%); 123–166 tests ≥1s =
+  261–338s (37–43%); the remaining **~13,200 tests = 404–496s (57–63%)**.
 - **Heaviest files:** `test_eval_set_scanner.py` 57s, `test_eval_set.py` 55s,
   `_control/test_launch_handoff.py` 40s, `test_sample_limits.py` 33s,
   `_control/test_eval_set_integration.py` 29s,
   `agent/deepagent/test_deepagent_background.py` 21s, `_view/test_view_server.py`
   20s.
-- **Collection and startup is now ~109s of the 302s step** (302s median step
-  against a 193s median test-phase wall) — **36% of the step**, up from ~31%
-  last report, because worksteal shortened the test phase and left the fixed
-  cost untouched. It is paid five times per leg (controller plus four workers).
-  See proposal 4.
+- **Collection and startup is now ~104s of the 302s step** — **34% of it**, up
+  from ~31% last report, because worksteal shortened the test phase and left the
+  fixed cost untouched. (302s median pytest step over 99 legs, against a 198s
+  median test-phase wall over the 8 legs whose report logs were downloaded;
+  different samples, so read this as "about 100s".) It is paid five times per
+  leg, once on the controller and once per worker. See proposal 4.
 
 ### Growth
 
 Top-level test functions at `origin/main` (`^(async )?def test_` under `tests/`),
-same measure as prior reports:
+same measure as prior reports. Re-derived here at the last commit before 12:00
+UTC on each date, so the older rows sit a few tens of functions below the
+figures those reports published (which used whatever commit was HEAD at
+collection time); the series is internally consistent:
 
 | Date | test functions | Δ |
 |---|---|---|
@@ -227,8 +233,9 @@ test (~2.4s); the `test_launch_handoff.py` cluster (5 tests, 40s) each spawns
 the real CLI and the cost is inherent. No exact duplicates found in this
 window's sampling, so no test deletion was eligible as a safe fix.
 
-New this run, measured rather than sampled: **2,670 of the 13,370 collected
-items are trio variants that are skipped unless `--runtrio` is passed.** Locally,
+New this run, measured rather than sampled: **2,670 of the 13,324 items
+collected locally are trio variants that are skipped unless `--runtrio` is
+passed** (~20% of the suite). Locally,
 suppressing them at collection time (an `anyio_backend` fixture in
 `tests/conftest.py` whose params depend on the flag) takes cold collection from
 36.7s to 31.8s and item count from 13,324 to 10,408. See proposal 4.
@@ -285,8 +292,8 @@ pass at this.
 | Legs with a >60s straggler | 4 of 10 (prior report) | **0 of 8 sampled** | ~0 |
 | Slower leg's pytest step | 356s | **313s** | — |
 | Binding (slower) test leg exec | 387s | **344s** | — |
-| Build wall, plain PRs | 383s | **345s** | ~312s (−71s) |
-| pytest-reported wall, all legs | 311s | **291s** | — |
+| Build wall, plain PRs | 383s (n=3) | **345s** (n=12) | ~312s (−71s) |
+| pytest-reported wall, all legs | 311s (n=8) | **291s** (n=18) | — |
 
 So the fix removed **~43s** of binding-leg time and **~38s** of Build wall on
 plain PRs, against a predicted 71s. Why the estimate ran high: 71s was the
@@ -352,19 +359,19 @@ will likely stay that way.
    rests on the 2026-08-18/19 bursts (168s median queue inside the 02:00 hour).
 
 4. **Collection and startup is 36% of the pytest step — and there is a measured
-   lever.** The step is 302s median against a 193s test-phase wall, so ~109s is
+   lever.** The step is 302s median against a ~198s test-phase wall, so ~104s is
    collection, worker startup and reporting, paid once on the controller and
    once per worker. Two measurements this run:
-   - **Trio variants cost ~5s of every collection pass.** 2,670 of 13,370
-     collected items are `[trio]` variants that `tests/conftest.py` skips unless
-     `--runtrio` is passed. Suppressing them at collection time — an
+   - **Trio variants cost ~5s of every collection pass.** 2,670 of the 13,324
+     items collected locally are `[trio]` variants that `tests/conftest.py`
+     skips unless `--runtrio` is passed. Suppressing them at collection time — an
      `anyio_backend` fixture whose params depend on the flag — measured
      **36.7s → 31.8s** cold collection locally (13,324 → 10,408 items).
      Extrapolated across the controller and four workers that is **~10s of leg
      wall**, ~3% of the step.
    - **`--doctest-modules` costs 1.1s per collection pass and collects nothing.**
-     Confirmed again by direct timing (36.9s with, 35.9s without, two trials
-     each), and a cProfile pass showed the 13.7s attributed to
+     Confirmed again by direct timing of cold collection (37.0s / 37.2s with,
+     36.0s / 36.0s without), and a cProfile pass showed the 13.7s attributed to
      `_pytest/doctest.py:collect` is the shared module-import cost, not doctest
      work. Dead weight in both `addopts` and the CI command, but worth ~2s of
      leg wall — not enough to justify losing doctest execution for anyone
@@ -373,7 +380,7 @@ will likely stay that way.
    Neither is an unattended safe fix: the first changes what the suite collects
    and what test IDs exist (a maintainer call), the second trades a dormant
    capability for a sub-1% win. Both should be decided together with any other
-   attack on the 109s. Status: carried from proposal 8, **now quantified**.
+   attack on the ~100s. Status: carried from proposal 8, **now quantified**.
 
 5. **Collector: validate the run window and refetch.** Unchanged and still
    written but uncommittable (proposal 2, `.claude/**`). Today's snapshot came
@@ -382,7 +389,7 @@ will likely stay that way.
    collection cycle two runs ago and nothing has been done about it. Status:
    carried, **blocked**.
 
-6. **Test-volume policy.** The body of ordinary tests is 55–60% of test time and
+6. **Test-volume policy.** The body of ordinary tests is 57–63% of test time and
    the suite adds ~215 test functions/week, but this run's direct pricing puts
    the cost of that growth at **+1–6s of leg wall clock per week** at four
    workers. Still worth a maintainer view on what the PR gate should cost, but
