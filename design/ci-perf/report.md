@@ -31,7 +31,9 @@ write neither — re-verified today on both the git and REST paths (proposal 2).
 The one in-bounds candidate with a measured double-digit win (skipping trio
 variants at collection time, ~10s/leg) is a harness semantics change, so it is a
 proposal, not an unattended fix. Three ripe structural proposals were filed as
-issues instead.
+issues instead. *Post-report update (2026-08-21): a maintainer implemented
+proposals 1 and 8 (#297, #299) directly in this report's own PR — see those
+proposals' status lines.*
 
 ## Queue vs execution
 
@@ -326,7 +328,12 @@ will likely stay that way.
    Quarto perfectly does not buy 315s of wall clock — it buys the ~40s by which
    `docs` currently overshoots `test`. Structural (workflow change this run
    cannot push). Status: carried from last report's proposal 3, **promoted to #1**, filed as
-   [meridianlabs-ai/inspect_ai#297](https://github.com/meridianlabs-ai/inspect_ai/issues/297).
+   [meridianlabs-ai/inspect_ai#297](https://github.com/meridianlabs-ai/inspect_ai/issues/297),
+   then **implemented by a maintainer in this report's own PR** (commit
+   `7992b1ce8`): the render is skipped when a cache marker keyed on
+   `hashFiles('docs/**', 'requirements-doc.txt', 'src/inspect_ai/**')` proves the
+   exact input set already rendered successfully. Verification falls to the next
+   snapshot.
 
 2. **Unblock the scheduled run.** Three independent mechanical blockers, all
    re-verified today:
@@ -412,7 +419,9 @@ will likely stay that way.
    ~20-job fan-out, ~25 runner-minutes to test a data file. One line, but it
    changes what a required check covers. Status: carried for the third run,
    **now filed as
-   [meridianlabs-ai/inspect_ai#299](https://github.com/meridianlabs-ai/inspect_ai/issues/299)**.
+   [meridianlabs-ai/inspect_ai#299](https://github.com/meridianlabs-ai/inspect_ai/issues/299)**,
+   then **implemented by a maintainer in this report's own PR** (commit
+   `640577ebd`). Verification falls to the next snapshot.
 
 9. **Un-serialize `slow-tool-tests-release` from `slow-tool-tests-dev`** —
    release consumes no output from dev (it downloads the published artifact and
