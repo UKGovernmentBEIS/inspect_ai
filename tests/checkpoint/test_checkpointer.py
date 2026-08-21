@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Literal
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from pydantic import JsonValue
@@ -57,6 +57,7 @@ from inspect_ai.util._checkpoint.checkpointer_impl import (
     _CheckpointerSetup,
     _EnteredCheckpointer,
     _scan_next_checkpoint_id,
+    _snapshot_info,
 )
 from inspect_ai.util._checkpoint.checkpointer_noop import _NoopCheckpointer
 from inspect_ai.util._checkpoint.config import ResolvedCheckpointConfig
@@ -175,8 +176,8 @@ class _CountingCheckpointer(_EnteredCheckpointer):
         await super()._fire(trigger, metadata=metadata, final=final)
         self.fire_count += 1
 
-    async def _backup_host(self, checkpoint_id: int) -> ResticBackupSummary:
-        return _fake_summary(checkpoint_id)
+    async def _backup_host(self, checkpoint_id: int) -> SnapshotDetails:
+        return _snapshot_info(_fake_summary(checkpoint_id))
 
 
 def _fake_hydration(sample_checkpoints_dir: str, context_dir: str) -> HydrationResult:
@@ -1661,11 +1662,11 @@ async def test_setup_aenter_defers_io_setup(tmp_path: Path) -> None:
             return_value=fake_env,
         ) as get_sandbox,
         patch(
-            "inspect_ai.util._checkpoint.hydrate.inject_restic",
+            "inspect_ai.util._checkpoint._snapshot.restic.inject_restic",
             new=AsyncMock(),
         ) as inject,
         patch(
-            "inspect_ai.util._checkpoint.hydrate.init_sandbox_repo",
+            "inspect_ai.util._checkpoint._snapshot.restic.init_sandbox_repo",
             new=AsyncMock(),
         ) as init_sandbox,
     ):
@@ -2669,3 +2670,101 @@ def test_task_stores_checkpoint_callbacks() -> None:
     t3 = task_with(t, on_resume=on_resume2)
     assert t3.on_resume is on_resume2
     assert t3.on_checkpoint is on_checkpoint  # unchanged
+
+
+# --- snapshot strategy fan-out ---------------------------------------
+
+
+class _StubStrategy:
+    """Records strategy calls; snapshots are cheap fabricated details."""
+
+    name = "archive"
+
+    def __init__(self) -> None:
+        self.snapshot_ids: list[int] = []
+
+    async def setup(self, env: object, ctx: object) -> None:
+        pass
+
+    async def snapshot(
+        self, env: object, paths: object, checkpoint_id: int, ctx: object
+    ) -> SnapshotDetails:
+        self.snapshot_ids.append(checkpoint_id)
+        return SnapshotDetails.model_validate(
+            dict(
+                snapshot_id=f"ckpt-{checkpoint_id:05d}",
+                size_bytes=1,
+                duration_ms=1,
+                strategy=self.name,
+            )
+        )
+
+    async def restore(self, env: object, ref: object, ctx: object) -> None:
+        pass
+
+    async def adopt(self, prior: object, ctx: object) -> None:
+        pass
+
+    async def discard_orphans(self, latest_committed_id: int, ctx: object) -> None:
+        pass
+
+
+async def test_fire_routes_sandbox_snapshot_through_strategy(
+    dirs: _Dirs,
+) -> None:
+    """Fires fan out to the sandbox strategy with sequential checkpoint ids."""
+    from inspect_ai.util._checkpoint._snapshot import (
+        SandboxSnapshotSession,
+        SnapshotContext,
+    )
+    from inspect_ai.util._checkpoint.config import (
+        ArchiveSnapshots,
+        SandboxSnapshotConfig,
+    )
+    from inspect_ai.util._checkpoint.sandbox_paths import SandboxBackupPaths
+
+    stub = _StubStrategy()
+    subpath = "sandboxes/default/archive"
+    hydration = _fake_hydration(dirs.checkpoints, dirs.context)
+    hydration.sandbox_sessions = {
+        "default": SandboxSnapshotSession(
+            strategy=stub,
+            context=SnapshotContext(
+                sandbox_name="default",
+                sample_root=dirs.checkpoints,
+                storage_dir=f"{dirs.checkpoints}/{subpath}",
+                storage_subpath=subpath,
+                secret="test-pwd",
+                resuming=False,
+            ),
+            paths=SandboxBackupPaths(include=["/data"]),
+        )
+    }
+    config = ResolvedCheckpointConfig(
+        trigger=Manual(),
+        sandbox_snapshots={
+            "default": SandboxSnapshotConfig(strategy=ArchiveSnapshots())
+        },
+    )
+    cp = _CountingCheckpointer(
+        config=config,
+        hydration=hydration,
+        resume_checkpoint=None,
+        reset_transcript_store=True,
+    )
+    with patch(
+        "inspect_ai.util._checkpoint.checkpointer_impl.sandbox",
+        return_value=MagicMock(),
+    ):
+        await cp.checkpoint()
+        await cp.checkpoint()
+        await cp.checkpoint()
+
+    # Every fire routed through the strategy with sequential ids.
+    assert stub.snapshot_ids == [1, 2, 3]
+    # Recorded details carry the strategy identity.
+    checkpoint = Checkpoint.model_validate_json(
+        (Path(dirs.checkpoints) / "ckpt-00003.json").read_bytes()
+    )
+    details = checkpoint.sandboxes["default"]
+    assert (details.model_extra or {}).get("strategy") == "archive"
