@@ -527,6 +527,38 @@ def test_tool_named_tool_does_not_shadow_parent_parser() -> None:
     assert args.tool_name == "tool"
 
 
+# --- round 6: handoff() agent tools are rejected, not silently broken --------
+
+
+def test_handoff_tool_rejected_at_construction() -> None:
+    """handoff() returns an AgentTool, which satisfies list[Tool].
+
+    The model path routes it through agent_handoff(); the human path
+    would call it directly, which unconditionally raises. Reject at
+    construction with a clear message instead of advertising a command
+    that always fails.
+    """
+    from inspect_ai.agent import AgentState, agent, handoff
+
+    @agent
+    def helper():
+        async def execute(state: AgentState) -> AgentState:
+            """Help with the task.
+
+            Args:
+                state: Agent state.
+
+            Returns:
+                The state.
+            """
+            return state
+
+        return execute
+
+    with pytest.raises(ValueError, match="handoff"):
+        ToolCommand([handoff(helper())])
+
+
 # --- round 6: arrays take JSON values so every valid value is expressible ----
 
 

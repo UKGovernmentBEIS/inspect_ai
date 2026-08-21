@@ -113,7 +113,7 @@ Boolean parameters map to `--<flag>` / `--no-<flag>` pairs; when neither is pass
 task tool annotate_incident --incident-id INC-1042 --annotation '{"root_cause": true}'
 ```
 
-Tool calls execute in the main evaluation process (not the sandbox), are validated against the tool's signature exactly as model tool calls are, and record a `ToolEvent` in the sample transcript — so a human run's tool usage is analyzable with the same machinery as a model run's. Note that human-invoked tools do not pass through [approval policies](approval.qmd): the human operator is the oversight in this configuration.
+Tool calls execute in the main evaluation process (not the sandbox), are validated against the tool's signature exactly as model tool calls are, and record a `ToolEvent` in the sample transcript — so a human run's tool usage is analyzable with the same machinery as a model run's. Note that human-invoked tools do not pass through [approval policies](approval.qmd): the human operator is the oversight in this configuration. [`handoff()`](agents.qmd#handoffs) agent tools are not supported and are rejected at task definition time.
 
 Tools that return non-text content (images, audio, video) display an omission marker in the terminal; the full result is preserved in the transcript.
 

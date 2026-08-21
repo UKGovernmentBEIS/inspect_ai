@@ -14,6 +14,7 @@ from inspect_ai._util.content import (
     ContentBase,
     ContentText,
 )
+from inspect_ai._util.registry import registry_unqualified_name
 from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log._transcript import transcript
 from inspect_ai.model._call_tools import tool_params, validate_tool_input
@@ -24,6 +25,7 @@ from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.util._limit import LimitExceededError
 from inspect_ai.util._span import span
 
+from ..._handoff import AgentTool
 from ..state import HumanAgentState
 from .command import HumanAgentCommand
 
@@ -109,6 +111,14 @@ class ToolCommand(HumanAgentCommand):
         self._tool_defs: dict[str, ToolDef] = {}
         self._tool_map: dict[str, Tool] = {}
         for tool in tools:
+            # handoff() returns an AgentTool, which satisfies list[Tool] but
+            # cannot be called directly — the model path special-cases it
+            # through agent_handoff(), which has no human equivalent yet
+            if isinstance(tool, AgentTool):
+                raise ValueError(
+                    f"Tool '{registry_unqualified_name(tool)}' is a handoff() "
+                    "agent tool, which human_cli(tools=...) does not support."
+                )
             tool_def = ToolDef(tool)
             # tool names appear in the generated script only as repr()-quoted
             # literals (generated variables are indexed), so any name inspect
