@@ -58,6 +58,14 @@ def acc_fn(correct: str = "C") -> Metric:
 
 
 @metric
+def scalar_with_all_label(all_label: str = "scalar_label") -> Metric:
+    def metric(scores: list[SampleScore]) -> float:
+        return 1.0
+
+    return metric
+
+
+@metric
 class Accuracy3(MetricDeprecated):
     def __init__(self, correct: str = "C") -> None:
         self.correct = correct
@@ -898,6 +906,84 @@ def test_dict_metric_all_samples_unscored():
         assert r.scored_samples == 0
         assert r.unscored_samples == 3
         assert math.isnan(r.metrics["mean"].value)
+
+
+def test_grouped_metric_all_samples_unscored_keeps_all_label():
+    from inspect_ai._eval.task.results import ScorerInfo, scorer_for_metrics
+
+    sample_scores = [
+        SampleScore(score=Score.unscored(), sample_id=1),
+        SampleScore(score=Score.unscored(), sample_id=2),
+    ]
+
+    results = scorer_for_metrics(
+        scorer_name="test_scorer",
+        scorer_info=ScorerInfo(name="test_scorer", metrics={}),
+        sample_scores=sample_scores,
+        metrics=[
+            grouped(
+                accuracy(), group_key="category", all="samples", all_label="accuracy"
+            ),
+            grouped(mean(), group_key="category", all="samples", all_label="mean"),
+            stderr(),
+        ],
+    )
+
+    assert len(results) == 1
+    metrics = results[0].metrics
+    assert set(metrics.keys()) == {"accuracy", "mean", "stderr"}
+    assert math.isnan(metrics["accuracy"].value)
+    assert math.isnan(metrics["mean"].value)
+    assert metrics["accuracy"].name == "accuracy"
+    assert metrics["stderr"].name == "stderr"
+
+
+def test_grouped_metric_all_samples_unscored_uses_default_all_label():
+    from inspect_ai._eval.task.results import ScorerInfo, scorer_for_metrics
+
+    results = scorer_for_metrics(
+        scorer_name="test_scorer",
+        scorer_info=ScorerInfo(name="test_scorer", metrics={}),
+        sample_scores=[SampleScore(score=Score.unscored(), sample_id=1)],
+        metrics=[grouped(mean(), group_key="category")],
+    )
+
+    metrics = results[0].metrics
+    assert set(metrics) == {"all"}
+    assert math.isnan(metrics["all"].value)
+    assert metrics["all"].name == "all"
+
+
+def test_grouped_metric_all_samples_unscored_without_aggregate():
+    from inspect_ai._eval.task.results import ScorerInfo, scorer_for_metrics
+
+    results = scorer_for_metrics(
+        scorer_name="test_scorer",
+        scorer_info=ScorerInfo(name="test_scorer", metrics={}),
+        sample_scores=[SampleScore(score=Score.unscored(), sample_id=1)],
+        metrics=[grouped(mean(), group_key="category", all=False, all_label="summary")],
+    )
+
+    metrics = results[0].metrics
+    assert set(metrics) == {"grouped"}
+    assert math.isnan(metrics["grouped"].value)
+    assert metrics["grouped"].name == "grouped"
+
+
+def test_scalar_metric_all_label_param_does_not_change_fallback_name():
+    from inspect_ai._eval.task.results import ScorerInfo, scorer_for_metrics
+
+    results = scorer_for_metrics(
+        scorer_name="test_scorer",
+        scorer_info=ScorerInfo(name="test_scorer", metrics={}),
+        sample_scores=[SampleScore(score=Score.unscored(), sample_id=1)],
+        metrics=[scalar_with_all_label(all_label="summary")],
+    )
+
+    metrics = results[0].metrics
+    assert set(metrics) == {"scalar_with_all_label"}
+    assert math.isnan(metrics["scalar_with_all_label"].value)
+    assert metrics["scalar_with_all_label"].name == "scalar_with_all_label"
 
 
 def test_aggregate_mean():
