@@ -76,6 +76,8 @@ def _validate_cli_flags(tool_def: ToolDef) -> None:
         param_flags = [f"--{name.replace('_', '-')}"]
         if info.schema_type == "boolean":
             param_flags.append(f"--no-{name.replace('_', '-')}")
+        if info.is_optional:
+            param_flags.append(f"--null-{name.replace('_', '-')}")
         for flag in param_flags:
             if flag in flags:
                 raise ValueError(
@@ -191,12 +193,6 @@ class ToolCommand(HumanAgentCommand):
                     return json.loads(value)
                 except json.JSONDecodeError as ex:
                     raise argparse.ArgumentTypeError(f"invalid JSON: {ex}")
-
-            def _nullable(convert):
-                # nullable parameters accept the literal 'null' (JSON null)
-                def parse(value):
-                    return None if value == "null" else convert(value)
-                return parse
             """).strip()
         )
 
@@ -613,15 +609,12 @@ def generate_tool_parser(
         parts.append(repr(f"--{arg_name}"))
         parts.append(f"dest={f'arg_{name}'!r}")
 
-        # Type conversion; nullable (Optional[T]) scalars accept the literal
-        # 'null' so an explicit JSON null is expressible, not just absence
-        def converter(base: str, optional: bool = info.is_optional) -> str:
-            return f"_nullable({base})" if optional else base
-
+        # Type conversion (values are always literal — explicit null travels
+        # via the dedicated --null-<name> flag, so no token is magic)
         if info.schema_type == "integer":
-            parts.append(f"type={converter('int')}")
+            parts.append("type=int")
         elif info.schema_type == "number":
-            parts.append(f"type={converter('float')}")
+            parts.append("type=float")
         elif info.schema_type == "boolean":
             # --flag / --no-flag pair; absent flags are suppressed from the
             # namespace so the tool's own default applies (an absent flag
@@ -631,32 +624,28 @@ def generate_tool_parser(
             # structured parameter: the flag's value is JSON ('null' included)
             parts.append("type=_json_arg")
             parts.append('metavar="JSON"')
-        elif info.is_optional:
-            # nullable string
-            parts.append("type=_nullable(str)")
 
-        # Enum/choices (a nullable enum additionally admits None)
+        # Enum/choices
         if info.enum:
-            choices = [*info.enum, None] if info.is_optional else info.enum
-            parts.append(f"choices={choices!r}")
+            parts.append(f"choices={info.enum!r}")
         elif info.schema_type not in ("boolean", "json"):
             # metavar must come from the parameter name — argparse would
             # otherwise derive it from the internal prefixed dest (ARG_X)
             parts.append(f"metavar={name.upper()!r}")
 
         # Required/default: nullability and requiredness are independent —
-        # null is an accepted *value*, it doesn't make the flag omittable.
-        # Absent optional flags are suppressed entirely so the handler can
-        # distinguish "not provided" from an explicit null
-        if info.is_required:
+        # null is an accepted *value*, it doesn't make the flag omittable
+        # (a required nullable parameter becomes a required mutually
+        # exclusive group below). Absent optional flags are suppressed
+        # entirely so the handler can distinguish "not provided" from an
+        # explicit null
+        if info.is_required and not info.is_optional:
             parts.append("required=True")
         else:
             parts.append("default=argparse.SUPPRESS")
 
-        # Help text (structured params get a copy-pasteable example instance;
-        # nullable params advertise the 'null' literal only where it is
-        # actually accepted — scalars via _nullable(); arrays reject it
-        # during item conversion and booleans have no null spelling)
+        # Help text (structured params get an example instance, validated
+        # against the schema)
         help_text = info.description or ""
         if info.schema_type == "json":
             instance = _example_instance(schema_dicts[name])
@@ -667,13 +656,29 @@ def generate_tool_parser(
                 help_text = (
                     f"{help_text} (JSON; illustrative shape: '{example}')".strip()
                 )
-        elif info.is_optional and info.schema_type in ("integer", "number", "string"):
-            help_text = f"{help_text} ('null' for null)".strip()
         if help_text:
             # escape argparse's %-interpolation (see add_parser above)
             parts.append(f"help={help_text.replace('%', '%%')!r}")
 
-        lines.append(f"{parser_var}.add_argument({', '.join(parts)})")
+        if info.is_optional:
+            # every nullable parameter gets a dedicated --null-<name> flag —
+            # one uniform null spelling across all types (booleans included),
+            # leaving every value token literal. Mutually exclusive with the
+            # value flag; the group carries requiredness for required
+            # nullable parameters
+            lines.append(
+                f"_group = {parser_var}.add_mutually_exclusive_group("
+                f"required={info.is_required})"
+            )
+            lines.append(f"_group.add_argument({', '.join(parts)})")
+            lines.append(
+                f"_group.add_argument({f'--null-{arg_name}'!r}, "
+                f"dest={f'arg_{name}'!r}, action='store_const', const=None, "
+                f"default=argparse.SUPPRESS, "
+                f"help={f'send null for {name}'!r})"
+            )
+        else:
+            lines.append(f"{parser_var}.add_argument({', '.join(parts)})")
 
     parser_code = "\n".join(lines)
     return parser_code, has_complex_params

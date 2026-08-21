@@ -393,6 +393,22 @@ async def test_service_accepts_any_identifier_param_name() -> None:
 
 
 @tool
+def _namer():
+    async def execute(name: str | None = None) -> str:
+        """Greet by name.
+
+        Args:
+            name: A nullable name.
+
+        Returns:
+            A greeting.
+        """
+        return f"hi {name}"
+
+    return execute
+
+
+@tool
 def _maybe():
     async def execute(value: int | None = None, config: dict | None = None) -> str:
         """Accept nullable parameters.
@@ -420,11 +436,32 @@ def test_explicit_null_for_structured_param_is_sent() -> None:
     assert kwargs == {"config": None}
 
 
-def test_explicit_null_for_nullable_scalar_is_sent() -> None:
-    """--value null must parse for int|None (type=int rejected the token)."""
+def test_explicit_null_via_dedicated_flag() -> None:
+    """--null-<name> sends an explicit JSON null for any nullable parameter."""
     parser, _ = _build_parsers([_maybe()])
-    kwargs = _handler_kwargs(parser, ["tool", "_maybe", "--value", "null"])
+    kwargs = _handler_kwargs(parser, ["tool", "_maybe", "--null-value"])
     assert kwargs == {"value": None}
+
+
+def test_nullable_string_keeps_null_as_literal_text() -> None:
+    """String values are always literal — the token null is the string "null".
+
+    The converter approach mapped the only natural spelling of the
+    string "null" to None, making a schema-valid value inexpressible;
+    with a dedicated null flag, no token is magic.
+    """
+    parser, _ = _build_parsers([_namer()])
+    kwargs = _handler_kwargs(parser, ["tool", "_namer", "--name", "null"])
+    assert kwargs == {"name": "null"}
+    kwargs = _handler_kwargs(parser, ["tool", "_namer", "--null-name"])
+    assert kwargs == {"name": None}
+
+
+def test_value_and_null_flag_are_mutually_exclusive() -> None:
+    parser, _ = _build_parsers([_maybe()])
+    with pytest.raises(SystemExit) as exc_info:
+        parser.parse_args(["tool", "_maybe", "--value", "3", "--null-value"])
+    assert exc_info.value.code == 2
 
 
 def test_absent_optional_params_stay_absent() -> None:
@@ -669,6 +706,7 @@ async def test_non_parallel_tool_serialized() -> None:
     tool, active = _tracking_tool(parallel=False)
     handler = ToolCommand([tool]).service(state=None)  # type: ignore[arg-type]
     init_transcript(Transcript())
+
     async def call() -> None:
         await handler(tool="tracker")
 
@@ -687,6 +725,7 @@ async def test_parallel_tool_stays_concurrent() -> None:
     tool, active = _tracking_tool(parallel=True)
     handler = ToolCommand([tool]).service(state=None)  # type: ignore[arg-type]
     init_transcript(Transcript())
+
     async def call() -> None:
         await handler(tool="tracker")
 
@@ -1042,21 +1081,16 @@ def _nullable_menagerie():
     return execute
 
 
-def test_null_advertised_only_where_supported() -> None:
-    """Arrays and booleans have no null spelling — help must not offer one.
+def test_every_nullable_param_gets_a_null_flag() -> None:
+    """Every nullable parameter — scalar, array, boolean — gets --null-<name>.
 
-    Nullable scalars and JSON values accept the null literal; nullable
-    arrays reject it during item conversion and nullable booleans have
-    only --flag/--no-flag. Advertising null there documents a lie.
+    The dedicated flag gives one uniform null spelling, including for
+    booleans (which have no token-based spelling at all).
     """
     code = ToolCommand([_nullable_menagerie()]).get_cli_parser_code()
-    args = {
-        name: next(ln for ln in code.splitlines() if f"dest='arg_{name}'" in ln)
-        for name in ("value", "tags", "strict")
-    }
-    assert "'null' for null" in args["value"]
-    assert "'null' for null" not in args["tags"]
-    assert "'null' for null" not in args["strict"]
+    for name in ("value", "tags", "strict"):
+        assert f"'--null-{name}'" in code
+    assert "_nullable(" not in code  # token-converter magic is gone
 
 
 # --- round 3: nullability and requiredness are independent --------------------
@@ -1107,7 +1141,7 @@ def test_required_nullable_flag_is_required() -> None:
 
 def test_required_nullable_accepts_null_value() -> None:
     parser, _ = _build_parsers([_required_nullable_tool()])
-    kwargs = _handler_kwargs(parser, ["tool", "req_nullable", "--value", "null"])
+    kwargs = _handler_kwargs(parser, ["tool", "req_nullable", "--null-value"])
     assert kwargs == {"value": None}
 
 
