@@ -21,7 +21,7 @@ magnitude, clean hit on mechanism — see "Impact verification".
 **`docs` is now the wall-clock determinant for most PRs.** It is the longest
 ordinary Build job (378s against `test`'s 334s), and in this window **24 of 40
 successful Build runs touched docs**; among those, `docs` finished last in 16
-and trailed the slowest test leg by a median of +19s. The 315s uncached
+and trailed the slowest test leg by a median of +39s. The 315s uncached
 `quarto render` is now the top execution-side item by a wide margin, and it is
 filed as [meridianlabs-ai/inspect_ai#297](https://github.com/meridianlabs-ai/inspect_ai/issues/297).
 
@@ -31,7 +31,9 @@ write neither — re-verified today on both the git and REST paths (proposal 2).
 The one in-bounds candidate with a measured double-digit win (skipping trio
 variants at collection time, ~10s/leg) is a harness semantics change, so it is a
 proposal, not an unattended fix. Three ripe structural proposals were filed as
-issues instead.
+issues instead. *Post-report update (2026-08-21): a maintainer implemented
+proposals 1 and 8 (#297, #299) directly in this report's own PR — see those
+proposals' status lines.*
 
 ## Queue vs execution
 
@@ -84,7 +86,7 @@ Last-finishing job across the 40 successful Build runs:
 Split by PR shape:
 
 - **docs-touching PR (24 of 40):** `docs` finishes last in 16 of 24, a median
-  **+19s** after the slower test leg. This is the new common case.
+  **+39s** after the slower test leg. This is the new common case.
 - **Code-only PR (10 of 40, excluding sandbox-tools):** `test` still determines
   wall clock, now at 344s for the binding leg.
 - **Sandbox-tools PR (6 of 40):** unchanged — `detect-slow` →
@@ -256,10 +258,14 @@ suppressing them at collection time (an `anyio_backend` fixture in
 
 ## Waste
 
-- **Cancelled superseded runs: 10 of 200, 85.8 runner-min** — up sharply from
-  7 / 28.2. `test` legs account for 41.5 of those minutes, `slow-tool-tests-dev`
-  16.3, `docs` 10.4. Longer-running jobs cancel with more sunk time; this is the
-  cost of `cancel-in-progress` doing its job on a busy branch, not a defect.
+- **Cancelled jobs: 85.8 runner-min across all 200 runs** — every cancelled
+  job, including fail-fast cancellations inside runs that concluded failure;
+  the 10 runs cancelled outright (superseded pushes) account for 70.1 of it.
+  `test` legs account for 41.5 of those minutes, `slow-tool-tests-dev` 16.3,
+  `docs` 10.4. Up sharply from the previous window (40.2 min on the same
+  measure, 7 runs cancelled). Longer-running jobs cancel with more sunk time;
+  this is the cost of `cancel-in-progress` doing its job on a busy branch, not
+  a defect.
 - Failed jobs burned 41.6 runner-min (was 28.0), 27.4 of it in `test`. Five
   `test` failures across four branches; none reproduced on `origin/main`.
 - Compute: **1,237 runner-min** per 200 runs (Build 1,081; Validate Embedded
@@ -319,14 +325,20 @@ will likely stay that way.
 
 1. **Cache the Quarto render for `docs`.** 315s of the job's 378s, uncached, and
    `docs` is now the wall-clock determinant for most PRs: 24 of 40 successful
-   Build runs touched docs, and `docs` finished last in 16 of those, +19s past
+   Build runs touched docs, and `docs` finished last in 16 of those, +39s past
    the slower test leg. Capping `docs` under `test`'s 344s is worth **~40s of
-   wall clock on ~58% of PRs**, plus ~290s on the rare docs-only PR (1 in this
-   window). Note the honest ceiling: because `test` is close behind, caching
+   wall clock on the ~40% of successful runs where `docs` finishes last** (60%
+   touched docs; `docs` finished last in two-thirds of those), plus ~290s on
+   the rare docs-only PR (1 in this window). Note the honest ceiling: because `test` is close behind, caching
    Quarto perfectly does not buy 315s of wall clock — it buys the ~40s by which
    `docs` currently overshoots `test`. Structural (workflow change this run
    cannot push). Status: carried from last report's proposal 3, **promoted to #1**, filed as
-   [meridianlabs-ai/inspect_ai#297](https://github.com/meridianlabs-ai/inspect_ai/issues/297).
+   [meridianlabs-ai/inspect_ai#297](https://github.com/meridianlabs-ai/inspect_ai/issues/297),
+   then **implemented by a maintainer in this report's own PR** (commit
+   `7992b1ce8`): the render is skipped when a cache marker keyed on
+   `hashFiles('docs/**', 'requirements-doc.txt', 'src/inspect_ai/**')` proves the
+   exact input set already rendered successfully. Verification falls to the next
+   snapshot.
 
 2. **Unblock the scheduled run.** Three independent mechanical blockers, all
    re-verified today:
@@ -359,7 +371,7 @@ will likely stay that way.
    Structural/cost. Status: carried, **no new evidence this window**; the case
    rests on the 2026-08-18/19 bursts (168s median queue inside the 02:00 hour).
 
-4. **Collection and startup is 36% of the pytest step — and there is a measured
+4. **Collection and startup is 34% of the pytest step — and there is a measured
    lever.** The step is 302s median against a ~198s test-phase wall, so ~104s is
    collection, worker startup and reporting, paid once on the controller and
    once per worker. Two measurements this run:
@@ -408,11 +420,17 @@ will likely stay that way.
 8. **Exclude `design/**` from the `test` job's `code` filter.** The filter is
    `'**'` minus `docs/**` and `**/*.md`, so a documentation-only change that
    isn't markdown counts as code. This report's own PR is the demonstration:
-   three files under `design/ci-perf/` (one a JSON snapshot) trigger the full
-   ~20-job fan-out, ~25 runner-minutes to test a data file. One line, but it
-   changes what a required check covers. Status: carried for the third run,
+   three files under `design/ci-perf/` (one a JSON snapshot) run the two 334s
+   `test` matrix legs — ~11 of the ~16 runner-minutes a successful no-docs
+   Build run costs (median, n=16) — to test a data file. The fix no-ops only
+   those two legs; the other job records still spawn (mypy ×2, Viewer,
+   package/pre-commit/ruff, …), so a design-only push drops to ~6–7
+   runner-minutes, not zero. One line, but it changes what a required check
+   covers. Status: carried for the third run,
    **now filed as
-   [meridianlabs-ai/inspect_ai#299](https://github.com/meridianlabs-ai/inspect_ai/issues/299)**.
+   [meridianlabs-ai/inspect_ai#299](https://github.com/meridianlabs-ai/inspect_ai/issues/299)**,
+   then **implemented by a maintainer in this report's own PR** (commit
+   `640577ebd`). Verification falls to the next snapshot.
 
 9. **Un-serialize `slow-tool-tests-release` from `slow-tool-tests-dev`** —
    release consumes no output from dev (it downloads the published artifact and
