@@ -527,6 +527,40 @@ def test_tool_named_tool_does_not_shadow_parent_parser() -> None:
     assert args.tool_name == "tool"
 
 
+# --- round 6: arrays take JSON values so every valid value is expressible ----
+
+
+@tool
+def _tagger():
+    async def execute(tags: list[str]) -> str:
+        """Count tags.
+
+        Args:
+            tags: The tags.
+
+        Returns:
+            The count.
+        """
+        return str(len(tags))
+
+    return execute
+
+
+def test_array_values_are_json_and_lossless() -> None:
+    """Space-separated arrays could not express option-looking items.
+
+    With nargs="*", ["-a", "-b"] had no CLI spelling (tokens parse as
+    options; --tags=-x keeps only the last; -- does not help within the
+    argument) and the empty list also had no append-style spelling.
+    JSON values express every schema-valid array.
+    """
+    parser, _ = _build_parsers([_tagger()])
+    kwargs = _handler_kwargs(parser, ["tool", "_tagger", "--tags", '["-a", "-b"]'])
+    assert kwargs == {"tags": ["-a", "-b"]}
+    kwargs = _handler_kwargs(parser, ["tool", "_tagger", "--tags", "[]"])
+    assert kwargs == {"tags": []}
+
+
 # --- round 6: percent signs in descriptions must not break argparse ----------
 
 

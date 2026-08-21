@@ -335,11 +335,10 @@ class ParamInfo(NamedTuple):
     """Information about a tool parameter for argparse generation."""
 
     name: str
-    schema_type: str | None  # "string", "integer", "number", "boolean", "array", "json"
+    schema_type: str | None  # "string", "integer", "number", "boolean", "json"
     is_required: bool
     is_optional: bool  # Has anyOf with null (Optional[T])
     enum: list[Any] | None
-    array_item_type: str | None  # For arrays: type of items
     description: str | None
     default: Any
 
@@ -352,7 +351,6 @@ def _complex_info(description: str | None, default: Any) -> ParamInfo:
         is_required=False,
         is_optional=False,
         enum=None,
-        array_item_type=None,
         description=description,
         default=default,
     )
@@ -389,22 +387,10 @@ def _classify_schema(schema: dict[str, Any]) -> ParamInfo:
     description = schema.get("description")
     default = schema.get("default")
 
-    # Handle arrays
+    # Arrays are structured parameters (JSON values): space-separated
+    # tokens cannot express option-looking items like ["-a"] or the empty
+    # list, so every array takes a JSON value like other structured types
     if schema_type == "array":
-        items = schema.get("items", {})
-        items_type = items.get("type")
-        if items_type in ("string", "integer", "number"):
-            return ParamInfo(
-                name="",
-                schema_type="array",
-                is_required=False,
-                is_optional=False,
-                enum=None,
-                array_item_type=items_type,
-                description=description,
-                default=default,
-            )
-        # Complex array items - not simple
         return _complex_info(description, default)
 
     # Simple types
@@ -415,7 +401,6 @@ def _classify_schema(schema: dict[str, Any]) -> ParamInfo:
             is_required=False,
             is_optional=False,
             enum=enum,
-            array_item_type=None,
             description=description,
             default=default,
         )
@@ -578,12 +563,6 @@ def generate_tool_parser(
             # namespace so the tool's own default applies (an absent flag
             # must not silently send False to a tool whose default is True)
             parts.append("action=argparse.BooleanOptionalAction")
-        elif info.schema_type == "array":
-            parts.append('nargs="*"')
-            if info.array_item_type == "integer":
-                parts.append("type=int")
-            elif info.array_item_type == "number":
-                parts.append("type=float")
         elif info.schema_type == "json":
             # structured parameter: the flag's value is JSON ('null' included)
             parts.append("type=_json_arg")
