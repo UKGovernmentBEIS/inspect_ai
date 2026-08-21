@@ -101,7 +101,7 @@ Pass `tools` to give the human the same [tools](tools.qmd) a model agent would g
 human_cli(tools=[search_incidents(), get_incident()])
 ```
 
-Each tool becomes a `task tool <name>` subcommand with named arguments generated from the tool's schema (run `task tool` to list tools, `task tool <name> --help` for a tool's arguments; a tool whose name begins with a dash is invoked as `task tool -- <name>`):
+Each tool becomes a `task tool <name>` subcommand with named arguments generated from the tool's schema (run `task tool` to list tools, `task tool <name> --help` for a tool's arguments; names beginning with a dash are rejected, as argparse cannot route them):
 
 ``` bash
 task tool search_incidents --query checkout --limit 3

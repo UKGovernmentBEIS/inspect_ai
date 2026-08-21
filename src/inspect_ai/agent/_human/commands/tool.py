@@ -118,6 +118,12 @@ class ToolCommand(HumanAgentCommand):
                     "Tool has an empty name (no task tool subcommand can be "
                     "generated for it)."
                 )
+            if tool_def.name.startswith("-"):
+                raise ValueError(
+                    f"Tool name '{tool_def.name}' has a leading dash — "
+                    "argparse treats it as an option, so no `task tool` "
+                    "invocation can reach it on supported Pythons."
+                )
             if tool_def.name in self._tool_defs:
                 raise ValueError(f"Duplicate tool name '{tool_def.name}'.")
             _validate_cli_flags(tool_def)
