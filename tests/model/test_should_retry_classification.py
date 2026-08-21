@@ -27,10 +27,10 @@ def _http_response(
     )
 
 
-def _openai_http_response(
+def _httpx2_response(
     status: int, headers: dict[str, str] | None = None
 ) -> httpx2.Response:
-    """Like _http_response, but httpx2-flavored (what openai >= 3 is built on)."""
+    """Like _http_response, but httpx2-flavored (what openai >= 3 and anthropic >= 1 are built on)."""
     request = httpx2.Request("POST", "https://example.com/v1/chat/completions")
     return httpx2.Response(
         status_code=status,
@@ -117,7 +117,7 @@ def test_openai_classify_rate_limit_429() -> None:
 
     from inspect_ai.model._openai import openai_classify_retry
 
-    response = _openai_http_response(429, {"retry-after": "30"})
+    response = _httpx2_response(429, {"retry-after": "30"})
     ex = APIStatusError(message="rate limited", response=response, body=None)
     decision = openai_classify_retry(ex)
     assert decision is not None
@@ -133,7 +133,7 @@ def test_openai_classify_transient_5xx() -> None:
 
     ex = APIStatusError(
         message="internal error",
-        response=_openai_http_response(503),
+        response=_httpx2_response(503),
         body=None,
     )
     decision = openai_classify_retry(ex)
@@ -149,7 +149,7 @@ def test_openai_classify_non_retryable_4xx_returns_none() -> None:
 
     ex = APIStatusError(
         message="bad request",
-        response=_openai_http_response(400),
+        response=_httpx2_response(400),
         body=None,
     )
     assert openai_classify_retry(ex) is None
@@ -160,7 +160,7 @@ def test_openai_classify_rate_limit_error_subclass() -> None:
 
     from inspect_ai.model._openai import openai_classify_retry
 
-    response = _openai_http_response(429, {"retry-after": "5"})
+    response = _httpx2_response(429, {"retry-after": "5"})
     ex = RateLimitError(message="too many", response=response, body=None)
     decision = openai_classify_retry(ex)
     assert decision is not None
@@ -177,7 +177,7 @@ def test_openai_provider_quota_exceeded_does_not_retry() -> None:
     api = OpenAIAPI.__new__(OpenAIAPI)  # avoid full init
     ex = RateLimitError(
         message="You exceeded your current quota, please check your plan.",
-        response=_openai_http_response(429),
+        response=_httpx2_response(429),
         body=None,
     )
     decision = api.should_retry(ex)
@@ -193,7 +193,7 @@ def test_openai_provider_429_classifies_as_rate_limit() -> None:
     api = OpenAIAPI.__new__(OpenAIAPI)
     ex = RateLimitError(
         message="rate limited",
-        response=_openai_http_response(429, {"retry-after": "10"}),
+        response=_httpx2_response(429, {"retry-after": "10"}),
         body=None,
     )
     decision = api.should_retry(ex)
@@ -228,7 +228,7 @@ def test_anthropic_429_classifies_as_rate_limit() -> None:
     api = AnthropicAPI.__new__(AnthropicAPI)
     ex = APIStatusError(
         message="rate limited",
-        response=_http_response(429, {"retry-after": "20"}),
+        response=_httpx2_response(429, {"retry-after": "20"}),
         body=None,
     )
     decision = api.should_retry(ex)
@@ -245,7 +245,7 @@ def test_anthropic_503_classifies_as_transient() -> None:
     api = AnthropicAPI.__new__(AnthropicAPI)
     ex = APIStatusError(
         message="overloaded",
-        response=_http_response(503),
+        response=_httpx2_response(503),
         body=None,
     )
     decision = api.should_retry(ex)
@@ -262,9 +262,21 @@ def test_anthropic_streaming_overloaded_body_classifies_as_transient() -> None:
     api = AnthropicAPI.__new__(AnthropicAPI)
     ex = APIStatusError(
         message="overloaded",
-        response=_http_response(200),
+        response=_httpx2_response(200),
         body={"error": {"message": "overloaded"}},
     )
+    decision = api.should_retry(ex)
+    assert isinstance(decision, RetryDecision)
+    assert decision.retry is True
+    assert decision.kind == "transient"
+
+
+def test_anthropic_httpx2_transport_error_classifies_as_transient() -> None:
+    """Anthropic >= 1 is built on httpx2 — raw httpx2 transport errors that escape the SDK unwrapped must still retry."""
+    from inspect_ai.model._providers.anthropic import AnthropicAPI
+
+    api = AnthropicAPI.__new__(AnthropicAPI)
+    ex = httpx2.ConnectError("connection reset")
     decision = api.should_retry(ex)
     assert isinstance(decision, RetryDecision)
     assert decision.retry is True
@@ -695,7 +707,7 @@ def test_together_openai_compatible_429_classifies_as_rate_limit() -> None:
     api = TogetherAIAPI.__new__(TogetherAIAPI)
     ex = APIStatusError(
         message="rate limited",
-        response=_openai_http_response(429, {"retry-after": "15"}),
+        response=_httpx2_response(429, {"retry-after": "15"}),
         body=None,
     )
     decision = api.should_retry(ex)
