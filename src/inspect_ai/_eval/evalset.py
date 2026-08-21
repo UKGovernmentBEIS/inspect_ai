@@ -152,6 +152,7 @@ def eval_set(
     task_args: dict[str, Any] | str = dict(),
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
+    sandbox_prebuilt: bool | None = None,
     checkpoint: CheckpointConfig | bool | None = None,
     acp_server: bool | int | str | None = None,
     ctl_server: bool | str | None = None,
@@ -236,6 +237,9 @@ def eval_set(
             (or optionally a str or tuple with a shorthand spec)
         sandbox_cleanup: Cleanup sandbox environments after task completes
             (defaults to True)
+        sandbox_prebuilt: Treat sandbox images as prebuilt, skipping builds
+            and failing at task startup when an image is missing
+            (defaults to False)
         checkpoint: Checkpoint configuration for this eval set, or `True`
             to enable checkpointing with the default trigger (every 500k
             tokens). Overrides any task- or sample-level `checkpoint`
@@ -415,6 +419,7 @@ def eval_set(
             task_args=task_args,
             sandbox=sandbox,
             sandbox_cleanup=sandbox_cleanup,
+            sandbox_prebuilt=sandbox_prebuilt,
             checkpoint=checkpoint,
             solver=solver,
             scanner=scanner,
