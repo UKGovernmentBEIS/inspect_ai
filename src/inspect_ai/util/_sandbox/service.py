@@ -15,8 +15,8 @@ import anyio
 from pydantic import JsonValue
 
 from inspect_ai._util.error import PrerequisiteError
-from inspect_ai._util.exception import TerminateSampleError, TerminateTaskError
-from inspect_ai.util._anyio import inner_exception
+from inspect_ai._util.exception import TerminateSampleError
+from inspect_ai.util._anyio import _flatten_exception
 from inspect_ai.util._subprocess import ExecResult
 
 from .environment import SandboxEnvironment
@@ -27,24 +27,29 @@ logger = getLogger(__name__)
 # Control-flow exceptions that a service method may raise and that must
 # propagate out of sandbox_service() to be enacted (in contrast to ordinary
 # exceptions, which become RPC error responses, and LimitExceededError,
-# which is routed to the active sample). ExceptionGroups are unwrapped
-# before matching.
-CONTROL_FLOW_EXCEPTIONS: tuple[type[BaseException], ...] = (
-    TerminateSampleError,
-    TerminateTaskError,
-)
+# which is routed to the active sample). ExceptionGroups are searched
+# exhaustively before matching. TerminateTaskError is deliberately absent:
+# the sample runner consumes TerminateSampleError from solver exceptions
+# (task/run.py) but has no equivalent task-boundary consumer, so routing it
+# would not reliably enact anything.
+CONTROL_FLOW_EXCEPTIONS: tuple[type[BaseException], ...] = (TerminateSampleError,)
 
 
 def raise_if_control_flow(ex: Exception) -> None:
-    """Re-raise a control-flow exception (unwrapping ExceptionGroups).
+    """Re-raise a contained control-flow exception.
 
     No-op for ordinary exceptions. Used at each layer of the service's
     error handling so terminations raised by service methods propagate out
-    of sandbox_service() instead of being logged and swallowed.
+    of sandbox_service() instead of being logged and swallowed. Every leaf
+    of an ExceptionGroup is searched (a mixed group must not hide a
+    termination behind an ordinary sibling), with precedence following
+    CONTROL_FLOW_EXCEPTIONS order.
     """
-    inner = inner_exception(ex)
-    if isinstance(inner, CONTROL_FLOW_EXCEPTIONS):
-        raise inner from ex
+    leaves = _flatten_exception(ex)
+    for control_flow_type in CONTROL_FLOW_EXCEPTIONS:
+        for leaf in leaves:
+            if isinstance(leaf, control_flow_type):
+                raise leaf from ex
 
 
 REQUESTS_DIR = "requests"
@@ -525,6 +530,10 @@ class SandboxService:
                     )
                     raise
             except Exception as err:
+                # control flow re-raised by the inner handler (which already
+                # answered the RPC) lands here first — propagate it rather
+                # than recatching it as an ordinary failure
+                raise_if_control_flow(err)
                 # Log the host-side traceback, but do NOT put it in the response.
                 # This text is delivered into the sandbox and, for bridged MCP
                 # tools, surfaces verbatim as tool output the model reads. The

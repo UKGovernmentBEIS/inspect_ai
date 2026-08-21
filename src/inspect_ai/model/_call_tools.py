@@ -199,6 +199,11 @@ async def _execute_tools_impl(
                     tool_error = classified.error
                     if classified.result != "":
                         result = classified.result
+                elif isinstance(ex, ValueError):
+                    # historical model-path behavior: ordinary ValueErrors
+                    # propagate immediately rather than staging as a
+                    # tool exception
+                    raise
                 else:
                     tool_exception = ex
 
@@ -1054,19 +1059,17 @@ def classify_tool_exception(
                 f"Error decoding bytes to {ex.encoding}: {ex.reason}",
             )
         )
-    elif isinstance(ex, ValueError):
+    elif isinstance(ex, ValueError) and "embedded null byte" in str(ex):
         # CPython's subprocess module raises ValueError("embedded null byte")
         # when a command or argument string contains '\x00'. Surface it as
         # a tool error so the model can recover instead of crashing the sample.
-        if "embedded null byte" in str(ex):
-            return ClassifiedToolException(
-                error=ToolCallError(
-                    "parsing",
-                    f"An argument to tool '{function}' contained an embedded null byte.",
-                )
+        # (Other ValueErrors are unexpected — callers apply their own policy.)
+        return ClassifiedToolException(
+            error=ToolCallError(
+                "parsing",
+                f"An argument to tool '{function}' contained an embedded null byte.",
             )
-        else:
-            raise ex
+        )
     elif isinstance(ex, SandboxUnavailableError):
         # Preserve the tool loop's existing non-terminal behavior while
         # surfacing sandbox unavailability as a failed tool call. Evals
