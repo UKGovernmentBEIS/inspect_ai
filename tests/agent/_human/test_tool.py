@@ -625,6 +625,54 @@ def test_percent_in_descriptions_survives_help_rendering() -> None:
     assert "50% cutoff" in tool_help
 
 
+# --- round 7: custom tool viewers apply to human ToolEvents -------------------
+
+
+@pytest.mark.anyio
+async def test_custom_viewer_applies_to_human_tool_events() -> None:
+    """A tool's ToolCallViewer must shape human events as it does model ones.
+
+    view was never built, so the same tool recorded a custom rendering
+    when model-invoked and view=None when human-invoked — the transcript
+    rendered them differently.
+    """
+    from inspect_ai.log._transcript import Transcript, init_transcript, transcript
+    from inspect_ai.tool import ToolCall, ToolCallContent, ToolCallView
+
+    def viewer(call: ToolCall) -> ToolCallView:
+        return ToolCallView(
+            call=ToolCallContent(format="markdown", content=f"**adding** {call.arguments}")
+        )
+
+    async def execute(x: int, y: int) -> int:
+        """Add.
+
+        Args:
+            x: First.
+            y: Second.
+
+        Returns:
+            Sum.
+        """
+        return x + y
+
+    viewed = ToolDef(
+        execute,
+        name="viewed",
+        description="Add.",
+        parameters={"x": "First.", "y": "Second."},
+        viewer=viewer,
+    ).as_tool()
+
+    handler = ToolCommand([viewed]).service(state=None)  # type: ignore[arg-type]
+    init_transcript(Transcript())
+    await handler(tool="viewed", arguments={"x": 1, "y": 2})
+
+    event = next(e for e in transcript().events if e.event == "tool")
+    assert event.view is not None
+    assert "adding" in event.view.content
+
+
 # --- round 7: sample waiting time is excluded from tool working time ---------
 
 
@@ -660,6 +708,7 @@ async def test_waiting_time_excluded_from_working_time() -> None:
     await handler(tool="waiter", arguments={})
 
     event = next(e for e in transcript().events if e.event == "tool")
+    assert event.working_time is not None
     assert 0 <= event.working_time < 0.04  # ~0.06 elapsed minus 0.05 waited
 
 

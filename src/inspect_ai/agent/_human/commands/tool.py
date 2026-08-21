@@ -18,10 +18,14 @@ from inspect_ai._util.registry import registry_unqualified_name
 from inspect_ai._util.working import sample_waiting_time
 from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log._transcript import transcript
-from inspect_ai.model._call_tools import tool_params, validate_tool_input
+from inspect_ai.model._call_tools import (
+    tool_call_view,
+    tool_params,
+    validate_tool_input,
+)
 from inspect_ai.tool import Tool, ToolError, ToolParams
 from inspect_ai.tool._tool import ToolResult
-from inspect_ai.tool._tool_call import ToolCallError
+from inspect_ai.tool._tool_call import ToolCall, ToolCallError
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.util._anyio import _flatten_exception
 from inspect_ai.util._limit import LimitExceededError
@@ -267,10 +271,18 @@ def tool(args):
         # JSON-safe by construction), then finalize it on every outcome —
         # for human baselines the human's tool usage is the data, so the
         # transcript must carry successes, tool errors, and crashes alike
+        # apply the tool's custom viewer (if any) so human events render the
+        # same way model-invoked events for the same tool do
+        call_id = uuid()
+        view = tool_call_view(
+            ToolCall(id=call_id, function=tool, arguments=kwargs),
+            [self._tool_defs[tool]],
+        )
         event = ToolEvent(
-            id=uuid(),
+            id=call_id,
             function=tool,
             arguments=kwargs,
+            view=view,
             pending=True,
         )
         transcript()._event(event)
