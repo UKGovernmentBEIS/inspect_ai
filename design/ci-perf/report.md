@@ -1,518 +1,464 @@
-# CI performance report — 2026-08-19
+# CI performance report — 2026-08-21
 
-Data: 200 PR runs, 2026-08-18 02:01 .. 2026-08-19 09:18 UTC (31.3h). Snapshot:
-`history/2026-08-19.json`. Previous: 2026-08-18 (200 runs, 19.8h). **The two
-windows overlap by ~19h**, so most day-over-day medians are literally the same
-runs; trend arrows are weak by construction this time and the load-bearing
-comparisons are the before/after splits *inside* this window. Produced by the
-unattended scheduled run
-([workflow run](https://github.com/meridianlabs-ai/actions/actions/runs/32236499178)).
+Data: 200 PR runs, 2026-08-20 10:47 .. 2026-08-21 09:10 UTC (22.4h). Snapshot:
+`history/2026-08-21.json`. Previous: 2026-08-19 (200 runs, 2026-08-18 02:01 ..
+2026-08-19 09:18). **The two windows do not overlap** — unlike last time — so
+day-over-day comparisons here are genuine. Produced by the unattended scheduled
+run
+([workflow run](https://github.com/meridianlabs-ai/actions/actions/runs/32466997002)).
 
 ## Summary
 
-**#4935 landed and delivered.** It merged at 07:42 UTC today, which puts a clean
-natural experiment inside this window: 97 `test` legs from branches without it
-against 10 with it. Pytest step **417s → 320s** median, job exec **447s → 349s**,
-Build wall **485s → 383s** — against predictions of ~330s job and ~370s wall.
-Both halves of the PR are confirmed; the `blob:none` half took
-`check-version-bump` checkout from 27.5s to 5s and `slow-tool-tests-dev` from
-29.5s to 6s.
+**`--dist worksteal` (#4948) landed and the mechanism is fully confirmed, but
+the win came in at ~55% of the prediction.** Eight post-merge CI legs sampled
+from their `test-report-log` artifacts show worker imbalance of **+3–6s (1–3%)
+and 97–99% worker efficiency**, against +12–80s and 68–88% before; not one
+straggler in eight legs. Classifying every Build run by whether its *branch*
+carried the fix: the binding (slower) test leg went **387s → 344s** and Build
+wall clock on plain PRs **383s → 345s**, against a predicted 71s. Honest miss on
+magnitude, clean hit on mechanism — see "Impact verification".
 
-**Four workers exposed the next bottleneck: xdist's scheduler strands the job on
-one worker.** Across the 10 post-#4935 CI legs, the busiest worker ran 12–80s
-past the leg's own average, and **4 of 10 legs had a ~76–80s straggler** while
-its three peers sat idle. Since a Build run waits for both matrix legs, the
-median recoverable wall clock is ~71s — roughly three-quarters of what #4935
-itself won. `--dist worksteal` fixes it: across five local full-suite runs
-imbalance went from +22s/+83s to +4–7s and worker efficiency from 72–88% to 96%,
-with identical results every time. That is this run's one fix PR (proposal 1).
+**`docs` is now the wall-clock determinant for most PRs.** It is the longest
+ordinary Build job (378s against `test`'s 334s), and in this window **24 of 40
+successful Build runs touched docs**; among those, `docs` finished last in 16
+and trailed the slowest test leg by a median of +39s. The 315s uncached
+`quarto render` is now the top execution-side item by a wide margin, and it is
+filed as [meridianlabs-ai/inspect_ai#297](https://github.com/meridianlabs-ai/inspect_ai/issues/297).
 
-**`docs` is now the longest Build job** (378s against `test`'s 349s), exactly the
-promotion last report predicted. Quarto caching moves from a nice-to-have to the
-top execution-side item after worksteal.
-
-**Neither PR this run prepared could be opened upstream.** Three separate
-mechanical blockers, all re-verified today with exact errors (proposal 2): the
-token cannot push `.github/workflows/**`, cannot create a PR on upstream, and the
-sandbox cannot write `.claude/**` — which is where the collector fix this run
-needed lives. Both PRs went to the fork; a maintainer promoted them upstream
-(#4946, #4947) and then combined them — plus a skill change making one-PR-per-run
-the policy — into **#4948** (the promoted pair closed in its favor).
-
-## Data-quality note (read before trusting any trend)
-
-Two things about this window:
-
-1. **The runs API served stale pages repeatedly.** The committed collector's
-   first attempt produced a snapshot spanning *2026-06-12 to 2026-08-17* —
-   a 1475h hole, with a head 36h older than collection time. Direct probing
-   confirmed the cause: 1 request in ~5 to
-   `actions/runs?event=pull_request&status=completed&page=1` returns a replica
-   ~31h behind, and one page in the bad set carried June runs. The snapshot
-   analyzed here was collected with the retry/validation fix from proposal 4
-   applied (head 6 minutes stale; largest internal gap 3.8h, matching two
-   genuine overnight lulls at 03:57–07:45 and 03:36–07:15 UTC).
-2. **Per-test durations are no longer comparable with pre-#4935 snapshots.**
-   Four workers on two physical cores means each test runs slower in wall terms:
-   total test-phase work went from 631s (2 workers) to 716–793s (4 workers),
-   +13–25% for the same tests. The captured ≥1s tail "grew" 149.5s → 156.0s
-   purely from this. **Only wall clock is comparable across the cutover** —
-   future runs should not read the duration inflation as a regression.
+**This run ships no code fix.** Every remaining item that would move wall clock
+lives in `.github/workflows/**` or `.claude/**`, and the scheduled token can
+write neither — re-verified today on both the git and REST paths (proposal 2).
+The one in-bounds candidate with a measured double-digit win (skipping trio
+variants at collection time, ~10s/leg) is a harness semantics change, so it is a
+proposal, not an unattended fix. Three ripe structural proposals were filed as
+issues instead. *Post-report update (2026-08-21): a maintainer implemented
+proposals 1 and 8 (#297, #299) directly in this report's own PR — see those
+proposals' status lines.*
 
 ## Queue vs execution
 
 Median execution / queue over successful jobs. Queue for dependent jobs is
 measured from predecessor completion (`needs` map read from the workflow files).
-`test` mixes pre- and post-#4935 legs; see the split below it.
 
 | Workflow | Job | n | exec med | exec p90 | queue med | queue p90 |
 |---|---|---|---|---|---|---|
-| Build | slow-tool-tests-dev | 8 | 779s | 987s | 3s | 3s |
-| Build | test (per matrix leg) | 113 | 444s | 493s | 3s | 35s |
-| Build | docs (when docs change) | 12 | 378s | 414s | 2s | 3s |
-| Build | slow-tests | 2 | 224s | 235s | 2s | 3s |
-| Build | sandbox-tools-unit | 1 | 176s | — | 2s | 2s |
-| Build | mypy (per matrix leg) | 120 | 89s | 95s | 3s | 40s |
-| Viewer | viewer-tests | 61 | 62s | 68s | 3s | 14s |
-| Viewer | check-schema-and-types | 62 | 54s | 63s | 3s | 9s |
-| Build | pre-commit | 61 | 34s | 39s | 3s | 33s |
-| Build | package | 62 | 30s | 34s | 3s | 35s |
-| Build | check-version-bump | 8 | 30s | 37s | 2s | 50s |
-| Viewer | dist-validation | 63 | 28s | 33s | 3s | 12s |
-| Build | ruff | 62 | 11s | 14s | 3s | 20s |
-| Viewer | submodule-on-main | 61 | 9s | 11s | 3s | 14s |
-| Build | detect-slow | 63 | 9s | 10s | 3s | 35s |
-| Build | changes | 63 | 8s | 9s | 3s | 52s |
-| Changelog Lint | entries-under-unreleased | 38 | 6s | 8s | 3s | 9s |
+| Build | slow-tool-tests-dev | 8 | 764s | 806s | 2s | 4s |
+| Build | docs (when docs change) | 31 | 378s | 391s | 2s | 4s |
+| Build | test (per matrix leg) | 99 | 334s | 364s | 3s | 16s |
+| Build | slow-tests | 7 | 235s | 266s | 3s | 5s |
+| Build | sandbox-tools-unit | 6 | 172s | 178s | 2s | 3s |
+| Build | mypy (per matrix leg) | 108 | 89s | 97s | 3s | 20s |
+| Validate Embedded Viewer | viewer-tests | 57 | 61s | 72s | 3s | 4s |
+| Validate Embedded Viewer | check-schema-and-types | 56 | 53s | 64s | 3s | 4s |
+| Build | package | 57 | 31s | 35s | 3s | 20s |
+| Build | pre-commit | 54 | 30s | 37s | 3s | 20s |
+| Validate Embedded Viewer | dist-validation | 57 | 28s | 36s | 3s | 4s |
+| Build | ruff | 56 | 10s | 13s | 3s | 21s |
+| Build | check-version-bump | 12 | 8s | 9s | 2s | 3s |
+| Build | detect-slow | 58 | 8s | 10s | 3s | 19s |
+| Build | submodule-on-main | 53 | 8s | 10s | 3s | 4s |
+| Changelog Lint | entries-under-unreleased | 52 | 7s | 8s | 3s | 4s |
+| Build | changes | 59 | 7s | 9s | 3s | 20s |
 
-Workflow wall clock: Build 484s median / 805s p90 (was 485 / 805); Viewer 67s /
-85s (was 67 / 137); Changelog Lint 10s / 17s (was 10 / 50). The Viewer and
-Changelog p90 improvements are queue, not execution — this window has a milder
-burst profile than the last one.
+Workflow wall clock: Build **384s median / 790s p90** (was 484 / 805); Validate
+Embedded Viewer 66s / 81s (was 67 / 85); Changelog Lint 10s / 12s (was 10 / 17).
 
-### #4935 before/after, inside this window
+### Queue is the calmest it has been
 
-Legs classified by whether the branch contained the fix (merged 07:42:45 UTC;
-the `ci-perf/report-2026-08-18` branch counts as "with", it *is* #4935's branch).
-
-| Metric | Without #4935 | With #4935 | Predicted |
-|---|---|---|---|
-| `Test with pytest` step | 417s (n=97, 358–522) | **320s** (n=10, 296–373) | — |
-| `test` job exec | 447s | **349s** | ~330s |
-| Build wall clock | 485s (n=48) | **383s** (n=5) | ~370s |
-| `check-version-bump` checkout | 27.5s | **5s** (n=1) | ~5s |
-| `slow-tool-tests-dev` checkout | 29.5s | **6s** (n=1) | ~5s |
-
-`slow-tests` (56s checkout) and `slow-tool-tests-release` didn't run on any
-post-merge PR, so those two legs of the `blob:none` rollout stay unverified until
-the next report.
-
-### Queue is calmer, but the 02:00 UTC burst is unchanged
-
-Across 871 independent-job samples: median 3s, p75 5s, **p90 28s, p95 61s, max
-313s**. 85 jobs waited more than 30s, 31 more than 120s (previous window: p90
-61s, p95 171s, max 410s; 123 and 56). The improvement is entirely that this
-window contains one burst instead of two:
-
-| Hour (UTC) | runs started | queue med | queue p90 | queue max |
-|---|---|---|---|---|
-| 01 | 8 | 12s | 44s | 55s |
-| 02 | 16 | **168s** | 285s | 313s |
-| 03–13 | 3–21/hr | 3s | ≤24s | ≤59s |
-| 14 | 15 | 3s | 60s | 61s |
-| 15 | 12 | 3s | 71s | 87s |
-| 16–23 | 2–17/hr | 3s | ≤35s | ≤35s |
-
-The 02:00 hour is the same pattern reported last time: a batch of PRs lands
-together and ~13 jobs per PR saturate the pool. Nothing regressed and nothing
-improved structurally — see proposal 5.
+Across 820 independent-job samples: median 3s, p75 4s, **p90 18s, p95 31s, p99
+63s, max 303s**. 43 jobs waited more than 30s and **only one** waited more than
+120s (previous window: p90 28s, p95 61s, max 313s; 85 and 31). The 02:00 UTC
+burst that has appeared in every prior report did not recur — hour 02 saw 56
+job-starts at a 3s median and an 18s p90. The single 303s outlier sits in hour
+01. Nothing structural changed here; this is a quieter contributor window, and
+proposal 3 stands on the earlier evidence rather than on this one.
 
 ### Critical path
 
-- **Ordinary PR:** still `test`, last to finish in 44 of 53 successful Build
-  runs. But post-#4935 the margin is thin: `test` 349s against `docs` 378s.
-- **Docs-touching PR:** `docs` now determines wall clock. Its 378s is 317s of
-  uncached `quarto render` plus 48s of dependency install.
-- **Sandbox-tools PR:** unchanged — `detect-slow` → `check-version-bump` →
-  `slow-tool-tests-dev` (779s) → `slow-tool-tests-release`, serialized by
-  `needs`. The 805–1105s tail of Build runs is all this chain.
+Last-finishing job across the 40 successful Build runs:
 
-## The four-worker straggler
+| Last job | runs | median margin over the runner-up |
+|---|---|---|
+| `test` | 18 | 218s |
+| `docs` | 16 | 39s |
+| `slow-tool-tests-dev` | 6 | 446s |
 
-`test` gets 4 xdist workers since #4935. From the `test-report-log.jsonl`
-artifacts of all five post-merge Build runs (10 legs, 13,245–13,250 tests each):
+Split by PR shape:
 
-| Run | Leg | worker busy times | max | leg avg | imbalance | test-phase wall |
-|---|---|---|---|---|---|---|
-| 32229091541 | 3.10 | 161 / **266** / 155 / 163 | 266s | 186s | **+80s** | 271s |
-| 32229091541 | 3.11 | 182 / 182 / 181 / 213 | 213s | 189s | +23s | 218s |
-| 32229392189 | 3.10 | 153 / **256** / 151 / 156 | 256s | 179s | **+77s** | 261s |
-| 32229392189 | 3.11 | 171 / 175 / 200 / 212 | 212s | 190s | +23s | 219s |
-| 32232439402 | 3.10 | 180 / 212 / 178 / 179 | 212s | 187s | +25s | 218s |
-| 32232439402 | 3.11 | 222 / 175 / 220 / 175 | 222s | 198s | +24s | 224s |
-| 32232447154 | 3.10 | 204 / 185 / 189 / 189 | 204s | 192s | +12s | 211s |
-| 32232447154 | 3.11 | 146 / 149 / 145 / **248** | 248s | 172s | **+76s** | 254s |
-| 32232453887 | 3.10 | 174 / 155 / **259** / 145 | 259s | 183s | **+76s** | 265s |
-| 32232453887 | 3.11 | 184 / 204 / 194 / 188 | 204s | 192s | +12s | 209s |
+- **docs-touching PR (24 of 40):** `docs` finishes last in 16 of 24, a median
+  **+39s** after the slower test leg. This is the new common case.
+- **Code-only PR (10 of 40, excluding sandbox-tools):** `test` still determines
+  wall clock, now at 344s for the binding leg.
+- **Sandbox-tools PR (6 of 40):** unchanged — `detect-slow` →
+  `check-version-bump` → `slow-tool-tests-dev` (764s), serialized by `needs`.
+  The 790s p90 of Build is entirely this chain.
 
-Mechanism: xdist's default `--dist load` hands each worker a large contiguous
-slice of the collection up front, and collection is file-ordered, so a file's
-tests stay together and cost clusters travel as a unit. The straggler in
-32229091541/3.10 was one worker holding `test_eval_set.py` (49s) *and*
-`test_sample_limits.py` (32s) *and* `test_cancellation_logging.py` (10s), while
-the worker that finished 111s earlier had picked up the cheap
-`agent/deepagent` and `model` directories.
+## Worker balance after `--dist worksteal`
 
-A Build run waits for the slower of its two legs, so per run the recoverable
-wall clock is `max(leg wall) − leg avg`: **81s, 71s, 26s, 62s, 73s** across the
-five runs, median 71s.
+From the `test-report-log.jsonl` artifacts of eight post-merge CI legs
+(13,324–13,424 tests each):
 
-### Local A/B: `--dist worksteal` removes the straggler
-
-Same command as CI on an identical runner (4 logical / 2 physical vCPU, 15GB,
-xdist 3.8.0), full suite, identical results in all five runs (9,446 passed /
-3,799 skipped / 0 failed):
-
-| Arm | worker busy times | max | leg avg | imbalance | test-phase wall | worker efficiency |
-|---|---|---|---|---|---|---|
-| `load`, run 1 | 200 / 202 / 243 / 240 | 243s | 221s | +22s (+10%) | 251s | 88% |
-| `load`, run 2 | 196 / **305** / 193 / 195 | 305s | 222s | **+83s (+37%)** | 310s | 72% |
-| `worksteal`, run 1 | 230 / 216 / 222 / 232 | 232s | 225s | +7s (+3%) | 234s | **96%** |
-| `worksteal`, run 2 | 233 / 225 / 224 / 236 | 236s | 229s | +7s (+3%) | 239s | **96%** |
-| `worksteal`, run 3 (via `addopts`) | 239 / 234 / 233 / 240 | 240s | 236s | +4s (+2%) | 247s | **96%** |
-
-The second `load` run reproduced the CI straggler exactly — one worker at 305s
-while the other three finished in ~195s — and all three worksteal runs held at
-+4–7s and 96% worker efficiency.
-
-Total pytest wall was 328s / 451s for `load` and 342s / 380s / 356s for
-`worksteal`, but this box's fixed overhead (collection plus worker startup)
-wandered between 77s and 141s across the five runs, so **total wall is too noisy
-here to quote; imbalance and worker efficiency are the run-internal metrics that
-survive that noise**. The expected CI effect is therefore the 71s median of
-recoverable Build wall clock from the table above, and the next report will
-measure it with the same before/after split that validated #4935.
-
-Three full-suite runs under a completely different test-to-worker assignment, all
-green with identical counts, is also the best available evidence against the
-order-dependence risk noted in proposal 1.
-
-### CI A/B (one run per arm)
-
-The two PRs this run opened are the same base commit differing only in the flag,
-so their Build runs are a real CI A/B — #261 carries `worksteal`, #262 (this
-report) carries `load`:
-
-| PR | Arm | Leg | worker busy times | imbalance | worker efficiency | test-phase wall | pytest step |
+| Run | Leg | worker busy times | max | leg avg | imbalance | efficiency | test-phase wall |
 |---|---|---|---|---|---|---|---|
-| #261 | `worksteal` | 3.10 | 161 / 152 / 160 / 154 | **+4s (+3%)** | **95%** | 165s | 260s |
-| #261 | `worksteal` | 3.11 | 190 / 183 / 191 / 192 | **+3s (+2%)** | **95%** | 199s | 401s |
-| #262 | `load` | 3.10 | 203 / 169 / 167 / 178 | +24s (+13%) | 86% | 209s | 314s |
-| #262 | `load` | 3.11 | 160 / 160 / **266** / 156 | **+80s (+43%)** | 68% | 271s | 365s |
+| 32462533819 | 3.10 | 183 / 176 / 184 / 190 | 190s | 183s | +6s (+3%) | 97% | 193s |
+| 32462533819 | 3.11 | 197 / 196 / 202 / 194 | 202s | 197s | +5s (+3%) | 98% | 203s |
+| 32441009452 | 3.10 | 211 / 205 / 205 / 214 | 214s | 209s | +5s (+2%) | 98% | 216s |
+| 32441009452 | 3.11 | 172 / 167 / 170 / 177 | 177s | 172s | +6s (+3%) | 97% | 178s |
+| 32440385439 | 3.10 | 179 / 175 / 173 / 180 | 180s | 177s | +3s (+2%) | 98% | 185s |
+| 32438521119 | 3.11 | 184 / 183 / 176 / 186 | 186s | 182s | +4s (+2%) | 98% | 191s |
+| 32434341202 | 3.10 | 196 / 194 / 195 / 199 | 199s | 196s | +3s (+1%) | 99% | 208s |
+| 32432867987 | 3.10 | 193 / 190 / 191 / 199 | 199s | 193s | +6s (+3%) | 97% | 202s |
 
-The straggler reproduced on #262's 3.11 leg — one worker at 266s against 156–160s
-— and both worksteal legs came in at +3–4s and 95% efficiency. Comparing what a
-Build run actually waits for, the slower of its two legs: 199s of test-phase wall
-under worksteal against 271s under load, a **72s difference** that lands almost
-exactly on the 71s median predicted from the ten-leg table above.
+Against the pre-fix table in the previous report — imbalance +12s to +80s,
+efficiency 68–88%, a ~76–80s straggler in 4 of 10 legs — this is a complete
+elimination of the failure mode. The local A/B predicted +4–7s and 96%; CI
+delivered +3–6s and 97–99%.
 
-Two honest caveats. It is one run per arm on different runners, and the work
-totals differ (627–755s vs 718–741s), so the *absolute* seconds are not directly
-comparable — worker efficiency is. And #261's 3.11 leg had the longest pytest
-step of the four (401s) despite the best balance, because that leg spent 202s
-outside the test phase against 94–105s for the others: unrelated runner variance
-in install and collection, and a reminder that the ~99s of fixed overhead
-(proposal 8) has a long tail of its own.
+The leg-to-leg spread inside a Build run tells the same story from the job side:
+legs differing by more than 60s fell from **21% of runs (13/61) at 2 workers**
+to **6% (3/47) under worksteal**, with the median spread at 23s. (The 4-worker
+`load` arm is only 4 runs — 0 of them over 60s — so it contributes nothing
+here; the straggler evidence for that arm is the previous report's leg-level
+table.)
 
 ## Slowest tests
 
-Median seconds across 20 CI test jobs, `call` + `setup` + `teardown` combined.
-147 tests captured (`--durations-min=1`), 156.0s total per job — spread across 2
-workers for most of the window and 4 for the newest legs, so **these numbers are
-inflated ~15–25% relative to the last report by CPU contention, not by the tests
-getting slower** (see the data-quality note).
+Median seconds across 18 CI test jobs, `call` + `setup` + `teardown` combined.
+119 tests captured (`--durations-min=1`), 178.1s total per job. All 18 jobs in
+this window ran 4 workers with worksteal, so these are comparable with each
+other but **still not comparable with pre-#4935 (2-worker) reports** — see the
+suite-size section for the like-for-like series.
 
 | Median | Test | Classification |
 |---|---|---|
-| 7.2s | `test_eval_set_scanner.py::test_scout_scan_resume_reruns_failed_scans` | genuinely heavy (eval_set + scout scan resume) |
-| 6.7s | `_control/test_launch_handoff.py::test_eval_detach_via_dotenv_detaches_exactly_once` | real CLI subprocess + control-server handshake |
-| 6.7s | `_control/test_launch_handoff.py::test_eval_detach_hands_off_and_leaves_eval_running` | (as above) |
-| 6.1s | `test_eval_set_scanner.py::test_scanner_resume_...[s3]` | moto S3 + full eval-set resume |
-| 6.0s | `test_eval_set.py::test_eval_set_previous_task_args` | **real sleeps**: ~5s of it is `sleep_for_3_task` plus a `keyboard_interrupt(2)` timer |
-| 5.4s | `agent/test_agent_bridge.py::test_google_bridge_streaming_not_supported` | full `eval()` per test; cost is bridge/SDK import + eval startup |
-| 5.3s | `agent/test_agent_bridge.py::test_google_bridge_computer_use_incompatible_model` | (as above) |
-| 5.1s | `_control/test_launch_handoff.py::test_eval_json_redirects_subprocess_stdout_to_stderr` | real CLI subprocess (documented: needs real fds) |
-| 5.0s | `log/test_eval_log_config.py::test_eval_log_run_config_round_trip` | round-trips a full run config through eval |
-| 4.5s | `_control/test_launch_handoff.py::test_eval_detach_fails_when_control_bind_fails` | real CLI subprocess |
+| 8.5s | `test_eval_set.py::test_retry_attempt_killed_mid_sweep_leaves_completed_samples_reusable` | genuinely heavy — spawns the harness as a real subprocess twice, one killed by SIGKILL. New at #1; not previously in the tail |
+| 8.2s | `test_eval_set_scanner.py::test_scout_scan_resume_reruns_failed_scans` | genuinely heavy (eval_set + scout scan resume) |
+| 7.5s | `_control/test_launch_handoff.py::test_eval_detach_hands_off_and_leaves_eval_running` | real CLI subprocess + control-server handshake |
+| 7.2s | `_control/test_launch_handoff.py::test_eval_detach_via_dotenv_detaches_exactly_once` | (as above) |
+| 7.0s | `test_eval_set_scanner.py::test_scanner_resume_...[s3]` | moto S3 + full eval-set resume |
+| 6.7s | `agent/test_agent_bridge.py::test_google_bridge_computer_use_incompatible_model` | full `eval()` per test; cost is bridge/SDK import + eval startup |
+| 6.1s | `test_eval_set.py::test_eval_set_previous_task_args` | **real sleeps**: ~5s is `sleep_for_3_task` plus a `keyboard_interrupt(2)` timer |
+| 5.9s | `_control/test_launch_handoff.py::test_eval_json_redirects_subprocess_stdout_to_stderr` | real CLI subprocess (documented: needs real fds) |
+| 5.8s | `agent/test_agent_bridge.py::test_google_bridge_streaming_not_supported` | (as above) |
+| 5.6s | `log/test_eval_log_config.py::test_eval_log_run_config_round_trip` | round-trips a full run config through eval |
+| 4.6s | `_control/test_launch_handoff.py::test_eval_detach_fails_when_control_bind_fails` | real CLI subprocess |
 | 4.3s | `_control/test_pause.py::test_eval_hard_pause_time_limit_reap_reparks_grader` | real timers inherent to pause/limit semantics |
-| 4.3s | `test_sample_limits.py::test_working_limit` | real waits inherent to limit tests |
-| 4.1s | `test_retry.py::test_eval_retryable` | new this window (n=1 job); retry flow |
-| 3.8s | `test_sample_shuffle.py::test_sample_shuffle` | two full evals; overlaps `test_sample_shuffle_limit` |
-| 3.4s | `test_sample_limits.py::test_solver_timeout_not_scored` | real waits |
+| 4.2s | `test_sample_limits.py::test_working_limit` | real waits inherent to limit tests |
+| 3.9s | `test_sample_shuffle.py::test_sample_shuffle` | two full evals; overlaps `test_sample_shuffle_limit` |
+| 3.5s | `test_eval_set.py::test_eval_set_retry_in_same_second_does_not_clobber_failed_log` | eval_set retry timing |
 
-No test in the tail is a slow-policy violation: nothing in the top 30 uses
-docker or an unmocked external service. Standing docker-trap sweep found two
-new unmarked docker tests (`tools/test_think_tool.py`) — both sit behind
-`@skip_if_no_anthropic` and skip in 1ms in the PR gate, so it is a convention
-gap with no wall-clock cost (proposal 12).
+The new #1 was read in full: it runs `retry_deferred_log_harness.py` as a real
+`subprocess` twice (once killed at settle, once to completion), so its cost is
+two interpreter startups plus two `inspect_ai` imports plus two eval_set passes.
+Inherent to what it asserts — not a mechanical fix.
+
+### Docker-trap sweep
+
+An AST sweep of every `tests/**` test function decorated with
+`skip_if_no_docker` but not `@pytest.mark.slow` found **6** (was 5):
+
+| Test | Other skip gate | Measured cost in the PR gate |
+|---|---|---|
+| `util/sandbox/test_docker_compose_config.py` × 3 | none | 0.05s total, measured locally with docker present |
+| `tools/test_think_tool.py` × 2 | `skip_if_no_anthropic` | skips in ~1ms |
+| `agent/test_agent_docs.py::test_agent_collect` (new) | `skip_if_no_openai` | skips in ~1ms |
+
+The three ungated ones were run locally against a live docker daemon: they cost
+**0.05s combined**, because `ComposeProject.create()` writes and validates a
+compose file without starting a container. So they are not slow tests wearing
+the wrong gate — they are non-docker tests wearing `skip_if_no_docker`. This
+*downgrades* proposal 11 from "policy gap with no wall-clock cost" to "the
+decorator is arguably wrong, not the marker".
 
 ## Suite size
 
-Per matrix leg (pytest summary line, 20 CI jobs): **13,247 tests collected —
-9,449 passed, 3,798 skipped**, in 393s median (min 302s, max 481s; the spread is
-the 2-worker/4-worker cutover plus the straggler). Collected locally at
-`origin/main`: 13,245.
+Per matrix leg (pytest summary line, 18 CI jobs): **13,370 tests collected —
+9,542 passed, 3,828 skipped**, in 291s median. Splitting every leg in the last
+three snapshots by which fix its *branch* carried gives the only clean series:
 
-From the report-log artifacts of the merge run (4 workers, both legs):
+| Arm | legs | pytest-reported wall | collected | ≥1s tail total |
+|---|---|---|---|---|
+| 2 workers | 32 | 407s | 13,245 | 149s |
+| 4 workers, `load` | 8 | 311s | 13,247 | 172s |
+| 4 workers, `worksteal` | 18 | **291s** | 13,370 | 178s |
 
-- **Test-phase work 745s (3.10) / 758s (3.11)**, of which call 699/716s, setup
-  29/27s, teardown 17/14s.
-- **Tail vs body:** 10–11 tests ≥5s = 75–76s (~10%); 137–149 tests ≥1s =
-  295–323s (~40%); the remaining **~13,100 tests = 435–450s (57–60%)**. Median
-  test 2.3–3.2ms, mean 56–57ms.
-- **Heaviest files:** `test_eval_set_scanner.py` 54–57s/104 tests,
-  `test_eval_set.py` 48–49s/68, `_control/test_launch_handoff.py` 45–47s/41,
-  `_control/test_eval_set_integration.py` 29–48s/47, `test_sample_limits.py`
-  32–34s/33.
-- **By directory:** root 234–243s (518 tests), `_control` 95–117s (1,115),
-  `scorer` 59–61s (689), `log` 45–47s (1,011), `util` 44s (1,368), `model`
-  37–42s (1,542), `agent` 37–40s (544).
-- **Collection and startup is ~99s of the 320s step** (step 320s median against
-  a 221s median test-phase wall). Single-process `--collect-only` is 32s cold,
-  and xdist pays it once on the controller plus once per worker. That is now ~31%
-  of the step — proposal 8, where the `--doctest-modules` hypothesis is measured
-  and ruled out.
+The tail total rising 172 → 178s is suite growth plus noise across a 2-day gap,
+not a per-test regression — no individual test in the top 30 grew.
+
+From the report-log artifacts (4 workers, both legs):
+
+- **Test-phase work 687–835s per leg** (733s / 788s on the 3.10 / 3.11 legs of
+  run 32462533819), of which call 693/754s, setup 27/22s, teardown 14/12s.
+- **Tail vs body:** 9–11 tests ≥5s = 58–83s (7–11%); 123–166 tests ≥1s =
+  261–338s (37–43%); the remaining **~13,200 tests = 404–496s (57–63%)**.
+- **Heaviest files:** `test_eval_set_scanner.py` 57s, `test_eval_set.py` 55s,
+  `_control/test_launch_handoff.py` 40s, `test_sample_limits.py` 33s,
+  `_control/test_eval_set_integration.py` 29s,
+  `agent/deepagent/test_deepagent_background.py` 21s, `_view/test_view_server.py`
+  20s.
+- **Collection and startup is now ~104s of the 302s step** — **34% of it**, up
+  from ~31% last report, because worksteal shortened the test phase and left the
+  fixed cost untouched. (302s median pytest step over 99 legs, against a 198s
+  median test-phase wall over the 8 legs whose report logs were downloaded;
+  different samples, so read this as "about 100s".) It is paid five times per
+  leg, once on the controller and once per worker. See proposal 4.
 
 ### Growth
 
-Source-level test functions at `origin/main`, by date:
+Top-level test functions at `origin/main` (`^(async )?def test_` under `tests/`),
+same measure as prior reports. Re-derived here at the last commit before 12:00
+UTC on each date, so the older rows sit a few tens of functions below the
+figures those reports published (which used whatever commit was HEAD at
+collection time); the series is internally consistent:
 
-| Date | `def test_` in `tests/` | Δ |
+| Date | test functions | Δ |
 |---|---|---|
-| 2026-08-04 | 7,208 | — |
-| 2026-08-12 | 7,474 | +266 (8d) |
-| 2026-08-18 | 7,723 | +249 (6d) |
-| 2026-08-19 | 7,723 | 0 |
+| 2026-08-12 | 7,423 | — |
+| 2026-08-18 | 7,716 | +293 (6d) |
+| 2026-08-19 | 7,723 | +7 |
+| 2026-08-21 | 7,786 | +63 (2d) |
 
-So ~+250 test functions/week, ~+3.3%/week, expanding to ~+430 collected items
-via parametrize and the anyio backends. Last report's indirect estimate — the
-pytest step stayed at ~415s across six days *despite* #4848 removing 45s of
-measured test work — implies about +22s of 2-worker wall clock per 6 days, i.e.
-**~+26s/week at 2 workers, ~+13s/week at 4**. At that rate #4935's 97s buys
-roughly two months before growth absorbs it, against the two-week half-life the
-previous tail fix had. Worker count bought time that per-test fixes could not.
+~+215 test functions/week, expanding to ~+430 collected items/week (13,247 →
+13,370 in two days). Pricing that against this window's measured mean cost per
+test (55ms) gives ~24s of *worker* time per week — but the fastest-growing files
+priced last report at ~12ms/test, so the realistic band is **+5–24s of work per
+week, i.e. +1–6s of leg wall clock per week at four workers**. That is a further
+downgrade of proposal 6: at this rate worksteal's 43s buys 7 weeks and #4935's
+97s buys months.
 
 ### Duplicate-coverage and low-value sampling
 
-Sampled the fastest-growing test files this week by line count, then priced each
-from the report log:
+Carried forward, unchanged and still not eligible as mechanical fixes:
+`test_sample_shuffle` (3.9s) and `test_sample_shuffle_limit` assert the same
+seeded-order property with and without `limit=20` and could be one parametrized
+test (~2.4s); the `test_launch_handoff.py` cluster (5 tests, 40s) each spawns
+the real CLI and the cost is inherent. No exact duplicates found in this
+window's sampling, so no test deletion was eligible as a safe fix.
 
-| File | Lines added since 08-12 | Test-phase cost |
-|---|---|---|
-| `_control/test_ctl.py` | +2,176 | **1.2s** |
-| `_eval/task/test_input_media.py` | +950 | 7.0s |
-| `_control/test_limits.py` | +676 | 3.2s |
-| `_control/test_pause.py` | +631 | 10.4s |
-| `util/test_media_resolver.py` | +496 | 0.3s |
-| `model/test_inline_media_serialization.py` | +326 | 0.6s |
-
-**Line growth is not time growth.** The single fastest-growing test file in the
-repo costs 1.2s across 100+ tests — these are cheap unit tests, which is the
-pattern you want. That materially de-escalates last report's test-volume concern
-(proposal 6): the body of the suite is 57–60% of test time, but what is being
-added to it is inexpensive.
-
-Findings carried forward unchanged: `test_sample_shuffle` (3.8s) and
-`test_sample_shuffle_limit` (2.4s) assert the same seeded-order property with
-and without `limit=20` and could be one parametrized test (~2.4s); the
-`test_launch_handoff.py` cluster (5 tests, 45s) each spawns the real CLI and the
-cost is inherent to what it asserts. No exact duplicates found, so no test
-deletion was eligible as a safe fix.
+New this run, measured rather than sampled: **2,670 of the 13,324 items
+collected locally are trio variants that are skipped unless `--runtrio` is
+passed** (~20% of the suite). Locally,
+suppressing them at collection time (an `anyio_backend` fixture in
+`tests/conftest.py` whose params depend on the flag) takes cold collection from
+36.7s to 31.8s and item count from 13,324 to 10,408. See proposal 4.
 
 ## Regressions since last report
 
-- **None in execution.** Every job's exec median is within 2s of last window
-  except `test`, which improved.
-- No individual test grew after correcting for the 4-worker inflation.
-- `action_required` runs rose 21 → 33 of 200 (PR-gate approval waits). This is
-  contributor mix, not CI, but it is worth knowing that a sixth of runs now
-  start with a human gate.
+- **None on the critical path.** Every job's exec median is within 4s of the
+  previous window except three that moved: `test` (improved 444 → 334s),
+  `check-version-bump` (improved 30 → 8s, the last unverified `blob:none` leg)
+  and `slow-tests` (224 → 235s — see the next bullet).
+- `slow-tests` `Run slow tests` step rose 152s (n=2) → 206s (n=7). **Not a
+  main-line regression:** all seven samples come from two branches actively
+  modifying checkpoint code (`claude/issue-143-…` ×6, `fix-hydration-interrupt`
+  ×1), and `tests/checkpoint/`'s test count at `origin/main` is unchanged at 207.
+  The job is also well off the critical path at 235s.
+- `action_required` runs fell 33 → 29 of 200. Still ~1 in 7 runs starting behind
+  a human approval gate.
 
 ## Waste
 
-- Cancelled superseded runs: 7/200, 28.2 runner-min (previous: 5/200, 19.0).
-- Failed jobs burned 28.0 runner-min, 25.6 of it in `test` (previous: 48.6 /
-  40.3).
-- Compute: **1,489 runner-min** total (Build 1,325; Viewer 160; Changelog Lint
-  4), down from 1,573 — `-n logical` shortens the job, so more parallelism cost
-  *less* compute, and `slow-tool-tests-dev` ran 8 times against 11.
-- Run conclusions: 150 success, 33 `action_required`, 10 failure, 7 cancelled.
-- `docs`: 317s Quarto render, still uncached (proposal 3).
-- Documentation-only PRs that aren't markdown still run the full suite: the
-  `test` job's `code` filter excludes `docs/**` and `**/*.md` but not
-  `design/**` (proposal 9). This report's own PR demonstrates it again.
+- **Cancelled jobs: 85.8 runner-min across all 200 runs** — every cancelled
+  job, including fail-fast cancellations inside runs that concluded failure;
+  the 10 runs cancelled outright (superseded pushes) account for 70.1 of it.
+  `test` legs account for 41.5 of those minutes, `slow-tool-tests-dev` 16.3,
+  `docs` 10.4. Up sharply from the previous window (40.2 min on the same
+  measure, 7 runs cancelled). Longer-running jobs cancel with more sunk time;
+  this is the cost of `cancel-in-progress` doing its job on a busy branch, not
+  a defect.
+- Failed jobs burned 41.6 runner-min (was 28.0), 27.4 of it in `test`. Five
+  `test` failures across four branches; none reproduced on `origin/main`.
+- Compute: **1,237 runner-min** per 200 runs (Build 1,081; Validate Embedded
+  Viewer 149; Changelog Lint 6), down from 1,489 — worksteal shortens the job,
+  so the same work costs less.
+- Run conclusions: 143 success, 29 `action_required`, 18 failure, 10 cancelled.
+- **Every PR fans out ~20 job records (15 Build + 4 Viewer + 1 Changelog).**
+  Six of them are overhead-dominated: `ruff` 10s exec for 1.5s of linting,
+  `changes` 7s, `detect-slow` 8s, `check-version-bump` 8s for 0s of work,
+  `submodule-on-main` 8s. Irrelevant to wall clock, relevant to burst load
+  (proposals 3 and 10).
+- `docs`: 315s Quarto render, still uncached; 46s dependency install
+  ([issue #297](https://github.com/meridianlabs-ai/inspect_ai/issues/297)).
+- `slow-tool-tests-release` executed **zero** times again (54 skipped, 5
+  cancelled), which continues to cap proposal 9's value.
+- Documentation-only PRs that aren't markdown still run the full suite
+  ([issue #299](https://github.com/meridianlabs-ai/inspect_ai/issues/299)).
 
 ## Impact verification (previous run's PRs)
 
-**#4935 — confirmed, both halves.** The first time a ci-perf prediction has been
-this close.
+**#4948 (`--dist worksteal`) — mechanism confirmed, magnitude missed by ~40%.**
 
-| Prediction | Outcome |
-|---|---|
-| `-n logical`: `test` exec 445 → ~330s | **Held.** 447 → 349s (−98s) |
-| Build wall 485 → ~370s | **Held.** 485 → 383s (−102s) |
-| `blob:none` on the last 4 checkouts: ~75s off the sandbox-tools chain | **Partly verified.** `check-version-bump` 27.5 → 5s, `slow-tool-tests-dev` 29.5 → 6s (−46s on the two that ran); `slow-tests` and `slow-tool-tests-release` didn't run post-merge |
-| Memory risk at 4 workers (7.29GB of 15GB predicted peak) | No OOM, no worker deaths in 10 post-merge legs; all 4 workers reported in every leg |
+Every Build run in the last three snapshots was classified by whether its head
+commit's history contains the fix (GitHub compare API), not by wall-clock time —
+branches lag merges, and time-based classification badly contaminated a first
+pass at this.
 
-The one thing the prediction missed was second-order: 4 workers made xdist's
-scheduling imbalance the new long pole, which nothing in the previous analysis
-anticipated.
+| Metric | 4 workers, `load` (n=4 runs) | 4 workers, `worksteal` (n=47 runs) | Predicted |
+|---|---|---|---|
+| Worker imbalance | +12s..+80s, 68–88% efficiency (prior report, 10 legs) | **+3..+6s, 97–99%** (8 legs) | +4–7s, 96% |
+| Legs with a >60s straggler | 4 of 10 (prior report) | **0 of 8 sampled** | ~0 |
+| Slower leg's pytest step | 356s | **313s** | — |
+| Binding (slower) test leg exec | 387s | **344s** | — |
+| Build wall, plain PRs | 383s (n=3) | **345s** (n=12) | ~312s (−71s) |
+| pytest-reported wall, all legs | 311s (n=8) | **291s** (n=18) | — |
+
+So the fix removed **~43s** of binding-leg time and **~38s** of Build wall on
+plain PRs, against a predicted 71s. Why the estimate ran high: 71s was the
+median of `max(leg wall) − leg avg` over five runs, which assumes perfect
+rebalancing drives the slowest worker all the way down to the average, and which
+was computed on a sample where 4 of 10 legs happened to carry a straggler — a
+40% straggler rate against the ~21% seen over the wider 2-worker sample. The
+lesson for future estimates: `max − avg` is an upper bound on recoverable time,
+and small samples over-represent the tail they were chosen to illustrate. Two
+caveats on the measurement: the `load` arm is only 4 runs / 8 legs, and two days
+of suite growth (+123 collected items) push the comparison against worksteal, so
+43s is if anything slightly conservative.
+
+**#4935 (`blob:none`) — the last two unverified legs now check out.**
+`slow-tests` ran 7 times this window with a **6s** median checkout (p90 13.8s)
+against 56s before, and `check-version-bump`'s job exec fell 30s → 8s.
+`slow-tool-tests-release` still has not executed once, so that leg stays
+unverified — and given it has been skipped in every window since the change, it
+will likely stay that way.
 
 ## Proposals (ranked)
 
-1. **`--dist worksteal` for the distributed test run.** Measured problem: 4 of 10
-   post-#4935 CI legs stranded 76–80s of work on one worker while three sat idle;
-   median recoverable Build wall clock across the five runs is **71s**. Fix
-   validated locally over five full-suite runs, all with identical results:
-   imbalance +22s/+83s under `load` against +4s/+7s/+7s under `worksteal`, worker
-   efficiency 72–88% against 96%.
+1. **Cache the Quarto render for `docs`.** 315s of the job's 378s, uncached, and
+   `docs` is now the wall-clock determinant for most PRs: 24 of 40 successful
+   Build runs touched docs, and `docs` finished last in 16 of those, +39s past
+   the slower test leg. Capping `docs` under `test`'s 344s is worth **~40s of
+   wall clock on the ~40% of successful runs where `docs` finishes last** (60%
+   touched docs; `docs` finished last in two-thirds of those), plus ~290s on
+   the rare docs-only PR (1 in this window). Note the honest ceiling: because `test` is close behind, caching
+   Quarto perfectly does not buy 315s of wall clock — it buys the ~40s by which
+   `docs` currently overshoots `test`. Structural (workflow change this run
+   cannot push). Status: carried from last report's proposal 3, **promoted to #1**, filed as
+   [meridianlabs-ai/inspect_ai#297](https://github.com/meridianlabs-ai/inspect_ai/issues/297),
+   then **implemented by a maintainer in this report's own PR** (commit
+   `7992b1ce8`): the render is skipped when a cache marker keyed on
+   `hashFiles('docs/**', 'requirements-doc.txt', 'src/inspect_ai/**')` proves the
+   exact input set already rendered successfully. Verification falls to the next
+   snapshot.
 
-   Added to `addopts` in `pyproject.toml` rather than to the workflow step, so it
-   also covers the scheduled slow-test suite (which passes `-n logical` too) and
-   local `-n` runs; `--dist` is inert without `-n`, verified. The other candidate
-   home is beside `-n logical` in `build.yml`, which this run could not write
-   (proposal 2) — the PR says so explicitly and invites a maintainer to move it.
-
-   Risk to weigh: changing the distribution algorithm reshuffles which tests
-   share a worker, and this suite has a history of order-dependent flakiness
-   (meridianlabs-ai/inspect_ai#247, #250). `load` is already nondeterministic, so
-   this changes the distribution of co-location rather than introducing it; three
-   full-suite runs under a completely different assignment came back green with
-   identical counts. Status: **PR opened #4948** (originally fork PR
-   [#261](https://github.com/meridianlabs-ai/inspect_ai/pull/261), promoted
-   upstream as #4946, then combined with this report into #4948).
-
-2. **Unblock the scheduled run.** Three independent mechanical blockers, each
+2. **Unblock the scheduled run.** Three independent mechanical blockers, all
    re-verified today:
-   - *No `workflow` scope* — `git push` of any branch touching
-     `.github/workflows/**` is rejected: `refusing to allow a Personal Access
+   - *No `workflow` scope, on both paths* — `git push` of a branch touching
+     `.github/workflows/**` is rejected (`refusing to allow a Personal Access
      Token to create or update workflow .github/workflows/build.yml without
-     workflow scope`. Every safe fix this skill has shipped (#4746, #4747,
-     #4760, #4848, #4935) would have been blocked by this, and it forced
-     proposal 1 into `pyproject.toml` rather than beside `-n logical`.
+     workflow scope`), and this run additionally probed the REST Contents API
+     (`PUT /repos/meridianlabs-ai/inspect_ai/contents/.github/workflows/build.yml`
+     on a throwaway branch, since deleted), which returns the identical 403.
+     There is no way around it with the current token.
    - *No write on upstream* — `POST /repos/UKGovernmentBEIS/inspect_ai/pulls`
      returns `403 Resource not accessible by personal access token` even with
-     `head_repo` set as AGENTS.md prescribes (probed with a deliberately invalid
-     head: a permissions failure, not a validation one). Fine-grained PATs
-     cannot be scoped to a repo the account doesn't own.
-   - *`.claude/**` is not writable from the sandbox* — new this run, and it bit:
-     the collector fix in proposal 4 is the change this run most needed, was
-     written and validated, and could not be committed. This one is a harness
-     permission, not a token scope.
+     `head_repo` set as AGENTS.md prescribes (probed with a deliberately
+     nonexistent head: a permissions failure, not a validation one).
+   - *`.claude/**` is not writable from the sandbox* — the collector fix in
+     proposal 5 has now been blocked by this for two consecutive runs.
 
-   Fix: a classic PAT with `public_repo` + `workflow` for the workflow, and
-   whatever allows `.claude/**` writes in the scheduled sandbox. Until then an
-   unattended run can push branches touching everything *except* workflows and
-   `.claude/`, and can open PRs only on the fork. Structural (credentials).
-   Status: carried from last report's proposal 3, re-evidenced, **now the
-   binding constraint on this skill's output**.
+   Consequence, concretely: **all three of this report's top execution-side
+   items are unshippable by this skill**, and this run therefore ships no code
+   change at all. Fix: a classic PAT with `public_repo` + `workflow`, and
+   whatever allows `.claude/**` writes in the scheduled sandbox. Structural
+   (credentials). Status: carried and re-evidenced for the third consecutive
+   run, **now filed as
+   [meridianlabs-ai/inspect_ai#298](https://github.com/meridianlabs-ai/inspect_ai/issues/298)**.
 
-3. **Cache the Quarto render for `docs`.** 317s of the job's 378s, uncached, and
-   `docs` is now the longest Build job (`test` is 349s post-#4935). Every
-   docs-touching PR pays it in full. Structural. Status: carried (was proposal
-   7), **promotion realized exactly as predicted — now the top execution-side
-   item after proposal 1**.
+3. **Runner pool size for burst absorption.** Queue was the calmest yet this
+   window (p90 18s, one job over 120s) and the 02:00 UTC burst did not recur,
+   so there is no fresh evidence — but nothing structural changed either, and
+   ~20 job records per PR still means a batch of 20 PRs is ~400 queued jobs.
+   Structural/cost. Status: carried, **no new evidence this window**; the case
+   rests on the 2026-08-18/19 bursts (168s median queue inside the 02:00 hour).
 
-4. **Collector: validate the run window and refetch.** This run lost a full
-   collection cycle to a stale API replica: the committed collector emitted its
-   gap warning and then wrote the snapshot anyway, spanning 2026-06-12 to
-   2026-08-17. Probing showed ~1 in 5 requests to page 1 returns a ~31h-stale
-   replica. The fix, written and used for this run's snapshot: split the fetch
-   into `fetch_runs_once`, add a `window_problem()` check for both a stale head
-   (`now − newest_run_start`) and an internal gap, retry up to N times, and fall
-   back to the freshest candidate with a loud warning. Refetching costs 2 API
-   calls against the ~200 the job pass costs, so retrying is nearly free.
-   One correction from using it: scale the *head-staleness* tolerance to the
-   window's own run cadence (`max(1h, 20 × median inter-run gap)`) but keep the
-   existing fixed 12h threshold for internal gaps — the cadence-scaled tolerance
-   came out at 3.1h and flagged two genuine overnight lulls (3.8h, 3.65h).
-   Status: carried (was proposal 6), **upgraded to urgent** — unshippable only
-   because of the `.claude/**` blocker in proposal 2.
+4. **Collection and startup is 34% of the pytest step — and there is a measured
+   lever.** The step is 302s median against a ~198s test-phase wall, so ~104s is
+   collection, worker startup and reporting, paid once on the controller and
+   once per worker. Two measurements this run:
+   - **Trio variants cost ~5s of every collection pass.** 2,670 of the 13,324
+     items collected locally are `[trio]` variants that `tests/conftest.py`
+     skips unless `--runtrio` is passed. Suppressing them at collection time — an
+     `anyio_backend` fixture whose params depend on the flag — measured
+     **36.7s → 31.8s** cold collection locally (13,324 → 10,408 items).
+     Extrapolated across the controller and four workers that is **~10s of leg
+     wall**, ~3% of the step.
+   - **`--doctest-modules` costs 1.1s per collection pass and collects nothing.**
+     Confirmed again by direct timing of cold collection (37.0s / 37.2s with,
+     36.0s / 36.0s without), and a cProfile pass showed the 13.7s attributed to
+     `_pytest/doctest.py:collect` is the shared module-import cost, not doctest
+     work. Dead weight in both `addopts` and the CI command, but worth ~2s of
+     leg wall — not enough to justify losing doctest execution for anyone
+     running `pytest src/...`.
 
-5. **Runner pool size for burst absorption.** Queue is 3s median overall and
-   168s median inside the 02:00 UTC hour; p90 improved 61s → 28s only because
-   this window has one burst instead of two. With ~13 jobs per PR, a batch of 20
-   PRs is 260 concurrent jobs. Options: larger hosted pool, self-hosted
-   capacity, or fewer jobs per PR (proposal 11). Structural/cost. Status:
-   carried, re-evidenced.
+   Neither is an unattended safe fix: the first changes what the suite collects
+   and what test IDs exist (a maintainer call), the second trades a dormant
+   capability for a sub-1% win. Both should be decided together with any other
+   attack on the ~100s. Status: carried from last report's proposal 8, **now quantified**.
 
-6. **Test-volume policy.** The body of ordinary tests is 57–60% of test time and
-   the suite adds ~250 test functions/week. But this run priced the
-   fastest-growing files and found them cheap (`_control/test_ctl.py`: +2,176
-   lines, 1.2s), and at 4 workers growth costs ~13s of wall clock per week
-   against #4935's 97s saving. Still worth a maintainer view on what the PR gate
-   should cost, but the urgency is lower than last report implied. Structural.
-   Status: carried, **downgraded**.
+5. **Collector: validate the run window and refetch.** Unchanged and still
+   written but uncommittable (proposal 2, `.claude/**`). Today's snapshot came
+   back clean on the first attempt (head 11 minutes stale, largest internal gap
+   2.3h), so the stale-replica bug did not bite this run — but it cost a full
+   collection cycle two runs ago and nothing has been done about it. Status:
+   carried, **blocked**.
+
+6. **Test-volume policy.** The body of ordinary tests is 57–63% of test time and
+   the suite adds ~215 test functions/week, but this run's direct pricing puts
+   the cost of that growth at **+1–6s of leg wall clock per week** at four
+   workers. Still worth a maintainer view on what the PR gate should cost, but
+   the arithmetic no longer suggests urgency. Structural. Status: carried,
+   **downgraded again**.
 
 7. **Real-sleep and near-duplicate test cleanups.**
-   `test_eval_set_previous_task_args` spends ~5s of its 6.0s sleeping
+   `test_eval_set_previous_task_args` spends ~5s of its 6.1s sleeping
    (`sleep_for_3_task` plus a `keyboard_interrupt(2)` alarm, where the interrupt
    must land mid-eval — so shrinking the sleeps trades wall clock for flakiness
    risk); merging `test_sample_shuffle`/`test_sample_shuffle_limit` saves ~2.4s.
-   Both are coverage judgements rather than mechanical fixes. Combined worth ~7s
-   of worker time, which after worksteal is ~2s of wall clock. Status: carried,
-   low priority.
+   Combined ~7s of worker time, which at 97% worker efficiency is under 2s of
+   wall clock. Status: carried, low priority.
 
-8. **Collection is ~31% of the pytest step.** The step is 320s median against a
-   221s test-phase wall, so ~99s is collection, worker startup and reporting —
-   and collection (32s single-process cold, 12s with warm bytecode caches; CI is
-   always cold) is paid once on the controller plus once per worker. That is now
-   a bigger slice than the entire ≥5s slow tail (75s of *work*, ~19s of wall),
-   and worksteal does not touch it. Worth an investigation before more per-test
-   work.
-
-   One hypothesis measured and closed this run: **`--doctest-modules` collects
-   nothing.** 13,245 items collected with it and 13,245 without — `testpaths =
-   ["tests"]` confines collection to `tests/`, which contains no doctests — so it
-   costs ~1s and is not the source of the overhead. Two side notes from that
-   check: the flag is dead weight in both `addopts` and the CI command, and the
-   4 doctests that do exist in `src/inspect_ai` (`_util/format.py`,
-   `_util/file.py`, `_util/_json_rpc.py`, `model/_providers/_vllm_lora.py`) are
-   never executed by the PR gate. Collecting `src` directly is not a drop-in fix:
-   it errors on 84 modules under direct-module collection. Structural. Status:
-   new.
-
-9. **Exclude `design/**` from the `test` job's `code` filter.** The filter is
+8. **Exclude `design/**` from the `test` job's `code` filter.** The filter is
    `'**'` minus `docs/**` and `**/*.md`, so a documentation-only change that
    isn't markdown counts as code. This report's own PR is the demonstration:
-   three files under `design/ci-perf/` (one a JSON snapshot) trigger the full
-   13-job fan-out, ~25 runner-minutes to test a data file. Adding `'!design/**'`
-   is one line, but it changes what a required check covers, so it is a
-   maintainer call. Status: carried.
+   three files under `design/ci-perf/` (one a JSON snapshot) run the two 334s
+   `test` matrix legs — ~11 of the ~16 runner-minutes a successful no-docs
+   Build run costs (median, n=16) — to test a data file. The fix no-ops only
+   those two legs; the other job records still spawn (mypy ×2, Viewer,
+   package/pre-commit/ruff, …), so a design-only push drops to ~6–7
+   runner-minutes, not zero. One line, but it changes what a required check
+   covers. Status: carried for the third run,
+   **now filed as
+   [meridianlabs-ai/inspect_ai#299](https://github.com/meridianlabs-ai/inspect_ai/issues/299)**,
+   then **implemented by a maintainer in this report's own PR** (commit
+   `640577ebd`). Verification falls to the next snapshot.
 
-10. **Un-serialize `slow-tool-tests-release` from `slow-tool-tests-dev`** —
-    release consumes no output from dev (it downloads the published artifact and
-    re-runs the same suite), so the `needs` edge is pure ordering. Would cut ~13
-    min off *version-bump* sandbox-tools PRs — the only ones where `release` runs
-    at all, and it ran on none this window (63 skipped, 1 cancelled, 0 executed,
-    against 8 successful `dev` runs), which continues to cap how much this is
-    worth. Cost: when dev fails, release burns ~14 runner-min instead of being
-    skipped. The sequence is deliberate and documented in
-    `design/sandbox-tools-ci-gates.md`. Structural. Status: carried.
+9. **Un-serialize `slow-tool-tests-release` from `slow-tool-tests-dev`** —
+   release consumes no output from dev (it downloads the published artifact and
+   re-runs the same suite), so the `needs` edge is pure ordering. Would cut ~13
+   min off *version-bump* sandbox-tools PRs — the only ones where `release` runs
+   at all, and it ran on none this window either (54 skipped, 5 cancelled, 0
+   executed, against 8 successful `dev` runs). Four consecutive windows with
+   zero executions is itself the finding: the value is theoretical. Cost: when
+   dev fails, release burns ~14 runner-min instead of being skipped. The
+   sequence is deliberate and documented in
+   `design/sandbox-tools-ci-gates.md`. Structural. Status: carried, **not ripe
+   for an issue** — no demand.
 
-11. **Merge the 4 Viewer jobs into 1–2** — required-check rename. Worth
-    revisiting only as burst-load reduction (proposal 5), not wall clock: the
-    Viewer path is 67s median. Structural. Status: carried, low.
+10. **Merge the 4 Viewer jobs into 1–2** — required-check rename. Worth
+    revisiting only as burst-load reduction (proposal 3), not wall clock: the
+    Viewer path is 66s median. Structural. Status: carried, low.
 
-12. **Policy consistency: docker tests without `@pytest.mark.slow`.**
-    `util/sandbox/test_docker_compose_config.py` (3, carried) and now
-    `tools/test_think_tool.py` (2, new). All five sit behind another skip gate
-    and cost ~1ms each in the PR gate, so there is no measurable win; the
-    convention is what enforces the gate. Status: carried, extended.
+11. **Policy consistency: docker tests without `@pytest.mark.slow`.** Six now
+    (`util/sandbox/test_docker_compose_config.py` ×3,
+    `tools/test_think_tool.py` ×2, `agent/test_agent_docs.py::test_agent_collect`
+    new). Measured this run: the three ungated ones cost 0.05s combined against
+    a live docker daemon because they never start a container. The right fix is
+    probably to drop `skip_if_no_docker` from those three rather than to mark
+    them slow. Zero wall-clock impact either way. Status: carried, **rescoped**.
 
 ## PRs opened by this skill
 
-See `prs.md`. This run's fix (proposal 1) and this report were opened as two
-fork PRs (#261, #262) because upstream PR creation is blocked (proposal 2); a
-maintainer promoted and combined them into **#4948**, which also changes the
-skill to ship each run's entire output as a single PR from now on.
+See `prs.md`. This run's output (snapshot, report, ledger) went out as a single
+fork PR because upstream PR creation is blocked (proposal 2); no code fix was
+shipped, and three structural proposals were filed as issues #297, #298 and #299
+on `meridianlabs-ai/inspect_ai`.
