@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.260 (21 August 2026)
 
 - Scoring: `inspect_ai.scorer` now exports `Reference`, the model for the message/event references that scanner scores store in metadata (previously importable only from Inspect Scout).
 - Metrics: Add `ci()` metric reporting a confidence interval for the mean (as `{"lower", "upper"}`). Defaults to `mean ± t · stderr` with a Student-t critical value (`n - 1` degrees of freedom; `clusters - 1` when `cluster=` is set) so small samples get honest widths; `method="bootstrap"` gives a percentile (cluster) bootstrap interval. (#4160)
