@@ -464,6 +464,23 @@ async def test_tool_execution_runs_in_tool_span() -> None:
     assert tool_event.span_id == tool_span.id
 
 
+# --- round 3: a tool named `tool` must not shadow the parent parser ----------
+
+
+def test_tool_named_tool_does_not_shadow_parent_parser() -> None:
+    """Generated parser variables must not collide with the parent's.
+
+    A tool literally named `tool` generated `tool_parser = ...`,
+    overwriting the parent parser variable — bare `task tool` then
+    printed that tool's help instead of listing all tools.
+    """
+    parser, namespace = _build_parsers([_named_tool("tool")])
+    child = namespace["tool_subparsers"].choices["tool"]
+    assert namespace["tool_parser"] is not child
+    args = parser.parse_args(["tool", "tool"])
+    assert args.tool_name == "tool"
+
+
 # --- round 3: ToolError surfaces cleanly, like unexpected exceptions ---------
 
 

@@ -494,8 +494,10 @@ def generate_tool_parser(
 
     # Create subparser (all embedded values emitted via repr() — schema
     # text is data, never code)
+    # variable named parser_<tool> (not <tool>_parser) so a tool literally
+    # named 'tool' can't shadow the parent tool_parser
     lines.append(
-        f"{tool_name}_parser = tool_subparsers.add_parser({tool_name!r}, "
+        f"parser_{tool_name} = tool_subparsers.add_parser({tool_name!r}, "
         f"help={tool_description!r}, "
         f"formatter_class=argparse.RawDescriptionHelpFormatter)"
     )
@@ -570,7 +572,7 @@ def generate_tool_parser(
         if help_text:
             parts.append(f"help={help_text!r}")
 
-        lines.append(f"{tool_name}_parser.add_argument({', '.join(parts)})")
+        lines.append(f"parser_{tool_name}.add_argument({', '.join(parts)})")
 
     parser_code = "\n".join(lines)
     return parser_code, has_complex_params
