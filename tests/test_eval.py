@@ -9,6 +9,7 @@ from unittest import mock
 import anyio
 import pytest
 from botocore.exceptions import ClientError
+from test_helpers.utils import attach_caplog_to_module_logger
 
 from inspect_ai import (
     Epochs,
@@ -461,16 +462,9 @@ def task_args_warning_check(task_arg: str = "default") -> Task:
 
 @pytest.fixture
 def capture_eval_warnings(caplog):
-    # the warning is emitted from resolve_tasks (the loader module). attach
-    # caplog's handler directly to the emitting module logger: eval()
-    # reconfigures the package logger's propagation during the run, so
-    # propagation-based capture misses warnings emitted mid-eval
-    loader_logger = logging.getLogger("inspect_ai._eval.loader")
-    loader_logger.addHandler(caplog.handler)
-    try:
+    # the warning is emitted from resolve_tasks (the loader module)
+    with attach_caplog_to_module_logger(caplog, "inspect_ai._eval.loader"):
         yield caplog
-    finally:
-        loader_logger.removeHandler(caplog.handler)
 
 
 def _task_args_warnings(caplog) -> list[logging.LogRecord]:
@@ -721,15 +715,8 @@ def _retry_source_log_info(location: str) -> Any:
 
 @pytest.fixture
 def capture_probe_warnings(caplog):
-    # attach caplog's handler directly to the emitting module logger: eval()
-    # (used to produce the prior log) reconfigures the package logger's
-    # propagation, so propagation-based capture misses these warnings
-    run_logger = logging.getLogger("inspect_ai._eval.task.run")
-    run_logger.addHandler(caplog.handler)
-    try:
+    with attach_caplog_to_module_logger(caplog, "inspect_ai._eval.task.run"):
         yield caplog
-    finally:
-        run_logger.removeHandler(caplog.handler)
 
 
 def _write_prior_eval_log(log_dir: Path) -> tuple[Any, bytes]:
