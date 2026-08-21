@@ -2,6 +2,7 @@
 
 - Docker Sandbox: New `--sandbox-prebuilt` option (`sandbox_prebuilt` on `eval()`) skips image builds and fails fast at task startup when a prebuilt image is missing.
 - Docker Sandbox: `x-local: false` on a compose service is now treated the same as omitting `x-local` (the image is pulled) rather than marking the image as local.
+- Sandbox: The sandbox tools binary now supports mcp 2.x, so MCP sessions in sandboxes keep working as the mcp ecosystem moves past 1.x.
 
 ## 0.3.260 (21 August 2026)
 

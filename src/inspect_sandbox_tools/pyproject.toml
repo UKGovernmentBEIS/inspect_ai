@@ -96,9 +96,12 @@ dependencies = [
     "aiohttp",
     "httpx",
     "jsonrpcserver",
-    # mcp_server_session.py uses mcp 1.x-only APIs (JSONRPCMessage.model_validate_json
-    # and .root); keep below 2.x until that code is ported to the 2.x API
-    "mcp>=1.10.0,<2",
+    # dual-compatible with mcp 1.x and 2.x: mcp_server_session.py validates wire
+    # messages against the union of concrete JSON-RPC types (present in both
+    # majors) rather than the 1.x-only JSONRPCMessage RootModel API. Capped
+    # below 3.x because release binaries build unpinned from this constraint,
+    # so an unverified future major would silently flow into shipped artifacts.
+    "mcp>=1.10.0,<3",
     "packaging",
     "pydantic",
     "returns",

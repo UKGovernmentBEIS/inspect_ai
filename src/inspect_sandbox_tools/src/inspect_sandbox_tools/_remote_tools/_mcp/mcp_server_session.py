@@ -14,7 +14,7 @@ from mcp import (
     JSONRPCResponse,
     StdioServerParameters,
 )
-from mcp.types import JSONRPCMessage, JSONRPCNotification
+from mcp.types import JSONRPCNotification
 
 from inspect_sandbox_tools._util.process_tree import (
     process_group_members,
@@ -40,6 +40,22 @@ from inspect_sandbox_tools._util.process_tree import (
 # length.) Even so, an over-limit line is now handled gracefully rather than hanging
 # the session — see _stdout_reader.
 _DEFAULT_READLINE_LIMIT = 256 * 1024 * 1024  # 256 MiB
+
+# Validator for JSON-RPC messages read from the server's stdout, spanning both
+# mcp major versions. mcp 1.x models a wire message as the `JSONRPCMessage`
+# RootModel (parse via `model_validate_json`, concrete model under `.root`);
+# mcp 2.0 redefined `JSONRPCMessage` as a plain union alias with neither.
+# Depending on that RootModel API is what previously pinned this package to
+# mcp<2. Validating against the union of the concrete message types — present
+# in both majors, with the same member order as both versions' unions — keeps
+# member selection consistent everywhere. (The types are not byte-identical
+# across majors: 2.x makes `JSONRPCError.id` nullable, handled in
+# `_resolve_request`.)
+_JSONRPC_MESSAGE_ADAPTER: pydantic.TypeAdapter[
+    JSONRPCRequest | JSONRPCNotification | JSONRPCResponse | JSONRPCError
+] = pydantic.TypeAdapter(
+    JSONRPCRequest | JSONRPCNotification | JSONRPCResponse | JSONRPCError
+)
 _READLINE_LIMIT: int = (
     int(os.environ["INSPECT_MCP_READLINE_LIMIT_BYTES"])
     if "INSPECT_MCP_READLINE_LIMIT_BYTES" in os.environ
@@ -198,7 +214,14 @@ class MCPServerSession:
         )
 
     def _resolve_request(self, response: JSONRPCResponse | JSONRPCError) -> None:
-        future = self._requests.pop(response.id, None)
+        request_id = response.id
+        if request_id is None:
+            # mcp 2.x types the id as optional (a JSON-RPC parse-error response
+            # carries a null id). Such a response can't be correlated to a
+            # pending request; mcp 1.x rejected it at validation (so the line
+            # was skipped as unparseable) — preserve that behavior.
+            return
+        future = self._requests.pop(request_id, None)
         assert future, f"No pending request for response with id {response.id}"
         assert not future.done(), "Future should not be done before resolving"
         future.set_result(response)
@@ -257,7 +280,7 @@ class MCPServerSession:
                     if not line.strip():
                         continue
                     try:
-                        message = JSONRPCMessage.model_validate_json(line)
+                        message = _JSONRPC_MESSAGE_ADAPTER.validate_json(line)
                     except (pydantic.ValidationError, json.JSONDecodeError):
                         # Skip non-JSON lines (e.g. debug output, shell traces).
                         # This matches the MCP SDK's stdio_client behavior.
@@ -270,9 +293,9 @@ class MCPServerSession:
                     # emits e.g. `notifications/tools/list_changed` after initialize
                     # (legal for any server advertising listChanged) would otherwise
                     # kill this loop and hang every pending request until timeout.
-                    if not isinstance(message.root, JSONRPCResponse | JSONRPCError):
+                    if not isinstance(message, JSONRPCResponse | JSONRPCError):
                         continue
-                    self._resolve_request(message.root)
+                    self._resolve_request(message)
 
         except asyncio.CancelledError:
             # The reader was cancelled (e.g. by terminate()). Resolve any
