@@ -258,10 +258,14 @@ suppressing them at collection time (an `anyio_backend` fixture in
 
 ## Waste
 
-- **Cancelled superseded runs: 10 of 200, 85.8 runner-min** — up sharply from
-  7 / 28.2. `test` legs account for 41.5 of those minutes, `slow-tool-tests-dev`
-  16.3, `docs` 10.4. Longer-running jobs cancel with more sunk time; this is the
-  cost of `cancel-in-progress` doing its job on a busy branch, not a defect.
+- **Cancelled jobs: 85.8 runner-min across all 200 runs** — every cancelled
+  job, including fail-fast cancellations inside runs that concluded failure;
+  the 10 runs cancelled outright (superseded pushes) account for 70.1 of it.
+  `test` legs account for 41.5 of those minutes, `slow-tool-tests-dev` 16.3,
+  `docs` 10.4. Up sharply from the previous window (40.2 min on the same
+  measure, 7 runs cancelled). Longer-running jobs cancel with more sunk time;
+  this is the cost of `cancel-in-progress` doing its job on a busy branch, not
+  a defect.
 - Failed jobs burned 41.6 runner-min (was 28.0), 27.4 of it in `test`. Five
   `test` failures across four branches; none reproduced on `origin/main`.
 - Compute: **1,237 runner-min** per 200 runs (Build 1,081; Validate Embedded
@@ -323,8 +327,9 @@ will likely stay that way.
    `docs` is now the wall-clock determinant for most PRs: 24 of 40 successful
    Build runs touched docs, and `docs` finished last in 16 of those, +39s past
    the slower test leg. Capping `docs` under `test`'s 344s is worth **~40s of
-   wall clock on ~58% of PRs**, plus ~290s on the rare docs-only PR (1 in this
-   window). Note the honest ceiling: because `test` is close behind, caching
+   wall clock on the ~40% of successful runs where `docs` finishes last** (60%
+   touched docs; `docs` finished last in two-thirds of those), plus ~290s on
+   the rare docs-only PR (1 in this window). Note the honest ceiling: because `test` is close behind, caching
    Quarto perfectly does not buy 315s of wall clock — it buys the ~40s by which
    `docs` currently overshoots `test`. Structural (workflow change this run
    cannot push). Status: carried from last report's proposal 3, **promoted to #1**, filed as
