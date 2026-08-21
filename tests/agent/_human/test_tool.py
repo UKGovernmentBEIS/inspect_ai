@@ -625,6 +625,44 @@ def test_percent_in_descriptions_survives_help_rendering() -> None:
     assert "50% cutoff" in tool_help
 
 
+# --- round 7: sample waiting time is excluded from tool working time ---------
+
+
+@pytest.mark.anyio
+async def test_waiting_time_excluded_from_working_time() -> None:
+    """Nested waits (model calls, rate limits) are not tool working time.
+
+    Hard-coding waiting_time=0 counted a nested 50ms reported wait as
+    work; the model path snapshots sample_waiting_time() and passes the
+    delta at finalization.
+    """
+    from inspect_ai._util.working import report_sample_waiting_time
+    from inspect_ai.log._transcript import Transcript, init_transcript, transcript
+
+    async def execute() -> str:
+        """Wait on something reported as sample waiting.
+
+        Returns:
+            A marker.
+        """
+        import anyio
+
+        await anyio.sleep(0.06)
+        report_sample_waiting_time(0.05)
+        return "ok"
+
+    waiter = ToolDef(
+        execute, name="waiter", description="Report waiting time.", parameters={}
+    ).as_tool()
+
+    handler = ToolCommand([waiter]).service(state=None)  # type: ignore[arg-type]
+    init_transcript(Transcript())
+    await handler(tool="waiter", arguments={})
+
+    event = next(e for e in transcript().events if e.event == "tool")
+    assert 0 <= event.working_time < 0.04  # ~0.06 elapsed minus 0.05 waited
+
+
 # --- round 7: limit failures wrapped by task groups still end the sample -----
 
 
