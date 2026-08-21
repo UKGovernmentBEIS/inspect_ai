@@ -22,7 +22,13 @@ from pydantic import (
 from inspect_ai._util._async import current_async_backend, run_coroutine, tg_collect
 from inspect_ai._util.async_zip import AsyncZipReader
 from inspect_ai._util.asyncfiles import AsyncFilesystem, get_async_filesystem
-from inspect_ai._util.azure import azure_warning_hint, should_suppress_azure_error
+from inspect_ai._util.azure import (
+    azure_warning_hint,
+    is_s3_path,
+    remote_auth_warning_hint,
+    should_suppress_azure_error,
+    should_suppress_remote_auth_error,
+)
 from inspect_ai._util.constants import ALL_LOG_FORMATS, EVAL_LOG_FORMAT
 from inspect_ai._util.dateutil import UtcDatetimeStr
 from inspect_ai._util.error import EvalError
@@ -243,6 +249,17 @@ async def _list_eval_logs_async(
             ):
                 return []
             raise
+        except Exception as ex:  # noqa: BLE001
+            # botocore wraps NoCredentialsError / ExpiredToken / InvalidAccessKeyId
+            # in a top-level OSError or AsyncFileSystem error whose own message
+            # often says nothing about credentials. Downgrade to a warning so
+            # log listings on `s3://` paths don't propagate up and crash view
+            # servers when the host has stale or missing AWS env vars.
+            hint = remote_auth_warning_hint(log_dir, ex)
+            if hint is None:
+                raise
+            logger.warning(hint)
+            return []
         # resolve to eval logs (async fan-out so header reads on
         # non-conforming filenames don't block the event loop)
         return await log_files_from_ls_async(logs, formats, descending)
@@ -255,28 +272,35 @@ async def _list_eval_logs_async(
         try:
             exists = fs.exists(log_dir)
         except Exception as ex:  # noqa: BLE001
-            if should_suppress_azure_error(log_dir, ex):
-                logger.warning(azure_warning_hint(log_dir, ex))
-                exists = True
-            else:
+            hint = remote_auth_warning_hint(log_dir, ex)
+            if hint is None:
                 raise
+            logger.warning(hint)
+            if is_s3_path(log_dir):
+                # S3 doesn't distinguish between an auth-probe failure and a
+                # listing failure - both surface the same wrapped credential
+                # error - so an empty listing is the safe fallback.
+                return []
+            # Azure keeps the original semantics: an exists-probe may fail
+            # under some SAS / role configurations while listing succeeds.
+            exists = True
         if not exists:
             return []
         logs = fs.ls(log_dir, recursive=recursive)
         return await log_files_from_ls_async(logs, formats, descending)
     elif fs.is_async():
         async with async_filesystem(log_dir, fs_options=fs_options) as async_fs:
-            # Attempt existence check with robust handling for Azure-style auth issues.
+            # Attempt existence check with robust handling for remote auth issues.
             try:
                 exists = await async_fs._exists(log_dir)
             except Exception as ex:  # noqa: BLE001
-                if should_suppress_azure_error(log_dir, ex):
-                    logger.warning(azure_warning_hint(log_dir, ex))
-                    exists = True
-                else:
-                    # TODO: Add S3 login error catching, as well as any other remote file system of interest
-                    # Re-raise non-auth related issues
+                hint = remote_auth_warning_hint(log_dir, ex)
+                if hint is None:
                     raise
+                logger.warning(hint)
+                if is_s3_path(log_dir):
+                    return []
+                exists = True
 
             if exists:
                 # prevent caching of listings

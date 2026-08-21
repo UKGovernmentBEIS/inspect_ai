@@ -3,6 +3,7 @@ from typing import Any, Callable, TypeVar
 from urllib.parse import urlparse
 
 AZURE_SCHEMES = {"az", "abfs", "abfss"}
+S3_SCHEMES = {"s3"}
 
 
 def apply_azure_fs_options(options: dict[str, Any]) -> None:
@@ -34,6 +35,11 @@ def apply_azure_fs_options(options: dict[str, Any]) -> None:
     # Disable caching explicitly (mirrors S3 behavior).
     options.setdefault("use_listings_cache", False)
     options.setdefault("skip_instance_cache", False)
+
+
+def is_azure_path(path: str) -> bool:
+    """Return True if the URI/path uses an Azure-backed scheme."""
+    return urlparse(path).scheme in AZURE_SCHEMES
 
 
 def is_azure_auth_error(error: Exception) -> bool:
@@ -71,12 +77,6 @@ def call_with_azure_auth_fallback(
         raise
 
 
-def is_azure_path(path: str) -> bool:
-    """Return True if the URI/path uses an Azure-backed scheme."""
-    scheme = urlparse(path).scheme.lower()
-    return scheme in AZURE_SCHEMES
-
-
 def should_suppress_azure_error(path: str, error: Exception) -> bool:
     """Return True if an Azure auth issue should be downgraded to a warning."""
     return is_azure_path(path) and (
@@ -93,3 +93,79 @@ def azure_warning_hint(path: str, error: Exception) -> str:
         "AZURE_STORAGE_SAS_TOKEN (and AZURE_STORAGE_ACCOUNT_NAME if needed); (c) if using account "
         f"key, set AZURE_STORAGE_ACCOUNT_KEY. Original error: {error}"
     )
+
+
+# botocore wraps the real signal (ExpiredToken, InvalidAccessKeyId,
+# AccessDenied, NoCredentialsError) under a top-level OSError or bare
+# ClientError whose own message often says nothing about credentials.
+# Walk __cause__/__context__ so the auth substring matches regardless of which
+# layer actually owns the message.
+_S3_AUTH_SUBSTRINGS: tuple[str, ...] = (
+    "no credentials",
+    "expiredtoken",
+    "invalidaccesskeyid",
+    "access denied",
+    "accessdeniedexception",
+    "unable to locate credentials",
+    "missingcredentials",
+    "invalidtoken",
+)
+
+
+def is_s3_auth_error(error: BaseException) -> bool:
+    """Detect missing / expired AWS credentials via message or cause chain."""
+    cur: BaseException | None = error
+    seen: set[int] = set()
+    while cur is not None and id(cur) not in seen:
+        seen.add(id(cur))
+        msg = str(cur).lower()
+        if any(sub in msg for sub in _S3_AUTH_SUBSTRINGS):
+            return True
+        cur = cur.__cause__ or cur.__context__
+    return False
+
+
+def is_s3_path(path: str) -> bool:
+    """Return True if the URI/path uses an Amazon S3 scheme."""
+    return urlparse(path).scheme in S3_SCHEMES
+
+
+def should_suppress_s3_error(path: str, error: BaseException) -> bool:
+    """Return True if an S3 auth issue should be downgraded to a warning."""
+    return is_s3_path(path) and is_s3_auth_error(error)
+
+
+def s3_warning_hint(path: str, error: Exception) -> str:
+    """Diagnostic guidance for S3 listing/authentication issues."""
+    return (
+        "AWS S3 authentication failed while probing "
+        f"'{path}'. Suppressed stack trace. Guidance: (a) set AWS_ACCESS_KEY_ID "
+        "and AWS_SECRET_ACCESS_KEY (or use AWS_PROFILE via 'aws configure'); "
+        "(b) ensure IAM permissions on the bucket/prefix include s3:ListBucket "
+        "and s3:GetObject; (c) if using temporary credentials, rotate "
+        f"AWS_SESSION_TOKEN before it expires. Original error: {error}"
+    )
+
+
+def should_suppress_remote_auth_error(
+    path: str, error: BaseException
+) -> bool:
+    """Single dispatcher that decides whether a remote auth error should be downgraded to a warning."""
+    if is_azure_path(path):
+        return should_suppress_azure_error(path, error)
+    if is_s3_path(path):
+        return is_s3_auth_error(error)
+    return False
+
+
+def remote_auth_warning_hint(
+    path: str, error: Exception
+) -> str | None:
+    """Hint text for a remote auth error, or None if the path is not recognised."""
+    if is_azure_path(path) and (
+        is_azure_auth_error(error) or "authenticate" in str(error).lower()
+    ):
+        return azure_warning_hint(path, error)
+    if is_s3_path(path) and is_s3_auth_error(error):
+        return s3_warning_hint(path, error)
+    return None
