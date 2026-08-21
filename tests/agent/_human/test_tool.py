@@ -527,6 +527,43 @@ def test_tool_named_tool_does_not_shadow_parent_parser() -> None:
     assert args.tool_name == "tool"
 
 
+# --- round 6: limit violations must reach the sample boundary -----------------
+
+
+@pytest.mark.anyio
+async def test_limit_exceeded_reraises_after_recording() -> None:
+    """LimitExceededError must propagate to the sandbox-service boundary.
+
+    The boundary routes it to sample_active().limit_exceeded(), which
+    ends the sample; the generic exception handler was converting limit
+    violations into CLI strings, so evals ran past configured limits.
+    """
+    from inspect_ai.log._transcript import Transcript, init_transcript, transcript
+    from inspect_ai.util._limit import LimitExceededError
+
+    async def execute() -> str:
+        """Exceed a limit.
+
+        Returns:
+            Never returns.
+        """
+        raise LimitExceededError("token", value=1001, limit=1000)
+
+    limited = ToolDef(
+        execute, name="limited", description="Exceed a limit.", parameters={}
+    ).as_tool()
+
+    handler = ToolCommand([limited]).service(state=None)  # type: ignore[arg-type]
+    init_transcript(Transcript())
+    with pytest.raises(LimitExceededError):
+        await handler(tool="limited", arguments={})
+
+    events = [e for e in transcript().events if e.event == "tool"]
+    assert len(events) == 1
+    assert events[0].error is not None
+    assert events[0].pending is None  # finalized before propagating
+
+
 # --- round 5: option-like tool names have no portable spelling — reject ------
 
 

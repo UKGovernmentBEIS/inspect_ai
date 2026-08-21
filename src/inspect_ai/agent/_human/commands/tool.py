@@ -21,6 +21,7 @@ from inspect_ai.tool import Tool, ToolError, ToolParams
 from inspect_ai.tool._tool import ToolResult
 from inspect_ai.tool._tool_call import ToolCallError
 from inspect_ai.tool._tool_def import ToolDef
+from inspect_ai.util._limit import LimitExceededError
 from inspect_ai.util._span import span
 
 from ..state import HumanAgentState
@@ -307,6 +308,12 @@ def tool(args):
             # receives it (raising would reach the human as an RPC traceback)
             finalize(error=ToolCallError("unknown", ex.message))
             return f"Error: {ex.message}"
+        except LimitExceededError as ex:
+            # must reach the sandbox-service boundary, which routes it to
+            # sample_active().limit_exceeded() and ends the sample — the
+            # generic handler below would silently run past the limit
+            finalize(error=ToolCallError("unknown", str(ex)))
+            raise
         except Exception as ex:
             # unexpected exceptions must not end the human's session (a
             # human, unlike a model sample, can read the error and work
