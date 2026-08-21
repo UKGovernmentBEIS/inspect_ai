@@ -29,7 +29,7 @@ def stub_image_exists(monkeypatch: pytest.MonkeyPatch, local_images: set[str]) -
 
 
 async def test_verify_prebuilt_images_passes_when_images_exist(monkeypatch):
-    stub_image_exists(monkeypatch, {"built-image"})
+    stub_image_exists(monkeypatch, {"built-image", "pulled-image"})
 
     await compose_verify_prebuilt_images(
         compose_project(),
@@ -83,12 +83,15 @@ async def test_verify_prebuilt_images_passes_x_local_image_present(monkeypatch):
     )
 
 
-async def test_verify_prebuilt_images_ignores_services_without_build(monkeypatch):
+async def test_verify_prebuilt_images_missing_pull_image(monkeypatch):
     stub_image_exists(monkeypatch, set())
 
-    await compose_verify_prebuilt_images(
-        compose_project(), {"pulled": {"image": "pulled-image"}}
-    )
+    with pytest.raises(PrerequisiteError) as excinfo:
+        await compose_verify_prebuilt_images(
+            compose_project(), {"pulled": {"image": "pulled-image"}}
+        )
+    assert "not present in the Docker image store" in str(excinfo.value)
+    assert "pulled (pulled-image)" in str(excinfo.value)
 
 
 async def test_verify_prebuilt_images_reports_both_problems(monkeypatch):
@@ -234,14 +237,19 @@ def stub_pull_failure(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(docker_module, "compose_pull", fake_pull)
 
 
-async def test_task_init_prebuilt_pull_failure_raises(monkeypatch):
-    TaskInitStubs(monkeypatch, {"pulled": {"image": "remote-image"}}, prebuilt=True)
-    stub_pull_failure(monkeypatch)
+async def test_task_init_prebuilt_skips_pull(monkeypatch):
+    stubs = TaskInitStubs(
+        monkeypatch, {"pulled": {"image": "remote-image"}}, prebuilt=True
+    )
 
-    with pytest.raises(PrerequisiteError) as excinfo:
-        await DockerSandboxEnvironment.task_init("startup", None)
-    assert "remote-image" in str(excinfo.value)
-    assert "could not be pulled" in str(excinfo.value)
+    async def fail_pull(service: str, project: ComposeProject) -> ExecResult[str]:
+        raise AssertionError("compose_pull should not be called when prebuilt")
+
+    monkeypatch.setattr(docker_module, "compose_pull", fail_pull)
+
+    await DockerSandboxEnvironment.task_init("startup", None)
+
+    assert stubs.calls == ["verify"]
 
 
 async def test_task_init_pull_failure_logs_when_not_prebuilt(monkeypatch):

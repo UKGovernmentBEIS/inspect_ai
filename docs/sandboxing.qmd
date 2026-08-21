@@ -286,7 +286,7 @@ Or from Python:
 eval("ctf.py", sandbox_prebuilt=True)
 ```
 
-With this option set, task startup verifies images instead of building them. Every service with a `build` section or `x-local: true` must name an `image` that already exists locally, and Inspect's internal images (e.g. for the computer tool) must also be present. Other services use their local image when present, and a failed pull of a missing one is also an error. A missing image results in an error before any samples run. The option can also be set via the `INSPECT_EVAL_SANDBOX_PREBUILT` environment variable.
+With this option set, task startup verifies images instead of building them. Every service with a `build` section or `x-local: true` must name an `image` that already exists locally, and Inspect's internal images (e.g. for the computer tool) must also be present. Other services must also have their image already present locally — no pull is attempted, so a missing image fails immediately rather than after a network timeout. A missing image results in an error before any samples run. The option can also be set via the `INSPECT_EVAL_SANDBOX_PREBUILT` environment variable.
 
 ### Multiple Environments
 

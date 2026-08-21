@@ -40,6 +40,7 @@ from .cleanup import (
     project_startup,
 )
 from .compose import (
+    PREBUILT_IMAGES_ERROR_PREFIX,
     compose_build,
     compose_check_running,
     compose_cleanup_images,
@@ -125,13 +126,18 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                         await build_internal_image(image)
                     elif not await is_internal_image_built(image):
                         raise PrerequisiteError(
-                            f"Sandbox images are expected to be prebuilt (sandbox_prebuilt is set) but the internal image '{image}' is not present in the Docker image store."
+                            PREBUILT_IMAGES_ERROR_PREFIX
+                            + f"the internal image '{image}' is not present in the Docker image store."
                         )
                 # pull any remote images
                 elif (
                     service.get("build", None) is None
                     and service.get("x-local", None) is None
                 ):
+                    # when prebuilt, images were verified up front and no
+                    # pull is attempted (fails fast on air-gapped machines)
+                    if prebuilt:
+                        continue
                     # skip the pull if the image is already available locally
                     # (avoids noisy errors for images loaded via 'docker load')
                     if image and await docker_image_exists_locally(image):
@@ -140,10 +146,6 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                     pull_result = await compose_pull(name, project)
                     if not pull_result.success:
                         image = service.get("image", "(unknown)")
-                        if prebuilt:
-                            raise PrerequisiteError(
-                                f"Sandbox images are expected to be prebuilt (sandbox_prebuilt is set) but the image '{image}' for service '{name}' is not present in the Docker image store and could not be pulled."
-                            )
                         logger.error(
                             f"Failed to pull docker image '{image}' from remote registry. If this is a locally built image add 'x-local: true' to the the service definition to prevent this error."
                         )

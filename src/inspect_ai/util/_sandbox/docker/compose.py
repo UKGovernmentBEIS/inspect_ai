@@ -186,15 +186,24 @@ async def compose_pull(
     )
 
 
+PREBUILT_IMAGES_ERROR_PREFIX = (
+    "Sandbox images are expected to be prebuilt (sandbox_prebuilt is set) but "
+)
+
+
 async def compose_verify_prebuilt_images(
     project: ComposeProject, services: dict[str, ComposeService]
 ) -> None:
     unnamed: list[str] = []
     missing: list[str] = []
     for name, service in services.items():
-        if "build" not in service and not service.get("x-local"):
-            continue
         image = service.get("image")
+        if "build" not in service and not service.get("x-local"):
+            # no pull is attempted when prebuilt, so pull-eligible services
+            # must also have their image already present locally
+            if image and not await docker_image_exists_locally(image):
+                missing.append(f"{name} ({image})")
+            continue
         if not image:
             unnamed.append(name)
         elif not await docker_image_exists_locally(image):
@@ -220,8 +229,7 @@ async def compose_verify_prebuilt_images(
         )
     if problems:
         raise PrerequisiteError(
-            "Sandbox images are expected to be prebuilt (sandbox_prebuilt is set) but "
-            + ". Additionally, ".join(problems)
+            PREBUILT_IMAGES_ERROR_PREFIX + ". Additionally, ".join(problems)
         )
 
 
