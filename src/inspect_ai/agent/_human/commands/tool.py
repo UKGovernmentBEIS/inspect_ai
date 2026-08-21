@@ -518,12 +518,14 @@ def generate_tool_parser(
             # otherwise derive it from the internal prefixed dest (ARG_X)
             parts.append(f"metavar={name.upper()!r}")
 
-        # Required/default: absent optional flags are suppressed entirely so
-        # the handler can distinguish "not provided" from an explicit null
-        if info.is_optional or not info.is_required:
-            parts.append("default=argparse.SUPPRESS")
-        else:
+        # Required/default: nullability and requiredness are independent —
+        # null is an accepted *value*, it doesn't make the flag omittable.
+        # Absent optional flags are suppressed entirely so the handler can
+        # distinguish "not provided" from an explicit null
+        if info.is_required:
             parts.append("required=True")
+        else:
+            parts.append("default=argparse.SUPPRESS")
 
         # Help text (structured params get a copy-pasteable example instance;
         # nullable params advertise the 'null' literal)

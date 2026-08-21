@@ -464,6 +464,58 @@ async def test_tool_execution_runs_in_tool_span() -> None:
     assert tool_event.span_id == tool_span.id
 
 
+# --- round 3: nullability and requiredness are independent --------------------
+
+
+def _required_nullable_tool():
+    from typing import Any
+
+    from inspect_ai.tool import ToolParams
+    from inspect_ai.util import JSONSchema
+
+    async def execute(**kwargs: Any) -> str:
+        """Accept a required-but-nullable value.
+
+        Returns:
+            A rendering of the value.
+        """
+        return repr(kwargs["value"])
+
+    return ToolDef(
+        execute,
+        name="req_nullable",
+        description="Accept a required-but-nullable value.",
+        parameters=ToolParams(
+            properties={
+                "value": JSONSchema(
+                    anyOf=[JSONSchema(type="integer"), JSONSchema(type="null")],
+                    description="Required, may be null.",
+                )
+            },
+            required=["value"],
+        ),
+    ).as_tool()
+
+
+def test_required_nullable_flag_is_required() -> None:
+    """A required int|None parameter must not be omittable.
+
+    Nullability made the flag optional (SUPPRESS), so argparse accepted
+    omission and only the eval-side validator rejected it — a worse
+    error, later. null is an accepted *value*; the flag stays required.
+    """
+    parser, _ = _build_parsers([_required_nullable_tool()])
+    with pytest.raises(SystemExit) as exc_info:
+        parser.parse_args(["tool", "req_nullable"])
+    assert exc_info.value.code == 2
+
+
+def test_required_nullable_accepts_null_value() -> None:
+    parser, _ = _build_parsers([_required_nullable_tool()])
+    kwargs = _handler_kwargs(parser, ["tool", "req_nullable", "--value", "null"])
+    assert kwargs == {"value": None}
+
+
 # --- round 3: arbitrary schema property names are escaped, not rejected -----
 
 
