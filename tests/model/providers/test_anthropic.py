@@ -3,7 +3,7 @@ from typing import Any, Literal, cast
 from unittest.mock import AsyncMock, create_autospec
 
 import pytest
-from test_helpers.utils import skip_if_no_anthropic
+from test_helpers.utils import setenv_if_unset, skip_if_no_anthropic
 
 from inspect_ai import Task, eval
 from inspect_ai._util.content import (
@@ -331,13 +331,13 @@ def test_anthropic_full_thinking_beta_via_client_default_header() -> None:
 
 @skip_if_no_anthropic
 def test_anthropic_should_retry():
-    import httpx
+    import httpx2
     from anthropic import APIStatusError
 
     # scaffold for should_retry
     model = get_model("anthropic/claude-sonnet-4-6")
-    response = httpx.Response(
-        status_code=405, request=httpx.Request("GET", "https://example.com")
+    response = httpx2.Response(
+        status_code=405, request=httpx2.Request("GET", "https://example.com")
     )
 
     # check whether we handle overloaded_error correctly
@@ -355,8 +355,8 @@ def test_anthropic_should_retry():
     model.api.should_retry(ex)
 
     # truncated request body (TCP interruption) should be retried
-    truncation_response = httpx.Response(
-        status_code=400, request=httpx.Request("POST", "https://example.com")
+    truncation_response = httpx2.Response(
+        status_code=400, request=httpx2.Request("POST", "https://example.com")
     )
     ex = APIStatusError(
         "error",
@@ -372,8 +372,8 @@ def test_anthropic_should_retry():
     assert model.api.should_retry(ex)
 
     # genuine 400 errors should NOT be retried
-    genuine_400_response = httpx.Response(
-        status_code=400, request=httpx.Request("POST", "https://example.com")
+    genuine_400_response = httpx2.Response(
+        status_code=400, request=httpx2.Request("POST", "https://example.com")
     )
     ex = APIStatusError(
         "error",
@@ -391,8 +391,8 @@ def test_anthropic_should_retry():
     # deterministic encoding errors (e.g. surrogate pairs) should NOT be retried
     ex = APIStatusError(
         "error",
-        response=httpx.Response(
-            status_code=400, request=httpx.Request("POST", "https://example.com")
+        response=httpx2.Response(
+            status_code=400, request=httpx2.Request("POST", "https://example.com")
         ),
         body={
             "type": "error",
@@ -414,7 +414,7 @@ def test_anthropic_handle_bad_request_content_filter_apistatuserror() -> None:
     rather than BadRequestError. handle_bad_request() must still convert
     "content filtering" messages into a content_filter refusal.
     """
-    import httpx
+    import httpx2
     from anthropic import APIStatusError
 
     from inspect_ai.model._model_output import ModelOutput
@@ -422,9 +422,9 @@ def test_anthropic_handle_bad_request_content_filter_apistatuserror() -> None:
     api = AnthropicAPI(model_name="claude-opus-4-6", api_key="test-key")
     ex = APIStatusError(
         "Output blocked by content filtering policy",
-        response=httpx.Response(
+        response=httpx2.Response(
             status_code=200,
-            request=httpx.Request("POST", "https://api.anthropic.com/v1/messages"),
+            request=httpx2.Request("POST", "https://api.anthropic.com/v1/messages"),
         ),
         body={
             "type": "error",
@@ -448,7 +448,7 @@ async def test_anthropic_generate_handles_midstream_content_filter() -> None:
     status_code == 413 and re-raised everything else, so content-filter errors
     that surfaced mid-stream killed the eval instead of becoming a refusal.
     """
-    import httpx
+    import httpx2
     from anthropic import APIStatusError
 
     from inspect_ai.model._model_output import ModelOutput
@@ -466,9 +466,9 @@ async def test_anthropic_generate_handles_midstream_content_filter() -> None:
     ) -> tuple[dict[str, Any], ModelOutput]:
         raise APIStatusError(
             "Output blocked by content filtering policy",
-            response=httpx.Response(
+            response=httpx2.Response(
                 status_code=200,
-                request=httpx.Request("POST", "https://api.anthropic.com/v1/messages"),
+                request=httpx2.Request("POST", "https://api.anthropic.com/v1/messages"),
             ),
             body={
                 "type": "error",
@@ -976,13 +976,11 @@ async def test_anthropic_top_level_cache_control_skipped_on_bedrock_vertex(
     `cache_control: Extra inputs are not permitted`.
     ref: https://docs.claude.com/en/docs/build-with-claude/prompt-caching#automatic-caching
     """
-    import os
-
-    os.environ.setdefault("AWS_REGION", "us-east-1")
-    os.environ.setdefault("AWS_ACCESS_KEY_ID", "fake")
-    os.environ.setdefault("AWS_SECRET_ACCESS_KEY", "fake")
-    os.environ.setdefault("ANTHROPIC_VERTEX_PROJECT_ID", "fake")
-    os.environ.setdefault("ANTHROPIC_VERTEX_REGION", "us-east5")
+    setenv_if_unset("AWS_REGION", "us-east-1")
+    setenv_if_unset("AWS_ACCESS_KEY_ID", "fake")
+    setenv_if_unset("AWS_SECRET_ACCESS_KEY", "fake")
+    setenv_if_unset("ANTHROPIC_VERTEX_PROJECT_ID", "fake")
+    setenv_if_unset("ANTHROPIC_VERTEX_REGION", "us-east5")
 
     api = AnthropicAPI(model_name=model_name, api_key="test-key")
 
@@ -1014,6 +1012,84 @@ async def test_anthropic_top_level_cache_control_skipped_on_bedrock_vertex(
     )
 
     assert ("cache_control" in captured) is expects_top_level_cache_control
+
+
+def test_anthropic_sampling_params_moved_to_extra_body() -> None:
+    """Sampling params must be relocated to extra_body for direct API calls.
+
+    anthropic >= 1.0 removed temperature/top_p/top_k from messages.create() —
+    passing them raises TypeError; batch requests keep them inline in their
+    params dict.
+    """
+    from inspect_ai.model._providers.anthropic import (
+        _with_sampling_params_in_extra_body,
+    )
+
+    request: dict[str, Any] = {
+        "model": "claude-3-5-sonnet-latest",
+        "temperature": 0.5,
+        "top_p": 0.9,
+        "top_k": 5,
+        "extra_body": {"existing": 1},
+    }
+    relocated = _with_sampling_params_in_extra_body(request)
+    assert "temperature" not in relocated
+    assert "top_p" not in relocated
+    assert "top_k" not in relocated
+    assert relocated["extra_body"] == {
+        "existing": 1,
+        "temperature": 0.5,
+        "top_p": 0.9,
+        "top_k": 5,
+    }
+    # the original request (reused for batch mode and continuations) is untouched
+    assert request["temperature"] == 0.5
+    assert request["extra_body"] == {"existing": 1}
+    # no sampling params -> passthrough
+    plain: dict[str, Any] = {"model": "claude-sonnet-4-6"}
+    assert _with_sampling_params_in_extra_body(plain) is plain
+
+
+@pytest.mark.anyio
+async def test_anthropic_create_receives_sampling_params_in_extra_body(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """generate() with temperature must not TypeError on anthropic >= 1.0."""
+    from anthropic.types import Message, TextBlock, Usage
+
+    api = AnthropicAPI(model_name="claude-3-5-sonnet-latest", api_key="test-key")
+    captured: dict[str, Any] = {}
+
+    async def fake_create(**kwargs: Any) -> Message:
+        captured.update(kwargs)
+        return Message(
+            id="msg_1",
+            content=[TextBlock(text="ok", type="text")],
+            model="claude-3-5-sonnet-latest",
+            role="assistant",
+            stop_reason="end_turn",
+            stop_sequence=None,
+            type="message",
+            usage=Usage(input_tokens=1, output_tokens=1),
+        )
+
+    monkeypatch.setattr(api.client.messages, "create", fake_create)
+
+    request: dict[str, Any] = {
+        "model": api.service_model_name(),
+        "max_tokens": 16,
+        "messages": [{"role": "user", "content": "hello"}],
+        "temperature": 0.5,
+        "top_k": 5,
+    }
+    await api._perform_request_and_continuations(
+        request, streaming=False, tools=[], config=GenerateConfig()
+    )
+
+    assert "temperature" not in captured
+    assert "top_k" not in captured
+    assert captured["extra_body"]["temperature"] == 0.5
+    assert captured["extra_body"]["top_k"] == 5
 
 
 @pytest.mark.anyio

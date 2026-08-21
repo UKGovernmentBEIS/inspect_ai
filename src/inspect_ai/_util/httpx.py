@@ -14,6 +14,26 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# httpx2 (the maintained httpx fork that openai >= 3, anthropic >= 1, and
+# mcp >= 2 are built on) is not a direct dependency of inspect_ai — it arrives
+# transitively with those SDKs. Raw httpx2/httpcore2 transport errors can
+# escape SDK streaming iteration unwrapped (only request-phase errors get
+# wrapped in the SDKs' APIConnectionError), and they are distinct classes from
+# their legacy httpx/httpcore equivalents, so classify them explicitly when
+# httpx2 is present.
+try:
+    import httpcore2
+    import httpx2
+
+    _HTTPX2_TRANSPORT_ERRORS: tuple[type[BaseException], ...] = (
+        httpx2.TransportError,
+        httpcore2.NetworkError,
+        httpcore2.TimeoutException,
+        httpcore2.ProtocolError,
+    )
+except ImportError:
+    _HTTPX2_TRANSPORT_ERRORS = ()
+
 
 def httpx_should_retry(ex: BaseException) -> bool:
     """Check whether an exception raised from httpx should be retried.
@@ -159,6 +179,10 @@ def httpx_should_retry_no_status_code(ex: BaseException) -> bool:
     is_httpcore_timeout_error = isinstance(ex, httpcore.TimeoutException)
     is_httpcore_protocol_error = isinstance(ex, httpcore.ProtocolError)
 
+    # httpx2/httpcore2 mirror the same hierarchies but are distinct classes
+    # (see module-level comment)
+    is_httpx2_transport_error = isinstance(ex, _HTTPX2_TRANSPORT_ERRORS)
+
     # extensible in case we notice other cases
     return any(
         [
@@ -166,5 +190,6 @@ def httpx_should_retry_no_status_code(ex: BaseException) -> bool:
             is_httpcore_network_error,
             is_httpcore_timeout_error,
             is_httpcore_protocol_error,
+            is_httpx2_transport_error,
         ]
     )

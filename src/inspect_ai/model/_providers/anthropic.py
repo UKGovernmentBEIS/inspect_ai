@@ -335,11 +335,16 @@ class AnthropicAPI(ModelAPI):
             if base_region is None:
                 aws_region = os.environ.get("AWS_DEFAULT_REGION", None)
 
-            return AsyncAnthropicBedrock(
-                base_url=base_url,
-                aws_region=aws_region,
-                **self.model_args,
-            )
+            try:
+                return AsyncAnthropicBedrock(
+                    base_url=base_url,
+                    aws_region=aws_region,
+                    **self.model_args,
+                )
+            except ValueError as ex:
+                # anthropic >= 1.0 raises when no AWS region is resolvable
+                # (older versions silently fell back to us-east-1)
+                raise PrerequisiteError(str(ex)) from ex
         elif self.is_vertex():
             base_url = model_base_url(
                 self.base_url,
@@ -792,10 +797,14 @@ class AnthropicAPI(ModelAPI):
                 )
             head_message = await self._batcher.generate_for_request(request)
         elif streaming:
-            async with self.client.messages.stream(**request) as stream:
+            async with self.client.messages.stream(
+                **_with_sampling_params_in_extra_body(request)
+            ) as stream:
                 head_message, _ = await _capture_compaction_from_stream(stream)
         else:
-            head_message = await self.client.messages.create(**request, stream=False)
+            head_message = await self.client.messages.create(
+                **_with_sampling_params_in_extra_body(request), stream=False
+            )
 
         head_model_output, continuation_required = await model_output_from_message(
             self.client,
@@ -3811,6 +3820,28 @@ EXTRA_BODY = "extra_body"
 CONTEXT_MANAGEMENT = "context_management"
 MIN_COMPACTION_TOKENS = 50000  # Anthropic API minimum trigger value
 FALLBACK_BETA = "server-side-fallback-2026-06-01"
+
+SAMPLING_PARAMS = ("temperature", "top_p", "top_k")
+
+
+def _with_sampling_params_in_extra_body(request: dict[str, Any]) -> dict[str, Any]:
+    """Relocate deprecated sampling params for direct (non-batch) API calls.
+
+    anthropic >= 1.0 removed `temperature`/`top_p`/`top_k` from the generated
+    method signatures (the API still honors them for models that predate their
+    deprecation), so direct `messages.create()`/`stream()` calls must route
+    them via `extra_body`. Batch requests keep them inline in their params
+    dict, which the SDK still forwards at runtime.
+    """
+    if not any(param in request for param in SAMPLING_PARAMS):
+        return request
+    request = dict(request)
+    extra_body = dict(request.get(EXTRA_BODY) or {})
+    for param in SAMPLING_PARAMS:
+        if param in request:
+            extra_body[param] = request.pop(param)
+    request[EXTRA_BODY] = extra_body
+    return request
 
 
 def _add_edit_compaction(
