@@ -407,7 +407,8 @@ elif [[ "$ALL_PRESENT" == 1 ]]; then
   note "checkout's current source — rebuilding to be safe."
 fi
 if [[ "$BUILD_NEEDED" == 1 ]]; then
-  say "Running the build; output streams below."
+  say "The four variants build in parallel; per-variant results print as they"
+  say "finish (full log shown on failure)."
   pause "Press Enter to start the build"
   # Invalidate the stamps up front so a crash mid-build can't leave a stale
   # record paired with partially rewritten artifacts.
