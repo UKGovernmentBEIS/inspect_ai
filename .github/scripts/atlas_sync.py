@@ -683,13 +683,15 @@ def lifecycle_item(issue: int):
 def reflect_companion_loops() -> None:
     """Reflect companion auto-loops onto their anchors' lifecycle stage.
 
-    An auto-labeled ts-mono PR named by the dev-agent convention
-    (claude/issue-N-*) is the active half of fork issue N. The loop's
-    ending contract makes ball ownership readable from marker comments:
-    a round ends with exactly one of a continue signal (a bare re-review
-    trigger comment, or a `claude-review-verdict:suggestions` marker) or
-    a stop signal (`auto-handoff` / `auto-converged` /
-    `claude-review-verdict:clean`). Newer continue than stop -> the
+    A ts-mono PR is the companion (active half) of fork issue N when its
+    claude/issue-N-* branch also exists on the fork — the number alone is
+    not identity, since ts-mono's own agent mints identically-shaped
+    names for ts-mono issues. Engagement then needs BOTH the `auto`
+    label (the no-progress escalation exits the loop by removing it,
+    posting no marker) and a continue-marker newer than any stop-marker:
+    continue = a bare re-review trigger comment or
+    `claude-review-verdict:suggestions`; stop = `auto-handoff` /
+    `auto-converged` / `claude-review-verdict:clean`. Engaged -> the
     machinery owns the issue (Agent); otherwise a human does (Review).
     Only items already in Agent/Review move — parked stages are left
     alone, same as the promotion tail.
@@ -702,6 +704,11 @@ def reflect_companion_loops() -> None:
             TS_MONO,
             "--state",
             "open",
+            # explicit: gh defaults to 30, and silent truncation would freeze
+            # any companion outside the newest page — the exact blind spot
+            # this function exists to prevent
+            "--limit",
+            "200",
             "--json",
             "number,headRefName,labels",
         )
