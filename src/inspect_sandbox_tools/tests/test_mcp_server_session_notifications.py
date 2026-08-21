@@ -1,12 +1,18 @@
-"""Regression test for unsolicited server->client MCP messages.
+"""Regression tests for unexpected lines on the MCP server's stdout.
 
-A stdio MCP server that advertises `tools.listChanged` may legally emit an
-unsolicited `notifications/tools/list_changed` (the ExploitBench V8 server does
-this right after `initialize`). MCPServerSession is a request/response proxy and
-does not forward such messages, but it must IGNORE them rather than crash its
-stdout reader task -- otherwise every pending request hangs until the MCP
-timeout. This test feeds an unsolicited notification ahead of a normal response
-and asserts the matching request still resolves.
+MCPServerSession's stdout reader must tolerate lines it cannot dispatch rather
+than crash -- a dead reader fails every pending request. Two such cases are
+covered here:
+
+- A stdio MCP server that advertises `tools.listChanged` may legally emit an
+  unsolicited `notifications/tools/list_changed` (the ExploitBench V8 server
+  does this right after `initialize`). The session is a request/response proxy
+  and does not forward such messages, but it must IGNORE them.
+- A JSON-RPC parse-error response carries `id: null` and so cannot be
+  correlated to any pending request; it must be dropped.
+
+Each test feeds the unexpected line ahead of a normal response and asserts the
+matching request still resolves.
 """
 
 import asyncio

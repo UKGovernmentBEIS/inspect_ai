@@ -220,7 +220,12 @@ class MCPServerSession:
             # mcp 2.x types the id as optional (a JSON-RPC parse-error response
             # carries a null id). Such a response can't be correlated to a
             # pending request; mcp 1.x rejected it at validation (so the line
-            # was skipped as unparseable) — preserve that behavior.
+            # was skipped as unparseable) — preserve that behavior, but leave a
+            # breadcrumb since the request that provoked it will time out.
+            print(
+                f"Dropping uncorrelatable null-id JSON-RPC response: {response}",
+                file=sys.stderr,
+            )
             return
         future = self._requests.pop(request_id, None)
         assert future, f"No pending request for response with id {response.id}"
