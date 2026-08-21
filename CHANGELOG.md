@@ -1,6 +1,7 @@
 ## Unreleased
 
-- Anthropic: Compatibility with anthropic SDK 0.124.0, which is now the minimum supported version (browser state tool results and file-based image/document sources no longer fail type checking).
+- Metrics: Add `ci()` metric reporting a confidence interval for the mean (as `{"lower", "upper"}`). Defaults to `mean ± t · stderr` with a Student-t critical value (`n - 1` degrees of freedom; `clusters - 1` when `cluster=` is set) so small samples get honest widths; `method="bootstrap"` gives a percentile (cluster) bootstrap interval. (#4160)
+- Anthropic: Compatibility with anthropic SDK 1.0.0, which is now the minimum supported version (`temperature`/`top_p`/`top_k` continue to work on models that support them; browser state tool results and file-based image/document sources no longer fail type checking).
 - OpenAI: Responses API usage now records `cache_write_tokens` as `ModelUsage.input_tokens_cache_write` and excludes it from full-rate `input_tokens` (generate and compaction responses); compaction usage also now excludes cache reads and records reasoning tokens. (#4855)
 - Sandbox: Editable installs now avoid spurious `-dev` sandbox-tools binaries when local main refs are missing, stale, or unavailable.
 - Sandbox: Sandbox-tools binaries downloaded from S3 are now verified against SHA256 digests pinned in the package; failures warn by default, or fail when `INSPECT_SANDBOX_TOOLS_STRICT_DIGESTS` is set.
