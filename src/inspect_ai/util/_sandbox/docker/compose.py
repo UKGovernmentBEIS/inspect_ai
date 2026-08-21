@@ -197,13 +197,9 @@ async def compose_verify_prebuilt_images(
     unnamed: list[str] = []
     missing: list[str] = []
     for name, service in services.items():
-        image = service.get("image")
         if "build" not in service and not service.get("x-local"):
-            # no pull is attempted when prebuilt, so pull-eligible services
-            # must also have their image already present locally
-            if image and not await docker_image_exists_locally(image):
-                missing.append(f"{name} ({image})")
             continue
+        image = service.get("image")
         if not image:
             unnamed.append(name)
         elif not await docker_image_exists_locally(image):

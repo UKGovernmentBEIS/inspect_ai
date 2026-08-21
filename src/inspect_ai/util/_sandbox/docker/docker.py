@@ -134,10 +134,6 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                     service.get("build", None) is None
                     and service.get("x-local", None) is None
                 ):
-                    # when prebuilt, images were verified up front and no
-                    # pull is attempted (fails fast on air-gapped machines)
-                    if prebuilt:
-                        continue
                     # skip the pull if the image is already available locally
                     # (avoids noisy errors for images loaded via 'docker load')
                     if image and await docker_image_exists_locally(image):
@@ -146,6 +142,11 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                     pull_result = await compose_pull(name, project)
                     if not pull_result.success:
                         image = service.get("image", "(unknown)")
+                        if prebuilt:
+                            raise PrerequisiteError(
+                                PREBUILT_IMAGES_ERROR_PREFIX
+                                + f"the image '{image}' for service '{name}' is not present in the Docker image store and could not be pulled."
+                            )
                         logger.error(
                             f"Failed to pull docker image '{image}' from remote registry. If this is a locally built image add 'x-local: true' to the the service definition to prevent this error."
                         )
