@@ -10,7 +10,7 @@ from __future__ import annotations
 import copy
 import sys
 from collections.abc import Callable
-from typing import Any, Literal, NoReturn
+from typing import TYPE_CHECKING, Any, Literal, NoReturn
 
 import click
 from click.core import ParameterSource
@@ -20,12 +20,16 @@ from inspect_ai._control.discovery import discovery_dir
 from ._failure import _fail
 from ._render import _echo
 
+if TYPE_CHECKING:
+    # click 8.4 made ParamType generic in its stubs, but subscripting it at
+    # runtime raises on the older click versions the package still supports
+    # (>=8.1.3), so the parametrized base is typing-only.
+    _IntOrClearBase = click.ParamType[int | Literal["clear"]]
+else:
+    _IntOrClearBase = click.ParamType
 
-# click 8.4 made ParamType generic in its stubs, but the package supports
-# older click (>=8.1.3) whose stubs reject the subscript (and CI can resolve
-# such versions, e.g. via inspect-scout's click pin), so subclass the
-# unparametrized base; convert() carries the concrete return type.
-class _IntOrClearType(click.ParamType):
+
+class _IntOrClearType(_IntOrClearBase):
     """Non-negative integer, or the keyword ``clear`` (restore launch config).
 
     The override knobs' value domain (the retry overrides and the per-sample
