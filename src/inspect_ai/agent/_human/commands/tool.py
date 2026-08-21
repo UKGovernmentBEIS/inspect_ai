@@ -411,13 +411,8 @@ def tool(args):
 
             # shared classification with the model tool path — the same
             # exception yields the same ToolCallError on both paths
-            try:
-                classified = classify_tool_exception(ex, tool)
-            except Exception as reraised:
-                # classify re-raises what it refuses to classify (e.g.
-                # non-embedded-null-byte ValueErrors) — treat as unexpected
-                ex = reraised
-                classified = None
+            # (unexpected exceptions come back None and get human policy)
+            classified = classify_tool_exception(ex, tool)
 
             if classified is None:
                 # unexpected exceptions must not end the human's session (a
