@@ -192,7 +192,7 @@ async def compose_verify_prebuilt_images(
     unnamed: list[str] = []
     missing: list[str] = []
     for name, service in services.items():
-        if "build" not in service:
+        if "build" not in service and not service.get("x-local"):
             continue
         image = service.get("image")
         if not image:

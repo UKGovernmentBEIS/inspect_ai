@@ -62,6 +62,27 @@ async def test_verify_prebuilt_images_unnamed_service(monkeypatch):
     assert "unnamed" in str(excinfo.value)
 
 
+async def test_verify_prebuilt_images_missing_x_local_image(monkeypatch):
+    stub_image_exists(monkeypatch, set())
+
+    with pytest.raises(PrerequisiteError) as excinfo:
+        await compose_verify_prebuilt_images(
+            compose_project(),
+            {"local": {"image": "local-image", "x-local": True}},
+        )
+    assert "not present in the Docker image store" in str(excinfo.value)
+    assert "local (local-image)" in str(excinfo.value)
+
+
+async def test_verify_prebuilt_images_passes_x_local_image_present(monkeypatch):
+    stub_image_exists(monkeypatch, {"local-image"})
+
+    await compose_verify_prebuilt_images(
+        compose_project(),
+        {"local": {"image": "local-image", "x-local": True}},
+    )
+
+
 async def test_verify_prebuilt_images_ignores_services_without_build(monkeypatch):
     stub_image_exists(monkeypatch, set())
 

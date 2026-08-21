@@ -57,8 +57,10 @@ _sandbox_prebuilt: ContextVar[bool] = ContextVar("sandbox_prebuilt", default=Fal
 def sandbox_prebuilt() -> bool:
     """Whether sandbox images should be treated as prebuilt.
 
-    When `True`, sandbox providers with an image build step should skip
-    the build and raise `PrerequisiteError` for images that don't exist.
+    When `True`, the built-in Docker provider verifies that images exist
+    instead of building them, raising `PrerequisiteError` for images that
+    don't. Currently internal to the Docker provider (not exported from
+    `inspect_ai.util`).
     """
     return _sandbox_prebuilt.get()
 
