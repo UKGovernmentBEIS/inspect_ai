@@ -272,17 +272,11 @@ def test_anthropic_streaming_overloaded_body_classifies_as_transient() -> None:
 
 
 def test_anthropic_httpx2_transport_error_classifies_as_transient() -> None:
-    """Raw httpx2 transport errors must classify as retryable.
-
-    anthropic >= 1.0 is built on httpx2, and raw httpx2 transport errors can
-    leak from stream iteration unwrapped.
-    """
+    """Anthropic >= 1 is built on httpx2 — raw httpx2 transport errors that escape the SDK unwrapped must still retry."""
     from inspect_ai.model._providers.anthropic import AnthropicAPI
 
     api = AnthropicAPI.__new__(AnthropicAPI)
-    ex = httpx2.RemoteProtocolError(
-        "peer closed connection without sending complete message body"
-    )
+    ex = httpx2.ConnectError("connection reset")
     decision = api.should_retry(ex)
     assert isinstance(decision, RetryDecision)
     assert decision.retry is True

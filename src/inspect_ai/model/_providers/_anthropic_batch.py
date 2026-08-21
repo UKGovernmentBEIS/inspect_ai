@@ -1,7 +1,5 @@
-from typing import TypeAlias, cast
+from typing import Any, TypeAlias, cast
 
-# anthropic >= 1.0 is built on httpx2, so objects handed to its exception
-# constructors must be httpx2 types
 import httpx2
 from anthropic import (
     APIConnectionError,
@@ -71,10 +69,18 @@ class AnthropicBatcher(Batcher[Message, CompletedBatchInfo]):
             request_id = extra_headers.pop(HttpxHooks.REQUEST_ID_HEADER, None)
             if request_id is not None:
                 request.custom_id = request_id
+            # the Batches API has no extra_body: merge it into the request
+            # body root, which is where the SDK would put it on the direct
+            # path (e.g. temperature/top_p/top_k, which anthropic >= 1.0
+            # removed from the method signatures but the API still accepts)
+            params: dict[str, Any] = request.request
+            extra_body = params.pop("extra_body", None)
+            if extra_body:
+                params.update(extra_body)
             requests.append(
                 AnthropicBatchRequest(
                     custom_id=request.custom_id,
-                    params=cast(MessageCreateParamsNonStreaming, request.request),
+                    params=cast(MessageCreateParamsNonStreaming, params),
                 )
             )
 
