@@ -922,21 +922,19 @@ class AnthropicAPI(ModelAPI):
                 )
             return _THINKING_WARNING.format(parameter=parameter)
 
-        if config.temperature is not None:
-            if forbid_sampling_params:
-                warn_once(logger, sampling_param_warning("temperature"))
-            else:
-                params["temperature"] = config.temperature
-        if config.top_p is not None:
-            if forbid_sampling_params:
-                warn_once(logger, sampling_param_warning("top_p"))
-            else:
-                params["top_p"] = config.top_p
-        if config.top_k is not None:
-            if forbid_sampling_params:
-                warn_once(logger, sampling_param_warning("top_k"))
-            else:
-                params["top_k"] = config.top_k
+        # anthropic >= 1.0 removed temperature/top_p/top_k from the method
+        # signatures (the API still accepts them for models that support
+        # them), so route via extra_body rather than params
+        for parameter, value in (
+            ("temperature", config.temperature),
+            ("top_p", config.top_p),
+            ("top_k", config.top_k),
+        ):
+            if value is not None:
+                if forbid_sampling_params:
+                    warn_once(logger, sampling_param_warning(parameter))
+                else:
+                    extra_body[parameter] = value
 
         # effort
         if config.effort is not None:
