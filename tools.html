@@ -773,16 +773,16 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Inspect has built-in tools for computing and agentic planning. Computing tools include:</p>
 <ul>
 <li><a href="./tools-standard.html#sec-web-search">Web Search</a>, which uses a search provider (either built in to the model or external) to execute and summarize web searches.</li>
-<li><a href="./tools-standard.html#sec-bash-and-python">Bash and Python</a> for executing arbitrary shell and Python code.</li>
-<li><a href="./tools-standard.html#sec-bash-session">Bash Session</a> for creating a stateful bash shell that retains its state across calls from the model.</li>
-<li><a href="./tools-standard.html#sec-text-editor">Text Editor</a> which enables viewing, creating and editing text files.</li>
-<li><a href="./tools-standard.html#sec-computer">Computer</a>, which provides the model with a desktop computer (viewed through screenshots) that supports mouse and keyboard interaction.</li>
-<li><a href="./tools-standard.html#sec-code-execution">Code Execution</a>, which gives models a sandboxed Python code execution environment running within the model provider’s infrastructure.</li>
-<li><a href="./tools-standard.html#sec-web-browser">Web Browser</a>, which provides the model with a headless Chromium web browser that supports navigation, history, and mouse/keyboard interactions.</li>
+<li><a href="./tools-standard.html#sec-bash-and-python">Bash and Python</a> for executing arbitrary shell and Python code (requires a <a href="./sandboxing.html">sandbox</a>).</li>
+<li><a href="./tools-standard.html#sec-bash-session">Bash Session</a> for creating a stateful bash shell that retains its state across calls from the model (requires a <a href="./sandboxing.html">sandbox</a>).</li>
+<li><a href="./tools-standard.html#sec-text-editor">Text Editor</a> which enables viewing, creating and editing text files (requires a <a href="./sandboxing.html">sandbox</a>).</li>
+<li><a href="./tools-standard.html#sec-computer">Computer</a>, which provides the model with a desktop computer (viewed through screenshots) that supports mouse and keyboard interaction (requires a <a href="./sandboxing.html">sandbox</a>).</li>
+<li><a href="./tools-standard.html#sec-code-execution">Code Execution</a>, which gives models a Python code execution environment hosted within the model provider’s infrastructure rather than an Inspect sandbox.</li>
+<li><a href="./tools-standard.html#sec-web-browser">Web Browser</a>, which provides the model with a headless Chromium web browser that supports navigation, history, and mouse/keyboard interactions (requires a <a href="./sandboxing.html">sandbox</a>).</li>
 </ul>
 <p>Agentic tools include:</p>
 <ul>
-<li><a href="./tools-standard.html#sec-skill">Skill</a> which provides agent skill specifications to the model with specialized knowledge and expertise for specific tasks.</li>
+<li><a href="./tools-standard.html#sec-skill">Skill</a> which provides agent skill specifications to the model with specialized knowledge and expertise for specific tasks (requires a <a href="./sandboxing.html">sandbox</a>).</li>
 <li><a href="./tools-standard.html#sec-update-plan">Update Plan</a> which helps the model tracks steps and progress across longer horizon tasks.</li>
 <li><a href="./tools-standard.html#sec-memory">Memory</a> which enables storing and retrieving information through a memory file directory.</li>
 <li><a href="./tools-standard.html#sec-think">Think</a>, which provides models the ability to include an additional thinking step as part of getting to its final answer.</li>

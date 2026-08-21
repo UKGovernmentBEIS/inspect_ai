@@ -879,11 +879,11 @@ table a {
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="sourceCode default code-with-copy"><code class="sourceCode default"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>&lt;class 'pandas.core.frame.DataFrame'&gt;</span>
 <span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>RangeIndex: 408 entries, 0 to 407</span>
 <span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>Columns: 28 entries, sample_id to fallbacks</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>This dataframe has 28 columns rather than than the 14 we saw for the default <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#samples_df">samples_df()</a></span> behavior, reflecting the additional eval level columns. You can create your own column groups and definitions to further customise reading (see <a href="#column-definitions">Column Definitions</a> for details).</p>
+<p>This dataframe has 28 columns rather than the 14 we saw for the default <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#samples_df">samples_df()</a></span> behavior, reflecting the additional eval level columns. You can create your own column groups and definitions to further customise reading (see <a href="#column-definitions">Column Definitions</a> for details).</p>
 </section>
 <section id="filtering-logs" class="level3">
 <h3 class="anchored" data-anchor-id="filtering-logs">Filtering Logs</h3>
-<p>The above examples read all of the logs within a given directory. You can also use the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#list_eval_logs">list_eval_logs()</a></span> function to filter the list of logs based on arbitrary criteria as well control whether log listings are recursive.</p>
+<p>The above examples read all of the logs within a given directory. You can also use the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#list_eval_logs">list_eval_logs()</a></span> function to filter the list of logs based on arbitrary criteria as well as control whether log listings are recursive.</p>
 <p>For example, here we read only log files with a <code>status</code> of “success”:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="co"># read only successful logs from a given log directory</span></span>
 <span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>logs <span class="op">=</span> list_eval_logs(<span class="st">"logs"</span>, <span class="bu">filter</span><span class="op">=</span><span class="kw">lambda</span> log: log.status <span class="op">==</span> <span class="st">"success"</span>)</span>
@@ -1013,7 +1013,7 @@ table a {
 <h3 class="anchored" data-anchor-id="frontier">frontier()</h3>
 <p>Adds a “frontier” column to each task. The value of the “frontier” column will be <code>True</code> if for the task, the model was the top-scoring model among all models available at the moment the model was released; otherwise it will be <code>False</code>.</p>
 <p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#frontier">frontier()</a></span> requires scores and model release dates, so must be run after the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#model_info">model_info()</a></span> operation.</p>
-<div id="fba1691f" class="cell">
+<div id="e6cc1249" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb20"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.analysis <span class="im">import</span> (</span>
 <span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a>    evals_df, frontier, log_viewer, model_info, prepare</span>
 <span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a>)</span>
@@ -1029,7 +1029,7 @@ table a {
 <h3 class="anchored" data-anchor-id="score_to_float">score_to_float()</h3>
 <p>Converts one or more score columns to a float representation of the score.</p>
 <p>For each column specified, this operation will convert the values to floats using the provided <code>value_to_float</code> function. The column value will be replaced with the float value.</p>
-<div id="e72d3d27" class="cell">
+<div id="17af35f5" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb21"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.analysis <span class="im">import</span> (</span>
 <span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a>    samples_df, frontier, model_info, prepare, score_to_float</span>
 <span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a>)</span>
@@ -1056,9 +1056,9 @@ table a {
 <span id="cb22-9"><a href="#cb22-9" aria-hidden="true" tabindex="-1"></a>    EvalColumn(<span class="st">"sandbox_type"</span>, path<span class="op">=</span><span class="st">"eval.sandbox.type"</span>),</span>
 <span id="cb22-10"><a href="#cb22-10" aria-hidden="true" tabindex="-1"></a>    EvalColumn(<span class="st">"sandbox_config"</span>, path<span class="op">=</span><span class="st">"eval.sandbox.config"</span>),</span>
 <span id="cb22-11"><a href="#cb22-11" aria-hidden="true" tabindex="-1"></a>]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>Columns are defined with a <code>name</code>, a <code>path</code> (location within JSON to read their value from), and other options (e.g.&nbsp;<code>required</code>, <code>type</code>, etc.) . Column paths use <a href="https://github.com/h2non/jsonpath-ng">JSON Path</a> expressions to indicate how they should be read from JSON.</p>
+<p>Columns are defined with a <code>name</code>, a <code>path</code> (location within JSON to read their value from), and other options (e.g.&nbsp;<code>required</code>, <code>type</code>, etc.). Column paths use <a href="https://github.com/h2non/jsonpath-ng">JSON Path</a> expressions to indicate how they should be read from JSON.</p>
 <p>Many fields within eval logs are optional, and path expressions will automatically resolve to <code>None</code> when they include a missing field (unless the <code>required=True</code> option is specified).</p>
-<p>Here are are all of the options available for <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#column">Column</a></span> definitions:</p>
+<p>Here are all of the options available for <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#column">Column</a></span> definitions:</p>
 <section id="column-options" class="level4">
 <h4 class="anchored" data-anchor-id="column-options">Column Options</h4>
 <table class="caption-top table">
@@ -1193,7 +1193,7 @@ table a {
 <section id="custom-extraction" class="level4">
 <h4 class="anchored" data-anchor-id="custom-extraction">Custom Extraction</h4>
 <p>The example above demonstrates the use of custom extraction functions, which take an <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#evallog">EvalLog</a></span> and return a <code>JsonValue</code>.</p>
-<p>For example, here is the default extraction function for the the dictionary of scores/metrics:</p>
+<p>For example, here is the default extraction function for the dictionary of scores/metrics:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb28"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> scores_dict(log: EvalLog) <span class="op">-&gt;</span> JsonValue:</span>
 <span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> log.results <span class="kw">is</span> <span class="va">None</span>:</span>
 <span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="va">None</span></span>

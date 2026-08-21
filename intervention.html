@@ -1080,6 +1080,10 @@ Important
 <td><code>inspect/session_ended</code></td>
 <td>Notification when a sample has completed, so the client can flip its UI to a terminal state without waiting for socket EOF.</td>
 </tr>
+<tr class="even">
+<td><code>inspect/turn_state</code></td>
+<td>Current turn state on bind, then each transition (<code>started</code>, <code>ended</code>, or <code>cancelled</code>). The initial <code>ended</code> means idle and does not imply a turn previously started. This is an exact “agent is working” signal, since <code>session/prompt</code> returns immediately.</td>
+</tr>
 </tbody>
 </table>
 <p>Samples enumerated by <code>inspect/list_samples</code> carry an <code>inspect.interactive</code> flag. When it is <code>false</code> the sample is <em>observe-only</em> — its agent hasn’t bound a turn loop (no <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agent_channel">agent_channel()</a></span>), so the client can attach to stream the transcript and call <code>inspect/cancel_sample</code> / <code>inspect/cancel_tool_call</code>, but <code>session/prompt</code> is rejected with <code>invalid_request</code> and <code>session/cancel</code> is ignored. Custom clients should disable their message composer for these sessions. The bind confirmation echoes the same flag in its <code>_meta</code> under <code>inspect.interactive</code>. (The standard <code>session/new</code> picker lists only interactive sessions; observe-only ones are reachable solely via <code>inspect/list_samples</code>.)</p>

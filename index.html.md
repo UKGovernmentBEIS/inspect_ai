@@ -165,7 +165,7 @@ def ctf():
 The [includes()](./reference/inspect_ai.scorer.html.md#includes) scorer passes if the target flag appears in the agent’s submitted answer.
 
 3  
-`sandbox="docker"` runs all tool calls inside an isolated Docker container (configured by a `Dockerfile` or `compose.yaml` alongside the task).
+`sandbox="docker"` provides the isolated Docker container used by [bash()](./reference/inspect_ai.tool.html.md#bash) (configured by a `Dockerfile` or `compose.yaml` alongside the task).
 
 Use `inspect view` to view the results and look more carefully at individual transcripts:
 

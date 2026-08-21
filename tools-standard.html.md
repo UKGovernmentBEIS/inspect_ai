@@ -5,16 +5,16 @@
 Inspect has built-in tools for computing and agentic planning. Computing tools include:
 
 - [Web Search](./tools-standard.html.md#sec-web-search), which uses a search provider (either built in to the model or external) to execute and summarize web searches.
-- [Bash and Python](./tools-standard.html.md#sec-bash-and-python) for executing arbitrary shell and Python code.
-- [Bash Session](./tools-standard.html.md#sec-bash-session) for creating a stateful bash shell that retains its state across calls from the model.
-- [Text Editor](./tools-standard.html.md#sec-text-editor) which enables viewing, creating and editing text files.
-- [Computer](./tools-standard.html.md#sec-computer), which provides the model with a desktop computer (viewed through screenshots) that supports mouse and keyboard interaction.
-- [Code Execution](./tools-standard.html.md#sec-code-execution), which gives models a sandboxed Python code execution environment running within the model provider’s infrastructure.
-- [Web Browser](./tools-standard.html.md#sec-web-browser), which provides the model with a headless Chromium web browser that supports navigation, history, and mouse/keyboard interactions.
+- [Bash and Python](./tools-standard.html.md#sec-bash-and-python) for executing arbitrary shell and Python code (requires a [sandbox](./sandboxing.html.md)).
+- [Bash Session](./tools-standard.html.md#sec-bash-session) for creating a stateful bash shell that retains its state across calls from the model (requires a [sandbox](./sandboxing.html.md)).
+- [Text Editor](./tools-standard.html.md#sec-text-editor) which enables viewing, creating and editing text files (requires a [sandbox](./sandboxing.html.md)).
+- [Computer](./tools-standard.html.md#sec-computer), which provides the model with a desktop computer (viewed through screenshots) that supports mouse and keyboard interaction (requires a [sandbox](./sandboxing.html.md)).
+- [Code Execution](./tools-standard.html.md#sec-code-execution), which gives models a Python code execution environment hosted within the model provider’s infrastructure rather than an Inspect sandbox.
+- [Web Browser](./tools-standard.html.md#sec-web-browser), which provides the model with a headless Chromium web browser that supports navigation, history, and mouse/keyboard interactions (requires a [sandbox](./sandboxing.html.md)).
 
 Agentic tools include:
 
-- [Skill](./tools-standard.html.md#sec-skill) which provides agent skill specifications to the model with specialized knowledge and expertise for specific tasks.
+- [Skill](./tools-standard.html.md#sec-skill) which provides agent skill specifications to the model with specialized knowledge and expertise for specific tasks (requires a [sandbox](./sandboxing.html.md)).
 - [Update Plan](./tools-standard.html.md#sec-update-plan) which helps the model tracks steps and progress across longer horizon tasks.
 - [Memory](./tools-standard.html.md#sec-memory) which enables storing and retrieving information through a memory file directory.
 - [Think](./tools-standard.html.md#sec-think), which provides models the ability to include an additional thinking step as part of getting to its final answer.
@@ -297,17 +297,7 @@ The [computer()](./reference/inspect_ai.tool.html.md#computer) tool provides mod
 
 ### Configuration
 
-The [computer()](./reference/inspect_ai.tool.html.md#computer) tool runs within a Docker container. To use it with a task you need to reference the `aisiuk/inspect-computer-tool` image in your Docker compose file. For example:
-
-    compose.yaml
-
-``` yaml
-services:
-  default:
-    image: aisiuk/inspect-computer-tool
-```
-
-You can configure the container to not have Internet access as follows:
+The [computer()](./reference/inspect_ai.tool.html.md#computer) tool runs within a Docker container. To use it with a task you need to reference the `aisiuk/inspect-computer-tool` image in your Docker compose file. For a task that does not require networking, retain Inspect’s no-network posture explicitly:
 
     compose.yaml
 
@@ -318,7 +308,7 @@ services:
     network_mode: none
 ```
 
-Note that if you’d like to be able to view the model’s interactions with the computer desktop in realtime, you will need to also do some port mapping to enable a VNC connection with the container. See the [VNC Client](#vnc-client) section below for details on how to do this.
+Omit `network_mode: none` only when the task needs networking. If you’d like to view the model’s interactions with the computer desktop in realtime, you will also need port mapping to enable a VNC connection with the container. See the [VNC Client](#vnc-client) section below for details.
 
 The `aisiuk/inspect-computer-tool` image is based on the [ubuntu:22.04](https://hub.docker.com/layers/library/ubuntu/22.04/images/sha256-965fbcae990b0467ed5657caceaec165018ef44a4d2d46c7cdea80a9dff0d1ea?context=explore) image and includes the following additional applications pre-installed:
 
@@ -403,6 +393,8 @@ You can use a [VNC](https://en.wikipedia.org/wiki/VNC) connection to the contain
 services:
   default:
     image: aisiuk/inspect-computer-tool
+    # network_mode is omitted because container networking is required for
+    # these ports. This also permits outbound Internet access.
     ports:
       - "127.0.0.1::5900"
       - "127.0.0.1::6080"
@@ -558,7 +550,7 @@ Note that Playwright (used for the [web_browser()](./reference/inspect_ai.tool.h
 >     inspect-tool-support post-install
 > ```
 >
-> If you don’t have a custom Dockerfile, you can alternatively use the pre-built `aisiuk/inspect-tool-support` image:
+> If you don’t have a custom Dockerfile, you can alternatively use the pre-built `aisiuk/inspect-tool-support` image. This configuration intentionally permits outbound Internet access so the browser can visit external sites:
 >
 >     compose.yaml
 >
@@ -567,6 +559,7 @@ Note that Playwright (used for the [web_browser()](./reference/inspect_ai.tool.h
 >   default:
 >     image: aisiuk/inspect-tool-support
 >     init: true
+>     # network_mode is omitted because the browser visits external sites.
 > ```
 
 ### Task Setup

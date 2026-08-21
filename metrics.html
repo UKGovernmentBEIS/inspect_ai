@@ -787,6 +787,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Standard error of the mean.</p></li>
 <li><p><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#bootstrap_stderr">bootstrap_stderr()</a></span></p>
 <p>Standard deviation of a bootstrapped estimate of the mean. 1000 samples are taken by default (modify this using the <code>num_samples</code> option).</p></li>
+<li><p><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#ci">ci()</a></span></p>
+<p>Confidence interval for the mean, reported as a mapping with <code>lower</code> and <code>upper</code> bounds. Defaults to a 95% Student-t interval (<code>mean ± t · stderr</code>, with <code>n - 1</code> degrees of freedom, or <code>clusters - 1</code> when <code>cluster=</code> is set); pass <code>level=</code> to change the confidence level or <code>method="bootstrap"</code> for a percentile (cluster) bootstrap interval. Useful for deciding, for example, whether two models’ accuracy intervals overlap.</p></li>
 <li><p><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#frequency">frequency()</a></span></p>
 <p>Frequency of each distinct categorical score value. By default this reports proportions over scored observations; pass <code>normalize=False</code> to report counts. If a task uses epochs, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#frequency">frequency()</a></span> receives unreduced epoch scores, so each scored sample epoch is an observation.</p></li>
 <li><p><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#categorical">categorical()</a></span></p>

@@ -191,7 +191,7 @@ Each sample provides the challenge prompt plus the files to copy into the sandbo
 [includes()](./reference/inspect_ai.scorer.html.md#includes) passes if the target flag appears in the agent’s submitted answer.
 
 5  
-`sandbox="docker"` isolates all tool execution in a Docker container (configured by a `Dockerfile`/`compose.yaml` beside the task). See [Sandboxing](./sandboxing.html.md).
+`sandbox="docker"` provides the isolated Docker container used by [bash()](./reference/inspect_ai.tool.html.md#bash) and [python()](./reference/inspect_ai.tool.html.md#python). See [Sandboxing](./sandboxing.html.md).
 
 6  
 Limits keep runaway agents in check. Here we cap total messages; you can also set token, time, and cost limits (see [Setting Limits](./setting-limits.html.md)).

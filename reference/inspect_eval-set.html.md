@@ -92,7 +92,7 @@ inspect eval-set [OPTIONS] [TASKS]...
 | `--score-on-error` | boolean | Score samples that error rather than failing the eval mid-run. Errors still count toward the –fail-on-error threshold for marking the log as ‘error’. Only fires after retries (if any) are exhausted. | None |
 | `--no-log-samples` | boolean | Do not include samples in the log file. | `False` |
 | `--no-log-realtime` | boolean | Do not log events in realtime (affects live viewing of samples in inspect view) | `False` |
-| `--log-images` / `--no-log-images` | boolean | Include base64 encoded versions of filename or URL based images in the log file. | `True` |
+| `--log-images` / `--no-log-images` | boolean | Retain inline image and other media bytes in the log file. This option does not control media fetching. | `True` |
 | `--log-model-api` / `--no-log-model-api` | boolean | Log raw model api requests and responses. Note that error requests/responses are always logged. | None |
 | `--log-refusals` / `--no-log-refusals` | boolean | Log warnings for model refusals. | `False` |
 | `--log-buffer` | integer | Number of samples to buffer before writing log file. If not specified, an appropriate default for the format and filesystem is chosen (10 for most all cases, 100 for JSON logs on remote filesystems). | None |

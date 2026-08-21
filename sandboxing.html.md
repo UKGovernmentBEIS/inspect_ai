@@ -2,15 +2,15 @@
 
 ## Overview
 
-By default, model tool calls are executed within the main process running the evaluation task. In some cases however, you may require the provisioning of dedicated environments for running tool code. This might be the case if:
+Model tool calls are executed within the main process running the evaluation task. However, the work that tools perform — such as running shell commands or executing Python code — very often needs to happen in a dedicated, isolated environment (for example, [bash()](./reference/inspect_ai.tool.html.md#bash) runs its shell commands in a sandbox). This might be the case if:
 
-- You are creating tools that enable execution of arbitrary code (e.g. a tool that executes shell commands or Python code).
+- You are creating tools, agents or scorers that execute arbitrary code (e.g. shell commands or Python code).
 
 - You need to provision per-sample filesystem resources.
 
 - You want to provide access to a more sophisticated evaluation environment (e.g. creating network hosts for a cybersecurity eval).
 
-To accommodate these scenarios, Inspect provides support for *sandboxing*, which typically involves provisioning containers for tools to execute code within. Support for Docker sandboxes is built in, and the [Extension API](./extensions-sandboxes.html.md#sec-sandbox-environment-extensions) enables the creation of additional sandbox types.
+To accommodate these scenarios, Inspect provides support for *sandboxing*, which typically involves provisioning containers in which tools, agents and scorers can execute commands and code. Several of Inspect’s [standard tools](./tools-standard.html.md) require a sandbox, including [bash()](./reference/inspect_ai.tool.html.md#bash), [python()](./reference/inspect_ai.tool.html.md#python), [text_editor()](./reference/inspect_ai.tool.html.md#text_editor), and [web_browser()](./reference/inspect_ai.tool.html.md#web_browser). Support for Docker sandboxes is built in, and the [Extension API](./extensions-sandboxes.html.md#sec-sandbox-environment-extensions) enables the creation of additional sandbox types.
 
 ## Example: File Listing
 
@@ -72,13 +72,15 @@ def file_probe():
     )
 ```
 
-We’ve included `sandbox="docker"` to indicate that sandbox environment operations should be executed in a Docker container. Specifying a sandbox environment (either at the task or evaluation level) is required if your tools call the [sandbox()](./reference/inspect_ai.util.html.md#sandbox) function.
+We’ve included `sandbox="docker"` so operations requested through [sandbox()](./reference/inspect_ai.util.html.md#sandbox) run in a Docker container. A sandbox environment must be specified at the sample, task, or evaluation level if any tools, agents or scorers call the [sandbox()](./reference/inspect_ai.util.html.md#sandbox) function.
+
+Provisioning a sandbox does not automatically run tools, agents or scorers in the container. That code still runs as part of the evaluation; only work that it requests through the [sandbox()](./reference/inspect_ai.util.html.md#sandbox) interface runs in the container.
 
 Note that `files` are specified as part of the [Sample](./reference/inspect_ai.dataset.html.md#sample). Files can be specified inline using plain text (as depicted above), inline using a base64-encoded data URI, or as a path to a file or remote resource (e.g. S3 bucket). Relative file paths are resolved according to the location of the underlying dataset file.
 
 ## Environment Interface
 
-The following instance methods are available to tools that need to interact with a [SandboxEnvironment](./reference/inspect_ai.util.html.md#sandboxenvironment):
+The following instance methods are available to tools, agents and scorers that need to interact with a [SandboxEnvironment](./reference/inspect_ai.util.html.md#sandboxenvironment):
 
 ### exec()
 
@@ -199,8 +201,6 @@ The `connection()` method is optional, and provides commands that can be used to
 
 For each method there is a documented set of errors that are raised: these are *expected* errors and can either be caught by tools or allowed to propagate in which case they will be reported to the model for potential recovery. In addition, *unexpected* errors may occur (e.g. a networking error connecting to a remote container): these errors are not reported to the model and fail the [Sample](./reference/inspect_ai.dataset.html.md#sample) with an error state.
 
-The sandbox is also available to custom scorers.
-
 ## Environment Binding
 
 There are two sandbox environments built in to Inspect and six available as external packages. Dockerfile-compatible sandboxes accept standard `Dockerfile` and `compose.yaml` configuration files.
@@ -274,6 +274,8 @@ The [ComposeConfig](./reference/inspect_ai.util.html.md#composeconfig) and [Comp
 
 By default, sandboxes limit the size of file reads to 100MB and execution output to 10MB. These limits exist to prevent boundary cases of outputs or executions that don’t terminate and result in OOM or hung evaluations (i.e. they usually indicate an error by the model).
 
+The two limits are not enforced in the same way. [read_file()](./reference/inspect_ai.tool.html.md#read_file) always raises `OutputLimitExceededError` when the limit is exceeded. For `exec()` the behaviour depends on the sandbox provider: the built-in providers front-truncate each output stream (keeping only its trailing portion), so `exec()` returns a successful [ExecResult](./reference/inspect_ai.util.html.md#execresult) whose `stdout` or `stderr` may be silently incomplete rather than raising. Don’t rely on an exception to detect `exec()` overflow—this matters in particular when parsing structured output such as JSON. If a command can produce output near the limit and you need all of it, have the command write to a file and read it with [read_file()](./reference/inspect_ai.tool.html.md#read_file).
+
 You can however increase these limits using environment variables. For example, here we set the read file limit to 200MB and the exec output size to 20MB:
 
 ``` bash
@@ -305,7 +307,9 @@ If there is a Sample `setup` bash script it will be executed within the default 
 
 ### Installation
 
-Before using Docker sandbox environments, please be sure to install [Docker Engine](https://docs.docker.com/engine/install/) (version 24.0.7 or greater).
+Before using Docker sandbox environments, please be sure to install [Docker Engine](https://docs.docker.com/engine/install/). Inspect checks the connected Docker daemon and requires version 24.0.6 or greater.
+
+Docker Compose is checked separately: Inspect requires version 2.21.0 or greater, and version 2.22.0 or greater when Inspect pulls sandbox images from a registry.
 
 If you plan on running evaluations with large numbers of concurrent containers (\> 30) you should also configure Docker’s [default address pools](https://straz.to/2021-09-08-docker-address-pools/) to accommodate this.
 
@@ -321,7 +325,11 @@ Here is how Docker sandbox environments are created based on the presence of `Do
 | `Dockerfile` | Creates a sandbox environment by building the image. |
 | `compose.yaml` | Creates sandbox environment(s) based on `compose.yaml`. |
 
-Providing a `compose.yaml` is not strictly required, as Inspect will automatically generate one as needed. Note that the automatically generated compose file will restrict internet access by default, so if your evaluations require this you’ll need to provide your own `compose.yaml` file.
+Providing a `compose.yaml` is not strictly required, as Inspect will automatically generate one as needed. The generated Compose configuration sets `network_mode: none`, which prevents network access at container runtime.
+
+Supplying a custom Compose configuration — whether a Compose file or [ComposeConfig](./reference/inspect_ai.util.html.md#composeconfig) — *replaces* the generated configuration rather than extending it, including its `network_mode: none`. Docker Compose’s default is a project-scoped network with outbound Internet access, so include `network_mode: none` in your own configuration unless the evaluation requires networking.
+
+If the evaluation does need network access, omit `network_mode` — that provides outbound access while keeping the project’s network isolated (`network_mode: bridge` would instead join Docker’s shared built-in bridge, so prefer omitting it). When services only need to communicate with each other, use an [internal network](https://docs.docker.com/reference/compose-file/networks/#internal), which allows service-to-service traffic without external connectivity.
 
 Here’s an example of a `compose.yaml` file that sets container resource limits and isolates it from all network interactions including internet access:
 
@@ -338,9 +346,9 @@ services:
     network_mode: none
 ```
 
-The `init: true` entry enables the container to respond to shutdown requests. The `command` is provided to prevent the container from exiting after it starts.
+The `network_mode: none` entry applies only to processes inside the container. It does not restrict network access from the evaluation process or model provider. Code in custom tools, agents or scorers may therefore access the internet outside the Docker sandbox. Tools that do not use the Inspect sandbox, such as [web_search()](./reference/inspect_ai.tool.html.md#web_search), are also unaffected. The `init: true` entry enables the container to respond to shutdown requests. The `command` is provided to prevent the container from exiting after it starts.
 
-Here is what a simple `compose.yaml` would look like for a local pre-built image named `ctf-agent-environment` (resource and network limits excluded for brevity):
+Here is what a simple `compose.yaml` would look like for a local pre-built image named `ctf-agent-environment` (resource limits excluded for brevity):
 
     compose.yaml
 
@@ -351,6 +359,7 @@ services:
     x-local: true
     init: true
     command: tail -f /dev/null
+    network_mode: none
 ```
 
 The `ctf-agent-environment` is not an image that exists on a remote registry, so we add the `x-local: true` to indicate that it should not be pulled. If local images are tagged, they also will not be pulled by default (so `x-local: true` is not required). For example:
@@ -363,6 +372,7 @@ services:
     image: ctf-agent-environment:1.0.0
     init: true
     command: tail -f /dev/null
+    network_mode: none
 ```
 
 If we are using an image from a remote registry we similarly don’t need to include `x-local`:
@@ -375,6 +385,7 @@ services:
     image: python:3.12-bookworm
     init: true
     command: tail -f /dev/null
+    network_mode: none
 ```
 
 See the [Docker Compose](https://docs.docker.com/compose/compose-file/) documentation for information on all available container options.
@@ -393,12 +404,14 @@ services:
     init: true
     cpus: 1.0
     mem_limit: 0.5gb
+    network_mode: none
   victim:
     image: ctf-victim-environment
     x-local: true
     init: true
     cpus: 1.0
     mem_limit: 1gb
+    network_mode: none
 ```
 
 The first environment listed is the “default” environment, and can be accessed from within a tool with a normal call to [sandbox()](./reference/inspect_ai.util.html.md#sandbox). Other environments would be accessed by name, for example:
@@ -431,6 +444,7 @@ services:
     image: ctf-agent-environment
     x-local: true
     init: true
+    network_mode: none
     volumes:
       - ctf-challenge-volume:/shared-data
     
@@ -438,6 +452,7 @@ services:
     image: ctf-challenge-writer
     x-local: true
     init: true
+    network_mode: none
     volumes:
       - ctf-challenge-volume:/shared-data
 volumes:
@@ -458,6 +473,7 @@ services:
     init: true
     cpus: 1.0
     mem_limit: ${SAMPLE_METADATA_MEMORY_LIMIT-0.5gb}
+    network_mode: none
 ```
 
 Note that `-` suffix that provides the default value of 0.5gb. This is important to include so that when the compose file is read *without* the context of a Sample (for example, when pulling/building images at startup) that a default value is available.
@@ -540,6 +556,7 @@ services:
     command: tail -f /dev/null
     cpus: 1.0
     mem_limit: 0.5gb
+    network_mode: none
 ```
 
 ## Troubleshooting

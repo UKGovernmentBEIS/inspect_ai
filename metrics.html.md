@@ -52,6 +52,10 @@ Inspect includes some simple built in metrics for calculating accuracy, mean, et
 
   Standard deviation of a bootstrapped estimate of the mean. 1000 samples are taken by default (modify this using the `num_samples` option).
 
+- [ci()](./reference/inspect_ai.scorer.html.md#ci)
+
+  Confidence interval for the mean, reported as a mapping with `lower` and `upper` bounds. Defaults to a 95% Student-t interval (`mean ± t · stderr`, with `n - 1` degrees of freedom, or `clusters - 1` when `cluster=` is set); pass `level=` to change the confidence level or `method="bootstrap"` for a percentile (cluster) bootstrap interval. Useful for deciding, for example, whether two models’ accuracy intervals overlap.
+
 - [frequency()](./reference/inspect_ai.scorer.html.md#frequency)
 
   Frequency of each distinct categorical score value. By default this reports proportions over scored observations; pass `normalize=False` to report counts. If a task uses epochs, [frequency()](./reference/inspect_ai.scorer.html.md#frequency) receives unreduced epoch scores, so each scored sample epoch is an observation.

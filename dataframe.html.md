@@ -101,11 +101,11 @@ RangeIndex: 408 entries, 0 to 407
 Columns: 28 entries, sample_id to fallbacks
 ```
 
-This dataframe has 28 columns rather than than the 14 we saw for the default [samples_df()](./reference/inspect_ai.analysis.html.md#samples_df) behavior, reflecting the additional eval level columns. You can create your own column groups and definitions to further customise reading (see [Column Definitions](#column-definitions) for details).
+This dataframe has 28 columns rather than the 14 we saw for the default [samples_df()](./reference/inspect_ai.analysis.html.md#samples_df) behavior, reflecting the additional eval level columns. You can create your own column groups and definitions to further customise reading (see [Column Definitions](#column-definitions) for details).
 
 ### Filtering Logs
 
-The above examples read all of the logs within a given directory. You can also use the [list_eval_logs()](./reference/inspect_ai.log.html.md#list_eval_logs) function to filter the list of logs based on arbitrary criteria as well control whether log listings are recursive.
+The above examples read all of the logs within a given directory. You can also use the [list_eval_logs()](./reference/inspect_ai.log.html.md#list_eval_logs) function to filter the list of logs based on arbitrary criteria as well as control whether log listings are recursive.
 
 For example, here we read only log files with a `status` of “success”:
 
@@ -327,11 +327,11 @@ EvalTask: list[Column] = [
 ]
 ```
 
-Columns are defined with a `name`, a `path` (location within JSON to read their value from), and other options (e.g. `required`, `type`, etc.) . Column paths use [JSON Path](https://github.com/h2non/jsonpath-ng) expressions to indicate how they should be read from JSON.
+Columns are defined with a `name`, a `path` (location within JSON to read their value from), and other options (e.g. `required`, `type`, etc.). Column paths use [JSON Path](https://github.com/h2non/jsonpath-ng) expressions to indicate how they should be read from JSON.
 
 Many fields within eval logs are optional, and path expressions will automatically resolve to `None` when they include a missing field (unless the `required=True` option is specified).
 
-Here are are all of the options available for [Column](./reference/inspect_ai.analysis.html.md#column) definitions:
+Here are all of the options available for [Column](./reference/inspect_ai.analysis.html.md#column) definitions:
 
 #### Column Options
 
@@ -426,7 +426,7 @@ evals_df(
 
 The example above demonstrates the use of custom extraction functions, which take an [EvalLog](./reference/inspect_ai.log.html.md#evallog) and return a `JsonValue`.
 
-For example, here is the default extraction function for the the dictionary of scores/metrics:
+For example, here is the default extraction function for the dictionary of scores/metrics:
 
 ``` python
 def scores_dict(log: EvalLog) -> JsonValue:

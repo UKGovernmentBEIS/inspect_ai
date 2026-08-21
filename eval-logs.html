@@ -914,9 +914,10 @@ Important
 </section>
 <section id="image-logging" class="level2">
 <h2 class="anchored" data-anchor-id="image-logging">Image Logging</h2>
-<p>By default, full base64 encoded copies of images are included in the log file. Image logging will not create performance problems when using <code>.eval</code> logs, however if you are using <code>.json</code> logs then large numbers of images could become unwieldy (i.e.&nbsp;if your <code>.json</code> log file grows to 100mb or larger as a result).</p>
+<p>By default, inline image and other media bytes are retained in the log file. Logging does not fetch unresolved runtime media references. Media logging will not create performance problems when using <code>.eval</code> logs, however if you are using <code>.json</code> logs then large numbers of images could become unwieldy (i.e.&nbsp;if your <code>.json</code> log file grows to 100mb or larger as a result).</p>
 <p>You can disable this using the <code>--no-log-images</code> flag. For example, here we enable the <code>.json</code> log format and disable image logging:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb10"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval images.py <span class="at">--log-format</span><span class="op">=</span>json <span class="at">--no-log-images</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>This option controls retention only. Trusted media in the fixed task input is still materialized for submission to the model, then removed from the completed log.</p>
 <p>You can also use the <code>INSPECT_EVAL_LOG_IMAGES</code> environment variable to set a global default in your <code>.env</code> configuration file.</p>
 </section>
 <section id="refusal-logging" class="level2">

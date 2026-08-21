@@ -1045,7 +1045,7 @@ The most ergonomic path is [model roles](./models.html.md#model-roles), which le
 inspect eval task.py \
     --model vllm/meta-llama/Llama-3-8B \
     --model-base-url http://gpu1:8000/v1 \
-    --model-role 'grader={model: vllm/meta-llama/Llama-3-70B-Instruct, base_url: http://gpu2:8000/v1}'
+    --model-role 'grader={model: vllm/meta-llama/Llama-3-70B-Instruct, model_args: {base_url: http://gpu2:8000/v1}}'
 ```
 
 Equivalent from Python:
@@ -1066,7 +1066,7 @@ eval(
 )
 ```
 
-Any number of roles can be defined this way (e.g. a separate `critic` or `red_team` model); each one can point at its own vLLM server. `VLLM_API_KEY` is also accepted as a per-model `api_key=` argument if your servers use different keys.
+Any number of roles can be defined this way (e.g. a separate `critic` or `red_team` model); each one can point at its own vLLM server. In CLI role dictionaries, place provider-specific values such as `base_url` and `api_key` under `model_args`; in Python, pass them directly to [get_model()](./reference/inspect_ai.model.html.md#get_model).
 
 Note: Inspect reuses a single server entry per base model name, so two `vllm/<same-model>` instances pointed at different URLs will collapse to the first URL. This caveat does not apply to the typical solver-vs-judge setup since the two models are different.
 
