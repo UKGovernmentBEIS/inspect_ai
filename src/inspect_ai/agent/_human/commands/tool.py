@@ -108,13 +108,14 @@ class ToolCommand(HumanAgentCommand):
         self._tool_map: dict[str, Tool] = {}
         for tool in tools:
             tool_def = ToolDef(tool)
-            # tool names are interpolated into the generated sandbox script as
-            # Python identifiers and string literals — fail closed on names
-            # that would break (or inject into) the generated code
-            if not tool_def.name.isidentifier():
+            # tool names appear in the generated script only as repr()-quoted
+            # literals (generated variables are indexed), so any name inspect
+            # accepts works here — e.g. find-item. Only the empty name is
+            # impossible (no subcommand spelling)
+            if not tool_def.name:
                 raise ValueError(
-                    f"Tool name '{tool_def.name}' is not a valid Python "
-                    "identifier (required for the generated task CLI)."
+                    "Tool has an empty name (no task tool subcommand can be "
+                    "generated for it)."
                 )
             if tool_def.name in self._tool_defs:
                 raise ValueError(f"Duplicate tool name '{tool_def.name}'.")
@@ -173,12 +174,14 @@ class ToolCommand(HumanAgentCommand):
         )
         lines.append('tool_subparsers = tool_parser.add_subparsers(dest="tool_name")')
 
-        # Generate subparser for each tool
-        for tool_name, tool_def in self._tool_defs.items():
+        # Generate subparser for each tool (variables are indexed, so tool
+        # names never appear in generated code outside quoted literals)
+        for index, (tool_name, tool_def) in enumerate(self._tool_defs.items()):
             parser_code, _ = generate_tool_parser(
                 tool_name,
                 tool_def.description,
                 tool_def.parameters,
+                parser_var=f"parser_{index}",
             )
             lines.append(parser_code)
 
@@ -469,6 +472,7 @@ def generate_tool_parser(
     tool_name: str,
     tool_description: str,
     params: ToolParams,
+    parser_var: str | None = None,
 ) -> tuple[str, bool]:
     """Generate argparse subparser code for a tool.
 
@@ -477,6 +481,9 @@ def generate_tool_parser(
         tool_description: Tool description for help text
         params: ToolParams with JSON Schema properties (the source of truth
             for both the argument set and its order)
+        parser_var: Name for the generated parser variable (defaults to
+            parser_<tool_name>; callers pass an indexed name so arbitrary
+            tool names never form identifiers)
 
     Returns:
         Tuple of:
@@ -485,6 +492,7 @@ def generate_tool_parser(
     """
     lines: list[str] = []
     has_complex_params = False
+    parser_var = parser_var or f"parser_{tool_name}"
 
     # Analyze each parameter (schema order == declaration order)
     param_infos: dict[str, ParamInfo] = {}
@@ -502,10 +510,10 @@ def generate_tool_parser(
 
     # Create subparser (all embedded values emitted via repr() — schema
     # text is data, never code)
-    # variable named parser_<tool> (not <tool>_parser) so a tool literally
-    # named 'tool' can't shadow the parent tool_parser
+    # caller-supplied indexed variable (parser_<i>) so no tool name can
+    # shadow routing variables or produce an invalid identifier
     lines.append(
-        f"parser_{tool_name} = tool_subparsers.add_parser({tool_name!r}, "
+        f"{parser_var} = tool_subparsers.add_parser({tool_name!r}, "
         f"help={tool_description!r}, "
         f"formatter_class=argparse.RawDescriptionHelpFormatter)"
     )
@@ -580,7 +588,7 @@ def generate_tool_parser(
         if help_text:
             parts.append(f"help={help_text!r}")
 
-        lines.append(f"parser_{tool_name}.add_argument({', '.join(parts)})")
+        lines.append(f"{parser_var}.add_argument({', '.join(parts)})")
 
     parser_code = "\n".join(lines)
     return parser_code, has_complex_params

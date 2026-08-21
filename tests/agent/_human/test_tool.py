@@ -189,13 +189,35 @@ def _named_tool(name: str):
     ).as_tool()
 
 
-def test_tool_name_must_be_python_identifier() -> None:
-    """Non-identifier tool names are rejected at construction.
+def test_dashed_tool_name_generates_working_cli() -> None:
+    """Inspect accepts tool names like find-item; the human CLI must too.
 
-    They would break (or inject into) the generated sandbox script.
+    Only the generated Python variable needed an identifier — the
+    subparser name is a quoted literal. Rejecting such names gave the
+    human a smaller tool set than the model.
     """
-    with pytest.raises(ValueError, match="identifier"):
-        ToolCommand([_named_tool("my-tool")])
+    parser, _ = _build_parsers([_named_tool("find-item")])
+    args = parser.parse_args(["tool", "find-item"])
+    assert args.tool_name == "find-item"
+
+
+@pytest.mark.anyio
+async def test_dashed_tool_name_service_roundtrip() -> None:
+    from inspect_ai.log._transcript import Transcript, init_transcript
+
+    handler = ToolCommand([_named_tool("find-item")]).service(state=None)  # type: ignore[arg-type]
+    init_transcript(Transcript())
+    assert await handler(tool="find-item", arguments={}) == "thing"
+
+
+def test_empty_tool_name_unreachable() -> None:
+    """ToolDef substitutes the function name for an empty tool name.
+
+    So the empty-name guard in ToolCommand is defensive only — this
+    documents that the public API can't reach it.
+    """
+    command = ToolCommand([_named_tool("")])
+    assert "execute" in command._tool_defs
 
 
 def test_duplicate_tool_names_rejected() -> None:
