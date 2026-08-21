@@ -291,21 +291,20 @@ wheels = [
 
 [[package]]
 name = "anthropic"
-version = "0.124.0"
+version = "1.0.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
-    { name = "distro" },
     { name = "docstring-parser" },
-    { name = "httpx" },
+    { name = "httpx2" },
     { name = "jiter" },
     { name = "pydantic" },
     { name = "sniffio" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/ae/44/2afd86c9aac387b41f1b133cd3f595e0b110a2b980625f7987e897cee543/anthropic-0.124.0.tar.gz", hash = "sha256:b5c855a2912b157829a667ce21e10561f2b23bca98bb03af6abee2aa7f4a4cf3", size = 1054437, upload-time = "2026-08-19T16:51:31.493809Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/25/aa/4978e58035bd6c638c7b483450a68b7ef2d732ab78885e27bb9db0cff1a2/anthropic-1.0.0.tar.gz", hash = "sha256:42be3c97604af7252c5898413aee076ace6c46e9bca0d0d90ceb77c7d3719027", size = 1077769, upload-time = "2026-08-20T19:59:00.565Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/55/6a/3ab35f7bb9a2c512c80638eb108fbbcee21c433a00baca8ab0ded485e007/anthropic-0.124.0-py3-none-any.whl", hash = "sha256:e7f86e3182c4173edf09fd8f42aa328d1aa9246355a90a300287c355228bb356", size = 1147647, upload-time = "2026-08-19T16:51:33.459733Z" },
+    { url = "https://files.pythonhosted.org/packages/ad/5b/db4a854aebf5d33a5ab714c46af6eb85ee44f390ed29b7b325c00b9f11ed/anthropic-1.0.0-py3-none-any.whl", hash = "sha256:32dd52e9e1d774393b27182f451398ba4262287a4d0eab30887f89f1481b3ae4", size = 1171725, upload-time = "2026-08-20T19:58:58.725Z" },
 ]
 
 [[package]]
@@ -946,14 +945,14 @@ wheels = [
 
 [[package]]
 name = "click"
-version = "8.4.2"
+version = "8.2.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "colorama", marker = "sys_platform == 'win32'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/76/d4/81420972a676e8ffea40450d8c8c92943e7218a78fe9b64359836cc9876b/click-8.4.2.tar.gz", hash = "sha256:9a6cea6e60b17ebe0a44c5cc636d94f09bd66142c1cd7d8b4cd731c4917a15f6", size = 338000, upload-time = "2026-06-24T17:45:15.148Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/60/6c/8ca2efa64cf75a977a0d7fac081354553ebe483345c734fb6b6515d96bbc/click-8.2.1.tar.gz", hash = "sha256:27c491cc05d968d271d5a1db13e3b5a184636d9d930f148c50b038f0d0646202", size = 286342, upload-time = "2025-05-20T23:19:49.832Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/fb/e2/79c688af8b210d232694e31e59da9f6ec747bae31c3f5946e4e9b98860d5/click-8.4.2-py3-none-any.whl", hash = "sha256:e6f9f66136c816745b9d65817da91d61d957fb16e02e4dcd0552553c5a197b76", size = 119243, upload-time = "2026-06-24T17:45:13.73Z" },
+    { url = "https://files.pythonhosted.org/packages/85/32/10bb5764d90a8eee674e9dc6f4db6a0ab47c8c4d0d83c27f7c39ac415a4d/click-8.2.1-py3-none-any.whl", hash = "sha256:61a3265b914e850b85317d0b3109c7f8cd35a670f963866005d6ef1d5175a12b", size = 102215, upload-time = "2025-05-20T23:19:47.796Z" },
 ]
 
 [[package]]
@@ -2169,7 +2168,7 @@ requires-dist = [
     { name = "adlfs", marker = "extra == 'dev'", specifier = ">=2025.8.0" },
     { name = "agent-client-protocol", specifier = ">=0.12.0" },
     { name = "aioboto3", specifier = ">=13.0.0" },
-    { name = "anthropic", marker = "extra == 'dev'", specifier = ">=0.124.0" },
+    { name = "anthropic", marker = "extra == 'dev'", specifier = ">=1.0.0" },
     { name = "antlr4-python3-runtime", marker = "extra == 'dev'", specifier = ">=4.9.3,!=4.10.*,!=4.12.*,!=4.13.0,!=4.13.1,<=4.13.2" },
     { name = "antlr4-python3-runtime", marker = "extra == 'math'", specifier = ">=4.9.3,!=4.10.*,!=4.12.*,!=4.13.0,!=4.13.1,<=4.13.2" },
     { name = "anyio", specifier = ">=4.14.0" },
@@ -2284,7 +2283,7 @@ dev = [{ name = "inspect-ai", extras = ["dev"] }]
 
 [[package]]
 name = "inspect-scout"
-version = "0.4.46"
+version = "0.4.39"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
@@ -2320,9 +2319,9 @@ dependencies = [
     { name = "wrapt" },
     { name = "zstandard" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/61/31/441f2451635387d3651122cd5826e7ea4b5d288f1691738f137cd26c86f1/inspect_scout-0.4.46.tar.gz", hash = "sha256:7b79c035573123b5499b204773b5132521d900c00c08900805a24199c48c2d97", size = 2667285, upload-time = "2026-08-05T12:45:45.031Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/7f/31/73651382b9c436efe8bd8e4f200466f8a82207b0c3e87ba089efd21e86a2/inspect_scout-0.4.39.tar.gz", hash = "sha256:9b9aef307ab0ff4edd2f9cd947d6eb950f93aae68f3c13db3fa2193c2e9841bc", size = 2532922, upload-time = "2026-06-02T14:05:15.835Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/16/54/d841bcd68b5d03b267307a8e6b07595538f9e2623ddb8ea3f83daa7bd0a6/inspect_scout-0.4.46-py3-none-any.whl", hash = "sha256:9ef4882dbc7b112b7434cdbdbdf3ef8a067139ddec9b1c9169e1e938b0239bdc", size = 2757084, upload-time = "2026-08-05T12:45:42.408Z" },
+    { url = "https://files.pythonhosted.org/packages/9c/eb/f156b6f23ccbb47dec0085582dbb1008689ea1968161d6e8e798be54766c/inspect_scout-0.4.39-py3-none-any.whl", hash = "sha256:ea8211af58c9faba10bcc3a8730dbe197e8b54a25df0cf1f069e3a9cb6edcbc0", size = 2643655, upload-time = "2026-06-02T14:05:14.059Z" },
 ]
 
 [[package]]
