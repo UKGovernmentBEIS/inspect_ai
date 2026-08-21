@@ -429,13 +429,15 @@ def companion_pr(issue: int, head_ref: str):
         gh_json("api", f"repos/{FORK}/issues/{issue}", "--jq", "{body: .body}")["body"]
         or ""
     )
-    if re.search(r"Companion PR:\s*none\b", body, re.I):
-        return None  # explicit opt-out: no companion, convention disabled
+    # precedence: an explicit URL wins over the `none` opt-out, which wins
+    # over the branch-name convention
     m = re.search(
         r"Companion PR:\s*(https://github\.com/[^/\s]+/[^/\s]+/pull/\d+)",
         body,
         re.I,
     )
+    if not m and re.search(r"Companion PR:\s*none\b", body, re.I):
+        return None  # explicit opt-out: no companion, convention disabled
     if m:
         cm = re.match(r"https://github\.com/([^/]+)/([^/]+)/pull/(\d+)", m.group(1))
         owner, repo, num = cm.group(1), cm.group(2), int(cm.group(3))
@@ -473,12 +475,22 @@ def companion_approved(comp) -> bool:
 
     `reviewDecision` is null on repos without a required-review rule
     (ts-mono), even with APPROVED reviews standing — so fall back to the
-    per-reviewer latest opinionated reviews.
+    per-reviewer latest opinionated reviews. A standing
+    CHANGES_REQUESTED (either surface) blocks: the fallback must not be
+    LOOSER than the decision it substitutes for.
     """
-    if comp.get("reviewDecision") == "APPROVED":
-        return True
-    reviews = (comp.get("latestOpinionatedReviews") or {}).get("nodes") or []
-    return any(r.get("state") == "APPROVED" for r in reviews)
+    decision = comp.get("reviewDecision")
+    if decision is not None:
+        # any non-null decision is authoritative: REVIEW_REQUIRED means the
+        # repo's rule (approval count, CODEOWNERS, writer-only) is UNMET even
+        # if some approval stands — the fallback is only for repos with no
+        # rule at all, where the decision is null.
+        return decision == "APPROVED"
+    states = [
+        r.get("state")
+        for r in (comp.get("latestOpinionatedReviews") or {}).get("nodes") or []
+    ]
+    return "APPROVED" in states and "CHANGES_REQUESTED" not in states
 
 
 def companion_blocks_merge(issue: int, pr) -> bool:
