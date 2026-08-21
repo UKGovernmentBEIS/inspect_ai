@@ -186,8 +186,9 @@ async def compose_pull(
     )
 
 
-async def compose_verify_prebuilt_images(project: ComposeProject) -> None:
-    services = await compose_services(project)
+async def compose_verify_prebuilt_images(
+    project: ComposeProject, services: dict[str, ComposeService]
+) -> None:
     unnamed: list[str] = []
     missing: list[str] = []
     for name, service in services.items():
@@ -202,8 +203,9 @@ async def compose_verify_prebuilt_images(project: ComposeProject) -> None:
     if unnamed:
         if project.config is not None and is_auto_compose_file(project.config):
             problems.append(
-                "this task's sandbox is a bare Dockerfile, so no prebuilt image can be "
-                "located. Provide a compose.yaml that names a prebuilt 'image' instead"
+                "the task's sandbox config does not name an 'image' under which a "
+                "prebuilt image can be located. Name one via an 'image' key in a "
+                "compose.yaml, or via 'image' on the sandbox's ComposeService"
             )
         else:
             problems.append(

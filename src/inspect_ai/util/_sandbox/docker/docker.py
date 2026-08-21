@@ -97,9 +97,11 @@ class DockerSandboxEnvironment(SandboxEnvironment):
             # record auto compose
             project_record_auto_compose(project)
 
+            services = await compose_services(project)
+
             prebuilt = sandbox_prebuilt()
             if prebuilt:
-                await compose_verify_prebuilt_images(project)
+                await compose_verify_prebuilt_images(project, services)
             else:
                 # build containers which are out of date
                 await compose_build(project)
@@ -107,7 +109,6 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                 # cleanup images created during build
                 await compose_cleanup_images(project, timeout=300)
 
-            services = await compose_services(project)
             for name, service in services.items():
                 # if the service has an explicit container_name then
                 # error (as this won't work w/ epochs > 1)
@@ -139,6 +140,10 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                     pull_result = await compose_pull(name, project)
                     if not pull_result.success:
                         image = service.get("image", "(unknown)")
+                        if prebuilt:
+                            raise PrerequisiteError(
+                                f"Sandbox images are expected to be prebuilt (sandbox_prebuilt is set) but the image '{image}' for service '{name}' is not present in the Docker image store and could not be pulled."
+                            )
                         logger.error(
                             f"Failed to pull docker image '{image}' from remote registry. If this is a locally built image add 'x-local: true' to the the service definition to prevent this error."
                         )

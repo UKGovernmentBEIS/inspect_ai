@@ -3,6 +3,7 @@ from typing import Any
 import pytest
 
 from inspect_ai._util.error import PrerequisiteError
+from inspect_ai.util import ExecResult
 from inspect_ai.util._sandbox.docker import compose as compose_module
 from inspect_ai.util._sandbox.docker import docker as docker_module
 from inspect_ai.util._sandbox.docker.compose import compose_verify_prebuilt_images
@@ -20,17 +21,6 @@ def compose_project(config: str | None = "/tmp/compose.yaml") -> ComposeProject:
     )
 
 
-def stub_services(
-    monkeypatch: pytest.MonkeyPatch,
-    module: Any,
-    services: dict[str, dict[str, Any]],
-) -> None:
-    async def fake_compose_services(project: ComposeProject) -> dict[str, Any]:
-        return services
-
-    monkeypatch.setattr(module, "compose_services", fake_compose_services)
-
-
 def stub_image_exists(monkeypatch: pytest.MonkeyPatch, local_images: set[str]) -> None:
     async def fake_exists(image: str) -> bool:
         return image in local_images
@@ -39,71 +29,58 @@ def stub_image_exists(monkeypatch: pytest.MonkeyPatch, local_images: set[str]) -
 
 
 async def test_verify_prebuilt_images_passes_when_images_exist(monkeypatch):
-    stub_services(
-        monkeypatch,
-        compose_module,
+    stub_image_exists(monkeypatch, {"built-image"})
+
+    await compose_verify_prebuilt_images(
+        compose_project(),
         {
             "built": {"build": ".", "image": "built-image"},
             "pulled": {"image": "pulled-image"},
         },
     )
-    stub_image_exists(monkeypatch, {"built-image"})
-
-    await compose_verify_prebuilt_images(compose_project())
 
 
 async def test_verify_prebuilt_images_missing_image(monkeypatch):
-    stub_services(
-        monkeypatch,
-        compose_module,
-        {"built": {"build": ".", "image": "built-image"}},
-    )
     stub_image_exists(monkeypatch, set())
 
     with pytest.raises(PrerequisiteError) as excinfo:
-        await compose_verify_prebuilt_images(compose_project())
+        await compose_verify_prebuilt_images(
+            compose_project(), {"built": {"build": ".", "image": "built-image"}}
+        )
     assert "not present in the Docker image store" in str(excinfo.value)
     assert "built (built-image)" in str(excinfo.value)
 
 
 async def test_verify_prebuilt_images_unnamed_service(monkeypatch):
-    stub_services(
-        monkeypatch,
-        compose_module,
-        {"unnamed": {"build": "."}},
-    )
     stub_image_exists(monkeypatch, set())
 
     with pytest.raises(PrerequisiteError) as excinfo:
-        await compose_verify_prebuilt_images(compose_project())
+        await compose_verify_prebuilt_images(
+            compose_project(), {"unnamed": {"build": "."}}
+        )
     assert "Add an explicit 'image' name" in str(excinfo.value)
     assert "unnamed" in str(excinfo.value)
 
 
 async def test_verify_prebuilt_images_ignores_services_without_build(monkeypatch):
-    stub_services(
-        monkeypatch,
-        compose_module,
-        {"pulled": {"image": "pulled-image"}},
-    )
     stub_image_exists(monkeypatch, set())
 
-    await compose_verify_prebuilt_images(compose_project())
+    await compose_verify_prebuilt_images(
+        compose_project(), {"pulled": {"image": "pulled-image"}}
+    )
 
 
 async def test_verify_prebuilt_images_reports_both_problems(monkeypatch):
-    stub_services(
-        monkeypatch,
-        compose_module,
-        {
-            "unnamed": {"build": "."},
-            "built": {"build": ".", "image": "built-image"},
-        },
-    )
     stub_image_exists(monkeypatch, set())
 
     with pytest.raises(PrerequisiteError) as excinfo:
-        await compose_verify_prebuilt_images(compose_project())
+        await compose_verify_prebuilt_images(
+            compose_project(),
+            {
+                "unnamed": {"build": "."},
+                "built": {"build": ".", "image": "built-image"},
+            },
+        )
     message = str(excinfo.value)
     assert "unnamed" in message
     assert "built (built-image)" in message
@@ -111,18 +88,14 @@ async def test_verify_prebuilt_images_reports_both_problems(monkeypatch):
 
 
 async def test_verify_prebuilt_images_auto_compose_message(monkeypatch):
-    stub_services(
-        monkeypatch,
-        compose_module,
-        {"default": {"build": "."}},
-    )
     stub_image_exists(monkeypatch, set())
 
     with pytest.raises(PrerequisiteError) as excinfo:
         await compose_verify_prebuilt_images(
-            compose_project(config="/some/dir/.compose.yaml")
+            compose_project(config="/some/dir/.compose.yaml"),
+            {"default": {"build": "."}},
         )
-    assert "bare Dockerfile" in str(excinfo.value)
+    assert "does not name an 'image'" in str(excinfo.value)
 
 
 class TaskInitStubs:
@@ -227,6 +200,38 @@ async def test_task_init_prebuilt_internal_image_missing(monkeypatch):
     with pytest.raises(PrerequisiteError) as excinfo:
         await DockerSandboxEnvironment.task_init("startup", None)
     assert "inspect-computer-tool" in str(excinfo.value)
+
+
+def stub_pull_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def fake_exists(image: str) -> bool:
+        return False
+
+    async def fake_pull(service: str, project: ComposeProject) -> ExecResult[str]:
+        return ExecResult(success=False, returncode=1, stdout="", stderr="")
+
+    monkeypatch.setattr(docker_module, "docker_image_exists_locally", fake_exists)
+    monkeypatch.setattr(docker_module, "compose_pull", fake_pull)
+
+
+async def test_task_init_prebuilt_pull_failure_raises(monkeypatch):
+    TaskInitStubs(monkeypatch, {"pulled": {"image": "remote-image"}}, prebuilt=True)
+    stub_pull_failure(monkeypatch)
+
+    with pytest.raises(PrerequisiteError) as excinfo:
+        await DockerSandboxEnvironment.task_init("startup", None)
+    assert "remote-image" in str(excinfo.value)
+    assert "could not be pulled" in str(excinfo.value)
+
+
+async def test_task_init_pull_failure_logs_when_not_prebuilt(monkeypatch):
+    stubs = TaskInitStubs(
+        monkeypatch, {"pulled": {"image": "remote-image"}}, prebuilt=False
+    )
+    stub_pull_failure(monkeypatch)
+
+    await DockerSandboxEnvironment.task_init("startup", None)
+
+    assert stubs.calls == ["build", "cleanup_images"]
 
 
 async def test_task_init_builds_internal_image_when_not_prebuilt(monkeypatch):
