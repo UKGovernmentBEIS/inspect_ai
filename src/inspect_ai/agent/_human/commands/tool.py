@@ -45,9 +45,46 @@ from .command import HumanAgentCommand
 logger = logging.getLogger(__name__)
 
 
-@contextlib.asynccontextmanager
-async def _noop_lock() -> AsyncIterator[None]:
-    yield
+class _ToolScheduler:
+    """Concurrency semantics matching the model path's execution stages.
+
+    SandboxService handles pending request files concurrently, so two shell
+    invocations can arrive at once. As on the model path (where each serial
+    call is its own single-element stage — see _call_tools.py), a tool
+    declaring parallel=False is a global barrier: it runs concurrently with
+    nothing, not even a different tool. parallel=True tools run freely
+    alongside each other.
+    """
+
+    def __init__(self) -> None:
+        self._condition = anyio.Condition()
+        self._parallel_active = 0
+        self._serial_active = False
+
+    @contextlib.asynccontextmanager
+    async def slot(self, parallel: bool) -> AsyncIterator[None]:
+        if parallel:
+            async with self._condition:
+                while self._serial_active:
+                    await self._condition.wait()
+                self._parallel_active += 1
+            try:
+                yield
+            finally:
+                async with self._condition:
+                    self._parallel_active -= 1
+                    self._condition.notify_all()
+        else:
+            async with self._condition:
+                while self._serial_active or self._parallel_active > 0:
+                    await self._condition.wait()
+                self._serial_active = True
+            try:
+                yield
+            finally:
+                async with self._condition:
+                    self._serial_active = False
+                    self._condition.notify_all()
 
 
 def _omitted(kind: str) -> str:
@@ -253,7 +290,7 @@ def tool(args):
         raise Exception("This should never appear in the generated code")
 
     def service(self, state: HumanAgentState) -> Callable[..., Awaitable[JsonValue]]:
-        self._tool_locks: dict[str, anyio.Lock] = {}
+        scheduler = _ToolScheduler()
 
         # Tool arguments arrive as a single dict, out-of-band of this
         # function's own parameters — no tool argument name can collide
@@ -266,19 +303,10 @@ def tool(args):
             if tool_fn is None:
                 return await self._execute_tool(tool, None, kwargs)
 
-            # SandboxService handles pending request files concurrently, so
-            # two shell invocations can arrive at once — serialize tools that
-            # declared parallel=False (stateful tools opt out of concurrency)
-            lock: AbstractAsyncContextManager[Any] = (
-                _noop_lock()
-                if self._tool_defs[tool].parallel
-                else self._tool_locks.setdefault(tool, anyio.Lock())
-            )
-
             # model tool calls run inside span(type="tool") — mirror that so
             # nested activity (e.g. model calls made by the tool) attributes
             # to the tool in timelines rather than to the enclosing agent
-            async with lock:
+            async with scheduler.slot(parallel=bool(self._tool_defs[tool].parallel)):
                 async with span(name=tool, type="tool"):
                     return await self._execute_tool(tool, tool_fn, kwargs)
 

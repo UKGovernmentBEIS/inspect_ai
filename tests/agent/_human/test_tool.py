@@ -735,6 +735,84 @@ async def test_parallel_tool_stays_concurrent() -> None:
     assert active["max"] == 2
 
 
+# --- round 8: parallel=False is a global barrier, not per-tool ---------------
+
+
+def _named_tracking_tool(name: str, parallel: bool, active: dict):
+    import anyio
+
+    async def execute() -> str:
+        """Track concurrent executions.
+
+        Returns:
+            A marker.
+        """
+        active["now"] += 1
+        active["max"] = max(active["max"], active["now"])
+        await anyio.sleep(0.05)
+        active["now"] -= 1
+        return "ok"
+
+    return ToolDef(
+        execute,
+        name=name,
+        description="Track concurrency.",
+        parameters={},
+        parallel=parallel,
+    ).as_tool()
+
+
+async def _run_concurrently(handler, *tools: str) -> None:
+    import anyio
+
+    async with anyio.create_task_group() as tg:
+        for name in tools:
+            async def call(n: str = name) -> None:
+                await handler(tool=n)
+
+            tg.start_soon(call)
+
+
+@pytest.mark.anyio
+async def test_two_distinct_serial_tools_do_not_overlap() -> None:
+    """parallel=False means no concurrency with ANY tool call.
+
+    Per-tool locks let two different non-parallel tools overlap
+    (max_active reached 2 in the reviewer's repro); the model path makes
+    each serial call its own execution stage — a global barrier.
+    """
+    from inspect_ai.log._transcript import Transcript, init_transcript
+
+    active = {"now": 0, "max": 0}
+    command = ToolCommand(
+        [
+            _named_tracking_tool("serial_a", False, active),
+            _named_tracking_tool("serial_b", False, active),
+        ]
+    )
+    handler = command.service(state=None)  # type: ignore[arg-type]
+    init_transcript(Transcript())
+    await _run_concurrently(handler, "serial_a", "serial_b")
+    assert active["max"] == 1
+
+
+@pytest.mark.anyio
+async def test_serial_tool_barriers_parallel_tool() -> None:
+    from inspect_ai.log._transcript import Transcript, init_transcript
+
+    active = {"now": 0, "max": 0}
+    command = ToolCommand(
+        [
+            _named_tracking_tool("serial_a", False, active),
+            _named_tracking_tool("par_b", True, active),
+        ]
+    )
+    handler = command.service(state=None)  # type: ignore[arg-type]
+    init_transcript(Transcript())
+    await _run_concurrently(handler, "serial_a", "par_b")
+    assert active["max"] == 1
+
+
 # --- round 7: custom tool viewers apply to human ToolEvents -------------------
 
 
