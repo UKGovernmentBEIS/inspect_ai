@@ -211,7 +211,7 @@ async def sandbox_service(
             await service.handle_requests()
         except Exception as ex:
             # let control-flow exceptions (terminate) propagate — they are
-            # raised by service methods precisely to end the sample/task
+            # raised by service methods precisely to end the sample
             raise_if_control_flow(ex)
             logger.warning(f"Error waiting for sandbox rpc: {ex}")
 
