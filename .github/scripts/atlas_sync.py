@@ -480,10 +480,12 @@ def companion_approved(comp) -> bool:
     LOOSER than the decision it substitutes for.
     """
     decision = comp.get("reviewDecision")
-    if decision == "APPROVED":
-        return True
-    if decision == "CHANGES_REQUESTED":
-        return False
+    if decision is not None:
+        # any non-null decision is authoritative: REVIEW_REQUIRED means the
+        # repo's rule (approval count, CODEOWNERS, writer-only) is UNMET even
+        # if some approval stands — the fallback is only for repos with no
+        # rule at all, where the decision is null.
+        return decision == "APPROVED"
     states = [
         r.get("state")
         for r in (comp.get("latestOpinionatedReviews") or {}).get("nodes") or []
