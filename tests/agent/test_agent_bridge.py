@@ -97,7 +97,7 @@ def raw_response_completions_agent() -> Agent:
         from openai._legacy_response import LegacyAPIResponse
 
         async with agent_bridge(state) as bridge:
-            async with AsyncOpenAI() as client:
+            async with AsyncOpenAI(api_key="inspect") as client:
                 raw = await client.chat.completions.with_raw_response.create(
                     model="inspect",
                     messages=await messages_to_openai(state.messages),
