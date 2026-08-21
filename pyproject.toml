@@ -37,6 +37,7 @@ inspect_ai = ["_view/ts-mono*"]
 inspect_ai = [
     "binaries/*",
     "tool/_sandbox_tools_utils/sandbox_tools_version.txt",
+    "tool/_sandbox_tools_utils/SHA256SUMS",
     "util/_restic/version.txt",
     "util/_restic/SHA256SUMS",
     "**/*.tcss",
