@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 from argparse import Namespace
 from textwrap import dedent
 from typing import Any, Awaitable, Callable, Literal, NamedTuple
@@ -445,14 +446,17 @@ def _example_instance(schema: dict[str, Any]) -> Any:
             min_length = schema.get("minLength")
             if isinstance(min_length, int) and len(text) < min_length:
                 text = (text * (min_length // len(text) + 1))[:min_length]
+            max_length = schema.get("maxLength")
+            if isinstance(max_length, int):
+                text = text[:max_length]
             return text
         case "integer":
             minimum = schema.get("minimum")
             if isinstance(minimum, (int, float)):
-                return int(minimum)
+                return math.ceil(minimum)
             exclusive = schema.get("exclusiveMinimum")
             if isinstance(exclusive, (int, float)):
-                return int(exclusive) + 1
+                return math.floor(exclusive) + 1
             return 1
         case "number":
             minimum = schema.get("minimum")
@@ -466,6 +470,21 @@ def _example_instance(schema: dict[str, Any]) -> Any:
             return True
         case _:
             return "..."
+
+
+def _example_is_valid(instance: Any, schema: dict[str, Any]) -> bool:
+    """Whether a generated example actually satisfies its schema.
+
+    Defaults and examples are annotations, not guaranteed-valid instances,
+    and the generator can't honor every constraint (pattern, multipleOf,
+    ...) — so validate the finished candidate before advertising it.
+    """
+    try:
+        from jsonschema import Draft7Validator
+
+        return Draft7Validator(schema).is_valid(instance)
+    except Exception:
+        return False
 
 
 def generate_tool_parser(
@@ -581,8 +600,14 @@ def generate_tool_parser(
         # during item conversion and booleans have no null spelling)
         help_text = info.description or ""
         if info.schema_type == "json":
-            example = json.dumps(_example_instance(schema_dicts[name]))
-            help_text = f"{help_text} (JSON, e.g. '{example}')".strip()
+            instance = _example_instance(schema_dicts[name])
+            example = json.dumps(instance)
+            if _example_is_valid(instance, schema_dicts[name]):
+                help_text = f"{help_text} (JSON, e.g. '{example}')".strip()
+            else:
+                help_text = (
+                    f"{help_text} (JSON; illustrative shape: '{example}')".strip()
+                )
         elif info.is_optional and info.schema_type in ("integer", "number", "string"):
             help_text = f"{help_text} ('null' for null)".strip()
         if help_text:

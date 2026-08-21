@@ -526,6 +526,74 @@ def test_tool_named_tool_does_not_shadow_parent_parser() -> None:
     assert args.tool_name == "tool"
 
 
+# --- round 4: examples are validated; invalid ones marked illustrative -------
+
+
+def test_example_instance_honors_ceil_and_maxlength() -> None:
+    """An integer minimum of 1.5 must round up; maxLength must bound strings."""
+    from inspect_ai.agent._human.commands.tool import _example_instance
+
+    assert _example_instance({"type": "integer", "minimum": 1.5}) >= 1.5
+    assert len(_example_instance({"type": "string", "maxLength": 2})) <= 2
+
+
+def _one_param_tool(schema: "JSONSchema"):  # noqa: F821
+    from typing import Any
+
+    from inspect_ai.tool import ToolParams
+
+    async def execute(**kwargs: Any) -> str:
+        """Accept anything.
+
+        Returns:
+            A marker.
+        """
+        return "ok"
+
+    return ToolDef(
+        execute,
+        name="one_param",
+        description="Accept anything.",
+        parameters=ToolParams(properties={"config": schema}, required=["config"]),
+    ).as_tool()
+
+
+def test_valid_example_advertised_as_such() -> None:
+    from inspect_ai.util import JSONSchema
+
+    schema = JSONSchema(
+        type="object",
+        properties={"a": JSONSchema(type="string")},
+        required=["a"],
+        description="Config.",
+    )
+    code = ToolCommand([_one_param_tool(schema)]).get_cli_parser_code()
+    line = next(ln for ln in code.splitlines() if "dest='arg_config'" in ln)
+    assert "e.g." in line
+    assert "illustrative" not in line
+
+
+def test_unsatisfiable_example_marked_illustrative() -> None:
+    """When no valid instance can be generated, don't claim copy-pasteability.
+
+    Defaults and examples are annotations, not guaranteed-valid
+    instances, and generators can't honor every constraint (pattern,
+    etc.) — validate the candidate and mark failures as illustrative.
+    """
+    from inspect_ai.util import JSONSchema
+
+    schema = JSONSchema(
+        type="object",
+        properties={"a": JSONSchema(type="string", pattern="^Z{5}$")},
+        required=["a"],
+        description="Config.",
+    )
+    code = ToolCommand([_one_param_tool(schema)]).get_cli_parser_code()
+    line = next(ln for ln in code.splitlines() if "dest='arg_config'" in ln)
+    assert "illustrative" in line
+    assert "e.g." not in line
+
+
 # --- round 3: ToolError surfaces cleanly, like unexpected exceptions ---------
 
 
