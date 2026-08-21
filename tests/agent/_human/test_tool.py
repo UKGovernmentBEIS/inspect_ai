@@ -464,6 +464,43 @@ async def test_tool_execution_runs_in_tool_span() -> None:
     assert tool_event.span_id == tool_span.id
 
 
+# --- round 3: ToolError surfaces cleanly, like unexpected exceptions ---------
+
+
+@pytest.mark.anyio
+async def test_tool_error_surfaces_without_raising() -> None:
+    """An expected ToolError returns a clean message, not an RPC traceback.
+
+    Re-raising sends it through the sandbox-service boundary, which
+    hands the human a traceback for what is an ordinary, expected tool
+    failure (the outcome a model receives as a plain error message).
+    """
+    from inspect_ai.log._transcript import Transcript, init_transcript, transcript
+    from inspect_ai.tool import ToolError
+
+    async def execute() -> str:
+        """Fail in the expected way.
+
+        Returns:
+            Never returns.
+        """
+        raise ToolError("no such incident")
+
+    failing = ToolDef(
+        execute, name="failing", description="Fail expectedly.", parameters={}
+    ).as_tool()
+
+    handler = ToolCommand([failing]).service(state=None)  # type: ignore[arg-type]
+    init_transcript(Transcript())
+    result = await handler(tool="failing", arguments={})
+
+    assert "no such incident" in str(result)
+    events = [e for e in transcript().events if e.event == "tool"]
+    assert len(events) == 1
+    assert events[0].error is not None
+    assert events[0].failed is None  # expected failure, not a hard error
+
+
 # --- round 3: help examples honor constraints, defaults, and examples --------
 
 

@@ -293,8 +293,10 @@ def tool(args):
         try:
             result = await tool_fn(**params)
         except ToolError as ex:
+            # an expected tool failure — surface the message the way a model
+            # receives it (raising would reach the human as an RPC traceback)
             finalize(error=ToolCallError("unknown", ex.message))
-            raise
+            return f"Error: {ex.message}"
         except Exception as ex:
             # unexpected exceptions must not end the human's session (a
             # human, unlike a model sample, can read the error and work
