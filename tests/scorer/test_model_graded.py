@@ -444,8 +444,10 @@ def test_grade_parse_failure_is_unscored(grader_output: str) -> None:
     assert isinstance(score.value, float) and math.isnan(score.value), (
         f"expected unscored (NaN) for {grader_output!r}, got {score.value!r}"
     )
+    assert score.reason == "grader_failed"
     assert score.metadata is not None
-    assert score.metadata["unscored_reason"] == "grade_parse_failure"
+    assert "unscored_reason" not in score.metadata
+    assert "grading" in score.metadata
 
 
 @pytest.mark.parametrize(
@@ -530,7 +532,8 @@ def test_off_menu_verdict_is_unscored(grader_output: str, partial_credit: bool) 
         f"partial_credit={partial_credit}, got {score.value!r}"
     )
     assert score.metadata is not None
-    assert score.metadata["unscored_reason"] == "grade_parse_failure"
+    assert score.reason == "grader_failed"
+    assert "unscored_reason" not in score.metadata
 
 
 def test_partial_verdict_is_unscored_without_partial_credit() -> None:
@@ -542,7 +545,8 @@ def test_partial_verdict_is_unscored_without_partial_credit() -> None:
         f"got {score.value!r}"
     )
     assert score.metadata is not None
-    assert score.metadata["unscored_reason"] == "grade_parse_failure"
+    assert score.reason == "grader_failed"
+    assert "unscored_reason" not in score.metadata
 
 
 @pytest.mark.parametrize(

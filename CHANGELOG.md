@@ -1,5 +1,8 @@
 ## Unreleased
 
+- Scoring: New machine-readable `Score.reason` field records why a score has an abnormal value (e.g. `invalid_response_format`, `grader_failed`), is preserved across score edits, and appears as `score_<name>_reason` dataframe columns. (#4567)
+- Scoring: `pattern()` and `answer()` now score unmatched output as `INCORRECT` with `reason="invalid_response_format"` instead of `NOANSWER`. Default metrics are unchanged (the default `value_to_float` already maps `NOANSWER` to 0); analyses that filter on `value == "N"`, and custom `value_to_float` mappings that treat noanswer differently, should key on `reason` instead. (#4567)
+- Scoring: `perplexity()` and `target_perplexity()` now return `Score.unscored()` with a `reason` instead of a raw NaN value when logprobs are unavailable. (#4567)
 - Anthropic: Compatibility with anthropic SDK 0.124.0, which is now the minimum supported version (browser state tool results and file-based image/document sources no longer fail type checking).
 - OpenAI: Responses API usage now records `cache_write_tokens` as `ModelUsage.input_tokens_cache_write` and excludes it from full-rate `input_tokens` (generate and compaction responses); compaction usage also now excludes cache reads and records reasoning tokens. (#4855)
 - Sandbox: Editable installs now avoid spurious `-dev` sandbox-tools binaries when local main refs are missing, stale, or unavailable.

@@ -97,6 +97,28 @@ async def test_perplexity_scorer_no_choices() -> None:
     assert math.isnan(result.as_float())
 
 
+@pytest.mark.anyio
+async def test_perplexity_scorer_unscorable_states_carry_reason() -> None:
+    """Unscorable states return Score.unscored with a machine-readable reason."""
+    scorer = perplexity()
+
+    state = simple_task_state(model_output="")
+    state.output.choices = []
+    result = await scorer(state, Target(["unused"]))
+    assert result is not None
+    assert result.reason == "no_response"
+
+    state = _task_state_with_prompt_logprobs(None)
+    result = await scorer(state, Target(["unused"]))
+    assert result is not None
+    assert result.reason == "scoring_failed"
+
+    state = _task_state_with_prompt_logprobs([])
+    result = await scorer(state, Target(["unused"]))
+    assert result is not None
+    assert result.reason == "scoring_failed"
+
+
 # -- Metric helpers --
 
 
