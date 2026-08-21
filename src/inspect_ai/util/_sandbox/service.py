@@ -35,21 +35,31 @@ logger = getLogger(__name__)
 CONTROL_FLOW_EXCEPTIONS: tuple[type[BaseException], ...] = (TerminateSampleError,)
 
 
-def raise_if_control_flow(ex: Exception) -> None:
-    """Re-raise a contained control-flow exception.
+def find_control_flow(ex: Exception) -> BaseException | None:
+    """Find a contained control-flow exception, or None.
 
-    No-op for ordinary exceptions. Used at each layer of the service's
-    error handling so terminations raised by service methods propagate out
-    of sandbox_service() instead of being logged and swallowed. Every leaf
-    of an ExceptionGroup is searched (a mixed group must not hide a
-    termination behind an ordinary sibling), with precedence following
-    CONTROL_FLOW_EXCEPTIONS order.
+    Every leaf of an ExceptionGroup is searched (a mixed group must not
+    hide a termination behind an ordinary sibling), with precedence
+    following CONTROL_FLOW_EXCEPTIONS order.
     """
     leaves = _flatten_exception(ex)
     for control_flow_type in CONTROL_FLOW_EXCEPTIONS:
         for leaf in leaves:
             if isinstance(leaf, control_flow_type):
-                raise leaf from ex
+                return leaf
+    return None
+
+
+def raise_if_control_flow(ex: Exception) -> None:
+    """Re-raise a contained control-flow exception (no-op otherwise).
+
+    Used at each layer of the service's error handling so terminations
+    raised by service methods propagate out of sandbox_service() instead
+    of being logged and swallowed.
+    """
+    control = find_control_flow(ex)
+    if control is not None:
+        raise control from ex
 
 
 REQUESTS_DIR = "requests"
@@ -518,22 +528,20 @@ class SandboxService:
                         None,
                         f"Limit exceeded calling method {method_name}: {ex.message}",
                     )
-                except CONTROL_FLOW_EXCEPTIONS as ex:
-                    # control-flow exceptions (sample/task termination) must
-                    # propagate out of the service to be enacted — answer the
-                    # RPC first so the sandbox-side caller isn't left hanging
+            except Exception as err:
+                # sample termination raised by a service method (bare or
+                # wrapped in an ExceptionGroup) must propagate out of the
+                # service to be enacted — answer the RPC exactly once first
+                # so the sandbox-side caller isn't left polling forever
+                control = find_control_flow(err)
+                if control is not None:
                     await self._write_response(
                         request_file,
                         request_id,
                         None,
-                        f"Terminating: {ex}",
+                        f"Terminating: {control}",
                     )
-                    raise
-            except Exception as err:
-                # control flow re-raised by the inner handler (which already
-                # answered the RPC) lands here first — propagate it rather
-                # than recatching it as an ordinary failure
-                raise_if_control_flow(err)
+                    raise control from err
                 # Log the host-side traceback, but do NOT put it in the response.
                 # This text is delivered into the sandbox and, for bridged MCP
                 # tools, surfaces verbatim as tool output the model reads. The

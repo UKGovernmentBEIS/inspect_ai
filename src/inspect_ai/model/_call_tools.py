@@ -1033,8 +1033,9 @@ def classify_tool_exception(
     Callers must normalize exception groups (inner_exception()) first.
     Control-flow exceptions are classified where they have a tool-error
     rendering (limits) — callers with propagation semantics re-raise after
-    recording. Non-embedded-null-byte ValueErrors re-raise (preserving the
-    model path's historical behavior of not treating them as tool errors).
+    recording. Unexpected exceptions (including non-embedded-null-byte
+    ValueErrors) return None: this function is policy-free, and each
+    caller applies its own disposition.
 
     Args:
         ex: The (normalized) exception raised by tool execution.
