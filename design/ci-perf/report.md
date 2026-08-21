@@ -69,7 +69,7 @@ Across 820 independent-job samples: median 3s, p75 4s, **p90 18s, p95 31s, p99
 burst that has appeared in every prior report did not recur — hour 02 saw 56
 job-starts at a 3s median and an 18s p90. The single 303s outlier sits in hour
 01. Nothing structural changed here; this is a quieter contributor window, and
-proposal 5 stands on the earlier evidence rather than on this one.
+proposal 3 stands on the earlier evidence rather than on this one.
 
 ### Critical path
 
@@ -165,7 +165,7 @@ The three ungated ones were run locally against a live docker daemon: they cost
 **0.05s combined**, because `ComposeProject.create()` writes and validates a
 compose file without starting a container. So they are not slow tests wearing
 the wrong gate — they are non-docker tests wearing `skip_if_no_docker`. This
-*downgrades* proposal 12 from "policy gap with no wall-clock cost" to "the
+*downgrades* proposal 11 from "policy gap with no wall-clock cost" to "the
 decorator is arguably wrong, not the marker".
 
 ## Suite size
@@ -242,9 +242,10 @@ suppressing them at collection time (an `anyio_backend` fixture in
 
 ## Regressions since last report
 
-- **None on the critical path.** Every job's exec median is within 3s of the
-  previous window except `test` (improved 444 → 334s) and `check-version-bump`
-  (improved 30 → 8s, the last unverified `blob:none` leg).
+- **None on the critical path.** Every job's exec median is within 4s of the
+  previous window except three that moved: `test` (improved 444 → 334s),
+  `check-version-bump` (improved 30 → 8s, the last unverified `blob:none` leg)
+  and `slow-tests` (224 → 235s — see the next bullet).
 - `slow-tests` `Run slow tests` step rose 152s (n=2) → 206s (n=7). **Not a
   main-line regression:** all seven samples come from two branches actively
   modifying checkpoint code (`claude/issue-143-…` ×6, `fix-hydration-interrupt`
@@ -269,11 +270,11 @@ suppressing them at collection time (an `anyio_backend` fixture in
   Six of them are overhead-dominated: `ruff` 10s exec for 1.5s of linting,
   `changes` 7s, `detect-slow` 8s, `check-version-bump` 8s for 0s of work,
   `submodule-on-main` 8s. Irrelevant to wall clock, relevant to burst load
-  (proposals 5 and 11).
+  (proposals 3 and 10).
 - `docs`: 315s Quarto render, still uncached; 46s dependency install
   ([issue #297](https://github.com/meridianlabs-ai/inspect_ai/issues/297)).
 - `slow-tool-tests-release` executed **zero** times again (54 skipped, 5
-  cancelled), which continues to cap proposal 10's value.
+  cancelled), which continues to cap proposal 9's value.
 - Documentation-only PRs that aren't markdown still run the full suite
   ([issue #299](https://github.com/meridianlabs-ai/inspect_ai/issues/299)).
 
@@ -288,7 +289,7 @@ pass at this.
 
 | Metric | 4 workers, `load` (n=4 runs) | 4 workers, `worksteal` (n=47 runs) | Predicted |
 |---|---|---|---|
-| Worker imbalance | +12s..+80s, 68–88% efficiency | **+3..+6s, 97–99%** | +4–7s, 96% |
+| Worker imbalance | +12s..+80s, 68–88% efficiency (prior report, 10 legs) | **+3..+6s, 97–99%** (8 legs) | +4–7s, 96% |
 | Legs with a >60s straggler | 4 of 10 (prior report) | **0 of 8 sampled** | ~0 |
 | Slower leg's pytest step | 356s | **313s** | — |
 | Binding (slower) test leg exec | 387s | **344s** | — |
@@ -324,7 +325,7 @@ will likely stay that way.
    window). Note the honest ceiling: because `test` is close behind, caching
    Quarto perfectly does not buy 315s of wall clock — it buys the ~40s by which
    `docs` currently overshoots `test`. Structural (workflow change this run
-   cannot push). Status: carried from proposal 3, **promoted to #1**, filed as
+   cannot push). Status: carried from last report's proposal 3, **promoted to #1**, filed as
    [meridianlabs-ai/inspect_ai#297](https://github.com/meridianlabs-ai/inspect_ai/issues/297).
 
 2. **Unblock the scheduled run.** Three independent mechanical blockers, all
@@ -380,7 +381,7 @@ will likely stay that way.
    Neither is an unattended safe fix: the first changes what the suite collects
    and what test IDs exist (a maintainer call), the second trades a dormant
    capability for a sub-1% win. Both should be decided together with any other
-   attack on the ~100s. Status: carried from proposal 8, **now quantified**.
+   attack on the ~100s. Status: carried from last report's proposal 8, **now quantified**.
 
 5. **Collector: validate the run window and refetch.** Unchanged and still
    written but uncommittable (proposal 2, `.claude/**`). Today's snapshot came
