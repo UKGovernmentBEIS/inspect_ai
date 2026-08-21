@@ -170,7 +170,8 @@ async def test_service_records_tool_event() -> None:
     assert len(tool_events) == 1
     assert tool_events[0].function == "_addition"
     assert tool_events[0].arguments == {"x": 1, "y": 2}
-    assert tool_events[0].result == 3
+    # scalar results are stringified exactly as model tool events record them
+    assert tool_events[0].result == "3"
 
 
 # --- blocker 3: tool names must be valid identifiers and unique --------------
@@ -735,6 +736,162 @@ async def test_parallel_tool_stays_concurrent() -> None:
     assert active["max"] == 2
 
 
+# --- invariant: human events carry the shared classification -----------------
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "exc_factory",
+    [
+        lambda: TimeoutError(),
+        lambda: PermissionError(13, "Permission denied", "/etc/shadow"),
+        lambda: FileNotFoundError(2, "No such file", "missing.txt"),
+        lambda: IsADirectoryError(21, "Is a directory", "/tmp"),
+        lambda: UnicodeDecodeError("utf-8", b"", 0, 1, "invalid start byte"),
+        lambda: ToolError("expected failure"),
+    ],
+    ids=[
+        "timeout",
+        "permission",
+        "file_not_found",
+        "is_a_directory",
+        "unicode",
+        "tool_error",
+    ],
+)
+async def test_human_event_error_matches_shared_classification(exc_factory) -> None:
+    """The human ToolEvent carries exactly the shared classification.
+
+    This is the anti-drift invariant: for any classified exception, the
+    human path records the same ToolCallError the model path would.
+    """
+    from inspect_ai.model._call_tools import classify_tool_exception
+
+    expected = classify_tool_exception(exc_factory(), "raiser")
+    assert expected is not None
+
+    _, event = await _invoke_raising(exc_factory)
+    assert event.error is not None
+    assert event.error.type == expected.error.type
+    assert event.error.message == expected.error.message
+    assert event.failed is None  # classified failures are expected outcomes
+
+
+@pytest.mark.anyio
+async def test_sandbox_unavailable_classified() -> None:
+    from inspect_ai.util._sandbox.environment import SandboxUnavailableError
+
+    result, event = await _invoke_raising(
+        lambda: SandboxUnavailableError("container gone")
+    )
+    assert event.error is not None and event.error.type == "sandbox_unavailable"
+    assert event.failed is None
+
+
+@pytest.mark.anyio
+async def test_limit_events_typed_limit() -> None:
+    """Limit violations record error.type='limit' (they were 'unknown')."""
+    from inspect_ai.log._transcript import Transcript, init_transcript, transcript
+    from inspect_ai.util._limit import LimitExceededError
+
+    async def execute() -> str:
+        """Exceed a limit.
+
+        Returns:
+            Never returns.
+        """
+        raise LimitExceededError("token", value=1001, limit=1000)
+
+    limited = ToolDef(
+        execute, name="limited", description="Exceed a limit.", parameters={}
+    ).as_tool()
+    handler = ToolCommand([limited]).service(state=None)  # type: ignore[arg-type]
+    init_transcript(Transcript())
+    with pytest.raises(LimitExceededError):
+        await handler(tool="limited", arguments={})
+    event = next(e for e in transcript().events if e.event == "tool")
+    assert event.error is not None and event.error.type == "limit"
+
+
+@pytest.mark.anyio
+async def test_output_limit_partial_is_capped() -> None:
+    """A huge output-limit partial routes through the shared output cap."""
+    from inspect_ai.util import OutputLimitExceededError
+
+    big_partial = "x" * (64 * 1024)
+    result, event = await _invoke_raising(
+        lambda: OutputLimitExceededError("10 MiB", big_partial)
+    )
+    assert event.error is not None and event.error.type == "limit"
+    assert event.truncated is not None
+    assert len(str(result)) < 64 * 1024
+
+
+@pytest.mark.anyio
+async def test_cancellation_finalizes_event() -> None:
+    """Cancelling a running tool must not leave its event pending forever."""
+    import anyio
+
+    from inspect_ai.log._transcript import Transcript, init_transcript, transcript
+
+    started = anyio.Event()
+
+    async def execute() -> str:
+        """Sleep until cancelled.
+
+        Returns:
+            Never returns.
+        """
+        started.set()
+        await anyio.sleep(30)
+        return "unreachable"
+
+    sleeper = ToolDef(
+        execute, name="sleeper", description="Sleep.", parameters={}
+    ).as_tool()
+    handler = ToolCommand([sleeper]).service(state=None)  # type: ignore[arg-type]
+    init_transcript(Transcript())
+
+    async def call() -> None:
+        await handler(tool="sleeper", arguments={})
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(call)
+        await started.wait()
+        tg.cancel_scope.cancel()
+
+    event = next(e for e in transcript().events if e.event == "tool")
+    assert event.pending is None  # finalized
+    assert [e for e in transcript().pending_events if e.event == "tool"] == []
+
+
+@pytest.mark.anyio
+async def test_structured_event_content_survives_terminal_capping() -> None:
+    """Large structured results keep their content list in the event."""
+    from inspect_ai._util.content import ContentImage, ContentText
+    from inspect_ai.log._transcript import Transcript, init_transcript, transcript
+
+    async def execute() -> list:
+        """Return large structured content.
+
+        Returns:
+            Text and an image.
+        """
+        return [ContentText(text="x" * (64 * 1024)), ContentImage(image="b64")]
+
+    structured = ToolDef(
+        execute, name="structured", description="Structured.", parameters={}
+    ).as_tool()
+    handler = ToolCommand([structured]).service(state=None)  # type: ignore[arg-type]
+    init_transcript(Transcript())
+    result = await handler(tool="structured", arguments={})
+
+    event = next(e for e in transcript().events if e.event == "tool")
+    assert isinstance(event.result, list)
+    assert any(getattr(c, "type", "") == "image" for c in event.result)
+    assert len(str(result)) < 64 * 1024  # terminal rendering capped
+
+
 # --- round 8: parallel=False is a global barrier, not per-tool ---------------
 
 
@@ -767,6 +924,7 @@ async def _run_concurrently(handler, *tools: str) -> None:
 
     async with anyio.create_task_group() as tg:
         for name in tools:
+
             async def call(n: str = name) -> None:
                 await handler(tool=n)
 

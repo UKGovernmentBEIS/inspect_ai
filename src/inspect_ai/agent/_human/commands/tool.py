@@ -5,7 +5,6 @@ import json
 import logging
 import math
 from argparse import Namespace
-from contextlib import AbstractAsyncContextManager
 from textwrap import dedent
 from typing import Any, AsyncIterator, Awaitable, Callable, Literal, NamedTuple
 
@@ -23,18 +22,19 @@ from inspect_ai._util.working import sample_waiting_time
 from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log._transcript import transcript
 from inspect_ai.model._call_tools import (
+    classify_tool_exception,
+    resolve_tool_content,
     tool_call_view,
     tool_params,
     truncate_tool_output,
     validate_tool_input,
 )
-from inspect_ai.tool import Tool, ToolError, ToolParams
+from inspect_ai.tool import Tool, ToolParams
 from inspect_ai.tool._tool import ToolResult
 from inspect_ai.tool._tool_call import ToolCall, ToolCallError
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.util._anyio import inner_exception
 from inspect_ai.util._limit import LimitExceededError
-from inspect_ai.util._sandbox.events import SandboxTimeoutError
 from inspect_ai.util._sandbox.limits import OutputLimitExceededError
 from inspect_ai.util._span import span
 
@@ -391,72 +391,35 @@ def tool(args):
 
         try:
             result = await tool_fn(**params)
-        except Exception as raw_ex:
+        except BaseException as raw_ex:
+            if not isinstance(raw_ex, Exception):
+                # cancellation (anyio) derives from BaseException — finalize
+                # so the event doesn't stay pending forever, then re-raise
+                finalize(error=ToolCallError("unknown", "Tool call was cancelled."))
+                raise
+
             # normalize before classifying, as the model path does — anyio
             # task groups wrap child exceptions in ExceptionGroups (nested
             # included), and classification must see the real exception
             ex = inner_exception(raw_ex)
 
-            if isinstance(ex, ToolError):
-                # an expected tool failure — surface the message the way a
-                # model receives it (raising would reach the human as an
-                # RPC traceback)
-                finalize(error=ToolCallError("unknown", ex.message))
-                return f"Error: {ex.message}"
-            elif isinstance(
-                ex, (LimitExceededError, TerminateSampleError, TerminateTaskError)
-            ):
-                # control flow: limit violations must reach the sandbox-
-                # service boundary (which routes them to
-                # sample_active().limit_exceeded() and ends the sample);
-                # terminate errors likewise must not be stringified
+            if isinstance(ex, (TerminateSampleError, TerminateTaskError)):
+                # control flow: propagate through the sandbox-service
+                # boundary (which enacts termination) after recording
                 finalize(error=ToolCallError("unknown", str(ex)))
                 raise ex from raw_ex
-            elif isinstance(ex, OutputLimitExceededError):
-                # like the model path, an output-limit hit is a truncated
-                # result, not a failure
-                result = ex.truncated_output or ""
-                finalize(
-                    result=result,
-                    error=ToolCallError(
-                        "limit",
-                        f"The tool exceeded its output limit of {ex.limit_str}.",
-                    ),
-                )
-                return f"{result}\n[output truncated: exceeded {ex.limit_str} limit]"
-            elif isinstance(ex, TimeoutError):
-                message = "Command timed out before completing."
-                result = (
-                    ex.truncated_output
-                    if isinstance(ex, SandboxTimeoutError) and ex.truncated_output
-                    else ""
-                )
-                finalize(result=result, error=ToolCallError("timeout", message))
-                return f"Error: {message}"
-            elif isinstance(ex, UnicodeDecodeError):
-                message = f"Error decoding bytes to {ex.encoding}: {ex.reason}"
-                finalize(error=ToolCallError("unicode_decode", message))
-                return f"Error: {message}"
-            elif isinstance(ex, PermissionError):
-                message = f"{ex.strerror or str(ex)}."
-                if isinstance(ex.filename, str):
-                    message = f"{message} Filename '{ex.filename}'."
-                finalize(error=ToolCallError("permission", message))
-                return f"Error: {message}"
-            elif isinstance(ex, FileNotFoundError):
-                if isinstance(ex.filename, str):
-                    message = f"File '{ex.filename}' was not found."
-                else:
-                    message = ex.strerror or str(ex)
-                finalize(error=ToolCallError("file_not_found", message))
-                return f"Error: {message}"
-            elif isinstance(ex, IsADirectoryError):
-                message = f"{ex.strerror or str(ex)}."
-                if isinstance(ex.filename, str):
-                    message = f"{message} Filename '{ex.filename}'."
-                finalize(error=ToolCallError("is_a_directory", message))
-                return f"Error: {message}"
-            else:
+
+            # shared classification with the model tool path — the same
+            # exception yields the same ToolCallError on both paths
+            try:
+                classified = classify_tool_exception(ex, tool)
+            except Exception as reraised:
+                # classify re-raises what it refuses to classify (e.g.
+                # non-embedded-null-byte ValueErrors) — treat as unexpected
+                ex = reraised
+                classified = None
+
+            if classified is None:
                 # unexpected exceptions must not end the human's session (a
                 # human, unlike a model sample, can read the error and work
                 # around a broken tool — and raising here just yields a raw
@@ -468,22 +431,36 @@ def tool(args):
                 finalize(error=ToolCallError("unknown", str(ex)), failed=True)
                 return f"Error executing tool '{tool}': {ex}"
 
-        # Convert result to string, truncating oversize output exactly as
-        # the model path does (both in the terminal and the recorded event)
-        output = tool_result_to_str(result)
-        truncated_output = truncate_tool_output(tool, output, None)
-        if truncated_output:
-            finalize(
-                result=truncated_output.output,
-                truncated=(
-                    truncated_output.raw_bytes,
-                    truncated_output.truncated_bytes,
-                ),
-            )
-            return truncated_output.output
+            if isinstance(ex, LimitExceededError) and not isinstance(
+                ex, OutputLimitExceededError
+            ):
+                # disposition differs from the model path by design: the
+                # sample-ending mechanism for human agents is the sandbox-
+                # service boundary, so record (with the shared "limit"
+                # classification) and propagate
+                finalize(error=classified.error)
+                raise ex from raw_ex
 
-        finalize(result=result)
-        return output
+            # expected tool failure: record the shared classification and
+            # surface the message (plus any partial output — sandbox
+            # timeouts and output-limit hits carry one — routed through the
+            # shared truncation so a 10 MiB partial can't flood anything)
+            content, truncated = resolve_tool_content(classified.result, tool, None)
+            finalize(result=content, error=classified.error, truncated=truncated)
+            partial = content if isinstance(content, str) and content else ""
+            message = f"Error: {classified.error.message}"
+            return f"{message}\n{partial}" if partial else message
+
+        # success: shared massaging/truncation — structured content is
+        # preserved in the event untruncated (the terminal rendering is
+        # capped separately below)
+        content, truncated = resolve_tool_content(result, tool, None)
+        finalize(result=content, truncated=truncated)
+        if isinstance(content, str):
+            return content
+        rendered = tool_result_to_str(result)
+        rendered_truncated = truncate_tool_output(tool, rendered, None)
+        return rendered_truncated.output if rendered_truncated else rendered
 
 
 class ParamInfo(NamedTuple):
