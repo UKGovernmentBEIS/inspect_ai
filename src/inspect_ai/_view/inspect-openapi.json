@@ -4699,7 +4699,17 @@
             "anyOf": [
               {
                 "additionalProperties": {
-                  "$ref": "#/components/schemas/ModelConfig"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ModelConfig"
+                    },
+                    {
+                      "items": {
+                        "$ref": "#/components/schemas/ModelConfig"
+                      },
+                      "type": "array"
+                    }
+                  ]
                 },
                 "type": "object"
               },

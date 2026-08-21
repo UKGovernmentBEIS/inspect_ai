@@ -49,7 +49,7 @@ from inspect_ai.log._resolve import rebind_sample_timelines
 from inspect_ai.log._score import _find_scorers_span
 from inspect_ai.log._transcript import Transcript, init_transcript, transcript
 from inspect_ai.model import ModelName
-from inspect_ai.model._model import Model, get_model
+from inspect_ai.model._model import Model, ModelRoles, get_model
 from inspect_ai.model._model_config import model_roles_config_to_model_roles
 from inspect_ai.model._util import resolve_model_roles
 from inspect_ai.scorer import Metric, Scorer, Target
@@ -84,7 +84,7 @@ def score(
     | None = None,
     epochs_reducer: ScoreReducers | None = None,
     model: str | Model | None = None,
-    model_roles: dict[str, str | Model] | None = None,
+    model_roles: ModelRoles | None = None,
     action: ScoreAction | None = None,
     display: DisplayType | None = None,
     copy: bool = True,
@@ -216,7 +216,7 @@ async def score_async(
     | None = None,
     epochs_reducer: ScoreReducers | None = None,
     model: str | Model | None = None,
-    model_roles: dict[str, str | Model] | None = None,
+    model_roles: ModelRoles | None = None,
     action: ScoreAction | None = None,
     display: DisplayType | None = None,
     copy: bool = True,
@@ -403,7 +403,7 @@ async def _run_score_task(
     sample: EvalSample,
     scorers: list[Scorer],
     model: Model,
-    model_roles: dict[str, Model],
+    model_roles: dict[str, Model | list[Model]],
     action: ScoreAction,
 ) -> Tuple[dict[str, SampleScore], list[str]]:
     # resolve attachment:// refs so scorers see real content rather than

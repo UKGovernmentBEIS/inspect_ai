@@ -1312,8 +1312,13 @@ def to_overview(header: EvalLog) -> LogOverview:
     ):
         primary_metric = next(iter(first_scorer.metrics.values()))
 
+    # a role bound to a list of models is shown as comma-separated names
+    # (LogOverview keeps a flat string per role)
     model_roles = (
-        {role: cfg.model for role, cfg in header.eval.model_roles.items()}
+        {
+            role: ",".join(mc.model for mc in (cfg if isinstance(cfg, list) else [cfg]))
+            for role, cfg in header.eval.model_roles.items()
+        }
         if header.eval.model_roles
         else None
     )

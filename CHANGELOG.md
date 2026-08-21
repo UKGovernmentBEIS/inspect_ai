@@ -13,6 +13,7 @@
 - Scoring: Treat numeric string metric return values as scalar values rather than sequences in eval results. (#4903)
 - Multiple Choice: A single-choice answer carrying a stray trailing comma (e.g. `ANSWER: A,`) is now scored instead of rejected as no answer.
 - Model-graded scorers now warn once when an explicit model bypasses a required model role.
+- Model roles can now be bound to a list of models (e.g. `model_roles={"grader": [...]}`), with model-graded scorers grading by majority vote across the list.
 - Dataset: Choices fields read from CSV or JSON no longer produce an empty-string choice from trailing or doubled commas.
 - Control Channel: `inspect ctl sample requeue` can now sweep every currently-errored sample in one command (`--errored`) or requeue several `SAMPLE_ID EPOCH` pairs, reporting each sample's result individually.
 - Breaking: Removed the deprecated hidden flat `inspect ctl` spellings (e.g. `ctl tasks`, `ctl limits`); use the noun-group commands (`ctl task list`, `ctl config`, ...) instead.

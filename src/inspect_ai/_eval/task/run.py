@@ -362,7 +362,7 @@ def _sample_transcript_config(
 class TaskRunOptions:
     task: Task
     model: Model
-    model_roles: dict[str, Model] | None
+    model_roles: dict[str, Model | list[Model]] | None
     sandbox: SandboxEnvironmentSpec | None
     checkpoint: CheckpointConfig | None
     """Task-level checkpoint config (raw `task.checkpoint`)."""
