@@ -68,6 +68,7 @@ class EvalConfigDefaults(TypedDict):
     continue_on_fail: bool
     score_on_error: bool
     sandbox_cleanup: bool
+    sandbox_prebuilt: bool
     log_samples: bool
     log_realtime: bool
     log_images: bool
@@ -81,6 +82,7 @@ def eval_config_defaults() -> EvalConfigDefaults:
         "continue_on_fail": False,
         "score_on_error": False,
         "sandbox_cleanup": True,
+        "sandbox_prebuilt": False,
         "log_samples": True,
         "log_realtime": True,
         "log_images": True,
@@ -188,6 +190,9 @@ class EvalConfig(BaseModel):
 
     sandbox_cleanup: bool | None = Field(default=None)
     """Cleanup sandbox environments after task completes."""
+
+    sandbox_prebuilt: bool | None = Field(default=None)
+    """Treat sandbox images as prebuilt (skip builds and fail if an image is missing)."""
 
     log_samples: bool | None = Field(default=None)
     """Log detailed information on each sample."""

@@ -335,11 +335,16 @@ class AnthropicAPI(ModelAPI):
             if base_region is None:
                 aws_region = os.environ.get("AWS_DEFAULT_REGION", None)
 
-            return AsyncAnthropicBedrock(
-                base_url=base_url,
-                aws_region=aws_region,
-                **self.model_args,
-            )
+            try:
+                return AsyncAnthropicBedrock(
+                    base_url=base_url,
+                    aws_region=aws_region,
+                    **self.model_args,
+                )
+            except ValueError as ex:
+                # anthropic >= 1.0 raises when no AWS region is resolvable
+                # (older versions silently fell back to us-east-1)
+                raise PrerequisiteError(str(ex)) from ex
         elif self.is_vertex():
             base_url = model_base_url(
                 self.base_url,

@@ -3,7 +3,7 @@ from typing import Any, Literal, cast
 from unittest.mock import AsyncMock, create_autospec
 
 import pytest
-from test_helpers.utils import skip_if_no_anthropic
+from test_helpers.utils import setenv_if_unset, skip_if_no_anthropic
 
 from inspect_ai import Task, eval
 from inspect_ai._util.content import (
@@ -976,16 +976,11 @@ async def test_anthropic_top_level_cache_control_skipped_on_bedrock_vertex(
     `cache_control: Extra inputs are not permitted`.
     ref: https://docs.claude.com/en/docs/build-with-claude/prompt-caching#automatic-caching
     """
-    import os
-
-    # anthropic >= 1.0 requires a region for Bedrock (no more us-east-1
-    # default) and treats an empty AWS_REGION as unset — so must we here
-    if not os.environ.get("AWS_REGION"):
-        os.environ["AWS_REGION"] = "us-east-1"
-    os.environ.setdefault("AWS_ACCESS_KEY_ID", "fake")
-    os.environ.setdefault("AWS_SECRET_ACCESS_KEY", "fake")
-    os.environ.setdefault("ANTHROPIC_VERTEX_PROJECT_ID", "fake")
-    os.environ.setdefault("ANTHROPIC_VERTEX_REGION", "us-east5")
+    setenv_if_unset("AWS_REGION", "us-east-1")
+    setenv_if_unset("AWS_ACCESS_KEY_ID", "fake")
+    setenv_if_unset("AWS_SECRET_ACCESS_KEY", "fake")
+    setenv_if_unset("ANTHROPIC_VERTEX_PROJECT_ID", "fake")
+    setenv_if_unset("ANTHROPIC_VERTEX_REGION", "us-east5")
 
     api = AnthropicAPI(model_name=model_name, api_key="test-key")
 
