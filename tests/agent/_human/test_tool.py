@@ -625,6 +625,77 @@ def test_percent_in_descriptions_survives_help_rendering() -> None:
     assert "50% cutoff" in tool_help
 
 
+# --- round 7: non-parallel tools are serialized under concurrent requests ----
+
+
+def _tracking_tool(parallel: bool):
+    import anyio
+
+    active = {"now": 0, "max": 0}
+
+    async def execute() -> str:
+        """Track concurrent executions.
+
+        Returns:
+            A marker.
+        """
+        active["now"] += 1
+        active["max"] = max(active["max"], active["now"])
+        await anyio.sleep(0.05)
+        active["now"] -= 1
+        return "ok"
+
+    tool = ToolDef(
+        execute,
+        name="tracker",
+        description="Track concurrency.",
+        parameters={},
+        parallel=parallel,
+    ).as_tool()
+    return tool, active
+
+
+@pytest.mark.anyio
+async def test_non_parallel_tool_serialized() -> None:
+    """Tools declaring parallel=False execute serially.
+
+    SandboxService handles request files concurrently, so two shell
+    invocations can enter the handler at once.
+    """
+    import anyio
+
+    from inspect_ai.log._transcript import Transcript, init_transcript
+
+    tool, active = _tracking_tool(parallel=False)
+    handler = ToolCommand([tool]).service(state=None)  # type: ignore[arg-type]
+    init_transcript(Transcript())
+    async def call() -> None:
+        await handler(tool="tracker")
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(call)
+        tg.start_soon(call)
+    assert active["max"] == 1
+
+
+@pytest.mark.anyio
+async def test_parallel_tool_stays_concurrent() -> None:
+    import anyio
+
+    from inspect_ai.log._transcript import Transcript, init_transcript
+
+    tool, active = _tracking_tool(parallel=True)
+    handler = ToolCommand([tool]).service(state=None)  # type: ignore[arg-type]
+    init_transcript(Transcript())
+    async def call() -> None:
+        await handler(tool="tracker")
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(call)
+        tg.start_soon(call)
+    assert active["max"] == 2
+
+
 # --- round 7: custom tool viewers apply to human ToolEvents -------------------
 
 
@@ -641,7 +712,9 @@ async def test_custom_viewer_applies_to_human_tool_events() -> None:
 
     def viewer(call: ToolCall) -> ToolCallView:
         return ToolCallView(
-            call=ToolCallContent(format="markdown", content=f"**adding** {call.arguments}")
+            call=ToolCallContent(
+                format="markdown", content=f"**adding** {call.arguments}"
+            )
         )
 
     async def execute(x: int, y: int) -> int:

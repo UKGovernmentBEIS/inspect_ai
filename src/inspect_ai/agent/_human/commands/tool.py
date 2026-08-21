@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import math
 from argparse import Namespace
+from contextlib import AbstractAsyncContextManager
 from textwrap import dedent
-from typing import Any, Awaitable, Callable, Literal, NamedTuple
+from typing import Any, AsyncIterator, Awaitable, Callable, Literal, NamedTuple
 
+import anyio
 from pydantic import JsonValue
 from shortuuid import uuid
 
@@ -36,6 +39,11 @@ from ..state import HumanAgentState
 from .command import HumanAgentCommand
 
 logger = logging.getLogger(__name__)
+
+
+@contextlib.asynccontextmanager
+async def _noop_lock() -> AsyncIterator[None]:
+    yield
 
 
 def _omitted(kind: str) -> str:
@@ -245,6 +253,8 @@ def tool(args):
         raise Exception("This should never appear in the generated code")
 
     def service(self, state: HumanAgentState) -> Callable[..., Awaitable[JsonValue]]:
+        self._tool_locks: dict[str, anyio.Lock] = {}
+
         # Tool arguments arrive as a single dict, out-of-band of this
         # function's own parameters — no tool argument name can collide
         async def call_tool(tool: str, arguments: dict[str, Any] | None = None) -> str:
@@ -255,11 +265,21 @@ def tool(args):
             if tool_fn is None:
                 return f"Error: Unknown tool '{tool}'"
 
+            # SandboxService handles pending request files concurrently, so
+            # two shell invocations can arrive at once — serialize tools that
+            # declared parallel=False (stateful tools opt out of concurrency)
+            lock: AbstractAsyncContextManager[Any] = (
+                _noop_lock()
+                if self._tool_defs[tool].parallel
+                else self._tool_locks.setdefault(tool, anyio.Lock())
+            )
+
             # model tool calls run inside span(type="tool") — mirror that so
             # nested activity (e.g. model calls made by the tool) attributes
             # to the tool in timelines rather than to the enclosing agent
-            async with span(name=tool, type="tool"):
-                return await self._execute_tool(tool, tool_fn, kwargs)
+            async with lock:
+                async with span(name=tool, type="tool"):
+                    return await self._execute_tool(tool, tool_fn, kwargs)
 
         return call_tool
 
