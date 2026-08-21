@@ -47,6 +47,12 @@ def test_value_to_float_custom_numeric():
     assert fn(1) == 1.0
     assert fn(-1) == 0.0
 
+    # noanswer is mapped on the same branch as incorrect, and it carries the
+    # largest delta of the four sentinels: left unmapped, a noanswer=-99
+    # dragged accuracy() over [1, -99, -99, -99] to -74.0 instead of 0.25
+    fn = value_to_float(correct=1, noanswer=-99)
+    assert fn(-99) == 0.0
+
     fn = value_to_float(partial=True)
     assert fn(True) == 0.5
 
