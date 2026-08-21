@@ -464,41 +464,72 @@ async def test_tool_execution_runs_in_tool_span() -> None:
     assert tool_event.span_id == tool_span.id
 
 
-# --- round 2: parameter names are embedded in generated code — validate them
+# --- round 3: arbitrary schema property names are escaped, not rejected -----
 
 
-def test_non_identifier_param_name_rejected_at_construction() -> None:
-    """Schema property names are interpolated into generated Python source.
-
-    A custom ToolParams over **kwargs permits arbitrary JSON property
-    names; a name containing a quote produced an unterminated-string
-    SyntaxError in the generated CLI (bricking every task command), and
-    crafted names can inject code. Identifiers only, checked host-side.
-    """
+def _kwargs_tool(prop: str):
+    """A **kwargs tool whose declared schema has an arbitrary property name."""
     from typing import Any
 
     from inspect_ai.tool import ToolParams
     from inspect_ai.util import JSONSchema
 
     async def execute(**kwargs: Any) -> str:
-        """Accept anything.
+        """Echo the hostile property.
 
         Returns:
-            A marker.
+            The value.
         """
-        return "ok"
+        return str(kwargs[prop])
 
-    hostile = ToolDef(
+    return ToolDef(
         execute,
         name="hostile_params",
-        description="Accept anything.",
+        description="Echo the hostile property.",
         parameters=ToolParams(
-            properties={'value"': JSONSchema(type="string", description="Hostile.")}
+            properties={prop: JSONSchema(type="string", description="Hostile.")}
         ),
     ).as_tool()
 
-    with pytest.raises(ValueError, match="identifier"):
-        ToolCommand([hostile])
+
+def test_quoted_property_name_generates_working_cli() -> None:
+    """Property names are escaped into generated source, not interpolated.
+
+    ToolParams permits arbitrary JSON property names and tool_params()
+    passes them through to **kwargs tools, so models can use such tools;
+    a name containing a quote must not brick (or inject into) the
+    generated CLI, and must remain invocable by the human.
+    """
+    prop = 'value"'
+    parser, _ = _build_parsers([_kwargs_tool(prop)])
+    kwargs = _handler_kwargs(parser, ["tool", "hostile_params", '--value"', "abc"])
+    assert kwargs == {prop: "abc"}
+
+
+def test_injection_shaped_property_name_is_inert() -> None:
+    """A code-injection-shaped name becomes an inert quoted literal."""
+    prop = 'x", exec("raise SystemExit"), "'
+    parser, _ = _build_parsers([_kwargs_tool(prop)])  # would raise if executed
+    kwargs = _handler_kwargs(parser, ["tool", "hostile_params", f"--{prop}", "v"])
+    assert kwargs == {prop: "v"}
+
+
+@pytest.mark.anyio
+async def test_arbitrary_property_name_service_roundtrip() -> None:
+    """The service executes **kwargs tools with arbitrary property names."""
+    from inspect_ai.log._transcript import Transcript, init_transcript
+
+    prop = "a b"
+    handler = ToolCommand([_kwargs_tool(prop)]).service(state=None)  # type: ignore[arg-type]
+    init_transcript(Transcript())
+    result = await handler(tool="hostile_params", arguments={prop: "ok"})
+    assert result == "ok"
+
+
+def test_empty_property_name_rejected() -> None:
+    """An empty property name has no possible flag spelling — fail closed."""
+    with pytest.raises(ValueError, match="empty"):
+        ToolCommand([_kwargs_tool("")])
 
 
 # --- finding 5: every non-text standalone content uses the omission marker ---

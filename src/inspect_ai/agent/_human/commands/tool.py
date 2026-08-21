@@ -44,13 +44,15 @@ def _validate_cli_flags(tool_def: ToolDef) -> None:
     """
     flags: dict[str, str] = {"--help": "argparse help", "-h": "argparse help"}
     for name, schema in tool_def.parameters.properties.items():
-        # parameter names are interpolated into the generated sandbox script
-        # (option strings, dests) — fail closed on names that would break or
-        # inject into the generated code, same rule as tool names
-        if not name.isidentifier():
+        # ToolParams permits arbitrary JSON property names and tool_params()
+        # passes them through to **kwargs tools, so models can call such
+        # tools — the human CLI must too. Generated literals are emitted via
+        # repr() so any name is safe; only the empty name is impossible (it
+        # has no flag spelling)
+        if not name:
             raise ValueError(
-                f"Tool '{tool_def.name}' parameter '{name}' is not a valid "
-                "Python identifier (required for the generated task CLI)."
+                f"Tool '{tool_def.name}' declares a parameter with an empty "
+                "name (no CLI flag can be generated for it)."
             )
         info = _classify_schema(schema.model_dump(exclude_none=True))
         param_flags = [f"--{name.replace('_', '-')}"]
@@ -395,16 +397,6 @@ def _classify_schema(schema: dict[str, Any]) -> ParamInfo:
     return _complex_info(description, default)
 
 
-def _escape_string(s: str) -> str:
-    """Escape a string for embedding in generated Python code."""
-    return (
-        s.replace("\\", "\\\\")
-        .replace('"', '\\"')
-        .replace("\n", "\\n")
-        .replace("\r", "\\r")
-    )
-
-
 def _example_instance(schema: dict[str, Any]) -> Any:
     """A minimal example JSON instance for a schema, for help text."""
     if "anyOf" in schema:
@@ -470,11 +462,11 @@ def generate_tool_parser(
         if info.schema_type == "json":
             has_complex_params = True
 
-    # Create subparser
-    escaped_desc = _escape_string(tool_description)
+    # Create subparser (all embedded values emitted via repr() — schema
+    # text is data, never code)
     lines.append(
-        f'{tool_name}_parser = tool_subparsers.add_parser("{tool_name}", '
-        f'help="{escaped_desc}", '
+        f"{tool_name}_parser = tool_subparsers.add_parser({tool_name!r}, "
+        f"help={tool_description!r}, "
         f"formatter_class=argparse.RawDescriptionHelpFormatter)"
     )
 
@@ -486,8 +478,8 @@ def generate_tool_parser(
         # Always use named args (--x, --y); dests are prefixed so tool
         # argument names can never shadow the parser's routing dests
         # ('command', 'tool_name')
-        parts.append(f'"--{arg_name}"')
-        parts.append(f'dest="arg_{name}"')
+        parts.append(repr(f"--{arg_name}"))
+        parts.append(f"dest={f'arg_{name}'!r}")
 
         # Type conversion; nullable (Optional[T]) scalars accept the literal
         # 'null' so an explicit JSON null is expressible, not just absence
@@ -524,7 +516,7 @@ def generate_tool_parser(
         elif info.schema_type not in ("boolean", "json"):
             # metavar must come from the parameter name — argparse would
             # otherwise derive it from the internal prefixed dest (ARG_X)
-            parts.append(f'metavar="{name.upper()}"')
+            parts.append(f"metavar={name.upper()!r}")
 
         # Required/default: absent optional flags are suppressed entirely so
         # the handler can distinguish "not provided" from an explicit null
@@ -542,7 +534,7 @@ def generate_tool_parser(
         elif info.is_optional:
             help_text = f"{help_text} ('null' for null)".strip()
         if help_text:
-            parts.append(f'help="{_escape_string(help_text)}"')
+            parts.append(f"help={help_text!r}")
 
         lines.append(f"{tool_name}_parser.add_argument({', '.join(parts)})")
 
