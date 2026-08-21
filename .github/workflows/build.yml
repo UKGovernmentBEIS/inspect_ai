@@ -149,7 +149,23 @@ jobs:
           fetch-tags: true
           filter: "blob:none"
 
+      # The cache holds only a marker recording that this exact input set
+      # rendered successfully, never the rendered site — nothing consumes
+      # this job's output, so a stale hit can only skip a redundant
+      # validation, not publish stale docs. The key covers everything the
+      # render reads: the docs sources, the doc toolchain pins, and the
+      # inspect_ai source that reference docs are generated from (griffe).
+      # The marker is created only after a successful render and the cache
+      # is saved only when the job succeeds, so a hit implies a past pass.
+      - name: Check for previous successful render
+        id: render-cache
+        uses: actions/cache@v6
+        with:
+          path: .docs-render-ok
+          key: docs-render-${{ hashFiles('docs/**', 'requirements-doc.txt', 'src/inspect_ai/**') }}
+
       - name: Install uv
+        if: steps.render-cache.outputs.cache-hit != 'true'
         uses: astral-sh/setup-uv@v9.0.0
         with:
           version: ${{ env.UV_VERSION }}
@@ -158,15 +174,19 @@ jobs:
       # The package itself is installed because reference docs are
       # generated from the inspect_ai module (griffe).
       - name: Install dependencies
+        if: steps.render-cache.outputs.cache-hit != 'true'
         run: |-
           uv venv
           uv pip install -r requirements-doc.txt .
 
       - name: Render docs
-        run: uv run quarto render docs
+        if: steps.render-cache.outputs.cache-hit != 'true'
+        run: |-
+          uv run quarto render docs
+          touch .docs-render-ok
 
       - name: Minimize uv cache
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.render-cache.outputs.cache-hit != 'true' }}
         run: uv cache prune --ci
 
   test:
