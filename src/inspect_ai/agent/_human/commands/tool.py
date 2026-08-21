@@ -398,10 +398,20 @@ def _classify_schema(schema: dict[str, Any]) -> ParamInfo:
 
 
 def _example_instance(schema: dict[str, Any]) -> Any:
-    """A minimal example JSON instance for a schema, for help text."""
+    """A minimal example JSON instance for a schema, for help text.
+
+    The example must satisfy the schema it illustrates (the service
+    validates against it), so authored values take precedence and common
+    constraints are honored on generated ones.
+    """
     if "anyOf" in schema:
         non_null = [x for x in schema["anyOf"] if x.get("type") != "null"]
         return _example_instance(non_null[0]) if non_null else None
+    # prefer authored values — they satisfy the schema by authorship
+    if "default" in schema:
+        return schema["default"]
+    if schema.get("examples"):
+        return schema["examples"][0]
     match schema.get("type"):
         case "object":
             properties = schema.get("properties")
@@ -416,10 +426,28 @@ def _example_instance(schema: dict[str, Any]) -> Any:
         case "array":
             return [_example_instance(schema.get("items", {}))]
         case "string":
-            return schema.get("enum", ["text"])[0]
+            if "enum" in schema:
+                return schema["enum"][0]
+            text = "text"
+            min_length = schema.get("minLength")
+            if isinstance(min_length, int) and len(text) < min_length:
+                text = (text * (min_length // len(text) + 1))[:min_length]
+            return text
         case "integer":
+            minimum = schema.get("minimum")
+            if isinstance(minimum, (int, float)):
+                return int(minimum)
+            exclusive = schema.get("exclusiveMinimum")
+            if isinstance(exclusive, (int, float)):
+                return int(exclusive) + 1
             return 1
         case "number":
+            minimum = schema.get("minimum")
+            if isinstance(minimum, (int, float)):
+                return float(minimum)
+            exclusive = schema.get("exclusiveMinimum")
+            if isinstance(exclusive, (int, float)):
+                return float(exclusive) + 1.0
             return 1.5
         case "boolean":
             return True

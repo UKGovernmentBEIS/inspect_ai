@@ -464,6 +464,36 @@ async def test_tool_execution_runs_in_tool_span() -> None:
     assert tool_event.span_id == tool_span.id
 
 
+# --- round 3: help examples honor constraints, defaults, and examples --------
+
+
+def test_example_instance_honors_constraints_and_defaults() -> None:
+    """Generated examples must satisfy the schema constraints they illustrate.
+
+    A minLength=10 string rendered as "text" and a minimum=5 integer as 1
+    produce examples validate_tool_input() immediately rejects.
+    """
+    from inspect_ai.agent._human.commands.tool import _example_instance
+
+    schema = {
+        "type": "object",
+        "properties": {
+            "long": {"type": "string", "minLength": 10},
+            "count": {"type": "integer", "minimum": 5},
+            "rate": {"type": "number", "exclusiveMinimum": 2.0},
+            "named": {"type": "string", "default": "from-default"},
+            "shown": {"type": "integer", "examples": [42]},
+        },
+        "required": ["long", "count", "rate", "named", "shown"],
+    }
+    example = _example_instance(schema)
+    assert len(example["long"]) >= 10
+    assert example["count"] >= 5
+    assert example["rate"] > 2.0
+    assert example["named"] == "from-default"
+    assert example["shown"] == 42
+
+
 # --- round 3: only advertise null where it is actually accepted --------------
 
 
