@@ -1,5 +1,6 @@
 import json
 import re
+import sys
 from logging import getLogger
 from pathlib import PurePosixPath
 from textwrap import dedent
@@ -14,9 +15,11 @@ from typing import (
 import anyio
 from pydantic import JsonValue
 
+if sys.version_info < (3, 11):
+    from exceptiongroup import BaseExceptionGroup
+
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.exception import TerminateSampleError
-from inspect_ai.util._anyio import _flatten_exception
 from inspect_ai.util._subprocess import ExecResult
 
 from .environment import SandboxEnvironment
@@ -36,17 +39,36 @@ CONTROL_FLOW_EXCEPTIONS: tuple[type[BaseException], ...] = (TerminateSampleError
 
 
 def find_control_flow(ex: Exception) -> BaseException | None:
-    """Find a contained control-flow exception, or None.
+    """Find a control-flow exception in an exception's causal history.
 
-    Every leaf of an ExceptionGroup is searched (a mixed group must not
-    hide a termination behind an ordinary sibling), with precedence
-    following CONTROL_FLOW_EXCEPTIONS order.
+    Termination is sticky by protocol: group leaves, explicit causes
+    (raise ... from), and implicit context are all searched, so once a
+    termination has been raised anywhere in the history of the escaping
+    exception it propagates — including when a response write fails
+    mid-handling and the termination survives only as context. The only
+    way to suppress a termination is to handle it and return normally.
+    Precedence follows CONTROL_FLOW_EXCEPTIONS order, then traversal
+    order.
     """
-    leaves = _flatten_exception(ex)
+    seen: set[int] = set()
+    stack: list[BaseException] = [ex]
+    history: list[BaseException] = []
+    while stack:
+        e = stack.pop()
+        if id(e) in seen:
+            continue
+        seen.add(id(e))
+        history.append(e)
+        if isinstance(e, BaseExceptionGroup):
+            stack.extend(e.exceptions)
+        if e.__cause__ is not None:
+            stack.append(e.__cause__)
+        if e.__context__ is not None:
+            stack.append(e.__context__)
     for control_flow_type in CONTROL_FLOW_EXCEPTIONS:
-        for leaf in leaves:
-            if isinstance(leaf, control_flow_type):
-                return leaf
+        for e in history:
+            if isinstance(e, control_flow_type):
+                return e
     return None
 
 

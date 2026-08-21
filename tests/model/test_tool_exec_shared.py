@@ -270,6 +270,42 @@ async def test_ordinary_method_errors_still_swallowed(monkeypatch):
     assert responses[0][1] is not None and "ordinary failure" in responses[0][1]
 
 
+def test_terminate_detected_as_explicit_cause():
+    """An exception raised from a termination must surface it.
+
+    Explicit wrapping preserves the termination as __cause__; failing to
+    follow it meant an author who deliberately chained it lost the
+    termination while implicit context surfaced one — inverted intent.
+    """
+    terminate = TerminateSampleError("kill")
+    try:
+        raise RuntimeError("wrapper") from terminate
+    except RuntimeError as ex:
+        wrapped = ex
+    with pytest.raises(TerminateSampleError):
+        raise_if_control_flow(wrapped)
+
+
+def test_terminate_sticky_across_context():
+    """Termination is sticky: suppress-then-raise still terminates.
+
+    Deliberate protocol (fail-safe direction): once a termination has
+    been raised anywhere in the causal history of the escaping
+    exception, it propagates. The only way to suppress a termination is
+    to handle it and return normally. This is also what rescues a
+    termination when a response write fails mid-handling.
+    """
+    try:
+        try:
+            raise TerminateSampleError("kill")
+        except TerminateSampleError:
+            raise RuntimeError("suppressor")  # noqa: B904
+    except RuntimeError as ex:
+        chained = ex
+    with pytest.raises(TerminateSampleError):
+        raise_if_control_flow(chained)
+
+
 def test_ordinary_exceptions_not_reraised():
     raise_if_control_flow(RuntimeError("boom"))  # no-op
     raise_if_control_flow(ValueError("boom"))  # no-op
