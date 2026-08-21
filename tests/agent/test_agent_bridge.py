@@ -385,8 +385,9 @@ def anthropic_agent(
                 await client.messages.create(  # type: ignore[call-overload]
                     model="inspect",
                     max_tokens=4096,
-                    temperature=0.8,
-                    top_k=2,
+                    # anthropic >= 1.0 removed temperature/top_k from the
+                    # method signatures; user code sends them via extra_body
+                    extra_body={"temperature": 0.8, "top_k": 2},
                     thinking={"type": "enabled", "budget_tokens": 2048}
                     if reasoning == "budget"
                     else ANTHROPIC_NOT_GIVEN,
@@ -878,11 +879,7 @@ def test_responses_bridge_computer_use_incompatible_model():
 #   - claude-sonnet-4-5 (pre-4.7): request reasoning depth via a thinking token
 #     budget; the bridge maps `thinking.budget_tokens` -> `reasoning_tokens`.
 #   - claude-sonnet-5 (4.7+): a budget is rejected, so request depth via
-#     `output_config={"effort": ...}`; the bridge maps it -> `effort`. The effort
-#     must go through the SDK's *typed* `output_config` param: the bridge reads the
-#     typed request body, whereas anything passed via `extra_body` is merged into
-#     the wire body only at serialization time (downstream of the bridge) and would
-#     be silently dropped.
+#     `output_config={"effort": ...}`; the bridge maps it -> `effort`.
 @pytest.mark.parametrize(
     "model, reasoning",
     [
@@ -904,6 +901,47 @@ def test_bridged_agent_anthropic_tools():
         "anthropic/claude-sonnet-4-5", agent=anthropic_agent(True)
     )
     check_anthropic_bridge_log_json(log_json, "anthropic/claude-sonnet-4-5", tools=True)
+
+
+def test_anthropic_bridge_forwards_extra_body_sampling_params():
+    """The bridge must see sampling params sent via extra_body.
+
+    anthropic >= 1.0 removed temperature/top_p/top_k from the method
+    signatures, so bridged agents can only send them via extra_body. The SDK
+    carries extra_body in options.extra_json and merges it into the request
+    body downstream of the bridge's interception point, so the bridge must
+    merge it itself or the params are silently dropped.
+    """
+
+    @agent
+    def extra_body_agent() -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            async with agent_bridge(state, forward_generation_config=True) as bridge:
+                # requests are intercepted by the bridge, so the key is unused
+                async with AsyncAnthropic(api_key="test") as client:
+                    await client.messages.create(
+                        model="inspect",
+                        max_tokens=4096,
+                        extra_body={"temperature": 0.8, "top_k": 2},
+                        messages=[
+                            {
+                                "role": "user",
+                                "content": user_prompt(state.messages).text,
+                            }
+                        ],
+                    )
+                return bridge.state
+
+        return execute
+
+    log = eval(
+        bridged_task(extra_body_agent()),
+        model="mockllm/model",
+    )[0]
+    assert log.status == "success"
+    log_json = log.model_dump_json(exclude_none=True, indent=2)
+    assert r'"temperature": 0.8' in log_json
+    assert r'"top_k": 2' in log_json
 
 
 @skip_if_no_anthropic
