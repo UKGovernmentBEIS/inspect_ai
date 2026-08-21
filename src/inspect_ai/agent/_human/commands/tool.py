@@ -20,7 +20,6 @@ from inspect_ai.tool import Tool, ToolError, ToolParams
 from inspect_ai.tool._tool import ToolResult
 from inspect_ai.tool._tool_call import ToolCallError
 from inspect_ai.tool._tool_def import ToolDef
-
 from inspect_ai.util._span import span
 
 from ..state import HumanAgentState
@@ -492,8 +491,8 @@ def generate_tool_parser(
 
         # Type conversion; nullable (Optional[T]) scalars accept the literal
         # 'null' so an explicit JSON null is expressible, not just absence
-        def converter(base: str) -> str:
-            return f"_nullable({base})" if info.is_optional else base
+        def converter(base: str, optional: bool = info.is_optional) -> str:
+            return f"_nullable({base})" if optional else base
 
         if info.schema_type == "integer":
             parts.append(f"type={converter('int')}")
