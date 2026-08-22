@@ -40,6 +40,7 @@ Schema changes require a version bump and corresponding golden-test updates
 """
 
 import os
+from collections import Counter
 
 from pydantic import BaseModel, ValidationError
 
@@ -94,7 +95,7 @@ def read_eval_set_selection(selection_path: str) -> EvalSetSelection:
         The selection.
 
     Raises:
-        PrerequisiteError: If the file cannot be read or parsed, or if it uses a schema version this version of inspect does not understand.
+        PrerequisiteError: If the file cannot be read or parsed, if it uses a schema version this version of inspect does not understand, or if it names no tasks or the same task more than once.
     """
     try:
         with file(selection_path, mode="rb") as f:
@@ -114,6 +115,19 @@ def read_eval_set_selection(selection_path: str) -> EvalSetSelection:
     if not selection.tasks:
         raise PrerequisiteError(
             f"The eval set selection at '{selection_path}' names no tasks."
+        )
+
+    # a repeated identifier would run the same task twice in one worker, under
+    # one task id: the two runs share a log filename and a sample-buffer db, so
+    # they overwrite each other's log or fail outright. Reject it here rather
+    # than let the runner's bug surface as a mid-run error.
+    counts = Counter(entry.identifier for entry in selection.tasks)
+    duplicates = sorted(identifier for identifier, count in counts.items() if count > 1)
+    if duplicates:
+        raise PrerequisiteError(
+            f"The eval set selection at '{selection_path}' names the same task "
+            f"more than once: {', '.join(duplicates)}. Each task in a selection "
+            "must appear exactly once."
         )
 
     return selection

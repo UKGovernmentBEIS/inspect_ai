@@ -9,6 +9,7 @@ from typing import Any
 import pytest
 
 from inspect_ai import Task, TaskSource, eval_set, task
+from inspect_ai._control.eval_state import get_eval_states
 from inspect_ai._eval.eval_set_manifest import (
     INSPECT_EVAL_SET_CAPTURE,
     EvalSetCapture,
@@ -592,6 +593,16 @@ def test_eval_set_selection_resume_log_missing(
             "schema version 99",
         ),
         (json.dumps({"version": 1, "eval_set_id": "x", "tasks": []}), "names no tasks"),
+        (
+            json.dumps(
+                {
+                    "version": 1,
+                    "eval_set_id": "x",
+                    "tasks": [{"identifier": "y"}, {"identifier": "y"}],
+                }
+            ),
+            "names the same task more than once: y",
+        ),
     ],
 )
 def test_eval_set_selection_invalid(
@@ -648,6 +659,59 @@ def test_eval_set_selection_scanner_error(
             tmp_path / "logs",
             scanner=[],
         )
+
+
+def test_eval_set_selection_parks_for_keep_alive(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """`ctl_server="keep"` parks a worker, exactly as it does an eval set.
+
+    Selection mode returns before the eval-set park; the inner `eval()` runs
+    with an eval_set_id so it doesn't park either. Without a park of its own a
+    worker would silently exit instead of keeping its control surface up. A spy
+    stands in for the (blocking) park.
+    """
+    capture = enumerate_eval_set(monkeypatch, tmp_path)
+    captured: dict[str, object] = {}
+
+    async def spy(eval_set_id: str, log_dir: str) -> None:
+        captured["eval_set_id"] = eval_set_id
+        captured["states"] = [s.task for s in get_eval_states()]
+
+    monkeypatch.setattr("inspect_ai._eval.evalset._keep_alive_park", spy)
+
+    success, _ = run_selection(
+        monkeypatch,
+        tmp_path,
+        selection_for(capture.tasks[0].identifier, eval_set_id="parked-set"),
+        tmp_path / "logs",
+        ctl_server="keep",
+    )
+
+    assert success
+    assert captured.get("eval_set_id") == "parked-set", "keep-alive park not entered"
+    # the run's eval states are still registered at park time (they're what
+    # `inspect ctl task list` shows through the lingering window)
+    assert captured["states"] == ["selection_task_one"]
+
+
+def test_eval_set_selection_clears_run_registries(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A worker clears the process-scoped registries at its run boundary.
+
+    The inner `eval()` leaves this to its caller when an eval_set_id is set, so
+    a worker that returned without cleaning up would leak EvalStates (and
+    config / limit overrides) into whatever the process does next.
+    """
+    capture = enumerate_eval_set(monkeypatch, tmp_path)
+    run_selection(
+        monkeypatch,
+        tmp_path,
+        selection_for(capture.tasks[0].identifier),
+        tmp_path / "logs",
+    )
+    assert get_eval_states() == []
 
 
 def test_eval_set_capture_and_selection_are_exclusive(

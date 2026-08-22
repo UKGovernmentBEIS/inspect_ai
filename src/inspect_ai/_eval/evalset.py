@@ -628,23 +628,30 @@ def eval_set(
             raise PrerequisiteError(
                 "Error: No inspect tasks were found at the specified paths."
             )
-        return _run_eval_set_selection(
-            selection_path,
-            selection_tasks,
-            EvalSetArgsInTaskIdentifier(
-                config=selection_config,
-                solver=solver,
-                message_limit=message_limit,
-                token_limit=token_limit,
-                turn_limit=turn_limit,
-                time_limit=time_limit,
-                working_limit=working_limit,
-                cost_limit=cost_limit,
-            ),
-            lambda worker_eval_set_id, worker_tasks: run_eval(
-                worker_eval_set_id, worker_tasks, selection_mode=True
-            ),
-        )
+        # same run-boundary cleanup the eval-set path does in its own `finally`
+        # below: the inner eval() runs with eval_set_id set, so it leaves both
+        # the keep-alive park and the registry reset to its caller.
+        try:
+            return _run_eval_set_selection(
+                selection_path,
+                selection_tasks,
+                EvalSetArgsInTaskIdentifier(
+                    config=selection_config,
+                    solver=solver,
+                    message_limit=message_limit,
+                    token_limit=token_limit,
+                    turn_limit=turn_limit,
+                    time_limit=time_limit,
+                    working_limit=working_limit,
+                    cost_limit=cost_limit,
+                ),
+                lambda worker_eval_set_id, worker_tasks: run_eval(
+                    worker_eval_set_id, worker_tasks, selection_mode=True
+                ),
+                log_dir,
+            )
+        finally:
+            reset_run_registries()
 
     # get eval set id (set display name from user-provided value before resolution)
     set_eval_set_id_display(eval_set_id)
@@ -1239,6 +1246,7 @@ def _run_eval_set_selection(
     resolved_tasks: list[ResolvedTask],
     eval_set_args: EvalSetArgsInTaskIdentifier,
     run_eval: Callable[[str, list[ResolvedTask | PreviousTask]], list[EvalLog]],
+    log_dir: str,
 ) -> tuple[bool, list[EvalLog]]:
     """Run a worker's share of an eval set.
 
@@ -1252,6 +1260,7 @@ def _run_eval_set_selection(
         resolved_tasks: All tasks resolved by this eval set (tasks × models).
         eval_set_args: Eval-set level args that participate in task identity.
         run_eval: Runs the selected tasks under an eval set id, returning their logs.
+        log_dir: Log directory (for the keep-alive park's launch handoff).
 
     Returns:
         Whether every selected task succeeded, and the logs they produced.
@@ -1263,6 +1272,14 @@ def _run_eval_set_selection(
     selected = _selected_eval_set_tasks(resolved_tasks, selection, eval_set_args)
     set_eval_set_id_display(selection.eval_set_id)
     logs = run_eval(selection.eval_set_id, selected)
+
+    # keep-alive: park exactly as the eval-set path does — after the run, with
+    # the task display closed. A worker binds its own (pid-keyed) socket, so
+    # concurrent workers parking under the shared eval set id don't collide;
+    # `inspect ctl` disambiguates them by pid as it does during the run.
+    if keep_alive_intent():
+        run_coroutine(_keep_alive_park(selection.eval_set_id, log_dir))
+
     return all_evals_succeeded(logs), logs
 
 
