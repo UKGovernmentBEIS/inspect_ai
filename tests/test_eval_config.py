@@ -1,6 +1,7 @@
 import os
 import tempfile
 from pathlib import Path
+from typing import Any
 
 import pytest
 from click.testing import CliRunner, Result
@@ -61,6 +62,21 @@ def run_eval_set_cli(
 
 def assert_cli_success(result: Result) -> None:
     assert result.exit_code == 0, f"{result.output}\n{result.exception}"
+
+
+def test_eval_cli_fail_on_log_error_flag(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, Any] = {}
+
+    def fake_eval_exec(**kwargs: Any) -> bool:
+        captured.update(kwargs)
+        return True
+
+    monkeypatch.setattr("inspect_ai._cli.eval.eval_exec", fake_eval_exec)
+
+    result = run_eval_cli(["--fail-on-log-error"])
+
+    assert_cli_success(result)
+    assert captured["fail_on_log_error"] is True
 
 
 def test_run_config_rejects_unknown_top_level_field():

@@ -50,6 +50,7 @@ ET = TypeVar("ET", bound=BaseEvent)
 class _TranscriptSubscription:
     id: int
     callback: Callable[[Event], None]
+    propagate_errors: bool
 
 
 def transcript_bounded_enabled() -> bool:
@@ -658,6 +659,8 @@ class Transcript:
                 try:
                     event_logger.callback(event)
                 except Exception:
+                    if event_logger.propagate_errors:
+                        raise
                     # Tag this record so the eval LogHandler does NOT re-inject
                     # it as a LoggerEvent — that would re-enter this loop and
                     # fan out combinatorially across other failing subscribers.
@@ -840,8 +843,13 @@ class Transcript:
             copied_events.append(event)
         return copied_events
 
-    def _subscribe(self, event_logger: Callable[[Event], None]) -> Callable[[], None]:
-        subscription = self._create_subscription(event_logger)
+    def _subscribe(
+        self,
+        event_logger: Callable[[Event], None],
+        *,
+        propagate_errors: bool = False,
+    ) -> Callable[[], None]:
+        subscription = self._create_subscription(event_logger, propagate_errors)
         self._event_loggers.append(subscription)
         unsubscribed = False
 
@@ -854,10 +862,14 @@ class Transcript:
         return unsubscribe
 
     def _create_subscription(
-        self, callback: Callable[[Event], None]
+        self, callback: Callable[[Event], None], propagate_errors: bool
     ) -> _TranscriptSubscription:
         self._next_event_logger_id += 1
-        return _TranscriptSubscription(id=self._next_event_logger_id, callback=callback)
+        return _TranscriptSubscription(
+            id=self._next_event_logger_id,
+            callback=callback,
+            propagate_errors=propagate_errors,
+        )
 
 
 def transcript() -> Transcript:

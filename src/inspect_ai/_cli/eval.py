@@ -118,6 +118,7 @@ NO_FAIL_ON_ERROR_HELP = "Do not fail the eval if errors occur within samples (in
 CONTINUE_ON_FAIL_HELP = "Do not immediately fail the eval if the error threshold is exceeded (instead, continue running other samples until the eval completes, and then possibly fail the eval)."
 RETRY_ON_ERROR_HELP = "Retry samples if they encounter errors (by default, no retries occur). Specify --retry-on-error to retry a single time, or specify e.g. `--retry-on-error=3` to retry multiple times."
 SCORE_ON_ERROR_HELP = "Score samples that error rather than failing the eval mid-run. Errors still count toward the --fail-on-error threshold for marking the log as 'error'. Only fires after retries (if any) are exhausted."
+FAIL_ON_LOG_ERROR_HELP = "Fail the eval if writing realtime sample events fails."
 LOG_IMAGES_HELP = (
     "Retain inline image and other media bytes in the log file. "
     "This option does not control media fetching."
@@ -660,6 +661,14 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         envvar="INSPECT_EVAL_SCORE_ON_ERROR",
     )
     @click.option(
+        "--fail-on-log-error",
+        type=bool,
+        is_flag=True,
+        default=None,
+        help=FAIL_ON_LOG_ERROR_HELP,
+        envvar="INSPECT_EVAL_FAIL_ON_LOG_ERROR",
+    )
+    @click.option(
         "--no-log-samples",
         type=bool,
         is_flag=True,
@@ -1171,6 +1180,7 @@ def _eval_command_impl(
     continue_on_fail: bool | None,
     retry_on_error: int | None,
     score_on_error: bool | None,
+    fail_on_log_error: bool | None,
     no_log_samples: bool | None,
     no_log_realtime: bool | None,
     log_images: bool | None,
@@ -1264,6 +1274,7 @@ def _eval_command_impl(
         continue_on_fail=continue_on_fail,
         retry_on_error=retry_on_error,
         score_on_error=score_on_error,
+        fail_on_log_error=fail_on_log_error,
         debug_errors=common["debug_errors"],
         no_log_samples=no_log_samples,
         no_log_realtime=no_log_realtime,
@@ -1472,6 +1483,7 @@ def eval_set_command(
     continue_on_fail: bool | None,
     retry_on_error: int | None,
     score_on_error: bool | None,
+    fail_on_log_error: bool | None,
     no_log_samples: bool | None,
     no_log_realtime: bool | None,
     log_images: bool | None,
@@ -1585,6 +1597,7 @@ def eval_set_command(
             continue_on_fail=continue_on_fail,
             retry_on_error=retry_on_error,
             score_on_error=score_on_error,
+            fail_on_log_error=fail_on_log_error,
             debug_errors=common["debug_errors"],
             no_log_samples=no_log_samples,
             no_log_realtime=no_log_realtime,
@@ -1905,6 +1918,7 @@ def eval_exec(
     continue_on_fail: bool | None,
     retry_on_error: int | None,
     score_on_error: bool | None,
+    fail_on_log_error: bool | None,
     debug_errors: bool | None,
     no_log_samples: bool | None,
     no_log_realtime: bool | None,
@@ -2072,6 +2086,7 @@ def eval_exec(
             continue_on_fail=continue_on_fail,
             retry_on_error=retry_on_error,
             score_on_error=score_on_error,
+            fail_on_log_error=fail_on_log_error,
             debug_errors=debug_errors,
             message_limit=message_limit,
             token_limit=token_limit,
@@ -2540,6 +2555,14 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     envvar="INSPECT_EVAL_SCORE_ON_ERROR",
 )
 @click.option(
+    "--fail-on-log-error",
+    type=bool,
+    is_flag=True,
+    default=None,
+    help=FAIL_ON_LOG_ERROR_HELP,
+    envvar="INSPECT_EVAL_FAIL_ON_LOG_ERROR",
+)
+@click.option(
     "--no-log-samples",
     type=bool,
     is_flag=True,
@@ -2699,6 +2722,7 @@ def eval_retry_command(
     continue_on_fail: bool | None,
     retry_on_error: int | None,
     score_on_error: bool | None,
+    fail_on_log_error: bool | None,
     no_log_samples: bool | None,
     no_log_realtime: bool | None,
     log_images: bool | None,
@@ -2845,6 +2869,7 @@ def eval_retry_command(
                 continue_on_fail=continue_on_fail,
                 retry_on_error=retry_on_error,
                 score_on_error=score_on_error,
+                fail_on_log_error=fail_on_log_error,
                 debug_errors=common["debug_errors"],
                 log_samples=log_samples,
                 log_realtime=log_realtime,
