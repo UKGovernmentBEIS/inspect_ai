@@ -148,7 +148,7 @@ class GenerateConfigArgs(TypedDict, total=False):
     """Maximum tool output (in bytes). Defaults to 16 * 1024."""
 
     cache_prompt: Literal["auto"] | bool | None
-    """Whether to cache the prompt prefix. Enabled by default. Set to False to disable. Anthropic only."""
+    """Whether to cache the prompt prefix. Enabled by default. Set to False to disable. Anthropic and supported Bedrock Converse models only."""
 
     fallback_models: list[str] | None
     """Fallback models tried in order when the model's safety classifiers refuse the request. Anthropic Claude API only (not supported on Bedrock/Vertex/Azure or with batch mode)."""
@@ -275,7 +275,7 @@ class GenerateConfig(BaseModel):
     """Maximum tool output (in bytes). Defaults to 16 * 1024."""
 
     cache_prompt: Literal["auto"] | bool | None = Field(default=None)
-    """Whether to cache the prompt prefix. Enabled by default. Set to False to disable. Anthropic only."""
+    """Whether to cache the prompt prefix. Enabled by default. Set to False to disable. Anthropic and supported Bedrock Converse models only."""
 
     fallback_models: list[str] | None = Field(default=None)
     """Fallback models tried in order when the model's safety classifiers refuse the request. Anthropic Claude API only (not supported on Bedrock/Vertex/Azure or with batch mode)."""

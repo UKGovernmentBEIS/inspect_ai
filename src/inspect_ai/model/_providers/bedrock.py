@@ -141,6 +141,10 @@ class ConverseReasoningContent(BaseModel):
     reasoningText: ConverseReasoningText
 
 
+class ConverseCachePoint(BaseModel):
+    type: Literal["default"]
+
+
 class ConverseMessageContent(BaseModel):
     text: str | None = None
     image: ConverseImage | None = None
@@ -149,6 +153,7 @@ class ConverseMessageContent(BaseModel):
     toolResult: ConverseToolResult | None = None
     guardContent: ConverseGuardContent | None = None
     reasoningContent: ConverseReasoningContent | None = None
+    cachePoint: ConverseCachePoint | None = None
 
 
 class ConverseMessage(BaseModel):
@@ -164,6 +169,8 @@ class ConverseUsage(BaseModel):
     inputTokens: int
     outputTokens: int
     totalTokens: int
+    cacheReadInputTokens: int | None = None
+    cacheWriteInputTokens: int | None = None
 
 
 class ConverseMetrics(BaseModel):
@@ -208,6 +215,7 @@ class ConverseContent(BaseModel):
 class ConverseSystemContent(BaseModel):
     text: str | None = None
     guardContent: ConverseGuardContent | None = None
+    cachePoint: ConverseCachePoint | None = None
 
 
 class ConverseInferenceConfig(BaseModel):
@@ -226,7 +234,8 @@ class ConverseToolSpec(BaseModel):
 
 
 class ConverseTool(BaseModel):
-    toolSpec: ConverseToolSpec
+    toolSpec: ConverseToolSpec | None = None
+    cachePoint: ConverseCachePoint | None = None
 
 
 class ConverseToolChoice(BaseModel):
@@ -461,6 +470,22 @@ class BedrockAPI(ModelAPI):
     def is_nova(self) -> bool:
         return "nova" in self.model_family().lower()
 
+    def _cache_prompt_enabled(self, config: GenerateConfig) -> bool:
+        if config.cache_prompt is False:
+            return False
+        if self.is_nova():
+            return True
+        if not self.is_claude():
+            return False
+
+        family = self.model_family().lower()
+        return (
+            "claude-3-5-haiku-20241022" in family
+            or "claude-3-5-sonnet-20241022" in family
+            or "claude-3-7-sonnet" in family
+            or re.search(r"claude-[a-z]+-[45](?:-|$)", family) is not None
+        )
+
     def _is_claude_4_x(self, x: int) -> bool:
         # bedrock model ids look like
         # `anthropic.claude-opus-4-7-20260101-v1:0` or
@@ -614,6 +639,13 @@ class BedrockAPI(ModelAPI):
             system, messages = await converse_messages(
                 input, emulate_reasoning=self.is_claude()
             )
+            if self._cache_prompt_enabled(config):
+                add_cache_point(
+                    system,
+                    messages,
+                    tool_config,
+                    tools_supported=self.is_claude(),
+                )
 
             # Claude 4.7+ runs adaptive-thinking-only and rejects sampling
             # parameters; other thinking-enabled Claude models also reject
@@ -881,6 +913,37 @@ async def converse_messages(
     return system if len(system) > 0 else None, non_system
 
 
+def add_cache_point(
+    system: list[ConverseSystemContent] | None,
+    messages: list[ConverseMessage],
+    tool_config: ConverseToolConfig | None,
+    *,
+    tools_supported: bool,
+) -> None:
+    """Cache the latest stable prefix in Bedrock's request processing order."""
+    seen_blocks = 0
+    for message in reversed(messages):
+        for index in range(len(message.content) - 1, -1, -1):
+            seen_blocks += 1
+            if seen_blocks == 2:
+                message.content.insert(
+                    index + 1,
+                    ConverseMessageContent(
+                        cachePoint=ConverseCachePoint(type="default")
+                    ),
+                )
+                return
+
+    if system:
+        system.append(
+            ConverseSystemContent(cachePoint=ConverseCachePoint(type="default"))
+        )
+    elif tools_supported and tool_config is not None and tool_config.tools:
+        tool_config.tools.append(
+            ConverseTool(cachePoint=ConverseCachePoint(type="default"))
+        )
+
+
 def model_output_from_response(
     model: str, response: ConverseResponse, tools: list[ToolInfo]
 ) -> ModelOutput:
@@ -925,8 +988,15 @@ def model_output_from_response(
 
     # Compute usage
     input_tokens = response.usage.inputTokens
+    cache_read_tokens = response.usage.cacheReadInputTokens
+    cache_write_tokens = response.usage.cacheWriteInputTokens
     output_tokens = response.usage.outputTokens
-    total_tokens = input_tokens + output_tokens
+    total_tokens = (
+        input_tokens
+        + (cache_read_tokens or 0)
+        + (cache_write_tokens or 0)
+        + output_tokens
+    )
 
     # return ModelOutput
     return ModelOutput(
@@ -934,6 +1004,8 @@ def model_output_from_response(
         choices=[choice],
         usage=ModelUsage(
             input_tokens=input_tokens,
+            input_tokens_cache_read=cache_read_tokens,
+            input_tokens_cache_write=cache_write_tokens,
             output_tokens=output_tokens,
             total_tokens=total_tokens,
         ),

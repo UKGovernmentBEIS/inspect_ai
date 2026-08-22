@@ -10,6 +10,7 @@
 
 - Metrics: Add `ci()` metric reporting a confidence interval for the mean (as `{"lower", "upper"}`). Defaults to `mean ± t · stderr` with a Student-t critical value (`n - 1` degrees of freedom; `clusters - 1` when `cluster=` is set) so small samples get honest widths; `method="bootstrap"` gives a percentile (cluster) bootstrap interval. (#4160)
 - Anthropic: Compatibility with anthropic SDK 1.0.0, which is now the minimum supported version (`temperature`/`top_p`/`top_k` continue to work on models that support them; browser state tool results and file-based image/document sources no longer fail type checking).
+- Bedrock: Converse requests now cache stable prompt prefixes and report cache read and write token usage.
 - OpenAI: Responses API usage now records `cache_write_tokens` as `ModelUsage.input_tokens_cache_write` and excludes it from full-rate `input_tokens` (generate and compaction responses); compaction usage also now excludes cache reads and records reasoning tokens. (#4855)
 - Sandbox: Editable installs now avoid spurious `-dev` sandbox-tools binaries when local main refs are missing, stale, or unavailable.
 - Eval Log: Log directory manifests now strip Windows-style directory prefixes before normalizing paths, avoiding parent directories in bundled listings.
