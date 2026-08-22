@@ -181,6 +181,30 @@ def fresh_concurrency_registry():
     yield
 
 
+@pytest.fixture(autouse=True)
+def isolate_custom_model_info() -> Iterator[None]:
+    """Snapshot/restore the custom model-info registry around each test.
+
+    `clear_model_info_cache()` wipes the process-global `_custom_models`
+    dict — including registrations other modules made at import time. Any
+    test whose fixtures clear the registry therefore starves later tests
+    in the same process that rely on an import-time `set_model_info`
+    (order-dependent, so under xdist worksteal it surfaces as a flake —
+    see #4972). Restore the pre-test snapshot so neither wipes nor leaked
+    registrations cross test boundaries. `_result_cache` must go with the
+    restore: it can hold a negative lookup memoized while the registry was
+    wiped, which would otherwise keep masking the restored entry.
+    """
+    from inspect_ai.model._model_info import _custom_models, _result_cache
+
+    snapshot = dict(_custom_models)
+    yield
+    if _custom_models != snapshot:
+        _custom_models.clear()
+        _custom_models.update(snapshot)
+        _result_cache.clear()
+
+
 @pytest.fixture(scope="session")
 def registrations_at_session_start() -> dict[str, object]:
     """Load extension entry points up front, then snapshot the registry.
