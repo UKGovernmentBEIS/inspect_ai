@@ -989,20 +989,36 @@ def _active_sample_summary(s: "ActiveSample") -> dict[str, Any]:
     else:
         status = "queued"
     # Liveness signals (the only freshest source is the in-memory
-    # transcript). `last_activity_at` is when the sample last produced an
-    # event; `events` is a monotonic count. Together they let a consumer
+    # transcript). `last_activity_at` is when the sample last observed
+    # progress; `events` is a monotonic count. Together they let a consumer
     # tell "stalled" from "working" without diffing successive polls — the
     # per-turn token/message counters don't move *within* an in-flight
     # model call, but these advance on every model / tool / store event.
-    # Neither moves *during* one long model call (the pending ModelEvent is
-    # appended at call start and updated in place on return), which is what
-    # `activity` exists to disambiguate: it names the in-flight operation so
-    # a sample mid-generate doesn't read as silently idle
-    # (design/ctl/generate-progress.md).
+    # During one long model call the transcript itself is silent (the
+    # pending ModelEvent is appended at call start and updated in place on
+    # return): `activity` names the in-flight operation, and when the
+    # provider call streams, the pending event's progress record advances
+    # `last_activity_at` per chunk — so idle means "time since last
+    # observed progress" uniformly (design/ctl/generate-progress.md,
+    # layers 2–3).
+    from inspect_ai.event._model import ModelEvent, model_event_progress
+
     last_event = s.transcript.history.last_event
     last_activity_at = (
         last_event.timestamp.timestamp() if last_event is not None else s.started
     )
+    for ev in s.transcript.pending_events:
+        if isinstance(ev, ModelEvent):
+            progress = model_event_progress(ev)
+            if (
+                progress is not None
+                and progress.last_progress_at is not None
+                and (
+                    last_activity_at is None
+                    or progress.last_progress_at > last_activity_at
+                )
+            ):
+                last_activity_at = progress.last_progress_at
     return {
         "sample_id": s.sample.id,
         "epoch": s.epoch,
@@ -1048,10 +1064,11 @@ def _sample_activity(s: "ActiveSample") -> dict[str, Any] | None:
     ``retry_wait``, the failed attempt number; ``detail`` the model name or
     tool function); ``retries`` is the pending model call's in-call
     (provider-SDK) retries; ``deadline`` is when a ``retry_wait`` elapses;
-    ``tokens`` / ``last_progress_at`` are reserved for the layer-2 progress
-    channel and ``None`` until it ships.
+    ``tokens`` / ``last_progress_at`` come from the pending model event's
+    stream progress record (layer 2) — ``None`` for non-streamed calls and
+    providers not yet instrumented.
     """
-    from inspect_ai.event._model import ModelEvent
+    from inspect_ai.event._model import ModelEvent, model_event_progress
     from inspect_ai.event._tool import ToolEvent
 
     first_model: ModelEvent | None = None
@@ -1073,12 +1090,17 @@ def _sample_activity(s: "ActiveSample") -> dict[str, Any] | None:
             "tool", tool_count, first_tool.timestamp.timestamp(), first_tool.function
         )
     if first_model is not None:
+        progress = model_event_progress(first_model)
         return _activity(
             "model",
             model_count,
             first_model.timestamp.timestamp(),
             first_model.model,
             retries=first_model.retries or None,
+            tokens=progress.output_tokens if progress is not None else None,
+            last_progress_at=(
+                progress.last_progress_at if progress is not None else None
+            ),
         )
     retry_wait = s.retry_wait
     if retry_wait is not None:
@@ -1100,6 +1122,8 @@ def _activity(
     *,
     retries: int | None = None,
     deadline: float | None = None,
+    tokens: int | None = None,
+    last_progress_at: float | None = None,
 ) -> dict[str, Any]:
     return {
         "type": type,
@@ -1108,8 +1132,8 @@ def _activity(
         "detail": detail,
         "retries": retries,
         "deadline": deadline,
-        "tokens": None,
-        "last_progress_at": None,
+        "tokens": tokens,
+        "last_progress_at": last_progress_at,
     }
 
 

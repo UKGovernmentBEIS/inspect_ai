@@ -31,6 +31,7 @@
 - Control Channel: New `--now` flag on `inspect ctl task|model|process pause` additionally holds in-flight samples at their next model call until resume, with held-sample counts reported in `inspect ctl task list`.
 - Control Channel: `inspect ctl config` no longer version-gates individual knobs — current eval processes reject unsupported knobs atomically server-side, and only processes predating strict config validation are refused as a whole.
 - Fixed sandbox tools (`text_editor`, `bash_session`) failing to install in non-root sandboxes (e.g. Kubernetes pods with `runAsNonRoot`).
+- Models: `Model.generate()` and `Model.generate_loop()` accept an optional `on_stream` callback that by itself enables provider streaming and receives incremental events (text/reasoning/tool-call deltas and retry boundaries), with streamed progress now also visible on `inspect ctl sample list`.
 - Bugfix: Model outputs stopped by a provider content filter are no longer cached, so `retry_refusals` gets a fresh model attempt instead of a replayed cached refusal.
 - Docker Sandbox: Prerequisite checks now validate the daemon version rather than the CLI version and explain when daemon metadata is unavailable.
 - Bugfix: `web_search("exa")` no longer fails with a validation error, and Exa citations now include page text by default.
