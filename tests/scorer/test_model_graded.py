@@ -423,6 +423,9 @@ def test_default_grade_pattern_extraction(grader_output: str, expected: str) -> 
         pytest.param("ANSWER: C", id="wrong_word_answer"),
         pytest.param("**Answer: C**", id="markdown_decorated"),
         pytest.param("The submission is correct.", id="no_grade_marker_at_all"),
+        pytest.param("GRADE: CI", id="multi_letter_verdict"),
+        pytest.param("GRADE: Correctly", id="adverb_form"),
+        pytest.param("GRADE: IN", id="multi_letter_prefix_of_I"),
     ],
 )
 def test_grade_parse_failure_is_unscored(grader_output: str) -> None:
