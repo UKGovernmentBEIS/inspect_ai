@@ -8,7 +8,12 @@ from shortuuid import uuid
 
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai.model._compaction.types import CompactionStrategy
-from inspect_ai.model._model import GenerateFilter, Model, ModelEventSink
+from inspect_ai.model._model import (
+    GenerateFilter,
+    Model,
+    ModelEventSink,
+    ModelResolver,
+)
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
 from inspect_ai.tool._mcp._tools_bridge import BridgedToolsSpec
 from inspect_ai.tool._sandbox_tools_utils.sandbox import sandbox_with_injected_tools
@@ -47,6 +52,7 @@ async def sandbox_agent_bridge(
     *,
     model: str | None = None,
     model_aliases: dict[str, str | Model] | None = None,
+    model_resolver: ModelResolver | None = None,
     filter: GenerateFilter | None = None,
     retry_refusals: int | None = None,
     compaction: CompactionStrategy | None = None,
@@ -80,6 +86,11 @@ async def sandbox_agent_bridge(
         model_aliases: Map of model name aliases. When a request uses a name
             that appears here, the corresponding value (a ``Model`` instance
             or model spec string) is used instead. Checked before the fallback ``model``.
+        model_resolver: Dynamic routing policy called with the requested model
+            name (provider-qualified on a provider-specific endpoint, e.g.
+            ``openai/gpt-5.1``). Checked after ``model_aliases`` and before the ``model``
+            fallback; return a ``Model``/spec to route the request there, or
+            ``None`` to defer. Routes by policy without enumerating every name.
         filter: Filter for bridge model generation.
         retry_refusals: Should refusals be retried? (pass number of times to retry)
         compaction: Compact the conversation when it it is close to overflowing
@@ -170,6 +181,7 @@ async def sandbox_agent_bridge(
                 port=port,
                 model=model,
                 model_aliases=model_aliases,
+                model_resolver=model_resolver,
                 model_event_sink=model_event_sink,
                 forward_generation_config=forward_generation_config,
                 approval=approval,

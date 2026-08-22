@@ -17,7 +17,12 @@ from inspect_ai.model._compaction import (
 from inspect_ai.model._compaction import (
     compaction as create_compaction,
 )
-from inspect_ai.model._model import GenerateFilter, Model, ModelEventSink
+from inspect_ai.model._model import (
+    GenerateFilter,
+    Model,
+    ModelEventSink,
+    ModelResolver,
+)
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.tool._tool import Tool
 from inspect_ai.tool._tool_info import ToolInfo
@@ -49,6 +54,7 @@ class AgentBridge:
         checkpointer: Checkpointer | None = None,
         allow_remote_mcp: bool = True,
         allow_remote_media: bool = False,
+        model_resolver: ModelResolver | None = None,
     ) -> None:
         # Capabilities a client-declared request may reach for. Media defaults
         # closed so new bridge subclasses cannot accidentally grant host I/O.
@@ -97,6 +103,7 @@ class AgentBridge:
         self.retry_refusals = retry_refusals
         self.model = model
         self.model_aliases: dict[str, str | Model] = model_aliases or {}
+        self.model_resolver = model_resolver
         self.model_event_sink = model_event_sink
         self.forward_generation_config = forward_generation_config
         self.approval = approval
@@ -138,6 +145,13 @@ class AgentBridge:
     """Map of model name aliases.  When a request uses a name that appears
     here, the corresponding value (a ``Model`` instance or model spec string)
     is used instead.  Checked before the fallback ``model``.
+    """
+
+    model_resolver: ModelResolver | None
+    """Dynamic per-request model routing policy.  Called with the requested
+    model name after ``model_aliases`` and before the static ``model`` fallback;
+    returning a ``Model``/spec routes the request there, ``None`` defers to the
+    fallback.  Lets a bridge route by policy without enumerating every name.
     """
 
     model_event_sink: ModelEventSink | None
