@@ -3,9 +3,16 @@ import tempfile
 from pathlib import Path
 
 import pytest
+from test_helpers.utils import skip_if_trio
 
 from inspect_ai._util.error import WriteConflictError
-from inspect_ai.log import read_eval_log, write_eval_log
+from inspect_ai.log import (
+    WriteEvalLogResult,
+    read_eval_log,
+    read_eval_log_async,
+    write_eval_log,
+    write_eval_log_async,
+)
 
 
 @pytest.fixture
@@ -28,10 +35,12 @@ def temp_dir():
 def test_read_eval_log_returns_no_etag_for_local_path(sample_log, temp_dir, format):
     """Test that ETag is None for local files in different formats."""
     local_path = temp_dir / f"test.{format}"
-    write_eval_log(sample_log, local_path)
+    result = write_eval_log(sample_log, local_path)
 
     log = read_eval_log(local_path)
 
+    assert isinstance(result, WriteEvalLogResult)
+    assert result.etag is None
     assert log.etag is None
     assert log.eval.task == sample_log.eval.task
 
@@ -40,10 +49,11 @@ def test_read_eval_log_returns_no_etag_for_local_path(sample_log, temp_dir, form
 def test_read_eval_log_returns_etag_for_s3_path(sample_log, mock_s3, format):
     """Test that ETag is populated when reading from S3 in different formats."""
     log_path = f"s3://test-bucket/test_etag.{format}"
-    write_eval_log(sample_log, log_path)
+    result = write_eval_log(sample_log, log_path)
 
     log = read_eval_log(log_path)
 
+    assert result.etag == log.etag
     assert log.etag is not None
     assert isinstance(log.etag, str)
     assert len(log.etag) > 0
@@ -73,12 +83,88 @@ def test_s3_conditional_write_success(sample_log, mock_s3, format):
     log.eval.metadata["test"] = f"{format}_format_conditional"
 
     # conditional write with matching ETag should succeed
-    write_eval_log(log, log_path, if_match_etag=log.etag)
+    result = write_eval_log(log, log_path, if_match_etag=log.etag)
 
     # verify the write succeeded
     new_log = read_eval_log(log_path)
+    assert result.etag == new_log.etag
+    assert result.etag != log.etag
     assert new_log.eval.metadata is not None
     assert new_log.eval.metadata["test"] == f"{format}_format_conditional"
+
+
+@pytest.mark.parametrize("format", ["json", "eval"])
+def test_returned_etag_supports_chained_conditional_writes(sample_log, mock_s3, format):
+    """Test that returned ETags support consecutive conditional writes."""
+    log_path = f"s3://test-bucket/test_chained_conditional.{format}"
+
+    initial = write_eval_log(sample_log, log_path)
+    assert initial.etag is not None
+
+    sample_log.eval.metadata = {"version": 2}
+    second = write_eval_log(sample_log, log_path, if_match_etag=initial.etag)
+    assert second.etag is not None
+    assert second.etag != initial.etag
+
+    sample_log.eval.metadata = {"version": 3}
+    third = write_eval_log(sample_log, log_path, if_match_etag=second.etag)
+    assert third.etag is not None
+    assert third.etag != second.etag
+
+    persisted = read_eval_log(log_path)
+    assert persisted.etag == third.etag
+    assert persisted.eval.metadata == {"version": 3}
+
+    with pytest.raises(WriteConflictError):
+        write_eval_log(sample_log, log_path, if_match_etag=initial.etag)
+
+
+@pytest.mark.parametrize("format", ["json", "eval"])
+def test_unconditional_write_returns_its_own_etag_during_race(
+    sample_log, mock_s3, monkeypatch, format
+):
+    """A later writer must not change the ETag returned by this write."""
+    from inspect_ai._util.asyncfiles import AsyncFilesystem
+
+    log_path = f"s3://test-bucket/test_atomic_write_etag.{format}"
+    upload_method = "write_file" if format == "json" else "write_file_streaming"
+    original_upload = getattr(AsyncFilesystem, upload_method)
+    later_etag = None
+
+    async def racing_upload(async_fs, location, content):
+        nonlocal later_etag
+        write_etag = await original_upload(async_fs, location, content)
+        client = await async_fs.s3_client_async()
+        response = await client.put_object(
+            Bucket="test-bucket",
+            Key=f"test_atomic_write_etag.{format}",
+            Body=b"concurrent writer",
+        )
+        later_etag = str(response["ETag"]).strip('"')
+        return write_etag
+
+    monkeypatch.setattr(AsyncFilesystem, upload_method, racing_upload)
+
+    result = write_eval_log(sample_log, log_path)
+
+    assert result.etag is not None
+    assert later_etag is not None
+    assert result.etag != later_etag
+    with pytest.raises(WriteConflictError):
+        write_eval_log(sample_log, log_path, if_match_etag=result.etag)
+
+
+@pytest.mark.parametrize("format", ["json", "eval"])
+@skip_if_trio
+async def test_write_eval_log_async_returns_s3_etag(sample_log, mock_s3, format):
+    """Test the async API returns the post-write S3 ETag."""
+    log_path = f"s3://test-bucket/test_async_etag.{format}"
+
+    result = await write_eval_log_async(sample_log, log_path)
+    persisted = await read_eval_log_async(log_path)
+
+    assert result.etag is not None
+    assert result.etag == persisted.etag
 
 
 def test_s3_conditional_write_error(sample_log, mock_s3):

@@ -389,19 +389,18 @@ async def test_write_file_streaming_local():
             assert f.read() == large_data
 
 
-def test_write_file_streaming_s3(mock_s3: None) -> None:
+async def test_write_file_streaming_s3(mock_s3: None) -> None:
     """Test AsyncFilesystem.write_file_streaming with mock S3."""
     test_data = b"\xab" * (10 * 1024 * 1024)  # 10MB, exceeds 8MB multipart threshold
     s3_path = f"{S3_BUCKET}/streaming_test/file.bin"
 
-    async def run() -> None:
-        source = io.BytesIO(test_data)
-        async with AsyncFilesystem() as fs:
-            await fs.write_file_streaming(s3_path, source)
-            result = await fs.read_file(s3_path)
-            assert result == test_data
-
-    asyncio.run(run())
+    source = io.BytesIO(test_data)
+    async with AsyncFilesystem() as fs:
+        etag = await fs.write_file_streaming(s3_path, source)
+        result = await fs.read_file(s3_path)
+        assert result == test_data
+        assert etag == (await fs.info(s3_path)).etag
+        assert etag is not None and "-" in etag
 
 
 class _RetryingUploadClient:

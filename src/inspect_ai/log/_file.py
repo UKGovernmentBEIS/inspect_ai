@@ -72,6 +72,13 @@ class EvalLogInfo(BaseModel):
     """Log file suffix (e.g. "-scored")"""
 
 
+class WriteEvalLogResult(BaseModel):
+    """Result of writing an evaluation log."""
+
+    etag: str | None
+    """ETag of the written S3 object, or None for non-S3 locations."""
+
+
 class LogOverview(BaseModel):
     """The log overview is a thinned manifest summarizing an evaluation log"""
 
@@ -396,7 +403,7 @@ def write_eval_log(
     format: Literal["eval", "json", "auto"] = "auto",
     if_match_etag: str | None = None,
     header_only: bool = False,
-) -> None:
+) -> WriteEvalLogResult:
     """Write an evaluation log.
 
     Args:
@@ -409,6 +416,10 @@ def write_eval_log(
        header_only (bool): If True, only write the header to the log file.
           For .eval files, this appends the header to the existing zip
           without rewriting samples. Defaults to False.
+
+    Returns:
+       WriteEvalLogResult containing the post-write S3 ETag, or None for
+       non-S3 locations.
 
     Raises:
        WriteConflictError: If if_match_etag is provided and doesn't match
@@ -422,7 +433,7 @@ def write_eval_log(
 
     # will use s3fs and is not called from main inspect solver/scorer/tool/sandbox
     # flow, so force the use of asyncio
-    run_coroutine(
+    return run_coroutine(
         write_eval_log_async(
             log, location, format, if_match_etag, header_only=header_only
         )
@@ -435,7 +446,7 @@ async def write_eval_log_async(
     format: Literal["eval", "json", "auto"] = "auto",
     if_match_etag: str | None = None,
     header_only: bool = False,
-) -> None:
+) -> WriteEvalLogResult:
     """Write an evaluation log.
 
     Args:
@@ -448,6 +459,10 @@ async def write_eval_log_async(
        header_only (bool): If True, only write the header to the log file.
           For .eval files, this appends the header to the existing zip
           without rewriting samples. Defaults to False.
+
+    Returns:
+       WriteEvalLogResult containing the post-write S3 ETag, or None for
+       non-S3 locations.
     """
     # resolve location
     if location is None:
@@ -472,9 +487,12 @@ async def write_eval_log_async(
         recorder_type = recorder_type_for_location(location)
     else:
         recorder_type = recorder_type_for_format(format)
-    await recorder_type.write_log(location, log, if_match_etag, header_only=header_only)
+    etag = await recorder_type.write_log(
+        location, log, if_match_etag, header_only=header_only
+    )
 
     logger.debug(f"Writing eval log to {location} completed")
+    return WriteEvalLogResult(etag=etag)
 
 
 def write_log_dir_manifest(
