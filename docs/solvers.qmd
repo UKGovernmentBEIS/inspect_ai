@@ -332,7 +332,7 @@ A few things to note about this implementation:
 
 3.  The `resource()` function is used to read the specified `template`. This function accepts a string, file, or URL as its argument, and then returns a string with the contents of the resource.
 
-4.  We make use of the `user_prompt` property on the `TaskState`. This is a convenience property for locating the first `role="user"` message (otherwise you might need to skip over system messages, etc). Since this is a string templating solver, we use the `state.user_prompt.text` property (so we are dealing with prompt as a string, recall that it can also be a list of messages).
+4.  We make use of the `user_prompt` property on the `TaskState`. This is a convenience property for locating the first `role="user"` message (otherwise you might need to skip over system messages, etc). Since this is a string templating solver, we use the `state.user_prompt.text` property to get a plain string. This is necessary because the `content` field of a `ChatMessageUser` can be either a string or a list of multimodal `Content` objects, and `.text` handles either case.
 
 5.  We make sample `metadata` available to the template as well as any `params` passed to the function.
 
