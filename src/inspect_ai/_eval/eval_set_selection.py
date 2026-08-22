@@ -12,8 +12,10 @@ An external runner first enumerates an eval set with
 `INSPECT_EVAL_SET_SELECTION`, naming tasks by the `identifier` values from the
 capture manifest. Because a worker performs no eval-set bookkeeping, many
 workers can write into a single flat log directory concurrently: each writes
-exactly one (atomically replaced) `.eval` file, and the runner is the sole
-writer of the directory's eval-set metadata.
+one (atomically replaced) `.eval` file per selected task, and the runner is the
+sole writer of the directory's eval-set metadata. A selection must therefore
+name each task at most once — one task means one log, and two entries for it
+would have the same task id competing for the same file.
 
 The definition still calls `eval_set()` — that is what preserves the side
 effects of executing it (registered models, `set_model_info`, dynamically
