@@ -71,6 +71,7 @@
 - Agent Bridge: The OpenAI Agents SDK, LangChain, and pydantic-ai examples now run as documented against OpenAI, Anthropic, and Google models.
 - Agent Bridge: Anthropic beta endpoint requests now return beta usage, so clients reading beta-only usage fields (e.g. pydantic-ai) no longer fail with `AttributeError`.
 - Bugfix: Recovered eval logs now report reasoning tokens and total cost in their top-level usage summary, which previously showed both as null.
+- Scorer: Model-graded scorers with a panel of graders now combine grades with a new `majority` reducer, selectable via the `reducer` option to `model_graded_qa()`/`model_graded_fact()`. (#4721)
 
 ## 0.3.258 (11 August 2026)
 
