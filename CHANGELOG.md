@@ -40,6 +40,7 @@
 - Mistral: Provider-generated images remain available when replayed in subsequent conversation turns.
 - Eval Log: A retry attempt killed before it finishes reusing the prior log's completed samples no longer causes the next retry to re-run (and eventually lose) those samples.
 - Docs: Clarify that the sandbox `exec()` output limit is enforced by front-truncating the output streams rather than by raising `OutputLimitExceededError` (which remains the behaviour for `read_file()`). (#4778)
+- Agent Bridge: `agent_bridge()` and `sandbox_agent_bridge()` now accept a `response_filter` for transforming model output before it is returned.
 
 ## 0.3.259 (16 August 2026)
 
