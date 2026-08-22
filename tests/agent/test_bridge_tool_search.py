@@ -514,6 +514,46 @@ def test_process_response_output_items_tool_search_call() -> None:
     assert cached["type"] == "tool_search_call"
 
 
+# 7c. ResponseToolSearchOutputItem is the *result* of a preceding
+# ResponseToolSearchCall — emitted by OpenAI alongside the call when the
+# tool search resolves in the same round. Before this test (and the fix
+# that accompanies it), the provider's `_process_response_output_items`
+# match-case fell through to `case _:` and raised
+# `ValueError("Unexpected output type: ...")`, crashing any agent that
+# exercises native OpenAI tool search (e.g. Pydantic AI's
+# DeferredLoadingToolset, issue #4968).
+def test_process_response_output_items_tool_search_output() -> None:
+    from openai.types.responses import ResponseToolSearchOutputItem
+
+    from inspect_ai.model._openai_responses import assistant_internal
+
+    init_sample_openai_assistant_internal()
+
+    output = ResponseToolSearchOutputItem(
+        id="o1",
+        call_id="ts_1",
+        execution="client",
+        status="completed",
+        tools=[],
+        type="tool_search_output",
+    )
+    # Before the fix, this raised ValueError("Unexpected output type: ...").
+    _content, _tool_calls, _logprobs, has_tool_calls = _process_response_output_items(
+        [output], []
+    )
+    # The output is the *result* of a previous call, not a new tool call, so
+    # it must not register a fresh ToolCall nor flip has_tool_calls. We only
+    # require that the parser does not crash.
+    assert has_tool_calls is False
+    assert _tool_calls == []
+    # The raw output param is cached (keyed by call_id) so the bridge can
+    # replay it verbatim within the sample.
+    cached = assistant_internal().tool_calls.get("ts_1")
+    assert cached is not None
+    assert cached["type"] == "tool_search_output"
+    assert cached["call_id"] == "ts_1"
+
+
 # 7b. tool-message replay only emits native tool_search_output when the original
 # call was a tool_search_call. A user/function tool named "tool_search" (cached as
 # a function_call, or uncached) must replay as a normal function_call_output.
