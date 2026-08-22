@@ -228,6 +228,13 @@ def value_to_float(
     numeric values are cast to float. Arrays and dictionaries
     give a warning and return 0.
 
+    The mapping uses ``==``, so a numeric or boolean input that
+    compares equal to a sentinel is mapped even when its type
+    differs (e.g. ``True == 1.0``). Score reducers apply the
+    returned function to the elements of list and dict values,
+    so custom numeric sentinels also map matching elements
+    inside those containers.
+
     Args:
        correct (Value): Value that represents a correct answer (1)
        incorrect (Value): Value that represents an incorrect answer (0)
@@ -239,14 +246,17 @@ def value_to_float(
     """
 
     def to_float(value: Value) -> float:
-        if isinstance(value, int | float | bool):
-            return float(value)
-        elif value == correct:
+        # check the (possibly numeric) correct/incorrect/partial/noanswer values
+        # before the numeric cast below, otherwise numeric custom values are
+        # cast to float and passed through rather than mapped to 1/0.5/0
+        if value == correct:
             return 1.0
         elif value == partial:
             return 0.5
         elif value == incorrect or value == noanswer:
-            return 0
+            return 0.0
+        elif isinstance(value, int | float | bool):
+            return float(value)
         elif isinstance(value, str):
             value = value.lower()
             if value in ["yes", "true"]:

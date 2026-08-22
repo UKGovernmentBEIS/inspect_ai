@@ -14,6 +14,8 @@
 - Sandbox: Editable installs now avoid spurious `-dev` sandbox-tools binaries when local main refs are missing, stale, or unavailable.
 - Eval Log: Log directory manifests now strip Windows-style directory prefixes before normalizing paths, avoiding parent directories in bundled listings.
 - Bugfix: Eval-level limits and retry/error options no longer persist on reused `Task` objects, preventing later evals from inheriting prior overrides.
+- Scoring: `value_to_float()` now maps numeric custom `correct`/`incorrect`/`partial`/`noanswer` values to 1/0/0.5/0 as documented, instead of silently passing them through (e.g. a custom `incorrect=-1` no longer produces negative accuracy). Default string sentinels and non-finite values are unaffected. (#4928)
+- Scoring: `value_to_float()` matches sentinels with `==`, so custom numeric sentinels also map equal bools (`True == 1.0`) and equal elements of list/dict values in score reducers — the same reach the default string sentinels already had; this is now documented. Mapped values are also always returned as floats (the `incorrect`/`noanswer` branch previously returned an `int`). (#4928)
 - Sandboxes: The HTTP proxy example now disables container network egress, preventing agents from bypassing mitmproxy by ignoring proxy environment variables.
 - Sandboxes: The evals-in-eval example now uses rootless Docker-in-Docker and warns that its privileged sidecar is unsuitable for adversarial agents.
 - Sandbox: Recognized Docker failures to run a command (stopped container; missing or unlaunchable timeout wrapper) now surface as tool errors of type `sandbox_unavailable` rather than as command output; non-tool callers (e.g. scorers) get a `SandboxUnavailableError` or `PermissionError` raise. (#4709)
