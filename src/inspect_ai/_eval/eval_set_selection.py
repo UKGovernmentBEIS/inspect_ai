@@ -41,10 +41,11 @@ Schema changes require a version bump and corresponding golden-test updates
 (see `tests/test_eval_set_selection.py`).
 """
 
+import json
 import os
 from collections import Counter
 
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, ConfigDict, ValidationError
 
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import file
@@ -64,8 +65,18 @@ def eval_set_selection_requested() -> str | None:
     return value if value else None
 
 
+# Both models forbid extra fields: a selection is hand-built by an external
+# runner, where a misspelled key would otherwise be dropped silently and change
+# what the worker does (`"resuem"` reads as no resume at all, so a resumed task
+# reruns every completed sample). Strictness costs no forward compatibility —
+# any added field bumps EVAL_SET_SELECTION_VERSION, and a document written at a
+# version this inspect doesn't know is refused before it is validated at all.
+
+
 class EvalSetSelectionTask(BaseModel):
     """A single task selected for execution by a worker."""
+
+    model_config = ConfigDict(extra="forbid")
 
     identifier: str
     """Task identifier (as produced by `task_identifier()` and recorded in the capture manifest)."""
@@ -77,6 +88,8 @@ class EvalSetSelectionTask(BaseModel):
 class EvalSetSelection(BaseModel):
     """Tasks an external runner has selected for a worker to run."""
 
+    model_config = ConfigDict(extra="forbid")
+
     version: int
     """Selection schema version."""
 
@@ -85,6 +98,24 @@ class EvalSetSelection(BaseModel):
 
     tasks: list[EvalSetSelectionTask]
     """Tasks to run (identified by `task_identifier`)."""
+
+
+def _document_version(document: object) -> int | None:
+    """Read a selection document's version before it has been validated.
+
+    Args:
+        document: Parsed JSON of a selection document (any shape — it has not been validated yet).
+
+    Returns:
+        The version, read as leniently as pydantic would read it, or `None` when the document doesn't carry one that can be (a malformed version is left for validation to report).
+    """
+    version = document.get("version") if isinstance(document, dict) else None
+    if isinstance(version, (int, str)) and not isinstance(version, bool):
+        try:
+            return int(version)
+        except ValueError:
+            return None
+    return None
 
 
 def read_eval_set_selection(selection_path: str) -> EvalSetSelection:
@@ -99,21 +130,37 @@ def read_eval_set_selection(selection_path: str) -> EvalSetSelection:
     Raises:
         PrerequisiteError: If the file cannot be read or parsed, if it uses a schema version this version of inspect does not understand, or if it names no tasks or the same task more than once.
     """
-    try:
-        with file(selection_path, mode="rb") as f:
-            selection = EvalSetSelection.model_validate_json(f.read())
-    except (OSError, ValidationError, ValueError) as ex:
-        raise PrerequisiteError(
+
+    def unreadable(ex: Exception) -> PrerequisiteError:
+        return PrerequisiteError(
             f"Unable to read the eval set selection at '{selection_path}' "
             f"(named by {INSPECT_EVAL_SET_SELECTION}):\n{ex}"
-        ) from ex
+        )
 
-    if selection.version > EVAL_SET_SELECTION_VERSION:
+    try:
+        with file(selection_path, mode="rb") as f:
+            contents = f.read()
+        document = json.loads(contents)
+    except (OSError, ValueError) as ex:
+        raise unreadable(ex) from ex
+
+    # gate on the version before validating fields, not after: a selection
+    # written at a later version may carry fields this one doesn't know, and
+    # the models forbid extras -- so the mismatch has to be reported as the
+    # version problem it is rather than as an unknown field.
+    version = _document_version(document)
+    if version is not None and version > EVAL_SET_SELECTION_VERSION:
         raise PrerequisiteError(
             f"The eval set selection at '{selection_path}' uses schema version "
-            f"{selection.version}, but this version of inspect understands at "
+            f"{version}, but this version of inspect understands at "
             f"most version {EVAL_SET_SELECTION_VERSION} (upgrade inspect-ai)."
         )
+
+    try:
+        selection = EvalSetSelection.model_validate_json(contents)
+    except ValidationError as ex:
+        raise unreadable(ex) from ex
+
     if not selection.tasks:
         raise PrerequisiteError(
             f"The eval set selection at '{selection_path}' names no tasks."

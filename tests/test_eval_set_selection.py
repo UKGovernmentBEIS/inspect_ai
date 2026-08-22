@@ -603,6 +603,41 @@ def test_eval_set_selection_resume_log_missing(
             ),
             "names the same task more than once: y",
         ),
+        # a misspelled optional field must fail rather than be dropped: read as
+        # `resume=None`, this selection would silently rerun completed samples
+        (
+            json.dumps(
+                {
+                    "version": 1,
+                    "eval_set_id": "x",
+                    "tasks": [{"identifier": "y", "resuem": "prior.eval"}],
+                }
+            ),
+            "resuem",
+        ),
+        (
+            json.dumps(
+                {
+                    "version": 1,
+                    "eval_set_id": "x",
+                    "runner_notes": "unknown",
+                    "tasks": [{"identifier": "y"}],
+                }
+            ),
+            "runner_notes",
+        ),
+        # a version this inspect doesn't understand is reported as a version
+        # mismatch even when the newer schema's fields are what fail validation
+        (
+            json.dumps(
+                {
+                    "version": 99,
+                    "eval_set_id": "x",
+                    "tasks": [{"identifier": "y", "field_from_v99": True}],
+                }
+            ),
+            "schema version 99",
+        ),
     ],
 )
 def test_eval_set_selection_invalid(
@@ -744,3 +779,7 @@ def test_eval_set_selection_schema_stability() -> None:
     expected = _EXPECTED_SELECTION_FIELDS[EVAL_SET_SELECTION_VERSION]
     assert set(EvalSetSelection.model_fields.keys()) == expected["selection"]
     assert set(EvalSetSelectionTask.model_fields.keys()) == expected["task"]
+    # the field set above is the whole format: loosening this would let a
+    # runner's typo through as a silently dropped field
+    assert EvalSetSelection.model_config.get("extra") == "forbid"
+    assert EvalSetSelectionTask.model_config.get("extra") == "forbid"
