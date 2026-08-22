@@ -19,37 +19,34 @@ The optional ``_<retry>`` suffix on the dir name is omitted until
 from __future__ import annotations
 
 import secrets
-from typing import TypeVar
+import shutil
+from functools import partial
+from logging import getLogger
+from typing import NamedTuple, TypeVar
 
+import anyio.to_thread
 from pydantic import BaseModel
 
 from inspect_ai._util.asyncfiles import get_async_filesystem
+from inspect_ai._util.file import filesystem, local_path
 
 from .._async_fs import async_mkdir
 from .schemas import Checkpoint, ResticConfig
 from .staging_dir import restic_config_path, restic_dir
 
+logger = getLogger(__name__)
+
 _M = TypeVar("_M", bound=BaseModel)
+
+
+def sample_dir_name(sample_id: int | str, epoch: int) -> str:
+    """The name of a sample's checkpoints dir within its eval checkpoints dir."""
+    return f"{sample_id}__{epoch}"
 
 
 def sample_checkpoints_dir(eval_dir: str, sample_id: int | str, epoch: int) -> str:
     """Return the per-sample checkpoints dir path (no FS side effects)."""
-    return f"{eval_dir}/{sample_id}__{epoch}"
-
-
-async def has_sample_checkpoint(
-    eval_dir: str, sample_id: int | str, epoch: int
-) -> bool:
-    """Return True if any ``ckpt-*.json`` checkpoint file exists for this sample attempt.
-
-    Doesn't pre-check the dir's existence — S3 has no real directories,
-    so ``AsyncFilesystem.exists(prefix)`` always returns False for an
-    S3 dir prefix even when there are checkpoint files under it. The
-    iteration handles the "no checkpoint files" case naturally
-    (yields nothing).
-    """
-    sample_dir = sample_checkpoints_dir(eval_dir, sample_id, epoch)
-    return bool(await _list_checkpoint_ids(sample_dir))
+    return f"{eval_dir}/{sample_dir_name(sample_id, epoch)}"
 
 
 async def ensure_sample_checkpoints_dir(
@@ -113,15 +110,93 @@ async def scan_latest_committed_checkpoint(
     a meaningful state — typically an error on resume).
     """
     ids = await _list_checkpoint_ids(sample_checkpoints_dir)
+    return await _first_parseable_checkpoint(sample_checkpoints_dir, ids)
+
+
+async def _first_parseable_checkpoint(
+    sample_checkpoints_dir: str, ids: list[int]
+) -> Checkpoint | None:
     async_fs = get_async_filesystem()
     for n in sorted(ids, reverse=True):
         path = f"{sample_checkpoints_dir}/ckpt-{n:05d}.json"
         try:
             raw = await async_fs.read_file(path)
             return Checkpoint.model_validate_json(raw)
-        except Exception:
+        except (ValueError, FileNotFoundError):
+            # torn write (unparseable; ValidationError is a ValueError) or
+            # a file deleted since the listing — fall back to the next
+            # lower checkpoint. Anything else (e.g. a transient S3 error)
+            # propagates: this scan is a sample's only shot at resuming,
+            # and swallowing an I/O failure would silently run it fresh.
             continue
     return None
+
+
+class ResolvedResumeDir(NamedTuple):
+    """A sample dir holding a committed checkpoint, plus that checkpoint."""
+
+    sample_dir: str
+    checkpoint: Checkpoint
+
+
+async def resolve_resumable_sample_dir(sample_dir: str) -> ResolvedResumeDir | None:
+    """The dir plus its latest committed checkpoint, or ``None``.
+
+    ``None`` means the dir holds no committed checkpoint (it doesn't
+    exist, is empty, or its files never committed) — the sample runs
+    fresh. Detection never looks past a sample's own dir: the startup
+    copy already brought everything a clean attempt has (see
+    ``_resume_copy``).
+    """
+    # one listing serves both the scan and the none-parse warning below
+    ids = await _list_checkpoint_ids(sample_dir)
+    checkpoint = await _first_parseable_checkpoint(sample_dir, ids)
+    if checkpoint is not None:
+        return ResolvedResumeDir(sample_dir=sample_dir, checkpoint=checkpoint)
+    # checkpoint files present but none parse: surface it — resume
+    # used to fail loudly here, and silently running fresh would
+    # hide substantial progress loss (the restic repos may be fine)
+    if ids:
+        logger.warning(
+            f"Checkpoint files exist in {sample_dir} but none parse as a "
+            "valid checkpoint; treating the dir as holding no committed "
+            "checkpoint. The restic repos may still be intact — see the "
+            "checkpoint docs for manual recovery."
+        )
+    return None
+
+
+async def delete_sample_checkpoints_dir(
+    eval_dir: str, sample_id: int | str, epoch: int
+) -> None:
+    """Delete a sample's checkpoints dir (all schemes; idempotent).
+
+    Used when a prior sample was invalidated: invalidation means the
+    sample restarts from scratch, so its copied checkpoints are thrown
+    out rather than resumed.
+    """
+    target = sample_checkpoints_dir(eval_dir, sample_id, epoch)
+    if filesystem(target).is_local():
+        try:
+            await anyio.to_thread.run_sync(partial(shutil.rmtree, local_path(target)))
+        except FileNotFoundError:
+            pass
+        return
+    async_fs = get_async_filesystem()
+    # collect first: deleting while iterating a paginated S3 listing is
+    # undefined
+    try:
+        files = [uri async for uri in async_fs.iter_files(target, recursive=True)]
+    except FileNotFoundError:
+        files = []
+    # checkpoint files first: they are the dir's commit point, so an
+    # interrupted delete de-commits the dir before touching its data
+    files.sort(key=lambda uri: not uri.rsplit("/", 1)[-1].startswith("ckpt-"))
+    for uri in files:
+        try:
+            await async_fs.delete_file(uri)
+        except FileNotFoundError:
+            pass
 
 
 async def write_checkpoint_file(
@@ -148,8 +223,9 @@ async def _list_checkpoint_ids(sample_dir: str) -> list[int]:
 
     Unsorted. Names that don't parse as an int are silently skipped.
     Works over any ``AsyncFilesystem``-supported scheme; a missing dir
-    yields nothing (no pre-check needed — see note on
-    ``has_sample_checkpoint``).
+    yields nothing, so no existence pre-check is needed — S3 has no
+    real directories, and ``AsyncFilesystem.exists(prefix)`` returns
+    False for an S3 dir prefix even when files exist under it.
     """
     ids: list[int] = []
     try:

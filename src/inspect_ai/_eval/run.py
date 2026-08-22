@@ -8,6 +8,7 @@ from typing import Any, Awaitable, Callable, Iterable, NamedTuple, Set, cast
 
 from inspect_ai._eval.task.constants import TASK_ALL_PARAMS_ATTR
 from inspect_ai._util._async import Wake
+from inspect_ai._util.asyncfiles import get_async_filesystem
 from inspect_ai._util.environ import environ_vars
 from inspect_ai._util.file import cleanup_s3_sessions
 from inspect_ai._util.task import task_display_name
@@ -72,6 +73,7 @@ from .loader import (
 from .task.log import TaskLogger
 from .task.resolved import ResolvedTask
 from .task.run import (
+    EvalSampleSource,
     TaskRunOptions,
     eval_log_sample_source,
     plan_agent_name,
@@ -741,26 +743,46 @@ async def run_task_retry_attempts(
                         mark_eval_retry_pending(result.eval.eval_id)
 
                         # build sample_source from the failed log so completed
-                        # samples are reused on retry (mirrors legacy eval_set retry)
-                        failed_log_info = EvalLogInfo(
-                            name=options.logger.location,
-                            type="file",
-                            size=0,
-                            mtime=None,
-                            task=options.task.name,
-                            task_id=options.logger.eval.task_id,
-                            suffix=None,
-                        )
-                        sample_source = eval_log_sample_source(
-                            result,
-                            failed_log_info,
-                            options.task.dataset,
-                            eval_checkpoints_dir_from_config(
-                                options.logger.location,
-                                options.checkpoint,
-                                options.eval_checkpoint,
-                            ),
-                        )
+                        # samples are reused on retry (mirrors legacy eval_set
+                        # retry). An attempt that died before its deferred
+                        # destination log landed (e.g. its checkpoint startup
+                        # copy failed pre-log_start) left no file — chain the
+                        # retry from whatever *it* was retrying instead, so
+                        # reuse and checkpoints fall back a hop rather than
+                        # sourcing an attempt that holds nothing.
+                        sample_source: EvalSampleSource | None
+                        try:
+                            failed_log_exists = await get_async_filesystem().exists(
+                                options.logger.location
+                            )
+                        except Exception:
+                            # can't tell (e.g. log storage still flaky — the
+                            # very condition being retried): take the
+                            # pre-existing path and let per-lookup handling
+                            # degrade, rather than aborting the whole run
+                            failed_log_exists = True
+                        if failed_log_exists:
+                            failed_log_info = EvalLogInfo(
+                                name=options.logger.location,
+                                type="file",
+                                size=0,
+                                mtime=None,
+                                task=options.task.name,
+                                task_id=options.logger.eval.task_id,
+                                suffix=None,
+                            )
+                            sample_source = eval_log_sample_source(
+                                result,
+                                failed_log_info,
+                                options.task.dataset,
+                                eval_checkpoints_dir_from_config(
+                                    options.logger.location,
+                                    options.checkpoint,
+                                    options.eval_checkpoint,
+                                ),
+                            )
+                        else:
+                            sample_source = options.sample_source
 
                         # reinit logger for a fresh eval entry
                         await options.logger.reinit()

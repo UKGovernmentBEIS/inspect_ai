@@ -8,8 +8,10 @@ from pathlib import Path
 
 from inspect_ai.util._checkpoint._layout.sample_checkpoints_dir import (
     _read_restic_config,
+    delete_sample_checkpoints_dir,
     ensure_restic_config,
     ensure_sample_checkpoints_dir,
+    resolve_resumable_sample_dir,
     sample_checkpoints_dir,
     scan_latest_committed_checkpoint,
     write_checkpoint_file,
@@ -255,3 +257,64 @@ async def test_scan_latest_committed_checkpoint_returns_latest_parseable(
     assert checkpoint is not None
     assert checkpoint.checkpoint_id == 2
     assert checkpoint.trigger == "agent_complete"
+
+
+# -- resume resolution ---------------------------------------------------
+#
+# Detection looks only in a sample's own dir: the retry startup copy
+# replicated every sample dir from the retried attempt (whose log's
+# existence proves the copy completed), so a sample either has a
+# committed checkpoint here or runs fresh.
+
+
+async def _dir_with_checkpoint(root: Path, name: str) -> str:
+    sample_dir = await ensure_sample_checkpoints_dir(
+        str(root / f"{name}.checkpoints"), "s", 0
+    )
+    await write_checkpoint_file(
+        sample_checkpoints_dir=sample_dir,
+        checkpoint=_checkpoint(
+            checkpoint_id=1, trigger="turn", turn=1, host=_info("snap-1")
+        ),
+    )
+    return sample_dir
+
+
+async def test_resolve_committed_checkpoint_resolves_to_dir(tmp_path: Path) -> None:
+    """A dir with a committed checkpoint resolves to itself."""
+    sample_dir = await _dir_with_checkpoint(tmp_path, "a")
+
+    resolved = await resolve_resumable_sample_dir(sample_dir)
+
+    assert resolved is not None
+    assert resolved.sample_dir == sample_dir
+    assert resolved.checkpoint.checkpoint_id == 1
+
+
+async def test_resolve_none_when_nothing_committed(tmp_path: Path) -> None:
+    """No committed checkpoint (empty or torn dir) → None (fall through)."""
+    sample_dir = await ensure_sample_checkpoints_dir(
+        str(tmp_path / "a.checkpoints"), "s", 0
+    )
+    assert await resolve_resumable_sample_dir(sample_dir) is None
+    # missing dir behaves the same as an empty one
+    assert await resolve_resumable_sample_dir(str(tmp_path / "missing")) is None
+
+
+async def test_delete_sample_checkpoints_dir(tmp_path: Path) -> None:
+    """Removes the whole dir (invalidated sample); missing dir is a no-op."""
+    eval_dir = str(tmp_path / "a.checkpoints")
+    sample_dir = await ensure_sample_checkpoints_dir(eval_dir, "s", 0)
+    (Path(sample_dir) / "restic" / "host").mkdir(parents=True)
+    (Path(sample_dir) / "restic" / "host" / "config").write_text("cfg")
+    await write_checkpoint_file(
+        sample_checkpoints_dir=sample_dir,
+        checkpoint=_checkpoint(
+            checkpoint_id=1, trigger="turn", turn=1, host=_info("snap-1")
+        ),
+    )
+
+    await delete_sample_checkpoints_dir(eval_dir, "s", 0)
+
+    assert not Path(sample_dir).exists()
+    await delete_sample_checkpoints_dir(eval_dir, "s", 0)  # idempotent

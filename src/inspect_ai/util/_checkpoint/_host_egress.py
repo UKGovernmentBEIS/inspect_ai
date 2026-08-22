@@ -1,11 +1,16 @@
 """Host egress: ship sample staging dir → remote sample checkpoints dir.
 
 Runs when the resolved sample checkpoints dir is remote: at the end of
-each fire, and once at the end of resume hydration (shipping the resume
-payload to the new attempt's destination — with no manifest yet, every
-staged file is "new"). Mirrors the in-sandbox egress protocol: manifest
-of files already shipped, diff against the live staging dir, ship new
-files in a safe order, then atomically update the manifest.
+each fire, and once at the end of a resume's staging pull. Mirrors the
+in-sandbox egress protocol: manifest of files already shipped, diff
+against the live staging dir, ship new files in a safe order, then
+atomically update the manifest. On resume the payload itself is
+already at the destination (copied there greedily at retry startup;
+see ``_resume_copy``) — hydrate seeds the manifest with the payload it
+pulls into staging (:func:`seed_manifest`), so the resume-time egress
+ships only staging state *newer* than the destination (a fire
+cancelled between its staging write and its egress) and each later
+fire ships only its delta.
 
 The ``context/`` subdir (restic source — host context files restic
 backs up) and the manifest file itself are excluded from shipping.
@@ -21,9 +26,11 @@ Safe upload order — destination is valid at every intermediate state:
 4. ``restic/**/index/**`` (immutable; occasional consolidation)
 5. ``restic/**/snapshots/**`` (references indexes / data)
 6. ``restic/restic-config.json`` (first cycle; password file)
-7. ``ckpt-NNNNN.json`` last (commit point at the destination)
+7. ``ckpt-NNNNN.json`` last (commit point at the destination),
+   newest id first — so an interrupt mid-tier leaves the latest
+   checkpoint in place, never a stale prefix
 
-Within each tier, files are shipped in lexicographic order. The
+Within each other tier, files are shipped in lexicographic order. The
 manifest write at the end is the commit point for the local "I've
 shipped these"; a crash between ship and manifest-replace leaves the
 destination ahead of the manifest, and the next fire's diff re-ships
@@ -97,6 +104,19 @@ async def host_egress(*, staging_dir: str, destination_dir: str) -> None:
     _write_manifest(manifest_path, shipped | set(ordered))
 
 
+def seed_manifest(staging_dir: str, files: list[str]) -> None:
+    """Record ``files`` (staging-relative) as already at the destination.
+
+    Called by hydrate after pulling the resume payload from the
+    destination into staging — those files must not be re-shipped by
+    the next fire's egress. Merges with any existing manifest: an
+    in-eval requeue re-pulls over a staging dir whose manifest is
+    already live.
+    """
+    manifest_path = Path(staging_dir) / MANIFEST_FILENAME
+    _write_manifest(manifest_path, _read_manifest(manifest_path) | set(files))
+
+
 def _read_manifest(path: Path) -> set[str]:
     if not path.is_file():
         return set()
@@ -167,7 +187,17 @@ def _safe_order(files: list[str]) -> list[str]:
         + sorted(snapshots)
         + sorted(other)
         + sorted(restic_config)
-        + sorted(checkpoint_files)
+        # newest checkpoint file first: a per-fire egress ships one, but
+        # a multi-file ship interrupted part way through must leave the
+        # *latest* at the destination — a stale-prefix dir would resolve
+        # to an old checkpoint
+        + sorted(
+            checkpoint_files,
+            key=lambda f: int(
+                f.rsplit("/", 1)[-1].removeprefix("ckpt-").removesuffix(".json")
+            ),
+            reverse=True,
+        )
     )
 
 
