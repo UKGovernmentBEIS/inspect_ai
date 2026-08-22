@@ -66,6 +66,9 @@ async def test_self_check_docker_custom_nonroot_alpine(request) -> None:
         [
             "test_write_text_file_without_permissions",
             "test_write_binary_file_without_permissions",
+            # Alpine's BusyBox timeout leaves background children running when it
+            # terminates the direct child shell.
+            "test_exec_timeout_kills_child_processes",
         ],
     )
 

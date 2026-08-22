@@ -530,11 +530,7 @@ async def test_exec_timeout_kills_child_processes(
 
     with Raises(TimeoutError):
         await sandbox_env.exec(
-            [
-                "sh",
-                "-c",
-                f"sleep 30 # {child_marker} & sleep 30 # {parent_marker}",
-            ],
+            _timeout_child_process_command(parent_marker, child_marker),
             timeout=2,
         )
 
@@ -548,6 +544,20 @@ async def test_exec_timeout_kills_child_processes(
             f"Process with marker '{marker}' should have been killed after timeout, "
             f"but it's still running. ps output: [{result.stdout}]"
         )
+
+
+def _timeout_child_process_command(
+    parent_marker: str, child_marker: str, sleep_seconds: int = 30
+) -> list[str]:
+    return [
+        "sh",
+        "-c",
+        (
+            f"sh -c \"echo '{child_marker}' >/dev/null && "
+            f'sleep {sleep_seconds}; :" & '
+            f"echo '{parent_marker}' >/dev/null && sleep {sleep_seconds}; :"
+        ),
+    ]
 
 
 async def test_exec_permission_error(sandbox_env: SandboxEnvironment) -> None:
