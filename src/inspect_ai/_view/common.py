@@ -12,7 +12,7 @@ from typing import Any, AsyncIterator, Literal, NamedTuple, Tuple, cast
 
 import fsspec  # type: ignore
 from aiobotocore.response import StreamingBody
-from botocore.exceptions import ClientError
+from botocore.exceptions import ClientError, NoCredentialsError
 from fsspec.asyn import AsyncFileSystem  # type: ignore
 from fsspec.core import split_protocol  # type: ignore
 from pydantic import BaseModel
@@ -30,6 +30,7 @@ from inspect_ai._view.azure import (
     normalize_azure_listing_name,
     should_suppress_azure_error,
 )
+from inspect_ai._view.s3 import s3_warning_hint, should_suppress_s3_error
 from inspect_ai.log._edit import LogUpdate, edit_eval_log
 from inspect_ai.log._file import (
     EvalLogInfo,
@@ -650,7 +651,15 @@ async def list_eval_logs_async(
                 "NotFound",
             ):
                 return []
+            # auth/denial-class failures degrade to a warning + empty listing,
+            # mirroring the Azure handling on the generic async path below
+            if should_suppress_s3_error(log_dir, ex):
+                logger.warning(s3_warning_hint(log_dir, ex))
+                return []
             raise
+        except NoCredentialsError as ex:
+            logger.warning(s3_warning_hint(log_dir, ex))
+            return []
         # resolve to eval logs (async fan-out so header reads on
         # non-conforming filenames don't block the event loop)
         return await log_files_from_ls_async(logs, formats, descending)
@@ -663,9 +672,10 @@ async def list_eval_logs_async(
                 if should_suppress_azure_error(log_dir, ex):
                     logger.warning(azure_warning_hint(log_dir, ex))
                     exists = True
+                elif should_suppress_s3_error(log_dir, ex):
+                    logger.warning(s3_warning_hint(log_dir, ex))
+                    exists = True
                 else:
-                    # TODO: Add S3 login error catching, as well as any other remote file system of interest
-                    # Re-raise non-auth related issues
                     raise
 
             if exists:
