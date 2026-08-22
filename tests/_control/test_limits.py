@@ -54,6 +54,18 @@ def _clear_states():
     reset_process_config_updates()
 
 
+def approx_deadline(expected: float) -> Any:
+    """Deadline comparison with absolute tolerance for clock-read jitter.
+
+    TimeLimit.__enter__ derives the deadline and _start_time from two
+    separate clock reads, so approx's default relative tolerance leaves
+    sub-millisecond slack that CI scheduling jitter can exceed. The
+    _refresh_deadline path is exact (_start_time + limit); it uses the
+    same tolerance for consistency.
+    """
+    return pytest.approx(expected, abs=0.1)
+
+
 # ---------------------------------------------------------------------------
 # Directive function
 # ---------------------------------------------------------------------------
@@ -854,7 +866,7 @@ async def test_sample_limit_override_retunes_inflight_time_deadline() -> None:
             assert time_node._cancel_scope.deadline == math.inf
 
             set_sample_limit_override("t1", "time_limit", 500)
-            assert time_node._cancel_scope.deadline == pytest.approx(
+            assert time_node._cancel_scope.deadline == approx_deadline(
                 time_node._start_time + 500
             )
 
@@ -927,7 +939,7 @@ async def test_sample_limit_override_applies_to_new_time_scope() -> None:
         "t1", time=time_node, token=token_node, message=message_node
     ):
         with time_node:
-            assert time_node._cancel_scope.deadline == pytest.approx(
+            assert time_node._cancel_scope.deadline == approx_deadline(
                 time_node._start_time + 500
             )
 
@@ -1025,7 +1037,7 @@ def test_sample_limit_overrides_wired_into_sample_runner(log_samples: bool) -> N
             observed["time"] = limits.time.limit
             time_node = cast(Any, limits.time)
             observed["deadline_tracks_override"] = time_node._cancel_scope.deadline == (
-                pytest.approx(time_node._start_time + 600)
+                approx_deadline(time_node._start_time + 600)
             )
             return state
 
