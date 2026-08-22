@@ -115,9 +115,9 @@ def chunked_corpus_small_chunks(
 
 @pytest.fixture(autouse=True)
 def fast_retry_waits(request):
-    """Zero out model-generate and chat-API retry backoff during tests.
+    """Zero out model-generate and provider retry backoff during tests.
 
-    Both retry paths default to ``wait_exponential_jitter(initial=3, ...)`` /
+    These retry paths default to ``wait_exponential_jitter(initial=3, ...)`` /
     ``wait_exponential_jitter()``, so any test that exercises a retry waits a
     real 3s + 6s + ... per attempt. The backoff *duration* is never the thing
     under test, so we replace the module-level ``wait_exponential_jitter`` with
@@ -130,6 +130,7 @@ def fast_retry_waits(request):
 
     from tenacity.wait import wait_none
 
+    import inspect_ai.model._providers.openai_responses as openai_responses
     import inspect_ai.model._providers.util.chatapi as chatapi
     import inspect_ai.model._retry as model_retry
 
@@ -139,6 +140,7 @@ def fast_retry_waits(request):
     with pytest.MonkeyPatch.context() as mp:
         mp.setattr(model_retry, "wait_exponential_jitter", no_wait)
         mp.setattr(chatapi, "wait_exponential_jitter", no_wait)
+        mp.setattr(openai_responses, "wait_exponential_jitter", no_wait)
         yield
 
 
