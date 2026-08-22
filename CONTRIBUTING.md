@@ -13,6 +13,11 @@ Your path depends on your history with the project:
 - **Established contributors**: anyone with at least one merged non-trivial
   PR in this repository (trivial documentation fixes don't count toward this)
   — may open PRs directly, subject to a limit of 4 open PRs at a time.
+  One caveat: an issue you filed yourself doesn't establish demand. A PR
+  addressing your own issue needs that issue labeled `accepted` first, just
+  as for new contributors — self-reported problems get maintainer sign-off
+  before code, self-*discovered* fixes for problems others have reported
+  don't need it.
 - **New contributors**: if you haven't had a PR merged here yet, start from an
   issue a maintainer has labeled `accepted` before writing code. PRs from new
   contributors that aren't linked to an accepted issue are closed
@@ -21,7 +26,14 @@ Your path depends on your history with the project:
   welcome directly.
 
 Whatever your tier, a non-draft PR inactive for 60 days is closed with an
-invitation to reopen.
+invitation to reopen. And whatever your tier, check for an existing open PR
+addressing the same problem before opening yours: duplicates are closed in
+favor of the earlier PR unless a maintainer has asked for an alternative.
+
+Issues a maintainer has labeled `deferred` are decisions not to prioritize
+that work right now. PRs against a deferred issue are closed automatically,
+whatever your tier — comment on the issue with new evidence or demand if you
+think it should be revisited.
 
 **Why:** like most open-source projects, we now receive a large volume of
 unrequested, often agent-generated PRs. Reviewing a PR is time-consuming;
@@ -31,7 +43,7 @@ can't merge.
 
 ## Proposing work (new contributors)
 
-1. **Search existing issues** to avoid duplicates.
+1. **Search existing issues and open PRs** to avoid duplicates.
 2. **Open an issue** describing the problem, the motivation, and (optionally)
    whether you'd like to implement it. Concrete evidence — a reproduction, a
    failing test — makes acceptance much more likely.
@@ -60,7 +72,13 @@ ourselves. The requirements:
   submit. If you can't, don't submit it.
 - Note the tooling you used in the PR description.
 - Use your tools to review your changes, not just implement them — we find
-  multiple review passes before opening a PR catch a lot.
+  multiple review passes (each in a fresh context) before opening a PR catch
+  a lot — and summarize what
+  they found in the PR description (agents: see the `Agent review` format in
+  [`AGENTS.md`](AGENTS.md)). We'd prefer review passes use a strong
+  (frontier-class) model: small fast-tier models rarely surface real issues,
+  and maintainers weight a disclosed review by the model used and the number
+  of passes.
 
 If you are a coding agent, read [`AGENTS.md`](AGENTS.md) before opening a PR.
 

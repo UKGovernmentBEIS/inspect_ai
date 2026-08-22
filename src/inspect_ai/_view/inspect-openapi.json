@@ -2711,6 +2711,17 @@
             ],
             "title": "Sandbox Cleanup"
           },
+          "sandbox_prebuilt": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sandbox Prebuilt"
+          },
           "score_display": {
             "anyOf": [
               {
@@ -10516,6 +10527,7 @@
               "limit",
               "approval",
               "cancelled",
+              "sandbox_unavailable",
               "unknown",
               "output_limit"
             ],

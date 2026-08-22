@@ -2,6 +2,7 @@ import asyncio
 import contextlib
 import functools
 import importlib.util
+import logging
 import os
 import signal
 import subprocess
@@ -161,6 +162,43 @@ def with_timeout(
     return decorator
 
 
+@contextlib.contextmanager
+def attach_caplog_to_module_logger(
+    caplog: pytest.LogCaptureFixture, module_logger_name: str
+) -> Generator[pytest.LogCaptureFixture, None, None]:
+    """Capture a non-propagating inspect_ai module logger's records exactly once.
+
+    inspect's logger init sets `propagate=False` on the "inspect_ai" package
+    logger, so caplog's root handler misses records once an eval has run.
+    Attaching caplog's handler directly to the module logger fixes that, but
+    pytest >= 9.1 also attaches the handler to already-non-propagating loggers
+    at each test phase entry, which would capture propagated records a second
+    time. Disabling propagation on the module logger while attached keeps the
+    capture single under both behaviors (`addHandler` is idempotent, so
+    pytest's own attachment no-ops).
+    """
+    module_logger = logging.getLogger(module_logger_name)
+    module_logger.addHandler(caplog.handler)
+    orig_propagate = module_logger.propagate
+    module_logger.propagate = False
+    try:
+        yield caplog
+    finally:
+        module_logger.propagate = orig_propagate
+        module_logger.removeHandler(caplog.handler)
+
+
+def setenv_if_unset(name: str, value: str) -> None:
+    """Set an environment variable unless it already has a non-empty value.
+
+    Unlike `os.environ.setdefault`, this also overrides empty values: CI
+    environments sometimes export variables set to "" (e.g. AWS_REGION), and
+    an empty region makes anthropic >= 1.0 Bedrock client construction fail.
+    """
+    if not os.environ.get(name):
+        os.environ[name] = value
+
+
 def skip_if_env_var(var: str, exists=True):
     """
     Pytest mark to skip the test if the var environment variable is not defined.
@@ -281,8 +319,12 @@ def skip_if_no_google(func):
 
 
 def skip_if_no_mistral(func):
+    # the mistralai SDK uses asyncio.to_thread internally, so always skip
+    # live Mistral tests under trio
     func._needs_flaky_retry = True
-    return pytest.mark.api(skip_if_env_var("MISTRAL_API_KEY", exists=False)(func))
+    return pytest.mark.api(
+        skip_if_env_var("MISTRAL_API_KEY", exists=False)(skip_if_trio(func))
+    )
 
 
 def skip_if_no_mistral_package(func):
@@ -325,6 +367,11 @@ def skip_if_no_fireworks(func):
 def skip_if_no_moonshot(func):
     func._needs_flaky_retry = True
     return pytest.mark.api(skip_if_env_var("MOONSHOT_API_KEY", exists=False)(func))
+
+
+def skip_if_no_deepseek(func):
+    func._needs_flaky_retry = True
+    return pytest.mark.api(skip_if_env_var("DEEPSEEK_API_KEY", exists=False)(func))
 
 
 def skip_if_no_sambanova(func):

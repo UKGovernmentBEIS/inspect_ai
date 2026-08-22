@@ -35,7 +35,7 @@ from .._log import (
     sort_samples,
 )
 from .._resolve import rebind_sample_timelines, resolve_sample_events_data
-from .eval import _s3_bucket_and_key, _write_s3_conditional, s3_head_etag
+from .eval import _s3_bucket_and_key, _write_s3
 from .file import FileRecorder, write_local_snapshot
 
 logger = getLogger(__name__)
@@ -270,14 +270,9 @@ class JSONRecorder(FileRecorder):
         if_match_etag: str | None = None,
         header_only: bool = False,
     ) -> str | None:
-        etag = await cls._write_log_impl(
+        return await cls._write_log_impl(
             location, log, if_match_etag, header_only, fsync=True
         )
-        if etag is not None:
-            return etag
-
-        fs = filesystem(location)
-        return await s3_head_etag(location) if fs.is_s3() else None
 
     @classmethod
     async def _write_log_impl(
@@ -312,15 +307,29 @@ class JSONRecorder(FileRecorder):
             sort_samples(log.samples)
 
         fs = filesystem(location)
-        if fs.is_s3() and if_match_etag:
-            # Use S3 conditional write
-            return await cls._write_log_s3_conditional(location, log, if_match_etag)
-
         # Standard write
         # get log as bytes (serialized on the event loop: the pydantic
         # log object may be mutated by concurrent coroutines, whereas
         # the resulting bytes are immutable and safe to hand to a thread)
         log_bytes = eval_log_json(log)
+
+        if fs.is_s3():
+            bucket, key = _s3_bucket_and_key(location)
+            async with AsyncFilesystem() as async_fs:
+                if if_match_etag is not None:
+                    return await _write_s3(
+                        async_fs,
+                        bucket,
+                        key,
+                        log_bytes,
+                        if_match_etag,
+                        location,
+                        logger,
+                    )
+                etag = await async_fs.write_file(location, log_bytes)
+                if etag is None:
+                    raise RuntimeError("S3 upload completed without returning an ETag")
+                return etag
 
         with trace_action(logger, "Log Write", location):
             if fs.is_local():
@@ -357,29 +366,6 @@ class JSONRecorder(FileRecorder):
             },
             deep=False,
         )
-
-    @classmethod
-    async def _write_log_s3_conditional(
-        cls, location: str, log: EvalLog, etag: str
-    ) -> str:
-        """Perform S3 conditional write using aioboto3."""
-        from inspect_ai.log._file import eval_log_json
-
-        bucket, key = _s3_bucket_and_key(location)
-
-        # get log as bytes
-        log_bytes = eval_log_json(log)
-
-        async with AsyncFilesystem() as async_fs:
-            return await _write_s3_conditional(
-                async_fs,
-                bucket,
-                key,
-                log_bytes,
-                etag,
-                location,
-                logger,
-            )
 
 
 def _validate_version(ver: int) -> None:

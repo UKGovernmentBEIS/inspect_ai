@@ -444,12 +444,12 @@ async def test_eof_on_socket_exits_bridge_cleanly(short_data_dir: Path) -> None:
             # Close the server's writer for this connection directly.
             # That sends EOF to the bridge's socket reader without
             # touching the server's main_loop (which would deadlock
-            # on our still-open stdin).
-            for conn in list(server._connections):
-                writer = getattr(conn, "_writer", None) or getattr(conn, "writer", None)
-                if writer is not None:
-                    with contextlib.suppress(Exception):
-                        writer.close()
+            # on our still-open stdin). Use the writer the server
+            # tracks per-connection rather than reaching into acp
+            # Connection internals (which change across versions).
+            for writer, _handler in list(server._connections.values()):
+                with contextlib.suppress(Exception):
+                    writer.close()
             await asyncio.wait_for(task, timeout=2.0)
             assert task.done()
             assert task.exception() is None

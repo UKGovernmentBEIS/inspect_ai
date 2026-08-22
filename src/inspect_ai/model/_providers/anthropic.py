@@ -31,6 +31,7 @@ from anthropic import (
 from anthropic.lib.streaming import AsyncMessageStream
 from anthropic.types import (
     Base64PDFSourceParam,
+    BrowserStateBlockParam,
     CacheControlEphemeralParam,
     CitationsConfigParam,
     CodeExecutionToolResultBlock,
@@ -64,7 +65,6 @@ from anthropic.types import (
     ToolTextEditor20250124Param,
     ToolUseBlock,
     ToolUseBlockParam,
-    URLPDFSourceParam,
     WebSearchResultBlock,
     WebSearchTool20250305Param,
     WebSearchTool20260209Param,
@@ -137,11 +137,11 @@ from inspect_ai._util.http import (
     is_retryable_http_status,
     parse_retry_after_from_exception,
 )
-from inspect_ai._util.images import file_as_data, file_as_data_uri
+from inspect_ai._util.images import inline_media_data, inline_media_data_uri
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.trace import trace_message
-from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64, is_http_url
+from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64
 from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.model._compaction.edit import (
     TOOL_RESULT_REMOVED,
@@ -335,11 +335,16 @@ class AnthropicAPI(ModelAPI):
             if base_region is None:
                 aws_region = os.environ.get("AWS_DEFAULT_REGION", None)
 
-            return AsyncAnthropicBedrock(
-                base_url=base_url,
-                aws_region=aws_region,
-                **self.model_args,
-            )
+            try:
+                return AsyncAnthropicBedrock(
+                    base_url=base_url,
+                    aws_region=aws_region,
+                    **self.model_args,
+                )
+            except ValueError as ex:
+                # anthropic >= 1.0 raises when no AWS region is resolvable
+                # (older versions silently fell back to us-east-1)
+                raise PrerequisiteError(str(ex)) from ex
         elif self.is_vertex():
             base_url = model_base_url(
                 self.base_url,
@@ -922,21 +927,19 @@ class AnthropicAPI(ModelAPI):
                 )
             return _THINKING_WARNING.format(parameter=parameter)
 
-        if config.temperature is not None:
-            if forbid_sampling_params:
-                warn_once(logger, sampling_param_warning("temperature"))
-            else:
-                params["temperature"] = config.temperature
-        if config.top_p is not None:
-            if forbid_sampling_params:
-                warn_once(logger, sampling_param_warning("top_p"))
-            else:
-                params["top_p"] = config.top_p
-        if config.top_k is not None:
-            if forbid_sampling_params:
-                warn_once(logger, sampling_param_warning("top_k"))
-            else:
-                params["top_k"] = config.top_k
+        # anthropic >= 1.0 removed temperature/top_p/top_k from the method
+        # signatures (the API still accepts them for models that support
+        # them), so route via extra_body rather than params
+        for parameter, value in (
+            ("temperature", config.temperature),
+            ("top_p", config.top_p),
+            ("top_k", config.top_k),
+        ):
+            if value is not None:
+                if forbid_sampling_params:
+                    warn_once(logger, sampling_param_warning(parameter))
+                else:
+                    extra_body[parameter] = value
 
         # effort
         if config.effort is not None:
@@ -2492,7 +2495,9 @@ def _citation_document_blocks(messages: list[MessageParam]) -> list[DocumentBloc
     return documents
 
 
-CitationCandidateBlock = ContentBlock | ContentBlockParam | ToolReferenceBlockParam
+CitationCandidateBlock = (
+    ContentBlock | ContentBlockParam | ToolReferenceBlockParam | BrowserStateBlockParam
+)
 
 
 def _is_citation_document_block(
@@ -3257,11 +3262,12 @@ async def model_output_from_message(
         span_recorder=span_recorder,
     )
 
-    # count reasoning tokens
+    # count reasoning tokens (skip empty thinking text -- omitted summaries
+    # come back as "" and count_tokens rejects empty content with a 400)
     reasoning_tokens = 0
     if client and model:
         for content_block in message.content:
-            if isinstance(content_block, ThinkingBlock):
+            if isinstance(content_block, ThinkingBlock) and content_block.thinking:
                 reasoning_tokens += await count_tokens(
                     client, model, content_block.thinking
                 )
@@ -4347,20 +4353,26 @@ async def message_block_params(
             )
     elif isinstance(content, ContentDocument):
         if content.mime_type == "application/pdf":
-            if is_http_url(content.document):
-                source: Source = URLPDFSourceParam(type="url", url=content.document)
-            else:
-                pdf_data_uri = await file_as_data_uri(content.document)
-                pdf_data = data_uri_to_base64(pdf_data_uri)
-                source = Base64PDFSourceParam(
-                    type="base64", data=pdf_data, media_type="application/pdf"
-                )
+            pdf_data_uri = inline_media_data_uri(
+                content.document, "document", mime_type_hint=content.mime_type
+            )
+            pdf_data = data_uri_to_base64(pdf_data_uri)
+            source: Source = Base64PDFSourceParam(
+                type="base64", data=pdf_data, media_type="application/pdf"
+            )
         elif is_image_type(content.mime_type):
             source = ContentBlockSourceParam(
-                type="content", content=[await image_block_param(content.document)]
+                type="content",
+                content=[
+                    await image_block_param(
+                        content.document, mime_type_hint=content.mime_type
+                    )
+                ],
             )
         else:
-            file_bytes, _ = await file_as_data(content.document)
+            file_bytes, _ = inline_media_data(
+                content.document, "document", mime_type_hint=content.mime_type
+            )
             source = PlainTextSourceParam(
                 type="text", media_type="text/plain", data=file_bytes.decode()
             )
@@ -4607,9 +4619,10 @@ def _content_list(input: str | list[Content]) -> list[Content]:
         return input
 
 
-async def image_block_param(image: str) -> ImageBlockParam:
-    # resolve to url
-    image = await file_as_data_uri(image)
+async def image_block_param(
+    image: str, mime_type_hint: str | None = None
+) -> ImageBlockParam:
+    image = inline_media_data_uri(image, "image", mime_type_hint=mime_type_hint)
 
     # resolve mime type and base64 content
     media_type = data_uri_mime_type(image) or "image/png"

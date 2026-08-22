@@ -1,3 +1,4 @@
+import math
 from typing import Any, Callable, cast
 
 import pytest
@@ -5,6 +6,7 @@ from pydantic import BaseModel
 
 from inspect_ai import Task, eval, score
 from inspect_ai._util.constants import PKG_NAME
+from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.registry import registry_info
 from inspect_ai.dataset import Sample
 from inspect_ai.scorer import (
@@ -19,17 +21,18 @@ from inspect_ai.scorer import (
     metric,
     scorer,
     std,
+    value_to_float,
     var,
 )
 from inspect_ai.scorer._metric import (
     MetricDeprecated,
     MetricProtocol,
     SampleScore,
+    ScoreEdit,
     metric_create,
-    value_to_float,
 )
-from inspect_ai.scorer._metrics import grouped
-from inspect_ai.scorer._metrics.std import stderr
+from inspect_ai.scorer._metrics import aggregate, grouped
+from inspect_ai.scorer._metrics.std import _t_inv_cdf, ci, stderr
 from inspect_ai.scorer._target import Target
 from inspect_ai.solver._task_state import TaskState
 
@@ -92,6 +95,22 @@ def deprecated_metric() -> Metric:
 def dict_metric() -> Metric:
     def metric(scores: list[SampleScore]) -> Value:
         return {"one": 1, "two": 2, "three": 3}
+
+    return metric
+
+
+@metric
+def str_metric() -> Metric:
+    def metric(scores: list[SampleScore]) -> Value:
+        return "0.85"
+
+    return metric
+
+
+@metric
+def tuple_metric() -> Metric:
+    def metric(scores: list[SampleScore]) -> Value:
+        return (10, 20)
 
     return metric
 
@@ -175,6 +194,40 @@ def test_list_metric() -> None:
     check_log(log)
 
 
+@pytest.mark.parametrize(
+    "value,leaf",
+    [
+        (float("nan"), lambda v: v),
+        (float("inf"), lambda v: v),
+        ([float("nan"), 1.0], lambda v: v[0]),
+        ({"a": float("nan"), "b": 1.0}, lambda v: v["a"]),
+        ({"a": float("-inf"), "b": 1.0}, lambda v: v["a"]),
+    ],
+)
+def test_score_non_finite_value_round_trip(value: Value, leaf: Any) -> None:
+    """Non-finite score values survive JSON serialization in every shape.
+
+    Serialized as JSON constants (NaN/Infinity) rather than null, via both
+    model_dump_json and the to_json_safe log write path.
+    """
+    score = Score(value=value)
+    for wire in (score.model_dump_json(exclude_none=True), to_json_str_safe(score)):
+        assert "null" not in wire
+        restored = Score.model_validate_json(wire)
+        original, roundtripped = leaf(score.value), leaf(restored.value)
+        if math.isnan(original):
+            assert math.isnan(roundtripped)
+        else:
+            assert roundtripped == original
+
+
+def test_score_edit_non_finite_value_round_trip() -> None:
+    edit = ScoreEdit(value=[float("nan"), 1.0])
+    restored = ScoreEdit.model_validate_json(edit.model_dump_json())
+    assert isinstance(restored.value, list)
+    assert math.isnan(cast(float, restored.value[0]))
+
+
 def test_dict_metric() -> None:
     def check_log(log):
         assert log.results and (
@@ -190,6 +243,62 @@ def test_dict_metric() -> None:
     # normal eval
     log = eval(tasks=task, model="mockllm/model")[0]
     check_log(log)
+
+
+def test_str_metric() -> None:
+    def check_log(log):
+        assert log.results
+        score = log.results.scores[0]
+        assert list(score.metrics.keys()) == ["str_metric"]
+        assert score.metrics["str_metric"].value == pytest.approx(0.85)
+
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target=["2", "2.0", "Two"])],
+        scorer=match(),
+        metrics=[str_metric()],
+    )
+
+    log = eval(tasks=task, model="mockllm/model")[0]
+    check_log(log)
+
+
+def test_tuple_metric() -> None:
+    def check_log(log):
+        assert log.results
+        score = log.results.scores[0]
+        assert list(score.metrics.keys()) == ["tuple_metric-1", "tuple_metric-2"]
+        assert score.metrics["tuple_metric-1"].value == 10.0
+        assert score.metrics["tuple_metric-2"].value == 20.0
+
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target=["2", "2.0", "Two"])],
+        scorer=match(),
+        metrics=[tuple_metric()],
+    )
+
+    log = eval(tasks=task, model="mockllm/model")[0]
+    check_log(log)
+
+
+def test_dict_scorer_str_and_tuple_metrics() -> None:
+    @scorer(metrics={"a": [str_metric()], "b": [tuple_metric()]})
+    def my_dict_scorer() -> Scorer:
+        async def score(state: TaskState, target: Target) -> Score:
+            return Score(value={"a": 1.0, "b": 2.0})
+
+        return score
+
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target=["2"])],
+        scorer=my_dict_scorer(),
+    )
+
+    log = eval(tasks=task, model="mockllm/model")[0]
+    assert log.results
+    scores_by_name = {s.name: s for s in log.results.scores}
+    assert scores_by_name["a"].metrics["str_metric"].value == pytest.approx(0.85)
+    assert scores_by_name["b"].metrics["tuple_metric_0"].value == 10.0
+    assert scores_by_name["b"].metrics["tuple_metric_1"].value == 20.0
 
 
 def test_alternative_metrics() -> None:
@@ -463,6 +572,64 @@ def test_clustered_stderr_single_cluster():
     assert se == 0.0
 
 
+def test_clustered_stderr_matches_pairwise_definition():
+    # The clustered variance is defined as sum_i sum_j (s_i - mean)(s_j - mean)
+    # within each cluster. Pin the value against that definition, evaluated
+    # directly, on a lopsided split so no cluster size is representative.
+    values = [float(i % 5) for i in range(200)]
+    cluster_of = ["big" if i < 180 else f"small{i}" for i in range(200)]
+    scores = [
+        SampleScore(
+            score=Score(value=v), sample_metadata={"my_cluster": c}, sample_id=str(i)
+        )
+        for i, (v, c) in enumerate(zip(values, cluster_of))
+    ]
+
+    mean_value = sum(values) / len(values)
+    clustered_variance = 0.0
+    for cluster_id in set(cluster_of):
+        deviations = [
+            v - mean_value for v, c in zip(values, cluster_of) if c == cluster_id
+        ]
+        clustered_variance += sum(a * b for a in deviations for b in deviations)
+    cluster_count = len(set(cluster_of))
+    expected = (clustered_variance * cluster_count / (cluster_count - 1)) ** 0.5 / len(
+        scores
+    )
+
+    se = stderr(cluster="my_cluster")(scores)
+    assert se == pytest.approx(expected, rel=1e-12)
+
+
+def test_clustered_stderr_nan_cluster_id_raises():
+    # Previously NaN identifiers counted toward the finite-cluster correction
+    # while matching no per-cluster variance mask, silently corrupting the SE
+    # (see the retired preserves-nan-cluster-behavior pin). Cluster
+    # partitioning is now shared with ci(), and a float NaN id is treated as
+    # missing metadata, matching the dataset NaN-as-missing convention.
+    scores = [
+        SampleScore(
+            score=Score(value=1.0), sample_metadata={"my_cluster": float("nan")}
+        )
+        for _ in range(50)
+    ] + [
+        SampleScore(score=Score(value=0.0), sample_metadata={"my_cluster": 0.0})
+        for _ in range(50)
+    ]
+
+    with pytest.raises(ValueError, match="has no cluster metadata"):
+        stderr(cluster="my_cluster")(scores)
+
+
+def test_clustered_stderr_single_sample_missing_metadata_raises():
+    # A single sample without the cluster key is a misconfigured eval, and the
+    # ValueError is how that surfaces. Guarding a short score list before
+    # validating it would silently return 0.0 instead.
+    metric = stderr(cluster="my_cluster")
+    with pytest.raises(ValueError, match="has no cluster metadata"):
+        metric([SampleScore(score=Score(value=1.0), sample_metadata={})])
+
+
 def test_grouped_mean_single():
     metric = grouped(mean(), group_key="group")
     result = metric(
@@ -733,6 +900,204 @@ def test_dict_metric_all_samples_unscored():
         assert math.isnan(r.metrics["mean"].value)
 
 
+def test_aggregate_mean():
+    metric = aggregate("element_acc", agg=mean())
+    result = metric(
+        [
+            SampleScore(score=Score(value={"element_acc": 1, "action_f1": 0.5})),
+            SampleScore(score=Score(value={"element_acc": 1, "action_f1": 0.6})),
+            SampleScore(score=Score(value={"element_acc": 4, "action_f1": 0.7})),
+        ]
+    )
+    assert result == 2.0
+
+
+def test_aggregate_selects_key():
+    # Different keys over the same scores should give different aggregates.
+    scores = [
+        SampleScore(score=Score(value={"a": 1, "b": 10})),
+        SampleScore(score=Score(value={"a": 3, "b": 30})),
+    ]
+    assert aggregate("a", agg=mean())(scores) == 2.0
+    assert aggregate("b", agg=mean())(scores) == 20.0
+
+
+def test_aggregate_stderr_composes():
+    # stderr() should work as the inner aggregator.
+    se = aggregate("x", agg=stderr())(
+        [SampleScore(score=Score(value={"x": i, "y": -i})) for i in range(20)]
+    )
+    expected = stderr()([SampleScore(score=Score(value=i)) for i in range(20)])
+    assert se == expected
+
+
+def test_aggregate_missing_key_error_by_default():
+    metric = aggregate("element_acc", agg=mean())
+    with pytest.raises(ValueError, match="is missing"):
+        metric(
+            [
+                SampleScore(score=Score(value={"element_acc": 1})),
+                SampleScore(score=Score(value={"action_f1": 0.5})),
+            ]
+        )
+
+
+def test_aggregate_missing_key_skip():
+    metric = aggregate("element_acc", agg=mean(), on_missing="skip")
+    result = metric(
+        [
+            SampleScore(score=Score(value={"element_acc": 1})),
+            SampleScore(score=Score(value={"action_f1": 0.5})),  # skipped
+            SampleScore(score=Score(value={"element_acc": 3})),
+        ]
+    )
+    assert result == 2.0
+
+
+def test_aggregate_missing_key_zero():
+    metric = aggregate("element_acc", agg=mean(), on_missing="zero")
+    result = metric(
+        [
+            SampleScore(score=Score(value={"element_acc": 3})),
+            SampleScore(score=Score(value={"action_f1": 0.5})),  # treated as 0.0
+            SampleScore(score=Score(value={"element_acc": 3})),
+        ]
+    )
+    assert result == 2.0
+
+
+def test_aggregate_non_dict_value_raises():
+    metric = aggregate("element_acc", agg=mean())
+    with pytest.raises(ValueError, match="non-dict"):
+        metric(
+            [
+                SampleScore(score=Score(value={"element_acc": 1})),
+                SampleScore(score=Score(value=1.0)),  # scalar, not a dict
+            ]
+        )
+
+
+def test_aggregate_explicit_to_float_applied():
+    # An explicit to_float lets string grades flow into mean() (which expects
+    # numerics). value_to_float maps "C"->1.0 and "I"->0.0.
+    result = aggregate("verdict", agg=mean(), to_float=value_to_float())(
+        [
+            SampleScore(score=Score(value={"verdict": "C"})),
+            SampleScore(score=Score(value={"verdict": "I"})),
+            SampleScore(score=Score(value={"verdict": "C"})),
+            SampleScore(score=Score(value={"verdict": "C"})),
+        ]
+    )
+    assert result == 0.75
+
+
+def test_aggregate_passthrough_respects_inner_to_float():
+    # With the default to_float=None, the raw value passes straight through to
+    # the inner metric, so the inner metric's OWN converter applies. Here a
+    # custom value_to_float on accuracy() maps "pass"->1.0 / "fail"->0.0;
+    # aggregate must not pre-convert and bypass it.
+    inner = accuracy(to_float=value_to_float(correct="pass", incorrect="fail"))
+    result = aggregate("verdict", agg=inner)(
+        [
+            SampleScore(score=Score(value={"verdict": "pass"})),
+            SampleScore(score=Score(value={"verdict": "fail"})),
+            SampleScore(score=Score(value={"verdict": "pass"})),
+            SampleScore(score=Score(value={"verdict": "pass"})),
+        ]
+    )
+    assert result == 0.75
+
+
+def test_aggregate_none_value_treated_as_missing_error():
+    # A present-but-None value is treated the same as a missing key
+    # (matches inspect_evals.utils.metrics.mean_of).
+    metric = aggregate("element_acc", agg=mean())
+    with pytest.raises(ValueError, match="is None"):
+        metric(
+            [
+                SampleScore(score=Score(value={"element_acc": 1})),
+                SampleScore(score=Score(value={"element_acc": None})),
+            ]
+        )
+
+
+def test_aggregate_none_value_treated_as_missing_skip():
+    result = aggregate("element_acc", agg=mean(), on_missing="skip")(
+        [
+            SampleScore(score=Score(value={"element_acc": 1})),
+            SampleScore(score=Score(value={"element_acc": None})),  # skipped
+            SampleScore(score=Score(value={"element_acc": 3})),
+        ]
+    )
+    assert result == 2.0
+
+
+def test_aggregate_none_value_treated_as_missing_zero():
+    result = aggregate("element_acc", agg=mean(), on_missing="zero")(
+        [
+            SampleScore(score=Score(value={"element_acc": 3})),
+            SampleScore(score=Score(value={"element_acc": None})),  # treated as 0.0
+            SampleScore(score=Score(value={"element_acc": 3})),
+        ]
+    )
+    assert result == 2.0
+
+
+def test_aggregate_all_skipped_returns_nan():
+    # When skip filters every sample, return NaN rather than calling agg([])
+    # (which most built-in metrics raise on).
+    result = aggregate("element_acc", agg=mean(), on_missing="skip")(
+        [
+            SampleScore(score=Score(value={"action_f1": 0.5})),
+            SampleScore(score=Score(value={"action_f1": 0.6})),
+        ]
+    )
+    assert isinstance(result, float) and math.isnan(result)
+
+
+def test_aggregate_skips_nan_values():
+    # A per-key NaN is unscored: skipped regardless of on_missing (which is
+    # at its "error" default here), so the aggregate is the mean of the
+    # non-NaN values rather than NaN. Matches dict-metric expansion.
+    result = aggregate("x", agg=mean())(
+        [
+            SampleScore(score=Score(value={"x": 1})),
+            SampleScore(score=Score(value={"x": float("nan")})),
+            SampleScore(score=Score(value={"x": 3})),
+        ]
+    )
+    assert result == 2.0
+
+
+def test_aggregate_all_nan_returns_nan():
+    result = aggregate("x", agg=mean())(
+        [
+            SampleScore(score=Score(value={"x": float("nan")})),
+            SampleScore(score=Score(value={"x": float("nan")})),
+        ]
+    )
+    assert isinstance(result, float) and math.isnan(result)
+
+
+def test_aggregate_nan_skipped_under_zero():
+    # NaN is distinct from a missing key: even with on_missing="zero" a NaN
+    # value is skipped (not coerced to 0.0), so it doesn't drag the mean down.
+    result = aggregate("x", agg=mean(), on_missing="zero")(
+        [
+            SampleScore(score=Score(value={"x": 2})),
+            SampleScore(score=Score(value={"x": float("nan")})),
+        ]
+    )
+    assert result == 2.0
+
+
+def test_aggregate_invalid_on_missing_raises():
+    # Invalid on_missing must fail at construction, not silently behave like
+    # "zero" only when a key happens to be missing.
+    with pytest.raises(ValueError, match="invalid on_missing"):
+        aggregate("x", agg=mean(), on_missing="skpi")
+
+
 def test_metrics_return_zero_for_empty_scores() -> None:
     # Every built-in numeric metric must handle an empty score list by
     # returning 0.0 rather than nan (with numpy empty-slice warnings). See the
@@ -752,6 +1117,208 @@ def test_metrics_return_zero_for_empty_scores() -> None:
         var(),
         std(),
         stderr(),
+        stderr(cluster="cluster_id"),
         bootstrap_stderr(),
     ):
         assert metric_fn([]) == 0.0
+
+
+def test_grouped_metric_empty_scores() -> None:
+    # grouped() metric with all="groups" or all="samples" must return 0.0
+    # aggregate for empty scores without numpy empty-slice warnings.
+    metric_samples = grouped(mean(), group_key="group", all="samples")
+    assert metric_samples([]) == {"all": 0.0}
+
+    metric_groups = grouped(mean(), group_key="group", all="groups")
+    assert metric_groups([]) == {"all": 0.0}
+
+
+# --- ci() confidence-interval metric ----------------------------------------
+
+
+def test_t_inv_cdf_known_values():
+    # references: scipy.stats.t.ppf(0.975, df) computed externally
+    known = {
+        1: 12.706204736432095,
+        2: 4.302652729911275,
+        4: 2.7764451051977987,
+        9: 2.2621571627409915,
+        10: 2.2281388519649385,
+        30: 2.0422724563012373,
+        1000: 1.9623390808264078,
+    }
+    for df, expected in known.items():
+        assert _t_inv_cdf(0.975, df) == pytest.approx(expected, rel=1e-9)
+    # symmetry and median
+    assert _t_inv_cdf(0.025, 5) == pytest.approx(-_t_inv_cdf(0.975, 5), rel=1e-12)
+    assert _t_inv_cdf(0.5, 7) == 0.0
+
+
+def test_ci_t_matches_mean_plus_t_stderr():
+    scores = [SampleScore(score=Score(value=i)) for i in range(10)]
+    se = stderr()(scores)
+    interval = ci()(scores)  # default: 95% t interval, df = 9
+    t_crit = _t_inv_cdf(0.975, 9)
+    mean = 4.5
+    assert interval["lower"] == pytest.approx(mean - t_crit * se)
+    assert interval["upper"] == pytest.approx(mean + t_crit * se)
+
+
+def test_ci_small_sample_wider_than_normal():
+    # the whole point of the t critical value: for n = 3 the interval must be
+    # substantially wider than the z-based normal approximation
+    scores = [SampleScore(score=Score(value=v)) for v in (0.0, 0.5, 1.0)]
+    se = stderr()(scores)
+    interval = ci()(scores)
+    z_95 = 1.959963984540054
+    assert interval["upper"] - interval["lower"] > 2 * (z_95 * se) * 1.5
+
+
+def test_ci_level_widens_interval():
+    scores = [SampleScore(score=Score(value=i)) for i in range(20)]
+    narrow = ci(level=0.80)(scores)
+    wide = ci(level=0.99)(scores)
+    assert (wide["upper"] - wide["lower"]) > (narrow["upper"] - narrow["lower"])
+
+
+def test_ci_invalid_level_raises():
+    with pytest.raises(ValueError):
+        ci(level=1.5)
+    with pytest.raises(ValueError):
+        ci(level=0.0)
+
+
+def test_ci_small_sample_collapses_to_point():
+    assert ci()([SampleScore(score=Score(value=3.0))]) == {"lower": 3.0, "upper": 3.0}
+    assert ci()([]) == {"lower": 0.0, "upper": 0.0}
+
+
+def test_ci_bootstrap_brackets_mean():
+    scores = [SampleScore(score=Score(value=i)) for i in range(50)]
+    interval = ci(method="bootstrap", num_samples=2000)(scores)
+    assert interval["lower"] < 24.5 < interval["upper"]
+    assert interval["lower"] < interval["upper"]
+
+
+def test_ci_bootstrap_close_to_t():
+    scores = [SampleScore(score=Score(value=i)) for i in range(100)]
+    analytic = ci()(scores)
+    boot = ci(method="bootstrap", num_samples=4000)(scores)
+    # both estimate the same interval; bounds should be close
+    assert boot["lower"] == pytest.approx(analytic["lower"], abs=1.5)
+    assert boot["upper"] == pytest.approx(analytic["upper"], abs=1.5)
+
+
+def test_ci_unknown_method_raises():
+    # invalid method fails at construction, not first use, so it can't be
+    # masked by empty/singleton inputs
+    with pytest.raises(ValueError):
+        ci(method="nope")
+
+
+def test_ci_short_sample_still_validates_cluster():
+    # the < 2 short-circuit must not hide a misconfigured cluster key
+    # (mirrors the stderr(cluster=...) short-input regression)
+    with pytest.raises(ValueError):
+        ci(cluster="c")([SampleScore(score=Score(value=1))])
+    # a valid singleton still collapses to the point interval
+    single = [SampleScore(score=Score(value=3.0), sample_metadata={"c": "a"})]
+    assert ci(cluster="c")(single) == {"lower": 3.0, "upper": 3.0}
+
+
+def test_cluster_nan_id_treated_as_missing():
+    # float NaN metadata means "missing" (dataset convention): raise rather
+    # than silently forming NaN clusters with ambiguous equality semantics
+    scores = [
+        SampleScore(score=Score(value=1), sample_metadata={"c": "a"}),
+        SampleScore(score=Score(value=0), sample_metadata={"c": float("nan")}),
+    ]
+    with pytest.raises(ValueError):
+        ci(cluster="c")(scores)
+    with pytest.raises(ValueError):
+        stderr(cluster="c")(scores)
+    none_scores = [
+        SampleScore(score=Score(value=1), sample_metadata={"c": None}),
+        SampleScore(score=Score(value=0), sample_metadata={"c": "a"}),
+    ]
+    with pytest.raises(ValueError):
+        ci(cluster="c")(none_scores)
+
+
+def test_ci_clustered_t_uses_clustered_stderr_and_df():
+    scores = [
+        SampleScore(score=Score(value=i), sample_metadata={"my_cluster": i % 4})
+        for i in range(20)
+    ]
+    se = stderr(cluster="my_cluster")(scores)
+    interval = ci(cluster="my_cluster")(scores)
+    t_crit = _t_inv_cdf(0.975, 3)  # 4 clusters -> df = 3
+    mean = 9.5
+    assert interval["lower"] == pytest.approx(mean - t_crit * se)
+    assert interval["upper"] == pytest.approx(mean + t_crit * se)
+
+
+def test_ci_clustered_bootstrap_runs():
+    scores = [
+        SampleScore(score=Score(value=i % 3), sample_metadata={"c": i % 5})
+        for i in range(40)
+    ]
+    interval = ci(method="bootstrap", cluster="c", num_samples=500)(scores)
+    assert interval["lower"] <= interval["upper"]
+
+
+def test_ci_clustered_missing_metadata_raises():
+    with pytest.raises(ValueError):
+        ci(cluster="c")(
+            [SampleScore(score=Score(value=1)), SampleScore(score=Score(value=0))]
+        )
+
+
+def test_t_inv_cdf_extreme_tails():
+    # closed forms give implementation-independent references that stress the
+    # continued fraction where it matters most (heavy tails, small df):
+    # df=1 (Cauchy): t_p = tan(pi * (p - 1/2))
+    # df=2: t_p = a * sqrt(2 / (1 - a^2)) with a = 2p - 1
+    for p_val in (0.999, 0.9995, 0.9999):
+        assert _t_inv_cdf(p_val, 1) == pytest.approx(
+            math.tan(math.pi * (p_val - 0.5)), rel=1e-9
+        )
+        a = 2.0 * p_val - 1.0
+        assert _t_inv_cdf(p_val, 2) == pytest.approx(
+            a * math.sqrt(2.0 / (1.0 - a * a)), rel=1e-9
+        )
+    # deep lower tail directly (not via the symmetry shortcut's own path)
+    assert _t_inv_cdf(0.0005, 1) == pytest.approx(
+        math.tan(math.pi * (0.0005 - 0.5)), rel=1e-9
+    )
+
+
+def test_ci_metric_end_to_end():
+    # ci() returns a Mapping, the road-less-traveled for metrics: verify the
+    # dict value flattens into per-key EvalMetric entries in a real eval log
+    from inspect_ai.scorer import scorer
+
+    @scorer(metrics=[ci()])
+    def input_value_scorer():
+        async def score(state: TaskState, target: Target) -> Score:
+            return Score(value=float(state.input_text))
+
+        return score
+
+    task = Task(
+        dataset=[Sample(input=str(v), target="-") for v in (0, 0, 1, 1)],
+        scorer=input_value_scorer(),
+    )
+    log = eval(task, model="mockllm/model", display="none")[0]
+
+    assert log.results is not None
+    metrics = log.results.scores[0].metrics
+    assert set(metrics) >= {"lower", "upper"}
+    assert metrics["lower"].group == "ci"
+    assert metrics["upper"].group == "ci"
+
+    # values [0, 0, 1, 1]: mean 0.5, se = std(ddof=1)/sqrt(4), df = 3
+    se = 0.5773502691896258 / 2.0
+    half_width = _t_inv_cdf(0.975, 3) * se
+    assert metrics["lower"].value == pytest.approx(0.5 - half_width, rel=1e-9)
+    assert metrics["upper"].value == pytest.approx(0.5 + half_width, rel=1e-9)

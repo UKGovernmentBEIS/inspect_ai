@@ -1,11 +1,14 @@
 import io
 import math
 import os
+import re
 import tempfile
 from datetime import datetime, timezone
-from typing import Literal
+from typing import Literal, cast
+from zipfile import ZipFile
 
 import pytest
+from pydantic import BaseModel
 from pydantic_core import PydanticSerializationError
 from test_helpers.utils import skip_if_trio
 from typing_extensions import override
@@ -13,7 +16,7 @@ from typing_extensions import override
 from inspect_ai import Task, eval
 from inspect_ai._util.constants import get_deserializing_context
 from inspect_ai._util.content import ContentDocument
-from inspect_ai._util.file import FileInfo, filesystem
+from inspect_ai._util.file import FileInfo, filesystem, local_path
 from inspect_ai.dataset import Sample
 from inspect_ai.event._info import InfoEvent
 from inspect_ai.event._model import ModelEvent
@@ -39,7 +42,17 @@ from inspect_ai.log._log import EvalLog, EvalSample
 from inspect_ai.model import get_model
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_output import ModelOutput
-from inspect_ai.scorer import exact
+from inspect_ai.scorer import (
+    Metric,
+    SampleScore,
+    Score,
+    Scorer,
+    Target,
+    exact,
+    mean,
+    metric,
+    scorer,
+)
 from inspect_ai.solver import (
     Generate,
     TaskState,
@@ -688,6 +701,91 @@ async def test_zip_log_file_flush_cycles() -> None:
         assert read_ids == all_sample_ids
 
 
+async def test_zip_log_write_buffered_samples_yields_between_samples() -> None:
+    """Regression test for the checkpoint in ``write_buffered_samples``.
+
+    Each buffered sample serializes and compresses synchronously on the event
+    loop, so the flush must yield between samples — otherwise a large batch
+    monopolizes the loop (starving in-flight samples and the control-channel
+    server). Assert a sibling task gets scheduled while the flush iterates by
+    recording its progress counter at each zip member write.
+    """
+    from unittest.mock import patch
+
+    import anyio
+    import anyio.lowlevel
+
+    from inspect_ai._util.constants import LOG_SCHEMA_VERSION
+    from inspect_ai.log._log import (
+        EvalConfig,
+        EvalDataset,
+        EvalPlan,
+        EvalSample,
+        EvalSpec,
+    )
+    from inspect_ai.log._recorders.eval import LogStart, ZipLogFile
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        eval_path = os.path.join(temp_dir, "test.eval")
+        eval_spec = EvalSpec(
+            created=datetime.now(timezone.utc).isoformat(),
+            task="yield_test",
+            model="mockllm/model",
+            dataset=EvalDataset(name="test", samples=5),
+            config=EvalConfig(),
+        )
+        log_start = LogStart(
+            version=LOG_SCHEMA_VERSION, eval=eval_spec, plan=EvalPlan()
+        )
+
+        zip_log = ZipLogFile(eval_path)
+        await zip_log.init(log_start=None, summary_counter=0, summaries=[])
+        await zip_log.start(log_start)
+
+        num_samples = 5
+        for i in range(1, num_samples + 1):
+            await zip_log.buffer_sample(
+                EvalSample(id=i, epoch=1, input=f"input {i}", target="", messages=[])
+            )
+
+        counter = 0
+        observed: list[int] = []
+        flush_done = anyio.Event()
+
+        original_writestr = zip_log._zip_writestr
+
+        def recording_writestr(filename: str, data: object) -> None:
+            observed.append(counter)
+            original_writestr(filename, data)
+
+        async def sibling() -> None:
+            nonlocal counter
+            while not flush_done.is_set():
+                counter += 1
+                await anyio.lowlevel.checkpoint()
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(sibling)
+            with patch.object(zip_log, "_zip_writestr", recording_writestr):
+                await zip_log.write_buffered_samples()
+            flush_done.set()
+
+        # release the temp-file handle; flush first because close() on a
+        # zip with unflushed writes closes the temp file out from under the
+        # ZipFile's end-of-archive write
+        await zip_log.flush()
+        await zip_log.close(header_only=True)
+
+        # num_samples sample members plus the summaries journal
+        assert len(observed) == num_samples + 1
+        # the sibling advanced while the flush iterated over the batch: with
+        # no checkpoint in the loop the flush runs await-free, so the counter
+        # would read identical at every sample write (asserting only across
+        # the batch — not per adjacent pair — keeps this deterministic under
+        # trio's batched scheduling as well as asyncio's FIFO)
+        assert observed[num_samples - 1] > observed[0]
+
+
 @skip_if_trio
 async def test_zip_log_streaming_normalizes_unserializable_store() -> None:
     from inspect_ai._util.constants import LOG_SCHEMA_VERSION
@@ -1218,6 +1316,166 @@ def test_eval_sample_timeline_round_trip():
         # event should be an Event object, not a string
         assert not isinstance(te.event, str)
         assert te.event.uuid is not None
+
+
+@pytest.mark.parametrize("log_format", ["eval", "json"])
+def test_non_finite_scores_survive_log_round_trip(
+    log_format: Literal["eval", "json"],
+) -> None:
+    """NaN score values round-trip through eval logs in every shape.
+
+    NaN marks a sample as unscored (scalar root, dict leaf, or list element).
+    It must serialize as a JSON constant rather than null: a null dict leaf
+    reloads as None and is miscounted as 0.0 by metrics, and a null list
+    element fails Value validation entirely (#4491).
+    """
+
+    @scorer(metrics=[mean()])
+    def scalar_nan() -> Scorer:
+        async def score(state: TaskState, target: Target) -> Score:
+            return Score(value=float("nan"))
+
+        return score
+
+    @scorer(metrics=[mean()])
+    def list_nan() -> Scorer:
+        async def score(state: TaskState, target: Target) -> Score:
+            return Score(value=[float("nan"), 1.0])
+
+        return score
+
+    @scorer(metrics={"a": [mean()], "b": [mean()]})
+    def dict_nan() -> Scorer:
+        async def score(state: TaskState, target: Target) -> Score:
+            return Score(value={"a": float("nan"), "b": 1.0})
+
+        return score
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        log = eval(
+            Task(
+                dataset=[Sample(id=1, input="Say hello.")],
+                scorer=[scalar_nan(), list_nan(), dict_nan()],
+            ),
+            log_dir=log_dir,
+            log_format=log_format,
+            model="mockllm/model",
+        )[0]
+        assert log.status == "success"
+
+        # no score value is serialized as null anywhere in the log file
+        # (samples, summaries, reductions, header)
+        null_value = re.compile(r'"value":\s*(null|\[\s*null|\{"a":\s*null)')
+        location = local_path(log.location)
+        if log_format == "eval":
+            with ZipFile(location) as zf:
+                for name in zf.namelist():
+                    content = zf.read(name).decode(errors="replace")
+                    assert not null_value.search(content), name
+        else:
+            with open(location, "r") as f:
+                assert not null_value.search(f.read())
+
+        reloaded = read_eval_log(log.location)
+        assert reloaded.samples is not None
+        scores = reloaded.samples[0].scores
+        assert scores is not None
+        assert isinstance(scores["scalar_nan"].value, float)
+        assert math.isnan(scores["scalar_nan"].value)
+        list_value = scores["list_nan"].value
+        assert isinstance(list_value, list)
+        assert math.isnan(cast(float, list_value[0]))
+        assert list_value[1] == 1.0
+        dict_value = scores["dict_nan"].value
+        assert isinstance(dict_value, dict)
+        assert math.isnan(cast(float, dict_value["a"]))
+        assert dict_value["b"] == 1.0
+
+        # NaN leaves count as unscored, not as 0.0
+        assert reloaded.results is not None
+        results = {score.name: score for score in reloaded.results.scores}
+        assert results["scalar_nan"].unscored_samples == 1
+        assert results["a"].unscored_samples == 1
+        assert results["b"].scored_samples == 1
+        assert results["b"].metrics["mean"].value == 1.0
+
+
+def test_non_finite_serialization_configured_on_all_wire_roots() -> None:
+    """Known serialization roots for score-bearing data emit NaN constants.
+
+    Pydantic reads ser_json_inf_nan from the dump-root model only -- a
+    nested Score's own config is ignored -- so each model that is itself
+    serialized to logs, the realtime buffer, the store, or view server
+    responses must carry the setting. This test documents the known roots
+    and prevents the config from being dropped; it cannot discover new
+    roots, so anything that dumps score-bearing models directly must be
+    added here and covered by a round-trip test at its call site (see
+    design/nan-serialization.md).
+    """
+    from inspect_ai.agent._human.state import IntermediateScoring
+    from inspect_ai.event._score import ScoreEvent
+    from inspect_ai.event._score_edit import ScoreEditEvent
+    from inspect_ai.log._log import EvalSampleReductions, EvalSampleSummary
+    from inspect_ai.log._recorders.buffer.filestore import Manifest
+    from inspect_ai.log._recorders.buffer.types import SampleData, Samples
+    from inspect_ai.scorer._metric import Score, ScoreEdit
+
+    wire_roots: list[type[BaseModel]] = [
+        Score,
+        ScoreEdit,
+        ScoreEvent,
+        ScoreEditEvent,
+        EvalSample,
+        EvalSampleSummary,
+        EvalSampleReductions,
+        EvalLog,
+        Samples,
+        SampleData,
+        Manifest,
+        IntermediateScoring,
+    ]
+    for model in wire_roots:
+        assert model.model_config.get("ser_json_inf_nan") == "constants", model.__name__
+
+
+def test_negative_infinity_survives_streaming_reads() -> None:
+    """-Infinity takes the NaN/Inf fallback in both ijson streaming readers.
+
+    The yajl2 ijson backend rejects -Infinity with a different message than
+    NaN/Infinity ("a digit is required after the minus sign"), which
+    is_ijson_nan_inf_error must also recognize: the header-only read of
+    .json logs and the exclude_fields sample read of .eval logs both stream
+    with ijson and fall back to standard json parsing on that error.
+    """
+
+    @metric
+    def neg_inf() -> Metric:
+        def compute(scores: list[SampleScore]) -> float:
+            return float("-inf")
+
+        return compute
+
+    @scorer(metrics=[neg_inf()])
+    def neg_inf_scorer() -> Scorer:
+        async def score(state: TaskState, target: Target) -> Score:
+            return Score(value=float("-inf"))
+
+        return score
+
+    task = Task(dataset=[Sample(id=1, input="Say hello.")], scorer=neg_inf_scorer())
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        # .json header-only read streams the header with ijson
+        log = eval(task, log_dir=log_dir, log_format="json", model="mockllm/model")[0]
+        header = read_eval_log(log.location, header_only=True)
+        assert header.results is not None
+        assert header.results.scores[0].metrics["neg_inf"].value == float("-inf")
+
+        # .eval exclude_fields sample read streams the sample with ijson
+        log = eval(task, log_dir=log_dir, log_format="eval", model="mockllm/model")[0]
+        sample = read_eval_log_sample(log.location, 1, exclude_fields={"messages"})
+        assert sample.scores is not None
+        assert sample.scores["neg_inf_scorer"].value == float("-inf")
 
 
 async def test_eval_recorder_log_sample_write_through(tmp_path) -> None:

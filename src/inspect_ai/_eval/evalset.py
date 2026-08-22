@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING, Any, Literal, NamedTuple, Set, cast
 
 import rich
 from pydantic import BaseModel
-from pydantic_core import to_json
 from rich.status import Status
 from shortuuid import uuid
 from tenacity import (
@@ -23,6 +22,7 @@ from typing_extensions import Unpack
 
 from inspect_ai._control.eval_state import (
     DeferredSampleStats,
+    invalidate_log_sample_summaries,
     register_completed_eval,
     reset_run_registries,
 )
@@ -99,11 +99,18 @@ from inspect_ai.util._limit import (
 )
 
 from .eval import eval, eval_init, eval_resolve_tasks
+from .eval_set_manifest import (
+    build_eval_set_capture,
+    eval_set_capture_requested,
+    samples_for_limit,
+    task_args_hash,
+)
 from .loader import resolve_task_args, solver_from_spec
 from .task import Epochs
 from .task.resolved import ResolvedTask
 from .task.scan import scan_context
 from .task.task import PreviousTask, resolve_epochs
+from .task.task_source import TaskSource
 from .task.tasks import Tasks
 
 if TYPE_CHECKING:
@@ -145,6 +152,7 @@ def eval_set(
     task_args: dict[str, Any] | str = dict(),
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
+    sandbox_prebuilt: bool | None = None,
     checkpoint: CheckpointConfig | bool | None = None,
     acp_server: bool | int | str | None = None,
     ctl_server: bool | str | None = None,
@@ -229,6 +237,9 @@ def eval_set(
             (or optionally a str or tuple with a shorthand spec)
         sandbox_cleanup: Cleanup sandbox environments after task completes
             (defaults to True)
+        sandbox_prebuilt: Treat sandbox images as prebuilt, skipping builds
+            and failing at task startup when an image is missing
+            (defaults to False)
         checkpoint: Checkpoint configuration for this eval set, or `True`
             to enable checkpointing with the default trigger (every 500k
             tokens). Overrides any task- or sample-level `checkpoint`
@@ -408,6 +419,7 @@ def eval_set(
             task_args=task_args,
             sandbox=sandbox,
             sandbox_cleanup=sandbox_cleanup,
+            sandbox_prebuilt=sandbox_prebuilt,
             checkpoint=checkpoint,
             solver=solver,
             scanner=scanner,
@@ -486,6 +498,62 @@ def eval_set(
         log_refusals=log_refusals,
         **kwargs,
     )
+
+    # capture mode: resolve tasks, write the manifest, and exit the process
+    # without running anything. deliberately placed before any log_dir side
+    # effects (mkdir, .eval-set-id, eval-set.json) and before eval-set hooks.
+    capture_path = eval_set_capture_requested()
+    if capture_path is not None:
+        if isinstance(tasks, TaskSource):
+            raise PrerequisiteError(
+                "Dynamic task sources (TaskSource) cannot be enumerated "
+                "with eval-set capture."
+            )
+        capture_config = GenerateConfig(**kwargs)
+        capture_tasks, _ = eval_resolve_tasks(
+            tasks,
+            task_args,
+            models,
+            model_roles,
+            capture_config,
+            approval,
+            sandbox,
+            sample_shuffle,
+            notification=notification,
+            input_media_policy="trusted_pre_run",
+        )
+        if len(capture_tasks) == 0:
+            raise PrerequisiteError(
+                "Error: No inspect tasks were found at the specified paths."
+            )
+        capture_epochs = resolve_epochs(epochs)
+        capture = build_eval_set_capture(
+            capture_tasks,
+            EvalSetArgsInTaskIdentifier(
+                config=capture_config,
+                solver=solver,
+                message_limit=message_limit,
+                token_limit=token_limit,
+                turn_limit=turn_limit,
+                time_limit=time_limit,
+                working_limit=working_limit,
+                cost_limit=cost_limit,
+            ),
+            epochs=epochs,
+            limit=limit,
+            eval_set_id=eval_set_id,
+            options=dict(
+                log_dir=log_dir,
+                retry_attempts=num_retry_attempts,
+                limit=limit,
+                epochs=capture_epochs.epochs if capture_epochs else None,
+                tags=tags,
+                metadata=metadata,
+            ),
+        )
+        with file(capture_path, mode="wb") as f:
+            f.write(to_json_safe(capture))
+        raise SystemExit(0)
 
     # ensure log_dir
     fs = filesystem(log_dir)
@@ -585,6 +653,7 @@ def eval_set(
             sandbox,
             sample_shuffle,
             notification=notification,
+            input_media_policy="trusted_pre_run",
         )
 
         # fail with a legible error if no tasks were found (matches `eval`)
@@ -1144,15 +1213,7 @@ def log_samples_complete(
         return False
     epoch_count = epochs.epochs if epochs else 1
 
-    count = len(task.task.dataset)
-    if isinstance(limit, tuple):
-        start, stop = limit
-        if start >= count:
-            count = 0
-        else:
-            count = min(stop, count) - start
-    elif isinstance(limit, int):
-        count = min(limit, count)
+    count = samples_for_limit(len(task.task.dataset), limit)
 
     if log.header.results.total_samples < count * epoch_count:
         return False
@@ -1239,6 +1300,9 @@ def latest_completed_task_eval_logs(
                 try:
                     if id_log.header.status != "started":
                         fs.rm(id_log.info.name)
+                        # the attempt's EvalState may have memoized this log's
+                        # sample summaries; the memo must not outlive the file
+                        invalidate_log_sample_summaries(id_log.header.eval.eval_id)
                 except Exception as ex:
                     logger.warning(f"Error attempt to remove '{id_log[0].name}': {ex}")
 
@@ -1316,11 +1380,37 @@ def resolve_solver(
 TASK_IDENTIFIER_VERSION = 3
 
 
-# yield a unique identifier for a task (used to pair resolved tasks to log files)
 def task_identifier(
     task: ResolvedTask | EvalLog,
     eval_set_args: EvalSetArgsInTaskIdentifier | None,
 ) -> str:
+    """Unique identifier for a task within an eval set.
+
+    Identifiers have the form `{task_file}@{task_name}#{args_hash}/{model}/{additional_hash}`
+    (the `{task_file}@` prefix is omitted for tasks without a source file).
+    The additional hash covers the remaining fields that distinguish tasks
+    within an eval set (solver plan, generate config, model args, model roles,
+    task version, and execution limits), excluding runtime/transport options
+    that don't affect model output (e.g. `max_retries`, `max_connections`).
+
+    The same identifier is computed from a `ResolvedTask` (before running) and
+    from the `EvalLog` that running it produces — `eval_set()` uses this to
+    pair tasks with their existing log files across retries, and external
+    runners can correlate enumerated tasks with logs the same way. The
+    computation is versioned by `TASK_IDENTIFIER_VERSION`: persisted
+    identifiers must be recomputed when the version changes.
+
+    Args:
+        task: Task to identify (a `ResolvedTask` prior to running or an
+            `EvalLog` from a previous run).
+        eval_set_args: Eval-set level arguments that participate in task
+            identity. Required when `task` is a `ResolvedTask`; pass `None`
+            for an `EvalLog` (the log already carries the resolved values).
+
+    Returns:
+        Identifier string for the task.
+    """
+
     @dataclass
     class AdditionalHashFields:
         model_args: dict[str, Any]
@@ -1420,9 +1510,7 @@ def task_identifier(
     )
 
     # hash for task args
-    task_args_hash = hashlib.sha256(
-        to_json(task_args, exclude_none=True, fallback=lambda _x: None)
-    ).hexdigest()
+    args_hash = task_args_hash(task_args)
 
     # hash for eval plan
     additional_hash_input = to_json_safe(
@@ -1458,9 +1546,9 @@ def task_identifier(
     additional_hash = hashlib.sha256(additional_hash_input).hexdigest()
 
     if task_file:
-        return f"{task_file}@{task_name}#{task_args_hash}/{model}/{additional_hash}"
+        return f"{task_file}@{task_name}#{args_hash}/{model}/{additional_hash}"
     else:
-        return f"{task_name}#{task_args_hash}/{model}/{additional_hash}"
+        return f"{task_name}#{args_hash}/{model}/{additional_hash}"
 
 
 class ModelList:
