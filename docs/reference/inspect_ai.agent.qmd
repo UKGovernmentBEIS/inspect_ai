@@ -59,6 +59,8 @@ description: Agent scaffolds and protocol.
 ### AgentAttempts
 ### AgentContinue
 ### AgentSubmit
+### HumanAgentCommand
+### HumanAgentCommandsFilter
 
 ## Deprecated
 
