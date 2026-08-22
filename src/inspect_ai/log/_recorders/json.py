@@ -37,6 +37,7 @@ from .._log import (
 from .._resolve import rebind_sample_timelines, resolve_sample_events_data
 from .eval import _s3_bucket_and_key, _write_s3_conditional
 from .file import FileRecorder, write_local_snapshot
+from .version import validate_log_file_version
 
 logger = getLogger(__name__)
 
@@ -375,17 +376,12 @@ class JSONRecorder(FileRecorder):
             )
 
 
-def _validate_version(ver: int) -> None:
-    if ver > LOG_SCHEMA_VERSION:
-        raise ValueError(f"Unable to read version {ver} of log format.")
-
-
 def _parse_json_log(raw_data: Any, header_only: bool) -> EvalLog:
     """Parse raw JSON data into an EvalLog, validating version and pruning if header_only."""
     log = EvalLog.model_validate(raw_data, context=get_deserializing_context())
 
     # fail for unknown version
-    _validate_version(log.version)
+    validate_log_file_version(log.version)
 
     # set the version to the schema version we'll be returning
     log.version = LOG_SCHEMA_VERSION
@@ -460,7 +456,7 @@ def _read_header_streaming(log_file: str) -> EvalLog:
         if version is None:
             raise ValueError("Unable to read version of log format.")
 
-        _validate_version(version)
+        validate_log_file_version(version)
         version = LOG_SCHEMA_VERSION
 
         # Rewind the file to the beginning to re-parse the contents of fields
