@@ -119,21 +119,21 @@ async def _inject_container_tools_code(sandbox: SandboxEnvironment) -> None:
 
         await _extract_tools_tree(sandbox, name, gz_bytes, sandbox._tools_user)
 
-        # When running as root, restrict the tree so the agent can neither read nor
-        # execute the tools. The default user (the one that runs `exec`) is root, so
-        # this does not impede tool calls.
+        # When running as root, make the tree root-owned and read-only for other
+        # users, but keep it world-executable: non-root users run the CLI (and
+        # their own servers) directly, so the tree cannot be fully hidden.
         if sandbox._tools_user == "root":
             result = await sandbox.exec(
-                ["chmod", "700", SANDBOX_TOOLS_DIR], user="root"
+                ["chmod", "-R", "a+rX,go-w", SANDBOX_TOOLS_DIR], user="root"
             )
             if not result.success:
                 raise RuntimeError(
                     f"Failed to chmod sandbox tools dir: {result.stderr}"
                 )
 
-        # Start the server as root so it can setuid to any user for exec_remote.
-        # If root isn't available, fall back to the sandbox's default user —
-        # user-switching will be disabled (auto-detected by the server).
+        # Start the default server as the tools user (root when available, else
+        # the sandbox's default user). Commands for other users run under
+        # per-user servers started lazily by the CLI on first use.
         result = await sandbox.exec(
             [SANDBOX_CLI, "start-server"], user=sandbox._tools_user
         )
@@ -177,10 +177,14 @@ async def _extract_tools_tree(
     """
     gz_tmp = f"{SANDBOX_TOOLS_DIR}.pkg.tgz"
     await sandbox.write_file(gz_tmp, gz_bytes)
+    # -o (--no-same-owner) so extraction as root does not chown to the archive's
+    # uids, which fails in capability-dropped sandboxes lacking CAP_CHOWN.
     result = await sandbox.exec(
-        ["tar", "xzf", gz_tmp, "-C", SANDBOX_TOOLS_DIR], user=user
+        ["tar", "xzof", gz_tmp, "-C", SANDBOX_TOOLS_DIR], user=user
     )
-    await sandbox.exec(["rm", "-f", gz_tmp], user=user)
+    # Remove as the default user (the one write_file wrote as): /var/tmp is
+    # sticky, so deleting another user's file there requires CAP_FOWNER.
+    await sandbox.exec(["rm", "-f", gz_tmp])
     if result.success:
         return
 
@@ -193,9 +197,9 @@ async def _extract_tools_tree(
     tar_tmp = f"{SANDBOX_TOOLS_DIR}.pkg.tar"
     await sandbox.write_file(tar_tmp, _uncompressed_tar_bytes(name, gz_bytes))
     result = await sandbox.exec(
-        ["tar", "xf", tar_tmp, "-C", SANDBOX_TOOLS_DIR], user=user
+        ["tar", "xof", tar_tmp, "-C", SANDBOX_TOOLS_DIR], user=user
     )
-    await sandbox.exec(["rm", "-f", tar_tmp], user=user)
+    await sandbox.exec(["rm", "-f", tar_tmp])
     if not result.success:
         raise RuntimeError(f"Failed to extract sandbox tools: {result.stderr}")
 

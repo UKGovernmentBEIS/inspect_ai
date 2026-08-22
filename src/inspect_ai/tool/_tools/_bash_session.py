@@ -208,7 +208,7 @@ def bash_session(
                         transport=transport,
                         error_mapper=SandboxToolsErrorMapper,
                         timeout=TRANSPORT_TIMEOUT,
-                        user=sandbox._tools_user,
+                        user=user or sandbox._tools_user,
                     )
                 ).session_name
             except TimeoutError:
@@ -234,7 +234,7 @@ def bash_session(
             transport=transport,
             error_mapper=SandboxToolsErrorMapper,
             timeout=timeout,
-            user=sandbox._tools_user,
+            user=user or sandbox._tools_user,
         )
 
         # Return the appropriate response

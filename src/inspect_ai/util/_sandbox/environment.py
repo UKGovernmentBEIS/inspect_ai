@@ -198,7 +198,9 @@ class SandboxEnvironment(abc.ABC):
         ...
 
     @abc.abstractmethod
-    async def write_file(self, file: str, contents: str | bytes) -> None:
+    async def write_file(
+        self, file: str, contents: str | bytes, user: str | None = None
+    ) -> None:
         """Write a file into the sandbox environment.
 
         If the parent directories of the file path do not exist they
@@ -208,6 +210,10 @@ class SandboxEnvironment(abc.ABC):
           file: Path to file (relative file paths will resolve to the
             per-sample working directory).
           contents: Text or binary file contents.
+          user: Optional username or UID to write the file as, so the file
+            (and any created parent directories) are owned by that user.
+            Defaults to the sandbox's default user. Support is
+            provider-specific.
 
         Raises:
           TimeoutError: If the operation times out.

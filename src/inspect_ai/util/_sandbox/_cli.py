@@ -15,8 +15,8 @@ We choose /var/tmp as the injection location since:
 
 We additionally choose a dot-prefixed random hash sub-directory to further
 attempt to prevent LLMs from stumbling on the injected tools. When root is
-available, the extracted tree is later chmod'ed to 0700 so only the tools user can
-access it.
+available, the extracted tree is later chmod'ed a+rX,go-w so it is root-owned
+(and not writable by other users) while remaining executable by per-user servers.
 """
 
 # Also defined in inspect_ai.tool._sandbox_tools_utils._build_config — keep in sync.
@@ -25,3 +25,10 @@ SANDBOX_TOOLS_BASE_NAME = "inspect-sandbox-tools"
 SANDBOX_TOOLS_DIR = "/var/tmp/.da7be258e003d428"
 
 SANDBOX_CLI = f"{SANDBOX_TOOLS_DIR}/{SANDBOX_TOOLS_BASE_NAME}"
+
+# Also defined in inspect_sandbox_tools._util.constants — keep in sync.
+SANDBOX_TOOLS_SERVER_DIR_ENV = "INSPECT_SANDBOX_TOOLS_DIR"
+
+
+def sandbox_tools_server_dir(user: str) -> str:
+    return f"/tmp/sandbox-tools-{user}"

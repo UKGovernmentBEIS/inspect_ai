@@ -128,7 +128,15 @@ class LocalSandboxEnvironment(SandboxEnvironment):
             )
 
     @override
-    async def write_file(self, file: str, contents: str | bytes) -> None:
+    async def write_file(
+        self, file: str, contents: str | bytes, user: str | None = None
+    ) -> None:
+        if user is not None:
+            warnings.warn(
+                "The 'user' parameter is ignored in LocalSandboxEnvironment. Files will be written as the current user.",
+                UserWarning,
+            )
+
         # resolve file and ensure the parent dir exists
         file = self._resolve_file(file)
         Path(file).parent.mkdir(parents=True, exist_ok=True)

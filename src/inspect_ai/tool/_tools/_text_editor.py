@@ -122,10 +122,7 @@ def text_editor(timeout: int | None = None, user: str | None = None) -> Tool:
             if k in inspect.signature(execute).parameters
         }
 
-        # Pass user via reserved param for CLI-side setuid (in-process tool)
-        if user is not None:
-            params["_run_as_user"] = user
-
+        # Run the CLI directly as the requested user (in-process tool)
         return await exec_scalar_request(
             method="text_editor",
             params=params,
@@ -133,7 +130,7 @@ def text_editor(timeout: int | None = None, user: str | None = None) -> Tool:
             transport=SandboxJSONRPCTransport(sandbox, SANDBOX_CLI),
             error_mapper=SandboxToolsErrorMapper,
             timeout=timeout,
-            user=sandbox._tools_user,
+            user=user or sandbox._tools_user,
         )
 
     return execute

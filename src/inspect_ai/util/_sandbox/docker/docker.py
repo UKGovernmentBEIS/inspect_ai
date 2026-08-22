@@ -443,7 +443,9 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         )
 
     @override
-    async def write_file(self, file: str, contents: str | bytes) -> None:
+    async def write_file(
+        self, file: str, contents: str | bytes, user: str | None = None
+    ) -> None:
         # defualt timeout for write_file operations
         TIMEOUT = 600
 
@@ -453,7 +455,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         # ensure that the directory exists
         parent = Path(file).parent.as_posix()
         if parent != ".":
-            result = await self.exec(["mkdir", "-p", parent])
+            result = await self.exec(["mkdir", "-p", parent], user=user)
             if not result.success:
                 msg = f"Failed to create container directory {parent}: {result.stderr}"
                 raise RuntimeError(msg)
@@ -470,6 +472,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                     file,
                 ],
                 input=contents,
+                user=user,
                 timeout=TIMEOUT,
             )
         else:
@@ -484,6 +487,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                     file,
                 ],
                 input=base64_contents,
+                user=user,
                 timeout=TIMEOUT,
             )
         if result.returncode != 0:

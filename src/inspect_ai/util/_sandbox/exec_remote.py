@@ -281,11 +281,12 @@ class ExecRemoteProcess:
             timeout=RPC_TIMEOUT
             if self._options.poll_timeout is None
             else self._options.poll_timeout,
-            # Run the CLI wrapper as the same user that started the server.
-            # When root is available, this is "root" (needed to access the
-            # protected server directory at /tmp/sandbox-tools/, mode 0o700).
-            # When root isn't available, this is None (sandbox default user).
-            user=self._sandbox._tools_user,
+            # Run the CLI wrapper as the requested user so the job runs under
+            # that user's own server (no setuid required). With no requested
+            # user, fall back to the tools user: "root" when root is available
+            # (needed to access the protected server directory at
+            # /tmp/sandbox-tools/, mode 0o700), else None (sandbox default user).
+            user=self._options.user or self._sandbox._tools_user,
             concurrency=self._options.concurrency,
         )
         if self._options.poll_timeout_retry is not None:
