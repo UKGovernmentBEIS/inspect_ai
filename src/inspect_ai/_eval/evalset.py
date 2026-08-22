@@ -3,7 +3,7 @@ import hashlib
 import logging
 import os
 import threading
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal, NamedTuple, Set, cast
 
@@ -100,10 +100,17 @@ from inspect_ai.util._limit import (
 
 from .eval import eval, eval_init, eval_resolve_tasks
 from .eval_set_manifest import (
+    INSPECT_EVAL_SET_CAPTURE,
     build_eval_set_capture,
     eval_set_capture_requested,
     samples_for_limit,
     task_args_hash,
+)
+from .eval_set_selection import (
+    INSPECT_EVAL_SET_SELECTION,
+    EvalSetSelection,
+    eval_set_selection_requested,
+    read_eval_set_selection,
 )
 from .loader import resolve_task_args, solver_from_spec
 from .task import Epochs
@@ -408,6 +415,7 @@ def eval_set(
         tasks: list[ResolvedTask]
         | list[PreviousTask]
         | list[ResolvedTask | PreviousTask],
+        selection_mode: bool = False,
     ) -> list[EvalLog]:
         # run evals
         results = eval(
@@ -437,7 +445,7 @@ def eval_set(
             sample_id=sample_id,
             sample_shuffle=sample_shuffle,
             epochs=epochs,
-            fail_on_error=fail_on_error,
+            fail_on_error=False if selection_mode else fail_on_error,
             continue_on_fail=continue_on_fail,
             retry_on_error=retry_on_error,
             score_on_error=score_on_error,
@@ -465,7 +473,7 @@ def eval_set(
             score=score,
             score_display=score_display,
             eval_set_id=eval_set_id,
-            task_retry_attempts=task_retry_attempts,
+            task_retry_attempts=0 if selection_mode else task_retry_attempts,
             acp_server=acp_server,
             # Demoted to a plain on/off: eval-set owns the keep-alive park
             # itself (after the display closes), so the inner eval() must
@@ -499,10 +507,21 @@ def eval_set(
         **kwargs,
     )
 
+    # external runner modes (capture enumerates the eval set; selection runs
+    # one worker's share of it). they are two halves of the same protocol but
+    # are never active at once.
+    capture_path = eval_set_capture_requested()
+    selection_path = eval_set_selection_requested()
+    if capture_path is not None and selection_path is not None:
+        raise PrerequisiteError(
+            f"{INSPECT_EVAL_SET_CAPTURE} and {INSPECT_EVAL_SET_SELECTION} "
+            "cannot both be set (capture enumerates an eval set without "
+            "running it; selection runs tasks from an enumerated eval set)."
+        )
+
     # capture mode: resolve tasks, write the manifest, and exit the process
     # without running anything. deliberately placed before any log_dir side
     # effects (mkdir, .eval-set-id, eval-set.json) and before eval-set hooks.
-    capture_path = eval_set_capture_requested()
     if capture_path is not None:
         if isinstance(tasks, TaskSource):
             raise PrerequisiteError(
@@ -549,6 +568,16 @@ def eval_set(
                 epochs=capture_epochs.epochs if capture_epochs else None,
                 tags=tags,
                 metadata=metadata,
+                # error handling as the definition asked for it, so a runner
+                # can see what selection mode honours (retry_on_error) and
+                # what it overrides (fail_on_error) rather than guessing.
+                fail_on_error=fail_on_error,
+                continue_on_fail=continue_on_fail,
+                retry_on_error=retry_on_error,
+                # whether the definition scans. selection mode rejects
+                # scanners, so a runner needs to learn this at enumeration
+                # time rather than when every one of its workers fails.
+                scanners=scanner is not None,
             ),
         )
         with file(capture_path, mode="wb") as f:
@@ -558,6 +587,64 @@ def eval_set(
     # ensure log_dir
     fs = filesystem(log_dir)
     fs.mkdir(log_dir, exist_ok=True)
+
+    # selection (worker) mode: run only the selected tasks through the ordinary
+    # eval() path. everything below this point is eval-set orchestration
+    # (directory scanning, eval-set metadata, retry partitioning, log cleanup,
+    # bundling) and is deliberately skipped -- the external runner owns it, and
+    # skipping it is what lets many workers share one log directory.
+    if selection_path is not None:
+        if isinstance(tasks, TaskSource):
+            raise PrerequisiteError(
+                "Dynamic task sources (TaskSource) cannot be used with "
+                "eval-set selection."
+            )
+        if scanner is not None:
+            raise PrerequisiteError(
+                "Scanners are not supported with eval-set selection. One scan "
+                "directory is shared by a whole eval set, and its bookkeeping "
+                "assumes a single writer: concurrent workers would race to "
+                "create it, and each worker's finalize prunes scan rows whose "
+                "transcripts it cannot see in the log directory yet -- "
+                "deleting the rows of workers still running. Scanning is an "
+                "eval-set level operation, so the runner should perform it "
+                "over the log directory rather than each worker scanning "
+                "its own share."
+            )
+        selection_config = GenerateConfig(**kwargs)
+        selection_tasks, _ = eval_resolve_tasks(
+            tasks,
+            task_args,
+            models,
+            model_roles,
+            selection_config,
+            approval,
+            sandbox,
+            sample_shuffle,
+            notification=notification,
+            input_media_policy="trusted_pre_run",
+        )
+        if len(selection_tasks) == 0:
+            raise PrerequisiteError(
+                "Error: No inspect tasks were found at the specified paths."
+            )
+        return _run_eval_set_selection(
+            selection_path,
+            selection_tasks,
+            EvalSetArgsInTaskIdentifier(
+                config=selection_config,
+                solver=solver,
+                message_limit=message_limit,
+                token_limit=token_limit,
+                turn_limit=turn_limit,
+                time_limit=time_limit,
+                working_limit=working_limit,
+                cost_limit=cost_limit,
+            ),
+            lambda worker_eval_set_id, worker_tasks: run_eval(
+                worker_eval_set_id, worker_tasks, selection_mode=True
+            ),
+        )
 
     # get eval set id (set display name from user-provided value before resolution)
     set_eval_set_id_display(eval_set_id)
@@ -1089,26 +1176,7 @@ def as_previous_tasks(
 
     previous_tasks: list[PreviousTask] = []
     for task, log in zip(tasks, map(task_to_failed_log, tasks)):
-        eval_log = log.header
-        log_info = log.info
-
-        # opportunistically recover crashed logs before retrying
-        if eval_log.status == "started" and eval_log.location:
-            from inspect_ai.log._recover import (
-                RecoveryNotAvailable,
-                recover_eval_log,
-            )
-
-            try:
-                recovered = recover_eval_log(eval_log.location, cleanup=False)
-                eval_log = recovered
-                if recovered.location:
-                    log_info = log_info.model_copy(update={"name": recovered.location})
-            except RecoveryNotAvailable:
-                pass  # no recovery data available
-            except Exception as ex:
-                logger.warning(f"Recovery failed for {eval_log.location}: {ex}")
-
+        eval_log, log_info = _recover_crashed_log(log.header, log.info)
         previous_tasks.append(
             PreviousTask(
                 id=eval_log.eval.task_id,
@@ -1122,6 +1190,160 @@ def as_previous_tasks(
         )
 
     return previous_tasks
+
+
+def _recover_crashed_log(
+    eval_log: EvalLog, log_info: EvalLogInfo
+) -> tuple[EvalLog, EvalLogInfo]:
+    """Opportunistically recover a still-"started" log before retrying it.
+
+    A log left in "started" state was interrupted rather than completed, so its
+    samples may only exist in the buffer database. Recovery folds them back
+    into a readable log; when it isn't possible the original log is returned
+    unchanged (the task simply re-runs the samples).
+
+    Args:
+        eval_log: Header of the log to retry.
+        log_info: File info for that log.
+
+    Returns:
+        The recovered log and file info, or the originals when no recovery was available.
+    """
+    if eval_log.status == "started" and eval_log.location:
+        from inspect_ai.log._recover import (
+            RecoveryNotAvailable,
+            recover_eval_log,
+        )
+
+        try:
+            recovered = recover_eval_log(eval_log.location, cleanup=False)
+            if recovered.location:
+                log_info = log_info.model_copy(update={"name": recovered.location})
+            eval_log = recovered
+        except RecoveryNotAvailable:
+            pass  # no recovery data available
+        except Exception as ex:
+            logger.warning(f"Recovery failed for {eval_log.location}: {ex}")
+
+    return eval_log, log_info
+
+
+# eval-set selection (worker) mode. `eval_set()` delegates here once it has
+# resolved its tasks; everything specific to running a worker's share of an
+# eval set lives in the three functions below. See eval_set_selection.py for
+# the protocol these implement.
+
+
+def _run_eval_set_selection(
+    selection_path: str,
+    resolved_tasks: list[ResolvedTask],
+    eval_set_args: EvalSetArgsInTaskIdentifier,
+    run_eval: Callable[[str, list[ResolvedTask | PreviousTask]], list[EvalLog]],
+) -> tuple[bool, list[EvalLog]]:
+    """Run a worker's share of an eval set.
+
+    Reads the selection, narrows the eval set's resolved tasks to it, and runs
+    just those through the ordinary `eval()` path. No eval-set orchestration is
+    performed: the external runner that wrote the selection owns the log
+    directory, its metadata, and every retry decision.
+
+    Args:
+        selection_path: Path to the selection document (from `INSPECT_EVAL_SET_SELECTION`).
+        resolved_tasks: All tasks resolved by this eval set (tasks × models).
+        eval_set_args: Eval-set level args that participate in task identity.
+        run_eval: Runs the selected tasks under an eval set id, returning their logs.
+
+    Returns:
+        Whether every selected task succeeded, and the logs they produced.
+
+    Raises:
+        PrerequisiteError: If the selection cannot be read, or does not correspond to this eval set's tasks.
+    """
+    selection = read_eval_set_selection(selection_path)
+    selected = _selected_eval_set_tasks(resolved_tasks, selection, eval_set_args)
+    set_eval_set_id_display(selection.eval_set_id)
+    logs = run_eval(selection.eval_set_id, selected)
+    return all_evals_succeeded(logs), logs
+
+
+def _selected_eval_set_tasks(
+    resolved_tasks: list[ResolvedTask],
+    selection: EvalSetSelection,
+    eval_set_args: EvalSetArgsInTaskIdentifier,
+) -> list[ResolvedTask | PreviousTask]:
+    """Pick the tasks named by a worker's selection out of the resolved eval set.
+
+    Args:
+        resolved_tasks: All tasks resolved by this eval set (tasks × models).
+        selection: Selection naming tasks by `task_identifier`.
+        eval_set_args: Eval-set level args that participate in task identity.
+
+    Returns:
+        The selected tasks, in selection order, with any task carrying a `resume` location wrapped as a `PreviousTask` so its completed samples are reused.
+
+    Raises:
+        PrerequisiteError: If an identifier matches no resolved task or more than one of them, or if a `resume` log is missing or belongs to a different task.
+    """
+    by_identifier: dict[str, list[ResolvedTask]] = {}
+    for task in resolved_tasks:
+        by_identifier.setdefault(task_identifier(task, eval_set_args), []).append(task)
+
+    selected: list[ResolvedTask | PreviousTask] = []
+    for entry in selection.tasks:
+        matches = by_identifier.get(entry.identifier, [])
+        if len(matches) == 0:
+            raise PrerequisiteError(
+                f"[bold]ERROR[/bold]: Task identifier '{entry.identifier}' does "
+                f"not match any of the {len(resolved_tasks)} tasks resolved by "
+                "this eval set. The definition may have changed since its "
+                "tasks were enumerated, or it may be running from a different "
+                "path or working directory (a task's source file is part of "
+                "its identity)."
+            )
+        elif len(matches) > 1:
+            raise PrerequisiteError(
+                f"[bold]ERROR[/bold]: Task identifier '{entry.identifier}' "
+                f"matches {len(matches)} tasks in this eval set. Tasks in an "
+                "eval set must be uniquely identified."
+            )
+        selected.append(
+            _resumed_task(matches[0], entry.identifier, entry.resume)
+            if entry.resume is not None
+            else matches[0]
+        )
+
+    return selected
+
+
+def _resumed_task(task: ResolvedTask, identifier: str, resume: str) -> PreviousTask:
+    from inspect_ai.log._file import log_file_info
+
+    fs = filesystem(resume)
+    if not fs.exists(resume):
+        raise PrerequisiteError(
+            f"[bold]ERROR[/bold]: The log '{resume}' selected for resuming task "
+            f"'{identifier}' does not exist."
+        )
+
+    log_info = log_file_info(fs.info(resume))
+    eval_log = read_eval_log_headers([log_info])[0]
+    log_identifier = task_identifier(eval_log, None)
+    if log_identifier != identifier:
+        raise PrerequisiteError(
+            f"[bold]ERROR[/bold]: The log '{resume}' selected for resuming task "
+            f"'{identifier}' belongs to a different task ('{log_identifier}')."
+        )
+
+    eval_log, log_info = _recover_crashed_log(eval_log, log_info)
+    return PreviousTask(
+        id=eval_log.eval.task_id,
+        task=task.task,
+        task_args=resolve_task_args(task.task),
+        model=task.model,
+        model_roles=task.model_roles,
+        log=eval_log,
+        log_info=log_info,
+    )
 
 
 # filters to determine when we are done
