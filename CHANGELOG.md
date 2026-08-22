@@ -1,4 +1,5 @@
 ## Unreleased
+- Sandbox: Self-check now actually spawns a background child when checking timeout cleanup, so leaked children are reported instead of passing vacuously.
 - Scorer: `pattern()` now falls back to the full regex match when the pattern contains no explicit capture groups (previously such patterns always scored INCORRECT). (#4828)
 - Bugfix: Bump the `fsspec` upper bound from `<=2025.9.0` to `<=2026.6.0` to align with the current `huggingface/datasets` cap. (#4761)
 - Tools: The `grep` tool now supports extended regex via a new `extended_regexp` option (patterns remain basic regex by default).

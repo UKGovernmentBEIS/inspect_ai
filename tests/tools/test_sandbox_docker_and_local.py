@@ -87,6 +87,14 @@ SANDBOX_CONFIGS = [
         env_type=DockerSandboxEnvironment,
         config=_compose("test_sandbox_compose_alpine.yaml"),
         requires_docker=True,
+        xfails={
+            "test_write_text_file_without_permissions": "Alpine root can overwrite a read-only file",
+            "test_write_binary_file_without_permissions": "Alpine root can overwrite a read-only file",
+            "test_exec_timeout_kills_child_processes": (
+                "Alpine BusyBox timeout leaves background children running when it "
+                "terminates the direct child shell"
+            ),
+        },
     ),
 ]
 
