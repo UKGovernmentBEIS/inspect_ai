@@ -900,3 +900,86 @@ def test_retry_presence_probe_not_used_for_json_logs(tmp_path: Path) -> None:
         MemoryDataset([Sample(id=1, input="x", target="y")]),
     )
     assert source.prior_exists is _never_prior_exists
+
+
+def test_eval_raising_early_stopping_hook_keeps_sample_counted() -> None:
+    """A raising `EarlyStopping.complete_sample` cannot leave a sample uncounted.
+
+    Terminal state is recorded before the metrics/early-stopping await
+    (design/sample-lifecycle.md): the hook raise still tears the eval down,
+    but the errored-with-scores sample that triggered it has already reached
+    its terminal bucket and the eval its finish stamp — with metrics-first
+    ordering it landed in no bucket at all, so the dying eval could never
+    reach `total`. The counters are observed from inside the hook (the
+    registry is cleared at the run boundary, so there is nothing to read
+    after `eval()` returns).
+    """
+    from inspect_ai._control.eval_state import clear_all_eval_states, get_eval_states
+    from inspect_ai.log._log import EvalSpec
+    from inspect_ai.scorer import SampleScore, Score, Target, accuracy, scorer
+    from inspect_ai.solver import Generate, TaskState, solver
+    from inspect_ai.util import EarlyStop
+
+    @solver
+    def always_boom():
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            raise RuntimeError("solver boom")
+
+        return solve
+
+    @scorer(metrics=[accuracy()])
+    def always_one():
+        async def score(state: TaskState, target: Target) -> Score:
+            return Score(value=1)
+
+        return score
+
+    observed: list[tuple[tuple[int, int, int], bool]] = []
+
+    class RaisingEarlyStopping:
+        async def start_task(
+            self, task: EvalSpec, samples: list[Sample], epochs: int
+        ) -> str:
+            return "raiser"
+
+        async def schedule_sample(self, id: str | int, epoch: int) -> EarlyStop | None:
+            return None
+
+        async def complete_sample(
+            self, id: str | int, epoch: int, scores: dict[str, SampleScore]
+        ) -> None:
+            (state,) = get_eval_states()
+            observed.append(
+                (
+                    (state.completed, state.errored, state.cancelled),
+                    state.completed_at is not None,
+                )
+            )
+            raise RuntimeError("hook failure")
+
+        async def complete_task(self) -> dict[str, Any]:
+            return {}
+
+    clear_all_eval_states()
+    try:
+        log = eval(
+            Task(
+                dataset=[Sample(id="s1", input="x", target="y")],
+                solver=always_boom(),
+                scorer=always_one(),
+                early_stopping=RaisingEarlyStopping(),
+            ),
+            model="mockllm/model",
+            # score_on_error scores the errored sample, so its terminal
+            # report reaches the metrics/early-stopping hook
+            score_on_error=True,
+            fail_on_error=False,
+        )[0]
+    finally:
+        clear_all_eval_states()
+
+    assert log.status == "error"
+    assert log.error is not None and "hook failure" in log.error.message
+    # the sample was in its terminal bucket, and the eval finish-stamped,
+    # before the hook ran
+    assert observed == [((0, 1, 0), True)]
