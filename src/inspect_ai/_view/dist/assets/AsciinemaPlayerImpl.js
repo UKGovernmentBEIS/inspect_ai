@@ -1,6 +1,8 @@
 import { i as __toESM } from "./rolldown-runtime.js";
-import { n as require_react, t as require_jsx_runtime } from "./jsx-runtime.js";
+import { n as require_react, r as require_jsx_runtime, t as require_compiler_runtime } from "./compiler-runtime.js";
 //#region ../../node_modules/.pnpm/asciinema-player@3.17.0/node_modules/asciinema-player/dist/logging-DeB0koVt.js
+var import_jsx_runtime = require_jsx_runtime();
+var import_compiler_runtime = require_compiler_runtime();
 function parseNpt(time) {
 	if (typeof time === "number") return time;
 	else if (typeof time === "string") return time.split(":").reverse().map(parseFloat).reduce((sum, n, i) => sum + n * Math.pow(60, i));
@@ -6616,19 +6618,42 @@ function create(src, elem, opts = {}) {
 //#endregion
 //#region ../../packages/react/src/components/AsciinemaPlayerImpl.tsx
 var import_react = /* @__PURE__ */ __toESM(require_react(), 1);
-var import_jsx_runtime = require_jsx_runtime();
-var AsciinemaPlayerImpl = ({ id, rows, cols, inputUrl, outputUrl, timingUrl, fit, speed, autoPlay, loop, theme, idleTimeLimit = 2, style }) => {
+var AsciinemaPlayerImpl = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(18);
+	const { id, rows, cols, inputUrl, outputUrl, timingUrl, fit, speed, autoPlay, loop, theme, idleTimeLimit: t1, style } = t0;
+	const idleTimeLimit = t1 === void 0 ? 2 : t1;
 	const playerContainerRef = (0, import_react.useRef)(null);
-	(0, import_react.useEffect)(() => {
-		if (!playerContainerRef.current) return;
-		const player = create({
-			url: [
-				timingUrl,
-				outputUrl,
-				inputUrl
-			],
-			parser: "typescript"
-		}, playerContainerRef.current, {
+	let t2;
+	let t3;
+	if ($[0] !== autoPlay || $[1] !== cols || $[2] !== fit || $[3] !== idleTimeLimit || $[4] !== inputUrl || $[5] !== loop || $[6] !== outputUrl || $[7] !== rows || $[8] !== speed || $[9] !== theme || $[10] !== timingUrl) {
+		t2 = () => {
+			if (!playerContainerRef.current) return;
+			const player = create({
+				url: [
+					timingUrl,
+					outputUrl,
+					inputUrl
+				],
+				parser: "typescript"
+			}, playerContainerRef.current, {
+				rows,
+				cols,
+				autoPlay,
+				loop,
+				theme,
+				speed,
+				idleTimeLimit,
+				fit
+			});
+			player.play();
+			return () => {
+				player.dispose();
+			};
+		};
+		t3 = [
+			timingUrl,
+			outputUrl,
+			inputUrl,
 			rows,
 			cols,
 			autoPlay,
@@ -6637,29 +6662,44 @@ var AsciinemaPlayerImpl = ({ id, rows, cols, inputUrl, outputUrl, timingUrl, fit
 			speed,
 			idleTimeLimit,
 			fit
+		];
+		$[0] = autoPlay;
+		$[1] = cols;
+		$[2] = fit;
+		$[3] = idleTimeLimit;
+		$[4] = inputUrl;
+		$[5] = loop;
+		$[6] = outputUrl;
+		$[7] = rows;
+		$[8] = speed;
+		$[9] = theme;
+		$[10] = timingUrl;
+		$[11] = t2;
+		$[12] = t3;
+	} else {
+		t2 = $[11];
+		t3 = $[12];
+	}
+	(0, import_react.useEffect)(t2, t3);
+	const t4 = `asciinema-player-${id || "default"}`;
+	let t5;
+	if ($[13] !== style) {
+		t5 = { ...style };
+		$[13] = style;
+		$[14] = t5;
+	} else t5 = $[14];
+	let t6;
+	if ($[15] !== t4 || $[16] !== t5) {
+		t6 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			id: t4,
+			ref: playerContainerRef,
+			style: t5
 		});
-		player.play();
-		return () => {
-			player.dispose();
-		};
-	}, [
-		timingUrl,
-		outputUrl,
-		inputUrl,
-		rows,
-		cols,
-		autoPlay,
-		loop,
-		theme,
-		speed,
-		idleTimeLimit,
-		fit
-	]);
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-		id: `asciinema-player-${id || "default"}`,
-		ref: playerContainerRef,
-		style: { ...style }
-	});
+		$[15] = t4;
+		$[16] = t5;
+		$[17] = t6;
+	} else t6 = $[17];
+	return t6;
 };
 //#endregion
 export { AsciinemaPlayerImpl as default };
