@@ -1138,3 +1138,44 @@ async def test_run_code_bridge_finalizes_inner_tool_event():
     assert event.pending is not True
     assert event.completed is not None
     assert event.working_time is not None
+    assert event.result == "3"
+
+
+@pytest.mark.anyio
+async def test_run_code_bridge_truncates_inner_tool_event_result():
+    from inspect_ai.event._tool import ToolEvent
+    from inspect_ai.log._transcript import transcript
+
+    def long_output_tool() -> Tool:
+        async def execute(value: str) -> str:
+            """Return a long string.
+
+            Args:
+                value: Value to repeat.
+            """
+            return value * (32 * 1024)
+
+        return ToolDef(
+            execute,
+            name="long_output_tool",
+            description="Returns a long string.",
+        ).as_tool()
+
+    before = len(transcript().events)
+
+    bridge = RunCodeToolBridge(_tool_defs([long_output_tool()]))
+    external_functions = bridge.external_functions()
+
+    result = await external_functions["long_output_tool"]("x")
+
+    # the code gets the whole result, the transcript gets a bounded one
+    assert len(result) == 32 * 1024
+
+    event = [
+        event
+        for event in transcript().events[before:]
+        if isinstance(event, ToolEvent) and event.function == "long_output_tool"
+    ][-1]
+
+    assert event.truncated == (32 * 1024, 16 * 1024)
+    assert "too long to be displayed" in event.result
