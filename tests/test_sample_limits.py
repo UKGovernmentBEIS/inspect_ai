@@ -5,6 +5,7 @@ from typing import Generator
 import anyio
 import pytest
 from test_helpers.limits import check_limit_event, find_limit_event
+from test_helpers.tools import addition
 from test_helpers.utils import (
     flaky_retry,
     skip_if_no_docker,
@@ -32,7 +33,6 @@ from inspect_ai.scorer._scorer import Scorer, scorer
 from inspect_ai.scorer._target import Target
 from inspect_ai.solver import Generate, TaskState, solver, use_tools
 from inspect_ai.solver._solver import Solver, generate
-from inspect_ai.tool._tool import tool
 from inspect_ai.util._concurrency import concurrency
 from inspect_ai.util._limit import TokenLimit, sample_limits
 
@@ -805,24 +805,6 @@ def test_model_cost_config_dict() -> None:
     assert log.status == "success"
     usage = list(log.stats.model_usage.values())[0]
     assert usage.total_cost == pytest.approx(0.007)
-
-
-@tool
-def addition():
-    async def execute(x: int, y: int):
-        """
-        Add two numbers.
-
-        Args:
-            x (int): First number to add.
-            y (int): Second number to add.
-
-        Returns:
-            The sum of the two numbers.
-        """
-        return str(x + y)
-
-    return execute
 
 
 def test_operator_limit_records_reason() -> None:

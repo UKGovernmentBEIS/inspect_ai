@@ -1565,8 +1565,132 @@ async def test_streaming_recovery_captures_sample_limit() -> None:
                 "limit": 1000.0,
                 "reason": "hit",
             }
-            # the buffered summary predates the limit; recovery fills it in so the
-            # cheap read path agrees with the sample body
+            # a terminal summary's `limit` is authoritative in both directions, so
+            # recovery must not stamp one onto it from a limit event: a scoped
+            # limit caught by `apply_limits(catch_errors=True)` leaves an event
+            # behind on a sample that went on to succeed
+            assert "limit" not in summaries[0]
+            assert "limit_reason" not in summaries[0]
+
+
+async def test_streaming_recovery_prefers_limit_event_matching_summary() -> None:
+    """A scoring-phase operator interrupt must not mask the limit that halted.
+
+    The transcript ends with a limit-less operator event (run.py, scoring
+    phase), but the summary says the sample was halted by a message limit —
+    so the body must be rebuilt from the earlier matching event, not the last.
+    """
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            eval_path = os.path.join(temp_dir, "test.eval")
+            buffer_dir = os.path.join(temp_dir, ".buffer", "test")
+            os.makedirs(buffer_dir, exist_ok=True)
+
+            _write_segment_zip(
+                buffer_dir,
+                1,
+                "sample1",
+                1,
+                [
+                    _write_sample_limit_event_dict(
+                        type="message", limit=50.0, message="Message limit exceeded"
+                    ),
+                    _write_sample_limit_event_dict(
+                        type="operator",
+                        limit=None,
+                        message="Unable to score sample due to operator interruption",
+                    ),
+                ],
+            )
+            manifest = Manifest(
+                samples=[
+                    SampleManifest(
+                        summary=_make_summary(
+                            id="sample1", epoch=1, completed=True, limit="message"
+                        ),
+                        segments=[1],
+                    )
+                ],
+                segments=[Segment(id=1, last_event_id=2, last_attachment_id=0)],
+            )
+            with open(os.path.join(buffer_dir, "manifest.json"), "w") as f:
+                f.write(manifest.model_dump_json())
+            with open(os.path.join(buffer_dir, ".keep"), "w") as f:
+                pass
+
+            _write_crashed_eval(eval_path)
+            output_path = os.path.join(temp_dir, "test-recovered.eval")
+            await recover_eval_log_async(
+                eval_path,
+                output=output_path,
+                cleanup=False,
+                _db_dir=os.path.join(temp_dir, "empty_db_dir"),
+            )
+
+            with ZipFile(output_path, "r") as zf:
+                sample_names = [
+                    n
+                    for n in zf.namelist()
+                    if n.startswith("samples/") and n.endswith(".json")
+                ]
+                raw = json.loads(zf.read(sample_names[0]))
+
+            assert raw["limit"] == {
+                "type": "message",
+                "limit": 50.0,
+                "reason": "Message limit exceeded",
+            }
+
+
+async def test_streaming_recovery_fills_in_progress_summary_limit() -> None:
+    """An in-progress sample's summary predates its limit; recovery fills it in.
+
+    Its buffered summary is the start-of-sample one, so unlike a terminal
+    summary it carries no `limit` to contradict.
+    """
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            eval_path = os.path.join(temp_dir, "test.eval")
+            buffer_dir = os.path.join(temp_dir, ".buffer", "test")
+            os.makedirs(buffer_dir, exist_ok=True)
+
+            limit_event = _write_sample_limit_event_dict(
+                type="token", limit=1000.0, message="hit"
+            )
+            _write_segment_zip(
+                buffer_dir,
+                1,
+                "sample1",
+                1,
+                [_make_model_event_dict("response"), limit_event],
+            )
+            # completed_at unset => classified in-progress by the recovery buffer
+            manifest = Manifest(
+                samples=[
+                    SampleManifest(
+                        summary=_make_summary(id="sample1", epoch=1, completed=False),
+                        segments=[1],
+                    )
+                ],
+                segments=[Segment(id=1, last_event_id=2, last_attachment_id=0)],
+            )
+            with open(os.path.join(buffer_dir, "manifest.json"), "w") as f:
+                f.write(manifest.model_dump_json())
+            with open(os.path.join(buffer_dir, ".keep"), "w") as f:
+                pass
+
+            _write_crashed_eval(eval_path)
+            output_path = os.path.join(temp_dir, "test-recovered.eval")
+            await recover_eval_log_async(
+                eval_path,
+                output=output_path,
+                cleanup=False,
+                _db_dir=os.path.join(temp_dir, "empty_db_dir"),
+            )
+
+            with ZipFile(output_path, "r") as zf:
+                summaries = json.loads(zf.read("summaries.json"))
+
             assert summaries[0]["limit"] == "token"
             assert summaries[0]["limit_reason"] == "hit"
 

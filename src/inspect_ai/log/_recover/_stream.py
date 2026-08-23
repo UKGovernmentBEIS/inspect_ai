@@ -127,6 +127,7 @@ def _write_sample_streaming(
     # Per-sample reconstruction state captured from raw events
     sample_init: SampleInitEvent | None = None
     sample_limit_event: SampleLimitEvent | None = None
+    sample_limit_event_matching: SampleLimitEvent | None = None
     sample_metadata = buffer.read_sample_metadata(summary.id, summary.epoch, manifest)
 
     # Build the error field
@@ -235,6 +236,13 @@ def _write_sample_streaming(
                     sample_init = ev
                 if isinstance(ev, SampleLimitEvent):
                     sample_limit_event = ev  # keep the last
+                    # ...but a transcript can hold several, and the last one
+                    # isn't necessarily the one that halted the sample: an
+                    # operator interrupt during the scoring phase appends a
+                    # second event after whatever ended the run phase. Where the
+                    # terminal summary names the limit, it decides.
+                    if summary.limit is not None and ev.type == summary.limit:
+                        sample_limit_event_matching = ev
 
             # Feed resolved (uncondensed) events to the message accumulator;
             # the events written to the recovered log stay condensed below.
@@ -284,27 +292,32 @@ def _write_sample_streaming(
                 files_value = list(sample_init.sample.files.keys())
             setup_value = sample_init.sample.setup if sample_init is not None else None
             limit_value: EvalSampleLimit | None = None
-            if sample_limit_event is not None:
-                if sample_limit_event.limit is not None:
+            limit_event = sample_limit_event_matching or sample_limit_event
+            if limit_event is not None:
+                if limit_event.limit is not None:
                     limit_value = EvalSampleLimit(
-                        type=sample_limit_event.type,
-                        limit=sample_limit_event.limit,
-                        reason=sample_limit_event.message,
+                        type=limit_event.type,
+                        limit=limit_event.limit,
+                        reason=limit_event.message,
                     )
-                elif (
-                    sample_limit_event.type == "operator"
-                    and summary.limit == "operator"
-                ):
+                elif limit_event.type == "operator" and summary.limit == "operator":
                     # the operator interrupt event carries no numeric limit, so the
                     # branch above can't rebuild it. Only `interrupt_action ==
                     # "score"` records an operator limit -- "error"/"cancel" and a
                     # scoring-phase interrupt emit the same event but record an
                     # error instead -- so trust the terminal summary rather than the
-                    # event, and use the sentinel the live path writes.
+                    # event, and use the sentinel the live path writes. The summary's
+                    # own reason wins for the same reason: a later scoring-phase
+                    # interrupt would leave a second operator event whose message
+                    # describes the scoring failure, not what halted the sample.
                     limit_value = EvalSampleLimit(
                         type="operator",
                         limit=1,
-                        reason=sample_limit_event.message,
+                        reason=(
+                            summary.limit_reason
+                            if summary.limit_reason is not None
+                            else limit_event.message
+                        ),
                     )
 
             # Get messages and output from accumulator
@@ -382,9 +395,13 @@ def _write_sample_streaming(
 
     # An in-progress sample's buffered summary predates its limit (it is the
     # start-of-sample summary), so the reconstructed body would carry a limit the
-    # summary doesn't. Fill it in -- but never overwrite a terminal summary's own
-    # value, which is authoritative where the last limit event is only a guess.
-    if summary.limit is None and limit_value is not None:
+    # summary doesn't. Fill it in -- but only for in-progress samples: a terminal
+    # summary's `limit` is authoritative in both directions, and `None` there
+    # means no limit halted the sample. The reconstructed value is only a guess
+    # (a scoped limit caught by `apply_limits(catch_errors=True)` leaves a
+    # SampleLimitEvent behind on a sample that went on to succeed), so it must
+    # never contradict a summary that actually knows.
+    if is_in_progress and summary.limit is None and limit_value is not None:
         summary.limit = limit_value.type
         summary.limit_reason = limit_value.reason
 

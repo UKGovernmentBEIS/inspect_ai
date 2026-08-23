@@ -468,7 +468,8 @@ async def current_sample_listing(
         rows = [s for s in rows if s["status"] in statuses]
     if not content:
         # withhold the error message and the limit's reason (row copies — the
-        # summaries may be the memoized log read); `status` and `limit` still read
+        # summaries may be the memoized log read); `status` still reads "error"
+        # and `limit` still names the limit type
         rows = [
             {**s, "error": None, "limit_reason": None}
             if s.get("error") is not None or s.get("limit_reason") is not None
@@ -809,6 +810,10 @@ async def sample_error_detail(
             _error_dict(e, content) for e in (sample.error_retries or [])
         ],
         "scores": {name: score.value for name, score in (sample.scores or {}).items()},
+        # the row arrives ungated (the listing does its own redaction), so the
+        # limit's reason — agent-influenceable, like the error message above —
+        # must be withheld here too
+        "limit_reason": (row or {}).get("limit_reason") if content else None,
     }
 
 
