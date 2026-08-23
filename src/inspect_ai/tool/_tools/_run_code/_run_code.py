@@ -16,7 +16,6 @@ from ._run_code_executor import (
     MontyRunCodeExecutor,
     RunCodeExecutor,
     RunCodeResult,
-    StubRunCodeExecutor,
 )
 
 TRUNCATION_MARKER = "..."
@@ -55,7 +54,7 @@ def _tool_signature(tool_def: ToolDef) -> str:
 
 
 def _resolve_executor(
-    executor: RunCodeExecutor | Literal["monty", "stub"],
+    executor: RunCodeExecutor | Literal["monty"],
     *,
     tool_defs: list[ToolDef],
     max_inner_tool_calls: int | None,
@@ -71,8 +70,6 @@ def _resolve_executor(
                 tool_defs=tool_defs,
                 max_inner_tool_calls=max_inner_tool_calls,
             )
-        if executor == "stub":
-            return StubRunCodeExecutor()
         raise ValueError(f"Unknown run_code executor: {executor}")
 
     return executor
@@ -224,7 +221,7 @@ def _run_code_usage_description(tool_defs: list[ToolDef]) -> str:
 def run_code(
     tools: Sequence[Tool] | None = None,
     timeout: float | None = None,
-    executor: RunCodeExecutor | Literal["monty", "stub"] = "monty",
+    executor: RunCodeExecutor | Literal["monty"] = "monty",
     max_inner_tool_calls: int | None = None,
     include_tool_call_trace: bool = False,
     max_output_chars: int | None = None,
@@ -235,8 +232,7 @@ def run_code(
         tools: Tools that code executed by run_code may call.
         timeout: Maximum execution time in seconds.
         executor: Executor used to run code. Use "monty" for the Pydantic Monty-backed executor,
-            "stub" for the placeholder executor, or pass a custom
-            RunCodeExecutor for tests / alternative backends.
+            or pass a custom RunCodeExecutor for tests / alternative backends.
         max_inner_tool_calls: Maximum number of allowlisted tool calls from inside run_code.
         include_tool_call_trace: Whether to include a compact trace of inner tool calls in the result.
         max_output_chars: Maximum number of characters returned by run_code. If None, output is not truncated.

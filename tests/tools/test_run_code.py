@@ -50,15 +50,6 @@ def test_run_code_viewer_renders_code():
     assert "```python\n1 + 1\n```" in view.call.content
 
 
-@pytest.mark.anyio
-async def test_run_code_tool_executes_stub_when_requested():
-    tool = run_code(executor="stub")
-
-    result = await tool(code="1")
-
-    assert "not implemented" in result[0].text
-
-
 def dummy_tool() -> Tool:
     async def execute(value: str) -> str:
         """Echo a value.

@@ -37,15 +37,6 @@ class RunCodeExecutor(Protocol):
         ...
 
 
-class StubRunCodeExecutor:
-    """Placeholder executor used until real code execution is implemented."""
-
-    async def execute(self, code: str) -> RunCodeResult:
-        return RunCodeResult(
-            output=[ContentText(text="run_code execution is not implemented yet")]
-        )
-
-
 class MontyRunCodeExecutor:
     """Run code using Pydantic Monty."""
 
