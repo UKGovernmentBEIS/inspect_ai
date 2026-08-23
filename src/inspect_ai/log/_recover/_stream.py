@@ -32,7 +32,6 @@ from inspect_ai.log._condense import (
     walk_input,
 )
 from inspect_ai.log._log import (
-    EvalSampleLimit,
     EvalSampleSummary,
     EvalSpec,
     EventsData,
@@ -46,6 +45,7 @@ from ._reconstruct import (
     EventVersionCollapser,
     MessageAccumulator,
     _summary_with_uuid_fallback,
+    recovered_sample_limit,
 )
 
 logger = getLogger(__name__)
@@ -291,34 +291,11 @@ def _write_sample_streaming(
             if sample_init is not None and sample_init.sample.files:
                 files_value = list(sample_init.sample.files.keys())
             setup_value = sample_init.sample.setup if sample_init is not None else None
-            limit_value: EvalSampleLimit | None = None
-            limit_event = sample_limit_event_matching or sample_limit_event
-            if limit_event is not None:
-                if limit_event.limit is not None:
-                    limit_value = EvalSampleLimit(
-                        type=limit_event.type,
-                        limit=limit_event.limit,
-                        reason=limit_event.message,
-                    )
-                elif limit_event.type == "operator" and summary.limit == "operator":
-                    # the operator interrupt event carries no numeric limit, so the
-                    # branch above can't rebuild it. Only `interrupt_action ==
-                    # "score"` records an operator limit -- "error"/"cancel" and a
-                    # scoring-phase interrupt emit the same event but record an
-                    # error instead -- so trust the terminal summary rather than the
-                    # event, and use the sentinel the live path writes. The summary's
-                    # own reason wins for the same reason: a later scoring-phase
-                    # interrupt would leave a second operator event whose message
-                    # describes the scoring failure, not what halted the sample.
-                    limit_value = EvalSampleLimit(
-                        type="operator",
-                        limit=1,
-                        reason=(
-                            summary.limit_reason
-                            if summary.limit_reason is not None
-                            else limit_event.message
-                        ),
-                    )
+            # the incremental equivalent of `select_limit_event`: prefer the last
+            # event matching the summary's limit type, else the last seen
+            limit_value = recovered_sample_limit(
+                summary, sample_limit_event_matching or sample_limit_event
+            )
 
             # Get messages and output from accumulator
             messages, output = accumulator.result()
@@ -393,16 +370,14 @@ def _write_sample_streaming(
 
     summary.completed = True
 
-    # An in-progress sample's buffered summary predates its limit (it is the
-    # start-of-sample summary), so the reconstructed body would carry a limit the
-    # summary doesn't. Fill it in -- but only for in-progress samples: a terminal
-    # summary's `limit` is authoritative in both directions, and `None` there
-    # means no limit halted the sample. The reconstructed value is only a guess
-    # (a scoped limit caught by `apply_limits(catch_errors=True)` leaves a
-    # SampleLimitEvent behind on a sample that went on to succeed), so it must
-    # never contradict a summary that actually knows.
-    if is_in_progress and summary.limit is None and limit_value is not None:
-        summary.limit = limit_value.type
-        summary.limit_reason = limit_value.reason
+    # Deliberately NOT back-filling `summary.limit` from `limit_value` for an
+    # in-progress sample. Its buffered summary is the start-of-sample one, so it
+    # never names a limit -- but the reconstructed value is only a guess: a
+    # scoped limit caught by `apply_limits(catch_errors=True)` leaves a
+    # SampleLimitEvent behind on a sample that kept running, and nothing in the
+    # transcript distinguishes that from the limit that halted it. The summary is
+    # the cheap authoritative index consumers classify from, so leaving it unset
+    # ("we don't know") beats seeding it with a guess. The body keeps the
+    # best-effort reconstruction.
 
     return summary, sample_metadata

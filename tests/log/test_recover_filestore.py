@@ -1642,11 +1642,12 @@ async def test_streaming_recovery_prefers_limit_event_matching_summary() -> None
             }
 
 
-async def test_streaming_recovery_fills_in_progress_summary_limit() -> None:
-    """An in-progress sample's summary predates its limit; recovery fills it in.
+async def test_streaming_recovery_leaves_in_progress_summary_limit_unset() -> None:
+    """An in-progress sample's summary is not seeded from a limit event.
 
-    Its buffered summary is the start-of-sample one, so unlike a terminal
-    summary it carries no `limit` to contradict.
+    Nothing in the transcript distinguishes the limit that halted a sample from
+    a scoped one caught by `apply_limits(catch_errors=True)`, so the cheap
+    authoritative index stays unset rather than carrying a guess.
     """
     async with AsyncFilesystem():
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -1689,10 +1690,23 @@ async def test_streaming_recovery_fills_in_progress_summary_limit() -> None:
             )
 
             with ZipFile(output_path, "r") as zf:
+                sample_names = [
+                    n
+                    for n in zf.namelist()
+                    if n.startswith("samples/") and n.endswith(".json")
+                ]
+                raw = json.loads(zf.read(sample_names[0]))
                 summaries = json.loads(zf.read("summaries.json"))
 
-            assert summaries[0]["limit"] == "token"
-            assert summaries[0]["limit_reason"] == "hit"
+            # the body keeps the best-effort reconstruction...
+            assert raw["limit"] == {
+                "type": "token",
+                "limit": 1000.0,
+                "reason": "hit",
+            }
+            # ...but the summary does not inherit the guess
+            assert "limit" not in summaries[0]
+            assert "limit_reason" not in summaries[0]
 
 
 async def _recover_operator_limit_sample(
