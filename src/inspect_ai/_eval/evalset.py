@@ -584,6 +584,19 @@ def eval_set(
             f.write(to_json_safe(capture))
         raise SystemExit(0)
 
+    # a selection may carry operational overrides for this worker. read it
+    # before log_dir is used for anything: `filesystem()` is derived from it,
+    # and `run_eval` closes over both names -- closures are late-binding, so
+    # rebinding here is what the closure will see.
+    selection = (
+        read_eval_set_selection(selection_path) if selection_path is not None else None
+    )
+    if selection is not None:
+        if selection.log_dir is not None:
+            log_dir = selection.log_dir
+        if selection.max_samples is not None:
+            max_samples = selection.max_samples
+
     # ensure log_dir
     fs = filesystem(log_dir)
     fs.mkdir(log_dir, exist_ok=True)
@@ -593,7 +606,7 @@ def eval_set(
     # (directory scanning, eval-set metadata, retry partitioning, log cleanup,
     # bundling) and is deliberately skipped -- the external runner owns it, and
     # skipping it is what lets many workers share one log directory.
-    if selection_path is not None:
+    if selection is not None:
         if isinstance(tasks, TaskSource):
             raise PrerequisiteError(
                 "Dynamic task sources (TaskSource) cannot be used with "
@@ -633,7 +646,7 @@ def eval_set(
         # the keep-alive park and the registry reset to its caller.
         try:
             return _run_eval_set_selection(
-                selection_path,
+                selection,
                 selection_tasks,
                 EvalSetArgsInTaskIdentifier(
                     config=selection_config,
@@ -1242,7 +1255,7 @@ def _recover_crashed_log(
 
 
 def _run_eval_set_selection(
-    selection_path: str,
+    selection: EvalSetSelection,
     resolved_tasks: list[ResolvedTask],
     eval_set_args: EvalSetArgsInTaskIdentifier,
     run_eval: Callable[[str, list[ResolvedTask | PreviousTask]], list[EvalLog]],
@@ -1256,7 +1269,7 @@ def _run_eval_set_selection(
     directory, its metadata, and every retry decision.
 
     Args:
-        selection_path: Path to the selection document (from `INSPECT_EVAL_SET_SELECTION`).
+        selection: The selection document read from `INSPECT_EVAL_SET_SELECTION` (any operational overrides it carries have already been applied by the caller).
         resolved_tasks: All tasks resolved by this eval set (tasks × models).
         eval_set_args: Eval-set level args that participate in task identity.
         run_eval: Runs the selected tasks under an eval set id, returning their logs.
@@ -1266,9 +1279,8 @@ def _run_eval_set_selection(
         Whether every selected task succeeded, and the logs they produced.
 
     Raises:
-        PrerequisiteError: If the selection cannot be read, or does not correspond to this eval set's tasks.
+        PrerequisiteError: If the selection does not correspond to this eval set's tasks.
     """
-    selection = read_eval_set_selection(selection_path)
     selected = _selected_eval_set_tasks(resolved_tasks, selection, eval_set_args)
     set_eval_set_id_display(selection.eval_set_id)
     logs = run_eval(selection.eval_set_id, selected)
