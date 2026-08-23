@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Eval Set: Protocol for running a selection of an eval set's tasks (`INSPECT_EVAL_SET_SELECTION`), so an external runner can execute one task per process into a shared log directory while owning the eval-set metadata itself. Selected tasks run through the ordinary `eval()` path with no eval-set orchestration; because the runner owns completion decisions, workers neither fail a task on sample errors nor retry a task in-process.
+- Eval Set: An eval-set selection may now carry operational overrides for the worker (`log_dir`, `max_samples`), letting an external runner redirect a worker's logs or set its sample concurrency without editing the definition. Neither participates in task identity, so overriding them cannot desynchronize a worker from the capture manifest. Selection schema version is now 2 (version 1 documents are still accepted).
 - Sandbox: Sandbox-tools binaries downloaded from S3 are now verified against SHA256 digests pinned in the package; failures warn by default, or fail when `INSPECT_SANDBOX_TOOLS_STRICT_DIGESTS` is set.
 - Sandbox: `bash_session` no longer stops returning output for the rest of the session when multibyte output happens to be split mid-character across reads.
 - Docker Sandbox: New `--sandbox-prebuilt` option (`sandbox_prebuilt` on `eval()`) skips image builds and fails fast at task startup when a prebuilt image is missing.
