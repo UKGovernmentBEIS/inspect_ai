@@ -329,7 +329,8 @@ async def current_sample_summaries(
     see :func:`_sample_activity`; ``None`` on non-running rows and when
     nothing is pending), ``events`` (live transcript event count; ``None``
     for terminal / pending samples), ``scores`` (``{scorer: value}``, empty
-    until scored), ``error``, ``retries``, ``limit``.
+    until scored), ``error``, ``retries``, ``limit``, ``limit_reason`` (why the
+    limit fired — agent-influenceable free text, gated by ``content``).
 
     ``sample_filter="errors"`` restricts the result to samples that carry an
     error or have been retried (``error`` set, or ``retries`` > 0) — the
@@ -445,12 +446,13 @@ async def current_sample_listing(
     the whole-eval listing is exactly what the filter exists to avoid
     building.
 
-    ``content`` gates each row's ``error`` message — free text the evaluated
-    agent can influence (tool-raised exceptions embed agent output). The
-    default withholds it, leaving ``status`` / ``retries`` as the metadata
-    signal, so the listing stays readable by a monitor that must never
-    ingest agent-controlled text (see "Trust boundary for readers" in
-    design/ctl/control-channel.md).
+    ``content`` gates each row's ``error`` message and ``limit_reason`` — free
+    text the evaluated agent can influence (tool-raised exceptions embed agent
+    output; a bridged agent supplies its own termination reason via
+    ``AgentBridge.request_terminate()``). The default withholds both, leaving
+    ``status`` / ``retries`` / ``limit`` as the metadata signal, so the listing
+    stays readable by a monitor that must never ingest agent-controlled text
+    (see "Trust boundary for readers" in design/ctl/control-channel.md).
     """
     summaries = await current_sample_summaries(eval_id, sample_filter)
 
@@ -465,9 +467,14 @@ async def current_sample_listing(
     if statuses is not None:
         rows = [s for s in rows if s["status"] in statuses]
     if not content:
-        # withhold the error message (row copies — the summaries may be the
-        # memoized log read); `status` still reads "error"
-        rows = [{**s, "error": None} if s.get("error") is not None else s for s in rows]
+        # withhold the error message and the limit's reason (row copies — the
+        # summaries may be the memoized log read); `status` and `limit` still read
+        rows = [
+            {**s, "error": None, "limit_reason": None}
+            if s.get("error") is not None or s.get("limit_reason") is not None
+            else s
+            for s in rows
+        ]
 
     truncated = limit is not None and len(rows) > limit
     if truncated:
@@ -544,6 +551,7 @@ def _requeued_summary(summary: dict[str, Any]) -> dict[str, Any]:
         "scores": {},
         "error": None,
         "limit": None,
+        "limit_reason": None,
     }
 
 
@@ -568,6 +576,7 @@ def _pending_summary(sample_id: Any, epoch: int) -> dict[str, Any]:
         "error": None,
         "retries": None,
         "limit": None,
+        "limit_reason": None,
     }
 
 
@@ -958,6 +967,7 @@ def _summary_from_eval_sample_summary(
         "error": error,
         "retries": summary.retries,
         "limit": summary.limit,
+        "limit_reason": summary.limit_reason,
     }
 
 
@@ -1027,6 +1037,7 @@ def _active_sample_summary(s: "ActiveSample") -> dict[str, Any]:
         "error": None,
         "retries": s.retries or None,
         "limit": None,
+        "limit_reason": None,
     }
 
 

@@ -284,11 +284,28 @@ def _write_sample_streaming(
                 files_value = list(sample_init.sample.files.keys())
             setup_value = sample_init.sample.setup if sample_init is not None else None
             limit_value: EvalSampleLimit | None = None
-            if sample_limit_event is not None and sample_limit_event.limit is not None:
-                limit_value = EvalSampleLimit(
-                    type=sample_limit_event.type,
-                    limit=sample_limit_event.limit,
-                )
+            if sample_limit_event is not None:
+                if sample_limit_event.limit is not None:
+                    limit_value = EvalSampleLimit(
+                        type=sample_limit_event.type,
+                        limit=sample_limit_event.limit,
+                        reason=sample_limit_event.message,
+                    )
+                elif (
+                    sample_limit_event.type == "operator"
+                    and summary.limit == "operator"
+                ):
+                    # the operator interrupt event carries no numeric limit, so the
+                    # branch above can't rebuild it. Only `interrupt_action ==
+                    # "score"` records an operator limit -- "error"/"cancel" and a
+                    # scoring-phase interrupt emit the same event but record an
+                    # error instead -- so trust the terminal summary rather than the
+                    # event, and use the sentinel the live path writes.
+                    limit_value = EvalSampleLimit(
+                        type="operator",
+                        limit=1,
+                        reason=sample_limit_event.message,
+                    )
 
             # Get messages and output from accumulator
             messages, output = accumulator.result()
@@ -362,5 +379,13 @@ def _write_sample_streaming(
         attachments.close()
 
     summary.completed = True
+
+    # An in-progress sample's buffered summary predates its limit (it is the
+    # start-of-sample summary), so the reconstructed body would carry a limit the
+    # summary doesn't. Fill it in -- but never overwrite a terminal summary's own
+    # value, which is authoritative where the last limit event is only a guess.
+    if summary.limit is None and limit_value is not None:
+        summary.limit = limit_value.type
+        summary.limit_reason = limit_value.reason
 
     return summary, sample_metadata

@@ -84,7 +84,10 @@ def _make_model_event_dict(content: str) -> dict:
 
 
 def _make_summary(
-    id: str | int = "sample1", epoch: int = 1, completed: bool = False
+    id: str | int = "sample1",
+    epoch: int = 1,
+    completed: bool = False,
+    limit: str | None = None,
 ) -> EvalSampleSummary:
     return EvalSampleSummary(
         id=id,
@@ -93,6 +96,7 @@ def _make_summary(
         target=f"target {id}",
         started_at=datetime.now(timezone.utc).isoformat(),
         completed_at=datetime.now(timezone.utc).isoformat() if completed else None,
+        limit=limit,
     )
 
 
@@ -1554,7 +1558,89 @@ async def test_streaming_recovery_captures_sample_limit() -> None:
                 ]
                 raw = json.loads(zf.read(sample_names[0]))
 
-            assert raw["limit"] == {"type": "token", "limit": 1000.0}
+                summaries = json.loads(zf.read("summaries.json"))
+
+            assert raw["limit"] == {
+                "type": "token",
+                "limit": 1000.0,
+                "reason": "hit",
+            }
+            # the buffered summary predates the limit; recovery fills it in so the
+            # cheap read path agrees with the sample body
+            assert summaries[0]["limit"] == "token"
+            assert summaries[0]["limit_reason"] == "hit"
+
+
+async def _recover_operator_limit_sample(
+    temp_dir: str, summary_limit: str | None
+) -> dict:
+    """Recover a sample whose only limit event is a limit-less operator interrupt."""
+    eval_path = os.path.join(temp_dir, "test.eval")
+    buffer_dir = os.path.join(temp_dir, ".buffer", "test")
+    os.makedirs(buffer_dir, exist_ok=True)
+
+    # the operator interrupt event (run.py) records no numeric limit
+    limit_event = _write_sample_limit_event_dict(
+        type="operator",
+        limit=None,
+        message="Sample completed: interrupted by operator",
+    )
+    _write_segment_zip(
+        buffer_dir, 1, "sample1", 1, [_make_model_event_dict("response"), limit_event]
+    )
+    summary = _make_summary(id="sample1", epoch=1, completed=True, limit=summary_limit)
+    manifest = Manifest(
+        samples=[SampleManifest(summary=summary, segments=[1])],
+        segments=[Segment(id=1, last_event_id=2, last_attachment_id=0)],
+    )
+    with open(os.path.join(buffer_dir, "manifest.json"), "w") as f:
+        f.write(manifest.model_dump_json())
+    with open(os.path.join(buffer_dir, ".keep"), "w") as f:
+        pass
+
+    _write_crashed_eval(eval_path)
+    output_path = os.path.join(temp_dir, "test-recovered.eval")
+    await recover_eval_log_async(
+        eval_path,
+        output=output_path,
+        cleanup=False,
+        _db_dir=os.path.join(temp_dir, "empty_db_dir"),
+    )
+
+    with ZipFile(output_path, "r") as zf:
+        sample_names = [
+            n for n in zf.namelist() if n.startswith("samples/") and n.endswith(".json")
+        ]
+        return json.loads(zf.read(sample_names[0]))
+
+
+async def test_streaming_recovery_captures_limitless_operator_limit() -> None:
+    """A scored operator interrupt recovers its limit despite carrying no number."""
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            raw = await _recover_operator_limit_sample(
+                temp_dir, summary_limit="operator"
+            )
+
+            assert raw["limit"] == {
+                "type": "operator",
+                "limit": 1,
+                "reason": "Sample completed: interrupted by operator",
+            }
+
+
+async def test_streaming_recovery_skips_operator_limit_when_not_scored() -> None:
+    """The same event under `--action error`/`cancel` must not become a limit.
+
+    All three interrupt actions emit the identical limit-less operator event, but
+    only "score" records an `EvalSampleLimit` — the others record an error. The
+    terminal summary is what distinguishes them.
+    """
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            raw = await _recover_operator_limit_sample(temp_dir, summary_limit=None)
+
+            assert raw["limit"] is None
 
 
 def _write_segment_zip_with_event_ids(

@@ -318,6 +318,49 @@ async def test_listing_withholds_error_message_unless_content(monkeypatch) -> No
         clear_all_eval_states()
 
 
+async def test_listing_withholds_limit_reason_unless_content(monkeypatch) -> None:
+    """The listing's ``limit_reason`` is gated like the error message.
+
+    A bridged agent supplies its own termination reason via
+    ``AgentBridge.request_terminate()``, so the text is agent-influenced. The
+    ``limit`` type itself is metadata and stays visible.
+    """
+    from inspect_ai._control.eval_state import clear_all_eval_states, register_eval
+    from inspect_ai._control.state import current_sample_listing
+
+    monkeypatch.setattr("inspect_ai.log._samples.active_samples", lambda: [])
+    reason = "Terminated by monitor: <injection payload>"
+    completed = [
+        EvalSampleSummary(
+            id="stopped",
+            epoch=1,
+            input="i",
+            target="t",
+            limit="operator",
+            limit_reason=reason,
+        ),
+    ]
+    try:
+        register_eval(
+            "e-limit-content",
+            7,
+            live=cast("LiveEvalData", _FakeLive(completed)),
+            sample_ids=["stopped"],
+            epochs=1,
+        )
+
+        listing = await current_sample_listing("e-limit-content")
+        [row] = [r for r in listing.samples if r["sample_id"] == "stopped"]
+        assert row["limit"] == "operator"
+        assert row["limit_reason"] is None
+
+        listing = await current_sample_listing("e-limit-content", content=True)
+        [row] = [r for r in listing.samples if r["sample_id"] == "stopped"]
+        assert row["limit_reason"] == reason
+    finally:
+        clear_all_eval_states()
+
+
 async def test_error_detail_withholds_free_text_unless_content(monkeypatch) -> None:
     """``sample_error_detail`` gates the error free text.
 

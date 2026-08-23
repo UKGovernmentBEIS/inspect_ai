@@ -68,7 +68,7 @@ Four read endpoints can carry attacker-controlled content (since issue #190 ship
 | `GET /evals/{id}/sample/messages` | `TaskState.messages` (`_control/messages.py`) | assistant completions; tool-call `arguments` (model-chosen); tool-message `content` (**sandbox output — fully agent-controlled**); tool `error`; `function` name |
 | `GET /evals/{id}/sample/events` | transcript events (`_control/events.py`) | model event `completion`; tool event `arguments`/`result`/`function`; `error` event `message`; `info` event `source`/`data` |
 | `GET /evals/{id}/sample` | error detail (`_control/state.py`, `sample_error_detail`) | error `message`, `traceback`, `traceback_ansi` — plus the same for every prior retry (tool-raised exception messages embed agent-influenced strings) |
-| `GET /evals/{id}/samples` | sample listing | `activity.detail` (in-flight tool `function` name, model-chosen); `filter=errors` rows carry the error `message` |
+| `GET /evals/{id}/samples` | sample listing | `activity.detail` (in-flight tool `function` name, model-chosen); `filter=errors` rows carry the error `message`; terminal rows carry `limit_reason` (a bridged agent supplies its own text via `AgentBridge.request_terminate()`) |
 
 The compact projections truncate free-text to 256 chars (`_TRUNCATE`/`_truncate` in `_control/events.py`, shared by `messages.py`) — but truncation is a size bound, not a sanitizer. `full=true` returns `model_dump(mode="json")` **untruncated** — the entire conversation / event content, raw. Machine consumers (`--json` / `--full`) get bytes-faithful data by contract and must do their own quoting/escaping; the sanitization described below is a property of the CLI's *human* rendering paths only.
 
