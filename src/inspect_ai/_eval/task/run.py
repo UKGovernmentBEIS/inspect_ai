@@ -320,13 +320,14 @@ class _ReuseSweepCountdown:
     Counts planned ``(sample, epoch)`` runs; each ``run_sample`` settles one
     as soon as its prior-attempt lookup (and any re-log) has resolved. The
     final settle means the re-logged reused set is complete, so
-    ``TaskLogger.schedule_quiet_flush`` writes it to the destination in one
-    deterministic flush — keyed to an exact event rather than a stale timer,
-    it fires no earlier (no partial-sweep flushes), no later (no idle wait),
-    and not at all when nothing was reused (the flush is a no-op with nothing
-    quiet pending). A SampleSource-driven task can add planned runs after the
-    seed sweep settles; ``add`` raises the count again so a later settle
-    drains any follow-up reuse.
+    ``TaskLogger.reuse_sweep_settled`` releases the attempt's
+    destination-write hold and writes the set in one deterministic flush —
+    keyed to an exact event rather than a stale timer, it fires no earlier
+    (no partial-sweep flushes, so the attempt's first on-disk version already
+    carries every reused sample) and no later (no idle wait). A
+    SampleSource-driven task can add planned runs after the seed sweep
+    settles; ``add`` raises the count again so a later settle drains any
+    follow-up reuse.
 
     No lock: count mutations happen on the eval's single event-loop thread
     with no await point between read and write.
@@ -342,7 +343,7 @@ class _ReuseSweepCountdown:
     def settle_one(self) -> None:
         self._remaining -= 1
         if self._remaining == 0:
-            self._logger.schedule_quiet_flush()
+            self._logger.reuse_sweep_settled()
 
 
 def _sample_transcript_config(
@@ -703,6 +704,13 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
         # start the log (do this outside fo the try b/c the try/except assumes
         # that the log is initialized)
         eval_plan = plan_to_eval_plan(plan, generate_config)
+        # a retry attempt with a non-empty seed defers every destination write
+        # until its reuse sweep settles (the countdown below fires
+        # reuse_sweep_settled, which releases the hold). A zero-seed
+        # SampleSource-driven task skips the hold: its samples arrive over
+        # time, so there is no early settle event to key the release to.
+        if sample_source is not None and store_len * epochs > 0:
+            logger.hold_destination_writes()
         await logger.log_start(eval_plan)
 
         try:
@@ -2029,10 +2037,13 @@ async def task_run_sample(
                                 except anyio.get_cancelled_exc_class() as ex:
                                     if active.interrupt_action:
                                         # record event
+                                        interrupt_reason = (
+                                            "Sample completed: interrupted by operator"
+                                        )
                                         transcript()._event(
                                             SampleLimitEvent(
                                                 type="operator",
-                                                message="Sample completed: interrupted by operator",
+                                                message=interrupt_reason,
                                             )
                                         )
 
@@ -2042,7 +2053,9 @@ async def task_run_sample(
                                                 # continue to scoring (capture the most recent state)
                                                 state = sample_state() or state
                                                 limit = EvalSampleLimit(
-                                                    type="operator", limit=1
+                                                    type="operator",
+                                                    limit=1,
+                                                    reason=interrupt_reason,
                                                 )
                                             case "error":
                                                 # default error handling — but
@@ -2106,6 +2119,7 @@ async def task_run_sample(
                                             limit=err.limit
                                             if err.limit is not None
                                             else -1,
+                                            reason=err.message,
                                         )
 
                                     # this was not a user interrupt or working time limit so propagate
@@ -2168,7 +2182,9 @@ async def task_run_sample(
                         # capture most recent state for scoring
                         state = sample_state() or state
                         limit = EvalSampleLimit(
-                            type=ex.type, limit=ex.limit if ex.limit is not None else -1
+                            type=ex.type,
+                            limit=ex.limit if ex.limit is not None else -1,
+                            reason=ex.message,
                         )
 
                     except TerminateSampleError as ex:
@@ -2181,7 +2197,9 @@ async def task_run_sample(
 
                         # capture most recent state for scoring
                         state = sample_state() or state
-                        limit = EvalSampleLimit(type="operator", limit=1)
+                        limit = EvalSampleLimit(
+                            type="operator", limit=1, reason=ex.reason
+                        )
 
                     except anyio.get_cancelled_exc_class() as ex:
                         with anyio.CancelScope(shield=True):

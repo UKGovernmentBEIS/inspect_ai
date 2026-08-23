@@ -441,6 +441,47 @@ def _completed_mock_response():
     )
 
 
+def test_model_usage_from_response_preserves_cache_write_tokens() -> None:
+    from openai.types.responses import Response
+    from openai.types.responses.response_usage import (
+        InputTokensDetails,
+        OutputTokensDetails,
+        ResponseUsage,
+    )
+
+    from inspect_ai.model._providers.openai_responses import model_usage_from_response
+
+    response = Response.model_construct(
+        id="resp_test",
+        created_at=0.0,
+        model="gpt-4o",
+        object="response",
+        output=[],
+        tools=[],
+        usage=ResponseUsage(
+            input_tokens=150,
+            output_tokens=20,
+            total_tokens=170,
+            input_tokens_details=InputTokensDetails(
+                cached_tokens=40,
+                cache_write_tokens=30,
+            ),
+            output_tokens_details=OutputTokensDetails(reasoning_tokens=5),
+        ),
+        status="completed",
+    )
+
+    usage = model_usage_from_response(response)
+
+    assert usage is not None
+    assert usage.input_tokens == 80
+    assert usage.input_tokens_cache_read == 40
+    assert usage.input_tokens_cache_write == 30
+    assert usage.output_tokens == 20
+    assert usage.reasoning_tokens == 5
+    assert usage.total_tokens == 170
+
+
 async def test_responses_api_pro_mode_defaults_to_background() -> None:
     request: dict = {}
     await _generate_responses_with_mock(
@@ -691,6 +732,49 @@ def test_model_usage_from_compact_response():
     assert usage.input_tokens == 100
     assert usage.output_tokens == 50
     assert usage.total_tokens == 150
+
+
+def test_model_usage_from_compact_response_preserves_cache_write_tokens() -> None:
+    from openai.types.responses import CompactedResponse, ResponseCompactionItem
+    from openai.types.responses.response_usage import (
+        InputTokensDetails,
+        OutputTokensDetails,
+        ResponseUsage,
+    )
+
+    from inspect_ai.model._openai_responses import model_usage_from_compact_response
+
+    compaction_item = ResponseCompactionItem(
+        id="comp_123",
+        encrypted_content="encrypted_data_here",
+        type="compaction",
+    )
+
+    response = CompactedResponse(
+        id="resp_abc",
+        created_at=1234567890,
+        object="response.compaction",
+        output=[compaction_item],
+        usage=ResponseUsage(
+            input_tokens=125,
+            output_tokens=50,
+            total_tokens=175,
+            input_tokens_details=InputTokensDetails(
+                cached_tokens=15,
+                cache_write_tokens=10,
+            ),
+            output_tokens_details=OutputTokensDetails(reasoning_tokens=0),
+        ),
+    )
+
+    usage = model_usage_from_compact_response(response)
+
+    assert usage is not None
+    assert usage.input_tokens == 100
+    assert usage.input_tokens_cache_read == 15
+    assert usage.input_tokens_cache_write == 10
+    assert usage.output_tokens == 50
+    assert usage.total_tokens == 175
 
 
 def test_extract_compaction_from_content_data():
