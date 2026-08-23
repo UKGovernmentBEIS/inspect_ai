@@ -18,12 +18,14 @@ in 744s while `dev` ran 812s. Under the old topology that run's Build wall would
 have been ~1614s instead of 867s — **~12.5 min saved**, against a predicted
 "~13 min". Estimate and outcome agree for once.
 
-**Both workflow fixes from the last report are shipped but completely
-unverified — no PR in this window exercised either path.** The Quarto render
-cache (#297) and the `design/**` test-filter exclusion (#299) merged at
-2026-08-21T18:08Z; of the 20 Build runs that started after that, **not one
-touched `docs/**`** (every `docs` job skipped) and none was design-only. Both
-carry forward with "predicted, unmeasured".
+**Neither workflow fix from the last report was exercised inside the snapshot
+window.** The Quarto render cache (#297) and the `design/**` test-filter
+exclusion (#299) merged at 2026-08-21T18:08Z; of the 20 Build runs that started
+after that, **not one touched `docs/**`** (every `docs` job skipped) and none
+was design-only. The render cache therefore carries forward unmeasured. The
+`design/**` exclusion got its first observation from *this report's own PR*,
+which is a design-only push: **`test` legs 4s each instead of ~332s, Build wall
+96s, 6.9 runner-min against a predicted 6–7.** Prediction hit exactly.
 
 **The one new execution-side finding is an import, not a job.**
 `import inspect_ai` takes **1.85s**, of which **`acp.schema` alone is 476ms
@@ -353,11 +355,23 @@ skipped: no PR touched `docs/**` or `requirements-doc.txt`. The cache step
 records in this snapshot. Prediction stands unchanged and unmeasured; carry to
 the next run.
 
-**`design/**` test-filter exclusion (#299) — shipped, zero observations.** The
-only no-op `test` legs in the window (6s, run 32436669508) are a docs-only PR
-from before the change. No design-only push occurred after it merged. Note that
-this report's own PR is a design-only push and will be the first observation —
-if it no-ops the two `test` legs, that is the fix working.
+**`design/**` test-filter exclusion (#299) — verified after the fact, by this
+report's own PR.** Nothing in the snapshot window exercised it (the only no-op
+`test` legs there, 6s in run 32436669508, are a docs-only PR from before the
+change). But this report is a design-only push, and its CI run is the first
+observation:
+
+| Metric | Predicted | Measured (PR #312, fork run 32631438308) |
+|---|---|---|
+| `test (3.10)` / `test (3.11)` exec | seconds instead of ~332s | **4s each** |
+| Build runner-min | ~6–7, down from ~16 | pre-commit 34s + mypy 72/84s + package 24s + ruff 9s + changes 7s + detect-slow 8s + 2×4s = **4.1 min** |
+| Total incl. Validate Embedded Viewer | — | **6.9 runner-min** |
+| Build wall clock | — | **96s**, against a 342s median for a code-only PR |
+
+Prediction hit on the nose. The remaining ~7 runner-min is exactly what was
+predicted to survive: the job records still spawn, and `mypy` (156s of the
+246s) is the bulk of it — a candidate for the same treatment if anyone wants
+the next slice.
 
 **#4948 (`--dist worksteal`) — continues to hold.** 96–98% worker efficiency,
 +4–7s imbalance, 6% of runs with a >60s leg spread. See "Worker balance".
@@ -449,8 +463,11 @@ That was the last unverified leg from #4935; nothing outstanding.
 8. **Exclude `design/**` from the `test` job's `code` filter.** Implemented by a
    maintainer in commit `640577ebd` (issue
    [#299](https://github.com/meridianlabs-ai/inspect_ai/issues/299), closed).
-   Status: **shipped, unverified — no design-only push has occurred since. This
-   report's own PR should be the first.**
+   Status: **done and verified** — this report's own PR was the first
+   design-only push since it merged: `test` legs 4s each instead of ~332s, Build
+   wall 96s, 6.9 runner-min against the predicted 6–7. Drop from the next
+   report; `mypy` at 156s of the surviving 246s is the next slice if anyone
+   wants it.
 
 9. **Un-serialize `slow-tool-tests-release` from `slow-tool-tests-dev`.**
    Implemented by a maintainer in #4987. Status: **done and verified this run —
