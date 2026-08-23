@@ -981,6 +981,92 @@ async def test_run_code_bridge_propagates_terminate_sample_error():
             await external_functions["dummy_tool"]("secret")
 
 
+@pytest.mark.anyio
+async def test_run_code_bridge_refuses_calls_after_terminate():
+    bridge = RunCodeToolBridge(_tool_defs([dummy_tool()]))
+    external_functions = bridge.external_functions()
+
+    with approval(
+        [
+            ApprovalPolicy(
+                approver=auto_approver(decision="terminate"),
+                tools="dummy_tool",
+            )
+        ]
+    ):
+        with pytest.raises(TerminateSampleError):
+            await external_functions["dummy_tool"]("secret")
+
+    # the policy is gone, but the terminate still stands
+    with pytest.raises(TerminateSampleError):
+        await external_functions["dummy_tool"]("again")
+
+
+@pytest.mark.anyio
+@skip_if_trio  # pydantic-monty runs on asyncio
+async def test_run_code_terminate_survives_swallowing_code():
+    pytest.importorskip("pydantic_monty")
+
+    tool = run_code(tools=[dummy_tool()], executor="monty")
+
+    with approval(
+        [
+            ApprovalPolicy(
+                approver=auto_approver(decision="terminate"),
+                tools="dummy_tool",
+            )
+        ]
+    ):
+        with pytest.raises(TerminateSampleError):
+            await tool(
+                code=(
+                    "try:\n"
+                    '    await dummy_tool("secret")\n'
+                    '    result = "called"\n'
+                    "except Exception:\n"
+                    '    result = "swallowed"\n'
+                    "result\n"
+                )
+            )
+
+
+@pytest.mark.anyio
+@skip_if_trio  # pydantic-monty runs on asyncio
+async def test_run_code_cancellation_survives_swallowing_code():
+    pytest.importorskip("pydantic_monty")
+
+    cancelled_exc_class = anyio.get_cancelled_exc_class()
+
+    def cancelling_tool() -> Tool:
+        async def execute(value: str) -> str:
+            """Cancel the caller.
+
+            Args:
+                value: Ignored.
+            """
+            raise cancelled_exc_class()
+
+        return ToolDef(
+            execute,
+            name="cancelling_tool",
+            description="Cancels the caller.",
+        ).as_tool()
+
+    tool = run_code(tools=[cancelling_tool()], executor="monty")
+
+    with pytest.raises(cancelled_exc_class):
+        await tool(
+            code=(
+                "try:\n"
+                '    await cancelling_tool("x")\n'
+                '    result = "called"\n'
+                "except BaseException:\n"
+                '    result = "swallowed"\n'
+                "result\n"
+            )
+        )
+
+
 def file_not_found_tool() -> Tool:
     async def execute(path: str) -> str:
         """Raise FileNotFoundError.

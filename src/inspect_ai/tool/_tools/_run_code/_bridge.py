@@ -129,8 +129,19 @@ def _finalize_tool_event(
         transcript()._event(event)
 
 
+def _is_control_flow_exception(exc: BaseException) -> bool:
+    """Whether an exception steers the eval rather than reporting a tool failure.
+
+    Terminate and cancellation must reach the caller as themselves. Monty
+    rebuilds exceptions from its own type list, so both lose their class on the
+    way out (``TerminateSampleError`` arrives as a plain ``RuntimeError``) and
+    the generated code can swallow either with a bare ``except``.
+    """
+    return isinstance(exc, TerminateSampleError) or not isinstance(exc, Exception)
+
+
 def _exception_to_tool_error(
-    exc: Exception,
+    exc: BaseException,
     tool_name: str,
 ) -> RunCodeToolCallError | None:
     """Convert known recoverable tool exceptions to model-visible errors.
@@ -244,6 +255,12 @@ class RunCodeToolBridge:
         self.max_tool_calls = max_inner_tool_calls
         self.call_trace: list[RunCodeInnerToolCallTraceEntry] = []
         self.artifacts: list[Content] = []
+        self.control_flow_exception: BaseException | None = None
+
+    def raise_pending_control_flow(self) -> None:
+        """Re-raise a terminate or cancellation raised by an inner tool call."""
+        if self.control_flow_exception is not None:
+            raise self.control_flow_exception
 
     def external_functions(self) -> dict[str, Callable[..., Any]]:
         """Create Monty external functions for allowlisted Inspect tools."""
@@ -263,6 +280,10 @@ class RunCodeToolBridge:
         return external_functions
 
     async def _call_tool(self, tool_def: ToolDef, *args: Any, **kwargs: Any) -> Any:
+        # the code keeps running after swallowing a terminate, so refuse the
+        # calls it makes on the way out
+        self.raise_pending_control_flow()
+
         if (
             self.max_tool_calls is not None
             and len(self.call_trace) >= self.max_tool_calls
@@ -287,8 +308,10 @@ class RunCodeToolBridge:
                 f"{_preview(value)} | artifacts={artifact_count}"
             )
             return value
-        except Exception as exc:
+        except BaseException as exc:
             call_trace_entry.error = str(exc)
+            if _is_control_flow_exception(exc):
+                self.control_flow_exception = exc
             raise
 
     def _project_result(self, result: Any, tool_name: str) -> Any:
@@ -371,35 +394,29 @@ class RunCodeToolBridge:
             result, _messages, output, agent, agent_span_id = await call_tool(
                 self.tool_defs, message.text, call, event, [message]
             )
-        except TerminateSampleError:
-            _finalize_tool_event(
-                event,
-                result="",
-                waiting_start=waiting_start,
-                failed=True,
+        except BaseException as ex:
+            tool_error = (
+                None
+                if _is_control_flow_exception(ex)
+                else _exception_to_tool_error(ex, call.function)
             )
-            raise
-        except Exception as ex:
-            tool_error = _exception_to_tool_error(ex, call.function)
-            if tool_error is not None:
-                formatted_error = _format_tool_error(tool_error)
+            if tool_error is None:
                 _finalize_tool_event(
                     event,
-                    result=formatted_error,
+                    result="",
                     waiting_start=waiting_start,
-                    error=ToolCallError(
-                        type=tool_error.type, message=tool_error.message
-                    ),
+                    failed=True,
                 )
-                return formatted_error
+                raise
 
+            formatted_error = _format_tool_error(tool_error)
             _finalize_tool_event(
                 event,
-                result="",
+                result=formatted_error,
                 waiting_start=waiting_start,
-                failed=True,
+                error=ToolCallError(type=tool_error.type, message=tool_error.message),
             )
-            raise
+            return formatted_error
         else:
             _finalize_tool_event(
                 event,
