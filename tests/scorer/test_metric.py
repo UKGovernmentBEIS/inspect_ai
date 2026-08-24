@@ -936,6 +936,11 @@ def test_grouped_metric_all_samples_unscored_keeps_all_label():
     assert math.isnan(metrics["mean"].value)
     assert metrics["accuracy"].name == "accuracy"
     assert metrics["stderr"].name == "stderr"
+    # The healthy Mapping branch passes the registry name as group; the
+    # fallback must match, while an ordinary scalar keeps group=None.
+    assert metrics["accuracy"].group == "grouped"
+    assert metrics["mean"].group == "grouped"
+    assert metrics["stderr"].group is None
 
 
 def test_grouped_metric_all_samples_unscored_uses_default_all_label():

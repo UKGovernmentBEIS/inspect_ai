@@ -455,6 +455,9 @@ def scorer_for_metrics(
         # the metric is a float, str, or int
         else:
             # Recover grouped()'s aggregate key when no score can invoke it.
+            # The healthy Mapping branch also passes the registry name as
+            # group; the fallback must match or the record still changes shape.
+            metric_group = None
             if (
                 len(sample_scores_with_values) == 0
                 and registry_info(metric).name == "inspect_ai/grouped"
@@ -464,8 +467,12 @@ def scorer_for_metrics(
                 if isinstance(all_label, str):
                     key = metrics_unique_key(all_label, list(list_metrics.keys()))
                     base_metric_name = all_label
+                    metric_group = group
             list_metrics[key] = EvalMetric(
-                name=base_metric_name, value=float(metric_value), params=params
+                name=base_metric_name,
+                group=metric_group,
+                value=float(metric_value),
+                params=params,
             )
 
     # build results
