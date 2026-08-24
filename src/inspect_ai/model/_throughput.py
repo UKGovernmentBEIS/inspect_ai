@@ -282,18 +282,25 @@ def _window_backoff_seconds(
 
 
 def _retry_waits_active() -> dict[str, int]:
-    """Count active samples sleeping in a retry wait, per qualified model.
+    """Count active samples currently sleeping in a retry wait, per qualified model.
 
     Bounded by active sample count. ``ActiveSample.retry_wait`` is a single
     shared slot per sample, so parallel generates within one sample count
-    as one.
+    as one. The record is cleared only when the whole retried call resolves
+    (not when its sleep elapses), so filter on the deadline — a stale record
+    means the next attempt is actively generating, not backing off.
     """
     from inspect_ai.log._samples import active_samples
 
+    now = datetime.now(timezone.utc).timestamp()
     counts: dict[str, int] = {}
     for sample in active_samples():
         retry_wait = sample.retry_wait
-        if retry_wait is not None and retry_wait.qualified_model:
+        if (
+            retry_wait is not None
+            and retry_wait.qualified_model
+            and retry_wait.deadline > now
+        ):
             counts[retry_wait.qualified_model] = (
                 counts.get(retry_wait.qualified_model, 0) + 1
             )

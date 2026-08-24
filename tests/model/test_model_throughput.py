@@ -5,6 +5,8 @@ the instrumentation feeds (generate usage, retry counts, retry waits), the
 cache-hit exclusion regression, per-run reset, and the footer gate.
 """
 
+from datetime import datetime, timezone
+from types import SimpleNamespace
 from typing import Any, cast
 
 import pytest
@@ -247,6 +249,38 @@ async def test_cache_hit_does_not_record(
     await model.generate("cache me", cache=True)
     view = throughput_view("mockllm/model")
     assert view is not None and view.requests == 1
+
+
+def test_retry_waits_active_excludes_elapsed_deadlines(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # ActiveSample.retry_wait is cleared only when the whole retried call
+    # resolves, not when its sleep elapses — a stale record (deadline in the
+    # past, next attempt actively generating) must not count as "in backoff"
+    import inspect_ai.log._samples as samples_mod
+    from inspect_ai.log._samples import ActiveSampleRetryWait
+
+    def wait(deadline_offset: float) -> Any:
+        now = datetime.now(timezone.utc).timestamp()
+        return SimpleNamespace(
+            retry_wait=ActiveSampleRetryWait(
+                model="m",
+                attempt=1,
+                started_at=now - 30.0,
+                deadline=now + deadline_offset,
+                qualified_model="test/m",
+            )
+        )
+
+    monkeypatch.setattr(
+        samples_mod,
+        "active_samples",
+        lambda: [wait(60.0), wait(-60.0), SimpleNamespace(retry_wait=None)],
+    )
+    record_retry("test/m", "rate_limit")
+    view = throughput_view("test/m")
+    assert view is not None
+    assert view.retry_waits_active == 1
 
 
 async def test_retry_config_records_retry_wait() -> None:

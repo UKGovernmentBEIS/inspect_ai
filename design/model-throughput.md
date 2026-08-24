@@ -195,7 +195,9 @@ wait, derived by scanning active samples' `retry_wait` fields and matching
 on the qualified-name field stamped alongside the display name, per §2 —
 bounded by sample count, cheap; `ActiveSample.retry_wait` is a single
 shared slot per sample, so parallel generates within one sample count as
-one).
+one; the record is cleared only when the whole retried call resolves, so
+the scan filters on the record's deadline — a record whose sleep already
+elapsed means the next attempt is generating, not backing off).
 
 ### 2. Instrumentation points
 
