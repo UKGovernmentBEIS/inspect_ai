@@ -128,9 +128,7 @@ class SandboxJSONRPCTransport(JSONRPCTransport):
             # (e.g. MCP server crash, entrypoint error) only surface in
             # stdout because the sandbox CLI wrote its diagnostic there.
             error_detail = (
-                exec_result.stderr
-                or exec_result.stdout
-                or "(no output captured — check container startup.log)"
+                exec_result.stderr or exec_result.stdout or "(no output captured)"
             )
             raise RuntimeError(
                 f"Sandbox.exec failure executing {description}: {error_detail}"
