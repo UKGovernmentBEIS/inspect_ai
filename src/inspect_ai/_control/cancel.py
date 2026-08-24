@@ -361,7 +361,10 @@ async def cancel_tool_call(
             }
         elif len(pending) > 1:
             calls = [_pending_tool_call(e) for e in pending]
-            listing = ", ".join(f"{c['id']} ({c['function']})" for c in calls)
+            listing = ", ".join(
+                f"{_flatten_token(str(c['id']))} ({_flatten_token(str(c['function']))})"
+                for c in calls
+            )
             return {
                 "ok": False,
                 "error": (
@@ -395,7 +398,8 @@ async def cancel_tool_call(
             return {
                 "ok": False,
                 "error": (
-                    f"tool call {target.id} ({target.function}) cannot be "
+                    f"tool call {_flatten_token(target.id)} "
+                    f"({_flatten_token(target.function)}) cannot be "
                     "cancelled — no cancel hook is installed on it"
                 ),
             }
@@ -421,13 +425,27 @@ async def cancel_tool_call(
     }
 
 
+def _flatten_token(value: str) -> str:
+    """Flatten control characters in a model-influenceable token.
+
+    Tool-call ids and function names originate with the model/provider, and
+    the rejection messages above embed them in strings the CLI prints
+    verbatim (its transport sanitizer deliberately preserves newlines) — so
+    a newline-bearing token could forge extra terminal lines. Structured
+    fields need no flattening (JSON encoding escapes them); only the human
+    message strings do.
+    """
+    return "".join(ch if ch.isprintable() else " " for ch in value)
+
+
 def _pending_tool_call(event: "ToolEvent") -> dict[str, Any]:
     """One pending tool call's row in enumeration responses.
 
-    The same shape as the ``calls`` list on the sample listing's tool
-    activity (``_sample_activity``), so the ambiguity rejection and the
-    read surface can't drift apart. ``cancel_requested`` surfaces a
-    delivered-but-unheeded cancel (a wedged call that no scope can stop).
+    Also the ``calls`` row shape on the sample listing's tool activity —
+    ``_sample_activity`` builds its rows with this function, so the ambiguity
+    rejection and the read surface can't drift apart. ``cancel_requested``
+    surfaces a delivered-but-unheeded cancel (a wedged call that no scope
+    can stop).
     """
     return {
         "id": event.id,

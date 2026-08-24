@@ -5048,6 +5048,129 @@ def test_sample_cancel_rejects_unknown_action() -> None:
     assert "explode" in result.stderr
 
 
+def test_sample_cancel_tool_call_sends_params(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    summary = _full_summary("aaa111", "t1")
+    summary["epochs"] = 1
+    _patch_surface(monkeypatch, [summary])
+    spy = _RequestSpy(
+        {
+            "ok": True,
+            "sample_id": "s1",
+            "epoch": 1,
+            "changed": True,
+            "tool_call_id": "tc1",
+            "function": "bash",
+        }
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
+    result = cli_runner().invoke(
+        ctl_command,
+        [
+            "sample",
+            "cancel-tool-call",
+            "aaa111",
+            "s1",
+            "--tool-call-id",
+            "tc1",
+            "--json",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert spy.paths == ["/evals/eval_aaa111/sample/cancel-tool-call"]
+    assert spy.params == [{"sample_id": "s1", "epoch": 1, "tool_call_id": "tc1"}]
+    payload = json.loads(result.stdout)
+    assert payload["target"]["sample_id"] == "s1"
+    assert payload["applied"] is True
+    assert payload["detail"]["tool_call_id"] == "tc1"
+
+    # without --tool-call-id the param is omitted (server-side sole-pending
+    # fallback), not sent as an empty value
+    ok = cli_runner().invoke(
+        ctl_command, ["sample", "cancel-tool-call", "aaa111", "s1", "--json"]
+    )
+    assert ok.exit_code == 0, ok.output
+    assert spy.params[-1] == {"sample_id": "s1", "epoch": 1}
+
+
+def test_sample_cancel_tool_call_requires_epoch_when_multi_epoch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A defaulted epoch on a multi-epoch task resolves to a different sample."""
+    summary = _full_summary("aaa111", "t1")
+    summary["epochs"] = 3
+    _patch_surface(monkeypatch, [summary])
+    spy = _RequestSpy({"ok": True, "changed": True})
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "cancel-tool-call", "aaa111", "s1"]
+    )
+    assert result.exit_code == 1
+    assert "pass EPOCH explicitly" in result.stderr
+    assert spy.paths == []  # nothing was sent
+
+    # ...and an explicit epoch goes through
+    ok = cli_runner().invoke(
+        ctl_command, ["sample", "cancel-tool-call", "aaa111", "s1", "2"]
+    )
+    assert ok.exit_code == 0, ok.output
+    assert spy.params == [{"sample_id": "s1", "epoch": 2}]
+
+
+def test_sample_cancel_tool_call_human_output_sanitizes_tokens(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Tool-call ids/functions are model-generated — no forged lines.
+
+    The changed message interpolates the id and function from the wire; a
+    newline smuggled into either must flatten rather than print a line of
+    its own at column 0. The no-op path's pending listing is likewise
+    flattened.
+    """
+    summary = _full_summary("aaa111", "t1")
+    summary["epochs"] = 1
+    _patch_surface(monkeypatch, [summary])
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl._http._request_json",
+        lambda *a, **k: {
+            "ok": True,
+            "sample_id": "s1",
+            "epoch": 1,
+            "changed": True,
+            "tool_call_id": "tc\nFORGED",
+            "function": "bash",
+        },
+    )
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "cancel-tool-call", "aaa111", "s1", "--no-terse"]
+    )
+    assert result.exit_code == 0, result.output
+    assert "Cancel requested for tool call" in result.output
+    assert "FORGED" in result.output
+    assert not any(line.startswith("FORGED") for line in result.output.splitlines())
+
+    # the honest no-op names the reason and lists the pending calls
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl._http._request_json",
+        lambda *a, **k: {
+            "ok": True,
+            "sample_id": "s1",
+            "epoch": 1,
+            "changed": False,
+            "reason": "no pending tool call with that id",
+            "pending": [{"id": "tc\nFORGED2", "function": "bash"}],
+        },
+    )
+    noop = cli_runner().invoke(
+        ctl_command, ["sample", "cancel-tool-call", "aaa111", "s1", "--no-terse"]
+    )
+    assert noop.exit_code == 0, noop.output
+    assert "Nothing to do — no pending tool call with that id" in noop.output
+    assert "Pending:" in noop.output
+    assert not any(line.startswith("FORGED2") for line in noop.output.splitlines())
+
+
 def test_sample_requeue_defaults_epoch_for_single_epoch_task(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

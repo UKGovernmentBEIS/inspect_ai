@@ -1086,21 +1086,15 @@ def _sample_activity(s: "ActiveSample") -> dict[str, Any] | None:
             tool_events.append(ev)
 
     if tool_events:
+        from inspect_ai._control.cancel import _pending_tool_call
+
         first_tool = tool_events[0]
         return _activity(
             "tool",
             len(tool_events),
             first_tool.timestamp.timestamp(),
             first_tool.function,
-            calls=[
-                {
-                    "id": ev.id,
-                    "function": ev.function,
-                    "started_at": ev.timestamp.timestamp(),
-                    "cancel_requested": ev.cancelled,
-                }
-                for ev in tool_events
-            ],
+            calls=[_pending_tool_call(ev) for ev in tool_events],
         )
     if first_model is not None:
         return _activity(
