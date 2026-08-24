@@ -120,13 +120,45 @@ def _is_number(s: str) -> bool:
     return _parse_number(s) is not None
 
 
+# Sentence/enclosing punctuation that commonly attaches to a number token
+# in model output (e.g. "42!", "(42)", "[42]"). These are stripped from the
+# token edges before numeric recognition; a token with punctuation *inside*
+# the digits (e.g. "42abc") is still rejected. `%` is intentionally excluded:
+# "60%" is a percentage and must not collapse to the number 60.
+_TOKEN_PUNCTUATION = "!?:;()[]{}'\"`~<=>@#^&|"
+
+
+def _number_token(s: str) -> str:
+    """Return the numeric form of a token, tolerating edge punctuation.
+
+    If `s` (possibly with sentence/enclosing punctuation attached to its
+    edges, e.g. ``"42!"`` or ``"(42)"``) parses as a number, return the
+    token stripped of that punctuation (so it can be normalized); otherwise
+    return the token unchanged.
+    """
+    stripped = s.strip(_TOKEN_PUNCTUATION)
+    return stripped if stripped != s and _is_number(stripped) else s
+
+
+def _is_number_token(s: str) -> bool:
+    """Recognise a whitespace-delimited token as a number.
+
+    Unlike `_is_number`, tolerates sentence/enclosing punctuation attached
+    to the token edges (e.g. ``"42!"``, ``"(42)"``), which `match(numeric=True)`
+    previously rejected.
+    """
+    return _is_number(s) or _is_number(s.strip(_TOKEN_PUNCTUATION))
+
+
 def first_number_normalized(words: list[str]) -> str:
-    number = next((word for word in words if _is_number(word)), None)
-    return normalize_number(number) if number is not None else ""
+    number = next((word for word in words if _is_number_token(word)), None)
+    if number is None:
+        return ""
+    return normalize_number(_number_token(number))
 
 
 def all_numbers_normalized(words: list[str]) -> list[str]:
-    return [normalize_number(word) for word in words if _is_number(word)]
+    return [normalize_number(_number_token(word)) for word in words if _is_number_token(word)]
 
 
 def normalize_number(number: str, precision: int = 5) -> str:

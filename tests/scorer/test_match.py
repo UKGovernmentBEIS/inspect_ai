@@ -304,6 +304,51 @@ async def test_numeric_unicode_minus_with_leading_text():
     assert result.text == CORRECT
 
 
+# --- trailing / enclosing punctuation on number tokens ----------------------
+# match(numeric=True) must recognise numbers with sentence or enclosing
+# punctuation attached (e.g. "42!", "(42)"), without weakening the strict
+# rejection of tokens with non-numeric characters inside the digits.
+
+
+@pytest.mark.anyio
+async def test_numeric_match_with_trailing_punctuation():
+    scorer = match(numeric=True)
+    for output in ["The answer is 42!", "The answer is 42?", "The answer is 42:"]:
+        state = simple_task_state(model_output=output)
+        result = await scorer(state, Target(["42"]))
+        assert result.text == CORRECT
+
+
+@pytest.mark.anyio
+async def test_numeric_match_with_enclosing_punctuation():
+    scorer = match(numeric=True)
+    for output in ["The answer is (42).", "The answer is (42)", "The answer is [42]"]:
+        state = simple_task_state(model_output=output)
+        result = await scorer(state, Target(["42"]))
+        assert result.text == CORRECT
+
+
+@pytest.mark.anyio
+async def test_numeric_any_with_punctuation():
+    scorer = match(numeric=True, location="any")
+    state = simple_task_state(model_output="first (7) then 25! then done")
+    result = await scorer(state, Target(["25"]))
+
+    assert result.text == CORRECT
+    assert result.answer == "25"
+
+
+@pytest.mark.anyio
+async def test_numeric_exact_still_rejects_punct_inside_digits():
+    # a token with non-numeric characters *inside* the digits must still be
+    # rejected — only edge punctuation is tolerated
+    scorer = match(numeric=True)
+    state = simple_task_state(model_output="The answer is 42abc")
+    result = await scorer(state, Target(["42"]))
+
+    assert result.text == INCORRECT
+
+
 # --- any unmatched returns raw output ---------------------------------------
 # Counterpoint to test_numeric_any_answer_is_matched_number: when no number
 # matches, fall back to the raw model output rather than an extracted form.
