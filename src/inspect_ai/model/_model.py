@@ -1024,10 +1024,13 @@ class Model:
                 self.config.timeout,
                 self.should_retry,
                 self.before_retry,
-                functools.partial(log_model_retry, qualified_model_name=str(self)),
+                functools.partial(
+                    log_model_retry,
+                    qualified_model_name=self.api.qualified_model_name,
+                ),
                 report_sample_waiting_time,
                 self.api.retry_wait(),
-                qualified_model_name=str(self),
+                qualified_model_name=self.api.qualified_model_name,
             )
         )
         async def _count_tokens(
@@ -1156,10 +1159,13 @@ class Model:
                     self.config.timeout,
                     self.should_retry,
                     self.before_retry,
-                    functools.partial(log_model_retry, qualified_model_name=str(self)),
+                    functools.partial(
+                        log_model_retry,
+                        qualified_model_name=self.api.qualified_model_name,
+                    ),
                     report_sample_waiting_time,
                     self.api.retry_wait(),
-                    qualified_model_name=str(self),
+                    qualified_model_name=self.api.qualified_model_name,
                 )
             )
             async def _compact(
@@ -1286,10 +1292,13 @@ class Model:
                 config.timeout,
                 self.should_retry,
                 self.before_retry,
-                functools.partial(log_model_retry, qualified_model_name=str(self)),
+                functools.partial(
+                    log_model_retry,
+                    qualified_model_name=self.api.qualified_model_name,
+                ),
                 report_waiting_time,
                 self.api.retry_wait(),
-                qualified_model_name=str(self),
+                qualified_model_name=self.api.qualified_model_name,
             )
         )
         async def generate() -> tuple[ModelOutput, BaseModel]:
@@ -1561,6 +1570,11 @@ class Model:
         return model_output, event
 
     def should_retry(self, ex: BaseException) -> bool:
+        # `str(self)` requires registry info, which a hand-constructed
+        # ModelAPI (built outside get_model()) doesn't have — use the
+        # stamped qualified name, None when absent (retries then simply
+        # go unattributed in the throughput registry)
+        model = self.api.qualified_model_name
         if isinstance(ex, Exception):
             # attempt timeout is always retried (we rely on `timeout`
             # and/or `max_retries` for termination). Classified as transient:
@@ -1568,7 +1582,7 @@ class Model:
             # count toward adaptive scale-up, but the controller doesn't
             # scale down for what's essentially infra noise.
             if isinstance(ex, AttemptTimeoutError):
-                report_http_retry(model=str(self))
+                report_http_retry(model=model)
                 return True
 
             # anyio asyncio-backend race: SocketStream.aclose() calls
@@ -1585,7 +1599,7 @@ class Model:
                 "'NoneType' object has no attribute 'call_soon'" in str(ex)
                 or (ex.name == "call_soon" and ex.obj is None)
             ):
-                report_http_retry(model=str(self))
+                report_http_retry(model=model)
                 return True
 
             # check standard should_retry() method — may return bool or RetryDecision
@@ -1595,19 +1609,19 @@ class Model:
                     report_http_retry(
                         kind=decision.kind,
                         retry_after=decision.retry_after,
-                        model=str(self),
+                        model=model,
                     )
                     return True
             elif decision:
                 # legacy bool-True path: provider didn't classify, treat as transient
-                report_http_retry(model=str(self))
+                report_http_retry(model=model)
                 return True
 
             from inspect_ai.hooks._hooks import has_api_key_override
 
             if has_api_key_override():
                 if self.api.is_auth_failure(ex):
-                    report_http_retry(model=str(self))
+                    report_http_retry(model=model)
                     return True
 
             # see if the API implements legacy is_rate_limit() method
@@ -1620,7 +1634,7 @@ class Model:
                 )
                 if cast(bool, is_rate_limit(ex)):
                     # legacy method's name says it all — treat as rate-limit
-                    report_http_retry(kind="rate_limit", model=str(self))
+                    report_http_retry(kind="rate_limit", model=model)
                     return True
 
         # no retry
