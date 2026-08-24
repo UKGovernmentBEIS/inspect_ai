@@ -512,13 +512,22 @@ def _run_task_score(
         if not terse_mode:
             _echo(scope.header)
             _echo()
-        if dry_run:
+        # the no-op envelope (a pass already running) carries no `targeted`,
+        # so check `changed` before any rendering that reads it — otherwise
+        # a dry run against a running pass prints misleading all-zeros
+        if not result.get("changed"):
+            reason = _sanitize_line(str(result.get("reason") or "already running"))
+            if terse_mode:
+                _echo(_terse_line("score", target_label, f"no-op — {reason}"))
+            else:
+                _echo(f"Nothing to do: {reason}.")
+        elif dry_run:
             body = _score_targeted_summary(targeted)
             if terse_mode:
                 _echo(_terse_line("score", target_label, f"dry-run — {body}"))
             else:
                 _echo(f"Would score — {body}.")
-        elif result.get("changed"):
+        else:
             note = f"pass {result.get('pass_id')} started — {_score_targeted_summary(targeted)}"
             if terse_mode:
                 _echo(_terse_line("score", target_label, note))
@@ -527,12 +536,6 @@ def _run_task_score(
                     f"Scoring pass started ({_score_targeted_summary(targeted)}). "
                     "Re-run `inspect ctl task score` to poll it."
                 )
-        else:
-            reason = _sanitize_line(str(result.get("reason") or "already running"))
-            if terse_mode:
-                _echo(_terse_line("score", target_label, f"no-op — {reason}"))
-            else:
-                _echo(f"Nothing to do: {reason}.")
         return
 
     # poll the pass to completion (the started one, or the one already

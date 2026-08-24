@@ -673,6 +673,79 @@ async def test_score_pass_scorer_failure_lands_on_row(
     assert score_pass.error is None  # per-sample failures don't fail the pass
 
 
+async def test_score_pass_scoring_deadline_keeps_finished_scorers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The scoring deadline keeps scorers that had already finished.
+
+    Scores publish incrementally: with one scorer done and one wedged, the
+    row reports the finished score plus the deadline error, not an empty
+    failure.
+    """
+    _speed_up(monkeypatch)
+    monkeypatch.setattr(scoring_module, "SCORE_SCORING_TIMEOUT", 0.5)
+    monkeypatch.setattr("inspect_ai._control.pause._HELD_CREDIT_INTERVAL", 0.02)
+
+    async def summaries() -> list[EvalSampleSummary]:
+        return []
+
+    register_eval("e1", 1, task_id="t1", live=FakeLiveEvalData(summaries=summaries))
+    active = _active_sample("s1")
+    _patch_active_samples(monkeypatch, [active])
+
+    @scorer(metrics=[accuracy()])
+    def fast_scorer():
+        async def score(state: TaskState, target: Target) -> Score:
+            return Score(value=1.0)
+
+        return score
+
+    @scorer(metrics=[accuracy()])
+    def wedged_scorer():
+        async def score(state: TaskState, target: Target) -> Score:
+            await anyio.sleep(3600)
+            return Score(value=0.0)
+
+        return score
+
+    handle = TaskScoring(
+        scorers=[fast_scorer(), wedged_scorer()],
+        scorer_names=["fast_scorer", "wedged_scorer"],
+        model=get_model("mockllm/model", memoize=False),
+        model_roles=None,
+        epochs_reducer=None,
+        metrics=None,
+        score_on_error=False,
+    )
+
+    model = get_model("mockllm/model", memoize=False)
+    stop = anyio.Event()
+
+    async def solver() -> None:
+        from inspect_ai.log._samples import _sample_active
+
+        _sample_active.set(active)
+        while not stop.is_set():
+            await wait_generate_dispatch(model, lambda t: None)
+            await anyio.sleep(0.01)
+
+    score_pass: ScorePass | None = None
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(solver)
+        with anyio.fail_after(30):
+            score_pass = await _run_pass("t1", handle)
+        stop.set()
+
+    assert score_pass is not None
+    assert score_pass.error is None
+    (row,) = score_pass.rows
+    assert row["disposition"] == "in_flight"
+    assert row["outcome"] == "scored"
+    assert row["scores"] == {"fast_scorer": 1.0}
+    assert "deadline" in row["scorer_errors"][""]
+    assert not sample_scoring_held(active.id)
+
+
 # ---------------------------------------------------------------------------
 # the spawned job (asyncio only — the control server runs on asyncio)
 # ---------------------------------------------------------------------------
@@ -718,6 +791,62 @@ async def test_start_score_pass_spawns_and_polls(
     (row,) = [r for r in outcome["samples"] if r["sample_id"] == "done"]
     assert row["scores"] == {"match_target": 1.0}
     assert outcome["metrics"][0]["metrics"]["accuracy"] == 1.0
+
+
+@skip_if_trio
+async def test_start_score_pass_concurrent_starts_spawn_one_pass(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Overlapping starts interleave across the enumeration await; one wins.
+
+    The one-pass check runs before target enumeration, which suspends (the
+    recorder's summaries lock) — without the post-enumeration re-check, both
+    starts would spawn passes (the loser an orphan sharing the winner's
+    sample hold gates).
+    """
+
+    async def summaries() -> list[EvalSampleSummary]:
+        # a checkpoint, as the real recorder's summaries lock is
+        await anyio.sleep(0)
+        return [_summary("done")]
+
+    async def read_sample(id: Any, epoch: int, **kwargs: Any) -> EvalSample | None:
+        return _eval_sample("done")
+
+    register_eval(
+        "e1",
+        1,
+        task_id="t1",
+        live=FakeLiveEvalData(summaries=summaries, sample=read_sample),
+    )
+    set_task_scoring("e1", _scoring_handle())
+    _patch_active_samples(monkeypatch, [])
+
+    from inspect_ai._util._async import tg_collect
+
+    results = [
+        r
+        for r in await tg_collect(
+            [lambda: start_score_pass("t1"), lambda: start_score_pass("t1")]
+        )
+        if r is not None
+    ]
+    assert len(results) == 2 and all(r["ok"] for r in results)
+    started = [r for r in results if r["changed"]]
+    joined = [r for r in results if not r["changed"]]
+    assert len(started) == 1 and len(joined) == 1
+    # the loser joined the winner's pass rather than spawning an orphan
+    assert joined[0]["pass_id"] == started[0]["pass_id"]
+    assert "already running" in joined[0]["reason"]
+
+    with anyio.fail_after(10):
+        while True:
+            status = await get_score_pass("t1")
+            assert status is not None and status["pass_id"] == started[0]["pass_id"]
+            if not status["running"]:
+                break
+            await anyio.sleep(0.05)
+    assert status["progress"] == {"scored": 1, "failed": 0, "total": 1}
 
 
 # ---------------------------------------------------------------------------

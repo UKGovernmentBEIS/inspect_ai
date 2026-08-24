@@ -241,15 +241,20 @@ async def start_score_pass(
 
     existing = _score_passes.get(state.task_id)
     if existing is not None and existing.running:
-        return {
-            **_pass_envelope_base(existing, state),
-            "changed": False,
-            "dry_run": dry_run,
-            "reason": "a scoring pass is already running for this task",
-            "progress": _pass_progress(existing),
-        }
+        return _already_running_envelope(existing, state, dry_run)
 
     targets = await _enumerate_targets(state, handle)
+
+    # _enumerate_targets suspends (the recorder's summaries lock, or a log
+    # read), so a concurrent start may have registered a pass meanwhile;
+    # re-check before registering — everything from here to the registration
+    # below is synchronous, so this closes the race. Without it the loser
+    # becomes an orphan pass (invisible to GET / reset) sharing the popped-on-
+    # release sample hold gates with the winner.
+    existing = _score_passes.get(state.task_id)
+    if existing is not None and existing.running:
+        return _already_running_envelope(existing, state, dry_run)
+
     targeted = targets.counts(completed_only)
 
     score_pass = ScorePass(
@@ -333,6 +338,19 @@ async def get_score_pass(task_id: str) -> dict[str, Any] | None:
         if score_pass.error is not None:
             response["error"] = score_pass.error
     return response
+
+
+def _already_running_envelope(
+    existing: ScorePass, state: "EvalState", dry_run: bool
+) -> dict[str, Any]:
+    """The idempotent no-op response for a start while a pass is running."""
+    return {
+        **_pass_envelope_base(existing, state),
+        "changed": False,
+        "dry_run": dry_run,
+        "reason": "a scoring pass is already running for this task",
+        "progress": _pass_progress(existing),
+    }
 
 
 def _pass_envelope_base(score_pass: ScorePass, state: "EvalState") -> dict[str, Any]:
@@ -684,7 +702,11 @@ async def _score_serialized_sample(
     for timeline in sample.timelines or []:
         transcript().add_timeline(timeline)
 
-    scores, errors = await _apply_scorers(handle, task_state, target, record=False)
+    scores: "dict[str, SampleScore]" = {}
+    errors: dict[str, str] = {}
+    await _apply_scorers(
+        handle, task_state, target, record=False, scores=scores, errors=errors
+    )
     return (
         _row(
             summary.id,
@@ -787,8 +809,9 @@ async def _score_held_sample(
                 )
 
         # score the held (stable) live state, yielding to the sample and
-        # bounding a stuck scorer
-        scores: dict[str, Any] = {}
+        # bounding a stuck scorer; scores land in these dicts per-scorer, so
+        # a cancellation keeps whatever finished before it
+        scores: "dict[str, SampleScore]" = {}
         errors: dict[str, str] = {}
         superseded = False
         timed_out = False
@@ -874,11 +897,11 @@ async def _score_live_sample(
     if active.sandbox_environments:
         sandbox_environments_context_var.set(active.sandbox_environments)
 
-    new_scores, new_errors = await _apply_scorers(
-        handle, live_state, target, record=True
+    # the caller's dicts, filled incrementally: a scoring deadline (or the
+    # sample completing) mid-run keeps the scorers that already finished
+    await _apply_scorers(
+        handle, live_state, target, record=True, scores=scores, errors=errors
     )
-    scores.update(new_scores)
-    errors.update(new_errors)
 
 
 # ---------------------------------------------------------------------------
@@ -911,12 +934,18 @@ async def _apply_scorers(
     target: Any,
     *,
     record: bool,
-) -> "tuple[dict[str, SampleScore], dict[str, str]]":
+    scores: "dict[str, SampleScore]",
+    errors: dict[str, str],
+) -> None:
     """Run the task's scorers over ``task_state``, collecting per-scorer results.
 
     Per-scorer failures are collected (not raised) so one scorer's error
-    doesn't lose its siblings' scores. ``record`` controls whether each
-    score is recorded on the current transcript as an intermediate event.
+    doesn't lose its siblings' scores. Results land in the caller's
+    ``scores``/``errors`` dicts as each scorer finishes, so a cancellation
+    mid-run (the per-sample scoring deadline, or the sample completing)
+    keeps the scorers that had already returned. ``record`` controls whether
+    each score is recorded on the current transcript as an intermediate
+    event.
     """
     from inspect_ai._util.registry import (
         has_registry_params,
@@ -927,8 +956,6 @@ async def _apply_scorers(
     from inspect_ai.log._transcript import transcript
     from inspect_ai.scorer._metric import SampleScore
 
-    scores: dict[str, SampleScore] = {}
-    errors: dict[str, str] = {}
     for scorer, scorer_name in zip(handle.scorers, handle.scorer_names):
         try:
             result = await scorer(task_state, target)
@@ -957,4 +984,3 @@ async def _apply_scorers(
             sample_metadata=task_state.metadata,
             scorer=registry_unqualified_name(scorer),
         )
-    return scores, errors

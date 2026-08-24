@@ -4521,6 +4521,28 @@ def test_task_score_dry_run_json_envelope(monkeypatch: pytest.MonkeyPatch) -> No
     assert payload["detail"]["targeted"] == targeted
 
 
+def test_task_score_dry_run_while_pass_running_reports_noop(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A dry run against a running pass reports the no-op, not zero counts."""
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    spy = _RequestSpy(
+        {
+            "ok": True,
+            "changed": False,
+            "dry_run": True,
+            "pass_id": "p1",
+            "reason": "a scoring pass is already running for this task",
+            "progress": {"scored": 1, "failed": 0, "total": 3},
+        }
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
+    result = cli_runner().invoke(ctl_command, ["task", "score", "--dry-run"])
+    assert result.exit_code == 0, result.output
+    assert "already running" in result.output
+    assert "0 in-flight" not in result.output
+
+
 def test_task_score_polls_to_completion(monkeypatch: pytest.MonkeyPatch) -> None:
     """The default flow starts a pass and polls its GET until it finishes."""
     _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
