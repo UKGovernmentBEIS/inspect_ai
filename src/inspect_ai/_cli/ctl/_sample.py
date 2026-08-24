@@ -688,7 +688,7 @@ def _run_sample_mutation(
     terse_changed: Callable[[dict[str, Any]], str],
     terse_noop: Callable[[dict[str, Any]], str],
 ) -> None:
-    """Shared scaffold for the per-sample mutation verbs (cancel, requeue).
+    """Shared scaffold for the sample mutations (cancel, cancel-tool-call, requeue).
 
     Fetches summaries, resolves the target eval, applies the required-EPOCH
     gate, posts ``/evals/{eval_id}/sample/{verb}``, and renders the uniform
@@ -875,6 +875,21 @@ def _run_sample_cancel_tool_call(
         calls = ", ".join(f"{p.get('id')} ({p.get('function')})" for p in pending)
         return f" Pending: {_sanitize_line(calls)}."
 
+    def activity_clause(result: dict[str, Any]) -> str:
+        # the zero-pending no-op carries the sample's current activity so the
+        # operator learns where it is actually stuck without a --json retry;
+        # `detail` (a model name or tool function) is model-influenceable
+        activity = result.get("activity")
+        if not activity:
+            return ""
+        detail = activity.get("detail")
+        where = (
+            f"{activity.get('type')} ({detail})"
+            if detail
+            else str(activity.get("type"))
+        )
+        return f" Sample activity: {_sanitize_line(where)}."
+
     def changed_message(label: str, result: dict[str, Any]) -> str:
         if dry_run:
             return f"Would cancel tool call {call_label(result)} of {label}."
@@ -885,7 +900,7 @@ def _run_sample_cancel_tool_call(
 
     def noop_message(label: str, result: dict[str, Any]) -> str:
         reason = _sanitize_line(str(result.get("reason") or "already in that state"))
-        return f"Nothing to do — {reason}.{pending_clause(result)}"
+        return f"Nothing to do — {reason}.{pending_clause(result)}{activity_clause(result)}"
 
     def terse_changed(result: dict[str, Any]) -> str:
         if dry_run:

@@ -5170,6 +5170,33 @@ def test_sample_cancel_tool_call_human_output_sanitizes_tokens(
     assert "Pending:" in noop.output
     assert not any(line.startswith("FORGED2") for line in noop.output.splitlines())
 
+    # the zero-pending no-op surfaces the activity redirect (where the sample
+    # is actually stuck) in human output; the detail is model-influenceable
+    # and must flatten
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl._http._request_json",
+        lambda *a, **k: {
+            "ok": True,
+            "sample_id": "s1",
+            "epoch": 1,
+            "changed": False,
+            "reason": "no pending tool calls",
+            "activity": {
+                "type": "model",
+                "count": 1,
+                "started_at": 0.0,
+                "detail": "mockllm/model\nFORGED3",
+            },
+        },
+    )
+    zero = cli_runner().invoke(
+        ctl_command, ["sample", "cancel-tool-call", "aaa111", "s1", "--no-terse"]
+    )
+    assert zero.exit_code == 0, zero.output
+    assert "Nothing to do — no pending tool calls" in zero.output
+    assert "Sample activity: model (mockllm/model" in zero.output
+    assert not any(line.startswith("FORGED3") for line in zero.output.splitlines())
+
 
 def test_sample_requeue_defaults_epoch_for_single_epoch_task(
     monkeypatch: pytest.MonkeyPatch,
