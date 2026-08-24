@@ -1,3 +1,5 @@
+import re
+
 from inspect_ai._util.answer import answer_character, answer_index
 from inspect_ai.solver._multiple_choice import (
     answer_options,
@@ -18,17 +20,30 @@ def _choices_are_shuffled(choices: Choices) -> bool:
 def _score_target(target: Target, choices: Choices) -> tuple[list[int], list[str]]:
     # Filter out separator characters (e.g. "A,B" or "A, B") so that only
     # actual answer letters/digits are mapped to choice indices.
-    target_positions = [
-        answer_index(target_character)
-        for target_character in target.text
-        if target_character not in (",", " ")
-    ]
+    #
+    # Group target text into runs of letters and runs of digits: letters map
+    # one-to-one to choice indices (e.g. "AB" -> [0, 1]), while a digit run
+    # is a single multi-digit label (e.g. "10" -> [35]) rather than being
+    # split into individual characters.
+    target_positions = _answer_positions(target.text)
 
     choice_positions = [i for i, choice in enumerate(choices) if choice.correct is True]
 
     answers = [answer_character(choice) for choice in choice_positions]
 
     return target_positions, answers
+
+
+def _answer_positions(target_text: str) -> list[int]:
+    positions: list[int] = []
+    for label in re.findall(r"[A-Za-z]+|\d+", target_text):
+        if label.isalpha():
+            # a run of letters is a sequence of single-letter answers
+            positions.extend(answer_index(char) for char in label)
+        else:
+            # a run of digits is a single multi-digit answer label
+            positions.append(answer_index(label))
+    return positions
 
 
 def _shuffled_explanation(choices: Choices) -> str:

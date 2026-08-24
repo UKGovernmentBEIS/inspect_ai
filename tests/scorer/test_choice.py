@@ -164,3 +164,53 @@ async def test_correct_multiple_answers_all_incorrect():
     assert result.text == CORRECT
     assert result.answer == ""
     assert result.explanation == "ANSWERS: "
+
+
+@pytest.mark.anyio
+async def test_score_multi_digit_choice_label():
+    # 36 choices -> labels are "A".."Z" then "1", "2", ..., "10", "11", ...
+    scorer = choice()
+    state = simple_task_state(
+        model_output="ANSWER: 10",
+        choices=[f"choice {i}" for i in range(36)],
+    )
+    for index in range(36):
+        state.choices.mark_choice(index, index == 35)
+
+    result = await scorer(state, Target("10"))
+
+    assert result.text == CORRECT
+    assert result.answer == "10"
+
+
+@pytest.mark.anyio
+async def test_score_multi_digit_choice_label_separated():
+    scorer = choice()
+    state = simple_task_state(
+        model_output="ANSWER: 11",
+        choices=[f"choice {i}" for i in range(37)],
+    )
+    for index in range(37):
+        state.choices.mark_choice(index, index == 36)
+
+    result = await scorer(state, Target("11"))
+
+    assert result.text == CORRECT
+    assert result.answer == "11"
+
+
+@pytest.mark.anyio
+async def test_score_mixed_letter_and_multi_digit_labels():
+    # "A,10" -> choices A and the 36th choice (label "10")
+    scorer = choice()
+    state = simple_task_state(
+        model_output="ANSWER: A, 10",
+        choices=[f"choice {i}" for i in range(36)],
+    )
+    for index in range(36):
+        state.choices.mark_choice(index, index in (0, 35))
+
+    result = await scorer(state, Target("A,10"))
+
+    assert result.text == CORRECT
+    assert result.answer == "A, 10"
