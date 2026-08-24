@@ -579,6 +579,7 @@ def test_init_hooks_can_be_called_multiple_times(mock_hooks: MockHooks) -> None:
 def test_init_hooks_loads_entry_points_with_preexisting_hook(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+
     # The decorator registers immediately, modeling a hook imported as a side effect
     # of legacy hook initialization before entry points are loaded.
     @hooks(name="startup_preexisting", description="test")
@@ -593,12 +594,19 @@ def test_init_hooks_loads_entry_points_with_preexisting_hook(
     monkeypatch.setattr(entrypoints_module, "ensure_entry_points", ensure_entry_points)
 
     try:
+        preexisting_key = "hooks:startup_preexisting"
+        extension_key = "hooks:startup_extension"
+
+        assert preexisting_key in _registry
+        assert extension_key not in _registry
+
         init_hooks()
-        assert registry_lookup("hooks", "startup_preexisting") is not None
-        assert registry_lookup("hooks", "startup_extension") is not None
+
+        assert preexisting_key in _registry
+        assert extension_key in _registry
     finally:
-        _registry.pop("hooks:startup_preexisting", None)
-        _registry.pop("hooks:startup_extension", None)
+        _registry.pop(preexisting_key, None)
+        _registry.pop(extension_key, None)
 
 
 def test_hooks_name_and_description(mock_hooks: MockHooks) -> None:
