@@ -1,6 +1,6 @@
 # Tool Call Cancel (`inspect ctl sample cancel-tool-call`)
 
-> **Status: proposed.** Companion to [`control-channel.md`](control-channel.md), which owns the control-channel architecture and conventions this directive rides (mutation contract, selector rules, version-skew policy); this doc owns the tool-call-cancel semantics. Originating issue: meridianlabs-ai/inspect_ai#313.
+> **Status: implemented.** Companion to [`control-channel.md`](control-channel.md), which owns the control-channel architecture and conventions this directive rides (mutation contract, selector rules, version-skew policy); this doc owns the tool-call-cancel semantics. Originating issue: meridianlabs-ai/inspect_ai#313.
 
 Occasionally a tool call hangs and its timeout never fires. The sample then sits "running" indefinitely: the model is mid-turn awaiting a tool result that will never arrive, and every coarser remedy destroys work — `ctl sample cancel` ends the whole sample, `ctl task cancel` the whole task. The surgical fix already exists twice over: ACP's `inspect/cancel_tool_call` extension cancels exactly one in-flight tool call by id, and the in-process TUI's "timeout tool call" button cancels the pending call(s); either way the model gets a timeout-shaped tool result and the sample continues. But ACP requires the eval to have been launched with `--acp-server` and an ACP client bound to the sample's session, and the TUI requires an interactive `--display full` terminal. The control channel is default-on, discoverable after the fact, and scriptable — an operator (or watchdog agent) who notices a stuck sample in `ctl sample list` should be able to unstick it from the same surface. **`ctl sample cancel-tool-call`** closes that gap.
 
@@ -99,7 +99,7 @@ Today ctl can show *that* a sample is stuck on a tool and *which function* — b
 
 ## Open questions
 
-1. **Naming.** `cancel-tool-call` (mirroring `inspect/cancel_tool_call`) vs. something shorter (`cancel-tool`); `--tool-call-id` vs. `--call-id`. Cosmetic — settle at implementation.
+1. **Naming.** `cancel-tool-call` (mirroring `inspect/cancel_tool_call`) vs. something shorter (`cancel-tool`); `--tool-call-id` vs. `--call-id`. Settled at implementation: `cancel-tool-call` / `--tool-call-id` — the ACP-mirroring spellings.
 2. **Should the synthesized error stay `"timeout"`?** Uniformity with the ACP/TUI paths and behavioral fidelity say yes (above); if structured operator-resolution provenance lands (`stalled-samples.md`), all three surfaces adopt it together.
 3. **`--all` sweep.** Deferred until demand appears (the requeue `--errored` precedent: ship single-target, add the CLI-side sweep when a real babysit run proves the need).
 

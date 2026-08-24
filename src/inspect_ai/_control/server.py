@@ -22,6 +22,7 @@ status histogram and an ``active_since`` recency delta), ``GET
 plus ``POST /release`` / ``POST /keep`` for keep-alive control
 and the first phase-3 directives: the config/log-flush mutations,
 ``POST /tasks/{id}/cancel`` / ``POST /evals/{id}/sample/cancel``,
+``POST /evals/{id}/sample/cancel-tool-call``,
 ``POST /evals/{id}/sample/requeue``, and
 the pause/resume latches (``POST /tasks/{id}/pause`` / ``…/resume``,
 process-scoped ``POST /pause`` / ``POST /resume``, and model-scoped
@@ -56,6 +57,7 @@ from inspect_ai._control.cancel import (
     TaskCancelAction,
     cancel_sample,
     cancel_task,
+    cancel_tool_call,
 )
 from inspect_ai._control.discovery import default_socket_path, discovery_dir
 from inspect_ai._control.events import DEFAULT_PAGE_LIMIT, sample_events
@@ -806,6 +808,61 @@ class ControlServer:
                 )
             if result.get("ok") is False:
                 return JSONResponse(status_code=409, content={"error": result["error"]})
+            return result
+
+        # Cancel one in-flight tool call (phase 3): fire the per-call cancel
+        # scope on a pending ToolEvent — the same primitive ACP's
+        # `inspect/cancel_tool_call` and the in-process TUI's timeout button
+        # drive — so the model sees an ordinary tool timeout and the sample
+        # continues (design/ctl/tool-call-cancel.md). `sample_id` is a query
+        # param like the other per-sample routes; `epoch` is required
+        # (mutation — a defaulted epoch would silently target a different
+        # sample). `tool_call_id` is optional: omitted, the sample's sole
+        # pending tool call is the target, and two or more pending is a 409
+        # enumerating them (a mutation must not guess among targets, and per
+        # the no-fan-out convention must not cancel them all). Idempotent —
+        # a repeat, an unmatched id, or a finished sample reports
+        # `changed: false`; `dry_run=true` reports without acting (without
+        # an id it doubles as "show me the pending tool calls").
+        @app.post("/evals/{eval_id}/sample/cancel-tool-call")
+        async def sample_cancel_tool_call(
+            eval_id: str,
+            sample_id: str,
+            epoch: int | None = None,
+            tool_call_id: str | None = None,
+            dry_run: bool = False,
+        ) -> Any:
+            if epoch is None:
+                return JSONResponse(
+                    status_code=400,
+                    content={
+                        "error": (
+                            "epoch is required — a defaulted epoch would "
+                            "silently target the epoch-1 attempt on a "
+                            "multi-epoch task"
+                        )
+                    },
+                )
+            result = await cancel_tool_call(
+                eval_id,
+                sample_id,
+                epoch,
+                tool_call_id=tool_call_id,
+                dry_run=dry_run,
+            )
+            if result is None:
+                return JSONResponse(
+                    status_code=404,
+                    content={"error": f"sample {sample_id} (epoch {epoch}) not found"},
+                )
+            if result.get("ok") is False:
+                content: dict[str, Any] = {"error": result["error"]}
+                # the ambiguity rejection carries the pending calls
+                # structurally too, so a scripted caller can pick an id
+                # without a second read
+                if "pending" in result:
+                    content["pending"] = result["pending"]
+                return JSONResponse(status_code=409, content=content)
             return result
 
         # Requeue one errored/cancelled sample (phase 3): re-add it to the

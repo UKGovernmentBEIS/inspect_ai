@@ -1065,28 +1065,42 @@ def _sample_activity(s: "ActiveSample") -> dict[str, Any] | None:
     tool function); ``retries`` is the pending model call's in-call
     (provider-SDK) retries; ``deadline`` is when a ``retry_wait`` elapses;
     ``tokens`` / ``last_progress_at`` are reserved for the layer-2 progress
-    channel and ``None`` until it ships.
+    channel and ``None`` until it ships. ``tool`` activity additionally
+    carries ``calls`` — every pending tool call as ``{id, function,
+    started_at, cancel_requested}`` — so ``sample list --json`` alone yields
+    the id ``sample cancel-tool-call`` targets, and a delivered-but-unheeded
+    cancel (a wedged call no scope can stop) stays visible.
     """
     from inspect_ai.event._model import ModelEvent
     from inspect_ai.event._tool import ToolEvent
 
     first_model: ModelEvent | None = None
     model_count = 0
-    first_tool: ToolEvent | None = None
-    tool_count = 0
+    tool_events: list[ToolEvent] = []
     for ev in s.transcript.pending_events:
         if isinstance(ev, ModelEvent):
             if first_model is None:
                 first_model = ev
             model_count += 1
         elif isinstance(ev, ToolEvent):
-            if first_tool is None:
-                first_tool = ev
-            tool_count += 1
+            tool_events.append(ev)
 
-    if first_tool is not None:
+    if tool_events:
+        first_tool = tool_events[0]
         return _activity(
-            "tool", tool_count, first_tool.timestamp.timestamp(), first_tool.function
+            "tool",
+            len(tool_events),
+            first_tool.timestamp.timestamp(),
+            first_tool.function,
+            calls=[
+                {
+                    "id": ev.id,
+                    "function": ev.function,
+                    "started_at": ev.timestamp.timestamp(),
+                    "cancel_requested": ev.cancelled,
+                }
+                for ev in tool_events
+            ],
         )
     if first_model is not None:
         return _activity(
@@ -1116,6 +1130,7 @@ def _activity(
     *,
     retries: int | None = None,
     deadline: float | None = None,
+    calls: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     return {
         "type": type,
@@ -1124,6 +1139,7 @@ def _activity(
         "detail": detail,
         "retries": retries,
         "deadline": deadline,
+        "calls": calls,
         "tokens": None,
         "last_progress_at": None,
     }
