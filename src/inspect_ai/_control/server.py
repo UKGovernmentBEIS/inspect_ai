@@ -17,7 +17,7 @@ Current scope is the phase 1-2 read surface — ``GET /tasks`` (per-task
 summaries), ``GET /evals/{id}/samples`` (capped sample listing with a
 status histogram and an ``active_since`` recency delta), ``GET
 /evals/{id}/sample`` (summary + error detail), ``GET
-/evals/{id}/sample/events`` (cursored transcript pull), and
+/evals/{id}/sample/events`` (cursored transcript pull),
 ``GET /evals/{id}/sample/messages`` (conversation snapshot), and
 ``GET /models/throughput`` (per-model run throughput) —
 plus ``POST /release`` / ``POST /keep`` for keep-alive control
