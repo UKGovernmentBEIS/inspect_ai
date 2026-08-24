@@ -157,6 +157,12 @@ class ScorePass:
     """Samples this pass will attempt to score (progress denominator)."""
     scored: int = 0
     failed: int = 0
+    """Samples whose scoring was attempted and produced no scores (scorer
+    errors, unreadable records) — distinct from :attr:`unscored`."""
+    unscored: int = 0
+    """In-flight samples the pass never scored — they completed on their own
+    mid-hold (``superseded``) or never parked (``did_not_park``). Nothing
+    failed for these, so they get their own progress bucket."""
     targeted: dict[str, int] = field(default_factory=dict)
     rows: list[dict[str, Any]] = field(default_factory=list)
     metrics: list[dict[str, Any]] | None = None
@@ -370,6 +376,7 @@ def _pass_progress(score_pass: ScorePass) -> dict[str, int]:
     return {
         "scored": score_pass.scored,
         "failed": score_pass.failed,
+        "unscored": score_pass.unscored,
         "total": score_pass.total,
     }
 
@@ -608,6 +615,10 @@ def _record(
     if scores:
         metric_scores.append(scores)
         score_pass.scored += 1
+    elif row.get("outcome") in ("superseded", "did_not_park"):
+        # not attempted, not a failure: the sample completed on its own or
+        # never parked — `failed` stays a count of genuine scoring failures
+        score_pass.unscored += 1
     else:
         score_pass.failed += 1
 
@@ -662,45 +673,21 @@ async def _score_serialized_sample(
             None,
         )
 
-    from inspect_ai.log._condense import resolve_sample_attachments
-    from inspect_ai.log._resolve import rebind_sample_timelines
-    from inspect_ai.log._transcript import Transcript, init_transcript, transcript
-    from inspect_ai.model import ModelName
-    from inspect_ai.solver import TaskState
+    from inspect_ai._eval.score import task_state_from_sample
+    from inspect_ai.scorer._score import init_scoring_context
 
-    # deep copy before touching: the recorder's buffered sample (and the
-    # memoized log read) are shared, still-to-be-written state
-    sample = deepcopy(sample)
-    if sample.attachments:
-        sample = resolve_sample_attachments(sample)
-        sample = rebind_sample_timelines(sample)
-
-    target = _target(sample.target)
-    task_state = TaskState(
-        model=ModelName(handle.model),
-        sample_id=sample.id,
-        epoch=sample.epoch,
-        input=sample.input,
-        target=target,
-        choices=sample.choices,
-        messages=sample.messages,
-        output=sample.output,
-        completed=True,
-        metadata=sample.metadata,
-        store=sample.store,
-        scores={},
-        sample_uuid=sample.uuid,
+    # deep copy before rebuilding: the recorder's buffered sample (and the
+    # memoized log read) are shared, still-to-be-written state. The rebuild
+    # seeds a throwaway transcript — scorers may read events / timelines,
+    # but nothing recorded there persists (envelope-only scores).
+    task_state, target, _ = task_state_from_sample(
+        deepcopy(sample),
+        model=handle.model,
+        model_name=handle.model,
+        model_roles=handle.model_roles,
+        append_scores=False,
     )
-
-    _init_pass_scoring_context(handle, target)
-    from inspect_ai.util._store import init_subtask_store
-
-    init_subtask_store(task_state.store)
-    # a throwaway transcript: scorers may read events / timelines, but
-    # nothing recorded here persists (envelope-only scores)
-    init_transcript(Transcript([*sample.events], log_model_api=False, bounded=False))
-    for timeline in sample.timelines or []:
-        transcript().add_timeline(timeline)
+    init_scoring_context(handle.scorers, target)
 
     scores: "dict[str, SampleScore]" = {}
     errors: dict[str, str] = {}

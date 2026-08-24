@@ -373,7 +373,7 @@ async def test_start_score_pass_idempotent_while_running() -> None:
     assert result is not None and result["ok"] is True
     assert result["changed"] is False
     assert result["pass_id"] == "running-pass"
-    assert result["progress"] == {"scored": 0, "failed": 0, "total": 3}
+    assert result["progress"] == {"scored": 0, "failed": 0, "unscored": 0, "total": 3}
 
 
 # ---------------------------------------------------------------------------
@@ -578,7 +578,9 @@ async def test_score_pass_hold_timeout_reports_did_not_park(
     assert row["disposition"] == "in_flight"
     assert row["outcome"] == "did_not_park"
     assert row["scores"] == {}
-    assert score_pass.scored == 0 and score_pass.failed == 1
+    # not attempted, so the unscored bucket — never a scorer "failure"
+    assert score_pass.scored == 0 and score_pass.failed == 0
+    assert score_pass.unscored == 1
     assert not sample_scoring_held(active.id)
     # nothing was recorded on the live transcript
     assert len(active.transcript.events) == 0
@@ -629,6 +631,7 @@ async def test_score_pass_superseded_sample_yields(
     (row,) = score_pass.rows
     assert row["outcome"] == "superseded"
     assert "completed before interim scoring finished" in row["reason"]
+    assert score_pass.failed == 0 and score_pass.unscored == 1
     assert not sample_scoring_held(active.id)
 
 
@@ -784,7 +787,7 @@ async def test_start_score_pass_spawns_and_polls(
                 break
             await anyio.sleep(0.05)
 
-    assert status["progress"] == {"scored": 1, "failed": 0, "total": 1}
+    assert status["progress"] == {"scored": 1, "failed": 0, "unscored": 0, "total": 1}
     outcome = status["result"]
     assert outcome["interim"] is True
     assert outcome["counts"]["completed_unscored"] == 1
@@ -846,7 +849,7 @@ async def test_start_score_pass_concurrent_starts_spawn_one_pass(
             if not status["running"]:
                 break
             await anyio.sleep(0.05)
-    assert status["progress"] == {"scored": 1, "failed": 0, "total": 1}
+    assert status["progress"] == {"scored": 1, "failed": 0, "unscored": 0, "total": 1}
 
 
 # ---------------------------------------------------------------------------
@@ -936,7 +939,7 @@ def test_eval_interim_score_pass_e2e(
     assert observed["start"]["targeted"]["in_flight"] == 1
     # the pass scored the held sample's live state
     status = observed["status"]
-    assert status["progress"] == {"scored": 1, "failed": 0, "total": 1}
+    assert status["progress"] == {"scored": 1, "failed": 0, "unscored": 0, "total": 1}
     (row,) = status["result"]["samples"]
     assert row["disposition"] == "in_flight" and row["outcome"] == "scored"
     assert row["scores"] == {scorer_name: 1.0}

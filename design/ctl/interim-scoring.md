@@ -61,7 +61,7 @@ surface.
 A task-scoped directive, following the `ctl` noun-group conventions:
 
 ```
-inspect ctl task score [TASK] [--dry-run] [--completed-only] [--no-wait] [--json]
+inspect ctl task score [TASK] [--dry-run] [--completed-only] [--no-wait] [--status] [--json]
 ```
 
 - `TASK` follows the mutation selector rule (sole running task is the
@@ -86,8 +86,14 @@ inspect ctl task score [TASK] [--dry-run] [--completed-only] [--no-wait] [--json
 - The pass can take minutes (model-graded scorers over hundreds of samples),
   so the HTTP shape is **start + poll**, not one long request (see "Job
   model"); by default the CLI polls to completion and renders progress, and
-  `--no-wait` returns the started-pass envelope immediately (the agent
-  re-polls with a repeat invocation).
+  `--no-wait` returns the started-pass envelope immediately.
+- `--status` reads the current (or most recent) pass without starting one —
+  the follow-up spelling after `--no-wait`. A repeat *start* is idempotent
+  only against a still-running pass; once the first pass finishes it would
+  spawn a fresh one (re-holding in-flight samples, re-spending grader
+  calls), so the follow-up must be the GET, not another POST. `--status`
+  polls a running pass to completion; `--status --no-wait` is a single
+  snapshot.
 - `--json` everywhere, per the agent output contract.
 
 HTTP endpoints, task-keyed like `config` / `log-flush` / `cancel` (a task id
@@ -408,7 +414,10 @@ short requests (busy retry budgets, agents' timeouts). So the directive is a
   pass's id and progress in `detail`) — an agent retrying on confusion never
   stacks passes.
 - `GET /tasks/<task-id>/score` reports the current (or most recent) pass:
-  `{pass_id, running, progress: {scored, failed, total}, as_of, result?}`
+  `{pass_id, running, progress: {scored, failed, unscored, total}, as_of,
+  result?}` (`unscored` counts in-flight samples the pass never attempted —
+  completed on their own mid-hold, or never parked — kept apart from
+  `failed`, which counts genuine scoring failures)
   with per-sample rows and interim metrics once complete. Pass state is
   in-memory on the `EvalState` (like the counters); in-flight samples'
   scores additionally persist as transcript events, and a caller
@@ -419,7 +428,8 @@ short requests (busy retry budgets, agents' timeouts). So the directive is a
   produced.
 
 The CLI wraps the pair: start, then poll with progress rendering; `--no-wait`
-for the fire-and-poll agent loop.
+for the fire-and-poll agent loop, with `--status` as the poll-only follow-up
+(see the command surface above).
 
 ## Hazards, named
 

@@ -180,7 +180,17 @@ def task_cancel_command(
     default=False,
     help=(
         "Return the started-pass envelope immediately instead of polling to "
-        "completion (re-poll by re-running the command)."
+        "completion (follow up with --status)."
+    ),
+)
+@click.option(
+    "--status",
+    is_flag=True,
+    default=False,
+    help=(
+        "Report the current (or most recent) pass without starting one — the "
+        "follow-up spelling after --no-wait. Polls a still-running pass to "
+        "completion; with --no-wait, returns a single status snapshot."
     ),
 )
 @_json_option(_MUTATION_ENVELOPE_HELP)
@@ -190,6 +200,7 @@ def task_score_command(
     dry_run: bool,
     completed_only: bool,
     no_wait: bool,
+    status: bool,
     as_json: bool,
     terse: bool | None,
 ) -> None:
@@ -203,14 +214,16 @@ def task_score_command(
     skipped and reported. Note the wall clock keeps running for a held
     sample, and scorer model calls share the process's connection limits
     with the running eval. One pass per task at a time — a repeat while one
-    runs reports the running pass. TASK (a task-id prefix or name) is
-    required when several tasks run.
+    runs reports the running pass, and --status reports the current (or
+    most recent) pass without starting one. TASK (a task-id prefix or name)
+    is required when several tasks run.
     """
     _run_task_score(
         task,
         dry_run=dry_run,
         completed_only=completed_only,
         no_wait=no_wait,
+        status=status,
         as_json=as_json,
         terse=terse,
     )
@@ -455,6 +468,7 @@ def _run_task_score(
     dry_run: bool,
     completed_only: bool,
     no_wait: bool,
+    status: bool = False,
     as_json: bool,
     terse: bool | None = None,
 ) -> None:
@@ -465,7 +479,18 @@ def _run_task_score(
     sole-running-task default — non-destructive, so it sits with `log-flush`
     on the selector-optional side. The start is idempotent (a repeat while a
     pass runs joins it), so it may ride the narrated busy-retry policy.
+
+    ``status`` never POSTs: it reads the current (or most recent) pass — the
+    follow-up spelling after ``--no-wait`` (a repeat *start* would spawn a
+    fresh pass once the first finished, re-holding in-flight samples and
+    re-spending grader calls).
     """
+    if status and (dry_run or completed_only):
+        raise click.UsageError(
+            "--status reports an existing pass; it cannot be combined with "
+            "--dry-run or --completed-only."
+        )
+
     servers = _http.list_discovered_servers()
     summaries = _fetch._fetch_summaries(servers).summaries
     scope = _resolve_scope(servers, summaries, task, per_task_option="task score")
@@ -476,6 +501,10 @@ def _run_task_score(
         _echo_no_running_evals()
         return
     assert scope.task_id is not None
+
+    if status:
+        _run_task_score_status(scope, no_wait=no_wait, as_json=as_json, terse=terse)
+        return
 
     params: dict[str, Any] = {}
     if dry_run:
@@ -534,7 +563,7 @@ def _run_task_score(
             else:
                 _echo(
                     f"Scoring pass started ({_score_targeted_summary(targeted)}). "
-                    "Re-run `inspect ctl task score` to poll it."
+                    "Poll it with `inspect ctl task score --status`."
                 )
         return
 
@@ -558,6 +587,37 @@ def _run_task_score(
     _render_score_result(final, terse_mode=terse_mode, target_label=target_label)
 
 
+def _run_task_score_status(
+    scope: _DirectiveScope, *, no_wait: bool, as_json: bool, terse: bool | None
+) -> None:
+    """Report the current (or most recent) pass (``--status`` — no POST).
+
+    Polls a still-running pass to completion like the default flow; with
+    ``--no-wait``, a single status snapshot. ``--json`` emits the poll
+    endpoint's response as-is (a read, so no mutation envelope).
+    """
+    terse_mode = _use_terse(terse)
+    target_label = scope.task or scope.task_id or ""
+    if not terse_mode and not as_json:
+        _echo(scope.header)
+        _echo()
+    if no_wait:
+        result = _get_score_status(scope)
+    else:
+        result = _poll_score_pass(scope, echo_progress=not terse_mode and not as_json)
+    if as_json:
+        _echo_raw(json_lib.dumps(result, indent=2))
+        return
+    if result.get("running"):
+        body = f"running — {_score_progress_summary(result.get('progress') or {})}"
+        if terse_mode:
+            _echo(_terse_line("score", target_label, body))
+        else:
+            _echo(f"Scoring pass {body}.")
+        return
+    _render_score_result(result, terse_mode=terse_mode, target_label=target_label)
+
+
 def _score_targeted_summary(targeted: dict[str, Any]) -> str:
     return (
         f"{int(targeted.get('in_flight', 0) or 0)} in-flight (held while "
@@ -567,30 +627,48 @@ def _score_targeted_summary(targeted: dict[str, Any]) -> str:
     )
 
 
+def _score_progress_summary(progress: dict[str, Any]) -> str:
+    """Render a pass's progress counters (unscored shown only when nonzero).
+
+    ``unscored`` counts in-flight samples the pass never attempted (they
+    completed on their own mid-hold, or never parked) — kept apart from
+    ``failed`` so the headline never reads scorer failures into them.
+    """
+    parts = [
+        f"{int(progress.get('scored', 0) or 0)} scored",
+        f"{int(progress.get('failed', 0) or 0)} failed",
+    ]
+    unscored = int(progress.get("unscored", 0) or 0)
+    if unscored:
+        parts.append(f"{unscored} unscored")
+    return f"{', '.join(parts)} of {int(progress.get('total', 0) or 0)}"
+
+
+def _get_score_status(scope: _DirectiveScope) -> dict[str, Any]:
+    """One ``GET /tasks/<task-id>/score`` (the poll endpoint)."""
+    return _http._request_json(
+        scope.socket_path,
+        f"/tasks/{scope.task_id}/score",
+        what=f"interim scoring status of task {scope.task_id}",
+        not_found=(
+            f"No scoring pass found for task '{scope.task_id}' (none has "
+            "been started, or the process restarted)."
+        ),
+        not_found_missing_route=_SCORE_ROUTE_MISSING,
+        pid=scope.pid,
+    )
+
+
 def _poll_score_pass(scope: _DirectiveScope, *, echo_progress: bool) -> dict[str, Any]:
     """Poll ``GET /tasks/<task-id>/score`` until the pass finishes."""
-    last: tuple[int, int, int] | None = None
+    last: str | None = None
     while True:
-        status = _http._request_json(
-            scope.socket_path,
-            f"/tasks/{scope.task_id}/score",
-            what=f"interim scoring status of task {scope.task_id}",
-            not_found=(
-                f"No scoring pass found for task '{scope.task_id}' (the "
-                "process may have restarted)."
-            ),
-            not_found_missing_route=_SCORE_ROUTE_MISSING,
-            pid=scope.pid,
-        )
+        status = _get_score_status(scope)
         progress = status.get("progress") or {}
-        key = (
-            int(progress.get("scored", 0) or 0),
-            int(progress.get("failed", 0) or 0),
-            int(progress.get("total", 0) or 0),
-        )
-        if echo_progress and status.get("running") and key != last:
-            _echo(f"scoring — {key[0]} scored, {key[1]} failed of {key[2]}")
-            last = key
+        summary = _score_progress_summary(progress)
+        if echo_progress and status.get("running") and summary != last:
+            _echo(f"scoring — {summary}")
+            last = summary
         if not status.get("running"):
             return status
         time.sleep(_SCORE_POLL_INTERVAL)
@@ -602,11 +680,7 @@ def _render_score_result(
     progress = status.get("progress") or {}
     result = status.get("result") or {}
     counts = result.get("counts") or {}
-    summary = (
-        f"scored {int(progress.get('scored', 0) or 0)}, "
-        f"failed {int(progress.get('failed', 0) or 0)} "
-        f"of {int(progress.get('total', 0) or 0)} targeted"
-    )
+    summary = f"{_score_progress_summary(progress)} targeted"
     if terse_mode:
         suffix = ""
         if status.get("interrupted"):
