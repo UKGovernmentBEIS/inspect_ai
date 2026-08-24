@@ -186,6 +186,22 @@ class ModelThroughputView:
 
 _registry: dict[str, ModelThroughput] = {}
 
+_RETRY_WAITS_MEMO_SECONDS = 1.0
+"""TTL of the ``_retry_waits_active()`` memo."""
+
+
+class _RetryWaitsMemo(NamedTuple):
+    """Result of the last active-waits scan, for reuse within the TTL."""
+
+    scanned_at: float
+    """Monotonic timestamp of the scan."""
+
+    counts: dict[str, int]
+    """Samples in an active retry wait, per qualified model."""
+
+
+_retry_waits_memo: _RetryWaitsMemo | None = None
+
 
 def init_model_throughput() -> None:
     """Clear the registry (wired into ``reset_run_registries()``).
@@ -193,7 +209,9 @@ def init_model_throughput() -> None:
     Deliberately unlike the never-reset ``_http_retries_count`` scalar: a
     keep-alive process's second run (and each test) starts clean.
     """
+    global _retry_waits_memo
     _registry.clear()
+    _retry_waits_memo = None
 
 
 def _record(model: str, now: float | None) -> tuple[ModelThroughput, float]:
@@ -289,8 +307,23 @@ def _retry_waits_active() -> dict[str, int]:
     as one. The record is cleared only when the whole retried call resolves
     (not when its sleep elapses), so filter on the deadline — a stale record
     means the next attempt is actively generating, not backing off.
+
+    Memoized for ~1s: the hottest caller is the per-retry trace line
+    (unthrottled, and retry storms peak exactly when active samples do), so
+    without the memo each retry would pay an O(active samples) scan. A
+    second of staleness is noise against the 3s-to-30min sleeps the counts
+    describe. The memo resets with the registry in
+    ``init_model_throughput()``.
     """
+    global _retry_waits_memo
     from inspect_ai.log._samples import active_samples
+
+    now_monotonic = time.monotonic()
+    if (
+        _retry_waits_memo is not None
+        and now_monotonic - _retry_waits_memo.scanned_at < _RETRY_WAITS_MEMO_SECONDS
+    ):
+        return _retry_waits_memo.counts
 
     now = datetime.now(timezone.utc).timestamp()
     counts: dict[str, int] = {}
@@ -304,6 +337,7 @@ def _retry_waits_active() -> dict[str, int]:
             counts[retry_wait.qualified_model] = (
                 counts.get(retry_wait.qualified_model, 0) + 1
             )
+    _retry_waits_memo = _RetryWaitsMemo(scanned_at=now_monotonic, counts=counts)
     return counts
 
 
@@ -368,7 +402,7 @@ def throughput_view(
 
     Computes only the requested model's view (this runs on every retry
     trace line, so it must stay independent of registry size; the active
-    sample scan is unavoidable but bounded by sample count).
+    sample scan is memoized in ``_retry_waits_active``).
     """
     record = _registry.get(model)
     if record is None:

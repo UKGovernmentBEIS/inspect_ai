@@ -383,8 +383,10 @@ caveat below) appearing under `inspect trace http`:
    looked up by the qualified key threaded per §2. This directly answers
    the issue's "hard to gauge throughput" while watching retries scroll
    by — every retry line carries the current window rate. Snapshot cost is
-   trivial (single-model bucket sum) and the line only changes when a
-   retry is already happening.
+   trivial — a single-model bucket sum, plus the "in backoff" count from
+   the active-sample scan, which is memoized for ~1s precisely because this
+   caller is unthrottled and fires when active samples peak — and the line
+   only changes when a retry is already happening.
 
    Caveat: `log_model_retry` escalates the line to `WARNING` when the
    upcoming sleep is ≥ 20 minutes (`_model.py`), and `inspect trace http`
