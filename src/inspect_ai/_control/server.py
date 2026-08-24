@@ -745,6 +745,50 @@ class ControlServer:
                 )
             return result
 
+        # Interim scoring pass (design/ctl/interim-scoring.md): run the task's
+        # scorers over its completed and in-flight samples (each in-flight
+        # sample is briefly held at its next model call while scored) and
+        # compute interim metrics. Task-keyed like `config` / `cancel` /
+        # `pause`. Start + poll: the POST starts a pass and returns
+        # immediately (one pass per task at a time — a start while one runs
+        # is the idempotent no-op with the running pass's id); the GET
+        # reports the current (or most recent) pass, with per-sample rows and
+        # interim metrics once complete. `dry_run=true` reports the targeted
+        # counts by disposition without scoring; `completed_only=true` skips
+        # the in-flight rows entirely (no holds) — the hold-free spelling for
+        # recurring polling. A task with no scorers is a 409.
+        @app.post("/tasks/{task_id}/score")
+        async def task_score(
+            task_id: str, dry_run: bool = False, completed_only: bool = False
+        ) -> Any:
+            from inspect_ai._control.scoring import start_score_pass
+
+            result = await start_score_pass(
+                task_id, dry_run=dry_run, completed_only=completed_only
+            )
+            if result is None:
+                return JSONResponse(
+                    status_code=404,
+                    content={"error": f"task {task_id} not found"},
+                )
+            if result.get("ok") is False:
+                return JSONResponse(status_code=409, content={"error": result["error"]})
+            return result
+
+        @app.get("/tasks/{task_id}/score")
+        async def task_score_status(task_id: str) -> Any:
+            from inspect_ai._control.scoring import get_score_pass
+
+            result = await get_score_pass(task_id)
+            if result is None:
+                return JSONResponse(
+                    status_code=404,
+                    content={"error": f"task {task_id} not found"},
+                )
+            if result.get("ok") is False:
+                return JSONResponse(status_code=404, content={"error": result["error"]})
+            return result
+
         # Cancel one running sample (phase 3). `sample_id` is a query param
         # like the other per-sample routes (ids may contain URL-reserved
         # characters). `epoch` is required — this is a mutation, and a

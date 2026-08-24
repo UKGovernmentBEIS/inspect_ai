@@ -4477,6 +4477,129 @@ def test_task_cancel_json_mutation_envelope(monkeypatch: pytest.MonkeyPatch) -> 
     assert payload["detail"]["in_flight"] == 2
 
 
+class _SequenceSpy:
+    """Capture `_request_json` calls, answering from a response sequence."""
+
+    def __init__(self, responses: list[dict[str, Any]]) -> None:
+        self.responses = list(responses)
+        self.paths: list[str] = []
+        self.params: list[dict[str, Any]] = []
+        self.mutates: list[str | None] = []
+
+    def __call__(self, socket_path: str, path: str, **kwargs: Any) -> dict[str, Any]:
+        self.paths.append(path)
+        self.params.append(kwargs.get("params") or {})
+        self.mutates.append(kwargs.get("mutate"))
+        return self.responses.pop(0)
+
+
+def test_task_score_dry_run_json_envelope(monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    targeted = {
+        "in_flight": 1,
+        "completed_unscored": 2,
+        "completed_scored": 3,
+        "skipped": 4,
+    }
+    spy = _RequestSpy(
+        {
+            "ok": True,
+            "changed": True,
+            "dry_run": True,
+            "pass_id": "p1",
+            "targeted": targeted,
+        }
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
+    result = cli_runner().invoke(ctl_command, ["task", "score", "--dry-run", "--json"])
+    assert result.exit_code == 0, result.output
+    assert spy.paths == ["/tasks/aaa111/score"]
+    assert spy.params == [{"dry_run": True}]
+    payload = json.loads(result.stdout)
+    assert payload["target"]["task_id"] == "aaa111"
+    assert payload["applied"] is False and payload["dry_run"] is True
+    assert payload["detail"]["targeted"] == targeted
+
+
+def test_task_score_polls_to_completion(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The default flow starts a pass and polls its GET until it finishes."""
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    monkeypatch.setattr("inspect_ai._cli.ctl._task._SCORE_POLL_INTERVAL", 0)
+    running = {
+        "ok": True,
+        "pass_id": "p1",
+        "running": True,
+        "progress": {"scored": 1, "failed": 0, "total": 2},
+    }
+    final = {
+        "ok": True,
+        "pass_id": "p1",
+        "running": False,
+        "progress": {"scored": 2, "failed": 0, "total": 2},
+        "result": {
+            "counts": {
+                "in_flight": 1,
+                "completed_unscored": 1,
+                "completed_scored": 0,
+                "skipped": 0,
+            },
+            "samples": [],
+            "metrics": [
+                {"scorer": "match", "reducer": None, "metrics": {"accuracy": 0.5}}
+            ],
+            "interim": True,
+            "epochs": 1,
+        },
+    }
+    spy = _SequenceSpy(
+        [
+            {"ok": True, "changed": True, "dry_run": False, "pass_id": "p1"},
+            running,
+            final,
+        ]
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
+    result = cli_runner().invoke(
+        ctl_command, ["task", "score", "--completed-only", "--json"]
+    )
+    assert result.exit_code == 0, result.output
+    assert spy.paths == ["/tasks/aaa111/score"] * 3
+    assert spy.mutates == ["post", None, None]
+    assert spy.params[0] == {"completed_only": True}
+    payload = json.loads(result.stdout)
+    assert payload["applied"] is True
+    assert payload["detail"]["result"]["interim"] is True
+    assert payload["detail"]["result"]["metrics"][0]["metrics"]["accuracy"] == 0.5
+
+
+def test_task_score_no_wait_returns_start_envelope(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    spy = _RequestSpy(
+        {
+            "ok": True,
+            "changed": True,
+            "dry_run": False,
+            "pass_id": "p1",
+            "targeted": {
+                "in_flight": 0,
+                "completed_unscored": 1,
+                "completed_scored": 0,
+                "skipped": 0,
+            },
+        }
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
+    result = cli_runner().invoke(ctl_command, ["task", "score", "--no-wait", "--json"])
+    assert result.exit_code == 0, result.output
+    # one POST, no polling
+    assert spy.paths == ["/tasks/aaa111/score"]
+    payload = json.loads(result.stdout)
+    assert payload["applied"] is True
+    assert payload["detail"]["pass_id"] == "p1"
+
+
 def test_task_cancel_dry_run_not_applied(monkeypatch: pytest.MonkeyPatch) -> None:
     _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
     spy = _RequestSpy({"ok": True, "changed": True, "dry_run": True, "in_flight": 1})

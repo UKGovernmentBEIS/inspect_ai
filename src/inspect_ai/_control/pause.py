@@ -240,6 +240,16 @@ _dispatch_counts: dict[str, int] = {}
 # distinct samples). Reset with the task gates.
 _held_samples: dict[str, dict[str, int]] = {}
 
+# Sample-keyed hard holds, keyed by ActiveSample.id — the interim-scoring
+# pass's per-sample application of the hard-pause gate (see
+# design/ctl/interim-scoring.md). A separate registry from the operator
+# latches so an unrelated `ctl task resume` can't release a scoring hold and
+# a scoring release can't clear an operator's pause. Entries exist only
+# while a scoring pass holds the sample (created by
+# hold_sample_for_scoring, removed — waking waiters — by
+# release_sample_scoring_hold). Reset with the task gates.
+_sample_hold_gates: dict[str, PauseGate] = {}
+
 
 def _task_gate(task_id: str) -> PauseGate:
     gate = _task_gates.get(task_id)
@@ -417,6 +427,52 @@ def _held_exited(task_id: str, sample_id: str) -> None:
             _held_samples.pop(task_id, None)
 
 
+def hold_sample_for_scoring(sample_id: str) -> None:
+    """Hard-hold one sample at its next generate attempt (interim scoring).
+
+    Idempotent — a repeat while the hold is in place is a no-op (the pass's
+    one-at-a-time guard means this shouldn't arise, but a second hold must
+    never stack). ``sample_id`` is the ``ActiveSample.id`` (this attempt's
+    identity), so a hold can't dangle onto a retry's fresh attempt.
+    """
+    gate = _sample_hold_gates.get(sample_id)
+    if gate is None:
+        gate = PauseGate()
+        _sample_hold_gates[sample_id] = gate
+    gate.pause(now=True)
+
+
+def release_sample_scoring_hold(sample_id: str) -> None:
+    """Release a scoring hold, waking the sample's parked generate attempts.
+
+    Removes the gate from the registry (an entry exists only while a pass
+    holds the sample), so the common no-hold fast path in
+    :func:`_any_hard_gate` stays registry-emptiness-cheap. No-op when the
+    sample isn't held.
+    """
+    gate = _sample_hold_gates.pop(sample_id, None)
+    if gate is not None:
+        gate.resume()
+
+
+def sample_scoring_held(sample_id: str) -> bool:
+    """Whether a scoring hold is in place for ``sample_id``."""
+    gate = _sample_hold_gates.get(sample_id)
+    return gate is not None and gate.hard
+
+
+def sample_parked_attempts(task_id: str, sample_id: str) -> int:
+    """Parked generate attempts of one sample (the scoring pass's park ack).
+
+    Reads the same held-samples accounting :func:`task_held_count` reports
+    from, keyed down to one sample: non-zero means at least one of the
+    sample's generate attempts is parked at the hard-pause gate (whichever
+    latch holds it), which is the wait-for-park signal the interim-scoring
+    pass acts on.
+    """
+    return _held_samples.get(task_id, {}).get(sample_id, 0)
+
+
 async def wait_task_dispatch(
     task_id: str,
     escape: Callable[[], bool] | None = None,
@@ -471,21 +527,30 @@ def _any_hard_gate() -> bool:
     """
     return (
         _process_gate.hard
+        or bool(_sample_hold_gates)
         or any(gate.hard for gate in _task_gates.values())
         or any(gate.hard for gate in _model_gates.values())
     )
 
 
-def _generate_hold_gate(task_id: str | None, model: str) -> PauseGate | None:
+def _generate_hold_gate(
+    task_id: str | None, model: str, sample_id: str | None = None
+) -> PauseGate | None:
     """The first hard-closed latch holding a generate attempt, or ``None``.
 
     The model check keys on the model *actually being called* — deliberately
     unlike the soft model latch's primary-model-only keying — so a hard model
     pause holds grader/role calls to the latched model too: exactly what a
-    provider incident wants.
+    provider incident wants. ``sample_id`` keys the interim-scoring pass's
+    per-sample hold — resolved through the active sample like the task gate,
+    so the pass's own grader calls (no active sample bound) pass it.
     """
     if _process_gate.hard:
         return _process_gate
+    if sample_id:
+        sample_gate = _sample_hold_gates.get(sample_id)
+        if sample_gate is not None and sample_gate.hard:
+            return sample_gate
     if task_id:
         gate = _task_gates.get(task_id)
         if gate is not None and gate.hard:
@@ -565,7 +630,8 @@ async def wait_generate_dispatch(
     def escaped() -> bool:
         return sample is not None and sample.interrupt_action is not None
 
-    gate = _generate_hold_gate(task_id, model_name)
+    sample_id = sample.id if sample is not None else None
+    gate = _generate_hold_gate(task_id, model_name, sample_id)
     if gate is None or escaped():
         return
     if task_id is not None and sample is not None:
@@ -583,7 +649,7 @@ async def wait_generate_dispatch(
             last = now
             # re-resolve: the parked-on gate may have opened while another
             # latch hard-closed (independent latches)
-            gate = _generate_hold_gate(task_id, model_name)
+            gate = _generate_hold_gate(task_id, model_name, sample_id)
     finally:
         tail = time.monotonic() - last
         if tail > 0:
@@ -678,6 +744,10 @@ def reset_task_pause_gates() -> None:
     _dispatch_model_names.clear()
     _dispatch_counts.clear()
     _held_samples.clear()
+    # release, not just drop: a waiter parked on a dropped gate would never
+    # be woken (release also wakes)
+    for sample_id in list(_sample_hold_gates):
+        release_sample_scoring_hold(sample_id)
 
 
 def reset_process_pause() -> None:

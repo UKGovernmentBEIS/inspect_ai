@@ -34,6 +34,7 @@ from ._mutate import (
     _CANCEL_ROUTE_MISSING,
     _HELD_CAVEAT,
     _PAUSE_ROUTE_MISSING,
+    _DirectiveScope,
     _mutation_envelope,
     _pause_confirmation,
     _resolve_scope,
@@ -151,6 +152,65 @@ def task_cancel_command(
         task,
         action=cast(TaskCancelAction, action),
         dry_run=dry_run,
+        as_json=as_json,
+        terse=terse,
+    )
+
+
+@task_group.command("score")
+@click.argument("task", required=False)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    default=False,
+    help="Report what would be scored (counts by disposition) without scoring.",
+)
+@click.option(
+    "--completed-only",
+    is_flag=True,
+    default=False,
+    help=(
+        "Skip in-flight samples entirely (no holds) — interim metrics over "
+        "everything already completed. The safe spelling for recurring polling."
+    ),
+)
+@click.option(
+    "--no-wait",
+    is_flag=True,
+    default=False,
+    help=(
+        "Return the started-pass envelope immediately instead of polling to "
+        "completion (re-poll by re-running the command)."
+    ),
+)
+@_json_option(_MUTATION_ENVELOPE_HELP)
+@_terse_option()
+def task_score_command(
+    task: str | None,
+    dry_run: bool,
+    completed_only: bool,
+    no_wait: bool,
+    as_json: bool,
+    terse: bool | None,
+) -> None:
+    """Score a running task's samples now and report interim metrics.
+
+    Non-destructive: runs the task's own scorers over completed samples and
+    over in-flight samples — each in-flight sample is briefly held at its
+    next model call, scored on its stable work-so-far, and released (its
+    interim score is recorded on its transcript; the sample keeps running).
+    A sample that neither parks nor completes within the hold timeout is
+    skipped and reported. Note the wall clock keeps running for a held
+    sample, and scorer model calls share the process's connection limits
+    with the running eval. One pass per task at a time — a repeat while one
+    runs reports the running pass. TASK (a task-id prefix or name) is
+    required when several tasks run.
+    """
+    _run_task_score(
+        task,
+        dry_run=dry_run,
+        completed_only=completed_only,
+        no_wait=no_wait,
         as_json=as_json,
         terse=terse,
     )
@@ -378,6 +438,199 @@ def _run_task_cancel(
             _echo(_terse_line("cancel", target_label, f"no-op — {reason}"))
         else:
             _echo(f"Nothing to do: {reason}.")
+
+
+_SCORE_ROUTE_MISSING = (
+    "This process is running an older inspect without the interim-scoring "
+    "endpoint; restart the eval to pick up the current version."
+)
+
+_SCORE_POLL_INTERVAL = 1.0
+
+
+@_envelope_failures
+def _run_task_score(
+    task: str | None,
+    *,
+    dry_run: bool,
+    completed_only: bool,
+    no_wait: bool,
+    as_json: bool,
+    terse: bool | None = None,
+) -> None:
+    """Start an interim scoring pass and (by default) poll it to completion.
+
+    Wraps the start + poll endpoint pair (``POST``/``GET
+    /tasks/<task-id>/score``). Follows the mutation selector rule with the
+    sole-running-task default — non-destructive, so it sits with `log-flush`
+    on the selector-optional side. The start is idempotent (a repeat while a
+    pass runs joins it), so it may ride the narrated busy-retry policy.
+    """
+    servers = _http.list_discovered_servers()
+    summaries = _fetch._fetch_summaries(servers).summaries
+    scope = _resolve_scope(servers, summaries, task, per_task_option="task score")
+    if scope is None:
+        if as_json:
+            _echo_raw("null")
+            return
+        _echo_no_running_evals()
+        return
+    assert scope.task_id is not None
+
+    params: dict[str, Any] = {}
+    if dry_run:
+        params["dry_run"] = True
+    if completed_only:
+        params["completed_only"] = True
+    result = _http._request_json(
+        scope.socket_path,
+        f"/tasks/{scope.task_id}/score",
+        params=params,
+        what=f"interim scoring of task {scope.task_id}",
+        not_found=(
+            f"Task '{scope.task_id}' not found in this process (it may have finished)."
+        ),
+        not_found_missing_route=_SCORE_ROUTE_MISSING,
+        mutate="post",
+        retry_mutation=True,
+        pid=scope.pid,
+    )
+
+    target = {"task_id": scope.task_id, "task": scope.task}
+    terse_mode = _use_terse(terse)
+    target_label = scope.task or scope.task_id
+    targeted = result.get("targeted") or {}
+
+    if dry_run or no_wait:
+        if as_json:
+            _echo_raw(
+                json_lib.dumps(
+                    _mutation_envelope(target, result, dry_run=dry_run), indent=2
+                )
+            )
+            return
+        if not terse_mode:
+            _echo(scope.header)
+            _echo()
+        if dry_run:
+            body = _score_targeted_summary(targeted)
+            if terse_mode:
+                _echo(_terse_line("score", target_label, f"dry-run — {body}"))
+            else:
+                _echo(f"Would score — {body}.")
+        elif result.get("changed"):
+            note = f"pass {result.get('pass_id')} started — {_score_targeted_summary(targeted)}"
+            if terse_mode:
+                _echo(_terse_line("score", target_label, note))
+            else:
+                _echo(
+                    f"Scoring pass started ({_score_targeted_summary(targeted)}). "
+                    "Re-run `inspect ctl task score` to poll it."
+                )
+        else:
+            reason = _sanitize_line(str(result.get("reason") or "already running"))
+            if terse_mode:
+                _echo(_terse_line("score", target_label, f"no-op — {reason}"))
+            else:
+                _echo(f"Nothing to do: {reason}.")
+        return
+
+    # poll the pass to completion (the started one, or the one already
+    # running that the start idempotently joined)
+    if not terse_mode and not as_json:
+        _echo(scope.header)
+        _echo()
+    final = _poll_score_pass(scope, echo_progress=not terse_mode and not as_json)
+
+    if as_json:
+        envelope = {
+            "target": target,
+            "applied": bool(result.get("changed")),
+            "dry_run": False,
+            "detail": {k: v for k, v in final.items() if k != "ok"},
+        }
+        _echo_raw(json_lib.dumps(envelope, indent=2))
+        return
+
+    _render_score_result(final, terse_mode=terse_mode, target_label=target_label)
+
+
+def _score_targeted_summary(targeted: dict[str, Any]) -> str:
+    return (
+        f"{int(targeted.get('in_flight', 0) or 0)} in-flight (held while "
+        f"scored), {int(targeted.get('completed_unscored', 0) or 0)} completed "
+        f"unscored, {int(targeted.get('completed_scored', 0) or 0)} already "
+        f"scored (metrics only), {int(targeted.get('skipped', 0) or 0)} skipped"
+    )
+
+
+def _poll_score_pass(scope: _DirectiveScope, *, echo_progress: bool) -> dict[str, Any]:
+    """Poll ``GET /tasks/<task-id>/score`` until the pass finishes."""
+    last: tuple[int, int, int] | None = None
+    while True:
+        status = _http._request_json(
+            scope.socket_path,
+            f"/tasks/{scope.task_id}/score",
+            what=f"interim scoring status of task {scope.task_id}",
+            not_found=(
+                f"No scoring pass found for task '{scope.task_id}' (the "
+                "process may have restarted)."
+            ),
+            not_found_missing_route=_SCORE_ROUTE_MISSING,
+            pid=scope.pid,
+        )
+        progress = status.get("progress") or {}
+        key = (
+            int(progress.get("scored", 0) or 0),
+            int(progress.get("failed", 0) or 0),
+            int(progress.get("total", 0) or 0),
+        )
+        if echo_progress and status.get("running") and key != last:
+            _echo(f"scoring — {key[0]} scored, {key[1]} failed of {key[2]}")
+            last = key
+        if not status.get("running"):
+            return status
+        time.sleep(_SCORE_POLL_INTERVAL)
+
+
+def _render_score_result(
+    status: dict[str, Any], *, terse_mode: bool, target_label: str
+) -> None:
+    progress = status.get("progress") or {}
+    result = status.get("result") or {}
+    counts = result.get("counts") or {}
+    summary = (
+        f"scored {int(progress.get('scored', 0) or 0)}, "
+        f"failed {int(progress.get('failed', 0) or 0)} "
+        f"of {int(progress.get('total', 0) or 0)} targeted"
+    )
+    if terse_mode:
+        suffix = ""
+        if status.get("interrupted"):
+            suffix = f"; interrupted — {_sanitize_line(str(status['interrupted']))}"
+        elif status.get("error"):
+            suffix = f"; error — {_sanitize_line(str(status['error']))}"
+        _echo(_terse_line("score", target_label, f"complete — {summary}{suffix}"))
+        return
+    _echo(f"Interim scoring pass complete — {summary}.")
+    if counts:
+        _echo(f"Dispositions: {_score_targeted_summary(counts)}.")
+    metrics = result.get("metrics") or []
+    if metrics:
+        _echo(
+            "Interim metrics (epochs may be incomplete; in-flight scores "
+            "describe a held moment):"
+        )
+        for entry in metrics:
+            pairs = ", ".join(
+                f"{key}={value}" for key, value in (entry.get("metrics") or {}).items()
+            )
+            reducer = f"/{entry['reducer']}" if entry.get("reducer") else ""
+            _echo(_sanitize_line(f"  {entry.get('scorer')}{reducer}: {pairs}"))
+    if status.get("interrupted"):
+        _echo(f"Note: pass interrupted — {_sanitize_line(str(status['interrupted']))}.")
+    if status.get("error"):
+        _echo(f"Pass error: {_sanitize_line(str(status['error']))}.")
 
 
 def _still_held_note(held: list[str]) -> str:

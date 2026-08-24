@@ -1,13 +1,16 @@
 # Interim scoring: score a running eval's completed and in-flight samples
 
-> **Status: design proposal** (meridianlabs-ai/inspect_ai#91). Nothing described here is
-> built yet. Per maintainer direction on the design review
+> **Status: initial implementation shipped** (meridianlabs-ai/inspect_ai#91) —
+> phases 1 and 2 below: the `ctl task score` directive, the endpoint pair, and
+> pause-and-score of in-flight samples via the sample-keyed hard hold
+> (`inspect_ai._control.scoring` + the sample gate in
+> `inspect_ai._control.pause`). Per maintainer direction on the design review
 > (meridianlabs-ai/inspect_ai#94), the **initial implementation scores in-flight
 > samples by pausing them** — a per-sample application of the hard-pause gate
-> that has since shipped as `pause --now` (meridianlabs-ai/inspect_ai#103; see
+> that shipped as `pause --now` (meridianlabs-ai/inspect_ai#103; see
 > [`pause-resume.md`](pause-resume.md)) — and the in-context
-> cooperative (no-hold snapshot) shape is **deferred**. The control-channel
-> context this builds on is in
+> cooperative (no-hold snapshot) shape is **deferred** (phase 3). The
+> control-channel context this builds on is in
 > [`control-channel.md`](control-channel.md); the partial-sample persistence
 > machinery referenced throughout is described in [`recover.md`](../recover.md).
 
@@ -478,7 +481,7 @@ for the fire-and-poll agent loop.
 
 ## Phasing
 
-Phases 1 and 2 together are the initial implementation:
+Phases 1 and 2 together are the initial implementation (shipped):
 
 1. **Pass plumbing + completed samples.** The endpoint pair, job model,
    dispositions, `_run_score_task` over the live recorder's serialized
@@ -504,10 +507,20 @@ Phases 1 and 2 together are the initial implementation:
    interim score in `ctl sample list` rows; scheduled/periodic passes
    (`--every`, or shell composition with a watchdog loop).
 
-`control-channel.md`'s endpoint table and CLI hierarchy carry
-planned-status entries for the directive that point back to this doc
-(rather than duplicating its detail); they gain the shipped markers when
-this lands.
+`control-channel.md`'s endpoint table and CLI hierarchy carry shipped
+entries for the directive that point back to this doc (rather than
+duplicating its detail).
+
+Implementation notes on the shipped build (details the doc left to pin
+down): the quiescence predicate is the park ack (≥ 1 parked generate
+attempt) plus a transcript-settle window — no new events across the window,
+using the shared transcript as the non-generate activity signal — with a
+sample whose transcript never settles timing out to the "did not park" row;
+the hold timeout is a constant (120s), as is the per-sample scoring
+deadline (600s) and the completed-sample concurrency cap (4); in-flight
+samples are held strictly one at a time; and the pass task is spawned in a
+fresh (empty) context, making the no-sample-binding properties hold even if
+a start were ever issued from in-sample code.
 
 ## Open questions
 

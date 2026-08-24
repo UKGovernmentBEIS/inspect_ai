@@ -58,7 +58,7 @@ from inspect_ai.util._checkpoint.checkpointer import CheckpointerSetup, ResumeCh
 from inspect_ai.util._checkpoint.checkpointer_factory import create_checkpointer
 from inspect_ai.util._checkpoint.config import ResolvedCheckpointConfig
 from inspect_ai.util._limit import LimitExceededError
-from inspect_ai.util._sandbox import SandboxConnection
+from inspect_ai.util._sandbox import SandboxConnection, SandboxEnvironment
 from inspect_ai.util._sandbox.context import sandbox_connections
 
 from ..event._model import ModelEvent
@@ -172,6 +172,14 @@ class ActiveSample:
         self.fallback_models: list[str] = []
         self.transcript = transcript
         self.sandboxes = sandboxes
+        # The sample's live sandbox *environments* (the context-bound dict the
+        # sample's own coroutine works against), published by the runner after
+        # sandbox init. `sandboxes` above carries connection info for the
+        # VS Code surface; this carries the environments themselves so the
+        # interim-scoring pass can bind them into its scoring context and let
+        # sandbox-inspecting scorers work (design/ctl/interim-scoring.md).
+        # Empty when the sample has no sandbox.
+        self.sandbox_environments: dict[str, "SandboxEnvironment"] = {}
         self.checkpointer = checkpointer
         self.eval_set_id = eval_set_id
         self.run_id = run_id
