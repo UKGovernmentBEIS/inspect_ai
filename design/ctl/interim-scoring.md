@@ -5,17 +5,18 @@
 > (meridianlabs-ai/inspect_ai#94), the **initial implementation scores in-flight
 > samples by pausing them** — a per-sample application of the hard-pause gate
 > that has since shipped as `pause --now` (meridianlabs-ai/inspect_ai#103; see
-> [`ctl/pause-resume.md`](ctl/pause-resume.md)) — and the in-context
+> [`pause-resume.md`](pause-resume.md)) — and the in-context
 > cooperative (no-hold snapshot) shape is **deferred**. The control-channel
 > context this builds on is in
-> [`control-channel.md`](ctl/control-channel.md); the partial-sample persistence
-> machinery referenced throughout is described in [`recover.md`](recover.md).
+> [`control-channel.md`](control-channel.md); the partial-sample persistence
+> machinery referenced throughout is described in [`recover.md`](../recover.md).
 
 The feature: a **non-destructive control-channel directive** — `inspect ctl
 task score` — that runs the task's scorers over every scoreable sample of a
 *running* eval (completed samples, and in-flight ones each briefly held while
-scored), computes interim metrics, and persists the results to disk and to
-the logs.
+scored), computes interim metrics, reports the results in the command's
+output envelope, and persists in-flight samples' scores into their log
+transcripts (as intermediate score events).
 
 ## Motivation
 
@@ -111,7 +112,7 @@ the result envelope and counted in `--dry-run`:
 | **In-flight** (started, not terminal) | **held** at its next model call, scored on its stable work-so-far, released (the headline capability); reported un-scored if it neither parks nor completes within the hold timeout |
 | **Completed, unscored** (the eval ran with `--no-score`, or a scorer previously errored) | scored from its serialized form — the `inspect score` recipe applied mid-run |
 | **Completed, scored** | *not* re-scored (the task's scorers are fixed at eval start, so re-running them buys nothing); its existing final scores are included in the interim metrics |
-| **Errored / cancelled** | follows the task's `score_on_error` policy — scored if final scoring would score them, otherwise skipped |
+| **Errored / cancelled** | mirrors final scoring: errored samples are scored only if the eval's resolved `score_on_error` flag is set; cancelled samples are never scored (final scoring excludes them regardless of the flag) |
 | **Queued / pending** | skipped — nothing to score |
 
 "Partially completed" in the issue title is the in-flight row: a sample with
@@ -180,7 +181,7 @@ review, meridianlabs-ai/inspect_ai#94):
 3. **Pause-and-score (chosen for the initial implementation).** Hold the
    sample, then score its live state from the handler side. The hold is the
    hard-pause gate that shipped as `pause --now`
-   ([`ctl/pause-resume.md`](ctl/pause-resume.md), gate module
+   ([`pause-resume.md`](pause-resume.md), gate module
    `src/inspect_ai/_control/pause.py`) applied per-sample: a `PauseGate`
    awaited at generate-attempt start (`wait_generate_dispatch`, gating
    `Model.compact()` too), held-sample accounting (`task_held_count`,
@@ -249,10 +250,10 @@ review, meridianlabs-ai/inspect_ai#94):
      model calls (mid-tool-call, mid-sandbox-exec, or in pure Python)
      presents no generate attempt to cover yet is about to mutate the shared
      `TaskState`. The predicate therefore needs a non-generate activity
-     signal (the activity accounting open question 6 reaches for), or —
-     simpler and safe — multi-branch samples without full coverage time out
-     to the "did not park" row like non-parking samples do. Which of the two
-     ships first is a build detail to pin down with tests;
+     signal (the same activity accounting deferred under open question 3),
+     or — simpler and safe — multi-branch samples without full coverage time
+     out to the "did not park" row like non-parking samples do. Which of the
+     two ships first is a build detail to pin down with tests;
    - a **hold timeout**, so a sample that neither parks nor completes (a
      long sandbox command, a solver phase with no model calls) can't wedge
      the pass. On timeout the sample's row reports "did not park", and it
@@ -367,45 +368,29 @@ than it will at eval end), and an in-flight score describes a held moment
 mid-run by construction. The eval's own `results` — computed at eval end —
 are entirely unaffected.
 
-## Persistence ("save scores to disk/logs")
+## Results: reporting and persistence
 
-Three sinks, complementary:
+The pass **reports** through the result envelope (the `--json` output):
+per-sample `{sample_id, epoch, disposition, scores}` rows plus the interim
+metrics and an `as_of` stamp — the dashboard/agent surface. The envelope is
+process output, not persistence; a caller who wants a durable copy captures
+it.
 
-1. **The result envelope** (the `--json` output): per-sample
-   `{sample_id, epoch, disposition, scores}` rows plus the interim metrics
-   and an `as_of` stamp — the dashboard/agent surface.
-2. **The log, via the transcript** (in-flight samples): each held-state
-   score is a `ScoreEvent(intermediate=True)` on the sample's live transcript, so
-   it persists through the realtime sample buffer immediately and rides into
-   the final log when the sample completes — and into a *recovered* log if
-   the run dies (the buffer is exactly what `inspect log recover` reads).
-   `EvalSample.scores` is untouched: intermediate events never populate final
-   scores, an invariant `score()` already established.
-3. **A scores sidecar on disk** (the durable aggregate): each pass adds
-   one JSON line — `{as_of, run_id, eval_id, task_id, counts, samples,
-   metrics}` — to a sidecar next to the log (e.g.
-   `<log-location>.scores.jsonl`), written through the async filesystem
-   layer so S3-backed log dirs work. One caveat on "adds a line": S3 has
-   no append primitive and `AsyncFilesystem` reflects that (whole-object
-   `write_file` / `write_file_streaming` only), so on remote filesystems
-   each pass is a read-modify-write of the whole sidecar — fine with the
-   pass as sole writer and a file this small, but O(passes) rewrite cost
-   and a brief durability window, not a literal append (local paths append
-   genuinely). If that ever matters, one object per pass under a prefix is
-   the escape — dovetailing with the `interim-scores/` directory
-   alternative in open question 1. Append-only JSONL gives a time series
-   of interim metrics across repeated passes for free. A sidecar rather than
-   a log rewrite because mutating a mid-write log is exactly what the
-   view-server editing design refuses to do (`viewer_log_editing.md` rejects
-   edits on `status == "started"` logs), and because the extension must not
-   collide with log listing (`.jsonl` is invisible to `list_eval_logs`,
-   which matches `.eval` / `.json`).
+The pass **persists** through the log, via the transcript (in-flight
+samples): each held-state score is a `ScoreEvent(intermediate=True)` on the
+sample's live transcript, so it persists through the realtime sample buffer
+immediately and rides into the final log when the sample completes — and
+into a *recovered* log if the run dies (the buffer is exactly what `inspect
+log recover` reads). `EvalSample.scores` is untouched: intermediate events
+never populate final scores, an invariant `score()` already established.
 
-Completed-unscored samples' pass scores live in sinks 1 and 3 only: their
+Completed-unscored samples' pass scores appear in the envelope only: their
 log records are already written (or buffered for write), and injecting
 scores into them mid-run would be a log mutation with no safe path. Scoring
 them *into the log* remains `inspect score`'s job after the run — the pass
-gives the operator the numbers now, not a rewritten log.
+gives the operator the numbers now, not a rewritten log. (An on-disk scores
+sidecar as an additional durable record was considered and dropped — see
+"Alternatives considered".)
 
 ## Job model
 
@@ -422,12 +407,13 @@ short requests (busy retry budgets, agents' timeouts). So the directive is a
 - `GET /tasks/<task-id>/score` reports the current (or most recent) pass:
   `{pass_id, running, progress: {scored, failed, total}, as_of, result?}`
   with per-sample rows and interim metrics once complete. Pass state is
-  in-memory on the `EvalState` (like the counters); the durable record is
-  the sidecar.
+  in-memory on the `EvalState` (like the counters); in-flight samples'
+  scores additionally persist as transcript events, and a caller
+  who wants a durable record of the envelope captures the `--json` output.
 - Per-sample scorer failures are recorded on the row and don't fail the
   pass. A pass outlives nothing: task finish / retry / cancel tears it down,
   and the poll reports it as interrupted with whatever partial rows it
-  produced (already appended to the sidecar).
+  produced.
 
 The CLI wraps the pair: start, then poll with progress rendering; `--no-wait`
 for the fire-and-poll agent loop.
@@ -459,9 +445,10 @@ for the fire-and-poll agent loop.
   doesn't remove the caveat: mutations persist after release (a cleanup
   script's deletions, a stray grader artifact in the workspace is
   contamination the agent sees on resume), and background processes keep
-  running through the hold. v1 documents the caveat — scorers must be
-  read-only with respect to the environment to be safely interim-scorable;
-  a per-task or per-scorer opt-out is an open question below.
+  running through the hold. The documented caveat is the answer — scorers
+  must be read-only with respect to the environment to be safely
+  interim-scorable; a declarative per-scorer/per-task marker was considered
+  and rejected as not worth the machinery (see "Alternatives considered").
 - **Interim-score semantics.** An interim score describes the held moment;
   by the time it's read the sample has moved on. The `as_of` stamps and the
   `intermediate` flag keep this honest everywhere the scores surface.
@@ -486,7 +473,7 @@ for the fire-and-poll agent loop.
   neither ends samples nor changes eval behavior (beyond the contention
   noted above). It rides on the shipped access model — filesystem
   permissions plus the SO_PEERCRED / LOCAL_PEERCRED peer-UID check (see
-  [`ctl/security.md`](ctl/security.md)) — like the other non-destructive
+  [`security.md`](security.md)) — like the other non-destructive
   mutations.
 
 ## Phasing
@@ -495,7 +482,7 @@ Phases 1 and 2 together are the initial implementation:
 
 1. **Pass plumbing + completed samples.** The endpoint pair, job model,
    dispositions, `_run_score_task` over the live recorder's serialized
-   samples, interim metrics, envelope + sidecar. No runner changes; this
+   samples, interim metrics, the result envelope. No runner changes; this
    slice already delivers mid-run scoring for `--no-score` runs and interim
    metrics over everything scored so far (in-flight samples report as
    skipped until phase 2).
@@ -514,9 +501,7 @@ Phases 1 and 2 together are the initial implementation:
    cancel-on-completion, budget isolation — `suspend_token_limit()` /
    `suspend_turn_limit()` prior art, cost-limit equivalent to be added);
    `ctl sample score` (per-sample variant); surfacing the latest
-   interim score in `ctl sample list` rows; recovery consuming intermediate
-   scores (a recovered in-progress sample could carry its last interim score
-   instead of no score — see open questions); scheduled/periodic passes
+   interim score in `ctl sample list` rows; scheduled/periodic passes
    (`--every`, or shell composition with a watchdog loop).
 
 `control-channel.md`'s endpoint table and CLI hierarchy carry
@@ -526,39 +511,27 @@ this lands.
 
 ## Open questions
 
-1. **Sidecar location and lifecycle.** `<log-location>.scores.jsonl` keeps
-   the artifact next to its log (and S3-compatible), but log-dir consumers
-   that glob indiscriminately will see a new file type. Alternative: an
-   `interim-scores/` subdirectory of the log dir. Retention (delete on
-   successful eval end? keep always?) is also open — keeping always is the
-   simple, honest default.
-2. **Scoring errored samples.** The table above defers to the task's
-   `score_on_error` policy; is there operator value in a `--include-errored`
-   override for triage ("how close did the failures get?")?
-3. **Sandbox-mutating scorers.** Is a declarative "safe for interim scoring"
-   marker on scorers worth it (scorer metadata, or a task-level flag), or is
-   the documented caveat enough until someone is bitten?
-4. **Recovery integration.** Should `inspect log recover` populate a
-   reconstructed in-progress sample's `scores` from its latest
-   `ScoreEvent(intermediate=True)` (clearly marked), rather than leaving it
-   unscored? It changes recovered-log semantics, so it belongs to a separate
-   decision — but the events will be sitting right there in the buffer.
-5. **Eval-set aggregate.** The pass is per-task, consistent with the `ctl`
+1. **Scoring errored samples — deferred.** The table above mirrors the
+   eval's resolved `score_on_error` flag. A `--include-errored` override
+   for triage ("how close did the failures get?") is deferred for potential
+   later implementation: not in v1, revisit if an operator asks for it.
+2. **Eval-set aggregate.** The pass is per-task, consistent with the `ctl`
    surface today; an eval-set-wide "score everything running" is shell
    composition (`ctl task list --json | jq ... | xargs`) until the eval-set
    noun group exists.
-6. **Hold-timeout policy.** What default (a few minutes?), and is it an
-   operator knob (`--hold-timeout`) from day one or a constant until someone
-   needs it? Related: should a timed-out sample's row distinguish "mid
-   long tool call" from "solver no longer calls models" (the activity
-   accounting could tell them apart) so the operator knows whether retrying
-   later can help?
+3. **Hold-timeout policy — resolved: constant to start.** v1 ships with a
+   hardcoded timeout (a few minutes; exact value pinned during
+   implementation). Deferred until someone needs them: a `--hold-timeout`
+   operator knob, and distinguishing *why* a sample timed out ("mid long
+   tool call" — retry later might catch it — vs. "solver no longer calls
+   models" — retrying never helps; the activity accounting could tell
+   them apart).
 
 ## Alternatives considered
 
 - **Cancel-with-score, then requeue.** Compose the existing destructive
   primitives: `sample cancel --action score` followed by `sample requeue`
-  (since built — [`ctl/sample-requeue.md`](ctl/sample-requeue.md)).
+  (since built — [`sample-requeue.md`](sample-requeue.md)).
   Rejected: requeue restarts the sample from scratch — the in-flight work is
   scored but then *discarded*, which inverts the point of a non-destructive
   interim score.
@@ -574,6 +547,34 @@ this lands.
   author, doesn't cover completed samples, and gives the operator no
   on-demand trigger — but it's the same underlying machinery, and tasks that
   author it get logs that look identical to this feature's.
+- **Recovery populating scores from interim events.** `inspect log recover`
+  could fill a reconstructed in-progress sample's `scores` from its latest
+  `ScoreEvent(intermediate=True)` — the events do reach the sample buffer
+  recover reads (see "Results: reporting and persistence"). Rejected: it
+  would silently promote a
+  mid-run held-moment score into the position of a final score, changing
+  recovered-log semantics for every downstream consumer. The events remain
+  visible in the recovered transcript for anyone who wants them;
+  `EvalSample.scores` stays final-scores-only, the invariant `score()`
+  established.
+- **A declarative "safe for interim scoring" marker on scorers** (scorer
+  metadata or a task-level flag) to gate the pass away from
+  sandbox-mutating scorers. Rejected: not worth the machinery — the
+  documented read-only caveat (see "Hazards") is the answer, and no
+  decorator/marker is planned.
+- **A scores sidecar on disk** (e.g. `<log-location>.scores.jsonl`): an
+  append-only JSONL of pass results next to the log, as a durable
+  record beyond the envelope and the transcript events. Rejected: its
+  only irreplaceable payload is a cross-pass time
+  series of interim metrics, which nothing needs yet. Completed-unscored
+  samples — the scores with no other durable home — are near-nonexistent
+  on normal runs (samples score inline at completion) and on `--no-score`
+  runs the operator has already committed to a post-run `inspect score`,
+  which writes scores into a proper rewritten log; the envelope covers the
+  "numbers now" need. Not worth a new file type next to the logs (glob
+  collisions for log-dir consumers, no S3 append primitive, retention
+  questions). If a durable pass history is ever needed, this is the shape
+  to revisit.
 - **Handler-side reconstruction for in-flight samples.** Covered in
   "Mechanics" — rejected for fidelity (sandbox, store), kept for completed
   samples.

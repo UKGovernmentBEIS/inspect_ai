@@ -140,7 +140,7 @@ inspect ctl
 │   ├── cancel TASK                 # shipped (abort, or --action score/error sample resolution; a graceful-drain variant is future work)
 │   ├── pause [TASK] / resume [TASK]  # shipped (quiesce semantics — see design/ctl/pause-resume.md)
 │   ├── add SPEC [...]              # planned: add
-│   ├── score [TASK]                # planned: interim scoring pass (see design/interim-scoring.md)
+│   ├── score [TASK]                # planned: interim scoring pass (see design/ctl/interim-scoring.md)
 │   └── drain TASK                  # planned: drain (a thin composition over the pause gate)
 ├── sample                      # one sample (TASK SAMPLE_ID [EPOCH]) or a task's samples
 │   ├── list [TASK]                 # implied by bare `ctl sample`; no TASK = all tasks
@@ -362,7 +362,7 @@ The URL scheme has one rule — **three scopes, three roots**: process-scoped op
 | Drain | `POST /tasks/<task-id>/drain` | 3 |
 | Requeue sample | `POST /evals/<id>/sample/requeue?sample_id=<sid>&epoch=<n>` | 3 ✅ (see `sample-requeue.md`) |
 | Modify per-sample limits (time / token / message) | `PATCH /tasks/<task-id>/config` (as further config knobs) | 3 |
-| Interim scoring pass (score a running eval without ending its samples) | `POST /tasks/<task-id>/score` (start) / `GET` (poll) | later (see `design/interim-scoring.md`) |
+| Interim scoring pass (score a running eval without ending its samples) | `POST /tasks/<task-id>/score` (start) / `GET` (poll) | later (see `design/ctl/interim-scoring.md`) |
 | List eval-sets | `GET /eval-sets` | later |
 | Eval-set status | `GET /eval-sets/<id>` | later |
 | Cancel eval-set | `POST /eval-sets/<id>/cancel` | later |
