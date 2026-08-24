@@ -287,15 +287,7 @@ The `computer()` tool provides models with a computer desktop environment along 
 
 ### Configuration
 
-The `computer()` tool runs within a Docker container. To use it with a task you need to reference the `aisiuk/inspect-computer-tool` image in your Docker compose file. For example:
-
-``` {.yaml filename="compose.yaml"}
-services:
-  default:
-    image: aisiuk/inspect-computer-tool
-```
-
-You can configure the container to not have Internet access as follows:
+The `computer()` tool runs within a Docker container. To use it with a task you need to reference the `aisiuk/inspect-computer-tool` image in your Docker compose file. For a task that does not require networking, retain Inspect's no-network posture explicitly:
 
 ``` {.yaml filename="compose.yaml"}
 services:
@@ -304,7 +296,7 @@ services:
     network_mode: none
 ```
 
-Note that if you'd like to be able to view the model's interactions with the computer desktop in realtime, you will need to also do some port mapping to enable a VNC connection with the container. See the [VNC Client](#vnc-client) section below for details on how to do this.
+Omit `network_mode: none` only when the task needs networking. If you'd like to view the model's interactions with the computer desktop in realtime, you will also need port mapping to enable a VNC connection with the container. See the [VNC Client](#vnc-client) section below for details.
 
 The `aisiuk/inspect-computer-tool` image is based on the [ubuntu:22.04](https://hub.docker.com/layers/library/ubuntu/22.04/images/sha256-965fbcae990b0467ed5657caceaec165018ef44a4d2d46c7cdea80a9dff0d1ea?context=explore) image and includes the following additional applications pre-installed:
 
@@ -387,6 +379,8 @@ You can use a [VNC](https://en.wikipedia.org/wiki/VNC) connection to the contain
 services:
   default:
     image: aisiuk/inspect-computer-tool
+    # network_mode is omitted because container networking is required for
+    # these ports. This also permits outbound Internet access.
     ports:
       - "127.0.0.1::5900"
       - "127.0.0.1::6080"
@@ -541,13 +535,14 @@ RUN PIPX_HOME=/opt/inspect/pipx PIPX_BIN_DIR=/opt/inspect/bin PIPX_VENV_DIR=/opt
     inspect-tool-support post-install
 ```
 
-If you don't have a custom Dockerfile, you can alternatively use the pre-built `aisiuk/inspect-tool-support` image:
+If you don't have a custom Dockerfile, you can alternatively use the pre-built `aisiuk/inspect-tool-support` image. This configuration intentionally permits outbound Internet access so the browser can visit external sites:
 
 ``` {.yaml filename="compose.yaml"}
 services:
   default:
     image: aisiuk/inspect-tool-support
     init: true
+    # network_mode is omitted because the browser visits external sites.
 ```
 :::
 
