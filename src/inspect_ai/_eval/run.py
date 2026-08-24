@@ -707,7 +707,14 @@ async def run_task_retry_attempts(
                     )
 
                     with reporter_scope:
-                        await report_throughput_periodically()
+                        # the reporter is observability only — a bug in it
+                        # must never propagate into the task group and take
+                        # down the run (cancellation passes through: it's a
+                        # BaseException, not Exception)
+                        try:
+                            await report_throughput_periodically()
+                        except Exception as ex:
+                            log.warning(f"Throughput reporter failed: {ex}")
 
                 tg.start_soon(throughput_reporter)
 
