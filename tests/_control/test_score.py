@@ -344,6 +344,8 @@ async def test_start_score_pass_dry_run_reports_dispositions(
     result = await start_score_pass("t1", dry_run=True)
     assert result is not None and result["ok"] is True
     assert result["changed"] is True and result["dry_run"] is True
+    # nothing was registered: no fabricated pass id, nothing running
+    assert "pass_id" not in result and result["running"] is False
     assert result["targeted"] == {
         "in_flight": 1,
         "completed_unscored": 1,
@@ -418,6 +420,47 @@ async def test_score_pass_completed_samples(monkeypatch: pytest.MonkeyPatch) -> 
     # the recorder's in-memory samples were not mutated by the scoring
     assert samples[("right", 1)].scores is None
     assert samples[("right", 1)].events == []
+
+
+async def test_score_pass_completed_sample_scoring_deadline(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A hung scorer on the completed path hits the deadline, not the pass."""
+    monkeypatch.setattr(scoring_module, "SCORE_SCORING_TIMEOUT", 0.2)
+
+    @scorer(metrics=[accuracy()])
+    def hung():
+        async def score(state: TaskState, target: Target) -> Score:
+            await anyio.sleep(60)
+            return Score(value=1.0)
+
+        return score
+
+    async def summaries() -> list[EvalSampleSummary]:
+        return [_summary("done")]
+
+    async def read_sample(id: Any, epoch: int, **kwargs: Any) -> EvalSample | None:
+        return _eval_sample("done")
+
+    register_eval(
+        "e1",
+        1,
+        task_id="t1",
+        live=FakeLiveEvalData(summaries=summaries, sample=read_sample),
+    )
+    _patch_active_samples(monkeypatch, [])
+
+    handle = _scoring_handle()
+    handle.scorers = [match_target(), hung()]
+    handle.scorer_names = ["match_target", "hung"]
+    with anyio.fail_after(10):
+        score_pass = await _run_pass("t1", handle)
+    assert score_pass.running is False
+    (row,) = score_pass.rows
+    # the finished scorer's result survives the deadline; the pass ends
+    assert row["outcome"] == "scored"
+    assert row["scores"] == {"match_target": 1.0}
+    assert "deadline" in row["scorer_errors"][""]
 
 
 async def test_score_pass_dispositions(monkeypatch: pytest.MonkeyPatch) -> None:

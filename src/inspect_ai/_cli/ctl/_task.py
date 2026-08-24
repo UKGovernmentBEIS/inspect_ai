@@ -577,6 +577,24 @@ def _run_task_score(
     if not terse_mode and not as_json:
         _echo(scope.header)
         _echo()
+    # a silent join would misreport what's being watched — loudest when the
+    # flags differ (a --completed-only request joining a full pass is
+    # watching holds it asked to avoid); JSON callers see `applied: false`
+    if not result.get("changed") and not as_json:
+        note = f"joined already-running pass {result.get('pass_id')}"
+        if bool(result.get("completed_only")) != completed_only:
+            note += (
+                " (a full pass — it holds in-flight samples, unlike the "
+                "requested --completed-only)"
+                if completed_only
+                else " (started with --completed-only, so in-flight samples "
+                "are not scored)"
+            )
+        note = _sanitize_line(note)
+        if terse_mode:
+            _echo(_terse_line("score", target_label, note))
+        else:
+            _echo(f"Note: {note}.")
     final = _poll_score_pass(scope, echo_progress=not terse_mode and not as_json)
 
     if as_json:

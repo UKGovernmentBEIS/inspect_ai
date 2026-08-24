@@ -4594,6 +4594,39 @@ def test_task_score_polls_to_completion(monkeypatch: pytest.MonkeyPatch) -> None
     assert payload["detail"]["result"]["metrics"][0]["metrics"]["accuracy"] == 0.5
 
 
+def test_task_score_wait_notes_joined_running_pass(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Joining an already-running pass is announced, flag mismatch included."""
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    monkeypatch.setattr("inspect_ai._cli.ctl._task._SCORE_POLL_INTERVAL", 0)
+    joined = {
+        "ok": True,
+        "changed": False,
+        "dry_run": False,
+        "pass_id": "p1",
+        "completed_only": False,
+        "reason": "a scoring pass is already running for this task",
+        "progress": {"scored": 0, "failed": 0, "unscored": 0, "total": 2},
+    }
+    final = {
+        "ok": True,
+        "pass_id": "p1",
+        "running": False,
+        "progress": {"scored": 2, "failed": 0, "unscored": 0, "total": 2},
+        "result": {"counts": {}, "samples": [], "metrics": [], "interim": True},
+    }
+    spy = _SequenceSpy([joined, final])
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
+    result = cli_runner().invoke(
+        ctl_command, ["task", "score", "--completed-only", "--no-terse"]
+    )
+    assert result.exit_code == 0, result.output
+    assert "joined already-running pass p1" in result.output
+    # the requested --completed-only differs from the running (full) pass
+    assert "holds in-flight samples" in result.output
+
+
 def test_task_score_no_wait_returns_start_envelope(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

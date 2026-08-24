@@ -526,8 +526,11 @@ down): the quiescence predicate is the park ack (≥ 1 parked generate
 attempt) plus a transcript-settle window — no new events across the window,
 using the shared transcript as the non-generate activity signal — with a
 sample whose transcript never settles timing out to the "did not park" row;
-the hold timeout is a constant (120s), as is the per-sample scoring
-deadline (600s) and the completed-sample concurrency cap (4); in-flight
+the hold timeout is a constant (120s), as are the per-sample scoring
+deadline (600s — applied to completed-sample scoring too, since with one
+pass per task at a time and no cancel lever for a running pass, an
+unbounded scorer would wedge the directive for the rest of the run) and
+the completed-sample concurrency cap (4); in-flight
 samples are held strictly one at a time; and the pass task is spawned in a
 fresh (empty) context, making the no-sample-binding properties hold even if
 a start were ever issued from in-sample code.

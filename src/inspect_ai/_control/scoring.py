@@ -79,8 +79,11 @@ logger = getLogger(__name__)
 # rather than wedging the pass.
 SCORE_HOLD_TIMEOUT: float = 120.0
 
-# Per-sample scoring deadline once a sample is held — a stuck scorer must
-# not hold a parked sample indefinitely (the sample must always come back).
+# Per-sample scoring deadline, on the held and completed paths alike. A
+# stuck scorer must not hold a parked sample indefinitely (the sample must
+# always come back), nor wedge the pass: with one pass per task at a time
+# and no cancel lever for a running pass, an unbounded scorer would disable
+# the directive for the rest of the run.
 SCORE_SCORING_TIMEOUT: float = 600.0
 
 # Concurrency cap for completed-sample scoring, so a large backlog can't
@@ -276,12 +279,12 @@ async def start_score_pass(
     )
 
     if dry_run:
-        return {
-            **_pass_envelope_base(score_pass, state),
-            "changed": True,
-            "dry_run": True,
-            "targeted": targeted,
-        }
+        # a dry run registers nothing: report nothing running, and no pass
+        # id — a follow-up poll would never find one
+        score_pass.running = False
+        envelope = _pass_envelope_base(score_pass, state)
+        del envelope["pass_id"]
+        return {**envelope, "changed": True, "dry_run": True, "targeted": targeted}
 
     _score_passes[state.task_id] = score_pass
     # the control server runs uvicorn on the eval's asyncio loop, so the
@@ -690,9 +693,14 @@ async def _score_serialized_sample(
 
     scores: "dict[str, SampleScore]" = {}
     errors: dict[str, str] = {}
-    await _apply_scorers(
-        handle, task_state, target, record=False, scores=scores, errors=errors
-    )
+    # deadline-bounded like the held path (a hung scorer must not wedge the
+    # pass); incremental fills keep the scorers that finished in time
+    with anyio.move_on_after(SCORE_SCORING_TIMEOUT) as scope:
+        await _apply_scorers(
+            handle, task_state, target, record=False, scores=scores, errors=errors
+        )
+    if scope.cancelled_caught:
+        errors[""] = "per-sample scoring deadline elapsed"
     return (
         _row(
             summary.id,
