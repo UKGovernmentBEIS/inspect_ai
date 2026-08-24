@@ -42,6 +42,7 @@ from inspect_ai._util.error import is_cancellation_message
 from inspect_ai._util.file import local_path
 
 if TYPE_CHECKING:
+    from inspect_ai._control.cancel import PendingToolCall
     from inspect_ai._control.eval_state import EvalState
     from inspect_ai.log._samples import ActiveSample
 
@@ -1124,7 +1125,7 @@ def _activity(
     *,
     retries: int | None = None,
     deadline: float | None = None,
-    calls: list[dict[str, Any]] | None = None,
+    calls: list[PendingToolCall] | None = None,
 ) -> dict[str, Any]:
     return {
         "type": type,

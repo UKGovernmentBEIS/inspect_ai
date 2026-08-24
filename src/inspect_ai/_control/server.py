@@ -712,7 +712,7 @@ class ControlServer:
                     status_code=404,
                     content={"error": f"task {task_id} not found"},
                 )
-            if result.get("ok") is False:
+            if result["ok"] is False:
                 return JSONResponse(status_code=409, content={"error": result["error"]})
             return result
 
@@ -806,7 +806,7 @@ class ControlServer:
                     status_code=404,
                     content={"error": f"sample {sample_id} (epoch {epoch}) not found"},
                 )
-            if result.get("ok") is False:
+            if result["ok"] is False:
                 return JSONResponse(status_code=409, content={"error": result["error"]})
             return result
 
@@ -855,7 +855,7 @@ class ControlServer:
                     status_code=404,
                     content={"error": f"sample {sample_id} (epoch {epoch}) not found"},
                 )
-            if result.get("ok") is False:
+            if result["ok"] is False:
                 content: dict[str, Any] = {"error": result["error"]}
                 # the ambiguity rejection carries the pending calls
                 # structurally too, so a raw-HTTP caller can pick an id

@@ -117,7 +117,8 @@ def test_cancel_task_dry_run_does_not_fire() -> None:
 
     result = cancel_task("t1", dry_run=True)
     assert result is not None
-    assert result["changed"] is True and result["dry_run"] is True
+    assert result["ok"] is True and result["changed"] is True
+    assert result["dry_run"] is True
     assert handle.fired == []
 
 
@@ -125,10 +126,11 @@ def test_cancel_task_repeat_is_idempotent_noop() -> None:
     handle = _FakeTaskCancel()
     register_eval("e1", 5, task_id="t1", task_cancel=handle)
 
-    assert (cancel_task("t1") or {})["changed"] is True
+    first = cancel_task("t1")
+    assert first is not None and first["ok"] is True and first["changed"] is True
     repeat = cancel_task("t1")
     assert repeat is not None
-    assert repeat["changed"] is False
+    assert repeat["ok"] is True and repeat["changed"] is False
     assert repeat["reason"] == "cancel already requested (abort)"
     assert handle.fired == ["abort"]  # fired exactly once
 
@@ -147,7 +149,7 @@ def test_cancel_task_pending_retry_cancel_named_in_noop() -> None:
 
     result = cancel_task("t1")
     assert result is not None
-    assert result["changed"] is False
+    assert result["ok"] is True and result["changed"] is False
     assert result["reason"] == "cancel already requested (retry)"
     assert handle.fired == ["retry"]  # the abort was not fired
 
@@ -156,7 +158,8 @@ def test_cancel_task_finished_is_idempotent_noop() -> None:
     register_completed_eval("e1", total=5, completed=5, task_id="t1", task="my_task")
     result = cancel_task("t1")
     assert result is not None
-    assert result["changed"] is False and "finished" in result["reason"]
+    assert result["ok"] is True and result["changed"] is False
+    assert "finished" in result["reason"]
 
 
 def test_cancel_task_between_attempts_rejected() -> None:
@@ -183,7 +186,8 @@ def test_cancel_task_after_pending_retry_starts() -> None:
 
     result = cancel_task("t1")
     assert result is not None
-    assert result["changed"] is True and result["eval_id"] == "e2"
+    assert result["ok"] is True and result["changed"] is True
+    assert result["eval_id"] == "e2"
     assert old.fired == [] and new.fired == ["abort"]
 
 
@@ -207,7 +211,8 @@ def test_cancel_task_resolves_latest_attempt() -> None:
     register_eval("e2", 5, task_id="t1", task_cancel=new)
 
     result = cancel_task("t1")
-    assert result is not None and result["eval_id"] == "e2"
+    assert result is not None and result["ok"] is True
+    assert result["eval_id"] == "e2"
     assert old.fired == [] and new.fired == ["abort"]
 
 
@@ -226,7 +231,8 @@ def test_cancel_task_counts_in_flight_samples(
         ],
     )
     result = cancel_task("t1", dry_run=True)
-    assert result is not None and result["in_flight"] == 1
+    assert result is not None and result["ok"] is True
+    assert result["in_flight"] == 1
 
 
 def test_cancel_task_score_resolution_interrupts_in_flight(
@@ -247,8 +253,8 @@ def test_cancel_task_score_resolution_interrupts_in_flight(
 
     result = cancel_task("t1", action="score")
     assert result is not None
-    assert result["changed"] is True and result["action"] == "score"
-    assert result["in_flight"] == 1
+    assert result["ok"] is True and result["changed"] is True
+    assert result["action"] == "score" and result["in_flight"] == 1
     assert handle.fired == ["score"]  # stamped, not an abort
     assert running.interrupts == ["score"]
     assert initializing.interrupts == []  # resolves itself when it starts
@@ -264,7 +270,7 @@ def test_cancel_task_error_resolution_interrupts_in_flight(
     _patch_active_samples(monkeypatch, [running])
 
     result = cancel_task("t1", action="error")
-    assert result is not None and result["changed"] is True
+    assert result is not None and result["ok"] is True and result["changed"] is True
     assert handle.fired == ["error"]
     assert running.interrupts == ["error"]
 
@@ -298,7 +304,8 @@ def test_cancel_task_score_resolution_dry_run(
 
     result = cancel_task("t1", action="score", dry_run=True)
     assert result is not None
-    assert result["changed"] is True and result["dry_run"] is True
+    assert result["ok"] is True and result["changed"] is True
+    assert result["dry_run"] is True
     assert handle.fired == [] and running.interrupts == []
 
 
@@ -310,9 +317,11 @@ def test_cancel_task_score_resolution_repeat_is_noop(
     running = _FakeActiveSample(sample_id="s1")
     _patch_active_samples(monkeypatch, [running])
 
-    assert (cancel_task("t1", action="score") or {})["changed"] is True
+    first = cancel_task("t1", action="score")
+    assert first is not None and first["ok"] is True and first["changed"] is True
     repeat = cancel_task("t1", action="score")
-    assert repeat is not None and repeat["changed"] is False
+    assert repeat is not None and repeat["ok"] is True
+    assert repeat["changed"] is False
     assert repeat["reason"] == "cancel already requested (score)"
     assert handle.fired == ["score"] and running.interrupts == ["score"]
 
@@ -335,7 +344,7 @@ def test_cancel_task_resolution_sweep_skips_already_interrupted(
     _patch_active_samples(monkeypatch, [already_cancelled, running])
 
     result = cancel_task("t1", action="score")
-    assert result is not None and result["changed"] is True
+    assert result is not None and result["ok"] is True and result["changed"] is True
     assert already_cancelled.interrupts == ["cancel"]  # not re-interrupted
     assert running.interrupts == ["score"]
 
@@ -359,7 +368,7 @@ def test_cancel_task_resolution_sweep_skips_fired_limit(
     _patch_active_samples(monkeypatch, [limited, running])
 
     result = cancel_task("t1", action="score")
-    assert result is not None and result["changed"] is True
+    assert result is not None and result["ok"] is True and result["changed"] is True
     assert limited.interrupts == []  # limit outcome preserved
     assert running.interrupts == ["score"]
 
@@ -373,14 +382,17 @@ def test_cancel_task_abort_escalates_over_pending_resolution(
     running = _FakeActiveSample(sample_id="s1")
     _patch_active_samples(monkeypatch, [running])
 
-    assert (cancel_task("t1", action="score") or {})["changed"] is True
+    first = cancel_task("t1", action="score")
+    assert first is not None and first["ok"] is True and first["changed"] is True
     escalated = cancel_task("t1")
-    assert escalated is not None and escalated["changed"] is True
+    assert escalated is not None and escalated["ok"] is True
+    assert escalated["changed"] is True
     assert handle.fired == ["score", "abort"]
 
     # ... but a score/error request never overrides a pending abort
     repeat = cancel_task("t1", action="error")
-    assert repeat is not None and repeat["changed"] is False
+    assert repeat is not None and repeat["ok"] is True
+    assert repeat["changed"] is False
     assert repeat["reason"] == "cancel already requested (abort)"
 
 
@@ -410,7 +422,7 @@ async def test_cancel_sample_matches_integer_id(
     _patch_active_samples(monkeypatch, [sample])
 
     result = await cancel_sample("e1", "7", 1)
-    assert result is not None and result["changed"] is True
+    assert result is not None and result["ok"] is True and result["changed"] is True
     assert result["sample_id"] == 7
     assert sample.interrupts == ["score"]
 
@@ -420,7 +432,7 @@ async def test_cancel_sample_error_action(monkeypatch: pytest.MonkeyPatch) -> No
     _patch_active_samples(monkeypatch, [sample])
 
     result = await cancel_sample("e1", "s1", 1, action="error")
-    assert result is not None and result["changed"] is True
+    assert result is not None and result["ok"] is True and result["changed"] is True
     assert sample.interrupts == ["error"]
 
 
@@ -429,7 +441,7 @@ async def test_cancel_sample_cancel_action(monkeypatch: pytest.MonkeyPatch) -> N
     _patch_active_samples(monkeypatch, [sample])
 
     result = await cancel_sample("e1", "s1", 1, action="cancel")
-    assert result is not None and result["changed"] is True
+    assert result is not None and result["ok"] is True and result["changed"] is True
     assert result["action"] == "cancel"
     assert sample.interrupts == ["cancel"]
 
@@ -446,7 +458,7 @@ async def test_cancel_sample_cancel_action_not_gated_by_fails_on_error(
     _patch_active_samples(monkeypatch, [sample])
 
     result = await cancel_sample("e1", "s1", 1, action="cancel")
-    assert result is not None and result["changed"] is True
+    assert result is not None and result["ok"] is True and result["changed"] is True
     assert sample.interrupts == ["cancel"]
 
 
@@ -470,7 +482,8 @@ async def test_cancel_sample_dry_run_does_not_interrupt(
 
     result = await cancel_sample("e1", "s1", 1, dry_run=True)
     assert result is not None
-    assert result["changed"] is True and result["dry_run"] is True
+    assert result["ok"] is True and result["changed"] is True
+    assert result["dry_run"] is True
     assert sample.interrupts == []
 
 
@@ -593,7 +606,7 @@ async def test_cancel_tool_call_sole_pending_fallback(
     _patch_active_samples(monkeypatch, [sample])
 
     result = await cancel_tool_call("e1", "s1", 1)
-    assert result is not None and result["changed"] is True
+    assert result is not None and result["ok"] is True and result["changed"] is True
     assert result["tool_call_id"] == "tc1" and result["function"] == "bash"
     assert fired == ["tc1"]
 
@@ -610,7 +623,7 @@ async def test_cancel_tool_call_sole_pending_ignores_non_tool_events(
     _patch_active_samples(monkeypatch, [sample])
 
     result = await cancel_tool_call("e1", "s1", 1)
-    assert result is not None and result["changed"] is True
+    assert result is not None and result["ok"] is True and result["changed"] is True
     assert result["tool_call_id"] == "tc1"
     assert fired == ["tc1"]
 
@@ -655,7 +668,8 @@ async def test_cancel_tool_call_repeat_is_idempotent_noop(
     sample = _FakeActiveSample(pending_events=[_pending_tool_event("tc1", fired=fired)])
     _patch_active_samples(monkeypatch, [sample])
 
-    assert (await cancel_tool_call("e1", "s1", 1) or {})["changed"] is True
+    first = await cancel_tool_call("e1", "s1", 1)
+    assert first is not None and first["ok"] is True and first["changed"] is True
     repeat = await cancel_tool_call("e1", "s1", 1, tool_call_id="tc1")
     assert repeat is not None
     assert repeat["ok"] is True and repeat["changed"] is False
@@ -702,8 +716,8 @@ async def test_cancel_tool_call_zero_pending_noop_carries_activity(
     assert result is not None
     assert result["ok"] is True and result["changed"] is False
     assert result["reason"] == "no pending tool calls"
-    assert result["activity"] is not None
-    assert result["activity"]["type"] == "model"
+    activity = result["activity"]
+    assert activity is not None and activity["type"] == "model"
 
 
 async def test_cancel_tool_call_no_cancel_fn_rejected(
@@ -733,7 +747,8 @@ async def test_cancel_tool_call_dry_run_does_not_fire(
 
     result = await cancel_tool_call("e1", "s1", 1, dry_run=True)
     assert result is not None
-    assert result["changed"] is True and result["dry_run"] is True
+    assert result["ok"] is True and result["changed"] is True
+    assert result["dry_run"] is True
     assert result["tool_call_id"] == "tc1"  # the would-be target is reported
     assert fired == [] and events[0].cancelled is False
 
