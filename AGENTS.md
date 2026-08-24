@@ -110,6 +110,13 @@ All async test functions automatically run under both asyncio and trio backends 
 - **Use `anyio.sleep()` not `asyncio.sleep()`** in tests; `anyio.Event()` not `asyncio.Event()`; `tg_collect()` not `asyncio.gather()`.
 - **Use `@skip_if_trio`** (from `test_helpers.utils`) for tests that cannot run under trio (e.g. they test asyncio-specific fallback paths).
 - **`@pytest.mark.anyio`** is not required but harmless — use it to signal intentional dual-backend coverage.
+- **Cancellation and ownership**: for an async change, run the affected
+  tests with `--runtrio` before opening a PR rather than relying on the
+  asyncio-only default. Add a focused test that cancels or fails mid-await,
+  not just the success path, and assert that cleanup still runs. A resource
+  that crosses an async boundary (a bridge, a spawned process, a background
+  task) is owned by whichever component created it — cleanup belongs there,
+  not in a caller or bridge that merely passes it through.
 
 ## Subsystem Documentation
 
