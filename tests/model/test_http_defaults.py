@@ -33,6 +33,12 @@ from inspect_ai.model._providers.groq import GroqAPI
 from inspect_ai.model._providers.openai import OpenAIAPI
 from inspect_ai.model._providers.openai_compatible import OpenAICompatibleAPI
 
+# Most tests need only the module under test; FLAVORS is for the few that also
+# construct flavor-typed objects, whose classes are unrelated across the two.
+DEFAULT_MODULES = [
+    pytest.param(http_defaults, id="httpx"),
+    pytest.param(http_defaults_httpx2, id="httpx2"),
+]
 FLAVORS = [
     pytest.param(http_defaults, httpx, id="httpx"),
     pytest.param(http_defaults_httpx2, httpx2, id="httpx2"),
@@ -60,11 +66,7 @@ def clean_proxy_env(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def timeout_of(client: Any) -> Any:
-    """The SDK client's timeout, which it types as `float | Timeout | None`.
-
-    Returns `Any` because the two httpx flavors' `Timeout` classes are
-    unrelated, and which one a provider yields depends on its SDK.
-    """
+    """The SDK client's timeout, which it types as `float | Timeout | None`."""
     timeout = client.timeout
     assert isinstance(timeout, (httpx.Timeout, httpx2.Timeout))
     return timeout
@@ -73,10 +75,9 @@ def timeout_of(client: Any) -> Any:
 def pool_of(transport: Any) -> Any:
     """The httpcore pool behind a transport (httpx or httpx2).
 
-    httpx publishes no accessor for retries, limits or socket options, and is
-    unpinned here, so keep the one reach-through in a single place with a
-    diagnosable failure. Untyped because it also has to accept httpx2's
-    transport types, which share no base class with httpx's.
+    httpx publishes no accessor for retries, limits or socket options and is
+    unpinned here, so the one reach-through lives here with a diagnosable
+    failure.
     """
     pool = getattr(transport, "_pool", None)
     if pool is None:
@@ -134,17 +135,17 @@ def test_both_flavors_export_the_same_names() -> None:
     assert names(http_defaults_httpx2) == names(http_defaults)
 
 
-@pytest.mark.parametrize("defaults,httpx_mod", FLAVORS)
-def test_the_connect_deadline_is_sixty_seconds(defaults: Any, httpx_mod: Any) -> None:
+@pytest.mark.parametrize("defaults", DEFAULT_MODULES)
+def test_the_connect_deadline_is_sixty_seconds(defaults: Any) -> None:
     # 5s failed 75% of connects behind a 26s loop block and 15s failed 76.7%;
     # 30s was the first value that cleared it. Changing this needs new data.
     assert defaults.DEFAULT_CONNECT_TIMEOUT == 60.0
 
 
-@pytest.mark.parametrize("defaults,httpx_mod", FLAVORS)
+@pytest.mark.parametrize("defaults", DEFAULT_MODULES)
 @pytest.mark.parametrize("limit", [None, "50"], ids=["default", "lowered"])
 def test_keepalive_tracks_the_connection_limit(
-    monkeypatch: pytest.MonkeyPatch, limit: str | None, defaults: Any, httpx_mod: Any
+    monkeypatch: pytest.MonkeyPatch, limit: str | None, defaults: Any
 ) -> None:
     # Below the cap every connection is destroyed the moment it goes idle,
     # stepping the new-connection rate ~20x once concurrency passes ~120. Two
@@ -158,9 +159,9 @@ def test_keepalive_tracks_the_connection_limit(
     assert limits.max_keepalive_connections == expected
 
 
-@pytest.mark.parametrize("defaults,httpx_mod", FLAVORS)
+@pytest.mark.parametrize("defaults", DEFAULT_MODULES)
 def test_keepalive_can_still_be_set_below_the_connection_limit(
-    monkeypatch: pytest.MonkeyPatch, defaults: Any, httpx_mod: Any
+    monkeypatch: pytest.MonkeyPatch, defaults: Any
 ) -> None:
     monkeypatch.setenv(POOL_KEEPALIVE_CONNECTIONS_ENV, "7")
     limits = defaults.default_limits()
@@ -168,10 +169,10 @@ def test_keepalive_can_still_be_set_below_the_connection_limit(
     assert limits.max_keepalive_connections == 7
 
 
-@pytest.mark.parametrize("defaults,httpx_mod", FLAVORS)
+@pytest.mark.parametrize("defaults", DEFAULT_MODULES)
 @pytest.mark.parametrize("limit", [None, "200"], ids=["unset", "explicit"])
 def test_an_uncapped_caller_default_yields_only_to_an_explicit_limit(
-    monkeypatch: pytest.MonkeyPatch, limit: str | None, defaults: Any, httpx_mod: Any
+    monkeypatch: pytest.MonkeyPatch, limit: str | None, defaults: Any
 ) -> None:
     if limit is not None:
         monkeypatch.setenv(POOL_CONNECTIONS_ENV, limit)
@@ -181,7 +182,7 @@ def test_an_uncapped_caller_default_yields_only_to_an_explicit_limit(
     assert limits.max_keepalive_connections == expected
 
 
-@pytest.mark.parametrize("defaults,httpx_mod", FLAVORS)
+@pytest.mark.parametrize("defaults", DEFAULT_MODULES)
 @pytest.mark.parametrize(
     "value,expected",
     [
@@ -198,16 +199,15 @@ def test_connect_timeout_env_override(
     value: str,
     expected: float,
     defaults: Any,
-    httpx_mod: Any,
 ) -> None:
     monkeypatch.setenv(CONNECT_TIMEOUT_ENV, value)
     assert defaults.default_timeout().connect == expected
 
 
-@pytest.mark.parametrize("defaults,httpx_mod", FLAVORS)
+@pytest.mark.parametrize("defaults", DEFAULT_MODULES)
 @pytest.mark.parametrize("value", ["garbage", "-1"], ids=["junk", "negative"])
 def test_an_unusable_env_value_keeps_the_caller_default(
-    monkeypatch: pytest.MonkeyPatch, value: str, defaults: Any, httpx_mod: Any
+    monkeypatch: pytest.MonkeyPatch, value: str, defaults: Any
 ) -> None:
     # Falling back to the module default instead would silently widen a
     # provider's tighter budget or cap a pool it deliberately left uncapped.
@@ -234,27 +234,20 @@ def test_keepalive_expiry_left_alone_unless_asked(
 # --- the transport ----------------------------------------------------------
 
 
-@pytest.mark.parametrize("defaults,httpx_mod", FLAVORS)
+@pytest.mark.parametrize("defaults", DEFAULT_MODULES)
+@pytest.mark.parametrize(
+    "env,expected", [(None, DEFAULT_CONNECT_RETRIES), ("4", 4)], ids=["default", "env"]
+)
 def test_transport_retries_connection_establishment(
-    defaults: Any, httpx_mod: Any
+    monkeypatch: pytest.MonkeyPatch, env: str | None, expected: int, defaults: Any
 ) -> None:
-    assert pool_of(defaults.default_async_client()._transport)._retries == (
-        DEFAULT_CONNECT_RETRIES
-    )
+    if env is not None:
+        monkeypatch.setenv(CONNECT_RETRIES_ENV, env)
+    assert pool_of(defaults.default_async_client()._transport)._retries == expected
 
 
-@pytest.mark.parametrize("defaults,httpx_mod", FLAVORS)
-def test_connect_retries_env_override(
-    monkeypatch: pytest.MonkeyPatch, defaults: Any, httpx_mod: Any
-) -> None:
-    monkeypatch.setenv(CONNECT_RETRIES_ENV, "4")
-    assert pool_of(defaults.default_async_client()._transport)._retries == 4
-
-
-@pytest.mark.parametrize("defaults,httpx_mod", FLAVORS)
-def test_transport_keeps_the_sdk_tcp_keepalive_options(
-    defaults: Any, httpx_mod: Any
-) -> None:
+@pytest.mark.parametrize("defaults", DEFAULT_MODULES)
+def test_transport_keeps_the_sdk_tcp_keepalive_options(defaults: Any) -> None:
     # Socket options live on the transport, so supplying one drops those the
     # SDK installs and a reaped connection then hangs to the read deadline
     # instead of being surfaced by the kernel.
@@ -314,7 +307,7 @@ async def test_the_floor_hook_survives_httpx_hooks_on_httpx2() -> None:
 # --- proxies ----------------------------------------------------------------
 
 
-@pytest.mark.parametrize("defaults,httpx_mod", FLAVORS)
+@pytest.mark.parametrize("defaults", DEFAULT_MODULES)
 @pytest.mark.parametrize(
     "var,proxied",
     [
@@ -329,7 +322,6 @@ def test_a_proxy_variable_is_mounted_for_every_spelling(
     var: str,
     proxied: bool,
     defaults: Any,
-    httpx_mod: Any,
 ) -> None:
     # httpx matches `<scheme>_proxy` case-insensitively but mounts only
     # http/https/all, so an ftp proxy must not produce a mount.
@@ -337,9 +329,9 @@ def test_a_proxy_variable_is_mounted_for_every_spelling(
     assert bool(defaults.default_async_client()._mounts) is proxied
 
 
-@pytest.mark.parametrize("defaults,httpx_mod", FLAVORS)
+@pytest.mark.parametrize("defaults", DEFAULT_MODULES)
 def test_a_proxy_mount_keeps_the_keepalive_options(
-    monkeypatch: pytest.MonkeyPatch, defaults: Any, httpx_mod: Any
+    monkeypatch: pytest.MonkeyPatch, defaults: Any
 ) -> None:
     # Supplying a transport turns off httpx's proxy discovery. Rebuilding the
     # mounts is what stops a proxied deployment from silently losing the kernel
@@ -356,9 +348,9 @@ def test_a_proxy_mount_keeps_the_keepalive_options(
     assert pool_of(client._transport)._retries == DEFAULT_CONNECT_RETRIES
 
 
-@pytest.mark.parametrize("defaults,httpx_mod", FLAVORS)
+@pytest.mark.parametrize("defaults", DEFAULT_MODULES)
 def test_no_proxy_excludes_a_host(
-    monkeypatch: pytest.MonkeyPatch, defaults: Any, httpx_mod: Any
+    monkeypatch: pytest.MonkeyPatch, defaults: Any
 ) -> None:
     monkeypatch.setenv("HTTPS_PROXY", "http://proxy.example:3128")
     monkeypatch.setenv("NO_PROXY", "localhost")
@@ -369,9 +361,9 @@ def test_no_proxy_excludes_a_host(
     )
 
 
-@pytest.mark.parametrize("defaults,httpx_mod", FLAVORS)
+@pytest.mark.parametrize("defaults", DEFAULT_MODULES)
 def test_trust_env_false_disables_proxy_mounts(
-    monkeypatch: pytest.MonkeyPatch, defaults: Any, httpx_mod: Any
+    monkeypatch: pytest.MonkeyPatch, defaults: Any
 ) -> None:
     # httpx itself gates environment proxy discovery on `trust_env`
     # (`allow_env_proxies = trust_env and transport is None`); rebuilding the
@@ -384,8 +376,8 @@ def test_trust_env_false_disables_proxy_mounts(
 def test_openai_sdk_client_takes_our_proxy_mounts(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # Answers whether DefaultAsyncHttpxClient builds proxy mounts of its own
-    # that ours would replace.
+    # DefaultAsyncHttpxClient may build proxy mounts of its own, which ours
+    # would replace wholesale.
     from openai import DefaultAsyncHttpxClient
 
     monkeypatch.setenv("HTTPS_PROXY", "http://proxy.example:3128")
@@ -687,12 +679,9 @@ def test_google_uses_the_defaults_on_its_httpx_path(
     # Google reaches httpx only under trio, and CI never passes --runtrio, so
     # drive the branch directly rather than depending on the live backend.
     #
-    # Only the transport-level settings apply here: google stamps its own
-    # scalar timeout onto every request (`_api_client.py` passes
-    # `timeout=http_request.timeout` to `build_request`), which is 3600s by
-    # default, so the connect floor never binds and the client's own timeout
-    # never reaches the wire. Asserting that would be asserting the wrong
-    # object.
+    # Only transport-level settings apply: google stamps its own scalar timeout
+    # (3600s by default) onto every request, so the connect floor never binds
+    # and the client's own timeout never reaches the wire.
     monkeypatch.setattr(_async_backend, "current_async_backend", lambda: "trio")
     client = google_api().model_client()._api_client._async_httpx_client
     assert client is not None
