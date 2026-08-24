@@ -202,6 +202,9 @@ def test_throughput_report_envelope() -> None:
     assert report["as_of"]
     (row,) = report["models"]
     assert row["model"] == "test/m"
+    # per-row effective window: clamped to time-since-first-activity, so a
+    # just-created record reports a window far below the requested one
+    assert 0 < row["window_seconds"] <= report["window_seconds"]
     assert row["cumulative"]["requests"] == 1
     assert row["cumulative"]["retries"] == {"rate_limit": 1, "transient": 0}
     assert row["cumulative"]["first_activity_at"]

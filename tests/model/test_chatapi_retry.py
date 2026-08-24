@@ -124,6 +124,13 @@ async def test_chatapi_retry_attributes_qualified_model() -> None:
         assert view is not None
         assert view.retries_rate_limit == 1
         assert view.retries_transient == 0
+        # the inner loop's scheduled sleep feeds the model's backoff too
+        # (it is invisible to the outer retry loop's on_before_sleep); the
+        # autouse fast_retry_waits fixture zeroes the wait, so assert on the
+        # appended interval rather than a nonzero duration
+        from inspect_ai.model._throughput import _registry
+
+        assert len(_registry["together/test-model"].backoff_intervals) == 1
         # keyed by the qualified name only — no bare-name row
         assert throughput_view("test-model") is None
         await client.aclose()

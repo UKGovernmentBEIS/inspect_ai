@@ -132,7 +132,11 @@ def _log_and_report_before_sleep(
     eventual call returns success. This is also the *sole* reporter for
     chatapi-internal retries, so `qualified_model_name` must be threaded
     through for them to reach the per-model throughput registry at all
-    (`model_name` is the bare display name used for logging).
+    (`model_name` is the bare display name used for logging). The upcoming
+    sleep is recorded as the model's scheduled backoff for the same reason —
+    this inner loop's sleep is invisible to the outer retry loop's
+    `on_before_sleep`, so skipping it here would leave chatapi-internal
+    backoff out of `backoff_ratio`/cumulative backoff.
     """
     log = log_httpx_retry_attempt(model_name)
 
@@ -150,6 +154,10 @@ def _log_and_report_before_sleep(
                 retry_after=decision.retry_after,
                 model=qualified_model_name,
             )
+            if qualified_model_name is not None:
+                from inspect_ai.model._throughput import record_retry_wait
+
+                record_retry_wait(qualified_model_name, retry_state.upcoming_sleep)
 
     return cb
 

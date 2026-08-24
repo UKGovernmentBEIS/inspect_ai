@@ -378,6 +378,11 @@ def throughput_view(
 def throughput_report(window: int = DEFAULT_WINDOW_SECONDS) -> dict[str, Any]:
     """The ``GET /models/throughput`` response envelope.
 
+    The envelope ``window_seconds`` is the requested (clamped) window; each
+    model row carries its *effective* ``window_seconds`` (further clamped to
+    time-since-first-activity), so a consumer recovering counts from rates
+    (rate × window) isn't misled for a model younger than the window.
+
     Cheap-shoveling compliant: everything was materialized at write time —
     the read is a bounded sum over the ring buckets and backoff intervals of
     each model, plus one bounded pass over active samples.
@@ -392,6 +397,7 @@ def throughput_report(window: int = DEFAULT_WINDOW_SECONDS) -> dict[str, Any]:
         "models": [
             {
                 "model": view.model,
+                "window_seconds": round(view.window_seconds, 1),
                 "output_tokens_per_second": round(view.output_tokens_per_second, 1),
                 "requests_per_minute": round(view.requests_per_minute, 1),
                 "retries_per_minute": round(view.retries_per_minute, 1),

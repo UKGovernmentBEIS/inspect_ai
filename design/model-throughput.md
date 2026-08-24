@@ -278,7 +278,11 @@ existing trace retry lines and the ctl `retry_wait` activity view unchanged:
   rs.upcoming_sleep)` alongside the existing
   `report_active_sample_retry_wait()`. (Unlike that per-sample record, it
   is *not* gated on `report_retry_wait` — a batcher admin-op backoff is no
-  sample's wait, but it is still the model's scheduled backoff.)
+  sample's wait, but it is still the model's scheduled backoff.) chatapi's
+  `before_sleep` records its upcoming sleep too, for the same reason it
+  reports the retry (above): the chatapi-internal tenacity loop's sleep is
+  invisible to the outer retry loop, so skipping it would leave
+  chatapi-internal backoff out of `backoff_ratio`/cumulative backoff.
   `report_active_sample_retry_wait()` in turn stamps the qualified
   name into a new `ActiveSampleRetryWait.qualified_model` field so the
   `retry_waits_active` scan (§1) matches registry keys — the existing
@@ -301,6 +305,7 @@ envelope:
   "models": [
     {
       "model": "anthropic/claude-sonnet-5",
+      "window_seconds": 60,
       "output_tokens_per_second": 41.7,
       "requests_per_minute": 12.0,
       "retries_per_minute": 33.0,
@@ -320,7 +325,11 @@ envelope:
 `window` is a declared, FastAPI-type-validated query param (malformed →
 422) clamped server-side to the bucket horizon; strict unknown-param
 rejection (`_control/strict.py`) deliberately doesn't apply to GETs, per
-the "GETs stay tolerant" policy in `design/ctl/control-channel.md`.
+the "GETs stay tolerant" policy in `design/ctl/control-channel.md`. The
+envelope `window_seconds` is that requested (clamped) window; each model
+row carries its *effective* `window_seconds` — further clamped to
+time-since-first-activity — so a consumer recovering counts from rates
+(rate × window) isn't misled for a model younger than the window.
 Cheap-shoveling compliance: everything is materialized at write time; the
 read is a bounded sum over ≤ 60 buckets × (number of models), a
 concurrency-bounded pass over each model's backoff intervals, plus one
