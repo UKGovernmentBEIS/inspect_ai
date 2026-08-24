@@ -1,6 +1,6 @@
 import types
 from typing import Any, Literal, cast
-from unittest.mock import AsyncMock, create_autospec
+from unittest.mock import AsyncMock, create_autospec, patch
 
 import pytest
 from test_helpers.utils import setenv_if_unset, skip_if_no_anthropic
@@ -2150,3 +2150,79 @@ async def test_anthropic_nonempty_thinking_counts_reasoning_tokens() -> None:
     assert len(client.calls) == 1
     assert output.usage is not None
     assert output.usage.reasoning_tokens == 42
+
+
+@pytest.mark.anyio
+async def test_reasoning_tokens_use_reported_thinking_tokens() -> None:
+    """Prefer the API's own thinking-token count over re-counting the text.
+
+    Re-counting costs an extra count_tokens round trip per thinking block and
+    prices the summary rather than the reasoning it stands in for.
+    """
+    from anthropic.types import Message, OutputTokensDetails, ThinkingBlock, Usage
+
+    from inspect_ai.model._providers.anthropic import model_output_from_message
+
+    message = Message(
+        id="msg_reported",
+        type="message",
+        role="assistant",
+        model="claude-opus-4-8",
+        stop_reason="end_turn",
+        content=[ThinkingBlock(type="thinking", thinking="deliberating", signature="")],
+        usage=Usage(
+            input_tokens=10,
+            output_tokens=500,
+            output_tokens_details=OutputTokensDetails(thinking_tokens=412),
+        ),
+    )
+
+    def fail_if_called(*args: object, **kwargs: object) -> None:
+        raise AssertionError("count_tokens called despite a reported count")
+
+    with patch(
+        "inspect_ai.model._providers.anthropic.count_tokens", new=fail_if_called
+    ):
+        output, _ = await model_output_from_message(
+            client=cast(Any, object()),
+            model="claude-opus-4-8",
+            message=message,
+            tools=[],
+        )
+
+    assert output.usage is not None
+    assert output.usage.reasoning_tokens == 412
+
+
+@pytest.mark.anyio
+async def test_reasoning_tokens_fall_back_to_counting_thinking_text() -> None:
+    """Endpoints that report no thinking-token detail still get a count."""
+    from anthropic.types import Message, ThinkingBlock, Usage
+
+    from inspect_ai.model._providers.anthropic import model_output_from_message
+
+    message = Message(
+        id="msg_unreported",
+        type="message",
+        role="assistant",
+        model="claude-opus-4-8",
+        stop_reason="end_turn",
+        content=[ThinkingBlock(type="thinking", thinking="deliberating", signature="")],
+        usage=Usage(input_tokens=10, output_tokens=500),
+    )
+
+    async def fake_count_tokens(*args: object, **kwargs: object) -> int:
+        return 37
+
+    with patch(
+        "inspect_ai.model._providers.anthropic.count_tokens", new=fake_count_tokens
+    ):
+        output, _ = await model_output_from_message(
+            client=cast(Any, object()),
+            model="claude-opus-4-8",
+            message=message,
+            tools=[],
+        )
+
+    assert output.usage is not None
+    assert output.usage.reasoning_tokens == 37
