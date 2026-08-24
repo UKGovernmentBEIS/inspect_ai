@@ -858,8 +858,10 @@ class ControlServer:
             if result.get("ok") is False:
                 content: dict[str, Any] = {"error": result["error"]}
                 # the ambiguity rejection carries the pending calls
-                # structurally too, so a scripted caller can pick an id
-                # without a second read
+                # structurally too, so a raw-HTTP caller can pick an id
+                # without a second read (the CLI's --json failure envelope
+                # keeps only the message; its structured path is the
+                # activity `calls` list in `sample list --json`)
                 if "pending" in result:
                     content["pending"] = result["pending"]
                 return JSONResponse(status_code=409, content=content)
