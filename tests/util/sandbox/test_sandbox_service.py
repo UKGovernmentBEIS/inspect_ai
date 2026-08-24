@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 import anyio
 import pytest
+from pydantic import JsonValue
 from test_helpers.utils import skip_if_no_docker
 
 from inspect_ai import Task, eval
@@ -878,3 +879,126 @@ def math_service_after_root_setup() -> Solver:
         return state
 
     return solve
+
+
+@dataclass
+class _QueueSandbox:
+    """Fake sandbox backed by an in-memory request/response queue."""
+
+    files: dict[str, str] = field(default_factory=dict)
+
+    def default_polling_interval(self) -> float:
+        return 0.01
+
+    async def exec(
+        self,
+        cmd: list[str],
+        *,
+        user: str | None = None,
+        input: str | None = None,
+        timeout: int | None = None,
+        concurrency: bool = True,
+    ) -> ExecResult[str]:
+        if cmd[0] == "find":
+            hits = [
+                path
+                for path in self.files
+                if path.startswith(f"{cmd[1]}/") and path.endswith(".json")
+            ]
+            return cast(ExecResult[str], FakeExecResult(stdout="\0".join(sorted(hits))))
+        if cmd[0] == "cat":
+            return cast(
+                ExecResult[str], FakeExecResult(stdout=self.files.get(cmd[-1], ""))
+            )
+        if cmd[0] == "tee":
+            self.files[cmd[-1]] = input or ""
+            return cast(ExecResult[str], FakeExecResult())
+        if cmd[0] == "rm":
+            self.files.pop(cmd[-1], None)
+            return cast(ExecResult[str], FakeExecResult())
+        return cast(ExecResult[str], FakeExecResult())
+
+
+def _enqueue(
+    fake: _QueueSandbox, service: SandboxService, rid: str, method: str
+) -> None:
+    fake.files[f"{service._requests_dir}/{rid}.json"] = json.dumps(
+        {"id": rid, "method": method, "params": {}}
+    )
+
+
+async def test_slow_request_does_not_block_later_requests() -> None:
+    """A request still in flight must not stop the queue being served.
+
+    Model generation retries indefinitely by default, so a single rate-limited
+    request can occupy the service for a very long time. If serving the queue
+    waits for it, every later request goes unanswered and the service never
+    recovers.
+    """
+    fake = _QueueSandbox()
+    service = _service_with_dirs(fake)
+
+    release = anyio.Event()
+    served: list[str] = []
+
+    async def slow() -> JsonValue:
+        await release.wait()
+        return "slow"
+
+    async def quick() -> JsonValue:
+        served.append("quick")
+        return "quick"
+
+    service.add_method("slow", slow)
+    service.add_method("quick", quick)
+
+    async with anyio.create_task_group() as tg:
+        service.start_handling_requests(tg)
+
+        _enqueue(fake, service, "req-slow", "slow")
+        await service.handle_requests()
+        await anyio.sleep(0.05)
+
+        _enqueue(fake, service, "req-quick", "quick")
+        await service.handle_requests()
+        await anyio.sleep(0.05)
+
+        assert served == ["quick"], (
+            "later request was not served while one was in flight"
+        )
+        assert f"{service._responses_dir}/req-quick.json" in fake.files
+
+        release.set()
+        await anyio.sleep(0.05)
+        assert f"{service._responses_dir}/req-slow.json" in fake.files
+        tg.cancel_scope.cancel()
+
+
+async def test_in_flight_request_is_not_dispatched_twice() -> None:
+    """A request file stays on disk until answered, so polls must not re-run it."""
+    fake = _QueueSandbox()
+    service = _service_with_dirs(fake)
+
+    release = anyio.Event()
+    starts: list[str] = []
+
+    async def slow() -> JsonValue:
+        starts.append("slow")
+        await release.wait()
+        return "slow"
+
+    service.add_method("slow", slow)
+
+    async with anyio.create_task_group() as tg:
+        service.start_handling_requests(tg)
+
+        _enqueue(fake, service, "req-slow", "slow")
+        for _ in range(3):
+            await service.handle_requests()
+            await anyio.sleep(0.02)
+
+        assert starts == ["slow"], f"request dispatched {len(starts)} times"
+
+        release.set()
+        await anyio.sleep(0.05)
+        tg.cancel_scope.cancel()

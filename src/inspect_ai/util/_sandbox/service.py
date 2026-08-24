@@ -176,9 +176,16 @@ async def sandbox_service(
 
     # wait for and process methods
     if handle_requests:
-        while not until():
-            await anyio.sleep(polling_interval)
-            await safe_handle_requests()
+        # requests run on a task group that outlives each poll, so a slow
+        # request can't stop the queue being served (model generation retries
+        # indefinitely by default, so one rate-limited request would otherwise
+        # strand every request behind it)
+        async with anyio.create_task_group() as tg:
+            service.start_handling_requests(tg)
+            while not until():
+                await anyio.sleep(polling_interval)
+                await safe_handle_requests()
+            tg.cancel_scope.cancel()
         return None
     else:
         return safe_handle_requests
@@ -261,6 +268,8 @@ class SandboxService:
         self._requests_dir: str = ""
         self._responses_dir: str = ""
         self._client_script: str = ""
+        self._task_group: anyio.abc.TaskGroup | None = None
+        self._in_flight: set[str] = set()
 
     def add_method(self, name: str, method: SandboxServiceMethod) -> None:
         """Add a method to the service.
@@ -296,8 +305,21 @@ class SandboxService:
         if self._started:
             self._started.set()
 
+    def start_handling_requests(self, tg: "anyio.abc.TaskGroup") -> None:
+        """Run requests on `tg` rather than awaiting them within each poll.
+
+        Without this, serving the queue waits for every request it started, so
+        one slow request stops later requests being picked up at all. `tg` must
+        outlive the polling loop.
+        """
+        self._task_group = tg
+
     async def handle_requests(self) -> None:
-        """Handle all pending service requests."""
+        """Serve pending service requests.
+
+        Returns once each pending request is either complete or running on the
+        task group installed by `start_handling_requests()`.
+        """
         # NUL-delimited so hostile filenames (e.g. containing newlines) can't
         # forge extra entries in the listing
         result = await self._exec(
@@ -318,20 +340,32 @@ class SandboxService:
         if result.success:
             request_files = [file for file in result.stdout.split("\0") if file]
             if request_files:
-                async with anyio.create_task_group() as tg:
+                async with anyio.create_task_group() as inline_tg:
                     for file in request_files:
-                        tg.start_soon(
-                            coro_log_exceptions,
-                            logger,
-                            "handling sandbox service request",
-                            self._handle_request,
-                            file,
-                        )
+                        # a request stays queued until it is answered, so skip
+                        # the ones already running rather than serving twice
+                        request_id = PurePosixPath(file).name.removesuffix(".json")
+                        if request_id in self._in_flight:
+                            continue
+                        self._in_flight.add(request_id)
+                        tg = self._task_group or inline_tg
+                        tg.start_soon(self._handle_request_tracked, file, request_id)
         else:
             logger.warning(
                 f"Error listing requests for sandbox service '{self._name}': "
                 f"{result.stderr}"
             )
+
+    async def _handle_request_tracked(self, request_file: str, request_id: str) -> None:
+        try:
+            await coro_log_exceptions(
+                logger,
+                "handling sandbox service request",
+                self._handle_request,
+                request_file,
+            )
+        finally:
+            self._in_flight.discard(request_id)
 
     async def _handle_request(self, request_file: str) -> None:
         request_path = PurePosixPath(request_file)
