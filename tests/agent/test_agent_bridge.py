@@ -5,6 +5,7 @@ import pytest
 from anthropic import NOT_GIVEN as ANTHROPIC_NOT_GIVEN
 from anthropic import AsyncAnthropic
 from anthropic.types import ToolChoiceAnyParam
+from anthropic.types.beta import BetaUsage
 from google import genai
 from openai import NOT_GIVEN, AsyncOpenAI, BaseModel
 from openai.types.chat import ChatCompletion
@@ -27,6 +28,7 @@ from inspect_ai.model._openai import (
     messages_to_openai,
     openai_chat_tools,
 )
+from inspect_ai.model._openai_convert import model_output_from_openai
 from inspect_ai.model._openai_responses import _tool_param_for_tool_info
 from inspect_ai.model._prompt import user_prompt
 from inspect_ai.scorer import includes
@@ -85,6 +87,25 @@ def completions_agent(tools: bool) -> Agent:
                 state.messages.append(message)
                 state.output = ModelOutput.from_message(message)
                 return state
+
+    return execute
+
+
+@agent
+def raw_response_completions_agent() -> Agent:
+    async def execute(state: AgentState) -> AgentState:
+        from openai._legacy_response import LegacyAPIResponse
+
+        async with agent_bridge(state) as bridge:
+            async with AsyncOpenAI(api_key="inspect") as client:
+                raw = await client.chat.completions.with_raw_response.create(
+                    model="inspect",
+                    messages=await messages_to_openai(state.messages),
+                )
+                assert isinstance(raw, LegacyAPIResponse)
+                completion = raw.parse()
+                bridge.state.output = await model_output_from_openai(completion)
+        return bridge.state
 
     return execute
 
@@ -385,8 +406,9 @@ def anthropic_agent(
                 await client.messages.create(  # type: ignore[call-overload]
                     model="inspect",
                     max_tokens=4096,
-                    temperature=0.8,
-                    top_k=2,
+                    # anthropic >= 1.0 removed temperature/top_k from the
+                    # method signatures; user code sends them via extra_body
+                    extra_body={"temperature": 0.8, "top_k": 2},
                     thinking={"type": "enabled", "budget_tokens": 2048}
                     if reasoning == "budget"
                     else ANTHROPIC_NOT_GIVEN,
@@ -514,6 +536,31 @@ def anthropic_code_execution_agent() -> Agent:
                     ],
                     extra_headers={"anthropic-beta": "code-execution-2025-08-25"},
                 )
+
+            return bridge.state
+
+    return execute
+
+
+@agent
+def anthropic_beta_usage_agent() -> Agent:
+    async def execute(state: AgentState) -> AgentState:
+        async with agent_bridge(state) as bridge:
+            async with AsyncAnthropic() as client:
+                message = await client.beta.messages.create(
+                    model="inspect",
+                    max_tokens=1024,
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": user_prompt(state.messages).text,
+                        }
+                    ],
+                )
+                # beta endpoints must yield BetaUsage: clients reading beta-only
+                # fields (pydantic-ai reads usage.iterations) fail on plain Usage
+                assert isinstance(message.usage, BetaUsage)
+                assert message.usage.iterations is None
 
             return bridge.state
 
@@ -819,6 +866,16 @@ def test_bridged_agent_completions():
     check_openai_log_json(log_json, tools=False)
 
 
+def test_bridged_completions_with_raw_response():
+    log = eval(bridged_task(raw_response_completions_agent()), model="mockllm/model")[0]
+    assert log.status == "success"
+
+
+def test_bridged_anthropic_beta_usage():
+    log = eval(bridged_task(anthropic_beta_usage_agent()), model="mockllm/model")[0]
+    assert log.status == "success"
+
+
 @skip_if_no_openai
 def test_bridged_agent_completions_tools():
     log_json = eval_bridged_task("openai/gpt-4o", agent=completions_agent(True))
@@ -878,11 +935,7 @@ def test_responses_bridge_computer_use_incompatible_model():
 #   - claude-sonnet-4-5 (pre-4.7): request reasoning depth via a thinking token
 #     budget; the bridge maps `thinking.budget_tokens` -> `reasoning_tokens`.
 #   - claude-sonnet-5 (4.7+): a budget is rejected, so request depth via
-#     `output_config={"effort": ...}`; the bridge maps it -> `effort`. The effort
-#     must go through the SDK's *typed* `output_config` param: the bridge reads the
-#     typed request body, whereas anything passed via `extra_body` is merged into
-#     the wire body only at serialization time (downstream of the bridge) and would
-#     be silently dropped.
+#     `output_config={"effort": ...}`; the bridge maps it -> `effort`.
 @pytest.mark.parametrize(
     "model, reasoning",
     [
@@ -904,6 +957,47 @@ def test_bridged_agent_anthropic_tools():
         "anthropic/claude-sonnet-4-5", agent=anthropic_agent(True)
     )
     check_anthropic_bridge_log_json(log_json, "anthropic/claude-sonnet-4-5", tools=True)
+
+
+def test_anthropic_bridge_forwards_extra_body_sampling_params():
+    """The bridge must see sampling params sent via extra_body.
+
+    anthropic >= 1.0 removed temperature/top_p/top_k from the method
+    signatures, so bridged agents can only send them via extra_body. The SDK
+    carries extra_body in options.extra_json and merges it into the request
+    body downstream of the bridge's interception point, so the bridge must
+    merge it itself or the params are silently dropped.
+    """
+
+    @agent
+    def extra_body_agent() -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            async with agent_bridge(state, forward_generation_config=True) as bridge:
+                # requests are intercepted by the bridge, so the key is unused
+                async with AsyncAnthropic(api_key="test") as client:
+                    await client.messages.create(
+                        model="inspect",
+                        max_tokens=4096,
+                        extra_body={"temperature": 0.8, "top_k": 2},
+                        messages=[
+                            {
+                                "role": "user",
+                                "content": user_prompt(state.messages).text,
+                            }
+                        ],
+                    )
+                return bridge.state
+
+        return execute
+
+    log = eval(
+        bridged_task(extra_body_agent()),
+        model="mockllm/model",
+    )[0]
+    assert log.status == "success"
+    log_json = log.model_dump_json(exclude_none=True, indent=2)
+    assert r'"temperature": 0.8' in log_json
+    assert r'"top_k": 2' in log_json
 
 
 @skip_if_no_anthropic

@@ -206,6 +206,7 @@ def test_score_resolution_cancel_completes_eval() -> None:
         assert sample.id == 1
         assert sample.error is None
         assert sample.limit is not None and sample.limit.type == "operator"
+        assert sample.limit.reason == "Sample completed: interrupted by operator"
         assert sample.scores  # the scorer ran on the work done so far
 
 
