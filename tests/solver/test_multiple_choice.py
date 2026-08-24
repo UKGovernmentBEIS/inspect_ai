@@ -12,7 +12,7 @@ from inspect_ai.scorer._choice import choice
 from inspect_ai.scorer._metric import CORRECT
 from inspect_ai.scorer._target import Target
 from inspect_ai.solver import MultipleChoiceTemplate, TaskState, multiple_choice
-from inspect_ai.solver._task_state import Choice
+from inspect_ai.solver._task_state import Choice, Choices
 
 
 async def generate(state: TaskState, **kwargs: Any) -> TaskState:
@@ -103,6 +103,45 @@ def test_more_than_26_choices():
     assert log.status == "success"
     assert log.results
     assert log.results.scores[0].metrics["accuracy"].value == 1.0
+
+
+def test_shuffle_preserves_original_position_after_repeated_shuffles():
+    choices = Choices(["Choice0", "Choice1", "Choice2"])
+
+    # Initial: each choice keeps its position in the sample's original list
+    assert [c.original_position for c in choices] == [0, 1, 2]
+
+    choices.shuffle(Random(42))
+    # Each choice's original position is preserved, though the list order
+    # (and therefore the order in which positions appear) changes
+    assert sorted(c.original_position for c in choices) == [0, 1, 2]
+
+    # A second shuffle must not corrupt the mapping back to the original order
+    choices.shuffle(Random(123))
+    assert sorted(c.original_position for c in choices) == [0, 1, 2]
+
+    # The values are re-ordered but the original positions are preserved
+    assert sorted(c.value for c in choices) == ["Choice0", "Choice1", "Choice2"]
+
+    # Even after repeated shuffles, choices can be mapped back to their
+    # original order using `original_position`
+    from inspect_ai.solver._multiple_choice import unshuffle_choices
+
+    unshuffled = unshuffle_choices(choices)
+    assert [c.value for c in unshuffled] == ["Choice0", "Choice1", "Choice2"]
+    assert [c.original_position for c in unshuffled] == [0, 1, 2]
+
+
+def test_shuffle_preserves_original_position_when_constructed_from_choices():
+    choices = Choices(
+        [
+            Choice(value="a", correct=None, original_position=10),
+            Choice(value="b", correct=None, original_position=20),
+            Choice(value="c", correct=None, original_position=30),
+        ]
+    )
+    choices.shuffle(Random(7))
+    assert sorted(c.original_position for c in choices) == [10, 20, 30]
 
 
 @pytest.mark.anyio

@@ -114,13 +114,12 @@ class Choices(Sequence[Choice]):
         shuffled_positions = list(range(len(self._choices)))
         rand.shuffle(shuffled_positions)
 
-        shuffled_choices = [Choice("notachoice", None, -1)] * len(self._choices)
-
-        for i, shuffled_position in enumerate(shuffled_positions):
-            shuffled_choices[i] = self._choices[shuffled_position]
-            shuffled_choices[i].original_position = shuffled_position
-
-        self._choices = shuffled_choices
+        # Reorder the existing Choice objects without clobbering their
+        # `original_position` (which refers to the choice's position in the
+        # sample's original list, not its position before this shuffle).
+        # Repeating a shuffle must not corrupt the mapping back to the
+        # original order.
+        self._choices = [self._choices[p] for p in shuffled_positions]
 
     def prompt(self, question: str, template: str) -> str:
         """Format a prompt for these choices.
