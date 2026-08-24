@@ -121,6 +121,25 @@ def test_backoff_intervals_pruned_past_horizon() -> None:
     assert intervals[0].start == float(HORIZON_SECONDS * 2)
 
 
+def test_backoff_intervals_pruned_behind_long_head() -> None:
+    # a 30-minute sleep at the head keeps its end past the cutoff for the
+    # whole test, so head-expiry alone would never prune; the size-threshold
+    # backstop must still bound growth from short waits piling up behind it
+    from inspect_ai.model._throughput import _registry
+
+    head_wait = 30.0 * 60.0
+    record_retry_wait("test/m", head_wait, now=0.0)
+    for i in range(1, 1001):
+        record_retry_wait("test/m", 0.1, now=i * 2.0)
+
+    intervals = _registry["test/m"].backoff_intervals
+    # bounded well below the 1001 appends (≤ 2× the live intervals: the head
+    # plus short waits still inside the horizon)
+    assert len(intervals) < 700
+    # the still-live head survived every prune
+    assert intervals[0] == BackoffInterval(0.0, head_wait)
+
+
 # ---------------------------------------------------------------------------
 # Registry + snapshot
 # ---------------------------------------------------------------------------

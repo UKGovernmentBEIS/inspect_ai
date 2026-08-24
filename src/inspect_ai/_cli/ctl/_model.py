@@ -23,7 +23,7 @@ from ._group import (
 )
 from ._http import _resolve_target_server
 from ._mutate import _HELD_CAVEAT, _mutation_envelope, _pause_confirmation
-from ._render import _echo, _echo_raw, _render_table, _sanitize_line
+from ._render import _echo, _echo_raw, _format_rate, _render_table, _sanitize_line
 
 
 @ctl_command.group("model", cls=_NounGroup)
@@ -184,11 +184,6 @@ def _format_backoff(seconds: Any) -> str:
     if minutes:
         return f"{minutes}m {secs:02d}s"
     return f"{secs}s"
-
-
-def _format_rate(value: Any) -> str:
-    """A rate cell: one decimal, or blank when the server didn't report it."""
-    return "" if value is None else f"{float(value):,.1f}"
 
 
 def _print_throughput_table(models: list[dict[str, Any]]) -> None:

@@ -132,28 +132,35 @@ class ModelThroughput:
 `TokenBuckets` is a fixed-length ring (e.g. 60 buckets × 10 s = a 10-minute
 horizon) where each bucket accumulates `{output_tokens, total_tokens,
 requests, retries}` for its 10-second slice. Bucket indexing uses the
-monotonic clock; writes are O(1) (index by `monotonic() // 10`, zeroing
-skipped buckets on advance). Reads sum at most 60 small structs per model.
-This bounds memory to a constant per model regardless of request rate — a
-per-request deque would grow with throughput, which is exactly the case we
-care about.
+monotonic clock; writes are O(1) (index by `monotonic() // 10`). Slots are
+epoch-tagged rather than zeroed on advance: each slot stores the absolute
+bucket epoch it was last written in, a write resets a slot whose stored
+epoch differs from the current one, and reads sum only slots whose epoch
+falls inside the requested window — so a gap in traffic longer than the
+horizon can't leak a previous lap's counts into a window sum (zero-on-
+advance would, since nothing advances the ring during a write gap). Reads
+sum at most 60 small structs per model. This bounds memory to a constant
+per model regardless of request rate — a per-request deque would grow with
+throughput, which is exactly the case we care about.
 
 Scheduled backoff deliberately stays **out of the ring**. Sleeps reach 30
 minutes (`wait_exponential_jitter(initial=3, max=30*60)` in
 `model/_retry.py`) — attributing one to its schedule-time bucket would
 swamp any window containing its start, but pre-writing it into the buckets
-covering `[now, now + s]` doesn't work either: in a ring, future buckets
-are physically the same slots as the oldest past buckets, so pre-written
-backoff would be zeroed as the advance step reaches those slots (or, if
-advance skipped non-empty slots, stale data would leak into window sums).
-Instead each model keeps a short list of scheduled-backoff `(start, end)`
-intervals (`BackoffInterval`, a NamedTuple): `record_retry_wait` appends
-one — O(1) — and prunes intervals that ended more than a horizon ago;
-reads compute window backoff-seconds as the sum of each interval's overlap
-with `[now − window, now]`. The list is bounded by the number of generates
-concurrently in backoff plus recently-ended waits inside the horizon —
-concurrency-bound, not request-rate-bound. Rates over any window ≤ the
-horizon are computed at read time (window sum ÷ window seconds, clamped to
+covering `[now, now + s]` fights the ring's slot reuse: a future bucket is
+physically the same slot as one of the oldest past buckets, so the
+pre-write either destroys counts still inside the horizon or is itself
+destroyed when the current lap writes to that slot. Instead each model
+keeps a short list of scheduled-backoff `(start, end)` intervals
+(`BackoffInterval`, a NamedTuple): `record_retry_wait` appends one — O(1)
+— and prunes intervals that ended more than a horizon ago (triggered by an
+expired head *or* a doubling size threshold, so one long head sleep can't
+block pruning of the short waits appended behind it); reads compute window
+backoff-seconds as the sum of each interval's overlap with
+`[now − window, now]`. The list stays within 2× the intervals still in
+backoff or recently ended inside the horizon — concurrency-bound, not
+request-rate-bound. Rates over any window ≤ the horizon are computed at
+read time (window sum ÷ window seconds, clamped to
 time-since-first-activity so a fresh run doesn't report an artificially
 diluted rate).
 
@@ -212,13 +219,17 @@ existing trace retry lines and the ctl `retry_wait` activity view unchanged:
 - `get_model()` stamps the qualified name onto the constructed `ModelAPI`
   (a `qualified_model_name` attribute, `None`-defaulted on the base class,
   set right after construction) — the same `provider/model` string that
-  `Model.__str__`/`ModelName` derive. Feeds living at the ModelAPI layer
-  read the stamp; feeds at the `Model` layer use `str(self)` directly.
+  `Model.__str__`/`ModelName` derive. Every feed reads the stamp
+  (`self.api.qualified_model_name` from the `Model` layer): `str(self)`
+  routes through `ModelName` → registry info, which raises for a
+  hand-constructed `ModelAPI` (built outside `get_model()`, as tests do),
+  so the stamp — `None` when absent, leaving those retries unattributed —
+  is the one safe source.
 - `model_retry_config()` — and its batcher wrapper
   `batch_admin_retry_config()` — gain an optional
   `qualified_model_name: str | None` parameter beside the existing
   display-oriented `model_name`; `Model`'s three call sites (generate,
-  compact, count_tokens) pass `str(self)`, batchers pass the stamp.
+  compact, count_tokens) and the batchers pass the stamp.
 
 - **Tokens** — `record_and_check_model_usage()` (`model/_model.py`) calls
   `record_generate(model, usage)` next to the existing `set_model_usage`
@@ -239,7 +250,8 @@ existing trace retry lines and the ctl `retry_wait` activity view unchanged:
 - **Retry counts** — `report_http_retry()` (`_util/retry.py`) gains an
   optional `model: str | None = None` parameter (always the qualified name)
   and forwards to `record_retry()` when set. Four call sites pass it:
-  - `Model.should_retry` (`model/_model.py`) — passes `str(self)`.
+  - `Model.should_retry` (`model/_model.py`) — passes the stamped
+    `qualified_model_name` (see above).
   - the `_retry_predicate` path for batchers (`model/_retry.py`) — passes
     the `qualified_model_name` threaded into `model_retry_config()`.
   - `HttpHooks.update_request_time` (`_providers/util/hooks.py`) — hooks
@@ -336,10 +348,12 @@ The `ctl task` row also gains a per-task `tokens_per_second` derived from
 data it already has (`EvalState.total_tokens` deltas are *not* windowed, so
 this is computed as cumulative tokens ÷ elapsed — and named
 `tokens_per_second`, not `output_…`, because the task summary tracks only
-*total* tokens). This is a cheap additive field (no bump; older CLIs ignore
-it, newer CLIs null-guard via the existing `_format_count` blank-≠-0
-convention), and answers "which of my parallel tasks is starved?" without a
-second call.
+*total* tokens). This is a cheap additive field (no bump; older CLIs
+ignore it), rendered by newer CLIs as a `tok/s` table column under the
+same only-when-something-to-report rule as `refusals`/`http_retries` —
+blank, not 0, when a row's (older) server doesn't report the key, per the
+blank-≠-0 convention. It answers "which of my parallel tasks is starved?"
+without a second call.
 
 ### 4. Trace surface
 
@@ -417,10 +431,12 @@ retry_waits_active`, for 10 minutes).
 
 ## Testing
 
-- Unit tests for `TokenBuckets` (advance/zeroing across gaps, window sums,
-  clamping to first-activity), backoff-interval overlap (partial overlap
-  with the window, pruning past the horizon), and registry reset — pure
-  functions of an injected clock, no model calls.
+- Unit tests for `TokenBuckets` (epoch tagging — a slot reused after a
+  write gap must not leak the previous lap's counts into a window sum —
+  window sums, clamping to first-activity), backoff-interval overlap
+  (partial overlap with the window, pruning past the horizon, the
+  size-threshold prune behind a long-lived head), and registry reset —
+  pure functions of an injected clock, no model calls.
 - `mockllm`-based test that a generate records into the registry, and a
   regression test that a cache hit does not (guarding the existing
   early-return bypass), extending existing usage-recording tests.

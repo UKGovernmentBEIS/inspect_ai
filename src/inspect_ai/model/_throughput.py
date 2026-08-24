@@ -48,6 +48,9 @@ HORIZON_SECONDS = BUCKET_SECONDS * BUCKET_COUNT
 DEFAULT_WINDOW_SECONDS = 60
 """Default rate window for snapshots."""
 
+_BACKOFF_PRUNE_MIN = 64
+"""Floor for the backoff-interval prune threshold."""
+
 
 class _WindowSums(NamedTuple):
     output_tokens: int
@@ -128,9 +131,9 @@ class BackoffInterval(NamedTuple):
     to its schedule-time bucket would swamp any window containing its start,
     while pre-writing future buckets fights the ring's slot reuse. Reads
     compute a window's backoff-seconds as each interval's overlap with the
-    window instead. The list is bounded by the number of generates
-    concurrently in backoff plus recently-ended waits inside the horizon —
-    concurrency-bound, not request-rate-bound.
+    window instead. Pruning (see ``record_retry_wait``) keeps the list
+    within 2× the live intervals — those still in backoff or ended inside
+    the horizon — so it stays concurrency-bound, not request-rate-bound.
     """
 
     start: float
@@ -155,6 +158,8 @@ class ModelThroughput:
     # rolling window
     buckets: TokenBuckets = field(default_factory=TokenBuckets)
     backoff_intervals: list[BackoffInterval] = field(default_factory=list)
+    # list size that triggers the next backoff-interval prune
+    backoff_prune_at: int = _BACKOFF_PRUNE_MIN
 
 
 @dataclass(frozen=True)
@@ -237,16 +242,27 @@ def record_retry(model: str, kind: RetryKind, now: float | None = None) -> None:
 def record_retry_wait(
     model: str, wait_seconds: float, now: float | None = None
 ) -> None:
-    """Record a scheduled retry backoff of ``wait_seconds`` for ``model``."""
+    """Record a scheduled retry backoff of ``wait_seconds`` for ``model``.
+
+    Prunes intervals that ended more than a horizon ago (no window reaches
+    them). The head check catches the common case cheaply, but the head can
+    be the longest-lived entry — a 30-minute sleep keeps its end past the
+    cutoff for up to ~40 minutes while short waits pile up behind it — so a
+    size threshold (doubled after each rebuild, keeping pruning amortized
+    O(1)) bounds growth in that case too.
+    """
     record, now = _record(model, now)
     record.retry_wait_seconds += wait_seconds
-    record.backoff_intervals.append(BackoffInterval(now, now + wait_seconds))
-    # prune intervals that ended more than a horizon ago (no window reaches them)
+    intervals = record.backoff_intervals
+    intervals.append(BackoffInterval(now, now + wait_seconds))
     cutoff = now - HORIZON_SECONDS
-    if record.backoff_intervals[0].end < cutoff:
+    if intervals[0].end < cutoff or len(intervals) >= record.backoff_prune_at:
         record.backoff_intervals = [
-            interval for interval in record.backoff_intervals if interval.end >= cutoff
+            interval for interval in intervals if interval.end >= cutoff
         ]
+        record.backoff_prune_at = max(
+            2 * len(record.backoff_intervals), _BACKOFF_PRUNE_MIN
+        )
 
 
 def _window_backoff_seconds(
@@ -284,51 +300,79 @@ def _retry_waits_active() -> dict[str, int]:
     return counts
 
 
+def _model_view(
+    model: str,
+    record: ModelThroughput,
+    retry_waits_active: int,
+    now: float,
+    window: int,
+) -> ModelThroughputView:
+    """One model's view over the trailing ``window`` seconds.
+
+    ``window`` is additionally clamped to time-since-first-activity so a
+    fresh run doesn't report an artificially diluted rate.
+    """
+    effective = float(window)
+    if record.first_activity_monotonic is not None:
+        effective = min(effective, now - record.first_activity_monotonic)
+    effective = max(effective, 1.0)
+    sums = record.buckets.window_sums(now, effective)
+    backoff = _window_backoff_seconds(record.backoff_intervals, now, effective)
+    return ModelThroughputView(
+        model=model,
+        window_seconds=effective,
+        output_tokens_per_second=sums.output_tokens / effective,
+        requests_per_minute=sums.requests * 60.0 / effective,
+        retries_per_minute=sums.retries * 60.0 / effective,
+        backoff_ratio=backoff / effective,
+        retry_waits_active=retry_waits_active,
+        requests=record.requests,
+        output_tokens=record.output_tokens,
+        total_tokens=record.total_tokens,
+        retries_rate_limit=record.retries_rate_limit,
+        retries_transient=record.retries_transient,
+        retry_wait_seconds=record.retry_wait_seconds,
+        first_activity=record.first_activity,
+        last_activity=record.last_activity,
+    )
+
+
 def throughput_snapshot(
     window: int = DEFAULT_WINDOW_SECONDS, now: float | None = None
 ) -> dict[str, ModelThroughputView]:
     """Per-model throughput views over the trailing ``window`` seconds.
 
-    ``window`` is clamped to the bucket horizon, and each model's effective
-    window is additionally clamped to its time-since-first-activity so a
-    fresh run doesn't report an artificially diluted rate.
+    ``window`` is clamped to the bucket horizon (per-model clamping in
+    ``_model_view``).
     """
     now = time.monotonic() if now is None else now
     window = max(1, min(window, HORIZON_SECONDS))
     waits_active = _retry_waits_active()
-    views: dict[str, ModelThroughputView] = {}
-    for model, record in _registry.items():
-        effective = float(window)
-        if record.first_activity_monotonic is not None:
-            effective = min(effective, now - record.first_activity_monotonic)
-        effective = max(effective, 1.0)
-        sums = record.buckets.window_sums(now, effective)
-        backoff = _window_backoff_seconds(record.backoff_intervals, now, effective)
-        views[model] = ModelThroughputView(
-            model=model,
-            window_seconds=effective,
-            output_tokens_per_second=sums.output_tokens / effective,
-            requests_per_minute=sums.requests * 60.0 / effective,
-            retries_per_minute=sums.retries * 60.0 / effective,
-            backoff_ratio=backoff / effective,
-            retry_waits_active=waits_active.get(model, 0),
-            requests=record.requests,
-            output_tokens=record.output_tokens,
-            total_tokens=record.total_tokens,
-            retries_rate_limit=record.retries_rate_limit,
-            retries_transient=record.retries_transient,
-            retry_wait_seconds=record.retry_wait_seconds,
-            first_activity=record.first_activity,
-            last_activity=record.last_activity,
-        )
-    return views
+    return {
+        model: _model_view(model, record, waits_active.get(model, 0), now, window)
+        for model, record in _registry.items()
+    }
 
 
 def throughput_view(
     model: str, window: int = DEFAULT_WINDOW_SECONDS
 ) -> ModelThroughputView | None:
-    """Snapshot for one model, or None if it has no recorded activity."""
-    return throughput_snapshot(window).get(model)
+    """Snapshot for one model, or None if it has no recorded activity.
+
+    Computes only the requested model's view (this runs on every retry
+    trace line, so it must stay independent of registry size; the active
+    sample scan is unavoidable but bounded by sample count).
+    """
+    record = _registry.get(model)
+    if record is None:
+        return None
+    return _model_view(
+        model,
+        record,
+        _retry_waits_active().get(model, 0),
+        time.monotonic(),
+        max(1, min(window, HORIZON_SECONDS)),
+    )
 
 
 def throughput_report(window: int = DEFAULT_WINDOW_SECONDS) -> dict[str, Any]:

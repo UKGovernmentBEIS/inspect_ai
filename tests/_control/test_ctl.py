@@ -211,6 +211,33 @@ def test_tasks_table_leaves_an_unreported_count_blank_not_zero(
     assert cell("ccc333") == "0"
 
 
+def test_tasks_table_shows_tok_s_only_when_reported_nonzero(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Same only-when-something-to-report rule as `refusals`/`http_retries`.
+
+    Blank (not 0) for a row whose server doesn't report the key, matching
+    `_format_count`'s convention for the other counters.
+    """
+    _print_human_table([_task_row("aaa111", "t1", tokens_per_second=None)])
+    header = capsys.readouterr().out.splitlines()[0]
+    assert "tok/s" not in header
+
+    _print_human_table(
+        [
+            _task_row("aaa111", "t1", tokens_per_second=41.7),
+            _task_row("bbb222", "t2"),  # older server: key absent
+        ]
+    )
+    lines = capsys.readouterr().out.splitlines()
+    header = lines[0]
+    assert "tok/s" in header
+    assert "41.7" in next(ln for ln in lines if ln.startswith("aaa111"))
+    start = header.index("tok/s")
+    unreported = next(ln for ln in lines if ln.startswith("bbb222"))
+    assert unreported[start : start + len("tok/s")].strip() == ""
+
+
 def test_throughput_table_renders_rates_and_backoff(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
