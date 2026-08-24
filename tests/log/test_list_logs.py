@@ -184,3 +184,80 @@ def test_list_logs_async_remote_fs_trio(monkeypatch: pytest.MonkeyPatch):
         assert len(logs) == 3
 
     anyio.run(check, backend="trio")
+
+
+def _s3_error_fs(monkeypatch: pytest.MonkeyPatch, error_factory):
+    """Return a filesystem that raises the given error on iter_files (S3 path)."""
+
+    def s3_style_filesystem(path: str, fs_options: dict[str, Any] = {}) -> Any:
+        fs = filesystem(path, fs_options)
+        monkeypatch.setattr(fs, "is_s3", lambda: True)
+        monkeypatch.setattr(fs, "is_async", lambda: True)
+        # Force the code path down the `fs.is_s3() and not fs_options` branch
+        return fs
+
+    monkeypatch.setattr("inspect_ai.log._file.filesystem", s3_style_filesystem)
+    monkeypatch.setattr(
+        "inspect_ai.log._file.AsyncFilesystem",
+        error_factory,
+    )
+    return s3_style_filesystem
+
+
+@pytest.mark.anyio
+async def test_list_logs_async_s3_auth_error_degrades(monkeypatch: pytest.MonkeyPatch):
+    """An S3 credential/denial error must degrade to an empty listing, not raise."""
+    from botocore.exceptions import ClientError
+
+    class _RaisesClientError:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            raise ClientError(
+                {
+                    "Error": {
+                        "Code": "AccessDenied",
+                        "Message": "Access Denied",
+                    },
+                    "ResponseMetadata": {"HTTPStatusCode": 403},
+                },
+                "ListObjectsV2",
+            )
+
+        async def __aexit__(self, *args):
+            return False
+
+    def error_factory(*args, **kwargs):
+        return _RaisesClientError()
+
+    _s3_error_fs(monkeypatch, error_factory)
+
+    logs = await list_eval_logs_async("s3://bucket/logs", formats=["eval"])
+    assert logs == []
+
+
+@pytest.mark.anyio
+async def test_list_logs_async_s3_no_credentials_degrades(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Missing credentials must degrade to an empty listing, not raise."""
+    from botocore.exceptions import NoCredentialsError
+
+    class _RaisesNoCredentials:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            raise NoCredentialsError()
+
+        async def __aexit__(self, *args):
+            return False
+
+    def error_factory(*args, **kwargs):
+        return _RaisesNoCredentials()
+
+    _s3_error_fs(monkeypatch, error_factory)
+
+    logs = await list_eval_logs_async("s3://bucket/logs", formats=["eval"])
+    assert logs == []

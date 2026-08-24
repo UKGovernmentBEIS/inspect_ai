@@ -11,7 +11,7 @@ from typing import IO, Any, AsyncIterator, Callable, Generator, Literal, cast
 
 import anyio.to_thread
 import fsspec  # type: ignore
-from botocore.exceptions import ClientError
+from botocore.exceptions import ClientError, NoCredentialsError
 from fsspec.asyn import AsyncFileSystem  # type: ignore
 from fsspec.core import split_protocol  # type: ignore
 from pydantic import (
@@ -33,6 +33,7 @@ from inspect_ai._util.file import (
     filesystem,
 )
 from inspect_ai._util.json import to_json_safe
+from inspect_ai._view.s3 import s3_warning_hint, should_suppress_s3_error
 from inspect_ai.log._condense import resolve_sample_attachments
 from inspect_ai.log._log import EvalSampleSummary
 from inspect_ai.log._resolve import rebind_sample_timelines, resolve_sample_events_data
@@ -242,7 +243,17 @@ async def _list_eval_logs_async(
                 "NotFound",
             ):
                 return []
+            # auth/credential class failures degrade to a warning + empty
+            # listing, mirroring the Azure handling in the async branches
+            # below (a view should keep working when log credentials are
+            # expired or missing instead of aborting the whole listing)
+            if should_suppress_s3_error(log_dir, ex):
+                logger.warning(s3_warning_hint(log_dir, ex))
+                return []
             raise
+        except NoCredentialsError as ex:
+            logger.warning(s3_warning_hint(log_dir, ex))
+            return []
         # resolve to eval logs (async fan-out so header reads on
         # non-conforming filenames don't block the event loop)
         return await log_files_from_ls_async(logs, formats, descending)
