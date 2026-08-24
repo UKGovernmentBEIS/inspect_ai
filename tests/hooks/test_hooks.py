@@ -6,6 +6,7 @@ import pytest
 import inspect_ai.hooks._startup as hooks_startup_module
 from inspect_ai import eval
 from inspect_ai._eval.task.task import Task
+from inspect_ai._util import entrypoints as entrypoints_module
 from inspect_ai._util.environ import environ_var
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.registry import _registry, registry_info, registry_lookup
@@ -573,6 +574,31 @@ def test_init_hooks_can_be_called_multiple_times(mock_hooks: MockHooks) -> None:
     eval(Task(dataset=[Sample("sample_1")]), model="mockllm/model")
 
     assert len(mock_hooks.run_start_events) == 1
+
+
+def test_init_hooks_loads_entry_points_with_preexisting_hook(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The decorator registers immediately, modeling a hook imported as a side effect
+    # of legacy hook initialization before entry points are loaded.
+    @hooks(name="startup_preexisting", description="test")
+    class PreexistingHooks(Hooks):
+        pass
+
+    def ensure_entry_points() -> None:
+        @hooks(name="startup_extension", description="test")
+        class ExtensionHooks(Hooks):
+            pass
+
+    monkeypatch.setattr(entrypoints_module, "ensure_entry_points", ensure_entry_points)
+
+    try:
+        init_hooks()
+        assert registry_lookup("hooks", "startup_preexisting") is not None
+        assert registry_lookup("hooks", "startup_extension") is not None
+    finally:
+        _registry.pop("hooks:startup_preexisting", None)
+        _registry.pop("hooks:startup_extension", None)
 
 
 def test_hooks_name_and_description(mock_hooks: MockHooks) -> None:
