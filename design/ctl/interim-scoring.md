@@ -343,8 +343,9 @@ that use case is what keeps shape 1 on the roadmap.
   must not distort the sample's reported usage. Handler-side scoring gets
   this structurally — the pass's context never entered the sample's limit
   scopes and never binds the sample as active — but it's an invariant to
-  lock in with tests, not an accident to rely on silently. The pass
-  envelope reports scoring usage separately.
+  lock in with tests, not an accident to rely on silently. (Separate
+  scoring-usage reporting in the pass envelope is deferred — see the
+  implementation notes below.)
 - **One at a time.** A second request while a sample's interim scoring is
   running joins the in-progress result rather than double-scoring (and
   never stacks a second hold).
@@ -419,7 +420,9 @@ short requests (busy retry budgets, agents' timeouts). So the directive is a
   completed on their own mid-hold, or never parked — kept apart from
   `failed`, which counts genuine scoring failures)
   with per-sample rows and interim metrics once complete. Pass state is
-  in-memory on the `EvalState` (like the counters); in-flight samples'
+  in-memory, in a module-level task-keyed registry (deliberately off the
+  `EvalState`, so the most recent pass survives an attempt supersede and
+  the poll can still report it); in-flight samples'
   scores additionally persist as transcript events, and a caller
   who wants a durable record of the envelope captures the `--json` output.
 - Per-sample scorer failures are recorded on the row and don't fail the
@@ -531,9 +534,11 @@ deadline (600s — applied to completed-sample scoring too, since with one
 pass per task at a time and no cancel lever for a running pass, an
 unbounded scorer would wedge the directive for the rest of the run) and
 the completed-sample concurrency cap (4); in-flight
-samples are held strictly one at a time; and the pass task is spawned in a
-fresh (empty) context, making the no-sample-binding properties hold even if
-a start were ever issued from in-sample code.
+samples are held strictly one at a time; the pass envelope does not yet
+report scoring usage separately (the budget-isolation invariant itself is
+enforced and tested; the usage reporting is deferred); and the pass task is
+spawned in a fresh (empty) context, making the no-sample-binding properties
+hold even if a start were ever issued from in-sample code.
 
 ## Open questions
 
