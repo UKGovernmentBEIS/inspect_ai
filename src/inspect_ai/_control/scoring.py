@@ -405,8 +405,7 @@ async def _enumerate_targets(state: "EvalState", handle: TaskScoring) -> _PassTa
         for a in active_samples()
         if a.eval_id == state.eval_id
         and a.started is not None
-        and a.completed is None
-        and a.interrupt_action is None
+        and not _sample_terminal(a)
     ]
     in_flight_keys = {(str(a.sample.id), a.epoch) for a in targets.in_flight}
 
@@ -801,7 +800,6 @@ async def _score_held_sample(
         scores: "dict[str, SampleScore]" = {}
         errors: dict[str, str] = {}
         superseded = False
-        timed_out = False
         with anyio.move_on_after(SCORE_SCORING_TIMEOUT) as scope:
             async with anyio.create_task_group() as tg:
 

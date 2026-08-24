@@ -521,6 +521,11 @@ def _run_task_score(
         ),
         not_found_missing_route=_SCORE_ROUTE_MISSING,
         mutate="post",
+        # idempotent only against a still-running pass: if the response
+        # outlives the read timeout and the pass finishes before the retry
+        # lands, the retry starts a second pass. Accepted as narrow — the
+        # same event-loop starvation that delays the response also slows
+        # the pass itself.
         retry_mutation=True,
         pid=scope.pid,
     )
