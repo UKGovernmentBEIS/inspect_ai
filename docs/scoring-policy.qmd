@@ -92,15 +92,15 @@ Deterministic machinery should not get the unscored escape hatch. Sandbox execut
 
 ### Unscoreable samples
 
-Some failures tell you nothing about the model, yet nothing malfunctioned either: the run worked, but the measurement instrument could not render a verdict on this sample after reasonable due diligence. The canonical case is a probabilistic instrument such as a grader model, which has an inherent, irreducible per-sample failure rate. Sometimes it emits a parseable verdict; sometimes it refuses or produces an unparsable one, and no retry or code fix will change that for this sample.
+Some failures tell you nothing about the model, yet nothing malfunctioned either: the run worked, but the measurement instrument could not render a verdict on this sample after reasonable due diligence. The canonical case is a probabilistic instrument such as a grader model, which has an inherent per-sample failure rate. Bounded retries can reduce that rate but may not eliminate it; once they are exhausted, the residual is an instrument miss rather than a verdict on the model.
 
 For these, return `Score.unscored()`. This produces a `Score` whose `value` is `NaN`, which Inspect excludes from metric computation and counts as `unscored_samples` on the `EvalScore` (see [Unscored Samples](custom-scorers.qmd#unscored-samples) for the API details):
 
 ``` python
 return Score.unscored(
-    reason="grader_parse_failure",
+    reason="grader_failed",
     answer=state.output.completion,
-    explanation="Grader did not return a parseable verdict after 3 retries.",
+    explanation="Grader did not return a parseable verdict after 3 attempts.",
     metadata={"grader_payload": grader_output.message},
 )
 ```
@@ -142,7 +142,7 @@ return Score(
 )
 ```
 
-`reason` is a dedicated field on `Score` (typed `ScoreReason | str | None`), not a metadata key. Unlike `metadata`, it survives score edits, and it doesn't share a namespace with whatever keys your own scorer wants to record.
+`reason` is a dedicated field on `Score` (typed `ScoreReason | str | None`), not a metadata key. It is preserved unless explicitly edited, independently of metadata replacements, and it doesn't share a namespace with whatever keys your own scorer wants to record.
 
 `ScoreReason` is a standard, IDE-discoverable vocabulary that makes failures groupable across evals, but the field also accepts any custom string, so you're never blocked on the vocabulary covering your case:
 
@@ -151,14 +151,12 @@ return Score(
 | `invalid_response_format` | model under test | output unparsable / violates the requested format |
 | `refusal` | model under test | detected refusal to answer |
 | `no_response` | model under test | empty completion |
-| `grader_parse_failure` | grader | verdict unparsable after bounded retry |
-| `grader_refusal` | grader | grader refused to grade |
-| `grader_no_tool_call` | grader | grader made no tool call (schema-based scorers) |
-| `grader_schema_mismatch` | grader | grader payload failed schema validation |
+| `grader_failed` | grader | grader model failed (for example, an unparsable verdict, refusal, missing tool call, or schema mismatch) |
+| `scoring_failed` | scorer | scorer could not run (for example, because logprobs, valid configuration, or sub-scores were unavailable) |
 
 : {tbl-colwidths=[30,20,50]}
 
-The `grader_` prefix on instrument-side values lets a single query separate instrument failures from model failures.
+The vocabulary distinguishes failures by actor: model-under-test failures use `invalid_response_format`, `refusal`, or `no_response`; grader failures use `grader_failed`; and other scorer failures use `scoring_failed`. Put finer-grained detail in `explanation` or scorer-specific metadata.
 
 ## Recommended run settings
 

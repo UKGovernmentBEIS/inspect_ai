@@ -119,17 +119,17 @@ If you are extracting an answer from within a completion (e.g. looking for text 
 
 ### Unscored Samples
 
-When a scorer cannot produce a value for a sample (e.g. an external grader returned no result, the model refused, or an error occurred) but you still want to record context, use `Score.unscored()`:
+When a scorer cannot render a verdict after reasonable due diligence even though nothing malfunctioned (for example, a grader model repeatedly returned an unparsable verdict), use `Score.unscored()` to exclude the sample from metrics while preserving context:
 
 ``` python
 return Score.unscored(
-    reason="timeout",
+    reason="grader_failed",
     answer=extracted,
-    explanation="grader returned no result",
+    explanation="grader did not return a parseable verdict after 3 attempts",
 )
 ```
 
-The optional `reason` field records a machine-readable failure mode — use a standard `ScoreReason` value (e.g. `"grader_parse_failure"`, `"invalid_response_format"`) where one fits, or any custom string.
+The optional `reason` field records a machine-readable failure mode — use a standard `ScoreReason` value (e.g. `"grader_failed"`, `"invalid_response_format"`) where one fits, or any custom string.
 
 Unscored samples are skipped by aggregate metrics and epoch reducers and are counted toward `EvalScore.unscored_samples` rather than included as zeros. This works for scalar, dict-valued, and list-valued scorers.
 
@@ -261,7 +261,7 @@ def model_graded_qa(
             # model, so record it as unscored (excluded from metrics) rather than
             # charging the model INCORRECT. See Scoring Policy for the rationale.
             return Score.unscored(
-                reason="grader_parse_failure",
+                reason="grader_failed",
                 explanation="Grade not found in model output: "
                 + f"{result.completion}",
             )
