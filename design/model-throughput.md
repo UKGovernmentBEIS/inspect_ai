@@ -1,6 +1,7 @@
 # Per-model throughput reporting under HTTP retries
 
-Status: proposed (design only — no implementation yet)
+Status: implemented (registry: `src/inspect_ai/model/_throughput.py`;
+endpoint: `GET /models/throughput`; CLI: `inspect ctl model throughput`)
 
 Issue: [meridianlabs-ai/inspect_ai#235](https://github.com/meridianlabs-ai/inspect_ai/issues/235)
 
@@ -263,7 +264,10 @@ existing trace retry lines and the ctl `retry_wait` activity view unchanged:
 - **Retry wait** — `model_retry_config()`'s `on_before_sleep`
   (`model/_retry.py`) calls `record_retry_wait(qualified_model_name,
   rs.upcoming_sleep)` alongside the existing
-  `report_active_sample_retry_wait()`, which in turn stamps the qualified
+  `report_active_sample_retry_wait()`. (Unlike that per-sample record, it
+  is *not* gated on `report_retry_wait` — a batcher admin-op backoff is no
+  sample's wait, but it is still the model's scheduled backoff.)
+  `report_active_sample_retry_wait()` in turn stamps the qualified
   name into a new `ActiveSampleRetryWait.qualified_model` field so the
   `retry_waits_active` scan (§1) matches registry keys — the existing
   `model` field, and what the ctl activity view displays, stays bare. This
@@ -328,12 +332,14 @@ anthropic/claude-sonnet-5           41.7      12.0          33.0           14   
 openai/gpt-5                       310.2      45.0           0.0            0               –
 ```
 
-The `ctl task` row also gains a per-task `output_tokens_per_second` derived
-from data it already has (`EvalState.total_tokens` deltas are *not*
-windowed, so this is computed as cumulative tokens ÷ elapsed — labeled as
-such). This is a cheap additive field (no bump; older CLIs ignore it, newer
-CLIs null-guard via the existing `_format_count` blank-≠-0 convention), and
-answers "which of my parallel tasks is starved?" without a second call.
+The `ctl task` row also gains a per-task `tokens_per_second` derived from
+data it already has (`EvalState.total_tokens` deltas are *not* windowed, so
+this is computed as cumulative tokens ÷ elapsed — and named
+`tokens_per_second`, not `output_…`, because the task summary tracks only
+*total* tokens). This is a cheap additive field (no bump; older CLIs ignore
+it, newer CLIs null-guard via the existing `_format_count` blank-≠-0
+convention), and answers "which of my parallel tasks is starved?" without a
+second call.
 
 ### 4. Trace surface
 

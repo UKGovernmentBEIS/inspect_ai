@@ -97,6 +97,11 @@ class ActiveSampleRetryWait(NamedTuple):
     deadline: float
     """When the wait elapses and the next attempt begins (unix ts)."""
 
+    qualified_model: str | None = None
+    """Qualified `provider/model` name, for the throughput registry's
+    active-waits scan (`model` above is the bare display name and stays
+    what the ctl activity view shows)."""
+
 
 class ActiveSample:
     def __init__(
@@ -647,7 +652,12 @@ _active_retry_wait: ContextVar["ActiveSampleRetryWait | None"] = ContextVar(
 )
 
 
-def report_active_sample_retry_wait(model: str, attempt: int, wait_time: float) -> None:
+def report_active_sample_retry_wait(
+    model: str,
+    attempt: int,
+    wait_time: float,
+    qualified_model: str | None = None,
+) -> None:
     """Record that the active sample's model call is waiting to retry.
 
     Called from the model retry loop's before-sleep callback (once per
@@ -658,15 +668,21 @@ def report_active_sample_retry_wait(model: str, attempt: int, wait_time: float) 
     (design/ctl/generate-progress.md).
 
     Args:
-        model: Model whose call is waiting to retry.
+        model: Model whose call is waiting to retry (bare display name).
         attempt: Number of the attempt that just failed (1-based).
         wait_time: Seconds until the next attempt begins.
+        qualified_model: Qualified ``provider/model`` name for the
+            throughput registry's active-waits scan.
     """
     active = sample_active()
     if active is not None:
         now = datetime.now(timezone.utc).timestamp()
         record = ActiveSampleRetryWait(
-            model=model, attempt=attempt, started_at=now, deadline=now + wait_time
+            model=model,
+            attempt=attempt,
+            started_at=now,
+            deadline=now + wait_time,
+            qualified_model=qualified_model,
         )
         _active_retry_wait.set(record)
         active.retry_wait = record

@@ -693,6 +693,23 @@ async def run_task_retry_attempts(
             # leak the waker into the module-level registry)
             add_dispatch_waker(wake.set)
             async with anyio.create_task_group() as tg:
+                # Run-scoped periodic [Throughput] trace reporter (see
+                # design/model-throughput.md §4). Its own cancel scope: the
+                # dispatch loop below exits by `break` while the task group
+                # waits for children, so the reporter must be cancelled
+                # explicitly then (exceptions/cancellation tear down the
+                # whole group, reporter included).
+                reporter_scope = anyio.CancelScope()
+
+                async def throughput_reporter() -> None:
+                    from inspect_ai.model._throughput import (
+                        report_throughput_periodically,
+                    )
+
+                    with reporter_scope:
+                        await report_throughput_periodically()
+
+                tg.start_soon(throughput_reporter)
 
                 async def run_one(item: PendingTask) -> None:
                     nonlocal in_flight, cancelled
@@ -829,6 +846,10 @@ async def run_task_retry_attempts(
                         source_done = True
                     else:
                         add(more)
+
+                # dispatch complete (only the `break` paths reach here) —
+                # stop the reporter so the task group can exit
+                reporter_scope.cancel()
         # exceptions can escape when debug_errors is True and that's okay
         except ExceptionGroup as ex:
             if debug_errors:

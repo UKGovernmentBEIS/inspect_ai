@@ -118,6 +118,7 @@ from ._generate_config import (
 from ._model_call import ModelCall, as_error_response
 from ._model_data.model_data import ModelCost
 from ._model_output import ModelFallback, ModelOutput, ModelUsage
+from ._throughput import record_generate, throughput_view
 from ._tokens import count_media_tokens, count_text_tokens, count_tokens
 
 logger = logging.getLogger(__name__)
@@ -266,6 +267,16 @@ class ModelAPI(abc.ABC):
     your model initialisation code (for example, here is what many
     of the built-in providers do with the `model_args` passed to them:
     https://inspect.aisi.org.uk/models.html#model-args)
+    """
+
+    qualified_model_name: str | None = None
+    """Full `provider/model` name (the string `Model.__str__` renders).
+
+    Stamped by `get_model()` right after construction — `model_name` is the
+    provider-stripped name, and process registries keyed by model (e.g. the
+    throughput registry) need the qualified form. None for a ModelAPI
+    constructed outside `get_model()`, in which case such registries simply
+    don't attribute this instance's traffic.
     """
 
     def __init__(
@@ -1013,9 +1024,10 @@ class Model:
                 self.config.timeout,
                 self.should_retry,
                 self.before_retry,
-                log_model_retry,
+                functools.partial(log_model_retry, qualified_model_name=str(self)),
                 report_sample_waiting_time,
                 self.api.retry_wait(),
+                qualified_model_name=str(self),
             )
         )
         async def _count_tokens(
@@ -1144,9 +1156,10 @@ class Model:
                     self.config.timeout,
                     self.should_retry,
                     self.before_retry,
-                    log_model_retry,
+                    functools.partial(log_model_retry, qualified_model_name=str(self)),
                     report_sample_waiting_time,
                     self.api.retry_wait(),
+                    qualified_model_name=str(self),
                 )
             )
             async def _compact(
@@ -1273,9 +1286,10 @@ class Model:
                 config.timeout,
                 self.should_retry,
                 self.before_retry,
-                log_model_retry,
+                functools.partial(log_model_retry, qualified_model_name=str(self)),
                 report_waiting_time,
                 self.api.retry_wait(),
+                qualified_model_name=str(self),
             )
         )
         async def generate() -> tuple[ModelOutput, BaseModel]:
@@ -1554,7 +1568,7 @@ class Model:
             # count toward adaptive scale-up, but the controller doesn't
             # scale down for what's essentially infra noise.
             if isinstance(ex, AttemptTimeoutError):
-                report_http_retry()
+                report_http_retry(model=str(self))
                 return True
 
             # anyio asyncio-backend race: SocketStream.aclose() calls
@@ -1571,7 +1585,7 @@ class Model:
                 "'NoneType' object has no attribute 'call_soon'" in str(ex)
                 or (ex.name == "call_soon" and ex.obj is None)
             ):
-                report_http_retry()
+                report_http_retry(model=str(self))
                 return True
 
             # check standard should_retry() method — may return bool or RetryDecision
@@ -1579,19 +1593,21 @@ class Model:
             if isinstance(decision, RetryDecision):
                 if decision.retry:
                     report_http_retry(
-                        kind=decision.kind, retry_after=decision.retry_after
+                        kind=decision.kind,
+                        retry_after=decision.retry_after,
+                        model=str(self),
                     )
                     return True
             elif decision:
                 # legacy bool-True path: provider didn't classify, treat as transient
-                report_http_retry()
+                report_http_retry(model=str(self))
                 return True
 
             from inspect_ai.hooks._hooks import has_api_key_override
 
             if has_api_key_override():
                 if self.api.is_auth_failure(ex):
-                    report_http_retry()
+                    report_http_retry(model=str(self))
                     return True
 
             # see if the API implements legacy is_rate_limit() method
@@ -1604,7 +1620,7 @@ class Model:
                 )
                 if cast(bool, is_rate_limit(ex)):
                     # legacy method's name says it all — treat as rate-limit
-                    report_http_retry(kind="rate_limit")
+                    report_http_retry(kind="rate_limit", model=str(self))
                     return True
 
         # no retry
@@ -2090,6 +2106,8 @@ def get_model(
             **model_args,
         )
         m = Model(modelapi_instance, config, model_args)
+        # stamp the qualified `provider/model` name for registries keyed by it
+        modelapi_instance.qualified_model_name = str(m)
         m._explicit_base_url = base_url
         if role is not None:
             m._set_role(role)
@@ -2469,7 +2487,11 @@ def combine_messages(
         )
 
 
-async def log_model_retry(model_name: str, retry_state: RetryCallState) -> None:
+async def log_model_retry(
+    model_name: str,
+    retry_state: RetryCallState,
+    qualified_model_name: str | None = None,
+) -> None:
     from inspect_ai._util.retry import (
         retry_error_summary,
         retry_error_type_status,
@@ -2478,11 +2500,23 @@ async def log_model_retry(model_name: str, retry_state: RetryCallState) -> None:
 
     prefix = sample_context_prefix()
     error = retry_error_summary(retry_state)
+    # append the model's current window throughput so an operator watching
+    # retries scroll by can gauge effective rate without a second surface
+    # (`model_name` stays the bare display name; the registry is keyed by
+    # the qualified name — see design/model-throughput.md)
+    throughput = ""
+    if qualified_model_name is not None:
+        view = throughput_view(qualified_model_name)
+        if view is not None:
+            throughput = (
+                f" [{view.output_tokens_per_second:,.0f} out-tok/s, "
+                f"{view.retry_waits_active} in backoff]"
+            )
     level = logging.WARNING if retry_state.upcoming_sleep >= (60 * 20) else HTTP
     logger.log(
         level,
         f"{prefix}-> {model_name} retry {retry_state.attempt_number} "
-        f"(retrying in {retry_state.upcoming_sleep:,.0f} seconds){error}",
+        f"(retrying in {retry_state.upcoming_sleep:,.0f} seconds){error}{throughput}",
     )
 
     # notify hooks of the retry (useful for surfacing time spent in rate limiting)
@@ -2647,6 +2681,11 @@ def record_and_check_model_usage(
     # record usage
     set_model_usage(model_name, usage, sample_model_usage_context_var.get(None))
     set_model_usage(model_name, usage, model_usage_context_var.get(None))
+
+    # record into the process-global throughput registry (cache hits never
+    # reach this function — their early return in `_generate` keeps cached
+    # reads, which consume no provider capacity, out of the reported rate)
+    record_generate(model_name, usage)
 
     # record usage by role name (if role is set)
     if role is not None:

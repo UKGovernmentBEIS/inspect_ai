@@ -110,7 +110,7 @@ class GroqAPI(ModelAPI):
     def initialize(self) -> None:
         super().initialize()
         self.client = self._create_client()
-        self._http_hooks = HttpxHooks(self.client._client)
+        self._http_hooks = HttpxHooks(self.client._client, api=self)
 
     @override
     async def aclose(self) -> None:

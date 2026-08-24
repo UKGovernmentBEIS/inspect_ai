@@ -412,7 +412,7 @@ class AnthropicAPI(ModelAPI):
     def initialize(self) -> None:
         super().initialize()
         self.client = self._create_client()
-        self._http_hooks = HttpxHooks(self.client._client)
+        self._http_hooks = HttpxHooks(self.client._client, api=self)
         self._batcher: AnthropicBatcher | None = None
 
     @override
@@ -792,7 +792,10 @@ class AnthropicAPI(ModelAPI):
                     # TODO: In the future, we could pass max_retries and timeout
                     # from batch_config falling back to config
                     batch_admin_retry_config(
-                        self.model_name, config, self.should_retry
+                        self.model_name,
+                        config,
+                        self.should_retry,
+                        qualified_model_name=self.qualified_model_name,
                     ),
                 )
             head_message = await self._batcher.generate_for_request(request)

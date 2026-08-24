@@ -33,6 +33,7 @@ activity.
 
 from __future__ import annotations
 
+import time
 from collections import defaultdict
 from functools import partial
 from typing import TYPE_CHECKING, Any, Literal, NamedTuple
@@ -1257,6 +1258,13 @@ def _build_summary(
         s.http_retries for s in in_flight_samples
     )
 
+    # Cumulative rate (tokens ÷ elapsed), NOT windowed — the per-model
+    # windowed rates are GET /models/throughput's job; this cheap additive
+    # field answers "which of my parallel tasks is starved?" from the task
+    # row alone. None (rather than 0) before any elapsed time.
+    elapsed = (completed_at or time.time()) - eval_started_at
+    tokens_per_second = round(total_tokens / elapsed, 1) if elapsed > 0 else None
+
     return {
         "run_id": run_id,
         "eval_id": latest.eval_id,
@@ -1291,6 +1299,7 @@ def _build_summary(
             "queued": queued,
         },
         "total_tokens": total_tokens,
+        "tokens_per_second": tokens_per_second,
         "total_messages": total_messages,
         "refusals": refusals,
         "http_retries": http_retries,

@@ -419,9 +419,9 @@ class GoogleGenAIAPI(ModelAPI):
             # create hooks and allocate request
             async_httpx_client = client._api_client._async_httpx_client
             if async_httpx_client is not None:
-                http_hooks: HttpHooks = HttpxHooks(async_httpx_client)
+                http_hooks: HttpHooks = HttpxHooks(async_httpx_client, api=self)
             else:
-                http_hooks = HttpHooks()
+                http_hooks = HttpHooks(api=self)
             request_id = http_hooks.start_request()
 
             # Create google-genai types.
@@ -1174,7 +1174,12 @@ class GoogleGenAIAPI(ModelAPI):
         self._batcher = GoogleBatcher(
             client,
             batch_config,
-            batch_admin_retry_config(self.model_name, config, self.should_retry),
+            batch_admin_retry_config(
+                self.model_name,
+                config,
+                self.should_retry,
+                qualified_model_name=self.qualified_model_name,
+            ),
             self.service_model_name(),
         )
 
