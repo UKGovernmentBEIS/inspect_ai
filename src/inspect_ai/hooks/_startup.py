@@ -40,10 +40,12 @@ def _load_registry_hooks() -> list[Hooks]:
     if _registry_hooks_loaded:
         return []
 
+    from inspect_ai._util.entrypoints import ensure_entry_points
     from inspect_ai.hooks._hooks import get_all_hooks
 
     # Note that hooks loaded by virtue of load_file_tasks() -> load_module() (e.g.
     # if the user defines an @hook alongside their task) won't be loaded by now.
+    ensure_entry_points()
     hooks = get_all_hooks()
     _registry_hooks_loaded = True
     _verify_all_required_hooks(hooks)

@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Hooks: Startup now loads all installed Inspect extensions before collecting and validating hooks, even when another hook was registered earlier.
 - Eval Set: Protocol for running a selection of an eval set's tasks (`INSPECT_EVAL_SET_SELECTION`), so an external runner can execute one task per process into a shared log directory while owning the eval-set metadata itself.
 - Eval Log: Samples halted by a limit now record why it fired (`EvalSampleLimit.reason`, `limit_reason` on sample summaries and `samples_df()`), so operator-terminated samples can be told apart without reading transcript events.
 - Sandbox: Sandbox-tools binaries downloaded from S3 are now verified against SHA256 digests pinned in the package; failures warn by default, or fail when `INSPECT_SANDBOX_TOOLS_STRICT_DIGESTS` is set.
