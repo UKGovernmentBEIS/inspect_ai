@@ -2711,6 +2711,17 @@
             ],
             "title": "Sandbox Cleanup"
           },
+          "sandbox_prebuilt": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sandbox Prebuilt"
+          },
           "score_display": {
             "anyOf": [
               {
@@ -3891,6 +3902,17 @@
             "title": "Limit",
             "type": "number"
           },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
           "type": {
             "enum": [
               "context",
@@ -4188,6 +4210,17 @@
               }
             ],
             "title": "Limit"
+          },
+          "limit_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Limit Reason"
           },
           "message_count": {
             "anyOf": [

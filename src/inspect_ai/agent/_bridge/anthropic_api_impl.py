@@ -27,6 +27,7 @@ from anthropic.types.beta import (
     BetaMessage,
     BetaRequestMCPServerToolConfigurationParam,
     BetaRequestMCPServerURLDefinitionParam,
+    BetaUsage,
 )
 from shortuuid import uuid
 
@@ -175,7 +176,7 @@ async def inspect_anthropic_api_request_impl(
         role="assistant",
         stop_reason=anthropic_stop_reason(output.stop_reason),
         type="message",
-        usage=anthropic_usage(output.usage or ModelUsage()),
+        usage=anthropic_usage(output.usage or ModelUsage(), beta=beta),
     )
     debug_log("SCAFFOLD RESPONSE", message)
 
@@ -580,8 +581,14 @@ def anthropic_stop_reason(stop_reason: StopReason) -> AnthropicStopReason:
             return "end_turn"
 
 
-def anthropic_usage(usage: ModelUsage) -> Usage:
-    return Usage(
+def anthropic_usage(usage: ModelUsage, beta: bool = False) -> Usage | BetaUsage:
+    """Convert inspect-level usage to the Anthropic usage type matching the endpoint.
+
+    Beta requests must carry `BetaUsage`: clients reading beta-only fields
+    (e.g. pydantic-ai reads `usage.iterations`) fail on a plain `Usage`.
+    """
+    usage_class = BetaUsage if beta else Usage
+    return usage_class(
         input_tokens=usage.input_tokens,
         output_tokens=usage.output_tokens,
         cache_creation_input_tokens=usage.input_tokens_cache_write,

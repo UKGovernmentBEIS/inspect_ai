@@ -32,7 +32,7 @@ from inspect_ai.scorer._metric import (
     metric_create,
 )
 from inspect_ai.scorer._metrics import aggregate, grouped
-from inspect_ai.scorer._metrics.std import stderr
+from inspect_ai.scorer._metrics.std import _t_inv_cdf, ci, stderr
 from inspect_ai.scorer._target import Target
 from inspect_ai.solver._task_state import TaskState
 
@@ -601,7 +601,12 @@ def test_clustered_stderr_matches_pairwise_definition():
     assert se == pytest.approx(expected, rel=1e-12)
 
 
-def test_clustered_stderr_preserves_nan_cluster_behavior():
+def test_clustered_stderr_nan_cluster_id_raises():
+    # Previously NaN identifiers counted toward the finite-cluster correction
+    # while matching no per-cluster variance mask, silently corrupting the SE
+    # (see the retired preserves-nan-cluster-behavior pin). Cluster
+    # partitioning is now shared with ci(), and a float NaN id is treated as
+    # missing metadata, matching the dataset NaN-as-missing convention.
     scores = [
         SampleScore(
             score=Score(value=1.0), sample_metadata={"my_cluster": float("nan")}
@@ -612,10 +617,8 @@ def test_clustered_stderr_preserves_nan_cluster_behavior():
         for _ in range(50)
     ]
 
-    # NaN identifiers count as a cluster for the finite-cluster correction,
-    # but their samples did not match the old per-cluster mask and therefore
-    # did not contribute to the variance.
-    assert stderr(cluster="my_cluster")(scores) == pytest.approx((1250.0**0.5) / 100.0)
+    with pytest.raises(ValueError, match="has no cluster metadata"):
+        stderr(cluster="my_cluster")(scores)
 
 
 def test_clustered_stderr_single_sample_missing_metadata_raises():
@@ -1188,3 +1191,194 @@ def test_grouped_metric_empty_scores() -> None:
 
     metric_groups = grouped(mean(), group_key="group", all="groups")
     assert metric_groups([]) == {"all": 0.0}
+
+
+# --- ci() confidence-interval metric ----------------------------------------
+
+
+def test_t_inv_cdf_known_values():
+    # references: scipy.stats.t.ppf(0.975, df) computed externally
+    known = {
+        1: 12.706204736432095,
+        2: 4.302652729911275,
+        4: 2.7764451051977987,
+        9: 2.2621571627409915,
+        10: 2.2281388519649385,
+        30: 2.0422724563012373,
+        1000: 1.9623390808264078,
+    }
+    for df, expected in known.items():
+        assert _t_inv_cdf(0.975, df) == pytest.approx(expected, rel=1e-9)
+    # symmetry and median
+    assert _t_inv_cdf(0.025, 5) == pytest.approx(-_t_inv_cdf(0.975, 5), rel=1e-12)
+    assert _t_inv_cdf(0.5, 7) == 0.0
+
+
+def test_ci_t_matches_mean_plus_t_stderr():
+    scores = [SampleScore(score=Score(value=i)) for i in range(10)]
+    se = stderr()(scores)
+    interval = ci()(scores)  # default: 95% t interval, df = 9
+    t_crit = _t_inv_cdf(0.975, 9)
+    mean = 4.5
+    assert interval["lower"] == pytest.approx(mean - t_crit * se)
+    assert interval["upper"] == pytest.approx(mean + t_crit * se)
+
+
+def test_ci_small_sample_wider_than_normal():
+    # the whole point of the t critical value: for n = 3 the interval must be
+    # substantially wider than the z-based normal approximation
+    scores = [SampleScore(score=Score(value=v)) for v in (0.0, 0.5, 1.0)]
+    se = stderr()(scores)
+    interval = ci()(scores)
+    z_95 = 1.959963984540054
+    assert interval["upper"] - interval["lower"] > 2 * (z_95 * se) * 1.5
+
+
+def test_ci_level_widens_interval():
+    scores = [SampleScore(score=Score(value=i)) for i in range(20)]
+    narrow = ci(level=0.80)(scores)
+    wide = ci(level=0.99)(scores)
+    assert (wide["upper"] - wide["lower"]) > (narrow["upper"] - narrow["lower"])
+
+
+def test_ci_invalid_level_raises():
+    with pytest.raises(ValueError):
+        ci(level=1.5)
+    with pytest.raises(ValueError):
+        ci(level=0.0)
+
+
+def test_ci_small_sample_collapses_to_point():
+    assert ci()([SampleScore(score=Score(value=3.0))]) == {"lower": 3.0, "upper": 3.0}
+    assert ci()([]) == {"lower": 0.0, "upper": 0.0}
+
+
+def test_ci_bootstrap_brackets_mean():
+    scores = [SampleScore(score=Score(value=i)) for i in range(50)]
+    interval = ci(method="bootstrap", num_samples=2000)(scores)
+    assert interval["lower"] < 24.5 < interval["upper"]
+    assert interval["lower"] < interval["upper"]
+
+
+def test_ci_bootstrap_close_to_t():
+    scores = [SampleScore(score=Score(value=i)) for i in range(100)]
+    analytic = ci()(scores)
+    boot = ci(method="bootstrap", num_samples=4000)(scores)
+    # both estimate the same interval; bounds should be close
+    assert boot["lower"] == pytest.approx(analytic["lower"], abs=1.5)
+    assert boot["upper"] == pytest.approx(analytic["upper"], abs=1.5)
+
+
+def test_ci_unknown_method_raises():
+    # invalid method fails at construction, not first use, so it can't be
+    # masked by empty/singleton inputs
+    with pytest.raises(ValueError):
+        ci(method="nope")
+
+
+def test_ci_short_sample_still_validates_cluster():
+    # the < 2 short-circuit must not hide a misconfigured cluster key
+    # (mirrors the stderr(cluster=...) short-input regression)
+    with pytest.raises(ValueError):
+        ci(cluster="c")([SampleScore(score=Score(value=1))])
+    # a valid singleton still collapses to the point interval
+    single = [SampleScore(score=Score(value=3.0), sample_metadata={"c": "a"})]
+    assert ci(cluster="c")(single) == {"lower": 3.0, "upper": 3.0}
+
+
+def test_cluster_nan_id_treated_as_missing():
+    # float NaN metadata means "missing" (dataset convention): raise rather
+    # than silently forming NaN clusters with ambiguous equality semantics
+    scores = [
+        SampleScore(score=Score(value=1), sample_metadata={"c": "a"}),
+        SampleScore(score=Score(value=0), sample_metadata={"c": float("nan")}),
+    ]
+    with pytest.raises(ValueError):
+        ci(cluster="c")(scores)
+    with pytest.raises(ValueError):
+        stderr(cluster="c")(scores)
+    none_scores = [
+        SampleScore(score=Score(value=1), sample_metadata={"c": None}),
+        SampleScore(score=Score(value=0), sample_metadata={"c": "a"}),
+    ]
+    with pytest.raises(ValueError):
+        ci(cluster="c")(none_scores)
+
+
+def test_ci_clustered_t_uses_clustered_stderr_and_df():
+    scores = [
+        SampleScore(score=Score(value=i), sample_metadata={"my_cluster": i % 4})
+        for i in range(20)
+    ]
+    se = stderr(cluster="my_cluster")(scores)
+    interval = ci(cluster="my_cluster")(scores)
+    t_crit = _t_inv_cdf(0.975, 3)  # 4 clusters -> df = 3
+    mean = 9.5
+    assert interval["lower"] == pytest.approx(mean - t_crit * se)
+    assert interval["upper"] == pytest.approx(mean + t_crit * se)
+
+
+def test_ci_clustered_bootstrap_runs():
+    scores = [
+        SampleScore(score=Score(value=i % 3), sample_metadata={"c": i % 5})
+        for i in range(40)
+    ]
+    interval = ci(method="bootstrap", cluster="c", num_samples=500)(scores)
+    assert interval["lower"] <= interval["upper"]
+
+
+def test_ci_clustered_missing_metadata_raises():
+    with pytest.raises(ValueError):
+        ci(cluster="c")(
+            [SampleScore(score=Score(value=1)), SampleScore(score=Score(value=0))]
+        )
+
+
+def test_t_inv_cdf_extreme_tails():
+    # closed forms give implementation-independent references that stress the
+    # continued fraction where it matters most (heavy tails, small df):
+    # df=1 (Cauchy): t_p = tan(pi * (p - 1/2))
+    # df=2: t_p = a * sqrt(2 / (1 - a^2)) with a = 2p - 1
+    for p_val in (0.999, 0.9995, 0.9999):
+        assert _t_inv_cdf(p_val, 1) == pytest.approx(
+            math.tan(math.pi * (p_val - 0.5)), rel=1e-9
+        )
+        a = 2.0 * p_val - 1.0
+        assert _t_inv_cdf(p_val, 2) == pytest.approx(
+            a * math.sqrt(2.0 / (1.0 - a * a)), rel=1e-9
+        )
+    # deep lower tail directly (not via the symmetry shortcut's own path)
+    assert _t_inv_cdf(0.0005, 1) == pytest.approx(
+        math.tan(math.pi * (0.0005 - 0.5)), rel=1e-9
+    )
+
+
+def test_ci_metric_end_to_end():
+    # ci() returns a Mapping, the road-less-traveled for metrics: verify the
+    # dict value flattens into per-key EvalMetric entries in a real eval log
+    from inspect_ai.scorer import scorer
+
+    @scorer(metrics=[ci()])
+    def input_value_scorer():
+        async def score(state: TaskState, target: Target) -> Score:
+            return Score(value=float(state.input_text))
+
+        return score
+
+    task = Task(
+        dataset=[Sample(input=str(v), target="-") for v in (0, 0, 1, 1)],
+        scorer=input_value_scorer(),
+    )
+    log = eval(task, model="mockllm/model", display="none")[0]
+
+    assert log.results is not None
+    metrics = log.results.scores[0].metrics
+    assert set(metrics) >= {"lower", "upper"}
+    assert metrics["lower"].group == "ci"
+    assert metrics["upper"].group == "ci"
+
+    # values [0, 0, 1, 1]: mean 0.5, se = std(ddof=1)/sqrt(4), df = 3
+    se = 0.5773502691896258 / 2.0
+    half_width = _t_inv_cdf(0.975, 3) * se
+    assert metrics["lower"].value == pytest.approx(0.5 - half_width, rel=1e-9)
+    assert metrics["upper"].value == pytest.approx(0.5 + half_width, rel=1e-9)
