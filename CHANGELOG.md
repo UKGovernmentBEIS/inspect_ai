@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Human Agent: `human_cli()` now accepts `tools`, letting humans call inspect tools via `task tool <name>` with typed named arguments; invocations are recorded in the transcript.
 - Sandbox Services: sample termination raised by a service method (`TerminateSampleError`) now propagates and ends the sample, instead of being logged and swallowed by the request loop.
 - Eval Set: Protocol for running a selection of an eval set's tasks (`INSPECT_EVAL_SET_SELECTION`), so an external runner can execute one task per process into a shared log directory while owning the eval-set metadata itself.
 - Eval Log: Samples halted by a limit now record why it fired (`EvalSampleLimit.reason`, `limit_reason` on sample summaries and `samples_df()`), so operator-terminated samples can be told apart without reading transcript events.

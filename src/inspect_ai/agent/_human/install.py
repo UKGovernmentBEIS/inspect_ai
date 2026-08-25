@@ -4,6 +4,7 @@ from textwrap import dedent
 from inspect_ai.util import sandbox
 
 from .commands.command import HumanAgentCommand
+from .commands.tool import ToolCommand
 
 INSTALL_DIR = "human_agent_install"
 HUMAN_AGENT_DIR = "/opt/human_agent"
@@ -72,32 +73,46 @@ def human_agent_commands(commands: list[HumanAgentCommand]) -> str:
         return f"{hours:.0f}:{minutes:02.0f}:{seconds:02.0f}"
     """)
 
-    # command handler source code (extracted from call methods)
-    command_handlers = "\n\n".join(
-        dedent(
-            inspect.getsource(command.cli).replace("cli(self, ", f"{command.name}(", 1)
-        )
-        for command in commands
-    )
+    # command handler source code
+    command_handlers_list: list[str] = []
+    for command in commands:
+        if isinstance(command, ToolCommand):
+            # ToolCommand generates its own CLI handler code
+            command_handlers_list.append(command.get_cli_handler_code())
+        else:
+            # Extract from cli method source
+            command_handlers_list.append(
+                dedent(
+                    inspect.getsource(command.cli).replace(
+                        "cli(self, ", f"{command.name}(", 1
+                    )
+                )
+            )
+    command_handlers = "\n\n".join(command_handlers_list)
 
     # parse commands
     command_parsers: list[str] = []
     for command in commands:
-        command_parsers.append(
-            dedent(f"""
-        {command.name}_parser = subparsers.add_parser("{command.name}", help="{command.description}")
-        """).lstrip()
-        )
-        for arg in command.cli_args:
-            if arg.name.startswith("--"):
-                extras = 'action="store_true", default=False'
-            else:
-                extras = f"""nargs={1 if arg.required else '"?"'}"""
+        if isinstance(command, ToolCommand):
+            # ToolCommand generates its own parser with per-tool subparsers
+            command_parsers.append(command.get_cli_parser_code())
+        else:
+            # Standard parser generation
             command_parsers.append(
                 dedent(f"""
-                {command.name}_parser.add_argument("{arg.name}", {extras}, help="{arg.description}")
-                """).strip()
+            {command.name}_parser = subparsers.add_parser("{command.name}", help="{command.description}")
+            """).lstrip()
             )
+            for arg in command.cli_args:
+                if arg.name.startswith("--"):
+                    extras = 'action="store_true", default=False'
+                else:
+                    extras = f"""nargs={1 if arg.required else '"?"'}"""
+                command_parsers.append(
+                    dedent(f"""
+                    {command.name}_parser.add_argument("{arg.name}", {extras}, help="{arg.description}")
+                    """).strip()
+                )
 
     parse = (
         dedent("""
