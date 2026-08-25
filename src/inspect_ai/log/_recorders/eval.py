@@ -1142,6 +1142,11 @@ class ZipLogFile:
             finally:
                 self._temp_file.close()
             if self._destination_written and not self._destination_seeded:
+                # TODO: sync fsspec rm blocks the event loop on remote log
+                # dirs; route through AsyncFilesystem if it ever grows an rm
+                # helper (to_thread over remote fsspec can deadlock — see
+                # AGENTS.md). Rare path, and failures are contained by
+                # TaskLogger.discard.
                 try:
                     self._fs.rm(self._file)
                 except FileNotFoundError:

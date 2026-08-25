@@ -208,6 +208,12 @@ class JSONRecorder(FileRecorder):
     @override
     async def log_discard(self, eval: EvalSpec) -> None:
         log = self.data.pop(self._log_file_key(eval), None)
+        # `written` only becomes true via this process's own flush, and
+        # TaskLogger.init() never passes a pre-existing location to log_init,
+        # so the rm below can only remove a file this attempt itself wrote.
+        # TODO: sync fsspec rm blocks the event loop on remote log dirs; route
+        # through AsyncFilesystem if it ever grows an rm helper (to_thread
+        # over remote fsspec can deadlock — see AGENTS.md).
         if log is not None and log.written:
             try:
                 self.fs.rm(log.file)
