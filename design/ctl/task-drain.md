@@ -536,7 +536,7 @@ by awaits.
 
 ## Implementation notes
 
-Two places the shipped implementation spells a mechanism differently than
+Three places the shipped implementation spells a mechanism differently than
 the sketch above; the semantics are as designed.
 
 - **The logged-samples count lives in `results.metadata`, not a first-class
