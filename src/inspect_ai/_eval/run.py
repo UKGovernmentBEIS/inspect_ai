@@ -65,6 +65,7 @@ from inspect_ai.util._sandbox.environment import (
     SandboxEnvironmentSpec,
     TaskCleanup,
     TaskInit,
+    set_sandbox_prebuilt,
 )
 from inspect_ai.util._sandbox.registry import registry_find_sandboxenv
 
@@ -1065,6 +1066,8 @@ class SandboxManager:
             sandboxenvs = {env for env in sandboxenvs if env not in self._started}
             if not sandboxenvs:
                 return
+
+            set_sandbox_prebuilt(self._config.sandbox_prebuilt is True)
 
             # initialiase sandboxenvs (track cleanups)
             with display().suspend_task_app():
