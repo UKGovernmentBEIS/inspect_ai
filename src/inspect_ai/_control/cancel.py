@@ -278,7 +278,31 @@ class CancelSampleFinished(TypedDict):
     reason: str
 
 
-CancelSampleResult = CancelSampleRejected | CancelSampleChanged | CancelSampleFinished
+class CancelSampleQueued(TypedDict):
+    """An accepted queued-row cancel (``design/ctl/queued-sample-cancel.md``).
+
+    ``status`` is the prior terminal status for an un-requeue, or
+    ``"cancelled"`` for a cancel-before-start. ``reason`` reports what
+    happened — in conditional tense under ``dry_run``, so the CLI's
+    "Would cancel …" rendering doesn't embed a past-tense mutation.
+    """
+
+    ok: Literal[True]
+    sample_id: str | int
+    epoch: int
+    action: SampleCancelAction
+    dry_run: bool
+    changed: Literal[True]
+    status: str
+    reason: str
+
+
+CancelSampleResult = (
+    CancelSampleRejected
+    | CancelSampleChanged
+    | CancelSampleQueued
+    | CancelSampleFinished
+)
 
 
 async def cancel_sample(
@@ -378,13 +402,16 @@ def _cancel_queued_sample(
     epoch: int,
     action: "SampleCancelAction",
     dry_run: bool,
-) -> dict[str, Any] | None:
+) -> CancelSampleResult | None:
     """Resolve the queued-flavor cancel rows; ``None`` when not queued.
 
     Synchronous end to end (validation, task-level gates, and the mutating
     accept run with no await point on the eval's loop), so an accept can't
     race the parked coroutine leaving the queue — the same argument as
-    requeue's ``accept``. See ``design/ctl/queued-sample-cancel.md``.
+    requeue's ``accept``. The handle mutators (``cancel_queued``,
+    ``cancel_before_start``) assert what this resolver validated rather than
+    re-branching — a second validation layer here would be unreachable.
+    See ``design/ctl/queued-sample-cancel.md``.
     """
     from inspect_ai._control.eval_state import get_eval_state
     from inspect_ai._control.requeue import _task_level_reject
@@ -393,36 +420,27 @@ def _cancel_queued_sample(
     handle = state.sample_requeue if state is not None else None
     if state is None or handle is None:
         return None
+    typed_id = handle.typed_sample_id(sample_id, epoch)
 
-    def result(changed: bool, status: str, reason: str) -> dict[str, Any]:
+    def accepted(status: str, reason: str) -> CancelSampleQueued:
         return {
             "ok": True,
-            "sample_id": sample_id,
+            "sample_id": typed_id,
             "epoch": epoch,
             "action": action,
             "dry_run": dry_run,
-            "changed": changed,
+            "changed": True,
             "status": status,
             "reason": reason,
         }
 
-    def not_cancellable() -> dict[str, Any]:
+    def not_cancellable() -> CancelSampleRejected:
         return {
             "ok": False,
             "error": (
                 f"sample {sample_id} (epoch {epoch}) has not started — "
                 "there is no work to score and no error to record; use "
                 "`--action cancel` to cancel it before it starts"
-            ),
-        }
-
-    def departed_reject() -> dict[str, Any]:
-        return {
-            "ok": False,
-            "error": (
-                f"sample {sample_id} (epoch {epoch})'s re-run has left "
-                "the queue and is initializing — retry once it is "
-                "running"
             ),
         }
 
@@ -433,27 +451,33 @@ def _cancel_queued_sample(
         gated = _task_level_reject(state)
         if gated is not None:
             return {"ok": False, "error": gated["error"]}
+        # the departed blind window refuses every action (the run is
+        # mid-materialization and will terminal-record on its own), so it
+        # answers before the action gate: not_cancellable()'s "use
+        # `--action cancel`" advice would immediately 409 here
+        if handle.pending_departed(sample_id, epoch):
+            return {
+                "ok": False,
+                "error": (
+                    f"sample {sample_id} (epoch {epoch})'s re-run has left "
+                    "the queue and is initializing — retry once it is "
+                    "running"
+                ),
+            }
         if action != "cancel":
             return not_cancellable()
-        # read-only departed check ahead of the dry-run return, so a dry_run
-        # probe reports the same 409 the real accept below would
-        if handle.pending_departed(sample_id, epoch):
-            return departed_reject()
-        accepted = result(
-            True,
+        row = accepted(
             prior_status,
-            "requeue withdrawn — the prior terminal record stands",
+            "the requeue would be withdrawn — the prior terminal record stands"
+            if dry_run
+            else "requeue withdrawn — the prior terminal record stands",
         )
-        if dry_run:
-            return accepted
-        outcome = handle.cancel_queued(sample_id, epoch)
-        if outcome == "accepted":
-            return accepted
-        if outcome == "departed":
-            return departed_reject()
-        return None  # not_pending: fall through and re-resolve
+        if not dry_run:
+            handle.cancel_queued(sample_id, epoch)
+        return row
 
-    # already cancelled before start: the idempotent repeat no-op
+    # already cancelled (before start, or drain-abandoned while queued): the
+    # idempotent repeat no-op
     if handle.cancelled_state(sample_id, epoch) is not None:
         if action != "cancel":
             # not not_cancellable(): its "use `--action cancel`" hint would
@@ -466,7 +490,16 @@ def _cancel_queued_sample(
                     "no error to record"
                 ),
             }
-        return result(False, "cancelled", "already cancelled")
+        return {
+            "ok": True,
+            "sample_id": typed_id,
+            "epoch": epoch,
+            "action": action,
+            "dry_run": dry_run,
+            "changed": False,
+            "status": "cancelled",
+            "reason": "already cancelled",
+        }
 
     # never started (or a retry_on_error re-park), parked at the queue
     if handle.queue_state(sample_id, epoch) == "arrived":
@@ -475,35 +508,44 @@ def _cancel_queued_sample(
             return {"ok": False, "error": gated["error"]}
         if action != "cancel":
             return not_cancellable()
-        accepted = result(
-            True, "cancelled", "cancelled before start — removed from the queue"
+        row = accepted(
+            "cancelled",
+            "the sample would be cancelled before it starts and removed from the queue"
+            if dry_run
+            else "cancelled before start — removed from the queue",
         )
-        if dry_run:
-            return accepted
-        if handle.cancel_before_start(sample_id, epoch) == "accepted":
-            return accepted
-        return None  # the queue state moved: fall through and re-resolve
+        if not dry_run:
+            handle.cancel_before_start(sample_id, epoch)
+        return row
 
     return None
 
 
 def _planned_but_unqueued(
     eval_id: str, sample_id: str, epoch: int
-) -> dict[str, Any] | None:
+) -> CancelSampleRejected | None:
     """The truthful 409s for a planned sample with no record and no queue stamp.
 
-    A departed stamp is the blind window between queue exit and
+    The task-level gates answer first: once the task has finished (or a
+    cancel is in flight) the retry advice below would have no exit — e.g. a
+    sample that completed under ``log_samples=False`` keeps its departed
+    stamp and never gains a readable record, and a drain-abandoned queued
+    sample resolves only through the cancelled-keys stamp. Past the gates, a
+    departed stamp is the blind window between queue exit and
     ``ActiveSample`` registration (initializing); no stamp means the sample
     never reached the queue — on a retry attempt its prior result may be
     mid-reuse, so the rejection is retryable. ``None`` for an unknown
     identity (the route 404s). Upgrades today's 404 for planned samples.
     """
     from inspect_ai._control.eval_state import get_eval_state
-    from inspect_ai._control.requeue import _is_planned
+    from inspect_ai._control.requeue import _is_planned, _task_level_reject
 
     state = get_eval_state(eval_id)
     if state is None or not _is_planned(state, sample_id, epoch):
         return None
+    gated = _task_level_reject(state)
+    if gated is not None:
+        return {"ok": False, "error": gated["error"]}
     handle = state.sample_requeue
     if handle is not None and handle.queue_state(sample_id, epoch) == "departed":
         return _initializing_reject(sample_id, epoch)
@@ -517,7 +559,7 @@ def _planned_but_unqueued(
     }
 
 
-def _initializing_reject(sample_id: str, epoch: int) -> dict[str, Any]:
+def _initializing_reject(sample_id: str, epoch: int) -> CancelSampleRejected:
     """The 409 for a sample past the queue but not yet running.
 
     Mid-materialization (sandbox init may be in flight): there is no task

@@ -626,6 +626,19 @@ def record_sample_cancelled(
             _maybe_mark_finished(state)
 
 
+def _requeue_bucket(
+    prior_status: Literal["error", "cancelled"],
+) -> Literal["errored", "cancelled"]:
+    """The counter bucket a requeueable prior status bumped at its recording.
+
+    The single source for both directions — the requeue accept's decrement
+    (:func:`record_sample_requeued`) and the un-requeue's restore
+    (:func:`record_sample_unrequeued`) — so the mapping can't drift and
+    restore a different bucket than was decremented.
+    """
+    return "errored" if prior_status == "error" else "cancelled"
+
+
 def record_sample_requeued(
     eval_id: str,
     prior_status: Literal["error", "cancelled"],
@@ -656,7 +669,7 @@ def record_sample_requeued(
     with _lock:
         state = _eval_states.get(eval_id)
         if state is not None:
-            bucket = "errored" if prior_status == "error" else "cancelled"
+            bucket = _requeue_bucket(prior_status)
             count = getattr(state, bucket)
             if count <= 0:
                 logger.warning(
@@ -685,7 +698,7 @@ def record_sample_unrequeued(
     with _lock:
         state = _eval_states.get(eval_id)
         if state is not None:
-            bucket = "errored" if prior_status == "error" else "cancelled"
+            bucket = _requeue_bucket(prior_status)
             setattr(state, bucket, getattr(state, bucket) + 1)
             _maybe_mark_finished(state)
 

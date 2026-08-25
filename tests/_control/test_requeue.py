@@ -121,10 +121,12 @@ class _FakeRequeueHandle:
     def cancelled_state(self, sample_id: str, epoch: int) -> str | None:
         return self._cancelled
 
-    def uncancel(self, sample_id: str, epoch: int) -> bool:
+    def uncancel(self, sample_id: str, epoch: int) -> None:
         self.uncancels.append((sample_id, epoch))
         self._cancelled = None
-        return True
+
+    def typed_sample_id(self, sample_id: str, epoch: int) -> str | int:
+        return sample_id
 
     def cancelled_keys(self) -> frozenset[tuple[str, int]]:
         return frozenset()
@@ -307,6 +309,9 @@ async def test_requeue_uncancels_parked_cancel_before_start(
     assert dry is not None
     assert dry["ok"] is True and dry["changed"] is True
     assert dry["status"] == "pending"
+    # conditional-tense reason: the CLI's "Would requeue …" line
+    # interpolates it verbatim
+    assert "would be withdrawn" in dry["reason"]
     assert handle.uncancels == []  # dry run does not mutate
 
     result = await requeue_sample("e1", "s2", 1)

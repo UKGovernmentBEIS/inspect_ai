@@ -186,16 +186,21 @@ async def requeue_sample(
             "`inspect eval-retry` (or re-invoke `inspect eval-set`)"
         )
     if cancelled == "parked":
+        # the reason is conditional-tense under dry_run so the CLI's "Would
+        # requeue …" rendering doesn't embed a past-tense mutation
         uncancelled: RequeueUncancelled = {
             "ok": True,
-            "sample_id": sample_id,
+            "sample_id": handle.typed_sample_id(sample_id, epoch),
             "epoch": epoch,
             "dry_run": dry_run,
             "changed": True,
             "status": "pending",
             "reason": (
-                "cancel-before-start withdrawn — the sample will run when "
-                "it gets a slot"
+                "the cancel-before-start would be withdrawn — the sample "
+                "would run when it gets a slot"
+                if dry_run
+                else "cancel-before-start withdrawn — the sample will run "
+                "when it gets a slot"
             ),
         }
         if not dry_run:

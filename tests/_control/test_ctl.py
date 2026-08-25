@@ -5749,6 +5749,27 @@ def test_sample_cancel_queued_reason_wins(monkeypatch: pytest.MonkeyPatch) -> No
     assert terse.exit_code == 0, terse.output
     assert terse.stdout == f"cancel t1/s1 (epoch 1): {reason}\n"
 
+    # under --dry-run the server sends a conditional-tense reason, so the
+    # "Would cancel …" line doesn't embed a past-tense mutation
+    dry_reason = (
+        "the sample would be cancelled before it starts and removed from the queue"
+    )
+    dry_spy = _RequestSpy(
+        {
+            "ok": True,
+            "sample_id": "s1",
+            "epoch": 1,
+            "dry_run": True,
+            "changed": True,
+            "status": "cancelled",
+            "reason": dry_reason,
+        }
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", dry_spy)
+    dry = cli_runner().invoke(ctl_command, args + ["--dry-run", "--no-terse"])
+    assert dry.exit_code == 0, dry.output
+    assert f"Would cancel sample s1 (epoch 1) — {dry_reason}." in dry.stdout
+
     noop_spy = _RequestSpy(
         {
             "ok": True,

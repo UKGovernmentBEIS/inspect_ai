@@ -67,15 +67,15 @@ and the wiring requirement this adds under Mechanism.
 ## Semantics
 
 The extended decision table for `sample/cancel`, by the sample's current state
-(new/changed rows marked; the task-level row guards only the two queued rows — see the
-first note below):
+(new/changed rows marked; the task-level row guards the queued rows and the
+planned-but-unqueued 409 rows — see the first note below):
 
 | State | `action=cancel` | `action=score\|error` |
 |---|---|---|
-| task finished / between attempts / task cancel in flight (queued rows only) | **409** (new — mirrors requeue's task-level gates) | same |
+| task finished / between attempts / task cancel in flight (queued + planned-but-unqueued rows) | **409** (new — mirrors requeue's task-level gates) | same |
 | running (`ActiveSample`, started) | interrupt — unchanged | unchanged (score / error, with the fail-on-error gate) |
 | initializing (`ActiveSample`, `started is None`) | 409 — unchanged, message reworded ("initializing", not "queued") | 409 — unchanged |
-| **queued re-run** (pending-requeue key, no `ActiveSample`) | **applied — un-requeue**: the pending entry is withdrawn and the prior terminal record stands | **409** — there is no work to score and no error to record; the message names `--action cancel` |
+| **queued re-run** (pending-requeue key, no `ActiveSample`) | **applied — un-requeue**: the pending entry is withdrawn and the prior terminal record stands | **409** — there is no work to score and no error to record; the message names `--action cancel` (in the departed blind window, every action gets the departed 409 instead — the `--action cancel` hint would immediately 409 there) |
 | **never started** (planned, *at the queue* — arrival-stamped, not departed — no `ActiveSample`, no record, fanout open) | **applied — cancelled before start**: removed from the queue, counted `cancelled`, absent from the log | **409** — same message (upgrades today's 404 to a truthful answer) |
 | **not yet at the queue** (planned, no `ActiveSample`, no record, no arrival stamp — reuse resolution in flight on a retry attempt, or a seed's first tick) | **409** — "not at the queue yet (it may be reused from the prior attempt) — retry" (upgrades today's 404) | **409** — same |
 | already cancelled-before-start | **`changed: false` no-op** ("already cancelled") | 409 — "was cancelled before it started" (no `--action cancel` hint, which would just point at the no-op) |
@@ -84,15 +84,19 @@ first note below):
 
 Notes on the table:
 
-- **The task-level gates apply to the queued rows only** — unlike requeue, where they
-  genuinely run first for every request. Interrupting a *running* sample while a task
-  cancel is in flight stays permitted (unchanged — the operator explicitly targeting one
-  sample wins, per the shipped first-resolution-wins rules), and a terminal record after
-  the task finishes keeps its `changed: false` no-op. But accepting a queued-row cancel
-  when a task cancel is stamped would be a no-op lie (the drain abandons the sample
-  anyway) and its counter reconciliation would collide with the drain's own recording;
-  between attempts / after drain there is no fanout to act on. Same honesty rule, same
-  wording style as requeue's `_task_level_reject`.
+- **The task-level gates apply to the queued and planned-but-unqueued rows only** —
+  unlike requeue, where they genuinely run first for every request. Interrupting a
+  *running* sample while a task cancel is in flight stays permitted (unchanged — the
+  operator explicitly targeting one sample wins, per the shipped first-resolution-wins
+  rules), and a terminal record after the task finishes keeps its `changed: false`
+  no-op. But accepting a queued-row cancel when a task cancel is stamped would be a
+  no-op lie (the drain abandons the sample anyway) and its counter reconciliation would
+  collide with the drain's own recording; between attempts / after drain there is no
+  fanout to act on. And the planned-but-unqueued 409s' "retry" advice needs the gates
+  too: once the task has finished (or a cancel is in flight) that advice would have no
+  exit — e.g. a sample that completed under `log_samples=False` keeps its departed
+  stamp and never gains a readable record. Same honesty rule, same wording style as
+  requeue's `_task_level_reject`.
 - **The never-started row also admits a retry re-park** (fifth state above), by
   design rather than by accident of its conditions: a sample re-parked at the
   semaphore mid-`retry_on_error` matches the row (arrival re-stamped by the recursed
@@ -113,7 +117,9 @@ Notes on the table:
   record renders terminally again). `dry_run=true` reports every row without mutating —
   including the departed 409: the un-requeue dry-run consults the same departed gate
   (read-only) the real accept enforces, so a probe never reports an accept the real
-  call would refuse.
+  call would refuse. Accepted rows' `reason` strings are conditional-tense under
+  `dry_run` ("the requeue would be withdrawn …"), so the CLI's "Would cancel …" line —
+  which interpolates the reason verbatim — never embeds a past-tense mutation.
 - **Un-requeue restores the world, not a variant of it.** After an un-requeue the
   sample is exactly as if the requeue had never been accepted: the prior terminal record
   stands (it was only ever superseded when a re-run *logs*), the counters and
@@ -157,7 +163,11 @@ block). The design splits the cancel into a **synchronous semantic accept** and 
   requires the key to be exactly *at the queue* (arrived, not departed): a
   departed-but-unregistered run gets the initializing 409, a not-yet-arrived key gets
   the retryable not-at-the-queue 409 — never a half-cancel that mutates counters for a
-  run that will also terminal-record on its own.
+  run that will also terminal-record on its own. The resolver is the *single*
+  validation layer: the handle mutators (`cancel_queued`, `cancel_before_start`,
+  `uncancel`) assert the preconditions it just checked rather than re-branching —
+  with no await between the check and the call, a second decision layer there would
+  be unreachable code.
 - **Discard (deferred).** The parked coroutine becomes a zombie: when it eventually
   acquires the semaphore, the queue-exit check sees the cancel stamp and returns
   immediately — no materialization, no recording (the accept already counted it), no
@@ -231,6 +241,11 @@ unambiguous, and the entry-flag machinery below stays re-run-only.
   different reasons: the samples listing's `counts` is tallied from the rendered rows,
   so the new row rule *is* what corrects it, while the tasks listing derives `queued`
   arithmetically from the counters, which the accept's `cancelled` bump already fixed.
+  The rows echo the *dataset-typed* id (int vs str) like every other per-sample
+  surface: the arrival stamp captures it (the runner passes `get_sample(index).id`),
+  so the synthesis doesn't depend on recovering it from `sample_ids` — which clears at
+  `completed_at`, and would flip a cancelled row's id to the route string when the
+  cancel finished the eval.
 - **Requeue interplay (un-cancel).** The requeue resolver's `_is_planned` branch
   currently answers "sample has not started yet — it will run without help", which
   becomes a lie for a cancelled key. New rows in the requeue table:
@@ -399,6 +414,19 @@ this window) — but it's not needed for the queued cases this design targets.
   drain — or `run_one`'s `finally`, if the dispatcher had started the entry — fires
   nothing for it, leaving the key (which may by now belong to a fresh requeue)
   untouched, which is the intended outcome. Coherent either way.
+- **A drain abandoning an *uncancelled* queued sample stamps the key too.** The
+  task-cancel drain (the queue-exit abandonment, and the drain-window abandonment of a
+  suppressed retry) records the sample `cancelled` but writes no record — so without a
+  stamp no read surface would ever see the outcome: the listing would keep rendering
+  the key `pending`, and the departed 409 would advise "retry once it is running"
+  forever. The abandon paths therefore mark the key `"discarded"` in the
+  cancelled-keys map (via a `queue_abandon` hook beside the queue-lifecycle pair):
+  the listing renders `cancelled`, and a later cancel lands on the idempotent
+  "already cancelled" no-op. Re-runs need no stamp — clearing their pending key
+  reverts them to their prior terminal record. The one reader this can't help is a
+  sample that completed under `log_samples=False` (no record is ever written); its
+  departed 409 persists until the task finishes, where the task-level gates take
+  over.
 - **Cancel racing the re-run's start.** If the `ActiveSample` has appeared by resolve
   time, the active row wins (same precedence as the requeue resolver): a started re-run
   is a running sample (ordinary interrupt); one mid-materialization is the initializing

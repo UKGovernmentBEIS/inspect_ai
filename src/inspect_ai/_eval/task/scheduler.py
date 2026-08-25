@@ -288,15 +288,6 @@ class _PendingRequeue:
     was unscored), re-inserted on withdraw."""
 
 
-CancelQueuedOutcome = Literal["accepted", "departed", "not_pending"]
-"""Result of :meth:`SampleRequeue.cancel_queued`.
-
-``departed`` means the re-run left the queue while the request resolved
-(invisible until its ``ActiveSample`` registers, so it can't be safely
-withdrawn); ``not_pending`` means no requeue is pending for the key.
-"""
-
-
 class SampleRequeue:
     """Attempt-scoped requeue capability (``design/ctl/sample-requeue.md``).
 
@@ -359,6 +350,12 @@ class SampleRequeue:
         # matters to the requeue resolver — a parked key can be un-cancelled
         # (the same coroutine still serves), a discarded one cannot.
         self._cancelled: dict[tuple[str, int], Literal["parked", "discarded"]] = {}
+        # dataset-typed ids captured at queue arrival: the queued read
+        # surfaces (cancelled-row synthesis, `sample show`, the cancel
+        # result rows) have no record to read a typed id from, and the
+        # planned-id recovery dies with `sample_ids` at completed_at — this
+        # map survives, so a cancelled row's id can't flip int → str.
+        self._typed_ids: dict[tuple[str, int], str | int] = {}
 
     @property
     def open(self) -> bool:
@@ -390,9 +387,9 @@ class SampleRequeue:
         """Whether a pending requeue's re-run has left the queue (read-only).
 
         The departed blind window between queue exit and ``ActiveSample``
-        registration: :meth:`cancel_queued` refuses it, so the cancel
-        resolver consults this before its dry-run return — a ``dry_run``
-        probe must report the same 409 the real call would.
+        registration: the cancel resolver refuses it via this check (real
+        and ``dry_run`` alike, so a probe reports the same 409 the real
+        call would); :meth:`cancel_queued` then asserts it.
         """
         pending = self._pending.get((sample_id, epoch))
         return pending is not None and pending.entry.departed
@@ -464,27 +461,27 @@ class SampleRequeue:
         pending.popped_score = self._on_accept(prior.id, prior.epoch)
         return "accepted"
 
-    def cancel_queued(self, sample_id: str, epoch: int) -> CancelQueuedOutcome:
+    def cancel_queued(self, sample_id: str, epoch: int) -> None:
         """Withdraw a pending requeue (un-requeue) — the inverse of :meth:`accept`.
 
-        Synchronous end to end, on the eval's loop, so the entry can't leave
-        the queue between the departed check and the flag. The withdrawn
-        entry's ``on_terminal`` is disarmed (the key may come to belong to a
-        fresh requeue, which the zombie's terminal must not un-mark), the
-        prior record's uuid leaves the staleness guard (its re-run never
-        happened, so the record is back to being current and re-requeueable),
-        the prior terminal bucket / fail-on-error tally are restored, and
-        ``on_withdraw`` re-inserts the retracted progress and score. See
-        ``design/ctl/queued-sample-cancel.md``.
+        The caller (the cancel resolver) validates the row — pending, not
+        departed — and calls this with no await in between, all on the eval's
+        loop, so the preconditions can't move: they are asserted here rather
+        than re-branched (a second validation layer would be unreachable).
+        The withdrawn entry's ``on_terminal`` is disarmed (the key may come
+        to belong to a fresh requeue, which the zombie's terminal must not
+        un-mark), the prior record's uuid leaves the staleness guard (its
+        re-run never happened, so the record is back to being current and
+        re-requeueable), the prior terminal bucket / fail-on-error tally are
+        restored, and ``on_withdraw`` re-inserts the retracted progress and
+        score. See ``design/ctl/queued-sample-cancel.md``.
         """
         from inspect_ai._control.eval_state import record_sample_unrequeued
 
         key = (sample_id, epoch)
         pending = self._pending.get(key)
-        if pending is None:
-            return "not_pending"
-        if pending.entry.departed:
-            return "departed"
+        assert pending is not None, f"no requeue pending for {key}"
+        assert not pending.entry.departed, f"re-run for {key} has left the queue"
         pending.entry.cancelled = True
         pending.entry.on_terminal = None
         del self._pending[key]
@@ -494,7 +491,6 @@ class SampleRequeue:
         if pending.prior_status == "error":
             self._sample_error.error_count += 1
         self._on_withdraw(pending.sample_id, epoch, pending.popped_score)
-        return "accepted"
 
     def queue_arrive(
         self, sample_id: str | int, epoch: int, entry: _ScheduledRun | None
@@ -509,7 +505,9 @@ class SampleRequeue:
         if entry is not None and entry.prior is not None:
             entry.departed = False
         else:
-            self._queue[(str(sample_id), epoch)] = "arrived"
+            key = (str(sample_id), epoch)
+            self._queue[key] = "arrived"
+            self._typed_ids[key] = sample_id
 
     def queue_depart(
         self, sample_id: str | int, epoch: int, entry: _ScheduledRun | None
@@ -531,6 +529,24 @@ class SampleRequeue:
             return True
         return False
 
+    def queue_abandoned(
+        self, sample_id: str | int, epoch: int, entry: _ScheduledRun | None
+    ) -> None:
+        """Mark a key-based run a task-cancel drain abandoned as cancelled.
+
+        The drain records the cancel in the counters but writes no record,
+        so without this stamp no read surface ever sees the outcome: the
+        listing keeps rendering the key ``pending`` and the cancel
+        resolver's departed branch advises "retry once it is running"
+        forever. Stamped ``"discarded"`` directly — the coroutine is
+        returning, so there is no parked window to un-cancel. Re-runs need
+        no stamp: clearing their pending key (``on_terminal``) reverts them
+        to their prior terminal record.
+        """
+        if entry is not None and entry.prior is not None:
+            return
+        self._cancelled[(str(sample_id), epoch)] = "discarded"
+
     def queue_state(
         self, sample_id: str, epoch: int
     ) -> Literal["arrived", "departed"] | None:
@@ -551,44 +567,54 @@ class SampleRequeue:
         """
         return frozenset(self._cancelled)
 
-    def cancel_before_start(
-        self, sample_id: str, epoch: int
-    ) -> Literal["accepted", "not_at_queue", "departed"]:
+    def typed_sample_id(self, sample_id: str, epoch: int) -> str | int:
+        """The dataset-typed id for a route-string key (str passthrough).
+
+        The queued read surfaces echo dataset-typed ids like every other
+        per-sample path; the queued rows have no record to read one from, so
+        the id captured at requeue accept / queue arrival serves. Falls back
+        to the string form for a key never seen (defensive — every pending
+        or cancelled key was captured).
+        """
+        pending = self._pending.get((sample_id, epoch))
+        if pending is not None:
+            return pending.sample_id
+        return self._typed_ids.get((sample_id, epoch), sample_id)
+
+    def cancel_before_start(self, sample_id: str, epoch: int) -> None:
         """Cancel a never-started (or retry-re-parked) sample parked at the queue.
 
-        Synchronous: requires the key to be exactly *at the queue* (arrived,
-        not departed) — a departed run is mid-materialization and will
-        terminal-record on its own; an unarrived key may be reuse-bound on a
-        retry attempt and never queue at all. On accept the sample is
-        terminally cancelled in the counters immediately; the parked
-        coroutine discards later, at the queue-exit check, without recording
-        again. See ``design/ctl/queued-sample-cancel.md``.
+        The caller (the cancel resolver) validates that the key is exactly
+        *at the queue* (arrived, not departed) and calls this with no await
+        in between, on the eval's loop, so the precondition can't move: it
+        is asserted rather than re-branched. A departed run would be
+        mid-materialization and terminal-record on its own; an unarrived key
+        may be reuse-bound on a retry attempt and never queue at all. On
+        accept the sample is terminally cancelled in the counters
+        immediately; the parked coroutine discards later, at the queue-exit
+        check, without recording again. See
+        ``design/ctl/queued-sample-cancel.md``.
         """
         from inspect_ai._control.eval_state import record_sample_cancelled
 
         key = (sample_id, epoch)
-        state = self._queue.get(key)
-        if state is None:
-            return "not_at_queue"
-        if state == "departed":
-            return "departed"
+        assert self._queue.get(key) == "arrived", f"{key} is not at the queue"
         self._cancelled[key] = "parked"
         record_sample_cancelled(self._eval_id)
-        return "accepted"
 
-    def uncancel(self, sample_id: str, epoch: int) -> bool:
+    def uncancel(self, sample_id: str, epoch: int) -> None:
         """Withdraw a cancel-before-start while its coroutine is still parked.
 
-        The same parked coroutine serves as the re-run — no new entry is
-        created, so there is nothing to double-queue; the sample simply runs
-        when it gets a slot, exactly as if never cancelled. ``False`` when
-        the key isn't ``"parked"`` (never cancelled, or already discarded).
+        The caller (the requeue resolver) validates that the key is
+        ``"parked"`` and calls this with no await in between, on the eval's
+        loop, so the precondition can't move: it is asserted rather than
+        re-branched. The same parked coroutine serves as the re-run — no new
+        entry is created, so there is nothing to double-queue; the sample
+        simply runs when it gets a slot, exactly as if never cancelled.
         """
         from inspect_ai._control.eval_state import record_sample_requeued
 
         key = (sample_id, epoch)
-        if self._cancelled.get(key) != "parked":
-            return False
+        assert self._cancelled.get(key) == "parked", f"{key} is not parked-cancelled"
         del self._cancelled[key]
         record_sample_requeued(self._eval_id, "cancelled", op="un-cancel")
-        return True

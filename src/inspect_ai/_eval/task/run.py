@@ -915,6 +915,10 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                             return False
                         return sample_requeue.queue_depart(sample_id, epoch, entry)
 
+                    def queue_abandon() -> None:
+                        if sample_id is not None:
+                            sample_requeue.queue_abandoned(sample_id, epoch, entry)
+
                     resume_checkpoint: ResumeCheckpoint | None = None
                     # prior task-attempt errors to seed this re-run's
                     # error_retries (empty unless the sample source reports a
@@ -1131,6 +1135,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         semaphore=gated_sample_semaphore,
                         queue_enter=queue_enter,
                         queue_exit=queue_exit,
+                        queue_abandon=queue_abandon,
                         eval_set_id=logger.eval.eval_set_id,
                         run_id=logger.eval.run_id,
                         task_id=logger.eval.eval_id,
@@ -1723,6 +1728,7 @@ async def task_run_sample(
     sample_uuid: str | None = None,
     queue_enter: Callable[[], None] | None = None,
     queue_exit: Callable[[], bool] | None = None,
+    queue_abandon: Callable[[], None] | None = None,
 ) -> SampleRunResult:
     from inspect_ai.event import Event
     from inspect_ai.hooks._hooks import (
@@ -1763,6 +1769,11 @@ async def task_run_sample(
         # attempt's keyed score dict in the results.
         if task_cancel is not None and task_cancel.cancel_type in ("score", "error"):
             record_sample_cancelled(task_id)
+            # mark the key cancelled so the outcome is readable (the listing,
+            # and the cancel resolver's idempotent no-op — without it a
+            # departed key with no record reads "initializing" forever)
+            if queue_abandon is not None:
+                queue_abandon()
             if sample_terminal is not None:
                 sample_terminal("cancelled")
             return DISCARDED
@@ -2591,6 +2602,7 @@ async def task_run_sample(
             # (cancellable) rather than permanently departed
             queue_enter=queue_enter,
             queue_exit=queue_exit,
+            queue_abandon=queue_abandon,
         )
 
     # an interrupt (task-cancel sweep or per-sample cancel) landed in the
@@ -2613,6 +2625,11 @@ async def task_run_sample(
         record_sample_cancelled(
             task_id, started=_sample_started(), **_sample_usage(state)
         )
+        # mark the key cancelled: this attempt was never logged, so without
+        # the stamp no read surface would ever see the outcome (the departed
+        # key would read "initializing" forever)
+        if queue_abandon is not None:
+            queue_abandon()
         # DISCARDED (not None): the attempt was never logged, so a re-run
         # abandoned here must not clobber its prior attempt's keyed score
         # dict in the results

@@ -9,7 +9,7 @@ them (``POST /tasks/<id>/cancel``, ``POST /evals/<id>/sample/cancel``,
 """
 
 from types import SimpleNamespace
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 import anyio
 import httpx
@@ -17,7 +17,12 @@ import pytest
 from test_helpers.live_eval_data import FakeLiveEvalData
 
 from inspect_ai import Task, eval_async
-from inspect_ai._control.cancel import cancel_sample, cancel_task, cancel_tool_call
+from inspect_ai._control.cancel import (
+    CancelSampleResult,
+    cancel_sample,
+    cancel_task,
+    cancel_tool_call,
+)
 from inspect_ai._control.eval_state import (
     clear_all_eval_states,
     get_eval_state,
@@ -1093,6 +1098,18 @@ def test_register_eval_carries_task_cancel() -> None:
 # ---------------------------------------------------------------------------
 
 
+def _row(result: "CancelSampleResult | None") -> dict[str, Any]:
+    """Assert a non-404 ``cancel_sample`` result and index it loosely.
+
+    The queued-row tests read fields across the result union's variants
+    (``status``/``reason`` on accepts and no-ops, ``error`` on rejections);
+    the cast trades mypy's per-variant key checking for readable
+    assertions — the values themselves are still asserted exactly.
+    """
+    assert result is not None
+    return cast(dict[str, Any], result)
+
+
 def _errored_prior(sample_id: str = "s1", epoch: int = 1) -> EvalSample:
     from inspect_ai._util.error import EvalError
 
@@ -1152,17 +1169,17 @@ async def test_cancel_never_started_accepted(
     handle = _register_queued_eval()
     handle.queue_arrive("s2", 1, None)
 
-    # dry run reports the accept without mutating
-    dry = await cancel_sample("e1", "s2", 1, action="cancel", dry_run=True)
-    assert dry is not None
+    # dry run reports the accept without mutating, with a conditional-tense
+    # reason (the CLI's "Would cancel …" line interpolates it verbatim)
+    dry = _row(await cancel_sample("e1", "s2", 1, action="cancel", dry_run=True))
     assert dry["ok"] is True and dry["changed"] is True
     assert dry["status"] == "cancelled"
+    assert "would be cancelled" in dry["reason"]
     assert handle.cancelled_state("s2", 1) is None
     state = get_eval_state("e1")
     assert state is not None and state.cancelled == 0
 
-    result = await cancel_sample("e1", "s2", 1, action="cancel")
-    assert result is not None
+    result = _row(await cancel_sample("e1", "s2", 1, action="cancel"))
     assert result["ok"] is True and result["changed"] is True
     assert result["status"] == "cancelled"
     assert "before start" in result["reason"]
@@ -1240,6 +1257,67 @@ async def test_cancel_departed_blind_window_409(
     assert handle.cancelled_state("s2", 1) is None
 
 
+async def test_cancel_drain_abandoned_sample_reads_cancelled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A drain-abandoned queued sample answers "already cancelled", not "retry".
+
+    A graceful task cancel abandons a still-queued sample at the queue-exit
+    check with no record; the abandon stamp is what keeps the outcome
+    readable — without it the departed key would advise "retry once it is
+    running" forever. Re-runs need no stamp (their pending key clears and
+    the prior record renders), so the hook no-ops for them.
+    """
+    _patch_active_samples(monkeypatch, [])
+    cancel = TaskCancel(can_retry=False, cancel_task=lambda _: None)
+    handle = _register_queued_eval(task_cancel=cancel)
+    handle.queue_arrive("s2", 1, None)
+    handle.queue_depart("s2", 1, None)
+    cancel.cancel_type = "score"  # the graceful drain is in flight
+    # the runner's drain-abandon path fires the queue_abandon hook
+    handle.queue_abandoned("s2", 1, None)
+    assert handle.cancelled_state("s2", 1) == "discarded"
+
+    result = await cancel_sample("e1", "s2", 1, action="cancel")
+    assert result is not None
+    assert result["ok"] is True and result["changed"] is False
+    assert result["reason"] == "already cancelled"
+
+    listing = await current_sample_listing("e1")
+    rows = {(r["sample_id"], r["epoch"]): r for r in listing.samples}
+    assert rows[("s2", 1)]["status"] == "cancelled"
+
+    # a re-run entry is not stamped: its pending key clears via on_terminal
+    # and the prior record renders
+    rerun = _ScheduledRun(sample_index=0, epoch=1, prior=_errored_prior())
+    handle.queue_abandoned("s1", 1, rerun)
+    assert handle.cancelled_state("s1", 1) is None
+
+
+async def test_cancel_departed_task_gates_before_retry_advice(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A task-level gate answers a departed key before the "retry" advice.
+
+    Once a task cancel is in flight (or the task has finished) "retry once
+    it is running" would be advice with no exit — e.g. an abort abandons the
+    departed run, and a completed sample under log_samples=False never gains
+    a readable record.
+    """
+    _patch_active_samples(monkeypatch, [])
+    cancel = TaskCancel(can_retry=False, cancel_task=lambda _: None)
+    handle = _register_queued_eval(task_cancel=cancel)
+    handle.queue_arrive("s2", 1, None)
+    handle.queue_depart("s2", 1, None)
+    cancel.cancel_type = "abort"
+
+    result = await cancel_sample("e1", "s2", 1, action="cancel")
+    assert result is not None
+    assert result["ok"] is False
+    assert "cancel is in flight" in result["error"]
+    assert "initializing" not in result["error"]
+
+
 async def test_cancel_retry_repark_rearrival_cancellable(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1288,7 +1366,7 @@ async def test_cancel_before_start_discard_at_queue_exit(
     _patch_active_samples(monkeypatch, [])
     handle = _register_queued_eval()
     handle.queue_arrive("s2", 1, None)
-    assert (await cancel_sample("e1", "s2", 1, action="cancel") or {})["changed"]
+    assert _row(await cancel_sample("e1", "s2", 1, action="cancel"))["changed"]
     state = get_eval_state("e1")
     assert state is not None and state.cancelled == 1
 
@@ -1316,14 +1394,13 @@ async def test_cancel_before_start_last_outstanding_work(
     handle = _register_queued_eval(total=1, sample_ids=["s1"])
     handle.queue_arrive("s1", 1, None)
 
-    result = await cancel_sample("e1", "s1", 1, action="cancel")
-    assert result is not None and result["changed"] is True
+    result = _row(await cancel_sample("e1", "s1", 1, action="cancel"))
+    assert result["changed"] is True
     state = get_eval_state("e1")
     assert state is not None
     assert state.completed_at is not None and state.sample_ids == []
 
-    repeat = await cancel_sample("e1", "s1", 1, action="cancel")
-    assert repeat is not None
+    repeat = _row(await cancel_sample("e1", "s1", 1, action="cancel"))
     assert repeat["ok"] is True and repeat["changed"] is False
     assert repeat["reason"] == "already cancelled"
 
@@ -1411,8 +1488,7 @@ async def test_cancel_unrequeues_queued_rerun(
             while not rerun_entries:
                 await anyio.sleep(0.01)
 
-        result = await cancel_sample("e1", "s1", 1, action="cancel")
-        assert result is not None
+        result = _row(await cancel_sample("e1", "s1", 1, action="cancel"))
         assert result["ok"] is True and result["changed"] is True
         assert result["status"] == "error"
         assert "requeue withdrawn" in result["reason"]
@@ -1490,10 +1566,11 @@ async def test_cancel_queued_rerun_score_error_409(
             assert "--action cancel" in rejected["error"]
         assert handle.is_pending("s1", 1)  # nothing was withdrawn
 
-        # dry run reports the un-requeue without mutating
-        dry = await cancel_sample("e1", "s1", 1, action="cancel", dry_run=True)
-        assert dry is not None
+        # dry run reports the un-requeue without mutating, with a
+        # conditional-tense reason (the CLI interpolates it verbatim)
+        dry = _row(await cancel_sample("e1", "s1", 1, action="cancel", dry_run=True))
         assert dry["ok"] is True and dry["changed"] is True
+        assert "would be withdrawn" in dry["reason"]
         assert handle.is_pending("s1", 1)
 
         release.set()
@@ -1558,13 +1635,19 @@ async def test_cancel_unrequeue_departed_window_dry_run_parity(
         assert handle.queue_depart("s1", 1, rerun_entries[0]) is False
         assert handle.pending_departed("s1", 1) is True
 
-        for dry_run in (True, False):
-            result = await cancel_sample(
-                "e1", "s1", 1, action="cancel", dry_run=dry_run
-            )
-            assert result is not None, dry_run
-            assert result["ok"] is False, dry_run
-            assert "initializing" in result["error"], dry_run
+        # every action gets the departed 409 (the departed gate answers
+        # before the action gate — otherwise score/error's "use `--action
+        # cancel`" advice would immediately 409), and dry_run reports the
+        # same answer the real call would
+        for action in ("cancel", "score", "error"):
+            for dry_run in (True, False):
+                result = await cancel_sample(
+                    "e1", "s1", 1, action=action, dry_run=dry_run
+                )
+                assert result is not None, (action, dry_run)
+                assert result["ok"] is False, (action, dry_run)
+                assert "initializing" in result["error"], (action, dry_run)
+                assert "--action cancel" not in result["error"], (action, dry_run)
         assert handle.is_pending("s1", 1)  # nothing was withdrawn
 
         release.set()
@@ -1590,7 +1673,7 @@ async def test_listing_and_show_render_cancelled_before_start(
     _patch_active_samples(monkeypatch, [])
     handle = _register_queued_eval()
     handle.queue_arrive("s2", 1, None)
-    assert (await cancel_sample("e1", "s2", 1, action="cancel") or {})["changed"]
+    assert _row(await cancel_sample("e1", "s2", 1, action="cancel"))["changed"]
 
     listing = await current_sample_listing("e1")
     rows = {(r["sample_id"], r["epoch"]): r for r in listing.samples}
@@ -1604,6 +1687,51 @@ async def test_listing_and_show_render_cancelled_before_start(
     assert detail is not None
     assert detail["status"] == "cancelled"
     assert detail["error"] is None and detail["error_retries"] == []
+
+
+async def test_cancelled_before_start_rows_keep_typed_ids(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Cancelled rows echo the dataset-typed id, even after the eval finishes.
+
+    The typed id is captured at queue arrival, so `sample show` and the
+    listing agree with the planned rows (int, not the route string) — and
+    keep agreeing after the last-outstanding-work carve-out clears
+    `sample_ids` (the old recovery source).
+    """
+    _patch_active_samples(monkeypatch, [])
+    register_eval("e1", 1, task_id="t1", task="my_task", sample_ids=[5], epochs=1)
+    handle = SampleRequeue(
+        eval_id="e1",
+        scheduler=SampleScheduler(),
+        sample_error=SampleErrorHandler(False, 1),
+        sample_indexes={"5": 0},
+        checkpoints_dir=None,
+        on_accept=lambda sample_id, epoch: None,
+        on_withdraw=lambda sample_id, epoch, score: None,
+    )
+    set_sample_requeue("e1", handle)
+    handle.queue_arrive(5, 1, None)  # the runner passes the dataset-typed id
+
+    result = _row(await cancel_sample("e1", "5", 1, action="cancel"))
+    assert result["changed"] is True
+    assert result["sample_id"] == 5 and isinstance(result["sample_id"], int)
+
+    # the cancel finished the eval: sample_ids has cleared, but the row and
+    # the detail keep the captured int id
+    state = get_eval_state("e1")
+    assert state is not None
+    assert state.completed_at is not None and state.sample_ids == []
+
+    listing = await current_sample_listing("e1")
+    row = next(r for r in listing.samples if r["epoch"] == 1)
+    assert row["sample_id"] == 5 and isinstance(row["sample_id"], int)
+    assert row["status"] == "cancelled"
+
+    detail = await sample_error_detail("e1", "5", 1)
+    assert detail is not None
+    assert detail["sample_id"] == 5 and isinstance(detail["sample_id"], int)
+    assert detail["status"] == "cancelled"
 
 
 # ---------------------------------------------------------------------------
@@ -1782,9 +1910,7 @@ async def test_cancel_before_start_then_uncancel_end_to_end() -> None:
         parked = await _wait_one_running_pick_parked()
         await _wait_cancellable(eval_id, parked)
 
-        assert (await cancel_sample(eval_id, parked, 1, action="cancel") or {})[
-            "changed"
-        ]
+        assert _row(await cancel_sample(eval_id, parked, 1, action="cancel"))["changed"]
         state = get_eval_state(eval_id)
         assert state is not None and state.cancelled == 1
 
@@ -1869,8 +1995,7 @@ async def test_cancel_unrequeue_end_to_end() -> None:
         assert state.errored == 0
 
         # withdraw it: the prior terminal record stands, counters restored
-        result = await cancel_sample(eval_id, "first", 1, action="cancel")
-        assert result is not None
+        result = _row(await cancel_sample(eval_id, "first", 1, action="cancel"))
         assert result["ok"] is True and result["changed"] is True
         assert result["status"] == "error"
         assert state.errored == 1 and state.cancelled == 0
@@ -1975,8 +2100,7 @@ async def test_cancel_retry_repark_end_to_end() -> None:
         _E2E_FAIL.set()
         await _wait_cancellable(eval_id, "first")
 
-        result = await cancel_sample(eval_id, "first", 1, action="cancel")
-        assert result is not None
+        result = _row(await cancel_sample(eval_id, "first", 1, action="cancel"))
         assert result["ok"] is True and result["changed"] is True
         assert result["status"] == "cancelled"
         # counted cancelled; the errored attempt never bumped error_count
