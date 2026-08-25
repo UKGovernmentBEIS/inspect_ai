@@ -64,3 +64,32 @@ jobs:
         your comments are matched by substring, so a quoted token still fires
         the workflow (a review re-trigger, or a wasted dev-agent run). Refer to
         them as "an at-claude comment" and "a review request".
+        REGRESSION CHECKLIST for this repo — check the diff against each
+        (these are the recurring miss shapes, all observed in real reviews):
+        (1) cancellation is BaseException — cleanup or completion handlers on
+        `except Exception` silently skip on cancel; anything that must
+        complete (ModelEvent completion, buffer flushes) needs finally or
+        BaseException handling, and a leaked pending event serializes into
+        the user's eval log — durable damage. (2) new work sharing a running
+        eval's bounded resources (max_connections semaphores, working
+        limits): analyze starvation and deadline interplay — wall-clock
+        limits keep running while a sample is blocked or held. (3) the eval
+        event loop must only cheaply shovel data — no synchronous CPU-heavy
+        work (deepcopy of transcripts, attachment resolution) on paths that
+        claim not to disturb the eval. (4) fresh execution contexts that
+        rebind SOME context vars: enumerate every var downstream code reads;
+        vars without defaults raise LookupError. (5) quiescence or settle
+        predicates must consult real in-flight signals
+        (transcript.pending_events), not event-count settling. (6) parallel
+        or interim execution paths must capture the eval's RESOLVED config
+        (GenerateConfig, live ctl retunes), not construct defaults. (7)
+        per-item error containment: check which exception classes or code
+        paths escape the per-item try and abort the whole batch. (8)
+        supersession and staleness (task retry, detach) must be re-checked
+        inside every long-running phase, not only between items. (9)
+        serialized-format compatibility: eval logs and checkpoints written by
+        older versions must still read; control-channel changes follow the
+        CONTROL_API_VERSION skew policy; terse CLI output is a parsed
+        contract. (10) diff hygiene: verify claims against the true
+        merge-base — a branch behind its base makes unrelated features look
+        deleted.
