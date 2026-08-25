@@ -25,6 +25,6 @@ Now you should be able to run the example as follows against various models:
 
 ``` bash
 inspect eval task.py --model openai/gpt-4o
-inspect eval task.py --model anthropic/claude-3-7-sonnet-latest
+inspect eval task.py --model anthropic/claude-sonnet-5
 inspect eval task.py --model google/gemini-2.5-pro
 ```
