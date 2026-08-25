@@ -504,6 +504,11 @@ def _project(event: "Event", *, content: bool, full: bool) -> dict[str, Any]:
         if content:
             out["error"] = error
     elif et == "tool":
+        # the tool-call id (== the assistant message's ToolCall.id) is what
+        # `sample cancel-tool-call --tool-call-id` targets; metadata tier —
+        # it is a model/provider-generated token, but the messages projection
+        # already exposes ids ungated, so the trust precedent stands
+        out["id"] = getattr(event, "id", None)
         out["function"] = getattr(event, "function", None)
         tool_error = getattr(event, "error", None)
         out["has_error"] = tool_error is not None
