@@ -6,7 +6,9 @@ import pytest
 from tenacity.wait import wait_none
 from test_helpers.tools import addition
 
+from inspect_ai._util.content import ContentImage
 from inspect_ai._util.entrypoints import ensure_entry_points
+from inspect_ai._util.images import UnresolvedMediaError
 from inspect_ai._util.registry import _registry, registry_lookup
 from inspect_ai.event import InfoEvent
 from inspect_ai.event._model import ModelEvent
@@ -89,6 +91,27 @@ async def test_no_hook_model_event_tools_share_raw_tool_parameters() -> None:
 class ObservingHooks(Hooks):
     async def on_before_model_generate(self, data: BeforeModelGenerate) -> None:
         assert data.tools[0].description == "Add two numbers."
+
+
+class MediaMutatingHooks(Hooks):
+    async def on_before_model_generate(self, data: BeforeModelGenerate) -> None:
+        content = data.input[0].content
+        assert isinstance(content, list)
+        image = content[0]
+        assert isinstance(image, ContentImage)
+        image.image = "/tmp/hook-selected.png"
+
+
+@pytest.mark.anyio
+async def test_media_mutated_by_before_generate_hook_is_revalidated() -> None:
+    model = get_model("mockllm/model", memoize=False)
+    message = ChatMessageUser(
+        content=[ContentImage(image="data:image/png;base64,iVBORw0KGgo=")]
+    )
+
+    with _register_hook("media_mutating", MediaMutatingHooks):
+        with pytest.raises(UnresolvedMediaError, match="message index 0"):
+            await model.generate([message])
 
 
 @pytest.mark.anyio

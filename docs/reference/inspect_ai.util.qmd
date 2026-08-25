@@ -51,6 +51,7 @@ description: Miscellaneous utility functions.
 ### background
 ### trace_action
 ### trace_message
+### materialize_media
 ### media_resolver
 ### resource
 ### download
@@ -63,6 +64,7 @@ description: Miscellaneous utility functions.
 ### sandbox_default
 ### SandboxEnvironment
 ### SandboxConnection
+### SandboxUnavailableError
 ### sandboxenv
 ### sandbox_service
 ### override_sandbox_output_limit
@@ -123,5 +125,4 @@ description: Miscellaneous utility functions.
 ### ComposeService
 ### ComposeBuild
 ### ComposeHealthcheck
-
 

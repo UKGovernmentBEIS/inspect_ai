@@ -42,6 +42,7 @@ from inspect_ai._util.error import is_cancellation_message
 from inspect_ai._util.file import local_path
 
 if TYPE_CHECKING:
+    from inspect_ai._control.cancel import PendingToolCall
     from inspect_ai._control.eval_state import EvalState
     from inspect_ai.log._samples import ActiveSample
 
@@ -161,7 +162,7 @@ async def current_eval_summaries(started_at: float) -> list[dict[str, Any]]:
         get_eval_states,
         resolve_deferred_sample_stats,
     )
-    from inspect_ai._control.pause import process_paused
+    from inspect_ai._control.pause import process_paused, process_paused_now
     from inspect_ai.log._samples import active_samples
 
     states = get_eval_states()
@@ -263,9 +264,12 @@ async def current_eval_summaries(started_at: float) -> list[dict[str, Any]]:
                 # a pre-registration attempt has no task_id, so only the
                 # process latch can hold it (its model latch already gated
                 # dispatch upstream); mid-startup is never "safe to kill",
-                # hence quiesced stays False
+                # hence quiesced stays False. Held samples are keyed by
+                # task_id, so a pre-registration row can't count them.
                 "paused": ["process"] if process_paused() else None,
+                "paused_now": ["process"] if process_paused_now() else None,
                 "quiesced": False,
+                "held": 0,
                 "attempts": 1,
                 "samples": {
                     "total": 0,
@@ -326,7 +330,8 @@ async def current_sample_summaries(
     see :func:`_sample_activity`; ``None`` on non-running rows and when
     nothing is pending), ``events`` (live transcript event count; ``None``
     for terminal / pending samples), ``scores`` (``{scorer: value}``, empty
-    until scored), ``error``, ``retries``, ``limit``.
+    until scored), ``error``, ``retries``, ``limit``, ``limit_reason`` (why the
+    limit fired — agent-influenceable free text, gated by ``content``).
 
     ``sample_filter="errors"`` restricts the result to samples that carry an
     error or have been retried (``error`` set, or ``retries`` > 0) — the
@@ -442,12 +447,13 @@ async def current_sample_listing(
     the whole-eval listing is exactly what the filter exists to avoid
     building.
 
-    ``content`` gates each row's ``error`` message — free text the evaluated
-    agent can influence (tool-raised exceptions embed agent output). The
-    default withholds it, leaving ``status`` / ``retries`` as the metadata
-    signal, so the listing stays readable by a monitor that must never
-    ingest agent-controlled text (see "Trust boundary for readers" in
-    design/ctl/control-channel.md).
+    ``content`` gates each row's ``error`` message and ``limit_reason`` — free
+    text the evaluated agent can influence (tool-raised exceptions embed agent
+    output; a bridged agent supplies its own termination reason via
+    ``AgentBridge.request_terminate()``). The default withholds both, leaving
+    ``status`` / ``retries`` / ``limit`` as the metadata signal, so the listing
+    stays readable by a monitor that must never ingest agent-controlled text
+    (see "Trust boundary for readers" in design/ctl/control-channel.md).
     """
     summaries = await current_sample_summaries(eval_id, sample_filter)
 
@@ -462,9 +468,15 @@ async def current_sample_listing(
     if statuses is not None:
         rows = [s for s in rows if s["status"] in statuses]
     if not content:
-        # withhold the error message (row copies — the summaries may be the
-        # memoized log read); `status` still reads "error"
-        rows = [{**s, "error": None} if s.get("error") is not None else s for s in rows]
+        # withhold the error message and the limit's reason (row copies — the
+        # summaries may be the memoized log read); `status` still reads "error"
+        # and `limit` still names the limit type
+        rows = [
+            {**s, "error": None, "limit_reason": None}
+            if s.get("error") is not None or s.get("limit_reason") is not None
+            else s
+            for s in rows
+        ]
 
     truncated = limit is not None and len(rows) > limit
     if truncated:
@@ -541,6 +553,7 @@ def _requeued_summary(summary: dict[str, Any]) -> dict[str, Any]:
         "scores": {},
         "error": None,
         "limit": None,
+        "limit_reason": None,
     }
 
 
@@ -565,6 +578,7 @@ def _pending_summary(sample_id: Any, epoch: int) -> dict[str, Any]:
         "error": None,
         "retries": None,
         "limit": None,
+        "limit_reason": None,
     }
 
 
@@ -797,6 +811,10 @@ async def sample_error_detail(
             _error_dict(e, content) for e in (sample.error_retries or [])
         ],
         "scores": {name: score.value for name, score in (sample.scores or {}).items()},
+        # the row arrives ungated (the listing does its own redaction), so the
+        # limit's reason — agent-influenceable, like the error message above —
+        # must be withheld here too
+        "limit_reason": (row or {}).get("limit_reason") if content else None,
     }
 
 
@@ -955,6 +973,7 @@ def _summary_from_eval_sample_summary(
         "error": error,
         "retries": summary.retries,
         "limit": summary.limit,
+        "limit_reason": summary.limit_reason,
     }
 
 
@@ -972,6 +991,13 @@ def _active_sample_summary(s: "ActiveSample") -> dict[str, Any]:
     listing (:func:`_sample_summaries_from_active`) and the per-sample detail
     (:func:`_running_sample_error_detail`) so the two views can't drift.
     """
+    from inspect_ai._control.eval_state import stable_task_id_for_eval
+    from inspect_ai.util._limit_overrides import sample_limit_override
+
+    # the override store wants the stable task id, while
+    # ActiveSample.eval_id is the per-attempt eval id
+    override_task_id = stable_task_id_for_eval(s.eval_id)
+
     if s.completed is not None:
         status = "completed"
     elif s.started is not None:
@@ -1004,7 +1030,11 @@ def _active_sample_summary(s: "ActiveSample") -> dict[str, Any]:
         "message_count": s.total_messages,
         "turn_count": s.total_turns,
         "token_limit_usage": s.token_limit_usage,
-        "token_limit_total": s.token_limit,
+        # a live `ctl config --token-limit` override supersedes the ceiling
+        # the sample started with
+        "token_limit_total": sample_limit_override(
+            override_task_id, "token_limit", s.token_limit
+        ),
         "token_limit_type": s.token_limit_type,
         "last_activity_at": last_activity_at,
         "activity": _sample_activity(s) if status == "running" else None,
@@ -1013,6 +1043,7 @@ def _active_sample_summary(s: "ActiveSample") -> dict[str, Any]:
         "error": None,
         "retries": s.retries or None,
         "limit": None,
+        "limit_reason": None,
     }
 
 
@@ -1035,28 +1066,36 @@ def _sample_activity(s: "ActiveSample") -> dict[str, Any] | None:
     tool function); ``retries`` is the pending model call's in-call
     (provider-SDK) retries; ``deadline`` is when a ``retry_wait`` elapses;
     ``tokens`` / ``last_progress_at`` are reserved for the layer-2 progress
-    channel and ``None`` until it ships.
+    channel and ``None`` until it ships. ``tool`` activity additionally
+    carries ``calls`` — every pending tool call as ``{id, function,
+    started_at, cancel_requested}`` — so ``sample list --json`` alone yields
+    the id ``sample cancel-tool-call`` targets, and a delivered-but-unheeded
+    cancel (a wedged call no scope can stop) stays visible.
     """
     from inspect_ai.event._model import ModelEvent
     from inspect_ai.event._tool import ToolEvent
 
     first_model: ModelEvent | None = None
     model_count = 0
-    first_tool: ToolEvent | None = None
-    tool_count = 0
+    tool_events: list[ToolEvent] = []
     for ev in s.transcript.pending_events:
         if isinstance(ev, ModelEvent):
             if first_model is None:
                 first_model = ev
             model_count += 1
         elif isinstance(ev, ToolEvent):
-            if first_tool is None:
-                first_tool = ev
-            tool_count += 1
+            tool_events.append(ev)
 
-    if first_tool is not None:
+    if tool_events:
+        from inspect_ai._control.cancel import _pending_tool_call
+
+        first_tool = tool_events[0]
         return _activity(
-            "tool", tool_count, first_tool.timestamp.timestamp(), first_tool.function
+            "tool",
+            len(tool_events),
+            first_tool.timestamp.timestamp(),
+            first_tool.function,
+            calls=[_pending_tool_call(ev) for ev in tool_events],
         )
     if first_model is not None:
         return _activity(
@@ -1086,6 +1125,7 @@ def _activity(
     *,
     retries: int | None = None,
     deadline: float | None = None,
+    calls: list[PendingToolCall] | None = None,
 ) -> dict[str, Any]:
     return {
         "type": type,
@@ -1094,6 +1134,7 @@ def _activity(
         "detail": detail,
         "retries": retries,
         "deadline": deadline,
+        "calls": calls,
         "tokens": None,
         "last_progress_at": None,
     }
@@ -1156,7 +1197,12 @@ def _build_summary(
         latest.started_at if latest.started_at is not None else started_at_fallback
     )
 
-    from inspect_ai._control.pause import task_dispatched_count, task_pause_sources
+    from inspect_ai._control.pause import (
+        task_dispatched_count,
+        task_held_count,
+        task_pause_now_sources,
+        task_pause_sources,
+    )
 
     in_flight_samples = [
         s for s in samples if s.started is not None and s.completed is None
@@ -1189,6 +1235,17 @@ def _build_summary(
         else None
     )
     quiesced = paused is not None and task_dispatched_count(latest.task_id) == 0
+    # the hard (`pause --now`) subset of the paused sources, and the samples
+    # held at their next model call. `held` is reported even on rows with no
+    # latch sources of their own: the hard model gate keys on the model
+    # actually being called, so another task's hard pause can hold this
+    # task's grader/role calls (see task_held_count).
+    paused_now = (
+        (task_pause_now_sources(latest.task_id, latest.model or None) or None)
+        if paused is not None
+        else None
+    )
+    held = task_held_count(latest.task_id)
 
     # Usage = the accumulated total for terminal samples (survives them
     # leaving active_samples — "usage so far") plus the live usage of the
@@ -1227,7 +1284,9 @@ def _build_summary(
         "started_at": eval_started_at,
         "completed_at": completed_at,
         "paused": paused,
+        "paused_now": paused_now,
         "quiesced": quiesced,
+        "held": held,
         "attempts": attempts,
         # Planned epoch count. `ctl sample cancel` uses it to require an
         # explicit EPOCH when the task runs more than one (a defaulted epoch

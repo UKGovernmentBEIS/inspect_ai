@@ -120,6 +120,13 @@ def spawn_followup():
 
 Enqueued samples share a buffer with samples returned from `sample_complete`. `enqueue_sample()` is only available inside a task driven by a `SampleSource` (a plain task's sample set is fixed) and raises otherwise.
 
+If samples contain media, paths and URLs in `initial_samples()` are trusted task
+input and are materialized before execution. Media added later by
+`next_samples()`, `sample_complete()`, or `enqueue_sample()` must already be an
+inline data URL. Trusted source code can explicitly opt into filesystem or
+network access with `await materialize_media(reference)` before adding the
+sample; see [Multimodal](multimodal.qmd) for the authority and MIME rules.
+
 ## Concurrency
 
 A `SampleSource` task is live: a sample added mid-run starts as soon as there is free capacity, rather than waiting for the current samples to finish. Concurrency is bounded by `max_samples` as usual (see [Parallelism](parallelism.qmd)).
