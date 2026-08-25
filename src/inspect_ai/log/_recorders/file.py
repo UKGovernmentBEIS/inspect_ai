@@ -137,7 +137,7 @@ class FileRecorder(Recorder):
                 None,
             )
         if eval_sample is None:
-            if id is None and uuid is not None:
+            if id is None:
                 raise IndexError(
                     f"Sample with uuid '{uuid}' not found in log {location}"
                 )

@@ -1540,13 +1540,7 @@ async def test_eval_recorder_log_sample_write_through(tmp_path) -> None:
 async def test_file_recorder_read_log_sample_uuid_and_missing_args() -> None:
     from unittest.mock import patch
 
-    from inspect_ai.log._log import (
-        EvalConfig,
-        EvalDataset,
-        EvalLog,
-        EvalSample,
-        EvalSpec,
-    )
+    from inspect_ai.log._log import EvalConfig, EvalDataset, EvalSpec
     from inspect_ai.log._recorders.file import FileRecorder
 
     fake_log = EvalLog(
