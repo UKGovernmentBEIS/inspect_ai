@@ -1439,3 +1439,27 @@ async def test_task_logger_discard_drops_recorder_entry_and_flushed_file(
     await logger.discard()
     assert not Path(location).exists()
     assert recorder.data == {}
+
+
+async def test_task_logger_discard_contains_recorder_failures(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # discard's callers run inside the dispatcher task group: a storage error
+    # from the destination removal must be logged, not raised — an escaping
+    # exception would cancel every in-flight task in the run
+    class _FailingDiscardRecorder:
+        async def log_discard(self, eval: EvalSpec) -> None:
+            raise OSError("simulated transient storage failure")
+
+    logger = TaskLoggerShim(_FlushBufferDB())
+    logger.recorder = cast(Recorder, _FailingDiscardRecorder())
+    logger.eval = _eval_spec()
+    logger._location = "test.eval"
+
+    with caplog.at_level("WARNING", logger="inspect_ai._eval.task.log"):
+        await logger.discard()
+
+    assert any(
+        "Error discarding abandoned log entry" in record.message
+        for record in caplog.records
+    )

@@ -925,9 +925,21 @@ class TaskLogger:
         ``started`` log would otherwise win the end-of-run retry-cleanup
         sweep by mtime, deleting the errored attempt's log that must stand
         as the task's final state.
+
+        Failures are contained (logged as a warning) rather than raised:
+        callers run inside the dispatcher task group, where an escaping
+        storage error (e.g. a transient remote-fs failure on the file
+        removal) would cancel every in-flight task in the run. Worst case a
+        failed removal leaves the same stray ``started`` log the crash
+        would have left anyway.
         """
-        await self.cleanup()
-        await self.recorder.log_discard(self.eval)
+        try:
+            await self.cleanup()
+            await self.recorder.log_discard(self.eval)
+        except Exception as ex:
+            logger.warning(
+                f"Error discarding abandoned log entry '{self.location}': {ex}"
+            )
 
     async def _clear_stale_flush_timer(
         self, cancel_scope: anyio.CancelScope, stopped: anyio.Event
