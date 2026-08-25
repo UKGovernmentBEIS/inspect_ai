@@ -13,8 +13,9 @@ the change in question, never on time. Produced by the unattended scheduled run
 ## Summary
 
 **The Quarto render cache (#297) got its first real measurement and it hits ~8%
-of the time.** 16 `docs` jobs ran the cache step this window; **one** was a hit
-(12s against a 375s median). The repo's own cache index confirms it: 12
+of the time.** 13 `docs` jobs ran the cache step this window (three more docs
+jobs predate the fix); **one** was a hit — 12s against a 375s median. The
+repo's own cache index confirms it: 12
 `docs-render-*` entries exist, exactly one was ever re-used, and PR 4884 alone
 created four distinct keys in 26 hours. The cause is structural — on
 `pull_request` the checkout is the *merge* ref, so `hashFiles(… 'src/inspect_ai/**')`
@@ -289,8 +290,10 @@ window are spread across 20 files with no cluster worth a proposal.
 - Run conclusions: 153 success, 23 `action_required`, 18 failure, 6 cancelled.
 - `docs`: 314s Quarto render, cache hitting ~8% of the time
   ([#317](https://github.com/meridianlabs-ai/inspect_ai/issues/317)).
-- `slow-tool-tests-release` executed once (its second execution ever, 744s, in
-  parallel with `dev` as #4987 intended).
+- `slow-tool-tests-release` shows one 744s execution, but it is run
+  `32508865021` — the *same* execution the last report verified #4987 on,
+  re-counted because it falls inside the 90-run overlap. No new execution
+  landed; the job has now run successfully exactly once, ever.
 - Six job records per PR remain overhead-dominated (`ruff` 11s for ~1.5s of
   linting, `changes` 7s, `detect-slow` 8s, `check-version-bump` 9s,
   `submodule-on-main` 8s). Irrelevant to wall clock, relevant to burst load.
@@ -301,7 +304,8 @@ window are spread across 20 files with no cluster worth a proposal.
 Summary and [#317](https://github.com/meridianlabs-ai/inspect_ai/issues/317).
 The prediction in the 2026-08-21 report was "~40s of wall clock on the ~40% of
 successful runs where `docs` finishes last, plus ~290s on a docs-only PR", with
-the hit rate left open. Measured hit rate: **1 of 16 docs jobs, 1 of 12 cache
+the hit rate left open. Measured hit rate: **1 of 13 docs jobs that ran the
+cache step, 1 of 12 cache
 entries ever re-used**. On the one hit the job took 12s instead of ~375s and the
 run's Build wall was 347s against 390s for the same branch's neighbouring
 pushes. So the mechanism delivers exactly what was predicted *per hit*; the hit
@@ -312,9 +316,10 @@ inherent one.
 run**, and nothing this window contradicts it (no design-only push landed
 upstream in the window; this report's own PR is the next observation).
 
-**#4987 (`release` un-serialized from `dev`) — done, verified last run.**
-`release` ran once more here, again in parallel with `dev`, again with no
-failure cost.
+**#4987 (`release` un-serialized from `dev`) — done, verified last run, nothing
+new to add.** The one successful `release` execution in this snapshot is the
+same run (`32508865021`) the last report measured, pulled in by the window
+overlap; no fresh execution occurred.
 
 **#4948 (`--dist worksteal`) — holding at four windows.** +2..+6s imbalance,
 97–99% efficiency, zero stragglers in four legs.
@@ -328,8 +333,8 @@ failure cost.
    src/inspect_ai`) instead of the merged source tree; the job already checks
    out full history so the diff is free. Replaying this window's docs jobs
    against each run's head tree and PR source delta — an approximation, since
-   the real key is computed on the merge tree — 3 of 16 would have hit instead
-   of 1 (~19%). Each hit is ~360s of job exec
+   the real key is computed on the merge tree — 3 of the 13 would have hit
+   instead of 1 (~23%). Each hit is ~360s of job exec
    (~6 runner-min) and ~40s of Build wall on the two-thirds of docs-touching
    runs where `docs` finishes last. Structural (workflow change this run cannot
    push). Status: **new, filed as
