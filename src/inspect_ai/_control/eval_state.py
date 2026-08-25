@@ -804,7 +804,11 @@ def detach_eval_live(eval_id: str) -> None:
     requeue aimed at a superseded attempt's ``eval_id`` must be rejected, not
     mutate a dead attempt's scheduler. Likewise :attr:`task_scoring` — a
     scoring pass aimed at a superseded attempt must not run against a dead
-    attempt's recorder (the retry attempt registers a fresh handle).
+    attempt's recorder (the retry attempt registers a fresh handle) — and a
+    scoring pass already *running* against this attempt is cancelled: left
+    alone it would keep presenting itself as the task's current pass and,
+    via the one-pass-per-task guard, block ``ctl task score`` against the
+    new attempt until it drained.
 
     No-ops if the eval isn't registered.
     """
@@ -814,6 +818,10 @@ def detach_eval_live(eval_id: str) -> None:
             state.live = None
             state.sample_requeue = None
             state.task_scoring = None
+    if state is not None and state.task_id:
+        from inspect_ai._control.scoring import cancel_score_pass
+
+        cancel_score_pass(state.task_id, eval_id)
 
 
 def invalidate_log_sample_summaries(eval_id: str) -> None:

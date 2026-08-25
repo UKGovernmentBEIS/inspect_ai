@@ -69,7 +69,11 @@ from inspect_ai._util.registry import (
 from inspect_ai._util.retry import report_http_retry
 from inspect_ai._util.rich import format_traceback
 from inspect_ai._util.trace import trace_action
-from inspect_ai._util.working import report_sample_waiting_time, sample_working_time
+from inspect_ai._util.working import (
+    report_sample_waiting_time,
+    sample_waiting,
+    sample_working_time,
+)
 from inspect_ai.model._generate_overrides import generate_config_override
 from inspect_ai.model._retry import model_retry_config
 from inspect_ai.tool import Tool, ToolChoice, ToolFunction, ToolInfo
@@ -728,6 +732,62 @@ async def ensure_model_controller(model: "Model", config: GenerateConfig) -> Non
         )
 
 
+class ConnectionSlot:
+    """A held connection-semaphore slot that can be relinquished mid-call.
+
+    Wraps the connection pool's async-CM semaphore with explicit
+    acquire/release plus a held flag. ``wait_generate_dispatch`` uses it to
+    release the slot while a generate attempt is parked at the hard-pause
+    gate and reacquire it before the attempt resumes — a parked call must not
+    pin its connection slot, or a held sample's outstanding calls could
+    starve the very grader (or sibling task) the pause made room for. The
+    held flag makes the owning context's final release safe under any
+    interleaving: if a cancellation lands during the reacquire, the slot
+    simply is not held and the final release no-ops (never a double release,
+    never releasing a slot another call now holds).
+    """
+
+    def __init__(self, semaphore: contextlib.AbstractAsyncContextManager[Any]) -> None:
+        self._semaphore = semaphore
+        self._held = False
+
+    @property
+    def held(self) -> bool:
+        return self._held
+
+    async def acquire(self) -> None:
+        """Acquire the slot, tracking the wait as sample waiting time."""
+        if not self._held:
+            async with sample_waiting():
+                await self._semaphore.__aenter__()
+            self._held = True
+
+    async def reacquire(self) -> None:
+        """Reacquire after a gate release (the gate reports the wait itself)."""
+        if not self._held:
+            await self._semaphore.__aenter__()
+            self._held = True
+
+    async def release(self) -> None:
+        """Release the slot if held (no-op otherwise)."""
+        if self._held:
+            self._held = False
+            await self._semaphore.__aexit__(None, None, None)
+
+
+@contextlib.asynccontextmanager
+async def _held_connection_slot(
+    semaphore: contextlib.AbstractAsyncContextManager[Any],
+) -> AsyncIterator[ConnectionSlot]:
+    """Hold a connection slot for the enclosed block, yielding its handle."""
+    slot = ConnectionSlot(semaphore)
+    try:
+        await slot.acquire()
+        yield slot
+    finally:
+        await slot.release()
+
+
 class Model:
     """Model interface.
 
@@ -896,7 +956,7 @@ class Model:
         # enforce concurrency limits
         start_time = datetime.now(timezone.utc)
         working_start = sample_working_time()
-        async with self._connection_concurrency(config):
+        async with self._connection_concurrency(config) as connection:
             # generate
             output, event = await self._generate(
                 input=input,
@@ -904,6 +964,7 @@ class Model:
                 tool_choice=tool_choice,
                 config=config,
                 cache=cache,
+                connection=connection,
             )
 
             # update the most recent ModelEvent with the actual start/completed
@@ -1134,8 +1195,12 @@ class Model:
         # Local import: model is imported very early and the pause gate is
         # only consulted per attempt (see wait_generate_dispatch's fast path).
         from inspect_ai._control.pause import wait_generate_dispatch
+        from inspect_ai.util._concurrency import get_or_create_semaphore
 
-        async with concurrency(f"{model_name}_compact", 10, key, visible=False):
+        compact_sem = await get_or_create_semaphore(
+            f"{model_name}_compact", 10, key, False
+        )
+        async with _held_connection_slot(compact_sem.semaphore) as slot:
 
             @retry(
                 **model_retry_config(
@@ -1154,7 +1219,7 @@ class Model:
             ) -> tuple[list[ChatMessage], ModelUsage | None]:
                 # report_sample_waiting_time directly: unlike generate,
                 # compact has no post-call waiting reconciliation to feed
-                await wait_generate_dispatch(self, report_sample_waiting_time)
+                await wait_generate_dispatch(self, report_sample_waiting_time, slot)
                 return await self.api.compact(messages, tools, config, instructions)
 
             from inspect_ai.log._samples import cleared_retry_wait
@@ -1176,6 +1241,7 @@ class Model:
         tool_choice: ToolChoice | None,
         config: GenerateConfig,
         cache: bool | CachePolicy | NotGiven = NOT_GIVEN,
+        connection: ConnectionSlot | None = None,
     ) -> tuple[ModelOutput, BaseModel]:
         from inspect_ai.event._model import ModelEvent
         from inspect_ai.hooks._hooks import (
@@ -1281,7 +1347,7 @@ class Model:
         async def generate() -> tuple[ModelOutput, BaseModel]:
             # report_waiting_time (not report_sample_waiting_time): held time
             # must also accumulate into this call's reconciliation below
-            await wait_generate_dispatch(self, report_waiting_time)
+            await wait_generate_dispatch(self, report_waiting_time, connection)
 
             # type-checker can't see that we made sure tool_choice is not none in the outer frame
             assert tool_choice is not None
@@ -1411,6 +1477,18 @@ class Model:
                 except Exception as ex:
                     # Mark event as failed for uncaught provider exceptions
                     complete(ex, None)
+                    raise
+                except anyio.get_cancelled_exc_class():
+                    # Cancellation is a BaseException, so the handler above
+                    # misses it — but the event must not stay pending forever
+                    # on a live transcript (an interim-scoring deadline
+                    # cancelling a grader call mid-flight would otherwise pin
+                    # phantom model activity on the held sample and serialize
+                    # a pending event into the log). An intervention producer
+                    # (ACP operator-cancel) may already have completed the
+                    # event with its own marker — leave that alone.
+                    if isinstance(event, ModelEvent) and event.pending:
+                        complete(RuntimeError("model call cancelled"), None)
                     raise
                 finally:
                     time_elapsed = time.monotonic() - time_start
@@ -1639,14 +1717,20 @@ class Model:
     @contextlib.asynccontextmanager
     async def _connection_concurrency(
         self, config: GenerateConfig
-    ) -> AsyncIterator[None]:
-        """Get the appropriate connection semaphore for this model instance."""
+    ) -> AsyncIterator[ConnectionSlot]:
+        """Hold a slot in this model's connection pool for the enclosed call.
+
+        Yields the slot's handle so the hard-pause gate can release it while
+        an attempt is parked and reacquire it before the attempt resumes
+        (see :class:`ConnectionSlot`).
+        """
         from inspect_ai.util._concurrency import (
             AdaptiveConcurrencyController,
             _active_controller,
             _request_had_retry,
             _request_was_cache_hit,
             adaptive_active,
+            get_or_create_semaphore,
             resolve_adaptive,
         )
 
@@ -1667,18 +1751,16 @@ class Model:
             config.adaptive_connections, config.max_connections, config.batch
         ):
             adaptive = resolve_adaptive(config.adaptive_connections)
-            async with concurrency(
-                name=str(model_name),
-                concurrency=adaptive.start,
-                key=key,
-                adaptive=adaptive,
-            ) as sem:
-                assert isinstance(sem, AdaptiveConcurrencyController)
-                token_c = _active_controller.set(sem)
+            adaptive_sem = await get_or_create_semaphore(
+                str(model_name), adaptive.start, key, True, adaptive
+            )
+            assert isinstance(adaptive_sem, AdaptiveConcurrencyController)
+            async with _held_connection_slot(adaptive_sem.semaphore) as slot:
+                token_c = _active_controller.set(adaptive_sem)
                 token_r = _request_had_retry.set(False)
                 token_h = _request_was_cache_hit.set(False)
                 try:
-                    yield
+                    yield slot
                 finally:
                     _active_controller.reset(token_c)
                     _request_had_retry.reset(token_r)
@@ -1692,12 +1774,11 @@ class Model:
                 if config.batch
                 else self.api.max_connections()
             )
-            async with concurrency(
-                name=str(model_name),
-                concurrency=max_connections,
-                key=key,
-            ):
-                yield
+            static_sem = await get_or_create_semaphore(
+                str(model_name), max_connections, key, True
+            )
+            async with _held_connection_slot(static_sem.semaphore) as slot:
+                yield slot
 
     def _resolve_config(self, config: GenerateConfig | None) -> GenerateConfig:
         # base config for this model

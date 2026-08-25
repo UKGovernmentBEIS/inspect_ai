@@ -1,4 +1,4 @@
-# Interim scoring: score a running eval's completed and in-flight samples
+# Interim scoring: score a running eval's in-flight samples mid-run
 
 > **Status: initial implementation shipped** (meridianlabs-ai/inspect_ai#91) —
 > phases 1 and 2 below: the `ctl task score` directive, the endpoint pair, and
@@ -15,11 +15,11 @@
 > machinery referenced throughout is described in [`recover.md`](../recover.md).
 
 The feature: a **non-destructive control-channel directive** — `inspect ctl
-task score` — that runs the task's scorers over every scoreable sample of a
-*running* eval (completed samples, and in-flight ones each briefly held while
-scored), computes interim metrics, reports the results in the command's
-output envelope, and persists in-flight samples' scores into their log
-transcripts (as intermediate score events).
+task score` — that runs the task's scorers over a *running* eval's in-flight
+samples (each briefly held while scored), folds completed samples' existing
+final scores in, computes interim metrics, reports the results in the
+command's output envelope, and persists in-flight samples' scores into their
+log transcripts (as intermediate score events).
 
 ## Motivation
 
@@ -79,10 +79,11 @@ inspect ctl task score [TASK] [--dry-run] [--completed-only] [--no-wait] [--stat
   never-delays-the-run snapshot mode (no hold) is the deferred in-context
   shape — when built it arrives as an explicit opt-in flag on this command.
 - `--completed-only` (maps to a `completed_only` query param) skips the
-  in-flight rows entirely — no holds — and delivers interim metrics over
-  everything already completed. The safe spelling for *recurring*
-  watchdog/dashboard polling until the no-hold snapshot mode ships (see
-  "Hazards": periodic holds would perturb the run being measured).
+  in-flight rows entirely — no holds, and (since completed samples are never
+  re-scored) no scorer model calls at all: interim metrics over existing
+  final scores. The free spelling for *recurring* watchdog/dashboard polling
+  until the no-hold snapshot mode ships (see "Hazards": periodic holds would
+  perturb the run being measured).
 - The pass can take minutes (model-graded scorers over hundreds of samples),
   so the HTTP shape is **start + poll**, not one long request (see "Job
   model"); by default the CLI polls to completion and renders progress, and
@@ -119,17 +120,15 @@ the result envelope and counted in `--dry-run`:
 | Sample state | Disposition |
 |---|---|
 | **In-flight** (started, not terminal) | **held** at its next model call, scored on its stable work-so-far, released (the headline capability); reported un-scored if it neither parks nor completes within the hold timeout |
-| **Completed, unscored** (the eval ran with `--no-score`, or a scorer previously errored) | scored from its serialized form — the `inspect score` recipe applied mid-run |
+| **Completed, unscored** (a scorer previously errored) | *not* scored by the pass — a skip row pointing at post-run `inspect score` (see "Completed samples" for why mid-run re-scoring was removed) |
 | **Completed, scored** | *not* re-scored (the task's scorers are fixed at eval start, so re-running them buys nothing); its existing final scores are included in the interim metrics |
-| **Errored / cancelled** | mirrors final scoring: errored samples are scored only if the eval's resolved `score_on_error` flag is set; cancelled samples are never scored (final scoring excludes them regardless of the flag) |
+| **Errored / cancelled** | mirrors final scoring for classification: errored samples count as scoreable (completed-unscored) only if the eval's resolved `score_on_error` flag is set; cancelled samples are never scoreable (final scoring excludes them regardless of the flag) |
 | **Queued / pending** | skipped — nothing to score |
 
 "Partially completed" in the issue title is the in-flight row: a sample with
-real work in its transcript that hasn't reached its solver's end. The
-completed-unscored row makes the directive double as *mid-run* deferred
-scoring for `--no-score` runs (today those wait for `inspect score` after the
-fact) — and with `--ctl-server=keep`, a parked finished eval can be scored
-through the same surface.
+real work in its transcript that hasn't reached its solver's end. (A
+`--no-score` run resolves no scorers, so it cannot start a pass at all — the
+start is rejected with a pointer at post-run `inspect score`.)
 
 ## Mechanics
 
@@ -175,17 +174,19 @@ review, meridianlabs-ai/inspect_ai#94):
    sandbox that has drifted from the message snapshot it was handed). When
    built, it becomes an opt-in no-hold snapshot mode on the same pass.
 
-2. **Handler-side reconstruction (rejected for in-flight, reused for
-   completed).** Rebuild a `TaskState` from the sample's serialized form —
-   the recorder's `buffered_sample()` or the sample-buffer events, via the
-   `_recover` package's `reconstruct_eval_sample` — and score it on the
-   handler side, the way `_run_score_task` (`_eval/score.py`) does for logged
-   samples. Rejected for in-flight samples because the reconstruction is
-   low-fidelity exactly where agentic scorers care: **no sandbox access**
-   (sandbox environments are per-sample context; scorers on agentic tasks
-   routinely inspect the sandbox to score) and a store/state view limited to
-   what events captured. It stays the right recipe for **completed** samples,
-   where it is already proven — it's what `inspect score` does.
+2. **Handler-side reconstruction (rejected).** Rebuild a `TaskState` from
+   the sample's serialized form — the recorder's `buffered_sample()` or the
+   sample-buffer events, via the `_recover` package's
+   `reconstruct_eval_sample` — and score it on the handler side, the way
+   `_run_score_task` (`_eval/score.py`) does for logged samples. Rejected
+   for in-flight samples because the reconstruction is low-fidelity exactly
+   where agentic scorers care: **no sandbox access** (sandbox environments
+   are per-sample context; scorers on agentic tasks routinely inspect the
+   sandbox to score) and a store/state view limited to what events
+   captured. It remains `inspect score`'s post-run recipe for completed
+   samples; the initial build applied it to completed-unscored samples
+   mid-run too, and that was subsequently removed (see "Completed
+   samples").
 
 3. **Pause-and-score (chosen for the initial implementation).** Hold the
    sample, then score its live state from the handler side. The hold is the
@@ -285,14 +286,14 @@ review, meridianlabs-ai/inspect_ai#94):
    the hard-pause build; a scoring hold is minutes, not hours, but a sample
    near its deadline can expire while held, so the pass's per-sample rows
    carry the held duration; `working_limit` exclusion needs no new work —
-   the shipped crediting covers it), and **a parked call keeps its
-   connection slot** (the trade-off the hard-pause build accepted; for a
-   per-sample hold the exposure is bounded — one sample's concurrent calls
-   — but the deadlock hazard survives in miniature: a run whose
+   the shipped crediting covers it). One shipped semantic *changed* for
+   this build rather than being inherited: a parked call now **releases its
+   connection slot** while parked and reacquires it before resuming (the
+   release-and-reacquire escape hatch `pause-resume.md` named). The
+   original keep-the-slot trade-off was untenable here: a run whose
    `max_connections` is at or near the held sample's parked-call count,
-   with a grader on the same pool, starves the scorer; the
-   release-and-reacquire escape hatch named in `pause-resume.md` is the
-   remedy if it bites).
+   with a grader on the same pool, would starve the scorer for the full
+   scoring deadline on every held sample.
 
    Note the limit of what the hold buys: agent-launched *background*
    processes in the sandbox keep running (a true sandbox freeze is
@@ -352,14 +353,21 @@ that use case is what keeps shape 1 on the roadmap.
 
 ### Completed samples
 
-Scored on the handler side with the `_run_score_task` recipe over the
-sample's serialized form, sourced from the live recorder: the
-completed-but-unflushed set via `Recorder.buffered_sample()`, flushed ones
-read back from the log (the same running-vs-terminal split every read
-endpoint already makes). Scoring runs on the eval's loop as async tasks,
-bounded by a small concurrency cap so a large backlog can't starve the
-running eval (model calls are additionally governed by the existing
-connection limits — see "Hazards").
+Never scored by a pass. Already-scored samples contribute their existing
+final scores to the interim metrics (summaries only — no full-sample reads,
+no grader calls); unscored completed samples get a skip row pointing at
+post-run `inspect score`.
+
+Mid-run re-scoring of completed-unscored samples from their serialized form
+(the `_run_score_task` recipe over the recorder's buffered samples) shipped
+in the initial build and was then **removed**: it carried most of the
+feature's operational risk — synchronous deep copies of full samples on the
+eval loop, whole-pass sensitivity to one unreadable record, long pass
+windows widening every teardown race — for a population that is near-empty
+on normal runs (samples score inline at completion, and a `--no-score` run
+resolves no scorers so it can't start a pass at all), and its output was
+envelope-only, unmarked, and re-bought by every subsequent pass. The
+durable path for completed samples is post-run `inspect score`.
 
 ### Interim metrics
 
@@ -367,7 +375,6 @@ The pass ends by computing interim `EvalResults` over the union of:
 
 - final `SampleScore`s of completed-and-scored samples (the same inputs the
   live display's periodic `compute()` uses),
-- the pass's freshly computed scores for completed-unscored samples,
 - the pass's held-state scores for in-flight samples,
 
 via the existing `eval_results()` machinery (the task's reducers and
@@ -394,13 +401,12 @@ into a *recovered* log if the run dies (the buffer is exactly what `inspect
 log recover` reads). `EvalSample.scores` is untouched: intermediate events
 never populate final scores, an invariant `score()` already established.
 
-Completed-unscored samples' pass scores appear in the envelope only: their
-log records are already written (or buffered for write), and injecting
-scores into them mid-run would be a log mutation with no safe path. Scoring
-them *into the log* remains `inspect score`'s job after the run — the pass
-gives the operator the numbers now, not a rewritten log. (An on-disk scores
-sidecar as an additional durable record was considered and dropped — see
-"Alternatives considered".)
+Completed samples' log records are already written (or buffered for write),
+and injecting scores into them mid-run would be a log mutation with no safe
+path — one of the reasons the pass doesn't score them at all (see "Completed
+samples"); `inspect score` after the run is their path into the log. (An
+on-disk scores sidecar as an additional durable record was considered and
+dropped — see "Alternatives considered".)
 
 ## Job model
 
@@ -426,9 +432,11 @@ short requests (busy retry budgets, agents' timeouts). So the directive is a
   scores additionally persist as transcript events, and a caller
   who wants a durable record of the envelope captures the `--json` output.
 - Per-sample scorer failures are recorded on the row and don't fail the
-  pass. A pass outlives nothing: task finish / retry / cancel tears it down,
-  and the poll reports it as interrupted with whatever partial rows it
-  produced.
+  pass. A pass outlives nothing: a retry superseding the attempt cancels a
+  running pass outright (`cancel_score_pass`, fired from
+  `detach_eval_live`), task finish / cancel is caught by the
+  between-samples supersede check, and the poll reports the pass as
+  interrupted with whatever partial rows it produced.
 
 The CLI wraps the pair: start, then poll with progress rendering; `--no-wait`
 for the fire-and-poll agent loop, with `--status` as the poll-only follow-up
@@ -450,10 +458,10 @@ for the fire-and-poll agent loop, with `--status` as the poll-only follow-up
   limits (adaptive controllers included) with the running eval, so a pass
   *will* slow the run while it executes. That's inherent — the same model
   capacity serves both — and the existing `ctl config` knobs
-  (`--max-connections`) are the throttle. The pass's own sample-level
-  concurrency is capped (small default) so it contends gently — and a held
-  sample's parked calls keep their connection slots, the miniature
-  deadlock hazard named under shape 3.
+  (`--max-connections`) are the throttle. Samples are held (and scored)
+  one at a time so the pass contends gently — and a held sample's parked
+  calls release their connection slots while parked (see shape 3), so the
+  pass's own graders can't starve behind the hold.
 - **Sandbox perturbation.** The pass's scorers see the sample's *live*
   sandbox. The hold means the agent isn't executing while its scorer runs —
   which narrows both directions of interference (a scorer perturbing an
@@ -496,12 +504,13 @@ for the fire-and-poll agent loop, with `--status` as the poll-only follow-up
 
 Phases 1 and 2 together are the initial implementation (shipped):
 
-1. **Pass plumbing + completed samples.** The endpoint pair, job model,
-   dispositions, `_run_score_task` over the live recorder's serialized
-   samples, interim metrics, the result envelope. No runner changes; this
-   slice already delivers mid-run scoring for `--no-score` runs and interim
+1. **Pass plumbing + completed-sample fold.** The endpoint pair, job model,
+   dispositions, the existing-final-scores fold, interim metrics, the
+   result envelope. No runner changes; this slice already delivers interim
    metrics over everything scored so far (in-flight samples report as
-   skipped until phase 2).
+   skipped until phase 2). Mid-run re-scoring of completed-unscored samples
+   originally shipped in this slice and was subsequently removed — see
+   "Completed samples".
 2. **In-flight pause-and-score (the headline).** Two slices, in order.
    First the **publication + scoring context**: the `ActiveSample`
    publication (live `TaskState`, sandbox environments, target), the
@@ -527,18 +536,38 @@ duplicating its detail).
 Implementation notes on the shipped build (details the doc left to pin
 down): the quiescence predicate is the park ack (≥ 1 parked generate
 attempt) plus a transcript-settle window — no new events across the window,
-using the shared transcript as the non-generate activity signal — with a
-sample whose transcript never settles timing out to the "did not park" row;
-the hold timeout is a constant (120s), as are the per-sample scoring
-deadline (600s — applied to completed-sample scoring too, since with one
-pass per task at a time and no cancel lever for a running pass, an
-unbounded scorer would wedge the directive for the rest of the run) and
-the completed-sample concurrency cap (4); in-flight
-samples are held strictly one at a time; the pass envelope does not yet
-report scoring usage separately (the budget-isolation invariant itself is
-enforced and tested; the usage reporting is deferred); and the pass task is
-spawned in a fresh (empty) context, making the no-sample-binding properties
-hold even if a start were ever issued from in-sample code.
+using the shared transcript as the non-generate activity signal, *and* no
+pending events on it (a sibling branch mid tool call emitted its ToolEvent
+at call start, so silent in-flight work is visible only through the pending
+sidecar; parked generate attempts themselves have no pending event — the
+gate is awaited before the attempt's ModelEvent is created) — with a sample
+whose transcript never settles timing out to the "did not park" row. The
+park ack and the yield-to-the-sample watch are event-driven (a park waiter
+fired from the gate's held accounting, and a terminal event on the
+`ActiveSample` set by complete/interrupt/limit), not polled; a synchronous
+terminal re-check immediately before each `ScoreEvent` append is the
+correctness backstop for a sample completing in the same tick a scorer
+returns (the score is dropped as superseded rather than recorded onto a
+finalizing transcript). The hold timeout is a constant (120s), as is the
+per-sample scoring deadline (600s — with one pass per task at a time, an
+unbounded scorer would wedge the directive); in-flight samples are held
+strictly one at a time, with the sample's scorers running concurrently
+inside the hold so hold time tracks the slowest scorer rather than the sum.
+The scoring context binds the eval's resolved `GenerateConfig` (so interim
+grader calls run under the settings final scoring uses), the sample's
+sandbox environments *with* the default-sandbox binding sample init sets up
+(so `sandbox()` works in scorers), and the pass task is spawned in a fresh
+(empty) context, making the no-sample-binding properties hold even if a
+start were ever issued from in-sample code. A parked attempt releases its
+connection-pool slot while parked (see shape 3). A grader call the deadline
+(or a completing sample) cancels mid-flight completes its pending
+`ModelEvent` rather than leaking it (the model layer now completes pending
+events on cancellation, not just on exceptions). The recorded intermediate
+event carries no `model_usage`/`role_usage` snapshot (unlike task-authored
+`score()`'s — the sample's usage is context-bound and not reachable from
+the pass), and the pass envelope does not yet report scoring usage
+separately (the budget-isolation invariant itself is enforced and tested;
+the usage reporting is deferred).
 
 ## Open questions
 
@@ -606,9 +635,10 @@ hold even if a start were ever issued from in-sample code.
   collisions for log-dir consumers, no S3 append primitive, retention
   questions). If a durable pass history is ever needed, this is the shape
   to revisit.
-- **Handler-side reconstruction for in-flight samples.** Covered in
-  "Mechanics" — rejected for fidelity (sandbox, store), kept for completed
-  samples.
+- **Handler-side reconstruction.** Covered in "Mechanics" — rejected for
+  in-flight fidelity (sandbox, store); its mid-run application to
+  completed-unscored samples shipped initially and was removed (see
+  "Completed samples").
 - **In-context cooperative scoring as the initial in-flight shape.** The
   original proposal's choice — deferred to phase 3, not rejected (shape 1
   in "Mechanics"): the pause gates shipping first made pause-and-score the

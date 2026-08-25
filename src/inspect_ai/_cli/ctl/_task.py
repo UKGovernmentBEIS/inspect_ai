@@ -170,8 +170,9 @@ def task_cancel_command(
     is_flag=True,
     default=False,
     help=(
-        "Skip in-flight samples entirely (no holds) — interim metrics over "
-        "everything already completed. The safe spelling for recurring polling."
+        "Skip in-flight samples entirely — interim metrics over completed "
+        "samples' existing final scores, with zero holds and zero scorer "
+        "model calls. The free spelling for recurring polling."
     ),
 )
 @click.option(
@@ -206,17 +207,20 @@ def task_score_command(
 ) -> None:
     """Score a running task's samples now and report interim metrics.
 
-    Non-destructive: runs the task's own scorers over completed samples and
-    over in-flight samples — each in-flight sample is briefly held at its
-    next model call, scored on its stable work-so-far, and released (its
-    interim score is recorded on its transcript; the sample keeps running).
-    A sample that neither parks nor completes within the hold timeout is
-    skipped and reported. Note the wall clock keeps running for a held
-    sample, and scorer model calls share the process's connection limits
-    with the running eval. One pass per task at a time — a repeat while one
-    runs reports the running pass, and --status reports the current (or
-    most recent) pass without starting one. TASK (a task-id prefix or name)
-    is required when several tasks run.
+    Non-destructive: runs the task's own scorers over in-flight samples —
+    each is briefly held at its next model call, scored on its stable
+    work-so-far, and released (its interim score is recorded on its
+    transcript; the sample keeps running). A sample that neither parks nor
+    completes within the hold timeout is skipped and reported. Completed
+    samples are never re-scored: already-scored ones fold their final
+    scores into the interim metrics, and unscored ones (a scorer that
+    errored) are reported skipped — score them post-run with
+    `inspect score`. Note the wall clock keeps running for a held sample,
+    and scorer model calls share the process's connection limits with the
+    running eval. One pass per task at a time — a repeat while one runs
+    reports the running pass, and --status reports the current (or most
+    recent) pass without starting one. TASK (a task-id prefix or name) is
+    required when several tasks run.
     """
     _run_task_score(
         task,
@@ -644,9 +648,10 @@ def _run_task_score_status(
 def _score_targeted_summary(targeted: dict[str, Any]) -> str:
     return (
         f"{int(targeted.get('in_flight', 0) or 0)} in-flight (held while "
-        f"scored), {int(targeted.get('completed_unscored', 0) or 0)} completed "
-        f"unscored, {int(targeted.get('completed_scored', 0) or 0)} already "
-        f"scored (metrics only), {int(targeted.get('skipped', 0) or 0)} skipped"
+        f"scored), {int(targeted.get('completed_scored', 0) or 0)} already "
+        f"scored (metrics only), {int(targeted.get('completed_unscored', 0) or 0)} "
+        f"completed unscored (post-run `inspect score`), "
+        f"{int(targeted.get('skipped', 0) or 0)} skipped"
     )
 
 

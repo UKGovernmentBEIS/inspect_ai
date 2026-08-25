@@ -63,6 +63,7 @@ import anyio
 if TYPE_CHECKING:
     from inspect_ai._control.eval_state import EvalState
     from inspect_ai.model import Model
+    from inspect_ai.model._model import ConnectionSlot
 
 logger = getLogger(__name__)
 
@@ -250,6 +251,14 @@ _held_samples: dict[str, dict[str, int]] = {}
 # release_sample_scoring_hold). Reset with the task gates.
 _sample_hold_gates: dict[str, PauseGate] = {}
 
+# Park-ack waiters, keyed by ActiveSample.id: one-shot events set (and
+# dropped) by _held_entered when one of the sample's generate attempts parks
+# at the hard gate — the interim-scoring pass's event-driven park ack (no
+# polling). A waiter is registered per wait via sample_park_waiter and
+# discarded by its owner when the wait ends. Reset with the task gates
+# (waiters' owners — pass tasks — are cancelled at the same boundary).
+_park_waiters: dict[str, list[anyio.Event]] = {}
+
 
 def _task_gate(task_id: str) -> PauseGate:
     gate = _task_gates.get(task_id)
@@ -412,6 +421,10 @@ def task_held_count(task_id: str) -> int:
 def _held_entered(task_id: str, sample_id: str) -> None:
     held = _held_samples.setdefault(task_id, {})
     held[sample_id] = held.get(sample_id, 0) + 1
+    # wake (and drop) the sample's park waiters — the scoring pass's
+    # event-driven park ack (see sample_park_waiter)
+    for event in _park_waiters.pop(sample_id, []):
+        event.set()
 
 
 def _held_exited(task_id: str, sample_id: str) -> None:
@@ -459,6 +472,32 @@ def sample_scoring_held(sample_id: str) -> bool:
     """Whether a scoring hold is in place for ``sample_id``."""
     gate = _sample_hold_gates.get(sample_id)
     return gate is not None and gate.hard
+
+
+def sample_park_waiter(sample_id: str) -> anyio.Event:
+    """Register a one-shot event set when one of ``sample_id``'s attempts parks.
+
+    The scoring pass's park ack awaits this (alongside the sample's terminal
+    event and its deadline) instead of polling :func:`sample_parked_attempts`.
+    Register a fresh waiter per wait iteration and discard it with
+    :func:`discard_park_waiter` when the wait ends — a set event never
+    re-arms, and the pass's wait loop re-checks its predicates on wake.
+    """
+    event = anyio.Event()
+    _park_waiters.setdefault(sample_id, []).append(event)
+    return event
+
+
+def discard_park_waiter(sample_id: str, event: anyio.Event) -> None:
+    """Unregister a waiter from :func:`sample_park_waiter` (no-op if fired)."""
+    waiters = _park_waiters.get(sample_id)
+    if waiters is not None:
+        try:
+            waiters.remove(event)
+        except ValueError:
+            pass
+        if not waiters:
+            _park_waiters.pop(sample_id, None)
 
 
 def sample_parked_attempts(task_id: str, sample_id: str) -> int:
@@ -586,7 +625,9 @@ def _active_sample_hold_key() -> _HoldKey:
 
 
 async def wait_generate_dispatch(
-    model: "Model", report_waiting_time: Callable[[float], None]
+    model: "Model",
+    report_waiting_time: Callable[[float], None],
+    connection: "ConnectionSlot | None" = None,
 ) -> None:
     """Hard-pause gate for one generate attempt (``pause --now``).
 
@@ -621,6 +662,17 @@ async def wait_generate_dispatch(
     issued *after* the sample's task group exited (a model-graded scorer
     running under a ``score`` resolution), so the escape is checked at
     entry and re-checked on every wake/tick.
+
+    ``connection`` is the attempt's held connection-pool slot. A parked call
+    must not pin it — with ``max_connections`` at or near the held sample's
+    parked-call count, a grader on the same pool would starve behind the
+    park (the release-and-reacquire escape hatch ``pause-resume.md`` names).
+    The slot is released only when the attempt actually parks (the common
+    no-pause path never touches it), and reacquired before returning — with
+    the reacquire wait reported through ``report_waiting_time`` like the
+    held span itself. A cancellation during the reacquire leaves the slot
+    un-held, which the slot's own held flag makes safe for the owning
+    context's final release (see ``ConnectionSlot``).
     """
     if not _any_hard_gate():
         return
@@ -636,9 +688,13 @@ async def wait_generate_dispatch(
         return
     if task_id is not None and sample is not None:
         _held_entered(task_id, sample.id)
+    released = False
     last = time.monotonic()
     try:
         while gate is not None and not escaped():
+            if connection is not None and not released:
+                released = True
+                await connection.release()
             # the tick both keeps working-limit crediting incremental and
             # bounds the latency of an escape stamped while parked (a
             # per-sample interrupt has no waker into this gate)
@@ -656,6 +712,12 @@ async def wait_generate_dispatch(
             report_waiting_time(tail)
         if task_id is not None and sample is not None:
             _held_exited(task_id, sample.id)
+        if released and connection is not None:
+            reacquire_start = time.monotonic()
+            try:
+                await connection.reacquire()
+            finally:
+                report_waiting_time(time.monotonic() - reacquire_start)
 
 
 def dispatch_model_name(model: "Model") -> str:
@@ -748,6 +810,13 @@ def reset_task_pause_gates() -> None:
     # be woken (release also wakes)
     for sample_id in list(_sample_hold_gates):
         release_sample_scoring_hold(sample_id)
+    # wake park waiters before dropping them (their owners — pass tasks —
+    # are cancelled at this boundary anyway, but a woken waiter re-checks
+    # its predicates rather than parking forever)
+    for waiters in _park_waiters.values():
+        for event in waiters:
+            event.set()
+    _park_waiters.clear()
 
 
 def reset_process_pause() -> None:

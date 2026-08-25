@@ -1,6 +1,6 @@
 ## Unreleased
 
-- Inspect CTL: New `inspect ctl task score` scores a running eval's completed and in-flight samples (each briefly held while scored) and reports interim metrics, without ending any sample.
+- Inspect CTL: New `inspect ctl task score` scores a running eval's in-flight samples (each briefly held while scored) and reports interim metrics that fold in completed samples' final scores, without ending any sample.
 - vLLM: The server's `max_model_len` is now registered as the model's context window, so compaction and context-length handling reflect the served configuration (including LoRA adapters via their parent model). (#4215)
 - Eval Set: Protocol for running a selection of an eval set's tasks (`INSPECT_EVAL_SET_SELECTION`), so an external runner can execute one task per process into a shared log directory while owning the eval-set metadata itself.
 - Eval Log: Samples halted by a limit now record why it fired (`EvalSampleLimit.reason`, `limit_reason` on sample summaries and `samples_df()`), so operator-terminated samples can be told apart without reading transcript events.

@@ -805,6 +805,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                     scorer_names=scorer_names or [],
                     model=model,
                     model_roles=model_roles,
+                    generate_config=generate_config,
                     epochs_reducer=task.epochs_reducer,
                     metrics=task.metrics,
                     score_on_error=config.score_on_error or False,
@@ -1975,12 +1976,16 @@ async def task_run_sample(
                         # update active sample wth sandboxes now that we are initialised
                         # (ensure that we still exit init context in presence of sandbox error)
                         try:
-                            active.sandboxes = await sandbox_connections()
-                            # publish the environments themselves too, so the
-                            # interim-scoring pass can bind them into its
-                            # scoring context (design/ctl/interim-scoring.md)
+                            # publish the environments (the interim-scoring
+                            # pass binds them into its scoring context —
+                            # design/ctl/interim-scoring.md) and derive the
+                            # VS Code connection info from that same
+                            # publication so the two fields can't drift
                             active.sandbox_environments = (
                                 sandbox_environments_context_var.get({}) or {}
+                            )
+                            active.sandboxes = await sandbox_connections(
+                                active.sandbox_environments
                             )
                         finally:
                             await init_span.__aexit__(None, None, None)
