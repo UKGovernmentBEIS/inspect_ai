@@ -4709,6 +4709,17 @@
             "title": "Model",
             "type": "string"
           },
+          "model_aliases": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Aliases"
+          },
           "model_args": {
             "additionalProperties": true,
             "title": "Model Args",

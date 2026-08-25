@@ -1017,8 +1017,9 @@ class EvalSpec(BaseModel):
     """Model aliases in effect for the eval (if any).
 
     Base64-encoded JSON mapping of aliases to the real models they resolve
-    to (encoded so real model names are not stored in plaintext; decode with
-    `inspect_ai.model._model_alias.model_aliases_from_log()`).
+    to (encoded so real model names are not stored in plaintext rather than
+    to protect them; decode with
+    `inspect_ai.model.model_aliases_from_log()`).
     """
 
     config: EvalConfig

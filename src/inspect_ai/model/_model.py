@@ -118,6 +118,7 @@ from ._generate_config import (
 from ._model_alias import (
     redact_aliased_model,
     redact_aliased_model_call,
+    redact_aliased_model_exception,
     resolve_model_alias,
 )
 from ._model_call import ModelCall, as_error_response
@@ -840,6 +841,44 @@ class Model:
     def _set_role(self, role: str) -> None:
         self._role = role
 
+    @property
+    def _aliased(self) -> bool:
+        """Whether this model was resolved via an alias."""
+        return self._alias is not None and self._alias_target is not None
+
+    def _redact_alias(self, text: str) -> str:
+        """Replace the real model name with the alias (no-op if not aliased)."""
+        if self._alias is not None and self._alias_target is not None:
+            return redact_aliased_model(text, self._alias, self._alias_target)
+        return text
+
+    def _redact_alias_call(self, call: ModelCall) -> None:
+        """Replace the real model name in raw model call data (in place)."""
+        if self._alias is not None and self._alias_target is not None:
+            redact_aliased_model_call(call, self._alias, self._alias_target)
+
+    def _redact_alias_exception(self, ex: BaseException) -> BaseException:
+        """Replace the real model name in a raised exception (in place).
+
+        Exceptions raised by a provider routinely echo the model name (404s,
+        invalid-request/auth errors, retry exhaustion) and are recorded
+        verbatim -- message and traceback -- in `EvalSample.error` /
+        `EvalLog.error`, so they need the same redaction the ModelEvent gets.
+        """
+        if self._alias is not None and self._alias_target is not None:
+            redact_aliased_model_exception(ex, self._alias, self._alias_target)
+        return ex
+
+    async def _log_model_retry(
+        self, model_name: str, retry_state: RetryCallState
+    ) -> None:
+        """Retry logging that redacts the real model name when aliased."""
+        await log_model_retry(
+            model_name,
+            retry_state,
+            redact=self._redact_alias if self._aliased else None,
+        )
+
     def __str__(self) -> str:
         return f"{ModelName(self)}"
 
@@ -1021,12 +1060,12 @@ class Model:
         # the generate() connection limiter.
         @retry(
             **model_retry_config(
-                self.api.model_name,
+                self.name,
                 self.config.max_retries,
                 self.config.timeout,
                 self.should_retry,
                 self.before_retry,
-                log_model_retry,
+                self._log_model_retry,
                 report_sample_waiting_time,
                 self.api.retry_wait(),
             )
@@ -1069,7 +1108,11 @@ class Model:
                 token_r = _request_had_retry.set(False)
                 try:
                     with cleared_retry_wait():
-                        result = await _count_tokens(input, config)
+                        try:
+                            result = await _count_tokens(input, config)
+                        except Exception as ex:
+                            self._redact_alias_exception(ex)
+                            raise
                     # counts are never cached, so a retry-free call always
                     # exercised the endpoint and counts as a clean success
                     if not _request_had_retry.get():
@@ -1082,7 +1125,11 @@ class Model:
         # static fallback (explicit max_connections or batch mode)
         async with concurrency(f"{model_name}_count_tokens", 10, key, visible=False):
             with cleared_retry_wait():
-                return await _count_tokens(input, config)
+                try:
+                    return await _count_tokens(input, config)
+                except Exception as ex:
+                    self._redact_alias_exception(ex)
+                    raise
 
     async def count_tool_tokens(self, tools: Sequence[ToolInfo]) -> int:
         """Count tokens for tool definitions.
@@ -1152,12 +1199,12 @@ class Model:
 
             @retry(
                 **model_retry_config(
-                    self.api.model_name,
+                    self.name,
                     self.config.max_retries,
                     self.config.timeout,
                     self.should_retry,
                     self.before_retry,
-                    log_model_retry,
+                    self._log_model_retry,
                     report_sample_waiting_time,
                     self.api.retry_wait(),
                 )
@@ -1174,7 +1221,11 @@ class Model:
 
             # Call compact with retry handling
             with cleared_retry_wait():
-                compacted_messages, usage = await _compact(input)
+                try:
+                    compacted_messages, usage = await _compact(input)
+                except Exception as ex:
+                    self._redact_alias_exception(ex)
+                    raise
 
             # Record and check usage
             if usage:
@@ -1281,12 +1332,12 @@ class Model:
 
         @retry(
             **model_retry_config(
-                self.api.model_name,
+                self.name,
                 config.max_retries,
                 config.timeout,
                 self.should_retry,
                 self.before_retry,
-                log_model_retry,
+                self._log_model_retry,
                 report_waiting_time,
                 self.api.retry_wait(),
             )
@@ -1438,7 +1489,7 @@ class Model:
             # real model name (in raw model call data as well as the output)
             if self._alias is not None and self._alias_target is not None:
                 if call is not None:
-                    redact_aliased_model_call(call, self._alias, self._alias_target)
+                    self._redact_alias_call(call)
                 if isinstance(output, ModelOutput):
                     output.model = self._alias
                     for choice in output.choices:
@@ -1455,9 +1506,7 @@ class Model:
                 # subclass preserves the provider status_code/message so the
                 # agent bridge can forward a faithful provider error rather
                 # than crashing the model proxy.
-                error = repr(output)
-                if self._alias is not None and self._alias_target is not None:
-                    error = redact_aliased_model(error, self._alias, self._alias_target)
+                error = self._redact_alias(repr(output))
                 request = json.dumps(call.request, indent=2) if call is not None else ""
                 max_lines = 200
                 request_lines = request.splitlines()
@@ -1467,11 +1516,7 @@ class Model:
                         + request_lines[-max_lines:]
                     )
                 error_message = f"\nRequest:\n{request}\n\n{error}"
-                provider_message = str(output)
-                if self._alias is not None and self._alias_target is not None:
-                    provider_message = redact_aliased_model(
-                        provider_message, self._alias, self._alias_target
-                    )
+                provider_message = self._redact_alias(str(output))
                 raise ModelGenerateError(
                     error_message,
                     status_code=status_code_of(output),
@@ -1515,7 +1560,15 @@ class Model:
         # as elapsed time - actual time for successful model call)
         time_start = time.monotonic()
         with cleared_retry_wait():
-            model_output, event = await generate()
+            try:
+                model_output, event = await generate()
+            except Exception as ex:
+                # exceptions raised by the provider (rather than returned from
+                # generate()) escape here and are recorded verbatim by
+                # eval_error() into EvalSample.error / EvalLog.error -- redact
+                # in place so the exception keeps its type and traceback
+                self._redact_alias_exception(ex)
+                raise
         total_time = time.monotonic() - time_start
 
         # record any model fallback against the active sample (here in the
@@ -1819,14 +1872,10 @@ class Model:
                 )
                 # errors for a model resolved via an alias record the alias
                 # rather than the real model name
-                if self._alias is not None and self._alias_target is not None:
-                    error = redact_aliased_model(error, self._alias, self._alias_target)
-                    traceback_text = redact_aliased_model(
-                        traceback_text, self._alias, self._alias_target
-                    )
-                    traceback_ansi = redact_aliased_model(
-                        traceback_ansi, self._alias, self._alias_target
-                    )
+                if self._aliased:
+                    error = self._redact_alias(error)
+                    traceback_text = self._redact_alias(traceback_text)
+                    traceback_ansi = self._redact_alias(traceback_ansi)
                 event.error = error
                 event.traceback = traceback_text
                 event.traceback_ansi = traceback_ansi
@@ -1848,10 +1897,7 @@ class Model:
                     event.call.response = as_error_response(result.response)
                 else:
                     event.call.response = as_error_response(str(result))
-                if self._alias is not None and self._alias_target is not None:
-                    redact_aliased_model_call(
-                        event.call, self._alias, self._alias_target
-                    )
+                self._redact_alias_call(event.call)
 
             event.pending = None
             if sink is None:
@@ -2532,7 +2578,22 @@ def combine_messages(
         )
 
 
-async def log_model_retry(model_name: str, retry_state: RetryCallState) -> None:
+async def log_model_retry(
+    model_name: str,
+    retry_state: RetryCallState,
+    redact: Callable[[str], str] | None = None,
+) -> None:
+    """Log a model retry.
+
+    Args:
+        model_name: Name of the model being retried. Callers must pass the
+            name the model reports (`Model.name`) rather than the provider's
+            model name: for an aliased model this record reaches the console
+            and (at WARNING level) the eval log's logger events.
+        retry_state: Tenacity retry state.
+        redact: Optional redaction applied to text derived from the provider
+            error, which can itself echo the real name of an aliased model.
+    """
     from inspect_ai._util.retry import (
         retry_error_summary,
         retry_error_type_status,
@@ -2541,6 +2602,8 @@ async def log_model_retry(model_name: str, retry_state: RetryCallState) -> None:
 
     prefix = sample_context_prefix()
     error = retry_error_summary(retry_state)
+    if redact is not None:
+        error = redact(error)
     level = logging.WARNING if retry_state.upcoming_sleep >= (60 * 20) else HTTP
     logger.log(
         level,
@@ -2705,7 +2768,14 @@ def record_and_check_model_usage(
         total_cost = compute_model_cost(
             info.cost, usage, getattr(model.api, "cache_ttl", None)
         )
-        usage.total_cost = total_cost
+        # a cost recorded against an alias is priced from the real model, so the
+        # per-token rate implied by (cost, tokens) can be matched against public
+        # price sheets to recover the model the alias hides. anonymization is the
+        # point of the feature, so aliased models record no cost. the cost is
+        # still charged against any active cost limit below (that value is the
+        # user's own configured budget, not part of the log).
+        if not model._aliased:
+            usage.total_cost = total_cost
 
     # record usage
     set_model_usage(model_name, usage, sample_model_usage_context_var.get(None))

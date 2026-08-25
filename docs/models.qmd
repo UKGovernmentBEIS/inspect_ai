@@ -346,6 +346,72 @@ inspect eval math.py \
    --model-role blue_team=openai/gpt-4o-mini
 ```
 
+## Model Aliases {#model-aliases}
+
+Sometimes you need to evaluate a model without recording which model it was — for example when publishing logs for a pre-release model, or when running a blinded comparison where downstream scoring or human review shouldn't be able to tell the models apart.
+
+Use `--model-alias` to run a model under a stand-in name:
+
+``` bash
+inspect eval math.py \
+   --model safe/name \
+   --model-alias safe/name=openai/gpt-4o
+```
+
+Requests for `safe/name` are dispatched to `openai/gpt-4o`, while the eval log, transcript events, telemetry, and terminal display report only `safe/name`. Aliases are resolved inside `get_model()`, so `--model`, [model roles](#model-roles), and model-graded scorers are all covered:
+
+``` bash
+inspect eval math.py \
+   --model safe/model-a \
+   --model-role grader=safe/model-b \
+   --model-alias safe/model-a=openai/gpt-4o \
+   --model-alias safe/model-b=anthropic/claude-sonnet-4-5
+```
+
+Both the alias and the model it resolves to must be fully qualified (`<provider>/<name>`). Repeat the option for several aliases, or set them together in the `INSPECT_MODEL_ALIASES` environment variable as a comma-separated list:
+
+``` bash
+INSPECT_MODEL_ALIASES=safe/model-a=openai/gpt-4o,safe/model-b=anthropic/claude-sonnet-4-5
+```
+
+The alias mapping is recorded in the eval log header (`EvalSpec.model_aliases`) so that the real models remain recoverable from the log alone:
+
+``` python
+from inspect_ai.log import read_eval_log
+from inspect_ai.model import model_aliases_from_log
+
+log = read_eval_log("logs/2026-08-25T12-00-00_math.eval")
+aliases = model_aliases_from_log(log.eval.model_aliases)
+```
+
+### What is Redacted
+
+For an aliased model, Inspect replaces the real model name with the alias in the model event's `model` field and output, the raw model call metadata (`ModelCall.request` / `ModelCall.response`), generation errors (including exceptions raised by the provider, their tracebacks, and retry log messages), and provider-reported model fields on output messages.
+
+Name matching is done on model-identifier boundaries, so aliasing `openai/gpt-4o` rewrites `openai/gpt-4o` and a bare `gpt-4o` but leaves an unrelated mention of `gpt-4o-mini` intact.
+
+### Limitations
+
+Model aliasing is designed to keep the real model out of the log for casual inspection. It is not a security boundary, and the following are deliberately outside its guarantee:
+
+-   **The mapping is encoded, not encrypted.** `EvalSpec.model_aliases` is base64-encoded JSON: it keeps real model names out of plaintext log text and out of search results, but anyone holding the log can decode it. If the mapping itself must be withheld, strip the field before sharing the log.
+
+-   **Conversation text is preserved verbatim.** Prompts and model-generated text are never rewritten — not in the model event's `input`/`output`, and not in the corresponding content fields of the raw model call. A model that names itself in its own completion will still do so.
+
+-   **Costs are not recorded.** Token costs are computed from the real model's prices, and a per-token rate can be matched against public price sheets to recover the model an alias hides, so `ModelUsage.total_cost` is left unset for aliased models (their usage appears in `sample.model_usage` / `stats.model_usage` with tokens but no cost). Cost is still charged against an active [cost limit](setting-limits.qmd), which is your own configured budget rather than log data. Token counts themselves are not redacted.
+
+-   **Redaction is a name match, not semantic.** An occurrence of the bare model name is rewritten wherever it appears in redacted metadata and error text. A distinctive name (`gpt-4o`) is unambiguous, but an unusually generic one can rewrite unrelated prose (aliasing `mockllm/model` turns "The model had an error" into "The name had an error"). Prefer aliasing models whose bare name is distinctive.
+
+-   **Behavioural fingerprints remain.** Response latency, tokenization, refusal style, and tool-calling conventions can all identify a model irrespective of naming.
+
+-   **The full configured mapping is recorded**, including aliases that were never used in the eval.
+
+-   **`inspect eval-retry` requires the aliases to be re-supplied**, since a retry re-resolves models from the original log's model names.
+
+::: {.callout-note appearance="simple"}
+Model aliases are distinct from the `model_aliases` argument to [`agent_bridge()`](agent-bridge.qmd). That argument maps the model names an external agent asks for onto Inspect models (so a bridged agent hard-coded to `gpt-4o` can be pointed at any model), and has no anonymization semantics — nothing is redacted from the log. `--model-alias` is the reverse direction: the alias is what gets recorded, and the real model is what gets called.
+:::
+
 ## Learning More
 
 -   [Providers](providers.qmd) covers usage details and available options for the various supported providers.

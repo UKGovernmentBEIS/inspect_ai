@@ -1,6 +1,7 @@
 import base64
 import json
 import os
+import re
 from typing import Sequence, cast
 
 from pydantic import JsonValue
@@ -123,8 +124,26 @@ def model_aliases_from_log(encoded: str) -> dict[str, str]:
     return {str(k): str(v) for k, v in aliases.items()}
 
 
+# A model name occurrence is only redacted when it isn't part of a longer
+# model identifier, so that aliasing e.g. "openai/gpt-4o" doesn't mangle an
+# unrelated mention of "gpt-4o-mini" (or "gpt-4.1" when aliasing "gpt-4").
+# A "/" is allowed on the left so names embedded in URL paths are still
+# redacted, and a trailing "." not followed by an alphanumeric is treated as
+# punctuation rather than part of a version suffix.
+_REDACT_PREFIX = r"(?<![0-9A-Za-z_.-])"
+_REDACT_SUFFIX = r"(?![0-9A-Za-z_-])(?!\.[0-9A-Za-z])"
+
+
+def _redact_name(text: str, name: str, replacement: str) -> str:
+    return re.sub(_REDACT_PREFIX + re.escape(name) + _REDACT_SUFFIX, replacement, text)
+
+
 def redact_aliased_model(text: str, alias: str, model: str) -> str:
     """Replace occurrences of an aliased model's real name with the alias.
+
+    Occurrences are matched on model-identifier boundaries, so a longer name
+    that merely starts with the aliased model's name (e.g. "gpt-4o-mini" when
+    aliasing "openai/gpt-4o") is left intact.
 
     Args:
         text: Text to redact.
@@ -134,16 +153,40 @@ def redact_aliased_model(text: str, alias: str, model: str) -> str:
     Returns:
         Text with occurrences of the real model name replaced by the alias.
     """
-    text = text.replace(model, alias)
+    text = _redact_name(text, model, alias)
     model_name = model.partition("/")[2]
     alias_name = alias.partition("/")[2]
     if model_name and alias_name:
-        text = text.replace(model_name, alias_name)
+        text = _redact_name(text, model_name, alias_name)
     return text
 
 
+MODEL_CALL_CONTENT_KEYS = frozenset(
+    {
+        "content",
+        "completion",
+        "output_text",
+        "reasoning",
+        "reasoning_content",
+        "refusal",
+        "summary_text",
+        "text",
+        "thinking",
+    }
+)
+"""Model call keys whose values carry prompt or model-generated text.
+
+Redaction skips these so that raw model call data stays consistent with the
+model event's `input`/`output` (which are likewise not rewritten): only
+protocol metadata is redacted, never the text of the conversation.
+"""
+
+
 def redact_aliased_model_call(call: ModelCall, alias: str, model: str) -> None:
-    """Replace an aliased model's real name in raw model call data.
+    """Replace an aliased model's real name in raw model call metadata.
+
+    Prompt and model-generated text (see `MODEL_CALL_CONTENT_KEYS`) is left
+    untouched, matching the treatment of the model event's `input`/`output`.
 
     Args:
         call: Model call to redact (modified in place).
@@ -152,7 +195,7 @@ def redact_aliased_model_call(call: ModelCall, alias: str, model: str) -> None:
     """
 
     def redact(key: JsonValue | None, value: JsonValue) -> JsonValue:
-        if isinstance(value, str):
+        if isinstance(value, str) and key not in MODEL_CALL_CONTENT_KEYS:
             return redact_aliased_model(value, alias, model)
         else:
             return value
@@ -164,6 +207,59 @@ def redact_aliased_model_call(call: ModelCall, alias: str, model: str) -> None:
         call.response = cast(
             dict[str, JsonValue], _walk_json_value(None, call.response, redact)
         )
+
+
+def redact_aliased_model_exception(
+    ex: BaseException, alias: str, model: str
+) -> BaseException:
+    """Redact an aliased model's real name from a raised exception.
+
+    The exception is redacted in place (rather than replaced with a new
+    object) so that its type, attributes, and traceback are preserved for
+    callers that inspect or re-raise it. Message text is redacted in the
+    exception's `args` and `message` attribute, and the `__cause__` /
+    `__context__` chain is redacted as well so that the formatted traceback
+    recorded in `EvalSample.error` doesn't echo the real model name.
+
+    Args:
+        ex: Exception to redact (modified in place).
+        alias: Model alias (e.g. "safe/name").
+        model: Real model the alias resolves to (e.g. "openai/gpt-4o").
+
+    Returns:
+        The exception that was passed in.
+    """
+    seen: set[int] = set()
+    current: BaseException | None = ex
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        _redact_exception(current, alias, model)
+        # follow both links: format_exception() renders whichever is set
+        for linked in (current.__cause__, current.__context__):
+            if linked is not None and id(linked) not in seen:
+                current = linked
+                break
+        else:
+            current = None
+    return ex
+
+
+def _redact_exception(ex: BaseException, alias: str, model: str) -> None:
+    try:
+        ex.args = tuple(
+            redact_aliased_model(arg, alias, model) if isinstance(arg, str) else arg
+            for arg in ex.args
+        )
+    except Exception:
+        # a few exception types make args read-only or derive them lazily
+        pass
+    # `exception_message()` prefers a `message` attribute over `repr()`
+    message = getattr(ex, "message", None)
+    if isinstance(message, str):
+        try:
+            setattr(ex, "message", redact_aliased_model(message, alias, model))
+        except Exception:
+            pass
 
 
 _model_aliases: dict[str, str] | None = None

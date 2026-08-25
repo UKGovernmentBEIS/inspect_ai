@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Model: New `--model-alias` option (`INSPECT_MODEL_ALIASES`) evaluates a model under an alias, so the eval log, transcript, telemetry, and displays report only the alias rather than the real model. (#4193)
 - Eval Log: Reading a sample from a `.json` log now reports the requested uuid when the sample is missing, and raises a clear error when neither id nor uuid is provided.
 - vLLM: The server's `max_model_len` is now registered as the model's context window, so compaction and context-length handling reflect the served configuration (including LoRA adapters via their parent model). (#4215)
 - Eval Set: Protocol for running a selection of an eval set's tasks (`INSPECT_EVAL_SET_SELECTION`), so an external runner can execute one task per process into a shared log directory while owning the eval-set metadata itself.
