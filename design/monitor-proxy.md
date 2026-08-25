@@ -287,13 +287,23 @@ Stated up front because users will (and should) probe them:
 
 ## Prior art / competitive analysis
 
-Placeholder — research in progress (current state of the art, focusing on
-live monitoring scenarios). The buckets to place the monitor proxy against:
+Full survey with primary-source citations: `monitor-proxy-prior-art.md`.
+Verified highlights: no product keeps verdict state keyed on conversation
+identity (the ratchet is the differentiator); the closest shipped analog,
+OpenAI's `safety_identifier`, condemns permanently but trusts
+client-supplied identity; the closest overall neighbor is Invariant Labs'
+gateway (same seat and wire formats, tool-call-aware policy DSL, but
+stateless with client-controlled tenancy); AWS Bedrock ships the
+fabricated-response deny (prior art for the deny-appearance question); the
+research literature calls this category "fully-synchronous monitoring".
+
+The buckets to place the monitor proxy against:
 
 - **LLM gateways** (LiteLLM, Portkey, Kong AI Gateway, Cloudflare AI
-  Gateway): same seat — an HTTP proxy in front of provider APIs — different
-  job (routing, keys, metering); not eval-aware, no ratchet, no adversarial
-  client assumption.
+  Gateway): same seat — an HTTP proxy in front of provider APIs — and all
+  now do in-line blocking guardrails in the request path, so in-line
+  blocking at this seat is table stakes; still not eval-aware, no ratchet,
+  no adversarial-client assumption.
 - **Guardrails / "AI firewall" products** (NeMo Guardrails, Bedrock
   Guardrails, Lakera, Prompt Security, Cisco/Robust Intelligence): judge
   content, but built to defend a production app from its users; per-request
