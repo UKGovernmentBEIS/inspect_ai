@@ -14,7 +14,6 @@ from typing import (
     cast,
 )
 
-import httpx
 from pydantic import BaseModel, Field, ValidationError
 from pydantic_core import to_json
 
@@ -380,6 +379,9 @@ def init_anthropic_request_patch() -> None:
 
     validate_anthropic_client("agent bridge")
 
+    # httpx2 deferred for the same reason as in init_openai_request_patch
+    # above (it arrives transitively via anthropic >= 1)
+    import httpx2
     from anthropic._base_client import AsyncAPIClient, _AsyncStreamT
     from anthropic._constants import RAW_RESPONSE_HEADER
     from anthropic._models import FinalRequestOptions
@@ -422,7 +424,7 @@ def init_anthropic_request_patch() -> None:
         if not raw_response:
             return result
 
-        response = httpx.Response(
+        response = httpx2.Response(
             status_code=200,
             headers={"content-type": "application/json"},
             content=result.model_dump_json().encode(),
@@ -461,6 +463,13 @@ def init_anthropic_request_patch() -> None:
         ):
             # must also be an explicit request for an inspect model
             json_data = cast(dict[str, Any], options.json_data)
+            # anthropic >= 1.0 removed temperature/top_p/top_k from the method
+            # signatures, so callers send them via extra_body — which the SDK
+            # carries in options.extra_json and merges into the body only in
+            # _build_request, below this interception point. merge here so
+            # the bridge sees those fields.
+            if options.extra_json:
+                json_data = json_data | dict(options.extra_json)
             if targets_inspect_model(json_data):
                 if stream:
                     raise_stream_error()
