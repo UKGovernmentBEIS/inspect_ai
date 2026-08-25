@@ -496,6 +496,67 @@ def sample_cancel_command(
     )
 
 
+@sample_group.command("cancel-tool-call")
+@click.argument("task")
+@click.argument("sample_id")
+@click.argument("epoch", required=False, type=int, default=None)
+@click.option(
+    "--tool-call-id",
+    default=None,
+    help=(
+        "Id of the tool call to cancel (from the pending-calls list in "
+        "`sample list --json` activity, or `sample messages --json`). "
+        "Omitted, the sample's sole pending tool call is the target; two "
+        "or more pending is an error enumerating them."
+    ),
+)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    default=False,
+    help=(
+        "Report what would be cancelled without doing it (without "
+        "--tool-call-id this doubles as listing the pending tool calls)."
+    ),
+)
+@_json_option(_MUTATION_ENVELOPE_HELP)
+@_terse_option()
+def sample_cancel_tool_call_command(
+    task: str,
+    sample_id: str,
+    epoch: int | None,
+    tool_call_id: str | None,
+    dry_run: bool,
+    as_json: bool,
+    terse: bool | None,
+) -> None:
+    """Cancel one in-flight tool call and let the sample continue.
+
+    The surgical alternative to `sample cancel` when a sample is stuck on a
+    hung tool call: the call's own cancel scope is fired, the model sees an
+    ordinary tool timeout, and the sample continues — parallel sibling calls
+    and the rest of the task are undisturbed. Idempotent — repeating a
+    cancel, targeting a call that is no longer pending, or targeting a
+    finished sample is a clean no-op. EPOCH defaults to 1 but is required
+    whenever the task runs more than one epoch (a defaulted epoch would
+    silently target a different attempt).
+
+    The cancel is delivered to the call's cancel scope, which is not a
+    guarantee the tool stops: a truly wedged call (sync code in a thread,
+    shielded teardown) may never unwind — a repeat then reports "cancel
+    already requested", and the escalation is `sample cancel`.
+    """
+    _run_sample_cancel_tool_call(
+        task,
+        sample_id,
+        epoch,
+        tool_call_id=tool_call_id,
+        dry_run=dry_run,
+        as_json=as_json,
+        terse=terse,
+    )
+
+
 @sample_group.command("requeue")
 @click.argument("task")
 @click.argument(
@@ -627,7 +688,7 @@ def _run_sample_mutation(
     terse_changed: Callable[[dict[str, Any]], str],
     terse_noop: Callable[[dict[str, Any]], str],
 ) -> None:
-    """Shared scaffold for the per-sample mutation verbs (cancel, requeue).
+    """Shared scaffold for the sample mutations (cancel, cancel-tool-call, requeue).
 
     Fetches summaries, resolves the target eval, applies the required-EPOCH
     gate, posts ``/evals/{eval_id}/sample/{verb}``, and renders the uniform
@@ -661,8 +722,8 @@ def _run_sample_mutation(
             _fail(
                 "ambiguous",
                 f"Task '{target.get('task') or '?'}' runs {epochs} epochs — "
-                f"pass EPOCH explicitly (a defaulted epoch would {verb} the "
-                "epoch-1 attempt).",
+                "pass EPOCH explicitly (a defaulted epoch would silently "
+                f"apply the {verb} to the epoch-1 attempt).",
             )
         epoch = 1
 
@@ -772,6 +833,93 @@ def _run_sample_cancel(
         verb="cancel",
         extra_params={"action": action},
         route_missing=_CANCEL_ROUTE_MISSING,
+        dry_run=dry_run,
+        as_json=as_json,
+        terse=terse,
+        changed_message=changed_message,
+        noop_message=noop_message,
+        terse_changed=terse_changed,
+        terse_noop=terse_noop,
+    )
+
+
+_CANCEL_TOOL_CALL_ROUTE_MISSING = (
+    "This process is running an older inspect without the tool-call cancel "
+    "endpoint; restart the eval to pick up the current version."
+)
+
+
+@_envelope_failures
+def _run_sample_cancel_tool_call(
+    task: str,
+    sample_id: str,
+    epoch: int | None,
+    *,
+    tool_call_id: str | None,
+    dry_run: bool,
+    as_json: bool,
+    terse: bool | None = None,
+) -> None:
+    def call_label(result: dict[str, Any]) -> str:
+        # tool-call ids and function names are model-generated tokens —
+        # sanitize before they enter a message line
+        tcid = result.get("tool_call_id") or tool_call_id or "?"
+        function = result.get("function")
+        suffix = f" ({function})" if function else ""
+        return _sanitize_line(f"{tcid}{suffix}")
+
+    def pending_clause(result: dict[str, Any]) -> str:
+        pending = result.get("pending") or []
+        if not pending:
+            return ""
+        calls = ", ".join(f"{p.get('id')} ({p.get('function')})" for p in pending)
+        return f" Pending: {_sanitize_line(calls)}."
+
+    def activity_clause(result: dict[str, Any]) -> str:
+        # the zero-pending no-op carries the sample's current activity so the
+        # operator learns where it is actually stuck without a --json retry;
+        # `detail` (a model name or tool function) is model-influenceable
+        activity = result.get("activity")
+        if not activity:
+            return ""
+        detail = activity.get("detail")
+        where = (
+            f"{activity.get('type')} ({detail})"
+            if detail
+            else str(activity.get("type"))
+        )
+        return f" Sample activity: {_sanitize_line(where)}."
+
+    def changed_message(label: str, result: dict[str, Any]) -> str:
+        if dry_run:
+            return f"Would cancel tool call {call_label(result)} of {label}."
+        return (
+            f"Cancel requested for tool call {call_label(result)} of {label} "
+            "— the model will see a tool timeout and the sample will continue."
+        )
+
+    def noop_message(label: str, result: dict[str, Any]) -> str:
+        reason = _sanitize_line(str(result.get("reason") or "already in that state"))
+        return f"Nothing to do — {reason}.{pending_clause(result)}{activity_clause(result)}"
+
+    def terse_changed(result: dict[str, Any]) -> str:
+        if dry_run:
+            return f"dry-run — would cancel tool call {call_label(result)}"
+        return f"requested — tool call {call_label(result)} will time out"
+
+    def terse_noop(result: dict[str, Any]) -> str:
+        return f"no-op — {result.get('reason') or 'already in that state'}"
+
+    extra_params: dict[str, Any] = {}
+    if tool_call_id is not None:
+        extra_params["tool_call_id"] = tool_call_id
+    _run_sample_mutation(
+        task,
+        sample_id,
+        epoch,
+        verb="cancel-tool-call",
+        extra_params=extra_params,
+        route_missing=_CANCEL_TOOL_CALL_ROUTE_MISSING,
         dry_run=dry_run,
         as_json=as_json,
         terse=terse,

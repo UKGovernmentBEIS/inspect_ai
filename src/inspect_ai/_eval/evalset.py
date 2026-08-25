@@ -568,6 +568,12 @@ def eval_set(
                 epochs=capture_epochs.epochs if capture_epochs else None,
                 tags=tags,
                 metadata=metadata,
+                # sample concurrency as the definition asked for it. a runner
+                # that sets max_samples per worker (it is an operational
+                # override in the selection document) otherwise has no way to
+                # see what it is overriding, so a definition's explicit value
+                # is silently replaced by the runner's default.
+                max_samples=max_samples,
                 # error handling as the definition asked for it, so a runner
                 # can see what selection mode honours (retry_on_error) and
                 # what it overrides (fail_on_error) rather than guessing.
