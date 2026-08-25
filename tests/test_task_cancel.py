@@ -463,6 +463,7 @@ def test_interrupt_in_retry_drain_window_resolves_cancelled() -> None:
     queue check) would resolve it: counted cancelled (not errored), absent
     from the log, its buffered events removed.
     """
+    from inspect_ai._control.cancel import CancelTaskResult
     from inspect_ai._control.cancel import cancel_task as ctl_cancel_task
     from inspect_ai._control.eval_state import (
         get_eval_states,
@@ -472,7 +473,7 @@ def test_interrupt_in_retry_drain_window_resolves_cancelled() -> None:
     from inspect_ai._eval.task.log import TaskLogger
 
     attempts = 0
-    sweep_results: list[dict[str, Any]] = []
+    sweep_results: list[CancelTaskResult] = []
     recorded: list[str] = []
     removed: list[tuple[str | int, int]] = []
 
@@ -534,7 +535,8 @@ def test_interrupt_in_retry_drain_window_resolves_cancelled() -> None:
 
         # the sweep saw the sample as in flight and applied
         assert len(sweep_results) == 1
-        assert sweep_results[0]["ok"] is True and sweep_results[0]["in_flight"] == 1
+        sweep = sweep_results[0]
+        assert sweep["ok"] is True and sweep["in_flight"] == 1
         # the retry was suppressed
         assert attempts == 1
         # counted cancelled — never errored — and its buffered events removed

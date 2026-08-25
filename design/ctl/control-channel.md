@@ -916,6 +916,7 @@ Both accept `?dry_run=true` / `--dry-run` and return `changed` so the CLI's unif
 
 #### Other directives
 
+- `POST /evals/<id>/sample/cancel-tool-call` (`ctl sample cancel-tool-call`) — cancel one in-flight tool call and let the sample continue: the per-call cancel primitive that ACP's `inspect/cancel_tool_call` targets by id (and the TUI's timeout button fans out over), surfaced on the default-on control channel. Implemented — [`tool-call-cancel.md`](tool-call-cancel.md) owns the semantics (targeting, decision table, read-surface enablement).
 - `POST /tasks/<task-id>/drain` (`ctl task drain`). (The per-sample time / token / message limits shipped as further knobs on `PATCH /tasks/<task-id>/config` — CLI: `ctl config TASK --time-limit/--token-limit/--message-limit` — as did modify *concurrency*: `max_samples` / `max_sandboxes` / adaptive `max_connections` / named registry keys via `--key` (which also reaches the static `max_connections` semaphores by model name); `max_tasks` is the remaining concurrency slice.)
 
 ### Phase 4 — push (SSE)

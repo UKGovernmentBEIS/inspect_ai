@@ -1,6 +1,6 @@
 ---
 title: Control Channel
-llms-description: Launch evals from scripts and agents (inspect eval --json launch handoff, and --detach to run an eval in the background, detached from the terminal), then observe and direct them from another process with the inspect ctl commands - live task and sample status, error and retry detail, transcript events, conversation snapshots, stall diagnosis from trace logs, task and sample cancellation, sample requeue, pause and resume, interim scoring, launch-config retuning, log flushing, and keep-alive.
+llms-description: Launch evals from scripts and agents (inspect eval --json launch handoff, and --detach to run an eval in the background, detached from the terminal), then observe and direct them from another process with the inspect ctl commands - live task and sample status, error and retry detail, transcript events, conversation snapshots, stall diagnosis from trace logs, task, sample, and tool-call cancellation, sample requeue, pause and resume, interim scoring, launch-config retuning, log flushing, and keep-alive.
 ---
 
 ## Overview
@@ -23,6 +23,7 @@ Commands are grouped by resource noun (`task`, `sample`, `model`, `process`), pl
 | `inspect ctl sample events` | Read one sample's transcript events. |
 | `inspect ctl sample messages` | Read one sample's current conversation. |
 | `inspect ctl sample cancel` | Cancel one running sample. |
+| `inspect ctl sample cancel-tool-call` | Cancel one hung tool call and let the sample continue. |
 | `inspect ctl sample requeue` | Re-run one errored or cancelled sample inside the live run. |
 | `inspect ctl config` | View or retune launch configuration mid-flight. |
 | `inspect ctl model pause` | Pause one model's dispatch across the run (`--now` also holds in-flight calls to it). |
@@ -170,7 +171,7 @@ sample  epoch  status     time   idle  activity         tokens  messages  turns
 
 The `idle` column shows how long since a running sample last produced a transcript event. A long-running sample with high idle time is the cheap signal that it may be stalled. A single in-flight model request produces no events until it returns, so idle time still accumulates during one long model call — the `activity` column is what distinguishes that healthy case from a genuine stall.
 
-The `activity` column (shown when any running sample has an in-flight operation) names what the sample is doing right now and for how long: `generating 6:51` for an in-flight model call (with `(2 retries)` appended when the provider SDK has retried within the call), `bash 0:41` or `2 tools 1:10` for pending tool calls, and `retrying in 0:45` when a model call is waiting out a retry backoff (e.g. rate limiting) between attempts. The `--json` rows carry the underlying `activity` object — `type` (`model` / `tool` / `retry_wait`), `count`, `started_at`, `detail` (model name or tool function), `retries`, and `deadline` (when a retry wait elapses) — null on rows with nothing pending.
+The `activity` column (shown when any running sample has an in-flight operation) names what the sample is doing right now and for how long: `generating 6:51` for an in-flight model call (with `(2 retries)` appended when the provider SDK has retried within the call), `bash 0:41` or `2 tools 1:10` for pending tool calls, and `retrying in 0:45` when a model call is waiting out a retry backoff (e.g. rate limiting) between attempts. The `--json` rows carry the underlying `activity` object — `type` (`model` / `tool` / `retry_wait`), `count`, `started_at`, `detail` (model name or tool function), `retries`, `deadline` (when a retry wait elapses), and — on `tool` rows — `calls`, one entry per pending tool call (see [Cancellation](#cancellation)) — null on rows with nothing pending.
 
 The `turns` column counts top-level model generations (blank when unknown, e.g. for samples logged by older versions of Inspect). When any listed sample has a token limit configured, `limit usage` and `limit total` columns are also shown: the metered value for that limit — respecting its type (`all`, `output`, or a formula) — against the configured ceiling. The `--json` rows carry these as `turn_count`, `token_limit_usage`, `token_limit_total`, and `token_limit_type`.
 
@@ -299,6 +300,16 @@ $ inspect ctl sample cancel gpqa 17
 $ inspect ctl sample cancel gpqa 17 3
 ```
 
+When a sample is not merely slow but stuck on one hung *tool call* — a sandbox command wedged against a dead daemon with no timeout configured, or a timeout whose teardown never completed — cancelling the whole sample discards its progress unnecessarily. `inspect ctl sample cancel-tool-call` cancels just that call: the model receives an ordinary tool timeout ("Command timed out before completing.") and the sample continues, using the same per-call cancel primitive as the in-process TUI's timeout button and ACP's `inspect/cancel_tool_call`.
+
+```bash
+$ inspect ctl sample cancel-tool-call gpqa 17
+```
+
+With no `--tool-call-id`, the command targets the sample's sole pending tool call, and errors if there are two or more — it never guesses among targets, and never cancels them all (pass explicit ids for that). `--dry-run` without an id enumerates the pending calls, and each running sample's `activity` in `sample list --json` carries a per-call list (`id`, `function`, `started_at`, `cancel_requested`), so a watchdog script can spot a stalled tool call and cancel it by id in one poll loop. Like the other sample mutations it is idempotent — repeating a cancel, naming a call that is no longer pending, or targeting a finished sample is a clean no-op — and `EPOCH` is required whenever the task runs more than one epoch.
+
+One honesty note: the cancel is *delivered* to the call's cancel scope, which is not a guarantee the tool stops. Cancellation is cooperative, so a call parked on an await (the common hang) unwinds immediately, but sync code running in a thread or teardown inside a shielded scope may never notice — the pending call then keeps reporting `cancel_requested: true` and a repeat invocation no-ops with "cancel already requested". The escalation from there is `inspect ctl sample cancel` (and ultimately killing the process and using `inspect eval-retry`).
+
 `inspect ctl task cancel` cancels a whole running task. By default it aborts: in-flight samples are interrupted (their transcripts so far are preserved in the log as cancelled samples), completed samples are kept, and the task's log is finalized with an error status noting the cancel. An eval set does not retry a cancelled task, and its other tasks are unaffected. `TASK` is always required — there is no sole-task default for destructive commands.
 
 ```bash
@@ -350,7 +361,7 @@ Scoring can take minutes (model-graded scorers), so the command starts a pass an
 
 ## Repeated Mutations
 
-Interactively, each mutation prints a full task header above its outcome for context. When stdout is not a TTY — piped or redirected output, a script whose output is captured, an agent's shell tool — the task-scoped mutation verbs (`sample requeue`, `sample cancel`, `task cancel`, `task pause`/`resume`, `task score`, `task log-flush`, and `config` when setting a knob) switch to a terse mode instead: one `verb target: outcome` line per call, so N mutations in a loop read as N scannable outcome lines rather than N repeated banners:
+Interactively, each mutation prints a full task header above its outcome for context. When stdout is not a TTY — piped or redirected output, a script whose output is captured, an agent's shell tool — the task-scoped mutation verbs (`sample requeue`, `sample cancel`, `sample cancel-tool-call`, `task cancel`, `task pause`/`resume`, `task score`, `task log-flush`, and `config` when setting a knob) switch to a terse mode instead: one `verb target: outcome` line per call, so N mutations in a loop read as N scannable outcome lines rather than N repeated banners:
 
 ```bash
 $ inspect ctl sample errors gpqa --json | jq -r '.samples[] | "\(.sample_id) \(.epoch)"' |
