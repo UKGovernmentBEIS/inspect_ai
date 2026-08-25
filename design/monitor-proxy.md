@@ -4,15 +4,21 @@ Status: early design discussion. Nothing here is committed to.
 
 ## What it is
 
-A live safety monitor for agent evals, built as an HTTP proxy in front of the
-model provider API. It watches model generate requests and responses, judges
-them against a configured policy, and can deny them. It protects the operator
-while running dangerous-capability evals. It is not an eval feature: it does
-not score the model, and its verdicts do not enter the eval transcript.
+**What Inspect delivers is a spec**: the behavior contract for a live safety
+monitor built as an HTTP proxy in front of the model provider API. A
+conforming monitor watches model generate requests and responses, judges
+them against a configured policy, and can deny them — per the rules in this
+document (judging, verdict ratchet, tenancy, wire behavior, audit).
 
-Think of it as a network appliance (in the spirit of a WAF). Its ultimate
-form is an out-of-process proxy. An in-process mode exists too, but only for
-development and debugging.
+Concrete implementations are a separate concern. We may provide a reference
+implementation on Envoy, and we may provide a development-time in-process
+implementation for debugging. Neither is the deliverable; any proxy that
+meets the spec is a monitor proxy.
+
+The monitor protects the operator while running dangerous-capability evals.
+It is not an eval feature: it does not score the model, and its verdicts do
+not enter the eval transcript. Think of it as a network appliance (in the
+spirit of a WAF).
 
 This is separate from the agent bridge's sandbox model proxy
 (`design/model-proxy-lifecycle.md`). The bridge pattern may inspire the
@@ -102,13 +108,18 @@ channel from the proxy to the Inspect process (deliberately out of scope for
 now). The proxy keeps its own audit log per tenant: every request, verdict,
 and reason. That log is the appliance's product for the operator.
 
-## Reference implementation: Envoy
+## Implementations (separate concern from the spec)
 
-Ship an out-of-the-box reference implementation on Envoy. The natural fit is
-Envoy's external processing filter (`ext_proc`): a gRPC service we provide
-receives request/response bodies and returns allow / mutate / deny, while
-Envoy handles listeners (per-port tenancy), TLS, and routing. The declarative
-configuration is then Envoy config plus our judge/policy config.
+Candidate implementations we may ship, neither of which is the deliverable:
+
+- **Envoy reference implementation.** The natural fit is Envoy's external
+  processing filter (`ext_proc`): a gRPC service we provide receives
+  request/response bodies and returns allow / mutate / deny, while Envoy
+  handles listeners (per-port tenancy), TLS, and routing. The declarative
+  configuration is then Envoy config plus our judge/policy config.
+- **In-process implementation**, for development and debugging only.
+
+Anyone can implement the spec on another proxy.
 
 ## Open questions
 
