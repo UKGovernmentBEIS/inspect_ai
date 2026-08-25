@@ -19,6 +19,7 @@ from inspect_ai._eval.task.log import (
     resolve_task_distribution,
 )
 from inspect_ai._util.background import background_task_group, set_background_task_group
+from inspect_ai._util.error import EvalError
 from inspect_ai._util.git import GitContext
 from inspect_ai._util.package import DirectUrl, VcsInfo
 from inspect_ai.dataset import Sample
@@ -299,6 +300,45 @@ async def test_task_logger_samples_logged_counts_distinct_samples() -> None:
 
     other_epoch = EvalSample(id="sample", epoch=2, input="question", target="answer")
     await logger.complete_sample(other_epoch, flush=False)
+    assert logger.samples_logged == 2
+
+
+@pytest.mark.anyio
+async def test_task_logger_samples_logged_excludes_cancelled_samples() -> None:
+    # a cancellation-resolved sample (operator `sample cancel`, or a drain
+    # landing while the sample materialized) is in the log but is not a
+    # resolution — counting it toward samples_logged could classify a drained
+    # log complete and silently drop those samples from a later eval-set
+    # re-invocation. A re-log of the same key (a requeue's re-run superseding
+    # the cancelled record) counts again.
+    logger = _flush_logger(flush_buffer=10)
+
+    cancelled = _sample().model_copy(
+        update={
+            "error": EvalError(
+                message="CancelledError('cancelled by operator')",
+                traceback="",
+                traceback_ansi="",
+            )
+        }
+    )
+    await logger.complete_sample(cancelled, flush=False)
+    assert logger.samples_logged == 0
+
+    errored = _sample().model_copy(
+        update={
+            "error": EvalError(
+                message="RuntimeError('boom')", traceback="", traceback_ansi=""
+            )
+        }
+    )
+    await logger.complete_sample(
+        errored.model_copy(update={"id": "sample-2"}), flush=False
+    )
+    assert logger.samples_logged == 1
+
+    # requeued re-run supersedes the cancelled record
+    await logger.complete_sample(_sample(), flush=False)
     assert logger.samples_logged == 2
 
 
@@ -1441,9 +1481,7 @@ async def test_task_logger_discard_drops_recorder_entry_and_flushed_file(
     assert recorder.data == {}
 
 
-async def test_task_logger_discard_contains_recorder_failures(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
+async def test_task_logger_discard_contains_recorder_failures() -> None:
     # discard's callers run inside the dispatcher task group: a storage error
     # from the destination removal must be logged, not raised — an escaping
     # exception would cancel every in-flight task in the run
@@ -1456,10 +1494,13 @@ async def test_task_logger_discard_contains_recorder_failures(
     logger.eval = _eval_spec()
     logger._location = "test.eval"
 
-    with caplog.at_level("WARNING", logger="inspect_ai._eval.task.log"):
+    # assert on the module logger directly rather than via caplog: an eval
+    # run in an earlier test reconfigures inspect's logging, which stops
+    # records propagating to caplog's root-level handler
+    with patch.object(task_log_module.logger, "warning") as warning:
         await logger.discard()
 
     assert any(
-        "Error discarding abandoned log entry" in record.message
-        for record in caplog.records
+        "Error discarding abandoned log entry" in str(call.args[0])
+        for call in warning.call_args_list
     )

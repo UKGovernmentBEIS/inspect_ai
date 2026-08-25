@@ -474,7 +474,7 @@ by awaits.
   `_cli/ctl/_task.py` riding the shared mutation renderer with
   `not_found_missing_route`.
 - Eval-set resumability: `EvalResults` gains an additive `logged_samples`
-  count (samples actually present in the log), written by the finalize
+  count (samples the log holds a genuine resolution for), written by the finalize
   paths in `_eval/task/run.py`; `log_samples_complete`
   (`_eval/evalset.py`) prefers it over the planned `total_samples` when
   present (see Semantics — without it a drained success log reads
@@ -557,6 +557,18 @@ the sketch above; the semantics are as designed.
   to the graceful resolutions repairs exactly the gap this design targets
   (abandoned queued samples) while leaving every other success log's
   classification untouched.
+- **Cancellation-resolved samples don't count toward the stamp.** A sample
+  the drain catches in the materialization window (or one the operator
+  cancelled with `sample cancel` earlier in the run) is logged with a
+  cancellation error — present in the log, but not a resolution: everywhere
+  else in the system a cancellation is re-runnable, not final
+  (`eval-retry` re-runs it, retry seeding skips it). Counting such samples
+  could make a drained log read complete (`logged_samples == planned` when
+  the drain's only casualties were materializing samples), silently
+  dropping them from a later eval-set re-invocation. `samples_logged`
+  therefore excludes cancellation-classified samples, using the same
+  classifier as the read/requeue surfaces; a requeued re-run superseding a
+  cancelled record counts again.
 
 Two mechanics from the sketch also landed slightly differently, without
 changing behavior: the dispatch-pick drop runs at the top of the dispatch

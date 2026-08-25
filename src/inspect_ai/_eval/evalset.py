@@ -1214,8 +1214,9 @@ def log_samples_complete(
 
     # a graceful cancel/drain abandons queued samples but still finishes with
     # a success log whose total_samples records the *planned* count — such
-    # logs carry the count of samples actually logged (stamped at finalize;
-    # see _finish_task_log in task/run.py), so prefer it when present. Absent
+    # logs carry the count of samples actually resolved (stamped at finalize,
+    # cancellation-resolved samples excluded; see _finish_task_log in
+    # task/run.py), so prefer it when present. Absent
     # on ordinary logs (and logs from older versions), which fall through to
     # the planned-count comparison below.
     metadata = log.header.results.metadata or {}
