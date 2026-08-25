@@ -659,8 +659,9 @@ def _score_progress_summary(progress: dict[str, Any]) -> str:
     """Render a pass's progress counters (unscored shown only when nonzero).
 
     ``unscored`` counts in-flight samples the pass never attempted (they
-    completed on their own mid-hold, or never parked) — kept apart from
-    ``failed`` so the headline never reads scorer failures into them.
+    completed on their own mid-hold, or never parked) or that every scorer
+    declined to score — kept apart from ``failed`` so the headline never
+    reads scorer failures into them.
     """
     parts = [
         f"{int(progress.get('scored', 0) or 0)} scored",

@@ -44,6 +44,7 @@ from inspect_ai._util.file import local_path
 if TYPE_CHECKING:
     from inspect_ai._control.cancel import PendingToolCall
     from inspect_ai._control.eval_state import EvalState
+    from inspect_ai.log._log import EvalSampleSummary
     from inspect_ai.log._samples import ActiveSample
 
 # The canonical per-sample status vocabulary of the samples listing — the
@@ -600,7 +601,9 @@ def _sorted_samples(summaries: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return summaries
 
 
-async def completed_eval_sample_summaries(state: "EvalState") -> list[Any]:
+async def completed_eval_sample_summaries(
+    state: "EvalState",
+) -> "list[EvalSampleSummary]":
     """The eval's raw completed-sample summaries (recorder, else on-disk log).
 
     The shared recorder-vs-log split (with the on-disk memo) behind both the

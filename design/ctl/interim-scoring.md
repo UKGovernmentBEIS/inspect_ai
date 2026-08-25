@@ -426,8 +426,9 @@ short requests (busy retry budgets, agents' timeouts). So the directive is a
 - `GET /tasks/<task-id>/score` reports the current (or most recent) pass:
   `{pass_id, running, progress: {scored, failed, unscored, total}, as_of,
   result?}` (`unscored` counts in-flight samples the pass never attempted —
-  completed on their own mid-hold, or never parked — kept apart from
-  `failed`, which counts genuine scoring failures)
+  completed on their own mid-hold, or never parked — plus held samples every
+  scorer declined to score (returned `None`), kept apart from `failed`,
+  which counts genuine scoring failures)
   with per-sample rows and interim metrics once complete. Pass state is
   in-memory, in a module-level task-keyed registry (deliberately off the
   `EvalState`, so the most recent pass survives an attempt supersede and

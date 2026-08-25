@@ -963,6 +963,54 @@ async def test_score_pass_scorer_failure_lands_on_row(
     assert score_pass.error is None  # per-sample failures don't fail the pass
 
 
+async def test_score_pass_all_scorers_declining_is_unscored(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A held sample every scorer declines to score is unscored, not failed.
+
+    Regression: the Scorer protocol legally returns ``None`` ("no score for
+    this sample" — plausible precisely for interim, incomplete work), but the
+    row read ``outcome: "failed"`` with empty ``scorer_errors`` and counted
+    into the ``failed`` headline.
+    """
+
+    @scorer(metrics=[accuracy()])
+    def declining_scorer():
+        async def score(state: TaskState, target: Target) -> Score | None:
+            return None
+
+        return score
+
+    _speed_up(monkeypatch)
+    monkeypatch.setattr("inspect_ai._control.pause._HELD_CREDIT_INTERVAL", 0.02)
+
+    async def summaries() -> list[EvalSampleSummary]:
+        return []
+
+    register_eval("e1", 1, task_id="t1", live=FakeLiveEvalData(summaries=summaries))
+    active = _active_sample("s1")
+    _patch_active_samples(monkeypatch, [active])
+
+    handle = _scoring_handle(scorer_obj=declining_scorer())
+    model = get_model("mockllm/model", memoize=False)
+    stop = anyio.Event()
+
+    score_pass: ScorePass | None = None
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(_park_solver_loop, active, model, stop)
+        with anyio.fail_after(10):
+            score_pass = await _run_pass("t1", handle)
+        stop.set()
+
+    assert score_pass is not None
+    (row,) = score_pass.rows
+    assert row["outcome"] == "unscored"
+    assert "no score" in row["reason"]
+    assert "scorer_errors" not in row
+    assert score_pass.unscored == 1
+    assert score_pass.failed == 0
+
+
 async def test_score_pass_scoring_deadline_keeps_finished_scorers(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

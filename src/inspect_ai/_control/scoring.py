@@ -648,9 +648,10 @@ def _record(
     if scores:
         metric_scores.append(scores)
         score_pass.scored += 1
-    elif row.get("outcome") in ("superseded", "did_not_park"):
-        # not attempted, not a failure: the sample completed on its own or
-        # never parked — `failed` stays a count of genuine scoring failures
+    elif row.get("outcome") in ("superseded", "did_not_park", "unscored"):
+        # not a failure: the sample completed on its own, never parked, or
+        # every scorer declined to score it — `failed` stays a count of
+        # genuine scoring failures
         score_pass.unscored += 1
     else:
         score_pass.failed += 1
@@ -823,9 +824,20 @@ async def _score_held_sample(
             return superseded_result()
         if timed_out:
             errors[""] = "per-sample scoring deadline elapsed"
+        if scores:
+            outcome, reason = "scored", None
+        elif errors:
+            outcome, reason = "failed", None
+        else:
+            # every scorer returned None — legal per the Scorer protocol
+            # ("no score for this sample", plausible for incomplete work) —
+            # so this is a decline, not a scoring failure
+            outcome = "unscored"
+            reason = "every scorer returned no score for this sample"
         return _SampleScoreResult(
             held_row(
-                "scored" if scores else "failed",
+                outcome,
+                reason=reason,
                 scores=scores,
                 scorer_errors=errors,
             ),

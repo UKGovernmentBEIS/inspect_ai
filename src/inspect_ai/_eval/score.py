@@ -418,12 +418,11 @@ def task_state_from_sample(
 ) -> SampleTaskState:
     """Rebuild a scoring-ready ``TaskState`` from a serialized sample.
 
-    The shared post-hoc scoring recipe, used by ``inspect score`` /
-    ``score_async`` and by the interim-scoring pass (``inspect ctl task
-    score``) for completed samples: resolve attachment references (rebinding
-    timelines to the resolved events), construct the ``TaskState``, bind the
-    task context and subtask store, and seed a fresh transcript with the
-    sample's events and timelines.
+    The post-hoc scoring recipe behind ``inspect score`` / ``score_async``:
+    resolve attachment references (rebinding timelines to the resolved
+    events), construct the ``TaskState``, bind the task context and subtask
+    store, and seed a fresh transcript with the sample's events and
+    timelines.
 
     Args:
         sample: The serialized sample to rebuild from.
