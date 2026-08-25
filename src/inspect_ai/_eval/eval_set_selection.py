@@ -21,6 +21,20 @@ The definition still calls `eval_set()` — that is what preserves the side
 effects of executing it (registered models, `set_model_info`, dynamically
 constructed `Model` objects) in every worker process.
 
+A selection may also carry **operational overrides** for the worker: `log_dir`
+and `max_samples`. These exist because an environment variable cannot help
+here — `INSPECT_LOG_DIR` and friends supply *defaults*, and `eval_set()`
+declares `log_dir` with no default, so every definition passes it explicitly
+and a default can never win. A runner that needs a worker's logs to land
+somewhere else (a rehearsal run writing to local scratch rather than to the
+definition's S3 bucket) has no other way to say so. Both are deliberately
+*operational*: they change where output goes and how fast it is produced,
+never what is evaluated, and neither participates in `task_identifier()` — so
+overriding them cannot desynchronize a worker from the capture manifest.
+Omitting either keeps whatever the definition chose. Both arrived in schema
+version 2, and a document may not use a field newer than the version it
+declares — see `_FIELD_MIN_VERSION`.
+
 Two of the definition's options are overridden in worker mode, because both
 are completion decisions that belong to the runner rather than the worker:
 `fail_on_error` is forced to `False` (so sample errors never fail a task —
@@ -45,14 +59,14 @@ import json
 import os
 from collections import Counter
 
-from pydantic import BaseModel, ConfigDict, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import file
 
 INSPECT_EVAL_SET_SELECTION = "INSPECT_EVAL_SET_SELECTION"
 
-EVAL_SET_SELECTION_VERSION = 1
+EVAL_SET_SELECTION_VERSION = 2
 
 
 def eval_set_selection_requested() -> str | None:
@@ -99,6 +113,25 @@ class EvalSetSelection(BaseModel):
     tasks: list[EvalSetSelectionTask]
     """Tasks to run (identified by `task_identifier`)."""
 
+    log_dir: str | None = None
+    """Log directory for this worker, overriding the definition's (`None` keeps it)."""
+
+    # strict: lax coercion would read JSON `true` as 1 and `"3"` as 3, so a
+    # runner's templating bug could silently pin a worker to one concurrent
+    # sample instead of failing. `log_dir` needs no such guard -- pydantic
+    # already refuses non-strings for it.
+    max_samples: int | None = Field(default=None, strict=True)
+    """Sample concurrency for this worker, overriding the definition's (`None` keeps it)."""
+
+
+# The version each optional field was introduced in. A document may not use a
+# field newer than the version it declares: the declaration is what an older
+# inspect gates on, so honouring `log_dir` in a document claiming v1 would make
+# the same file behave one way here and fail as an unknown field there. Failing
+# now, on the writer's own machine, beats failing only in the one deployment
+# that still runs an older inspect.
+_FIELD_MIN_VERSION: dict[str, int] = {"log_dir": 2, "max_samples": 2}
+
 
 def _document_version(document: object) -> int | None:
     """Read a selection document's version before it has been validated.
@@ -128,7 +161,7 @@ def read_eval_set_selection(selection_path: str) -> EvalSetSelection:
         The selection.
 
     Raises:
-        PrerequisiteError: If the file cannot be read or parsed, if it uses a schema version this version of inspect does not understand, or if it names no tasks or the same task more than once.
+        PrerequisiteError: If the file cannot be read or parsed, if it uses a schema version this version of inspect does not understand, if it sets a field newer than the version it declares, or if it names no tasks, names the same task more than once, or carries a nonsensical override.
     """
 
     def unreadable(ex: Exception) -> PrerequisiteError:
@@ -177,6 +210,35 @@ def read_eval_set_selection(selection_path: str) -> EvalSetSelection:
             f"The eval set selection at '{selection_path}' names the same task "
             f"more than once: {', '.join(duplicates)}. Each task in a selection "
             "must appear exactly once."
+        )
+
+    too_new = sorted(
+        name
+        for name, introduced in _FIELD_MIN_VERSION.items()
+        if introduced > selection.version and getattr(selection, name) is not None
+    )
+    if too_new:
+        required = max(_FIELD_MIN_VERSION[name] for name in too_new)
+        raise PrerequisiteError(
+            f"The eval set selection at '{selection_path}' declares schema "
+            f"version {selection.version} but sets {', '.join(too_new)}, "
+            f"added in version {required}. Declare version {required} (an "
+            "older inspect would reject this document rather than honour it)."
+        )
+
+    # both overrides are optional, but an explicitly supplied nonsense value is
+    # a runner bug worth reporting here rather than letting it surface as an
+    # empty path or a semaphore that admits nothing.
+    if selection.log_dir is not None and not selection.log_dir.strip():
+        raise PrerequisiteError(
+            f"The eval set selection at '{selection_path}' has an empty "
+            "'log_dir' (omit the field to keep the definition's log directory)."
+        )
+    if selection.max_samples is not None and selection.max_samples < 1:
+        raise PrerequisiteError(
+            f"The eval set selection at '{selection_path}' has "
+            f"max_samples={selection.max_samples}; it must be at least 1 "
+            "(omit the field to keep the definition's value)."
         )
 
     return selection
