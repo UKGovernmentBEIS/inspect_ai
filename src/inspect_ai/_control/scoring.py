@@ -242,9 +242,9 @@ async def start_score_pass(
             "ok": False,
             "error": (
                 "task has no scorers to run in this process (the task was "
-                "defined without scorers, ran with --no-score before "
-                "interim scoring support, or is a reused log — use "
-                "`inspect score` on its log instead)"
+                "defined without scorers, the eval ran with --no-score — "
+                "which disables interim scoring too — or is a reused log; "
+                "use `inspect score` on its log after the run instead)"
             ),
         }
 

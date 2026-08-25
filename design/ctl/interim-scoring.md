@@ -119,17 +119,18 @@ the result envelope and counted in `--dry-run`:
 | Sample state | Disposition |
 |---|---|
 | **In-flight** (started, not terminal) | **held** at its next model call, scored on its stable work-so-far, released (the headline capability); reported un-scored if it neither parks nor completes within the hold timeout |
-| **Completed, unscored** (the eval ran with `--no-score`, or a scorer previously errored) | scored from its serialized form — the `inspect score` recipe applied mid-run |
+| **Completed, unscored** (a scorer previously errored, or an errored sample scoreable under `score_on_error`) | scored from its serialized form — the `inspect score` recipe applied mid-run |
 | **Completed, scored** | *not* re-scored (the task's scorers are fixed at eval start, so re-running them buys nothing); its existing final scores are included in the interim metrics |
 | **Errored / cancelled** | mirrors final scoring: errored samples are scored only if the eval's resolved `score_on_error` flag is set; cancelled samples are never scored (final scoring excludes them regardless of the flag) |
 | **Queued / pending** | skipped — nothing to score |
 
 "Partially completed" in the issue title is the in-flight row: a sample with
-real work in its transcript that hasn't reached its solver's end. The
-completed-unscored row makes the directive double as *mid-run* deferred
-scoring for `--no-score` runs (today those wait for `inspect score` after the
-fact) — and with `--ctl-server=keep`, a parked finished eval can be scored
-through the same surface.
+real work in its transcript that hasn't reached its solver's end. Note that
+a `--no-score` run cannot be interim-scored at all: the runner resolves no
+scorers under `score=False`, so the task publishes an empty scoring handle
+and the start directive rejects with "no scorers" — those runs remain served
+by `inspect score` after the fact. With `--ctl-server=keep`, a parked
+finished eval *can* be scored through this surface.
 
 ## Mechanics
 
@@ -499,9 +500,9 @@ Phases 1 and 2 together are the initial implementation (shipped):
 1. **Pass plumbing + completed samples.** The endpoint pair, job model,
    dispositions, `_run_score_task` over the live recorder's serialized
    samples, interim metrics, the result envelope. No runner changes; this
-   slice already delivers mid-run scoring for `--no-score` runs and interim
-   metrics over everything scored so far (in-flight samples report as
-   skipped until phase 2).
+   slice already delivers interim metrics over everything scored so far
+   (in-flight samples report as skipped until phase 2; `--no-score` runs
+   are rejected outright — no scorers are published, see "Which samples").
 2. **In-flight pause-and-score (the headline).** Two slices, in order.
    First the **publication + scoring context**: the `ActiveSample`
    publication (live `TaskState`, sandbox environments, target), the
@@ -599,10 +600,11 @@ hold even if a start were ever issued from in-sample code.
   only irreplaceable payload is a cross-pass time
   series of interim metrics, which nothing needs yet. Completed-unscored
   samples — the scores with no other durable home — are near-nonexistent
-  on normal runs (samples score inline at completion) and on `--no-score`
-  runs the operator has already committed to a post-run `inspect score`,
-  which writes scores into a proper rewritten log; the envelope covers the
-  "numbers now" need. Not worth a new file type next to the logs (glob
+  on normal runs (samples score inline at completion), and `--no-score`
+  runs can't run a pass at all (no scorers are published) — their operator
+  has committed to a post-run `inspect score`, which writes scores into a
+  proper rewritten log; the envelope covers the "numbers now" need. Not
+  worth a new file type next to the logs (glob
   collisions for log-dir consumers, no S3 append primitive, retention
   questions). If a durable pass history is ever needed, this is the shape
   to revisit.
