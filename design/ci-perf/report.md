@@ -263,13 +263,15 @@ window are spread across 20 files with no cluster worth a proposal.
 - **`test` leg creep, unattributed.** Fresh-portion `test` exec 332 → 342s,
   pytest step 305 → 310s, code-only Build wall 342 → 361s. By merge base the
   rise is monotone across four days rather than a step, so it is not one
-  commit. Growth accounts for ~1s. Watch; if it continues at this rate it
-  cancels `worksteal`'s 43s in about six weeks.
+  commit. Growth accounts for ~1s. At the merge-base rate (~2s of pytest step
+  per day) it would eat `worksteal`'s 43s in about three weeks — which is
+  exactly why it wants a second window before anyone acts on it.
 - **11 `entries-under-unreleased` (Changelog Lint) failures** across 11 distinct
   branches — the most-failed check in the window, ahead of any test job. Cheap
-  (6–11s) and self-inflicted by contributors placing CHANGELOG entries under a
-  released heading, but it is the single most common red check a contributor
-  sees.
+  (6–11s), and the one sampled (run `32772799160`) failed with `New changelog
+  line is outside the '## Unreleased' section`, the contributor-side mistake
+  AGENTS.md warns about. Not a CI cost, but it is the single most common red
+  check a contributor sees.
 - Everything else is within noise of the previous window: `mypy` 87 → 86s,
   `pre-commit` 32s, `package` 29 → 28s, `check-schema-and-types` 54 → 57s.
 - `action_required` runs 20 → 23 of 200. Still ~1 in 9 runs starting behind a
