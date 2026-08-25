@@ -7,6 +7,7 @@ from contextlib import contextmanager
 from typing import Iterator, Literal, Union, overload
 
 import pytest
+from test_helpers.utils import attach_caplog_to_module_logger
 
 from inspect_ai.util._checkpoint.sandbox_paths import (
     SandboxBackupPaths,
@@ -129,18 +130,11 @@ async def test_empty_list_opts_out() -> None:
 async def test_unresolvable_home_skipped_with_warning(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    # `inspect_ai` sets `propagate=False` on its package logger once logging
-    # is initialized, so caplog's root handler misses our warning once that
-    # has run (ordering-dependent across runs/versions). Attach caplog's
-    # handler to the module logger directly to capture regardless.
-    module_logger = logging.getLogger("inspect_ai.util._checkpoint.sandbox_paths")
-    module_logger.addHandler(caplog.handler)
-    try:
+    module_logger_name = "inspect_ai.util._checkpoint.sandbox_paths"
+    with attach_caplog_to_module_logger(caplog, module_logger_name):
         with _sandboxes({"default": FakeSandbox(None)}):
-            with caplog.at_level(logging.WARNING, logger=module_logger.name):
+            with caplog.at_level(logging.WARNING, logger=module_logger_name):
                 resolved = await resolve_sandbox_backup_paths({})
-    finally:
-        module_logger.removeHandler(caplog.handler)
     assert resolved == {}
     assert any("could not resolve home dir" in r.message for r in caplog.records)
 

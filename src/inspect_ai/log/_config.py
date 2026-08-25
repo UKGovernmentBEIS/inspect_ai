@@ -14,6 +14,7 @@ _OPERATIONAL_EVAL_CONFIG_FIELDS = {
     "log_shared",
     "score_display",
     "sandbox_cleanup",
+    "sandbox_prebuilt",
     "max_samples",
     "max_dataset_memory",
     "max_tasks",
