@@ -37,7 +37,7 @@ pytest step rises monotonically across four days of `main`: ~297–308s for
 2026-08-21 bases, 308–314s for 2026-08-23 bases; on the fresh portion of this
 window the `test` leg is 342s against 332s in the previous one, and code-only
 Build wall 361s against 342s. Suite growth explains only ~1s of it (+79
-collected items in four days at ~55ms each, over four workers). No single
+collected items in four days at ~60ms of worker time each, over four workers). No single
 commit accounts for the rest.
 
 **This run ships no code fix — the fifth in a row, same three blockers, all
@@ -74,8 +74,9 @@ p90 is linear-interpolation, as in prior reports.
 | Build | changes | 61 | 7s | 9s | 3s | 11s |
 | Changelog Lint | entries-under-unreleased | 44 | 6s | 8s | 3s | 3s |
 
-`sandbox-tools-unit` ran 6 times but failed 3 of them (see Waste), leaving no
-successful sample worth a median row.
+`sandbox-tools-unit` has no median row because it did not succeed once: it
+executed 4 times this window (all on 2026-08-21, 3 failures and 1 cancelled) and
+was skipped in the other 57 runs.
 
 Workflow wall clock over successful runs: Build **363s median / 445s p90** (was
 357 / 794); Validate Embedded Viewer **84s / 93s** (was 71 / 90); Changelog Lint
@@ -280,10 +281,14 @@ window are spread across 20 files with no cluster worth a proposal.
   7 runs) — `test` 31.7, `docs` 5.3, `mypy` 4.4. Lower because fewer pushes were
   superseded mid-flight, not because anything changed.
 - **Failed jobs: 27.6 runner-min** (was 56.1), led by `sandbox-tools-unit` 13.9
-  (3 failures on 2 branches, consistent with
-  [#308](https://github.com/meridianlabs-ai/inspect_ai/issues/308)) and
-  `slow-tool-tests-dev` 9.8 (1 failure). **No `test` job failed at all this
-  window** — the first window in this report series where that is true.
+  and `slow-tool-tests-dev` 9.8. All three `sandbox-tools-unit` failures are the
+  same signature — `RuntimeError: MCP server stdout reader is no longer running`
+  from an `assert isinstance(response, JSONRPCResponse)`, i.e. the injectable's
+  `mcp<2` pin meeting the root venv's mcp 2.0 after #4992, which is exactly
+  [#308](https://github.com/meridianlabs-ai/inspect_ai/issues/308) (fix in
+  flight as [#310](https://github.com/meridianlabs-ai/inspect_ai/pull/310)).
+  **No `test` job failed at all this window** — the first in this report series
+  where that is true (6, 4, 5, 4, then 0 test-leg failures per window).
 - Compute: **1,305 runner-min** per 200 runs (Build 1,118; Validate Embedded
   Viewer 181; Changelog Lint 6), against 1,377 last window. The Viewer's share
   is up 158 → 181 min, which is the regression above.
