@@ -792,9 +792,12 @@ async def _score_held_sample(
 
         # score the held (stable) live state, yielding to the sample and
         # bounding a stuck scorer; scores land in these dicts per-scorer, so
-        # a cancellation keeps whatever finished before it
+        # a cancellation keeps whatever finished before it. Pass-level (non-
+        # scorer) failures travel on the row's `reason` field — `scorer_errors`
+        # is keyed by scorer name only.
         scores: "dict[str, SampleScore]" = {}
         errors: dict[str, str] = {}
+        pass_error: str | None = None
         superseded = False
         with anyio.move_on_after(SCORE_SCORING_TIMEOUT) as scope:
             async with anyio.create_task_group() as tg:
@@ -808,26 +811,28 @@ async def _score_held_sample(
                 async def run_scorers() -> None:
                     # a child task: its context copy keeps the scoring
                     # bindings isolated from the pass (and the watcher)
+                    nonlocal pass_error
                     try:
-                        await _score_live_sample(handle, active, scores, errors)
+                        pass_error = await _score_live_sample(
+                            handle, active, scores, errors
+                        )
                     finally:
                         tg.cancel_scope.cancel()
 
                 tg.start_soon(watch)
                 tg.start_soon(run_scorers)
-        timed_out = scope.cancelled_caught
+        if scope.cancelled_caught:
+            pass_error = "per-sample scoring deadline elapsed"
 
         # re-check terminality directly, not just the watcher's flag: the
         # scorers finishing cancels the watcher, which can lose the race
         # against a terminal transition the recording predicate already saw
         if (superseded or _sample_terminal(active)) and not scores:
             return superseded_result()
-        if timed_out:
-            errors[""] = "per-sample scoring deadline elapsed"
         if scores:
-            outcome, reason = "scored", None
-        elif errors:
-            outcome, reason = "failed", None
+            outcome, reason = "scored", pass_error
+        elif errors or pass_error:
+            outcome, reason = "failed", pass_error
         else:
             # every scorer returned None — legal per the Scorer protocol
             # ("no score for this sample", plausible for incomplete work) —
@@ -880,8 +885,12 @@ async def _score_live_sample(
     active: "ActiveSample",
     scores: "dict[str, SampleScore]",
     errors: dict[str, str],
-) -> None:
+) -> str | None:
     """Run the task's scorers over a held sample's live state.
+
+    Returns a pass-level failure reason when scoring could not be attempted
+    at all (surfaced on the row's ``reason`` field, not ``scorer_errors``,
+    which is keyed by scorer name only), or ``None``.
 
     Binds the pass's scoring context — the live transcript (so each score is
     recorded as ``ScoreEvent(intermediate=True)`` on it, as task-authored
@@ -902,8 +911,7 @@ async def _score_live_sample(
 
     live_state = active.live_state
     if live_state is None:
-        errors[""] = "sample has no live state to score yet"
-        return
+        return "sample has no live state to score yet"
 
     target = _target(active.sample.target)
     _init_pass_scoring_context(handle, target)
@@ -930,6 +938,7 @@ async def _score_live_sample(
         scores=scores,
         errors=errors,
     )
+    return None
 
 
 # ---------------------------------------------------------------------------

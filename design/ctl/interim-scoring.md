@@ -572,7 +572,9 @@ event carries no `model_usage`/`role_usage` snapshot (unlike task-authored
 `score()`'s — the sample's usage is context-bound and not reachable from
 the pass), and the pass envelope does not yet report scoring usage
 separately (the budget-isolation invariant itself is enforced and tested;
-the usage reporting is deferred).
+the usage reporting is deferred). In result rows, `scorer_errors` is keyed
+by scorer name only; pass-level failures (the scoring deadline, a sample
+with no live state yet) travel on the row's `reason` field.
 
 ## Open questions
 

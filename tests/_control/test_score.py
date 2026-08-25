@@ -1017,8 +1017,9 @@ async def test_score_pass_scoring_deadline_keeps_finished_scorers(
     """The scoring deadline keeps scorers that had already finished.
 
     Scores publish incrementally: with one scorer done and one wedged, the
-    row reports the finished score plus the deadline error, not an empty
-    failure.
+    row reports the finished score plus the deadline reason, not an empty
+    failure. The deadline is a pass-level failure, so it travels on the
+    row's ``reason`` — ``scorer_errors`` stays keyed by scorer name only.
     """
     _speed_up(monkeypatch)
     monkeypatch.setattr(scoring_module, "SCORE_SCORING_TIMEOUT", 0.5)
@@ -1073,7 +1074,8 @@ async def test_score_pass_scoring_deadline_keeps_finished_scorers(
     assert row["disposition"] == "in_flight"
     assert row["outcome"] == "scored"
     assert row["scores"] == {"fast_scorer": 1.0}
-    assert "deadline" in row["scorer_errors"][""]
+    assert "deadline" in row["reason"]
+    assert "scorer_errors" not in row
     assert not sample_scoring_held(active.id)
 
 
