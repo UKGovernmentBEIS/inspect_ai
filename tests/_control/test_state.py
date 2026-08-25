@@ -514,10 +514,10 @@ def _pending_model_event(retries: int | None = None) -> "ModelEvent":
     )
 
 
-def _pending_tool_event(function: str = "bash") -> "ToolEvent":
+def _pending_tool_event(function: str = "bash", id: str = "t1") -> "ToolEvent":
     from inspect_ai.event._tool import ToolEvent
 
-    return ToolEvent(id="t1", function=function, arguments={}, pending=True)
+    return ToolEvent(id=id, function=function, arguments={}, pending=True)
 
 
 def _active_with(pending_events: list[Any], retry_wait: Any = None) -> "MagicMock":
@@ -564,6 +564,47 @@ def test_activity_tool_wins_over_model_and_earliest_leads() -> None:
     assert activity["count"] == 2
     assert activity["detail"] == "bash"
     assert activity["started_at"] == first_tool.timestamp.timestamp()
+
+
+def test_activity_tool_carries_per_call_list() -> None:
+    """Tool activity lists every pending call with its cancellable id.
+
+    The list is what lets `sample list --json` alone power the watchdog loop
+    (spot stall → `sample cancel-tool-call` by id); `cancel_requested`
+    surfaces a delivered-but-unheeded cancel on a wedged call.
+    """
+    from inspect_ai._control.state import _sample_activity
+
+    first = _pending_tool_event("bash", id="t1")
+    second = _pending_tool_event("python", id="t2")
+    second._set_cancel_fn(lambda: None)
+    second._cancel()
+    activity = _sample_activity(_active_with([first, second]))
+    assert activity is not None
+    assert activity["calls"] == [
+        {
+            "id": "t1",
+            "function": "bash",
+            "started_at": first.timestamp.timestamp(),
+            "cancel_requested": False,
+        },
+        {
+            "id": "t2",
+            "function": "python",
+            "started_at": second.timestamp.timestamp(),
+            "cancel_requested": True,
+        },
+    ]
+
+
+def test_activity_calls_null_outside_tool_activity() -> None:
+    # stable shape: the key is present on every activity type, null unless
+    # the activity is a tool
+    from inspect_ai._control.state import _sample_activity
+
+    activity = _sample_activity(_active_with([_pending_model_event()]))
+    assert activity is not None
+    assert activity["type"] == "model" and activity["calls"] is None
 
 
 def test_activity_retry_wait_when_nothing_pending() -> None:

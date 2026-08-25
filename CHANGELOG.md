@@ -3,12 +3,15 @@
 - Scoring: New machine-readable `Score.reason` field records why a score has an abnormal value (e.g. `invalid_response_format`, `grader_failed`), is preserved across score edits, and appears as `score_<name>_reason` dataframe columns. (#4567)
 - Scoring: `pattern()` and `answer()` now score unmatched output as `INCORRECT` with `reason="invalid_response_format"` instead of `NOANSWER`. Default metrics are unchanged (the default `value_to_float` already maps `NOANSWER` to 0); analyses that filter on `value == "N"`, and custom `value_to_float` mappings that treat noanswer differently, should key on `reason` instead. (#4567)
 - Scoring: `perplexity()` and `target_perplexity()` now return `Score.unscored()` with a `reason` instead of a raw NaN value when logprobs are unavailable. (#4567)
+- Eval Log: Reading a sample from a `.json` log now reports the requested uuid when the sample is missing, and raises a clear error when neither id nor uuid is provided.
+- vLLM: The server's `max_model_len` is now registered as the model's context window, so compaction and context-length handling reflect the served configuration (including LoRA adapters via their parent model). (#4215)
 - Eval Set: Protocol for running a selection of an eval set's tasks (`INSPECT_EVAL_SET_SELECTION`), so an external runner can execute one task per process into a shared log directory while owning the eval-set metadata itself.
 - Eval Log: Samples halted by a limit now record why it fired (`EvalSampleLimit.reason`, `limit_reason` on sample summaries and `samples_df()`), so operator-terminated samples can be told apart without reading transcript events.
 - Sandbox: Sandbox-tools binaries downloaded from S3 are now verified against SHA256 digests pinned in the package; failures warn by default, or fail when `INSPECT_SANDBOX_TOOLS_STRICT_DIGESTS` is set.
 - Sandbox: `bash_session` no longer stops returning output for the rest of the session when multibyte output happens to be split mid-character across reads.
 - Docker Sandbox: New `--sandbox-prebuilt` option (`sandbox_prebuilt` on `eval()`) skips image builds and fails fast at task startup when a prebuilt image is missing.
 - Docker Sandbox: `x-local: false` on a compose service is now treated the same as omitting `x-local` (the image is pulled) rather than marking the image as local.
+- Control Channel: New `inspect ctl sample cancel-tool-call` cancels one hung tool call (the model sees an ordinary tool timeout and the sample continues), with pending tool calls now visible in `inspect ctl sample list --json`.
 
 ## 0.3.260 (21 August 2026)
 
