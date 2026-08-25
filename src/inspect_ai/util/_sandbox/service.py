@@ -1,5 +1,6 @@
 import json
 import re
+import sys
 from logging import getLogger
 from pathlib import PurePosixPath
 from textwrap import dedent
@@ -14,14 +15,73 @@ from typing import (
 import anyio
 from pydantic import JsonValue
 
-from inspect_ai._util._async import coro_log_exceptions
+if sys.version_info < (3, 11):
+    from exceptiongroup import BaseExceptionGroup
+
 from inspect_ai._util.error import PrerequisiteError
+from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai.util._subprocess import ExecResult
 
 from .environment import SandboxEnvironment
 from .limits import OutputLimitExceededError, override_max_exec_output_size
 
 logger = getLogger(__name__)
+
+# Control-flow exceptions that a service method may raise and that must
+# propagate out of sandbox_service() to be enacted (in contrast to ordinary
+# exceptions, which become RPC error responses, and LimitExceededError,
+# which is routed to the active sample). ExceptionGroups are searched
+# exhaustively before matching. TerminateTaskError is deliberately absent:
+# the sample runner consumes TerminateSampleError from solver exceptions
+# (task/run.py) but has no equivalent task-boundary consumer, so routing it
+# would not reliably enact anything.
+CONTROL_FLOW_EXCEPTIONS: tuple[type[BaseException], ...] = (TerminateSampleError,)
+
+
+def find_control_flow(ex: Exception) -> BaseException | None:
+    """Find a control-flow exception in an exception's causal history.
+
+    Termination is sticky by protocol: group leaves, explicit causes
+    (raise ... from), and implicit context are all searched, so once a
+    termination has been raised anywhere in the history of the escaping
+    exception it propagates — including when a response write fails
+    mid-handling and the termination survives only as context. The only
+    way to suppress a termination is to handle it and return normally.
+    Precedence follows CONTROL_FLOW_EXCEPTIONS order, then traversal
+    order.
+    """
+    seen: set[int] = set()
+    stack: list[BaseException] = [ex]
+    history: list[BaseException] = []
+    while stack:
+        e = stack.pop()
+        if id(e) in seen:
+            continue
+        seen.add(id(e))
+        history.append(e)
+        if isinstance(e, BaseExceptionGroup):
+            stack.extend(e.exceptions)
+        if e.__cause__ is not None:
+            stack.append(e.__cause__)
+        if e.__context__ is not None:
+            stack.append(e.__context__)
+    for control_flow_type in CONTROL_FLOW_EXCEPTIONS:
+        for e in history:
+            if isinstance(e, control_flow_type):
+                return e
+    return None
+
+
+def raise_if_control_flow(ex: Exception) -> None:
+    """Re-raise a contained control-flow exception (no-op otherwise).
+
+    Used at each layer of the service's error handling so terminations
+    raised by service methods propagate out of sandbox_service() instead
+    of being logged and swallowed.
+    """
+    control = find_control_flow(ex)
+    if control is not None:
+        raise control from ex
 
 
 REQUESTS_DIR = "requests"
@@ -172,6 +232,9 @@ async def sandbox_service(
         try:
             await service.handle_requests()
         except Exception as ex:
+            # let control-flow exceptions (terminate) propagate — they are
+            # raised by service methods precisely to end the sample
+            raise_if_control_flow(ex)
             logger.warning(f"Error waiting for sandbox rpc: {ex}")
 
     # wait for and process methods
@@ -321,10 +384,7 @@ class SandboxService:
                 async with anyio.create_task_group() as tg:
                     for file in request_files:
                         tg.start_soon(
-                            coro_log_exceptions,
-                            logger,
-                            "handling sandbox service request",
-                            self._handle_request,
+                            self._handle_request_logging_errors,
                             file,
                         )
         else:
@@ -332,6 +392,16 @@ class SandboxService:
                 f"Error listing requests for sandbox service '{self._name}': "
                 f"{result.stderr}"
             )
+
+    async def _handle_request_logging_errors(self, request_file: str) -> None:
+        # log-and-continue for ordinary errors (one bad request must not tear
+        # down the polling loop), but control-flow exceptions raised by
+        # service methods must propagate to be enacted
+        try:
+            await self._handle_request(request_file)
+        except Exception as ex:
+            raise_if_control_flow(ex)
+            logger.warning(f"Error handling sandbox service request: {ex}")
 
     async def _handle_request(self, request_file: str) -> None:
         request_path = PurePosixPath(request_file)
@@ -481,6 +551,19 @@ class SandboxService:
                         f"Limit exceeded calling method {method_name}: {ex.message}",
                     )
             except Exception as err:
+                # sample termination raised by a service method (bare or
+                # wrapped in an ExceptionGroup) must propagate out of the
+                # service to be enacted — answer the RPC exactly once first
+                # so the sandbox-side caller isn't left polling forever
+                control = find_control_flow(err)
+                if control is not None:
+                    await self._write_response(
+                        request_file,
+                        request_id,
+                        None,
+                        f"Terminating: {control}",
+                    )
+                    raise control from err
                 # Log the host-side traceback, but do NOT put it in the response.
                 # This text is delivered into the sandbox and, for bridged MCP
                 # tools, surfaces verbatim as tool output the model reads. The
