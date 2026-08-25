@@ -1,3 +1,4 @@
+from inspect_ai._util.exception import TerminateSampleError, TerminateTaskError
 from inspect_ai.hooks._hooks import (
     ApiKeyOverride,
     BeforeModelGenerate,
@@ -41,5 +42,7 @@ __all__ = [
     "SampleEvent",
     "TaskEnd",
     "TaskStart",
+    "TerminateSampleError",
+    "TerminateTaskError",
     "hooks",
 ]

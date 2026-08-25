@@ -10,6 +10,7 @@ from inspect_ai._eval.eval import EvalLogs
 from inspect_ai._eval.task.log import TaskLogger
 from inspect_ai._eval.task.resolved import ResolvedTask
 from inspect_ai._util.error import EvalError
+from inspect_ai._util.exception import TerminateSampleError, TerminateTaskError
 from inspect_ai._util.registry import (
     RegistryInfo,
     registry_add,
@@ -791,14 +792,11 @@ def start_sample_event_emitter() -> None:
     ) -> None:
         try:
             async for data in receive:
-                try:
 
-                    async def _call_hook(hook: Hooks, d: SampleEvent = data) -> None:
-                        await hook.on_sample_event(d)
+                async def _call_hook(hook: Hooks, d: SampleEvent = data) -> None:
+                    await hook.on_sample_event(d)
 
-                    await _emit_to_all(_call_hook)
-                except Exception as ex:
-                    logger.warning(f"Exception in sample event emitter: {ex}")
+                await _emit_to_all(_call_hook)
         finally:
             done.set()
 
@@ -840,6 +838,8 @@ async def drain_sample_events() -> None:
                     await _emit_to_all(_emit_event)
             except (anyio.WouldBlock, anyio.EndOfStream, anyio.ClosedResourceError):
                 pass
+    except (LimitExceededError, TerminateSampleError, TerminateTaskError):
+        raise
     except Exception as ex:
         logger.warning(f"Exception draining sample events: {ex}")
     finally:
@@ -1097,8 +1097,9 @@ async def _emit_to_all(callable: Callable[[Hooks], Awaitable[None]]) -> None:
             continue
         try:
             await callable(hook)
-        # We propagate LimitExceededError so that limits can be enforced via hooks.
-        except LimitExceededError:
+        # Propagate intentional control-flow exceptions raised by hooks. All other
+        # hook exceptions remain isolated from the evaluation.
+        except (LimitExceededError, TerminateSampleError, TerminateTaskError):
             raise
         except Exception as ex:
             logger.warning(f"Exception calling hook '{hook.__class__.__name__}': {ex}")
