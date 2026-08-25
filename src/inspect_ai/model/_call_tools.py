@@ -1013,9 +1013,9 @@ def tool_param(type_hint: Type[Any], input: Any) -> Any:
 class ClassifiedToolException(NamedTuple):
     """A tool-execution exception classified as an expected tool failure.
 
-    Shared by the model tool path and the human agent tool path so the two
-    produce identical ToolCallError types and partial results for the same
-    exception (see agent/_human/commands/tool.py). Returns from
+    Shared by the model tool path and the human agent tool path (#3053) so
+    both produce identical ToolCallError types and partial results for the
+    same exception. Returns from
     classify_tool_exception(); None means the exception is unexpected and
     the caller decides its disposition (the model path fails the sample,
     the human path surfaces a message and continues).
