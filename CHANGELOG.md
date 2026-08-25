@@ -2,10 +2,13 @@
 
 - Human Agent: `human_cli()` now accepts `tools`, letting humans call inspect tools via `task tool <name>` with typed named arguments; invocations are recorded in the transcript.
 - Sandbox Services: sample termination raised by a service method (`TerminateSampleError`) now propagates and ends the sample, instead of being logged and swallowed by the request loop.
+- Eval Set: Protocol for running a selection of an eval set's tasks (`INSPECT_EVAL_SET_SELECTION`), so an external runner can execute one task per process into a shared log directory while owning the eval-set metadata itself.
+- Eval Log: Samples halted by a limit now record why it fired (`EvalSampleLimit.reason`, `limit_reason` on sample summaries and `samples_df()`), so operator-terminated samples can be told apart without reading transcript events.
 - Sandbox: Sandbox-tools binaries downloaded from S3 are now verified against SHA256 digests pinned in the package; failures warn by default, or fail when `INSPECT_SANDBOX_TOOLS_STRICT_DIGESTS` is set.
 - Sandbox: `bash_session` no longer stops returning output for the rest of the session when multibyte output happens to be split mid-character across reads.
 - Docker Sandbox: New `--sandbox-prebuilt` option (`sandbox_prebuilt` on `eval()`) skips image builds and fails fast at task startup when a prebuilt image is missing.
 - Docker Sandbox: `x-local: false` on a compose service is now treated the same as omitting `x-local` (the image is pulled) rather than marking the image as local.
+- Control Channel: New `inspect ctl sample cancel-tool-call` cancels one hung tool call (the model sees an ordinary tool timeout and the sample continues), with pending tool calls now visible in `inspect ctl sample list --json`.
 
 ## 0.3.260 (21 August 2026)
 
@@ -69,6 +72,8 @@
 - Datasets (breaking): A ragged CSV row now raises `ValueError` naming the file and line, instead of `AttributeError` or a silent load. (#4546)
 - Multiple Choice: Answers listing choices with an Oxford or trailing comma (e.g. `ANSWER: A, B, and C`) are now scored correctly instead of as no answer.
 - Bugfix: MCP sandbox sessions are now cached per tool-source instance and cleared on close, so one instance's sessions and tool lists no longer leak into another's.
+- Agent Bridge: The OpenAI Agents SDK, LangChain, and pydantic-ai examples now run as documented against OpenAI, Anthropic, and Google models.
+- Agent Bridge: Anthropic beta endpoint requests now return beta usage, so clients reading beta-only usage fields (e.g. pydantic-ai) no longer fail with `AttributeError`.
 - Bugfix: Recovered eval logs now report reasoning tokens and total cost in their top-level usage summary, which previously showed both as null.
 
 ## 0.3.258 (11 August 2026)
