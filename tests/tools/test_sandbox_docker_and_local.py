@@ -1,3 +1,4 @@
+import contextlib
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -18,7 +19,8 @@ from inspect_ai.util._sandbox.local import LocalSandboxEnvironment
 # tests, each driven by the `sandbox_env` fixture below.
 from inspect_ai.util._sandbox.self_check import *  # noqa: F401, F403
 
-# conftest wraps tests carrying this attribute in flaky_retry (docker execs flake in CI)
+# conftest wraps tests carrying this attribute in flaky_retry (docker execs
+# flake in CI); checks xfail-marked via sandbox_env run once, unretried
 for _name in _self_check.__all__:
     getattr(_self_check, _name)._needs_flaky_retry = True
 
@@ -118,16 +120,38 @@ class ConfigAndEnv(NamedTuple):
 # provider stashes running projects in a ContextVar during init and reads it
 # back at cleanup — losing that context is the LookupError that sank
 # https://github.com/UKGovernmentBEIS/inspect_ai/pull/347 under pytest-asyncio.
+# Setup needs its own retry: conftest's flaky_retry wraps only test functions,
+# and pytest caches a module-scoped fixture exception for the whole scope, so
+# one transient `compose up` failure would fail all ~44 checks in one go.
+async def _init_envs_with_retry(
+    cfg: SandboxConfig, task_name: str
+) -> dict[str, SandboxEnvironment]:
+    attempts = 4  # aligned with conftest's flaky_retry(max_retries=3)
+    for attempt in range(1, attempts + 1):
+        try:
+            await cfg.env_type.task_init(task_name=task_name, config=cfg.config)
+            return await cfg.env_type.sample_init(
+                task_name=task_name, config=cfg.config, metadata={}
+            )
+        except Exception:
+            # tear down the half-initialized project so the next attempt (and,
+            # on the last one, the test session) starts clean
+            with contextlib.suppress(Exception):
+                await cfg.env_type.task_cleanup(
+                    task_name=task_name, config=cfg.config, cleanup=True
+                )
+            if attempt == attempts:
+                raise
+    raise AssertionError("unreachable")
+
+
 @pytest.fixture(scope="module", params=_config_params())
 async def _config_and_env(
     request,
 ) -> AsyncIterator[ConfigAndEnv]:
     cfg: SandboxConfig = request.param
     task_name = f"{__name__}_{cfg.id}"
-    await cfg.env_type.task_init(task_name=task_name, config=cfg.config)
-    envs = await cfg.env_type.sample_init(
-        task_name=task_name, config=cfg.config, metadata={}
-    )
+    envs = await _init_envs_with_retry(cfg, task_name)
     try:
         yield ConfigAndEnv(cfg=cfg, env=envs["default"])
     finally:

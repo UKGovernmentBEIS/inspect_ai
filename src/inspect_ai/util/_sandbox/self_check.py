@@ -143,14 +143,16 @@ async def test_read_file_not_allowed(sandbox_env: SandboxEnvironment) -> None:
     file_name = "test_read_file_not_allowed.file"
     await sandbox_env.write_file(file_name, "inaccessible #content")
     await sandbox_env.exec(["chmod", "-r", file_name])
-    with Raises(PermissionError) as e_info:
-        await sandbox_env.read_file(file_name, text=True)
-    assert e_info is not None, "PermissionError should be raised"
-    assert file_name in str(e_info.value), (
-        f"PermissionError should contain the filename, got {e_info.value=}"
-    )
-    await sandbox_env.exec(["chmod", "+r", file_name])
-    await _cleanup_file(sandbox_env, file_name)
+    try:
+        with Raises(PermissionError) as e_info:
+            await sandbox_env.read_file(file_name, text=True)
+        assert e_info is not None, "PermissionError should be raised"
+        assert file_name in str(e_info.value), (
+            f"PermissionError should contain the filename, got {e_info.value=}"
+        )
+    finally:
+        await sandbox_env.exec(["chmod", "+r", file_name])
+        await _cleanup_file(sandbox_env, file_name)
 
 
 async def test_read_file_is_directory(sandbox_env: SandboxEnvironment) -> None:
@@ -243,14 +245,18 @@ async def test_write_text_file_without_permissions(
     file_name = "test_write_text_file_without_permissions.file"
     await sandbox_env.write_file(file_name, "impervious #content")
     await sandbox_env.exec(["chmod", "-w", file_name])
-    with Raises(PermissionError) as e_info:
-        await sandbox_env.write_file(file_name, "this won't stick")
-    assert e_info is not None, "PermissionError should be raised"
-    assert file_name in str(e_info.value), (
-        f"PermissionError should contain the filename, got {e_info.value=}"
-    )
-    await sandbox_env.exec(["chmod", "+w", file_name])
-    await _cleanup_file(sandbox_env, file_name)
+    try:
+        with Raises(PermissionError) as e_info:
+            await sandbox_env.write_file(file_name, "this won't stick")
+        assert e_info is not None, "PermissionError should be raised"
+        assert file_name in str(e_info.value), (
+            f"PermissionError should contain the filename, got {e_info.value=}"
+        )
+    finally:
+        # restore perms even on failure: a leftover read-only file would make
+        # a retried attempt fail at its first write
+        await sandbox_env.exec(["chmod", "+w", file_name])
+        await _cleanup_file(sandbox_env, file_name)
 
 
 async def test_write_text_file_exists(
@@ -318,14 +324,16 @@ async def test_write_binary_file_without_permissions(
     file_name = "test_write_binary_file_without_permissions.file"
     await sandbox_env.write_file(file_name, "impervious #content")
     await sandbox_env.exec(["chmod", "-w", file_name])
-    with Raises(PermissionError) as e_info:
-        await sandbox_env.write_file(file_name, b"\xc3\x28")
-    assert e_info is not None, "PermissionError should be raised"
-    assert file_name in str(e_info.value), (
-        f"PermissionError should contain the filename, got {e_info.value=}"
-    )
-    await sandbox_env.exec(["chmod", "+w", file_name])
-    await _cleanup_file(sandbox_env, file_name)
+    try:
+        with Raises(PermissionError) as e_info:
+            await sandbox_env.write_file(file_name, b"\xc3\x28")
+        assert e_info is not None, "PermissionError should be raised"
+        assert file_name in str(e_info.value), (
+            f"PermissionError should contain the filename, got {e_info.value=}"
+        )
+    finally:
+        await sandbox_env.exec(["chmod", "+w", file_name])
+        await _cleanup_file(sandbox_env, file_name)
 
 
 async def test_write_binary_file_exists(
