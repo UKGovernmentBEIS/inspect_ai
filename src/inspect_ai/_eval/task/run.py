@@ -1592,7 +1592,13 @@ def update_metrics_display_fn(
                 headline_index = -1
                 for score in results.scores:
                     for key, metric in score.metrics.items():
-                        is_headline = _is_headline(score, key, results.headline)
+                        # first match only: a scorer declaring both plain and
+                        # per-key metrics can emit two scores alike in every
+                        # field a reference names, and the resolver took the
+                        # first of those
+                        is_headline = headline_index < 0 and _is_headline(
+                            score, key, results.headline
+                        )
                         if is_headline:
                             headline_index = len(task_metrics)
                         task_metrics.append(

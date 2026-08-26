@@ -442,6 +442,46 @@ def test_progress_display_distinguishes_colliding_dict_scorers() -> None:
     assert task_metric(captured[-1]).endswith("0.90")
 
 
+def test_progress_display_marks_only_the_first_of_two_identical_scores() -> None:
+    """A scorer can emit two scores alike in every field a reference names.
+
+    `metrics=[mean(), {"dup": [mean()]}]` on a scorer named `dup` yields two
+    scores with the same scorer, name, reducer *and* metric key. The resolver
+    takes the first; marking the last would reorder the progress line for a
+    task that declared nothing.
+    """
+    from inspect_ai._display.core.display import TaskDisplayMetric
+    from inspect_ai._display.core.results import task_metric
+    from inspect_ai._eval.task.run import update_metrics_display_fn
+    from inspect_ai.scorer._metric import SampleScore
+
+    @scorer(name="dup", metrics=[mean(), {"dup": [mean()]}])
+    def dup() -> Scorer:
+        async def score(state: TaskState, target: Target) -> Score:
+            return Score(value={"dup": 1.0})
+
+        return score
+
+    captured: list[list[TaskDisplayMetric]] = []
+    compute = update_metrics_display_fn(captured.append, headline_metric=None)
+    compute(
+        1,
+        [{"dup": SampleScore(score=Score(value={"dup": 1.0}), sample_id=1)}],
+        [dup()],
+        ["dup"],
+        None,
+        [mean(), {"dup": [mean()]}],
+    )
+
+    assert captured, "metrics were never computed"
+    metrics = captured[-1]
+    assert [m.name for m in metrics] == ["mean", "mean"]
+    assert [m.headline for m in metrics] == [True, False]
+    # undeclared, so the order must be exactly what it was before headlines
+    assert [m.value for m in metrics] == [0.0, 1.0]
+    assert task_metric(metrics) == "mean: 0.00"
+
+
 def test_headline_survives_recompute_and_rescore() -> None:
     """Metric recomputation and rescoring re-resolve from the declaration."""
     log = run(HeadlineMetric(metric="accuracy"))
