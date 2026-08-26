@@ -304,7 +304,6 @@ async def hydrate(
             strategy=create_strategy(strategy_config),
             context=SnapshotContext(
                 sandbox_name=name,
-                sample_root=sample_root,
                 storage_dir=f"{sample_root}/{storage_subpath}",
                 storage_subpath=storage_subpath,
                 secret=restic_config.restic_password,

@@ -17,7 +17,9 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Annotated, Literal
+
+from pydantic import Discriminator
 
 from ._triggers import CheckpointTrigger, TokenInterval
 
@@ -48,6 +50,11 @@ class ResticSnapshots:
     injecting a restic binary into the sandbox.
     """
 
+    name: Literal["restic-incremental"] = "restic-incremental"
+    """Discriminator identifying this strategy in serialized form. The
+    strategy configs are otherwise field-less, so without it every JSON
+    round-trip would collapse the union to its first member."""
+
 
 @dataclass(frozen=True)
 class ArchiveSnapshots:
@@ -62,8 +69,14 @@ class ArchiveSnapshots:
     stores roughly the full dataset again at every checkpoint anyway.
     """
 
+    name: Literal["archive"] = "archive"
+    """Discriminator identifying this strategy in serialized form. See
+    :class:`ResticSnapshots`."""
 
-SnapshotStrategyConfig = ResticSnapshots | ArchiveSnapshots
+
+SnapshotStrategyConfig = Annotated[
+    ResticSnapshots | ArchiveSnapshots, Discriminator("name")
+]
 """Configuration for a sandbox snapshot strategy."""
 
 
@@ -193,13 +206,27 @@ class ResolvedCheckpointConfig:
     """
 
     trigger: CheckpointTrigger
-    sandbox_paths: dict[str, list[str]] = field(default_factory=dict)
     sandbox_snapshots: dict[str, SandboxSnapshotConfig] = field(default_factory=dict)
     retention: Literal["delete", "retain"] = "delete"
     checkpoints_location: str | None = None
     max_consecutive_failures: int | None = None
     on_checkpoint: OnCheckpointCallback | None = None
     on_resume: OnResumeCallback | None = None
+
+    @property
+    def sandbox_paths(self) -> dict[str, list[str]]:
+        """Paths-only view of ``sandbox_snapshots``.
+
+        Derived so the two can never diverge: entries with explicit
+        paths appear verbatim (empty list = opt-out), entries with
+        ``paths=None`` are omitted so the auto-home default applies
+        downstream.
+        """
+        return {
+            name: cfg.paths
+            for name, cfg in self.sandbox_snapshots.items()
+            if cfg.paths is not None
+        }
 
     def sandbox_strategy_config(self, sandbox_name: str) -> SnapshotStrategyConfig:
         """Effective snapshot strategy config for one sandbox."""
@@ -312,19 +339,9 @@ def merge_checkpoint_configs(
     for name, strategy in sandbox_strategies.items():
         if name not in resolved_snapshots:
             resolved_snapshots[name] = SandboxSnapshotConfig(strategy=strategy)
-    # `sandbox_paths` stays available on the resolved config as the derived
-    # paths-only view: entries with explicit paths appear verbatim (empty
-    # list = opt-out), entries with `paths=None` are omitted so the
-    # auto-home default applies downstream.
-    resolved_paths = {
-        name: cfg.paths
-        for name, cfg in resolved_snapshots.items()
-        if cfg.paths is not None
-    }
 
     return ResolvedCheckpointConfig(
         trigger=trigger,
-        sandbox_paths=resolved_paths,
         sandbox_snapshots=resolved_snapshots,
         retention=retention if retention is not None else "delete",
         checkpoints_location=checkpoints_location,

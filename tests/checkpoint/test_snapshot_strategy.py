@@ -112,7 +112,6 @@ def _context(sample_root: Path, *, resuming: bool = False) -> SnapshotContext:
     subpath = f"sandboxes/default/{STRATEGY_ARCHIVE}"
     return SnapshotContext(
         sandbox_name="default",
-        sample_root=str(sample_root),
         storage_dir=str(sample_root / subpath),
         storage_subpath=subpath,
         secret="test-secret",

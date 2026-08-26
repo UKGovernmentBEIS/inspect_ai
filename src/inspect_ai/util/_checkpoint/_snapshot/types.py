@@ -50,18 +50,13 @@ class SnapshotContext:
     sandbox_name: str
     """Name of the sandbox this strategy instance captures."""
 
-    sample_root: str
-    """Where checkpoint state is first materialized (host-local): the
-    sample checkpoints dir when the destination is local, the staging
-    dir when it is remote."""
-
     storage_dir: str
-    """The strategy's storage area — a host-local directory under
-    ``sample_root`` owned entirely by the strategy; the core never
-    reads inside it, and ships it verbatim to remote destinations."""
+    """The strategy's storage area — a host-local directory under the
+    sample root owned entirely by the strategy; the core never reads
+    inside it, and ships it verbatim to remote destinations."""
 
     storage_subpath: str
-    """``storage_dir`` relative to ``sample_root`` (the same relative
+    """``storage_dir`` relative to the sample root (the same relative
     path locates the storage area at the destination and in prior
     attempts' sample dirs)."""
 

@@ -12,7 +12,7 @@ Modules:
 - ``restic`` — ``ResticIncrementalStrategy`` (the default; extraction
   of the pre-existing inlined code).
 - ``archive`` — ``ArchiveStrategy`` (one complete compressed tar per
-  checkpoint; supports mid-run retention via ``keep_last``).
+  checkpoint).
 - ``pin`` — the per-sample strategy pin (§4.7 of the design).
 """
 

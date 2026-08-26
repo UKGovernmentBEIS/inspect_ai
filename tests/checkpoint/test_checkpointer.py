@@ -60,7 +60,10 @@ from inspect_ai.util._checkpoint.checkpointer_impl import (
     _snapshot_info,
 )
 from inspect_ai.util._checkpoint.checkpointer_noop import _NoopCheckpointer
-from inspect_ai.util._checkpoint.config import ResolvedCheckpointConfig
+from inspect_ai.util._checkpoint.config import (
+    ResolvedCheckpointConfig,
+    SandboxSnapshotConfig,
+)
 from inspect_ai.util._checkpoint.hydrate import HydrationResult, _HostHydrationResult
 from inspect_ai.util._checkpoint.report import ResumeReport
 from inspect_ai.util._restic import ResticBackupSummary
@@ -1603,7 +1606,7 @@ async def test_setup_aenter_defers_io_setup(tmp_path: Path) -> None:
     setup = _CheckpointerSetup(
         config=ResolvedCheckpointConfig(
             trigger=TurnInterval(every=1),
-            sandbox_paths={"web": ["/var/www"]},
+            sandbox_snapshots={"web": SandboxSnapshotConfig(paths=["/var/www"])},
         ),
         log_location=str(tmp_path / "t.eval"),
         sample_id="s",
@@ -2723,7 +2726,6 @@ async def test_fire_routes_sandbox_snapshot_through_strategy(
             strategy=stub,
             context=SnapshotContext(
                 sandbox_name="default",
-                sample_root=dirs.checkpoints,
                 storage_dir=f"{dirs.checkpoints}/{subpath}",
                 storage_subpath=subpath,
                 secret="test-pwd",

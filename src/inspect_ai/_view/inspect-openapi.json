@@ -340,7 +340,17 @@
       },
       "ArchiveSnapshots": {
         "description": "One complete compressed tar archive per checkpoint.\n\nCaptures with tools already present in effectively every image\n(tar, dd, sha256sum, zstd or gzip) \u2014 nothing is injected into the\nsandbox. Each checkpoint's archive is self-contained, so restore\nreads a single file. Best choice when restic injection is\nimpractical, or when the captured data is dominated by large,\nhigh-entropy, frequently-rewritten files where incremental backup\nstores roughly the full dataset again at every checkpoint anyway.",
-        "properties": {},
+        "properties": {
+          "name": {
+            "const": "archive",
+            "default": "archive",
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
         "title": "ArchiveSnapshots",
         "type": "object"
       },
@@ -7868,7 +7878,17 @@
       },
       "ResticSnapshots": {
         "description": "Incremental restic-based sandbox snapshots (the default).\n\nEach checkpoint stores only data changed since the previous one.\nBest choice when most files are stable across checkpoints. Requires\ninjecting a restic binary into the sandbox.",
-        "properties": {},
+        "properties": {
+          "name": {
+            "const": "restic-incremental",
+            "default": "restic-incremental",
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
         "title": "ResticSnapshots",
         "type": "object"
       },
@@ -8619,10 +8639,21 @@
           "strategy": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/ResticSnapshots"
-              },
-              {
-                "$ref": "#/components/schemas/ArchiveSnapshots"
+                "discriminator": {
+                  "mapping": {
+                    "archive": "#/components/schemas/ArchiveSnapshots",
+                    "restic-incremental": "#/components/schemas/ResticSnapshots"
+                  },
+                  "propertyName": "name"
+                },
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/ResticSnapshots"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ArchiveSnapshots"
+                  }
+                ]
               },
               {
                 "type": "null"

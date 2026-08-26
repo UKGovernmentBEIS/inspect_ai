@@ -48,13 +48,11 @@ import time
 from logging import getLogger
 from pathlib import Path
 
-from inspect_ai._util.asyncfiles import get_async_filesystem
-from inspect_ai._util.trace import trace_action
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
 from inspect_ai.util._sandbox.limits import override_max_read_file_size
 
 from .._layout.schemas import SnapshotDetails
-from .._repo_ops import checkpoint_tag
+from .._repo_ops import checkpoint_tag, fs_copy_repo
 from ..sandbox_paths import SandboxBackupPaths
 from .types import (
     PriorAttempt,
@@ -443,23 +441,12 @@ class ArchiveStrategy(SandboxSnapshotStrategy):
         attempt's destination before agent work runs, via the same
         end-of-hydration host egress that ships the restic repos).
         """
-        async_fs = get_async_filesystem()
-        storage = Path(ctx.storage_dir)
-        storage.mkdir(parents=True, exist_ok=True)
-        copied: list[str] = []
-        with trace_action(
-            logger, "Checkpoint Hydrate", f"fs-copy archive {ctx.sandbox_name!r}"
-        ):
-            async for uri in async_fs.iter_files(prior.storage_prefix, recursive=True):
-                name = uri.rsplit("/", 1)[-1]
-                await async_fs.get_file(uri, str(storage / name))
-                copied.append(name)
-            if not copied:
-                raise RuntimeError(
-                    f"resume: expected archive snapshots for sandbox "
-                    f"{ctx.sandbox_name!r} at {prior.storage_prefix}, but no "
-                    f"files were found"
-                )
+        await fs_copy_repo(
+            prior.sample_checkpoints_dir,
+            prior.storage_subpath,
+            ctx.storage_dir,
+            label=f"sandbox {ctx.sandbox_name!r}",
+        )
 
     async def discard_orphans(
         self, latest_committed_id: int, ctx: SnapshotContext

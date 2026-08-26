@@ -21,11 +21,7 @@ KNOWN_STRATEGY_NAMES: frozenset[str] = frozenset({STRATEGY_RESTIC, STRATEGY_ARCH
 
 def strategy_config_name(config: SnapshotStrategyConfig) -> str:
     """Stable strategy name for a strategy config."""
-    if isinstance(config, ResticSnapshots):
-        return STRATEGY_RESTIC
-    if isinstance(config, ArchiveSnapshots):
-        return STRATEGY_ARCHIVE
-    raise ValueError(f"unknown snapshot strategy config: {config!r}")
+    return config.name
 
 
 def create_strategy(config: SnapshotStrategyConfig) -> SandboxSnapshotStrategy:
