@@ -86,6 +86,8 @@ Task(
 
 This is useful when there is more than one way to score a result and you would like preserve the individual score values with each sample (versus reducing the multiple scores to a single value).
 
+With multiple scorers, tools that show a single number for the eval default to the first metric of the first scorer. Use [`headline_metric`](metrics.qmd#headline-metric) on the `Task` to nominate a different one.
+
 ## Scorer with Multiple Values
 
 You may also create a scorer which yields multiple scores. This is useful when the scores use data that is shared or expensive to compute. For example:
