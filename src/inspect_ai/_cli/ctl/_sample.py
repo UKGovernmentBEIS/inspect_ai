@@ -1784,10 +1784,12 @@ def _render_sample_score_result(
         if reason:
             _echo(_sanitize_line(f"Note: {reason}."))
     else:
+        # no parenthetical when the pass produced no row at all (the
+        # fallback outcome would just repeat the "Not scored" label)
+        label = f"Not scored ({outcome})" if rows else "Not scored"
         _echo(
             _sanitize_line(
-                f"Not scored ({outcome}){held_note} — "
-                f"{reason or 'no result row was produced'}."
+                f"{label}{held_note} — {reason or 'no result row was produced'}."
             )
         )
     if interrupted:

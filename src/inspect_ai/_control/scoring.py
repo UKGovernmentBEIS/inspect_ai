@@ -498,10 +498,13 @@ def _current_attempt_state(eval_id: str) -> "EvalState | dict[str, Any] | None":
 
     Eval-keyed directives can arrive with a superseded attempt's eval id
     (the task-keyed ones can't — a task id always resolves to the current
-    attempt). ``None`` for an unknown eval; an ``{"ok": False, ...}``
-    rejection for a stale attempt — a start must not register a pass that
-    would immediately report itself superseded, and a poll must not serve
-    the *current* attempt's pass as if it described the stale one.
+    attempt). ``None`` for an unknown eval; an ``{"ok": False,
+    "superseded": True, ...}`` rejection for a stale attempt — a start must
+    not register a pass that would immediately report itself superseded,
+    and a poll must not serve the *current* attempt's pass as if it
+    described the stale one. The ``superseded`` marker lets routes map this
+    rejection to a 409 (surfacing its message) where other ``ok: False``
+    results map to a 404.
     """
     from inspect_ai._control.eval_state import get_eval_state, latest_eval_for_task
 
@@ -511,6 +514,7 @@ def _current_attempt_state(eval_id: str) -> "EvalState | dict[str, Any] | None":
     if latest_eval_for_task(state.task_id) is not state:
         return {
             "ok": False,
+            "superseded": True,
             "error": (
                 "this eval attempt has been superseded by a retry — "
                 "re-resolve the target and retry against the current attempt"
@@ -525,12 +529,13 @@ async def get_sample_score_pass(
     """Report one sample's pass (``GET /evals/<eval-id>/sample/score``).
 
     Returns ``None`` when the eval isn't in this process; ``{"ok": False,
-    "error": ...}`` for a superseded attempt's eval id, and when the task's
-    current (or most recent) pass isn't sample-scoped to this exact
-    ``(sample_id, epoch)`` — the registry keeps one pass per task, so a
-    later pass (task-wide or another sample's) evicts this sample's result
-    (the route maps these to a 404/409; a finished pass's interim scores
-    remain on the sample's transcript regardless).
+    "error": ...}`` for a superseded attempt's eval id (the route maps it
+    to a 409, as the POST does, so its message survives the CLI's static
+    not-found text), and when the task's current (or most recent) pass
+    isn't sample-scoped to this exact ``(sample_id, epoch)`` — the registry
+    keeps one pass per task, so a later pass (task-wide or another
+    sample's) evicts this sample's result (a 404; a finished pass's interim
+    scores remain on the sample's transcript regardless).
     """
     state = _current_attempt_state(eval_id)
     if state is None:

@@ -1011,7 +1011,13 @@ class ControlServer:
                     content={"error": f"eval {eval_id} not found"},
                 )
             if result.get("ok") is False:
-                return JSONResponse(status_code=404, content={"error": result["error"]})
+                # a superseded attempt is a 409 (as on the POST) so the CLI
+                # surfaces this message instead of its static not-found text;
+                # a plain 404 here only ever means no pass for this sample
+                status = 409 if result.get("superseded") else 404
+                return JSONResponse(
+                    status_code=status, content={"error": result["error"]}
+                )
             return result
 
         # Cancel one running sample (phase 3). `sample_id` is a query param

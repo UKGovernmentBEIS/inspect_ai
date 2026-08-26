@@ -6487,6 +6487,45 @@ def test_sample_score_status_no_wait_single_snapshot(
     assert json.loads(result.stdout) == snapshot
 
 
+def test_sample_score_status_renders_rowless_pass(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A pass interrupted before producing its row renders a single label.
+
+    With no row, the outcome falls back to "not scored" — the renderer must
+    not double it as "Not scored (not scored)".
+    """
+    _patch_surface(monkeypatch, [_single_epoch_summary()])
+    spy = _SequenceSpy(
+        [
+            {
+                "ok": True,
+                "pass_id": "p1",
+                "scope": "sample",
+                "sample_id": "s1",
+                "epoch": 1,
+                "running": False,
+                "interrupted": "the pass was cancelled (attempt superseded)",
+                "result": {
+                    "counts": {},
+                    "samples": [],
+                    "metrics": None,
+                    "interim": True,
+                },
+            }
+        ]
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
+    result = cli_runner().invoke(
+        ctl_command,
+        ["sample", "score", "aaa111", "s1", "--status", "--no-wait", "--no-terse"],
+    )
+    assert result.exit_code == 0, result.output
+    assert "Not scored — no result row was produced." in result.output
+    assert "(not scored)" not in result.output
+    assert "pass interrupted" in result.output
+
+
 def test_sample_score_status_rejects_dry_run() -> None:
     result = cli_runner().invoke(
         ctl_command, ["sample", "score", "aaa111", "s1", "--status", "--dry-run"]

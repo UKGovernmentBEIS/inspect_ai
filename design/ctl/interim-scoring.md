@@ -124,9 +124,11 @@ sample's rows, with no metrics, as the task's result — so both report a
 foreign-scope pass as a conflict to retry after). The target resolves
 *before* the one-pass guard, so an unknown sample is a deterministic 404
 whether or not a pass happens to be running, and a superseded attempt's
-eval id is rejected on both the start and the poll (eval-keyed directives
-can arrive with a stale attempt's id; the task-keyed registry would
-otherwise serve the current attempt's pass under it). Because the registry
+eval id is rejected on both the start and the poll — a 409 on both routes,
+so the CLI surfaces the specific superseded-by-a-retry message rather than
+its static not-found text (eval-keyed directives can arrive with a stale
+attempt's id; the task-keyed registry would otherwise serve the current
+attempt's pass under it). Because the registry
 keeps one pass per task, a later pass (task-wide or another sample's)
 evicts a sample pass's result from the poll — the accepted cost of the
 shared slot (the recorded `ScoreEvent(intermediate=True)` persists on the

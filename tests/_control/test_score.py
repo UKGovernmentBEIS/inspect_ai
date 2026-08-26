@@ -1315,12 +1315,16 @@ async def test_start_sample_score_superseded_attempt_is_rejected(
     set_task_scoring("e1", _scoring_handle())
     _patch_active_samples(monkeypatch, [])
 
+    # the marker is what lets the routes map this rejection to a 409
+    # (message surfaced) rather than the generic 404
     result = await start_sample_score_pass("e1", "s1", 1)
     assert result is not None and result["ok"] is False
+    assert result.get("superseded") is True
     assert "superseded" in result["error"]
 
     status = await get_sample_score_pass("e1", "s1", 1)
     assert status is not None and status["ok"] is False
+    assert status.get("superseded") is True
     assert "superseded" in status["error"]
 
 
