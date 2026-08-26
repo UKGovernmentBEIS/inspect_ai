@@ -11,6 +11,7 @@
 - Control Channel: New `inspect ctl sample cancel-tool-call` cancels one hung tool call (the model sees an ordinary tool timeout and the sample continues), with pending tool calls now visible in `inspect ctl sample list --json`.
 - Models: `Model.generate()` and `Model.generate_loop()` accept an optional `on_stream` callback that by itself enables provider streaming and receives incremental events (text/reasoning/tool-call deltas and retry boundaries), with streamed progress now also visible on `inspect ctl sample list`.
 - Control Channel: `inspect ctl config --json` refusals against an older eval process now emit the structured `{"error": ...}` envelope instead of only stderr prose.
+- Refactor: Consolidated the per-sample lifecycle in the task runner; samples now reach terminal state before metrics/early-stopping hooks run, so a raising or suspended hook cannot leave a sample uncounted or a finished task accepting requeue/cancel.
 
 ## 0.3.260 (21 August 2026)
 
@@ -47,7 +48,6 @@
 - Mistral: Provider-generated images remain available when replayed in subsequent conversation turns.
 - Eval Log: A retry attempt killed before it finishes reusing the prior log's completed samples no longer causes the next retry to re-run (and eventually lose) those samples.
 - Docs: Clarify that the sandbox `exec()` output limit is enforced by front-truncating the output streams rather than by raising `OutputLimitExceededError` (which remains the behaviour for `read_file()`). (#4778)
-- Refactor: Consolidated the per-sample lifecycle in the task runner; samples now reach terminal state before metrics/early-stopping hooks run, so a raising or suspended hook cannot leave a sample uncounted or a finished task accepting requeue/cancel.
 
 ## 0.3.259 (16 August 2026)
 
