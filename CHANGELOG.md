@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Eval Log: `local_path()` now percent-decodes `file://` URLs, restoring the `to_uri()` round trip for paths with spaces or other encoded characters (affects every consumer of file URLs: log recorders, control-channel state, checkpoint restore, approval policy files). (#5025)
 - Scoring: New machine-readable `Score.reason` field records why a score has an abnormal value (e.g. `invalid_response_format`, `grader_failed`), is preserved across score edits, and appears as `score_<name>_reason` dataframe columns. (#4567)
 - Scoring: `pattern()` and `answer()` now score unmatched output as `INCORRECT` with `reason="invalid_response_format"` instead of `NOANSWER`. Default metrics are unchanged (the default `value_to_float` already maps `NOANSWER` to 0); analyses that filter on `value == "N"`, and custom `value_to_float` mappings that treat noanswer differently, should key on `reason` instead. (#4567)
 - Scoring: `perplexity()` and `target_perplexity()` now return `Score.unscored()` with a `reason` instead of a raw NaN value when logprobs are unavailable. All unscorable states (including an empty completion, which earlier revisions labeled `no_response`) carry `reason="scoring_failed"`: the sample is excluded from metrics, so the reason reports the instrument declining to run — the empty-completion detail remains in `explanation`. (#4567)
