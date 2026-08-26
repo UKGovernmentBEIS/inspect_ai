@@ -188,17 +188,23 @@ class TogetherAIAPI(OpenAICompatibleAPI):
         return chat_choices_from_response_together(completion, tools)
 
     @override
+    def resolve_stream(self, config: GenerateConfig) -> bool:
+        # batching and streaming are mutually exclusive (and the base class
+        # resolves streaming while building the request, before the batcher
+        # exists — so the decision must not depend on _resolve_batcher having
+        # run)
+        if self._batcher or normalized_batch_config(config.batch):
+            return False
+        return super().resolve_stream(config)
+
+    @override
     async def _generate_completion(
         self, request: dict[str, Any], config: GenerateConfig
     ) -> ChatCompletion:
         self._resolve_batcher(config)
         if self._batcher:
             return await self._batcher.generate_for_request(request)
-        # honor streaming (batching and streaming are mutually exclusive)
         if self.resolve_stream(config):
-            # ask the server for cumulative usage on the final chunk so the
-            # streamed completion carries the same usage as a non-streamed one
-            request.setdefault("stream_options", {"include_usage": True})
             async with self.client.chat.completions.stream(**request) as stream:
                 try:
                     return await openai_chat_completion_stream_final(stream)

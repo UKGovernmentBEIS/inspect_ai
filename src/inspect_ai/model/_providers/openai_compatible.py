@@ -257,6 +257,15 @@ class OpenAICompatibleAPI(ModelAPI):
                 **completion_params,
             )
 
+            # resolve streaming and mutate the request accordingly before the
+            # ModelCall snapshot below, so the logged request matches the wire
+            # request
+            if self.resolve_stream(config):
+                # ask the server for cumulative usage on the final chunk so the
+                # streamed completion carries the same usage as a non-streamed
+                # one
+                request.setdefault("stream_options", {"include_usage": True})
+
             model_call = set_active_model_event_call(request, openai_media_filter)
 
             try:
@@ -330,9 +339,6 @@ class OpenAICompatibleAPI(ModelAPI):
                     "be ignored. Disable streaming to receive prompt log "
                     "probabilities.",
                 )
-            # ask the server for cumulative usage on the final chunk so the
-            # streamed completion carries the same usage as a non-streamed one
-            request.setdefault("stream_options", {"include_usage": True})
             async with self.client.chat.completions.stream(**request) as stream:
                 try:
                     return await openai_chat_completion_stream_final(stream)
@@ -415,10 +421,16 @@ class OpenAICompatibleAPI(ModelAPI):
         An explicit `stream` model arg wins; when unset, stream if the
         subclass calls for it (`should_stream`) or the caller passed
         `on_stream` to `Model.generate()` (`model_stream_requested`).
+        `on_stream` alone never turns on streaming when `prompt_logprobs`
+        is requested: the streaming path drops prompt logprobs, and a
+        display-only stream request must not degrade results (an explicit
+        opt-in still streams, with a warning).
         """
         if self.stream is not None:
             return self.stream
-        return self.should_stream(config) or model_stream_requested()
+        if self.should_stream(config):
+            return True
+        return model_stream_requested() and config.prompt_logprobs is None
 
     def tools_to_openai(self, tools: list[ToolInfo]) -> list[ChatCompletionToolParam]:
         # some inference platforms (e.g. hf-inference) require strict=True

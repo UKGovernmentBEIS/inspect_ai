@@ -525,7 +525,11 @@ async def test_chat_completion_stream_reports_deltas() -> None:
 
 
 async def test_streaming_requests_usage(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Streaming requests ask for usage on the final chunk (include_usage)."""
+    """Streaming requests ask for usage on the final chunk (include_usage).
+
+    Goes through generate() to also verify the logged ModelCall request
+    matches the wire request (stream_options is added before the snapshot).
+    """
     api = _compatible_api()  # stream unset ("auto")
 
     final = ChatCompletion.model_validate(
@@ -573,8 +577,45 @@ async def test_streaming_requests_usage(monkeypatch: pytest.MonkeyPatch) -> None
 
     try:
         with model_stream_observer(ModelStreamObserver("test", collect)):
-            result = await api._generate_completion({}, GenerateConfig())
-        assert result is final
+            result = await api.generate(
+                input=[ChatMessageUser(content="hi")],
+                tools=[],
+                tool_choice="none",
+                config=GenerateConfig(),
+            )
+        assert isinstance(result, tuple)
+        output, model_call = result
+        assert isinstance(output, ModelOutput)
+        assert output.completion == "ok"
         assert captured["stream_options"] == {"include_usage": True}
+        # the logged request matches what was sent on the wire
+        assert model_call.request["stream_options"] == {"include_usage": True}
     finally:
         await api.aclose()
+
+
+def test_resolve_stream_declines_prompt_logprobs() -> None:
+    """Auto mode declines to stream when prompt_logprobs is requested.
+
+    The streaming path drops prompt_logprobs, and a display-only on_stream
+    request must not degrade results (an explicit opt-in still streams,
+    with a warning).
+    """
+    config = GenerateConfig(prompt_logprobs=1)
+    collector = _StreamCollector()
+    with model_stream_observer(ModelStreamObserver("test", collector)):
+        assert _compatible_api().resolve_stream(config) is False
+        assert _compatible_api(stream=True).resolve_stream(config) is True
+
+
+def test_together_resolve_stream_excludes_batching() -> None:
+    """Batching and streaming are mutually exclusive.
+
+    A batched request never streams (and so never carries stream_options
+    in its logged ModelCall).
+    """
+    config = GenerateConfig(batch=True)
+    collector = _StreamCollector()
+    with model_stream_observer(ModelStreamObserver("test", collector)):
+        assert _together_api().resolve_stream(config) is False
+        assert _together_api(stream=True).resolve_stream(config) is False
