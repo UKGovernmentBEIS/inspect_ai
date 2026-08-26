@@ -1364,10 +1364,14 @@ async def test_limits_route_max_samples_pin_and_clear() -> None:
         assert "max_samples" in bad.json()["error"]
         assert "'clear'" in bad.json()["error"]
 
-        # 0 400s at the wire too (not a 500 from the apply layer)
-        zero = await client.patch("/tasks/t1/config", params={"max_samples": 0})
-        assert zero.status_code == 400
-        assert "max_samples must be >= 1" in zero.json()["error"]
+        # 0 400s at the wire too (not a 500 from the apply layer), and the
+        # negative-value rejection advertises the same >= 1 floor
+        for below_floor in (0, -1):
+            bad = await client.patch(
+                "/tasks/t1/config", params={"max_samples": below_floor}
+            )
+            assert bad.status_code == 400
+            assert "max_samples must be an integer >= 1" in bad.json()["error"]
 
 
 async def test_limits_route_rejects_unknown_param_atomically() -> None:

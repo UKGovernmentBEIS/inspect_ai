@@ -415,22 +415,24 @@ class ControlServer:
             return None
 
         def _parse_override_knobs(
-            maximum: int | None, *knobs: tuple[str, str | None]
+            maximum: int | None,
+            *knobs: tuple[str, str | None],
+            minimum: int = 0,
         ) -> _ParsedOverrideKnobs:
             """Parse override knobs' raw values (retry/sample limits, max_samples).
 
             Unlike the limits knobs these are declared ``str`` on the route:
-            every integer >= 0 is a real value (0 = fail after the first
-            attempt / a zero budget), so clearing an override is spelled with
-            the keyword ``clear`` rather than a sentinel integer. Values above
+            every integer >= ``minimum`` is a real value, so clearing an
+            override is spelled with the keyword ``clear`` rather than a
+            sentinel integer. The default floor is 0 (0 = fail after the
+            first attempt / a zero budget for the retry/limit knobs);
+            ``max_samples`` passes ``minimum=1`` (its apply layer raises on
+            0), so both its rejections carry the same bound. Values above
             ``maximum`` (the store's own bound —
             :data:`MAX_GENERATE_CONFIG_OVERRIDE` /
             :data:`MAX_SAMPLE_LIMIT_OVERRIDE`; ``None`` for a knob with no
             upper bound, like ``max_samples``) are rejected here too: the
             store enforces the same bound, but a 400 at the wire beats a 500.
-            ``max_samples`` additionally needs its parsed int fed through
-            ``_limits_below_one`` — 0 is a real value for the override knobs
-            this parser serves, so it cannot reject it here.
             Returns the parsed values plus a 400 for the first invalid one
             (a ``None`` passes through as "not requested").
             """
@@ -444,12 +446,12 @@ class ControlServer:
                     try:
                         value = int(raw)
                     except ValueError:
-                        value = -1
-                    if value < 0 or (maximum is not None and value > maximum):
+                        value = minimum - 1
+                    if value < minimum or (maximum is not None and value > maximum):
                         bounds = (
-                            f"between 0 and {maximum}"
+                            f"between {minimum} and {maximum}"
                             if maximum is not None
-                            else ">= 0"
+                            else f">= {minimum}"
                         )
                         return _ParsedOverrideKnobs(
                             values=parsed,
@@ -1044,22 +1046,17 @@ class ControlServer:
         ) -> Any:
             # max_samples is declared str (it accepts the keyword `clear` —
             # under adaptive connections an integer pins sample concurrency
-            # and `clear` unpins): parse first, then run the parsed int
-            # through the shared below-one check — the parser accepts 0 (a
-            # real value for the override knobs it serves), but 0 must 400
-            # here rather than 500 from the apply layer, and the knob has no
-            # upper bound (maximum=None), matching the static setpoint.
+            # and `clear` unpins): minimum=1 because the apply layer raises
+            # on 0 (0 must 400 at the wire, not 500), and maximum=None
+            # because the knob has no upper bound, matching the static
+            # setpoint.
             max_samples_knob, max_samples_error = _parse_override_knobs(
-                None, ("max_samples", max_samples)
+                None, ("max_samples", max_samples), minimum=1
             )
             if max_samples_error is not None:
                 return max_samples_error
             parsed_max_samples = max_samples_knob["max_samples"]
             if error := _limits_below_one(
-                (
-                    "max_samples",
-                    parsed_max_samples if isinstance(parsed_max_samples, int) else None,
-                ),
                 ("max_sandboxes", max_sandboxes),
                 ("max_subprocesses", max_subprocesses),
                 ("max_connections", max_connections),

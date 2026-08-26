@@ -179,17 +179,21 @@ eval's single event-loop thread (see AGENTS.md "No speculative locks").
   and parse it with a single-knob use of `_parse_override_knobs` (it
   already implements int/`"clear"`/reject parsing with the friendly
   error-keyed 400). Two parity gaps mean the helper cannot be reused
-  unmodified, and `max_samples` must **stay in the `_limits_below_one`
-  check** — run *after* parsing, on the parsed int:
-  - The helper deliberately accepts 0 — a real value for the retry/limit
+  unmodified; parameterize its bounds so this knob's floor and ceiling
+  both live in the parser (one rejection, one message):
+  - The helper's default floor is 0 — a real value for the retry/limit
     override knobs it serves (`--max-retries 0` = fail after the first
     attempt) — so it has no `IntRange(min=1)`-equivalent rejection to
     inherit, and its floor cannot simply be raised without breaking those
-    knobs. Parse first, then feed the parsed int through the existing
-    shared `_limits_below_one` check: 0 must 400 here, because let through
-    it reaches the apply layer where both `ResizableLimiter.limit`
+    knobs. Add a `minimum` parameter (default 0) and pass `minimum=1` for
+    `max_samples`: 0 must 400 at the wire, because let through it reaches
+    the apply layer where both `ResizableLimiter.limit`
     (`_concurrency.py`) and `CapacityLimiter.total_tokens` raise on `< 1`
-    — an unhandled 500, not the clean 400 the test plan expects.
+    — an unhandled 500, not the clean 400 the test plan expects. (Routing
+    the parsed int through the shared `_limits_below_one` check instead
+    would also work, but then the negative-value rejection from the
+    parser and the zero rejection from `_limits_below_one` would disagree
+    on the knob's floor.)
   - The helper *requires* a `maximum` argument
     (`MAX_GENERATE_CONFIG_OVERRIDE` / `MAX_SAMPLE_LIMIT_OVERRIDE`), while
     this knob has no upper bound (see Bounds). Make `maximum` optional
