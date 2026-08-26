@@ -8,6 +8,7 @@
 - Docker Sandbox: New `--sandbox-prebuilt` option (`sandbox_prebuilt` on `eval()`) skips image builds and fails fast at task startup when a prebuilt image is missing.
 - Docker Sandbox: `x-local: false` on a compose service is now treated the same as omitting `x-local` (the image is pulled) rather than marking the image as local.
 - Control Channel: New `inspect ctl sample cancel-tool-call` cancels one hung tool call (the model sees an ordinary tool timeout and the sample continues), with pending tool calls now visible in `inspect ctl sample list --json`.
+- Metrics: Tasks can now declare a `headline_metric` naming which scorer and metric summarise the eval, honored by the log listing, the progress display, and `evals_df()`.
 
 ## 0.3.260 (21 August 2026)
 

@@ -74,7 +74,9 @@ from inspect_ai.log import (
     EvalLog,
     EvalResults,
     EvalSample,
+    EvalScore,
     EvalStats,
+    HeadlineMetric,
 )
 from inspect_ai.log._condense import condense_sample, resolve_events_attachments
 from inspect_ai.log._file import (
@@ -831,6 +833,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                 update_metrics_display = update_metrics_display_fn(
                     update_metrics,
                     display_metrics=profile.eval_config.score_display is not False,
+                    headline_metric=task.headline_metric,
                 )
 
                 async def sample_complete(
@@ -1372,6 +1375,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                     completed_samples=(
                         logger.samples_completed if log_samples else None
                     ),
+                    headline_metric=task.headline_metric,
                 )
 
             # collect eval data
@@ -1424,6 +1428,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         completed_samples=(
                             logger.samples_completed if log_samples else None
                         ),
+                        headline_metric=task.headline_metric,
                     )
 
                 if task_cancel and task_cancel.cancel_type in ("abort", "retry"):
@@ -1536,6 +1541,7 @@ def update_metrics_display_fn(
     initial_interval: float = 0,
     min_interval: float = 0.9,
     display_metrics: bool = True,
+    headline_metric: HeadlineMetric | None = None,
 ) -> Callable[
     [
         int,
@@ -1574,22 +1580,34 @@ def update_metrics_display_fn(
                 scorers=scorers,
                 metrics=metrics,
                 scorer_names=scorer_names,
+                headline_metric=headline_metric,
             )
 
             # Name, reducer, value
             task_metrics: list[TaskDisplayMetric] = []
             if len(results.scores) > 0:
+                # the progress line renders metrics[0], so lead with the
+                # headline. Marked here, while the originating EvalScore is
+                # still in hand and its full identity is available.
+                headline_index = -1
                 for score in results.scores:
                     for key, metric in score.metrics.items():
+                        is_headline = _is_headline(score, key, results.headline)
+                        if is_headline:
+                            headline_index = len(task_metrics)
                         task_metrics.append(
                             TaskDisplayMetric(
                                 scorer=score.name,
+                                scorer_name=score.scorer,
                                 name=key,
                                 value=metric.value,
                                 reducer=score.reducer,
                                 params=metric.params,
+                                headline=is_headline,
                             )
                         )
+                if headline_index > 0:
+                    task_metrics.insert(0, task_metrics.pop(headline_index))
                 update_fn(task_metrics)
 
             # determine how long to wait before recomputing metrics
@@ -1599,6 +1617,18 @@ def update_metrics_display_fn(
             next_compute_time = time_end + wait
 
     return compute
+
+
+def _is_headline(
+    score: EvalScore, metric_key: str, headline: HeadlineMetric | None
+) -> bool:
+    return (
+        headline is not None
+        and score.scorer == headline.scorer
+        and score.name == headline.score
+        and score.reducer == headline.reducer
+        and metric_key == headline.metric
+    )
 
 
 def _sample_usage(state: TaskState) -> dict[str, int]:

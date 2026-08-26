@@ -3209,6 +3209,16 @@
               }
             ]
           },
+          "headline": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HeadlineMetric"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "metadata": {
             "anyOf": [
               {
@@ -4657,6 +4667,16 @@
             ],
             "title": "Eval Set Id"
           },
+          "headline_metric": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HeadlineMetric"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "metadata": {
             "anyOf": [
               {
@@ -5807,6 +5827,57 @@
           }
         },
         "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "HeadlineMetric": {
+        "description": "Reference to the headline metric of an eval.\n\nThe headline metric is the single number that best summarises an eval (e.g.\nfor a leaderboard or log listing). Set fields narrow ``EvalResults.scores``\nin turn; unset ones resolve by convention. A ``metric`` on its own selects\nthe first score *carrying* that metric, so ``HeadlineMetric(metric=\"accuracy\")``\nskips scores that don't report one. With no ``metric``, the first metric of\nthe first remaining score is used \u2014 the default when nothing is declared.\n\nFields are matched literally. ``Task(headline_metric=...)`` additionally\naccepts a ``\"<scorer>.<score>\"`` shorthand string, which is split into these\nfields before it reaches the model \u2014 scorer names may themselves contain a\ndot (``@scorer(name=\"judge.v2\")``), so the shorthand is only applied where\nit is unambiguously requested.",
+        "properties": {
+          "metric": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metric"
+          },
+          "reducer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reducer"
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score"
+          },
+          "scorer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scorer"
+          }
+        },
+        "title": "HeadlineMetric",
         "type": "object"
       },
       "ImageOutput": {
@@ -9986,6 +10057,11 @@
       },
       "TaskDisplayMetric": {
         "properties": {
+          "headline": {
+            "default": false,
+            "title": "Headline",
+            "type": "boolean"
+          },
           "name": {
             "title": "Name",
             "type": "string"
@@ -10017,6 +10093,17 @@
             "title": "Scorer",
             "type": "string"
           },
+          "scorer_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scorer Name"
+          },
           "value": {
             "anyOf": [
               {
@@ -10034,6 +10121,7 @@
         },
         "required": [
           "scorer",
+          "headline",
           "name"
         ],
         "title": "TaskDisplayMetric",

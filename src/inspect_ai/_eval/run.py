@@ -353,6 +353,7 @@ async def eval_run(
                     dataset=task.dataset,
                     scorer=eval_scorer_specs,
                     metrics=eval_metrics,
+                    headline_metric=task.headline_metric,
                     sandbox=resolved_task.sandbox,
                     task_attribs=task.attribs,
                     task_args=getattr(

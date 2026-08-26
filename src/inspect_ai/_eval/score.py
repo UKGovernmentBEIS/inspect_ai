@@ -44,6 +44,7 @@ from inspect_ai.log import (
     EvalLog,
 )
 from inspect_ai.log._condense import resolve_sample_attachments
+from inspect_ai.log._headline import headline_metric_ref, resolve_headline_metric
 from inspect_ai.log._log import EvalMetricDefinition, EvalSample
 from inspect_ai.log._resolve import rebind_sample_timelines
 from inspect_ai.log._score import _find_scorers_span
@@ -367,6 +368,10 @@ async def score_async(
             early_stopping=log.results.early_stopping if log.results else None,
             metadata=log.results.metadata if log.results else None,
             completed_samples=sum(sample_completed),
+            # resolved below instead: these results cover only the scorers run
+            # in this pass, so an "append" would resolve the headline against a
+            # partial score list
+            headline_metric=None,
         )
 
         # Update log.eval.scorers to reflect the scorers actually applied so
@@ -394,6 +399,13 @@ async def score_async(
                 log.reductions = (log.reductions or []) + reductions
             log.results.scores.extend(results.scores)
             log.eval.scorers = (log.eval.scorers or []) + applied_eval_scorers
+
+        resolved_headline = resolve_headline_metric(
+            log.results, log.eval.headline_metric
+        )
+        log.results.headline = (
+            headline_metric_ref(resolved_headline) if resolved_headline else None
+        )
 
     return log
 
