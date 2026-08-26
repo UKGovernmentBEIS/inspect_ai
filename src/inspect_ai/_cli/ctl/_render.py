@@ -727,6 +727,7 @@ def _print_human_table(summaries: list[dict[str, Any]]) -> None:
     # `or 0` also covers an older server, which reports neither key.
     any_refusals = any((s.get("refusals") or 0) > 0 for s in summaries)
     any_http_retries = any((s.get("http_retries") or 0) > 0 for s in summaries)
+    any_tps = any((s.get("tokens_per_second") or 0) > 0 for s in summaries)
     # shown only when some task is paused (or holding samples — a hard model
     # pause can hold another task's grader calls without any latch source on
     # that row), so a paused run doesn't read as stalled (the cell names the
@@ -758,6 +759,8 @@ def _print_human_table(summaries: list[dict[str, Any]]) -> None:
             cells.append(_format_count(s.get("refusals")))
         if any_http_retries:
             cells.append(_format_count(s.get("http_retries")))
+        if any_tps:
+            cells.append(_format_rate(s.get("tokens_per_second")))
         if any_paused:
             cells.append(_format_paused(s))
         cells.append(_format_started(s.get("started_at", 0)))
@@ -777,6 +780,10 @@ def _print_human_table(summaries: list[dict[str, Any]]) -> None:
         # Spelled out rather than "retries": the `attempts` column is also a
         # retry count (of whole task attempts), and these are HTTP-level.
         headers_list.append("http_retries")
+    if any_tps:
+        # Total (not output) tokens per second — the task summary tracks only
+        # total tokens; the per-model out tok/s view is `ctl model throughput`.
+        headers_list.append("tok/s")
     if any_paused:
         headers_list.append("paused")
     headers_list.append("started")
@@ -793,6 +800,11 @@ def _format_count(value: Any) -> str:
     claims and must not render the same way.
     """
     return "" if value is None else str(value)
+
+
+def _format_rate(value: Any) -> str:
+    """A rate cell: one decimal, or blank when the server didn't report it."""
+    return "" if value is None else f"{float(value):,.1f}"
 
 
 def _format_paused(summary: dict[str, Any]) -> str:

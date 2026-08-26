@@ -30,6 +30,7 @@ from inspect_ai._cli.ctl._fetch import (
 )
 from inspect_ai._cli.ctl._http import _failure_prefix, _resolve_target_server
 from inspect_ai._cli.ctl._knobs import _KNOB_SCOPE
+from inspect_ai._cli.ctl._model import _format_backoff, _print_throughput_table
 from inspect_ai._cli.ctl._render import (
     _SHORT_ID_LEN,
     _echo_error,
@@ -303,6 +304,76 @@ def test_tasks_table_leaves_an_unreported_count_blank_not_zero(
     assert cell("aaa111") == "7"
     assert cell("bbb222") == "", "an unreported count must not read as zero"
     assert cell("ccc333") == "0"
+
+
+def test_tasks_table_shows_tok_s_only_when_reported_nonzero(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Same only-when-something-to-report rule as `refusals`/`http_retries`.
+
+    Blank (not 0) for a row whose server doesn't report the key, matching
+    `_format_count`'s convention for the other counters.
+    """
+    _print_human_table([_task_row("aaa111", "t1", tokens_per_second=None)])
+    header = capsys.readouterr().out.splitlines()[0]
+    assert "tok/s" not in header
+
+    _print_human_table(
+        [
+            _task_row("aaa111", "t1", tokens_per_second=41.7),
+            _task_row("bbb222", "t2"),  # older server: key absent
+        ]
+    )
+    lines = capsys.readouterr().out.splitlines()
+    header = lines[0]
+    assert "tok/s" in header
+    assert "41.7" in next(ln for ln in lines if ln.startswith("aaa111"))
+    start = header.index("tok/s")
+    unreported = next(ln for ln in lines if ln.startswith("bbb222"))
+    assert unreported[start : start + len("tok/s")].strip() == ""
+
+
+def test_throughput_table_renders_rates_and_backoff(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _print_throughput_table(
+        [
+            {
+                "model": "anthropic/claude-sonnet-5",
+                "output_tokens_per_second": 41.7,
+                "requests_per_minute": 12.0,
+                "retries_per_minute": 33.0,
+                "backoff_ratio": 11.2,
+                "retry_waits_active": 14,
+                "cumulative": {"retry_wait_seconds": 14220.0},
+            },
+            {
+                "model": "openai/gpt-5",
+                "output_tokens_per_second": 310.25,
+                "requests_per_minute": 45.0,
+                "retries_per_minute": 0.0,
+                "backoff_ratio": 0.0,
+                "retry_waits_active": 0,
+                "cumulative": {"retry_wait_seconds": 0},
+            },
+        ]
+    )
+    lines = capsys.readouterr().out.splitlines()
+    header = lines[0]
+    for column in ("model", "out tok/s", "req/min", "retries/min", "in backoff"):
+        assert column in header
+    throttled = next(ln for ln in lines if ln.startswith("anthropic/"))
+    assert "41.7" in throttled and "14" in throttled and "3h 57m" in throttled
+    healthy = next(ln for ln in lines if ln.startswith("openai/"))
+    assert "310.2" in healthy and healthy.rstrip().endswith("-")
+
+
+def test_format_backoff() -> None:
+    assert _format_backoff(None) == "-"
+    assert _format_backoff(0) == "-"
+    assert _format_backoff(45) == "45s"
+    assert _format_backoff(312) == "5m 12s"
+    assert _format_backoff(14220) == "3h 57m"
 
 
 def _sample(

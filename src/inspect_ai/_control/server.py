@@ -17,8 +17,9 @@ Current scope is the phase 1-2 read surface — ``GET /tasks`` (per-task
 summaries), ``GET /evals/{id}/samples`` (capped sample listing with a
 status histogram and an ``active_since`` recency delta), ``GET
 /evals/{id}/sample`` (summary + error detail), ``GET
-/evals/{id}/sample/events`` (cursored transcript pull), and
-``GET /evals/{id}/sample/messages`` (conversation snapshot) —
+/evals/{id}/sample/events`` (cursored transcript pull),
+``GET /evals/{id}/sample/messages`` (conversation snapshot), and
+``GET /models/throughput`` (per-model run throughput) —
 plus ``POST /release`` / ``POST /keep`` for keep-alive control
 and the first phase-3 directives: the config/log-flush mutations,
 ``POST /tasks/{id}/cancel`` / ``POST /evals/{id}/sample/cancel``,
@@ -1322,6 +1323,23 @@ class ControlServer:
         @app.post("/resume")
         async def process_resume(dry_run: bool = False) -> Any:
             return await resume_process(dry_run=dry_run)
+
+        # Per-model throughput across the whole run (process scope — it sits
+        # beside the model pause latch): recent output tok/s, requests/min,
+        # retries/min, backoff ratio, and active retry waits per model, plus
+        # cumulative totals (see design/model-throughput.md). Cheap shoveling:
+        # everything is materialized at write time in the throughput registry;
+        # the read sums a bounded ring per model plus one bounded pass over
+        # active samples. `window` (seconds) is type-validated by FastAPI
+        # (malformed → 422) and clamped server-side to the bucket horizon;
+        # unknown params are tolerated (GETs stay tolerant, per
+        # design/ctl/control-channel.md). Never 404s — an empty registry
+        # reports an empty model list.
+        @app.get("/models/throughput")
+        async def models_throughput(window: int = 60) -> Any:
+            from inspect_ai.model._throughput import throughput_report
+
+            return throughput_report(window=window)
 
         # Pause / resume dispatch for one model (the third latch — see
         # design/ctl/pause-resume.md "Model-scoped latch"): samples, queued

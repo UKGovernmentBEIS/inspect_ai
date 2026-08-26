@@ -952,6 +952,7 @@ def reset_run_registries() -> None:
     from inspect_ai.model._generate_overrides import (
         reset_generate_config_overrides,
     )
+    from inspect_ai.model._throughput import init_model_throughput
     from inspect_ai.util._limit_overrides import reset_sample_limit_overrides
 
     clear_all_eval_states()
@@ -960,5 +961,6 @@ def reset_run_registries() -> None:
     reset_sample_limit_overrides()
     reset_process_config_updates()
     reset_task_pause_gates()
+    init_model_throughput()
     reset_process_pause()
     reset_score_passes()
