@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Eval Set: A selection document's operational overrides gain a dataset `limit` and `max_sandboxes`.
 - Scoring: Skip Score.unscored() / NaN-at-root sentinels in aggregate() metric. (#5008)
 - Scoring: Return inf on OverflowError in perplexity_per_token() and perplexity_per_seq() metrics. (#5028)
 - Analysis: Ensure ColumnError.path is a string rather than a JSONPath object on record import errors. (#5006)
