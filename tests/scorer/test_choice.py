@@ -75,6 +75,52 @@ async def test_score_multi_digit_choice_label():
     assert result.text == CORRECT
 
 
+@pytest.mark.anyio
+async def test_score_multiple_multi_digit_choice_labels():
+    scorer = choice()
+    state = simple_task_state(
+        model_output="ANSWER: 10, 12",
+        choices=[f"choice {index}" for index in range(40)],
+    )
+    for index in range(40):
+        state.choices.mark_choice(index, index in (35, 37))
+
+    result = await scorer(state, Target("10, 12"))
+
+    assert result.text == CORRECT
+
+
+@pytest.mark.anyio
+async def test_score_mixed_letter_and_multi_digit_target():
+    scorer = choice()
+    state = simple_task_state(
+        model_output="ANSWER: A, 10",
+        choices=[f"choice {index}" for index in range(36)],
+    )
+    for index in range(36):
+        state.choices.mark_choice(index, index in (0, 35))
+
+    result = await scorer(state, Target("A,10"))
+
+    assert result.text == CORRECT
+
+
+@pytest.mark.anyio
+async def test_score_target_beyond_choices_raises():
+    # a "10" target resolves to index 35; with only 30 choices that is a
+    # dataset error and must raise rather than silently score incorrect
+    scorer = choice()
+    state = simple_task_state(
+        model_output="ANSWER: 10",
+        choices=[f"choice {index}" for index in range(30)],
+    )
+    for index in range(30):
+        state.choices.mark_choice(index, index == 0)
+
+    with pytest.raises(ValueError, match="beyond the task's 30 choices"):
+        await scorer(state, Target("10"))
+
+
 def test_answer_index_rejects_separators():
     # answer_index() should never silently return garbage indices for
     # separator characters -- it should raise so callers know to filter.

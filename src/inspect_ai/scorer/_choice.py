@@ -26,6 +26,20 @@ def _score_target(target: Target, choices: Choices) -> tuple[list[int], list[str
 
     target_positions = [answer_index(answer) for answer in target_answers]
 
+    # a target that references a position beyond the task's choices is a
+    # dataset error (e.g. a "10" target in a 30-option task resolves to
+    # index 35): raise loudly rather than silently scoring incorrect forever
+    out_of_range = [
+        answer
+        for answer, position in zip(target_answers, target_positions)
+        if position >= len(choices)
+    ]
+    if out_of_range:
+        raise ValueError(
+            f"Choice scorer target references answer(s) beyond the task's "
+            f"{len(choices)} choices: {', '.join(out_of_range)}"
+        )
+
     choice_positions = [i for i, choice in enumerate(choices) if choice.correct is True]
 
     answers = [answer_character(choice) for choice in choice_positions]
