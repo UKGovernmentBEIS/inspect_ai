@@ -225,7 +225,7 @@ To select a snapshot strategy for a sandbox, use a `SandboxSnapshotConfig` as it
 | Strategy | Description |
 |------------------------------|------------------------------------------|
 | `ResticSnapshots` | Incremental restic backup (the default). Cheapest when most files are stable across checkpoints; requires injecting a restic binary into the sandbox. |
-| `ArchiveSnapshots` | One complete compressed tar archive per checkpoint (zstd when available in the sandbox image, gzip otherwise). Uses only tools already present in the image — nothing is injected — and each checkpoint restores from a single self-contained file. |
+| `ArchiveSnapshots` | One complete compressed tar archive per checkpoint (zstd when available in the sandbox image, gzip otherwise). Uses only tools already present in the image — nothing is injected — and each checkpoint restores from a single self-contained file. Archives are written **unencrypted** (restic encrypts its repository with a per-sample password), so captured sandbox data lands in the checkpoint storage location as plaintext. |
 
 : {tbl-colwidths=\[30,70\]}
 

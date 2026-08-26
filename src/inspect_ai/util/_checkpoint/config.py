@@ -67,6 +67,12 @@ class ArchiveSnapshots:
     impractical, or when the captured data is dominated by large,
     high-entropy, frequently-rewritten files where incremental backup
     stores roughly the full dataset again at every checkpoint anyway.
+
+    Unlike restic (which encrypts its repository with a per-sample
+    password), archives are written unencrypted: checkpoint data —
+    including any credentials or keys the agent wrote into captured
+    paths — lands in the checkpoint storage location (possibly S3) as
+    plaintext tar archives.
     """
 
     name: Literal["archive"] = "archive"
