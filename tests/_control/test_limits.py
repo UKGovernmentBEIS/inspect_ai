@@ -79,7 +79,7 @@ async def test_limits_set_max_samples() -> None:
 
     result = await task_limits("t1", max_samples=30)
     assert result is not None
-    assert result["max_samples"]["limit"] == 30
+    assert result["max_samples"] == {"limit": 30, "in_use": 0, "adjustable": True}
     assert result["requested"] == {"max_samples": 30}
     # the underlying limiter was actually retuned
     assert limiter.limit == 30
@@ -95,7 +95,7 @@ async def test_limits_dry_run_does_not_apply() -> None:
     assert result["dry_run"] is True
     assert result["requested"] == {"max_samples": 30}
     # view reflects the current (unchanged) value, and nothing was applied
-    assert result["max_samples"]["limit"] == 20
+    assert result["max_samples"] == {"limit": 20, "in_use": 0, "adjustable": True}
     assert limiter.limit == 20
 
 
@@ -270,7 +270,7 @@ async def test_limits_unaffected_by_retry_supersede() -> None:
 
     result = await task_limits("t1", max_samples=2)
     assert result is not None
-    assert result["max_samples"]["limit"] == 2
+    assert result["max_samples"] == {"limit": 2, "in_use": 0, "adjustable": True}
     assert limiter.limit == 2  # the task's (shared) limiter was retuned
 
 
@@ -2642,6 +2642,7 @@ def test_compose_config_sample_limit_overrides() -> None:
     """The composed view carries the limit knobs with their task scope."""
     from inspect_ai._cli.ctl._config import _compose_config
     from inspect_ai._cli.ctl._mutate import _DirectiveScope
+    from inspect_ai._control.views import TaskConfigView
 
     scope = _DirectiveScope(
         socket_path="/tmp/sock",
@@ -2651,12 +2652,21 @@ def test_compose_config_sample_limit_overrides() -> None:
         header="demo (t1)",
         siblings=0,
     )
+    limits_view: TaskConfigView = {
+        # a task envelope always carries max_samples — it is the
+        # task/process discriminator (_as_task_view)
+        "max_samples": {"limit": 4, "in_use": 0, "adjustable": True},
+        "limits": {"time_limit": None, "token_limit": 5000, "message_limit": None},
+        "max_sandboxes": [],
+        "adaptive": [],
+        "buffer": None,
+        "requested": None,
+        "warnings": [],
+        "dry_run": False,
+    }
     config = _compose_config(
         scope,
-        {
-            "limits": {"time_limit": None, "token_limit": 5000, "message_limit": None},
-            "warnings": [],
-        },
+        limits_view,
         dry_run=False,
         set_values=True,
         notes=[],
