@@ -33,7 +33,7 @@ from typing_extensions import override
 from inspect_ai._util._async import current_async_backend, tg_collect
 from inspect_ai._util.async_bytes_reader import adapt_to_reader
 from inspect_ai._util.async_zip import AsyncZipReader
-from inspect_ai._util.asyncfiles import AsyncFilesystem
+from inspect_ai._util.asyncfiles import AsyncFilesystem, _map_missing_s3_object
 from inspect_ai._util.atomic_write import atomic_write
 from inspect_ai._util.constants import (
     LOG_SCHEMA_VERSION,
@@ -404,7 +404,9 @@ class EvalRecorder(FileRecorder):
                     None,
                 )
                 if sample is None:
-                    raise ValueError(f"Sample with uuid '{uuid}' not found in log.")
+                    raise IndexError(
+                        f"Sample with uuid '{uuid}' not found in log {location}"
+                    )
                 id = sample.id
                 epoch = sample.epoch
 
@@ -470,8 +472,9 @@ class EvalRecorder(FileRecorder):
             # local .eval contract.
             async with AsyncFilesystem() as async_fs:
                 s3_client = await async_fs.s3_client_async()
-                response = await s3_client.get_object(Bucket=bucket, Key=key)
-                body = await response["Body"].read()
+                with _map_missing_s3_object(location):
+                    response = await s3_client.get_object(Bucket=bucket, Key=key)
+                    body = await response["Body"].read()
             log_bytes = _rewrite_eval_zip_with_new_header(body, log)
         else:
             # Full recreate goes through the recorder, which needs a
@@ -572,10 +575,9 @@ def _eval_log_header(log: EvalLog) -> EvalLog:
 def _rewrite_eval_zip_via_filesystem(location: str, log: EvalLog) -> None:
     """Read a remote .eval, rewrite zip with a new header, write it back.
 
-    Works for any fsspec-backed filesystem (S3, GCS, abfs, …). Used by the
-    unconditional header_only write path — the S3 conditional path inlines
-    the equivalent steps so it can route the upload through
-    `_write_s3_conditional` with `If-Match`.
+    Used for non-S3 fsspec-backed filesystems such as GCS and abfs. S3
+    header-only writes instead use `_write_log_s3` so they can return the
+    exact upload ETag and apply `If-Match` when requested.
     """
     with file(location, "rb") as f:
         existing_bytes = f.read()

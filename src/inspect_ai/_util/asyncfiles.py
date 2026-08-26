@@ -231,6 +231,10 @@ async def _s3_upload_fileobj_async(
         )
         return None
 
+    # aioboto3's public upload_fileobj discards the final response. Call its
+    # injected implementation with a proxy so we can capture the exact
+    # PutObject/CompleteMultipartUpload ETag. This private-API coupling is
+    # guarded by the moto-backed multipart test and verified with aioboto3 15.5.0.
     from aioboto3.s3.inject import upload_fileobj
 
     capture = _AsyncS3ETagCapture(client)
@@ -256,12 +260,13 @@ def _s3_upload_fileobj_sync(
         client.upload_fileobj(Fileobj=source, Bucket=bucket, Key=key, Config=config)
         return None
 
-    from boto3.s3.transfer import TransferConfig, create_transfer_manager
+    from boto3.s3.transfer import TransferConfig
+    from s3transfer.manager import TransferManager
 
     capture = _SyncS3ETagCapture(client)
-    with create_transfer_manager(
-        cast(Any, capture), config or TransferConfig()
-    ) as manager:
+    # Always use the classic manager: the CRT manager bypasses the botocore
+    # client proxy, so it cannot expose the completed upload's ETag here.
+    with TransferManager(cast(Any, capture), config or TransferConfig()) as manager:
         manager.upload(source, bucket, key).result()
     return capture.require_etag()
 

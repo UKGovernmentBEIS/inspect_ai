@@ -326,7 +326,8 @@ class JSONRecorder(FileRecorder):
                         location,
                         logger,
                     )
-                etag = await async_fs.write_file(location, log_bytes)
+                with trace_action(logger, "Log Write", location):
+                    etag = await async_fs.write_file(location, log_bytes)
                 if etag is None:
                     raise RuntimeError("S3 upload completed without returning an ETag")
                 return etag

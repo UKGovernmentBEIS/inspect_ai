@@ -10,7 +10,7 @@ import pytest
 from anyio import EndOfStream
 from botocore.exceptions import ClientError
 
-from inspect_ai._util._async import run_coroutine, tg_collect
+from inspect_ai._util._async import current_async_backend, run_coroutine, tg_collect
 from inspect_ai._util.asyncfiles import (
     AsyncFilesystem,
     _current_async_fs,
@@ -389,8 +389,20 @@ async def test_write_file_streaming_local():
             assert f.read() == large_data
 
 
-async def test_write_file_streaming_s3(mock_s3: None) -> None:
+async def test_write_file_streaming_s3(
+    mock_s3: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Test AsyncFilesystem.write_file_streaming with mock S3."""
+    if current_async_backend() == "trio":
+
+        def reject_transfer_manager_factory(*args: Any, **kwargs: Any) -> None:
+            raise AssertionError("Trio S3 uploads must not auto-select the CRT manager")
+
+        monkeypatch.setattr(
+            "boto3.s3.transfer.create_transfer_manager",
+            reject_transfer_manager_factory,
+        )
+
     test_data = b"\xab" * (10 * 1024 * 1024)  # 10MB, exceeds 8MB multipart threshold
     s3_path = f"{S3_BUCKET}/streaming_test/file.bin"
 

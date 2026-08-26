@@ -1,6 +1,8 @@
 import os
 import tempfile
+from contextlib import contextmanager
 from pathlib import Path
+from typing import Iterator
 
 import pytest
 from test_helpers.utils import skip_if_trio
@@ -63,6 +65,40 @@ def test_read_eval_log_returns_etag_for_s3_path(sample_log, mock_s3, format):
     log2 = read_eval_log(log_path)
     assert log.etag == log2.etag
     assert log.model_dump_json() == log2.model_dump_json()
+
+
+def test_unconditional_s3_json_write_is_traced(
+    sample_log, mock_s3, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Standard S3 JSON writes retain the existing Log Write trace."""
+    from inspect_ai.log._recorders import json as json_recorder
+
+    log_path = "s3://test-bucket/test_trace.json"
+    actions: list[tuple[str, str]] = []
+
+    @contextmanager
+    def record_trace(logger, action: str, detail: str) -> Iterator[None]:
+        actions.append((action, detail))
+        yield
+
+    monkeypatch.setattr(json_recorder, "trace_action", record_trace)
+
+    result = write_eval_log(sample_log, log_path)
+
+    assert result.etag is not None
+    assert actions == [("Log Write", log_path)]
+
+
+def test_s3_eval_header_only_missing_object_raises_file_not_found(
+    sample_log, mock_s3
+) -> None:
+    """Missing S3 header-edit targets preserve FileNotFoundError semantics."""
+    with pytest.raises(FileNotFoundError):
+        write_eval_log(
+            sample_log,
+            "s3://test-bucket/missing_header.eval",
+            header_only=True,
+        )
 
 
 @pytest.mark.parametrize("format", ["json", "eval"])
