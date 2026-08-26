@@ -1,11 +1,14 @@
+import contextlib
 from os.path import dirname, join
 from pathlib import Path
 from typing import Any, cast
 
 import anyio
 import pytest
+from botocore.exceptions import ClientError
+from test_helpers.utils import skip_if_trio
 
-from inspect_ai._util.file import filesystem
+from inspect_ai._util.file import FileInfo, filesystem
 from inspect_ai.log import list_eval_logs, list_eval_logs_async
 from inspect_ai.log._file import (
     EvalLogInfo,
@@ -184,3 +187,185 @@ def test_list_logs_async_remote_fs_trio(monkeypatch: pytest.MonkeyPatch):
         assert len(logs) == 3
 
     anyio.run(check, backend="trio")
+
+
+@skip_if_trio
+async def test_list_logs_async_s3_auth_error_returns_empty(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    from inspect_ai.log import _file as log_file
+
+    class FakeFileSystem:
+        def is_s3(self) -> bool:
+            return True
+
+        def is_async(self) -> bool:
+            return True
+
+        def _file_info(self, info: dict[str, Any]) -> FileInfo:
+            return FileInfo(
+                name=info["name"],
+                type=info["type"],
+                size=info.get("size", 0),
+                mtime=info.get("mtime"),
+                etag=None,
+            )
+
+    class FakeAsyncFileSystem:
+        async def _exists(self, log_dir: str) -> bool:
+            raise ClientError(
+                {"Error": {"Code": "InvalidAccessKeyId", "Message": "bad key"}},
+                "HeadBucket",
+            )
+
+        async def _ls(self, log_dir: str, detail: bool = True) -> list[dict[str, Any]]:
+            return []
+
+        def invalidate_cache(self, log_dir: str) -> None:
+            pass
+
+    @contextlib.asynccontextmanager
+    async def fake_async_filesystem(
+        location: str, fs_options: dict[str, Any] = {}
+    ) -> Any:
+        yield FakeAsyncFileSystem()
+
+    monkeypatch.setattr(
+        log_file, "filesystem", lambda path, fs_options={}: FakeFileSystem()
+    )
+    monkeypatch.setattr(log_file, "async_filesystem", fake_async_filesystem)
+
+    with caplog.at_level("WARNING"):
+        logs = await list_eval_logs_async(
+            "s3://bucket/logs", recursive=False, fs_options={"anon": False}
+        )
+
+    assert logs == []
+    assert "S3 authentication failed while probing" in caplog.text
+
+
+@skip_if_trio
+async def test_list_logs_async_s3_non_auth_error_raises(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from inspect_ai.log import _file as log_file
+
+    class FakeFileSystem:
+        def is_s3(self) -> bool:
+            return True
+
+        def is_async(self) -> bool:
+            return True
+
+    class FakeAsyncFileSystem:
+        async def _exists(self, log_dir: str) -> bool:
+            raise ClientError(
+                {"Error": {"Code": "InternalError", "Message": "boom"}},
+                "HeadBucket",
+            )
+
+        async def _ls(self, log_dir: str, detail: bool = True) -> list[dict[str, Any]]:
+            return []
+
+    @contextlib.asynccontextmanager
+    async def fake_async_filesystem(
+        location: str, fs_options: dict[str, Any] = {}
+    ) -> Any:
+        yield FakeAsyncFileSystem()
+
+    monkeypatch.setattr(
+        log_file, "filesystem", lambda path, fs_options={}: FakeFileSystem()
+    )
+    monkeypatch.setattr(log_file, "async_filesystem", fake_async_filesystem)
+
+    with pytest.raises(ClientError, match="InternalError"):
+        await list_eval_logs_async(
+            "s3://bucket/logs", recursive=False, fs_options={"anon": False}
+        )
+
+
+@skip_if_trio
+async def test_list_logs_async_gcs_auth_error_returns_empty(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    from inspect_ai.log import _file as log_file
+
+    class FakeFileSystem:
+        def is_s3(self) -> bool:
+            return False
+
+        def is_async(self) -> bool:
+            return True
+
+    class FakeAsyncFileSystem:
+        async def _exists(self, log_dir: str) -> bool:
+            raise OSError("Invalid credentials: anonymous caller does not have access")
+
+        async def _ls(self, log_dir: str, detail: bool = True) -> list[dict[str, Any]]:
+            return []
+
+        def invalidate_cache(self, log_dir: str) -> None:
+            pass
+
+    @contextlib.asynccontextmanager
+    async def fake_async_filesystem(
+        location: str, fs_options: dict[str, Any] = {}
+    ) -> Any:
+        yield FakeAsyncFileSystem()
+
+    monkeypatch.setattr(
+        log_file, "filesystem", lambda path, fs_options={}: FakeFileSystem()
+    )
+    monkeypatch.setattr(log_file, "async_filesystem", fake_async_filesystem)
+
+    with caplog.at_level("WARNING"):
+        logs = await list_eval_logs_async("gs://bucket/logs", recursive=False)
+
+    assert logs == []
+    assert "Google Cloud Storage authentication failed while probing" in caplog.text
+
+
+@skip_if_trio
+async def test_list_logs_async_s3_fast_path_auth_error_returns_empty(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    from inspect_ai.log import _file as log_file
+
+    class FakeFileSystem:
+        def is_s3(self) -> bool:
+            return True
+
+        def is_async(self) -> bool:
+            return True
+
+    class FakeAsyncFilesystem:
+        async def __aenter__(self) -> "FakeAsyncFilesystem":
+            return self
+
+        async def __aexit__(self, *args: Any) -> bool:
+            return False
+
+        async def iter_files(
+            self, path: str, *, recursive: bool = False, detail: bool = True
+        ) -> Any:
+            # Force this method to be an async generator (required by the caller)
+            if False:
+                yield None
+            raise ClientError(
+                {"Error": {"Code": "AccessDenied", "Message": "denied"}},
+                "ListObjectsV2",
+            )
+
+    monkeypatch.setattr(
+        log_file, "filesystem", lambda path, fs_options={}: FakeFileSystem()
+    )
+    monkeypatch.setattr(log_file, "AsyncFilesystem", FakeAsyncFilesystem)
+
+    with caplog.at_level("WARNING"):
+        logs = await list_eval_logs_async("s3://bucket/logs", recursive=False)
+
+    assert logs == []
+    assert "S3 authentication failed while probing" in caplog.text

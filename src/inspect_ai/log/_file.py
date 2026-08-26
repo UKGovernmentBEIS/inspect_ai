@@ -11,7 +11,7 @@ from typing import IO, Any, AsyncIterator, Callable, Generator, Literal, cast
 
 import anyio.to_thread
 import fsspec  # type: ignore
-from botocore.exceptions import ClientError
+from botocore.exceptions import ClientError, NoCredentialsError
 from fsspec.asyn import AsyncFileSystem  # type: ignore
 from fsspec.core import split_protocol  # type: ignore
 from pydantic import (
@@ -22,7 +22,6 @@ from pydantic import (
 from inspect_ai._util._async import current_async_backend, run_coroutine, tg_collect
 from inspect_ai._util.async_zip import AsyncZipReader
 from inspect_ai._util.asyncfiles import AsyncFilesystem, get_async_filesystem
-from inspect_ai._util.azure import azure_warning_hint, should_suppress_azure_error
 from inspect_ai._util.constants import ALL_LOG_FORMATS, EVAL_LOG_FORMAT
 from inspect_ai._util.dateutil import UtcDatetimeStr
 from inspect_ai._util.error import EvalError
@@ -33,6 +32,10 @@ from inspect_ai._util.file import (
     filesystem,
 )
 from inspect_ai._util.json import to_json_safe
+from inspect_ai._util.remote import (
+    remote_auth_warning_hint,
+    should_suppress_remote_auth_error,
+)
 from inspect_ai.log._condense import resolve_sample_attachments
 from inspect_ai.log._log import EvalSampleSummary
 from inspect_ai.log._resolve import rebind_sample_timelines, resolve_sample_events_data
@@ -234,14 +237,18 @@ async def _list_eval_logs_async(
                         log_dir, recursive=recursive, detail=True
                     )
                 ]
-        except ClientError as ex:
+        except (ClientError, NoCredentialsError) as ex:
+            code = getattr(ex, "response", {}).get("Error", {}).get("Code")
             # a missing bucket is an empty listing (as with the existence
             # precheck the other branches perform), not an error
-            if ex.response.get("Error", {}).get("Code") in (
+            if code in (
                 "NoSuchBucket",
                 "404",
                 "NotFound",
             ):
+                return []
+            if should_suppress_remote_auth_error(log_dir, ex):
+                logger.warning(remote_auth_warning_hint(log_dir, ex))
                 return []
             raise
         # resolve to eval logs (async fan-out so header reads on
@@ -256,8 +263,8 @@ async def _list_eval_logs_async(
         try:
             exists = fs.exists(log_dir)
         except Exception as ex:  # noqa: BLE001
-            if should_suppress_azure_error(log_dir, ex):
-                logger.warning(azure_warning_hint(log_dir, ex))
+            if should_suppress_remote_auth_error(log_dir, ex):
+                logger.warning(remote_auth_warning_hint(log_dir, ex))
                 exists = True
             else:
                 raise
@@ -267,16 +274,14 @@ async def _list_eval_logs_async(
         return await log_files_from_ls_async(logs, formats, descending)
     elif fs.is_async():
         async with async_filesystem(log_dir, fs_options=fs_options) as async_fs:
-            # Attempt existence check with robust handling for Azure-style auth issues.
+            # Attempt existence check with robust handling for remote auth issues.
             try:
                 exists = await async_fs._exists(log_dir)
             except Exception as ex:  # noqa: BLE001
-                if should_suppress_azure_error(log_dir, ex):
-                    logger.warning(azure_warning_hint(log_dir, ex))
+                if should_suppress_remote_auth_error(log_dir, ex):
+                    logger.warning(remote_auth_warning_hint(log_dir, ex))
                     exists = True
                 else:
-                    # TODO: Add S3 login error catching, as well as any other remote file system of interest
-                    # Re-raise non-auth related issues
                     raise
 
             if exists:
