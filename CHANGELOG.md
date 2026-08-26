@@ -15,6 +15,7 @@
 - Control Channel: `inspect ctl config --max-tasks` retunes a running eval's task concurrency mid-flight — raising it starts pending tasks immediately (pass `clear` to restore launch config).
 - Control Channel: A runaway polling client can no longer starve the eval by piling up queued requests — excess concurrent connections are rejected as busy, and `inspect ctl` retries them shortly.
 - Control Channel: Read requests whose client has already hung up (timed out or killed mid-request) are no longer served, so stale queued polls stop stealing time from running samples.
+- Control Channel: Task-selecting `inspect ctl` commands now take a `--model` disambiguator, so one task run against several models can be selected by name (e.g. `inspect ctl task cancel my_task --model gpt-5`).
 
 ## 0.3.260 (21 August 2026)
 

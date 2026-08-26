@@ -108,6 +108,100 @@ def test_no_match_exits(capsys: pytest.CaptureFixture[str]) -> None:
     assert "No running task matching 'nope'" in capsys.readouterr().err
 
 
+def _model_summary(task_id: str, task: str, model: str) -> dict[str, str]:
+    return {**_summary(task_id, task), "model": model}
+
+
+def test_model_narrows_ambiguous_name() -> None:
+    # The headline scenario: one task × two models — the name matches both
+    # rows, and --model narrows to the row running that model.
+    summaries = [
+        _model_summary("aaa111", "my_task", "openai/gpt-5"),
+        _model_summary("bbb222", "my_task", "anthropic/claude-fable-5"),
+    ]
+    resolved = _resolve_target_eval(summaries, "my_task", model="openai/gpt-5")
+    assert resolved["task_id"] == "aaa111"
+
+
+def test_model_match_is_anchored_and_exact_wins() -> None:
+    # `gpt-5` matches the leaf of openai/gpt-5; the exact leaf match wins over
+    # the prefix match on openai/gpt-5-mini (the `ctl config --model` rule).
+    summaries = [
+        _model_summary("aaa111", "my_task", "openai/gpt-5-mini"),
+        _model_summary("bbb222", "my_task", "openai/gpt-5"),
+    ]
+    resolved = _resolve_target_eval(summaries, "my_task", model="gpt-5")
+    assert resolved["task_id"] == "bbb222"
+
+
+def test_model_matching_nothing_exits(capsys: pytest.CaptureFixture[str]) -> None:
+    summaries = [_model_summary("aaa111", "my_task", "openai/gpt-5")]
+    with pytest.raises(click.exceptions.Exit):
+        _resolve_target_eval(summaries, "my_task", model="mistral")
+    assert (
+        "No running task matching 'my_task' with model matching 'mistral'"
+        in capsys.readouterr().err
+    )
+
+
+def test_model_prefix_match_survives_unrelated_exact_match() -> None:
+    # Model filtering happens within the selector's matches, so an unrelated
+    # task running the exact-named model can't veto the prefix match
+    # (`gpt-5` → openai/gpt-5-mini) on the task the selector picked.
+    summaries = [
+        _model_summary("aaa111", "my_task", "openai/gpt-5-mini"),
+        _model_summary("bbb222", "other_task", "openai/gpt-5"),
+    ]
+    resolved = _resolve_target_eval(summaries, "aaa111", model="gpt-5")
+    assert resolved["task_id"] == "aaa111"
+
+
+def test_model_does_not_reroute_exact_name_match(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # The flip side of filtering within the selector's matches: --model can't
+    # re-route an exact name match to a prefix-named sibling running the
+    # model — the selector means the same rows with or without --model.
+    summaries = [
+        _model_summary("aaa111", "my_task", "openai/gpt-5"),
+        _model_summary("bbb222", "my_task_v2", "anthropic/claude-fable-5"),
+    ]
+    with pytest.raises(click.exceptions.Exit):
+        _resolve_target_eval(summaries, "my_task", model="claude-fable-5")
+    assert (
+        "No running task matching 'my_task' with model matching 'claude-fable-5'"
+        in capsys.readouterr().err
+    )
+
+
+def test_model_narrowed_no_name_match_qualifies_error(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    summaries = [_model_summary("aaa111", "my_task", "openai/gpt-5")]
+    with pytest.raises(click.exceptions.Exit):
+        _resolve_target_eval(summaries, "other_task", model="gpt-5")
+    assert (
+        "No running task matching 'other_task' with model matching 'gpt-5'"
+        in capsys.readouterr().err
+    )
+
+
+def test_model_still_ambiguous_qualifies_candidate_table(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # name + --model still ambiguous → the same candidate-table error,
+    # qualified with the model.
+    summaries = [
+        _model_summary("aaa111", "my_task", "openai/gpt-5"),
+        _model_summary("bbb222", "my_task", "openai/gpt-5"),
+    ]
+    with pytest.raises(click.exceptions.Exit):
+        _resolve_target_eval(summaries, "my_task", model="gpt-5")
+    err = capsys.readouterr().err
+    assert "matches multiple tasks with model matching 'gpt-5'" in err
+    assert "aaa111" in err and "bbb222" in err
+
+
 def _task_row(task_id: str, task: str, **extra: Any) -> dict[str, Any]:
     return {
         "task_id": task_id,
@@ -4825,6 +4919,176 @@ def test_log_flush_multiple_active_tasks_shows_candidate_table(
     assert result.exit_code == 1
     assert "task log-flush targets a single task" in result.stderr
     assert "aaa111" in result.stderr and "bbb222" in result.stderr
+
+
+def _two_model_summaries() -> list[dict[str, Any]]:
+    """The headline scenario: one task run against two models."""
+    return [
+        {**_full_summary("aaa111", "my_task"), "model": "openai/gpt-5"},
+        {**_full_summary("bbb222", "my_task"), "model": "anthropic/claude-fable-5"},
+    ]
+
+
+def test_task_cancel_model_disambiguates_name(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_surface(monkeypatch, _two_model_summaries())
+    spy = _RequestSpy({"ok": True, "task_id": "aaa111", "changed": True})
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
+    result = cli_runner().invoke(
+        ctl_command, ["task", "cancel", "my_task", "--model", "gpt-5", "--json"]
+    )
+    assert result.exit_code == 0, result.output
+    assert spy.paths == ["/tasks/aaa111/cancel"]
+    assert json.loads(result.stdout)["target"]["task_id"] == "aaa111"
+
+
+def test_task_cancel_name_without_model_stays_ambiguous(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_surface(monkeypatch, _two_model_summaries())
+    result = cli_runner().invoke(ctl_command, ["task", "cancel", "my_task"])
+    assert result.exit_code == 1
+    assert "matches multiple tasks" in result.stderr
+
+
+def test_task_pause_model_narrows_sole_task_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With no TASK, --model narrows the sole-task default to the matching row."""
+    _patch_surface(monkeypatch, _two_model_summaries())
+    spy = _RequestSpy({"ok": True, "changed": True, "dispatched": 1})
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
+    result = cli_runner().invoke(
+        ctl_command, ["task", "pause", "--model", "claude-fable-5", "--json"]
+    )
+    assert result.exit_code == 0, result.output
+    assert spy.paths == ["/tasks/bbb222/pause"]
+
+
+def test_task_log_flush_model_still_ambiguous_qualifies_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    summaries = [
+        {**_full_summary("aaa111", "t1"), "model": "openai/gpt-5"},
+        {**_full_summary("bbb222", "t2"), "model": "openai/gpt-5"},
+    ]
+    _patch_surface(monkeypatch, summaries)
+    result = cli_runner().invoke(ctl_command, ["task", "log-flush", "--model", "gpt-5"])
+    assert result.exit_code == 1
+    assert "running 2 tasks with model matching 'gpt-5'" in result.stderr, result.stderr
+
+
+def test_task_cancel_model_matching_nothing_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_surface(monkeypatch, _two_model_summaries())
+    result = cli_runner().invoke(
+        ctl_command, ["task", "cancel", "my_task", "--model", "mistral", "--json"]
+    )
+    assert result.exit_code == 1
+    error = json.loads(result.stdout)["error"]
+    assert error["kind"] == "not_found"
+    assert (
+        "No running task matching 'my_task' with model matching 'mistral'"
+        in error["message"]
+    )
+
+
+def test_sample_list_model_disambiguates_task_name(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_surface(
+        monkeypatch,
+        _two_model_summaries(),
+        samples_by_eval={
+            "eval_aaa111": [_sample_row("s1")],
+            "eval_bbb222": [_sample_row("s2")],
+        },
+    )
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "list", "my_task", "--model", "gpt-5", "--json"]
+    )
+    assert result.exit_code == 0, result.output
+    rows = json.loads(result.stdout)["samples"]
+    assert [row["sample_id"] for row in rows] == ["s1"]
+
+
+def test_sample_list_model_scopes_taskless_listing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Without TASK, --model scopes the fan-out to tasks running that model."""
+    _patch_surface(
+        monkeypatch,
+        _two_model_summaries(),
+        samples_by_eval={
+            "eval_aaa111": [_sample_row("s1")],
+            "eval_bbb222": [_sample_row("s2")],
+        },
+    )
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "list", "--model", "claude-fable-5", "--json"]
+    )
+    assert result.exit_code == 0, result.output
+    rows = json.loads(result.stdout)["samples"]
+    assert [row["sample_id"] for row in rows] == ["s2"]
+
+
+def test_exact_task_id_with_contradicting_model_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """--model composes as a filter even against an exact full task id.
+
+    A contradicting model must not be silently ignored in favor of the id —
+    the pinned semantic is a not-found error naming the contradiction (not
+    a global "no task with that model" claim, which could be false about
+    processes an exact-id fetch skipped).
+    """
+    _patch_surface(monkeypatch, _two_model_summaries())
+    result = cli_runner().invoke(
+        ctl_command,
+        ["task", "cancel", "aaa111", "--model", "claude-fable-5", "--json"],
+    )
+    assert result.exit_code == 1
+    error = json.loads(result.stdout)["error"]
+    assert error["kind"] == "not_found"
+    assert (
+        "Task 'aaa111' is running model 'openai/gpt-5', which does not match "
+        "'claude-fable-5'" in error["message"]
+    )
+
+
+def test_bare_sample_noun_forwards_model_option(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`ctl sample --model X` (bare noun) mirrors --model onto the implied list."""
+    _patch_surface(
+        monkeypatch,
+        _two_model_summaries(),
+        samples_by_eval={
+            "eval_aaa111": [_sample_row("s1")],
+            "eval_bbb222": [_sample_row("s2")],
+        },
+    )
+    result = cli_runner().invoke(ctl_command, ["sample", "--model", "gpt-5", "--json"])
+    assert result.exit_code == 0, result.output
+    rows = json.loads(result.stdout)["samples"]
+    assert [row["sample_id"] for row in rows] == ["s1"]
+
+
+def test_sample_cancel_model_disambiguates_task_name(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_surface(monkeypatch, _two_model_summaries())
+    spy = _RequestSpy({"ok": True, "sample_id": "s1", "epoch": 1, "changed": True})
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
+    result = cli_runner().invoke(
+        ctl_command,
+        ["sample", "cancel", "my_task", "s1", "--model", "gpt-5", "--json"],
+    )
+    assert result.exit_code == 0, result.output
+    assert spy.paths == ["/evals/eval_aaa111/sample/cancel"]
+    assert json.loads(result.stdout)["target"]["task_id"] == "aaa111"
 
 
 def test_fetch_summaries_404_names_version_skew(

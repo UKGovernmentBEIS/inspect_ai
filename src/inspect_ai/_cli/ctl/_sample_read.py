@@ -30,6 +30,7 @@ from ._failure import _envelope_failures, _fail
 from ._fetch import (
     _exit_samples_unreachable,
     _fetch_sample_summaries,
+    _narrow_by_model,
     _resolve_target_eval,
     _SamplesPage,
 )
@@ -112,12 +113,15 @@ def _list_sample_rows(
     limit: int | None = None,
     all_samples: bool = False,
     content: bool = False,
+    model: str | None = None,
 ) -> _SampleRows:
     """Fetch sample rows for one task (``task`` given) or all running tasks.
 
     ``statuses`` is the already-parsed ``--status`` member set (``None`` =
     no filter) — parsing lives with the caller so one parse serves the
-    request, the fallback filter, and the truncation footer.
+    request, the fallback filter, and the truncation footer. ``model``
+    narrows the candidate tasks to those running a matching model — with
+    ``task`` it disambiguates the selector; without, it scopes the fan-out.
     """
     fallback_as_of = time.time()
     # Loop-invariant across targets: the filter's wire form and the
@@ -139,7 +143,13 @@ def _list_sample_rows(
         )
 
     if task is not None:
-        targets = [_resolve_target_eval(summaries, task, busy_pids=fetched.busy_pids)]
+        targets = [
+            _resolve_target_eval(
+                summaries, task, busy_pids=fetched.busy_pids, model=model
+            )
+        ]
+    elif model is not None:
+        targets = _narrow_by_model(summaries, model, busy_pids=fetched.busy_pids)
     else:
         targets = summaries
 
@@ -305,6 +315,7 @@ def _run_sample_list(
     limit: int | None = None,
     all_samples: bool = False,
     content: bool = False,
+    model: str | None = None,
 ) -> None:
     if all_samples and limit is not None:
         raise click.UsageError("--all and --limit are mutually exclusive.")
@@ -319,6 +330,7 @@ def _run_sample_list(
         all_samples=all_samples,
         content=content,
         idle_pointer=True,
+        model=model,
     )
 
 
@@ -336,12 +348,13 @@ def _parse_statuses(status: str | None) -> frozenset[str] | None:
 
 
 def _run_sample_errors(
-    task: str | None, as_json: bool, *, content: bool = False
+    task: str | None, as_json: bool, *, content: bool = False, model: str | None = None
 ) -> None:
     _run_sample_listing(
         task,
         None,
         as_json,
+        model=model,
         sample_filter="errors",
         empty_read="(no errors or retries)",
         printer=_print_errors_table,
@@ -373,6 +386,7 @@ def _run_sample_listing(
     content: bool = False,
     content_footer: str | None = None,
     idle_pointer: bool = False,
+    model: str | None = None,
 ) -> None:
     """The shared body of `sample list` / `sample errors`.
 
@@ -404,6 +418,7 @@ def _run_sample_listing(
         limit=limit,
         all_samples=all_samples,
         content=content,
+        model=model,
     )
     rows = listing.rows
 
@@ -550,6 +565,8 @@ def _run_sample_show(
     content: bool,
     show_traceback: bool,
     as_json: bool,
+    *,
+    model: str | None = None,
 ) -> None:
     fetched = _fetch_sample_summaries(task)
     summaries = fetched.summaries
@@ -560,7 +577,9 @@ def _run_sample_show(
         _echo_no_running_evals()
         return
 
-    target = _resolve_target_eval(summaries, task, busy_pids=fetched.busy_pids)
+    target = _resolve_target_eval(
+        summaries, task, busy_pids=fetched.busy_pids, model=model
+    )
     # One atomic read: the detail carries the summary fields (timing / tokens
     # / messages) alongside the error history, so there is no supplemental
     # listing fetch (and no torn view if the sample retries between reads).
@@ -646,6 +665,7 @@ def _run_sample_events(
     sample_id: str,
     epoch: int,
     *,
+    model: str | None = None,
     cursor: str | None,
     tail: int | None,
     from_start: bool,
@@ -698,7 +718,9 @@ def _run_sample_events(
         _echo_no_running_evals()
         return
 
-    target = _resolve_target_eval(summaries, task, busy_pids=fetched.busy_pids)
+    target = _resolve_target_eval(
+        summaries, task, busy_pids=fetched.busy_pids, model=model
+    )
     page = _fetch._fetch_sample_events(
         target["socket_path"],
         target["eval_id"],
@@ -736,6 +758,7 @@ def _run_sample_messages(
     sample_id: str,
     epoch: int,
     *,
+    model: str | None = None,
     tail: int | None,
     show_all: bool,
     content: bool,
@@ -777,7 +800,9 @@ def _run_sample_messages(
         _echo_no_running_evals()
         return
 
-    target = _resolve_target_eval(summaries, task, busy_pids=fetched.busy_pids)
+    target = _resolve_target_eval(
+        summaries, task, busy_pids=fetched.busy_pids, model=model
+    )
     page = _fetch._fetch_sample_messages(
         target["socket_path"],
         target["eval_id"],
