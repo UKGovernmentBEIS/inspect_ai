@@ -659,7 +659,21 @@ class SampleRequeue:
         at the run for the read surface. Arrival overwrites a prior
         departure (a ``retry_on_error`` re-park cycles the state back) and
         captures the dataset-typed id.
+
+        A run arriving already cancelled is a withdrawn re-run resuming from
+        its seeding awaits (``run_sample`` checks the flag at its top, but a
+        re-run awaits the prior's log removal and checkpoint read before this
+        stamp — the un-requeue can be accepted in between). It takes no stamp
+        and no ownership: owning the key would make it read as a
+        never-started row (``arrived``, not ``cancelled`` — a
+        cancel-before-start accept would then target a run with a standing
+        prior record), and could steal the key from a fresh requeue. Only
+        this path arrives cancelled — a cancelled key-based run discards at
+        its queue exit and never re-parks — and it still discards at the
+        queue-exit check as usual.
         """
+        if run.cancelled:
+            return
         run.arrived = True
         run.departed = False
         run.typed_id = sample_id

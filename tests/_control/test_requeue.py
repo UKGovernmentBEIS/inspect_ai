@@ -334,6 +334,63 @@ async def test_requeue_discarded_cancel_before_start_rejected(
     assert handle.uncancels == []
 
 
+async def test_requeue_cancel_during_terminal_read_rerouted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A cancel-before-start accepted during the terminal read is re-routed.
+
+    The cancelled-key routing runs before the `_full_sample` await, and the
+    cancel resolver is fully synchronous — a cancel accepted during that
+    await must be caught by the post-await re-snapshot (parked → un-cancel,
+    discarded → 409) rather than falling through to `_is_planned`'s "will
+    run without help".
+    """
+    _patch_active_samples(monkeypatch, [])
+
+    cases: list[tuple[Literal["parked", "discarded"], bool]] = [
+        ("parked", True),
+        ("discarded", False),
+    ]
+    for cancelled, expect_uncancel in cases:
+        clear_all_eval_states()
+        handle = _FakeRequeueHandle()
+
+        async def read(
+            id: str | int,
+            epoch: int,
+            *,
+            exclude_fields: set[str] | None = None,
+            handle: _FakeRequeueHandle = handle,
+            cancelled: Literal["parked", "discarded"] = cancelled,
+        ) -> EvalSample | None:
+            # the cancel lands while the resolver awaits the terminal read
+            handle._cancelled = cancelled
+            return None
+
+        register_eval(
+            "e1",
+            2,
+            task_id="t1",
+            task="my_task",
+            live=FakeLiveEvalData(sample=read),
+            sample_ids=["s1", "s2"],
+            epochs=1,
+        )
+        set_sample_requeue("e1", cast(SampleRequeue, handle))
+
+        result = await requeue_sample("e1", "s2", 1)
+        assert result is not None, cancelled
+        if expect_uncancel:
+            assert result["ok"] is True and result["changed"] is True
+            assert result["status"] == "pending"
+            assert "withdrawn" in result["reason"]
+            assert handle.uncancels == [("s2", 1)]
+        else:
+            assert result["ok"] is False
+            assert "discarded" in result["error"]
+            assert handle.uncancels == []
+
+
 def test_record_sample_unrequeued_restores_bucket() -> None:
     from inspect_ai._control.eval_state import (
         record_sample_completed,
@@ -1804,11 +1861,21 @@ class _SuspendingEarlyStopping:
 
 @solver
 def _boom_then_ok():
-    """Errors the "boom" sample terminally; everything else succeeds."""
+    """Errors the "boom" sample terminally; everything else succeeds.
+
+    A non-boom sample completes only after boom's error is terminal-counted:
+    the suspended-hook test needs the hook to park on the *final* terminal
+    outcome, and task start order is backend-dependent (trio starts the
+    later-scheduled sample first), so the ordering is enforced here rather
+    than assumed from dispatch order.
+    """
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         if state.sample_id == "boom":
             raise RuntimeError("terminal boom")
+        with anyio.fail_after(60):
+            while not any(s.errored for s in get_eval_states()):
+                await anyio.sleep(0.01)
         return state
 
     return solve
@@ -1853,7 +1920,10 @@ async def test_requeue_and_cancel_rejected_during_suspended_hook() -> None:
                     model="mockllm/model",
                     fail_on_error=False,
                     ctl_server=False,
-                    max_samples=1,  # boom goes terminal before last completes
+                    # both samples run concurrently: last's solver waits for
+                    # boom's terminal count (see _boom_then_ok), so serializing
+                    # them on the sample semaphore would deadlock
+                    max_samples=2,
                 )
             )
 

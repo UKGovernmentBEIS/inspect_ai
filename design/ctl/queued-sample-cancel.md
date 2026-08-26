@@ -302,6 +302,16 @@ synchronously:
    (including `logger.remove_sample`, dropping the fresh re-run's realtime-buffer
    entry) before the exit check caught it. The pending-requeue bookkeeping keeps the
    live `_SampleRun` per pending key, so *accept* can find the entry to flag.
+   The top check and the arrival stamp are separated by the seeding awaits (the
+   prior's log removal and the checkpoint read), so an un-requeue can be accepted
+   between them; `queue_arrive` therefore refuses a cancelled run — no arrival stamp,
+   no key ownership. An owning zombie would read as a never-started row (`arrived`,
+   not `cancelled` — the cancelled read is a key-based-run outcome), sending a
+   follow-up cancel into `cancel_before_start`'s prior-less precondition, and its
+   late arrival could steal the key from a fresh requeue. Only this path arrives
+   cancelled (a cancelled key-based run discards at its queue exit and never
+   re-parks), and the refused zombie still discards at the queue-exit check as
+   usual.
 2. **Clear the pending-requeue key, neutralize the withdrawn entry's `on_terminal`,
    and revert the key's `current_run` ownership to the superseded run.** The listing
    and `sample show` immediately revert to rendering the prior terminal record (the
@@ -537,7 +547,10 @@ this window) — but it's not needed for the queued cases this design targets.
 - `_control/eval_state.py`: `record_sample_unrequeued` (increment inverse of
   `record_sample_requeued`).
 - `_control/requeue.py`: un-cancel and discarded rows in the decision table;
-  `_is_planned` branch consults the view's cancelled state.
+  `_is_planned` branch consults the view's cancelled state — re-snapshotted after
+  the terminal read's await (a cancel-before-start accepted during `_full_sample`
+  must land on the parked/discarded rows, not `_is_planned`'s "will run without
+  help"; the mirror of `cancel_sample`'s post-await re-resolve).
 - `_control/state.py`: cancelled-before-start keys render `cancelled` in the listing
   and `sample show` (parallel to `_pending_requeue_keys`).
 - `_cli/ctl/_sample.py`: no new flags; rejection/detail wording for the new rows.

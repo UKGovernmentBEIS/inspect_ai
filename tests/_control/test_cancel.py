@@ -1654,6 +1654,98 @@ async def test_cancel_unrequeue_departed_window_dry_run_parity(
         release.set()
 
 
+async def test_cancel_unrequeued_zombie_rearrival_takes_no_stamp(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A withdrawn re-run resuming from its seeding awaits takes no queue stamp.
+
+    `run_sample` checks `cancelled` at its top, but a re-run awaits the
+    prior's log removal and checkpoint read before the arrival stamp — an
+    un-requeue accepted in that window flags the entry, and the zombie's
+    late `queue_arrive` must not stamp arrival or take the key: an owning
+    zombie would read as a never-started row (`arrived`, not `cancelled`),
+    sending a follow-up `--action cancel` into `cancel_before_start`, whose
+    prior-less precondition it violates (an AssertionError → 500).
+    """
+    register_eval("e1", 2, task_id="t1", task="my_task", sample_ids=["s1", "s2"])
+    record_sample_errored("e1")
+    handler = SampleErrorHandler(False, 2)
+    handler.error_count = 1
+    scheduler = SampleScheduler()
+    handle = SampleRequeue(
+        eval_id="e1",
+        scheduler=scheduler,
+        sample_error=handler,
+        sample_indexes={"s1": 0, "s2": 1},
+        checkpoints_dir=None,
+        on_accept=lambda sample_id, epoch: None,
+        on_withdraw=lambda sample_id, epoch, score: None,
+    )
+    set_sample_requeue("e1", handle)
+    _patch_active_samples(monkeypatch, [])
+
+    rerun_entries: list[_SampleRun] = []
+    release = anyio.Event()
+
+    async def run_sample(sample_index: int, epoch: int, entry: _SampleRun) -> Any:
+        if entry.prior is not None:
+            rerun_entries.append(entry)
+            # suspended in the seeding awaits, before the arrival stamp
+            with anyio.fail_after(30):
+                await release.wait()
+            # the queue-exit check (the test body stamped the late arrival)
+            return DISCARDED if handle.queue_depart(entry) else "fresh"
+        if sample_index == 0:
+            return "failed"
+        # the sibling holds the fanout open for the accept
+        with anyio.fail_after(30):
+            await release.wait()
+        return "other"
+
+    results: dict[tuple[int, int], Any] = {}
+
+    async with anyio.create_task_group() as tg:
+
+        async def go() -> None:
+            results.update(await scheduler.run([(0, 1), (1, 1)], run_sample))
+
+        tg.start_soon(go)
+        with anyio.fail_after(30):
+            while not scheduler.open:
+                await anyio.sleep(0.01)
+        assert handle.accept(_errored_prior(), "error") == "accepted"
+        with anyio.fail_after(30):
+            while not rerun_entries:
+                await anyio.sleep(0.01)
+
+        # un-requeue accepted while the re-run sits in its seeding awaits
+        result = _row(await cancel_sample("e1", "s1", 1, action="cancel"))
+        assert result["ok"] is True and result["changed"] is True
+        entry = rerun_entries[0]
+        assert entry.cancelled is True
+
+        # the zombie resumes and stamps arrival (task_run_sample's enter
+        # hook): no stamp, no ownership
+        handle.queue_arrive("s1", 1, entry)
+        view = handle.sample_view("s1", 1)
+        assert view.queue is None and view.cancelled is None
+
+        # a follow-up cancel must not misread the key as a never-started
+        # row (pre-guard: dry_run reported the false accept; the real call
+        # hit cancel_before_start's assert)
+        for dry_run in (True, False):
+            followup = await cancel_sample(
+                "e1", "s1", 1, action="cancel", dry_run=dry_run
+            )
+            assert followup is not None, dry_run
+            assert followup["ok"] is False, dry_run
+            assert "not at the queue yet" in followup["error"], dry_run
+
+        release.set()
+    # the zombie discarded at the queue exit without overwriting the seed
+    assert results[(0, 1)] == "failed"
+
+
 async def test_scheduler_discarded_result_never_written() -> None:
     """run_one skips the results write for a DISCARDED run."""
     scheduler = SampleScheduler()
