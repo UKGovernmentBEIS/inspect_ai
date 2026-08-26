@@ -44,6 +44,7 @@ from inspect_ai._util.file import local_path
 if TYPE_CHECKING:
     from inspect_ai._control.cancel import PendingToolCall
     from inspect_ai._control.eval_state import EvalState
+    from inspect_ai._eval.task.scheduler import SampleKey
     from inspect_ai.log._samples import ActiveSample
 
 # The canonical per-sample status vocabulary of the samples listing — the
@@ -521,7 +522,7 @@ def _add_pending_samples(
                 by_key[key] = _pending_summary(sample_id, epoch)
 
 
-def _pending_requeue_keys(eval_id: str) -> frozenset[tuple[str, int]]:
+def _pending_requeue_keys(eval_id: str) -> frozenset[SampleKey]:
     """The eval's requeue-pending ``(sample_id, epoch)`` keys (str-keyed).
 
     Non-empty only while a requeue directive has been accepted and its
@@ -535,7 +536,7 @@ def _pending_requeue_keys(eval_id: str) -> frozenset[tuple[str, int]]:
     return state.sample_requeue.pending_keys()
 
 
-def _cancelled_before_start_keys(eval_id: str) -> frozenset[tuple[str, int]]:
+def _cancelled_before_start_keys(eval_id: str) -> frozenset[SampleKey]:
     """The eval's cancelled-before-start ``(sample_id, epoch)`` keys (str-keyed).
 
     Non-empty once a queued-sample cancel has been accepted for a

@@ -33,6 +33,8 @@ from typing import (
     Awaitable,
     Callable,
     Literal,
+    NamedTuple,
+    Protocol,
     TypeVar,
 )
 
@@ -80,6 +82,55 @@ caller's reads straddled a full accept → re-run → terminal cycle, so its
 the fanout has drained (nothing outstanding to keep the task open);
 ``unknown`` means the sample id isn't part of this attempt's plan.
 """
+
+
+class SampleKey(NamedTuple):
+    """A string-normalized ``(sample_id, epoch)`` bookkeeping key.
+
+    ``sample_id`` is always the ``str()`` form of the dataset id — the
+    control channel routes on strings, so an int-id dataset must land on the
+    same key (:meth:`SampleRequeue.typed_sample_id` recovers the dataset
+    type for read surfaces). The NamedTuple keeps this key space nominally
+    distinct from the two it is easily confused with: the dataset-typed
+    ``SampleIdEpoch`` (``run.py``) and the fanout's positional
+    ``(sample_index, epoch)`` plan keys — a bare ``tuple[str, int]`` is
+    assignable to both.
+    """
+
+    sample_id: str
+    epoch: int
+
+
+class RequeueAccept(Protocol):
+    """Runner-side reconciliation for an accepted requeue.
+
+    Invoked synchronously by :meth:`SampleRequeue.accept`: retracts the prior
+    terminal outcome's progress tick and superseded score for
+    ``(sample_id, epoch)`` from the live results, returning the retracted
+    score (``None`` when the prior was unscored) so ``accept`` can stash it
+    for a possible withdraw.
+    """
+
+    def __call__(
+        self, sample_id: str | int, epoch: int
+    ) -> dict[str, SampleScore] | None: ...
+
+
+class RequeueWithdraw(Protocol):
+    """Inverse of :class:`RequeueAccept`, for a withdrawn (un-requeued) entry.
+
+    Invoked synchronously by :meth:`SampleRequeue.cancel_queued`: the
+    withdrawn re-run never runs, so the prior outcome's progress tick and
+    ``popped_score`` (the score :class:`RequeueAccept` retracted, when the
+    prior scored) stand again.
+    """
+
+    def __call__(
+        self,
+        sample_id: str | int,
+        epoch: int,
+        popped_score: dict[str, SampleScore] | None,
+    ) -> None: ...
 
 
 @dataclass
@@ -313,8 +364,8 @@ class SampleRequeue:
         sample_error: "SampleErrorHandler",
         sample_indexes: dict[str, int],
         checkpoints_dir: str | None,
-        on_accept: Callable[[str | int, int], dict[str, SampleScore] | None],
-        on_withdraw: Callable[[str | int, int, dict[str, SampleScore] | None], None],
+        on_accept: RequeueAccept,
+        on_withdraw: RequeueWithdraw,
     ) -> None:
         self._eval_id = eval_id
         self._scheduler = scheduler
@@ -328,7 +379,7 @@ class SampleRequeue:
         # records its terminal outcome (including the park at the sample
         # semaphore, where the re-run has no ActiveSample yet). The value is
         # the bookkeeping an un-requeue needs to withdraw the entry.
-        self._pending: dict[tuple[str, int], _PendingRequeue] = {}
+        self._pending: dict[SampleKey, _PendingRequeue] = {}
         # uuids of prior records already accepted once: a directive whose
         # reads straddled a full accept → re-run → terminal cycle arrives
         # with a stale `prior` after the pending key has cleared, and
@@ -344,18 +395,18 @@ class SampleRequeue:
         # "arrived": absence fails closed (a reuse-bound key on a retry
         # attempt never queues), and "departed" is the blind window before
         # the run's ActiveSample registers.
-        self._queue: dict[tuple[str, int], Literal["arrived", "departed"]] = {}
+        self._queue: dict[SampleKey, Literal["arrived", "departed"]] = {}
         # cancelled-before-start keys: "parked" until the zombie coroutine
         # drains at the queue-exit check, then "discarded". The distinction
         # matters to the requeue resolver — a parked key can be un-cancelled
         # (the same coroutine still serves), a discarded one cannot.
-        self._cancelled: dict[tuple[str, int], Literal["parked", "discarded"]] = {}
+        self._cancelled: dict[SampleKey, Literal["parked", "discarded"]] = {}
         # dataset-typed ids captured at queue arrival: the queued read
         # surfaces (cancelled-row synthesis, `sample show`, the cancel
         # result rows) have no record to read a typed id from, and the
         # planned-id recovery dies with `sample_ids` at completed_at — this
         # map survives, so a cancelled row's id can't flip int → str.
-        self._typed_ids: dict[tuple[str, int], str | int] = {}
+        self._typed_ids: dict[SampleKey, str | int] = {}
 
     @property
     def open(self) -> bool:
@@ -364,9 +415,9 @@ class SampleRequeue:
 
     def is_pending(self, sample_id: str, epoch: int) -> bool:
         """Whether a requeue for this key is accepted but not yet re-terminal."""
-        return (sample_id, epoch) in self._pending
+        return SampleKey(sample_id, epoch) in self._pending
 
-    def pending_keys(self) -> frozenset[tuple[str, int]]:
+    def pending_keys(self) -> frozenset[SampleKey]:
         """The pending ``(sample_id, epoch)`` keys, for the status derivation.
 
         The samples listing renders these ``queued`` until the re-run's
@@ -380,7 +431,7 @@ class SampleRequeue:
         self, sample_id: str, epoch: int
     ) -> Literal["error", "cancelled"] | None:
         """The pending requeue's prior terminal status, or ``None`` if not pending."""
-        pending = self._pending.get((sample_id, epoch))
+        pending = self._pending.get(SampleKey(sample_id, epoch))
         return pending.prior_status if pending is not None else None
 
     def pending_departed(self, sample_id: str, epoch: int) -> bool:
@@ -391,7 +442,7 @@ class SampleRequeue:
         and ``dry_run`` alike, so a probe reports the same 409 the real
         call would); :meth:`cancel_queued` then asserts it.
         """
-        pending = self._pending.get((sample_id, epoch))
+        pending = self._pending.get(SampleKey(sample_id, epoch))
         return pending is not None and pending.entry.departed
 
     async def checkpoint_available(self, sample_id: str | int, epoch: int) -> bool:
@@ -424,7 +475,7 @@ class SampleRequeue:
         """
         from inspect_ai._control.eval_state import record_sample_requeued
 
-        key = (str(prior.id), prior.epoch)
+        key = SampleKey(str(prior.id), prior.epoch)
         if key in self._pending:
             return "already_pending"
         if prior.uuid is not None and prior.uuid in self._accepted_uuids:
@@ -478,7 +529,7 @@ class SampleRequeue:
         """
         from inspect_ai._control.eval_state import record_sample_unrequeued
 
-        key = (sample_id, epoch)
+        key = SampleKey(sample_id, epoch)
         pending = self._pending.get(key)
         assert pending is not None, f"no requeue pending for {key}"
         assert not pending.entry.departed, f"re-run for {key} has left the queue"
@@ -505,7 +556,7 @@ class SampleRequeue:
         if entry is not None and entry.prior is not None:
             entry.departed = False
         else:
-            key = (str(sample_id), epoch)
+            key = SampleKey(str(sample_id), epoch)
             self._queue[key] = "arrived"
             self._typed_ids[key] = sample_id
 
@@ -522,7 +573,7 @@ class SampleRequeue:
         if entry is not None and entry.prior is not None:
             entry.departed = True
             return entry.cancelled
-        key = (str(sample_id), epoch)
+        key = SampleKey(str(sample_id), epoch)
         self._queue[key] = "departed"
         if self._cancelled.get(key) == "parked":
             self._cancelled[key] = "discarded"
@@ -545,21 +596,21 @@ class SampleRequeue:
         """
         if entry is not None and entry.prior is not None:
             return
-        self._cancelled[(str(sample_id), epoch)] = "discarded"
+        self._cancelled[SampleKey(str(sample_id), epoch)] = "discarded"
 
     def queue_state(
         self, sample_id: str, epoch: int
     ) -> Literal["arrived", "departed"] | None:
         """The key's queue-lifecycle stamp (``None`` = never reached the queue)."""
-        return self._queue.get((sample_id, epoch))
+        return self._queue.get(SampleKey(sample_id, epoch))
 
     def cancelled_state(
         self, sample_id: str, epoch: int
     ) -> Literal["parked", "discarded"] | None:
         """The key's cancelled-before-start state, or ``None`` if not cancelled."""
-        return self._cancelled.get((sample_id, epoch))
+        return self._cancelled.get(SampleKey(sample_id, epoch))
 
-    def cancelled_keys(self) -> frozenset[tuple[str, int]]:
+    def cancelled_keys(self) -> frozenset[SampleKey]:
         """The cancelled-before-start keys, for the status derivation.
 
         The samples listing renders these ``cancelled`` (synthesized row —
@@ -576,10 +627,11 @@ class SampleRequeue:
         to the string form for a key never seen (defensive — every pending
         or cancelled key was captured).
         """
-        pending = self._pending.get((sample_id, epoch))
+        key = SampleKey(sample_id, epoch)
+        pending = self._pending.get(key)
         if pending is not None:
             return pending.sample_id
-        return self._typed_ids.get((sample_id, epoch), sample_id)
+        return self._typed_ids.get(key, sample_id)
 
     def cancel_before_start(self, sample_id: str, epoch: int) -> None:
         """Cancel a never-started (or retry-re-parked) sample parked at the queue.
@@ -597,7 +649,7 @@ class SampleRequeue:
         """
         from inspect_ai._control.eval_state import record_sample_cancelled
 
-        key = (sample_id, epoch)
+        key = SampleKey(sample_id, epoch)
         assert self._queue.get(key) == "arrived", f"{key} is not at the queue"
         self._cancelled[key] = "parked"
         record_sample_cancelled(self._eval_id)
@@ -614,7 +666,7 @@ class SampleRequeue:
         """
         from inspect_ai._control.eval_state import record_sample_requeued
 
-        key = (sample_id, epoch)
+        key = SampleKey(sample_id, epoch)
         assert self._cancelled.get(key) == "parked", f"{key} is not parked-cancelled"
         del self._cancelled[key]
         record_sample_requeued(self._eval_id, "cancelled", op="un-cancel")
