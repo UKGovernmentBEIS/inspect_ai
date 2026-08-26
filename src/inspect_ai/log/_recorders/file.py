@@ -97,6 +97,9 @@ class FileRecorder(Recorder):
         exclude_fields: set[str] | None = None,
         reader: AsyncZipReader | None = None,
     ) -> EvalSample:
+        if id is None and uuid is None:
+            raise ValueError("You must specify an 'id' or 'uuid' to read")
+
         # establish the log to read from (might be cached)
         eval_log = await cls._log_file_maybe_cached(location)
 
@@ -134,6 +137,10 @@ class FileRecorder(Recorder):
                 None,
             )
         if eval_sample is None:
+            if id is None:
+                raise IndexError(
+                    f"Sample with uuid '{uuid}' not found in log {location}"
+                )
             raise IndexError(
                 f"Sample id {id} for epoch {epoch} not found in log {location}"
             )

@@ -68,6 +68,7 @@ class EvalConfigDefaults(TypedDict):
     continue_on_fail: bool
     score_on_error: bool
     sandbox_cleanup: bool
+    sandbox_prebuilt: bool
     log_samples: bool
     log_realtime: bool
     log_images: bool
@@ -81,6 +82,7 @@ def eval_config_defaults() -> EvalConfigDefaults:
         "continue_on_fail": False,
         "score_on_error": False,
         "sandbox_cleanup": True,
+        "sandbox_prebuilt": False,
         "log_samples": True,
         "log_realtime": True,
         "log_images": True,
@@ -189,6 +191,9 @@ class EvalConfig(BaseModel):
     sandbox_cleanup: bool | None = Field(default=None)
     """Cleanup sandbox environments after task completes."""
 
+    sandbox_prebuilt: bool | None = Field(default=None)
+    """Treat sandbox images as prebuilt (skip builds and fail if an image is missing)."""
+
     log_samples: bool | None = Field(default=None)
     """Log detailed information on each sample."""
 
@@ -266,6 +271,13 @@ class EvalSampleLimit(BaseModel):
     limit: float
     """The limit value"""
 
+    reason: str | None = Field(default=None)
+    """Human-readable reason the limit fired.
+
+    The same text the corresponding `SampleLimitEvent` carries as its `message`
+    (e.g. "Tool call approver requested termination.").
+    """
+
 
 class EvalSampleSummary(BaseModel):
     """Summary information (including scoring) for a sample."""
@@ -320,6 +332,9 @@ class EvalSampleSummary(BaseModel):
 
     limit: str | None = Field(default=None)
     """Limit that halted the sample"""
+
+    limit_reason: str | None = Field(default=None)
+    """Human-readable reason the limit fired (see `EvalSampleLimit.reason`)."""
 
     retries: int | None = Field(default=None)
     """Number of retries for the sample."""
@@ -569,6 +584,7 @@ class EvalSample(BaseModel):
             uuid=self.uuid,
             error=self.error.message if self.error is not None else None,
             limit=f"{self.limit.type}" if self.limit is not None else None,
+            limit_reason=self.limit.reason if self.limit is not None else None,
             retries=len(self.error_retries) if self.error_retries is not None else None,
             completed=True,
             message_count=len(self.messages),

@@ -90,6 +90,7 @@ from ._openai_convert import (
     messages_from_openai,
     messages_from_openai_responses,
     messages_to_openai,
+    messages_to_openai_responses,
     model_output_from_openai,
     model_output_from_openai_responses,
 )
@@ -135,6 +136,7 @@ __all__ = [
     "ChatCompletionChoice",
     "messages_from_openai",
     "messages_from_openai_responses",
+    "messages_to_openai_responses",
     "messages_from_anthropic",
     "messages_from_google",
     "model_output_from_openai",
