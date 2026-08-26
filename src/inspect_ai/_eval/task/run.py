@@ -21,6 +21,7 @@ from inspect_ai._control.eval_state import (
     record_samples_added,
     register_eval,
     set_sample_requeue,
+    set_task_scoring,
     stable_task_id_for_eval,
 )
 from inspect_ai._control.pause import PauseGatedSemaphore, dispatch_model_name
@@ -170,7 +171,10 @@ from inspect_ai.util._limit import turn_limit as create_turn_limit
 from inspect_ai.util._limit import working_limit as create_working_limit
 from inspect_ai.util._limit_overrides import sample_limit_override_scope
 from inspect_ai.util._sandbox import SandboxTimeoutError
-from inspect_ai.util._sandbox.context import sandbox_connections
+from inspect_ai.util._sandbox.context import (
+    sandbox_connections,
+    sandbox_environments_context_var,
+)
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 from inspect_ai.util._sandbox.limits import reset_sandbox_limits, set_sandbox_limits
 from inspect_ai.util._span import span
@@ -1016,6 +1020,27 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                 # counters reaching total must not read as "finished" (e.g.
                 # while blocked in next_samples() with an empty seed)
                 dynamic=sample_feed is not None,
+            )
+
+            # publish the interim-scoring capability (the task's scorers and
+            # scoring inputs as resolved at eval start) for the control
+            # channel's `task score` directive — see
+            # design/ctl/interim-scoring.md. Local import: _control.scoring
+            # pulls scorer/metrics machinery that must not load at bootstrap.
+            from inspect_ai._control.scoring import TaskScoring
+
+            set_task_scoring(
+                logger.eval.eval_id,
+                TaskScoring(
+                    scorers=scorers or [],
+                    scorer_names=scorer_names or [],
+                    model=model,
+                    model_roles=model_roles,
+                    generate_config=generate_config,
+                    epochs_reducer=task.epochs_reducer,
+                    metrics=task.metrics,
+                    score_on_error=config.score_on_error or False,
+                ),
             )
 
             # call early stopping if we have it
@@ -2277,7 +2302,17 @@ async def _task_run_sample_attempt(
                         # update active sample wth sandboxes now that we are initialised
                         # (ensure that we still exit init context in presence of sandbox error)
                         try:
-                            active.sandboxes = await sandbox_connections()
+                            # publish the environments (the interim-scoring
+                            # pass binds them into its scoring context —
+                            # design/ctl/interim-scoring.md) and derive the
+                            # VS Code connection info from that same
+                            # publication so the two fields can't drift
+                            active.sandbox_environments = (
+                                sandbox_environments_context_var.get({}) or {}
+                            )
+                            active.sandboxes = await sandbox_connections(
+                                active.sandbox_environments
+                            )
                         finally:
                             await init_span.__aexit__(None, None, None)
                             cleanup_span = None
