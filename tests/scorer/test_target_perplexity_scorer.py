@@ -252,7 +252,7 @@ async def test_target_perplexity_unscorable_states_carry_reason() -> None:
     state.output.choices = []
     result = await scorer(state, Target(["x"]))
     assert result is not None
-    assert result.reason == "no_response"
+    assert result.reason == "scoring_failed"
 
     state = _state_with_prompt_logprobs(None)
     result = await scorer(state, Target(["x"]))

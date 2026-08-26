@@ -39,7 +39,7 @@ def perplexity() -> Scorer:
     async def score(state: TaskState, target: Target) -> Score:
         if not state.output.choices:
             return Score.unscored(
-                reason="no_response",
+                reason="scoring_failed",
                 explanation="No model output choices available.",
             )
 
