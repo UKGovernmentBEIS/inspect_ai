@@ -2308,7 +2308,7 @@ var e = { env: {} };
 					configurable: !0
 				}), Object.defineProperty(n.prototype, `arity`, {
 					get: function() {
-						return Infinity;
+						return 1 / 0;
 					},
 					enumerable: !1,
 					configurable: !0
@@ -2337,7 +2337,7 @@ var e = { env: {} };
 					var n, r, i = this;
 					if (this.arity < 0) return this.childNodes[0].appendChild(t), t;
 					if (t.isInferred) {
-						if (this.arity === Infinity) return t.childNodes.forEach((function(t) {
+						if (this.arity === 1 / 0) return t.childNodes.forEach((function(t) {
 							return e.prototype.appendChild.call(i, t);
 						})), t;
 						var a = t;
@@ -2423,7 +2423,7 @@ var e = { env: {} };
 					}
 					this.attributes.getExplicit(`displaystyle`) === void 0 && this.attributes.setInherited(`displaystyle`, t), this.attributes.getExplicit(`scriptlevel`) === void 0 && this.attributes.setInherited(`scriptlevel`, r), i && this.setProperty(`texprimestyle`, i);
 					var g = this.arity;
-					if (g >= 0 && g !== Infinity && (g === 1 && this.childNodes.length === 0 || g !== 1 && this.childNodes.length !== g)) if (g < this.childNodes.length) this.childNodes = this.childNodes.slice(0, g);
+					if (g >= 0 && g !== 1 / 0 && (g === 1 && this.childNodes.length === 0 || g !== 1 && this.childNodes.length !== g)) if (g < this.childNodes.length) this.childNodes = this.childNodes.slice(0, g);
 					else for (; this.childNodes.length < g;) this.appendChild(this.factory.create(`mrow`));
 					this.setChildInheritedAttributes(e, t, r, i);
 				}, n.prototype.setChildInheritedAttributes = function(e, t, n, r) {
@@ -2463,7 +2463,7 @@ var e = { env: {} };
 					if (e === void 0 && (e = null), e !== null) {
 						this.verifyAttributes(e);
 						var t = this.arity;
-						e.checkArity && t >= 0 && t !== Infinity && (t === 1 && this.childNodes.length === 0 || t !== 1 && this.childNodes.length !== t) && this.mError(`Wrong number of children for "` + this.kind + `" node`, e, !0), this.verifyChildren(e);
+						e.checkArity && t >= 0 && t !== 1 / 0 && (t === 1 && this.childNodes.length === 0 || t !== 1 && this.childNodes.length !== t) && this.mError(`Wrong number of children for "` + this.kind + `" node`, e, !0), this.verifyChildren(e);
 					}
 				}, n.prototype.verifyAttributes = function(e) {
 					var t, n;
@@ -13986,7 +13986,7 @@ var e = { env: {} };
 					`⟨`,
 					`⟩`,
 					!1,
-					Infinity
+					1 / 0
 				],
 				set: [
 					`Braket`,
@@ -14010,7 +14010,7 @@ var e = { env: {} };
 					`⟨`,
 					`⟩`,
 					!0,
-					Infinity
+					1 / 0
 				],
 				Set: [
 					`Braket`,
@@ -21217,7 +21217,7 @@ var e = { env: {} };
 					}, t.prototype.getStretchedVariant = function(e, t) {
 						var n, r;
 						if (t === void 0 && (t = !1), this.stretch.dir !== 0) {
-							var i = this.getWH(e), a = this.getSize(`minsize`, 0), s = this.getSize(`maxsize`, Infinity), c = this.node.getProperty(`mathaccent`);
+							var i = this.getWH(e), a = this.getSize(`minsize`, 0), s = this.getSize(`maxsize`, 1 / 0), c = this.node.getProperty(`mathaccent`);
 							i = Math.max(a, Math.min(s, i));
 							var u = this.font.params.delimiterfactor / 1e3, d = this.font.params.delimitershortfall, f = a || t ? i : c ? Math.min(i / u, i + d) : Math.max(i * u, i - d), p = this.stretch, m = p.c || this.getText().codePointAt(0), h = 0;
 							if (p.sizes) try {
@@ -50328,7 +50328,7 @@ $2$3`).split(`\r
 				for (let n of u.EnrichAttributes) e.hasAttribute(n) && (t.setAttribute(n, e.getAttribute(n)), e.removeAttribute(n));
 			}
 			function g(e, t) {
-				let n = i.toArray(e.childNodes), r = Infinity, a = -Infinity;
+				let n = i.toArray(e.childNodes), r = 1 / 0, a = -1 / 0;
 				return t.forEach((function(e) {
 					let t = n.indexOf(e);
 					t !== -1 && (r = Math.min(r, t), a = Math.max(a, t));

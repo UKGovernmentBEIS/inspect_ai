@@ -124,6 +124,7 @@ def eval(
     task_args: dict[str, Any] | str = dict(),
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
+    sandbox_prebuilt: bool | None = None,
     checkpoint: CheckpointConfig | bool | None = None,
     acp_server: bool | int | str | None = None,
     ctl_server: bool | str | None = None,
@@ -195,6 +196,9 @@ def eval(
             (or optionally a str or tuple with a shorthand spec)
         sandbox_cleanup: Cleanup sandbox environments after task completes
             (defaults to True)
+        sandbox_prebuilt: Treat sandbox images as prebuilt, skipping builds
+            and failing at task startup when an image is missing
+            (defaults to False)
         checkpoint: Checkpoint configuration for this eval, or `True` to
             enable checkpointing with the default trigger (every 500k
             tokens) — equivalent to the bare `--checkpoint` CLI flag.
@@ -328,6 +332,7 @@ def eval(
                 task_args=task_args,
                 sandbox=sandbox,
                 sandbox_cleanup=sandbox_cleanup,
+                sandbox_prebuilt=sandbox_prebuilt,
                 checkpoint=checkpoint,
                 solver=solver,
                 scanner=scanner,
@@ -414,6 +419,7 @@ async def eval_async(
     task_args: dict[str, Any] | str = dict(),
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
+    sandbox_prebuilt: bool | None = None,
     checkpoint: CheckpointConfig | bool | None = None,
     acp_server: bool | int | str | None = None,
     ctl_server: bool | str | None = None,
@@ -478,6 +484,7 @@ async def eval_async(
         task_args: Task creation arguments (as a dictionary or as a path to a JSON or YAML config file)
         sandbox: Sandbox environment type (or optionally a str or tuple with a shorthand spec)
         sandbox_cleanup: Cleanup sandbox environments after task completes (defaults to True)
+        sandbox_prebuilt: Treat sandbox images as prebuilt, skipping builds and failing at task startup when an image is missing (defaults to False)
         checkpoint: Checkpoint configuration for this eval, or `True` to enable checkpointing with the default trigger (every 500k tokens), equivalent to the bare `--checkpoint` CLI flag. Overrides any task- or sample-level `checkpoint` when set.
         acp_server: Expose this eval over an Agent Client Protocol server.
             `True` enables a default AF_UNIX socket at `<inspect_data_dir>/acp/<run_id>.sock`;
@@ -602,6 +609,7 @@ async def eval_async(
                 task_args=task_args,
                 sandbox=sandbox,
                 sandbox_cleanup=sandbox_cleanup,
+                sandbox_prebuilt=sandbox_prebuilt,
                 checkpoint=checkpoint,
                 solver=solver,
                 scanner=scanner,
@@ -680,6 +688,7 @@ async def _eval_async_inner(
     task_args: dict[str, Any] | str = dict(),
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
+    sandbox_prebuilt: bool | None = None,
     checkpoint: CheckpointConfig | None = None,
     acp_server: bool | int | str | None = None,
     ctl_server: bool | str | None = None,
@@ -811,11 +820,11 @@ async def _eval_async_inner(
         resolve_model_costs(resolved_tasks, cost_limit)
 
         # make every resolved task's model addressable by the model pause
-        # directives up-front: with parallel == 1 the run loop below hands
-        # the dispatcher one sequence group at a time, so the dispatcher's
-        # own registration would lag behind the run. This is also the first
-        # dispatch_model_name call, so the latch's name snapshots are taken
-        # here — before any generate can rewrite a provider's model name
+        # directives up-front, ahead of the dispatcher's own registration
+        # (which happens as each batch is prepared, so it lags for tasks fed
+        # to later batches). This is also the first dispatch_model_name call,
+        # so the latch's name snapshots are taken here — before any generate
+        # can rewrite a provider's model name
         note_dispatch_models([dispatch_model_name(t.model) for t in resolved_tasks])
 
         # if there is no max tasks then base it on unique model names
@@ -916,6 +925,7 @@ async def _eval_async_inner(
             max_subprocesses=max_subprocesses,
             max_sandboxes=max_sandboxes,
             sandbox_cleanup=sandbox_cleanup,
+            sandbox_prebuilt=sandbox_prebuilt,
             log_samples=log_samples,
             log_realtime=log_realtime,
             log_images=log_images,
@@ -1075,17 +1085,21 @@ async def _eval_async_inner(
                     while pending is not None:
                         batch_logs: list[EvalLog] = []
                         if parallel == 1:
-                            # single task definition (could be multi-model): run
-                            # sequence groups in order, stopping on cancellation
-                            for sequence in sorted({t.sequence for t in pending}):
-                                batch_logs.extend(
-                                    await run_batch(
-                                        [t for t in pending if t.sequence == sequence],
-                                        debug_errors is True,
-                                    )
-                                )
-                                if any(r.status == "cancelled" for r in batch_logs):
-                                    break
+                            # one batch in sequence-major order: the dispatcher
+                            # dispatches in queue order (preserving sequence
+                            # grouping at a limit of 1) and, unlike per-group
+                            # sub-batches, sees the whole queue — so a live
+                            # `ctl config --max-tasks` raise starts queued
+                            # tasks immediately
+                            ordered = [
+                                t
+                                for sequence in sorted({t.sequence for t in pending})
+                                for t in pending
+                                if t.sequence == sequence
+                            ]
+                            batch_logs.extend(
+                                await run_batch(ordered, debug_errors is True)
+                            )
                         else:
                             # multiple task definitions, run together
                             batch_logs.extend(await run_batch(pending, False))
@@ -1116,10 +1130,12 @@ async def _eval_async_inner(
                     # next_tasks(), its sample/task_complete return values, or
                     # enqueue_task — start on free capacity rather than waiting
                     # for a batch boundary. This only helps when there is spare
-                    # capacity to fill (parallel > 1); with parallel == 1 nothing
-                    # runs concurrently, so we fall through to run_batches, which
-                    # preserves the parallel==1 sequence grouping (and still drives
-                    # the source via enqueuer.drain() / next_tasks()).
+                    # capacity to fill (parallel > 1); with parallel == 1 we fall
+                    # through to run_batches, whose sequence-major batch order
+                    # preserves sequence grouping at the launch limit (injection
+                    # feeds tasks in resolved, model-major order, which would
+                    # interleave task fan-outs) — and still drives the source
+                    # via enqueuer.drain() / next_tasks().
                     async def inject_next() -> list[ResolvedTask] | None:
                         more = await task_source.next_tasks()
                         return resolve_added_tasks(more) if more else None
@@ -1254,6 +1270,7 @@ def eval_retry(
     max_subprocesses: int | None = None,
     max_sandboxes: int | None = None,
     sandbox_cleanup: bool | None = None,
+    sandbox_prebuilt: bool | None = None,
     trace: bool | None = None,
     display: DisplayType | None = None,
     fail_on_error: bool | float | None = None,
@@ -1301,6 +1318,9 @@ def eval_retry(
             to run in parallel.
         sandbox_cleanup: Cleanup sandbox environments after task completes
             (defaults to True)
+        sandbox_prebuilt: Treat sandbox images as prebuilt, skipping builds
+            and failing at task startup when an image is missing
+            (defaults to False)
         trace: Trace message interactions with evaluated model to terminal.
         display: Task display type (defaults to 'full').
         fail_on_error: `True` to fail on a sample error
@@ -1390,6 +1410,7 @@ def eval_retry(
             max_subprocesses=max_subprocesses,
             max_sandboxes=max_sandboxes,
             sandbox_cleanup=sandbox_cleanup,
+            sandbox_prebuilt=sandbox_prebuilt,
             fail_on_error=fail_on_error,
             continue_on_fail=continue_on_fail,
             retry_on_error=retry_on_error,
@@ -1442,6 +1463,7 @@ async def eval_retry_async(
     max_subprocesses: int | None = None,
     max_sandboxes: int | None = None,
     sandbox_cleanup: bool | None = None,
+    sandbox_prebuilt: bool | None = None,
     fail_on_error: bool | float | None = None,
     continue_on_fail: bool | None = None,
     retry_on_error: int | None = None,
@@ -1482,6 +1504,9 @@ async def eval_retry_async(
         max_sandboxes: Maximum number of sandboxes (per-provider) to run in parallel.
         sandbox_cleanup: Cleanup sandbox environments after task completes
            (defaults to True)
+        sandbox_prebuilt: Treat sandbox images as prebuilt, skipping builds
+           and failing at task startup when an image is missing
+           (defaults to False)
         fail_on_error: `True` to fail on first sample error
            (default); `False` to never fail on sample errors; Value between 0 and 1
            to fail if a proportion of total samples fails. Value greater than 1 to fail
@@ -1672,6 +1697,11 @@ async def eval_retry_async(
             if sandbox_cleanup is not None
             else eval_log.eval.config.sandbox_cleanup
         )
+        sandbox_prebuilt = (
+            sandbox_prebuilt
+            if sandbox_prebuilt is not None
+            else eval_log.eval.config.sandbox_prebuilt
+        )
         fail_on_error = (
             fail_on_error
             if fail_on_error is not None
@@ -1778,6 +1808,7 @@ async def eval_retry_async(
                 task_args=task_args,
                 sandbox=eval_log.eval.sandbox,
                 sandbox_cleanup=sandbox_cleanup,
+                sandbox_prebuilt=sandbox_prebuilt,
                 solver=solver,
                 scanner=scanner,
                 scan_id=retry_scan_id,
