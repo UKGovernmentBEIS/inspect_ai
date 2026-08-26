@@ -8,7 +8,7 @@ from __future__ import annotations
 import json as json_lib
 import time
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, NamedTuple, cast
 
 import click
 
@@ -786,6 +786,61 @@ def _parse_requeue_pairs(targets: tuple[str, ...]) -> list[tuple[str, int]]:
     return pairs
 
 
+class _ResolvedSampleTarget(NamedTuple):
+    """A sample command's resolved target eval plus its gated epoch."""
+
+    target: dict[str, Any]
+    epoch: int
+
+
+def _resolve_sample_target(
+    task: str,
+    epoch: int | None,
+    *,
+    verb_phrase: str,
+    as_json: bool,
+    model: str | None = None,
+) -> _ResolvedSampleTarget | None:
+    """Resolve a sample command's target eval and apply the required-EPOCH gate.
+
+    Shared by the sample mutations and ``sample score`` so the fail-closed
+    epoch rule exists once. Returns ``None`` (after reporting) when no evals
+    are running.
+
+    Mutation selector rule: a defaulted epoch doesn't error — it resolves
+    to a *different sample* — so EPOCH is required whenever the task runs
+    more than one epoch. (An older server doesn't report ``epochs``; the
+    epoch-1 default then stands, as it did before the field existed.)
+    ``verb_phrase`` names the action in the failure message (e.g. ``"apply
+    the cancel to"``, ``"score"``).
+    """
+    fetched = _fetch_sample_summaries(task)
+    summaries = fetched.summaries
+    if not summaries:
+        if as_json:
+            _echo_raw("null")
+            return None
+        _echo_no_running_evals()
+        return None
+
+    target = _resolve_target_eval(
+        summaries, task, busy_pids=fetched.busy_pids, model=model
+    )
+
+    if epoch is None:
+        epochs = int(target.get("epochs") or 1)
+        if epochs > 1:
+            _fail(
+                "ambiguous",
+                f"Task '{target.get('task') or '?'}' runs {epochs} epochs — "
+                "pass EPOCH explicitly (a defaulted epoch would silently "
+                f"{verb_phrase} the epoch-1 attempt).",
+            )
+        epoch = 1
+
+    return _ResolvedSampleTarget(target, epoch)
+
+
 def _run_sample_mutation(
     task: str,
     sample_id: str,
@@ -816,33 +871,12 @@ def _run_sample_mutation(
     prefixes the target itself, so every terse line names it — the full
     no-op messages don't have to).
     """
-    fetched = _fetch_sample_summaries()
-    summaries = fetched.summaries
-    if not summaries:
-        if as_json:
-            _echo_raw("null")
-            return
-        _echo_no_running_evals()
-        return
-
-    target = _resolve_target_eval(
-        summaries, task, busy_pids=fetched.busy_pids, model=model
+    resolved = _resolve_sample_target(
+        task, epoch, verb_phrase=f"apply the {verb} to", as_json=as_json, model=model
     )
-
-    # Mutation selector rule: a defaulted epoch doesn't error — it resolves
-    # to a *different sample* — so EPOCH is required whenever the task runs
-    # more than one epoch. (An older server doesn't report `epochs`; the
-    # epoch-1 default then stands, as it did before the field existed.)
-    if epoch is None:
-        epochs = int(target.get("epochs") or 1)
-        if epochs > 1:
-            _fail(
-                "ambiguous",
-                f"Task '{target.get('task') or '?'}' runs {epochs} epochs — "
-                "pass EPOCH explicitly (a defaulted epoch would silently "
-                f"apply the {verb} to the epoch-1 attempt).",
-            )
-        epoch = 1
+    if resolved is None:
+        return
+    target, epoch = resolved
 
     params: dict[str, Any] = {
         "sample_id": sample_id,
@@ -1461,30 +1495,12 @@ def _run_sample_score(
     asked for); a running pass for the *same* sample is joined, like the
     task directive's idempotent repeat.
     """
-    fetched = _fetch_sample_summaries(task)
-    summaries = fetched.summaries
-    if not summaries:
-        if as_json:
-            _echo_raw("null")
-            return
-        _echo_no_running_evals()
-        return
-
-    target = _resolve_target_eval(
-        summaries, task, busy_pids=fetched.busy_pids, model=model
+    resolved = _resolve_sample_target(
+        task, epoch, verb_phrase="score", as_json=as_json, model=model
     )
-
-    # the sample mutations' fail-closed epoch rule (see _run_sample_mutation)
-    if epoch is None:
-        epochs = int(target.get("epochs") or 1)
-        if epochs > 1:
-            _fail(
-                "ambiguous",
-                f"Task '{target.get('task') or '?'}' runs {epochs} epochs — "
-                "pass EPOCH explicitly (a defaulted epoch would silently "
-                "score the epoch-1 attempt).",
-            )
-        epoch = 1
+    if resolved is None:
+        return
+    target, epoch = resolved
 
     terse_mode = _use_terse(terse)
     target_label = _sanitize_line(
@@ -1523,14 +1539,17 @@ def _run_sample_score(
         pid=target.get("pid"),
     )
 
+    changed = bool(result.get("changed"))
+    own_pass = changed or _is_own_sample_pass(result, sample_id, epoch)
+    # the response echoes resolved identifiers only for a pass that is this
+    # sample's — a blocked start's envelope carries the *blocking* pass's
+    # identity, which must never be reported as the target
     envelope_target = {
         "task_id": target.get("task_id"),
         "task": target.get("task"),
-        "sample_id": result.get("sample_id", sample_id),
-        "epoch": result.get("epoch", epoch),
+        "sample_id": result.get("sample_id", sample_id) if own_pass else sample_id,
+        "epoch": result.get("epoch", epoch) if own_pass else epoch,
     }
-    changed = bool(result.get("changed"))
-    own_pass = changed or _is_own_sample_pass(result, sample_id, epoch)
     targeted = result.get("targeted") or {}
 
     if dry_run or no_wait or not own_pass:
@@ -1549,18 +1568,20 @@ def _run_sample_score(
             reason = _sanitize_line(
                 str(result.get("reason") or "a scoring pass is already running")
             )
+            # the blocked case means the requested scoring did NOT happen —
+            # say so in every mode, not just the full rendering
             hint = (
                 ""
                 if own_pass
                 else (
-                    " Watch it with `inspect ctl task score --status` and "
-                    "retry once it finishes."
+                    " — the sample was not scored; retry once it finishes "
+                    "(watch it with `inspect ctl task score --status`)"
                 )
             )
             if terse_mode:
-                _echo(_terse_line("score", target_label, f"no-op — {reason}"))
+                _echo(_terse_line("score", target_label, f"no-op — {reason}{hint}"))
             else:
-                _echo(f"Nothing to do: {reason}.{hint}")
+                _echo(f"Nothing to do: {reason}{hint}.")
         elif dry_run:
             body = _sample_score_dry_run_body(targeted)
             if terse_mode:
@@ -1652,17 +1673,17 @@ def _is_own_sample_pass(result: dict[str, Any], sample_id: str, epoch: int) -> b
 
 def _sample_score_dry_run_body(targeted: dict[str, Any]) -> str:
     """One sample's disposition, rendered from the dry run's targeted counts."""
-    if int(targeted.get("in_flight", 0) or 0):
+    if targeted.get("in_flight"):
         return (
             "the in-flight sample would be held at its next model call and "
             "scored on its work-so-far"
         )
-    if int(targeted.get("completed_scored", 0) or 0):
+    if targeted.get("completed_scored"):
         return (
             "the sample already completed and was scored — its existing "
             "final scores would be reported (never re-scored)"
         )
-    if int(targeted.get("completed_unscored", 0) or 0):
+    if targeted.get("completed_unscored"):
         return (
             "the sample completed unscored — not scored mid-run; use "
             "`inspect score` on the log after the run"
@@ -1682,7 +1703,8 @@ def _get_sample_score_status(
         not_found=(
             f"No scoring pass found for sample '{sample_id}' (epoch {epoch}) "
             "— none has been started, or a later pass for the task replaced "
-            "it."
+            "it (a finished pass's interim scores remain on the sample's "
+            "transcript: `inspect ctl sample events ... --type score`)."
         ),
         not_found_missing_route=_SAMPLE_SCORE_ROUTE_MISSING,
         pid=target.get("pid"),
@@ -1731,9 +1753,11 @@ def _render_sample_score_result(
         body += held_note
         if reason:
             body += f"; {reason}"
+        # interrupted/error are exclusive in rendering, as in the task
+        # renderer (_render_score_result)
         if interrupted:
             body += f"; interrupted — {interrupted}"
-        if pass_error:
+        elif pass_error:
             body += f"; error — {pass_error}"
         _echo(_terse_line("score", target_label, _sanitize_line(body)))
         return

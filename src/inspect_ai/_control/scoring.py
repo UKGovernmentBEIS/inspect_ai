@@ -283,8 +283,6 @@ async def start_score_pass(
     calls at all): interim metrics over existing final scores, the free
     spelling for recurring polling.
     """
-    import asyncio
-
     from inspect_ai._control.eval_state import latest_eval_for_task
 
     state = latest_eval_for_task(task_id)
@@ -295,35 +293,62 @@ async def start_score_pass(
     if handle is None or not handle.scorers:
         return {"ok": False, "error": _NO_SCORERS_ERROR}
 
+    # cheap early answer for the common repeat-start; the authoritative
+    # check lives in _finish_start (enumeration suspends, so this one alone
+    # cannot close the race)
     existing = _score_passes.get(state.task_id)
     if existing is not None and existing.running:
         return _already_running_envelope(existing, state, dry_run)
 
     targets = await _enumerate_targets(state, handle)
+    return _finish_start(
+        state,
+        handle,
+        targets,
+        dry_run=dry_run,
+        completed_only=completed_only,
+        sample=None,
+    )
 
-    # _enumerate_targets suspends (the recorder's summaries lock, or a log
-    # read), so a concurrent start may have registered a pass meanwhile;
-    # re-check before registering — everything from here to the registration
-    # below is synchronous, so this closes the race. Without it the loser
-    # becomes an orphan pass (invisible to GET / reset) sharing the popped-on-
-    # release sample hold gates with the winner.
+
+def _finish_start(
+    state: "EvalState",
+    handle: TaskScoring,
+    targets: "_PassTargets",
+    *,
+    dry_run: bool,
+    completed_only: bool,
+    sample: "_SampleTarget | None",
+) -> dict[str, Any]:
+    """Register and spawn a pass over enumerated targets (shared start tail).
+
+    Both starts route through here so the race-critical sequence exists
+    once: target enumeration suspends (the recorder's summaries lock, or a
+    log read), so a concurrent start may have registered a pass meanwhile —
+    the one-pass check here, synchronous with the registration below,
+    closes that race. Without it the loser becomes an orphan pass
+    (invisible to GET / reset) sharing the popped-on-release sample hold
+    gates with the winner.
+    """
+    import asyncio
+    import contextvars
+
     existing = _score_passes.get(state.task_id)
     if existing is not None and existing.running:
         return _already_running_envelope(existing, state, dry_run)
 
     targeted = targets.counts(completed_only)
-    total = 0 if completed_only else len(targets.in_flight)
 
     if dry_run:
         # a dry run registers nothing: no ScorePass is even constructed, so
         # the envelope reports nothing running and no pass id — a follow-up
         # poll would never find one
-        return {
+        envelope: dict[str, Any] = {
             "ok": True,
             "task_id": state.task_id,
             "task": state.task,
             "eval_id": state.eval_id,
-            "scope": "task",
+            "scope": "task" if sample is None else "sample",
             "running": False,
             "as_of": time.time(),
             "completed_only": completed_only,
@@ -331,6 +356,10 @@ async def start_score_pass(
             "dry_run": True,
             "targeted": targeted,
         }
+        if sample is not None:
+            envelope["sample_id"] = sample.sample_id
+            envelope["epoch"] = sample.epoch
+        return envelope
 
     score_pass = ScorePass(
         pass_id=uuid(),
@@ -339,8 +368,10 @@ async def start_score_pass(
         task=state.task,
         as_of=time.time(),
         completed_only=completed_only,
+        sample_id=sample.sample_id if sample is not None else None,
+        sample_epoch=sample.epoch if sample is not None else None,
         targeted=targeted,
-        total=total,
+        total=0 if completed_only else len(targets.in_flight),
     )
     _score_passes[state.task_id] = score_pass
     # the control server runs uvicorn on the eval's asyncio loop, so the
@@ -351,8 +382,6 @@ async def start_score_pass(
     # bind no sample, which a copy would silently break if a start were ever
     # issued from in-sample code (Context().run makes the task's captured
     # context the empty one — portable, unlike create_task's context kwarg).
-    import contextvars
-
     score_pass._task = contextvars.Context().run(
         asyncio.ensure_future, run_score_pass(score_pass, state, handle, targets)
     )
@@ -432,19 +461,53 @@ async def start_sample_score_pass(
     one pass per task at a time, whatever its scope, so holds never stack:
     a start while any pass runs for the task is the idempotent no-op
     envelope for that pass (its ``scope`` fields let the caller tell its
-    own sample's pass, which it may join, from an unrelated one).
+    own sample's pass, which it may join, from an unrelated one). The
+    target is resolved *before* that guard, so an unknown sample is a
+    deterministic 404 whether or not something else happens to be running.
     """
-    import asyncio
-    import contextvars
+    state = _current_attempt_state(eval_id)
+    if state is None:
+        return None
+    if isinstance(state, dict):
+        return state
 
+    handle = state.task_scoring
+    if handle is None or not handle.scorers:
+        return {"ok": False, "error": _NO_SCORERS_ERROR}
+
+    resolved = _sample_scoped_targets(
+        await _enumerate_targets(state, handle, only=(sample_id, epoch)),
+        sample_id,
+        epoch,
+    )
+    if resolved is None:
+        return None
+
+    return _finish_start(
+        state,
+        handle,
+        resolved.targets,
+        dry_run=dry_run,
+        completed_only=False,
+        sample=resolved,
+    )
+
+
+def _current_attempt_state(eval_id: str) -> "EvalState | dict[str, Any] | None":
+    """Resolve an eval id to its state, rejecting superseded attempts.
+
+    Eval-keyed directives can arrive with a superseded attempt's eval id
+    (the task-keyed ones can't — a task id always resolves to the current
+    attempt). ``None`` for an unknown eval; an ``{"ok": False, ...}``
+    rejection for a stale attempt — a start must not register a pass that
+    would immediately report itself superseded, and a poll must not serve
+    the *current* attempt's pass as if it described the stale one.
+    """
     from inspect_ai._control.eval_state import get_eval_state, latest_eval_for_task
 
     state = get_eval_state(eval_id)
     if state is None:
         return None
-    # eval-keyed directives can arrive with a superseded attempt's eval id
-    # (the task-keyed ones can't); reject rather than registering a pass
-    # that would immediately report itself superseded
     if latest_eval_for_task(state.task_id) is not state:
         return {
             "ok": False,
@@ -453,71 +516,7 @@ async def start_sample_score_pass(
                 "re-resolve the target and retry against the current attempt"
             ),
         }
-
-    handle = state.task_scoring
-    if handle is None or not handle.scorers:
-        return {"ok": False, "error": _NO_SCORERS_ERROR}
-
-    existing = _score_passes.get(state.task_id)
-    if existing is not None and existing.running:
-        return _already_running_envelope(existing, state, dry_run)
-
-    resolved = _sample_scoped_targets(
-        await _enumerate_targets(state, handle), sample_id, epoch
-    )
-    if resolved is None:
-        return None
-
-    # the same post-enumeration re-check as start_score_pass (the
-    # enumeration suspends, so a concurrent start may have registered)
-    existing = _score_passes.get(state.task_id)
-    if existing is not None and existing.running:
-        return _already_running_envelope(existing, state, dry_run)
-
-    targeted = resolved.targets.counts(False)
-    if dry_run:
-        # like the task-wide dry run: nothing is registered or spawned
-        return {
-            "ok": True,
-            "task_id": state.task_id,
-            "task": state.task,
-            "eval_id": state.eval_id,
-            "scope": "sample",
-            "sample_id": resolved.sample_id,
-            "epoch": resolved.epoch,
-            "running": False,
-            "as_of": time.time(),
-            "completed_only": False,
-            "changed": True,
-            "dry_run": True,
-            "targeted": targeted,
-        }
-
-    score_pass = ScorePass(
-        pass_id=uuid(),
-        task_id=state.task_id,
-        eval_id=state.eval_id,
-        task=state.task,
-        as_of=time.time(),
-        completed_only=False,
-        sample_id=resolved.sample_id,
-        sample_epoch=resolved.epoch,
-        targeted=targeted,
-        total=len(resolved.targets.in_flight),
-    )
-    _score_passes[state.task_id] = score_pass
-    # spawned exactly as start_score_pass spawns its pass (a sibling asyncio
-    # task in a fresh context — see the rationale there)
-    score_pass._task = contextvars.Context().run(
-        asyncio.ensure_future,
-        run_score_pass(score_pass, state, handle, resolved.targets),
-    )
-    return {
-        **_pass_envelope_base(score_pass, state),
-        "changed": True,
-        "dry_run": False,
-        "targeted": targeted,
-    }
+    return state
 
 
 async def get_sample_score_pass(
@@ -526,16 +525,18 @@ async def get_sample_score_pass(
     """Report one sample's pass (``GET /evals/<eval-id>/sample/score``).
 
     Returns ``None`` when the eval isn't in this process; ``{"ok": False,
-    "error": ...}`` when the task's current (or most recent) pass isn't
-    sample-scoped to this exact ``(sample_id, epoch)`` — the registry keeps
-    one pass per task, so a later pass (task-wide or another sample's)
-    evicts this sample's result (the route maps it to a 404).
+    "error": ...}`` for a superseded attempt's eval id, and when the task's
+    current (or most recent) pass isn't sample-scoped to this exact
+    ``(sample_id, epoch)`` — the registry keeps one pass per task, so a
+    later pass (task-wide or another sample's) evicts this sample's result
+    (the route maps these to a 404/409; a finished pass's interim scores
+    remain on the sample's transcript regardless).
     """
-    from inspect_ai._control.eval_state import get_eval_state
-
-    state = get_eval_state(eval_id)
+    state = _current_attempt_state(eval_id)
     if state is None:
         return None
+    if isinstance(state, dict):
+        return state
     score_pass = _score_passes.get(state.task_id)
     if (
         score_pass is None
@@ -593,19 +594,33 @@ def _sample_scoped_targets(
     for row in targets.skipped_rows:
         if str(row["sample_id"]) == sample_id and row["epoch"] == epoch:
             scoped.skipped_rows = [row]
-            return _SampleTarget(scoped, row["sample_id"], int(row["epoch"]))
+            return _SampleTarget(scoped, row["sample_id"], row["epoch"])
     return None
 
 
 def _already_running_envelope(
     existing: ScorePass, state: "EvalState", dry_run: bool
 ) -> dict[str, Any]:
-    """The idempotent no-op response for a start while a pass is running."""
+    """The idempotent no-op response for a start while a pass is running.
+
+    The reason names a sample-scoped pass's target: the running pass may
+    have a different scope than the request (the registry is shared), and
+    the caller's rendering of "already running" must not read as "the work
+    I asked for is happening".
+    """
+    reason = (
+        "a scoring pass is already running for this task"
+        if existing.sample_id is None
+        else (
+            f"a sample-scoped scoring pass (sample {existing.sample_id}, "
+            f"epoch {existing.sample_epoch}) is already running for this task"
+        )
+    )
     return {
         **_pass_envelope_base(existing, state),
         "changed": False,
         "dry_run": dry_run,
-        "reason": "a scoring pass is already running for this task",
+        "reason": reason,
         "progress": _pass_progress(existing),
     }
 
@@ -646,7 +661,11 @@ def _pass_progress(score_pass: ScorePass) -> dict[str, int]:
 # ---------------------------------------------------------------------------
 
 
-async def _enumerate_targets(state: "EvalState", handle: TaskScoring) -> _PassTargets:
+async def _enumerate_targets(
+    state: "EvalState",
+    handle: TaskScoring,
+    only: tuple[str, int] | None = None,
+) -> _PassTargets:
     """Classify the eval's samples into pass dispositions.
 
     Completed records come from the live recorder (gap-free, ahead of disk)
@@ -656,6 +675,15 @@ async def _enumerate_targets(state: "EvalState", handle: TaskScoring) -> _PassTa
     process's active-sample registry. A retried sample can appear in both
     (the prior errored attempt's record plus the live re-run) — the live row
     wins.
+
+    ``only`` narrows the enumeration to one ``(stringified sample id, epoch)``
+    for a sample-scoped pass: non-matching samples are skipped before any
+    classification or row construction, and an in-flight match returns
+    without the completed-summaries read at all (which takes the recorder's
+    lock, or on a torn-down recorder reads the whole log) — the live row
+    wins over any completed record of the same key, so nothing else could
+    match. ``unaccounted`` (queued samples) is meaningful only for the full
+    enumeration and stays 0 under ``only``.
     """
     from inspect_ai._control.state import completed_eval_sample_summaries
     from inspect_ai._util.error import is_cancellation_message
@@ -669,11 +697,16 @@ async def _enumerate_targets(state: "EvalState", handle: TaskScoring) -> _PassTa
         if a.eval_id == state.eval_id
         and a.started is not None
         and not _sample_terminal(a)
+        and (only is None or (str(a.sample.id), a.epoch) == only)
     ]
+    if only is not None and targets.in_flight:
+        return targets
     in_flight_keys = {(str(a.sample.id), a.epoch) for a in targets.in_flight}
 
     accounted = len(targets.in_flight)
     for summary in await completed_eval_sample_summaries(state):
+        if only is not None and (str(summary.id), summary.epoch) != only:
+            continue
         if (str(summary.id), summary.epoch) in in_flight_keys:
             continue
         # a record that is neither completed nor errored isn't terminal

@@ -112,13 +112,25 @@ same machinery, sample-scoped: the one `(sample_id, epoch)` target resolves
 to its disposition and, when in-flight, is held and scored exactly as a
 task-wide pass would score it. It follows the sample mutations' selector
 conventions (`sample_id` a query param, EPOCH required whenever the task
-runs several epochs) and shares the one-pass-per-task registry — one pass
-per task at a time whatever its scope, so holds never stack; a start while
-any pass runs is the idempotent no-op naming the running pass (the envelope
-carries `scope`/`sample_id`/`epoch`, and the CLI joins only when the running
-pass is that same sample's — polling someone else's pass is not what was
-asked for). Because the registry keeps one pass per task, a later pass
-(task-wide or another sample's) evicts a sample pass's result from the poll.
+runs several epochs — on the poll GET too, since a defaulted epoch there
+wouldn't return harmless epoch-1 data but a false claim about a different
+attempt) and shares the one-pass-per-task registry — one pass per task at
+a time whatever its scope, so holds never stack; a start while any pass
+runs is the idempotent no-op naming the running pass (the envelope carries
+`scope`/`sample_id`/`epoch`, and each CLI joins only a pass of its own
+scope: `sample score` joins only that same sample's running pass, and
+`task score` refuses to join a sample-scoped pass — it would render one
+sample's rows, with no metrics, as the task's result — so both report a
+foreign-scope pass as a conflict to retry after). The target resolves
+*before* the one-pass guard, so an unknown sample is a deterministic 404
+whether or not a pass happens to be running, and a superseded attempt's
+eval id is rejected on both the start and the poll (eval-keyed directives
+can arrive with a stale attempt's id; the task-keyed registry would
+otherwise serve the current attempt's pass under it). Because the registry
+keeps one pass per task, a later pass (task-wide or another sample's)
+evicts a sample pass's result from the poll — the accepted cost of the
+shared slot (the recorded `ScoreEvent(intermediate=True)` persists on the
+sample's transcript regardless; the poll's not-found message points there).
 A sample-scoped pass computes no interim metrics — metrics over a single
 sample would restate its scores while presenting as task-level numbers; the
 row's scores are the payload.

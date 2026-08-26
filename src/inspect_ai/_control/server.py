@@ -995,10 +995,13 @@ class ControlServer:
                 return JSONResponse(status_code=409, content={"error": result["error"]})
             return result
 
+        # `epoch` is required here too, unlike the other per-sample reads:
+        # this GET answers "is/was there a pass for this exact attempt", so
+        # a defaulted epoch wouldn't return harmless epoch-1 data — it would
+        # 404 a pass that is running normally on another epoch (or serve
+        # epoch 1's result as if it answered the caller's question).
         @app.get("/evals/{eval_id}/sample/score")
-        async def sample_score_status(
-            eval_id: str, sample_id: str, epoch: int = 1
-        ) -> Any:
+        async def sample_score_status(eval_id: str, sample_id: str, epoch: int) -> Any:
             from inspect_ai._control.scoring import get_sample_score_pass
 
             result = await get_sample_score_pass(eval_id, sample_id, epoch)

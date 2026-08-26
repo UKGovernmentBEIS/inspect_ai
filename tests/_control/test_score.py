@@ -1300,7 +1300,12 @@ async def test_start_sample_score_without_scorers_is_rejected() -> None:
 async def test_start_sample_score_superseded_attempt_is_rejected(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A stale (retried-over) eval id is rejected rather than scored."""
+    """A stale (retried-over) eval id is rejected rather than scored.
+
+    The GET rejects it too: the pass registry is keyed by the stable task
+    id, so a stale eval id would otherwise serve the *current* attempt's
+    pass as if it described the superseded one.
+    """
 
     async def summaries() -> list[EvalSampleSummary]:
         return []
@@ -1313,6 +1318,10 @@ async def test_start_sample_score_superseded_attempt_is_rejected(
     result = await start_sample_score_pass("e1", "s1", 1)
     assert result is not None and result["ok"] is False
     assert "superseded" in result["error"]
+
+    status = await get_sample_score_pass("e1", "s1", 1)
+    assert status is not None and status["ok"] is False
+    assert "superseded" in status["error"]
 
 
 async def test_start_sample_score_dry_run_reports_disposition(
@@ -1341,10 +1350,17 @@ async def test_start_sample_score_dry_run_reports_disposition(
     assert (await get_sample_score_pass("e1", "running", 1) or {})["ok"] is False
 
 
-async def test_start_sample_score_blocked_by_running_task_pass() -> None:
+async def test_start_sample_score_blocked_by_running_task_pass(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """One pass per task, whatever its scope — the no-op names the other pass."""
-    register_eval("e1", 1, task_id="t1")
+
+    async def summaries() -> list[EvalSampleSummary]:
+        return []
+
+    register_eval("e1", 1, task_id="t1", live=FakeLiveEvalData(summaries=summaries))
     set_task_scoring("e1", _scoring_handle())
+    _patch_active_samples(monkeypatch, [_active_sample("s1")])
     _score_passes["t1"] = ScorePass(
         pass_id="task-pass",
         task_id="t1",
@@ -1359,10 +1375,62 @@ async def test_start_sample_score_blocked_by_running_task_pass() -> None:
     assert result["changed"] is False
     assert result["pass_id"] == "task-pass"
     assert result["scope"] == "task"
+    # ...but an unknown sample is a deterministic 404 even while a pass runs
+    assert await start_sample_score_pass("e1", "nope", 1) is None
     # the sample GET refuses to report a pass with a different scope
     status = await get_sample_score_pass("e1", "s1", 1)
     assert status is not None and status["ok"] is False
     assert "no scoring pass" in status["error"]
+
+
+async def test_start_score_pass_blocked_by_sample_pass_names_it() -> None:
+    """A task start blocked by a sample-scoped pass says so in its reason.
+
+    The task CLI refuses to join a sample-scoped pass (its rows cover one
+    sample and it computes no interim metrics); the reason must make the
+    conflict legible rather than reading as "the task pass is running".
+    """
+    register_eval("e1", 1, task_id="t1")
+    set_task_scoring("e1", _scoring_handle())
+    _score_passes["t1"] = ScorePass(
+        pass_id="sample-pass",
+        task_id="t1",
+        eval_id="e1",
+        task="",
+        as_of=1.0,
+        completed_only=False,
+        sample_id="s7",
+        sample_epoch=2,
+        total=1,
+    )
+    result = await start_score_pass("t1")
+    assert result is not None and result["ok"] is True
+    assert result["changed"] is False
+    assert result["scope"] == "sample"
+    assert result["sample_id"] == "s7" and result["epoch"] == 2
+    assert "sample-scoped" in result["reason"] and "s7" in result["reason"]
+
+
+async def test_start_sample_score_in_flight_skips_summaries_read(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An in-flight match resolves without the completed-summaries read.
+
+    The read takes the recorder's lock (or reads the whole log on a
+    torn-down recorder) and the live row wins over any completed record of
+    the same key, so a dry run against an in-flight sample must not pay it.
+    """
+
+    async def summaries() -> list[EvalSampleSummary]:
+        raise AssertionError("summaries must not be read for an in-flight match")
+
+    register_eval("e1", 2, task_id="t1", live=FakeLiveEvalData(summaries=summaries))
+    set_task_scoring("e1", _scoring_handle())
+    _patch_active_samples(monkeypatch, [_active_sample("s1")])
+
+    result = await start_sample_score_pass("e1", "s1", 1, dry_run=True)
+    assert result is not None and result["ok"] is True
+    assert result["targeted"]["in_flight"] == 1
 
 
 async def test_sample_score_pass_scores_held_sample(
