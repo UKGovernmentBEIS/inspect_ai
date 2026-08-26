@@ -1761,6 +1761,60 @@ async def test_anthropic_stream_capture_restores_container() -> None:
     assert message.container.id == "container_from_delta"
 
 
+async def test_anthropic_stream_capture_tolerates_compaction_delta() -> None:
+    """A compaction_delta must not be reported as a text stream delta.
+
+    The non-beta RawContentBlockDelta union has no compaction variant, so the
+    SDK deserializes the event into TextDelta(type="compaction_delta",
+    text=None); reporting that as StreamTextEvent raised a ValidationError.
+    """
+    from anthropic._models import construct_type
+    from anthropic.types import Message, RawMessageStreamEvent
+
+    from inspect_ai.model._providers.anthropic import (
+        _capture_compaction_from_stream,
+    )
+
+    snapshot = cast(
+        Message,
+        construct_type(
+            value={
+                "id": "msg_x",
+                "type": "message",
+                "role": "assistant",
+                "model": "claude-opus-4-6",
+                "content": [{"type": "compaction", "content": None}],
+                "stop_reason": "end_turn",
+                "usage": {"input_tokens": 1, "output_tokens": 1},
+            },
+            type_=Message,
+        ),
+    )
+    delta_event = construct_type(
+        value={
+            "type": "content_block_delta",
+            "index": 0,
+            "delta": {"type": "compaction_delta", "content": "compacted summary"},
+        },
+        type_=RawMessageStreamEvent,
+    )
+
+    class FakeStream:
+        current_message_snapshot = snapshot
+
+        def __aiter__(self) -> Any:
+            async def events() -> Any:
+                yield types.SimpleNamespace(type="message_start")
+                yield delta_event
+
+            return events()
+
+    _, compaction_content = await _capture_compaction_from_stream(
+        cast(Any, FakeStream())
+    )
+    assert compaction_content == "compacted summary"
+
+
 @skip_if_no_anthropic
 @pytest.mark.slow
 async def test_anthropic_container_continuation_live() -> None:
