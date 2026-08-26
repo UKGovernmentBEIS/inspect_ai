@@ -326,8 +326,8 @@ tasks = [
     task_with(blues_clues(), model_roles = {
         "red_team": "openai/gpt-4o",
         "blue_team": "google/gemini-2.0-flash"
-    }),()
-    task_with(blues_clues, model_roles = {
+    }),
+    task_with(blues_clues(), model_roles = {
         "red_team": "google/gemini-2.0-flash",
         "blue_team": "openai/gpt-4o"
     })
