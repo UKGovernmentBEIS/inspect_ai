@@ -122,6 +122,7 @@ from ._generate_config import (
 from ._model_call import ModelCall, as_error_response
 from ._model_data.model_data import ModelCost
 from ._model_output import ModelFallback, ModelOutput, ModelUsage
+from ._stream import ModelStreamObserver, StreamHandler, model_stream_observer
 from ._tokens import count_media_tokens, count_text_tokens, count_tokens
 
 logger = logging.getLogger(__name__)
@@ -897,6 +898,7 @@ class Model:
         tool_choice: ToolChoice | None = None,
         config: GenerateConfig = GenerateConfig(),
         cache: bool | CachePolicy | NotGiven = NOT_GIVEN,
+        on_stream: StreamHandler | None = None,
     ) -> ModelOutput:
         """Generate output from the model.
 
@@ -907,6 +909,23 @@ class Model:
           tool_choice: Directives to the model as to which tools to prefer.
           config: Model configuration.
           cache: Caching behavior for generate responses (defaults to no caching).
+          on_stream: Optional async callback receiving incremental
+            `StreamEvent`s (text / reasoning / tool-call deltas, plus retry
+            boundaries) while the response streams — a side-channel for UI
+            display; the final result is still the returned `ModelOutput`.
+            Passing a callback is itself a request to stream: providers
+            that support streaming stream the response without any
+            provider-level streaming flag (an explicit provider streaming
+            opt-out still wins). Providers or calls that don't stream
+            never invoke it (a cache hit, for example, produces no
+            content deltas — though a cache hit on a retry attempt still
+            delivers the retry boundary), and the callback is best treated
+            as display-only: on retry a `StreamRetryEvent` signals that
+            deltas received so far belong to a failed attempt and should
+            be discarded. A callback that raises never fails the model
+            call: the exception is logged and the callback is detached
+            for the remainder of that call (the next call tries it
+            again).
 
         Returns:
            ModelOutput
@@ -965,6 +984,7 @@ class Model:
                 config=config,
                 cache=cache,
                 connection=connection,
+                on_stream=on_stream,
             )
 
             # update the most recent ModelEvent with the actual start/completed
@@ -1001,6 +1021,7 @@ class Model:
         tools: Sequence[Tool | ToolDef | ToolSource] | ToolSource = [],
         config: GenerateConfig = GenerateConfig(),
         cache: bool | CachePolicy | NotGiven = NOT_GIVEN,
+        on_stream: StreamHandler | None = None,
     ) -> tuple[list[ChatMessage], ModelOutput]:
         """Generate output from the model, looping as long as the model calls tools.
 
@@ -1014,6 +1035,10 @@ class Model:
           tools: Tools available for the model to call.
           config: Model configuration.
           cache: Caching behavior for generate responses (defaults to no caching).
+          on_stream: Optional async callback receiving incremental
+            `StreamEvent`s (see `generate()`). Invoked for each generate
+            call in the loop; attempt numbers in `StreamRetryEvent`s are
+            per-call, not cumulative across the loop.
 
         Returns:
            Tuple of list[ChatMessage], ModelOutput
@@ -1028,6 +1053,7 @@ class Model:
                 tools=tools,  # type:ignore[arg-type]
                 config=config,
                 cache=cache,
+                on_stream=on_stream,
             )
 
             # append to new messages
@@ -1242,6 +1268,7 @@ class Model:
         config: GenerateConfig,
         cache: bool | CachePolicy | NotGiven = NOT_GIVEN,
         connection: ConnectionSlot | None = None,
+        on_stream: StreamHandler | None = None,
     ) -> tuple[ModelOutput, BaseModel]:
         from inspect_ai.event._model import ModelEvent
         from inspect_ai.hooks._hooks import (
@@ -1320,6 +1347,21 @@ class Model:
             cache_policy = cache
         hooks_enabled = any(hook.enabled() for hook in get_all_hooks())
         cache_mode: Literal["write"] | None = "write" if cache_policy else None
+
+        # stream observer for this generate call: installed around each
+        # provider attempt so provider streaming loops can report chunks; it
+        # spans attempts so it can emit retry boundaries to `on_stream`
+        # (see ModelStreamObserver). Partial-output snapshots are suppressed
+        # when a ModelEventSink is installed: the pending event is routed to
+        # the sink rather than emitted to the transcript, so notifying the
+        # transcript of updates would insert a phantom pending event into its
+        # sidecar and realtime buffer.
+        stream_observer = ModelStreamObserver(
+            model=str(self),
+            on_stream=on_stream,
+            publish_partial=_model_event_sink.get() is None,
+        )
+
         # track reported waiting time during this generate call
         reported_waiting_time = 0.0
 
@@ -1397,6 +1439,12 @@ class Model:
                         output=existing,
                         call=None,
                     )
+                    # announce the attempt even though no provider call runs:
+                    # a cache hit on a *retry* attempt (a concurrent identical
+                    # call cached between attempts) must still deliver the
+                    # boundary that invalidates the failed attempt's deltas
+                    assert isinstance(event, ModelEvent)
+                    await stream_observer.begin_attempt(event)
                     # mark this request as a cache hit so the post-call
                     # adaptive-controller success notification is suppressed —
                     # cache hits don't exercise the rate limit
@@ -1458,9 +1506,12 @@ class Model:
                         else null_execution_observer()
                     )
 
+                    await stream_observer.begin_attempt(event)
+
                     with (
                         track_active_model_event(event),
                         _observer.track_model_event(event),
+                        model_stream_observer(stream_observer),
                     ):
                         with timeout_cm:
                             result = await self.api.generate(
@@ -1476,6 +1527,9 @@ class Model:
                             raise AttemptTimeoutError(attempt_timeout)
                 except Exception as ex:
                     # Mark event as failed for uncaught provider exceptions
+                    # (dropping any partial streamed output first — it
+                    # belongs to the failed attempt)
+                    stream_observer.discard_partial_output()
                     complete(ex, None)
                     raise
                 except anyio.get_cancelled_exc_class():
@@ -1484,11 +1538,22 @@ class Model:
                     # on a live transcript (an interim-scoring deadline
                     # cancelling a grader call mid-flight would otherwise pin
                     # phantom model activity on the held sample and serialize
-                    # a pending event into the log). An intervention producer
+                    # a pending event into the log). A published partial
+                    # streamed snapshot belongs to the cancelled attempt and
+                    # must not survive into the log as if it were a response —
+                    # discard it before completing. An intervention producer
                     # (ACP operator-cancel) may already have completed the
                     # event with its own marker — leave that alone.
+                    stream_observer.discard_partial_output()
                     if isinstance(event, ModelEvent) and event.pending:
                         complete(RuntimeError("model call cancelled"), None)
+                    raise
+                except BaseException:
+                    # other BaseExceptions (KeyboardInterrupt, shutdown): the
+                    # event's finalization stays with the interrupt machinery,
+                    # but a published partial snapshot must not survive into
+                    # the log as if it were a response
+                    stream_observer.discard_partial_output()
                     raise
                 finally:
                     time_elapsed = time.monotonic() - time_start
@@ -1501,6 +1566,7 @@ class Model:
 
             # raise error
             if isinstance(output, Exception):
+                stream_observer.discard_partial_output()
                 complete(output, call)
 
                 # Wrap the error in a ModelGenerateError which will show the

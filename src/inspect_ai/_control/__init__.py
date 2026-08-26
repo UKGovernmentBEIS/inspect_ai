@@ -73,4 +73,8 @@ external clients (the `inspect ctl` CLI, TUIs, agents). See
 #       `sample show` truthiness-checked the error dict, so a withheld error
 #       (`{}`) on a zero-retries sample prints "(no errors)" under an `error`
 #       status line. Cosmetic only, and unfixable for already-shipped CLIs.
-CONTROL_API_VERSION: int = 6
+#   7 — max_tasks knob: the task dispatchers' live override (`--max-tasks`
+#       on `ctl config`) and its `max_tasks` entry in the process config
+#       view. No CLI gate — the view key is presence-read, and a set against
+#       an older strict server is rejected atomically (version 3).
+CONTROL_API_VERSION: int = 7

@@ -487,6 +487,13 @@ for the fire-and-poll agent loop, with `--status` as the poll-only follow-up
   model roles as resolved at eval start (the task definition is fixed
   mid-flight — a control-channel non-goal). A `--scorer` / `--model`
   override like `inspect score`'s is deliberately out of scope for v1.
+- **Cancellation vs streamed partials (merge ordering with #4853).** The
+  deadline-cancel handler in `Model._generate` completes a still-pending
+  ModelEvent so it can't pin phantom activity on a held sample — and since
+  streaming callbacks (upstream #4853) landed first, that handler also
+  calls `discard_partial_output()` before completing, so a cancelled
+  attempt's partial streamed snapshot is never serialized into the log as
+  if it were a response (the same rule as the provider-error paths).
 
 ## Version skew & security
 

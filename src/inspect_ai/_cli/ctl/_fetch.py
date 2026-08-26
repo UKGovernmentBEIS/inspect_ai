@@ -81,7 +81,11 @@ def _fetch_summaries(
     Safe only for an exact *full* id — it wins resolution outright (see
     :func:`_resolve_target_eval`), so the skipped servers could neither add
     candidates nor create ambiguity; a prefix or name query never equals a
-    full id, so it still sees every server. Discovery is newest-first, so
+    full id, so it still sees every server. A ``--model`` narrowing that
+    contradicts the exact id's row errors not-found over the short-circuited
+    (partial) summary set, which stays sound: task ids are stable across
+    retries of the same task × model row, so a duplicate-id row on a skipped
+    server carries the same model and could not have matched either. Discovery is newest-first, so
     only siblings started before the target are skipped, and the
     duplicate-id corner (an old kept-alive attempt a newer process is
     retrying) resolves to the newest attempt.
@@ -123,6 +127,7 @@ def _fetch_summaries(
                         attempts,
                         last_timeout=rows.last_timeout,
                         pid=server.pid,
+                        busy_cause=rows.busy_cause,
                     )
                 busy_pids.append(server.pid)
                 hint = f"try again shortly, or {_anomalies_pointer(server.pid)}"
@@ -257,12 +262,26 @@ def _resolve_target_eval(
     query: str,
     *,
     busy_pids: list[int] | None = None,
+    model: str | None = None,
 ) -> dict[str, Any]:
     """Pick the task a per-eval command targets, or exit with an error.
 
     ``query`` matches a task id first (full, then unique prefix — ``task
     list`` shows truncated ids; ids are stable across retries), then falls
-    back to the task name (see :func:`_match_by_task_name`). ``busy_pids``
+    back to the task name (see :func:`_match_by_task_name`). ``model`` — the
+    disambiguator for one task run against several models, where the name
+    alone matches every row — filters *within* the rows ``query`` matches
+    (see :func:`_match_by_model`), never before resolution: it can't change
+    which rows the selector denotes, so an unrelated task running the
+    exact-named model can neither veto a prefix match on the selected task
+    (exact-wins competes only within the candidates) nor re-route the
+    selector to a different task. An exact-id ``query`` whose row runs a
+    non-matching model errors by naming the contradiction rather than with
+    a global "no task with that model" claim: an exact id short-circuits
+    the summaries fan-out at its server, so a skipped process could be
+    running a matching model and the global claim would be false about it
+    (the refusal itself is sound — duplicate-id rows share the model, so a
+    skipped row could not resolve the id either). ``busy_pids``
     (from the summaries fetch) qualifies the resolution against partial
     discovery: a not-found error and the ambiguity table note that the busy
     process may hold further candidates, and a successful match carries a
@@ -273,16 +292,27 @@ def _resolve_target_eval(
     norm (one task, several models), and a shorter hand-typed id prefix
     could collide with a task on the busy process.
     """
+    qualifier = _model_qualifier(model)
     exact = [s for s in summaries if s.get("task_id") == query]
     id_matches = exact or [
         s for s in summaries if str(s.get("task_id", "")).startswith(query)
     ]
     matches = id_matches or _match_by_task_name(summaries, query)
+    if matches and model is not None:
+        narrowed = _match_by_model(matches, model)
+        if not narrowed and exact:
+            _fail(
+                "not_found",
+                f"Task '{query}' is running model "
+                f"'{exact[0].get('model')}', which does not match "
+                f"'{model}'.",
+            )
+        matches = narrowed
     if not matches:
         busy = (
             f" among responsive processes; {_busy_note(busy_pids)}" if busy_pids else ""
         )
-        _fail("not_found", f"No running task matching '{query}'{busy}.")
+        _fail("not_found", f"No running task matching '{query}'{qualifier}{busy}.")
     if len(matches) > 1:
         if busy_pids:
             _echo(
@@ -290,7 +320,7 @@ def _resolve_target_eval(
                 "drawn from responsive processes only.",
                 err=True,
             )
-        _exit_ambiguous(matches, f"'{query}' matches multiple tasks")
+        _exit_ambiguous(matches, f"'{query}' matches multiple tasks{qualifier}")
     match = matches[0]
     # exact ids are unique; a >= _SHORT_ID_LEN prefix is the truncated
     # task-list paste (see the docstring for the caveat rationale)
@@ -316,6 +346,47 @@ def _match_by_task_name(
     resolves model names in ``ctl config --model`` — see `match_name_prefix`.)
     """
     return match_name_prefix(summaries, query, lambda s: str(s.get("task", "")))
+
+
+def _match_by_model(
+    summaries: list[dict[str, Any]], query: str
+) -> list[dict[str, Any]]:
+    """Match summaries by model name — the ``--model`` disambiguator's rule.
+
+    The same anchored-prefix, exact-wins rule as task names and ``ctl config
+    --model`` (see `match_name_prefix`): ``gpt-5`` matches ``openai/gpt-5``,
+    and resolves cleanly even when ``openai/gpt-5-mini`` is also running.
+    """
+    return match_name_prefix(summaries, query, lambda s: str(s.get("model", "")))
+
+
+def _narrow_by_model(
+    summaries: list[dict[str, Any]],
+    model: str,
+    *,
+    busy_pids: list[int] | None = None,
+) -> list[dict[str, Any]]:
+    """Narrow summaries to tasks running a matching model, or exit not-found.
+
+    The ``TASK``-less half of the ``--model`` option, where the model is the
+    only selector: the no-``TASK`` defaults and the sample fan-out resolve
+    over the narrowed rows. With a ``TASK``, model filtering instead happens
+    within the selector's matches (see :func:`_resolve_target_eval`), so the
+    global not-found claim here is made only when the whole summary set was
+    consulted.
+    """
+    matches = _match_by_model(summaries, model)
+    if not matches:
+        busy = (
+            f" among responsive processes; {_busy_note(busy_pids)}" if busy_pids else ""
+        )
+        _fail("not_found", f"No running task with a model matching '{model}'{busy}.")
+    return matches
+
+
+def _model_qualifier(model: str | None) -> str:
+    """The `` with model matching '...'`` clause the ``--model`` errors carry."""
+    return f" with model matching '{model}'" if model is not None else ""
 
 
 def _exit_ambiguous(matches: list[dict[str, Any]], prefix: str) -> NoReturn:

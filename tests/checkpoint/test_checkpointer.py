@@ -1005,16 +1005,8 @@ async def test_failure_recorded_as_info_event_and_warning(
 
     cp = _flaky(ResolvedCheckpointConfig(trigger=Manual()), dirs)
     cp.should_fail = True
-    # A prior test may have called `eval()`, which sets `propagate=False`
-    # on the `inspect_ai` logger — restore propagation for caplog.
-    inspect_logger = logging.getLogger("inspect_ai")
-    saved_propagate = inspect_logger.propagate
-    inspect_logger.propagate = True
-    try:
-        with caplog.at_level(logging.WARNING):
-            await cp.checkpoint()
-    finally:
-        inspect_logger.propagate = saved_propagate
+    with caplog.at_level(logging.WARNING):
+        await cp.checkpoint()
 
     infos = [
         e for e in dirs.events if isinstance(e, InfoEvent) and e.source == "checkpoint"
@@ -1202,7 +1194,8 @@ async def test_fire_writes_restic_config_and_checkpoint_files(
     active_sample.checkpoint = ResolvedCheckpointConfig(trigger=TurnInterval(every=2))
 
     # Inject a real checkpointer into the fake, mirroring what
-    # `task_run_sample` does in production before opening `active_sample`.
+    # `task_run_sample`'s attempt does in production before opening
+    # `active_sample`.
     from inspect_ai.util._checkpoint.checkpointer_factory import create_checkpointer
 
     assert active_sample.sample.id is not None

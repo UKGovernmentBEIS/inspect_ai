@@ -23,6 +23,7 @@ from ._group import (
     _forward_group_options,
     _json_option,
     _mirror_list_options,
+    _model_option,
     _NounGroup,
     _now_option,
     _terse_line,
@@ -97,22 +98,27 @@ _mirror_list_options(task_group, task_list_command)
 
 @task_group.command("log-flush")
 @click.argument("task", required=False)
+@_model_option()
 @_json_option(_MUTATION_ENVELOPE_HELP)
 @_terse_option()
-def task_log_flush_command(task: str | None, as_json: bool, terse: bool | None) -> None:
+def task_log_flush_command(
+    task: str | None, model: str | None, as_json: bool, terse: bool | None
+) -> None:
     """Flush a running task's buffered samples to its log now.
 
     Completed samples are written to the (possibly remote) log only when
     the buffer fills; this forces the write immediately. Safe to repeat.
     Tune the buffering policy itself with `inspect ctl config --log-buffer`
     / `--log-shared`. TASK (a task-id prefix or name) is required when
-    several tasks run.
+    several tasks run; pass `--model` to disambiguate when one task runs
+    against several models.
     """
-    _run_log_flush(task, as_json, terse=terse)
+    _run_log_flush(task, as_json, terse=terse, model=model)
 
 
 @task_group.command("cancel")
 @click.argument("task")
+@_model_option()
 @click.option(
     "--action",
     type=click.Choice(["cancel", "score", "error"]),
@@ -134,7 +140,12 @@ def task_log_flush_command(task: str | None, as_json: bool, terse: bool | None) 
 @_json_option(_MUTATION_ENVELOPE_HELP)
 @_terse_option()
 def task_cancel_command(
-    task: str, action: str, dry_run: bool, as_json: bool, terse: bool | None
+    task: str,
+    model: str | None,
+    action: str,
+    dry_run: bool,
+    as_json: bool,
+    terse: bool | None,
 ) -> None:
     """Cancel a running task.
 
@@ -146,7 +157,8 @@ def task_cancel_command(
     task between attempts (last attempt errored, retry queued but not
     started) is rejected — re-issue once the retry starts. To cancel a
     single sample, use `inspect ctl sample cancel`. TASK (a task-id prefix
-    or name) is always required.
+    or name) is always required; pass `--model` to disambiguate when one
+    task runs against several models.
     """
     _run_task_cancel(
         task,
@@ -154,6 +166,7 @@ def task_cancel_command(
         dry_run=dry_run,
         as_json=as_json,
         terse=terse,
+        model=model,
     )
 
 
@@ -235,6 +248,7 @@ def task_score_command(
 
 @task_group.command("pause")
 @click.argument("task", required=False)
+@_model_option()
 @_now_option()
 @click.option(
     "--dry-run",
@@ -245,7 +259,12 @@ def task_score_command(
 @_json_option(_MUTATION_ENVELOPE_HELP)
 @_terse_option()
 def task_pause_command(
-    task: str | None, now: bool, dry_run: bool, as_json: bool, terse: bool | None
+    task: str | None,
+    model: str | None,
+    now: bool,
+    dry_run: bool,
+    as_json: bool,
+    terse: bool | None,
 ) -> None:
     """Pause a running task (stop dispatching new work; in-flight finishes).
 
@@ -260,15 +279,23 @@ def task_pause_command(
     after `--now` downgrades to the soft pause); cancel and config changes
     still work on a paused task. To pause a whole eval-set (every task plus
     its task/retry dispatch), use `inspect ctl process pause`. TASK (a
-    task-id prefix or name) is required when several tasks run.
+    task-id prefix or name) is required when several tasks run; pass
+    `--model` to disambiguate when one task runs against several models.
     """
     _run_task_pause_resume(
-        task, verb="pause", now=now, dry_run=dry_run, as_json=as_json, terse=terse
+        task,
+        verb="pause",
+        now=now,
+        dry_run=dry_run,
+        as_json=as_json,
+        terse=terse,
+        model=model,
     )
 
 
 @task_group.command("resume")
 @click.argument("task", required=False)
+@_model_option()
 @click.option(
     "--dry-run",
     is_flag=True,
@@ -278,7 +305,11 @@ def task_pause_command(
 @_json_option(_MUTATION_ENVELOPE_HELP)
 @_terse_option()
 def task_resume_command(
-    task: str | None, dry_run: bool, as_json: bool, terse: bool | None
+    task: str | None,
+    model: str | None,
+    dry_run: bool,
+    as_json: bool,
+    terse: bool | None,
 ) -> None:
     """Resume a paused task (the inverse of `inspect ctl task pause`).
 
@@ -286,10 +317,11 @@ def task_resume_command(
     pause. Does not clear a process-level pause — a task also held by
     `inspect ctl process pause` stays held until `inspect ctl process
     resume`. Idempotent and last-write-wins. TASK (a task-id prefix or name)
-    is required when several tasks run.
+    is required when several tasks run; pass `--model` to disambiguate when
+    one task runs against several models.
     """
     _run_task_pause_resume(
-        task, verb="resume", dry_run=dry_run, as_json=as_json, terse=terse
+        task, verb="resume", dry_run=dry_run, as_json=as_json, terse=terse, model=model
     )
 
 
@@ -314,10 +346,17 @@ def _run_task_list(as_json: bool) -> None:
 
 
 @_envelope_failures
-def _run_log_flush(task: str | None, as_json: bool, terse: bool | None = None) -> None:
+def _run_log_flush(
+    task: str | None,
+    as_json: bool,
+    terse: bool | None = None,
+    model: str | None = None,
+) -> None:
     servers = _http.list_discovered_servers()
     summaries = _fetch._fetch_summaries(servers).summaries
-    scope = _resolve_scope(servers, summaries, task, per_task_option="task log-flush")
+    scope = _resolve_scope(
+        servers, summaries, task, per_task_option="task log-flush", model=model
+    )
     if scope is None:
         if as_json:
             _echo_raw("null")
@@ -366,10 +405,13 @@ def _run_task_cancel(
     dry_run: bool,
     as_json: bool,
     terse: bool | None = None,
+    model: str | None = None,
 ) -> None:
     servers = _http.list_discovered_servers()
     summaries = _fetch._fetch_summaries(servers).summaries
-    scope = _resolve_scope(servers, summaries, task, per_task_option="task cancel")
+    scope = _resolve_scope(
+        servers, summaries, task, per_task_option="task cancel", model=model
+    )
     if scope is None:
         if as_json:
             _echo_raw("null")
@@ -758,6 +800,7 @@ def _run_task_pause_resume(
     dry_run: bool,
     as_json: bool,
     terse: bool | None = None,
+    model: str | None = None,
 ) -> None:
     """Pause or resume one task (``POST /tasks/<task-id>/pause|resume``).
 
@@ -772,7 +815,9 @@ def _run_task_pause_resume(
     """
     servers = _http.list_discovered_servers()
     summaries = _fetch._fetch_summaries(servers).summaries
-    scope = _resolve_scope(servers, summaries, task, per_task_option=f"task {verb}")
+    scope = _resolve_scope(
+        servers, summaries, task, per_task_option=f"task {verb}", model=model
+    )
     if scope is None:
         if as_json:
             _echo_raw("null")
