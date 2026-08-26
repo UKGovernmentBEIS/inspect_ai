@@ -36,8 +36,13 @@ from inspect_ai.util._concurrency import (
 )
 
 
-@pytest.fixture(autouse=True)
-def _clear_states():
+def _reset_all_states() -> None:
+    """Reset every global store the control server mutates.
+
+    The single reset choke point: the ``_clear_states`` fixture (setup and
+    teardown) and any test needing a mid-test reset must all call this, so a
+    future global store added here covers every reset site at once.
+    """
     from inspect_ai._control.config_record import reset_process_config_updates
     from inspect_ai._control.max_tasks import reset_max_tasks_override
     from inspect_ai.util._limit_overrides import reset_sample_limit_overrides
@@ -48,13 +53,13 @@ def _clear_states():
     reset_max_tasks_override()
     reset_sample_limit_overrides()
     reset_process_config_updates()
+
+
+@pytest.fixture(autouse=True)
+def _clear_states():
+    _reset_all_states()
     yield
-    clear_all_eval_states()
-    init_concurrency()
-    reset_generate_config_overrides()
-    reset_max_tasks_override()
-    reset_sample_limit_overrides()
-    reset_process_config_updates()
+    _reset_all_states()
 
 
 # ---------------------------------------------------------------------------
@@ -2432,6 +2437,162 @@ async def test_config_update_route_carries_provenance_params() -> None:
         )
         assert patched.status_code == 200, patched.text
         assert patched.json()["persisted"] == {"max_retries": True}
+
+
+def test_config_update_programmatic_patch_records_identically_to_cli(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A non-ctl mutation produces the same config_updates records as the CLI.
+
+    Open question 3 of design/ctl/config-log-persistence.md. The property
+    this pins: record construction is entirely server-side, at the PATCH
+    config handler / applier choke point — the ctl CLI contributes nothing to
+    the record beyond assembling query params. That is what makes recording
+    hold for *every* HTTP client: a Python ``ControlClient`` (or curl)
+    speaking the same routes gets correct records for free, with no client
+    cooperation. If any part of the behavior migrated into the CLI (say,
+    provenance assembly the server merely stores), the raw-PATCH leg or the
+    equality assertion below would break.
+
+    Pinned by driving one retune (a task-scoped ``max_samples`` plus a
+    process-scoped ``timeout``) through a raw PATCH and through the real
+    ``inspect ctl config`` command against the same server app, then
+    comparing the recorded updates field-for-field (timestamps aside).
+    Author/reason are passed explicitly on both legs: author *defaulting*
+    (git identity) is deliberately client-side — the server records whatever
+    ``author`` param arrives — so defaulting stays out of the comparison.
+    """
+    from _control.conftest import cli_runner
+    from inspect_ai._cli.ctl import ctl_command
+    from inspect_ai._cli.ctl._fetch import _FetchedSummaries
+    from inspect_ai._control import CONTROL_API_VERSION
+
+    def fresh_target() -> tuple[_RecordingLive, ResizableLimiter]:
+        """Identical launch state for each leg."""
+        _reset_all_states()
+        live = _RecordingLive()
+        _register_with_live("e1", "t1", live)
+        limiter = ResizableLimiter(20)
+        register_task_sample_semaphore("t1", limiter)
+        return live, limiter
+
+    async def asgi_patch(params: dict[str, Any]) -> dict[str, Any]:
+        transport = httpx.ASGITransport(app=_app())
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://localhost"
+        ) as client:
+            response = await client.patch("/tasks/t1/config", params=params)
+        assert response.status_code == 200, response.text
+        return cast(dict[str, Any], response.json())
+
+    # --- programmatic path: a raw PATCH, exactly what a ControlClient sends
+    live, limiter = fresh_target()
+    view = anyio.run(
+        asgi_patch,
+        {
+            "max_samples": 30,
+            "timeout": 120,
+            "author": "alice",
+            "reason": "provider incident",
+        },
+    )
+    assert view["persisted"] == {"max_samples": True, "timeout": True}
+    assert limiter.limit == 30
+    programmatic = [update.model_dump() for update in live.updates]
+
+    # the record is written, with full shape and provenance (not just present)
+    assert [update["scope"] for update in programmatic] == ["task", "process"]
+    task_change = programmatic[0]["changes"][0]
+    assert (task_change["config"], task_change["name"]) == ("eval", "max_samples")
+    assert (task_change["value"], task_change["previous"]) == (30, 20)
+    process_change = programmatic[1]["changes"][0]
+    assert (process_change["config"], process_change["name"]) == (
+        "generate",
+        "timeout",
+    )
+    # a first override has no prior value; the recording layer leaves previous
+    # None for TaskLogger to fill from launch config (see the fan-out tests)
+    assert (process_change["value"], process_change["previous"]) == (120, None)
+    for update in programmatic:
+        assert update["provenance"]["author"] == "alice"
+        assert update["provenance"]["reason"] == "provider incident"
+
+    # --- CLI path: the real `inspect ctl config` command against the same
+    # server app (only the UDS transport is bridged to ASGI — the CLI's knob
+    # → param assembly and the server's handler → applier → record run real)
+    class _Server:
+        pid = 7
+        socket_path = "/tmp/7.sock"
+        started_at = 100.0
+        api_version = CONTROL_API_VERSION
+
+    summary = {
+        "task_id": "t1",
+        "task": "task_one",
+        "eval_id": "e1",
+        "socket_path": "/tmp/7.sock",
+        "pid": 7,
+        "status": "running",
+        "samples": {},
+        "started_at": 100.0,
+        "keep_alive": False,
+    }
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl._http.list_discovered_servers", lambda: [_Server()]
+    )
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl._fetch._fetch_summaries",
+        lambda servers, **kwargs: _FetchedSummaries([summary], []),
+    )
+
+    def asgi_request_json(
+        socket_path: str,
+        path: str,
+        *,
+        params: dict[str, Any] | None = None,
+        mutate: str | None = None,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        assert socket_path == "/tmp/7.sock"
+        assert path == "/tasks/t1/config" and mutate == "patch"
+        return anyio.run(asgi_patch, params or {})
+
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", asgi_request_json)
+
+    live, limiter = fresh_target()
+    result = cli_runner().invoke(
+        ctl_command,
+        [
+            "config",
+            "--max-samples",
+            "30",
+            "--timeout",
+            "120",
+            "--author",
+            "alice",
+            "--reason",
+            "provider incident",
+        ],
+    )
+    assert result.exit_code == 0, (result.output, result.exception)
+    assert limiter.limit == 30
+    cli = [update.model_dump() for update in live.updates]
+
+    # both paths wrote records — identical field-for-field modulo timestamp
+    def sans_timestamp(dumps: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        return [
+            {
+                **dump,
+                "provenance": {
+                    key: value
+                    for key, value in dump["provenance"].items()
+                    if key != "timestamp"
+                },
+            }
+            for dump in dumps
+        ]
+
+    assert sans_timestamp(cli) == sans_timestamp(programmatic)
 
 
 # ---------------------------------------------------------------------------
