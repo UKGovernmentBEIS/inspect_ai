@@ -34,6 +34,7 @@ with the rest of phases 3-4.
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 import time
 from contextlib import asynccontextmanager
@@ -307,6 +308,64 @@ def _peer_checked_http_protocol() -> "type[asyncio.Protocol] | None":
 # Control server
 # ---------------------------------------------------------------------------
 
+# Ceiling on concurrent control-channel connections (uvicorn
+# ``limit_concurrency``): at the cap, requests get a 503 instead of queueing
+# (the incoming connection counts itself against the limit, so effective
+# capacity is one below this constant).
+# The server shares the eval's event loop, so unbounded queueing lets a
+# runaway poller pile identical work onto the loop with nothing ever erroring
+# while the eval starves (design/ctl/endpoint-cost-audit.md, "Structural
+# guards"). The CLI treats the 503 as "busy, retry shortly" (see
+# ``inspect_ai._cli.ctl._http``). Sized well above legitimate fan-in — the
+# CLI caps a fan-out at 32 in-flight reads — so this is a backstop, not a
+# rate limiter.
+_MAX_CONCURRENT_CONNECTIONS = 100
+
+# uvicorn logs one WARNING per over-limit rejection ("Exceeded concurrency
+# limit.", via the ``uvicorn.error`` logger), and with ``log_config=None``
+# those records propagate into the eval's own log capture — so the runaway
+# poller the cap defends against would flood the eval log/console at its
+# request rate. One warning per window is enough to surface the incident.
+_CONCURRENCY_WARNING_WINDOW = 60.0
+
+
+class _ConcurrencyLimitWarningFilter(logging.Filter):
+    """Rate-limits uvicorn's per-rejection concurrency-limit warning.
+
+    Passes everything else through untouched; if uvicorn ever rewords the
+    message the filter fails open (the warnings flow unfiltered).
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._last_emitted: float | None = None
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if record.getMessage() != "Exceeded concurrency limit.":
+            return True
+        now = time.monotonic()
+        if (
+            self._last_emitted is None
+            or now - self._last_emitted >= _CONCURRENCY_WARNING_WINDOW
+        ):
+            self._last_emitted = now
+            return True
+        return False
+
+
+def _install_concurrency_warning_filter() -> None:
+    """Attach the rate-limit filter to uvicorn's logger (idempotent).
+
+    Installed once per process rather than per server: the logger is global,
+    and leaving the filter in place after ``stop()`` is harmless (it only
+    ever suppresses repeats of this one message).
+    """
+    uvicorn_logger = logging.getLogger("uvicorn.error")
+    if not any(
+        isinstance(f, _ConcurrencyLimitWarningFilter) for f in uvicorn_logger.filters
+    ):
+        uvicorn_logger.addFilter(_ConcurrencyLimitWarningFilter())
+
 
 class ControlServer:
     """FastAPI control server for the live eval.
@@ -365,6 +424,10 @@ class ControlServer:
         from fastapi import Depends, FastAPI, Request
         from fastapi.responses import JSONResponse
 
+        from inspect_ai._control.disconnect import (
+            ClientDisconnectedError,
+            reject_disconnected_client,
+        )
         from inspect_ai._control.strict import (
             UnknownQueryParamsError,
             reject_unknown_query_params,
@@ -379,11 +442,28 @@ class ControlServer:
         app = FastAPI(dependencies=[Depends(reject_unknown_query_params)])
         started_at = self._started_at
 
+        # Attached per-route (`dependencies=skip_disconnected`) to the reads
+        # that do nontrivial work — the disconnect module's docstring has the
+        # rationale, including why the mutations and the trivially cheap
+        # handlers deliberately don't carry it.
+        skip_disconnected = [Depends(reject_disconnected_client)]
+
         @app.exception_handler(UnknownQueryParamsError)
         async def on_unknown_params(
             request: Request, exc: UnknownQueryParamsError
         ) -> JSONResponse:
             return JSONResponse(status_code=400, content={"error": str(exc)})
+
+        @app.exception_handler(ClientDisconnectedError)
+        async def on_client_disconnected(
+            request: Request, exc: ClientDisconnectedError
+        ) -> JSONResponse:
+            # 499 (nginx's "client closed request") — a placeholder nobody
+            # observes: the client is gone and uvicorn drops writes to
+            # disconnected transports.
+            return JSONResponse(
+                status_code=499, content={"error": "client disconnected"}
+            )
 
         @app.exception_handler(Exception)
         async def on_error(request: Request, exc: Exception) -> JSONResponse:
@@ -520,7 +600,7 @@ class ControlServer:
         # Folded per-task summaries (retry attempts of a task collapse into
         # one row keyed by task_id) — the wire behind `inspect ctl task list`
         # and the selector-resolution step of every other command.
-        @app.get("/tasks")
+        @app.get("/tasks", dependencies=skip_disconnected)
         async def list_tasks() -> list[dict[str, Any]]:
             summaries = await current_eval_summaries(started_at)
             # Keep-alive is a process-level property, so every task this
@@ -547,7 +627,7 @@ class ControlServer:
                 summary["api_version"] = CONTROL_API_VERSION
             return summaries
 
-        @app.get("/evals/{eval_id}/samples")
+        @app.get("/evals/{eval_id}/samples", dependencies=skip_disconnected)
         async def list_eval_samples(
             eval_id: str,
             active_since: float | None = None,
@@ -610,7 +690,7 @@ class ControlServer:
         # `content=true` opts into the error free text (message / tracebacks
         # — agent-influenced strings, withheld by default; see
         # sample_error_detail).
-        @app.get("/evals/{eval_id}/sample")
+        @app.get("/evals/{eval_id}/sample", dependencies=skip_disconnected)
         async def get_sample_errors(
             eval_id: str, sample_id: str, epoch: int = 1, content: bool = False
         ) -> Any:
@@ -630,7 +710,7 @@ class ControlServer:
         # is agent-controlled; see events._project), `full` returns raw
         # events, `since_time`/`until` a wall-clock window, `limit` the page
         # size (max events scanned per page).
-        @app.get("/evals/{eval_id}/sample/events")
+        @app.get("/evals/{eval_id}/sample/events", dependencies=skip_disconnected)
         async def get_sample_events(
             eval_id: str,
             sample_id: str,
@@ -687,7 +767,7 @@ class ControlServer:
         # `status` / `count`. `content` opts into truncated message text
         # (metadata only by default — the text is agent-controlled; see
         # messages._project); `full` returns raw ChatMessage JSON.
-        @app.get("/evals/{eval_id}/sample/messages")
+        @app.get("/evals/{eval_id}/sample/messages", dependencies=skip_disconnected)
         async def get_sample_messages(
             eval_id: str,
             sample_id: str,
@@ -1286,12 +1366,14 @@ class ControlServer:
 
         app = self._build_app()
         http_protocol = _peer_checked_http_protocol()
+        _install_concurrency_warning_filter()
         config = uvicorn.Config(
             app,
             log_config=None,
             log_level="warning",
             access_log=False,
             timeout_keep_alive=5,
+            limit_concurrency=_MAX_CONCURRENT_CONNECTIONS,
             http=http_protocol if http_protocol is not None else "auto",
         )
         server = uvicorn.Server(config)
