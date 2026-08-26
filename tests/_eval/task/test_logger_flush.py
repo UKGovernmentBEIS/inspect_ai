@@ -23,9 +23,12 @@ def _logger(pending: list[tuple[str | int, int]], flush_buffer: int = 10) -> Tas
     logger.recorder = FakeRecorder()  # type: ignore[assignment]
     logger.eval = object()  # type: ignore[assignment]
     logger.flush_pending = list(pending)
+    logger.flush_quiet = []
+    logger.flush_quiet_retry = False
     logger.flush_buffer = flush_buffer
     logger._buffer_db = None
     logger._finished = False
+    logger._destination_hold = False
     # sets up _flush_lock, _flush_pending_lock, and the stale-flush timer state
     logger._init_stale_flush_state()
     return logger

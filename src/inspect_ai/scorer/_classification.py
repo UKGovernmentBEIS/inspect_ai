@@ -2,7 +2,7 @@ import re
 import string
 from typing import Callable, List
 
-from inspect_ai._util.text import is_finite_number
+from inspect_ai._util.text import is_finite_number, strip_punctuation
 from inspect_ai.solver._task_state import TaskState
 
 from ._metric import CORRECT, INCORRECT, Score
@@ -73,11 +73,11 @@ def max_f1_score(
 def max_exact_score(answer: str, targets: List[str]) -> float:
     # Find the maximum exact score for this answer
     max_exact = 0.0
-    answer_words = _to_words(answer)
+    answer_norm = _normalize(answer)
     for target in targets:
         if target.strip():
-            target_words = _to_words(target)
-            exact_score = 1.0 if target_words == answer_words else 0.0
+            target_norm = _normalize(target)
+            exact_score = 1.0 if target_norm == answer_norm else 0.0
             max_exact = max(max_exact, exact_score)
     return max_exact
 
@@ -120,11 +120,14 @@ def _remove_articles(text: str) -> str:
 
 
 def _remove_punc(text: str) -> str:
-    exclude = set(string.punctuation)
-    if not is_finite_number(text):
-        return "".join(ch for ch in text if ch not in exclude)
-    else:
+    if is_finite_number(text):
         return text
+    # boundary punctuation around a number (e.g. "(3.14)" or "3.14.") hides it
+    # from the finite-number check above — strip the boundary and re-check
+    stripped = strip_punctuation(text)
+    if is_finite_number(stripped):
+        return stripped
+    return "".join(ch for ch in text if ch not in string.punctuation)
 
 
 def _normalize_whitespace(text: str) -> str:

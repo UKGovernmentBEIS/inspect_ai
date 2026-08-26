@@ -22,8 +22,10 @@ def test_mistral_reasoning():
     )
     log = eval(
         task,
-        model="mistral/magistral-medium-2509",
+        model="mistral/mistral-medium-latest",
         model_args={"conversation_api": False},  # doesn't yet produce ThinkBlock
+        # thinking is off by default on current Mistral reasoning models
+        reasoning_effort="high",
     )[0]
     assert log.status == "success"
     assert log.samples

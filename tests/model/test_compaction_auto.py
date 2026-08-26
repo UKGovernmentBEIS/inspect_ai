@@ -176,7 +176,7 @@ async def test_auto_warns_on_native_error(
 async def test_auto_uses_native_when_supported() -> None:
     """CompactionAuto uses native compaction when the provider supports it."""
     strategy = CompactionAuto()
-    model = get_model("openai/gpt-5.1-codex")
+    model = get_model("openai/gpt-5.3-codex")
     messages = _sample_messages()
 
     result, summary = await strategy.compact(model, messages, [])

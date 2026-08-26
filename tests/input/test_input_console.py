@@ -8,11 +8,12 @@ from acp.schema import (
     ElicitationIntegerPropertySchema,
     ElicitationMultiSelectPropertySchema,
     ElicitationNumberPropertySchema,
+    ElicitationOtherPropertySchema,
     ElicitationSchema,
     ElicitationStringPropertySchema,
     EnumOption,
+    StringMultiSelectItems,
     TitledMultiSelectItems,
-    UntitledMultiSelectItems,
 )
 from rich.console import Console
 from rich.prompt import Prompt
@@ -290,7 +291,7 @@ def test_multiselect_untitled(monkeypatch: pytest.MonkeyPatch) -> None:
         properties={
             "tags": ElicitationMultiSelectPropertySchema(
                 type="array",
-                items=UntitledMultiSelectItems(
+                items=StringMultiSelectItems(
                     type="string", enum=["python", "rust", "go"]
                 ),
             )
@@ -309,7 +310,7 @@ def test_multiselect_min_items_reprompts(
         properties={
             "colors": ElicitationMultiSelectPropertySchema(
                 type="array",
-                items=UntitledMultiSelectItems(type="string", enum=["a", "b", "c"]),
+                items=StringMultiSelectItems(type="string", enum=["a", "b", "c"]),
                 min_items=2,
             )
         },
@@ -327,7 +328,7 @@ def test_multiselect_max_items_reprompts(
         properties={
             "colors": ElicitationMultiSelectPropertySchema(
                 type="array",
-                items=UntitledMultiSelectItems(type="string", enum=["a", "b", "c"]),
+                items=StringMultiSelectItems(type="string", enum=["a", "b", "c"]),
                 max_items=1,
             )
         },
@@ -347,7 +348,7 @@ def test_required_multiselect_empty_is_valid_without_min_items(
         properties={
             "tags": ElicitationMultiSelectPropertySchema(
                 type="array",
-                items=UntitledMultiSelectItems(type="string", enum=["a", "b"]),
+                items=StringMultiSelectItems(type="string", enum=["a", "b"]),
             )
         },
         required=["tags"],
@@ -429,3 +430,11 @@ def test_multiple_properties_collected(
     )
     result = _ask_schema("hi", schema, _silent_console())
     assert result.content == {"name": "alice", "age": 42}
+
+
+def test_custom_property_type_rejected() -> None:
+    schema = ElicitationSchema(
+        properties={"custom": ElicitationOtherPropertySchema(type="_custom")},
+    )
+    with pytest.raises(ValueError, match="Unsupported property type"):
+        _ask_schema("hi", schema, _silent_console())

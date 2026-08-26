@@ -180,6 +180,14 @@ class CompactionEdit(CompactionStrategy):
             if t[0] == "server" and isinstance(t[3], ContentToolUse)
         ]
 
+        # Clear server-side tools first. Both index lists were captured by the single
+        # enumeration in Phase 2, and clearing a client-side tool use with
+        # keep_tool_inputs=False deletes a message, which invalidates every index at or
+        # after it. Server-side clearing replaces messages without changing the list
+        # length, so applying it before the client-side pass keeps both sets of indices
+        # valid (the client-side pass already guards itself by iterating in reverse).
+        result = _apply_server_tool_clearing(result, server_to_clear)
+
         # Clear client-side tools (process in reverse to preserve indices)
         for assistant_idx, tool_call, tool_idx in reversed(client_to_clear):
             if self.keep_tool_inputs:
@@ -195,9 +203,6 @@ class CompactionEdit(CompactionStrategy):
                     cast(ChatMessageAssistant, result[assistant_idx]),
                     tool_call,
                 )
-
-        # Clear server-side tools
-        result = _apply_server_tool_clearing(result, server_to_clear)
 
         # Phase 4: Clear content from memory tool calls (if memory integration active)
         if self.memory:

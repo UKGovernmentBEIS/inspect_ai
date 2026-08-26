@@ -1,15 +1,19 @@
 import json
+import math
+import os
 import shutil
+import signal
 import tempfile
 import threading
 import time
 import zipfile
 from copy import deepcopy
 from pathlib import Path
-from typing import Callable
+from typing import Callable, cast
 from unittest.mock import patch
 
 import pytest
+from test_helpers.buffer import simulate_crashed_buffer_db
 from test_helpers.utils import (
     failing_solver,
     failing_task,
@@ -20,7 +24,7 @@ from test_helpers.utils import (
     sleep_for_solver,
 )
 
-from inspect_ai import Task, task
+from inspect_ai import Task, eval, task
 from inspect_ai._eval.evalset import (
     _GENERATE_CONFIG_FIELDS_TO_EXCLUDE,
     EvalSetArgsInTaskIdentifier,
@@ -37,7 +41,9 @@ from inspect_ai._eval.task.resolved import ResolvedTask
 from inspect_ai._eval.task.task import task_with
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import basename, local_path, size_in_mb
+from inspect_ai._util.json import to_json_str_safe
 from inspect_ai.dataset import Sample
+from inspect_ai.event import SampleInitEvent
 from inspect_ai.log._edit import ProvenanceData, invalidate_samples
 from inspect_ai.log._file import (
     EvalLogInfo,
@@ -45,11 +51,23 @@ from inspect_ai.log._file import (
     read_eval_log,
     write_eval_log,
 )
-from inspect_ai.log._log import EvalConfig, EvalLog
-from inspect_ai.log._recorders.eval import ZipLogFile
+from inspect_ai.log._log import EvalConfig, EvalLog, EvalSampleSummary
+from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
+from inspect_ai.log._recorders.eval import LogStart, ZipLogFile
+from inspect_ai.log._recorders.types import SampleEvent
 from inspect_ai.model import CachePolicy, Model, get_model
 from inspect_ai.model._generate_config import GenerateConfig
-from inspect_ai.scorer import exact
+from inspect_ai.scorer import (
+    Metric,
+    SampleScore,
+    Score,
+    Scorer,
+    Target,
+    exact,
+    mean,
+    metric,
+    scorer,
+)
 from inspect_ai.scorer._match import includes
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
 from inspect_ai.util._limit import TokenLimit
@@ -535,6 +553,160 @@ def test_eval_set_preserves_token_usage():
         retried_tokens = retried_log.stats.model_usage[model_name].total_tokens
 
     assert retried_tokens > baseline_tokens
+
+
+def test_eval_set_retry_nan_dict_score_leaves() -> None:
+    """eval_set retry of a task whose dict scores contain NaN leaves.
+
+    NaN dict-score leaves must be serialized to the eval log as JSON NaN
+    constants so that a retry reloading completed samples from the failed
+    log sees NaN (excluded from metrics, counted as unscored). Serialized
+    as null they reload as None, which slips past NaN filtering: metrics
+    silently count the leaf as 0.0 via value_to_float() and custom scalar
+    metrics crash in Score.as_float().
+    """
+
+    @metric
+    def solved_rate() -> Metric:
+        # mirrors user metrics that read each leaf as a scalar
+        def compute(scores: list[SampleScore]) -> float:
+            if len(scores) == 0:
+                return 0.0
+            return sum(s.score.as_float() >= 1.0 for s in scores) / len(scores)
+
+        return compute
+
+    @scorer(metrics={"a": [mean(), solved_rate()], "b": [mean()]})
+    def nan_leaf_scorer() -> Scorer:
+        async def score(state: TaskState, target: Target) -> Score:
+            if state.sample_id == 1:
+                return Score(value={"a": float("nan"), "b": 1.0})
+            return Score(value={"a": 0.5, "b": 0.0})
+
+        return score
+
+    # fail sample 2 on the first attempt only, so the first eval fails after
+    # sample 1 (the NaN-leaf sample) has completed and been written to the
+    # log, and the retry reloads sample 1 from disk
+    attempts = {"value": 0}
+
+    @solver
+    def fail_second_sample_first_attempt() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            if state.sample_id == 2:
+                attempts["value"] += 1
+                if attempts["value"] == 1:
+                    raise ValueError("first attempt fails")
+            return state
+
+        return solve
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        success, logs = eval_set(
+            tasks=Task(
+                dataset=[Sample(id=1, input="one"), Sample(id=2, input="two")],
+                solver=fail_second_sample_first_attempt(),
+                scorer=nan_leaf_scorer(),
+            ),
+            log_dir=log_dir,
+            retry_attempts=1,
+            retry_wait=0.1,
+            max_samples=1,
+            model="mockllm/model",
+        )
+        assert success
+
+        log = read_eval_log(logs[0].location)
+        assert log.results is not None
+        scores_by_key = {score.name: score for score in log.results.scores}
+
+        # sample 1's NaN leaf for "a" is unscored: excluded from mean (not
+        # counted as 0.0) and never passed to solved_rate as a scalar
+        assert scores_by_key["a"].scored_samples == 1
+        assert scores_by_key["a"].unscored_samples == 1
+        assert scores_by_key["a"].metrics["mean"].value == 0.5
+        assert scores_by_key["a"].metrics["solved_rate"].value == 0.0
+
+        # both samples scored for "b"
+        assert scores_by_key["b"].scored_samples == 2
+        assert scores_by_key["b"].unscored_samples == 0
+        assert scores_by_key["b"].metrics["mean"].value == 0.5
+
+
+def test_eval_set_retry_nan_scalar_and_list_scores() -> None:
+    """eval_set retry of a task with scalar-NaN and list-NaN scores.
+
+    Companion to test_eval_set_retry_nan_dict_score_leaves for the other two
+    Value shapes. A scalar NaN marks the whole sample unscored; a NaN list
+    element must survive the reload (serialized as null it fails Value
+    validation, since the list variant rejects None, and the retry cannot
+    read the completed sample at all).
+    """
+
+    @scorer(metrics=[mean()])
+    def scalar_nan_scorer() -> Scorer:
+        async def score(state: TaskState, target: Target) -> Score:
+            if state.sample_id == 1:
+                return Score(value=float("nan"))
+            return Score(value=0.5)
+
+        return score
+
+    @scorer(metrics=[mean()])
+    def list_nan_scorer() -> Scorer:
+        async def score(state: TaskState, target: Target) -> Score:
+            if state.sample_id == 1:
+                return Score(value=[float("nan"), 1.0])
+            return Score(value=[0.5, 0.0])
+
+        return score
+
+    attempts = {"value": 0}
+
+    @solver
+    def fail_second_sample_first_attempt() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            if state.sample_id == 2:
+                attempts["value"] += 1
+                if attempts["value"] == 1:
+                    raise ValueError("first attempt fails")
+            return state
+
+        return solve
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        success, logs = eval_set(
+            tasks=Task(
+                dataset=[Sample(id=1, input="one"), Sample(id=2, input="two")],
+                solver=fail_second_sample_first_attempt(),
+                scorer=[scalar_nan_scorer(), list_nan_scorer()],
+            ),
+            log_dir=log_dir,
+            retry_attempts=1,
+            retry_wait=0.1,
+            max_samples=1,
+            model="mockllm/model",
+        )
+        assert success
+
+        log = read_eval_log(logs[0].location)
+        assert log.samples is not None
+        sample_1 = next(s for s in log.samples if s.id == 1)
+        assert sample_1.scores is not None
+
+        # sample 1's NaN survived the retry reload in both shapes
+        scalar_value = sample_1.scores["scalar_nan_scorer"].value
+        assert isinstance(scalar_value, float) and math.isnan(scalar_value)
+        list_value = sample_1.scores["list_nan_scorer"].value
+        assert isinstance(list_value, list)
+        assert math.isnan(cast(float, list_value[0]))
+
+        # scalar NaN counts as unscored, not as 0.0 (mean over sample 2 only)
+        assert log.results is not None
+        scores_by_key = {score.name: score for score in log.results.scores}
+        assert scores_by_key["scalar_nan_scorer"].scored_samples == 1
+        assert scores_by_key["scalar_nan_scorer"].unscored_samples == 1
+        assert scores_by_key["scalar_nan_scorer"].metrics["mean"].value == 0.5
 
 
 def test_eval_set_header_only() -> None:
@@ -1517,6 +1689,41 @@ def test_eval_set_bundle_when_all_complete(tmp_path: Path) -> None:
         )
 
 
+def test_eval_set_bundle_after_retries_once(tmp_path: Path) -> None:
+    @solver
+    def fail_first_attempt() -> Solver:
+        attempts = {"count": 0}
+
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            attempts["count"] += 1
+            if attempts["count"] == 1:
+                raise ValueError("first attempt fails")
+            return state
+
+        return solve
+
+    bundle_dir = tmp_path / "bundle"
+    success, logs = eval_set(
+        tasks=Task(
+            dataset=[Sample(input="hello", target="hello")],
+            solver=[generate(), fail_first_attempt()],
+            scorer=exact(),
+        ),
+        log_dir=str(tmp_path / "logs"),
+        retry_attempts=2,
+        retry_wait=0.1,
+        retry_immediate=False,
+        model="mockllm/model",
+        bundle_dir=str(bundle_dir),
+    )
+
+    assert success
+    assert logs[0].status == "success"
+    assert (bundle_dir / "index.html").exists()
+    assert (bundle_dir / "logs" / "listing.json").exists()
+    assert len(list((bundle_dir / "logs").glob("*.eval"))) == 1
+
+
 def test_invalidation(tmp_path: Path):
     @task
     def task_for_invalidation():
@@ -1907,6 +2114,67 @@ def test_eval_set_retry_immediate(retry_immediate: bool | None) -> None:
         ]
 
 
+def test_retry_attempt_killed_mid_sweep_leaves_completed_samples_reusable(
+    tmp_path: Path,
+) -> None:
+    """A retry attempt hard-killed before its reuse sweep settles loses nothing.
+
+    Regression for the failure in ``design/retry-deferred-destination-log.md``:
+    the killed attempt used to leave a start-only log that became the newest
+    log for the task, so the next retry found nothing to reuse and re-ran every
+    completed sample (permanently losing them once ``retry_cleanup`` deleted
+    the prior log). The attempt now writes nothing until its sweep settles, so
+    the kill leaves no file and the next retry chains to the prior log.
+    """
+    import subprocess
+    import sys
+
+    log_dir = str(tmp_path / "logs")
+    probe_dir = str(tmp_path / "probe")
+    os.makedirs(log_dir)
+    os.makedirs(probe_dir)
+    tests_dir = Path(__file__).parent
+    harness = str(tests_dir / "test_helpers" / "retry_deferred_log_harness.py")
+
+    def run_harness(kill_at_settle: bool) -> subprocess.CompletedProcess[bytes]:
+        env = {
+            **os.environ,
+            "PYTHONPATH": os.pathsep.join(
+                p for p in (str(tests_dir), os.environ.get("PYTHONPATH", "")) if p
+            ),
+        }
+        if kill_at_settle:
+            env["INSPECT_TEST_KILL_AT_SETTLE"] = "1"
+        return subprocess.run(
+            [sys.executable, harness, log_dir, probe_dir], env=env, timeout=600
+        )
+
+    # attempt 1 completes s1 and errors s2; the in-process retry attempt is
+    # killed the moment its reuse sweep settles
+    killed = run_harness(kill_at_settle=True)
+    assert killed.returncode == -signal.SIGKILL, (
+        f"expected the child to die by SIGKILL; got returncode {killed.returncode}"
+    )
+
+    # the killed attempt wrote no destination log, so the newest log for the
+    # task is still attempt 1's — the one holding the completed s1
+    logs = list_eval_logs(log_dir)
+    assert len(logs) == 1
+    assert read_eval_log(logs[0].name, header_only=True).status == "error"
+
+    # a fresh eval_set pass reuses s1 and re-runs only s2
+    assert run_harness(kill_at_settle=False).returncode == 0
+
+    with open(os.path.join(probe_dir, "solver_calls.txt")) as f:
+        calls = f.read().split()
+    assert calls.count("s1") == 1, f"s1 was re-run instead of reused: {calls}"
+
+    final = read_eval_log(max(list_eval_logs(log_dir), key=lambda i: i.name).name)
+    assert final.status == "success"
+    assert final.samples is not None
+    assert {(s.id, s.epoch) for s in final.samples} == {("s1", 1), ("s2", 1)}
+
+
 def test_carried_forward_samples_remain_condensed() -> None:
     """Regression: eval_set retry must re-condense carried-forward samples.
 
@@ -1960,3 +2228,84 @@ def test_carried_forward_samples_remain_condensed() -> None:
                     f"{member} in {latest.name} was written decondensed; "
                     f"carry-forward path must run condense_sample()"
                 )
+
+
+def test_eval_set_resume_preserves_buffered_sample_metadata() -> None:
+    """Crash recovery must not persist summary-thinned sample metadata."""
+    ground_truth = {f"cell-{index}": {"active": True} for index in range(80)}
+    sample = Sample(
+        id=1,
+        input="Say hello",
+        target="hello",
+        metadata={"world": ground_truth},
+    )
+    resume_task = Task(
+        dataset=[sample],
+        solver=[identity_solver()],
+        name="resume_metadata",
+    )
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        # Create a log with the exact task identity eval_set expects, then
+        # rewrite it as a hard-crash artifact (start journal, no header).
+        started_log = eval(
+            resume_task,
+            model="mockllm/model",
+            log_dir=log_dir,
+            run_samples=False,
+        )[0]
+        with zipfile.ZipFile(local_path(started_log.location), "w") as zf:
+            zf.writestr(
+                "_journal/start.json",
+                to_json_str_safe(
+                    LogStart(
+                        version=started_log.version,
+                        eval=started_log.eval,
+                        plan=started_log.plan,
+                    )
+                ),
+            )
+
+        # The realtime buffer stores summaries for completed samples. The
+        # summary is intentionally thinned, while SampleInitEvent still has
+        # the authoritative dataset metadata available for crash recovery.
+        buffer = SampleBufferDatabase(started_log.location)
+        try:
+            summary = EvalSampleSummary(
+                id=1,
+                epoch=1,
+                input=sample.input,
+                target=sample.target,
+                metadata=sample.metadata or {},
+                completed_at="2026-01-01T00:00:00+00:00",
+            )
+            assert summary.metadata["world"] == "Key removed from summary (> 1k)"
+            buffer.start_sample(summary)
+            buffer.log_events(
+                [
+                    SampleEvent(
+                        id=1,
+                        epoch=1,
+                        event=SampleInitEvent(sample=sample, state={}),
+                    )
+                ]
+            )
+            buffer.complete_sample(summary, sample_metadata=sample.metadata)
+            simulate_crashed_buffer_db(buffer)
+
+            success, logs = eval_set(
+                tasks=resume_task,
+                log_dir=log_dir,
+                model="mockllm/model",
+                retry_attempts=1,
+                retry_immediate=True,
+                retry_cleanup=False,
+            )
+
+            assert success
+            successful_log = next(log for log in logs if log.status == "success")
+            resumed = read_eval_log(successful_log.location)
+            assert resumed.samples is not None
+            assert resumed.samples[0].metadata["world"] == ground_truth
+        finally:
+            buffer.cleanup()

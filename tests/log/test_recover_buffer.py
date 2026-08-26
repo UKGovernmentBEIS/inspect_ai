@@ -72,7 +72,7 @@ def _create_test_buffer(
             [SampleEvent(id=id, epoch=1, event=_make_model_event(f"output {id}"))]
         )
         completed = _make_completed_summary(id)
-        buffer.complete_sample(completed)
+        buffer.complete_sample(completed, sample_metadata=None)
 
     # Start but don't complete others (simulating crash)
     for id in in_progress_ids:
@@ -224,7 +224,7 @@ def test_read_buffer_recovery_data_picks_newest_db() -> None:
         older_buffer.log_events(
             [SampleEvent(id=1, epoch=1, event=_make_model_event("old response"))]
         )
-        older_buffer.complete_sample(_make_completed_summary(1))
+        older_buffer.complete_sample(_make_completed_summary(1), sample_metadata=None)
         simulate_crashed_buffer_db(older_buffer, pid=99999998)
 
         # Small delay to ensure the newer snapshot has a later mtime
@@ -236,7 +236,7 @@ def test_read_buffer_recovery_data_picks_newest_db() -> None:
         newer_buffer.log_events(
             [SampleEvent(id=10, epoch=1, event=_make_model_event("new response"))]
         )
-        newer_buffer.complete_sample(_make_completed_summary(10))
+        newer_buffer.complete_sample(_make_completed_summary(10), sample_metadata=None)
         newer_buffer.start_sample(_make_started_summary(11))
         newer_buffer.log_events(
             [SampleEvent(id=11, epoch=1, event=_make_model_event("new partial"))]

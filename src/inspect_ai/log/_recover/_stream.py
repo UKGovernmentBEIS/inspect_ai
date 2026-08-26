@@ -6,7 +6,7 @@ import json as json_module
 import re
 import tempfile
 from logging import getLogger
-from typing import IO
+from typing import IO, Any
 
 from pydantic import JsonValue
 
@@ -32,7 +32,6 @@ from inspect_ai.log._condense import (
     walk_input,
 )
 from inspect_ai.log._log import (
-    EvalSampleLimit,
     EvalSampleSummary,
     EvalSpec,
     EventsData,
@@ -46,6 +45,7 @@ from ._reconstruct import (
     EventVersionCollapser,
     MessageAccumulator,
     _summary_with_uuid_fallback,
+    recovered_sample_limit,
 )
 
 logger = getLogger(__name__)
@@ -78,7 +78,7 @@ def _write_sample_streaming(
     eval_spec: EvalSpec,
     is_in_progress: bool = False,
     include_events: bool = True,
-) -> EvalSampleSummary:
+) -> tuple[EvalSampleSummary, dict[str, Any] | None]:
     """Stream-process a single sample's segments and write to a ZIP entry.
 
     Two-pass per sample: first walk segments to accumulate pools /
@@ -89,9 +89,9 @@ def _write_sample_streaming(
     the collapsed rows, run attachment walking / pool dedup, and write
     condensed events followed by walked messages / output / attachments.
 
-    Returns the summary for stats accumulation. Samples with no flushed
-    event data are still written with empty events/messages so summaries
-    and sample files stay consistent.
+    Returns the summary for stats accumulation and the full metadata written
+    to the sample. Samples with no flushed event data are still written with
+    empty events/messages so summaries and sample files stay consistent.
 
     All fields declared on ``EvalSample`` are emitted unconditionally
     (``null`` or pydantic default when we have no source). Note: the key
@@ -127,6 +127,8 @@ def _write_sample_streaming(
     # Per-sample reconstruction state captured from raw events
     sample_init: SampleInitEvent | None = None
     sample_limit_event: SampleLimitEvent | None = None
+    sample_limit_event_matching: SampleLimitEvent | None = None
+    sample_metadata = buffer.read_sample_metadata(summary.id, summary.epoch, manifest)
 
     # Build the error field
     error: EvalError | None = None
@@ -234,6 +236,13 @@ def _write_sample_streaming(
                     sample_init = ev
                 if isinstance(ev, SampleLimitEvent):
                     sample_limit_event = ev  # keep the last
+                    # ...but a transcript can hold several, and the last one
+                    # isn't necessarily the one that halted the sample: an
+                    # operator interrupt during the scoring phase appends a
+                    # second event after whatever ended the run phase. Where the
+                    # terminal summary names the limit, it decides.
+                    if summary.limit is not None and ev.type == summary.limit:
+                        sample_limit_event_matching = ev
 
             # Feed resolved (uncondensed) events to the message accumulator;
             # the events written to the recovered log stay condensed below.
@@ -282,12 +291,11 @@ def _write_sample_streaming(
             if sample_init is not None and sample_init.sample.files:
                 files_value = list(sample_init.sample.files.keys())
             setup_value = sample_init.sample.setup if sample_init is not None else None
-            limit_value: EvalSampleLimit | None = None
-            if sample_limit_event is not None and sample_limit_event.limit is not None:
-                limit_value = EvalSampleLimit(
-                    type=sample_limit_event.type,
-                    limit=sample_limit_event.limit,
-                )
+            # the incremental equivalent of `select_limit_event`: prefer the last
+            # event matching the summary's limit type, else the last seen
+            limit_value = recovered_sample_limit(
+                summary, sample_limit_event_matching or sample_limit_event
+            )
 
             # Get messages and output from accumulator
             messages, output = accumulator.result()
@@ -305,7 +313,14 @@ def _write_sample_streaming(
             _write_json_field(stream, "setup", setup_value, comma=True)
 
             # Summary-derived scalars
-            _write_json_field(stream, "metadata", summary.metadata, comma=True)
+            if sample_metadata is None:
+                sample_metadata = (
+                    sample_init.sample.metadata
+                    if sample_init is not None
+                    and sample_init.sample.metadata is not None
+                    else summary.metadata
+                )
+            _write_json_field(stream, "metadata", sample_metadata, comma=True)
             _write_json_field(stream, "scores", summary.scores, comma=True)
 
             # Store: parity with DB recovery path (defaults to {}).
@@ -355,4 +370,14 @@ def _write_sample_streaming(
 
     summary.completed = True
 
-    return summary
+    # Deliberately NOT back-filling `summary.limit` from `limit_value` for an
+    # in-progress sample. Its buffered summary is the start-of-sample one, so it
+    # never names a limit -- but the reconstructed value is only a guess: a
+    # scoped limit caught by `apply_limits(catch_errors=True)` leaves a
+    # SampleLimitEvent behind on a sample that kept running, and nothing in the
+    # transcript distinguishes that from the limit that halted it. The summary is
+    # the cheap authoritative index consumers classify from, so leaving it unset
+    # ("we don't know") beats seeding it with a guess. The body keeps the
+    # best-effort reconstruction.
+
+    return summary, sample_metadata

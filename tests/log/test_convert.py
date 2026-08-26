@@ -27,6 +27,7 @@ from inspect_ai.log._recorders.chunked.format import (
     chunk_ranges,
     classify_sample_shape,
     events_stats_entry_name,
+    events_uuids_entry_name,
     metadata_entry_name,
     monolith_entry_name,
     sample_prefix,
@@ -292,32 +293,30 @@ _CHUNK_SIZE = 3
 _SEQUENCES = ("messages", "events", "calls", "attachments")
 
 
-def _read_chunked_sequence(
-    zf: zipfile.ZipFile, id: str | int, epoch: int, sequence: str, boundaries: list[int]
-) -> list:
-    """Read a full sequence, verifying entry names/extents against boundaries."""
-    names = set(zf.namelist())
+def _chunk_starts(
+    names: set[str], id: str | int, epoch: int, sequence: str
+) -> list[int]:
+    """Chunk start indexes from entry names — the only persisted layout."""
     prefix = f"{sample_prefix(id, epoch)}/{sequence}/"
 
-    def entry_start(entry: str) -> int:
-        return int(entry.rsplit("/", 1)[1].removesuffix(".json"))
+    def stem(entry: str) -> str:
+        return entry.rsplit("/", 1)[1].removesuffix(".json")
 
-    def is_chunk(entry: str) -> bool:
-        # chunk entry names are purely numeric (events/ also holds stats.json)
-        return entry.rsplit("/", 1)[1].removesuffix(".json").isdigit()
-
-    entries = sorted(
-        (n for n in names if n.startswith(prefix) and is_chunk(n)), key=entry_start
+    # chunk entry names are purely numeric (events/ also holds stats.json)
+    return sorted(
+        int(stem(n)) for n in names if n.startswith(prefix) and stem(n).isdigit()
     )
-    # chunk entry names carry the start index only (empty sequences have
-    # no chunk entries at all)
-    starts = [0, *boundaries[:-1]] if boundaries else []
-    assert [entry_start(entry) for entry in entries] == starts
+
+
+def _read_chunked_sequence(
+    zf: zipfile.ZipFile, id: str | int, epoch: int, sequence: str
+) -> list:
+    """Read a full sequence, verifying chunks are contiguous and complete."""
     items: list = []
-    for entry, (start, end_exclusive) in zip(entries, boundary_ranges(boundaries)):
-        chunk = json.loads(zf.read(entry))
-        assert len(chunk) == end_exclusive - start
-        items += chunk
+    for start in _chunk_starts(set(zf.namelist()), id, epoch, sequence):
+        # each chunk's name is the index of its first item
+        assert start == len(items)
+        items += json.loads(zf.read(chunk_entry_name(id, epoch, sequence, start)))
     return items
 
 
@@ -332,16 +331,13 @@ def _reassemble_chunked_sample(
     """
     names = set(zf.namelist())
     shell = json.loads(zf.read(shell_entry_name(id, epoch)))
-    boundaries = shell["sequences"]
 
     messages, events, calls, attachments = (
-        _read_chunked_sequence(zf, id, epoch, sequence, boundaries[sequence])
-        for sequence in _SEQUENCES
+        _read_chunked_sequence(zf, id, epoch, sequence) for sequence in _SEQUENCES
     )
 
     data = dict(shell)
     message_refs = data.pop("message_refs")
-    data.pop("sequences")
     data["messages"] = [
         message
         for start, end_exclusive in message_refs
@@ -436,22 +432,29 @@ def test_convert_chunked_layout(tmp_path: pathlib.Path):
 
         shell = json.loads(zf.read(shell_entry_name(id, epoch)))
 
-        # chunked/relocated fields must not appear in the shell
+        # chunked/relocated fields must not appear in the shell; the chunk
+        # layout is never persisted (central-directory entry names carry it)
         for field in ("messages", "events", "attachments", "events_data", "metadata"):
             assert field not in shell
+        assert "sequences" not in shell
 
         # all four sequences are present with count-capped chunks
         # (attachments chunk by bytes, not count)
-        sequences = shell["sequences"]
-        assert set(sequences) == set(_SEQUENCES)
+        assert all(_chunk_starts(names, id, epoch, s) for s in _SEQUENCES)
         for sequence in ("messages", "events", "calls"):
-            for start, end_exclusive in boundary_ranges(sequences[sequence]):
-                assert 0 < end_exclusive - start <= _CHUNK_SIZE
+            for start in _chunk_starts(names, id, epoch, sequence):
+                chunk = json.loads(
+                    zf.read(chunk_entry_name(id, epoch, sequence, start))
+                )
+                assert 0 < len(chunk) <= _CHUNK_SIZE
 
         messages, events, calls, attachments = (
-            _read_chunked_sequence(zf, id, epoch, sequence, sequences[sequence])
-            for sequence in _SEQUENCES
+            _read_chunked_sequence(zf, id, epoch, sequence) for sequence in _SEQUENCES
         )
+
+        # events/uuids.json mirrors the event sequence's uuids, in ordinal order
+        uuids = json.loads(zf.read(events_uuids_entry_name(id, epoch)))
+        assert uuids == [e.get("uuid") for e in events]
 
         # every ref is renumbered to a valid attachment sequence index
         # (no hash-form refs survive)
@@ -558,14 +561,13 @@ def test_convert_chunked_sidecars(tmp_path: pathlib.Path):
     class Sidecars(NamedTuple):
         skeleton: dict
         stats: dict
-        events_boundaries: list[int]
+        events_starts: list[int]
 
     def read_sidecars(zf: zipfile.ZipFile, id: str | int, epoch: int) -> Sidecars:
-        shell = json.loads(zf.read(shell_entry_name(id, epoch)))
         return Sidecars(
             skeleton=json.loads(zf.read(skeleton_entry_name(id, epoch))),
             stats=json.loads(zf.read(events_stats_entry_name(id, epoch))),
-            events_boundaries=shell["sequences"]["events"],
+            events_starts=_chunk_starts(set(zf.namelist()), id, epoch, "events"),
         )
 
     def check_stats(
@@ -574,8 +576,7 @@ def test_convert_chunked_sidecars(tmp_path: pathlib.Path):
         # one stats entry per chunk, starts mirroring the chunk entry names
         assert sidecars.stats["version"] == 1
         chunks = sidecars.stats["chunks"]
-        boundaries = sidecars.events_boundaries
-        assert [c["start"] for c in chunks] == [0, *boundaries[:-1]]
+        assert [c["start"] for c in chunks] == sidecars.events_starts
 
         # per-chunk type_counts sum to the skeleton's sample totals
         counts = sidecars.skeleton["counts"]
@@ -583,7 +584,7 @@ def test_convert_chunked_sidecars(tmp_path: pathlib.Path):
         assert sum(c["type_counts"].get("model", 0) for c in chunks) == counts["models"]
 
         # first/last (type + span_id) match raw chunk contents at the edges
-        for c, (start, _) in zip(chunks, boundary_ranges(boundaries)):
+        for c, start in zip(chunks, sidecars.events_starts):
             raw = json.loads(zf.read(chunk_entry_name(id, epoch, "events", start)))
             assert sum(c["type_counts"].values()) == len(raw)
             for edge, event in (("first", raw[0]), ("last", raw[-1])):
@@ -609,7 +610,7 @@ def test_convert_chunked_sidecars(tmp_path: pathlib.Path):
             for span in a.skeleton["spans"] + b.skeleton["spans"]:
                 span.pop("working")
             assert b.skeleton == a.skeleton
-            if b.events_boundaries != a.events_boundaries:
+            if b.events_starts != a.events_starts:
                 assert b.stats != a.stats
                 rechunked_stats += 1
         # at least one sample spans multiple chunks, exercising the rechunk case
@@ -647,9 +648,9 @@ def test_chunked_corpus_round_trip(
                 assert classify_sample_shape(names, id, epoch) == "chunked"
                 assert skeleton_entry_name(id, epoch) in names
                 assert events_stats_entry_name(id, epoch) in names
+                assert events_uuids_entry_name(id, epoch) in names
 
-                shell = json.loads(zf.read(shell_entry_name(id, epoch)))
-                if any(len(b) > 1 for b in shell["sequences"].values()):
+                if any(len(_chunk_starts(names, id, epoch, s)) > 1 for s in _SEQUENCES):
                     multi_chunk_samples += 1
 
                 reassembled, attachment_map = _reassemble_chunked_sample(zf, id, epoch)

@@ -26,7 +26,9 @@ from inspect_ai.tool._tool_call import ToolCall, ToolCallError
 
 
 def test_project_compact_user_message() -> None:
-    out = _project(ChatMessageUser(id="m1", content="hello there"), 0, full=False)
+    out = _project(
+        ChatMessageUser(id="m1", content="hello there"), 0, content=True, full=False
+    )
     assert out["index"] == 0
     assert out["id"] == "m1"
     assert out["role"] == "user"
@@ -43,7 +45,7 @@ def test_project_compact_assistant_with_tool_calls() -> None:
             ToolCall(id="c1", function="search", arguments={"query": "weather"})
         ],
     )
-    out = _project(message, 3, full=False)
+    out = _project(message, 3, content=True, full=False)
     assert out["role"] == "assistant"
     assert out["content"] == "calling a tool"
     [call] = out["tool_calls"]
@@ -58,14 +60,55 @@ def test_project_compact_tool_message_with_error() -> None:
         function="search",
         error=ToolCallError(type="unknown", message="boom"),
     )
-    out = _project(message, 4, full=False)
+    out = _project(message, 4, content=True, full=False)
     assert out["role"] == "tool"
     assert out["function"] == "search"
     assert out["error"] == "boom"
+    assert out["has_error"] is True
+
+
+def test_project_metadata_default_withholds_free_text() -> None:
+    """Without ``content`` the projection is metadata only.
+
+    Index / role / tool-call function names / error presence, none of the
+    agent-controlled text (message content, tool arguments, error messages).
+    """
+    out = _project(
+        ChatMessageUser(id="m1", content="agent-controlled"),
+        0,
+        content=False,
+        full=False,
+    )
+    assert out["role"] == "user"
+    assert "content" not in out
+
+    assistant = ChatMessageAssistant(
+        id="a1",
+        content="calling a tool",
+        tool_calls=[
+            ToolCall(id="c1", function="search", arguments={"query": "payload"})
+        ],
+    )
+    out = _project(assistant, 1, content=False, full=False)
+    assert "content" not in out
+    [call] = out["tool_calls"]
+    assert call["function"] == "search"
+    assert "arguments" not in call
+
+    tool = ChatMessageTool(
+        id="t1",
+        content="payload",
+        function="search",
+        error=ToolCallError(type="unknown", message="boom"),
+    )
+    out = _project(tool, 2, content=False, full=False)
+    assert out["function"] == "search"
+    assert out["has_error"] is True
+    assert "content" not in out and "error" not in out
 
 
 def test_project_full_is_raw_dump() -> None:
-    out = _project(ChatMessageUser(id="m1", content="hi"), 2, full=True)
+    out = _project(ChatMessageUser(id="m1", content="hi"), 2, content=False, full=True)
     # raw form keeps the full model dump, plus the injected index
     assert out["index"] == 2
     assert out["role"] == "user"
@@ -129,6 +172,16 @@ async def test_running_sample_serves_live_messages(
     # indices are absolute
     assert [m["index"] for m in page["messages"]] == [0, 1, 2]
 
+    # a just-finished sample still lingering in active_samples is "completed"
+    monkeypatch.setattr(
+        samples_mod,
+        "active_samples",
+        lambda: [_fake_running_sample(messages, completed=True)],
+    )
+    page = await sample_messages("e1", "1", 1)
+    assert page is not None
+    assert page["status"] == "completed"
+
 
 async def test_running_sample_tail_windows_from_the_end(
     monkeypatch: pytest.MonkeyPatch,
@@ -140,13 +193,18 @@ async def test_running_sample_tail_windows_from_the_end(
         samples_mod, "active_samples", lambda: [_fake_running_sample(messages)]
     )
 
-    page = await sample_messages("e1", "1", 1, tail=3)
+    page = await sample_messages("e1", "1", 1, tail=3, content=True)
     assert page is not None
     # count is the full conversation length; only the tail is projected, with
     # its absolute indices preserved
     assert page["count"] == 10
     assert [m["index"] for m in page["messages"]] == [7, 8, 9]
     assert [m["content"] for m in page["messages"]] == ["m7", "m8", "m9"]
+
+    # the metadata-only default withholds the message text
+    page = await sample_messages("e1", "1", 1, tail=3)
+    assert page is not None
+    assert all("content" not in m for m in page["messages"])
 
 
 async def test_negative_tail_clamps_to_empty_window(
@@ -247,11 +305,84 @@ async def test_terminal_sample_resolves_message_attachments(
 
     try:
         register_eval("e1", 1, live=FakeLiveEvalData(sample=read_sample))
-        page = await sample_messages("e1", "s1", 1)
+        page = await sample_messages("e1", "s1", 1, content=True)
         assert page is not None
         assert page["messages"][0]["content"] == "the real content"
     finally:
         clear_all_eval_states()
+
+
+async def test_terminal_source_resolved_once_across_polls(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Polling a terminal sample's messages parses the sample once, not per poll.
+
+    On the terminal path `tail` bounds the *response*, not the *read*: the
+    whole-conversation parse and attachment resolution ran per request against
+    an immutable source. The short-TTL cache collapses that; clearing the
+    eval states (the run boundary) also drops the cache.
+    """
+    import inspect_ai.log._samples as samples_mod
+    from inspect_ai._control.eval_state import clear_all_eval_states, register_eval
+    from inspect_ai.log._log import EvalSample
+
+    monkeypatch.setattr(samples_mod, "active_samples", lambda: [])
+
+    sample = EvalSample(
+        id="s1",
+        epoch=1,
+        input="question",
+        target="answer",
+        messages=[ChatMessageUser(content=f"m{i}") for i in range(5)],
+    )
+    reads = [0]
+
+    async def read_sample(id: Any, epoch: int, *, exclude_fields: Any = None) -> Any:
+        reads[0] += 1
+        return sample
+
+    try:
+        register_eval("e1", 1, live=FakeLiveEvalData(sample=read_sample))
+        page1 = await sample_messages("e1", "s1", 1, tail=2, content=True)
+        page2 = await sample_messages("e1", "s1", 1, tail=2, content=True)
+        assert page1 is not None and page2 is not None
+        assert [m["content"] for m in page2["messages"]] == ["m3", "m4"]
+        assert reads[0] == 1
+
+        # the run-boundary registry clear also drops the cached source
+        clear_all_eval_states()
+        register_eval("e1", 1, live=FakeLiveEvalData(sample=read_sample))
+        assert await sample_messages("e1", "s1", 1) is not None
+        assert reads[0] == 2
+    finally:
+        clear_all_eval_states()
+
+
+async def test_running_attempt_invalidates_other_endpoints_cache(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Observing a retry on the messages endpoint drops the events cache too.
+
+    The mirror of the events-side test: a retry supersedes the prior
+    attempt's terminal source in both projections, so the invalidation must
+    reach every registered cache, not just this endpoint's.
+    """
+    import inspect_ai._control.events as events_mod
+    import inspect_ai._control.messages as messages_mod
+    import inspect_ai.log._samples as samples_mod
+    from inspect_ai._control.events import EventsSource
+
+    key = ("e1", "1", 1)
+    events_mod._terminal_sources.put(
+        key, EventsSource(nonce="n", fetch=lambda start, limit: [], total=0, done=True)
+    )
+
+    running = _fake_running_sample([ChatMessageUser(content="retrying")])
+    monkeypatch.setattr(samples_mod, "active_samples", lambda: [running])
+    assert await sample_messages("e1", "1", 1) is not None
+
+    assert events_mod._terminal_sources.get(key) is None
+    assert messages_mod._terminal_sources.get(key) is None
 
 
 async def test_terminal_errored_sample_reports_error_status(

@@ -15,6 +15,7 @@ from inspect_ai.log import (
     effective_eval_config,
     effective_generate_config,
     read_eval_log,
+    read_eval_log_async,
     write_eval_log,
 )
 from inspect_ai.log._config_update import fill_previous_from_launch
@@ -221,7 +222,7 @@ async def test_eval_recorder_journals_and_consolidates(tmp_path: Path) -> None:
 
     # the in-progress (crashed-shaped) read reconstructs the header from the
     # journal, config updates included
-    in_progress = read_eval_log(location, header_only=True)
+    in_progress = await read_eval_log_async(location, header_only=True)
     assert in_progress.config_updates is not None
     assert in_progress.config_updates[0].changes[0].name == "max_samples"
     assert in_progress.config_updates[0].scope == "task"
@@ -230,7 +231,7 @@ async def test_eval_recorder_journals_and_consolidates(tmp_path: Path) -> None:
     finished = await recorder.log_finish(log.eval, "success", log.stats, None, None)
     assert finished.config_updates is not None
     assert finished.config_updates[0].changes[0].value == 8
-    final = read_eval_log(location, header_only=True)
+    final = await read_eval_log_async(location, header_only=True)
     assert final.config_updates is not None
     assert final.config_updates[0].changes[0].value == 8
 
@@ -249,9 +250,45 @@ async def test_eval_recorder_multiple_updates_ordered(tmp_path: Path) -> None:
             ),
         )
     await recorder.log_finish(log.eval, "success", log.stats, None, None)
-    read = read_eval_log(location, header_only=True)
+    read = await read_eval_log_async(location, header_only=True)
     assert read.config_updates is not None
     assert [u.changes[0].value for u in read.config_updates] == [8, 16]
+
+
+async def test_eval_recorder_update_before_first_write_creates_no_destination(
+    tmp_path: Path,
+) -> None:
+    # design/retry-deferred-destination-log.md: the eager per-update flush keys
+    # off "the destination has been written at least once", so a retune while a
+    # held retry attempt defers its destination writes stays journal-only —
+    # writing it would create exactly the empty newest log the hold prevents.
+    log = _make_log()
+    recorder = EvalRecorder(str(tmp_path))
+    location = await recorder.log_init(log.eval)
+    await recorder.log_start(log.eval, log.plan)
+
+    update = _update(
+        ConfigValueChange(config="eval", name="max_samples", value=8, previous=4),
+        scope="task",
+    )
+    await recorder.log_config_update(log.eval, update)
+    assert not Path(location).exists()
+
+    # once the destination exists, the journaled update is there and later
+    # updates resume flushing eagerly
+    await recorder.flush(log.eval)
+    with zipfile.ZipFile(location) as zf:
+        assert "_journal/config_updates/1.json" in zf.namelist()
+
+    await recorder.log_config_update(
+        log.eval,
+        _update(
+            ConfigValueChange(config="eval", name="max_samples", value=16),
+            scope="task",
+        ),
+    )
+    with zipfile.ZipFile(location) as zf:
+        assert "_journal/config_updates/2.json" in zf.namelist()
 
 
 async def test_json_recorder_accumulates_updates(tmp_path: Path) -> None:
@@ -267,7 +304,7 @@ async def test_json_recorder_accumulates_updates(tmp_path: Path) -> None:
         ),
     )
     await recorder.log_finish(log.eval, "success", log.stats, None, None)
-    read = read_eval_log(location, header_only=True)
+    read = await read_eval_log_async(location, header_only=True)
     assert read.config_updates is not None
     assert read.config_updates[0].changes[0].name == "max_retries"
 

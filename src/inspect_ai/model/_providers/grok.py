@@ -38,8 +38,7 @@ from inspect_ai._util.content import (
     ContentToolUse,
 )
 from inspect_ai._util.error import PrerequisiteError
-from inspect_ai._util.images import file_as_data_uri
-from inspect_ai._util.url import is_http_url
+from inspect_ai._util.images import inline_media_data_uri
 from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.model._chat_message import (
@@ -78,6 +77,25 @@ XAI_BASE_URL = "XAI_BASE_URL"
 GROK_API_KEY = "GROK_API_KEY"
 GROK_BASE_URL = "GROK_BASE_URL"
 
+# xAI model-name tokens for non-generative models (image/video generation,
+# embeddings) that must never be treated as a "latest" frontier chat model
+# by is_latest().
+_NON_GENERATIVE_TOKENS = (
+    "image",
+    "imagine",
+    "embedding",
+    "tts",
+)
+
+
+def _sdk_supports_xhigh_effort() -> bool:
+    """Whether the installed xai_sdk can express reasoning_effort="xhigh".
+
+    The gRPC ReasoningEffort enum gained EFFORT_XHIGH in xai_sdk 1.18
+    (shipped alongside grok-4.6); older SDKs reject "xhigh" client-side.
+    """
+    return "EFFORT_XHIGH" in chat_pb2.ReasoningEffort.keys()
+
 
 class GrokAPI(ModelAPI):
     def __init__(
@@ -88,6 +106,7 @@ class GrokAPI(ModelAPI):
         config: GenerateConfig = GenerateConfig(),
         streaming: bool = False,
         disable_retry: bool = False,
+        service_tier: str | None = None,
         **model_args: Any,
     ) -> None:
         super().__init__(
@@ -124,6 +143,14 @@ class GrokAPI(ModelAPI):
         # save model args
         self.streaming = streaming
         self.disable_retry = disable_retry
+        # fail fast when the SDK can't express service_tier rather than
+        # TypeError-ing on every generate
+        if service_tier is not None and not hasattr(usage_pb2, "ServiceTier"):
+            raise PrerequisiteError(
+                "ERROR: The service_tier model arg requires xai_sdk >= 1.17 "
+                "(pip install --upgrade xai-sdk)."
+            )
+        self.service_tier = service_tier
         if self.disable_retry:
             # retrying may be disabled so we can accurately track waiting time
             # (challenging to track GRPC internal retries w/o monkey patching).
@@ -172,7 +199,24 @@ class GrokAPI(ModelAPI):
         )
 
     def is_at_least_grok_4(self) -> bool:
+        """Grok 4 or greater, including future versions and codename models."""
         return not self.is_grok_2() and not self.is_grok_3()
+
+    def is_latest(self) -> bool:
+        """Detect an xAI predeployment/codename model as the current frontier.
+
+        xAI sometimes exposes pre-release models under internal code names
+        (e.g. `sherlock-think`) that match none of the known naming
+        conventions. Treat any such unrecognized name as the latest model so it
+        gets frontier behavior. Mirrors OpenAI's `is_latest_model()` and
+        Anthropic's `is_claude_latest()`.
+        """
+        name = self.model_family().lower()
+        if any(token in name for token in _NON_GENERATIVE_TOKENS):
+            return False
+        # known family naming — future grok versions are already covered by
+        # is_at_least_grok_4() and the DB-miss branch of input_tokens_name()
+        return "grok" not in name
 
     def model_client(self) -> AsyncClient:
         return AsyncClient(
@@ -303,7 +347,12 @@ class GrokAPI(ModelAPI):
         self._batcher = GrokBatcher(
             self._batch_client,
             batch_config,
-            batch_admin_retry_config(self.model_name, config, self.should_retry),
+            batch_admin_retry_config(
+                self.model_name,
+                config,
+                self.should_retry,
+                qualified_model_name=self.qualified_model_name,
+            ),
         )
 
     def is_auth_failure(self, ex: Exception) -> bool:
@@ -350,6 +399,23 @@ class GrokAPI(ModelAPI):
     def canonical_name(self) -> str:
         """Canonical model name for model info database lookup."""
         return f"grok/{self.service_model_name()}"
+
+    @override
+    def input_tokens_name(self) -> str:
+        """Model name used for looking up model input tokens (context window)."""
+        from inspect_ai.model._model_info import _get_model_info_direct
+
+        # Codename/predeployment models (is_latest() folds into
+        # is_at_least_grok_4()) and grok-named models not yet in the model-info
+        # database (future versions, unknown snapshots) alias to the current
+        # frontier so the context window / compaction match. Bump when a newer
+        # frontier ships. Mirrors the other providers' input_tokens_name().
+        if (
+            self.is_at_least_grok_4()
+            and _get_model_info_direct(self.canonical_name()) is None
+        ):
+            return "grok/grok-4.6"
+        return super().input_tokens_name()
 
     def _handle_grpc_bad_request(self, ex: grpc.RpcError) -> ModelOutput | Exception:
         details = ex.details() or ""
@@ -443,24 +509,33 @@ class GrokAPI(ModelAPI):
             # we'll call chat.parse() above w/ the schema
             gconfig["response_format"] = "json_object"
 
-        # grok-3-mini and grok-4 variants (4-fast, 4.1, 4.20, 4.3) accept
-        # reasoning_effort. The *original* grok-4 reasons but rejects the
-        # parameter and must be excluded.
+        # grok-3-mini and grok-4-or-later variants (4-fast, 4.1, 4.20, 4.3,
+        # 4.5, 4.6, plus future/codename models) accept reasoning_effort. The
+        # *original* grok-4 reasons but rejects the parameter and must be
+        # excluded.
         if config.reasoning_effort is not None and (
             self.is_grok_3_mini()
-            or (self.is_grok_4() and not self.is_grok_4_original())
+            or (self.is_at_least_grok_4() and not self.is_grok_4_original())
         ):
             match config.reasoning_effort:
                 case "minimal" | "low":
                     gconfig["reasoning_effort"] = "low"
                 case "medium":
                     gconfig["reasoning_effort"] = "medium"
-                case "high" | "xhigh" | "max":
-                    # xAI documents `xhigh` for grok-4.20-multi-agent (there it
-                    # sets agent count), but the xai_sdk gRPC ReasoningEffort
-                    # enum tops out at HIGH (as of 1.17), so `high` is the
-                    # strongest expressible request on this transport.
+                case "high":
                     gconfig["reasoning_effort"] = "high"
+                case "xhigh" | "max":
+                    # passthrough is safe: the service downgrades xhigh to
+                    # high on models that don't support it
+                    if _sdk_supports_xhigh_effort() and not self.is_grok_3_mini():
+                        gconfig["reasoning_effort"] = "xhigh"
+                    else:
+                        gconfig["reasoning_effort"] = "high"
+
+        # batch requests are processed on xAI's own batch tier, so a
+        # synchronous processing tier doesn't apply there
+        if self.service_tier is not None and not self._batcher:
+            gconfig["service_tier"] = self.service_tier
 
         # return encrypted reasoning blocks
         gconfig["use_encrypted_content"] = True
@@ -736,9 +811,7 @@ async def _grok_content_item(content: Content) -> chat_pb2.Content:
 
         return chat_pb2.Content(
             image_url={
-                "image_url": content.image
-                if is_http_url(content.image)
-                else await file_as_data_uri(content.image),
+                "image_url": inline_media_data_uri(content.image, "image"),
                 "detail": detail,
             }
         )

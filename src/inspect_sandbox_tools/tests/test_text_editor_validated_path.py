@@ -1,5 +1,6 @@
 """Unit tests for `_validated_path` in the text_editor sandbox tool."""
 
+import pickle
 from pathlib import Path
 
 import inspect_sandbox_tools._in_process_tools._text_editor.text_editor as text_editor_module
@@ -32,6 +33,12 @@ def test_validated_path_rejects_too_long_filename() -> None:
         _validated_path("a" * 5000, "view")
 
 
+def test_validated_path_rejects_embedded_null_byte() -> None:
+    """Null-byte paths must raise ToolException, not crash the JSON-RPC server."""
+    with pytest.raises(ToolException, match="Invalid path"):
+        _validated_path("/repo/foo\x00bar", "view")
+
+
 async def test_str_replace_recovers_from_truncated_history(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -60,7 +67,7 @@ async def test_str_replace_continues_when_history_save_fails(
     def fail_dump(*_args: object, **_kwargs: object) -> None:
         raise RuntimeError("boom")
 
-    monkeypatch.setattr(text_editor_module.pickle, "dump", fail_dump)
+    monkeypatch.setattr(pickle, "dump", fail_dump)
     caplog.set_level("WARNING", logger=text_editor_module.__name__)
 
     target = tmp_path / "target.txt"

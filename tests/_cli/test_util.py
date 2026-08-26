@@ -4,7 +4,9 @@ import pytest
 
 from inspect_ai._cli.util import (
     parse_model_role_cli_args,
+    parse_model_spec_cli_args,
 )
+from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.model import GenerateConfig, Model, get_model
 from inspect_ai.model._util import resolve_model_roles
 
@@ -148,6 +150,25 @@ def test_parse_model_role_cli_args_without_model_args():
     assert result["critic"].config.temperature == 0.3
 
 
+def test_parse_model_role_cli_args_accepts_provider_args_in_model_args() -> None:
+    """Provider-specific role args must live under model_args."""
+    result = parse_model_role_cli_args(
+        ("grader={model: none/none, model_args: {base_url: http://gpu2:8000/v1}}",)
+    )
+
+    assert "grader" in result
+    assert isinstance(result["grader"], Model)
+    assert result["grader"].api.base_url == "http://gpu2:8000/v1"
+
+
+def test_parse_model_role_cli_args_rejects_provider_args_at_top_level() -> None:
+    """Top-level role keys are GenerateConfig fields, not provider args."""
+    with pytest.raises(ValueError, match="Invalid config"):
+        parse_model_role_cli_args(
+            ("grader={model: none/none, base_url: http://gpu2:8000/v1}",)
+        )
+
+
 def test_parse_no_model_role_cli_args():
     assert parse_model_role_cli_args(None) == {}
 
@@ -175,6 +196,102 @@ def test_parse_model_role_cli_args_distinct_instance_per_role(
     assert {name: model.role for name, model in resolved.items()} == {
         r: r for r in roles
     }
+
+
+def test_parse_model_spec_cli_args_one_model_per_spec():
+    """The same model named twice yields two models with their own config.
+
+    This is what --model spelled as a list cannot do: it applies one shared
+    config to every model it names.
+    """
+    models = parse_model_spec_cli_args(
+        (
+            "{model: mockllm/model, temperature: 0.25}",
+            '{"model": "mockllm/model", "temperature": 0.75}',
+        )
+    )
+    assert models is not None
+    assert [str(model) for model in models] == ["mockllm/model", "mockllm/model"]
+    assert [model.config.temperature for model in models] == [0.25, 0.75]
+    assert models[0] is not models[1]
+
+
+def test_parse_model_spec_cli_args_applies_args_and_base_url():
+    """A spec takes the same `model_args` field as --model-role, plus base_url."""
+    models = parse_model_spec_cli_args(
+        (
+            "{model: mockllm/model, model_args: {custom_outputs: null}, "
+            "base_url: http://localhost:9999/v1, max_tokens: 1000}",
+        )
+    )
+    assert models is not None
+    assert models[0].model_args == {"custom_outputs": None}
+    assert models[0].api.base_url == "http://localhost:9999/v1"
+    assert models[0].config.max_tokens == 1000
+
+
+@pytest.mark.parametrize("model_spec", [None, ()])
+def test_parse_no_model_spec_cli_args(model_spec):
+    assert parse_model_spec_cli_args(model_spec) is None
+
+
+@pytest.mark.parametrize(
+    ("spec", "expected_substring"),
+    [
+        ("mockllm/model", "expected a YAML or JSON mapping"),
+        # a spec names its own model rather than falling back to the ambient one
+        ("{temperature: 0.5}", "needs a 'model' name"),
+        # a misspelled 'model' key reports the name it read, not a missing model
+        ("{modle: mockllm/model}", "Unknown GenerateConfig field(s): modle"),
+        # a non-string key must not reach the keyword expansion
+        ("{model: mockllm/model, 1: 2}", "text field names"),
+        ("{model: mockllm/model, model_args: nope}", "model_args must be a mapping"),
+        # a non-string base_url would fail obscurely at request time
+        ("{model: mockllm/model, base_url: 8000}", "base_url must be a string"),
+        (
+            "{model: mockllm/model, temperature: oops}",
+            "temperature: Input should be a valid number",
+        ),
+        # GenerateConfig rejects a field it does not define, so a misspelled
+        # generate config field does not quietly fall back to the default
+        (
+            "{model: mockllm/model, temprature: 0.5}",
+            "Unknown GenerateConfig field(s): temprature",
+        ),
+        # the fields are flat, so a nested 'config' is not a generate config
+        (
+            "{model: mockllm/model, config: {temperature: 0.5}}",
+            "Unknown GenerateConfig field(s): config",
+        ),
+    ],
+)
+def test_parse_model_spec_cli_invalid_args_raises_error(spec, expected_substring):
+    with pytest.raises(PrerequisiteError) as e:
+        parse_model_spec_cli_args((spec,))
+    assert expected_substring in e.value.message
+
+
+@pytest.mark.parametrize(
+    "spec",
+    [
+        "{model: mockllm/model, model_args: {api_key: sk-SECRET}",  # unparseable
+        "{model: mockllm/model, model_args: {api_key: sk-SECRET}, typo: 1}",  # unknown
+        "{model: mockllm/model, extra_headers: {k: sk-SECRET}, typo: 1}",  # unknown
+        "{extra_headers: {k: sk-SECRET}}",  # no model name
+    ],
+)
+def test_parse_model_spec_cli_error_omits_spec_contents(spec):
+    """An error must name the spec by position, not echo it.
+
+    A spec can hold a credential in `model_args` or `extra_headers`, and an
+    error message reaches a terminal or a CI log. Pydantic renders the offending
+    input beside its message and only truncates it, so whether a credential
+    survives depends on where it sits in the mapping.
+    """
+    with pytest.raises(PrerequisiteError) as e:
+        parse_model_spec_cli_args((spec,))
+    assert "sk-SECRET" not in e.value.message
+    assert "--model-spec #1" in e.value.message
 
 
 def test_parse_model_role_cli_args_does_not_alias_memoized_model(

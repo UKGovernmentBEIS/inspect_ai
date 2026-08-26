@@ -207,8 +207,9 @@ async def test_thinking_compaction_google() -> None:
 @skip_if_no_mistral
 @pytest.mark.slow
 async def test_thinking_compaction_mistral() -> None:
+    # Mistral's effort scale is high/none, so "low" is submitted as "high"
     await check_thinking_compaction(
-        "mistral/magistral-medium-2509",
+        "mistral/mistral-medium-latest",
         GenerateConfig(reasoning_effort="low"),
         conversation_api=False,
     )
@@ -230,6 +231,17 @@ async def test_thinking_compaction_grok_4_5() -> None:
     # even at low effort
     await check_thinking_compaction(
         "grok/grok-4.5",
+        GenerateConfig(reasoning_effort="low"),
+    )
+
+
+@skip_if_no_grok
+@pytest.mark.slow
+async def test_thinking_compaction_grok_4_6() -> None:
+    # grok-4.6 reasoning cannot be disabled, so thinking is reliably present
+    # even at low effort
+    await check_thinking_compaction(
+        "grok/grok-4.6",
         GenerateConfig(reasoning_effort="low"),
     )
 

@@ -5,8 +5,10 @@ import os
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any, Literal
 from zipfile import ZipFile
 
+import anyio
 import pytest
 from pydantic import JsonValue
 from pydantic_core import to_jsonable_python
@@ -19,15 +21,18 @@ from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._sample_init import SampleInitEvent
 from inspect_ai.event._sample_limit import SampleLimitEvent
 from inspect_ai.log._condense import ATTACHMENT_PROTOCOL
-from inspect_ai.log._file import read_eval_log
+from inspect_ai.log._file import read_eval_log_async, write_eval_log_async
 from inspect_ai.log._log import (
     EvalConfig,
     EvalDataset,
+    EvalLog,
     EvalPlan,
     EvalSample,
     EvalSampleSummary,
     EvalSpec,
 )
+from inspect_ai.log._recorders.buffer import filestore as filestore_module
+from inspect_ai.log._recorders.buffer import types as buffer_types_module
 from inspect_ai.log._recorders.buffer.database import (
     SampleBufferDatabase,
     sync_to_filestore,
@@ -37,6 +42,7 @@ from inspect_ai.log._recorders.buffer.filestore import (
     SampleBufferFilestore,
     SampleManifest,
     Segment,
+    cleanup_sample_buffer_filestores,
     segment_file_name,
     segment_name,
 )
@@ -60,6 +66,7 @@ from inspect_ai.model._chat_message import (
 )
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_output import ModelOutput
+from inspect_ai.scorer._metric import Score
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 
 
@@ -77,7 +84,10 @@ def _make_model_event_dict(content: str) -> dict:
 
 
 def _make_summary(
-    id: str | int = "sample1", epoch: int = 1, completed: bool = False
+    id: str | int = "sample1",
+    epoch: int = 1,
+    completed: bool = False,
+    limit: str | None = None,
 ) -> EvalSampleSummary:
     return EvalSampleSummary(
         id=id,
@@ -86,6 +96,7 @@ def _make_summary(
         target=f"target {id}",
         started_at=datetime.now(timezone.utc).isoformat(),
         completed_at=datetime.now(timezone.utc).isoformat() if completed else None,
+        limit=limit,
     )
 
 
@@ -387,7 +398,7 @@ async def test_recover_from_filestore_end_to_end() -> None:
             assert sample.id == "sample1"
 
             # Verify it can be read back
-            read_log = read_eval_log(output_path)
+            read_log = await read_eval_log_async(output_path)
             assert read_log.samples is not None
             assert len(read_log.samples) == 1
 
@@ -544,6 +555,50 @@ async def test_recover_filestore_no_cleanup() -> None:
             )
 
             assert os.path.exists(buffer_dir)
+
+
+async def _cleanup_filestores_scenario() -> None:
+    """Run post-eval buffer cleanup against a finished and a running eval."""
+
+    async def write_log(path: str, status: Literal["started", "success"]) -> None:
+        log = EvalLog(
+            eval=EvalSpec(
+                created=datetime.now(timezone.utc).isoformat(),
+                task="test_task",
+                model="mockllm/model",
+                dataset=EvalDataset(name="test", samples=1),
+                config=EvalConfig(),
+            ),
+            status=status,
+        )
+        await write_eval_log_async(log, path)
+
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            await write_log(os.path.join(temp_dir, "finished.eval"), "success")
+            SampleBufferFilestore(os.path.join(temp_dir, "finished.eval"), create=True)
+            await write_log(os.path.join(temp_dir, "running.eval"), "started")
+            SampleBufferFilestore(os.path.join(temp_dir, "running.eval"), create=True)
+
+            await cleanup_sample_buffer_filestores(temp_dir)
+
+            # finished eval's buffer removed, running eval's buffer kept
+            assert not os.path.exists(os.path.join(temp_dir, ".buffer", "finished"))
+            assert os.path.exists(os.path.join(temp_dir, ".buffer", "running"))
+
+
+async def test_cleanup_sample_buffer_filestores() -> None:
+    """Post-eval cleanup removes finished buffers and keeps running ones."""
+    await _cleanup_filestores_scenario()
+
+
+def test_cleanup_sample_buffer_filestores_trio() -> None:
+    """The cleanup header reads work under the trio backend.
+
+    Uses anyio.run(backend="trio") directly so the trio path runs on regular
+    CI (see the NOTE above the trio tests in test_eval_log.py).
+    """
+    anyio.run(_cleanup_filestores_scenario, backend="trio")
 
 
 def _create_multi_sample_fixture(temp_dir: str) -> tuple[str, Manifest]:
@@ -707,7 +762,7 @@ async def test_streaming_recovery_has_events_data() -> None:
                 assert len(summaries_raw) == 1
 
             # Verify the file can be read back and events expand correctly
-            read_log = read_eval_log(output_path)
+            read_log = await read_eval_log_async(output_path)
             assert read_log.samples is not None
             read_sample = read_log.samples[0]
             read_model_events = [
@@ -749,7 +804,10 @@ async def test_streaming_recovery_preserves_synced_message_pool() -> None:
                     )
                 ]
             )
-            db.complete_sample(_make_summary(id="sample1", epoch=1, completed=True))
+            db.complete_sample(
+                _make_summary(id="sample1", epoch=1, completed=True),
+                sample_metadata=None,
+            )
             sync_to_filestore(db, filestore)
 
             _write_crashed_eval(eval_path)
@@ -778,7 +836,7 @@ async def test_streaming_recovery_preserves_synced_message_pool() -> None:
             assert model_event["input"] == []
             assert model_event["input_refs"] == [[0, 1]]
 
-            read_log = read_eval_log(output_path)
+            read_log = await read_eval_log_async(output_path)
             assert read_log.samples is not None
             [read_sample] = read_log.samples
             [read_model_event] = [
@@ -786,6 +844,209 @@ async def test_streaming_recovery_preserves_synced_message_pool() -> None:
             ]
             assert read_model_event.input[0].content == "pooled user message"
             assert read_sample.messages[0].content == "pooled user message"
+
+
+async def test_streaming_recovery_preserves_full_sample_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Shared filestore recovery uses full metadata, not its summary copy."""
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            eval_path = os.path.join(temp_dir, "test.eval")
+            db_dir = Path(temp_dir) / "db"
+            db_dir.mkdir()
+            db = SampleBufferDatabase(location=eval_path, create=True, db_dir=db_dir)
+            filestore = SampleBufferFilestore(eval_path, create=True)
+            initial = {"world": {f"cell-{i}": {"active": True} for i in range(80)}}
+            final = {
+                "world": {
+                    **initial["world"],
+                    "solver-added": {"active": False},
+                }
+            }
+            started = EvalSampleSummary(
+                id="sample1",
+                epoch=1,
+                input="input sample1",
+                target="target sample1",
+                metadata=initial,
+                scores={"accuracy": Score(value=1)},
+            )
+            completed = started.model_copy(
+                update={"completed_at": datetime.now(timezone.utc).isoformat()}
+            )
+
+            db.start_sample(started)
+            db.complete_sample(completed, sample_metadata=final)
+            sync_to_filestore(db, filestore)
+
+            manifest = filestore.read_manifest()
+            assert manifest is not None
+            assert manifest.samples[0].summary.metadata["world"] == (
+                "Key removed from summary (> 1k)"
+            )
+            assert filestore.read_sample_metadata("sample1", 1, manifest) == final
+
+            from inspect_ai._eval.task import results as results_module
+
+            metric_sample_metadata: list[dict[str, Any] | None] = []
+            original_eval_results = results_module.eval_results
+
+            def capture_eval_results(*args: Any, **kwargs: Any):
+                scores = kwargs["scores"]
+                if scores:
+                    metric_sample_metadata.append(scores[0]["accuracy"].sample_metadata)
+                return original_eval_results(*args, **kwargs)
+
+            monkeypatch.setattr(results_module, "eval_results", capture_eval_results)
+
+            _write_crashed_eval(eval_path)
+            output_path = os.path.join(temp_dir, "test-recovered.eval")
+            await recover_eval_log_async(
+                eval_path,
+                output=output_path,
+                cleanup=False,
+                _db_dir=os.path.join(temp_dir, "empty_db_dir"),
+            )
+
+            recovered = await read_eval_log_async(output_path)
+            assert recovered.samples is not None
+            assert recovered.samples[0].metadata == final
+            assert metric_sample_metadata == [final]
+
+
+async def test_streaming_recovery_defaults_missing_init_metadata() -> None:
+    """An in-progress metadata-less sample remains readable after recovery."""
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            eval_path = os.path.join(temp_dir, "test.eval")
+            db_dir = Path(temp_dir) / "db"
+            db_dir.mkdir()
+            db = SampleBufferDatabase(location=eval_path, create=True, db_dir=db_dir)
+            filestore = SampleBufferFilestore(eval_path, create=True)
+            sample = Sample(
+                id="sample1",
+                input="input sample1",
+                target="target sample1",
+                metadata=None,
+            )
+            started = EvalSampleSummary(
+                id="sample1",
+                epoch=1,
+                input=sample.input,
+                target=sample.target,
+            )
+
+            db.start_sample(started)
+            db.log_events(
+                [
+                    SampleEvent(
+                        id="sample1",
+                        epoch=1,
+                        event=SampleInitEvent(sample=sample, state={}),
+                    )
+                ]
+            )
+            sync_to_filestore(db, filestore)
+
+            _write_crashed_eval(eval_path)
+            output_path = os.path.join(temp_dir, "test-recovered.eval")
+            await recover_eval_log_async(
+                eval_path,
+                output=output_path,
+                cleanup=False,
+                _db_dir=os.path.join(temp_dir, "empty_db_dir"),
+            )
+
+            recovered = await read_eval_log_async(output_path)
+            assert recovered.samples is not None
+            assert recovered.samples[0].metadata == {}
+
+
+@pytest.mark.parametrize("sidecar_failure", ["missing", "hash_mismatch"])
+async def test_streaming_recovery_falls_back_on_unavailable_metadata_sidecar(
+    monkeypatch: pytest.MonkeyPatch,
+    sidecar_failure: str,
+) -> None:
+    warnings: list[str] = []
+
+    def capture_warning(msg: object, *args: object, **_kwargs: object) -> None:
+        warnings.append(str(msg) % args if args else str(msg))
+
+    monkeypatch.setattr(filestore_module.logger, "warning", capture_warning)
+    monkeypatch.setattr(buffer_types_module.logger, "warning", capture_warning)
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            eval_path = os.path.join(temp_dir, "test.eval")
+            db_dir = Path(temp_dir) / "db"
+            db_dir.mkdir()
+            db = SampleBufferDatabase(location=eval_path, create=True, db_dir=db_dir)
+            filestore = SampleBufferFilestore(eval_path, create=True)
+            initial = {"world": {f"cell-{i}": {"active": True} for i in range(80)}}
+            final = {
+                "world": {
+                    **initial["world"],
+                    "solver-added": {"active": False},
+                }
+            }
+            sample = Sample(
+                id="sample1",
+                input="input sample1",
+                target="target sample1",
+                metadata=initial,
+            )
+            started = EvalSampleSummary(
+                id="sample1",
+                epoch=1,
+                input=sample.input,
+                target=sample.target,
+                metadata=initial,
+            )
+            completed = started.model_copy(
+                update={"completed_at": datetime.now(timezone.utc).isoformat()}
+            )
+
+            db.start_sample(started)
+            db.log_events(
+                [
+                    SampleEvent(
+                        id="sample1",
+                        epoch=1,
+                        event=SampleInitEvent(sample=sample, state={}),
+                    )
+                ]
+            )
+            db.complete_sample(completed, sample_metadata=final)
+            sync_to_filestore(db, filestore)
+
+            manifest = filestore.read_manifest()
+            assert manifest is not None
+            metadata_hash = manifest.samples[0].metadata_hash
+            assert metadata_hash is not None
+            metadata_path = Path(
+                filestore._sample_metadata_file("sample1", 1, metadata_hash)
+            )
+            if sidecar_failure == "missing":
+                metadata_path.unlink()
+            else:
+                metadata_path.write_bytes(b"{}")
+
+            _write_crashed_eval(eval_path)
+            output_path = os.path.join(temp_dir, "test-recovered.eval")
+            await recover_eval_log_async(
+                eval_path,
+                output=output_path,
+                cleanup=False,
+                _db_dir=os.path.join(temp_dir, "empty_db_dir"),
+            )
+
+            recovered = await read_eval_log_async(output_path)
+            assert recovered.samples is not None
+            assert recovered.samples[0].metadata == initial
+            assert any(
+                "Unable to read sample metadata for id=sample1 epoch=1" in warning
+                for warning in warnings
+            )
 
 
 async def test_streaming_recovery_sample_with_no_events() -> None:
@@ -912,7 +1173,9 @@ async def test_streaming_recovery_handles_many_attachments() -> None:
             for i in range(1, num_segments + 1):
                 assert f"{attachment_chunk}-seg-{i}" in values
 
-            read_log = read_eval_log(output_path, resolve_attachments="full")
+            read_log = await read_eval_log_async(
+                output_path, resolve_attachments="full"
+            )
             assert read_log.samples is not None
             read_sample = read_log.samples[0]
             first_model_event = next(
@@ -963,7 +1226,7 @@ async def test_streaming_recovery_sample_id_with_unsafe_chars() -> None:
 
             # The recovery having completed is itself the key assertion.
             # Verify the recovered log is readable and contains the unsafe id
-            read_log = read_eval_log(output_path)
+            read_log = await read_eval_log_async(output_path)
             assert read_log.samples is not None
             assert len(read_log.samples) == 1
             assert read_log.samples[0].id == unsafe_id  # id preserved in manifest
@@ -1057,7 +1320,9 @@ async def test_streaming_recovery_merges_segment_attachment_pool() -> None:
             )
 
             # End-to-end resolution must work
-            read_log = read_eval_log(output_path, resolve_attachments="full")
+            read_log = await read_eval_log_async(
+                output_path, resolve_attachments="full"
+            )
             assert read_log.samples is not None
             read_sample = read_log.samples[0]
             first_model_event = next(
@@ -1128,7 +1393,7 @@ async def test_streaming_recovery_emits_all_eval_sample_fields() -> None:
             assert raw["limit"] is None
 
             # Read-back round-trip: keyset equals emitted keyset
-            read_log = read_eval_log(output_path)
+            read_log = await read_eval_log_async(output_path)
             assert read_log.samples is not None
             read_keys = set(read_log.samples[0].model_dump(mode="json").keys())
             assert read_keys == set(raw.keys())
@@ -1293,7 +1558,227 @@ async def test_streaming_recovery_captures_sample_limit() -> None:
                 ]
                 raw = json.loads(zf.read(sample_names[0]))
 
-            assert raw["limit"] == {"type": "token", "limit": 1000.0}
+                summaries = json.loads(zf.read("summaries.json"))
+
+            assert raw["limit"] == {
+                "type": "token",
+                "limit": 1000.0,
+                "reason": "hit",
+            }
+            # a terminal summary's `limit` is authoritative in both directions, so
+            # recovery must not stamp one onto it from a limit event: a scoped
+            # limit caught by `apply_limits(catch_errors=True)` leaves an event
+            # behind on a sample that went on to succeed
+            assert "limit" not in summaries[0]
+            assert "limit_reason" not in summaries[0]
+
+
+async def test_streaming_recovery_prefers_limit_event_matching_summary() -> None:
+    """A scoring-phase operator interrupt must not mask the limit that halted.
+
+    The transcript ends with a limit-less operator event (run.py, scoring
+    phase), but the summary says the sample was halted by a message limit —
+    so the body must be rebuilt from the earlier matching event, not the last.
+    """
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            eval_path = os.path.join(temp_dir, "test.eval")
+            buffer_dir = os.path.join(temp_dir, ".buffer", "test")
+            os.makedirs(buffer_dir, exist_ok=True)
+
+            _write_segment_zip(
+                buffer_dir,
+                1,
+                "sample1",
+                1,
+                [
+                    _write_sample_limit_event_dict(
+                        type="message", limit=50.0, message="Message limit exceeded"
+                    ),
+                    _write_sample_limit_event_dict(
+                        type="operator",
+                        limit=None,
+                        message="Unable to score sample due to operator interruption",
+                    ),
+                ],
+            )
+            manifest = Manifest(
+                samples=[
+                    SampleManifest(
+                        summary=_make_summary(
+                            id="sample1", epoch=1, completed=True, limit="message"
+                        ),
+                        segments=[1],
+                    )
+                ],
+                segments=[Segment(id=1, last_event_id=2, last_attachment_id=0)],
+            )
+            with open(os.path.join(buffer_dir, "manifest.json"), "w") as f:
+                f.write(manifest.model_dump_json())
+            with open(os.path.join(buffer_dir, ".keep"), "w") as f:
+                pass
+
+            _write_crashed_eval(eval_path)
+            output_path = os.path.join(temp_dir, "test-recovered.eval")
+            await recover_eval_log_async(
+                eval_path,
+                output=output_path,
+                cleanup=False,
+                _db_dir=os.path.join(temp_dir, "empty_db_dir"),
+            )
+
+            with ZipFile(output_path, "r") as zf:
+                sample_names = [
+                    n
+                    for n in zf.namelist()
+                    if n.startswith("samples/") and n.endswith(".json")
+                ]
+                raw = json.loads(zf.read(sample_names[0]))
+
+            assert raw["limit"] == {
+                "type": "message",
+                "limit": 50.0,
+                "reason": "Message limit exceeded",
+            }
+
+
+async def test_streaming_recovery_leaves_in_progress_summary_limit_unset() -> None:
+    """An in-progress sample's summary is not seeded from a limit event.
+
+    Nothing in the transcript distinguishes the limit that halted a sample from
+    a scoped one caught by `apply_limits(catch_errors=True)`, so the cheap
+    authoritative index stays unset rather than carrying a guess.
+    """
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            eval_path = os.path.join(temp_dir, "test.eval")
+            buffer_dir = os.path.join(temp_dir, ".buffer", "test")
+            os.makedirs(buffer_dir, exist_ok=True)
+
+            limit_event = _write_sample_limit_event_dict(
+                type="token", limit=1000.0, message="hit"
+            )
+            _write_segment_zip(
+                buffer_dir,
+                1,
+                "sample1",
+                1,
+                [_make_model_event_dict("response"), limit_event],
+            )
+            # completed_at unset => classified in-progress by the recovery buffer
+            manifest = Manifest(
+                samples=[
+                    SampleManifest(
+                        summary=_make_summary(id="sample1", epoch=1, completed=False),
+                        segments=[1],
+                    )
+                ],
+                segments=[Segment(id=1, last_event_id=2, last_attachment_id=0)],
+            )
+            with open(os.path.join(buffer_dir, "manifest.json"), "w") as f:
+                f.write(manifest.model_dump_json())
+            with open(os.path.join(buffer_dir, ".keep"), "w") as f:
+                pass
+
+            _write_crashed_eval(eval_path)
+            output_path = os.path.join(temp_dir, "test-recovered.eval")
+            await recover_eval_log_async(
+                eval_path,
+                output=output_path,
+                cleanup=False,
+                _db_dir=os.path.join(temp_dir, "empty_db_dir"),
+            )
+
+            with ZipFile(output_path, "r") as zf:
+                sample_names = [
+                    n
+                    for n in zf.namelist()
+                    if n.startswith("samples/") and n.endswith(".json")
+                ]
+                raw = json.loads(zf.read(sample_names[0]))
+                summaries = json.loads(zf.read("summaries.json"))
+
+            # the body keeps the best-effort reconstruction...
+            assert raw["limit"] == {
+                "type": "token",
+                "limit": 1000.0,
+                "reason": "hit",
+            }
+            # ...but the summary does not inherit the guess
+            assert "limit" not in summaries[0]
+            assert "limit_reason" not in summaries[0]
+
+
+async def _recover_operator_limit_sample(
+    temp_dir: str, summary_limit: str | None
+) -> dict:
+    """Recover a sample whose only limit event is a limit-less operator interrupt."""
+    eval_path = os.path.join(temp_dir, "test.eval")
+    buffer_dir = os.path.join(temp_dir, ".buffer", "test")
+    os.makedirs(buffer_dir, exist_ok=True)
+
+    # the operator interrupt event (run.py) records no numeric limit
+    limit_event = _write_sample_limit_event_dict(
+        type="operator",
+        limit=None,
+        message="Sample completed: interrupted by operator",
+    )
+    _write_segment_zip(
+        buffer_dir, 1, "sample1", 1, [_make_model_event_dict("response"), limit_event]
+    )
+    summary = _make_summary(id="sample1", epoch=1, completed=True, limit=summary_limit)
+    manifest = Manifest(
+        samples=[SampleManifest(summary=summary, segments=[1])],
+        segments=[Segment(id=1, last_event_id=2, last_attachment_id=0)],
+    )
+    with open(os.path.join(buffer_dir, "manifest.json"), "w") as f:
+        f.write(manifest.model_dump_json())
+    with open(os.path.join(buffer_dir, ".keep"), "w") as f:
+        pass
+
+    _write_crashed_eval(eval_path)
+    output_path = os.path.join(temp_dir, "test-recovered.eval")
+    await recover_eval_log_async(
+        eval_path,
+        output=output_path,
+        cleanup=False,
+        _db_dir=os.path.join(temp_dir, "empty_db_dir"),
+    )
+
+    with ZipFile(output_path, "r") as zf:
+        sample_names = [
+            n for n in zf.namelist() if n.startswith("samples/") and n.endswith(".json")
+        ]
+        return json.loads(zf.read(sample_names[0]))
+
+
+async def test_streaming_recovery_captures_limitless_operator_limit() -> None:
+    """A scored operator interrupt recovers its limit despite carrying no number."""
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            raw = await _recover_operator_limit_sample(
+                temp_dir, summary_limit="operator"
+            )
+
+            assert raw["limit"] == {
+                "type": "operator",
+                "limit": 1,
+                "reason": "Sample completed: interrupted by operator",
+            }
+
+
+async def test_streaming_recovery_skips_operator_limit_when_not_scored() -> None:
+    """The same event under `--action error`/`cancel` must not become a limit.
+
+    All three interrupt actions emit the identical limit-less operator event, but
+    only "score" records an `EvalSampleLimit` — the others record an error. The
+    terminal summary is what distinguishes them.
+    """
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            raw = await _recover_operator_limit_sample(temp_dir, summary_limit=None)
+
+            assert raw["limit"] is None
 
 
 def _write_segment_zip_with_event_ids(
@@ -1397,7 +1882,7 @@ async def test_streaming_recovery_dedups_cross_segment_event_ids() -> None:
                 eval_path, output=output_path, cleanup=False, _db_dir=db_dir
             )
 
-            read_log = read_eval_log(output_path)
+            read_log = await read_eval_log_async(output_path)
             assert read_log.samples is not None
             [read_sample] = read_log.samples
 

@@ -830,3 +830,145 @@ def test_sample_source_task_retry_regenerates_followups() -> None:
     # the re-run follow-up carries the prior attempt's error history
     assert followup.error_retries
     assert "transient failure" in followup.error_retries[0].message
+
+
+def test_sample_source_task_retry_reuses_completed_followup() -> None:
+    # on a task retry, an injected follow-up that *completed* in the prior
+    # attempt is reused via the prior-attempt lookup (never re-run) — the
+    # early-return that also releases the follow-up's in-memory slot through
+    # the run's SampleTerminalReporter, like every other terminal path. The
+    # flaky sample errors only after the follow-up completes (synchronized
+    # via the source's sample_complete), so the first attempt's log carries
+    # a completed follow-up for the retry to reuse.
+    flaky_runs = {"n": 0}
+    followup_runs = {"n": 0}
+    followup_logged: dict[str, anyio.Event] = {}
+
+    @solver
+    def fail_flaky_once() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            if state.input_text == "followup":
+                followup_runs["n"] += 1
+            if state.input_text == "flaky":
+                flaky_runs["n"] += 1
+                if flaky_runs["n"] == 1:
+                    with anyio.fail_after(30):
+                        await followup_logged.setdefault("done", anyio.Event()).wait()
+                    raise RuntimeError("transient failure")
+            return state
+
+        return solve
+
+    class _Src(SampleSource):
+        async def sample_complete(self, sample: EvalSample) -> list[Sample] | None:
+            if sample.id == 1:
+                return [Sample(id=2, input="followup", target="ok")]
+            if sample.id == 2:
+                followup_logged.setdefault("done", anyio.Event()).set()
+            return None
+
+        def initial_samples(self) -> list[Sample]:
+            return [
+                Sample(id=1, input="seed", target="ok"),
+                Sample(id=3, input="flaky", target="ok"),
+            ]
+
+    @task
+    def reuse_followup_task() -> Task:
+        return Task(
+            dataset=_Src(),
+            solver=[fail_flaky_once()],
+            name="reuse_followup_task",
+        )
+
+    with tempfile.TemporaryDirectory() as d:
+        log_dir = str(Path(d) / "logs")
+        Path(log_dir).mkdir()
+        ok, logs = eval_set(
+            tasks=[reuse_followup_task()],
+            log_dir=log_dir,
+            model="mockllm/model",
+            retry_attempts=2,
+            retry_on_error=0,  # no sample-level retry -> task-level retry
+            max_samples=4,  # flaky blocks while the follow-up runs alongside
+        )
+        assert ok, "eval-set did not succeed after task retry"
+        log = read_eval_log(logs[0].location)
+
+    assert _sample_inputs(log) == ["flaky", "followup", "seed"]
+    assert all(sample.error is None for sample in (log.samples or []))
+    # the retry reused the completed follow-up rather than re-running it
+    assert followup_runs["n"] == 1
+    assert flaky_runs["n"] == 2
+
+
+def test_sample_source_task_retry_feed_raise_leaves_reuse_counted() -> None:
+    # the reuse path reports the reused run terminal (counted `completed`)
+    # *before* notifying the source, so a raising `sample_complete` tears the
+    # retry attempt down with the run already in its terminal bucket — the
+    # accepted ordering in design/sample-lifecycle.md's side-effect table
+    from inspect_ai._control.eval_state import (
+        clear_all_eval_states,
+        get_eval_states,
+    )
+
+    observed: list[tuple[int, int, int]] = []
+
+    @solver
+    def fail_followup() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            if state.input_text == "followup":
+                raise RuntimeError("followup failure")
+            return state
+
+        return solve
+
+    class _Src(SampleSource):
+        def __init__(self) -> None:
+            self.seed_completions = 0
+
+        async def sample_complete(self, sample: EvalSample) -> list[Sample] | None:
+            if sample.id == 1:
+                self.seed_completions += 1
+                if self.seed_completions >= 2:
+                    # the retry's reuse notification: capture the live
+                    # attempt's terminal counters as seen by the raising feed
+                    state = next(s for s in get_eval_states() if s.completed_at is None)
+                    observed.append((state.completed, state.errored, state.cancelled))
+                    raise RuntimeError("feed failure")
+                return [Sample(id=2, input="followup", target="ok")]
+            return None
+
+        def initial_samples(self) -> list[Sample]:
+            return [Sample(id=1, input="seed", target="ok")]
+
+    @task
+    def feed_raise_task() -> Task:
+        return Task(
+            dataset=_Src(),
+            solver=[fail_followup()],
+            name="feed_raise_task",
+        )
+
+    clear_all_eval_states()
+    try:
+        with tempfile.TemporaryDirectory() as d:
+            log_dir = str(Path(d) / "logs")
+            Path(log_dir).mkdir()
+            ok, logs = eval_set(
+                tasks=[feed_raise_task()],
+                log_dir=log_dir,
+                model="mockllm/model",
+                retry_attempts=2,
+                retry_on_error=0,  # no sample-level retry -> task-level retry
+            )
+            # the feed raise failed the retry attempt...
+            assert not ok
+            final = read_eval_log(logs[0].location)
+            assert final.status == "error"
+            assert final.error is not None and "feed failure" in final.error.message
+    finally:
+        clear_all_eval_states()
+
+    # ...but the reused run was already counted completed, not cancelled
+    assert observed and observed[0] == (1, 0, 0)

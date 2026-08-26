@@ -1,4 +1,5 @@
 import asyncio
+import functools
 import io
 import tempfile
 import time
@@ -668,6 +669,98 @@ def test_exists_s3_false(mock_s3: None) -> None:
 
 
 # =============================================================================
+# Tests for missing-object reads (NoSuchKey/404 -> FileNotFoundError)
+# =============================================================================
+
+
+def test_missing_s3_object_reads_raise_file_not_found(mock_s3: None) -> None:
+    """A missing S3 object reads like a missing local file, not a ClientError.
+
+    Callers treat an absent log file as a routine state (a retry attempt whose
+    destination log is deferred until its reuse sweep settles, or a crashed
+    attempt that never wrote one) and catch FileNotFoundError.
+    """
+    s3_path = f"{S3_BUCKET}/missing_test/absent.eval"
+
+    async def run() -> None:
+        async with AsyncFilesystem() as fs:
+            with pytest.raises(FileNotFoundError):
+                await fs.read_file(s3_path)
+            with pytest.raises(FileNotFoundError):
+                await fs.read_file_suffix(s3_path, 100)
+            with pytest.raises(FileNotFoundError):
+                await fs.read_file_bytes_fully(s3_path, 0, 10)
+            with pytest.raises(FileNotFoundError):
+                await fs.info(s3_path)
+            with pytest.raises(FileNotFoundError):
+                await fs.get_size(s3_path)
+            with tempfile.TemporaryDirectory() as temp_dir:
+                with pytest.raises(FileNotFoundError):
+                    await fs.get_file(s3_path, str(Path(temp_dir) / "dst.bin"))
+
+    asyncio.run(run())
+
+
+def test_missing_s3_object_zip_read_raises_file_not_found(mock_s3: None) -> None:
+    """AsyncZipReader over a missing S3 object raises FileNotFoundError.
+
+    The reuse presence probe and the retry sample source both catch
+    FileNotFoundError to degrade to no-reuse; on S3 the raw ClientError would
+    otherwise surface per lookup.
+    """
+    from inspect_ai._util.async_zip import AsyncZipReader
+
+    async def run() -> None:
+        async with AsyncFilesystem() as fs:
+            reader = AsyncZipReader(fs, f"{S3_BUCKET}/missing_test/absent-zip.eval")
+            with pytest.raises(FileNotFoundError):
+                await reader.entries()
+
+    asyncio.run(run())
+
+
+async def test_missing_s3_object_reads_raise_file_not_found_both_backends(
+    mock_s3: None,
+) -> None:
+    """The mapping covers the trio path too (sync boto3 via a worker thread)."""
+    s3_path = f"{S3_BUCKET}/missing_test/absent-backend.eval"
+
+    async with AsyncFilesystem() as fs:
+        with pytest.raises(FileNotFoundError):
+            await fs.read_file(s3_path)
+        with pytest.raises(FileNotFoundError):
+            await fs.info(s3_path)
+        with pytest.raises(FileNotFoundError):
+            await fs.read_file_suffix(s3_path, 100)
+
+
+def test_non_missing_s3_client_error_still_raises(monkeypatch) -> None:
+    """Only 404/NoSuchKey map to FileNotFoundError; other errors propagate."""
+
+    class _DenyingClient:
+        async def get_object(self, **kwargs: Any) -> Any:
+            raise ClientError(
+                cast(
+                    Any,
+                    {"Error": {"Code": "AccessDenied", "Message": "denied"}},
+                ),
+                "GetObject",
+            )
+
+    async def s3_client_async(self):
+        return _DenyingClient()
+
+    monkeypatch.setattr(AsyncFilesystem, "s3_client_async", s3_client_async)
+
+    async def run() -> None:
+        async with AsyncFilesystem() as fs:
+            with pytest.raises(ClientError):
+                await fs.read_file("s3://bucket/denied.eval")
+
+    asyncio.run(run())
+
+
+# =============================================================================
 # Tests for iter_files() and iter_dirs()
 # =============================================================================
 
@@ -889,14 +982,23 @@ def test_iter_files_s3_missing_prefix(mock_s3: None) -> None:
     asyncio.run(run())
 
 
+@pytest.mark.slow
 def test_iter_files_s3_pagination(mock_s3: None) -> None:
-    """Pagination: >1000 keys must all be returned."""
+    """Pagination: >1000 keys must all be returned.
+
+    Marked slow: creating 1001+ keys (the S3 default page size) means ~1050
+    real HTTP PUTs against the moto server, several seconds even in-process.
+    """
     base = f"{S3_BUCKET}/iter_test_files_page"
 
     async def run() -> None:
         async with AsyncFilesystem() as fs:
-            for i in range(1050):
-                await fs.write_file(f"{base}/k{i:04d}.txt", b"x")
+            await tg_collect(
+                [
+                    functools.partial(fs.write_file, f"{base}/k{i:04d}.txt", b"x")
+                    for i in range(1050)
+                ]
+            )
             paths = await _collect(fs.iter_files(base, recursive=True))
             assert len(paths) == 1050
 

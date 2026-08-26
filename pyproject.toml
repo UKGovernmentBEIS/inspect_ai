@@ -7,6 +7,7 @@ dependencies = { file = ["requirements.txt"] }
 optional-dependencies.dev = { file = ["requirements-dev.txt"] }
 optional-dependencies.doc = { file = ["requirements-doc.txt"] }
 optional-dependencies.dist = { file = ["requirements-dist.txt"] }
+optional-dependencies.math = { file = ["requirements-math.txt"] }
 
 [tool.setuptools_scm]
 git_describe_command = [
@@ -24,10 +25,19 @@ git_describe_command = [
 where = ["src"]
 include = ["inspect_ai*"]
 
+# Keep the ts-mono TS source out of the wheel: the git-tracked files are
+# pruned in MANIFEST.in (include-package-data pulls the manifest into the
+# wheel), while this exclude stops the package-data globs below (e.g.
+# **/*.yml) from picking up untracked files inside ts-mono such as
+# node_modules. The viewer ships prebuilt as _view/dist.
+[tool.setuptools.exclude-package-data]
+inspect_ai = ["_view/ts-mono*"]
+
 [tool.setuptools.package-data]
 inspect_ai = [
     "binaries/*",
     "tool/_sandbox_tools_utils/sandbox_tools_version.txt",
+    "tool/_sandbox_tools_utils/SHA256SUMS",
     "util/_restic/version.txt",
     "util/_restic/SHA256SUMS",
     "**/*.tcss",
@@ -87,7 +97,14 @@ convention = "google"
 
 [tool.pytest.ini_options]
 minversion = "7.0"
-addopts = "-rA --doctest-modules --color=yes"
+# --dist worksteal, not xdist's default load: load hands each worker a large
+# contiguous slice of the collection up front, and collection is file-ordered,
+# so cost clusters travel as a unit and one worker can end up holding the
+# eval-set and _control integration files while its peers go idle. Measured on
+# a 4-worker CI runner: 4 of 10 legs stranded 76-80s on a single worker.
+# worksteal lets an idle worker take pending tests back off a straggler.
+# No effect unless the run is distributed (-n); see design/ci-perf/report.md.
+addopts = "-rA --doctest-modules --color=yes --dist worksteal"
 testpaths = ["tests"]
 doctest_optionflags = ["NORMALIZE_WHITESPACE", "IGNORE_EXCEPTION_DETAIL"]
 norecursedirs = [
@@ -171,6 +188,7 @@ inspect = "inspect_ai._cli.main:main"
 
 [tool.typos.default.extend-words]
 ba = "ba"
+ser = "ser"
 lsat = "lsat"
 aimd = "aimd"
 retuned = "retuned"

@@ -6,10 +6,11 @@ Deliberately separate from the skeleton — stats are a function of
 chunking policy (rechunking invalidates stats, not the skeleton).
 
 Load-bearing consumers: filter pushdown (skip non-matching chunks
-unread), run-extent scans, per-chunk row estimates, and O(1) chunk-edge
+unread), run-extent scans, per-chunk row estimates, O(1) chunk-edge
 resolution — the first/last type+span_id is exactly sufficient for the
 head-run-continuation rule (a run straddling a chunk edge belongs to the
-chunk where it starts).
+chunk where it starts) — and the exact events sequence count (sum of the
+per-chunk type counts; the shell persists no sequence boundaries).
 
 Canonical JSON form is ``model_dump(mode="json", exclude_none=True)`` —
 null ``span_id`` on chunk edges is omitted.
@@ -66,8 +67,8 @@ def event_stats(events: Sequence[Event], boundaries: list[int]) -> EventStats:
 
     Args:
         events: Complete event sequence for a sample.
-        boundaries: Cumulative end-exclusive chunk boundaries (the shape
-            the shell's ``sequences`` field carries).
+        boundaries: Cumulative end-exclusive chunk boundaries (from
+            `chunk_boundaries`; must match the written chunk entries).
 
     Returns:
         The stats sidecar (see module docstring for the canonical JSON form).

@@ -11,7 +11,7 @@ from test_helpers.buffer import simulate_crashed_buffer_db
 from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.constants import LOG_SCHEMA_VERSION
 from inspect_ai.event._model import ModelEvent
-from inspect_ai.log._file import read_eval_log
+from inspect_ai.log._file import read_eval_log_async
 from inspect_ai.log._log import (
     EvalConfig,
     EvalDataset,
@@ -177,7 +177,7 @@ async def test_e2e_recovery_with_recorder_created_eval() -> None:
                     started_at=datetime.now(timezone.utc).isoformat(),
                     completed_at=datetime.now(timezone.utc).isoformat(),
                 )
-                buffer.complete_sample(completed_summary)
+                buffer.complete_sample(completed_summary, sample_metadata=None)
 
                 # One in-progress sample in buffer (was running when crash happened)
                 in_progress_summary = EvalSampleSummary(
@@ -218,7 +218,7 @@ async def test_e2e_recovery_with_recorder_created_eval() -> None:
                 assert "mockllm/model" in log.stats.model_usage
 
                 # Read back from disk and verify round-trip
-                read_log = read_eval_log(output_path)
+                read_log = await read_eval_log_async(output_path)
                 assert read_log.status == "error"
                 assert read_log.samples is not None
                 assert len(read_log.samples) == 5
@@ -345,7 +345,7 @@ async def test_e2e_recovery_overwrite() -> None:
                     started_at=datetime.now(timezone.utc).isoformat(),
                     completed_at=datetime.now(timezone.utc).isoformat(),
                 )
-                buffer.complete_sample(completed)
+                buffer.complete_sample(completed, sample_metadata=None)
                 _simulate_crashed_buffer(buffer)
 
                 # Recover with overwrite — should replace the original file
@@ -358,7 +358,7 @@ async def test_e2e_recovery_overwrite() -> None:
                 assert len(log.samples) == 4
 
                 # The original file should now be the recovered version
-                read_log = read_eval_log(eval_path)
+                read_log = await read_eval_log_async(eval_path)
                 assert read_log.status == "error"
                 assert read_log.samples is not None
                 assert len(read_log.samples) == 4
@@ -447,7 +447,7 @@ async def test_e2e_recovery_overwrite_blocked_by_successful_sibling() -> None:
                     started_at=datetime.now(timezone.utc).isoformat(),
                     completed_at=datetime.now(timezone.utc).isoformat(),
                 )
-                buffer.complete_sample(completed)
+                buffer.complete_sample(completed, sample_metadata=None)
                 _simulate_crashed_buffer(buffer)
 
                 with pytest.raises(RecoveryNotAvailable, match="successful log"):
@@ -456,7 +456,7 @@ async def test_e2e_recovery_overwrite_blocked_by_successful_sibling() -> None:
                     )
 
                 # Recovery should fail before mutating the crashed log
-                crashed_log = read_eval_log(eval_path)
+                crashed_log = await read_eval_log_async(eval_path)
                 assert crashed_log.status == "started"
                 assert crashed_log.samples is not None
                 assert len(crashed_log.samples) == 0
@@ -515,7 +515,7 @@ async def test_e2e_recovery_crash_before_first_flush() -> None:
                         started_at=datetime.now(timezone.utc).isoformat(),
                         completed_at=datetime.now(timezone.utc).isoformat(),
                     )
-                    buffer.complete_sample(completed)
+                    buffer.complete_sample(completed, sample_metadata=None)
 
                 _simulate_crashed_buffer(buffer)
 
@@ -528,7 +528,7 @@ async def test_e2e_recovery_crash_before_first_flush() -> None:
                 assert all(s.scores is not None for s in log.samples)
 
                 # Read back
-                read_log = read_eval_log(output_path)
+                read_log = await read_eval_log_async(output_path)
                 assert read_log.samples is not None
                 assert len(read_log.samples) == 2
             finally:
@@ -588,7 +588,7 @@ async def test_e2e_recovery_duplicate_samples_in_buffer_and_eval() -> None:
                         started_at=datetime.now(timezone.utc).isoformat(),
                         completed_at=datetime.now(timezone.utc).isoformat(),
                     )
-                    buffer.complete_sample(completed)
+                    buffer.complete_sample(completed, sample_metadata=None)
 
                 _simulate_crashed_buffer(buffer)
 
@@ -669,7 +669,7 @@ async def test_e2e_recovery_multiple_flush_batches() -> None:
                         started_at=datetime.now(timezone.utc).isoformat(),
                         completed_at=datetime.now(timezone.utc).isoformat(),
                     )
-                    buffer.complete_sample(completed)
+                    buffer.complete_sample(completed, sample_metadata=None)
 
                 # In-progress at crash
                 started = EvalSampleSummary(
@@ -708,7 +708,7 @@ async def test_e2e_recovery_multiple_flush_batches() -> None:
                 assert s1.scores is not None
 
                 # Round-trip
-                read_log = read_eval_log(output_path)
+                read_log = await read_eval_log_async(output_path)
                 assert read_log.samples is not None
                 assert len(read_log.samples) == 7
             finally:
@@ -760,7 +760,7 @@ async def test_e2e_recovery_sample_with_error() -> None:
                     started_at=datetime.now(timezone.utc).isoformat(),
                     completed_at=datetime.now(timezone.utc).isoformat(),
                 )
-                buffer.complete_sample(errored)
+                buffer.complete_sample(errored, sample_metadata=None)
 
                 # Sample 2: normal completed
                 started2 = EvalSampleSummary(
@@ -784,7 +784,7 @@ async def test_e2e_recovery_sample_with_error() -> None:
                     started_at=datetime.now(timezone.utc).isoformat(),
                     completed_at=datetime.now(timezone.utc).isoformat(),
                 )
-                buffer.complete_sample(completed2)
+                buffer.complete_sample(completed2, sample_metadata=None)
 
                 _simulate_crashed_buffer(buffer)
 
@@ -805,7 +805,7 @@ async def test_e2e_recovery_sample_with_error() -> None:
                 s2 = next(s for s in log.samples if s.id == 2)
                 assert s2.scores is not None
 
-                read_log = read_eval_log(output_path)
+                read_log = await read_eval_log_async(output_path)
                 assert read_log.samples is not None
                 assert len(read_log.samples) == 2
             finally:
@@ -901,7 +901,7 @@ def test_sync_recover_eval_log() -> None:
             started_at=datetime.now(timezone.utc).isoformat(),
             completed_at=datetime.now(timezone.utc).isoformat(),
         )
-        buffer.complete_sample(completed)
+        buffer.complete_sample(completed, sample_metadata=None)
         _simulate_crashed_buffer(buffer)
 
         # Patch resolve_db_dir so recovery finds the buffer DB in our temp dir
@@ -1028,7 +1028,7 @@ async def test_streaming_recovery_synthesizes_uuid_for_in_progress_sample() -> N
             assert log.samples is not None
             assert len(log.samples) == 1
 
-            recovered = read_eval_log(output_path, resolve_attachments=True)
+            recovered = await read_eval_log_async(output_path, resolve_attachments=True)
             assert recovered.samples is not None
             target = next(s for s in recovered.samples if s.id == 42 and s.epoch == 1)
             assert target.uuid is not None
@@ -1083,7 +1083,7 @@ async def test_recovery_preserves_uuid_from_in_progress_buffer_row() -> None:
             finally:
                 buffer.cleanup()
 
-            recovered = read_eval_log(output_path, resolve_attachments=True)
+            recovered = await read_eval_log_async(output_path, resolve_attachments=True)
             assert recovered.samples is not None
             target = next(s for s in recovered.samples if s.id == 7 and s.epoch == 1)
             assert target.uuid == expected_uuid
@@ -1200,7 +1200,9 @@ async def test_streaming_recovery_output_message_stays_inline_in_messages() -> N
             )
 
             # Read without resolving attachments so we can inspect the raw content.
-            recovered = read_eval_log(output_path, resolve_attachments=False)
+            recovered = await read_eval_log_async(
+                output_path, resolve_attachments=False
+            )
             assert recovered.samples is not None
             sample = next(s for s in recovered.samples if s.id == 99 and s.epoch == 1)
 

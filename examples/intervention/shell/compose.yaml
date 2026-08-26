@@ -4,4 +4,5 @@ services:
     command: tail -f /dev/null
     cpus: 1.0
     mem_limit: 2.0gb
-    network_mode: bridge
+    # network_mode is omitted to permit Internet access for this general-purpose
+    # agent.

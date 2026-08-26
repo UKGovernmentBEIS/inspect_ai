@@ -63,6 +63,7 @@ from .format import (
     chunk_entry_name,
     chunk_ranges,
     events_stats_entry_name,
+    events_uuids_entry_name,
     metadata_entry_name,
     shell_entry_name,
     skeleton_entry_name,
@@ -75,6 +76,7 @@ def convert_eval_logs_to_chunked(
     output_dir: str,
     overwrite: bool = False,
     chunk_size: int = DEFAULT_CHUNK_SIZE,
+    attachments_chunk_bytes: int = DEFAULT_ATTACHMENTS_CHUNK_BYTES,
 ) -> None:
     """Convert `.eval` log file(s) to `.eval` files with chunked samples.
 
@@ -85,6 +87,8 @@ def convert_eval_logs_to_chunked(
         overwrite: Overwrite existing log files (defaults to `False`,
             raising an error if the output file path already exists).
         chunk_size: Maximum items per sequence chunk entry.
+        attachments_chunk_bytes: Target uncompressed bytes per attachments
+            chunk entry (attachments chunk by size, not count).
     """
     from inspect_ai._display import display
 
@@ -121,7 +125,11 @@ def convert_eval_logs_to_chunked(
                 "(use --overwrite to overwrite existing files)"
             )
 
-        run_coroutine(_convert_log_file(input_file, output_file, chunk_size))
+        run_coroutine(
+            _convert_log_file(
+                input_file, output_file, chunk_size, attachments_chunk_bytes
+            )
+        )
 
     if not path_is_dir:
         if not path.endswith(".eval"):
@@ -143,7 +151,9 @@ def convert_eval_logs_to_chunked(
                 p.update()
 
 
-async def _convert_log_file(input_file: str, output_file: str, chunk_size: int) -> None:
+async def _convert_log_file(
+    input_file: str, output_file: str, chunk_size: int, attachments_chunk_bytes: int
+) -> None:
     sample_ids = await EvalRecorder.read_log_sample_ids(input_file)
 
     async with AsyncFilesystem() as fs:
@@ -169,7 +179,9 @@ async def _convert_log_file(input_file: str, output_file: str, chunk_size: int) 
                     sample = await EvalRecorder.read_log_sample(
                         input_file, id, epoch, reader=reader
                     )
-                    _write_chunked_sample(zip, sample, chunk_size)
+                    _write_chunked_sample(
+                        zip, sample, chunk_size, attachments_chunk_bytes
+                    )
 
             temp.seek(0)
             with file(output_file, "wb") as output:
@@ -189,7 +201,11 @@ class ChunkedSample(NamedTuple):
     attachment_boundaries: list[int]
 
 
-def chunked_sample(sample: EvalSample, chunk_size: int) -> ChunkedSample:
+def chunked_sample(
+    sample: EvalSample,
+    chunk_size: int,
+    attachments_chunk_bytes: int = DEFAULT_ATTACHMENTS_CHUNK_BYTES,
+) -> ChunkedSample:
     """Restructure an `EvalSample` for the chunked per-sample shape.
 
     - The message sequence is the `events_data` pool (indices preserved,
@@ -243,7 +259,7 @@ def chunked_sample(sample: EvalSample, chunk_size: int) -> ChunkedSample:
     attachment_contents = list(attachments.values())
     attachment_boundaries = attachment_chunk_boundaries(
         [len(content.encode()) for content in attachment_contents],
-        DEFAULT_ATTACHMENTS_CHUNK_BYTES,
+        attachments_chunk_bytes,
     )
 
     shell = sample.model_copy(update={"input": input}).model_dump(
@@ -252,13 +268,6 @@ def chunked_sample(sample: EvalSample, chunk_size: int) -> ChunkedSample:
         exclude={"messages", "events", "attachments", "events_data", "metadata"},
     )
     shell["message_refs"] = _compress_refs(indices)
-    # must mirror the chunk entry names written by _write_chunked_sample
-    shell["sequences"] = {
-        MESSAGES_SEQUENCE: chunk_boundaries(len(messages), chunk_size),
-        EVENTS_SEQUENCE: chunk_boundaries(len(events), chunk_size),
-        CALLS_SEQUENCE: chunk_boundaries(len(calls), chunk_size),
-        ATTACHMENTS_SEQUENCE: attachment_boundaries,
-    }
 
     return ChunkedSample(
         shell=shell,
@@ -306,8 +315,13 @@ def _write_sidecar(zip: ZipFile, entry_name: str, sidecar: BaseModel) -> None:
     )
 
 
-def _write_chunked_sample(zip: ZipFile, sample: EvalSample, chunk_size: int) -> None:
-    converted = chunked_sample(sample, chunk_size)
+def _write_chunked_sample(
+    zip: ZipFile,
+    sample: EvalSample,
+    chunk_size: int,
+    attachments_chunk_bytes: int = DEFAULT_ATTACHMENTS_CHUNK_BYTES,
+) -> None:
+    converted = chunked_sample(sample, chunk_size, attachments_chunk_bytes)
     renumber = _attachment_ref_renumberer(converted.attachment_index)
 
     zip.writestr(
@@ -331,7 +345,13 @@ def _write_chunked_sample(zip: ZipFile, sample: EvalSample, chunk_size: int) -> 
     _write_sidecar(
         zip,
         events_stats_entry_name(sample.id, sample.epoch),
-        event_stats(converted.events, converted.shell["sequences"][EVENTS_SEQUENCE]),
+        event_stats(
+            converted.events, chunk_boundaries(len(converted.events), chunk_size)
+        ),
+    )
+    zip.writestr(
+        events_uuids_entry_name(sample.id, sample.epoch),
+        to_json_safe([event.uuid for event in converted.events], indent=None),
     )
 
     sequences: list[tuple[str, Sequence[Any]]] = [

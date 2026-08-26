@@ -11,6 +11,7 @@ from typing import (
     AsyncGenerator,
     Callable,
     Literal,
+    NamedTuple,
     Sequence,
     Tuple,
 )
@@ -28,7 +29,6 @@ from inspect_ai._util._async import configured_async_backend, run_coroutine, tg_
 from inspect_ai._util.platform import platform_init, running_in_notebook
 from inspect_ai._util.registry import (
     has_registry_params,
-    registry_create,
     registry_lookup,
     registry_params,
     registry_unqualified_name,
@@ -45,6 +45,7 @@ from inspect_ai.log import (
     EvalLog,
 )
 from inspect_ai.log._condense import resolve_sample_attachments
+from inspect_ai.log._headline import headline_metric_ref, resolve_headline_metric
 from inspect_ai.log._log import EvalMetricDefinition, EvalSample
 from inspect_ai.log._resolve import rebind_sample_timelines
 from inspect_ai.log._score import _find_scorers_span
@@ -54,7 +55,7 @@ from inspect_ai.model._model import Model, get_model
 from inspect_ai.model._model_config import model_roles_config_to_model_roles
 from inspect_ai.model._util import resolve_model_roles
 from inspect_ai.scorer import Metric, Scorer, Target
-from inspect_ai.scorer._metric import SampleScore, Score
+from inspect_ai.scorer._metric import SampleScore, Score, metric_create
 from inspect_ai.scorer._reducer import (
     ScoreReducer,
     ScoreReducers,
@@ -303,6 +304,9 @@ async def score_async(
     with display_manager().progress(total=total_samples) as p:
         scorer_names: list[str] | None = None
         scores: list[dict[str, SampleScore] | None] = [None] * total_samples
+        # tally the per-sample error state as we go so an overwrite can restate
+        # completed_samples exactly rather than falling back to len(scores)
+        sample_completed: list[bool] = [False] * total_samples
 
         async def _score_sample(idx_sample: int) -> None:
             nonlocal scorer_names
@@ -324,6 +328,7 @@ async def score_async(
 
             assert sample.scores is not None
             scores[idx_sample] = sample_score
+            sample_completed[idx_sample] = sample.error is None
             if scorer_names is None:
                 scorer_names = names
             p.update(1)
@@ -363,6 +368,11 @@ async def score_async(
             scorer_names,
             early_stopping=log.results.early_stopping if log.results else None,
             metadata=log.results.metadata if log.results else None,
+            completed_samples=sum(sample_completed),
+            # resolved below instead: these results cover only the scorers run
+            # in this pass, so an "append" would resolve the headline against a
+            # partial score list
+            headline_metric=None,
         )
 
         # Update log.eval.scorers to reflect the scorers actually applied so
@@ -375,28 +385,67 @@ async def score_async(
         # Since the metrics calculation above is only be done using the scorers
         # and scores that were generated during this scoring run, we need to process
         # the results carefully, depending upon whether the action was "append" or "overwrite"
-        log.reductions = reductions
         if action == "overwrite" or log.results is None:
-            # Completely replace the results with the new results
+            # Completely replace the results (and reductions) with the new ones
+            log.reductions = reductions
             log.results = results
             log.eval.scorers = applied_eval_scorers
         else:
             # Only update the results with the new scores, leaving the rest
-            # of the results as they were
+            # of the results as they were. The reductions computed here cover
+            # just the scorers run in this pass, so append them to the existing
+            # ones instead of overwriting -- otherwise every pre-existing
+            # scorer's reductions would be silently dropped.
+            if reductions is not None:
+                log.reductions = (log.reductions or []) + reductions
             log.results.scores.extend(results.scores)
             log.eval.scorers = (log.eval.scorers or []) + applied_eval_scorers
+
+        resolved_headline = resolve_headline_metric(
+            log.results, log.eval.headline_metric
+        )
+        log.results.headline = (
+            headline_metric_ref(resolved_headline) if resolved_headline else None
+        )
 
     return log
 
 
-async def _run_score_task(
-    log_header: EvalLog,
+class SampleTaskState(NamedTuple):
+    """A ``TaskState`` rebuilt from a serialized sample, ready for scorers."""
+
+    state: TaskState
+    target: Target
+    sample: EvalSample
+    """The attachment-resolved variant of the input sample."""
+
+
+def task_state_from_sample(
     sample: EvalSample,
-    scorers: list[Scorer],
+    *,
     model: Model,
-    model_roles: dict[str, Model],
-    action: ScoreAction,
-) -> Tuple[dict[str, SampleScore], list[str]]:
+    model_name: str | Model,
+    model_roles: dict[str, Model] | None,
+    append_scores: bool,
+) -> SampleTaskState:
+    """Rebuild a scoring-ready ``TaskState`` from a serialized sample.
+
+    The post-hoc scoring recipe behind ``inspect score`` / ``score_async``:
+    resolve attachment references (rebinding timelines to the resolved
+    events), construct the ``TaskState``, bind the task context and subtask
+    store, and seed a fresh transcript with the sample's events and
+    timelines.
+
+    Args:
+        sample: The serialized sample to rebuild from.
+        model: The active model bound for scorer calls.
+        model_name: Spec for the ``TaskState``'s model name (callers may
+            carry a model string that differs from ``model``'s resolution,
+            e.g. the eval log header's).
+        model_roles: Model roles bound for grader role resolution.
+        append_scores: Seed ``TaskState.scores`` with the sample's existing
+            scores (the ``inspect score`` append action) rather than empty.
+    """
     # resolve attachment:// refs so scorers see real content rather than
     # opaque hashes; rebind timelines to the resolved event objects. Done
     # per-sample so peak memory is bounded by concurrency, not sample count.
@@ -407,7 +456,7 @@ async def _run_score_task(
 
     target = Target(resolved_sample.target)
     state = TaskState(
-        model=ModelName(log_header.eval.model),
+        model=ModelName(model_name),
         sample_id=resolved_sample.id,
         epoch=resolved_sample.epoch,
         input=resolved_sample.input,
@@ -418,7 +467,7 @@ async def _run_score_task(
         completed=True,
         metadata=resolved_sample.metadata,
         store=resolved_sample.store,
-        scores=(resolved_sample.scores or {}).copy() if action == "append" else {},
+        scores=dict(resolved_sample.scores or {}) if append_scores else {},
         sample_uuid=resolved_sample.uuid,
     )
 
@@ -435,6 +484,25 @@ async def _run_score_task(
     # @scanner(timeline=True), petri's audit_judge) work on re-score
     for tl in resolved_sample.timelines or []:
         transcript().add_timeline(tl)
+
+    return SampleTaskState(state=state, target=target, sample=resolved_sample)
+
+
+async def _run_score_task(
+    log_header: EvalLog,
+    sample: EvalSample,
+    scorers: list[Scorer],
+    model: Model,
+    model_roles: dict[str, Model],
+    action: ScoreAction,
+) -> Tuple[dict[str, SampleScore], list[str]]:
+    state, target, resolved_sample = task_state_from_sample(
+        sample,
+        model=model,
+        model_name=log_header.eval.model,
+        model_roles=model_roles,
+        append_scores=action == "append",
+    )
 
     if state.scores is None:
         state.scores = {}
@@ -517,7 +585,7 @@ def metrics_from_log_header(
 
 
 def metric_from_log(metric: EvalMetricDefinition) -> Metric:
-    return registry_create("metric", metric.name, **(metric.options or {}))
+    return metric_create(metric.name, **(metric.options or {}))
 
 
 def reducers_from_log_header(log: EvalLog) -> list[ScoreReducer] | None:

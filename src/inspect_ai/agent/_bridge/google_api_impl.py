@@ -47,13 +47,17 @@ from inspect_ai.tool._tools._web_search._web_search import (
 )
 from inspect_ai.util._json import JSONSchema
 
+from ._errors import BridgePolicyError
 from .types import AgentBridge
 from .util import (
     apply_message_ids,
     bridge_generate,
     clear_generation_params,
+    relax_tool_choice_for_withheld,
     resolve_generate_config,
     resolve_inspect_model,
+    validate_bridge_media,
+    withheld_bridge_tool,
 )
 
 logger = getLogger(__name__)
@@ -61,8 +65,8 @@ logger = getLogger(__name__)
 
 async def inspect_google_api_request_impl(
     json_data: dict[str, Any],
-    web_search_providers: WebSearchProviders,
-    code_execution_providers: CodeExecutionProviders,
+    web_search_providers: WebSearchProviders | None,
+    code_execution_providers: CodeExecutionProviders | None,
     bridge: AgentBridge,
 ) -> dict[str, Any]:
     # resolve model
@@ -100,10 +104,13 @@ async def inspect_google_api_request_impl(
     )
 
     # translate tool choice
-    tool_choice = tool_choice_from_google_tool_config(tool_config)
+    tool_choice = relax_tool_choice_for_withheld(
+        tool_choice_from_google_tool_config(tool_config), tools
+    )
 
     # translate messages
     messages = messages_from_google_contents(contents, system_instruction)
+    await validate_bridge_media(bridge, messages)
     debug_log("INSPECT MESSAGES", messages)
 
     # extract generate config
@@ -177,8 +184,8 @@ def generate_config_from_google(generation_config: dict[str, Any]) -> GenerateCo
 
 def tools_from_google_tools(
     google_tools: list[dict[str, Any]] | None,
-    web_search_providers: WebSearchProviders,
-    code_execution_providers: CodeExecutionProviders,
+    web_search_providers: WebSearchProviders | None,
+    code_execution_providers: CodeExecutionProviders | None,
 ) -> list[ToolInfo | Tool]:
     tools: list[ToolInfo | Tool] = []
 
@@ -200,13 +207,17 @@ def tools_from_google_tools(
                         else ToolParams(),
                     )
                 )
-        elif "googleSearch" in google_tool:
-            tools.append(web_search(web_search_providers))
+        elif "googleSearch" in google_tool or "googleSearchRetrieval" in google_tool:
+            # googleSearchRetrieval is the grounding variant; both map to search
+            if web_search_providers is None:
+                withheld_bridge_tool("googleSearch")
+            else:
+                tools.append(web_search(web_search_providers))
         elif "codeExecution" in google_tool:
-            tools.append(code_execution(providers=code_execution_providers))
-        elif "googleSearchRetrieval" in google_tool:
-            # Google Search Retrieval (grounding)
-            tools.append(web_search(web_search_providers))
+            if code_execution_providers is None:
+                withheld_bridge_tool("codeExecution")
+            else:
+                tools.append(code_execution(providers=code_execution_providers))
         elif "computerUse" in google_tool:
             tools.append(computer())
 
@@ -308,20 +319,40 @@ def messages_from_google_contents(
             messages.extend(tool_messages)
 
         elif role == "model":
-            assistant_content, tool_calls = _extract_model_parts(parts)
-
-            pending_tool_calls.clear()
-            for tc in tool_calls:
-                if tc.function not in pending_tool_calls:
-                    pending_tool_calls[tc.function] = []
-                pending_tool_calls[tc.function].append(tc.id)
-
-            messages.append(
-                ChatMessageAssistant(
-                    content=assistant_content if assistant_content else "",
-                    tool_calls=tool_calls if tool_calls else None,
+            # localharness (Antigravity SDK) emits tool RESULTS as functionResponse
+            # parts inside a MODEL-role turn (cloudcode dialect), unlike public Gemini
+            # which carries them in a user/function turn. Re-role those into tool
+            # messages (matching the pending tool-call ids from the prior model turn)
+            # BEFORE clearing pending calls; otherwise _extract_model_parts drops them
+            # and the request ends on a model turn (Gemini 400 "Requests ending with a
+            # model turn are not supported").
+            func_response_parts = [p for p in parts if _is_function_response_part(p)]
+            if func_response_parts:
+                _, tool_messages = _extract_user_parts(
+                    func_response_parts, pending_tool_calls
                 )
-            )
+                messages.extend(tool_messages)
+
+            other_parts = [p for p in parts if not _is_function_response_part(p)]
+            assistant_content, tool_calls = _extract_model_parts(other_parts)
+
+            if tool_calls:
+                pending_tool_calls.clear()
+                for tc in tool_calls:
+                    if tc.function not in pending_tool_calls:
+                        pending_tool_calls[tc.function] = []
+                    pending_tool_calls[tc.function].append(tc.id)
+
+            # Only emit an assistant turn when it carries real content or tool calls;
+            # a pure-functionResponse model turn must NOT add an empty assistant (that
+            # empty trailing model turn is exactly what Gemini rejects).
+            if assistant_content or tool_calls:
+                messages.append(
+                    ChatMessageAssistant(
+                        content=assistant_content if assistant_content else "",
+                        tool_calls=tool_calls if tool_calls else None,
+                    )
+                )
 
     return messages
 
@@ -372,6 +403,12 @@ def _strip_system_prompt_prefix(
     return user_content
 
 
+def _is_function_response_part(part: Any) -> bool:
+    return isinstance(part, dict) and (
+        "functionResponse" in part or "function_response" in part
+    )
+
+
 def _extract_user_parts(
     parts: list[dict[str, Any]],
     pending_tool_calls: dict[str, list[str]],
@@ -399,7 +436,13 @@ def _extract_user_parts(
                     ContentImage(image=f"data:{mime_type};base64,{data}")
                 )
 
-        elif "functionResponse" in part or "function_response" in part:
+        elif "fileData" in part or "file_data" in part:
+            raise BridgePolicyError(
+                "The Google agent bridge does not support fileData media; "
+                "send the bytes as inlineData instead."
+            )
+
+        elif _is_function_response_part(part):
             func_response = part.get(
                 "functionResponse", part.get("function_response", {})
             )
@@ -469,6 +512,12 @@ def _extract_model_parts(
             if text == "(no content)":
                 continue
             content_parts.append(ContentText(text=text))
+
+        elif "fileData" in part or "file_data" in part:
+            raise BridgePolicyError(
+                "The Google agent bridge does not support fileData media; "
+                "send the bytes as inlineData instead."
+            )
 
         elif "functionCall" in part or "function_call" in part:
             func_call = part.get("functionCall", part.get("function_call", {}))
