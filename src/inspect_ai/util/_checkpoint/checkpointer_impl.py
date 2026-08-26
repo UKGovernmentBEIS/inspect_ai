@@ -43,6 +43,10 @@ from inspect_ai.model._assistant_internal import (
 )
 from inspect_ai.solver._task_state import sample_state
 from inspect_ai.util._checkpoint.report import ResumeReport, resolve_resume_report
+from inspect_ai.util._checkpoint.sample_runtime import (
+    dump_sample_runtime,
+    restore_sample_runtime,
+)
 from inspect_ai.util._restic import (
     ResticBackupSummary,
     list_changed_files,
@@ -59,6 +63,7 @@ from ._layout.host_context import (
     ATTACHMENTS,
     EVENTS,
     EVENTS_DATA,
+    SAMPLE_RUNTIME,
     STORE,
 )
 from ._layout.sample_checkpoints_dir import (
@@ -138,6 +143,12 @@ class _CheckpointerSetup(AbstractAsyncContextManager[Checkpointer]):
         )
         if result.host.assistant_internal is not None:
             init_sample_assistant_internal(result.host.assistant_internal)
+        if result.host.sample_runtime is not None:
+            restore_sample_runtime(
+                result.host.sample_runtime,
+                check=self._resume_checkpoint is not None
+                and self._resume_checkpoint.attempt == "resume",
+            )
         restored: ResumeReport | None = None
         if self._resume_checkpoint is not None:
             if self._config.on_resume is not None:
@@ -267,6 +278,15 @@ class _EnteredCheckpointer:
         # shared across many samples); per-session mutable state lives
         # on the trigger instance returned by ``create_trigger``.
         self._trigger = create_trigger(config.trigger)
+        runtime = hydration.host.sample_runtime
+        if isinstance(runtime, dict):
+            ref = runtime.get("token_interval_reference")
+            if (
+                isinstance(ref, int)
+                and not isinstance(ref, bool)
+                and hasattr(self._trigger, "_reference")
+            ):
+                setattr(self._trigger, "_reference", ref)
         # `checkpoint N` span open across the agent's current
         # work-between-fires window. Opened/closed across `span_session()`'s
         # enter/exit and rotated inside `_fire()`. A rotation scope (not
@@ -628,6 +648,15 @@ class _EnteredCheckpointer:
                 context_path / ASSISTANT_INTERNAL,
                 to_json_str_safe(assistant_internal),
             )
+        sample_runtime = dump_sample_runtime()
+        if isinstance(sample_runtime, dict):
+            ref = getattr(self._trigger, "_reference", None)
+            if isinstance(ref, int):
+                sample_runtime["token_interval_reference"] = ref
+        write_text_atomic(
+            context_path / SAMPLE_RUNTIME,
+            to_json_str_safe(sample_runtime),
+        )
         self._transcript_store.write_transcript_files(
             events_path=context_path / EVENTS,
             events_data_path=context_path / EVENTS_DATA,
