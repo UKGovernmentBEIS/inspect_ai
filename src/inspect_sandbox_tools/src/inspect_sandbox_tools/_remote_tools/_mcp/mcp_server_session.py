@@ -14,7 +14,7 @@ from mcp import (
     JSONRPCResponse,
     StdioServerParameters,
 )
-from mcp.types import JSONRPCMessage, JSONRPCNotification
+from mcp.types import JSONRPCNotification, jsonrpc_message_adapter
 
 from inspect_sandbox_tools._util.process_tree import (
     process_group_members,
@@ -44,11 +44,6 @@ _READLINE_LIMIT: int = (
     int(os.environ["INSPECT_MCP_READLINE_LIMIT_BYTES"])
     if "INSPECT_MCP_READLINE_LIMIT_BYTES" in os.environ
     else _DEFAULT_READLINE_LIMIT
-)
-
-# Validator for JSON-RPC messages read from the server's stdout.
-_JSONRPC_MESSAGE_ADAPTER: pydantic.TypeAdapter[JSONRPCMessage] = pydantic.TypeAdapter(
-    JSONRPCMessage
 )
 
 
@@ -275,7 +270,7 @@ class MCPServerSession:
                     if not line.strip():
                         continue
                     try:
-                        message = _JSONRPC_MESSAGE_ADAPTER.validate_json(line)
+                        message = jsonrpc_message_adapter.validate_json(line)
                     except (pydantic.ValidationError, json.JSONDecodeError):
                         # Skip non-JSON lines (e.g. debug output, shell traces).
                         # This matches the MCP SDK's stdio_client behavior.

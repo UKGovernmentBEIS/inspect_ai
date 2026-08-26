@@ -1,19 +1,9 @@
-"""Regression tests for unexpected lines on the MCP server's stdout.
+"""Regression tests for MCPServerSession's stdout reader.
 
-MCPServerSession's stdout reader must tolerate lines it cannot dispatch rather
-than crash -- a dead reader fails every pending request. Cases covered:
-
-- A stdio MCP server that advertises `tools.listChanged` may legally emit an
-  unsolicited `notifications/tools/list_changed` (the ExploitBench V8 server
-  does this right after `initialize`). The session is a request/response proxy
-  and does not forward such messages, but it must IGNORE them.
-- A JSON-RPC parse-error response carries `id: null` (`JSONRPCError.id` is
-  nullable) and so cannot be correlated to any pending request; it must be
-  dropped. Without the guard the resolve step would assert and kill the
-  reader.
-
-The test feeds the unexpected line ahead of a normal response and asserts the
-matching request still resolves.
+The reader must tolerate lines it cannot dispatch — an unsolicited
+notification, an uncorrelatable null-id error response — rather than crash: a
+dead reader fails every pending request. The test feeds the unexpected line
+ahead of a normal response and asserts the matching request still resolves.
 """
 
 import asyncio
