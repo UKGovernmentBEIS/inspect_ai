@@ -39,17 +39,20 @@ from inspect_ai.util._concurrency import (
 @pytest.fixture(autouse=True)
 def _clear_states():
     from inspect_ai._control.config_record import reset_process_config_updates
+    from inspect_ai._control.max_tasks import reset_max_tasks_override
     from inspect_ai.util._limit_overrides import reset_sample_limit_overrides
 
     clear_all_eval_states()
     init_concurrency()  # resets the sandbox and subprocess limiter registries
     reset_generate_config_overrides()
+    reset_max_tasks_override()
     reset_sample_limit_overrides()
     reset_process_config_updates()
     yield
     clear_all_eval_states()
     init_concurrency()
     reset_generate_config_overrides()
+    reset_max_tasks_override()
     reset_sample_limit_overrides()
     reset_process_config_updates()
 
@@ -619,6 +622,240 @@ def test_set_generate_config_override_rejects_out_of_range() -> None:
 
 
 # ---------------------------------------------------------------------------
+# max_tasks (the task dispatchers' live concurrency override)
+# ---------------------------------------------------------------------------
+
+
+async def test_max_tasks_view_without_dispatcher() -> None:
+    """With no live dispatcher the counters are null but the knob stays adjustable."""
+    from inspect_ai._control.limits import process_limits
+
+    result = await process_limits()
+    assert result["max_tasks"] == {
+        "limit": None,
+        "launch": None,
+        "override": None,
+        "in_flight": None,
+        "pending": None,
+        "adjustable": True,
+    }
+
+
+async def test_max_tasks_set_and_clear() -> None:
+    from inspect_ai._control.limits import process_limits
+    from inspect_ai._control.max_tasks import max_tasks_override
+
+    result = await process_limits(max_tasks=5)
+    assert result["requested"] == {"max_tasks": 5}
+    # always adjustable — the override layer exists regardless of launch config
+    assert result["warnings"] == []
+    assert result["max_tasks"]["override"] == 5
+    assert result["max_tasks"]["limit"] == 5
+    assert max_tasks_override() == 5
+
+    result = await process_limits(max_tasks="clear")
+    assert result["requested"] == {"max_tasks": "clear"}
+    assert result["max_tasks"]["override"] is None
+    assert result["max_tasks"]["limit"] is None  # no dispatcher, no override
+    assert max_tasks_override() is None
+
+
+async def test_max_tasks_dry_run_does_not_apply() -> None:
+    from inspect_ai._control.limits import process_limits
+    from inspect_ai._control.max_tasks import max_tasks_override
+
+    result = await process_limits(max_tasks=9, dry_run=True)
+    assert result["dry_run"] is True
+    assert result["requested"] == {"max_tasks": 9}
+    assert result["max_tasks"]["override"] is None
+    assert max_tasks_override() is None
+
+
+async def test_max_tasks_via_task_limits() -> None:
+    from inspect_ai._control.max_tasks import max_tasks_override
+
+    register_eval("e1", 5, task_id="t1")
+    result = await task_limits("t1", max_tasks=7)
+    assert result is not None
+    assert result["requested"] == {"max_tasks": 7}
+    assert result["max_tasks"]["override"] == 7
+    assert max_tasks_override() == 7
+
+
+async def test_max_tasks_view_and_record_with_live_dispatcher() -> None:
+    """The view reads the live dispatcher's counters.
+
+    The record's `previous` is the pre-change effective limit (the launch
+    value on a first retune).
+    """
+    from inspect_ai._control.config_record import inherited_config_updates
+    from inspect_ai._control.limits import process_limits
+    from inspect_ai._control.max_tasks import (
+        TaskDispatcherStats,
+        register_task_dispatcher,
+        remove_task_dispatcher,
+    )
+
+    def stats() -> TaskDispatcherStats:
+        return TaskDispatcherStats(launch=10, in_flight=4, pending=6)
+
+    register_task_dispatcher(stats)
+    try:
+        result = await process_limits()
+        assert result["max_tasks"] == {
+            "limit": 10,
+            "launch": 10,
+            "override": None,
+            "in_flight": 4,
+            "pending": 6,
+            "adjustable": True,
+        }
+
+        result = await process_limits(max_tasks=25)
+        assert result["max_tasks"] == {
+            "limit": 25,
+            "launch": 10,
+            "override": 25,
+            "in_flight": 4,
+            "pending": 6,
+            "adjustable": True,
+        }
+        updates = inherited_config_updates()
+        assert len(updates) == 1
+        (change,) = updates[0].changes
+        assert change.config == "eval" and change.name == "max_tasks"
+        assert change.value == 25 and change.previous == 10
+        assert change.cleared is False
+
+        result = await process_limits(max_tasks="clear")
+        assert result["max_tasks"]["limit"] == 10  # back to launch
+        assert result["max_tasks"]["override"] is None
+        (change,) = inherited_config_updates()[1].changes
+        assert change.cleared is True and change.previous == 25
+    finally:
+        remove_task_dispatcher(stats)
+
+
+async def test_max_tasks_noop_resend_records_nothing() -> None:
+    from inspect_ai._control.config_record import process_config_update_count
+    from inspect_ai._control.limits import process_limits
+    from inspect_ai._control.max_tasks import (
+        TaskDispatcherStats,
+        max_tasks_override,
+        register_task_dispatcher,
+        remove_task_dispatcher,
+    )
+
+    # a clear with no override in effect records nothing
+    result = await process_limits(max_tasks="clear")
+    assert result["persisted"] is None
+    assert process_config_update_count() == 0
+
+    # a re-send of the current override records nothing (but still applies)
+    await process_limits(max_tasks=5)
+    assert process_config_update_count() == 1
+    result = await process_limits(max_tasks=5)
+    assert result["persisted"] is None
+    assert process_config_update_count() == 1
+    assert max_tasks_override() == 5
+
+    # setting the launch value with no override changes nothing effective —
+    # the override still lands (pinning the value) but no record is written
+    await process_limits(max_tasks="clear")
+
+    def stats() -> TaskDispatcherStats:
+        return TaskDispatcherStats(launch=8, in_flight=0, pending=0)
+
+    register_task_dispatcher(stats)
+    try:
+        count = process_config_update_count()
+        result = await process_limits(max_tasks=8)
+        assert result["persisted"] is None
+        assert process_config_update_count() == count
+        assert max_tasks_override() == 8
+    finally:
+        remove_task_dispatcher(stats)
+
+
+async def test_max_tasks_first_record_without_dispatcher_has_null_previous() -> None:
+    """No live dispatcher → `previous` is None.
+
+    The recording layer then fills it from each log's launch config (see
+    fill_previous_from_launch).
+    """
+    from inspect_ai._control.config_record import inherited_config_updates
+    from inspect_ai._control.limits import process_limits
+
+    await process_limits(max_tasks=12)
+    (change,) = inherited_config_updates()[0].changes
+    assert change.value == 12 and change.previous is None
+
+
+def test_set_max_tasks_override_rejects_out_of_range() -> None:
+    """The store enforces both bounds for programmatic callers.
+
+    max_tasks 0 would be a disguised pause and a magnitude bug an unbounded
+    dispatch limit; the wire layers reject both first.
+    """
+    from inspect_ai._control.max_tasks import (
+        max_tasks_override,
+        set_max_tasks_override,
+    )
+
+    with pytest.raises(ValueError, match="max_tasks"):
+        set_max_tasks_override(0)
+    with pytest.raises(ValueError, match="max_tasks"):
+        set_max_tasks_override(MAX_GENERATE_CONFIG_OVERRIDE + 1)
+    assert max_tasks_override() is None
+    # the bound itself is a legal value
+    set_max_tasks_override(MAX_GENERATE_CONFIG_OVERRIDE)
+    assert max_tasks_override() == MAX_GENERATE_CONFIG_OVERRIDE
+
+
+def test_set_max_tasks_override_fires_dispatch_wakers() -> None:
+    """A set wakes waiting dispatchers so a raise takes effect immediately."""
+    from inspect_ai._control.max_tasks import set_max_tasks_override
+    from inspect_ai._control.pause import add_dispatch_waker, remove_dispatch_waker
+
+    fired: list[bool] = []
+
+    def waker() -> None:
+        fired.append(True)
+
+    add_dispatch_waker(waker)
+    try:
+        set_max_tasks_override(3)
+        assert fired
+    finally:
+        remove_dispatch_waker(waker)
+
+
+def test_max_tasks_override_resets_at_run_boundary() -> None:
+    from inspect_ai._control.eval_state import reset_run_registries
+    from inspect_ai._control.max_tasks import (
+        max_tasks_override,
+        set_max_tasks_override,
+    )
+
+    set_max_tasks_override(4)
+    reset_run_registries()
+    assert max_tasks_override() is None
+
+
+def test_effective_max_tasks_prefers_override() -> None:
+    from inspect_ai._control.max_tasks import (
+        effective_max_tasks,
+        set_max_tasks_override,
+    )
+
+    assert effective_max_tasks(10) == 10
+    set_max_tasks_override(3)
+    assert effective_max_tasks(10) == 3
+    set_max_tasks_override(None)
+    assert effective_max_tasks(10) == 10
+
+
+# ---------------------------------------------------------------------------
 # Per-sample limit overrides (time_limit / token_limit / message_limit)
 # ---------------------------------------------------------------------------
 
@@ -948,6 +1185,7 @@ def test_sample_list_token_ceiling_reflects_override() -> None:
 
     class _FakeTranscript:
         history = _FakeHistory()
+        pending_events: list[Any] = []
 
     class _FakeSample:
         id = "s1"
@@ -1287,6 +1525,62 @@ async def test_limits_route_rejects_below_one() -> None:
         bad = await client.patch("/tasks/t1/config", params={"max_samples": 0})
         assert bad.status_code == 400
         assert "max_samples" in bad.json()["error"]
+
+
+async def test_max_tasks_route_set_clear_and_floor() -> None:
+    """max_tasks rides both PATCH routes, string-typed to admit `clear`.
+
+    The floor of 1 is server-enforced (0 must not become a bogus dispatch
+    limit).
+    """
+    from inspect_ai._control.max_tasks import max_tasks_override
+
+    register_eval("e1", 5, task_id="t1")
+
+    transport = httpx.ASGITransport(app=_app())
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://localhost"
+    ) as client:
+        got = await client.get("/config")
+        assert got.status_code == 200, got.text
+        assert got.json()["max_tasks"]["override"] is None
+
+        patched = await client.patch("/config", params={"max_tasks": "25"})
+        assert patched.status_code == 200, patched.text
+        assert patched.json()["max_tasks"]["override"] == 25
+        assert max_tasks_override() == 25
+
+        # the floor rides _limits_below_one post-parse, so the error shape
+        # matches the int-typed knobs — and nothing was applied
+        zero = await client.patch("/config", params={"max_tasks": "0"})
+        assert zero.status_code == 400
+        assert zero.json()["error"] == "max_tasks must be >= 1 (got 0)"
+        assert max_tasks_override() == 25
+
+        # the parse error advertises the knob's real floor (1, not the retry
+        # knobs' 0)
+        junk = await client.patch("/config", params={"max_tasks": "lots"})
+        assert junk.status_code == 400
+        assert "max_tasks must be an integer between 1 and" in junk.json()["error"]
+        negative = await client.patch("/config", params={"max_tasks": "-5"})
+        assert negative.status_code == 400
+        assert "between 1 and" in negative.json()["error"]
+
+        # the task-keyed route carries the knob too (it's process-scoped)
+        task_patched = await client.patch(
+            "/tasks/t1/config", params={"max_tasks": "30"}
+        )
+        assert task_patched.status_code == 200, task_patched.text
+        assert task_patched.json()["max_tasks"]["override"] == 30
+        task_zero = await client.patch("/tasks/t1/config", params={"max_tasks": "0"})
+        assert task_zero.status_code == 400
+        task_got = await client.get("/tasks/t1/config")
+        assert task_got.json()["max_tasks"]["override"] == 30
+
+        cleared = await client.patch("/config", params={"max_tasks": "clear"})
+        assert cleared.status_code == 200, cleared.text
+        assert cleared.json()["max_tasks"]["override"] is None
+        assert max_tasks_override() is None
 
 
 async def test_limits_route_rejects_unknown_param_atomically() -> None:

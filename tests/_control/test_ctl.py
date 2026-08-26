@@ -3759,6 +3759,188 @@ def test_config_retry_overrides_accept_clear_keyword(
     assert "maximum override value" in result.stderr
 
 
+def test_config_max_tasks_wiring_and_floor(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`--max-tasks` sends the value (or `clear`) and enforces the CLI floor of 1."""
+    from inspect_ai._control import CONTROL_API_VERSION
+
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        servers=[_DiscServer(7, api_version=CONTROL_API_VERSION)],
+    )
+    sent: dict[str, Any] = {}
+
+    def fake_limits(*args: Any, **kwargs: Any) -> _ConfigResult:
+        sent.update(kwargs)
+        return _ConfigResult(
+            view={
+                "max_samples": {"limit": 3, "in_use": 1, "adjustable": True},
+                "max_tasks": {
+                    "limit": 25,
+                    "launch": 10,
+                    "override": 25,
+                    "in_flight": 10,
+                    "pending": 30,
+                    "adjustable": True,
+                },
+                "max_sandboxes": [],
+                "adaptive": [],
+                "buffer": {"log_buffer": 10, "pending": 0, "log_shared": None},
+                "requested": {"max_tasks": 25},
+                "warnings": [],
+                "dry_run": False,
+            },
+            mutated=True,
+        )
+
+    monkeypatch.setattr("inspect_ai._cli.ctl._config._exec_limits", fake_limits)
+    result = cli_runner().invoke(ctl_command, ["config", "--max-tasks", "25", "--json"])
+    assert result.exit_code == 0, result.output
+    assert sent["max_tasks"] == 25
+    payload = json.loads(result.stdout)
+    assert payload["applied"] is True
+    assert payload["knobs"]["max_tasks"] == {
+        "scope": "process",
+        "limit": 25,
+        "launch": 10,
+        "override": 25,
+        "in_flight": 10,
+        "pending": 30,
+        "adjustable": True,
+    }
+
+    # the human rendering carries the counters and the launch value
+    human = cli_runner().invoke(
+        ctl_command, ["config", "--max-tasks", "25", "--no-terse"]
+    )
+    assert human.exit_code == 0, human.output
+    assert "max tasks [process]" in human.output
+    assert "25 (10 in flight, 30 pending) (override; launch: 10)" in human.output
+
+    result = cli_runner().invoke(
+        ctl_command, ["config", "--max-tasks", "clear", "--json"]
+    )
+    assert result.exit_code == 0, result.output
+    assert sent["max_tasks"] == "clear"
+
+    # 0 is a disguised pause — rejected client-side (`process pause` is the
+    # real spelling), like the server's floor
+    result = cli_runner().invoke(ctl_command, ["config", "--max-tasks", "0"])
+    assert result.exit_code == 2
+    assert "less than 1" in result.stderr
+
+    result = cli_runner().invoke(ctl_command, ["config", "--max-tasks", "soon"])
+    assert result.exit_code == 2
+    assert "is not an integer or 'clear'" in result.stderr
+
+
+def test_config_max_tasks_renders_no_dispatcher_window(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With no live dispatcher the human view says the set still applies later."""
+    from inspect_ai._control import CONTROL_API_VERSION
+
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        servers=[_DiscServer(7, api_version=CONTROL_API_VERSION)],
+    )
+
+    def fake_limits(*args: Any, **kwargs: Any) -> _ConfigResult:
+        return _ConfigResult(
+            view={
+                "max_samples": {"limit": 3, "in_use": 1, "adjustable": True},
+                "max_tasks": {
+                    "limit": 25,
+                    "launch": None,
+                    "override": 25,
+                    "in_flight": None,
+                    "pending": None,
+                    "adjustable": True,
+                },
+                "max_sandboxes": [],
+                "adaptive": [],
+                "buffer": {"log_buffer": 10, "pending": 0, "log_shared": None},
+                "requested": {"max_tasks": 25},
+                "warnings": [],
+                "dry_run": False,
+            },
+            mutated=True,
+        )
+
+    monkeypatch.setattr("inspect_ai._cli.ctl._config._exec_limits", fake_limits)
+    human = cli_runner().invoke(
+        ctl_command, ["config", "--max-tasks", "25", "--no-terse"]
+    )
+    assert human.exit_code == 0, human.output
+    assert "25 (override)" in human.output
+    assert "no task dispatcher is live" in human.output
+    assert "applies to task dispatch later in this run" in human.output
+
+
+def test_config_max_tasks_dry_run_clear_arrow_tracks_override(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A dry-run `clear` renders an arrow only when an override is in effect."""
+    from inspect_ai._control import CONTROL_API_VERSION
+
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        servers=[_DiscServer(7, api_version=CONTROL_API_VERSION)],
+    )
+
+    def make_fake_limits(override: int | None) -> Any:
+        def fake_limits(*args: Any, **kwargs: Any) -> _ConfigResult:
+            return _ConfigResult(
+                view={
+                    "max_samples": {"limit": 3, "in_use": 1, "adjustable": True},
+                    "max_tasks": {
+                        "limit": override if override is not None else 10,
+                        "launch": 10,
+                        "override": override,
+                        "in_flight": 4,
+                        "pending": 6,
+                        "adjustable": True,
+                    },
+                    "max_sandboxes": [],
+                    "adaptive": [],
+                    "buffer": {"log_buffer": 10, "pending": 0, "log_shared": None},
+                    "requested": {"max_tasks": "clear"},
+                    "warnings": [],
+                    "dry_run": True,
+                },
+                mutated=True,
+            )
+
+        return fake_limits
+
+    # no override in effect: `clear` is a no-op, so no arrow (matches the
+    # retry knobs' rendering of the same case)
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl._config._exec_limits", make_fake_limits(None)
+    )
+    human = cli_runner().invoke(
+        ctl_command, ["config", "--max-tasks", "clear", "--dry-run", "--no-terse"]
+    )
+    assert human.exit_code == 0, human.output
+    assert "10 (4 in flight, 6 pending)" in human.output
+    assert "→" not in human.output
+
+    # override in effect: the arrow shows the reversion to launch config
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl._config._exec_limits", make_fake_limits(25)
+    )
+    human = cli_runner().invoke(
+        ctl_command, ["config", "--max-tasks", "clear", "--dry-run", "--no-terse"]
+    )
+    assert human.exit_code == 0, human.output
+    assert (
+        "25 → launch config (4 in flight, 6 pending) (override; launch: 10)"
+        in human.output
+    )
+
+
 def test_discovery_api_version_parsed_with_bootstrap_default(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -4346,6 +4528,14 @@ def test_compose_config_labels_every_knob_with_scope() -> None:
     )
     limits_view: TaskConfigView = {
         "max_samples": {"limit": 3, "in_use": 1, "adjustable": True},
+        "max_tasks": {
+            "limit": 10,
+            "launch": 10,
+            "override": None,
+            "in_flight": 4,
+            "pending": 6,
+            "adjustable": True,
+        },
         "max_sandboxes": [{"type": "docker", "limit": 4, "in_use": 2}],
         "max_subprocesses": {"limit": 8, "in_use": 1},
         "adaptive": [],
@@ -4363,6 +4553,8 @@ def test_compose_config_labels_every_knob_with_scope() -> None:
     )
     assert config["target"] == {"scope": "task", "task_id": "t1", "task": "tn"}
     assert config["knobs"]["max_samples"]["scope"] == "task"
+    assert config["knobs"]["max_tasks"]["scope"] == "process"
+    assert config["knobs"]["max_tasks"]["limit"] == 10
     assert config["knobs"]["max_sandboxes"]["scope"] == "process"
     assert config["knobs"]["max_subprocesses"] == {
         "scope": "process",
@@ -6336,6 +6528,57 @@ def test_json_invalid_cursor_emits_error_envelope(
     assert "--since-time" in error["message"]
 
 
+def test_json_version_gate_failure_emits_error_envelope(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The config version gates emit `invalid_request` envelopes on --json.
+
+    Both gates (`_gate_strict_floor`, `_gate_provenance_support`) refuse
+    before the PATCH is sent — a terminal failure like any other, so on
+    --json the refusal must be the structured envelope, not stderr prose
+    over an empty stdout (issue #69: the gates once raised a bare click
+    ``Exit``, which `_structured_failures` passes through un-enveloped).
+    """
+    from inspect_ai._cli.ctl._knobs import _PROVENANCE_SINCE, _STRICT_SINCE
+
+    def _no_patch(*args: Any, **kwargs: Any) -> _ConfigResult:
+        raise AssertionError("the mutation must not be sent")
+
+    monkeypatch.setattr("inspect_ai._cli.ctl._config._exec_limits", _no_patch)
+
+    # strict-floor gate: any knob mutation against a pre-strict server
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        servers=[_DiscServer(7, api_version=_STRICT_SINCE - 1)],
+    )
+    result = cli_runner().invoke(
+        ctl_command, ["config", "--max-samples", "3", "--json"]
+    )
+    assert result.exit_code == 1
+    error = _error_envelope(result)
+    assert error["kind"] == "invalid_request"
+    assert "--max-samples" in error["message"]
+    assert "No changes were applied" in error["message"]  # self-contained
+    assert "pid 7 is running an older inspect" in result.stderr
+
+    # provenance gate: explicit --author/--reason against a strict server
+    # that predates provenance recording
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        servers=[_DiscServer(7, api_version=_PROVENANCE_SINCE - 1)],
+    )
+    result = cli_runner().invoke(
+        ctl_command,
+        ["config", "--max-samples", "3", "--reason", "why", "--json"],
+    )
+    assert result.exit_code == 1
+    error = _error_envelope(result)
+    assert error["kind"] == "invalid_request"
+    assert "--reason not supported" in error["message"]
+
+
 def test_json_unexpected_exception_envelope_with_traceback_on_stderr(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -6377,6 +6620,32 @@ def test_human_unexpected_exception_not_swallowed(
     result = cli_runner().invoke(ctl_command, ["task", "list"])
     assert result.exit_code != 0
     assert isinstance(result.exception, RuntimeError)
+
+
+def test_no_bare_click_exit_in_ctl_error_sites() -> None:
+    """Terminal ctl error sites must raise `_CtlFailure`, never a bare `Exit`.
+
+    `_structured_failures` deliberately passes a plain click ``Exit``
+    through un-enveloped (it is click control flow), so an error site
+    raising one silently drops the --json error envelope — stderr prose
+    over an empty stdout (issue #69: the config version gates did exactly
+    that). Only `_failure.py` itself constructs the bare ``Exit`` (the
+    internal-envelope path, after emitting).
+    """
+    import inspect_ai._cli.ctl as ctl_package
+
+    package_dir = Path(ctl_package.__file__).parent
+    offenders = [
+        f"{path.name}:{lineno}"
+        for path in sorted(package_dir.rglob("*.py"))
+        if path.name != "_failure.py"
+        for lineno, line in enumerate(path.read_text().splitlines(), start=1)
+        if "click.exceptions.Exit(" in line
+    ]
+    assert not offenders, (
+        "bare click Exit constructed outside _failure.py — raise _CtlFailure "
+        f"(usually via _fail) so --json failures stay enveloped: {offenders}"
+    )
 
 
 def test_envelope_failures_rejects_runner_without_as_json() -> None:
