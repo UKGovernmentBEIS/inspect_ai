@@ -31,12 +31,19 @@ exactly the ones where the two must move independently:
 - Conversely, an operator may want more in-flight samples than
   `controller.concurrency + 5` so that sample setup (sandbox startup, dataset
   fetch) overlaps generate time — a bigger slack than the fixed BUFFER.
-- The parked-limiter case (see `design/adaptive-concurrency.md`,
-  "Known gap"): when generates flow through a different model than the task's
-  primary (model roles, agent bridge), the limiter never adopts a controller
-  and sample concurrency sits at `start + BUFFER` forever. Today the directive
-  can only *warn* about this; a retunable `max_samples` gives the operator an
-  immediate unblock.
+- The parked-limiter case (see `design/adaptive-concurrency.md`, the
+  "Future work — tasks whose generates bypass the primary model" paragraph
+  under "Sample-concurrency coupling"): when generates flow through a
+  different model than the task's primary (model roles, agent bridge), the
+  primary controller exists — created eagerly at run startup
+  (`ensure_model_controller`, `_eval/run.py`) — and the limiter adopts it,
+  but it never scales because its model isn't generating, so sample
+  concurrency sits at `start + BUFFER` forever. The case is only indirectly
+  visible today (healthy controllers, stalled sample throughput); the
+  directive's "no matching connection controller" warning fires only in
+  narrower variants (a connection key changed after limiter creation, the
+  no-model sentinel in tests). A retunable `max_samples` gives the operator
+  an immediate unblock in every variant.
 
 At launch time an explicit `--max-samples` already wins silently over
 adaptive (it builds a static `ResizableLimiter`). The gap is only that the
@@ -135,7 +142,10 @@ eval's single event-loop thread (see AGENTS.md "No speculative locks").
   `semaphore is None`).
 - Suppress the "adaptive but no matching controller" warning while an
   override is pinned — concurrency is no longer stuck at the initial value,
-  it is user-set (and the fix for the stuck case *is* this knob).
+  it is user-set (and the fix for the stuck case *is* this knob). Note the
+  suppression only matters in the narrow no-adoption variants; in the
+  common roles/bridge case the warning never fired to begin with (the
+  limiter adopts the idle primary controller — see the problem statement).
 - View: the `DynamicSampleLimiter` case moves from
   `{"adjustable": False, "tracks_adaptive": True}` to
 
@@ -158,20 +168,40 @@ eval's single event-loop thread (see AGENTS.md "No speculative locks").
 ### 3. `src/inspect_ai/_control/server.py` — `PATCH /tasks/{task_id}/config`
 
 - Change the `max_samples` query param from `int | None` to `str | None`
-  and run it through the existing `_parse_override_knobs` helper (it
-  already implements int/`"clear"`/reject parsing and 400s on garbage),
-  or a single-knob use of the same parser. Remove `max_samples` from the
-  `_limits_below_one` tuple — the parser's `IntRange`-equivalent check
-  covers the `< 1` rejection for the parsed-int case (verify parity: the
-  parse helper must reject 0/negative like `_limits_below_one` does).
+  and parse it with a single-knob use of `_parse_override_knobs` (it
+  already implements int/`"clear"`/reject parsing with the friendly
+  error-keyed 400). Two parity gaps mean the helper cannot be reused
+  unmodified, and `max_samples` must **stay in the `_limits_below_one`
+  check** — run *after* parsing, on the parsed int:
+  - The helper deliberately accepts 0 — a real value for the retry/limit
+    override knobs it serves (`--max-retries 0` = fail after the first
+    attempt) — so it has no `IntRange(min=1)`-equivalent rejection to
+    inherit, and its floor cannot simply be raised without breaking those
+    knobs. Parse first, then feed the parsed int through the existing
+    shared `_limits_below_one` check: 0 must 400 here, because let through
+    it reaches the apply layer where both `ResizableLimiter.limit`
+    (`_concurrency.py`) and `CapacityLimiter.total_tokens` raise on `< 1`
+    — an unhandled 500, not the clean 400 the test plan expects.
+  - The helper *requires* a `maximum` argument
+    (`MAX_GENERATE_CONFIG_OVERRIDE` / `MAX_SAMPLE_LIMIT_OVERRIDE`), while
+    this knob has no upper bound (see Bounds). Make `maximum` optional
+    (`int | None`, `None` = unbounded) — signature-only for the existing
+    callers.
 - `GET` is unchanged (the view shape change flows through `task_limits`).
 - The process-level `/config` endpoints don't carry `max_samples`; no
   change.
 
 ### 4. `src/inspect_ai/_cli/ctl/_config.py` — the `config` command
 
-- `--max-samples` option type moves from `click.IntRange(min=1)` to the
-  existing `_INT_OR_CLEAR` param type; help text becomes e.g.
+- `--max-samples` option type moves from `click.IntRange(min=1)` to an
+  int-or-`clear` param type — but not the existing `_INT_OR_CLEAR`
+  instance as-is: `_IntOrClearType` accepts 0 (which must keep failing
+  client-side, as `IntRange(min=1)` does today) and caps values at
+  `MAX_GENERATE_CONFIG_OVERRIDE`, an upper bound this knob does not have
+  (see Bounds). Parameterize `_IntOrClearType` with `minimum` / optional
+  `maximum` constructor args (defaults preserving the current instance's
+  behavior) and add a min-1, no-maximum instance for this option. Help
+  text becomes e.g.
   `"[task] Max samples to run concurrently — under adaptive connections
   this pins sample concurrency ('clear' resumes tracking the controller)."`
 - Signature/plumbing: `max_samples: int | Literal["clear"] | None` through
@@ -200,9 +230,10 @@ work once the view carries `limit`.
 - `docs/options.qmd` row for `--max-samples` already says "retunable
   mid-run via inspect ctl config" — now true unconditionally; no change
   needed beyond a check.
-- `design/adaptive-concurrency.md`: update the `DynamicSampleLimiter` row
-  and the "Known gap" section (the parked-limiter case now has an operator
-  remedy).
+- `design/adaptive-concurrency.md`: update the `DynamicSampleLimiter`
+  material and the "Future work — tasks whose generates bypass the primary
+  model" paragraph under "Sample-concurrency coupling" (the parked-limiter
+  case now has an operator remedy).
 - `design/ctl/control-channel.md`: update the phase-3 `max_samples`
   description.
 - `CHANGELOG.md` (`## Unreleased`): e.g. "inspect ctl config can now change
@@ -229,7 +260,10 @@ work once the view carries `limit`.
   - the no-matching-controller warning is suppressed while pinned;
   - override survives an in-process retry (registry reuse).
 - `tests/_control/test_ctl.py` (server/CLI):
-  - PATCH with `max_samples=clear` parses; `max_samples=0` and garbage 400;
+  - PATCH with `max_samples=clear` parses; `max_samples=0` and garbage 400
+    (0 must fail at the wire, not as a 500 from the apply layer);
+  - the CLI option rejects 0 client-side (as `IntRange(min=1)` does today)
+    and accepts values above `MAX_GENERATE_CONFIG_OVERRIDE`;
   - renderer output for tracking vs pinned.
 
 ## Behavior details and edge cases
@@ -277,6 +311,25 @@ work once the view carries `limit`.
 ## Rollout
 
 Single PR touching the six areas above plus tests and CHANGELOG. No public
-Python API changes (`task_limits` is internal to `_control`); the wire
-change (string-typed `max_samples` accepting `clear`) is backward-compatible
-for existing integer callers.
+Python API changes (`task_limits` is internal to `_control`).
+
+**Version skew** (policy: `design/ctl/control-channel.md`, "Version skew"):
+
+- Old CLI → new server: fine. The wire change (string-typed `max_samples`
+  accepting `clear`) is backward-compatible for existing integer callers —
+  an integer still parses, and the new server's manual parse 400s garbage
+  with the friendly error-keyed JSON body, matching the other override
+  knobs.
+- New CLI `--max-samples clear` → old server: the old route declares
+  `max_samples` as `int | None`, so FastAPI rejects `clear` with a **422**
+  (detail-keyed validation body). That is fail-loud — nothing silently
+  no-ops — so no `CONTROL_API_VERSION` bump is needed per the
+  control-channel convention. It does bypass both of the CLI's friendly
+  error paths (`_request_json` special-cases the error-keyed 400 and the
+  missing-route 404; a 422 falls through to `raise_for_status()`), so the
+  operator sees a bare `Failed to set …: Client error '422 Unprocessable
+  Entity' …` with no older-inspect hint. Accepted as-is: the supported
+  pairing is matched CLI/server versions, the failure is loud and names
+  the failed request, and teaching the CLI that 422 means "older inspect"
+  would mis-diagnose any future legitimate validation 422 from a current
+  server as skew.
