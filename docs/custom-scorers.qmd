@@ -119,17 +119,21 @@ If you are extracting an answer from within a completion (e.g. looking for text 
 
 ### Unscored Samples
 
-When a scorer cannot produce a value for a sample (e.g. an external grader returned no result, the model refused, or an error occurred) but you still want to record context, use `Score.unscored()`:
+When a scorer cannot render a verdict after reasonable due diligence even though nothing malfunctioned (for example, a grader model repeatedly returned an unparsable verdict), use `Score.unscored()` to exclude the sample from metrics while preserving context:
 
 ``` python
 return Score.unscored(
+    reason="grader_failed",
     answer=extracted,
-    explanation="grader returned no result",
-    metadata={"reason": "timeout"},
+    explanation="grader did not return a parseable verdict after 3 attempts",
 )
 ```
 
+The optional `reason` field records a machine-readable failure mode — use a standard `ScoreReason` value (e.g. `"grader_failed"`, `"invalid_response_format"`) where one fits, or any custom string.
+
 Unscored samples are skipped by aggregate metrics and epoch reducers and are counted toward `EvalScore.unscored_samples` rather than included as zeros. This works for scalar, dict-valued, and list-valued scorers.
+
+For guidance on *when* to return `Score.unscored()` versus a score or an error, see [Scoring Policy](scoring-policy.qmd).
 
 ## Score Value
 
@@ -149,7 +153,13 @@ Next, we'll take a look at the source code for a couple of the built in scorers 
 
 ## Models in Scorers
 
-You'll often want to use models in the implementation of scorers. Use the `get_model()` function to get either the currently evaluated model or another model interface. For example:
+You'll often want to use models in the implementation of scorers. The best way of doing this is to specify the grader model using [model roles](models.qmd#model-roles), allowing them to be chosen at runtime. By default, model-graded scorers look for the `"grader"` model role:
+
+```python
+grader_model = get_model(role="grader")
+```
+
+You can also use the `get_model()` function to get either the currently evaluated model or another model interface. For example:
 
 ``` python
 # use the model being evaluated for grading
@@ -246,14 +256,20 @@ def model_graded_qa(
                 explanation=result.completion,
             )
         else:
-            return Score(
-                value=INCORRECT,
+            # The grader failed to produce a parseable verdict. That is a
+            # failure of the measurement instrument, not a wrong answer from the
+            # model, so record it as unscored (excluded from metrics) rather than
+            # charging the model INCORRECT. See Scoring Policy for the rationale.
+            return Score.unscored(
+                reason="grader_failed",
                 explanation="Grade not found in model output: "
                 + f"{result.completion}",
             )
 
     return score
 ```
+
+The grade-parse-failure branch returns `Score.unscored()` rather than `INCORRECT`: a grader that cannot render a verdict is an instrument failure, not a verdict on the model. See [Scoring Policy](scoring-policy.qmd#model-graded-scorers) for when to score, raise, or return `Score.unscored()`.
 
 Note that the call to `model_grader.generate()` is done with `await`. This is critical to ensure that the scorer participates correctly in the scheduling of generation work.
 
