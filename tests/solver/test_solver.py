@@ -101,3 +101,33 @@ def test_valid_solvers_succeed():
 
     for f in [is_async, IsAsyncCallable]:
         solver(name=f.__name__)(f)()
+
+
+def test_task_state_input_text_empty_user_message():
+    from inspect_ai.model import ChatMessageAssistant
+
+    state_empty_str = TaskState(
+        model="mockllm/model", sample_id=1, epoch=1, input="", messages=[]
+    )
+    assert state_empty_str.input_text == ""
+
+    state_empty_msg = TaskState(
+        model="mockllm/model",
+        sample_id=1,
+        epoch=1,
+        input=[ChatMessageUser(content="")],
+        messages=[],
+    )
+    assert state_empty_msg.input_text == ""
+
+    state_no_user = TaskState(
+        model="mockllm/model",
+        sample_id=1,
+        epoch=1,
+        input=[ChatMessageAssistant(content="hi")],
+        messages=[],
+    )
+    with pytest.raises(
+        ValueError, match="input_text requested from TaskState but none available"
+    ):
+        _ = state_no_user.input_text

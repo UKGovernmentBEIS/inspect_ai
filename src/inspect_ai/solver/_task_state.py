@@ -228,7 +228,7 @@ class TaskState:
                 ),
                 None,
             )
-            if input:
+            if input is not None:
                 return input
             else:
                 raise ValueError(
