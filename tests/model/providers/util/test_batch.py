@@ -1011,8 +1011,9 @@ class TestBatcher:
 
             assert len(results) == 3
 
-            # Should timeout properly despite close timing values
-            assert 0.005 < elapsed < 0.05  # Should be close to send_delay timing
+            # Should flush via send_delay timeout (not hang on the unmet size
+            # minimum); generous upper bound to tolerate loaded CI runners
+            assert 0.005 < elapsed < 0.5
 
         await self._run_with_task_group(test_logic)
 
