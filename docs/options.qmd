@@ -183,6 +183,7 @@ For a complete matrix of which task, solver, and runtime settings can be configu
 |--------------------------|----------------------------------------------|
 | `--sandbox` | Sandbox environment type (with optional config file). e.g. 'docker' or 'docker:compose.yml' |
 | `--no-sandbox-cleanup` | Do not cleanup sandbox environments after task completes |
+| `--sandbox-prebuilt` | Treat sandbox images as prebuilt (skip builds and fail at task startup when an image is missing) |
 
 ## Debugging
 

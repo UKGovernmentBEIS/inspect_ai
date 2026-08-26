@@ -10,6 +10,7 @@ which would pollute the thread-leak assertion below; an isolated
 import asyncio
 import contextlib
 import threading
+from pathlib import Path
 
 import httpx
 import pytest
@@ -621,6 +622,108 @@ def test_control_server_cleans_up_partial_startup_failure(
         for p in sock_dir.glob("*"):
             p.unlink(missing_ok=True)
         sock_dir.rmdir()
+
+
+def test_control_server_rejects_excess_connections_with_503(
+    monkeypatch: pytest.MonkeyPatch, short_data_dir: Path
+) -> None:
+    """Over the connection cap the server answers 503 instead of queueing.
+
+    The pile-up backstop (uvicorn ``limit_concurrency`` — see
+    ``_MAX_CONCURRENT_CONNECTIONS``): the server shares the eval's event
+    loop, so a runaway poller's excess connections must be rejected
+    immediately rather than queued as unbounded work. And the rejection must
+    clear once connections drop under the cap again — a transient pile-up
+    can't wedge the surface. The cap is monkeypatched down to 2 so one idle
+    connection saturates it (uvicorn counts the requesting connection itself
+    toward the limit).
+
+    This is the only test that sees uvicorn's real rejection response, so it
+    also pins the CLI's classification of it (``_rejection_503``) — the unit
+    tests over in test_ctl.py stub that body, and a future uvicorn switching
+    it to a JSON dict would otherwise regress the CLI to "unreachable"
+    without any test failing.
+
+    Isolated ``asyncio.run`` like the other full-start tests here (the idle
+    connection also uses an asyncio-only API).
+    """
+    from inspect_ai._cli.ctl._http import _rejection_503
+    from inspect_ai._control import server as server_mod
+
+    monkeypatch.setattr(server_mod, "_MAX_CONCURRENT_CONNECTIONS", 2)
+
+    async def read_tasks(uds: str) -> httpx.Response:
+        async with httpx.AsyncClient(
+            transport=httpx.AsyncHTTPTransport(uds=uds),
+            base_url="http://localhost",
+            timeout=5,
+        ) as client:
+            return await client.get("/tasks")
+
+    async def status_settles_to(uds: str, expected: int) -> httpx.Response:
+        # The accept/close we just triggered lands on this same loop, so one
+        # scheduling pass usually suffices — poll briefly rather than racing
+        # it with a fixed sleep; return the last response so a failed wait
+        # asserts with what the server actually said.
+        deadline = asyncio.get_running_loop().time() + 5
+        while True:
+            response = await read_tasks(uds)
+            if (
+                response.status_code == expected
+                or asyncio.get_running_loop().time() > deadline
+            ):
+                return response
+            await asyncio.sleep(0.05)
+
+    async def scenario() -> None:
+        server = server_mod.ControlServer(run_id="test")
+        await server.start()
+        writer: asyncio.StreamWriter | None = None
+        try:
+            assert server.socket_path is not None
+            uds = str(server.socket_path)
+            # one idle connection + the requesting one reaches the cap of 2
+            _, writer = await asyncio.open_unix_connection(uds)
+            rejected = await status_settles_to(uds, 503)
+            assert rejected.status_code == 503
+            assert _rejection_503(rejected), (
+                "real rejection body no longer classifies as a capacity "
+                f"rejection: {rejected.text!r}"
+            )
+            writer.close()
+            await writer.wait_closed()
+            writer = None
+            assert (await status_settles_to(uds, 200)).status_code == 200
+        finally:
+            if writer is not None:
+                writer.close()
+            await server.stop()
+
+    asyncio.run(scenario())
+
+
+def test_concurrency_warning_filter_rate_limits() -> None:
+    """Uvicorn's per-rejection warning is collapsed to one per window.
+
+    A runaway poller triggers one 'Exceeded concurrency limit.' WARNING per
+    rejected request; unfiltered, the eval log would grow at the poller's
+    request rate — the very pile-up the connection cap exists to stop.
+    Unrelated records must pass through untouched.
+    """
+    import logging
+
+    from inspect_ai._control.server import _ConcurrencyLimitWarningFilter
+
+    def record(msg: str) -> logging.LogRecord:
+        return logging.LogRecord(
+            "uvicorn.error", logging.WARNING, __file__, 0, msg, None, None
+        )
+
+    filter_ = _ConcurrencyLimitWarningFilter()
+    assert filter_.filter(record("Exceeded concurrency limit.")) is True
+    assert filter_.filter(record("Exceeded concurrency limit.")) is False
+    assert filter_.filter(record("Exceeded concurrency limit.")) is False
+    assert filter_.filter(record("something unrelated")) is True
 
 
 async def test_sample_events_endpoint_parses_type_and_404(

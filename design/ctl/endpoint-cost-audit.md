@@ -414,15 +414,18 @@ messages section; finding 1(a)'s terminal-source cache would cover it).
 
 Cheap handlers are the real fix — every guard below failed open in the
 incident only because the handler was expensive — but the failure mode
-compounds silently, so guards are worth having. Of these, the disconnect
-check has since shipped; the others do not exist (no `limit_concurrency`,
-no coalescing):
+compounds silently, so guards are worth having. Of these, the pile-up
+guard and the disconnect check have since shipped; coalescing does not
+exist:
 
 - **Pile-up guard.** `uvicorn limit_concurrency` rejects (503) rather than
   queues excess connections — a blunt but honest backstop against a
-  pathological poller queueing unbounded identical work. Tracked as
-  [meridianlabs-ai/inspect_ai#225](https://github.com/meridianlabs-ai/inspect_ai/issues/225).
-  Coalescing identical
+  pathological poller queueing unbounded identical work. **Shipped** via
+  [meridianlabs-ai/inspect_ai#225](https://github.com/meridianlabs-ai/inspect_ai/issues/225):
+  `_MAX_CONCURRENT_CONNECTIONS` in `_control/server.py` (sized well above
+  the CLI's 32-read fan-out cap), with the CLI treating the 503 as busy —
+  narrated, paced retries — rather than unreachable, so an alive-but-
+  saturated eval is never reported as gone. Coalescing identical
   concurrent listing requests (one in-flight build, late arrivals await its
   result) is the finer-grained version; only worth building if a legitimate
   multi-client pattern emerges.

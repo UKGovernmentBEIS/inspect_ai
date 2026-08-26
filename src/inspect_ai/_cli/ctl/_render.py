@@ -100,6 +100,51 @@ def _print_config(config: dict[str, Any], *, changed: bool) -> None:
                 + "not adjustable (no live sample limiter)"
             )
 
+    # max_tasks — the task dispatchers' live override (absent from an older
+    # server's view). With no live dispatcher (during batch startup / between
+    # sequential batches) there are no counters to show, but a set still
+    # lands in the override layer — say so rather than looking parked.
+    max_tasks_view = knobs.get("max_tasks")
+    if max_tasks_view is not None:
+        override = max_tasks_view.get("override")
+        launch = max_tasks_view.get("launch")
+        limit = max_tasks_view.get("limit")
+
+        def fmt_tasks(value: Any) -> str:
+            return "launch config" if value in (None, "clear") else f"{value}"
+
+        if launch is not None:
+            rendered = fmt_tasks(limit)
+            proposed = requested.get("max_tasks")
+            # a `clear` with no override in effect is a no-op (the effective
+            # limit already is the launch config) — no arrow, like the retry
+            # knobs' rendering of the same case
+            is_change = (
+                override is not None
+                if proposed == "clear"
+                else fmt_tasks(proposed) != fmt_tasks(limit)
+            )
+            if proposed is not None and is_change:
+                rendered += f" → {fmt_tasks(proposed)}"
+            rendered += (
+                f" ({max_tasks_view.get('in_flight')} in flight, "
+                f"{max_tasks_view.get('pending')} pending)"
+            )
+            if override is not None:
+                rendered += f" (override; launch: {launch})"
+        else:
+            rendered = (
+                f"{override} (override)" if override is not None else "launch config"
+            )
+            proposed = requested.get("max_tasks")
+            if proposed is not None and fmt_tasks(proposed) != fmt_tasks(override):
+                rendered += f" → {fmt_tasks(proposed)}"
+            rendered += (
+                " — no task dispatcher is live; applies to task dispatch "
+                "later in this run"
+            )
+        _echo(_knob_label("max tasks", "max_tasks") + rendered)
+
     sandboxes = (knobs.get("max_sandboxes") or {}).get("providers") or []
     if sandboxes:
         rendered = ", ".join(
