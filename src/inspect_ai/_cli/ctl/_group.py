@@ -104,8 +104,9 @@ class _IntOrClearType(_IntOrClearBase):
 _INT_OR_CLEAR = _IntOrClearType()
 
 # --max-samples: a concurrency setpoint, not an override-store value — 0 is
-# invalid (a CapacityLimiter needs >= 1) and there is no upper bound (matching
-# the launch-time knob). See design/ctl/max-samples-adaptive.md "Bounds".
+# invalid (it would silently block all acquires — the limiter layers guard
+# >= 1) and there is no upper bound (matching the launch-time knob). See
+# design/ctl/max-samples-adaptive.md "Bounds".
 _MIN1_INT_OR_CLEAR = _IntOrClearType(
     minimum=1, bounded=False, clear_hint="resume adaptive tracking"
 )
