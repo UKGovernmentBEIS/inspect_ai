@@ -1809,10 +1809,12 @@ async def test_anthropic_stream_capture_tolerates_compaction_delta() -> None:
 
             return events()
 
-    _, compaction_content = await _capture_compaction_from_stream(
+    message, compaction_content = await _capture_compaction_from_stream(
         cast(Any, FakeStream())
     )
     assert compaction_content == "compacted summary"
+    # the compaction block in the snapshot must be fixed up with the content
+    assert getattr(message.content[0], "content", None) == "compacted summary"
 
 
 @skip_if_no_anthropic
