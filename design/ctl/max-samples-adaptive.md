@@ -331,5 +331,5 @@ Python API changes (`task_limits` is internal to `_control`).
   Entity' …` with no older-inspect hint. Accepted as-is: the supported
   pairing is matched CLI/server versions, the failure is loud and names
   the failed request, and teaching the CLI that 422 means "older inspect"
-  would mis-diagnose any future legitimate validation 422 from a current
+  would misdiagnose any future legitimate validation 422 from a current
   server as skew.
