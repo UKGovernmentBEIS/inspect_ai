@@ -3759,6 +3759,188 @@ def test_config_retry_overrides_accept_clear_keyword(
     assert "maximum override value" in result.stderr
 
 
+def test_config_max_tasks_wiring_and_floor(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`--max-tasks` sends the value (or `clear`) and enforces the CLI floor of 1."""
+    from inspect_ai._control import CONTROL_API_VERSION
+
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        servers=[_DiscServer(7, api_version=CONTROL_API_VERSION)],
+    )
+    sent: dict[str, Any] = {}
+
+    def fake_limits(*args: Any, **kwargs: Any) -> _ConfigResult:
+        sent.update(kwargs)
+        return _ConfigResult(
+            view={
+                "max_samples": {"limit": 3, "in_use": 1, "adjustable": True},
+                "max_tasks": {
+                    "limit": 25,
+                    "launch": 10,
+                    "override": 25,
+                    "in_flight": 10,
+                    "pending": 30,
+                    "adjustable": True,
+                },
+                "max_sandboxes": [],
+                "adaptive": [],
+                "buffer": {"log_buffer": 10, "pending": 0, "log_shared": None},
+                "requested": {"max_tasks": 25},
+                "warnings": [],
+                "dry_run": False,
+            },
+            mutated=True,
+        )
+
+    monkeypatch.setattr("inspect_ai._cli.ctl._config._exec_limits", fake_limits)
+    result = cli_runner().invoke(ctl_command, ["config", "--max-tasks", "25", "--json"])
+    assert result.exit_code == 0, result.output
+    assert sent["max_tasks"] == 25
+    payload = json.loads(result.stdout)
+    assert payload["applied"] is True
+    assert payload["knobs"]["max_tasks"] == {
+        "scope": "process",
+        "limit": 25,
+        "launch": 10,
+        "override": 25,
+        "in_flight": 10,
+        "pending": 30,
+        "adjustable": True,
+    }
+
+    # the human rendering carries the counters and the launch value
+    human = cli_runner().invoke(
+        ctl_command, ["config", "--max-tasks", "25", "--no-terse"]
+    )
+    assert human.exit_code == 0, human.output
+    assert "max tasks [process]" in human.output
+    assert "25 (10 in flight, 30 pending) (override; launch: 10)" in human.output
+
+    result = cli_runner().invoke(
+        ctl_command, ["config", "--max-tasks", "clear", "--json"]
+    )
+    assert result.exit_code == 0, result.output
+    assert sent["max_tasks"] == "clear"
+
+    # 0 is a disguised pause — rejected client-side (`process pause` is the
+    # real spelling), like the server's floor
+    result = cli_runner().invoke(ctl_command, ["config", "--max-tasks", "0"])
+    assert result.exit_code == 2
+    assert "less than 1" in result.stderr
+
+    result = cli_runner().invoke(ctl_command, ["config", "--max-tasks", "soon"])
+    assert result.exit_code == 2
+    assert "is not an integer or 'clear'" in result.stderr
+
+
+def test_config_max_tasks_renders_no_dispatcher_window(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With no live dispatcher the human view says the set still applies later."""
+    from inspect_ai._control import CONTROL_API_VERSION
+
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        servers=[_DiscServer(7, api_version=CONTROL_API_VERSION)],
+    )
+
+    def fake_limits(*args: Any, **kwargs: Any) -> _ConfigResult:
+        return _ConfigResult(
+            view={
+                "max_samples": {"limit": 3, "in_use": 1, "adjustable": True},
+                "max_tasks": {
+                    "limit": 25,
+                    "launch": None,
+                    "override": 25,
+                    "in_flight": None,
+                    "pending": None,
+                    "adjustable": True,
+                },
+                "max_sandboxes": [],
+                "adaptive": [],
+                "buffer": {"log_buffer": 10, "pending": 0, "log_shared": None},
+                "requested": {"max_tasks": 25},
+                "warnings": [],
+                "dry_run": False,
+            },
+            mutated=True,
+        )
+
+    monkeypatch.setattr("inspect_ai._cli.ctl._config._exec_limits", fake_limits)
+    human = cli_runner().invoke(
+        ctl_command, ["config", "--max-tasks", "25", "--no-terse"]
+    )
+    assert human.exit_code == 0, human.output
+    assert "25 (override)" in human.output
+    assert "no task dispatcher is live" in human.output
+    assert "applies to task dispatch later in this run" in human.output
+
+
+def test_config_max_tasks_dry_run_clear_arrow_tracks_override(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A dry-run `clear` renders an arrow only when an override is in effect."""
+    from inspect_ai._control import CONTROL_API_VERSION
+
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        servers=[_DiscServer(7, api_version=CONTROL_API_VERSION)],
+    )
+
+    def make_fake_limits(override: int | None) -> Any:
+        def fake_limits(*args: Any, **kwargs: Any) -> _ConfigResult:
+            return _ConfigResult(
+                view={
+                    "max_samples": {"limit": 3, "in_use": 1, "adjustable": True},
+                    "max_tasks": {
+                        "limit": override if override is not None else 10,
+                        "launch": 10,
+                        "override": override,
+                        "in_flight": 4,
+                        "pending": 6,
+                        "adjustable": True,
+                    },
+                    "max_sandboxes": [],
+                    "adaptive": [],
+                    "buffer": {"log_buffer": 10, "pending": 0, "log_shared": None},
+                    "requested": {"max_tasks": "clear"},
+                    "warnings": [],
+                    "dry_run": True,
+                },
+                mutated=True,
+            )
+
+        return fake_limits
+
+    # no override in effect: `clear` is a no-op, so no arrow (matches the
+    # retry knobs' rendering of the same case)
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl._config._exec_limits", make_fake_limits(None)
+    )
+    human = cli_runner().invoke(
+        ctl_command, ["config", "--max-tasks", "clear", "--dry-run", "--no-terse"]
+    )
+    assert human.exit_code == 0, human.output
+    assert "10 (4 in flight, 6 pending)" in human.output
+    assert "→" not in human.output
+
+    # override in effect: the arrow shows the reversion to launch config
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl._config._exec_limits", make_fake_limits(25)
+    )
+    human = cli_runner().invoke(
+        ctl_command, ["config", "--max-tasks", "clear", "--dry-run", "--no-terse"]
+    )
+    assert human.exit_code == 0, human.output
+    assert (
+        "25 → launch config (4 in flight, 6 pending) (override; launch: 10)"
+        in human.output
+    )
+
+
 def test_discovery_api_version_parsed_with_bootstrap_default(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -4346,6 +4528,14 @@ def test_compose_config_labels_every_knob_with_scope() -> None:
     )
     limits_view: TaskConfigView = {
         "max_samples": {"limit": 3, "in_use": 1, "adjustable": True},
+        "max_tasks": {
+            "limit": 10,
+            "launch": 10,
+            "override": None,
+            "in_flight": 4,
+            "pending": 6,
+            "adjustable": True,
+        },
         "max_sandboxes": [{"type": "docker", "limit": 4, "in_use": 2}],
         "max_subprocesses": {"limit": 8, "in_use": 1},
         "adaptive": [],
@@ -4363,6 +4553,8 @@ def test_compose_config_labels_every_knob_with_scope() -> None:
     )
     assert config["target"] == {"scope": "task", "task_id": "t1", "task": "tn"}
     assert config["knobs"]["max_samples"]["scope"] == "task"
+    assert config["knobs"]["max_tasks"]["scope"] == "process"
+    assert config["knobs"]["max_tasks"]["limit"] == 10
     assert config["knobs"]["max_sandboxes"]["scope"] == "process"
     assert config["knobs"]["max_subprocesses"] == {
         "scope": "process",
