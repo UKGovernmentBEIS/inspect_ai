@@ -213,7 +213,7 @@ class TogetherAIAPI(OpenAICompatibleAPI):
         if self._batcher:
             return await self._batcher.generate_for_request(request)
         if self.resolve_stream(config):
-            async with self.client.chat.completions.stream(**request) as stream:
+            async with await self.client.chat.completions.create(**request) as stream:
                 return await openai_chat_completion_stream_final(stream)
         return cast(
             ChatCompletion, await self.client.chat.completions.create(**request)

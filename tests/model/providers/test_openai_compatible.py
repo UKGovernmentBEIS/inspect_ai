@@ -1,4 +1,3 @@
-from types import SimpleNamespace
 from typing import Any
 
 import httpx2
@@ -8,7 +7,7 @@ from openai import (
     ContentFilterFinishReasonError,
     LengthFinishReasonError,
 )
-from openai.types.chat import ChatCompletion, ChatCompletionChunk
+from openai.types.chat import ChatCompletionChunk
 from test_helpers.utils import (
     skip_if_no_openai,
     skip_if_no_together,
@@ -352,9 +351,34 @@ async def test_together_stream_end_to_end() -> None:
     assert len(response.completion) >= 1
 
 
+class _FakeChunkStream:
+    """A raw chunk stream as returned by `create(stream=True)`."""
+
+    def __init__(self, chunks: list[ChatCompletionChunk]) -> None:
+        self._chunks = chunks
+
+    async def __aenter__(self) -> "_FakeChunkStream":
+        return self
+
+    async def __aexit__(self, *exc: object) -> None:
+        return None
+
+    def __aiter__(self) -> Any:
+        async def gen() -> Any:
+            for chunk in self._chunks:
+                yield chunk
+
+        return gen()
+
+
 async def test_openai_compatible_streaming_returns_partial_on_length(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """A length-truncated stream returns the partial completion, like non-streaming.
+
+    The SDK's final parse raises LengthFinishReasonError (carrying the
+    accumulated snapshot); the streaming path recovers it.
+    """
     api = OpenAICompatibleAPI(
         model_name="openai-api/openai/gpt-5",
         api_key="test",
@@ -362,47 +386,29 @@ async def test_openai_compatible_streaming_returns_partial_on_length(
         stream=True,
     )
 
-    partial = ChatCompletion.model_validate(
-        {
-            "id": "partial",
-            "object": "chat.completion",
-            "created": 0,
-            "model": "gpt-5",
-            "choices": [
-                {
-                    "index": 0,
-                    "finish_reason": "length",
-                    "message": {"role": "assistant", "content": "truncated"},
-                }
-            ],
-        }
-    )
+    chunks = [
+        _chunk(
+            dict(
+                choices=[
+                    dict(
+                        index=0,
+                        delta=dict(role="assistant", content="truncated"),
+                        finish_reason=None,
+                    )
+                ]
+            )
+        ),
+        _chunk(dict(choices=[dict(index=0, delta=dict(), finish_reason="length")])),
+    ]
 
-    class _LengthTruncatedStream:
-        async def __aenter__(self) -> "_LengthTruncatedStream":
-            return self
+    async def fake_create(**kwargs: Any) -> _FakeChunkStream:
+        return _FakeChunkStream(chunks)
 
-        async def __aexit__(self, *exc: object) -> None:
-            return None
-
-        def __aiter__(self) -> "_LengthTruncatedStream":
-            return self
-
-        async def __anext__(self) -> object:
-            raise StopAsyncIteration
-
-        async def get_final_completion(self) -> ChatCompletion:
-            raise LengthFinishReasonError(completion=partial)
-
-    monkeypatch.setattr(
-        api.client.chat.completions,
-        "stream",
-        lambda **kwargs: _LengthTruncatedStream(),
-    )
+    monkeypatch.setattr(api.client.chat.completions, "create", fake_create)
 
     try:
         result = await api._generate_completion({}, GenerateConfig())
-        assert result is partial
+        assert result.choices[0].message.content == "truncated"
         assert chat_choices_from_openai(result, [])[0].stop_reason == "max_tokens"
     finally:
         await api.aclose()
@@ -413,9 +419,9 @@ async def test_openai_compatible_streaming_returns_snapshot_on_content_filter(
 ) -> None:
     """A content-filtered stream returns the snapshot, like non-streaming.
 
-    With strict tools/response_format in play the SDK raises
-    ContentFilterFinishReasonError mid-stream (with no payload) after
-    recording finish_reason and any partial content on the snapshot.
+    The SDK's final parse raises ContentFilterFinishReasonError (with no
+    payload) after recording finish_reason and any partial content on the
+    snapshot; the streaming path recovers via the snapshot.
     """
     api = OpenAICompatibleAPI(
         model_name="openai-api/openai/gpt-5",
@@ -424,99 +430,86 @@ async def test_openai_compatible_streaming_returns_snapshot_on_content_filter(
         stream=True,
     )
 
-    snapshot = ChatCompletion.model_validate(
-        {
-            "id": "snapshot",
-            "object": "chat.completion",
-            "created": 0,
-            "model": "gpt-5",
-            "choices": [
-                {
-                    "index": 0,
-                    "finish_reason": "content_filter",
-                    "message": {"role": "assistant", "content": "partial"},
-                }
-            ],
-        }
-    )
+    chunks = [
+        _chunk(
+            dict(
+                choices=[
+                    dict(
+                        index=0,
+                        delta=dict(role="assistant", content="partial"),
+                        finish_reason=None,
+                    )
+                ]
+            )
+        ),
+        _chunk(
+            dict(choices=[dict(index=0, delta=dict(), finish_reason="content_filter")])
+        ),
+    ]
 
-    class _ContentFilteredStream:
-        current_completion_snapshot = snapshot
+    async def fake_create(**kwargs: Any) -> _FakeChunkStream:
+        return _FakeChunkStream(chunks)
 
-        async def __aenter__(self) -> "_ContentFilteredStream":
-            return self
-
-        async def __aexit__(self, *exc: object) -> None:
-            return None
-
-        def __aiter__(self) -> "_ContentFilteredStream":
-            return self
-
-        async def __anext__(self) -> object:
-            raise ContentFilterFinishReasonError()
-
-    monkeypatch.setattr(
-        api.client.chat.completions,
-        "stream",
-        lambda **kwargs: _ContentFilteredStream(),
-    )
+    monkeypatch.setattr(api.client.chat.completions, "create", fake_create)
 
     try:
         result = await api._generate_completion({}, GenerateConfig())
-        assert result is snapshot
+        assert result.choices[0].message.content == "partial"
         assert chat_choices_from_openai(result, [])[0].stop_reason == "content_filter"
     finally:
         await api.aclose()
 
 
-def test_sdk_stream_state_content_filter_contract() -> None:
-    """The SDK contract the content-filter recovery depends on.
+def test_sdk_stream_state_contract() -> None:
+    """The SDK contracts the stream accumulation and recovery depend on.
 
-    `openai_chat_completion_stream_final` returns
-    `stream.current_completion_snapshot` when the SDK raises
-    ContentFilterFinishReasonError, relying on the SDK recording
-    finish_reason (and partial content) on the snapshot before raising —
-    which it does only with parseable input (strict tools) in play.
+    `openai_chat_completion_stream_final` accumulates with a bare
+    `ChatCompletionStreamState` (no input_tools/response_format — the
+    resource-level `.stream()` helper instead rejects any function tool
+    without `strict: true` before sending the request). It relies on:
+    `handle_chunk` never raising for finish reasons without parseable
+    input, `get_final_completion` raising on length/content_filter, the
+    LengthFinishReasonError carrying the accumulated snapshot, and the
+    state's snapshot recording finish_reason and partial content for the
+    payload-less ContentFilterFinishReasonError.
     """
     from openai.lib.streaming.chat import ChatCompletionStreamState
 
-    strict_tool: Any = {
-        "type": "function",
-        "function": {
-            "name": "bash",
-            "parameters": {"type": "object", "properties": {}},
-            "strict": True,
-        },
-    }
-    state = ChatCompletionStreamState(input_tools=[strict_tool])
-
-    def chunk(payload: dict[str, Any]) -> ChatCompletionChunk:
-        return ChatCompletionChunk.model_validate(
-            dict(id="c1", object="chat.completion.chunk", created=0, model="gpt-5")
-            | payload
+    def accumulate(finish_reason: str) -> Any:
+        state: Any = ChatCompletionStreamState()
+        content = dict(role="assistant", content="par")
+        # non-strict tool deltas accumulate without validation errors
+        tool_delta = dict(
+            tool_calls=[
+                dict(
+                    index=0,
+                    type="function",
+                    id="call_1",
+                    function=dict(name="bash", arguments="{}"),
+                )
+            ]
         )
-
-    content = dict(role="assistant", content="par")
-    list(
-        state.handle_chunk(
-            chunk(dict(choices=[dict(index=0, delta=content, finish_reason=None)]))
-        )
-    )
-    with pytest.raises(ContentFilterFinishReasonError):
-        list(
-            state.handle_chunk(
-                chunk(
-                    dict(
-                        choices=[
-                            dict(index=0, delta=dict(), finish_reason="content_filter")
-                        ]
+        for delta, finish in [(content, None), (tool_delta, finish_reason)]:
+            list(
+                state.handle_chunk(
+                    _chunk(
+                        dict(choices=[dict(index=0, delta=delta, finish_reason=finish)])
                     )
                 )
             )
-        )
+        return state
+
+    state = accumulate("content_filter")
+    with pytest.raises(ContentFilterFinishReasonError):
+        state.get_final_completion()
     snapshot = state.current_completion_snapshot
     assert snapshot.choices[0].finish_reason == "content_filter"
     assert snapshot.choices[0].message.content == "par"
+
+    state = accumulate("length")
+    with pytest.raises(LengthFinishReasonError) as excinfo:
+        state.get_final_completion()
+    assert excinfo.value.completion.choices[0].message.content == "par"
 
 
 # -- Stream observer reporting (on_stream) -------------------------------------
@@ -571,12 +564,21 @@ def _chunk(payload: dict[str, Any]) -> ChatCompletionChunk:
 
 
 async def test_chat_completion_stream_reports_deltas() -> None:
-    """The shared stream consumer reports chunk deltas to on_stream."""
+    """The shared stream consumer reports chunk deltas to on_stream.
+
+    Also verifies the final completion is accumulated from the raw chunks
+    (content, non-strict tool call, finish_reason, and usage).
+    """
     reasoning_delta = dict(role="assistant", reasoning_content="hmm")
     text_delta = dict(content="hel")
     tool_delta = dict(
         tool_calls=[
-            dict(index=0, id="call_1", function=dict(name="bash", arguments="{"))
+            dict(
+                index=0,
+                type="function",
+                id="call_1",
+                function=dict(name="bash", arguments="{"),
+            )
         ]
     )
     usage = dict(prompt_tokens=3, completion_tokens=7, total_tokens=10)
@@ -585,45 +587,25 @@ async def test_chat_completion_stream_reports_deltas() -> None:
             dict(choices=[dict(index=0, delta=reasoning_delta, finish_reason=None)])
         ),
         _chunk(dict(choices=[dict(index=0, delta=text_delta, finish_reason=None)])),
-        _chunk(dict(choices=[dict(index=0, delta=tool_delta, finish_reason=None)])),
+        _chunk(dict(choices=[dict(index=0, delta=tool_delta, finish_reason="stop")])),
         # final usage chunk (stream_options.include_usage)
         _chunk(dict(choices=[], usage=usage)),
     ]
 
-    final = ChatCompletion.model_validate(
-        dict(
-            id="chatcmpl-1",
-            object="chat.completion",
-            created=0,
-            model="gpt-5",
-            choices=[
-                dict(
-                    index=0,
-                    finish_reason="stop",
-                    message=dict(role="assistant", content="hello"),
-                )
-            ],
-        )
-    )
-
-    class _FakeStream:
-        def __aiter__(self) -> Any:
-            async def gen() -> Any:
-                for chunk in chunks:
-                    yield SimpleNamespace(type="chunk", chunk=chunk)
-
-            return gen()
-
-        async def get_final_completion(self) -> ChatCompletion:
-            return final
-
-    fake_stream: Any = _FakeStream()
+    fake_stream: Any = _FakeChunkStream(chunks)
     collector = _StreamCollector()
     observer = ModelStreamObserver("test", collector)
     with model_stream_observer(observer):
         result = await openai_chat_completion_stream_final(fake_stream)
 
-    assert result is final
+    # the final completion was accumulated from the chunks
+    choice = result.choices[0]
+    assert choice.message.content == "hel"
+    assert choice.finish_reason == "stop"
+    tool_calls = choice.message.tool_calls
+    assert tool_calls is not None and tool_calls[0].id == "call_1"
+    assert result.usage is not None and result.usage.completion_tokens == 7
+
     assert [type(e) for e in collector.events] == [
         StreamReasoningEvent,
         StreamTextEvent,
@@ -647,45 +629,27 @@ async def test_streaming_requests_usage(monkeypatch: pytest.MonkeyPatch) -> None
     """
     api = _compatible_api()  # stream unset ("auto")
 
-    final = ChatCompletion.model_validate(
-        dict(
-            id="chatcmpl-1",
-            object="chat.completion",
-            created=0,
-            model="gpt-5",
-            choices=[
-                dict(
-                    index=0,
-                    finish_reason="stop",
-                    message=dict(role="assistant", content="ok"),
-                )
-            ],
-        )
-    )
+    chunks = [
+        _chunk(
+            dict(
+                choices=[
+                    dict(
+                        index=0,
+                        delta=dict(role="assistant", content="ok"),
+                        finish_reason="stop",
+                    )
+                ]
+            )
+        ),
+    ]
 
     captured: dict[str, Any] = {}
 
-    class _FakeStream:
-        async def __aenter__(self) -> "_FakeStream":
-            return self
-
-        async def __aexit__(self, *exc: object) -> None:
-            return None
-
-        def __aiter__(self) -> "_FakeStream":
-            return self
-
-        async def __anext__(self) -> object:
-            raise StopAsyncIteration
-
-        async def get_final_completion(self) -> ChatCompletion:
-            return final
-
-    def fake_stream(**kwargs: Any) -> _FakeStream:
+    async def fake_create(**kwargs: Any) -> _FakeChunkStream:
         captured.update(kwargs)
-        return _FakeStream()
+        return _FakeChunkStream(chunks)
 
-    monkeypatch.setattr(api.client.chat.completions, "stream", fake_stream)
+    monkeypatch.setattr(api.client.chat.completions, "create", fake_create)
 
     async def collect(event: Any) -> None:
         pass
@@ -702,8 +666,10 @@ async def test_streaming_requests_usage(monkeypatch: pytest.MonkeyPatch) -> None
         output, model_call = result
         assert isinstance(output, ModelOutput)
         assert output.completion == "ok"
+        assert captured["stream"] is True
         assert captured["stream_options"] == {"include_usage": True}
         # the logged request matches what was sent on the wire
+        assert model_call.request["stream"] is True
         assert model_call.request["stream_options"] == {"include_usage": True}
     finally:
         await api.aclose()

@@ -13,12 +13,13 @@ from openai import (
     APIConnectionError,
     APIStatusError,
     APITimeoutError,
+    AsyncStream,
     ContentFilterFinishReasonError,
     LengthFinishReasonError,
     OpenAIError,
     RateLimitError,
 )
-from openai.lib.streaming.chat import AsyncChatCompletionStream
+from openai.lib.streaming.chat import ChatCompletionStreamState
 from openai.types.chat import (
     ChatCompletion,
     ChatCompletionAssistantMessageParam,
@@ -941,35 +942,41 @@ def model_output_from_openai(
 
 
 async def openai_chat_completion_stream_final(
-    stream: "AsyncChatCompletionStream[Any]",
+    stream: AsyncStream[ChatCompletionChunk],
 ) -> ChatCompletion:
-    """Consume a chat-completions SDK stream and return the final completion.
+    """Consume a raw chat-completions chunk stream and return the final completion.
+
+    Accumulates chunks with the SDK's `ChatCompletionStreamState` rather than
+    the resource-level `.stream()` helper: the helper validates tools before
+    sending anything and raises `ValueError` for any function tool without
+    `strict: true`, which would fail every tool-using generate (inspect does
+    not set `strict` by default).
 
     Reports each chunk once to the model layer's stream observer
     (`inspect_ai.model._stream`), which fans out to the caller's `on_stream`
     callback and the pending event's progress record.
 
-    With response_format/tools in play the SDK raises on length-truncated and
-    content-filtered streams rather than returning the completion; both are
-    recovered here so they are handled like the non-streaming path
-    (stop_reason "max_tokens" / "content_filter").
+    The SDK's final parse raises on length-truncated and content-filtered
+    completions rather than returning them; both are recovered here so they
+    are handled like the non-streaming path (stop_reason "max_tokens" /
+    "content_filter").
     """
+    # no input_tools/response_format: parsed arguments aren't used (choices
+    # are read from the raw completion), and parseable input would make the
+    # accumulator raise mid-stream on length/content_filter finish reasons
+    state: ChatCompletionStreamState[Any] = ChatCompletionStreamState()
     report_model_stream_start()
+    async for chunk in stream:
+        state.handle_chunk(chunk)
+        await _report_chat_completion_chunk(chunk)
     try:
-        async for event in stream:
-            # the SDK emits semantic events alongside each raw chunk; the raw
-            # chunk alone carries everything reported (content/reasoning/tool-call
-            # deltas plus usage), so other event types are skipped rather than
-            # double-reported
-            if event.type == "chunk":
-                await _report_chat_completion_chunk(event.chunk)
-        return await stream.get_final_completion()
+        return state.get_final_completion()
     except LengthFinishReasonError as ex:
         return ex.completion
     except ContentFilterFinishReasonError:
-        # the SDK raises without a payload but records finish_reason (and any
-        # partial content) on the snapshot first
-        return stream.current_completion_snapshot
+        # the SDK raises without a payload; the snapshot carries
+        # finish_reason and any partial content
+        return state.current_completion_snapshot
 
 
 async def _report_chat_completion_chunk(chunk: ChatCompletionChunk) -> None:

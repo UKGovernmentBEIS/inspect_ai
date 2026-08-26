@@ -247,3 +247,130 @@ async def test_chat_completions_forwards_config_extra_headers():
     extra_headers = client.chat.completions.create.call_args.kwargs["extra_headers"]
     assert extra_headers["x-custom-header"] == "custom-value"
     assert extra_headers[HttpxHooks.REQUEST_ID_HEADER] == "req_1"
+
+
+async def test_chat_completions_streaming_with_non_strict_tools():
+    """Streaming a tool-using request must not require strict tools.
+
+    The SDK's resource-level `.stream()` helper raises ValueError at
+    request-build time for any function tool without `strict: true`
+    (inspect never sets `strict` on this path), so streaming goes through
+    a raw `create(stream=True)` call instead — a display-only on_stream
+    callback must not fail tool-using generates.
+    """
+    from typing import Any
+    from unittest.mock import AsyncMock, MagicMock
+
+    from openai._types import NOT_GIVEN
+    from openai.types.chat import ChatCompletionChunk
+
+    from inspect_ai.model._model_output import ModelOutput
+    from inspect_ai.model._providers.openai_completions import generate_completions
+    from inspect_ai.model._providers.util.hooks import HttpxHooks
+    from inspect_ai.tool import ToolInfo
+
+    def chunk(payload: dict[str, Any]) -> ChatCompletionChunk:
+        return ChatCompletionChunk.model_validate(
+            dict(id="c1", object="chat.completion.chunk", created=0, model="gpt-4o")
+            | payload
+        )
+
+    chunks = [
+        chunk(
+            dict(
+                choices=[
+                    dict(
+                        index=0,
+                        delta=dict(
+                            role="assistant",
+                            tool_calls=[
+                                dict(
+                                    index=0,
+                                    type="function",
+                                    id="call_1",
+                                    function=dict(name="get_weather", arguments=""),
+                                )
+                            ],
+                        ),
+                        finish_reason=None,
+                    )
+                ]
+            )
+        ),
+        chunk(
+            dict(
+                choices=[
+                    dict(
+                        index=0,
+                        delta=dict(
+                            tool_calls=[
+                                dict(index=0, function=dict(arguments='{"city": "x"}'))
+                            ]
+                        ),
+                        finish_reason="tool_calls",
+                    )
+                ]
+            )
+        ),
+    ]
+
+    class _FakeChunkStream:
+        async def __aenter__(self) -> "_FakeChunkStream":
+            return self
+
+        async def __aexit__(self, *exc: object) -> None:
+            return None
+
+        def __aiter__(self) -> Any:
+            async def gen() -> Any:
+                for c in chunks:
+                    yield c
+
+            return gen()
+
+    client = MagicMock()
+    client.chat.completions.create = AsyncMock(return_value=_FakeChunkStream())
+
+    http_hooks = MagicMock(spec=HttpxHooks)
+    http_hooks.start_request = MagicMock(return_value="req_1")
+    http_hooks.end_request = MagicMock(return_value=None)
+
+    openai_api = MagicMock()
+    openai_api.api_model_name.return_value = "gpt-4o"
+    openai_api.service_tier = None
+    openai_api.is_o_series.return_value = False
+    openai_api.is_gpt.return_value = True
+    openai_api.is_gpt_5.return_value = False
+
+    tool = ToolInfo(name="get_weather", description="Get the weather for a city.")
+
+    result = await generate_completions(
+        client=client,
+        http_hooks=http_hooks,
+        model_name="gpt-4o",
+        input=[ChatMessageUser(content="hi")],
+        tools=[tool],
+        tool_choice="auto",
+        config=GenerateConfig(),
+        prompt_cache_key=NOT_GIVEN,
+        prompt_cache_retention=NOT_GIVEN,
+        safety_identifier=NOT_GIVEN,
+        openai_api=openai_api,
+        batcher=None,
+        streaming=True,
+    )
+
+    assert isinstance(result, tuple)
+    output, _ = result
+    assert isinstance(output, ModelOutput)
+    assert output.choices[0].stop_reason == "tool_calls"
+    tool_calls = output.choices[0].message.tool_calls
+    assert tool_calls is not None
+    assert tool_calls[0].function == "get_weather"
+    assert tool_calls[0].arguments == {"city": "x"}
+
+    # the wire request streamed with non-strict tools
+    request = client.chat.completions.create.call_args.kwargs
+    assert request["stream"] is True
+    assert request["stream_options"] == {"include_usage": True}
+    assert "strict" not in request["tools"][0]["function"]

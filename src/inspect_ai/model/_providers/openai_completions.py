@@ -94,8 +94,11 @@ async def generate_completions(
     if isinstance(safety_identifier, str):
         request["safety_identifier"] = safety_identifier
     if streaming:
-        # ask the server for cumulative usage on the final chunk so the
-        # streamed completion carries the same usage as a non-streamed one
+        # stream via a raw create(stream=True) call (recorded in the request
+        # so the logged ModelCall matches the wire request), asking the server
+        # for cumulative usage on the final chunk so the streamed completion
+        # carries the same usage as a non-streamed one
+        request["stream"] = True
         request["stream_options"] = {"include_usage": True}
 
     model_call = set_active_model_event_call(
@@ -108,7 +111,7 @@ async def generate_completions(
         if batcher:
             completion = await batcher.generate_for_request(request)
         elif streaming:
-            async with client.chat.completions.stream(**request) as stream:
+            async with await client.chat.completions.create(**request) as stream:
                 completion = await openai_chat_completion_stream_final(stream)
         else:
             completion = await client.chat.completions.create(**request)

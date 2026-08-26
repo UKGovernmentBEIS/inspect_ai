@@ -322,9 +322,7 @@ class GrokAPI(ModelAPI):
                             )
                         )
                     # stream the reponse for improved connectivity for long requests
-                    elif self.streaming is True or (
-                        self.streaming == "auto" and model_stream_requested()
-                    ):
+                    elif self._resolve_streaming(config):
                         report_model_stream_start()
                         streamed_response: Response | None = None
                         async for streamed_response, chunk in chat.stream():
@@ -359,6 +357,20 @@ class GrokAPI(ModelAPI):
                 return self._handle_grpc_bad_request(ex), model_call
             else:
                 raise ex
+
+    def _resolve_streaming(self, config: GenerateConfig) -> bool:
+        """Whether to stream this generate call.
+
+        An explicit `streaming` model arg wins; "auto" streams when the
+        caller passed `on_stream` to `Model.generate()` — except when
+        logprobs are requested: xai_sdk's stream accumulator never carries
+        logprobs into the final response, so a display-only stream request
+        must not degrade results (explicit `streaming=true` keeps its
+        pre-existing lossy behavior).
+        """
+        if isinstance(self.streaming, bool):
+            return self.streaming
+        return model_stream_requested() and not config.logprobs
 
     def _resolve_batcher(self, config: GenerateConfig) -> None:
         if self._batcher or not (batch_config := normalized_batch_config(config.batch)):

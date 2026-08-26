@@ -263,6 +263,7 @@ class OpenAICompatibleAPI(ModelAPI):
                 # ask the server for cumulative usage on the final chunk so the
                 # streamed completion carries the same usage as a non-streamed
                 # one
+                request["stream"] = True
                 request.setdefault("stream_options", {"include_usage": True})
 
             model_call = set_active_model_event_call(request, openai_media_filter)
@@ -338,7 +339,7 @@ class OpenAICompatibleAPI(ModelAPI):
                     "be ignored. Disable streaming to receive prompt log "
                     "probabilities.",
                 )
-            async with self.client.chat.completions.stream(**request) as stream:
+            async with await self.client.chat.completions.create(**request) as stream:
                 return await openai_chat_completion_stream_final(stream)
         else:
             return cast(
