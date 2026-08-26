@@ -63,6 +63,7 @@ import anyio
 if TYPE_CHECKING:
     from inspect_ai._control.eval_state import EvalState
     from inspect_ai.model import Model
+    from inspect_ai.model._model import ConnectionSlot
 
 logger = getLogger(__name__)
 
@@ -240,6 +241,24 @@ _dispatch_counts: dict[str, int] = {}
 # distinct samples). Reset with the task gates.
 _held_samples: dict[str, dict[str, int]] = {}
 
+# Sample-keyed hard holds, keyed by ActiveSample.id — the interim-scoring
+# pass's per-sample application of the hard-pause gate (see
+# design/ctl/interim-scoring.md). A separate registry from the operator
+# latches so an unrelated `ctl task resume` can't release a scoring hold and
+# a scoring release can't clear an operator's pause. Entries exist only
+# while a scoring pass holds the sample (created by
+# hold_sample_for_scoring, removed — waking waiters — by
+# release_sample_scoring_hold). Reset with the task gates.
+_sample_hold_gates: dict[str, PauseGate] = {}
+
+# Park-ack waiters, keyed by ActiveSample.id: one-shot events set (and
+# dropped) by _held_entered when one of the sample's generate attempts parks
+# at the hard gate — the interim-scoring pass's event-driven park ack (no
+# polling). A waiter is registered per wait via sample_park_waiter and
+# discarded by its owner when the wait ends. Reset with the task gates
+# (waiters' owners — pass tasks — are cancelled at the same boundary).
+_park_waiters: dict[str, list[anyio.Event]] = {}
+
 
 def _task_gate(task_id: str) -> PauseGate:
     gate = _task_gates.get(task_id)
@@ -402,6 +421,10 @@ def task_held_count(task_id: str) -> int:
 def _held_entered(task_id: str, sample_id: str) -> None:
     held = _held_samples.setdefault(task_id, {})
     held[sample_id] = held.get(sample_id, 0) + 1
+    # wake (and drop) the sample's park waiters — the scoring pass's
+    # event-driven park ack (see sample_park_waiter)
+    for event in _park_waiters.pop(sample_id, []):
+        event.set()
 
 
 def _held_exited(task_id: str, sample_id: str) -> None:
@@ -415,6 +438,78 @@ def _held_exited(task_id: str, sample_id: str) -> None:
         held.pop(sample_id, None)
         if not held:
             _held_samples.pop(task_id, None)
+
+
+def hold_sample_for_scoring(sample_id: str) -> None:
+    """Hard-hold one sample at its next generate attempt (interim scoring).
+
+    Idempotent — a repeat while the hold is in place is a no-op (the pass's
+    one-at-a-time guard means this shouldn't arise, but a second hold must
+    never stack). ``sample_id`` is the ``ActiveSample.id`` (this attempt's
+    identity), so a hold can't dangle onto a retry's fresh attempt.
+    """
+    gate = _sample_hold_gates.get(sample_id)
+    if gate is None:
+        gate = PauseGate()
+        _sample_hold_gates[sample_id] = gate
+    gate.pause(now=True)
+
+
+def release_sample_scoring_hold(sample_id: str) -> None:
+    """Release a scoring hold, waking the sample's parked generate attempts.
+
+    Removes the gate from the registry (an entry exists only while a pass
+    holds the sample), so the common no-hold fast path in
+    :func:`_any_hard_gate` stays registry-emptiness-cheap. No-op when the
+    sample isn't held.
+    """
+    gate = _sample_hold_gates.pop(sample_id, None)
+    if gate is not None:
+        gate.resume()
+
+
+def sample_scoring_held(sample_id: str) -> bool:
+    """Whether a scoring hold is in place for ``sample_id``."""
+    gate = _sample_hold_gates.get(sample_id)
+    return gate is not None and gate.hard
+
+
+def sample_park_waiter(sample_id: str) -> anyio.Event:
+    """Register a one-shot event set when one of ``sample_id``'s attempts parks.
+
+    The scoring pass's park ack awaits this (alongside the sample's terminal
+    event and its deadline) instead of polling :func:`sample_parked_attempts`.
+    Register a fresh waiter per wait iteration and discard it with
+    :func:`discard_park_waiter` when the wait ends — a set event never
+    re-arms, and the pass's wait loop re-checks its predicates on wake.
+    """
+    event = anyio.Event()
+    _park_waiters.setdefault(sample_id, []).append(event)
+    return event
+
+
+def discard_park_waiter(sample_id: str, event: anyio.Event) -> None:
+    """Unregister a waiter from :func:`sample_park_waiter` (no-op if fired)."""
+    waiters = _park_waiters.get(sample_id)
+    if waiters is not None:
+        try:
+            waiters.remove(event)
+        except ValueError:
+            pass
+        if not waiters:
+            _park_waiters.pop(sample_id, None)
+
+
+def sample_parked_attempts(task_id: str, sample_id: str) -> int:
+    """Parked generate attempts of one sample (the scoring pass's park ack).
+
+    Reads the same held-samples accounting :func:`task_held_count` reports
+    from, keyed down to one sample: non-zero means at least one of the
+    sample's generate attempts is parked at the hard-pause gate (whichever
+    latch holds it), which is the wait-for-park signal the interim-scoring
+    pass acts on.
+    """
+    return _held_samples.get(task_id, {}).get(sample_id, 0)
 
 
 async def wait_task_dispatch(
@@ -471,21 +566,30 @@ def _any_hard_gate() -> bool:
     """
     return (
         _process_gate.hard
+        or bool(_sample_hold_gates)
         or any(gate.hard for gate in _task_gates.values())
         or any(gate.hard for gate in _model_gates.values())
     )
 
 
-def _generate_hold_gate(task_id: str | None, model: str) -> PauseGate | None:
+def _generate_hold_gate(
+    task_id: str | None, model: str, sample_id: str | None = None
+) -> PauseGate | None:
     """The first hard-closed latch holding a generate attempt, or ``None``.
 
     The model check keys on the model *actually being called* — deliberately
     unlike the soft model latch's primary-model-only keying — so a hard model
     pause holds grader/role calls to the latched model too: exactly what a
-    provider incident wants.
+    provider incident wants. ``sample_id`` keys the interim-scoring pass's
+    per-sample hold — resolved through the active sample like the task gate,
+    so the pass's own grader calls (no active sample bound) pass it.
     """
     if _process_gate.hard:
         return _process_gate
+    if sample_id:
+        sample_gate = _sample_hold_gates.get(sample_id)
+        if sample_gate is not None and sample_gate.hard:
+            return sample_gate
     if task_id:
         gate = _task_gates.get(task_id)
         if gate is not None and gate.hard:
@@ -521,7 +625,9 @@ def _active_sample_hold_key() -> _HoldKey:
 
 
 async def wait_generate_dispatch(
-    model: "Model", report_waiting_time: Callable[[float], None]
+    model: "Model",
+    report_waiting_time: Callable[[float], None],
+    connection: "ConnectionSlot | None" = None,
 ) -> None:
     """Hard-pause gate for one generate attempt (``pause --now``).
 
@@ -556,6 +662,17 @@ async def wait_generate_dispatch(
     issued *after* the sample's task group exited (a model-graded scorer
     running under a ``score`` resolution), so the escape is checked at
     entry and re-checked on every wake/tick.
+
+    ``connection`` is the attempt's held connection-pool slot. A parked call
+    must not pin it — with ``max_connections`` at or near the held sample's
+    parked-call count, a grader on the same pool would starve behind the
+    park (the release-and-reacquire escape hatch ``pause-resume.md`` names).
+    The slot is released only when the attempt actually parks (the common
+    no-pause path never touches it), and reacquired before returning — with
+    the reacquire wait reported through ``report_waiting_time`` like the
+    held span itself. A cancellation during the reacquire leaves the slot
+    un-held, which the slot's own held flag makes safe for the owning
+    context's final release (see ``ConnectionSlot``).
     """
     if not _any_hard_gate():
         return
@@ -565,14 +682,19 @@ async def wait_generate_dispatch(
     def escaped() -> bool:
         return sample is not None and sample.interrupt_action is not None
 
-    gate = _generate_hold_gate(task_id, model_name)
+    sample_id = sample.id if sample is not None else None
+    gate = _generate_hold_gate(task_id, model_name, sample_id)
     if gate is None or escaped():
         return
     if task_id is not None and sample is not None:
         _held_entered(task_id, sample.id)
+    released = False
     last = time.monotonic()
     try:
         while gate is not None and not escaped():
+            if connection is not None and not released:
+                released = True
+                await connection.release()
             # the tick both keeps working-limit crediting incremental and
             # bounds the latency of an escape stamped while parked (a
             # per-sample interrupt has no waker into this gate)
@@ -583,13 +705,19 @@ async def wait_generate_dispatch(
             last = now
             # re-resolve: the parked-on gate may have opened while another
             # latch hard-closed (independent latches)
-            gate = _generate_hold_gate(task_id, model_name)
+            gate = _generate_hold_gate(task_id, model_name, sample_id)
     finally:
         tail = time.monotonic() - last
         if tail > 0:
             report_waiting_time(tail)
         if task_id is not None and sample is not None:
             _held_exited(task_id, sample.id)
+        if released and connection is not None:
+            reacquire_start = time.monotonic()
+            try:
+                await connection.reacquire()
+            finally:
+                report_waiting_time(time.monotonic() - reacquire_start)
 
 
 def dispatch_model_name(model: "Model") -> str:
@@ -626,7 +754,12 @@ def note_dispatch_models(models: list[str]) -> None:
 
 
 def add_dispatch_waker(waker: Callable[[], None]) -> None:
-    """Register a dispatcher wake callback fired on any pause-state change."""
+    """Register a dispatcher wake callback.
+
+    Fired (via :func:`fire_dispatch_wakers`) on any dispatch-relevant state
+    change: pause-state changes here, ``max_tasks`` retunes in
+    :mod:`inspect_ai._control.max_tasks`.
+    """
     _dispatch_wakers.append(waker)
 
 
@@ -638,7 +771,13 @@ def remove_dispatch_waker(waker: Callable[[], None]) -> None:
         pass
 
 
-def _fire_dispatch_wakers() -> None:
+def fire_dispatch_wakers() -> None:
+    """Wake the registered dispatchers so they re-evaluate their admission checks.
+
+    Called on every dispatch-relevant state change: the pause/resume
+    transitions in this module and the ``max_tasks`` retune in
+    :mod:`inspect_ai._control.max_tasks`.
+    """
     for waker in list(_dispatch_wakers):
         waker()
 
@@ -658,7 +797,7 @@ def wake_pause_waiters() -> None:
         gate.wake()
     for gate in _model_gates.values():
         gate.wake()
-    _fire_dispatch_wakers()
+    fire_dispatch_wakers()
 
 
 def reset_task_pause_gates() -> None:
@@ -678,6 +817,17 @@ def reset_task_pause_gates() -> None:
     _dispatch_model_names.clear()
     _dispatch_counts.clear()
     _held_samples.clear()
+    # release, not just drop: a waiter parked on a dropped gate would never
+    # be woken (release also wakes)
+    for sample_id in list(_sample_hold_gates):
+        release_sample_scoring_hold(sample_id)
+    # wake park waiters before dropping them (their owners — pass tasks —
+    # are cancelled at this boundary anyway, but a woken waiter re-checks
+    # its predicates rather than parking forever)
+    for waiters in _park_waiters.values():
+        for event in waiters:
+            event.set()
+    _park_waiters.clear()
 
 
 def reset_process_pause() -> None:
@@ -760,7 +910,7 @@ async def resume_task(task_id: str, *, dry_run: bool = False) -> dict[str, Any] 
         result["paused_now"] = (
             task_pause_now_sources(state.task_id, state.model or None) or None
         )
-        _fire_dispatch_wakers()
+        fire_dispatch_wakers()
     return {**result, "changed": True}
 
 
@@ -807,7 +957,7 @@ async def resume_process(*, dry_run: bool = False) -> dict[str, Any]:
     changed = _process_gate.paused
     if changed and not dry_run:
         _process_gate.resume()
-        _fire_dispatch_wakers()
+        fire_dispatch_wakers()
     return {
         "ok": True,
         "paused": _process_gate.paused,
@@ -938,7 +1088,7 @@ async def resume_model(model: str, *, dry_run: bool = False) -> dict[str, Any] |
         gate.resume()
         result["paused"] = False
         result["now"] = False
-        _fire_dispatch_wakers()
+        fire_dispatch_wakers()
     return {**result, "changed": True}
 
 
@@ -1008,7 +1158,7 @@ async def flush_quiesced_tasks() -> None:
 class PauseGatedSemaphore(AbstractAsyncContextManager[None]):
     """The task's sample semaphore behind the pause gate.
 
-    The queue-exit boundary of ``task_run_sample``: entering waits for every
+    The queue-exit boundary of ``task_run_sample``'s attempts: entering waits for every
     pause latch (task, model, process) *before* acquiring a sample-semaphore
     slot (a held sample
     pins no limiter slot, has no sandbox, and — because materialization and
