@@ -2796,6 +2796,128 @@ def test_ctl_sample_cancel_scores_work_so_far(short_data_dir: Path) -> None:
     assert cancelled.scores  # the scorer ran on the work done so far
 
 
+def test_ctl_cancel_tool_call_unsticks_hung_tool(short_data_dir: Path) -> None:
+    """Cancelling a hung tool call mid-run lets the sample continue.
+
+    Sample 1 parks at the gate as the observer; sample 2's model requests a
+    tool that hangs on an await that never resolves (the common hang shape).
+    The observer waits for the pending ``ToolEvent`` to appear, fires the
+    tool-call-cancel directive with the discovered id (plus a no-id repeat
+    pinning the "cancel already requested" no-op), and releases. The tool
+    unwinds at its await checkpoint, the model sees an ordinary tool timeout,
+    the agent loop continues to a plain completion, and the eval finishes
+    successfully — no sample errored, nothing was torn down.
+    """
+    import anyio
+
+    from inspect_ai._control.cancel import cancel_tool_call
+    from inspect_ai.event._tool import ToolEvent
+    from inspect_ai.log import read_eval_log
+    from inspect_ai.model import ModelOutput, get_model
+    from inspect_ai.solver import use_tools
+    from inspect_ai.tool import tool
+
+    @tool
+    def hang():
+        async def execute() -> str:
+            """Wait forever (bounded by a safety timeout).
+
+            Returns:
+                A marker string, only if the cancel never arrives.
+            """
+            with anyio.move_on_after(15):
+                await anyio.Event().wait()
+            return "finished without being cancelled"
+
+        return execute
+
+    @task
+    def hung_tool_task() -> Task:
+        return Task(
+            dataset=[Sample(id=i, input="x", target="y") for i in (1, 2)],
+            solver=[gate(), use_tools(hang()), generate()],
+            name="hung_tool_task",
+        )
+
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            # sample 2's first generate (sample 1 is parked until the tool
+            # call is pending, so this cannot be consumed by the observer)
+            ModelOutput.for_tool_call("mockllm/model", "hang", {}),
+            # sample 2 post-timeout and sample 1 post-release, either order
+            ModelOutput.from_content("mockllm/model", "done"),
+            ModelOutput.from_content("mockllm/model", "done"),
+        ],
+    )
+
+    log_dir = str(short_data_dir / "logs")
+    Path(log_dir).mkdir()
+
+    def find_pending_tool() -> "tuple[Any, ToolEvent] | None":
+        for s in active_samples():
+            for ev in s.transcript.pending_events:
+                if isinstance(ev, ToolEvent) and ev.pending:
+                    return (s, ev)
+        return None
+
+    def ready() -> bool:
+        return find_pending_tool() is not None
+
+    async def capture() -> dict:
+        entry = (await current_eval_summaries(0.0))[0]
+        found = find_pending_tool()
+        assert found is not None
+        s, ev = found
+        result = await cancel_tool_call(
+            entry["eval_id"], str(s.sample.id), s.epoch, tool_call_id=ev.id
+        )
+        # no await since the cancel: the event is still pending (the tool
+        # hasn't unwound yet) with `cancelled` set, so the no-id repeat
+        # deterministically lands in the "cancel already requested" no-op
+        repeat = await cancel_tool_call(entry["eval_id"], str(s.sample.id), s.epoch)
+        return {"sample_id": s.sample.id, "result": result, "repeat": repeat}
+
+    with probe(ready, capture, park=lambda sid: sid == 1) as p:
+        success, logs = eval_set(
+            tasks=[hung_tool_task()],
+            log_dir=log_dir,
+            model=model,
+            retry_attempts=0,
+            max_samples=2,
+        )
+
+    assert p.result is not None, "no pending tool call was ever observed"
+    result = p.result["result"]
+    assert result["ok"] is True and result["changed"] is True
+    assert result["function"] == "hang"
+    repeat = p.result["repeat"]
+    assert repeat["ok"] is True and repeat["changed"] is False
+    assert repeat["reason"] == "cancel already requested"
+
+    # the cancel is per-call: the sample continued and the eval completed
+    assert success
+    assert logs[0].status == "success"
+    log = read_eval_log(logs[0].location)
+    assert log.samples is not None and len(log.samples) == 2
+    hung_sample = next(s for s in log.samples if s.id == p.result["sample_id"])
+    assert hung_sample.error is None
+    # the model saw the operator cancel as an ordinary tool timeout
+    tool_message = next(m for m in hung_sample.messages if m.role == "tool")
+    assert tool_message.error is not None and tool_message.error.type == "timeout"
+    assert "finished without being cancelled" not in str(tool_message.content)
+    # the transcript finalized per the operator-cancel convention and
+    # recorded the InfoEvent that distinguishes it from an organic timeout
+    tool_event = next(e for e in hung_sample.events if e.event == "tool")
+    assert tool_event.pending is not True
+    assert tool_event.error is not None and tool_event.error.type == "timeout"
+    assert tool_event.failed is None
+    assert any(
+        e.event == "info" and "was cancelled by operator" in str(e.data)
+        for e in hung_sample.events
+    )
+
+
 def test_ctl_task_cancel_aborts_run(short_data_dir: Path) -> None:
     """Cancelling a task tears down its in-flight samples and finalizes the log.
 

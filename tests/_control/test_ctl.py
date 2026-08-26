@@ -48,6 +48,7 @@ from inspect_ai._cli.ctl._render import (
 )
 from inspect_ai._cli.ctl._sample import _REQUEUE_ROUTE_MISSING
 from inspect_ai._control.discovery import DiscoveredControlServer
+from inspect_ai._control.views import ProcessConfigView, TaskConfigView
 
 
 def _summary(task_id: str, task: str) -> dict[str, str]:
@@ -1370,7 +1371,8 @@ def test_config_read_retries_timeout_then_succeeds(
 
     from inspect_ai._cli.ctl._config import _exec_limits
 
-    view = {"max_samples": {"adjustable": False}, "buffer": None}
+    # deliberately partial (this exercises transport retry, not shape)
+    view: dict[str, Any] = {"max_samples": {"adjustable": False}, "buffer": None}
     counter = _stub_httpx(
         monkeypatch,
         [httpx.ReadTimeout("slow"), httpx.ReadTimeout("slow"), view],
@@ -2999,16 +3001,18 @@ def _stub_limits(
         # derive from the canonical knob table so a future knob can't be
         # missed here (which would misreport its sets as mutated=False)
         knobs = _KNOB_SCOPE.keys()
+        # typed as the real envelope so shape drift fails mypy
+        view: TaskConfigView = {
+            "max_samples": {"limit": 3, "in_use": 1, "adjustable": True},
+            "max_sandboxes": [],
+            "adaptive": [],
+            "buffer": buffer,
+            "requested": None,
+            "warnings": [],
+            "dry_run": False,
+        }
         return _ConfigResult(
-            view={
-                "max_samples": {"limit": 3, "in_use": 1, "adjustable": True},
-                "max_sandboxes": [],
-                "adaptive": [],
-                "buffer": buffer,
-                "requested": None,
-                "warnings": [],
-                "dry_run": False,
-            },
+            view=view,
             mutated=any(kwargs.get(k) is not None for k in knobs),
         )
 
@@ -3217,7 +3221,14 @@ def test_config_help_sketches_compose_config_keys() -> None:
     scope = _DirectiveScope(
         socket_path="sock", pid=1, task_id=None, task=None, header="", siblings=0
     )
-    view = _compose_config(scope, {}, dry_run=False, set_values=False, notes=[])
+    empty_view: ProcessConfigView = {
+        "dry_run": False,
+        "max_sandboxes": [],
+        "adaptive": [],
+        "requested": None,
+        "warnings": [],
+    }
+    view = _compose_config(scope, empty_view, dry_run=False, set_values=False, notes=[])
     option = next(
         p
         for p in config_command.params
@@ -3436,6 +3447,7 @@ def test_config_provenance_sent_with_mutations_on_current_server(
                 "max_samples": {"limit": 3, "in_use": 1, "adjustable": True},
                 "max_sandboxes": [],
                 "adaptive": [],
+                "buffer": None,
                 "requested": {"max_samples": 3},
                 "warnings": [],
                 "dry_run": False,
@@ -3494,6 +3506,7 @@ def test_config_provenance_gated_on_older_server(
                 "max_samples": {"limit": 3, "in_use": 1, "adjustable": True},
                 "max_sandboxes": [],
                 "adaptive": [],
+                "buffer": None,
                 "requested": {"max_samples": 3},
                 "warnings": [],
                 "dry_run": False,
@@ -3550,6 +3563,7 @@ def test_config_provenance_requires_set_option(
                 "max_samples": {"limit": 3, "in_use": 1, "adjustable": True},
                 "max_sandboxes": [],
                 "adaptive": [],
+                "buffer": None,
                 "requested": {},
                 "warnings": [],
                 "dry_run": False,
@@ -3603,6 +3617,7 @@ def test_config_provenance_rides_key_only_retune(
                 "concurrency": [
                     {"name": "my_api", "limit": 2, "in_use": 0, "adjustable": True}
                 ],
+                "buffer": None,
                 "requested": {"concurrency:my_api": 2},
                 "warnings": [],
                 "dry_run": False,
@@ -4329,7 +4344,7 @@ def test_compose_config_labels_every_knob_with_scope() -> None:
         header="h",
         siblings=3,
     )
-    limits_view = {
+    limits_view: TaskConfigView = {
         "max_samples": {"limit": 3, "in_use": 1, "adjustable": True},
         "max_sandboxes": [{"type": "docker", "limit": 4, "in_use": 2}],
         "max_subprocesses": {"limit": 8, "in_use": 1},
@@ -4375,7 +4390,7 @@ def test_compose_config_process_scope_dry_run() -> None:
         header="process · 2 tasks",
         siblings=2,
     )
-    limits_view = {
+    limits_view: ProcessConfigView = {
         "max_sandboxes": [],
         "adaptive": [],
         "requested": {"max_connections": 9},
@@ -5065,6 +5080,156 @@ def test_sample_cancel_rejects_unknown_action() -> None:
     )
     assert result.exit_code == 2
     assert "explode" in result.stderr
+
+
+def test_sample_cancel_tool_call_sends_params(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    summary = _full_summary("aaa111", "t1")
+    summary["epochs"] = 1
+    _patch_surface(monkeypatch, [summary])
+    spy = _RequestSpy(
+        {
+            "ok": True,
+            "sample_id": "s1",
+            "epoch": 1,
+            "changed": True,
+            "tool_call_id": "tc1",
+            "function": "bash",
+        }
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
+    result = cli_runner().invoke(
+        ctl_command,
+        [
+            "sample",
+            "cancel-tool-call",
+            "aaa111",
+            "s1",
+            "--tool-call-id",
+            "tc1",
+            "--json",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert spy.paths == ["/evals/eval_aaa111/sample/cancel-tool-call"]
+    assert spy.params == [{"sample_id": "s1", "epoch": 1, "tool_call_id": "tc1"}]
+    payload = json.loads(result.stdout)
+    assert payload["target"]["sample_id"] == "s1"
+    assert payload["applied"] is True
+    assert payload["detail"]["tool_call_id"] == "tc1"
+
+    # without --tool-call-id the param is omitted (server-side sole-pending
+    # fallback), not sent as an empty value
+    ok = cli_runner().invoke(
+        ctl_command, ["sample", "cancel-tool-call", "aaa111", "s1", "--json"]
+    )
+    assert ok.exit_code == 0, ok.output
+    assert spy.params[-1] == {"sample_id": "s1", "epoch": 1}
+
+
+def test_sample_cancel_tool_call_requires_epoch_when_multi_epoch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A defaulted epoch on a multi-epoch task resolves to a different sample."""
+    summary = _full_summary("aaa111", "t1")
+    summary["epochs"] = 3
+    _patch_surface(monkeypatch, [summary])
+    spy = _RequestSpy({"ok": True, "changed": True})
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "cancel-tool-call", "aaa111", "s1"]
+    )
+    assert result.exit_code == 1
+    assert "pass EPOCH explicitly" in result.stderr
+    assert spy.paths == []  # nothing was sent
+
+    # ...and an explicit epoch goes through
+    ok = cli_runner().invoke(
+        ctl_command, ["sample", "cancel-tool-call", "aaa111", "s1", "2"]
+    )
+    assert ok.exit_code == 0, ok.output
+    assert spy.params == [{"sample_id": "s1", "epoch": 2}]
+
+
+def test_sample_cancel_tool_call_human_output_sanitizes_tokens(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Tool-call ids/functions are model-generated — no forged lines.
+
+    The changed message interpolates the id and function from the wire; a
+    newline smuggled into either must flatten rather than print a line of
+    its own at column 0. The no-op path's pending listing is likewise
+    flattened.
+    """
+    summary = _full_summary("aaa111", "t1")
+    summary["epochs"] = 1
+    _patch_surface(monkeypatch, [summary])
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl._http._request_json",
+        lambda *a, **k: {
+            "ok": True,
+            "sample_id": "s1",
+            "epoch": 1,
+            "changed": True,
+            "tool_call_id": "tc\nFORGED",
+            "function": "bash",
+        },
+    )
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "cancel-tool-call", "aaa111", "s1", "--no-terse"]
+    )
+    assert result.exit_code == 0, result.output
+    assert "Cancel requested for tool call" in result.output
+    assert "FORGED" in result.output
+    assert not any(line.startswith("FORGED") for line in result.output.splitlines())
+
+    # the honest no-op names the reason and lists the pending calls
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl._http._request_json",
+        lambda *a, **k: {
+            "ok": True,
+            "sample_id": "s1",
+            "epoch": 1,
+            "changed": False,
+            "reason": "no pending tool call with that id",
+            "pending": [{"id": "tc\nFORGED2", "function": "bash"}],
+        },
+    )
+    noop = cli_runner().invoke(
+        ctl_command, ["sample", "cancel-tool-call", "aaa111", "s1", "--no-terse"]
+    )
+    assert noop.exit_code == 0, noop.output
+    assert "Nothing to do — no pending tool call with that id" in noop.output
+    assert "Pending:" in noop.output
+    assert not any(line.startswith("FORGED2") for line in noop.output.splitlines())
+
+    # the zero-pending no-op surfaces the activity redirect (where the sample
+    # is actually stuck) in human output; the detail is model-influenceable
+    # and must flatten
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl._http._request_json",
+        lambda *a, **k: {
+            "ok": True,
+            "sample_id": "s1",
+            "epoch": 1,
+            "changed": False,
+            "reason": "no pending tool calls",
+            "activity": {
+                "type": "model",
+                "count": 1,
+                "started_at": 0.0,
+                "detail": "mockllm/model\nFORGED3",
+            },
+        },
+    )
+    zero = cli_runner().invoke(
+        ctl_command, ["sample", "cancel-tool-call", "aaa111", "s1", "--no-terse"]
+    )
+    assert zero.exit_code == 0, zero.output
+    assert "Nothing to do — no pending tool calls" in zero.output
+    assert "Sample activity: model (mockllm/model" in zero.output
+    assert not any(line.startswith("FORGED3") for line in zero.output.splitlines())
 
 
 def test_sample_requeue_defaults_epoch_for_single_epoch_task(
