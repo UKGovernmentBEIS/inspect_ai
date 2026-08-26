@@ -180,18 +180,22 @@ async def generate_responses(
     if isinstance(background, bool):
         request["background"] = background
 
+    # stream goes into the request pre-snapshot so the logged ModelCall
+    # matches the wire request (batched and background requests can't stream)
+    if streaming and not background and batcher is None:
+        request["stream"] = True
+
     model_call = set_active_model_event_call(
         request=request,
         filter=openai_media_filter,
     )
 
     try:
-        # generate response (streaming when requested — batched and
-        # background requests can't stream)
+        # generate response
         model_response: Response
         if batcher:
             model_response = await batcher.generate_for_request(request)
-        elif streaming and not background:
+        elif request.get("stream"):
             model_response = await _generate_responses_stream(client, request)
         else:
             model_response = await client.responses.create(**request)
@@ -261,10 +265,12 @@ async def _generate_responses_stream(
 ) -> Response:
     """Stream a Responses API request, reporting chunks to the stream observer.
 
-    Content deltas are reported by kind (text / reasoning / tool-call argument
-    fragments, attributed to their call via the announcing output_item event);
-    usage arrives only on the terminal event, so intermediate chunks report
-    bare heartbeats. Returns the complete `Response` carried by the terminal
+    `request` must already carry `stream=True` (injected before the ModelCall
+    snapshot so the logged request matches the wire request). Content deltas
+    are reported by kind (text / reasoning / tool-call argument fragments,
+    attributed to their call via the announcing output_item event); usage
+    arrives only on the terminal event, so intermediate chunks report bare
+    heartbeats. Returns the complete `Response` carried by the terminal
     event, so downstream response handling matches the non-streaming path.
     """
     report_model_stream_start()
@@ -272,7 +278,7 @@ async def _generate_responses_stream(
     # to their call id / function when reported as stream deltas
     tool_items: dict[str, ResponseFunctionToolCall] = {}
     model_response: Response | None = None
-    stream = await client.responses.create(**request, stream=True)
+    stream = await client.responses.create(**request)
     # async with so the connection closes on non-exhaustion exits too
     # (error events raise below; cancellation can land mid-iteration)
     async with stream:
