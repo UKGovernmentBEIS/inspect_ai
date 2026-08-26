@@ -1198,7 +1198,8 @@ async def test_fire_writes_restic_config_and_checkpoint_files(
     active_sample.checkpoint = ResolvedCheckpointConfig(trigger=TurnInterval(every=2))
 
     # Inject a real checkpointer into the fake, mirroring what
-    # `task_run_sample` does in production before opening `active_sample`.
+    # `task_run_sample`'s attempt does in production before opening
+    # `active_sample`.
     from inspect_ai.util._checkpoint.checkpointer_factory import create_checkpointer
 
     assert active_sample.sample.id is not None
