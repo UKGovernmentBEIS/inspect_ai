@@ -174,6 +174,143 @@ def test_endpoint_error_becomes_structured_500(monkeypatch: pytest.MonkeyPatch) 
     assert "RuntimeError" in error and "kaboom" in error
 
 
+async def _asgi_get(
+    app: object, path: str, query: str, *, disconnected: bool, method: str = "GET"
+) -> tuple[int, bytes]:
+    """Drive one request through the ASGI app with a scripted receive channel.
+
+    ``httpx.ASGITransport`` can't model a client that hung up before the
+    handler ran (its receive channel only reports disconnect after the
+    response completes), so this speaks raw ASGI: ``disconnected=True``
+    makes the very first ``receive()`` return ``http.disconnect`` — what
+    uvicorn's channel yields for a request whose client is already gone.
+    Returns the response ``(status, body)``.
+    """
+    sent: list[dict] = []
+
+    async def receive() -> dict:
+        if disconnected:
+            return {"type": "http.disconnect"}
+        return {"type": "http.request", "body": b"", "more_body": False}
+
+    async def send(message: dict) -> None:
+        sent.append(message)
+
+    scope = {
+        "type": "http",
+        "asgi": {"version": "3.0", "spec_version": "2.3"},
+        "http_version": "1.1",
+        "method": method,
+        "scheme": "http",
+        "path": path,
+        "raw_path": path.encode(),
+        "query_string": query.encode(),
+        "headers": [(b"host", b"localhost")],
+        "client": None,
+        "server": ("localhost", 80),
+        "root_path": "",
+    }
+    await app(scope, receive, send)  # type: ignore[operator]
+    start = next((m for m in sent if m["type"] == "http.response.start"), None)
+    assert start is not None, f"no response started for {method} {path}"
+    body = b"".join(
+        m.get("body", b"") for m in sent if m["type"] == "http.response.body"
+    )
+    return start["status"], body
+
+
+def test_read_endpoints_skip_disconnected_client(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A hung-up client's read request is answered 499 without doing the work.
+
+    Each guarded read must return before touching its data source — the
+    rationale lives in ``_control/disconnect.py``'s module docstring.
+    """
+    import json
+
+    from inspect_ai._control import server as server_mod
+
+    async def _must_not_run(*args: object, **kwargs: object) -> None:
+        raise AssertionError("handler did work for a disconnected client")
+
+    for name in (
+        "current_eval_summaries",
+        "current_sample_listing",
+        "sample_error_detail",
+        "sample_events",
+        "sample_messages",
+    ):
+        monkeypatch.setattr(server_mod, name, _must_not_run)
+
+    endpoints = [
+        ("/tasks", ""),
+        ("/evals/e1/samples", ""),
+        ("/evals/e1/sample", "sample_id=s1"),
+        ("/evals/e1/sample/events", "sample_id=s1"),
+        ("/evals/e1/sample/messages", "sample_id=s1"),
+    ]
+
+    async def scenario() -> None:
+        app = server_mod.ControlServer(run_id="test")._build_app()
+        for path, query in endpoints:
+            status, body = await _asgi_get(app, path, query, disconnected=True)
+            assert status == 499, f"{path}: expected 499, got {status}"
+            assert json.loads(body) == {"error": "client disconnected"}
+
+    asyncio.run(scenario())
+
+
+def test_read_endpoints_serve_connected_client(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The disconnect guard must not false-positive on a live connection.
+
+    Companion to the skip test above, over the same raw-ASGI channel: with a
+    normal ``http.request`` message queued (what uvicorn's receive yields for
+    a connected GET), the guard passes and the handler serves.
+    """
+    from inspect_ai._control import server as server_mod
+
+    async def _no_summaries(*args: object, **kwargs: object) -> list:
+        return []
+
+    monkeypatch.setattr(server_mod, "current_eval_summaries", _no_summaries)
+
+    async def scenario() -> None:
+        app = server_mod.ControlServer(run_id="test")._build_app()
+        status, body = await _asgi_get(app, "/tasks", "", disconnected=False)
+        assert status == 200
+        assert body == b"[]"
+
+    asyncio.run(scenario())
+
+
+def test_mutations_apply_for_disconnected_client() -> None:
+    """Mutations from a hung-up client still apply — they are NOT guarded.
+
+    Pins that a future blanket guard doesn't swallow mutations (why they
+    must pass through: ``_control/disconnect.py``'s module docstring):
+    ``POST /keep`` from an already-disconnected client must still latch
+    keep-alive on.
+    """
+    from inspect_ai._control import server as server_mod
+    from inspect_ai._control.server import keep_alive_intent, reset_keep_alive
+
+    async def scenario() -> int:
+        app = server_mod.ControlServer(run_id="test")._build_app()
+        status, _ = await _asgi_get(app, "/keep", "", disconnected=True, method="POST")
+        return status
+
+    reset_keep_alive()
+    try:
+        status = asyncio.run(scenario())
+        assert status == 200
+        assert keep_alive_intent() is True
+    finally:
+        reset_keep_alive()
+
+
 def test_error_detail_prefers_server_body() -> None:
     """The CLI surfaces the server's ``{"error": ...}`` over the bare HTTP error."""
     from inspect_ai._cli.ctl._http import _error_detail

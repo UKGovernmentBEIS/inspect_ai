@@ -414,8 +414,9 @@ messages section; finding 1(a)'s terminal-source cache would cover it).
 
 Cheap handlers are the real fix — every guard below failed open in the
 incident only because the handler was expensive — but the failure mode
-compounds silently, so guards are worth having. Of these, only the pile-up
-guard exists today (no handler checks disconnects; no coalescing):
+compounds silently, so guards are worth having. Of these, the pile-up
+guard and the disconnect check have since shipped; coalescing does not
+exist:
 
 - **Pile-up guard.** `uvicorn limit_concurrency` rejects (503) rather than
   queues excess connections — a blunt but honest backstop against a
@@ -429,8 +430,14 @@ guard exists today (no handler checks disconnects; no coalescing):
   result) is the finer-grained version; only worth building if a legitimate
   multi-client pattern emerges.
 - **Disconnect check.** An `await request.is_disconnected()` before
-  nontrivial work skips serving hung-up clients. Tracked as
-  [meridianlabs-ai/inspect_ai#226](https://github.com/meridianlabs-ai/inspect_ai/issues/226).
+  nontrivial work skips serving hung-up clients. **Shipped**
+  ([meridianlabs-ai/inspect_ai#226](https://github.com/meridianlabs-ai/inspect_ai/issues/226)):
+  the read handlers that do nontrivial work (`/tasks`, the samples
+  listing, sample error detail, events, messages) carry a per-route
+  dependency (`_control/disconnect.py`) that answers a hung-up client
+  with an unread 499 instead of serving. That module's docstring is the
+  canonical statement of scope (why mutations and the cheap config views
+  are deliberately unguarded) and of the guard's best-effort limits.
   Only useful if the loop
   yields between queued requests — which cheap handlers guarantee and a
   CPU-bound handler defeats; that ordering (handlers first, guard second) is
@@ -460,3 +467,7 @@ Distilled from the audit, for the phase 3-4 surface still to come:
 5. Remember the loop is shared: async I/O yields, but parse / validate /
    serialize of what it fetched does not. Measure handlers against "what does
    a 30-second poller cost the eval over an hour?"
+6. A new nontrivial read attaches the disconnect guard
+   (`dependencies=skip_disconnected` in `server.py`, backed by
+   `_control/disconnect.py`); mutations never do, and a guarded route must
+   never read the request body (the module docstring has both rationales).
