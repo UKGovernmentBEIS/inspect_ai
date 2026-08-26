@@ -2,6 +2,7 @@ import functools
 import logging
 import os
 import sys
+from copy import copy
 from dataclasses import dataclass, replace
 from typing import Any, Awaitable, Callable, Iterable, NamedTuple, Set, cast
 
@@ -22,6 +23,12 @@ from anyio.abc import TaskGroup
 from typing_extensions import Unpack
 
 from inspect_ai._control.eval_state import mark_eval_retry_pending
+from inspect_ai._control.max_tasks import (
+    TaskDispatcherStats,
+    effective_max_tasks,
+    register_task_dispatcher,
+    remove_task_dispatcher,
+)
 from inspect_ai._control.pause import (
     add_dispatch_waker,
     dispatch_model_name,
@@ -60,6 +67,7 @@ from inspect_ai.util._sandbox.environment import (
     SandboxEnvironmentSpec,
     TaskCleanup,
     TaskInit,
+    set_sandbox_prebuilt,
 )
 from inspect_ai.util._sandbox.registry import registry_find_sandboxenv
 
@@ -204,7 +212,12 @@ async def eval_run(
                 # token_limit, time_limit, and fail_on_error so broadcast these
                 # into the eval config (so long as they aren't overriding a
                 # value specified from eval() or the CLI)
-                task = resolved_task.task
+                # Resolve eval-level overrides against a per-run task view so
+                # repeated eval() calls on the same Task do not retain them.
+                # The copy is shallow: it guards only the direct attribute
+                # rebinds below — nested state (dataset, config, reducer list
+                # contents) is still shared, so don't write to it in place.
+                task = copy(resolved_task.task)
                 task_eval_config = eval_config.model_copy()
 
                 # sample_ids can be specified per task
@@ -672,19 +685,28 @@ async def run_task_retry_attempts(
         ]
         if not candidates:
             return None
-        models_with_pending = {p.options.model for p in candidates}
-        model = min(models_with_pending, key=lambda m: model_counts[m])
-        item = next(p for p in candidates if p.options.model is model)
+        # earliest queued candidate among the least-used models: ties break
+        # by queue order (not arbitrary set order), so at a dispatch limit
+        # of 1 a sequence-major queue keeps its grouping — all of task N's
+        # model fan-outs run before task N+1 — instead of interleaving
+        min_count = min(model_counts[p.options.model] for p in candidates)
+        item = next(p for p in candidates if model_counts[p.options.model] == min_count)
         pending.remove(item)
         return item
+
+    def dispatcher_stats() -> TaskDispatcherStats:
+        return TaskDispatcherStats(
+            launch=parallel, in_flight=in_flight, pending=len(pending)
+        )
 
     async with display().task_screen(task_specs(tasks), parallel=True) as screen:
         init_task_screen(screen)
         try:
-            # registered inside the try so the remove in the finally below
-            # always runs (a failure in task_screen setup would otherwise
-            # leak the waker into the module-level registry)
+            # registered inside the try so the removes in the finally below
+            # always run (a failure in task_screen setup would otherwise
+            # leak them into the module-level registries)
             add_dispatch_waker(wake.set)
+            register_task_dispatcher(dispatcher_stats)
             async with anyio.create_task_group() as tg:
 
                 async def run_one(item: PendingTask) -> None:
@@ -793,8 +815,15 @@ async def run_task_retry_attempts(
                     if injected:
                         add(injected)
 
-                    # dispatch up to the concurrency cap (model-balanced)
-                    while not cancelled and in_flight < parallel and pending:
+                    # dispatch up to the concurrency cap (model-balanced),
+                    # re-reading the live `ctl config --max-tasks` override
+                    # each iteration (a set fires the dispatch wakers, so a
+                    # raise reaches a waiting dispatcher immediately)
+                    while (
+                        not cancelled
+                        and in_flight < effective_max_tasks(parallel)
+                        and pending
+                    ):
                         item = pick_balanced()
                         if item is None:
                             # everything pending is held by a pause latch —
@@ -832,6 +861,7 @@ async def run_task_retry_attempts(
             pass
         finally:
             remove_dispatch_waker(wake.set)
+            remove_task_dispatcher(dispatcher_stats)
             clear_task_screen()
 
     # sort results by index and return just the values
@@ -985,6 +1015,8 @@ class SandboxManager:
             sandboxenvs = {env for env in sandboxenvs if env not in self._started}
             if not sandboxenvs:
                 return
+
+            set_sandbox_prebuilt(self._config.sandbox_prebuilt is True)
 
             # initialiase sandboxenvs (track cleanups)
             with display().suspend_task_app():

@@ -272,6 +272,22 @@ services:
 
 See the [Docker Compose](https://docs.docker.com/compose/compose-file/) documentation for information on all available container options.
 
+### Prebuilt Images
+
+If the images for your sandboxes are already present in the local Docker image store (for example, on an air-gapped machine that cannot reach a registry), pass `--sandbox-prebuilt` to skip image builds entirely:
+
+``` bash
+inspect eval ctf.py --sandbox-prebuilt
+```
+
+Or from Python:
+
+``` python
+eval("ctf.py", sandbox_prebuilt=True)
+```
+
+With this option set, task startup verifies images instead of building them. Every service with a `build` section or `x-local: true` must name an `image` that already exists locally, and Inspect's internal images (e.g. for the computer tool) must also be present. Other services use their local image when present, and a failed pull of a missing one is also an error. A missing image results in an error before any samples run. The option can also be set via the `INSPECT_EVAL_SANDBOX_PREBUILT` environment variable.
+
 ### Multiple Environments
 
 In some cases you may want to create multiple sandbox environments (e.g. if one environment has complex dependencies that conflict with the dependencies of other environments). To do this specify multiple named services:
