@@ -41,7 +41,7 @@ from inspect_ai._eval.task.scheduler import (
     DISCARDED,
     SampleRequeue,
     SampleScheduler,
-    _ScheduledRun,
+    _SampleRun,
 )
 from inspect_ai.dataset import Sample
 from inspect_ai.log import read_eval_log_async
@@ -1157,6 +1157,13 @@ def _register_queued_eval(
     return handle
 
 
+def _arrive(handle: SampleRequeue, sample_id: str | int, epoch: int = 1) -> _SampleRun:
+    """Stamp a seed run's queue arrival (what the runner's enter hook does)."""
+    run = _SampleRun(sample_index=0, epoch=epoch)
+    handle.queue_arrive(sample_id, epoch, run)
+    return run
+
+
 async def test_cancel_never_started_accepted(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1167,7 +1174,7 @@ async def test_cancel_never_started_accepted(
     """
     _patch_active_samples(monkeypatch, [])
     handle = _register_queued_eval()
-    handle.queue_arrive("s2", 1, None)
+    _arrive(handle, "s2")
 
     # dry run reports the accept without mutating, with a conditional-tense
     # reason (the CLI's "Would cancel …" line interpolates it verbatim)
@@ -1175,7 +1182,7 @@ async def test_cancel_never_started_accepted(
     assert dry["ok"] is True and dry["changed"] is True
     assert dry["status"] == "cancelled"
     assert "would be cancelled" in dry["reason"]
-    assert handle.cancelled_state("s2", 1) is None
+    assert handle.sample_view("s2", 1).cancelled is None
     state = get_eval_state("e1")
     assert state is not None and state.cancelled == 0
 
@@ -1183,7 +1190,7 @@ async def test_cancel_never_started_accepted(
     assert result["ok"] is True and result["changed"] is True
     assert result["status"] == "cancelled"
     assert "before start" in result["reason"]
-    assert handle.cancelled_state("s2", 1) == "parked"
+    assert handle.sample_view("s2", 1).cancelled == "parked"
     assert state.cancelled == 1
 
     repeat = await cancel_sample("e1", "s2", 1, action="cancel")
@@ -1208,13 +1215,13 @@ async def test_cancel_never_started_score_error_409_when_parked(
     """score/error on a parked (not yet cancelled) sample reject truthfully."""
     _patch_active_samples(monkeypatch, [])
     handle = _register_queued_eval()
-    handle.queue_arrive("s2", 1, None)
+    _arrive(handle, "s2")
 
     for action in ("score", "error"):
         rejected = await cancel_sample("e1", "s2", 1, action=action)
         assert rejected is not None
         assert rejected["ok"] is False and "--action cancel" in rejected["error"]
-    assert handle.cancelled_state("s2", 1) is None
+    assert handle.sample_view("s2", 1).cancelled is None
 
 
 async def test_cancel_not_at_queue_409(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1232,7 +1239,7 @@ async def test_cancel_not_at_queue_409(monkeypatch: pytest.MonkeyPatch) -> None:
         assert result is not None, action
         assert result["ok"] is False
         assert "not at the queue yet" in result["error"]
-    assert handle.cancelled_state("s2", 1) is None
+    assert handle.sample_view("s2", 1).cancelled is None
     state = get_eval_state("e1")
     assert state is not None and state.cancelled == 0
 
@@ -1248,13 +1255,13 @@ async def test_cancel_departed_blind_window_409(
     """
     _patch_active_samples(monkeypatch, [])
     handle = _register_queued_eval()
-    handle.queue_arrive("s2", 1, None)
-    assert handle.queue_depart("s2", 1, None) is False  # uncancelled exit
+    run = _arrive(handle, "s2")
+    assert handle.queue_depart(run) is False  # uncancelled exit
 
     result = await cancel_sample("e1", "s2", 1, action="cancel")
     assert result is not None
     assert result["ok"] is False and "initializing" in result["error"]
-    assert handle.cancelled_state("s2", 1) is None
+    assert handle.sample_view("s2", 1).cancelled is None
 
 
 async def test_cancel_drain_abandoned_sample_reads_cancelled(
@@ -1271,12 +1278,12 @@ async def test_cancel_drain_abandoned_sample_reads_cancelled(
     _patch_active_samples(monkeypatch, [])
     cancel = TaskCancel(can_retry=False, cancel_task=lambda _: None)
     handle = _register_queued_eval(task_cancel=cancel)
-    handle.queue_arrive("s2", 1, None)
-    handle.queue_depart("s2", 1, None)
+    run = _arrive(handle, "s2")
+    handle.queue_depart(run)
     cancel.cancel_type = "score"  # the graceful drain is in flight
     # the runner's drain-abandon path fires the queue_abandon hook
-    handle.queue_abandoned("s2", 1, None)
-    assert handle.cancelled_state("s2", 1) == "discarded"
+    handle.queue_abandoned(run)
+    assert handle.sample_view("s2", 1).cancelled == "discarded"
 
     result = await cancel_sample("e1", "s2", 1, action="cancel")
     assert result is not None
@@ -1289,9 +1296,9 @@ async def test_cancel_drain_abandoned_sample_reads_cancelled(
 
     # a re-run entry is not stamped: its pending key clears via on_terminal
     # and the prior record renders
-    rerun = _ScheduledRun(sample_index=0, epoch=1, prior=_errored_prior())
-    handle.queue_abandoned("s1", 1, rerun)
-    assert handle.cancelled_state("s1", 1) is None
+    rerun = _SampleRun(sample_index=0, epoch=1, prior=_errored_prior())
+    handle.queue_abandoned(rerun)
+    assert handle.sample_view("s1", 1).cancelled is None
 
 
 async def test_cancel_departed_task_gates_before_retry_advice(
@@ -1307,8 +1314,8 @@ async def test_cancel_departed_task_gates_before_retry_advice(
     _patch_active_samples(monkeypatch, [])
     cancel = TaskCancel(can_retry=False, cancel_task=lambda _: None)
     handle = _register_queued_eval(task_cancel=cancel)
-    handle.queue_arrive("s2", 1, None)
-    handle.queue_depart("s2", 1, None)
+    run = _arrive(handle, "s2")
+    handle.queue_depart(run)
     cancel.cancel_type = "abort"
 
     result = await cancel_sample("e1", "s2", 1, action="cancel")
@@ -1324,14 +1331,14 @@ async def test_cancel_retry_repark_rearrival_cancellable(
     """Arrival overwrites a prior departure (the retry re-park cycle)."""
     _patch_active_samples(monkeypatch, [])
     handle = _register_queued_eval()
-    handle.queue_arrive("s2", 1, None)
-    handle.queue_depart("s2", 1, None)
-    handle.queue_arrive("s2", 1, None)  # retry re-park re-arrives
+    run = _arrive(handle, "s2")
+    handle.queue_depart(run)
+    handle.queue_arrive("s2", 1, run)  # retry re-park re-arrives
 
     result = await cancel_sample("e1", "s2", 1, action="cancel")
     assert result is not None
     assert result["ok"] is True and result["changed"] is True
-    assert handle.cancelled_state("s2", 1) == "parked"
+    assert handle.sample_view("s2", 1).cancelled == "parked"
 
 
 async def test_cancel_queued_rows_task_level_gates(
@@ -1342,12 +1349,12 @@ async def test_cancel_queued_rows_task_level_gates(
     cancel = TaskCancel(can_retry=False, cancel_task=lambda _: None)
     cancel.cancel_type = "abort"
     handle = _register_queued_eval(task_cancel=cancel)
-    handle.queue_arrive("s2", 1, None)
+    _arrive(handle, "s2")
 
     result = await cancel_sample("e1", "s2", 1, action="cancel")
     assert result is not None
     assert result["ok"] is False and "cancel is in flight" in result["error"]
-    assert handle.cancelled_state("s2", 1) is None
+    assert handle.sample_view("s2", 1).cancelled is None
 
 
 async def test_cancel_unknown_sample_still_404(
@@ -1365,15 +1372,15 @@ async def test_cancel_before_start_discard_at_queue_exit(
     """The queue-exit check discards a cancelled run without recording again."""
     _patch_active_samples(monkeypatch, [])
     handle = _register_queued_eval()
-    handle.queue_arrive("s2", 1, None)
+    run = _arrive(handle, "s2")
     assert _row(await cancel_sample("e1", "s2", 1, action="cancel"))["changed"]
     state = get_eval_state("e1")
     assert state is not None and state.cancelled == 1
 
     # the zombie drains: the exit hook reports the cancel (the runner then
     # skips materialization/recording) and flips the key to discarded
-    assert handle.queue_depart("s2", 1, None) is True
-    assert handle.cancelled_state("s2", 1) == "discarded"
+    assert handle.queue_depart(run) is True
+    assert handle.sample_view("s2", 1).cancelled == "discarded"
     assert state.cancelled == 1  # the discard did not re-count
 
     # the repeat cancel stays the idempotent no-op after the discard
@@ -1392,7 +1399,7 @@ async def test_cancel_before_start_last_outstanding_work(
     """
     _patch_active_samples(monkeypatch, [])
     handle = _register_queued_eval(total=1, sample_ids=["s1"])
-    handle.queue_arrive("s1", 1, None)
+    _arrive(handle, "s1")
 
     result = _row(await cancel_sample("e1", "s1", 1, action="cancel"))
     assert result["changed"] is True
@@ -1447,13 +1454,11 @@ async def test_cancel_unrequeues_queued_rerun(
     _patch_active_samples(monkeypatch, [])
 
     prior = _errored_prior()
-    rerun_entries: list[_ScheduledRun] = []
+    rerun_entries: list[_SampleRun] = []
     release = anyio.Event()
 
-    async def run_sample(
-        sample_index: int, epoch: int, entry: _ScheduledRun | None
-    ) -> Any:
-        if entry is not None and entry.prior is not None:
+    async def run_sample(sample_index: int, epoch: int, entry: _SampleRun) -> Any:
+        if entry.prior is not None:
             rerun_entries.append(entry)
             with anyio.fail_after(30):
                 await release.wait()
@@ -1495,7 +1500,7 @@ async def test_cancel_unrequeues_queued_rerun(
 
         # full inverse reconciliation, synchronously at accept
         assert state.errored == 1 and handler.error_count == 1
-        assert not handle.is_pending("s1", 1)
+        assert not handle.sample_view("s1", 1).pending
         entry = rerun_entries[0]
         assert entry.cancelled is True and entry.on_terminal is None
         assert withdrawn == [("s1", 1, prior_score)]
@@ -1503,7 +1508,7 @@ async def test_cancel_unrequeues_queued_rerun(
         # the same prior record is requeueable again (uuid guard restored) —
         # a fresh entry for the same key while the old zombie is still parked
         assert handle.accept(prior, "error") == "accepted"
-        assert handle.is_pending("s1", 1)
+        assert handle.sample_view("s1", 1).pending
 
         # the withdrawn zombie draining must not clear the fresh pending key
         # (its on_terminal was disarmed at withdraw)
@@ -1514,7 +1519,7 @@ async def test_cancel_unrequeues_queued_rerun(
         # let the fresh re-run finish; the fanout closes
     # the zombie never wrote its (discarded) result; the fresh re-run did
     assert results[(0, 1)] == "fresh"
-    assert not handle.is_pending("s1", 1)  # cleared by the *fresh* terminal
+    assert not handle.sample_view("s1", 1).pending  # cleared by the *fresh* terminal
 
 
 async def test_cancel_queued_rerun_score_error_409(
@@ -1538,10 +1543,8 @@ async def test_cancel_queued_rerun_score_error_409(
 
     release = anyio.Event()
 
-    async def run_sample(
-        sample_index: int, epoch: int, entry: _ScheduledRun | None
-    ) -> Any:
-        if sample_index == 0 and (entry is None or entry.prior is None):
+    async def run_sample(sample_index: int, epoch: int, entry: _SampleRun) -> Any:
+        if sample_index == 0 and entry.prior is None:
             return "failed"
         with anyio.fail_after(30):
             await release.wait()
@@ -1564,14 +1567,14 @@ async def test_cancel_queued_rerun_score_error_409(
             assert rejected is not None
             assert rejected["ok"] is False
             assert "--action cancel" in rejected["error"]
-        assert handle.is_pending("s1", 1)  # nothing was withdrawn
+        assert handle.sample_view("s1", 1).pending  # nothing was withdrawn
 
         # dry run reports the un-requeue without mutating, with a
         # conditional-tense reason (the CLI interpolates it verbatim)
         dry = _row(await cancel_sample("e1", "s1", 1, action="cancel", dry_run=True))
         assert dry["ok"] is True and dry["changed"] is True
         assert "would be withdrawn" in dry["reason"]
-        assert handle.is_pending("s1", 1)
+        assert handle.sample_view("s1", 1).pending
 
         release.set()
 
@@ -1601,13 +1604,11 @@ async def test_cancel_unrequeue_departed_window_dry_run_parity(
     set_sample_requeue("e1", handle)
     _patch_active_samples(monkeypatch, [])
 
-    rerun_entries: list[_ScheduledRun] = []
+    rerun_entries: list[_SampleRun] = []
     release = anyio.Event()
 
-    async def run_sample(
-        sample_index: int, epoch: int, entry: _ScheduledRun | None
-    ) -> Any:
-        if entry is not None and entry.prior is not None:
+    async def run_sample(sample_index: int, epoch: int, entry: _SampleRun) -> Any:
+        if entry.prior is not None:
             rerun_entries.append(entry)
         elif sample_index == 0:
             return "failed"
@@ -1632,8 +1633,8 @@ async def test_cancel_unrequeue_departed_window_dry_run_parity(
                 await anyio.sleep(0.01)
         # the re-run exits the queue (the runner's queue-exit stamp) but its
         # ActiveSample has not registered yet: the departed blind window
-        assert handle.queue_depart("s1", 1, rerun_entries[0]) is False
-        assert handle.pending_departed("s1", 1) is True
+        assert handle.queue_depart(rerun_entries[0]) is False
+        assert handle.sample_view("s1", 1).pending_departed is True
 
         # every action gets the departed 409 (the departed gate answers
         # before the action gate — otherwise score/error's "use `--action
@@ -1648,7 +1649,7 @@ async def test_cancel_unrequeue_departed_window_dry_run_parity(
                 assert result["ok"] is False, (action, dry_run)
                 assert "initializing" in result["error"], (action, dry_run)
                 assert "--action cancel" not in result["error"], (action, dry_run)
-        assert handle.is_pending("s1", 1)  # nothing was withdrawn
+        assert handle.sample_view("s1", 1).pending  # nothing was withdrawn
 
         release.set()
 
@@ -1657,9 +1658,7 @@ async def test_scheduler_discarded_result_never_written() -> None:
     """run_one skips the results write for a DISCARDED run."""
     scheduler = SampleScheduler()
 
-    async def run_sample(
-        sample_index: int, epoch: int, entry: _ScheduledRun | None
-    ) -> Any:
+    async def run_sample(sample_index: int, epoch: int, entry: _SampleRun) -> Any:
         return DISCARDED if sample_index == 0 else "ok"
 
     results = await scheduler.run([(0, 1), (1, 1)], run_sample)
@@ -1672,7 +1671,7 @@ async def test_listing_and_show_render_cancelled_before_start(
     """A cancelled-before-start key renders `cancelled` (not `pending`)."""
     _patch_active_samples(monkeypatch, [])
     handle = _register_queued_eval()
-    handle.queue_arrive("s2", 1, None)
+    _arrive(handle, "s2")
     assert _row(await cancel_sample("e1", "s2", 1, action="cancel"))["changed"]
 
     listing = await current_sample_listing("e1")
@@ -1711,7 +1710,8 @@ async def test_cancelled_before_start_rows_keep_typed_ids(
         on_withdraw=lambda sample_id, epoch, score: None,
     )
     set_sample_requeue("e1", handle)
-    handle.queue_arrive(5, 1, None)  # the runner passes the dataset-typed id
+    # the runner passes the dataset-typed id at arrival
+    handle.queue_arrive(5, 1, _SampleRun(sample_index=0, epoch=1))
 
     result = _row(await cancel_sample("e1", "5", 1, action="cancel"))
     assert result["changed"] is True

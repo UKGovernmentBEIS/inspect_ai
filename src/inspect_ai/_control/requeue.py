@@ -163,7 +163,11 @@ async def requeue_sample(
             resolved_id, epoch, dry_run, status, f"sample is already {status}"
         )
 
-    if handle.is_pending(sample_id, epoch):
+    # one synchronous snapshot of the key's queue lifecycle
+    # (design/ctl/queued-sample-cancel.md): no await separates it from the
+    # un-cancel accept below, so the accept needs no re-check
+    view = handle.sample_view(sample_id, epoch)
+    if view.pending:
         return _scheduled(
             sample_id,
             epoch,
@@ -172,25 +176,22 @@ async def requeue_sample(
             "a requeue of this sample is already pending",
         )
 
-    # a cancelled-before-start key (design/ctl/queued-sample-cancel.md):
-    # `_is_planned` below would answer "will run without help" — a lie for a
-    # cancelled key. A parked key is un-cancelled (the same parked coroutine
-    # serves as the run); a discarded one is gone, with no prior record to
-    # seed a re-run from. No await separates the resolver's top from here,
-    # so the un-cancel accept needs no synchronous re-check.
-    cancelled = handle.cancelled_state(sample_id, epoch)
-    if cancelled == "discarded":
+    # a cancelled-before-start key: `_is_planned` below would answer "will
+    # run without help" — a lie for a cancelled key. A parked key is
+    # un-cancelled (the same parked coroutine serves as the run); a
+    # discarded one is gone, with no prior record to seed a re-run from.
+    if view.cancelled == "discarded":
         return _reject(
             f"sample {sample_id} (epoch {epoch}) was cancelled before it "
             "started and its run has been discarded — re-run it with "
             "`inspect eval-retry` (or re-invoke `inspect eval-set`)"
         )
-    if cancelled == "parked":
+    if view.cancelled == "parked":
         # the reason is conditional-tense under dry_run so the CLI's "Would
         # requeue …" rendering doesn't embed a past-tense mutation
         uncancelled: RequeueUncancelled = {
             "ok": True,
-            "sample_id": handle.typed_sample_id(sample_id, epoch),
+            "sample_id": view.typed_id,
             "epoch": epoch,
             "dry_run": dry_run,
             "changed": True,

@@ -585,7 +585,7 @@ def _queued_typed_id(eval_id: str, sample_id: str, epoch: int) -> Any:
     state = get_eval_state(eval_id)
     if state is None or state.sample_requeue is None:
         return sample_id
-    return state.sample_requeue.typed_sample_id(sample_id, epoch)
+    return state.sample_requeue.sample_view(sample_id, epoch).typed_id
 
 
 def _cancelled_before_start_summary(sample_id: Any, epoch: int) -> dict[str, Any]:

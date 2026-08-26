@@ -151,10 +151,11 @@ block). The design splits the cancel into a **synchronous semantic accept** and 
   requeue resolver, but with one more gate — it re-runs its checks synchronously right
   before mutating: the task-level gates, **and the at-the-queue check**. The queue is
   stamped at *both ends*, because a run is invisible on both sides of it:
-  `task_run_sample` stamps **arrival** (on the key) synchronously immediately before
-  the semaphore acquire, and the queue-exit point stamps **departure** (on the entry
-  for a re-run; on the key for a seed) as its very first action after acquiring the
-  semaphore. Departure matters because a run that leaves the queue is invisible until
+  `task_run_sample` stamps **arrival** synchronously immediately before the semaphore
+  acquire, and the queue-exit point stamps **departure** as its very first action
+  after acquiring the semaphore — both on the run's own `_SampleRun` object, never a
+  key (see "one run object per coroutine" under the never-started section below).
+  Departure matters because a run that leaves the queue is invisible until
   its `ActiveSample` registers much later (materialization awaits sit between — the
   same blind window the task-cancel fails-on-error gate documents). Arrival matters
   because on a retry attempt a planned key may never reach the queue at all — its
@@ -182,24 +183,30 @@ open — the semaphore necessarily has free slots, so the zombie drains immediat
 the fanout closes. (The immediate-teardown alternative is considered and rejected
 below.)
 
-The two flavors stamp differently, because their identities differ:
+Both flavors stamp the same way — the run object — but their cancel accepts differ,
+because their identities differ:
 
-### Never-started (initial fanout): a cancelled-keys map
+### Never-started (initial fanout): flag the key's owning run
 
-The seed coroutine has no per-entry object (it's a plan tuple; `run_one` gets
-`entry=None`), so the stamp is keyed: the requeue handle (`SampleRequeue`, which already
-owns the analogous pending-requeue set and has exactly the right lifecycle — registered
-when the fanout starts, detached on retry) grows a
-`cancelled: dict[tuple[str, int], Literal["parked", "discarded"]]`. Accept inserts
-`"parked"`; the queue-exit discard flips it to `"discarded"` (the distinction matters to
-requeue, below). One deliberate asymmetry: **source-added** samples
-(`SampleScheduler.add`) are never-started candidates that *do* carry a per-entry
-`_ScheduledRun` (`prior=None`, no `on_terminal`) — they have an entry but no prior —
-and they take this key-based path too, not the entry-flag path below. That's sound
-because a fresh add's key is new: it can never alias a second live coroutine the way a
-re-run key can after un-requeue + fresh requeue. So "at most one live coroutine per
-key" holds for every key-based run — initial seeds and source adds alike — keying is
-unambiguous, and the entry-flag machinery below stays re-run-only.
+There is **one run object per coroutine**: every run — initial seed, source add
+(`SampleScheduler.add`), or requeued re-run — carries a `_SampleRun`, and the
+queue-lifecycle flags (`arrived`/`departed`/`cancelled`, plus the dataset-typed id
+captured at arrival) live *only* on that object. Stamping the run rather than a key
+makes aliasing impossible by construction: after an un-requeue plus a fresh requeue,
+a key belongs to the fresh coroutine, but the old zombie only ever stamps itself. For
+the read surface, the requeue handle (`SampleRequeue`, which already owns the
+analogous pending-requeue set and has exactly the right lifecycle — registered when
+the fanout starts, detached on retry) keeps `current_run: dict[SampleKey,
+_SampleRun]`, pointing at whichever run currently owns the key: a key-based run (seed
+or source add, `prior=None`) owns its key from queue arrival on — and keeps it
+forever, so a cancelled-before-start outcome outlives its coroutine (there is, and
+will be, no log record to read it from) — while a re-run owns the key only from its
+arrival until it goes terminal or is withdrawn, when ownership reverts to the
+superseded run (see the un-requeue section below). A cancel-before-start accept flags
+the owning run `cancelled`, which reads as `"parked"` until the run departs and
+`"discarded"` after (the distinction matters to requeue, below). Seeds and source
+adds take exactly the same path — the run object erases the old seed-vs-entry
+asymmetry.
 
 - **Counters.** Accept calls `record_sample_cancelled(eval_id)` — the sample is
   terminally cancelled from the operator's point of view, and `terminal == total`
@@ -214,28 +221,30 @@ unambiguous, and the entry-flag machinery below stays re-run-only.
   under an abort or a graceful drain (terminal in the counters, no record). The
   alternative — a synthetic cancelled `EvalSample` — is rejected below.
 - **Wiring.** `run_sample` knows the key before materialization (`get_sample(index).id`
-  is read at its top), so it threads a pre-bound queue-hook pair into `task_run_sample`:
-  `queue_enter()` stamps the key's arrival synchronously immediately before the
-  semaphore acquire, and `queue_exit: Callable[[], bool]` runs at the semaphore-exit
-  point beside the existing drain check. The pair must also be forwarded through the
-  `retry_on_error` recursion (`task_run_sample` calls itself to re-park at the back of
-  the queue), and the arrival stamp must overwrite a prior departure — a key's
-  queue-lifecycle state cycles arrived → departed → arrived across retry re-parks.
-  Without the forwarding, a re-parked sample would read as *departed* for its whole
-  re-park (arrival never re-stamped after the first attempt left the queue) and get a
-  permanent initializing 409 instead of being cancellable. The exit hook does double
-  duty, synchronously:
-  it records the key's departure (every run that parks, cancelled or not — this is what
+  is read at its top), so it builds one pre-bound `SampleQueueHooks` object — the
+  handle, the key, and the run, with `enter()`/`exit()`/`abandon()` methods — and
+  threads it into `task_run_sample`: `enter()` stamps arrival synchronously
+  immediately before the semaphore acquire, and `exit()` runs at the semaphore-exit
+  point beside the existing drain check. The hooks object must also be forwarded
+  through the `retry_on_error` recursion (`task_run_sample` calls itself to re-park at
+  the back of the queue), and the arrival stamp must overwrite a prior departure — a
+  run's queue-lifecycle state cycles arrived → departed → arrived across retry
+  re-parks. Without the forwarding, a re-parked sample would read as *departed* for
+  its whole re-park (arrival never re-stamped after the first attempt left the queue)
+  and get a permanent initializing 409 instead of being cancellable. The exit hook
+  does double duty, synchronously:
+  it stamps the run's departure (every run that parks, cancelled or not — this is what
   the accept-side at-the-queue check reads, so it must cover uncancelled runs too; a
-  reuse hit never reaches either hook, which is exactly why accept *requires* the
+  reuse hit never reaches any hook, which is exactly why accept *requires* the
   arrival stamp — "Reuse in flight" below) and returns whether this run was cancelled.
-  On a cancelled hit: mark `"discarded"`, fire `sample_terminal("cancelled")` (the
-  injected-slot outcome bookkeeping, exactly as the drain path does — a cancelled
-  outcome keeps the slot resident), return the discard sentinel.
+  On a cancelled hit — the departure itself flips the key's read from `"parked"` to
+  `"discarded"` — fire `sample_terminal("cancelled")` (the injected-slot outcome
+  bookkeeping, exactly as the drain path does — a cancelled outcome keeps the slot
+  resident) and return the discard sentinel.
 - **Listing / show.** Today the sample renders `pending` (planned, no record, no active
   row) — which reads as "will run", now false. The status derivation gets a
-  cancelled-keys rule exactly parallel to `_pending_requeue_keys`: a key in the map
-  renders **`cancelled`** (synthesized row, terminal fields empty), in both
+  cancelled-keys rule exactly parallel to `_pending_requeue_keys`: a key whose owning
+  run is flagged renders **`cancelled`** (synthesized row, terminal fields empty), in both
   `current_sample_summaries` and `sample_error_detail`, with the same
   snapshot-after-await discipline. Neither histogram needs code of its own, but for
   different reasons: the samples listing's `counts` is tallied from the rendered rows,
@@ -249,8 +258,8 @@ unambiguous, and the entry-flag machinery below stays re-run-only.
 - **Requeue interplay (un-cancel).** The requeue resolver's `_is_planned` branch
   currently answers "sample has not started yet — it will run without help", which
   becomes a lie for a cancelled key. New rows in the requeue table:
-  - key `"parked"` → **applied — un-cancel**: remove the key, decrement the counter
-    (reusing `record_sample_requeued(eval_id, "cancelled")`, whose below-zero guard
+  - key `"parked"` → **applied — un-cancel**: clear the owning run's flag, decrement
+    the counter (reusing `record_sample_requeued(eval_id, "cancelled")`, whose below-zero guard
     carries over — though the implementation should parameterize or reword its warning
     message, whose "requeue accepted a prior…" phrasing would mislead if it ever fired
     from this path). The *same* parked coroutine serves as the re-run — no new entry is
@@ -270,14 +279,15 @@ unambiguous, and the entry-flag machinery below stays re-run-only.
   re-runnable meaning a *recorded* cancelled sample has (error set → re-run), reached
   without fabricating a record.
 
-### Queued re-run (un-requeue): a flag on the scheduled entry
+### Queued re-run (un-requeue): flag the pending entry
 
-A re-run has a per-entry identity — the `_ScheduledRun` the dispatcher started — and
-must be stamped *there*, not in a key set: the pending key clears at un-requeue accept
-(the sample becomes requeueable again immediately), so a fresh requeue accepted while
-the old zombie is still parked creates a second coroutine for the same key. A key set
-couldn't tell them apart; an entry flag (`_ScheduledRun.cancelled: bool`) cancels
-exactly the old entry, and the fresh one runs unaffected.
+A re-run must be flagged via its own `_SampleRun` (found through the pending-requeue
+bookkeeping), never via the key's `current_run` mapping: the pending key clears at
+un-requeue accept (the sample becomes requeueable again immediately), so a fresh
+requeue accepted while the old zombie is still parked creates a second coroutine for
+the same key — and the key by then points at the fresh run. Flagging the entry
+(`_SampleRun.cancelled: bool`) cancels exactly the old coroutine, and the fresh one
+runs unaffected.
 
 Accept performs the full inverse of `SampleRequeue.accept`'s reconciliation,
 synchronously:
@@ -290,19 +300,21 @@ synchronously:
    fresh requeue, the key aliases to the *fresh* entry, and a key lookup from the old
    zombie would return it uncancelled — the zombie would then proceed through seeding
    (including `logger.remove_sample`, dropping the fresh re-run's realtime-buffer
-   entry) before the exit check caught it. The handle does still keep the live
-   `_ScheduledRun` per pending key (today it's fire-and-forget after
-   `scheduler.requeue`), but only so *accept* can find the entry to flag.
-2. **Clear the pending-requeue key — and neutralize the withdrawn entry's
-   `on_terminal`.** The listing and `sample show` immediately revert to rendering the
-   prior terminal record (the "queued" rendering keys off the pending set). The
-   neutralization matters in the fresh-requeue-while-zombie-parked scenario: `run_one`
-   fires `on_terminal` unconditionally when the discarded run returns, and the shipped
-   callback discards the key *by value* — which by then may belong to the fresh
-   requeue, wrongly un-marking it (rendering it as its prior terminal record while
-   parked, turning its repeat-requeue answer into a confusing `stale` 409, and making
-   *its* un-requeue unreachable). Accept therefore disarms the old entry's callback (or
-   the discard becomes entry-identity-guarded) when it clears the key.
+   entry) before the exit check caught it. The pending-requeue bookkeeping keeps the
+   live `_SampleRun` per pending key, so *accept* can find the entry to flag.
+2. **Clear the pending-requeue key, neutralize the withdrawn entry's `on_terminal`,
+   and revert the key's `current_run` ownership to the superseded run.** The listing
+   and `sample show` immediately revert to rendering the prior terminal record (the
+   "queued" rendering keys off the pending set), and the ownership revert makes the
+   withdrawn zombie unreadable by key — a normal re-run terminal does the same revert
+   from `on_terminal`, so a parked re-run reaped by a teardown can't leave the key
+   reading `"arrived"`. The neutralization matters in the
+   fresh-requeue-while-zombie-parked scenario: `run_one` fires `on_terminal`
+   unconditionally when the discarded run returns, and the callback acts on the key —
+   which by then may belong to the fresh requeue, wrongly un-marking it (rendering it
+   as its prior terminal record while parked, turning its repeat-requeue answer into a
+   confusing `stale` 409, and making *its* un-requeue unreachable). Accept therefore
+   disarms the old entry's callback when it clears the key.
 3. **Remove the prior record's uuid from `_accepted_uuids`.** Otherwise a later,
    legitimate re-requeue of the same terminal record — now fully valid, since its
    re-run never happened — would be refused as `stale`. Un-requeue restores exactly the
@@ -408,8 +420,9 @@ this window) — but it's not needed for the queued cases this design targets.
 
 - **Cancel accepted, then task cancelled / torn down before the zombie drains.**
   Never-started: already counted `cancelled`; the shortfall fold sees it as terminal and
-  adds nothing; the scheduler's `finally` drain doesn't know about it (no entry) and
-  needn't. Un-requeue: the bucket was restored at accept and the entry never runs;
+  adds nothing; the scheduler's `finally` drain doesn't know about it (its run is never
+  a dispatcher-pending entry) and needn't. Un-requeue: the bucket was restored at
+  accept and the entry never runs;
   accept already disarmed the withdrawn entry's `on_terminal` (step 2), so the teardown
   drain — or `run_one`'s `finally`, if the dispatcher had started the entry — fires
   nothing for it, leaving the key (which may by now belong to a fresh requeue)
@@ -419,8 +432,8 @@ this window) — but it's not needed for the queued cases this design targets.
   suppressed retry) records the sample `cancelled` but writes no record — so without a
   stamp no read surface would ever see the outcome: the listing would keep rendering
   the key `pending`, and the departed 409 would advise "retry once it is running"
-  forever. The abandon paths therefore mark the key `"discarded"` in the
-  cancelled-keys map (via a `queue_abandon` hook beside the queue-lifecycle pair):
+  forever. The abandon paths therefore flag the run cancelled-and-departed — read as
+  `"discarded"` — via the hooks object's `abandon()`:
   the listing renders `cancelled`, and a later cancel lands on the idempotent
   "already cancelled" no-op. Re-runs need no stamp — clearing their pending key
   reverts them to their prior terminal record. The one reader this can't help is a
@@ -501,26 +514,30 @@ this window) — but it's not needed for the queued cases this design targets.
 
 - `_control/cancel.py`: `cancel_sample` grows the queued rows — task-level gates
   (reusing/sharing requeue's `_task_level_reject`), pending-requeue key → un-requeue,
-  `_is_planned` + cancelled-map + queue-lifecycle → cancel-before-start /
+  `_is_planned` + one `SampleQueueView` snapshot → cancel-before-start /
   not-at-the-queue 409 / no-op, score|error → 409 for all queued flavors; synchronous
   gate re-check before mutating.
-- `_eval/task/scheduler.py`: `_ScheduledRun.cancelled` + departure flags; `SampleRequeue`
-  grows the cancelled-keys map, the per-key queue-lifecycle map (arrived/departed), the
-  per-pending-key entry/stashed-score bookkeeping,
+- `_eval/task/scheduler.py`: `_SampleRun` — one run object per coroutine (initial
+  seeds, source adds, and re-runs alike) carrying the `arrived`/`departed`/`cancelled`
+  flags and the captured dataset-typed id; `SampleRequeue` keeps `current_run` (key →
+  owning run, reverting to the superseded run at a re-run's terminal or withdrawal),
+  the per-pending-key entry/stashed-score bookkeeping, the `sample_view(...)` read
+  snapshot (plus `pending_keys()`/`cancelled_keys()` for the listing derivation),
   `cancel_queued(...)` (un-requeue, disarming the withdrawn entry's `on_terminal`) and
   `cancel_before_start(...)` accepts, and `uncancel(...)` for the requeue resolver;
-  `run_one` plumbs the entry through to `run_sample` and skips the result write for
+  `SampleQueueHooks` bundles the three runner stamp points;
+  `run_one` plumbs the run through to `run_sample` and skips the result write for
   discarded runs (also fixing the drain path's `None` write for abandoned re-runs).
 - `_eval/task/run.py`: queue-entry arrival stamp at the top of `task_run_sample`
   (before the semaphore acquire); queue-exit departure stamp + discard check beside the
-  drain check, ordered before it; the queue-hook pair forwarded through the
+  drain check, ordered before it; the `SampleQueueHooks` object forwarded through the
   `retry_on_error` recursion; `run_sample` top-of-function entry check (before the
   requeue seeding side effects); restore-side of `on_requeue_accept` (progress tick +
   score re-insert).
 - `_control/eval_state.py`: `record_sample_unrequeued` (increment inverse of
   `record_sample_requeued`).
 - `_control/requeue.py`: un-cancel and discarded rows in the decision table;
-  `_is_planned` branch consults the cancelled map.
+  `_is_planned` branch consults the view's cancelled state.
 - `_control/state.py`: cancelled-before-start keys render `cancelled` in the listing
   and `sample show` (parallel to `_pending_requeue_keys`).
 - `_cli/ctl/_sample.py`: no new flags; rejection/detail wording for the new rows.

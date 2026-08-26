@@ -213,9 +213,10 @@ from .scan import (
 from .scheduler import (
     DISCARDED,
     Discarded,
+    SampleQueueHooks,
     SampleRequeue,
     SampleScheduler,
-    _ScheduledRun,
+    _SampleRun,
 )
 from .store import DiskSampleStore, maybe_page_to_disk
 from .task_source import TaskSource
@@ -1160,14 +1161,14 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                 async def run_sample(
                     sample_index: int,
                     epoch: int,
-                    entry: _ScheduledRun | None = None,
+                    entry: _SampleRun,
                 ) -> SampleRunResult:
                     # a re-run withdrawn (un-requeued) before it first ran:
                     # discard before any seeding side effect (see
                     # design/ctl/queued-sample-cancel.md)
-                    if entry is not None and entry.cancelled:
+                    if entry.cancelled:
                         return DISCARDED
-                    requeue_prior = entry.prior if entry is not None else None
+                    requeue_prior = entry.prior
 
                     # the run's terminal bookkeeping, shared by the reuse
                     # short-circuit below and every terminal path inside
@@ -1200,18 +1201,16 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                     # check) at queue exit — pre-bound here where the key is
                     # known, and forwarded through the retry_on_error
                     # recursion so a re-parked sample reads as at-the-queue
-                    def queue_enter() -> None:
-                        if sample_id is not None:
-                            sample_requeue.queue_arrive(sample_id, epoch, entry)
-
-                    def queue_exit() -> bool:
-                        if sample_id is None:
-                            return False
-                        return sample_requeue.queue_depart(sample_id, epoch, entry)
-
-                    def queue_abandon() -> None:
-                        if sample_id is not None:
-                            sample_requeue.queue_abandoned(sample_id, epoch, entry)
+                    queue_hooks = (
+                        SampleQueueHooks(
+                            requeue=sample_requeue,
+                            sample_id=sample_id,
+                            epoch=epoch,
+                            run=entry,
+                        )
+                        if sample_id is not None
+                        else None
+                    )
 
                     resume_checkpoint: ResumeCheckpoint | None = None
                     # prior task-attempt errors to seed this re-run's
@@ -1411,9 +1410,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         time_limit=config.time_limit,
                         working_limit=config.working_limit,
                         semaphore=gated_sample_semaphore,
-                        queue_enter=queue_enter,
-                        queue_exit=queue_exit,
-                        queue_abandon=queue_abandon,
+                        queue_hooks=queue_hooks,
                         eval_set_id=logger.eval.eval_set_id,
                         run_id=logger.eval.run_id,
                         task_id=logger.eval.eval_id,
@@ -2033,9 +2030,7 @@ async def task_run_sample(
     run_id: str,
     task_id: str,
     scan_id: str | None = None,
-    queue_enter: Callable[[], None] | None = None,
-    queue_exit: Callable[[], bool] | None = None,
-    queue_abandon: Callable[[], None] | None = None,
+    queue_hooks: SampleQueueHooks | None = None,
 ) -> SampleRunResult:
     """Run one sample run as a loop of error-retry attempts.
 
@@ -2091,9 +2086,7 @@ async def task_run_sample(
             # forward the queue-lifecycle hooks: a retry re-park re-stamps
             # arrival, so the re-parked sample reads as at-the-queue
             # (cancellable) rather than permanently departed
-            queue_enter=queue_enter,
-            queue_exit=queue_exit,
-            queue_abandon=queue_abandon,
+            queue_hooks=queue_hooks,
         )
         if isinstance(result, _SampleRetry):
             attempt = attempt.advance(result)
@@ -2141,9 +2134,7 @@ async def _task_run_sample_attempt(
     run_id: str,
     task_id: str,
     scan_id: str | None = None,
-    queue_enter: Callable[[], None] | None = None,
-    queue_exit: Callable[[], bool] | None = None,
-    queue_abandon: Callable[[], None] | None = None,
+    queue_hooks: SampleQueueHooks | None = None,
 ) -> SampleRunResult | _SampleRetry:
     from inspect_ai.event import Event
     from inspect_ai.hooks._hooks import (
@@ -2161,8 +2152,8 @@ async def _task_run_sample_attempt(
     # stamp queue arrival immediately before the park: the accept side of a
     # queued-sample cancel requires the key to be exactly *at the queue*
     # (design/ctl/queued-sample-cancel.md)
-    if queue_enter is not None:
-        queue_enter()
+    if queue_hooks is not None:
+        queue_hooks.enter()
 
     # execute under sample semaphore
     async with semaphore:
@@ -2171,7 +2162,7 @@ async def _task_run_sample_attempt(
         # parked. Ordered before the task-cancel drain check below: the
         # cancel accept already counted the sample, so the drain's own
         # record_sample_cancelled would double-count it.
-        if queue_exit is not None and queue_exit():
+        if queue_hooks is not None and queue_hooks.exit():
             reporter.discarded()
             return DISCARDED
 
@@ -2185,8 +2176,8 @@ async def _task_run_sample_attempt(
             # mark the key cancelled so the outcome is readable (the listing,
             # and the cancel resolver's idempotent no-op — without it a
             # departed key with no record reads "initializing" forever)
-            if queue_abandon is not None:
-                queue_abandon()
+            if queue_hooks is not None:
+                queue_hooks.abandon()
             reporter.cancelled()
             return DISCARDED
 
@@ -2999,8 +2990,8 @@ async def _task_run_sample_attempt(
         # mark the key cancelled: this attempt was never logged, so without
         # the stamp no read surface would ever see the outcome (the departed
         # key would read "initializing" forever)
-        if queue_abandon is not None:
-            queue_abandon()
+        if queue_hooks is not None:
+            queue_hooks.abandon()
         reporter.cancelled(started=_sample_started(), usage=_sample_usage(state))
         # DISCARDED (not None): the attempt was never logged, so a re-run
         # abandoned here must not clobber its prior attempt's keyed score

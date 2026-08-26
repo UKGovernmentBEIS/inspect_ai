@@ -408,7 +408,8 @@ def _cancel_queued_sample(
     Synchronous end to end (validation, task-level gates, and the mutating
     accept run with no await point on the eval's loop), so an accept can't
     race the parked coroutine leaving the queue — the same argument as
-    requeue's ``accept``. The handle mutators (``cancel_queued``,
+    requeue's ``accept``, and what makes the single ``sample_view`` snapshot
+    below current at every branch. The handle mutators (``cancel_queued``,
     ``cancel_before_start``) assert what this resolver validated rather than
     re-branching — a second validation layer here would be unreachable.
     See ``design/ctl/queued-sample-cancel.md``.
@@ -420,12 +421,12 @@ def _cancel_queued_sample(
     handle = state.sample_requeue if state is not None else None
     if state is None or handle is None:
         return None
-    typed_id = handle.typed_sample_id(sample_id, epoch)
+    view = handle.sample_view(sample_id, epoch)
 
     def accepted(status: str, reason: str) -> CancelSampleQueued:
         return {
             "ok": True,
-            "sample_id": typed_id,
+            "sample_id": view.typed_id,
             "epoch": epoch,
             "action": action,
             "dry_run": dry_run,
@@ -446,8 +447,7 @@ def _cancel_queued_sample(
 
     # a queued re-run: withdraw the pending requeue (un-requeue) — the prior
     # terminal record stands, and the sample is requeueable again
-    prior_status = handle.pending_prior_status(sample_id, epoch)
-    if prior_status is not None:
+    if view.prior_status is not None:
         gated = _task_level_reject(state)
         if gated is not None:
             return {"ok": False, "error": gated["error"]}
@@ -455,7 +455,7 @@ def _cancel_queued_sample(
         # mid-materialization and will terminal-record on its own), so it
         # answers before the action gate: not_cancellable()'s "use
         # `--action cancel`" advice would immediately 409 here
-        if handle.pending_departed(sample_id, epoch):
+        if view.pending_departed:
             return {
                 "ok": False,
                 "error": (
@@ -467,7 +467,7 @@ def _cancel_queued_sample(
         if action != "cancel":
             return not_cancellable()
         row = accepted(
-            prior_status,
+            view.prior_status,
             "the requeue would be withdrawn — the prior terminal record stands"
             if dry_run
             else "requeue withdrawn — the prior terminal record stands",
@@ -478,7 +478,7 @@ def _cancel_queued_sample(
 
     # already cancelled (before start, or drain-abandoned while queued): the
     # idempotent repeat no-op
-    if handle.cancelled_state(sample_id, epoch) is not None:
+    if view.cancelled is not None:
         if action != "cancel":
             # not not_cancellable(): its "use `--action cancel`" hint would
             # point at the no-op row below
@@ -492,7 +492,7 @@ def _cancel_queued_sample(
             }
         return {
             "ok": True,
-            "sample_id": typed_id,
+            "sample_id": view.typed_id,
             "epoch": epoch,
             "action": action,
             "dry_run": dry_run,
@@ -502,7 +502,7 @@ def _cancel_queued_sample(
         }
 
     # never started (or a retry_on_error re-park), parked at the queue
-    if handle.queue_state(sample_id, epoch) == "arrived":
+    if view.queue == "arrived":
         gated = _task_level_reject(state)
         if gated is not None:
             return {"ok": False, "error": gated["error"]}
@@ -547,7 +547,7 @@ def _planned_but_unqueued(
     if gated is not None:
         return {"ok": False, "error": gated["error"]}
     handle = state.sample_requeue
-    if handle is not None and handle.queue_state(sample_id, epoch) == "departed":
+    if handle is not None and handle.sample_view(sample_id, epoch).queue == "departed":
         return _initializing_reject(sample_id, epoch)
     return {
         "ok": False,
