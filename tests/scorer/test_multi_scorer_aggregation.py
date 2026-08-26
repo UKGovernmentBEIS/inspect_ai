@@ -188,3 +188,4 @@ def test_multi_scorer_all_none_returns_unscored() -> None:
     result = anyio.run(combined, state, Target(""))
     assert isinstance(result, Score)
     assert isinstance(result.value, float) and math.isnan(result.value)
+    assert result.reason == "scoring_failed"

@@ -39,6 +39,7 @@ from ._file import (
     write_eval_log_async,
     write_log_dir_manifest,
 )
+from ._headline import ResolvedHeadlineMetric, headline_metric
 from ._log import (
     ConnectionLimitChange,
     EvalConfig,
@@ -60,6 +61,7 @@ from ._log import (
     EvalStats,
     EvalStatus,
     EventsData,
+    HeadlineMetric,
 )
 from ._metric import recompute_metrics
 from ._recover import (
@@ -104,6 +106,9 @@ __all__ = [
     "EvalStats",
     "EvalStatus",
     "EvalLogInfo",
+    "HeadlineMetric",
+    "ResolvedHeadlineMetric",
+    "headline_metric",
     "Transcript",
     "TranscriptHistory",
     "TranscriptHistoryUnavailableError",

@@ -30,17 +30,22 @@ else:
 
 
 class _IntOrClearType(_IntOrClearBase):
-    """Non-negative integer, or the keyword ``clear`` (restore launch config).
+    """Integer >= ``min``, or the keyword ``clear`` (restore launch config).
 
     The override knobs' value domain (the retry overrides and the per-sample
     limit overrides alike): every integer >= 0 (up to the server-shared
     ``MAX_GENERATE_CONFIG_OVERRIDE`` bound, which ``MAX_SAMPLE_LIMIT_OVERRIDE``
     matches) is a real value (``--max-retries 0`` means fail after the first
     attempt), so clearing an override needs an out-of-band spelling — the
-    literal ``clear``, passed through to the server verbatim.
+    literal ``clear``, passed through to the server verbatim. ``--max-tasks``
+    uses ``min=1`` (0 would be a disguised pause — `inspect ctl process
+    pause` is the real spelling).
     """
 
     name = "integer or 'clear'"
+
+    def __init__(self, min: int = 0) -> None:
+        self._min = min
 
     def convert(
         self, value: Any, param: click.Parameter | None, ctx: click.Context | None
@@ -58,9 +63,10 @@ class _IntOrClearType(_IntOrClearBase):
                 parsed = int(value)
             except ValueError:
                 self.fail(f"{value!r} is not an integer or 'clear'.", param, ctx)
-        if parsed < 0:
+        if parsed < self._min:
+            bound = "negative" if self._min == 0 else f"less than {self._min}"
             self.fail(
-                f"{parsed} is negative (pass 'clear' to restore launch config).",
+                f"{parsed} is {bound} (pass 'clear' to restore launch config).",
                 param,
                 ctx,
             )
@@ -75,6 +81,7 @@ class _IntOrClearType(_IntOrClearBase):
 
 
 _INT_OR_CLEAR = _IntOrClearType()
+_INT_MIN_ONE_OR_CLEAR = _IntOrClearType(min=1)
 
 
 class _NounGroup(click.Group):
@@ -183,6 +190,26 @@ def _json_option(what: str) -> Callable[[Callable[..., None]], Callable[..., Non
         is_flag=True,
         default=False,
         help=f"Output as JSON ({what}).",
+    )
+
+
+def _model_option() -> Callable[[Callable[..., None]], Callable[..., None]]:
+    """The ``--model`` disambiguator the task-selecting commands carry.
+
+    One task run against several models (``--model a,b``) makes the task
+    name ambiguous as a selector; this filters the selector's candidates
+    (or, with no ``TASK``, all rows) to tasks whose model matches — the
+    same rule ``ctl config --model`` uses (see `match_name_prefix`) — so
+    the name resolves without falling back to opaque task ids.
+    """
+    return click.option(
+        "--model",
+        default=None,
+        help=(
+            "Only consider tasks running this model — matched at the name "
+            "start or after a '/' (e.g. 'gpt-5' matches 'openai/gpt-5'). "
+            "Disambiguates a task name that runs against several models."
+        ),
     )
 
 
