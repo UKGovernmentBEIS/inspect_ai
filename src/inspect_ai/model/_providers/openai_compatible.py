@@ -420,17 +420,28 @@ class OpenAICompatibleAPI(ModelAPI):
 
         An explicit `stream` model arg wins; when unset, stream if the
         subclass calls for it (`should_stream`) or the caller passed
-        `on_stream` to `Model.generate()` (`model_stream_requested`).
-        `on_stream` alone never turns on streaming when `prompt_logprobs`
-        is requested: the streaming path drops prompt logprobs, and a
-        display-only stream request must not degrade results (an explicit
-        opt-in still streams, with a warning).
+        `on_stream` to `Model.generate()` (`model_stream_requested`) and
+        the request is `auto_streamable`.
         """
         if self.stream is not None:
             return self.stream
         if self.should_stream(config):
             return True
-        return model_stream_requested() and config.prompt_logprobs is None
+        return model_stream_requested() and self.auto_streamable(config)
+
+    def auto_streamable(self, config: GenerateConfig) -> bool:
+        """Whether an `on_stream` callback alone may turn on streaming.
+
+        A display-only stream request must not degrade results, so auto
+        mode declines to stream requests the streaming path is lossy for
+        (an explicit `stream=true` opt-in still streams, with a warning
+        where one applies). The base path is lossy only for
+        `prompt_logprobs`. Subclasses whose completions carry fields the
+        SDK stream accumulator drops (anything outside spec-shaped
+        `choices`/`usage`) should override to decline the affected
+        requests.
+        """
+        return config.prompt_logprobs is None
 
     def tools_to_openai(self, tools: list[ToolInfo]) -> list[ChatCompletionToolParam]:
         # some inference platforms (e.g. hf-inference) require strict=True

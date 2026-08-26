@@ -198,6 +198,14 @@ class TogetherAIAPI(OpenAICompatibleAPI):
         return super().resolve_stream(config)
 
     @override
+    def auto_streamable(self, config: GenerateConfig) -> bool:
+        # Together returns logprobs in its native tokens/token_logprobs
+        # shape (see chat_choices_from_response_together), which the SDK
+        # stream accumulator does not carry into the final completion —
+        # logprobs would silently come back empty under streaming.
+        return super().auto_streamable(config) and not config.logprobs
+
+    @override
     async def _generate_completion(
         self, request: dict[str, Any], config: GenerateConfig
     ) -> ChatCompletion:

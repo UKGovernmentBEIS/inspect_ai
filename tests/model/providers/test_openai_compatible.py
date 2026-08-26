@@ -619,3 +619,43 @@ def test_together_resolve_stream_excludes_batching() -> None:
     with model_stream_observer(ModelStreamObserver("test", collector)):
         assert _together_api().resolve_stream(config) is False
         assert _together_api(stream=True).resolve_stream(config) is False
+
+
+def test_together_resolve_stream_declines_logprobs() -> None:
+    """Auto mode declines to stream when logprobs is requested.
+
+    Together's native tokens/token_logprobs shape is not carried into
+    the final completion by the SDK stream accumulator, so a display-only
+    on_stream request must not enable streaming (an explicit opt-in
+    still streams).
+    """
+    config = GenerateConfig(logprobs=True)
+    collector = _StreamCollector()
+    with model_stream_observer(ModelStreamObserver("test", collector)):
+        assert _together_api().resolve_stream(config) is False
+        assert _together_api(stream=True).resolve_stream(config) is True
+        # logprobs unset still auto-streams
+        assert _together_api().resolve_stream(GenerateConfig()) is True
+
+
+def test_perplexity_resolve_stream_declines_auto() -> None:
+    """Perplexity never auto-streams from an on_stream callback alone.
+
+    Its citations/usage extras arrive as top-level response fields that
+    the SDK stream accumulator drops (an explicit opt-in still streams).
+    """
+    from inspect_ai.model._providers.perplexity import PerplexityAPI
+
+    def perplexity_api(stream: bool | None = None) -> PerplexityAPI:
+        return PerplexityAPI(
+            model_name="perplexity/sonar",
+            api_key="test",
+            base_url="https://example.com",
+            stream=stream,
+        )
+
+    config = GenerateConfig()
+    collector = _StreamCollector()
+    with model_stream_observer(ModelStreamObserver("test", collector)):
+        assert perplexity_api().resolve_stream(config) is False
+        assert perplexity_api(stream=True).resolve_stream(config) is True
