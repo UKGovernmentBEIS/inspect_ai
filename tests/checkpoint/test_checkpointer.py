@@ -1006,16 +1006,8 @@ async def test_failure_recorded_as_info_event_and_warning(
 
     cp = _flaky(ResolvedCheckpointConfig(trigger=Manual()), dirs)
     cp.should_fail = True
-    # A prior test may have called `eval()`, which sets `propagate=False`
-    # on the `inspect_ai` logger — restore propagation for caplog.
-    inspect_logger = logging.getLogger("inspect_ai")
-    saved_propagate = inspect_logger.propagate
-    inspect_logger.propagate = True
-    try:
-        with caplog.at_level(logging.WARNING):
-            await cp.checkpoint()
-    finally:
-        inspect_logger.propagate = saved_propagate
+    with caplog.at_level(logging.WARNING):
+        await cp.checkpoint()
 
     infos = [
         e for e in dirs.events if isinstance(e, InfoEvent) and e.source == "checkpoint"
