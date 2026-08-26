@@ -1186,8 +1186,10 @@ def _stub_httpx(
 
     Each item is either an ``Exception`` to raise (e.g. a ``TimeoutException``),
     a payload to return from ``response.json()``, or a ``(status_code, payload)``
-    tuple for a non-200 response. Returns a dict whose ``"gets"`` entry counts
-    how many requests were attempted.
+    tuple for a non-200 response. A ``str`` payload is a raw response body:
+    ``json()`` parses it, so plain text raises as it would from real httpx.
+    Returns a dict whose ``"gets"`` entry counts how many requests were
+    attempted.
 
     Both the sync and async clients are stubbed: reads go out over the async
     client, while a non-idempotent mutation still takes the sync path.
@@ -1224,6 +1226,11 @@ def _stub_httpx(
                 )
 
         def json(self) -> object:
+            # faithful to httpx: a str payload is a raw body to be parsed, so
+            # plain text (e.g. uvicorn's connection-limit rejection) raises
+            # JSONDecodeError (a ValueError) just as a real response would
+            if isinstance(self._payload, str):
+                return json.loads(self._payload)
             return self._payload
 
     count_key = {"get": "gets", "post": "posts", "patch": "patches"}
@@ -1446,6 +1453,188 @@ async def test_get_with_retry_busy_raises_without_terminal_echo(
     assert err.count("retrying") == 1
     assert "attempt 2/2" in err
     assert "gave up" not in err
+
+
+async def test_get_with_retry_retries_503_then_succeeds(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A 503 — the server's connection-limit backstop — retries like a timeout.
+
+    The server rejects over-cap connections with an instant 503 (uvicorn
+    ``limit_concurrency``): the process is alive but saturated, so the read
+    must narrate-and-retry (busy semantics) rather than fail as unreachable.
+    """
+    from inspect_ai._cli.ctl import _http
+    from inspect_ai._cli.ctl._http import _get_with_retry_async
+
+    monkeypatch.setattr(_http, "_REJECTED_RETRY_DELAY", 0)
+    counter = _stub_httpx(
+        monkeypatch, [(503, "Service Unavailable"), [{"task_id": "a"}]]
+    )
+    result = await _get_with_retry_async("/tmp/x.sock", "/tasks", what="Reading tasks")
+    assert result == [{"task_id": "a"}]
+    assert counter["gets"] == 2
+    err = capsys.readouterr().err
+    assert "concurrent-connection limit" in err
+    assert "retrying" in err
+
+
+async def test_get_with_retry_503_exhausts_with_rejection_wording(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """All-503 exhaustion reports the connection-limit cause, not the timeout one."""
+    from inspect_ai._cli.ctl import _http
+    from inspect_ai._cli.ctl._http import _REQUEST_ATTEMPTS, _get_with_retry_async
+
+    monkeypatch.setattr(_http, "_REJECTED_RETRY_DELAY", 0)
+    counter = _stub_httpx(
+        monkeypatch, [(503, "Service Unavailable")] * _REQUEST_ATTEMPTS
+    )
+    with pytest.raises(click.exceptions.Exit) as exc_info:
+        await _get_with_retry_async(
+            "/tmp/x.sock", "/tasks", what="Reading tasks", pid=7
+        )
+    assert exc_info.value.exit_code == 1
+    assert counter["gets"] == _REQUEST_ATTEMPTS
+    err = capsys.readouterr().err
+    assert f"gave up after {_REQUEST_ATTEMPTS} attempts" in err
+    assert "concurrent-connection limit" in err
+    # a rejection answers instantly — the terminal line must not claim the
+    # attempts each waited out the timeout
+    assert "15s each" not in err
+    assert "inspect ctl process anomalies 7" in err
+
+
+async def test_get_with_retry_503_raises_busy_with_rejection_cause(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Under raise_on_busy an all-503 read raises _ServerBusy with the cause."""
+    from inspect_ai._cli.ctl import _http
+    from inspect_ai._cli.ctl._http import _get_with_retry_async, _ServerBusy
+
+    monkeypatch.setattr(_http, "_REJECTED_RETRY_DELAY", 0)
+    counter = _stub_httpx(monkeypatch, [(503, "Service Unavailable")] * 2)
+    with pytest.raises(_ServerBusy) as exc_info:
+        await _get_with_retry_async(
+            "/tmp/x.sock",
+            "/tasks",
+            what="Reading tasks",
+            raise_on_busy=True,
+            attempts=2,
+        )
+    assert counter["gets"] == 2
+    assert exc_info.value.busy_cause == _http._REJECTED_PROBLEM
+    assert "concurrent-connection limit" in str(exc_info.value)
+
+
+async def test_get_with_retry_mixed_exhaustion_names_both_causes(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A mixed timeout/503 exhaustion must not claim a single false cause.
+
+    Attempts that hit both failure kinds used to be worded from the final
+    attempt alone — e.g. seven instant rejections then a timeout claimed
+    every attempt waited out the 15s timeout. The terminal error must name
+    both counts.
+    """
+    import httpx
+
+    from inspect_ai._cli.ctl import _http
+    from inspect_ai._cli.ctl._http import _REQUEST_ATTEMPTS, _get_with_retry_async
+
+    monkeypatch.setattr(_http, "_REJECTED_RETRY_DELAY", 0)
+    _stub_httpx(
+        monkeypatch,
+        [httpx.ReadTimeout("slow")]
+        + [(503, "Service Unavailable")] * (_REQUEST_ATTEMPTS - 1),
+    )
+    with pytest.raises(click.exceptions.Exit):
+        await _get_with_retry_async("/tmp/x.sock", "/tasks", what="Reading tasks")
+    err = capsys.readouterr().err
+    assert (
+        f"1 timed out and {_REQUEST_ATTEMPTS - 1} hit the server's "
+        "concurrent-connection limit" in err
+    )
+
+
+@pytest.mark.parametrize(
+    "body",
+    [{"error": "component not ready"}, {"detail": "component not ready"}],
+    ids=["error-convention", "fastapi-http-exception"],
+)
+async def test_get_with_retry_passes_handler_503_through(
+    monkeypatch: pytest.MonkeyPatch,
+    body: dict[str, str],
+) -> None:
+    """A 503 carrying any JSON dict body is a handler's, not the cap's.
+
+    No control endpoint returns 503 today, but uvicorn's connection-limit
+    rejection is always plain text — so a JSON dict body, whether the
+    server's ``{"error": ...}`` convention or FastAPI's stock
+    ``{"detail": ...}`` from ``HTTPException``, must reach the caller
+    (here: non-2xx → unreachable) rather than be consumed and retried as
+    a capacity rejection.
+    """
+    from inspect_ai._cli.ctl._http import _get_with_retry_async, _ServerUnreachable
+
+    counter = _stub_httpx(monkeypatch, [(503, body)])
+    with pytest.raises(_ServerUnreachable):
+        await _get_with_retry_async("/tmp/x.sock", "/tasks", what="Reading tasks")
+    assert counter["gets"] == 1  # not retried as a capacity rejection
+
+
+def test_busy_narrator_dedups_per_attempt_and_problem(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A shared narrator collapses same-cause repeats but not differing causes.
+
+    503 rejections pace differently from timeouts, so a fast-rejected target
+    reaching an attempt number first must not silence a slower sibling's
+    timeout narration for the same attempt (and vice versa).
+    """
+    from inspect_ai._cli.ctl._http import _REJECTED_PROBLEM, _BusyNarrator
+
+    narrator = _BusyNarrator("Reading tasks from 2 processes")
+    narrator.narrate(1, 8, _REJECTED_PROBLEM)  # fast-rejected target
+    narrator.narrate(1, 8)  # slower timing-out sibling, same attempt number
+    narrator.narrate(1, 8, _REJECTED_PROBLEM)  # repeat: collapsed
+    narrator.narrate(1, 8)  # repeat: collapsed
+    err = capsys.readouterr().err
+    assert err.count("concurrent-connection limit") == 1
+    assert err.count("no response after") == 1
+
+
+def test_mutation_503_fails_busy_without_retry(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A single-shot mutation hitting the connection-limit 503 exits as busy.
+
+    The rejection happens before any handler runs, so the mutation was not
+    applied; the failure must say "try again shortly" (busy) rather than
+    surface a bare HTTP 503, and must still not auto-retry (the retry
+    decision stays with the caller, as for every non-idempotent mutation).
+    """
+    from inspect_ai._cli.ctl._config import _exec_limits
+    from inspect_ai._cli.ctl._failure import _CtlFailure
+
+    counter = _stub_httpx(monkeypatch, [(503, "Service Unavailable")])
+    with pytest.raises(_CtlFailure) as exc_info:
+        _exec_limits(
+            "/tmp/x.sock",
+            "t1",
+            max_samples=None,
+            max_sandboxes=None,
+            max_connections=None,
+            model=None,
+            log_buffer=3,
+            dry_run=False,
+        )
+    assert exc_info.value.exit_code == 1
+    assert exc_info.value.kind == "busy"
+    assert counter["patches"] == 1  # tried once, no retry
+    err = capsys.readouterr().err
+    assert "concurrent-connection limit" in err
+    assert "try again shortly" in err
 
 
 def test_fetch_summaries_busy_server_skipped_when_degradable(

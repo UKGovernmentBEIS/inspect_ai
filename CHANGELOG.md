@@ -13,6 +13,7 @@
 - Control Channel: `inspect ctl config --json` refusals against an older eval process now emit the structured `{"error": ...}` envelope instead of only stderr prose.
 - Refactor: Consolidated the per-sample lifecycle in the task runner; samples now reach terminal state before metrics/early-stopping hooks run, so a raising or suspended hook cannot leave a sample uncounted or a finished task accepting requeue/cancel.
 - Control Channel: `inspect ctl config --max-tasks` retunes a running eval's task concurrency mid-flight — raising it starts pending tasks immediately (pass `clear` to restore launch config).
+- Control Channel: A runaway polling client can no longer starve the eval by piling up queued requests — excess concurrent connections are rejected as busy, and `inspect ctl` retries them shortly.
 
 ## 0.3.260 (21 August 2026)
 
