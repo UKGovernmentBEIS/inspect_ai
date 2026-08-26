@@ -60,6 +60,9 @@ description: List, read, write, and analyse logs.
 ### EvalResults
 ### EvalScore
 ### EvalMetric
+### HeadlineMetric
+### ResolvedHeadlineMetric
+### headline_metric
 ### EvalSampleReductions
 ### EvalStats
 ### EvalError
