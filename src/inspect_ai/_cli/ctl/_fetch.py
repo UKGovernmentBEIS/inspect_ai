@@ -1,6 +1,6 @@
 """Per-resource reads/writes over the HTTP transport.
 
-Summaries, samples/events/messages fetches, log-flush POST, and
+Summaries, samples/events/messages/store fetches, log-flush POST, and
 target-eval resolution.
 """
 
@@ -710,6 +710,55 @@ def _fetch_sample_messages(
             "not have started or not yet been written to the log."
         ),
         not_found_missing_route=_MESSAGES_ROUTE_MISSING,
+        pid=pid,
+    )
+
+
+_STORE_ROUTE_MISSING = (
+    "This process is running an older inspect without the sample "
+    "store endpoint; restart the eval to pick up the current version."
+)
+
+
+def _fetch_sample_store(
+    socket_path: str,
+    eval_id: str,
+    sample_id: str,
+    epoch: int,
+    *,
+    keys: tuple[str, ...],
+    content: bool,
+    full: bool,
+    pid: int | None = None,
+) -> dict[str, Any]:
+    """Query one control server for a snapshot of a sample's store.
+
+    The authoritative read behind ``sample store``: like the sibling
+    per-sample reads, it rides the full narrated busy-retry policy rather
+    than failing on a momentary event-loop stall; ``pid`` scopes that
+    policy's exhaustion pointer to the hosting process.
+    """
+    # sample_id (and all params) go in the query string so reserved-char ids
+    # address correctly; `key` repeats on the wire (httpx encodes a list as
+    # repeated params); drop it when unset so the server serves every key.
+    params: dict[str, Any] = {
+        "sample_id": sample_id,
+        "epoch": epoch,
+        "content": content,
+        "full": full,
+    }
+    if keys:
+        params["key"] = list(keys)
+    return _http._request_json(
+        socket_path,
+        f"/evals/{eval_id}/sample/store",
+        params=params,
+        what=f"store for sample {sample_id}",
+        not_found=(
+            f"Sample '{sample_id}' (epoch {epoch}) not found — it may "
+            "not have started or not yet been written to the log."
+        ),
+        not_found_missing_route=_STORE_ROUTE_MISSING,
         pid=pid,
     )
 

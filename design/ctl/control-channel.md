@@ -82,6 +82,8 @@ inspect ctl sample events TASK SID [EPOCH]  # one sample's transcript events (cu
 
 inspect ctl sample messages TASK SID [EPOCH]  # one sample's current conversation, snapshot
                                               #   --tail N / --all / --full (see "Sample messages read")
+inspect ctl sample store TASK SID [EPOCH]     # one sample's current store, snapshot
+                                              #   --key K (repeatable; exact or trailing-* prefix) / --full (see sample-store.md)
 inspect ctl process list                    # running Inspect processes (pid / keep-alive / tasks)
 inspect ctl process keep [PID]              # keep a running process alive after its eval finishes
 inspect ctl process release [PID]           # release a lingering keep-alive process
@@ -140,6 +142,7 @@ inspect ctl
 │   ├── cancel TASK                 # shipped (abort, or --action score/error sample resolution; a graceful-drain variant is future work)
 │   ├── pause [TASK] / resume [TASK]  # shipped (quiesce semantics — see design/ctl/pause-resume.md)
 │   ├── add SPEC [...]              # planned: add
+│   ├── score [TASK]                # shipped: interim scoring pass (see design/ctl/interim-scoring.md)
 │   └── drain TASK                  # planned: drain (a thin composition over the pause gate)
 ├── sample                      # one sample (TASK SAMPLE_ID [EPOCH]) or a task's samples
 │   ├── list [TASK]                 # implied by bare `ctl sample`; no TASK = all tasks
@@ -147,6 +150,7 @@ inspect ctl
 │   ├── errors [TASK]               # no TASK = across all tasks
 │   ├── events TASK SID [EPOCH]     # phase-4 --follow lands here
 │   ├── messages TASK SID [EPOCH]   # shipped: current-conversation snapshot (see "Sample messages read")
+│   ├── store TASK SID [EPOCH]      # shipped: current-store snapshot (see sample-store.md)
 │   ├── cancel TASK SID [EPOCH]     # shipped (EPOCH required when the task runs >1 epoch)
 │   └── requeue TASK SID [EPOCH]    # shipped (EPOCH required when the task runs >1 epoch;
 │                                   #   also `--errored` / several SID EPOCH pairs — a CLI-side
@@ -271,6 +275,7 @@ The conceptual surface, independent of wire protocol. Each operation becomes eit
 - Eval status detail (config, current limits, sample queue depth, in-flight samples, completed counts, model usage so far).
 - List samples within an eval (status, started_at, current model/tool, token usage).
 - Read one sample's current conversation — the live `TaskState.messages`, summary-projected (see "Sample messages read").
+- Read one sample's current store — the live `TaskState.store`, key-filtered and projection-tiered (see `sample-store.md`).
 
 **Read (eval-set-level)**
 - List eval-sets.
@@ -350,6 +355,7 @@ The URL scheme has one rule — **three scopes, three roots**: process-scoped op
 | Sample transcript events (pull) | `GET /evals/<id>/sample/events?sample_id=<sid>&epoch=<n>&since=<cursor>` (JSON) | 2 ✅ |
 | Sample transcript events (push) | the pull URL with `Accept: text/event-stream` (SSE) | 4 |
 | Sample conversation messages (snapshot) | `GET /evals/<id>/sample/messages?sample_id=<sid>&epoch=<n>` | 2 ✅ |
+| Sample store (snapshot) | `GET /evals/<id>/sample/store?sample_id=<sid>&epoch=<n>&key=<k>…` | 2 ✅ (see `sample-store.md`) |
 | Eval-wide transcript fan-in (push only) | `GET /evals/<id>/samples/events` (SSE) | 4 |
 | Flush buffered samples to the log | `POST /tasks/<task-id>/log-flush` | 3 ✅ |
 | Read / modify retunable config (concurrency limits, buffer params) | `GET`+`PATCH /config` (process) and `/tasks/<task-id>/config` (task) | 3 ✅ (max-samples / max-sandboxes / max-subprocesses / max-connections / named `concurrency()` keys via `--key` / log-buffer / log-shared) |
@@ -361,6 +367,7 @@ The URL scheme has one rule — **three scopes, three roots**: process-scoped op
 | Drain | `POST /tasks/<task-id>/drain` | 3 |
 | Requeue sample | `POST /evals/<id>/sample/requeue?sample_id=<sid>&epoch=<n>` | 3 ✅ (see `sample-requeue.md`) |
 | Modify per-sample limits (time / token / message) | `PATCH /tasks/<task-id>/config` (as further config knobs) | 3 |
+| Interim scoring pass (score a running eval without ending its samples) | `POST /tasks/<task-id>/score` (start) / `GET` (poll) | ✅ (see `design/ctl/interim-scoring.md`) |
 | List eval-sets | `GET /eval-sets` | later |
 | Eval-set status | `GET /eval-sets/<id>` | later |
 | Cancel eval-set | `POST /eval-sets/<id>/cancel` | later |

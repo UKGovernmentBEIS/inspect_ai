@@ -42,7 +42,7 @@ from inspect_ai.approval._policy import (
     approval_policies_from_config,
 )
 from inspect_ai.dataset import Dataset, MemoryDataset, Sample
-from inspect_ai.log import EvalLog, EvalLogInfo
+from inspect_ai.log import EvalLog, EvalLogInfo, HeadlineMetric
 from inspect_ai.model import GenerateConfig
 from inspect_ai.model._model import Model
 from inspect_ai.model._util import resolve_model, resolve_model_roles
@@ -114,6 +114,7 @@ class Task:
         metadata: dict[str, Any] | None = None,
         tags: list[str] | None = None,
         viewer: ViewerConfig | None = None,
+        headline_metric: HeadlineMetric | str | None = None,
         **kwargs: Unpack[TaskDeprecatedArgs],
     ) -> None:
         """Create a task.
@@ -186,6 +187,14 @@ class Task:
             tags: Tags to associate with the task.
             viewer: Log viewer configuration for this task (controls how
                 scanner results are rendered in the sidebar).
+            headline_metric: Which score/metric best summarises this task (e.g.
+                for a leaderboard or log listing). A `str` names the scorer, as
+                `"<scorer>"` or `"<scorer>.<score>"` to address one value of a
+                scorer returning a dict of scores. Pass a `HeadlineMetric` to
+                also name the `metric` or `reducer`. Unset fields resolve by
+                convention, so `HeadlineMetric(metric="accuracy")` takes that
+                metric from the first score reporting it; the default is the
+                first metric of the first score.
             **kwargs: Deprecated arguments.
         """
         # handle deprecated args
@@ -247,6 +256,7 @@ class Task:
         self.metadata = metadata
         self.tags = tags
         self.viewer = viewer
+        self.headline_metric = resolve_headline_metric_spec(headline_metric)
 
     @property
     def name(self) -> str:
@@ -323,6 +333,7 @@ def task_with(
     metadata: dict[str, Any] | None | NotGiven = NOT_GIVEN,
     tags: list[str] | None | NotGiven = NOT_GIVEN,
     viewer: ViewerConfig | None | NotGiven = NOT_GIVEN,
+    headline_metric: HeadlineMetric | str | None | NotGiven = NOT_GIVEN,
 ) -> Task:
     """Task adapted with alternate values for one or more options.
 
@@ -402,6 +413,8 @@ def task_with(
         tags: Tags to associate with the task.
         viewer: Log viewer configuration for this task (controls how
             scanner results are rendered in the sidebar).
+        headline_metric: Which score/metric best summarises this task (e.g. for a
+            leaderboard or log listing).
 
     Returns:
         Task: Passed `task` with modifications.
@@ -470,6 +483,8 @@ def task_with(
         task.tags = tags
     if not isinstance(viewer, NotGiven):
         task.viewer = viewer
+    if not isinstance(headline_metric, NotGiven):
+        task.headline_metric = resolve_headline_metric_spec(headline_metric)
 
     # return modified task
     return task
@@ -517,6 +532,21 @@ def resolve_approval(
         if isinstance(approval, str | ApprovalPolicyConfig)
         else approval
     )
+
+
+def resolve_headline_metric_spec(
+    headline_metric: HeadlineMetric | str | None,
+) -> HeadlineMetric | None:
+    """Expand the `"<scorer>.<score>"` shorthand accepted for a headline metric.
+
+    Split on the first dot: the trailing part addresses one value of a scorer
+    returning a dict of scores. A scorer whose own name contains a dot is named
+    by passing a `HeadlineMetric`, whose fields are matched literally.
+    """
+    if not isinstance(headline_metric, str):
+        return headline_metric
+    scorer, _, score = headline_metric.partition(".")
+    return HeadlineMetric(scorer=scorer, score=score or None)
 
 
 def resolve_epochs(epochs: int | Epochs | None) -> Epochs | None:
