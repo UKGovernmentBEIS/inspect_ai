@@ -550,7 +550,12 @@ this window) — but it's not needed for the queued cases this design targets.
   `_is_planned` branch consults the view's cancelled state — re-snapshotted after
   the terminal read's await (a cancel-before-start accepted during `_full_sample`
   must land on the parked/discarded rows, not `_is_planned`'s "will run without
-  help"; the mirror of `cancel_sample`'s post-await re-resolve).
+  help"; the mirror of `cancel_sample`'s post-await re-resolve). The parked
+  un-cancel re-checks the task-level gates synchronously before mutating (the
+  reroute follows an await, so the top-of-resolver check is stale; a
+  cancel-before-start that counted the last outstanding sample has already
+  finished the eval, and un-cancelling past that would revive an unreachable
+  run).
 - `_control/state.py`: cancelled-before-start keys render `cancelled` in the listing
   and `sample show` (parallel to `_pending_requeue_keys`).
 - `_cli/ctl/_sample.py`: no new flags; rejection/detail wording for the new rows.

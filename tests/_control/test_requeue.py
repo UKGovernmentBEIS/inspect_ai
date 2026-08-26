@@ -391,6 +391,76 @@ async def test_requeue_cancel_during_terminal_read_rerouted(
             assert handle.uncancels == []
 
 
+async def test_requeue_uncancel_during_terminal_read_gate_rechecked(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A task-level gate closing during the terminal read blocks the un-cancel.
+
+    The post-await reroute mutates (``uncancel``), so it must re-check the
+    task-level gates: a cancel-before-start accepted during ``_full_sample``
+    can count the last outstanding sample and finish the eval — un-cancelling
+    past that would revive a run inside a finished eval that no directive can
+    reach (and decrement the cancelled bucket below the finished sum). Same
+    for a task cancel starting during the read.
+    """
+    from inspect_ai._control.eval_state import (
+        record_sample_cancelled,
+        record_sample_completed,
+    )
+
+    _patch_active_samples(monkeypatch, [])
+
+    def finish_eval() -> None:
+        # the sibling completes and the cancel accept counts the last
+        # outstanding sample: terminal sum == total, completed_at stamped
+        record_sample_completed("e1")
+        record_sample_cancelled("e1")
+
+    def start_task_cancel() -> None:
+        state = get_eval_state("e1")
+        assert state is not None and state.task_cancel is not None
+        state.task_cancel.cancel_type = "abort"
+
+    cases: list[tuple[Any, str]] = [
+        (finish_eval, "task already finished"),
+        (start_task_cancel, "cancel is in flight"),
+    ]
+    for close_gate, expected in cases:
+        clear_all_eval_states()
+        handle = _FakeRequeueHandle()
+
+        async def read(
+            id: str | int,
+            epoch: int,
+            *,
+            exclude_fields: set[str] | None = None,
+            handle: _FakeRequeueHandle = handle,
+            close_gate: Any = close_gate,
+        ) -> EvalSample | None:
+            # the cancel-before-start accept and the gate close both land
+            # while the resolver awaits the terminal read
+            handle._cancelled = "parked"
+            close_gate()
+            return None
+
+        register_eval(
+            "e1",
+            2,
+            task_id="t1",
+            task="my_task",
+            live=FakeLiveEvalData(sample=read),
+            sample_ids=["s1", "s2"],
+            epochs=1,
+            task_cancel=TaskCancel(can_retry=False, cancel_task=lambda _: None),
+        )
+        set_sample_requeue("e1", cast(SampleRequeue, handle))
+
+        result = await requeue_sample("e1", "s2", 1)
+        assert result is not None, expected
+        assert result["ok"] is False and expected in result["error"]
+        assert handle.uncancels == []
+
+
 def test_record_sample_unrequeued_restores_bucket() -> None:
     from inspect_ai._control.eval_state import (
         record_sample_completed,

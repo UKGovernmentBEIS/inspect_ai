@@ -177,7 +177,9 @@ async def requeue_sample(
             "a requeue of this sample is already pending",
         )
 
-    cancelled_row = _resolve_cancelled_key(handle, view, sample_id, epoch, dry_run)
+    cancelled_row = _resolve_cancelled_key(
+        state, handle, view, sample_id, epoch, dry_run
+    )
     if cancelled_row is not None:
         return cancelled_row
 
@@ -199,7 +201,9 @@ async def requeue_sample(
                 "queued",
                 "a requeue of this sample is already pending",
             )
-        cancelled_row = _resolve_cancelled_key(handle, view, sample_id, epoch, dry_run)
+        cancelled_row = _resolve_cancelled_key(
+            state, handle, view, sample_id, epoch, dry_run
+        )
         if cancelled_row is not None:
             return cancelled_row
         # planned but never started will run without help; an unknown
@@ -297,6 +301,7 @@ def _scheduled(
 
 
 def _resolve_cancelled_key(
+    state: "EvalState",
     handle: "SampleRequeue",
     view: "SampleQueueView",
     sample_id: str,
@@ -320,6 +325,16 @@ def _resolve_cancelled_key(
             "`inspect eval-retry` (or re-invoke `inspect eval-set`)"
         )
     if view.cancelled == "parked":
+        # Re-check the task-level gates synchronously before the un-cancel:
+        # the caller's top-of-resolver check may pre-date an await (the
+        # post-`_full_sample` reroute), and a gate closing during it must
+        # win — a cancel-before-start that counted the last outstanding
+        # sample stamps `completed_at`, and un-cancelling past that would
+        # revive a run inside a finished eval that no directive can reach.
+        # Mirrors the per-accepting-branch re-checks in cancel.py.
+        rejected = _task_level_reject(state)
+        if rejected is not None:
+            return rejected
         # the reason is conditional-tense under dry_run so the CLI's "Would
         # requeue …" rendering doesn't embed a past-tense mutation
         uncancelled: RequeueUncancelled = {
