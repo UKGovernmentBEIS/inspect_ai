@@ -810,7 +810,7 @@ def test_keep_alive_works_when_all_logs_reused(
 def test_runtime_keep_parks_eval_set_launched_without_flag(
     short_data_dir: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A runtime `inspect ctl keep` parks an eval-set started without the flag.
+    """A runtime `inspect ctl process keep` parks an eval-set started without the flag.
 
     Launched without ``ctl_server="keep"`` the process would normally exit
     when the run finishes. Latching keep-alive during the run (what ``POST
