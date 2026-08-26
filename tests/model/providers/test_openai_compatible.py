@@ -488,7 +488,7 @@ def test_sdk_stream_state_content_filter_contract() -> None:
             "strict": True,
         },
     }
-    state = ChatCompletionStreamState(input_tools=[strict_tool], response_format=None)
+    state = ChatCompletionStreamState(input_tools=[strict_tool])
 
     def chunk(payload: dict[str, Any]) -> ChatCompletionChunk:
         return ChatCompletionChunk.model_validate(
