@@ -741,8 +741,11 @@ async def _enumerate_targets(
             targets.completed_unscored.append(summary)
 
     # queued / pending samples are skipped without individual rows (the
-    # counters, not the row list, are authoritative for totals)
-    targets.unaccounted = max(0, state.total - accounted)
+    # counters, not the row list, are authoritative for totals); under
+    # ``only`` the eval-wide total is meaningless against the narrowed
+    # enumeration, so unaccounted stays 0 (the documented invariant)
+    if only is None:
+        targets.unaccounted = max(0, state.total - accounted)
     return targets
 
 

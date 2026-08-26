@@ -1290,6 +1290,36 @@ async def test_start_sample_score_unknown_sample_is_none(
     assert await start_sample_score_pass("e1", "s1", 2) is None
 
 
+async def test_enumerate_targets_only_keeps_unaccounted_zero(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The narrowed enumeration never charges the eval-wide total to skipped.
+
+    Pins the documented invariant on the ``only`` fall-through paths (a
+    completed match, and no match at all) — the paths that reach the final
+    ``total - accounted`` assignment, which must not run under ``only``.
+    """
+
+    async def summaries() -> list[EvalSampleSummary]:
+        return [_summary("done", scores={"match_target": Score(value=1.0)})]
+
+    register_eval("e1", 8, task_id="t1", live=FakeLiveEvalData(summaries=summaries))
+    set_task_scoring("e1", _scoring_handle())
+    _patch_active_samples(monkeypatch, [])
+    state = latest_eval_for_task("t1")
+    assert state is not None
+    handle = _scoring_handle()
+
+    completed_match = await _enumerate_targets(state, handle, only=("done", 1))
+    assert len(completed_match.completed_scored) == 1
+    assert completed_match.unaccounted == 0
+    assert completed_match.counts(False)["skipped"] == 0
+
+    no_match = await _enumerate_targets(state, handle, only=("queued", 1))
+    assert no_match.unaccounted == 0
+    assert no_match.counts(False)["skipped"] == 0
+
+
 async def test_start_sample_score_without_scorers_is_rejected() -> None:
     register_eval("e1", 1, task_id="t1")
     result = await start_sample_score_pass("e1", "s1", 1)
