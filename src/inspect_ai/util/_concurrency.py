@@ -207,8 +207,9 @@ class ResizableLimiter:
 
     @limit.setter
     def limit(self, value: int) -> None:
-        # CapacityLimiter requires total_tokens >= 1; callers validate, but
-        # guard here too so a stray 0/negative can't wedge the limiter.
+        # anyio's CapacityLimiter accepts total_tokens == 0 (silently blocking
+        # all acquires); callers validate, but guard here too so a stray
+        # 0/negative can't wedge the limiter.
         if value < 1:
             raise ValueError(f"ResizableLimiter limit must be >= 1 (got {value})")
         self._limiter.total_tokens = value
@@ -1181,20 +1182,29 @@ class DynamicSampleLimiter:
     def set_override(self, value: int | None) -> None:
         """Pin sample concurrency at ``value``, or resume tracking with ``None``.
 
-        An ``int`` pins capacity at exactly that value (callers validate
-        ``>= 1`` — ``CapacityLimiter`` requires it); lowering below the
+        An ``int`` pins capacity at exactly that value (``< 1`` raises
+        ``ValueError`` without committing the pin); lowering below the
         in-flight count blocks new acquires until holders drain, never
         preempting. ``None`` removes the pin and re-syncs: to the adopted
         controller's current ``concurrency + BUFFER``, or to the initial
         capacity when no controller has been adopted.
         """
-        self._override = value
         if value is not None:
+            # validate before committing the pin: anyio's CapacityLimiter
+            # accepts 0 (silently blocking all acquires), and a rejected
+            # value must not leave the limiter reporting pinned
+            if value < 1:
+                raise ValueError(f"max_samples override must be >= 1 (got {value})")
             self._limiter.total_tokens = value
-        elif self._ctrl is not None:
-            self._on_controller_change()
+            self._override = value
         else:
-            self._limiter.total_tokens = self._initial
+            # clear before re-syncing — _on_controller_change ignores events
+            # while pinned
+            self._override = None
+            if self._ctrl is not None:
+                self._on_controller_change()
+            else:
+                self._limiter.total_tokens = self._initial
 
     @property
     def limit(self) -> int:

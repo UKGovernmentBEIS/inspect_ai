@@ -187,9 +187,12 @@ eval's single event-loop thread (see AGENTS.md "No speculative locks").
     inherit, and its floor cannot simply be raised without breaking those
     knobs. Add a `minimum` parameter (default 0) and pass `minimum=1` for
     `max_samples`: 0 must 400 at the wire, because let through it reaches
-    the apply layer where both `ResizableLimiter.limit`
-    (`_concurrency.py`) and `CapacityLimiter.total_tokens` raise on `< 1`
-    — an unhandled 500, not the clean 400 the test plan expects. (Routing
+    the apply layer, where the static path's `ResizableLimiter.limit`
+    (`_concurrency.py`) raises on `< 1` — an unhandled 500, not the clean
+    400 the test plan expects — and the adaptive path's underlying
+    `CapacityLimiter` would accept 0 outright (anyio's floor is `>= 0`),
+    silently blocking all new sample acquires; `set_override` guards
+    `>= 1` itself so that misuse raises rather than wedging. (Routing
     the parsed int through the shared `_limits_below_one` check instead
     would also work, but then the negative-value rejection from the
     parser and the zero rejection from `_limits_below_one` would disagree
@@ -310,8 +313,11 @@ work once the view carries `limit`.
   `controller.concurrency + BUFFER` is allowed (more setup overlap; excess
   samples queue on the connection limiter, exactly like launch-time
   `max_samples > max_connections` on the static path).
-- **Bounds.** `< 1` rejected at the server boundary (CapacityLimiter
-  requires `total_tokens >= 1`); no upper bound, matching the static knob.
+- **Bounds.** `< 1` rejected at the server boundary, with the apply layer
+  guarding too (`ResizableLimiter.limit` and
+  `DynamicSampleLimiter.set_override` both raise on `< 1` — anyio's
+  `CapacityLimiter` itself accepts 0, which would silently block all
+  acquires); no upper bound, matching the static knob.
 - **Recording fan-out.** `max_samples` is task-scoped, so the record lands
   only in that task's log via the existing `record_config_changes`
   task-changes path; no metadata stamp needed (unlike filtered

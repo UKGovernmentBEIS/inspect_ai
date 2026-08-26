@@ -994,6 +994,16 @@ async def test_dynamic_sample_limiter_clear_resumes_tracking() -> None:
     assert lim.total_tokens == 25  # 20 + 5
 
 
+def test_dynamic_sample_limiter_invalid_pin_not_committed() -> None:
+    """A value CapacityLimiter rejects (< 1) must not leave the limiter pinned."""
+    init_concurrency()
+    lim = DynamicSampleLimiter(AdaptiveConcurrency(min=1, max=200, start=10), "k")
+    with pytest.raises(ValueError):
+        lim.set_override(0)
+    assert lim.override is None  # pin uncommitted — limiter still tracking
+    assert lim.total_tokens == 10 + DynamicSampleLimiter.BUFFER
+
+
 def test_dynamic_sample_limiter_clear_without_controller_restores_initial() -> None:
     init_concurrency()
     lim = DynamicSampleLimiter(AdaptiveConcurrency(min=1, max=200, start=10), "k")

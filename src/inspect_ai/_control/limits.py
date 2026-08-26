@@ -271,10 +271,10 @@ async def task_limits(
 
     Args:
         task_id: The target task (stable across retry attempts).
-        max_samples: New sample-concurrency limit, or ``None`` to leave it.
-            Under adaptive connections an integer pins sample concurrency
-            (decoupling it from the controller) and the keyword ``clear``
-            unpins, resuming controller tracking.
+        max_samples: New sample-concurrency limit (``>= 1``), or ``None`` to
+            leave it. Under adaptive connections an integer pins sample
+            concurrency (decoupling it from the controller) and the keyword
+            ``clear`` unpins, resuming controller tracking.
         max_sandboxes: New per-provider sandbox-concurrency limit, or ``None``.
         max_subprocesses: New subprocess-concurrency limit, or ``None``.
         max_connections: New adaptive-controller scaling ceiling (applied to
