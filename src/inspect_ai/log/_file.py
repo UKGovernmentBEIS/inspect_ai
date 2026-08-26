@@ -269,6 +269,9 @@ async def _list_eval_logs_async(
             if should_suppress_azure_error(log_dir, ex):
                 logger.warning(azure_warning_hint(log_dir, ex))
                 exists = True
+            elif should_suppress_s3_error(log_dir, ex):
+                logger.warning(s3_warning_hint(log_dir, ex))
+                exists = True
             else:
                 raise
         if not exists:
@@ -284,8 +287,10 @@ async def _list_eval_logs_async(
                 if should_suppress_azure_error(log_dir, ex):
                     logger.warning(azure_warning_hint(log_dir, ex))
                     exists = True
+                elif should_suppress_s3_error(log_dir, ex):
+                    logger.warning(s3_warning_hint(log_dir, ex))
+                    exists = True
                 else:
-                    # TODO: Add S3 login error catching, as well as any other remote file system of interest
                     # Re-raise non-auth related issues
                     raise
 

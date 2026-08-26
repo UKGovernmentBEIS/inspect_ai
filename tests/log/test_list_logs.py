@@ -261,3 +261,111 @@ async def test_list_logs_async_s3_no_credentials_degrades(
 
     logs = await list_eval_logs_async("s3://bucket/logs", formats=["eval"])
     assert logs == []
+
+
+def _client_error() -> Exception:
+    from botocore.exceptions import ClientError
+
+    return ClientError(
+        {
+            "Error": {"Code": "AccessDenied", "Message": "Access Denied"},
+            "ResponseMetadata": {"HTTPStatusCode": 403},
+        },
+        "ListObjectsV2",
+    )
+
+
+def test_list_logs_trio_sync_s3_auth_error_degrades(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Generic trio-sync branch: S3 auth errors degrade to an empty listing (#4914)."""
+    import anyio
+
+    class _SyncErrorFs:
+        def is_async(self) -> bool:
+            return True
+
+        def is_s3(self) -> bool:
+            return True
+
+        def exists(self, path: str) -> bool:
+            raise _client_error()
+
+        def ls(self, path: str, recursive: bool = False) -> list:
+            return []
+
+    monkeypatch.setattr(
+        "inspect_ai.log._file.filesystem",
+        lambda path, fs_options={}: _SyncErrorFs(),
+    )
+    monkeypatch.setattr(
+        "inspect_ai.log._file.current_async_backend",
+        lambda: "trio",
+    )
+
+    async def check() -> None:
+        logs = await list_eval_logs_async(
+            "s3://bucket/logs", formats=["eval"], fs_options={"endpoint": "https://x"}
+        )
+        assert logs == []
+
+    anyio.run(check, backend="trio")
+
+
+def test_list_logs_async_s3_auth_error_degrades_with_fs_options(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Generic asyncio branch (fs_options set): S3 auth errors degrade to empty (#4914)."""
+    import asyncio
+
+    class _AsyncErrorFs:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args) -> None:
+            return None
+
+        async def _exists(self, path: str) -> bool:
+            raise _client_error()
+
+        def invalidate_cache(self, path: str) -> None:
+            pass
+
+        async def _ls(self, path: str, detail: bool = True) -> list:
+            return []
+
+    captured: dict[str, Any] = {}
+
+    def fake_async_filesystem(path: str, fs_options=None):
+        captured["fs_options"] = fs_options
+        return _AsyncErrorFs()
+
+    def s3_style_filesystem(path: str, fs_options: dict[str, Any] = {}) -> Any:
+        fs = filesystem(path, fs_options)
+        monkeypatch.setattr(fs, "is_s3", lambda: True)
+        monkeypatch.setattr(fs, "is_async", lambda: True)
+        return fs
+
+    monkeypatch.setattr("inspect_ai.log._file.filesystem", s3_style_filesystem)
+    monkeypatch.setattr(
+        "inspect_ai.log._file.async_filesystem",
+        fake_async_filesystem,
+    )
+    monkeypatch.setattr(
+        "inspect_ai.log._file.current_async_backend",
+        lambda: "asyncio",
+    )
+
+    async def check() -> list:
+        return await list_eval_logs_async(
+            "s3://bucket/logs",
+            formats=["eval"],
+            fs_options={"endpoint": "https://minio.local"},
+        )
+
+    assert asyncio.run(check()) == []
+    # fs_options must actually reach the generic branch for this test to be
+    # meaningful — it is what forces the slow path in production.
+    assert captured["fs_options"] == {"endpoint": "https://minio.local"}
+
+
