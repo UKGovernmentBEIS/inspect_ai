@@ -157,7 +157,7 @@ class TaskLogger:
         solver: SolverSpec | None,
         tags: list[str] | None,
         model: Model,
-        model_roles: dict[str, Model] | None,
+        model_roles: dict[str, Model | list[Model]] | None,
         dataset: Dataset,
         scorer: list[ScorerSpec] | None,
         metrics: list[MetricSpec | dict[str, list[MetricSpec]]]
