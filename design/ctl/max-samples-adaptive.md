@@ -1,0 +1,282 @@
+# Retunable `max_samples` under adaptive connections
+
+Design for meridianlabs-ai/inspect_ai#325: `inspect ctl config` should be able
+to change `--max-samples` even when a task is using adaptive connection
+concurrency.
+
+## Problem
+
+Adaptive connections are on by default. On that path a task's sample
+concurrency is not a user setpoint: `create_sample_semaphore`
+(`src/inspect_ai/_eval/task/run.py`) builds a `DynamicSampleLimiter`
+(`src/inspect_ai/util/_concurrency.py`) that follows the model's
+`AdaptiveConcurrencyController` to `controller.concurrency + BUFFER`
+(BUFFER=5). The modify-limits directive (`src/inspect_ai/_control/limits.py`,
+`task_limits`) therefore reports `max_samples` as **not adjustable** and a
+`ctl config --max-samples N` request warns and applies nothing:
+
+```
+max_samples is not adjustable for this task (it uses adaptive connection
+concurrency, or ran no samples in this process).
+```
+
+The only mid-run lever today is `--max-connections`, which retunes the
+controller's scaling ceiling — but that conflates model-API concurrency with
+sample concurrency. The operator scenarios that motivate this issue are
+exactly the ones where the two must move independently:
+
+- Sample-side resource pressure (sandboxes, host memory, disk, external
+  services used by solvers/scorers) requires clamping how many samples run at
+  once *without* throttling the model API, which is serving fine.
+- Conversely, an operator may want more in-flight samples than
+  `controller.concurrency + 5` so that sample setup (sandbox startup, dataset
+  fetch) overlaps generate time — a bigger slack than the fixed BUFFER.
+- The parked-limiter case (see `design/adaptive-concurrency.md`,
+  "Known gap"): when generates flow through a different model than the task's
+  primary (model roles, agent bridge), the limiter never adopts a controller
+  and sample concurrency sits at `start + BUFFER` forever. Today the directive
+  can only *warn* about this; a retunable `max_samples` gives the operator an
+  immediate unblock.
+
+At launch time an explicit `--max-samples` already wins silently over
+adaptive (it builds a static `ResizableLimiter`). The gap is only that the
+same decision cannot be made *mid-run*.
+
+## Design
+
+Give `DynamicSampleLimiter` a **pin/override** mode, retuned through the
+existing `max_samples` knob:
+
+- `inspect ctl config <task> --max-samples N` pins sample concurrency at
+  exactly `N`. The limiter stops following the controller; its capacity is
+  `N` (no BUFFER added — like launch-time `--max-samples`, it is an exact
+  user setpoint).
+- `inspect ctl config <task> --max-samples clear` removes the pin and
+  resumes tracking: the limiter catches back up to
+  `controller.concurrency + BUFFER` (or its initial `min(start, max) +
+  BUFFER` if no controller has been adopted).
+
+Chosen because it makes the mid-run semantics identical to the launch-time
+precedence rule ("explicit `max_samples` wins silently over adaptive"), and
+because `clear` mirrors the override knobs the directive already carries
+(`--time-limit clear`, `--timeout clear`, …) — one keyword, one mental model
+for "restore what launch config would have done".
+
+The adaptive *controller* is untouched: it keeps governing model-API
+concurrency and remains retunable via `--max-connections`. Pinning only
+decouples the sample follower from it, exactly as launch-time
+`--max-samples` does.
+
+Lowering the pin below the in-flight count blocks new acquires until holders
+drain — never preempts — the same semantics every other limiter knob has
+(`anyio.CapacityLimiter` accepts `total_tokens` below `borrowed_tokens`).
+
+### Why mutate in place (not swap the semaphore)
+
+The task captures its sample semaphore object once per attempt
+(`create_sample_semaphore` → the `async with sample_semaphore:` sites), and
+in-flight samples must release into the same `CapacityLimiter` they acquired
+from. Replacing the registry entry with a `ResizableLimiter` would leave the
+running task acquiring on the old object. So the override is a mode *of* the
+existing `DynamicSampleLimiter`, applied through the task-semaphore registry
+(`task_sample_semaphore(task_id)`), which also means it survives in-process
+retries for free (the registry is task-scoped, shared across attempts).
+
+## Implementation plan
+
+### 1. `src/inspect_ai/util/_concurrency.py` — `DynamicSampleLimiter`
+
+- Store the initial capacity (`self._initial = min(start, max) + BUFFER`) so
+  a clear with no adopted controller can restore it.
+- Add `override: int | None` (read property) and a setter/method
+  `set_override(value: int | None)`:
+  - `int` → record it and set `self._limiter.total_tokens = value`.
+  - `None` → drop it and re-sync: call `_on_controller_change()` when a
+    controller is adopted, else restore `self._initial`.
+- Guard `_on_controller_change`: return early while an override is set, so a
+  controller scale event (or a `set_max` retune) cannot stomp the pin. On
+  clear, the catch-up call re-reads the live controller, so no scale event is
+  lost — the limiter lands wherever the controller currently is.
+- Add `limit` (`total_tokens`) and `in_use` (`borrowed_tokens`) properties so
+  the directive's view can report the live numbers (today only
+  `total_tokens` exists, and `ResizableLimiter` already exposes
+  `limit`/`in_use` — matching names lets the view code treat both shapes
+  uniformly).
+
+No locking: like every retune in this subsystem, all of this runs on the
+eval's single event-loop thread (see AGENTS.md "No speculative locks").
+
+### 2. `src/inspect_ai/_control/limits.py` — `task_limits`
+
+- Widen the knob: `max_samples: int | Literal["clear"] | None`.
+- Apply branch (currently `ResizableLimiter`-only) gains a
+  `DynamicSampleLimiter` arm:
+  - `int` → `previous = semaphore.override` (may be `None`), then
+    `set_override(max_samples)`. Record via the `ConfigValueChange`
+    machinery: `config="eval", name="max_samples", value=N,
+    previous=previous` (skip the record when `previous == N`, matching
+    `_apply_override_knobs` no-op semantics). A `previous` of `None` is
+    already defined as "no prior override — recording layer falls back to
+    the log's launch value", which for an adaptive task is launch
+    `max_samples=None`; that is honest.
+  - `"clear"` → if an override is active, `set_override(None)` and record
+    `ConfigValueChange(config="eval", name="max_samples", cleared=True,
+    previous=old)`; if none is active, record nothing (no-op clear, same as
+    the other override knobs).
+- `"clear"` against a static `ResizableLimiter` task warns rather than
+  applies: the static path's launch value is a derivation
+  (`max_connections` fallback chain in `create_sample_semaphore`), not a
+  stored override, and there is nothing pinned to release. Warning text:
+  `"max_samples is a fixed setpoint for this task (pass an integer to change
+  it; 'clear' only unpins a task using adaptive connections)"`. This keeps
+  the fail-soft convention (combined PATCHes still apply their other knobs).
+- The existing not-adjustable warning shrinks to the genuinely
+  non-adjustable case (reused-log task / ran no samples in this process —
+  `semaphore is None`).
+- Suppress the "adaptive but no matching controller" warning while an
+  override is pinned — concurrency is no longer stuck at the initial value,
+  it is user-set (and the fix for the stuck case *is* this knob).
+- View: the `DynamicSampleLimiter` case moves from
+  `{"adjustable": False, "tracks_adaptive": True}` to
+
+  ```json
+  {"limit": 25, "in_use": 18, "adjustable": true,
+   "tracks_adaptive": true, "override": null}
+  ```
+
+  with `override` set to the pinned value when active. `tracks_adaptive`
+  stays (it tells the renderer/agents what `clear` returns to);
+  `adjustable` flipping to `true` is what unblocks callers. The static
+  view stays as-is — the absence of `tracks_adaptive` already means
+  static, and adding the key there would churn renderer and tests for no
+  information.
+- Docstrings: module docstring's "On the adaptive-connections path
+  `max_samples` isn't a user setpoint … reported as not adjustable"
+  paragraph and the `task_limits` docstring both need rewriting to describe
+  pin/clear.
+
+### 3. `src/inspect_ai/_control/server.py` — `PATCH /tasks/{task_id}/config`
+
+- Change the `max_samples` query param from `int | None` to `str | None`
+  and run it through the existing `_parse_override_knobs` helper (it
+  already implements int/`"clear"`/reject parsing and 400s on garbage),
+  or a single-knob use of the same parser. Remove `max_samples` from the
+  `_limits_below_one` tuple — the parser's `IntRange`-equivalent check
+  covers the `< 1` rejection for the parsed-int case (verify parity: the
+  parse helper must reject 0/negative like `_limits_below_one` does).
+- `GET` is unchanged (the view shape change flows through `task_limits`).
+- The process-level `/config` endpoints don't carry `max_samples`; no
+  change.
+
+### 4. `src/inspect_ai/_cli/ctl/_config.py` — the `config` command
+
+- `--max-samples` option type moves from `click.IntRange(min=1)` to the
+  existing `_INT_OR_CLEAR` param type; help text becomes e.g.
+  `"[task] Max samples to run concurrently — under adaptive connections
+  this pins sample concurrency ('clear' resumes tracking the controller)."`
+- Signature/plumbing: `max_samples: int | Literal["clear"] | None` through
+  `_run_config` and the request layer (mirror how `time_limit` flows).
+- Command docstring gains a sentence on pin/clear.
+
+### 5. `src/inspect_ai/_cli/ctl/_render.py` — human rendering
+
+The `max_samples` block currently has three arms (adjustable / tracks
+adaptive / no limiter). It becomes:
+
+- static adjustable (unchanged): `max samples [task]: 10 (7 in use)`
+- adaptive, tracking: `max samples [task]: 25 (18 in use, tracking adaptive
+  connections — set to pin)`
+- adaptive, pinned: `max samples [task]: 8 (8 in use, pinned — 'clear'
+  resumes adaptive tracking)`
+- no live limiter (unchanged): `not adjustable (no live sample limiter)`
+
+Dry-run `→ requested` arrows come from the existing `_target` helper and
+work once the view carries `limit`.
+
+### 6. Docs and design notes
+
+- `docs/control-channel.qmd` knob table: replace "(not applicable under
+  adaptive connections …)" with the pin/clear behavior.
+- `docs/options.qmd` row for `--max-samples` already says "retunable
+  mid-run via inspect ctl config" — now true unconditionally; no change
+  needed beyond a check.
+- `design/adaptive-concurrency.md`: update the `DynamicSampleLimiter` row
+  and the "Known gap" section (the parked-limiter case now has an operator
+  remedy).
+- `design/ctl/control-channel.md`: update the phase-3 `max_samples`
+  description.
+- `CHANGELOG.md` (`## Unreleased`): e.g. "inspect ctl config can now change
+  max_samples for tasks using adaptive connections (pass 'clear' to resume
+  adaptive tracking)."
+
+### 7. Tests
+
+- `tests/util/test_adaptive_concurrency.py` (limiter unit tests):
+  - pin ignores subsequent controller scale changes and `set_max` retunes;
+  - clear resumes tracking and catches up to the controller's current limit;
+  - clear with no adopted controller restores `initial`;
+  - pin applied before controller adoption sticks (adoption while pinned
+    must not overwrite the pin);
+  - `in_use`/`limit` report borrowed/total tokens.
+- `tests/_control/test_limits.py` (directive tests):
+  - set under adaptive → applied, view shows
+    `adjustable/tracks_adaptive/override/limit/in_use`, `ConfigValueChange`
+    recorded with honest `previous`; re-send of same value records nothing;
+  - `clear` → override removed, `cleared=True` recorded; no-op clear
+    records nothing;
+  - `clear` on a static-limiter task → warning, other knobs still apply;
+  - dry-run reports `requested` without applying;
+  - the no-matching-controller warning is suppressed while pinned;
+  - override survives an in-process retry (registry reuse).
+- `tests/_control/test_ctl.py` (server/CLI):
+  - PATCH with `max_samples=clear` parses; `max_samples=0` and garbage 400;
+  - renderer output for tracking vs pinned.
+
+## Behavior details and edge cases
+
+- **Retries.** In-process (immediate) retries reuse the task's semaphore, so
+  a pin survives them — same as existing `max_samples` retunes on the static
+  path. Legacy batch-mode eval-set retries run as separate `eval()` calls
+  that reset the registry, so they revert to launch config; that is the
+  documented behavior for every retunable limit today and is unchanged.
+- **Pin vs `--max-connections`.** While pinned, a `--max-connections` retune
+  still moves the controller (API concurrency) but does not move sample
+  concurrency; after `clear`, tracking resumes against whatever the
+  controller now says. This is the point of the feature and must be stated
+  in the docs.
+- **Raising above the controller.** A pin higher than
+  `controller.concurrency + BUFFER` is allowed (more setup overlap; excess
+  samples queue on the connection limiter, exactly like launch-time
+  `max_samples > max_connections` on the static path).
+- **Bounds.** `< 1` rejected at the server boundary (CapacityLimiter
+  requires `total_tokens >= 1`); no upper bound, matching the static knob.
+- **Recording fan-out.** `max_samples` is task-scoped, so the record lands
+  only in that task's log via the existing `record_config_changes`
+  task-changes path; no metadata stamp needed (unlike filtered
+  `max_connections`).
+- **Type generation.** The config views are untyped JSON (`Any` returns) —
+  no OpenAPI/ts-mono regeneration is needed.
+
+## Alternatives considered
+
+- **Cap semantics** — treat the retuned value as a ceiling,
+  `total_tokens = min(controller.concurrency + BUFFER, N)`, so adaptive can
+  still shrink below it. Rejected: it diverges from what `max_samples` means
+  at launch (a pin), creates a second live influence to render and reason
+  about, and the shrink-below case adds nothing — a pinned limiter above the
+  controller's limit just queues samples on the connection limiter, which is
+  already the static path's behavior. A cap could be layered later as a
+  separate knob if a concrete need appears.
+- **Swap in a `ResizableLimiter` on retune** — rejected; see "Why mutate in
+  place".
+- **Status quo (`--max-connections` only)** — rejected; it cannot decouple
+  sample concurrency from API concurrency, which is the whole ask.
+- **Also changing launch-time behavior** — out of scope; launch semantics
+  already support an explicit `max_samples` and are unchanged.
+
+## Rollout
+
+Single PR touching the six areas above plus tests and CHANGELOG. No public
+Python API changes (`task_limits` is internal to `_control`); the wire
+change (string-typed `max_samples` accepting `clear`) is backward-compatible
+for existing integer callers.
