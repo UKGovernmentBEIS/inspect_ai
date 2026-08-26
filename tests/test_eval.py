@@ -9,7 +9,6 @@ from unittest import mock
 import anyio
 import pytest
 from botocore.exceptions import ClientError
-from test_helpers.utils import attach_caplog_to_module_logger
 
 from inspect_ai import (
     Epochs,
@@ -460,19 +459,11 @@ def task_args_warning_check(task_arg: str = "default") -> Task:
     return Task(dataset=[Sample(input=f"{task_arg}: test input")])
 
 
-@pytest.fixture
-def capture_eval_warnings(caplog):
-    # the warning is emitted from resolve_tasks (the loader module)
-    with attach_caplog_to_module_logger(caplog, "inspect_ai._eval.loader"):
-        yield caplog
-
-
 def _task_args_warnings(caplog) -> list[logging.LogRecord]:
     return [r for r in caplog.records if TASK_ARGS_WARNING_SNIPPET in r.message]
 
 
-def test_task_instance_with_task_args_warns(capture_eval_warnings) -> None:
-    caplog = capture_eval_warnings
+def test_task_instance_with_task_args_warns(caplog) -> None:
     log = eval(
         task_args_warning_check(),
         task_args={"task_arg": "custom"},
@@ -484,10 +475,9 @@ def test_task_instance_with_task_args_warns(capture_eval_warnings) -> None:
     assert "task_arg" in records[0].message
 
 
-def test_task_instance_multiple_models_warns_once(capture_eval_warnings) -> None:
+def test_task_instance_multiple_models_warns_once(caplog) -> None:
     # resolve_tasks runs once per model; the warning is gated to the first
     # model so it fires exactly once regardless of the model count
-    caplog = capture_eval_warnings
     logs = eval(
         task_args_warning_check(),
         task_args={"task_arg": "custom"},
@@ -497,8 +487,7 @@ def test_task_instance_multiple_models_warns_once(capture_eval_warnings) -> None
     assert len(_task_args_warnings(caplog)) == 1
 
 
-def test_string_task_with_task_args_no_warning(capture_eval_warnings) -> None:
-    caplog = capture_eval_warnings
+def test_string_task_with_task_args_no_warning(caplog) -> None:
     log = eval(
         "task_args_warning_check",
         task_args={"task_arg": "custom"},
@@ -510,17 +499,15 @@ def test_string_task_with_task_args_no_warning(capture_eval_warnings) -> None:
     assert not _task_args_warnings(caplog)
 
 
-def test_task_instance_without_task_args_no_warning(capture_eval_warnings) -> None:
-    caplog = capture_eval_warnings
+def test_task_instance_without_task_args_no_warning(caplog) -> None:
     log = eval(task_args_warning_check(), model="mockllm/model")[0]
     assert log.status == "success"
     assert not _task_args_warnings(caplog)
 
 
-def test_eval_set_task_instance_warns_once(capture_eval_warnings) -> None:
+def test_eval_set_task_instance_warns_once(caplog) -> None:
     # eval_set re-enters resolution internally with ResolvedTask objects;
     # the warning must fire exactly once, not per resolution pass
-    caplog = capture_eval_warnings
     with tempfile.TemporaryDirectory() as log_dir:
         success, _ = eval_set(
             tasks=task_args_warning_check(),
@@ -554,10 +541,9 @@ def task_args_warning_source(count: int = 1) -> TaskSource:
     return _SeedTasks(count)
 
 
-def test_task_source_with_task_args_no_warning(capture_eval_warnings) -> None:
+def test_task_source_with_task_args_no_warning(caplog) -> None:
     # task_args are consumed by the source (resolve_task_source) to build its
     # seed; resolving the seed Task instances must not false-warn (#4194)
-    caplog = capture_eval_warnings
     logs = eval(
         "task_args_warning_source",
         task_args={"count": 2},
@@ -713,12 +699,6 @@ def _retry_source_log_info(location: str) -> Any:
     )
 
 
-@pytest.fixture
-def capture_probe_warnings(caplog):
-    with attach_caplog_to_module_logger(caplog, "inspect_ai._eval.task.run"):
-        yield caplog
-
-
 def _write_prior_eval_log(log_dir: Path) -> tuple[Any, bytes]:
     """Run a one-sample eval and return its log plus the .eval file bytes."""
     task = Task(
@@ -762,7 +742,7 @@ def test_retry_presence_probe_retries_transient_failure(tmp_path: Path) -> None:
 
 
 def test_retry_presence_probe_gives_up_after_max_failures(
-    tmp_path: Path, capture_probe_warnings: pytest.LogCaptureFixture
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
     """Persistent fetch failures stop being retried after the cap, with a warning."""
     from inspect_ai._eval.task.run import (
@@ -790,7 +770,6 @@ def test_retry_presence_probe_gives_up_after_max_failures(
             probe_path.write_bytes(real_bytes)
             assert await source.prior_exists(1, 1) is False
 
-    caplog = capture_probe_warnings
     with caplog.at_level(logging.WARNING, logger="inspect_ai._eval.task.run"):
         anyio.run(check)
 
@@ -800,7 +779,7 @@ def test_retry_presence_probe_gives_up_after_max_failures(
 
 def test_retry_presence_probe_concurrent_failures_respect_cap(
     tmp_path: Path,
-    capture_probe_warnings: pytest.LogCaptureFixture,
+    caplog: pytest.LogCaptureFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Concurrent probes share the failure cap: fetch attempts and the warning stay bounded.
@@ -848,7 +827,6 @@ def test_retry_presence_probe_concurrent_failures_respect_cap(
             )
             assert all(result is False for result in results)
 
-    caplog = capture_probe_warnings
     with caplog.at_level(logging.WARNING, logger="inspect_ai._eval.task.run"):
         anyio.run(check)
 
@@ -858,7 +836,7 @@ def test_retry_presence_probe_concurrent_failures_respect_cap(
 
 
 def test_retry_presence_probe_missing_log_cached_without_warning(
-    tmp_path: Path, capture_probe_warnings: pytest.LogCaptureFixture
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
     """A missing prior log caches no-presence on the first probe, silently."""
     from inspect_ai._eval.task.run import eval_log_sample_source
@@ -881,7 +859,6 @@ def test_retry_presence_probe_missing_log_cached_without_warning(
             probe_path.write_bytes(real_bytes)
             assert await source.prior_exists(1, 1) is False
 
-    caplog = capture_probe_warnings
     with caplog.at_level(logging.WARNING, logger="inspect_ai._eval.task.run"):
         anyio.run(check)
 

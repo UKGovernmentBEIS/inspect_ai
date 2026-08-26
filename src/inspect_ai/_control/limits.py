@@ -75,6 +75,15 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Callable, Literal, Mapping, NamedTuple, TypeVar
 
+from inspect_ai._control.views import (
+    AdaptiveControllerView,
+    ConcurrencyKeyView,
+    MaxSamplesView,
+    ProcessConfigView,
+    SandboxLimiterView,
+    SubprocessLimiterView,
+    TaskConfigView,
+)
 from inspect_ai._util.name_match import match_name_prefix
 
 if TYPE_CHECKING:
@@ -140,7 +149,7 @@ async def process_limits(
     author: str | None = None,
     reason: str | None = None,
     dry_run: bool = False,
-) -> dict[str, Any]:
+) -> ProcessConfigView:
     """Read (and optionally retune) the process-global concurrency limits.
 
     Covers the knobs that are shared across every task in the process:
@@ -224,7 +233,7 @@ async def task_limits(
     author: str | None = None,
     reason: str | None = None,
     dry_run: bool = False,
-) -> dict[str, Any] | None:
+) -> TaskConfigView | None:
     """Read (and optionally retune) a task's retunable config.
 
     A superset of :func:`process_limits`: it adds the per-task knobs — the
@@ -482,7 +491,7 @@ async def task_limits(
     # follows this task's controller) from a task with no live limiter at all
     # (reused log / ran no samples here) — the renderer must not claim the
     # latter tracks anything.
-    max_samples_view: dict[str, Any]
+    max_samples_view: MaxSamplesView
     if sample_limiter is not None:
         max_samples_view = {
             "limit": sample_limiter.limit,
@@ -527,11 +536,11 @@ def _match_controllers(
 class _ProcessKnobViews(NamedTuple):
     """The process-global limit views built by :func:`_apply_process_knobs`."""
 
-    max_sandboxes: list[dict[str, Any]]
-    max_subprocesses: dict[str, Any] | None
-    adaptive: list[dict[str, Any]]
+    max_sandboxes: list[SandboxLimiterView]
+    max_subprocesses: SubprocessLimiterView | None
+    adaptive: list[AdaptiveControllerView]
     retry: dict[str, int | None]
-    concurrency: list[dict[str, Any]]
+    concurrency: list[ConcurrencyKeyView]
     requested: dict[str, int | str]
     warnings: list[str]
     applied: "list[ConfigValueChange]"
@@ -842,7 +851,7 @@ def _apply_process_knobs(
     # deriving it as `concurrency - value`: once a limit is lowered below the
     # in-flight count, `value` clamps to 0 and that derivation would report
     # `concurrency` instead of the true (higher) borrowed count.
-    max_sandboxes_view = [
+    max_sandboxes_view: list[SandboxLimiterView] = [
         {
             "type": sandbox_type,
             "limit": sem.concurrency,
@@ -853,7 +862,7 @@ def _apply_process_knobs(
 
     # `None` distinguishes "no limiter yet" (no subprocess has run) from a
     # live limiter view — the CLI renders the former as inactive.
-    max_subprocesses_view = (
+    max_subprocesses_view: SubprocessLimiterView | None = (
         {"limit": subprocesses.concurrency, "in_use": subprocesses.in_use}
         if subprocesses is not None
         else None
@@ -863,7 +872,7 @@ def _apply_process_knobs(
     # count, scaling bounds (max reflects any max_connections change applied
     # above), and recent scale changes. Controllers are process-global (one per
     # model, keyed by name); with `model` set this shows only the matching ones.
-    adaptive_view = [
+    adaptive_view: list[AdaptiveControllerView] = [
         {
             "name": ctrl.name,
             "limit": ctrl.concurrency,
@@ -883,7 +892,7 @@ def _apply_process_knobs(
     # shortening, `visible=False` entries included). Re-read after applying,
     # like the other views. A `name` can appear twice when two entries (with
     # distinct storage keys) share a display name.
-    concurrency_view = [
+    concurrency_view: list[ConcurrencyKeyView] = [
         {
             "name": sem.name,
             "limit": sem.concurrency,
