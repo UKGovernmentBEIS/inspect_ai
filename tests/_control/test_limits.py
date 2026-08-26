@@ -2642,6 +2642,7 @@ def test_compose_config_sample_limit_overrides() -> None:
     """The composed view carries the limit knobs with their task scope."""
     from inspect_ai._cli.ctl._config import _compose_config
     from inspect_ai._cli.ctl._mutate import _DirectiveScope
+    from inspect_ai._control.views import TaskConfigView
 
     scope = _DirectiveScope(
         socket_path="/tmp/sock",
@@ -2651,15 +2652,21 @@ def test_compose_config_sample_limit_overrides() -> None:
         header="demo (t1)",
         siblings=0,
     )
+    limits_view: TaskConfigView = {
+        # a task envelope always carries max_samples — it is the
+        # task/process discriminator (_as_task_view)
+        "max_samples": {"limit": 4, "in_use": 0, "adjustable": True},
+        "limits": {"time_limit": None, "token_limit": 5000, "message_limit": None},
+        "max_sandboxes": [],
+        "adaptive": [],
+        "buffer": None,
+        "requested": None,
+        "warnings": [],
+        "dry_run": False,
+    }
     config = _compose_config(
         scope,
-        {
-            # a task envelope always carries max_samples — it is the
-            # task/process discriminator (_as_task_view)
-            "max_samples": {"limit": 4, "in_use": 0, "adjustable": True},
-            "limits": {"time_limit": None, "token_limit": 5000, "message_limit": None},
-            "warnings": [],
-        },
+        limits_view,
         dry_run=False,
         set_values=True,
         notes=[],
