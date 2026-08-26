@@ -158,8 +158,8 @@ from inspect_ai.util._early_stopping import (
     EarlyStoppingSummary,
 )
 from inspect_ai.util._limit import (
+    Limit,
     LimitExceededError,
-    _TimeLimit,
     monitor_working_limit,
     record_sample_limit_data,
     reset_sample_limit_data,
@@ -2185,7 +2185,7 @@ async def _task_run_sample_attempt(
             sample_summary: EvalSampleSummary | None = None
             attempt_started = False
             sample_row_started = False
-            sample_time_limit: _TimeLimit | None = None
+            sample_time_limit: Limit | None = None
 
             def make_sample_summary() -> EvalSampleSummary:
                 return EvalSampleSummary(
@@ -2296,11 +2296,12 @@ async def _task_run_sample_attempt(
                         # --no-log-samples while the control channel stays
                         # fully targetable.
                         override_task_id = stable_task_id_for_eval(task_id)
-                        sample_time_limit = create_time_limit(time_limit)
+                        time_limit_node = create_time_limit(time_limit)
+                        sample_time_limit = time_limit_node
                         with (
                             sample_limit_override_scope(
                                 override_task_id,
-                                time=sample_time_limit,
+                                time=time_limit_node,
                                 token=state._token_limit,
                                 message=state._message_limit,
                             ),
@@ -2308,7 +2309,7 @@ async def _task_run_sample_attempt(
                             state._cost_limit,
                             state._message_limit,
                             create_turn_limit(turn_limit),
-                            sample_time_limit,
+                            time_limit_node,
                             create_working_limit(working_limit),
                         ):
 
@@ -2722,7 +2723,7 @@ async def _task_run_sample_attempt(
                         # ceilings do)
                         if sample_time_limit is not None:
                             effective_time_limit = (
-                                int(sample_time_limit.limit)
+                                round(sample_time_limit.limit)
                                 if sample_time_limit.limit is not None
                                 else None
                             )
