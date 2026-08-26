@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import json as json_lib
-from typing import Any, Literal, NamedTuple
+from typing import Any, Literal, NamedTuple, cast
 
 import click
 
 from inspect_ai._control.discovery import DiscoveredControlServer
+from inspect_ai._control.views import ProcessConfigView, TaskConfigView
 
 # Patch seam: tests monkeypatch functions on their defining module
 # (e.g. `inspect_ai._cli.ctl._http._request_json`), so cross-module
@@ -274,8 +275,22 @@ def config_command(
     )
 
 
+def _as_task_view(
+    limits_view: TaskConfigView | ProcessConfigView,
+) -> TaskConfigView | None:
+    """The config view as the task envelope, or ``None`` for a process one.
+
+    Discriminates on ``max_samples``, which rides every task envelope on
+    every server version. The cast is needed because mypy won't narrow the
+    union from an ``in`` check (structurally, a process envelope could carry
+    extra keys). Callers read ``buffer`` with ``.get()``: task envelopes
+    from pre-release version-0 builds lacked that key.
+    """
+    return cast(TaskConfigView, limits_view) if "max_samples" in limits_view else None
+
+
 def _applied_knob_names(
-    limits_view: dict[str, Any],
+    limits_view: TaskConfigView | ProcessConfigView,
     *,
     max_samples: int | None,
     max_sandboxes: int | None,
@@ -302,13 +317,15 @@ def _applied_knob_names(
     server is refused by `_gate_strict_floor` before the PATCH is sent, so
     neither reaches this path).
     """
+    task_view = _as_task_view(limits_view)
+    max_samples_view = task_view["max_samples"] if task_view is not None else None
     return [
         name
         for name, value, adjustable in (
             (
                 "--max-samples",
                 max_samples,
-                bool((limits_view.get("max_samples") or {}).get("adjustable")),
+                bool(max_samples_view and max_samples_view["adjustable"]),
             ),
             (
                 "--max-sandboxes",
@@ -330,7 +347,7 @@ def _applied_knob_names(
                 key,
                 key is not None
                 and any(
-                    row.get("name") == key[0] and row.get("adjustable")
+                    row["name"] == key[0] and row["adjustable"]
                     for row in limits_view.get("concurrency") or []
                 ),
             ),
@@ -486,7 +503,9 @@ def _run_config(
     # the server reported as not adjustable did NOT), and surface the
     # server's warnings that this exit would otherwise swallow.
     buffer_warnings: list[str] = []
-    if scope.task_id is not None and limits_view.get("buffer") is None:
+    task_view = _as_task_view(limits_view)
+    buffer_view = task_view.get("buffer") if task_view is not None else None
+    if scope.task_id is not None and buffer_view is None:
         if set_buffer:
             applied_names = _applied_knob_names(
                 limits_view,
@@ -594,7 +613,7 @@ def _run_config(
 
 def _compose_config(
     scope: _DirectiveScope,
-    limits_view: dict[str, Any],
+    limits_view: TaskConfigView | ProcessConfigView,
     *,
     dry_run: bool,
     set_values: bool,
@@ -607,11 +626,12 @@ def _compose_config(
     of the knob, not of the command path, so the output (not the spelling)
     is where an agent reads a knob's blast radius.
     """
+    task_view = _as_task_view(limits_view)
     knobs: dict[str, Any] = {}
-    if "max_samples" in limits_view:
+    if task_view is not None:
         knobs["max_samples"] = {
             "scope": _KNOB_SCOPE["max_samples"],
-            **limits_view["max_samples"],
+            **task_view["max_samples"],
         }
     knobs["max_sandboxes"] = {
         "scope": _KNOB_SCOPE["max_sandboxes"],
@@ -643,7 +663,7 @@ def _compose_config(
     # The per-sample limit overrides (task views only — the knobs are
     # task-scoped; also absent from an older server's view). `override` is
     # the live task-wide override, None = launch config applies per sample.
-    limits_view_overrides = limits_view.get("limits")
+    limits_view_overrides = task_view.get("limits") if task_view is not None else None
     if limits_view_overrides is not None:
         from inspect_ai.util._limit_overrides import SAMPLE_LIMIT_OVERRIDE_FIELDS
 
@@ -658,7 +678,7 @@ def _compose_config(
         "scope": _KNOB_SCOPE["key"],
         "keys": limits_view.get("concurrency"),
     }
-    buffer_view = limits_view.get("buffer")
+    buffer_view = task_view.get("buffer") if task_view is not None else None
     if buffer_view is not None:
         knobs["log_buffer"] = {
             "scope": _KNOB_SCOPE["log_buffer"],
@@ -939,7 +959,7 @@ def _exec_limits(
             "inspect version?)."
         )
     scope = f"task {task_id}" if task_id is not None else "process"
-    view = _http._request_json(
+    raw_view = _http._request_json(
         socket_path,
         f"/tasks/{task_id}/config" if task_id is not None else "/config",
         what=f"config for {scope}",
@@ -947,6 +967,14 @@ def _exec_limits(
         params=params,
         mutate="patch" if set_values else None,
         pid=pid,
+    )
+    # the one cast at the JSON-parse boundary — shape documentation for
+    # downstream field access, never validation (see "Wire envelopes" in
+    # design/ctl/control-channel.md)
+    view: TaskConfigView | ProcessConfigView = (
+        cast(TaskConfigView, raw_view)
+        if task_id is not None
+        else cast(ProcessConfigView, raw_view)
     )
     return _ConfigResult(view=view, mutated=set_values)
 
@@ -959,5 +987,5 @@ class _ConfigResult(NamedTuple):
     their own knob lists, which would skew for a future knob.
     """
 
-    view: dict[str, Any]
+    view: TaskConfigView | ProcessConfigView
     mutated: bool
