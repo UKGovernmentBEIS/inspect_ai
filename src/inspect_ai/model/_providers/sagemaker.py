@@ -219,8 +219,21 @@ class SagemakerAPI(ModelAPI):
             config, processed_messages, tools_config, tool_choice
         )
 
-        # Add stream parameter to request body
-        stream = self.stream if self.stream is not None else model_stream_requested()
+        # Add stream parameter to request body. Unset stream ("auto") streams
+        # when the caller passed on_stream — unless the request uses features
+        # the streaming parser drops (multiple choices, logprobs, prompt
+        # logprobs); an explicit stream=True opts into that loss as before.
+        auto_streamable = (
+            config.num_choices is None
+            and not config.logprobs
+            and self.prompt_logprobs is None
+            and config.prompt_logprobs is None
+        )
+        stream = (
+            self.stream
+            if self.stream is not None
+            else (model_stream_requested() and auto_streamable)
+        )
         request_body["stream"] = stream
         if stream:
             # Ask vLLM to emit a final usage chunk in the stream so token

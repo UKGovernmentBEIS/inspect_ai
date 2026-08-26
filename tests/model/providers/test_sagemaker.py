@@ -1815,6 +1815,37 @@ class TestStreamObserver:
 
         mock_client.invoke_endpoint.assert_called_once()
 
+    @pytest.mark.anyio
+    async def test_auto_stream_disabled_for_lossy_configs(self):
+        """Auto-streaming stays off when the parser would drop response data."""
+        api = _make_api()  # stream unset ("auto")
+
+        mock_client = AsyncMock()
+        mock_body = AsyncMock()
+        mock_body.read = AsyncMock(
+            return_value=json.dumps(OPENAI_RESPONSE).encode("utf-8")
+        )
+        mock_client.invoke_endpoint = AsyncMock(return_value={"Body": mock_body})
+        mock_ctx = AsyncMock()
+        mock_ctx.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_ctx.__aexit__ = AsyncMock(return_value=False)
+        api._create_client = MagicMock(return_value=mock_ctx)
+
+        async def collect(event: Any) -> None:
+            pass
+
+        with model_stream_observer(ModelStreamObserver("sagemaker/test", collect)):
+            await api.generate(
+                [ChatMessageUser(content="Hi")],
+                [],
+                "auto",
+                GenerateConfig(max_tokens=100, temperature=0, num_choices=2),
+            )
+
+        # the streaming parser only reads the first choice, so num_choices > 1
+        # must not auto-stream
+        mock_client.invoke_endpoint.assert_called_once()
+
 
 class TestCompletionModePromptLogprobs:
     @pytest.mark.anyio

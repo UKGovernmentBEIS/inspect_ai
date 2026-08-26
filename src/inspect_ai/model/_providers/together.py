@@ -196,6 +196,9 @@ class TogetherAIAPI(OpenAICompatibleAPI):
             return await self._batcher.generate_for_request(request)
         # honor streaming (batching and streaming are mutually exclusive)
         if self.resolve_stream(config):
+            # ask the server for cumulative usage on the final chunk so the
+            # streamed completion carries the same usage as a non-streamed one
+            request.setdefault("stream_options", {"include_usage": True})
             async with self.client.chat.completions.stream(**request) as stream:
                 try:
                     return await openai_chat_completion_stream_final(stream)

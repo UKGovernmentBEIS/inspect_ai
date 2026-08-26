@@ -2194,15 +2194,24 @@ async def test_responses_stream_reports_deltas() -> None:
         ),
     ]
 
-    class _FakeResponses:
-        async def create(self, **kwargs: Any) -> Any:
-            assert kwargs.get("stream") is True
+    class _FakeStream:
+        async def __aenter__(self) -> "_FakeStream":
+            return self
 
+        async def __aexit__(self, *exc: object) -> None:
+            return None
+
+        def __aiter__(self) -> Any:
             async def gen() -> Any:
                 for event in events:
                     yield event
 
             return gen()
+
+    class _FakeResponses:
+        async def create(self, **kwargs: Any) -> Any:
+            assert kwargs.get("stream") is True
+            return _FakeStream()
 
     fake_client: Any = SimpleNamespace(responses=_FakeResponses())
 

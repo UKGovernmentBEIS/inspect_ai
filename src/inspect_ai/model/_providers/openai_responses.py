@@ -273,45 +273,54 @@ async def _generate_responses_stream(
     tool_items: dict[str, ResponseFunctionToolCall] = {}
     model_response: Response | None = None
     stream = await client.responses.create(**request, stream=True)
-    async for event in stream:
-        if isinstance(event, ResponseTextDeltaEvent):
-            await report_model_stream_delta(StreamTextEvent(text=event.delta))
-        elif isinstance(
-            event,
-            (ResponseReasoningTextDeltaEvent, ResponseReasoningSummaryTextDeltaEvent),
-        ):
-            await report_model_stream_delta(StreamReasoningEvent(reasoning=event.delta))
-        elif isinstance(event, ResponseOutputItemAddedEvent):
-            if isinstance(event.item, ResponseFunctionToolCall) and event.item.id:
-                tool_items[event.item.id] = event.item
-            report_model_stream_progress()
-        elif isinstance(event, ResponseFunctionCallArgumentsDeltaEvent):
-            item = tool_items.get(event.item_id)
-            await report_model_stream_delta(
-                StreamToolCallEvent(
-                    id=item.call_id if item is not None else None,
-                    function=item.name if item is not None else None,
-                    arguments=event.delta,
+    # async with so the connection closes on non-exhaustion exits too
+    # (error events raise below; cancellation can land mid-iteration)
+    async with stream:
+        async for event in stream:
+            if isinstance(event, ResponseTextDeltaEvent):
+                await report_model_stream_delta(StreamTextEvent(text=event.delta))
+            elif isinstance(
+                event,
+                (
+                    ResponseReasoningTextDeltaEvent,
+                    ResponseReasoningSummaryTextDeltaEvent,
+                ),
+            ):
+                await report_model_stream_delta(
+                    StreamReasoningEvent(reasoning=event.delta)
                 )
-            )
-        elif isinstance(
-            event,
-            (ResponseCompletedEvent, ResponseIncompleteEvent, ResponseFailedEvent),
-        ):
-            # failed/incomplete responses flow through the same error handling
-            # as their non-streaming equivalents (model_response.error checks)
-            model_response = event.response
-            report_model_stream_progress(
-                event.response.usage.output_tokens
-                if event.response.usage is not None
-                else None
-            )
-        elif isinstance(event, ResponseErrorEvent):
-            raise OpenAIResponseError(
-                code=event.code or "server_error", message=event.message
-            )
-        else:
-            report_model_stream_progress()
+            elif isinstance(event, ResponseOutputItemAddedEvent):
+                if isinstance(event.item, ResponseFunctionToolCall) and event.item.id:
+                    tool_items[event.item.id] = event.item
+                report_model_stream_progress()
+            elif isinstance(event, ResponseFunctionCallArgumentsDeltaEvent):
+                item = tool_items.get(event.item_id)
+                await report_model_stream_delta(
+                    StreamToolCallEvent(
+                        id=item.call_id if item is not None else None,
+                        function=item.name if item is not None else None,
+                        arguments=event.delta,
+                    )
+                )
+            elif isinstance(
+                event,
+                (ResponseCompletedEvent, ResponseIncompleteEvent, ResponseFailedEvent),
+            ):
+                # failed/incomplete responses flow through the same error
+                # handling as their non-streaming equivalents
+                # (model_response.error checks)
+                model_response = event.response
+                report_model_stream_progress(
+                    event.response.usage.output_tokens
+                    if event.response.usage is not None
+                    else None
+                )
+            elif isinstance(event, ResponseErrorEvent):
+                raise OpenAIResponseError(
+                    code=event.code or "server_error", message=event.message
+                )
+            else:
+                report_model_stream_progress()
     if model_response is None:
         raise OpenAIResponseError(
             code="server_error",

@@ -522,3 +522,59 @@ async def test_chat_completion_stream_reports_deltas() -> None:
     assert tool_event.arguments == "{"
     # the usage chunk reported cumulative output tokens
     assert observer._tokens_current == 7
+
+
+async def test_streaming_requests_usage(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Streaming requests ask for usage on the final chunk (include_usage)."""
+    api = _compatible_api()  # stream unset ("auto")
+
+    final = ChatCompletion.model_validate(
+        dict(
+            id="chatcmpl-1",
+            object="chat.completion",
+            created=0,
+            model="gpt-5",
+            choices=[
+                dict(
+                    index=0,
+                    finish_reason="stop",
+                    message=dict(role="assistant", content="ok"),
+                )
+            ],
+        )
+    )
+
+    captured: dict[str, Any] = {}
+
+    class _FakeStream:
+        async def __aenter__(self) -> "_FakeStream":
+            return self
+
+        async def __aexit__(self, *exc: object) -> None:
+            return None
+
+        def __aiter__(self) -> "_FakeStream":
+            return self
+
+        async def __anext__(self) -> object:
+            raise StopAsyncIteration
+
+        async def get_final_completion(self) -> ChatCompletion:
+            return final
+
+    def fake_stream(**kwargs: Any) -> _FakeStream:
+        captured.update(kwargs)
+        return _FakeStream()
+
+    monkeypatch.setattr(api.client.chat.completions, "stream", fake_stream)
+
+    async def collect(event: Any) -> None:
+        pass
+
+    try:
+        with model_stream_observer(ModelStreamObserver("test", collect)):
+            result = await api._generate_completion({}, GenerateConfig())
+        assert result is final
+        assert captured["stream_options"] == {"include_usage": True}
+    finally:
+        await api.aclose()

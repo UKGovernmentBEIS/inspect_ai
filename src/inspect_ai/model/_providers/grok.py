@@ -326,8 +326,15 @@ class GrokAPI(ModelAPI):
                         self.streaming == "auto" and model_stream_requested()
                     ):
                         report_model_stream_start()
-                        async for chat_response, chunk in chat.stream():
+                        streamed_response: Response | None = None
+                        async for streamed_response, chunk in chat.stream():
                             await _report_grok_stream_chunk(chunk)
+                        if streamed_response is None:
+                            raise RuntimeError(
+                                "No response chunks received from streaming "
+                                f"API for model {self.service_model_name()}"
+                            )
+                        chat_response = streamed_response
                     else:
                         chat_response = await chat.sample()
 
