@@ -1804,7 +1804,7 @@ async def test_requeue_and_cancel_rejected_during_suspended_hook() -> None:
 
         cancel = cancel_task(state.task_id)
         assert cancel is not None
-        assert cancel["changed"] is False
+        assert cancel["ok"] is True and cancel["changed"] is False
         assert cancel["reason"] == "task already finished"
 
         _GATE_HOOK_RELEASE.set()
