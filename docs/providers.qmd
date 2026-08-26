@@ -43,7 +43,7 @@ The `openai` provider supports the following custom model args (other model args
 | `safety_identifier` | A stable identifier used to help detect users of your application. |
 | `prompt_cache_key` | Used by OpenAI to cache responses for similar requests. |
 | `prompt_cache_retention` | Retention policy for the prompt cache. |
-| `http_client` | Custom instance of `httpx.AsyncClient` for handling requests. |
+| `http_client` | Custom instance of `httpx2.AsyncClient` (or legacy `httpx.AsyncClient`) for handling requests. |
 
 : {tbl-colwidths=\[35,65\]}
 
@@ -280,7 +280,7 @@ Note that 1-hour cache writes are billed at 2x the base input token price (vs. 1
 
 ### Streaming
 
-The Anthropic provider supports a `streaming` model arg (`-M`) that controls whether streaming responses are used. The default ("auto") will automatically use streaming when thinking is enabled or for potentially [long requests](https://github.com/anthropics/anthropic-sdk-python?tab=readme-ov-file#long-requests) (requests with \>= 8192 `max_tokens`). Pass `true` or `false` to override the default behavior:
+The Anthropic provider supports a `streaming` model arg (`-M`) that controls whether streaming responses are used. The default ("auto") will automatically use streaming when the caller passes an `on_stream` callback to `generate()`, when thinking is enabled, or for potentially [long requests](https://github.com/anthropics/anthropic-sdk-python?tab=readme-ov-file#long-requests) (requests with \>= 8192 `max_tokens`). Pass `true` or `false` to override the default behavior:
 
 ``` bash
 inspect eval arc.py --model anthropic/claude-sonnet-4-0 -M streaming=true
@@ -456,7 +456,7 @@ inspect eval eval.py -M "safety_settings={'hate_speech': 'low_and_above'}"
 
 ### Streaming
 
-The Google provider supports a `streaming` model arg (`-M`) that controls whether streaming responses are used. Streaming is disabled by default. Pass `true` to enable streaming:
+The Google provider supports a `streaming` model arg (`-M`) that controls whether streaming responses are used. The default ("auto") uses streaming when the caller passes an `on_stream` callback to `generate()`. Pass `true` to always stream (or `false` to never stream):
 
 ``` bash
 inspect eval arc.py --model google/gemini-2.5-pro -M streaming=true
@@ -575,6 +575,14 @@ inspect eval arc.py --model grok/grok-3-mini -M disable_retry=true
 ```
 
 This might be done if you are attempting to accurately track sample `working_time`---typically HTTP retries are subtracted from working time but the Grok provider uses GRPC which has no hooks available for requests and responses (while other providers do).
+
+The `grok` provider also supports a `service_tier` model argument that selects the xAI processing tier for requests (introduced alongside Grok 4.6; requires `xai_sdk` >= 1.17). For example, to use [Priority Processing](https://docs.x.ai/developers/grok-4-6) (billed at higher token rates):
+
+``` bash
+inspect eval arc.py --model grok/grok-4.6 -M service_tier=priority
+```
+
+Note that `service_tier` applies to standard requests only — [batch](models-batch.qmd) requests are processed on xAI's own batch tier, so the argument is omitted for them.
 
 Additional custom model args (`-M`) are forwarded to the constructor of the `AsynClient` class.
 
@@ -1053,7 +1061,7 @@ The most ergonomic path is [model roles](models.qmd#model-roles), which lets the
 inspect eval task.py \
     --model vllm/meta-llama/Llama-3-8B \
     --model-base-url http://gpu1:8000/v1 \
-    --model-role 'grader={model: vllm/meta-llama/Llama-3-70B-Instruct, base_url: http://gpu2:8000/v1}'
+    --model-role 'grader={model: vllm/meta-llama/Llama-3-70B-Instruct, model_args: {base_url: http://gpu2:8000/v1}}'
 ```
 
 Equivalent from Python:
@@ -1074,7 +1082,7 @@ eval(
 )
 ```
 
-Any number of roles can be defined this way (e.g. a separate `critic` or `red_team` model); each one can point at its own vLLM server. `VLLM_API_KEY` is also accepted as a per-model `api_key=` argument if your servers use different keys.
+Any number of roles can be defined this way (e.g. a separate `critic` or `red_team` model); each one can point at its own vLLM server. In CLI role dictionaries, place provider-specific values such as `base_url` and `api_key` under `model_args`; in Python, pass them directly to `get_model()`.
 
 Note: Inspect reuses a single server entry per base model name, so two `vllm/<same-model>` instances pointed at different URLs will collapse to the first URL. This caveat does not apply to the typical solver-vs-judge setup since the two models are different.
 

@@ -12,13 +12,12 @@ from inspect_ai.util._subprocess import subprocess
 logger = getLogger(__name__)
 
 
-class DockerClientVersion(BaseModel):
-    Version: str
-    ApiVersion: str
+class DockerServerVersion(BaseModel):
+    Version: str | None = None
 
 
 class DockerVersion(BaseModel):
-    Client: DockerClientVersion
+    Server: DockerServerVersion | None = None
 
 
 async def validate_prereqs() -> None:
@@ -26,17 +25,20 @@ async def validate_prereqs() -> None:
     await validate_docker_compose()
 
 
-# Version that corresponds to Docker Desktop w/ Compose v2.21.0
-# Linux versions of Docker Engine (docker-ce) also include
-# Docker Compose as a dependency as of this version
-# https://docs.docker.com/engine/release-notes/24.0/#2407
+# Docker daemon and Docker Compose versions are checked separately.
 DOCKER_ENGINE_REQUIRED_VERSION = "24.0.6"
 
 
 async def validate_docker_engine(version: str = DOCKER_ENGINE_REQUIRED_VERSION) -> None:
     def parse_version(stdout: str) -> semver.Version:
-        version = DockerVersion(**json.loads(stdout)).Client.Version
-        return semver.Version.parse(version)
+        server = DockerVersion(**json.loads(stdout)).Server
+        if server is None or server.Version is None:
+            raise PrerequisiteError(
+                "ERROR: Unable to determine the Docker Engine server version\n\n"
+                + "`docker version` did not report server version metadata. Verify that "
+                + "the Docker CLI is connected to a working Docker daemon."
+            )
+        return semver.Version.parse(server.Version)
 
     await validate_version(
         cmd=["docker", "version", "--format", "json"],
@@ -80,6 +82,8 @@ async def validate_version(
         result = await subprocess(cmd)
         if result.success:
             version = parse_fn(result.stdout)
+    except PrerequisiteError:
+        raise
     except Exception as ex:
         # we expect FileNotFoundError (when docker is not installed) however
         # other errors would be a surprise so we alert the user w/ a warning

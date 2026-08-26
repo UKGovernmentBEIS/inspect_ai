@@ -29,7 +29,7 @@ from typing import TYPE_CHECKING, Any, NamedTuple
 from inspect_ai._control.events import _to_text, _truncate
 from inspect_ai._control.terminal_cache import (
     TerminalSourceCache,
-    invalidate_terminal_sources,
+    resolve_sample_source,
 )
 
 if TYPE_CHECKING:
@@ -40,7 +40,7 @@ class MessagesSource(NamedTuple):
     """One resolvable source of a sample's conversation.
 
     Produced by :func:`_running_source` (live ``TaskState``) and
-    :func:`_logged_source` (recorder / on-disk log); consumed by
+    :func:`_resolve_logged_source` (recorder / on-disk log); consumed by
     :func:`sample_messages`.
     """
 
@@ -65,6 +65,7 @@ async def sample_messages(
     epoch: int,
     *,
     tail: int | None = None,
+    content: bool = False,
     full: bool = False,
 ) -> dict[str, Any] | None:
     """A snapshot of one sample's current conversation.
@@ -79,6 +80,9 @@ async def sample_messages(
         epoch: The sample epoch.
         tail: Only the last ``tail`` messages (``None`` = the whole list;
             negative values clamp to 0, an empty window).
+        content: Include (truncated) free-text content — message text, tool
+            arguments, tool errors — in the compact projection. The default
+            is metadata only (see :func:`_project`).
         full: Raw serialized ``ChatMessage`` objects instead of the compact
             projection.
     """
@@ -86,15 +90,12 @@ async def sample_messages(
     # `count`s can't miss a change that lands mid-read.
     as_of = time.time()
 
-    source = _running_source(eval_id, sample_id, epoch)
-    if source is not None:
-        # a running attempt (a retry) supersedes any cached terminal source
-        # for this sample — drop it (from every projection's cache, not just
-        # this endpoint's) so the attempt's own terminal source is resolved
-        # fresh once it finishes (see terminal_cache)
-        invalidate_terminal_sources((eval_id, sample_id, epoch))
-    else:
-        source = await _logged_source(eval_id, sample_id, epoch)
+    source = await resolve_sample_source(
+        (eval_id, sample_id, epoch),
+        running=lambda: _running_source(eval_id, sample_id, epoch),
+        cache=_terminal_sources,
+        resolve_terminal=lambda: _resolve_logged_source(eval_id, sample_id, epoch),
+    )
     if source is None:
         return None
 
@@ -107,7 +108,7 @@ async def sample_messages(
     # empty window rather than overshooting the slice bounds.
     start = max(0, count - max(0, tail)) if tail is not None else 0
     projected = [
-        _project(message, index, full)
+        _project(message, index, content=content, full=full)
         for index, message in enumerate(messages[start:], start=start)
     ]
 
@@ -139,22 +140,6 @@ def _running_source(eval_id: str, sample_id: str, epoch: int) -> MessagesSource 
     return MessagesSource(
         messages=list(s.live_state.messages),
         status="completed" if s.completed is not None else "running",
-    )
-
-
-async def _logged_source(
-    eval_id: str, sample_id: str, epoch: int
-) -> MessagesSource | None:
-    """The terminal source for a sample, resolved through the short-TTL cache.
-
-    A terminal attempt's conversation is immutable, so the resolved source is
-    reused across polls instead of re-paying the whole-conversation parse and
-    attachment resolution per request (see ``_terminal_sources`` and
-    ``TerminalSourceCache.get_or_resolve``).
-    """
-    return await _terminal_sources.get_or_resolve(
-        (eval_id, sample_id, epoch),
-        lambda: _resolve_logged_source(eval_id, sample_id, epoch),
     )
 
 
@@ -192,13 +177,20 @@ async def _resolve_logged_source(
 # --- projection ------------------------------------------------------------
 
 
-def _project(message: "ChatMessage", index: int, full: bool) -> dict[str, Any]:
+def _project(
+    message: "ChatMessage", index: int, *, content: bool, full: bool
+) -> dict[str, Any]:
     """Raw serialized message (``full``) or a compact, context-cheap summary.
 
-    The compact form carries the message's index / id / role plus a truncated
-    text rendering (non-text content items summarized as ``[image]`` /
-    ``[audio]`` / …); assistant messages add their tool-call function names and
-    truncated arguments, tool messages their truncated output and any error.
+    The compact form always carries the message's index / id / role, the
+    tool-call function names on assistant messages, and the function / error
+    *presence* on tool messages — pure metadata. ``content`` adds the
+    truncated free-text fields: the message text (non-text content items
+    summarized as ``[image]`` / ``[audio]`` / …), tool-call arguments, and
+    tool error messages. The metadata default exists so a monitor that never
+    reads agent-controlled text — and so can't be prompt-injected by it — is
+    the effortless default consumer (see "Trust boundary for readers" in
+    design/ctl/control-channel.md).
     """
     if full:
         out = message.model_dump(mode="json")
@@ -209,8 +201,9 @@ def _project(message: "ChatMessage", index: int, full: bool) -> dict[str, Any]:
         "index": index,
         "id": message.id,
         "role": message.role,
-        "content": _content_summary(message),
     }
+    if content:
+        projected["content"] = _content_summary(message)
     if message.role == "assistant":
         tool_calls = getattr(message, "tool_calls", None)
         if tool_calls:
@@ -218,16 +211,22 @@ def _project(message: "ChatMessage", index: int, full: bool) -> dict[str, Any]:
                 {
                     "id": call.id,
                     "function": call.function,
-                    "arguments": _truncate(_to_text(call.arguments)),
+                    **(
+                        {"arguments": _truncate(_to_text(call.arguments))}
+                        if content
+                        else {}
+                    ),
                 }
                 for call in tool_calls
             ]
     elif message.role == "tool":
         projected["function"] = getattr(message, "function", None)
         tool_error = getattr(message, "error", None)
-        projected["error"] = (
-            getattr(tool_error, "message", None) if tool_error else None
-        )
+        projected["has_error"] = tool_error is not None
+        if content:
+            projected["error"] = (
+                getattr(tool_error, "message", None) if tool_error else None
+            )
     return projected
 
 

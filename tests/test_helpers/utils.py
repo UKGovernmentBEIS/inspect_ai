@@ -161,6 +161,17 @@ def with_timeout(
     return decorator
 
 
+def setenv_if_unset(name: str, value: str) -> None:
+    """Set an environment variable unless it already has a non-empty value.
+
+    Unlike `os.environ.setdefault`, this also overrides empty values: CI
+    environments sometimes export variables set to "" (e.g. AWS_REGION), and
+    an empty region makes anthropic >= 1.0 Bedrock client construction fail.
+    """
+    if not os.environ.get(name):
+        os.environ[name] = value
+
+
 def skip_if_env_var(var: str, exists=True):
     """
     Pytest mark to skip the test if the var environment variable is not defined.
@@ -560,33 +571,23 @@ def ensure_test_package_installed():
             fcntl.flock(lock_file, fcntl.LOCK_EX)
         try:
             clear_entry_points_state()
-            # a worker that started before another worker installed the package
-            # can hold a stale negative finder cache, making find_spec() return
-            # None for an already-installed package; that triggers a redundant
-            # reinstall whose uninstall step briefly removes the dist-info out
-            # from under concurrent workers enumerating entry points
-            importlib.invalidate_caches()
-            try:
-                if importlib.util.find_spec("inspect_package") is None:
-                    raise ImportError
-            except ImportError:
-                subprocess.check_call(
-                    [
-                        sys.executable,
-                        "-m",
-                        "pip",
-                        "install",
-                        "--no-deps",
-                        "tests/test_package",
-                    ]
-                )
-                importlib.invalidate_caches()
-            # register entry points while still holding the lock so no other
-            # worker's pip install can be mid-flight while we enumerate them
-            ensure_entry_points("inspect_package")
+            if importlib.util.find_spec("inspect_package") is None:
+                raise ImportError
+        except ImportError:
+            subprocess.check_call(
+                [
+                    sys.executable,
+                    "-m",
+                    "pip",
+                    "install",
+                    "--no-deps",
+                    "tests/test_package",
+                ]
+            )
         finally:
             if os.name == "posix":
                 fcntl.flock(lock_file, fcntl.LOCK_UN)
+    ensure_entry_points("inspect_package")
 
 
 @contextlib.contextmanager

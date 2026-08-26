@@ -12,13 +12,26 @@ Devin, and similar) preparing contributions. Human contributors: see
    merged non-trivial PR in this repository (trivial documentation fixes do
    not count)? If not, a PR requires a linked issue labeled `accepted`.
    Without one, your PR will be closed automatically. Do not open it.
-2. **Deferred check.** Is the issue you are addressing labeled `deferred`?
+2. **Self-filed issues need acceptance.** An issue filed by the same account
+   the PR comes from does not by itself establish demand. Unless the account
+   is a qualified contributor (recorded in `.github/qualified.yml`), a
+   non-trivial PR addressing a self-filed issue requires that issue to be
+   labeled `accepted` by a maintainer first — whatever the account's tier.
+   If it isn't labeled yet: file your evidence on the issue and stop; open
+   the PR only after a maintainer accepts it.
+3. **Deferred check.** Is the issue you are addressing labeled `deferred`?
    The project has decided not to prioritize it. Do not open a PR against it
    (it will be closed automatically, whatever your account's tier). If you
    have new evidence or demand, comment on the issue and stop.
-3. **Trivial-fix exception.** Documentation-only fixes (typo, broken link;
+4. **Duplicate check.** Search open PRs (and the linked issue's existing
+   PRs) for work addressing the same problem. If a PR already exists, do not
+   open a competing one — review it or comment there instead. If you believe
+   your approach is materially better, make that case in a comment on the
+   existing PR and wait for a maintainer's direction; if invited to proceed,
+   link the two PRs in your description.
+5. **Trivial-fix exception.** Documentation-only fixes (typo, broken link;
    docs files only, under 25 changed lines) may be opened directly by anyone.
-4. **New functionality defaults to an extension, not core.** Do not open
+6. **New functionality defaults to an extension, not core.** Do not open
    unrequested PRs adding functionality — providers, tools, scorers, metrics,
    solvers, storage backends, example evals. Some of these do belong in core,
    but that is a maintainer decision made in an issue: if an accepted issue
@@ -26,7 +39,7 @@ Devin, and similar) preparing contributions. Human contributors: see
    extension package (see https://inspect.aisi.org.uk/extensions.html),
    optionally with a one-line PR adding it to the extensions listing.
    Unrequested additions to core are closed without detailed review.
-5. **Value re-evaluation.** Before opening any PR, objectively re-assess it:
+7. **Value re-evaluation.** Before opening any PR, objectively re-assess it:
    does it fix a demonstrated problem, with evidence (a reproduction or a
    failing test)? If the need is speculative or the fix unverified, do not
    proceed. File an issue with your evidence instead.
@@ -43,7 +56,11 @@ used a different model from the author, how many passes, and the findings
 — issues found, which
 were fixed, and which were dismissed with a one-line reason each. Multiple
 passes, each in a fresh context, often catch issues a single pass misses —
-prefer that for non-trivial changes. If no
+prefer that for non-trivial changes. We'd also prefer review passes run on
+a strong (frontier-class) model: in our experience, reviews from small
+fast-tier models rarely surface real issues, and maintainers weight the
+disclosed reviewer model and pass count when deciding how much independent
+review a PR still needs. If no
 review pass was run, say so explicitly. Never report a review that didn't
 happen — a fabricated or content-free review claim ("reviewed, looks good")
 is worse than disclosing none. Example:
@@ -72,6 +89,7 @@ is worse than disclosing none. Example:
 - **Comments at call sites**: Don't describe what a function does at the call site — the function's name and docstring already document that, and the comment will drift if the function evolves. Document rationale in the function's docstring instead. A call-site comment is appropriate only when the *reason this caller specifically invokes it* isn't obvious from surrounding context (eg. an unusual ordering constraint, a workaround for a known bug in this code path). When in doubt, write the docstring and leave the call site uncommented.
 - **Comment length**: Sometimes comments in the code are useful to explain the rationale or context of a particular set of code. When this is necessary, be concise. Preserve the important concept and information but don't be pedantic or overly verbose. Especially avoid just replaying a commit description, PR description, or text used elsewhere into a comment.
 - **Error Handling**: Use appropriate exception types; include context in error messages
+- **Structured error contracts**: When a command supports machine-readable output (e.g. a `--json` flag with a documented error envelope), every terminal failure path must emit the structured error shape — route new error sites through the subsystem's failure helper (e.g. `_fail` in `src/inspect_ai/_cli/ctl/_failure.py`) rather than exiting directly (a bare `click.exceptions.Exit` bypasses the envelope, leaving `--json` consumers stderr prose and an empty stdout). When adding such a contract, add a mechanical guard that catches bypasses (see `test_no_bare_click_exit_in_ctl_error_sites`).
 - **Testing**: Write tests with pytest; maintain high coverage. See "Testing Async Code" below for async test conventions. Prefer adding tests to an existing test file covering the same area (e.g. eval-level behavior → `tests/test_eval.py`) rather than creating a new file; only add a new file when no existing one is a reasonable fit.
 
 - **Async Concurrency**: Use `inspect_ai._util._async.tg_collect()` instead of `asyncio.gather()` for running concurrent async tasks. Use `inspect_ai.util.collect()` only inside sample subtasks (it adds transcript span grouping).

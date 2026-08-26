@@ -309,6 +309,11 @@ def _get_model_info_direct(model: str | Model) -> ModelInfo | None:
     return _get_model_info(model, resolve_provider=False)
 
 
+def _get_custom_model_info(model: str) -> ModelInfo | None:
+    """Look up model info registered with set_model_info(), if any."""
+    return _custom_models.get(model)
+
+
 def _get_model_info(
     model: str | Model,
     *,

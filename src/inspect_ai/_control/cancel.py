@@ -32,8 +32,16 @@ dry-runnable per the phase-3 agent-shape constraints:
   gate, since the auto-fail would race it); ``"cancel"`` records it as
   cancelled — transcript preserved, no scoring, not counted as an error.
 
-Both run on the eval's own loop (the control server is embedded), so firing
-a cancel scope from a route handler is safe. Results are dicts: ``None``
+- :func:`cancel_tool_call` — attempt-keyed like :func:`cancel_sample`, but
+  surgical: fires one in-flight tool call's per-call cancel scope (the same
+  ``ToolEvent._cancel()`` primitive ACP's ``inspect/cancel_tool_call`` and
+  the in-process TUI's timeout button drive), so the model sees an ordinary
+  tool timeout and the sample *continues* rather than ending. See
+  design/ctl/tool-call-cancel.md for the full semantics.
+
+All run on the eval's own loop (the control server is embedded), so firing
+a cancel scope from a route handler is safe. Results are ``TypedDict``
+unions, one variant per outcome (the ``requeue.py`` convention): ``None``
 means the target isn't in this process (the route 404s); ``{"ok": False,
 "error": ...}`` is a rejection (the route maps it to a 409); otherwise the
 result carries ``changed`` — ``False`` is the idempotent already-in-that-state
@@ -44,9 +52,13 @@ an error.
 
 from __future__ import annotations
 
+import time
 from typing import TYPE_CHECKING, Any, Literal
 
+from typing_extensions import NotRequired, TypedDict
+
 if TYPE_CHECKING:
+    from inspect_ai.event._tool import ToolEvent
     from inspect_ai.log._samples import ActiveSample, SampleCancelAction
 
 TaskCancelAction = Literal["cancel", "score", "error"]
@@ -58,8 +70,43 @@ primitive it types. Deliberately a distinct type despite the identical
 values: task ``"cancel"`` aborts the attempt (it does *not* map to the
 sample-level ``"cancel"`` interrupt), the task set may diverge (e.g. a
 future graceful-drain action), and this CLI-light module is importable
-at ``ctl.py`` startup where ``log._samples`` is not.
+at ``inspect_ai._cli.ctl`` startup where ``log._samples`` is not.
 """
+
+
+class CancelTaskRejected(TypedDict):
+    """A rejection from the decision table (the route maps it to a 409)."""
+
+    ok: Literal[False]
+    error: str
+
+
+class _CancelTaskResult(TypedDict):
+    """Fields shared by every accepted ``cancel_task`` response."""
+
+    ok: Literal[True]
+    task_id: str
+    task: str
+    eval_id: str
+    action: TaskCancelAction
+    dry_run: bool
+    in_flight: int
+
+
+class CancelTaskNoop(_CancelTaskResult):
+    """The idempotent no-op: already finished, or cancel already requested."""
+
+    changed: Literal[False]
+    reason: str
+
+
+class CancelTaskChanged(_CancelTaskResult):
+    """The cancel was delivered (or, under ``dry_run``, would be)."""
+
+    changed: Literal[True]
+
+
+CancelTaskResult = CancelTaskRejected | CancelTaskNoop | CancelTaskChanged
 
 
 def cancel_task(
@@ -67,7 +114,7 @@ def cancel_task(
     *,
     action: TaskCancelAction = "cancel",
     dry_run: bool = False,
-) -> dict[str, Any] | None:
+) -> CancelTaskResult | None:
     """Cancel a running task (``POST /tasks/<task-id>/cancel``).
 
     Resolves the task's latest attempt and cancels it per ``action``
@@ -106,7 +153,7 @@ def cancel_task(
 
     active = _active_eval_samples(state.eval_id)
     in_flight = [sample for sample in active if sample.started is not None]
-    result: dict[str, Any] = {
+    result: _CancelTaskResult = {
         "ok": True,
         "task_id": state.task_id,
         "task": state.task,
@@ -188,6 +235,40 @@ def cancel_task(
     return {**result, "changed": True}
 
 
+class CancelSampleRejected(TypedDict):
+    """A rejection (409): still queued, or ``error`` on a fail-on-error sample."""
+
+    ok: Literal[False]
+    error: str
+
+
+class CancelSampleChanged(TypedDict):
+    """The interrupt was delivered (or, under ``dry_run``, would be)."""
+
+    ok: Literal[True]
+    sample_id: str | int | None
+    epoch: int
+    action: SampleCancelAction
+    dry_run: bool
+    changed: Literal[True]
+
+
+class CancelSampleFinished(TypedDict):
+    """The already-terminal no-op (fields echo ``sample_error_detail``)."""
+
+    ok: Literal[True]
+    sample_id: str | int | None
+    epoch: int | None
+    action: SampleCancelAction
+    dry_run: bool
+    changed: Literal[False]
+    status: str | None
+    reason: str
+
+
+CancelSampleResult = CancelSampleRejected | CancelSampleChanged | CancelSampleFinished
+
+
 async def cancel_sample(
     eval_id: str,
     sample_id: str,
@@ -195,7 +276,7 @@ async def cancel_sample(
     *,
     action: SampleCancelAction = "score",
     dry_run: bool = False,
-) -> dict[str, Any] | None:
+) -> CancelSampleResult | None:
     """Cancel one running sample (``POST /evals/<id>/sample/cancel``).
 
     Interrupts the sample via ``ActiveSample.interrupt(action)`` (unless
@@ -258,6 +339,285 @@ async def cancel_sample(
         "changed": False,
         "status": detail.get("status"),
         "reason": "sample already finished",
+    }
+
+
+class PendingToolCall(TypedDict):
+    """One pending tool call's row (see :func:`_pending_tool_call`)."""
+
+    id: str
+    function: str
+    started_at: float
+    cancel_requested: bool
+
+
+class CancelToolCallRejected(TypedDict):
+    """A rejection from the decision table (the route maps it to a 409).
+
+    Either an ambiguous target (``pending`` enumerates the candidates) or a
+    pending match with no cancel hook installed.
+    """
+
+    ok: Literal[False]
+    error: str
+    pending: NotRequired[list[PendingToolCall]]
+
+
+class _CancelToolCallResult(TypedDict):
+    """Fields shared by every accepted live-sample response."""
+
+    ok: Literal[True]
+    sample_id: str | int | None
+    epoch: int
+    dry_run: bool
+
+
+class CancelToolCallUnmatched(_CancelToolCallResult):
+    """No pending match for an explicit id (``pending`` lists the candidates).
+
+    The ``reason`` strings on these no-op variants are ``Literal`` — each is
+    the variant's discriminant, so consumers can narrow the union on it.
+    """
+
+    changed: Literal[False]
+    reason: Literal["no pending tool call with that id"]
+    pending: list[PendingToolCall]
+
+
+class CancelToolCallNoPending(_CancelToolCallResult):
+    """No pending tool calls at all (``activity`` names the actual stall)."""
+
+    changed: Literal[False]
+    reason: Literal["no pending tool calls"]
+    activity: dict[str, Any] | None
+
+
+class _CancelToolCallEcho(TypedDict):
+    """Echo of the targeted call."""
+
+    tool_call_id: str
+    function: str
+    started_at: float
+    running_time: float
+
+
+class CancelToolCallAlreadyRequested(_CancelToolCallResult, _CancelToolCallEcho):
+    """The repeat no-op: a cancel was already delivered to this call."""
+
+    changed: Literal[False]
+    reason: Literal["cancel already requested"]
+
+
+class CancelToolCallChanged(_CancelToolCallResult, _CancelToolCallEcho):
+    """The cancel was delivered to the cancel scope (or would be, under ``dry_run``)."""
+
+    changed: Literal[True]
+
+
+class CancelToolCallFinished(TypedDict):
+    """The already-terminal no-op (fields echo ``sample_error_detail``)."""
+
+    ok: Literal[True]
+    sample_id: str | int | None
+    epoch: int | None
+    dry_run: bool
+    changed: Literal[False]
+    status: str | None
+    reason: Literal["sample already finished"]
+
+
+CancelToolCallResult = (
+    CancelToolCallRejected
+    | CancelToolCallUnmatched
+    | CancelToolCallNoPending
+    | CancelToolCallAlreadyRequested
+    | CancelToolCallChanged
+    | CancelToolCallFinished
+)
+
+
+async def cancel_tool_call(
+    eval_id: str,
+    sample_id: str,
+    epoch: int,
+    *,
+    tool_call_id: str | None = None,
+    dry_run: bool = False,
+) -> CancelToolCallResult | None:
+    """Cancel one in-flight tool call (``POST /evals/<id>/sample/cancel-tool-call``).
+
+    Scans the sample's pending events for a pending ``ToolEvent`` — the same
+    rule as ACP's ``inspect/cancel_tool_call``: pending events are never
+    evicted from a bounded transcript, and nested sub-agent tool calls
+    (``task`` dispatch / ``as_tool`` / ``handoff``) record into the same
+    sample transcript, so they are reachable; scanning full history would
+    materialize evicted events for calls that can no longer be cancelled —
+    and fires the match's per-call cancel scope via ``ToolEvent._cancel()``
+    (unless ``dry_run``). The model then sees an ordinary tool timeout
+    (``ToolCallError("timeout")`` — the established operator-cancel contract
+    shared with the ACP/TUI paths) and the sample continues.
+
+    ``tool_call_id`` is optional with a fail-closed fallback: exactly one
+    pending tool call is an unambiguous target; two or more is a rejection
+    enumerating them (``pending`` in the result) — a mutation must not guess
+    among targets, and per the control channel's no-fan-out convention must
+    not cancel them all. ``dry_run`` without an id therefore doubles as
+    "show me the pending tool calls".
+
+    ``changed: true`` means the cancel was *delivered* to the call's cancel
+    scope, not that the tool has stopped — anyio cancellation is cooperative,
+    so a call wedged in sync-in-thread code or shielded teardown may never
+    unwind (the event then stays pending with ``cancelled`` set, and a repeat
+    reports the "cancel already requested" no-op).
+
+    Returns ``None`` when the sample is in neither the live set nor the
+    eval's readable samples (the route 404s); ``{"ok": False, "error": ...}``
+    on the ambiguity rejection above or a pending match with no cancel hook
+    installed (defensive — production dispatch always installs one before the
+    event reaches the transcript; an honest error beats a success-shaped
+    no-op); otherwise ``changed: false`` no-ops for the already-holds states:
+    cancel already requested, no pending match for an explicit id (completed,
+    or never existed — the response lists the currently-pending calls so a
+    typo'd id is visible), no pending tool calls at all (the response carries
+    the sample's current activity, redirecting the operator to the real
+    stall), or a sample that already finished.
+
+    There is no await between the pending scan and ``_cancel()`` and
+    everything runs on the eval's single loop, so there is no scan-to-fire
+    race (the same argument as :func:`cancel_sample`'s check-then-interrupt).
+    """
+    from inspect_ai._control.state import find_active_sample
+    from inspect_ai.event._tool import ToolEvent
+
+    sample = find_active_sample(eval_id, sample_id, epoch)
+    if sample is not None and sample.completed is None:
+        pending = [
+            event
+            for event in sample.transcript.pending_events
+            if isinstance(event, ToolEvent) and event.pending
+        ]
+        result: _CancelToolCallResult = {
+            "ok": True,
+            "sample_id": sample.sample.id,
+            "epoch": sample.epoch,
+            "dry_run": dry_run,
+        }
+        target: ToolEvent
+        if tool_call_id is not None:
+            match = next((e for e in pending if e.id == tool_call_id), None)
+            if match is None:
+                return {
+                    **result,
+                    "changed": False,
+                    "reason": "no pending tool call with that id",
+                    "pending": [_pending_tool_call(e) for e in pending],
+                }
+            target = match
+        elif len(pending) == 0:
+            from inspect_ai._control.state import _sample_activity
+
+            # a still-queued sample falls out here too (it can have no
+            # pending tools); the activity names where the sample actually
+            # is (a pending generate, a retry wait, or nothing yet)
+            return {
+                **result,
+                "changed": False,
+                "reason": "no pending tool calls",
+                "activity": _sample_activity(sample),
+            }
+        elif len(pending) > 1:
+            calls = [_pending_tool_call(e) for e in pending]
+            listing = ", ".join(
+                f"{_flatten_token(c['id'])} ({_flatten_token(c['function'])})"
+                for c in calls
+            )
+            return {
+                "ok": False,
+                "error": (
+                    f"sample {sample_id} (epoch {epoch}) has {len(pending)} "
+                    "pending tool calls — pass an explicit tool_call_id to "
+                    f"pick one: {listing}"
+                ),
+                "pending": calls,
+            }
+        else:
+            target = pending[0]
+
+        started_at = target.timestamp.timestamp()
+        echo: _CancelToolCallEcho = {
+            "tool_call_id": target.id,
+            "function": target.function,
+            "started_at": started_at,
+            "running_time": max(0.0, time.time() - started_at),
+        }
+        # checked BEFORE calling _cancel() so the response distinguishes
+        # "this request cancelled it" from "already cancelled" (which ACP's
+        # post-state-only return cannot)
+        if target.cancelled:
+            return {
+                **result,
+                **echo,
+                "changed": False,
+                "reason": "cancel already requested",
+            }
+        if target._cancel_fn is None:
+            return {
+                "ok": False,
+                "error": (
+                    f"tool call {_flatten_token(target.id)} "
+                    f"({_flatten_token(target.function)}) cannot be "
+                    "cancelled — no cancel hook is installed on it"
+                ),
+            }
+        if not dry_run:
+            target._cancel()
+        return {**result, **echo, "changed": True}
+
+    # Not running: a readable terminal sample is the idempotent no-op;
+    # a sample in neither source is unknown (the route 404s).
+    from inspect_ai._control.state import sample_error_detail
+
+    detail = await sample_error_detail(eval_id, sample_id, epoch)
+    if detail is None:
+        return None
+    return {
+        "ok": True,
+        "sample_id": detail.get("sample_id"),
+        "epoch": detail.get("epoch"),
+        "dry_run": dry_run,
+        "changed": False,
+        "status": detail.get("status"),
+        "reason": "sample already finished",
+    }
+
+
+def _flatten_token(value: str) -> str:
+    """Flatten control characters in a model-influenceable token.
+
+    Tool-call ids and function names originate with the model/provider, and
+    the rejection messages above embed them in strings the CLI prints
+    verbatim (its transport sanitizer deliberately preserves newlines) — so
+    a newline-bearing token could forge extra terminal lines. Structured
+    fields need no flattening (JSON encoding escapes them); only the human
+    message strings do.
+    """
+    return "".join(ch if ch.isprintable() else " " for ch in value)
+
+
+def _pending_tool_call(event: "ToolEvent") -> PendingToolCall:
+    """One pending tool call's row in enumeration responses.
+
+    Also the ``calls`` row shape on the sample listing's tool activity —
+    ``_sample_activity`` builds its rows with this function, so the ambiguity
+    rejection and the read surface can't drift apart. ``cancel_requested``
+    surfaces a delivered-but-unheeded cancel (a wedged call that no scope
+    can stop).
+    """
+    return {
+        "id": event.id,
+        "function": event.function,
+        "started_at": event.timestamp.timestamp(),
+        "cancel_requested": event.cancelled,
     }
 
 

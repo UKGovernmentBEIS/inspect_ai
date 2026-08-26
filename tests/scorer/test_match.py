@@ -353,3 +353,52 @@ async def test_numeric_match_any_with_punctuation():
     assert result is not None
     assert result.text == CORRECT
     assert result.answer == "42"
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "model_output",
+    [
+        # operator characters express bounds/approximations, not the value:
+        # they must NOT be trimmed into a match (false CORRECTs inflate
+        # scores silently — nobody audits their passing samples)
+        "The answer is <42",
+        "The answer is >=42",
+        "The answer is ~42",
+        "The answer is &42",
+    ],
+)
+async def test_numeric_match_operator_prefix_stays_incorrect(model_output: str):
+    scorer = match(numeric=True)
+    state = simple_task_state(model_output=model_output)
+    result = await scorer(state, Target(["42"]))
+
+    assert result is not None
+    assert result.text == INCORRECT
+
+
+@pytest.mark.anyio
+async def test_numeric_match_exact_rejects_punctuation():
+    # location="exact" stays actually exact: punctuation-wrapped numbers
+    # do not match (the trim applies to begin/end/any extraction only)
+    scorer = match(numeric=True, location="exact")
+
+    state = simple_task_state(model_output="(42)")
+    result = await scorer(state, Target(["42"]))
+    assert result is not None
+    assert result.text == INCORRECT
+
+    state = simple_task_state(model_output="42!")
+    result = await scorer(state, Target(["42"]))
+    assert result is not None
+    assert result.text == INCORRECT
+
+
+@pytest.mark.anyio
+async def test_numeric_match_exact_still_matches_clean_number():
+    scorer = match(numeric=True, location="exact")
+    state = simple_task_state(model_output="42")
+    result = await scorer(state, Target(["42"]))
+
+    assert result is not None
+    assert result.text == CORRECT

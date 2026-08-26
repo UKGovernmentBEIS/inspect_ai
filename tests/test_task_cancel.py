@@ -206,6 +206,7 @@ def test_score_resolution_cancel_completes_eval() -> None:
         assert sample.id == 1
         assert sample.error is None
         assert sample.limit is not None and sample.limit.type == "operator"
+        assert sample.limit.reason == "Sample completed: interrupted by operator"
         assert sample.scores  # the scorer ran on the work done so far
 
 
@@ -454,14 +455,15 @@ def test_interrupt_in_retry_drain_window_resolves_cancelled() -> None:
 
     A sample that just errored with sample-level retries remaining still looks
     in flight (`started` set, `completed` unset, no interrupt) while it drains
-    its transcript events before recursing into the retry, so a task-cancel
-    sweep interrupts it there — but the interrupt only stamps
+    its transcript events before handing back to the retry loop, so a
+    task-cancel sweep interrupts it there — but the interrupt only stamps
     `interrupt_action` (the sample's task group has already exited, so the
     cancel-scope fire is a no-op). The retry must be suppressed and the sample
-    resolved as the same interrupt a moment later (at the retry recursion's
+    resolved as the same interrupt a moment later (at the retry attempt's
     queue check) would resolve it: counted cancelled (not errored), absent
     from the log, its buffered events removed.
     """
+    from inspect_ai._control.cancel import CancelTaskResult
     from inspect_ai._control.cancel import cancel_task as ctl_cancel_task
     from inspect_ai._control.eval_state import (
         get_eval_states,
@@ -471,7 +473,7 @@ def test_interrupt_in_retry_drain_window_resolves_cancelled() -> None:
     from inspect_ai._eval.task.log import TaskLogger
 
     attempts = 0
-    sweep_results: list[dict[str, Any]] = []
+    sweep_results: list[CancelTaskResult] = []
     recorded: list[str] = []
     removed: list[tuple[str | int, int]] = []
 
@@ -533,7 +535,8 @@ def test_interrupt_in_retry_drain_window_resolves_cancelled() -> None:
 
         # the sweep saw the sample as in flight and applied
         assert len(sweep_results) == 1
-        assert sweep_results[0]["ok"] is True and sweep_results[0]["in_flight"] == 1
+        sweep = sweep_results[0]
+        assert sweep["ok"] is True and sweep["in_flight"] == 1
         # the retry was suppressed
         assert attempts == 1
         # counted cancelled — never errored — and its buffered events removed
