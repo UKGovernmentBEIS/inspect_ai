@@ -105,12 +105,23 @@ never dangles across a retry):
 | Start a scoring pass | `POST /tasks/<task-id>/score?dry_run=<bool>&completed_only=<bool>` |
 | Read pass status / result | `GET /tasks/<task-id>/score` |
 
-A per-sample variant (`ctl sample score TASK SID [EPOCH]`, `POST
-/evals/<id>/sample/score?...`) is a natural later slice — same machinery,
-sample-scoped — and is deliberately deferred (the task-wide pass is the
-motivating ask, and one sample's interim score is obtainable today by reading
-its events after a task-wide pass). Tracked as a follow-up in
-meridianlabs-ai/inspect_ai#102.
+A per-sample variant (`ctl sample score TASK SID [EPOCH]`, `POST`/`GET
+/evals/<id>/sample/score?sample_id=<sid>&epoch=<n>`) was deferred from the
+initial build and has since **shipped** (meridianlabs-ai/inspect_ai#102) —
+same machinery, sample-scoped: the one `(sample_id, epoch)` target resolves
+to its disposition and, when in-flight, is held and scored exactly as a
+task-wide pass would score it. It follows the sample mutations' selector
+conventions (`sample_id` a query param, EPOCH required whenever the task
+runs several epochs) and shares the one-pass-per-task registry — one pass
+per task at a time whatever its scope, so holds never stack; a start while
+any pass runs is the idempotent no-op naming the running pass (the envelope
+carries `scope`/`sample_id`/`epoch`, and the CLI joins only when the running
+pass is that same sample's — polling someone else's pass is not what was
+asked for). Because the registry keeps one pass per task, a later pass
+(task-wide or another sample's) evicts a sample pass's result from the poll.
+A sample-scoped pass computes no interim metrics — metrics over a single
+sample would restate its scores while presenting as task-level numbers; the
+row's scores are the payload.
 
 ## Which samples
 
@@ -537,7 +548,8 @@ Phases 1 and 2 together are the initial implementation (shipped):
    no-hold snapshot mode for recurring polling (spawn point, snapshot copy,
    cancel-on-completion, budget isolation — `suspend_token_limit()` /
    `suspend_turn_limit()` prior art, cost-limit equivalent to be added);
-   `ctl sample score` (per-sample variant); surfacing the latest
+   `ctl sample score` (the per-sample variant — since shipped, see
+   "Command surface"); surfacing the latest
    interim score in `ctl sample list` rows; scheduled/periodic passes
    (`--every`, or shell composition with a watchdog loop).
 

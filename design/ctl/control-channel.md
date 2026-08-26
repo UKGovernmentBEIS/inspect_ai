@@ -152,6 +152,7 @@ inspect ctl
 │   ├── messages TASK SID [EPOCH]   # shipped: current-conversation snapshot (see "Sample messages read")
 │   ├── store TASK SID [EPOCH]      # shipped: current-store snapshot (see sample-store.md)
 │   ├── cancel TASK SID [EPOCH]     # shipped (EPOCH required when the task runs >1 epoch)
+│   ├── score TASK SID [EPOCH]      # shipped: sample-scoped interim scoring (see design/ctl/interim-scoring.md)
 │   └── requeue TASK SID [EPOCH]    # shipped (EPOCH required when the task runs >1 epoch;
 │                                   #   also `--errored` / several SID EPOCH pairs — a CLI-side
 │                                   #   sweep over the per-sample endpoint, see sample-requeue.md)
@@ -368,6 +369,7 @@ The URL scheme has one rule — **three scopes, three roots**: process-scoped op
 | Requeue sample | `POST /evals/<id>/sample/requeue?sample_id=<sid>&epoch=<n>` | 3 ✅ (see `sample-requeue.md`) |
 | Modify per-sample limits (time / token / message) | `PATCH /tasks/<task-id>/config` (as further config knobs) | 3 |
 | Interim scoring pass (score a running eval without ending its samples) | `POST /tasks/<task-id>/score` (start) / `GET` (poll) | ✅ (see `design/ctl/interim-scoring.md`) |
+| Interim-score one sample (sample-scoped pass) | `POST /evals/<id>/sample/score?sample_id=<sid>&epoch=<n>` (start) / `GET` (poll) | ✅ (see `design/ctl/interim-scoring.md`) |
 | List eval-sets | `GET /eval-sets` | later |
 | Eval-set status | `GET /eval-sets/<id>` | later |
 | Cancel eval-set | `POST /eval-sets/<id>/cancel` | later |

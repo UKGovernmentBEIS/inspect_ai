@@ -4,7 +4,10 @@ Implements the non-destructive ``inspect ctl task score`` directive: run the
 task's scorers (as resolved at eval start — see :class:`TaskScoring`) over
 a running eval's in-flight samples, fold completed samples' existing final
 scores into interim metrics, and report the results through a start + poll
-job model (``POST``/``GET /tasks/<task-id>/score``).
+job model (``POST``/``GET /tasks/<task-id>/score``). A sample-scoped
+variant — ``inspect ctl sample score``, ``POST``/``GET
+/evals/<id>/sample/score`` — runs the same pass over exactly one
+``(sample_id, epoch)`` target (see :func:`start_sample_score_pass`).
 
 Sample dispositions (the "Which samples" table of the design doc):
 
@@ -108,6 +111,14 @@ Disposition = Literal["in_flight", "completed_unscored", "completed_scored", "sk
 """Which row of the design doc's dispositions table a sample fell into."""
 
 
+_NO_SCORERS_ERROR = (
+    "task has no scorers to run in this process (the task was "
+    "defined without scorers, the eval ran with --no-score — "
+    "which disables interim scoring too — or is a reused log; "
+    "use `inspect score` on its log after the run instead)"
+)
+
+
 @dataclass
 class TaskScoring:
     """The task's scoring inputs as resolved at eval start.
@@ -159,6 +170,13 @@ class ScorePass:
     task: str
     as_of: float
     completed_only: bool
+    sample_id: str | int | None = None
+    """Set when the pass is sample-scoped (``ctl sample score``): the resolved
+    (native-typed) id of the one sample the pass targets. ``None`` for a
+    task-wide pass. Sample-scoped passes share the task-keyed registry —
+    one pass per task at a time, whatever its scope — so holds never stack."""
+    sample_epoch: int | None = None
+    """The targeted epoch of a sample-scoped pass (``None`` for task-wide)."""
     running: bool = True
     total: int = 0
     """Samples this pass will attempt to score (progress denominator) —
@@ -275,15 +293,7 @@ async def start_score_pass(
 
     handle = state.task_scoring
     if handle is None or not handle.scorers:
-        return {
-            "ok": False,
-            "error": (
-                "task has no scorers to run in this process (the task was "
-                "defined without scorers, the eval ran with --no-score — "
-                "which disables interim scoring too — or is a reused log; "
-                "use `inspect score` on its log after the run instead)"
-            ),
-        }
+        return {"ok": False, "error": _NO_SCORERS_ERROR}
 
     existing = _score_passes.get(state.task_id)
     if existing is not None and existing.running:
@@ -313,6 +323,7 @@ async def start_score_pass(
             "task_id": state.task_id,
             "task": state.task,
             "eval_id": state.eval_id,
+            "scope": "task",
             "running": False,
             "as_of": time.time(),
             "completed_only": completed_only,
@@ -373,6 +384,11 @@ async def get_score_pass(task_id: str) -> dict[str, Any] | None:
             "ok": False,
             "error": "no scoring pass has been started for this task",
         }
+    return _pass_status_response(score_pass, state)
+
+
+def _pass_status_response(score_pass: ScorePass, state: "EvalState") -> dict[str, Any]:
+    """The poll response for a pass (shared by the task and sample GETs)."""
     response: dict[str, Any] = {
         **_pass_envelope_base(score_pass, state),
         "progress": _pass_progress(score_pass),
@@ -394,6 +410,193 @@ async def get_score_pass(task_id: str) -> dict[str, Any] | None:
     return response
 
 
+async def start_sample_score_pass(
+    eval_id: str, sample_id: str, epoch: int, *, dry_run: bool = False
+) -> dict[str, Any] | None:
+    """Start a sample-scoped pass (``POST /evals/<eval-id>/sample/score``).
+
+    The per-sample variant of :func:`start_score_pass` (the follow-up
+    deferred by design/ctl/interim-scoring.md — same machinery,
+    sample-scoped): the one ``(sample_id, epoch)`` target is resolved to
+    its disposition and, when in-flight, held and scored exactly as a
+    task-wide pass would score it. A sample-scoped pass computes no interim
+    metrics — its row's scores are the payload.
+
+    Returns ``None`` when the eval or the sample isn't in this process (the
+    route 404s — an unknown sample id and a queued sample that hasn't
+    started are indistinguishable here, and neither has anything to score);
+    ``{"ok": False, "error": ...}`` for the no-scorers and
+    superseded-attempt rejections (the route maps them to a 409).
+
+    Shares the one-pass-per-task registry with the task-wide directive —
+    one pass per task at a time, whatever its scope, so holds never stack:
+    a start while any pass runs for the task is the idempotent no-op
+    envelope for that pass (its ``scope`` fields let the caller tell its
+    own sample's pass, which it may join, from an unrelated one).
+    """
+    import asyncio
+    import contextvars
+
+    from inspect_ai._control.eval_state import get_eval_state, latest_eval_for_task
+
+    state = get_eval_state(eval_id)
+    if state is None:
+        return None
+    # eval-keyed directives can arrive with a superseded attempt's eval id
+    # (the task-keyed ones can't); reject rather than registering a pass
+    # that would immediately report itself superseded
+    if latest_eval_for_task(state.task_id) is not state:
+        return {
+            "ok": False,
+            "error": (
+                "this eval attempt has been superseded by a retry — "
+                "re-resolve the target and retry against the current attempt"
+            ),
+        }
+
+    handle = state.task_scoring
+    if handle is None or not handle.scorers:
+        return {"ok": False, "error": _NO_SCORERS_ERROR}
+
+    existing = _score_passes.get(state.task_id)
+    if existing is not None and existing.running:
+        return _already_running_envelope(existing, state, dry_run)
+
+    resolved = _sample_scoped_targets(
+        await _enumerate_targets(state, handle), sample_id, epoch
+    )
+    if resolved is None:
+        return None
+
+    # the same post-enumeration re-check as start_score_pass (the
+    # enumeration suspends, so a concurrent start may have registered)
+    existing = _score_passes.get(state.task_id)
+    if existing is not None and existing.running:
+        return _already_running_envelope(existing, state, dry_run)
+
+    targeted = resolved.targets.counts(False)
+    if dry_run:
+        # like the task-wide dry run: nothing is registered or spawned
+        return {
+            "ok": True,
+            "task_id": state.task_id,
+            "task": state.task,
+            "eval_id": state.eval_id,
+            "scope": "sample",
+            "sample_id": resolved.sample_id,
+            "epoch": resolved.epoch,
+            "running": False,
+            "as_of": time.time(),
+            "completed_only": False,
+            "changed": True,
+            "dry_run": True,
+            "targeted": targeted,
+        }
+
+    score_pass = ScorePass(
+        pass_id=uuid(),
+        task_id=state.task_id,
+        eval_id=state.eval_id,
+        task=state.task,
+        as_of=time.time(),
+        completed_only=False,
+        sample_id=resolved.sample_id,
+        sample_epoch=resolved.epoch,
+        targeted=targeted,
+        total=len(resolved.targets.in_flight),
+    )
+    _score_passes[state.task_id] = score_pass
+    # spawned exactly as start_score_pass spawns its pass (a sibling asyncio
+    # task in a fresh context — see the rationale there)
+    score_pass._task = contextvars.Context().run(
+        asyncio.ensure_future,
+        run_score_pass(score_pass, state, handle, resolved.targets),
+    )
+    return {
+        **_pass_envelope_base(score_pass, state),
+        "changed": True,
+        "dry_run": False,
+        "targeted": targeted,
+    }
+
+
+async def get_sample_score_pass(
+    eval_id: str, sample_id: str, epoch: int
+) -> dict[str, Any] | None:
+    """Report one sample's pass (``GET /evals/<eval-id>/sample/score``).
+
+    Returns ``None`` when the eval isn't in this process; ``{"ok": False,
+    "error": ...}`` when the task's current (or most recent) pass isn't
+    sample-scoped to this exact ``(sample_id, epoch)`` — the registry keeps
+    one pass per task, so a later pass (task-wide or another sample's)
+    evicts this sample's result (the route maps it to a 404).
+    """
+    from inspect_ai._control.eval_state import get_eval_state
+
+    state = get_eval_state(eval_id)
+    if state is None:
+        return None
+    score_pass = _score_passes.get(state.task_id)
+    if (
+        score_pass is None
+        or score_pass.sample_id is None
+        or str(score_pass.sample_id) != sample_id
+        or score_pass.sample_epoch != epoch
+    ):
+        return {
+            "ok": False,
+            "error": (
+                "no scoring pass has been started for this sample (or a "
+                "later pass for its task replaced it)"
+            ),
+        }
+    return _pass_status_response(score_pass, state)
+
+
+class _SampleTarget(NamedTuple):
+    """A sample-scoped pass's resolved target.
+
+    The single-entry :class:`_PassTargets` the pass runs over, plus the
+    matched sample's native-typed identity (query params arrive as strings;
+    rows and envelopes echo the resolved id).
+    """
+
+    targets: "_PassTargets"
+    sample_id: str | int
+    epoch: int
+
+
+def _sample_scoped_targets(
+    targets: "_PassTargets", sample_id: str, epoch: int
+) -> _SampleTarget | None:
+    """Narrow a full enumeration to one ``(sample_id, epoch)`` target.
+
+    The enumeration already deduplicated retried samples (the live row
+    wins), so at most one bucket matches. ``None`` when the sample has no
+    live or completed record — unknown id, or a queued sample that hasn't
+    started (nothing to score either way).
+    """
+    scoped = _PassTargets()
+    for active in targets.in_flight:
+        if str(active.sample.id) == sample_id and active.epoch == epoch:
+            scoped.in_flight = [active]
+            assert active.sample.id is not None
+            return _SampleTarget(scoped, active.sample.id, active.epoch)
+    for summary in targets.completed_scored:
+        if str(summary.id) == sample_id and summary.epoch == epoch:
+            scoped.completed_scored = [summary]
+            return _SampleTarget(scoped, summary.id, summary.epoch)
+    for summary in targets.completed_unscored:
+        if str(summary.id) == sample_id and summary.epoch == epoch:
+            scoped.completed_unscored = [summary]
+            return _SampleTarget(scoped, summary.id, summary.epoch)
+    for row in targets.skipped_rows:
+        if str(row["sample_id"]) == sample_id and row["epoch"] == epoch:
+            scoped.skipped_rows = [row]
+            return _SampleTarget(scoped, row["sample_id"], int(row["epoch"]))
+    return None
+
+
 def _already_running_envelope(
     existing: ScorePass, state: "EvalState", dry_run: bool
 ) -> dict[str, Any]:
@@ -408,7 +611,7 @@ def _already_running_envelope(
 
 
 def _pass_envelope_base(score_pass: ScorePass, state: "EvalState") -> dict[str, Any]:
-    return {
+    envelope: dict[str, Any] = {
         "ok": True,
         "task_id": state.task_id,
         "task": state.task,
@@ -418,6 +621,15 @@ def _pass_envelope_base(score_pass: ScorePass, state: "EvalState") -> dict[str, 
         "as_of": score_pass.as_of,
         "completed_only": score_pass.completed_only,
     }
+    # scope tells the sample CLI whether an already-running pass is its own
+    # sample's (join it) or a different one's (report the block, never join)
+    if score_pass.sample_id is not None:
+        envelope["scope"] = "sample"
+        envelope["sample_id"] = score_pass.sample_id
+        envelope["epoch"] = score_pass.sample_epoch
+    else:
+        envelope["scope"] = "task"
+    return envelope
 
 
 def _pass_progress(score_pass: ScorePass) -> dict[str, int]:
@@ -602,8 +814,10 @@ async def run_score_pass(
                 _record(score_pass, metric_scores, result.row, result.scores)
 
         # interim metrics over the union (the same machinery final scoring
-        # and the live display use)
-        if metric_scores:
+        # and the live display use); a sample-scoped pass computes none —
+        # metrics over a single sample would restate its scores while
+        # presenting as task-level numbers
+        if metric_scores and score_pass.sample_id is None:
             from inspect_ai._eval.task.results import eval_results
 
             results, _ = eval_results(
