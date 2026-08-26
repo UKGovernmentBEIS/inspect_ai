@@ -271,6 +271,13 @@ class EvalSampleLimit(BaseModel):
     limit: float
     """The limit value"""
 
+    reason: str | None = Field(default=None)
+    """Human-readable reason the limit fired.
+
+    The same text the corresponding `SampleLimitEvent` carries as its `message`
+    (e.g. "Tool call approver requested termination.").
+    """
+
 
 class EvalSampleSummary(BaseModel):
     """Summary information (including scoring) for a sample."""
@@ -325,6 +332,9 @@ class EvalSampleSummary(BaseModel):
 
     limit: str | None = Field(default=None)
     """Limit that halted the sample"""
+
+    limit_reason: str | None = Field(default=None)
+    """Human-readable reason the limit fired (see `EvalSampleLimit.reason`)."""
 
     retries: int | None = Field(default=None)
     """Number of retries for the sample."""
@@ -574,6 +584,7 @@ class EvalSample(BaseModel):
             uuid=self.uuid,
             error=self.error.message if self.error is not None else None,
             limit=f"{self.limit.type}" if self.limit is not None else None,
+            limit_reason=self.limit.reason if self.limit is not None else None,
             retries=len(self.error_retries) if self.error_retries is not None else None,
             completed=True,
             message_count=len(self.messages),
@@ -708,6 +719,39 @@ class EvalPlan(BaseModel):
     """Generation config."""
 
 
+class HeadlineMetric(BaseModel):
+    """Reference to the headline metric of an eval.
+
+    The headline metric is the single number that best summarises an eval (e.g.
+    for a leaderboard or log listing). Set fields narrow ``EvalResults.scores``
+    in turn; unset ones resolve by convention. A ``metric`` on its own selects
+    the first score *carrying* that metric, so ``HeadlineMetric(metric="accuracy")``
+    skips scores that don't report one. With no ``metric``, the first metric of
+    the first remaining score is used — the default when nothing is declared.
+
+    Fields are matched literally. ``Task(headline_metric=...)`` additionally
+    accepts a ``"<scorer>.<score>"`` shorthand string, which is split into these
+    fields before it reaches the model — scorer names may themselves contain a
+    dot (``@scorer(name="judge.v2")``), so the shorthand is only applied where
+    it is unambiguously requested.
+    """
+
+    scorer: str | None = Field(default=None)
+    """Scorer to read, matched against `EvalScore.scorer`."""
+
+    score: str | None = Field(default=None)
+    """Score to read, matched against `EvalScore.name`. Only meaningful for
+    scorers returning a dict of scores, where one scorer yields several scores
+    named for its value keys."""
+
+    metric: str | None = Field(default=None)
+    """Metric to read (a key of `EvalScore.metrics`)."""
+
+    reducer: str | None = Field(default=None)
+    """Reducer view to select, in its logged form (e.g. "pass_at_5"). Only
+    required when epochs declare more than one reducer."""
+
+
 class EvalMetric(BaseModel):
     """Metric for evaluation score."""
 
@@ -816,6 +860,12 @@ class EvalResults(BaseModel):
 
     scores: list[EvalScore] = Field(default=[])
     """Scorers used to compute results"""
+
+    headline: HeadlineMetric | None = Field(default=None)
+    """Resolved headline metric — which entry of `scores` and which of its
+    `metrics` best summarises this eval. Resolved from the task's declared
+    `EvalSpec.headline_metric`, falling back to the first metric of the first
+    score."""
 
     metadata: dict[str, Any] | None = Field(default=None)
     """Additional results metadata."""
@@ -1027,6 +1077,11 @@ class EvalSpec(BaseModel):
         | None
     ) = Field(default=None)
     """metrics and args for this eval"""
+
+    headline_metric: HeadlineMetric | None = Field(default=None)
+    """Headline metric declared by the task — which score/metric best summarises
+    this eval. Authored via `Task(headline_metric=...)`. When unset, readers fall
+    back to the first metric of the first score."""
 
     # allow field model_args
     model_config = ConfigDict(protected_namespaces=())

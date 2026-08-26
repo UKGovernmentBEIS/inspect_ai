@@ -170,7 +170,7 @@ class MistralAPI(ModelAPI):
         # create client
         with Mistral(api_key=self.api_key, **self.model_args) as client:
             # create time tracker
-            http_hooks = HttpxHooks(client.sdk_configuration.async_client)
+            http_hooks = HttpxHooks(client.sdk_configuration.async_client, api=self)
 
             # use the conversation api if requested
             if self.conversation_api:

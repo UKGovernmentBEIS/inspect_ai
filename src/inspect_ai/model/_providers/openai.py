@@ -328,7 +328,7 @@ class OpenAIAPI(ModelAPI):
         # side step that complexity and just use two different batchers.
         self._completions_batcher: OpenAIBatcher[ChatCompletion] | None = None
         self._responses_batcher: OpenAIBatcher[Response] | None = None
-        self._http_hooks = HttpxHooks(self.client._client)
+        self._http_hooks = HttpxHooks(self.client._client, api=self)
 
     @override
     async def count_text_tokens(self, text: str) -> int:
@@ -667,7 +667,12 @@ class OpenAIAPI(ModelAPI):
 
     def _resolve_batcher(self, config: GenerateConfig, for_responses_api: bool) -> None:
         def _resolve_retry_config() -> ModelRetryConfig:
-            return batch_admin_retry_config(self.model_name, config, self.should_retry)
+            return batch_admin_retry_config(
+                self.model_name,
+                config,
+                self.should_retry,
+                qualified_model_name=self.qualified_model_name,
+            )
 
         # TODO: Bogus that we have to do this on each call. Ideally, it would be
         # done only once and ideally by non-provider specific code.
