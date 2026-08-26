@@ -19,6 +19,7 @@ from . import _fetch, _http
 from ._failure import _CtlFailure, _envelope_failures, _fail
 from ._group import (
     _INT_OR_CLEAR,
+    _MIN1_INT_OR_CLEAR,
     _echo_no_running_evals,
     _json_option,
     _terse_line,
@@ -35,12 +36,13 @@ from ._render import _echo, _echo_raw, _print_config
 @click.argument("task", required=False)
 @click.option(
     "--max-samples",
-    type=click.IntRange(min=1),
+    type=_MIN1_INT_OR_CLEAR,
     metavar="INTEGER",
     default=None,
     help=(
-        f"[{_KNOB_SCOPE['max_samples']}] Max samples to run concurrently (under "
-        "adaptive connections, sample concurrency tracks the controller instead)."
+        f"[{_KNOB_SCOPE['max_samples']}] Max samples to run concurrently — "
+        "under adaptive connections this pins sample concurrency ('clear' "
+        "resumes tracking the controller)."
     ),
 )
 @click.option(
@@ -200,7 +202,7 @@ from ._render import _echo, _echo_raw, _print_config
 @_terse_option(note="Applies when setting a knob; a pure view always renders in full.")
 def config_command(
     task: str | None,
-    max_samples: int | None,
+    max_samples: int | Literal["clear"] | None,
     max_sandboxes: int | None,
     max_subprocesses: int | None,
     max_connections: int | None,
@@ -244,7 +246,11 @@ def config_command(
     overrides on the task's per-sample limits, read where each sample's
     limits are checked — so a retune reaches in-flight samples (a lowered
     time limit cancels a sample already past it) as well as ones not yet
-    started; pass `clear` to restore launch config. Applied
+    started; pass `clear` to restore launch config. Under adaptive
+    connections `--max-samples N` pins sample concurrency at exactly N
+    (decoupling it from the connection controller, which `--max-connections`
+    still retunes independently); pass `clear` to unpin and resume tracking
+    the controller. Applied
     changes are recorded in each affected eval log (who / when / old → new);
     `--reason` annotates the record with why. TASK
     is required only for setting a task-scoped knob when several tasks run.
@@ -292,7 +298,7 @@ def _as_task_view(
 def _applied_knob_names(
     limits_view: TaskConfigView | ProcessConfigView,
     *,
-    max_samples: int | None,
+    max_samples: int | Literal["clear"] | None,
     max_sandboxes: int | None,
     max_subprocesses: int | None,
     max_connections: int | None,
@@ -319,13 +325,22 @@ def _applied_knob_names(
     """
     task_view = _as_task_view(limits_view)
     max_samples_view = task_view["max_samples"] if task_view is not None else None
+    # `adjustable` alone no longer implies a max_samples request landed: a
+    # `clear` against a static-limiter task warns without applying, yet the
+    # static view still reports adjustable — count a clear as applied only
+    # when the view also shows tracks_adaptive (there is a pin to release).
+    max_samples_adjustable = bool(max_samples_view and max_samples_view["adjustable"])
+    if max_samples == "clear":
+        max_samples_adjustable = max_samples_adjustable and bool(
+            max_samples_view and dict(max_samples_view).get("tracks_adaptive")
+        )
     return [
         name
         for name, value, adjustable in (
             (
                 "--max-samples",
                 max_samples,
-                bool(max_samples_view and max_samples_view["adjustable"]),
+                max_samples_adjustable,
             ),
             (
                 "--max-sandboxes",
@@ -366,7 +381,7 @@ def _applied_knob_names(
 def _run_config(
     task: str | None,
     *,
-    max_samples: int | None,
+    max_samples: int | Literal["clear"] | None,
     max_sandboxes: int | None,
     max_subprocesses: int | None,
     max_connections: int | None,
@@ -865,7 +880,7 @@ def _exec_limits(
     socket_path: str,
     task_id: str | None,
     *,
-    max_samples: int | None,
+    max_samples: int | Literal["clear"] | None,
     max_sandboxes: int | None,
     max_subprocesses: int | None = None,
     max_connections: int | None,
@@ -898,7 +913,9 @@ def _exec_limits(
     ``attempt_timeout`` / ``max_retries``) and the per-sample limit
     overrides (``time_limit`` / ``token_limit`` / ``message_limit``,
     task-scoped) accept the keyword ``clear`` to
-    remove an override (``0`` is a real value for them). Any settable knob
+    remove an override (``0`` is a real value for them); ``max_samples``
+    accepts it too — under adaptive connections an integer pins sample
+    concurrency and ``clear`` unpins it. Any settable knob
     that is not ``None`` makes this a mutation: a single-shot PATCH given the
     full mutation budget (see :data:`_MUTATION_TIMEOUT`) — derived here, not
     caller-supplied, so a knob can never ride a GET as an ignored query

@@ -30,17 +30,28 @@ else:
 
 
 class _IntOrClearType(_IntOrClearBase):
-    """Non-negative integer, or the keyword ``clear`` (restore launch config).
+    """Integer at or above ``minimum``, or the keyword ``clear``.
 
-    The override knobs' value domain (the retry overrides and the per-sample
-    limit overrides alike): every integer >= 0 (up to the server-shared
+    The default instance (:data:`_INT_OR_CLEAR`) is the override knobs' value
+    domain (the retry overrides and the per-sample limit overrides alike):
+    every integer >= 0 (up to the server-shared
     ``MAX_GENERATE_CONFIG_OVERRIDE`` bound, which ``MAX_SAMPLE_LIMIT_OVERRIDE``
     matches) is a real value (``--max-retries 0`` means fail after the first
     attempt), so clearing an override needs an out-of-band spelling — the
     literal ``clear``, passed through to the server verbatim.
+    ``minimum`` / ``bounded`` fit knobs with a different domain:
+    ``--max-samples`` (:data:`_MIN1_INT_OR_CLEAR`) rejects 0 like the
+    ``IntRange(min=1)`` it replaces and has no upper bound.
     """
 
     name = "integer or 'clear'"
+
+    def __init__(self, minimum: int = 0, bounded: bool = True) -> None:
+        self._minimum = minimum
+        # bounded = enforce the shared MAX_GENERATE_CONFIG_OVERRIDE ceiling
+        # (resolved lazily at convert time); False for a knob with no upper
+        # bound
+        self._bounded = bounded
 
     def convert(
         self, value: Any, param: click.Parameter | None, ctx: click.Context | None
@@ -58,13 +69,19 @@ class _IntOrClearType(_IntOrClearBase):
                 parsed = int(value)
             except ValueError:
                 self.fail(f"{value!r} is not an integer or 'clear'.", param, ctx)
-        if parsed < 0:
+        if parsed < self._minimum:
+            if parsed < 0:
+                self.fail(
+                    f"{parsed} is negative (pass 'clear' to restore launch config).",
+                    param,
+                    ctx,
+                )
             self.fail(
-                f"{parsed} is negative (pass 'clear' to restore launch config).",
+                f"{parsed} is below the minimum ({self._minimum}).",
                 param,
                 ctx,
             )
-        if parsed > MAX_GENERATE_CONFIG_OVERRIDE:
+        if self._bounded and parsed > MAX_GENERATE_CONFIG_OVERRIDE:
             self.fail(
                 f"{parsed} is larger than the maximum override value "
                 f"({MAX_GENERATE_CONFIG_OVERRIDE}).",
@@ -75,6 +92,11 @@ class _IntOrClearType(_IntOrClearBase):
 
 
 _INT_OR_CLEAR = _IntOrClearType()
+
+# --max-samples: a concurrency setpoint, not an override-store value — 0 is
+# invalid (a CapacityLimiter needs >= 1) and there is no upper bound (matching
+# the launch-time knob). See design/ctl/max-samples-adaptive.md "Bounds".
+_MIN1_INT_OR_CLEAR = _IntOrClearType(minimum=1, bounded=False)
 
 
 class _NounGroup(click.Group):

@@ -4,6 +4,10 @@ Design for meridianlabs-ai/inspect_ai#325: `inspect ctl config` should be able
 to change `--max-samples` even when a task is using adaptive connection
 concurrency.
 
+> **Status: implemented.** Landed alongside this doc; the view shapes ship
+> as typed wire envelopes (`AdaptiveMaxSamplesView` in `_control/views.py`,
+> added after this doc was written).
+
 ## Problem
 
 Adaptive connections are on by default. On that path a task's sample

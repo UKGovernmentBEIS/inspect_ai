@@ -71,12 +71,33 @@ class AdjustableMaxSamplesView(TypedDict):
     adjustable: Literal[True]
 
 
+class AdaptiveMaxSamplesView(TypedDict):
+    """``max_samples`` on the adaptive-connections path (a ``DynamicSampleLimiter``).
+
+    Adjustable as a **pin**: an integer set pins sample concurrency at that
+    exact value (decoupling it from the adaptive controller), ``clear``
+    unpins and resumes controller tracking. ``override`` is the pinned value
+    (``None`` = tracking); ``tracks_adaptive`` tells renderers/agents what
+    ``clear`` returns to. Servers predating retunable-under-adaptive report
+    this path with :class:`UnadjustableMaxSamplesView` instead (no version
+    gate — see the skew analysis in ``design/ctl/max-samples-adaptive.md``).
+    """
+
+    limit: int
+    in_use: int
+    adjustable: Literal[True]
+    tracks_adaptive: Literal[True]
+    override: int | None
+
+
 class UnadjustableMaxSamplesView(TypedDict):
     """``max_samples`` with no adjustable limiter.
 
-    ``tracks_adaptive`` distinguishes the adaptive path (sample concurrency
-    follows the task's controller) from a task with no live limiter at all
-    (a reused log, or one that ran no samples in this process).
+    On current servers this is only the no-live-limiter case (a reused log,
+    or a task that ran no samples in this process). Older servers also used
+    it — with ``tracks_adaptive: true`` — for the adaptive path, since moved
+    to :class:`AdaptiveMaxSamplesView`; the CLI still renders that older
+    shape.
     """
 
     adjustable: Literal[False]
@@ -85,8 +106,13 @@ class UnadjustableMaxSamplesView(TypedDict):
     module docstring for where the ``NotRequired`` line is drawn)."""
 
 
-MaxSamplesView = Union[AdjustableMaxSamplesView, UnadjustableMaxSamplesView]
-"""The two shapes of the ``max_samples`` view, discriminated by ``adjustable``."""
+MaxSamplesView = Union[
+    AdjustableMaxSamplesView, AdaptiveMaxSamplesView, UnadjustableMaxSamplesView
+]
+"""The shapes of the ``max_samples`` view.
+
+Discriminate on ``adjustable`` first (adjustable vs not), then
+``tracks_adaptive`` (static setpoint vs adaptive pin/tracking)."""
 
 
 class ProcessConfigView(TypedDict):

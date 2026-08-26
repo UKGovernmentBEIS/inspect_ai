@@ -950,6 +950,89 @@ async def test_dynamic_sample_limiter_never_matching_key_stays_at_initial() -> N
 
 
 @pytest.mark.anyio
+async def test_dynamic_sample_limiter_pin_ignores_controller_changes() -> None:
+    """A pin decouples the limiter from controller scaling and set_max retunes."""
+    init_concurrency()
+    lim = DynamicSampleLimiter(AdaptiveConcurrency(min=1, max=200, start=10), "k")
+    cfg = AdaptiveConcurrency(min=1, max=200, start=10)
+    async with concurrency(name="m", concurrency=10, key="k", adaptive=cfg):
+        pass
+    ctrl = adaptive_controllers()[0]
+    assert lim.total_tokens == 15  # tracking: 10 + 5
+
+    lim.set_override(8)
+    assert lim.override == 8
+    assert lim.total_tokens == 8  # exact setpoint, no BUFFER
+
+    # a controller scale event must not stomp the pin...
+    _saturated_successes(ctrl, 10)
+    assert ctrl.concurrency == 20
+    assert lim.total_tokens == 8
+    # ...nor a set_max retune (which fires the same observer chain)
+    ctrl.set_max(5)
+    assert ctrl.concurrency == 5
+    assert lim.total_tokens == 8
+
+
+@pytest.mark.anyio
+async def test_dynamic_sample_limiter_clear_resumes_tracking() -> None:
+    """Clearing a pin catches the limiter up to the controller's current limit."""
+    init_concurrency()
+    lim = DynamicSampleLimiter(AdaptiveConcurrency(min=1, max=200, start=10), "k")
+    cfg = AdaptiveConcurrency(min=1, max=200, start=10)
+    async with concurrency(name="m", concurrency=10, key="k", adaptive=cfg):
+        pass
+    ctrl = adaptive_controllers()[0]
+    lim.set_override(8)
+    # controller scales while pinned — the scale event is ignored...
+    _saturated_successes(ctrl, 10)
+    assert ctrl.concurrency == 20
+    assert lim.total_tokens == 8
+    # ...but not lost: clear re-reads the live controller
+    lim.set_override(None)
+    assert lim.override is None
+    assert lim.total_tokens == 25  # 20 + 5
+
+
+def test_dynamic_sample_limiter_clear_without_controller_restores_initial() -> None:
+    init_concurrency()
+    lim = DynamicSampleLimiter(AdaptiveConcurrency(min=1, max=200, start=10), "k")
+    lim.set_override(40)
+    assert lim.total_tokens == 40
+    lim.set_override(None)
+    assert lim.total_tokens == 10 + DynamicSampleLimiter.BUFFER  # initial
+
+
+@pytest.mark.anyio
+async def test_dynamic_sample_limiter_pin_survives_controller_adoption() -> None:
+    """A pin set before the controller exists sticks through adoption."""
+    init_concurrency()
+    lim = DynamicSampleLimiter(AdaptiveConcurrency(min=1, max=200, start=10), "k")
+    lim.set_override(3)
+    assert lim.total_tokens == 3
+    # controller appears later (the usual order: first generate) — adoption's
+    # catch-up call must not overwrite the pin
+    cfg = AdaptiveConcurrency(min=1, max=200, start=10)
+    async with concurrency(name="m", concurrency=10, key="k", adaptive=cfg):
+        pass
+    assert lim.total_tokens == 3
+    # clear now tracks the adopted controller
+    lim.set_override(None)
+    assert lim.total_tokens == 15  # 10 + 5
+
+
+@pytest.mark.anyio
+async def test_dynamic_sample_limiter_limit_and_in_use() -> None:
+    init_concurrency()
+    lim = DynamicSampleLimiter(AdaptiveConcurrency(min=1, max=200, start=10), "k")
+    assert lim.limit == 15
+    assert lim.in_use == 0
+    async with lim:
+        assert lim.in_use == 1
+    assert lim.in_use == 0
+
+
+@pytest.mark.anyio
 async def test_max_borrowed_not_inflated_during_cooldown() -> None:
     """Acquires during the post-cut cooldown must not raise the saturation mark.
 

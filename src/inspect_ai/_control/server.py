@@ -415,9 +415,9 @@ class ControlServer:
             return None
 
         def _parse_override_knobs(
-            maximum: int, *knobs: tuple[str, str | None]
+            maximum: int | None, *knobs: tuple[str, str | None]
         ) -> _ParsedOverrideKnobs:
-            """Parse override knobs' raw query values (retry + sample limits).
+            """Parse override knobs' raw values (retry/sample limits, max_samples).
 
             Unlike the limits knobs these are declared ``str`` on the route:
             every integer >= 0 is a real value (0 = fail after the first
@@ -425,8 +425,12 @@ class ControlServer:
             the keyword ``clear`` rather than a sentinel integer. Values above
             ``maximum`` (the store's own bound —
             :data:`MAX_GENERATE_CONFIG_OVERRIDE` /
-            :data:`MAX_SAMPLE_LIMIT_OVERRIDE`) are rejected here too: the
+            :data:`MAX_SAMPLE_LIMIT_OVERRIDE`; ``None`` for a knob with no
+            upper bound, like ``max_samples``) are rejected here too: the
             store enforces the same bound, but a 400 at the wire beats a 500.
+            ``max_samples`` additionally needs its parsed int fed through
+            ``_limits_below_one`` — 0 is a real value for the override knobs
+            this parser serves, so it cannot reject it here.
             Returns the parsed values plus a 400 for the first invalid one
             (a ``None`` passes through as "not requested").
             """
@@ -441,15 +445,19 @@ class ControlServer:
                         value = int(raw)
                     except ValueError:
                         value = -1
-                    if value < 0 or value > maximum:
+                    if value < 0 or (maximum is not None and value > maximum):
+                        bounds = (
+                            f"between 0 and {maximum}"
+                            if maximum is not None
+                            else ">= 0"
+                        )
                         return _ParsedOverrideKnobs(
                             values=parsed,
                             error=JSONResponse(
                                 status_code=400,
                                 content={
                                     "error": f"{label} must be an integer "
-                                    f"between 0 and "
-                                    f"{maximum} or "
+                                    f"{bounds} or "
                                     f"'clear' (got {raw!r})"
                                 },
                             ),
@@ -1015,7 +1023,7 @@ class ControlServer:
         @app.patch("/tasks/{task_id}/config")
         async def patch_limits(
             task_id: str,
-            max_samples: int | None = None,
+            max_samples: str | None = None,
             max_sandboxes: int | None = None,
             max_subprocesses: int | None = None,
             max_connections: int | None = None,
@@ -1034,8 +1042,24 @@ class ControlServer:
             reason: str | None = None,
             dry_run: bool = False,
         ) -> Any:
+            # max_samples is declared str (it accepts the keyword `clear` —
+            # under adaptive connections an integer pins sample concurrency
+            # and `clear` unpins): parse first, then run the parsed int
+            # through the shared below-one check — the parser accepts 0 (a
+            # real value for the override knobs it serves), but 0 must 400
+            # here rather than 500 from the apply layer, and the knob has no
+            # upper bound (maximum=None), matching the static setpoint.
+            max_samples_knob, max_samples_error = _parse_override_knobs(
+                None, ("max_samples", max_samples)
+            )
+            if max_samples_error is not None:
+                return max_samples_error
+            parsed_max_samples = max_samples_knob["max_samples"]
             if error := _limits_below_one(
-                ("max_samples", max_samples),
+                (
+                    "max_samples",
+                    parsed_max_samples if isinstance(parsed_max_samples, int) else None,
+                ),
                 ("max_sandboxes", max_sandboxes),
                 ("max_subprocesses", max_subprocesses),
                 ("max_connections", max_connections),
@@ -1070,7 +1094,7 @@ class ControlServer:
             try:
                 result = await task_limits(
                     task_id,
-                    max_samples=max_samples,
+                    max_samples=parsed_max_samples,
                     max_sandboxes=max_sandboxes,
                     max_subprocesses=max_subprocesses,
                     max_connections=max_connections,
