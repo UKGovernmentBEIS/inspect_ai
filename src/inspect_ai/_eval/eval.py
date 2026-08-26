@@ -76,6 +76,7 @@ from inspect_ai.model import (
     GenerateConfig,
     GenerateConfigArgs,
     Model,
+    ModelRoles,
 )
 from inspect_ai.model._model import (
     get_model,
@@ -120,7 +121,7 @@ def eval(
     model: str | Model | list[str] | list[Model] | None | NotGiven = NOT_GIVEN,
     model_base_url: str | None = None,
     model_args: dict[str, Any] | str = dict(),
-    model_roles: dict[str, str | Model] | None = None,
+    model_roles: ModelRoles | None = None,
     task_args: dict[str, Any] | str = dict(),
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
@@ -189,7 +190,7 @@ def eval(
             with the model API.
         model_args: Model creation args
             (as a dictionary or as a path to a JSON or YAML config file)
-        model_roles: Named roles for use in `get_model()`.
+        model_roles: Named roles for use in `get_model()` (a role can also map to a list of models).
         task_args: Task creation arguments
             (as a dictionary or as a path to a JSON or YAML config file)
         sandbox: Sandbox environment type
@@ -415,7 +416,7 @@ async def eval_async(
     model: str | Model | list[str] | list[Model] | None | NotGiven = NOT_GIVEN,
     model_base_url: str | None = None,
     model_args: dict[str, Any] | str = dict(),
-    model_roles: dict[str, str | Model] | None = None,
+    model_roles: ModelRoles | None = None,
     task_args: dict[str, Any] | str = dict(),
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
@@ -480,7 +481,7 @@ async def eval_async(
             leave model usage entirely up to tasks.
         model_base_url: Base URL for communicating with the model API.
         model_args: Model creation args (as a dictionary or as a path to a JSON or YAML config file
-        model_roles: Named roles for use in `get_model()`.
+        model_roles: Named roles for use in `get_model()` (a role can also map to a list of models).
         task_args: Task creation arguments (as a dictionary or as a path to a JSON or YAML config file)
         sandbox: Sandbox environment type (or optionally a str or tuple with a shorthand spec)
         sandbox_cleanup: Cleanup sandbox environments after task completes (defaults to True)
@@ -684,7 +685,7 @@ async def _eval_async_inner(
     model: str | Model | list[str] | list[Model] | None | NotGiven = NOT_GIVEN,
     model_base_url: str | None = None,
     model_args: dict[str, Any] | str = dict(),
-    model_roles: dict[str, str | Model] | None = None,
+    model_roles: ModelRoles | None = None,
     task_args: dict[str, Any] | str = dict(),
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
@@ -1207,7 +1208,7 @@ def _resolve_enqueued_tasks(
     tasks: Tasks,
     *,
     models: list[Model],
-    model_roles: dict[str, str | Model] | None,
+    model_roles: ModelRoles | None,
     config: GenerateConfig,
     sandbox: SandboxEnvironmentType | None,
     sample_shuffle: bool | int | None,
@@ -1804,7 +1805,7 @@ async def eval_retry_async(
                     log_info=None,
                 ),
                 model=model,
-                model_roles=cast(dict[str, str | Model], model_roles),
+                model_roles=model_roles,
                 task_args=task_args,
                 sandbox=eval_log.eval.sandbox,
                 sandbox_cleanup=sandbox_cleanup,
@@ -1906,7 +1907,7 @@ def eval_resolve_tasks(
     tasks: Tasks,
     task_args: dict[str, Any] | str,
     models: list[Model],
-    model_roles: dict[str, str | Model] | None,
+    model_roles: ModelRoles | None,
     config: GenerateConfig,
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None,
     sandbox: SandboxEnvironmentType | None,
