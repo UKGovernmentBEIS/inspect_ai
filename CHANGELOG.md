@@ -1,5 +1,9 @@
 ## Unreleased
 
+- Scoring: Skip Score.unscored() / NaN-at-root sentinels in aggregate() metric. (#5008)
+- Scoring: Return inf on OverflowError in perplexity_per_token() and perplexity_per_seq() metrics. (#5028)
+- Analysis: Ensure ColumnError.path is a string rather than a JSONPath object on record import errors. (#5006)
+- Eval Set: Protocol for running a selection of an eval set's tasks (`INSPECT_EVAL_SET_SELECTION`), so an external runner can execute one task per process into a shared log directory while owning the eval-set metadata itself. Selected tasks run through the ordinary `eval()` path with no eval-set orchestration; because the runner owns completion decisions, workers neither fail a task on sample errors nor retry a task in-process.
 - Scoring: New machine-readable `Score.reason` field records why a score has an abnormal value (e.g. `invalid_response_format`, `grader_failed`), is preserved across score edits, and appears as `score_<name>_reason` dataframe columns. (#4567)
 - Scoring: `pattern()` and `answer()` now score unmatched output as `INCORRECT` with `reason="invalid_response_format"` instead of `NOANSWER`. Default metrics are unchanged (the default `value_to_float` already maps `NOANSWER` to 0); analyses that filter on `value == "N"`, and custom `value_to_float` mappings that treat noanswer differently, should key on `reason` instead. (#4567)
 - Scoring: `perplexity()` and `target_perplexity()` now return `Score.unscored()` with a `reason` instead of a raw NaN value when logprobs are unavailable. All unscorable states (including an empty completion, which earlier revisions labeled `no_response`) carry `reason="scoring_failed"`: the sample is excluded from metrics, so the reason reports the instrument declining to run — the empty-completion detail remains in `explanation`. (#4567)
@@ -9,6 +13,7 @@
 - Eval Set: Protocol for running a selection of an eval set's tasks (`INSPECT_EVAL_SET_SELECTION`), so an external runner can execute one task per process into a shared log directory while owning the eval-set metadata itself.
 - Per-model throughput during HTTP retries: `inspect ctl model throughput` (and `GET /models/throughput`) reports each model's recent output tokens/sec, retries/min, and backoff across the run; trace retry lines and the display footer now carry the current rate.
 - Eval Log: Samples halted by a limit now record why it fired (`EvalSampleLimit.reason`, `limit_reason` on sample summaries and `samples_df()`), so operator-terminated samples can be told apart without reading transcript events.
+- Eval Log: Each logged sample now records the effective per-sample limits it ran under (new `message_limit` / `time_limit` fields alongside the existing `token_limit`), including mid-run `inspect ctl config` retunes.
 - Sandbox: Sandbox-tools binaries downloaded from S3 are now verified against SHA256 digests pinned in the package; failures warn by default, or fail when `INSPECT_SANDBOX_TOOLS_STRICT_DIGESTS` is set.
 - Sandbox: `bash_session` no longer stops returning output for the rest of the session when multibyte output happens to be split mid-character across reads.
 - Docker Sandbox: New `--sandbox-prebuilt` option (`sandbox_prebuilt` on `eval()`) skips image builds and fails fast at task startup when a prebuilt image is missing.
@@ -25,6 +30,7 @@
 - Control Channel: A runaway polling client can no longer starve the eval by piling up queued requests — excess concurrent connections are rejected as busy, and `inspect ctl` retries them shortly.
 - Control Channel: Read requests whose client has already hung up (timed out or killed mid-request) are no longer served, so stale queued polls stop stealing time from running samples.
 - Control Channel: Task-selecting `inspect ctl` commands now take a `--model` disambiguator, so one task run against several models can be selected by name (e.g. `inspect ctl task cancel my_task --model gpt-5`).
+- Model roles can now be bound to a list of models (e.g. `model_roles={"grader": [...]}`), with model-graded scorers grading by majority vote across the list.
 
 ## 0.3.260 (21 August 2026)
 
