@@ -295,6 +295,111 @@ def test_eval_config_override():
     assert log.eval.config.fail_on_error == 0.5
 
 
+def test_eval_config_overrides_do_not_mutate_reused_task():
+    from inspect_ai.model._model_data.model_data import ModelCost, ModelInfo
+    from inspect_ai.model._model_info import clear_model_info_cache, set_model_info
+
+    set_model_info(
+        "mockllm/model",
+        ModelInfo(
+            cost=ModelCost(
+                input=1.0,
+                output=1.0,
+                input_cache_write=0.0,
+                input_cache_read=0.0,
+            )
+        ),
+    )
+    task = Task(dataset=[Sample(input="Say Hello", target="Hello")], scorer=match())
+
+    try:
+        log = eval(
+            task,
+            model="mockllm/model",
+            epochs=Epochs(2, "mean"),
+            message_limit=10,
+            token_limit=500,
+            turn_limit=3,
+            time_limit=60,
+            working_limit=60,
+            cost_limit=5.0,
+            fail_on_error=False,
+            continue_on_fail=True,
+            score_on_error=True,
+        )[0]
+    finally:
+        clear_model_info_cache()
+
+    assert log.eval.config.epochs == 2
+    assert log.eval.config.epochs_reducer == ["mean"]
+    assert log.eval.config.message_limit == 10
+    assert log.eval.config.token_limit == 500
+    assert log.eval.config.turn_limit == 3
+    assert log.eval.config.time_limit == 60
+    assert log.eval.config.working_limit == 60
+    assert log.eval.config.cost_limit == 5.0
+    assert log.eval.config.fail_on_error is False
+    assert log.eval.config.continue_on_fail is True
+    assert log.eval.config.score_on_error is True
+
+    assert task.epochs is None
+    assert task.epochs_reducer is None
+    assert task.message_limit is None
+    assert task.token_limit is None
+    assert task.token_limit_type is None
+    assert task.turn_limit is None
+    assert task.time_limit is None
+    assert task.working_limit is None
+    assert task.cost_limit is None
+    assert task.fail_on_error is None
+    assert task.continue_on_fail is None
+    assert task.score_on_error is None
+
+    followup = eval(task, model="mockllm/model")[0]
+    assert followup.eval.config.epochs == 1
+    assert followup.eval.config.epochs_reducer is None
+    assert followup.eval.config.message_limit is None
+    assert followup.eval.config.token_limit is None
+    assert followup.eval.config.token_limit_type is None
+    assert followup.eval.config.turn_limit is None
+    assert followup.eval.config.time_limit is None
+    assert followup.eval.config.working_limit is None
+    assert followup.eval.config.cost_limit is None
+    assert followup.eval.config.fail_on_error is True
+    assert followup.eval.config.continue_on_fail is False
+    assert followup.eval.config.score_on_error is False
+
+
+def test_eval_level_message_limit_not_reused_by_task_object():
+    from inspect_ai.solver import Generate, TaskState, solver
+
+    @solver
+    def two_generates():
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            state = await generate(state)
+            state.messages.append(state.user_prompt)
+            return await generate(state)
+
+        return solve
+
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        solver=[two_generates()],
+        scorer=match(numeric=True),
+    )
+
+    limited = eval(task, model="mockllm/model", message_limit=1, fail_on_error=False)[0]
+    assert limited.samples is not None
+    assert limited.samples[0].limit is not None
+    assert limited.samples[0].limit.type == "message"
+    assert task.message_limit is None
+
+    followup = eval(task, model="mockllm/model")[0]
+    assert followup.eval.config.message_limit is None
+    assert followup.samples is not None
+    assert followup.samples[0].limit is None
+
+
 def test_eval_approval_override():
     eval_approval = ApprovalPolicyConfig(
         approvers=[
@@ -354,26 +459,11 @@ def task_args_warning_check(task_arg: str = "default") -> Task:
     return Task(dataset=[Sample(input=f"{task_arg}: test input")])
 
 
-@pytest.fixture
-def capture_eval_warnings(caplog):
-    # the warning is emitted from resolve_tasks (the loader module). attach
-    # caplog's handler directly to the emitting module logger: eval()
-    # reconfigures the package logger's propagation during the run, so
-    # propagation-based capture misses warnings emitted mid-eval
-    loader_logger = logging.getLogger("inspect_ai._eval.loader")
-    loader_logger.addHandler(caplog.handler)
-    try:
-        yield caplog
-    finally:
-        loader_logger.removeHandler(caplog.handler)
-
-
 def _task_args_warnings(caplog) -> list[logging.LogRecord]:
     return [r for r in caplog.records if TASK_ARGS_WARNING_SNIPPET in r.message]
 
 
-def test_task_instance_with_task_args_warns(capture_eval_warnings) -> None:
-    caplog = capture_eval_warnings
+def test_task_instance_with_task_args_warns(caplog) -> None:
     log = eval(
         task_args_warning_check(),
         task_args={"task_arg": "custom"},
@@ -385,10 +475,9 @@ def test_task_instance_with_task_args_warns(capture_eval_warnings) -> None:
     assert "task_arg" in records[0].message
 
 
-def test_task_instance_multiple_models_warns_once(capture_eval_warnings) -> None:
+def test_task_instance_multiple_models_warns_once(caplog) -> None:
     # resolve_tasks runs once per model; the warning is gated to the first
     # model so it fires exactly once regardless of the model count
-    caplog = capture_eval_warnings
     logs = eval(
         task_args_warning_check(),
         task_args={"task_arg": "custom"},
@@ -398,8 +487,7 @@ def test_task_instance_multiple_models_warns_once(capture_eval_warnings) -> None
     assert len(_task_args_warnings(caplog)) == 1
 
 
-def test_string_task_with_task_args_no_warning(capture_eval_warnings) -> None:
-    caplog = capture_eval_warnings
+def test_string_task_with_task_args_no_warning(caplog) -> None:
     log = eval(
         "task_args_warning_check",
         task_args={"task_arg": "custom"},
@@ -411,17 +499,15 @@ def test_string_task_with_task_args_no_warning(capture_eval_warnings) -> None:
     assert not _task_args_warnings(caplog)
 
 
-def test_task_instance_without_task_args_no_warning(capture_eval_warnings) -> None:
-    caplog = capture_eval_warnings
+def test_task_instance_without_task_args_no_warning(caplog) -> None:
     log = eval(task_args_warning_check(), model="mockllm/model")[0]
     assert log.status == "success"
     assert not _task_args_warnings(caplog)
 
 
-def test_eval_set_task_instance_warns_once(capture_eval_warnings) -> None:
+def test_eval_set_task_instance_warns_once(caplog) -> None:
     # eval_set re-enters resolution internally with ResolvedTask objects;
     # the warning must fire exactly once, not per resolution pass
-    caplog = capture_eval_warnings
     with tempfile.TemporaryDirectory() as log_dir:
         success, _ = eval_set(
             tasks=task_args_warning_check(),
@@ -455,10 +541,9 @@ def task_args_warning_source(count: int = 1) -> TaskSource:
     return _SeedTasks(count)
 
 
-def test_task_source_with_task_args_no_warning(capture_eval_warnings) -> None:
+def test_task_source_with_task_args_no_warning(caplog) -> None:
     # task_args are consumed by the source (resolve_task_source) to build its
     # seed; resolving the seed Task instances must not false-warn (#4194)
-    caplog = capture_eval_warnings
     logs = eval(
         "task_args_warning_source",
         task_args={"count": 2},
@@ -614,19 +699,6 @@ def _retry_source_log_info(location: str) -> Any:
     )
 
 
-@pytest.fixture
-def capture_probe_warnings(caplog):
-    # attach caplog's handler directly to the emitting module logger: eval()
-    # (used to produce the prior log) reconfigures the package logger's
-    # propagation, so propagation-based capture misses these warnings
-    run_logger = logging.getLogger("inspect_ai._eval.task.run")
-    run_logger.addHandler(caplog.handler)
-    try:
-        yield caplog
-    finally:
-        run_logger.removeHandler(caplog.handler)
-
-
 def _write_prior_eval_log(log_dir: Path) -> tuple[Any, bytes]:
     """Run a one-sample eval and return its log plus the .eval file bytes."""
     task = Task(
@@ -670,7 +742,7 @@ def test_retry_presence_probe_retries_transient_failure(tmp_path: Path) -> None:
 
 
 def test_retry_presence_probe_gives_up_after_max_failures(
-    tmp_path: Path, capture_probe_warnings: pytest.LogCaptureFixture
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
     """Persistent fetch failures stop being retried after the cap, with a warning."""
     from inspect_ai._eval.task.run import (
@@ -698,7 +770,6 @@ def test_retry_presence_probe_gives_up_after_max_failures(
             probe_path.write_bytes(real_bytes)
             assert await source.prior_exists(1, 1) is False
 
-    caplog = capture_probe_warnings
     with caplog.at_level(logging.WARNING, logger="inspect_ai._eval.task.run"):
         anyio.run(check)
 
@@ -708,7 +779,7 @@ def test_retry_presence_probe_gives_up_after_max_failures(
 
 def test_retry_presence_probe_concurrent_failures_respect_cap(
     tmp_path: Path,
-    capture_probe_warnings: pytest.LogCaptureFixture,
+    caplog: pytest.LogCaptureFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Concurrent probes share the failure cap: fetch attempts and the warning stay bounded.
@@ -756,7 +827,6 @@ def test_retry_presence_probe_concurrent_failures_respect_cap(
             )
             assert all(result is False for result in results)
 
-    caplog = capture_probe_warnings
     with caplog.at_level(logging.WARNING, logger="inspect_ai._eval.task.run"):
         anyio.run(check)
 
@@ -766,7 +836,7 @@ def test_retry_presence_probe_concurrent_failures_respect_cap(
 
 
 def test_retry_presence_probe_missing_log_cached_without_warning(
-    tmp_path: Path, capture_probe_warnings: pytest.LogCaptureFixture
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
     """A missing prior log caches no-presence on the first probe, silently."""
     from inspect_ai._eval.task.run import eval_log_sample_source
@@ -789,7 +859,6 @@ def test_retry_presence_probe_missing_log_cached_without_warning(
             probe_path.write_bytes(real_bytes)
             assert await source.prior_exists(1, 1) is False
 
-    caplog = capture_probe_warnings
     with caplog.at_level(logging.WARNING, logger="inspect_ai._eval.task.run"):
         anyio.run(check)
 

@@ -2363,10 +2363,13 @@ async def _task_run_sample_attempt(
                                 except anyio.get_cancelled_exc_class() as ex:
                                     if active.interrupt_action:
                                         # record event
+                                        interrupt_reason = (
+                                            "Sample completed: interrupted by operator"
+                                        )
                                         transcript()._event(
                                             SampleLimitEvent(
                                                 type="operator",
-                                                message="Sample completed: interrupted by operator",
+                                                message=interrupt_reason,
                                             )
                                         )
 
@@ -2376,7 +2379,9 @@ async def _task_run_sample_attempt(
                                                 # continue to scoring (capture the most recent state)
                                                 state = sample_state() or state
                                                 limit = EvalSampleLimit(
-                                                    type="operator", limit=1
+                                                    type="operator",
+                                                    limit=1,
+                                                    reason=interrupt_reason,
                                                 )
                                             case "error":
                                                 # default error handling — but
@@ -2440,6 +2445,7 @@ async def _task_run_sample_attempt(
                                             limit=err.limit
                                             if err.limit is not None
                                             else -1,
+                                            reason=err.message,
                                         )
 
                                     # this was not a user interrupt or working time limit so propagate
@@ -2502,7 +2508,9 @@ async def _task_run_sample_attempt(
                         # capture most recent state for scoring
                         state = sample_state() or state
                         limit = EvalSampleLimit(
-                            type=ex.type, limit=ex.limit if ex.limit is not None else -1
+                            type=ex.type,
+                            limit=ex.limit if ex.limit is not None else -1,
+                            reason=ex.message,
                         )
 
                     except TerminateSampleError as ex:
@@ -2515,7 +2523,9 @@ async def _task_run_sample_attempt(
 
                         # capture most recent state for scoring
                         state = sample_state() or state
-                        limit = EvalSampleLimit(type="operator", limit=1)
+                        limit = EvalSampleLimit(
+                            type="operator", limit=1, reason=ex.reason
+                        )
 
                     except anyio.get_cancelled_exc_class() as ex:
                         with anyio.CancelScope(shield=True):

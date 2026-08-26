@@ -7,6 +7,7 @@ from os import PathLike
 from typing import IO, Any, Literal, cast
 
 from anthropic.types import (
+    BrowserStateBlockParam,
     ContentBlock,
     ContentBlockParam,
     DocumentBlockParam,
@@ -26,6 +27,7 @@ from anthropic.types.beta import (
     BetaMessage,
     BetaRequestMCPServerToolConfigurationParam,
     BetaRequestMCPServerURLDefinitionParam,
+    BetaUsage,
 )
 from shortuuid import uuid
 
@@ -174,7 +176,7 @@ async def inspect_anthropic_api_request_impl(
         role="assistant",
         stop_reason=anthropic_stop_reason(output.stop_reason),
         type="message",
-        usage=anthropic_usage(output.usage or ModelUsage()),
+        usage=anthropic_usage(output.usage or ModelUsage(), beta=beta),
     )
     debug_log("SCAFFOLD RESPONSE", message)
 
@@ -496,7 +498,8 @@ def content_block_to_content(
     | ImageBlockParam
     | DocumentBlockParam
     | SearchResultBlockParam
-    | ToolReferenceBlockParam,
+    | ToolReferenceBlockParam
+    | BrowserStateBlockParam,
 ) -> Content:
     if block["type"] == "text":
         text = block["text"]
@@ -519,8 +522,12 @@ def content_block_to_content(
                     data=data,
                 )
             )
-        else:
+        elif block["source"]["type"] == "url":
             return ContentImage(image=block["source"]["url"])
+        else:
+            raise RuntimeError(
+                f"Unsupported image source type: {block['source']['type']}"
+            )
     elif block["type"] == "document":
         source = block["source"]
         if source["type"] == "text":
@@ -543,8 +550,10 @@ def content_block_to_content(
                 return ContentText(text=c)
             else:
                 return content_block_to_content(list(c)[0])
+        else:
+            raise RuntimeError(f"Unsupported document source type: {source['type']}")
     else:
-        raise RuntimeError(f"Unsupported content block type: {type(block)}")
+        raise RuntimeError(f"Unsupported content block type: {block['type']}")
 
 
 def base_64_data(data: str | IO[bytes] | PathLike[str]) -> str:
@@ -572,8 +581,14 @@ def anthropic_stop_reason(stop_reason: StopReason) -> AnthropicStopReason:
             return "end_turn"
 
 
-def anthropic_usage(usage: ModelUsage) -> Usage:
-    return Usage(
+def anthropic_usage(usage: ModelUsage, beta: bool = False) -> Usage | BetaUsage:
+    """Convert inspect-level usage to the Anthropic usage type matching the endpoint.
+
+    Beta requests must carry `BetaUsage`: clients reading beta-only fields
+    (e.g. pydantic-ai reads `usage.iterations`) fail on a plain `Usage`.
+    """
+    usage_class = BetaUsage if beta else Usage
+    return usage_class(
         input_tokens=usage.input_tokens,
         output_tokens=usage.output_tokens,
         cache_creation_input_tokens=usage.input_tokens_cache_write,

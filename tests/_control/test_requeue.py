@@ -1445,7 +1445,8 @@ async def test_requeue_after_operator_errored_sample() -> None:
         eval_id = states[0].eval_id
 
         cancelled = await cancel_sample(eval_id, "victim", 1, action="error")
-        assert cancelled is not None and cancelled["changed"] is True
+        assert cancelled is not None and cancelled["ok"] is True
+        assert cancelled["changed"] is True
 
         with anyio.fail_after(60):
             while True:
