@@ -1,6 +1,6 @@
 # In-Flight Generate Progress
 
-> **Status: implemented** (layer 1: activity indicator, including the `retry_wait` type per Open question 4; layers 2–3: progress channel + idle upgrade, merged upstream in [UKGovernmentBEIS/inspect_ai#4853](https://github.com/UKGovernmentBEIS/inspect_ai/pull/4853)). The layer-2 reporting path shipped as the shared model stream observer (`inspect_ai/model/_stream.py`), which also serves upstream #4186's public `on_stream` callback and #4268's live partial-output snapshots: providers report chunks once and the observer fans out to all three consumers, maintaining the pending event's progress record exactly as specified below. The layer-2 sections have been updated to describe the as-built shape (which supersedes the original `report_active_model_progress()` sketch). Remaining follow-up: instrumenting the other streaming providers (SageMaker, Grok, OpenAI-compatible — see the provider table) and the TUI caption (see "TUI adoption"). Companion to [`control-channel.md`](control-channel.md), which owns the control-channel architecture and documented this gap twice (the Phase 1 `GET /evals/<id>/samples` caveat, and §"Trace-log anomalies for stall diagnosis"); this doc owns closing it. Originating issues: meridianlabs-ai/inspect_ai#158 (layer 1) and meridianlabs-ai/inspect_ai#175 (layers 2–3).
+> **Status: implemented** (layer 1: activity indicator, including the `retry_wait` type per Open question 4; layers 2–3: progress channel + idle upgrade, merged upstream in [UKGovernmentBEIS/inspect_ai#4853](https://github.com/UKGovernmentBEIS/inspect_ai/pull/4853)). The layer-2 reporting path shipped as the shared model stream observer (`inspect_ai/model/_stream.py`), which also serves upstream #4186's public `on_stream` callback and #4268's live partial-output snapshots: providers report chunks once and the observer fans out to all three consumers, maintaining the pending event's progress record exactly as specified below. The layer-2 sections have been updated to describe the as-built shape (which supersedes the original `report_active_model_progress()` sketch). Instrumenting the remaining streaming providers (SageMaker, Grok, OpenAI-compatible — see the provider table) is tracked separately; the TUI caption (see "TUI adoption") is deferred. Companion to [`control-channel.md`](control-channel.md), which owns the control-channel architecture and documented this gap twice (the Phase 1 `GET /evals/<id>/samples` caveat, and §"Trace-log anomalies for stall diagnosis"); this doc owns closing it. Originating issues: meridianlabs-ai/inspect_ai#158 (layer 1) and meridianlabs-ai/inspect_ai#175 (layers 2–3).
 
 ## Problem
 
@@ -110,7 +110,7 @@ One observer spans a generate call's retry attempts; `begin_attempt` binds each 
 
 Where the provider reports a real cumulative count, report it; where it doesn't, report bare heartbeats — **no fabricated token estimates** (a chunk count is not a token count, and an estimated number in a monitoring surface will be read as real; see Open questions). A heartbeat alone still delivers the layer-3 idle fix, which is most of the value.
 
-The provider work is independent per provider and lands incrementally; the surface degrades gracefully (null `tokens`, null `last_progress_at`) for any provider not yet instrumented. Instrumenting the remaining rows is the open work item here.
+The provider work is independent per provider and lands incrementally; the surface degrades gracefully (null `tokens`, null `last_progress_at`) for any provider not yet instrumented. Instrumenting the remaining rows is tracked separately from this design.
 
 ### Layer 3 — idle means "time since last observed progress"
 
@@ -120,7 +120,7 @@ Resulting semantics, per the goals: streamed + healthy → idle ≈ 0 with `gene
 
 ### TUI adoption
 
-*Remaining follow-up.* The progress record now exists, so `SampleToolbar` can extend its caption for free: `Generating (12.4k tokens)...` read off the same pending event it already holds (via `model_event_progress()`), on the same 1-second tick. Not yet adopted — the caption still renders a bare `Generating...`. Low priority relative to the ctl surface (the TUI already shows *that* generation is happening; ctl showed nothing before this design), but it makes the two views tell one story.
+*Deferred.* The progress record now exists, so `SampleToolbar` can extend its caption for free: `Generating (12.4k tokens)...` read off the same pending event it already holds (via `model_event_progress()`), on the same 1-second tick. Not yet adopted — the caption still renders a bare `Generating...`. Deferred: low priority relative to the ctl surface (the TUI already shows *that* generation is happening; ctl showed nothing before this design), though it would make the two views tell one story.
 
 ### Cost-audit compliance
 
