@@ -137,6 +137,7 @@ class EvalRecorder(FileRecorder):
     ) -> str:
         # if the file exists then read summaries
         if not clean and location is not None and self.fs.exists(location):
+            destination_exists = True
             async with AsyncFilesystem() as fs:
                 reader = AsyncZipReader(fs, location)
                 log_start = await _read_start_async(reader)
@@ -146,6 +147,7 @@ class EvalRecorder(FileRecorder):
                     config_update_counter,
                 ) = await _read_config_updates_async(reader)
         else:
+            destination_exists = False
             log_start = None
             summary_counter = 0
             summaries = []
@@ -161,6 +163,7 @@ class EvalRecorder(FileRecorder):
             summaries,
             config_update_counter,
             config_updates,
+            destination_exists=destination_exists,
         )
 
         # track zip
@@ -215,10 +218,13 @@ class EvalRecorder(FileRecorder):
         # push the journal entry out to the destination log now rather than
         # waiting for the sample-flush cadence — updates are rare (a handful
         # per run) and the record should survive a crash from this point on.
-        # Skip when start.json hasn't been written yet (an inherited snapshot
-        # recorded at logger init): a zip without start.json isn't readable
-        # as an in-progress log, and log_start's own flush follows shortly.
-        if log.log_start is not None:
+        # Skip while the destination hasn't been written at all: an inherited
+        # snapshot recorded at logger init (a zip without start.json isn't
+        # readable as an in-progress log, and log_start's own flush follows
+        # shortly), or a held retry attempt deferring every destination write
+        # until its reuse sweep settles — the journal entry rides out with
+        # the settle flush.
+        if log.destination_written:
             await log.flush(fsync=False)
 
     @override
@@ -398,7 +404,9 @@ class EvalRecorder(FileRecorder):
                     None,
                 )
                 if sample is None:
-                    raise ValueError(f"Sample with uuid '{uuid}' not found in log.")
+                    raise IndexError(
+                        f"Sample with uuid '{uuid}' not found in log {location}"
+                    )
                 id = sample.id
                 epoch = sample.epoch
 
@@ -800,6 +808,7 @@ class ZipLogFile:
         self._config_update_counter = 0
         self._config_updates: list[ConfigUpdate] = []
         self._log_start: LogStart | None = None
+        self._destination_written = False
 
     async def init(
         self,
@@ -808,6 +817,7 @@ class ZipLogFile:
         summaries: list[EvalSampleSummary],
         config_update_counter: int = 0,
         config_updates: list[ConfigUpdate] | None = None,
+        destination_exists: bool = False,
     ) -> None:
         async with self._lock:
             self._open()
@@ -816,10 +826,24 @@ class ZipLogFile:
             self._config_update_counter = config_update_counter
             self._config_updates = config_updates or []
             self._log_start = log_start
+            self._destination_written = destination_exists
 
     @property
     def log_start(self) -> LogStart | None:
         return self._log_start
+
+    @property
+    def destination_written(self) -> bool:
+        """Whether the destination log file has been written at least once.
+
+        True after a successful :meth:`flush`, or from the start when
+        ``init`` was seeded from an existing file (re-logging into an
+        existing log, e.g. ``score --overwrite``). Gates eager per-update
+        flushes in ``log_config_update``: while False the destination may
+        be deliberately absent (a held retry attempt before its reuse-sweep
+        settle flush), so nothing should force it into existence early.
+        """
+        return self._destination_written
 
     @property
     def config_updates(self) -> list[ConfigUpdate]:
@@ -1084,9 +1108,12 @@ class ZipLogFile:
             # cleared by ``write_buffered_samples``, which the flush callers run
             # first). A skipped write must NOT clear: ``buffered_sample`` falls
             # back to the on-disk log once cleared, which doesn't yet contain
-            # these samples.
+            # these samples. A skipped write likewise leaves
+            # ``_destination_written`` alone — nothing reached the destination,
+            # so the next successful flush is what sets it.
             if written:
                 self._streaming_samples.clear()
+                self._destination_written = True
 
     async def close(self, header_only: bool) -> EvalLog:
         async with self._lock:
