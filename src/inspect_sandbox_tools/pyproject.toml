@@ -96,12 +96,10 @@ dependencies = [
     "aiohttp",
     "httpx",
     "jsonrpcserver",
-    # dual-compatible with mcp 1.x and 2.x: mcp_server_session.py validates wire
-    # messages against the union of concrete JSON-RPC types (present in both
-    # majors) rather than the 1.x-only JSONRPCMessage RootModel API. Capped
-    # below 3.x because release binaries build unpinned from this constraint,
-    # so an unverified future major would silently flow into shipped artifacts.
-    "mcp>=1.10.0,<3",
+    # Capped below 3.x because release binaries build unpinned from this
+    # constraint, so an unverified future major would silently flow into
+    # shipped artifacts.
+    "mcp>=2,<3",
     "packaging",
     "pydantic",
     "returns",

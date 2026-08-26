@@ -14,7 +14,7 @@ from mcp import (
     JSONRPCResponse,
     StdioServerParameters,
 )
-from mcp.types import JSONRPCNotification
+from mcp.types import JSONRPCMessage, JSONRPCNotification
 
 from inspect_sandbox_tools._util.process_tree import (
     process_group_members,
@@ -40,27 +40,15 @@ from inspect_sandbox_tools._util.process_tree import (
 # length.) Even so, an over-limit line is now handled gracefully rather than hanging
 # the session — see _stdout_reader.
 _DEFAULT_READLINE_LIMIT = 256 * 1024 * 1024  # 256 MiB
-
 _READLINE_LIMIT: int = (
     int(os.environ["INSPECT_MCP_READLINE_LIMIT_BYTES"])
     if "INSPECT_MCP_READLINE_LIMIT_BYTES" in os.environ
     else _DEFAULT_READLINE_LIMIT
 )
 
-# Validator for JSON-RPC messages read from the server's stdout, spanning both
-# mcp major versions. mcp 1.x models a wire message as the `JSONRPCMessage`
-# RootModel (parse via `model_validate_json`, concrete model under `.root`);
-# mcp 2.0 redefined `JSONRPCMessage` as a plain union alias with neither.
-# Depending on that RootModel API is what previously pinned this package to
-# mcp<2. Validating against the union of the concrete message types — present
-# in both majors, with the same member order as both versions' unions — keeps
-# member selection consistent everywhere. (The types are not byte-identical
-# across majors: 2.x makes `JSONRPCError.id` nullable, handled in
-# `_resolve_request`.)
-_JSONRPC_MESSAGE_ADAPTER: pydantic.TypeAdapter[
-    JSONRPCRequest | JSONRPCNotification | JSONRPCResponse | JSONRPCError
-] = pydantic.TypeAdapter(
-    JSONRPCRequest | JSONRPCNotification | JSONRPCResponse | JSONRPCError
+# Validator for JSON-RPC messages read from the server's stdout.
+_JSONRPC_MESSAGE_ADAPTER: pydantic.TypeAdapter[JSONRPCMessage] = pydantic.TypeAdapter(
+    JSONRPCMessage
 )
 
 
@@ -217,13 +205,14 @@ class MCPServerSession:
     def _resolve_request(self, response: JSONRPCResponse | JSONRPCError) -> None:
         request_id = response.id
         if request_id is None:
-            # mcp 2.x types the id as optional (a JSON-RPC parse-error response
-            # carries a null id). Such a response can't be correlated to a
-            # pending request; mcp 1.x rejected it at validation (so the line
-            # was skipped as unparseable) — preserve that behavior, but leave a
-            # breadcrumb since the request that provoked it will time out.
+            # A parse-error response carries `id: null` (`JSONRPCError.id` is
+            # nullable) and can't be correlated to a pending request — drop it;
+            # the request that provoked it will time out. (error.data can be
+            # arbitrarily large, so don't log the whole model.)
+            assert isinstance(response, JSONRPCError), "only error ids are nullable"
             print(
-                f"Dropping uncorrelatable null-id JSON-RPC response: {response}",
+                "Dropping uncorrelatable null-id JSON-RPC error response "
+                f"(error {response.error.code}: {response.error.message[:200]})",
                 file=sys.stderr,
             )
             return
