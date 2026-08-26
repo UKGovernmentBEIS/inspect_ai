@@ -357,25 +357,46 @@ def test_reducer_preserve_metadata() -> None:
     simple_scores = [
         # first five scores are identical
         Score(
-            value=1, answer="1", explanation="An explanation", metadata={"foo": "bar"}
+            value=1,
+            answer="1",
+            explanation="An explanation",
+            reason="no_response",
+            metadata={"foo": "bar"},
         ),
         Score(
-            value=1, answer="1", explanation="An explanation", metadata={"foo": "bar"}
+            value=1,
+            answer="1",
+            explanation="An explanation",
+            reason="no_response",
+            metadata={"foo": "bar"},
         ),
         Score(
-            value=1, answer="1", explanation="An explanation", metadata={"foo": "bar"}
+            value=1,
+            answer="1",
+            explanation="An explanation",
+            reason="no_response",
+            metadata={"foo": "bar"},
         ),
         Score(
-            value=1, answer="1", explanation="An explanation", metadata={"foo": "bar"}
+            value=1,
+            answer="1",
+            explanation="An explanation",
+            reason="no_response",
+            metadata={"foo": "bar"},
         ),
         Score(
-            value=1, answer="1", explanation="An explanation", metadata={"foo": "bar"}
+            value=1,
+            answer="1",
+            explanation="An explanation",
+            reason="no_response",
+            metadata={"foo": "bar"},
         ),
         # last score is different
         Score(
             value=2,
             answer="2",
             explanation="Different explanation",
+            reason="refusal",
             metadata={"foo": "BAZ"},
         ),
     ]
@@ -396,11 +417,13 @@ def test_reducer_preserve_metadata() -> None:
         reduced = reducer(simple_scores)
         assert reduced.answer is None
         assert reduced.explanation is None
+        assert reduced.reason is None
         assert reduced.metadata == simple_scores[0].metadata
         # reduce all scores _except_ the last one
         reduced = reducer(simple_scores[:-1])
         assert reduced.answer == simple_scores[0].answer
         assert reduced.explanation == simple_scores[0].explanation
+        assert reduced.reason == simple_scores[0].reason
         assert reduced.metadata == simple_scores[0].metadata
 
     # verify that other fields are preserved for a single epoch
@@ -408,7 +431,46 @@ def test_reducer_preserve_metadata() -> None:
         reduced = reducer([simple_scores[0]])
         assert reduced.answer == simple_scores[0].answer
         assert reduced.explanation == simple_scores[0].explanation
+        assert reduced.reason == simple_scores[0].reason
         assert reduced.metadata == simple_scores[0].metadata
+
+
+def test_reducer_preserve_reason_all_nan() -> None:
+    """Reason retention across epochs when all scores are unscored (NaN).
+
+    The `_nan_score` path (all epochs unscored) should follow the same
+    "retain only if equal across all Scores" rule for `reason` as the
+    ordinary reduce path.
+    """
+    same_reason_scores = [
+        Score.unscored(reason="no_response"),
+        Score.unscored(reason="no_response"),
+        Score.unscored(reason="no_response"),
+    ]
+    different_reason_scores = [
+        Score.unscored(reason="no_response"),
+        Score.unscored(reason="refusal"),
+        Score.unscored(reason="no_response"),
+    ]
+
+    reducers = [
+        avg_reducer,
+        median_reducer,
+        mode_reducer,
+        max_reducer,
+        at_least_3_reducer,
+        pass_at_2_no_threshhold,
+        pass_k_2_no_threshold,
+    ]
+
+    for reducer in reducers:
+        reduced = reducer(same_reason_scores)
+        assert _is_nan(reduced.value)
+        assert reduced.reason == "no_response"
+
+        reduced = reducer(different_reason_scores)
+        assert _is_nan(reduced.value)
+        assert reduced.reason is None
 
 
 @dataclass
