@@ -14,6 +14,17 @@ async def test_single_match_success():
 
 
 @pytest.mark.anyio
+@pytest.mark.parametrize("completion", ["ANSWER: **A**", "ANSWER: $A$"])
+async def test_answer_pattern_accepts_wrapped_letter(completion: str):
+    from inspect_ai.scorer._answer import AnswerPattern, answer
+
+    scorer = answer(pattern=AnswerPattern.LETTER)
+    state = simple_task_state(model_output=completion)
+    result = await scorer(state, Target(["A"]))
+    assert result.text == CORRECT
+
+
+@pytest.mark.anyio
 async def test_single_match_failure_with_target():
     scorer = pattern("(foo)")
     state = simple_task_state(model_output="foo")

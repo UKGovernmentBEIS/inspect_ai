@@ -58,6 +58,18 @@ async def test_single_multiple_choice():
 
 
 @pytest.mark.anyio
+@pytest.mark.parametrize("completion", ["ANSWER: **A**", "ANSWER: $A$"])
+async def test_multiple_choice_accepts_wrapped_answer(completion: str):
+    async def wrapped_generate(state: TaskState, **kwargs: Any) -> TaskState:
+        state.output = ModelOutput.from_content(model="model", content=completion)
+        return state
+
+    state = simple_task_state(choices=["first", "second"])
+    new_state = await multiple_choice()(state=state, generate=wrapped_generate)
+    assert new_state.choices[0].correct is True
+
+
+@pytest.mark.anyio
 async def test_maps_choices_without_shuffling():
     solver = multiple_choice()
     state = simple_task_state(

@@ -10,6 +10,10 @@ from ._target import Target
 
 
 def match_target(match: str, target: Target, ignore_case: bool) -> bool:
+    # Models often decorate a short answer with markdown or LaTeX delimiters.
+    # Compare the semantic token while retaining the original capture for
+    # custom patterns and diagnostics.
+    match = match.strip().strip("*_`$~")
     if ignore_case:
         match = match.lower()
         target = Target([t.lower() for t in target])
