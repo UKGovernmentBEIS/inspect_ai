@@ -5,7 +5,6 @@ from openai import (
     AsyncAzureOpenAI,
     AsyncOpenAI,
     BadRequestError,
-    LengthFinishReasonError,
     NotGiven,
     UnprocessableEntityError,
 )
@@ -110,14 +109,7 @@ async def generate_completions(
             completion = await batcher.generate_for_request(request)
         elif streaming:
             async with client.chat.completions.stream(**request) as stream:
-                try:
-                    completion = await openai_chat_completion_stream_final(stream)
-                except LengthFinishReasonError as ex:
-                    # with response_format/tools in play the SDK raises on a
-                    # length-truncated stream; fall back to the partial
-                    # completion so it is handled like the non-streaming path
-                    # (stop_reason="max_tokens")
-                    completion = ex.completion
+                completion = await openai_chat_completion_stream_final(stream)
         else:
             completion = await client.chat.completions.create(**request)
         # completion is `CharCompletion | Any`. The lazy type inference engine

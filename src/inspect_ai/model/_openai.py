@@ -13,6 +13,8 @@ from openai import (
     APIConnectionError,
     APIStatusError,
     APITimeoutError,
+    ContentFilterFinishReasonError,
+    LengthFinishReasonError,
     OpenAIError,
     RateLimitError,
 )
@@ -946,16 +948,28 @@ async def openai_chat_completion_stream_final(
     Reports each chunk once to the model layer's stream observer
     (`inspect_ai.model._stream`), which fans out to the caller's `on_stream`
     callback and the pending event's progress record.
+
+    With response_format/tools in play the SDK raises on length-truncated and
+    content-filtered streams rather than returning the completion; both are
+    recovered here so they are handled like the non-streaming path
+    (stop_reason "max_tokens" / "content_filter").
     """
     report_model_stream_start()
-    async for event in stream:
-        # the SDK emits semantic events alongside each raw chunk; the raw
-        # chunk alone carries everything reported (content/reasoning/tool-call
-        # deltas plus usage), so other event types are skipped rather than
-        # double-reported
-        if event.type == "chunk":
-            await _report_chat_completion_chunk(event.chunk)
-    return await stream.get_final_completion()
+    try:
+        async for event in stream:
+            # the SDK emits semantic events alongside each raw chunk; the raw
+            # chunk alone carries everything reported (content/reasoning/tool-call
+            # deltas plus usage), so other event types are skipped rather than
+            # double-reported
+            if event.type == "chunk":
+                await _report_chat_completion_chunk(event.chunk)
+        return await stream.get_final_completion()
+    except LengthFinishReasonError as ex:
+        return ex.completion
+    except ContentFilterFinishReasonError:
+        # the SDK raises without a payload but records finish_reason (and any
+        # partial content) on the snapshot first
+        return stream.current_completion_snapshot
 
 
 async def _report_chat_completion_chunk(chunk: ChatCompletionChunk) -> None:

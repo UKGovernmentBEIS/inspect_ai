@@ -5,7 +5,7 @@ from logging import getLogger
 from typing import Any, cast
 
 import httpx
-from openai import APIStatusError, LengthFinishReasonError
+from openai import APIStatusError
 from openai.types.chat import (
     ChatCompletion,
 )
@@ -214,15 +214,7 @@ class TogetherAIAPI(OpenAICompatibleAPI):
             return await self._batcher.generate_for_request(request)
         if self.resolve_stream(config):
             async with self.client.chat.completions.stream(**request) as stream:
-                try:
-                    return await openai_chat_completion_stream_final(stream)
-                except LengthFinishReasonError as ex:
-                    # When structured output (response_format) or tools are in
-                    # play, the SDK raises on a length-truncated stream rather
-                    # than returning the partial completion. Fall back to the
-                    # partial completion so it is handled like the
-                    # non-streaming path (stop_reason="max_tokens").
-                    return ex.completion
+                return await openai_chat_completion_stream_final(stream)
         return cast(
             ChatCompletion, await self.client.chat.completions.create(**request)
         )

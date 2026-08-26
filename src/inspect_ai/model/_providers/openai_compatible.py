@@ -8,7 +8,6 @@ from openai import (
     AsyncOpenAI,
     BadRequestError,
     DefaultAsyncHttpxClient,
-    LengthFinishReasonError,
     PermissionDeniedError,
     UnprocessableEntityError,
 )
@@ -340,10 +339,7 @@ class OpenAICompatibleAPI(ModelAPI):
                     "probabilities.",
                 )
             async with self.client.chat.completions.stream(**request) as stream:
-                try:
-                    return await openai_chat_completion_stream_final(stream)
-                except LengthFinishReasonError as ex:
-                    return ex.completion
+                return await openai_chat_completion_stream_final(stream)
         else:
             return cast(
                 ChatCompletion, await self.client.chat.completions.create(**request)

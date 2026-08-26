@@ -3,7 +3,11 @@ from typing import Any
 
 import httpx2
 import pytest
-from openai import APIStatusError, LengthFinishReasonError
+from openai import (
+    APIStatusError,
+    ContentFilterFinishReasonError,
+    LengthFinishReasonError,
+)
 from openai.types.chat import ChatCompletion, ChatCompletionChunk
 from test_helpers.utils import (
     skip_if_no_openai,
@@ -404,6 +408,117 @@ async def test_openai_compatible_streaming_returns_partial_on_length(
         await api.aclose()
 
 
+async def test_openai_compatible_streaming_returns_snapshot_on_content_filter(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A content-filtered stream returns the snapshot, like non-streaming.
+
+    With strict tools/response_format in play the SDK raises
+    ContentFilterFinishReasonError mid-stream (with no payload) after
+    recording finish_reason and any partial content on the snapshot.
+    """
+    api = OpenAICompatibleAPI(
+        model_name="openai-api/openai/gpt-5",
+        api_key="test",
+        base_url="https://example.com",
+        stream=True,
+    )
+
+    snapshot = ChatCompletion.model_validate(
+        {
+            "id": "snapshot",
+            "object": "chat.completion",
+            "created": 0,
+            "model": "gpt-5",
+            "choices": [
+                {
+                    "index": 0,
+                    "finish_reason": "content_filter",
+                    "message": {"role": "assistant", "content": "partial"},
+                }
+            ],
+        }
+    )
+
+    class _ContentFilteredStream:
+        current_completion_snapshot = snapshot
+
+        async def __aenter__(self) -> "_ContentFilteredStream":
+            return self
+
+        async def __aexit__(self, *exc: object) -> None:
+            return None
+
+        def __aiter__(self) -> "_ContentFilteredStream":
+            return self
+
+        async def __anext__(self) -> object:
+            raise ContentFilterFinishReasonError()
+
+    monkeypatch.setattr(
+        api.client.chat.completions,
+        "stream",
+        lambda **kwargs: _ContentFilteredStream(),
+    )
+
+    try:
+        result = await api._generate_completion({}, GenerateConfig())
+        assert result is snapshot
+        assert chat_choices_from_openai(result, [])[0].stop_reason == "content_filter"
+    finally:
+        await api.aclose()
+
+
+def test_sdk_stream_state_content_filter_contract() -> None:
+    """The SDK contract the content-filter recovery depends on.
+
+    `openai_chat_completion_stream_final` returns
+    `stream.current_completion_snapshot` when the SDK raises
+    ContentFilterFinishReasonError, relying on the SDK recording
+    finish_reason (and partial content) on the snapshot before raising —
+    which it does only with parseable input (strict tools) in play.
+    """
+    from openai.lib.streaming.chat import ChatCompletionStreamState
+
+    strict_tool: Any = {
+        "type": "function",
+        "function": {
+            "name": "bash",
+            "parameters": {"type": "object", "properties": {}},
+            "strict": True,
+        },
+    }
+    state = ChatCompletionStreamState(input_tools=[strict_tool], response_format=None)
+
+    def chunk(payload: dict[str, Any]) -> ChatCompletionChunk:
+        return ChatCompletionChunk.model_validate(
+            dict(id="c1", object="chat.completion.chunk", created=0, model="gpt-5")
+            | payload
+        )
+
+    content = dict(role="assistant", content="par")
+    list(
+        state.handle_chunk(
+            chunk(dict(choices=[dict(index=0, delta=content, finish_reason=None)]))
+        )
+    )
+    with pytest.raises(ContentFilterFinishReasonError):
+        list(
+            state.handle_chunk(
+                chunk(
+                    dict(
+                        choices=[
+                            dict(index=0, delta=dict(), finish_reason="content_filter")
+                        ]
+                    )
+                )
+            )
+        )
+    snapshot = state.current_completion_snapshot
+    assert snapshot.choices[0].finish_reason == "content_filter"
+    assert snapshot.choices[0].message.content == "par"
+
+
 # -- Stream observer reporting (on_stream) -------------------------------------
 
 
@@ -659,3 +774,46 @@ def test_perplexity_resolve_stream_declines_auto() -> None:
     with model_stream_observer(ModelStreamObserver("test", collector)):
         assert perplexity_api().resolve_stream(config) is False
         assert perplexity_api(stream=True).resolve_stream(config) is True
+
+
+def test_openrouter_resolve_stream_declines_reasoning() -> None:
+    """OpenRouter auto mode declines to stream reasoning-bearing requests.
+
+    Whether the SDK stream accumulator reassembles OpenRouter's streamed
+    reasoning_details losslessly is unverified against the live API, so a
+    display-only on_stream request declines to stream when the request asks
+    for reasoning (an explicit opt-in still streams).
+    """
+    from inspect_ai.model._providers.openrouter import OpenRouterAPI
+
+    def openrouter_api(
+        stream: bool | None = None,
+        model: str = "openrouter/anthropic/claude-sonnet-4",
+        **model_args: Any,
+    ) -> OpenRouterAPI:
+        return OpenRouterAPI(
+            model_name=model, api_key="test", stream=stream, **model_args
+        )
+
+    collector = _StreamCollector()
+    with model_stream_observer(ModelStreamObserver("test", collector)):
+        # no reasoning in play: auto-streams
+        assert openrouter_api().resolve_stream(GenerateConfig()) is True
+        # reasoning requested via config or model arg: declines (explicit
+        # opt-in still streams)
+        effort = GenerateConfig(reasoning_effort="medium")
+        assert openrouter_api().resolve_stream(effort) is False
+        assert openrouter_api(stream=True).resolve_stream(effort) is True
+        tokens = GenerateConfig(reasoning_tokens=1024)
+        assert openrouter_api().resolve_stream(tokens) is False
+        assert (
+            openrouter_api(reasoning_enabled=True).resolve_stream(GenerateConfig())
+            is False
+        )
+        # the :thinking model variant enables reasoning without any config
+        thinking = openrouter_api(
+            model="openrouter/anthropic/claude-3.7-sonnet:thinking"
+        )
+        assert thinking.resolve_stream(GenerateConfig()) is False
+        # reasoning explicitly disabled wins over effort/tokens
+        assert openrouter_api(reasoning_enabled=False).resolve_stream(effort) is True
