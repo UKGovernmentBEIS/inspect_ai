@@ -455,11 +455,11 @@ def test_interrupt_in_retry_drain_window_resolves_cancelled() -> None:
 
     A sample that just errored with sample-level retries remaining still looks
     in flight (`started` set, `completed` unset, no interrupt) while it drains
-    its transcript events before recursing into the retry, so a task-cancel
-    sweep interrupts it there — but the interrupt only stamps
+    its transcript events before handing back to the retry loop, so a
+    task-cancel sweep interrupts it there — but the interrupt only stamps
     `interrupt_action` (the sample's task group has already exited, so the
     cancel-scope fire is a no-op). The retry must be suppressed and the sample
-    resolved as the same interrupt a moment later (at the retry recursion's
+    resolved as the same interrupt a moment later (at the retry attempt's
     queue check) would resolve it: counted cancelled (not errored), absent
     from the log, its buffered events removed.
     """

@@ -79964,7 +79964,6 @@ var createSampleSlice = (set, _get, _store) => {
 					state.sample.activeTimelineIndex = 0;
 					state.log.selectedSampleHandle = void 0;
 					delete state.app.propertyBags["scrollPosition"];
-					delete state.app.propertyBags["listPosition"];
 				});
 			},
 			setCollapsedEvents: (scope, collapsed) => {
@@ -81252,6 +81251,7 @@ var initializeStore = (capabilities, storage) => {
 	})));
 	storeImplementation = store;
 	store.getState().initialize(capabilities);
+	store.getState().appActions.removeBagsByPrefix("listPosition");
 };
 //#endregion
 //#region src/state/actions.ts
@@ -89628,7 +89628,7 @@ var useEvalSpec = () => {
 		$[0] = t0;
 	} else t0 = $[0];
 	const hasEditApi = Boolean(t0.edit_log);
-	const selectedLogFile = useStore(_temp7$5);
+	const selectedLogFile = useStore(_temp7$6);
 	const isInProgress = useSelectedLogDetails()?.status === "started";
 	const t1 = hasEditApi && !!selectedLogFile && !isInProgress;
 	let t2;
@@ -89649,7 +89649,7 @@ var useEvalSpec = () => {
 * — the selection binding over the param-driven `useSampleSummaries`
 * acquisition hook.
 */ var useSelectedSampleSummaries = () => {
-	return useSampleSummaries(useLogDir(), useStore(_temp8$4));
+	return useSampleSummaries(useLogDir(), useStore(_temp8$5));
 };
 var kNoSummaries = [];
 var useSelectedSampleSummariesData = () => {
@@ -89662,7 +89662,7 @@ var useSelectedScores = () => {
 	const $ = (0, import_compiler_runtime.c)(4);
 	const selectedLogDetails = useSelectedLogDetails();
 	const sampleSummaries = useSelectedSampleSummariesData();
-	const selected = useStore(_temp9$3);
+	const selected = useStore(_temp9$4);
 	let t0;
 	bb0: {
 		if (selected !== void 0) {
@@ -89981,13 +89981,13 @@ function _temp5$18(state) {
 function _temp6$9(state) {
 	return state.logs.selectedLogFile;
 }
-function _temp7$5(s) {
+function _temp7$6(s) {
 	return s.logs.selectedLogFile;
 }
-function _temp8$4(state) {
+function _temp8$5(state) {
 	return state.logs.selectedLogFile;
 }
-function _temp9$3(state) {
+function _temp9$4(state) {
 	return state.log.selectedScores;
 }
 function _temp10$2(state) {
@@ -100828,10 +100828,6 @@ var regexEscapeChar = (ch) => ch.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 	if (escaped) out += regexEscapeChar("\\");
 	return new RegExp(`^${out}$`, caseInsensitive ? "is" : "s");
 };
-var matchesLike = (value, pattern, caseInsensitive) => {
-	if (isNullish(value) || typeof pattern !== "string") return false;
-	return likeToRegExp(pattern, caseInsensitive).test(String(value));
-};
 var lt = (a, b) => {
 	if (typeof a === "number" && typeof b === "number") return a < b;
 	if (typeof a === "string" && typeof b === "string") return a < b;
@@ -100861,39 +100857,61 @@ var toDate = (v) => typeof v === "number" || typeof v === "string" || v instance
 		default: return v;
 	}
 };
-var applyOperator = (rawValue, operator, rawRight, filterType) => {
-	if (operator === "IS NULL") return isNullish(rawValue);
-	if (operator === "IS NOT NULL") return !isNullish(rawValue);
-	if (isNullish(rawValue)) return false;
-	const value = coerce(rawValue, filterType);
+/**
+* Compile the row-independent half of a simple condition once: the right-hand
+* operand is coerced once, and LIKE patterns are translated to RegExp once.
+* The returned predicate does only row-dependent work.
+*/ var compileOperator = (operator, rawRight, filterType) => {
+	if (operator === "IS NULL") return isNullish;
+	if (operator === "IS NOT NULL") return (rawValue) => !isNullish(rawValue);
 	const right = Array.isArray(rawRight) ? rawRight.map((r) => coerce(r, filterType)) : coerce(rawRight, filterType);
-	switch (operator) {
-		case "=": return value === right;
-		case "!=": return value !== right;
-		case "<": return lt(value, right);
-		case "<=": return lte(value, right);
-		case ">": return lt(right, value);
-		case ">=": return lte(right, value);
-		case "IN": return Array.isArray(right) && right.includes(value);
-		case "NOT IN": return Array.isArray(right) && !right.includes(value);
-		case "LIKE": return matchesLike(value, right, false);
-		case "NOT LIKE": return !matchesLike(value, right, false);
-		case "ILIKE": return matchesLike(value, right, true);
-		case "NOT ILIKE": return !matchesLike(value, right, true);
-		case "BETWEEN": return Array.isArray(right) && right.length === 2 && lte(right[0], value) && lte(value, right[1]);
-		case "NOT BETWEEN": return !(Array.isArray(right) && right.length === 2 && lte(right[0], value) && lte(value, right[1]));
-		default: return true;
-	}
+	const caseInsensitive = operator === "ILIKE" || operator === "NOT ILIKE";
+	const like = typeof right === "string" && (operator === "LIKE" || operator === "NOT LIKE" || caseInsensitive) ? likeToRegExp(right, caseInsensitive) : null;
+	return (rawValue) => {
+		if (isNullish(rawValue)) return false;
+		const value = coerce(rawValue, filterType);
+		switch (operator) {
+			case "=": return value === right;
+			case "!=": return value !== right;
+			case "<": return lt(value, right);
+			case "<=": return lte(value, right);
+			case ">": return lt(right, value);
+			case ">=": return lte(right, value);
+			case "IN": return Array.isArray(right) && right.includes(value);
+			case "NOT IN": return Array.isArray(right) && !right.includes(value);
+			case "LIKE":
+			case "ILIKE": return like?.test(String(value)) ?? false;
+			case "NOT LIKE":
+			case "NOT ILIKE": return !(like?.test(String(value)) ?? false);
+			case "BETWEEN": return Array.isArray(right) && right.length === 2 && lte(right[0], value) && lte(value, right[1]);
+			case "NOT BETWEEN": return !(Array.isArray(right) && right.length === 2 && lte(right[0], value) && lte(value, right[1]));
+			default: return true;
+		}
+	};
 };
-/** Evaluate a `Condition` tree against a row. `getFilterType` enables
-*  type-aware coercion of the compared values (dates/numbers). */ function evaluateCondition(row, condition, getValue, getFilterType) {
+/**
+* Compile a condition tree into a row predicate. Filter metadata and constant
+* operands are resolved once per condition rather than once per row.
+*/ function compileCondition(condition, getValue, getFilterType) {
 	if (condition.compound) switch (condition.operator) {
-		case "AND": return evaluateCondition(row, condition.left, getValue, getFilterType) && (condition.right == null || evaluateCondition(row, condition.right, getValue, getFilterType));
-		case "OR": return evaluateCondition(row, condition.left, getValue, getFilterType) || condition.right != null && evaluateCondition(row, condition.right, getValue, getFilterType);
-		case "NOT": return !evaluateCondition(row, condition.left, getValue, getFilterType);
-		default: return true;
+		case "AND": {
+			const left = compileCondition(condition.left, getValue, getFilterType);
+			const right = condition.right ? compileCondition(condition.right, getValue, getFilterType) : void 0;
+			return (row) => left(row) && (right?.(row) ?? true);
+		}
+		case "OR": {
+			const left = compileCondition(condition.left, getValue, getFilterType);
+			const right = condition.right ? compileCondition(condition.right, getValue, getFilterType) : void 0;
+			return (row) => left(row) || (right?.(row) ?? false);
+		}
+		case "NOT": {
+			const left = compileCondition(condition.left, getValue, getFilterType);
+			return (row) => !left(row);
+		}
+		default: return () => true;
 	}
-	return applyOperator(getValue(row, condition.left), condition.operator, condition.right, getFilterType?.(condition.left));
+	const test = compileOperator(condition.operator, condition.right, getFilterType?.(condition.left));
+	return (row) => test(getValue(row, condition.left));
 }
 var defaultCompare = (a, b) => {
 	const am = isNullish(a) || a === "";
@@ -100933,7 +100951,7 @@ var defaultCompare = (a, b) => {
 	const { filter, getValue, getFilterType, getComparator, pagination } = query;
 	const orderBy = query.orderBy ? Array.isArray(query.orderBy) ? query.orderBy : [query.orderBy] : [];
 	return {
-		matches: filter ? (row) => evaluateCondition(row, filter, getValue, getFilterType) : () => true,
+		matches: filter ? compileCondition(filter, getValue, getFilterType) : () => true,
 		compare: orderBy.length > 0 ? compareByOrderBy(orderBy, getValue, getComparator) : void 0,
 		pagination
 	};
@@ -120829,56 +120847,63 @@ function _temp2$32() {}
 function _temp$44() {}
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/hooks/useListPositionManager.ts
-var kVirtuosoKeyPrefix = "live-virtual-list-";
+/** Strip `/branch-…` segments so all selections within a branch tree share
+*  one list id (in-place VirtualList update, scroll preserved). */ function listIdRoot(selected) {
+	return selected?.replace(/\/branch-[^/]+/g, "") ?? null;
+}
 /**
-* Manages per-agent Virtuoso scroll position lifecycle.
+* Manages per-agent transcript list identity and scroll reset.
 *
 * When `selected` changes (agent selection in swimlanes):
-* - Clears saved Virtuoso state for the target agent so it mounts fresh
-* - When navigating "up" (from a child to a parent), clears all child positions
 * - Scrolls the container to top (unless `hasScrollTarget` is true, in which
 *   case the caller has a specific event to scroll to and we leave the
 *   container alone so the imperative scroll wins)
-*/ /** Strip `/branch-…` segments so all selections within a branch tree share
-*  one list id (in-place Virtuoso update, scroll preserved). */ function listIdRoot(selected) {
-	return selected?.replace(/\/branch-[^/]+/g, "") ?? null;
-}
-function useListPositionManager(baseListId, selected, scrollRef, hasScrollTarget = false) {
-	const { useRemoveValue, useRemoveByPrefix } = useComponentStateHooks();
-	const removeValue = useRemoveValue();
-	const removeByPrefix = useRemoveByPrefix();
-	const idSelection = (0, import_react.useMemo)(() => listIdRoot(selected), [selected]);
-	const effectiveListId = (0, import_react.useMemo)(() => idSelection ? `${baseListId}:${idSelection}` : baseListId, [baseListId, idSelection]);
+*/ function useListPositionManager(baseListId, selected, scrollRef, t0) {
+	const $ = (0, import_compiler_runtime.c)(10);
+	const hasScrollTarget = t0 === void 0 ? false : t0;
+	let t1;
+	if ($[0] !== selected) {
+		t1 = listIdRoot(selected);
+		$[0] = selected;
+		$[1] = t1;
+	} else t1 = $[1];
+	const idSelection = t1;
+	const effectiveListId = idSelection ? `${baseListId}:${idSelection}` : baseListId;
 	const prevSelectedRef = (0, import_react.useRef)(selected);
 	const prevBaseListIdRef = (0, import_react.useRef)(baseListId);
-	(0, import_react.useEffect)(() => {
-		const prevSelected = prevSelectedRef.current;
-		if (prevSelected === selected && prevBaseListIdRef.current === baseListId) return;
-		prevSelectedRef.current = selected;
-		prevBaseListIdRef.current = baseListId;
-		const targetVirtuosoKey = `${kVirtuosoKeyPrefix}${effectiveListId}`;
-		removeValue("listPosition", targetVirtuosoKey);
-		if (selected && prevSelected && prevSelected.startsWith(selected + "/")) removeByPrefix("listPosition", `${kVirtuosoKeyPrefix}${baseListId}:${selected}/`);
-		if (!hasScrollTarget) scrollRef.current?.scrollTo({ top: 0 });
-	}, [
-		selected,
-		effectiveListId,
-		baseListId,
-		scrollRef,
-		removeValue,
-		removeByPrefix,
-		hasScrollTarget
-	]);
-	/**
-	* Clean up all per-agent positions when the component unmounts
-	* (e.g. navigating to a different transcript).
-	*/ const cleanupPrefix = (0, import_react.useCallback)(() => {
-		removeByPrefix("listPosition", `${kVirtuosoKeyPrefix}${baseListId}:`);
-	}, [baseListId, removeByPrefix]);
-	(0, import_react.useEffect)(() => {
-		return cleanupPrefix;
-	}, [cleanupPrefix]);
-	return { effectiveListId };
+	let t2;
+	let t3;
+	if ($[2] !== baseListId || $[3] !== hasScrollTarget || $[4] !== scrollRef || $[5] !== selected) {
+		t2 = () => {
+			if (prevSelectedRef.current === selected && prevBaseListIdRef.current === baseListId) return;
+			prevSelectedRef.current = selected;
+			prevBaseListIdRef.current = baseListId;
+			if (!hasScrollTarget) scrollRef.current?.scrollTo({ top: 0 });
+		};
+		t3 = [
+			selected,
+			baseListId,
+			scrollRef,
+			hasScrollTarget
+		];
+		$[2] = baseListId;
+		$[3] = hasScrollTarget;
+		$[4] = scrollRef;
+		$[5] = selected;
+		$[6] = t2;
+		$[7] = t3;
+	} else {
+		t2 = $[6];
+		t3 = $[7];
+	}
+	(0, import_react.useEffect)(t2, t3);
+	let t4;
+	if ($[8] !== effectiveListId) {
+		t4 = { effectiveListId };
+		$[8] = effectiveListId;
+		$[9] = t4;
+	} else t4 = $[9];
+	return t4;
 }
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/hooks/useDeepLinkResolution.ts
@@ -134475,7 +134500,7 @@ var EditMetadataDialog = (t0) => {
 	const adding = t8;
 	let t9;
 	if ($[16] !== entries) {
-		t9 = entries.filter(_temp6$6).map(_temp7$4);
+		t9 = entries.filter(_temp6$6).map(_temp7$5);
 		$[16] = entries;
 		$[17] = t9;
 	} else t9 = $[17];
@@ -134587,7 +134612,7 @@ var EditMetadataDialog = (t0) => {
 			if (!canSave || inFlightRef.current || !api.edit_log) return;
 			inFlightRef.current = true;
 			const indicatorTimer = window.setTimeout(() => setSubmitting(true), 200);
-			const changedEntries = entries.filter(_temp8$3);
+			const changedEntries = entries.filter(_temp8$4);
 			const provenance = {
 				author: author.trim(),
 				reason: reason.trim() || void 0,
@@ -135112,10 +135137,10 @@ function _temp5$9(e_1) {
 function _temp6$6(e_2) {
 	return e_2.dirty && !e_2.isNew;
 }
-function _temp7$4(e_3) {
+function _temp7$5(e_3) {
 	return e_3.key;
 }
-function _temp8$3(e_8) {
+function _temp8$4(e_8) {
 	return e_8.isNew || e_8.dirty;
 }
 var PlanCard_module_default = {
@@ -159864,11 +159889,11 @@ var SamplesTab = (t0) => {
 		}
 		let t11;
 		if ($[30] !== allColumns || $[31] !== view.columns) {
-			const orderIndex = new Map(view.columns.map(_temp7$3));
+			const orderIndex = new Map(view.columns.map(_temp7$4));
 			const rankOf = (col_0) => {
 				return (col_0.id !== void 0 ? orderIndex.get(col_0.id) : void 0) ?? Number.MAX_SAFE_INTEGER;
 			};
-			t11 = allColumns.map(_temp8$2).sort((a, b) => rankOf(a.col) - rankOf(b.col) || a.i - b.i).map(_temp9$2);
+			t11 = allColumns.map(_temp8$3).sort((a, b) => rankOf(a.col) - rankOf(b.col) || a.i - b.i).map(_temp9$3);
 			$[30] = allColumns;
 			$[31] = view.columns;
 			$[32] = t11;
@@ -160147,16 +160172,16 @@ function _temp5$7(state_1) {
 function _temp6$5(state_2) {
 	return state_2.logActions.setFilter;
 }
-function _temp7$3(c, i) {
+function _temp7$4(c, i) {
 	return [c.id, i];
 }
-function _temp8$2(col_1, i_1) {
+function _temp8$3(col_1, i_1) {
 	return {
 		col: col_1,
 		i: i_1
 	};
 }
-function _temp9$2(x) {
+function _temp9$3(x) {
 	return x.col;
 }
 var EditTagsDialog_module_default = {
@@ -162724,7 +162749,7 @@ var TimelineChart = (t0) => {
 					})
 				]
 			}),
-			lane.events.filter(_temp7$2).map((e_0, i_0) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)("line", {
+			lane.events.filter(_temp7$3).map((e_0, i_0) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)("line", {
 				className: TimelineChart_module_default.rateLimitLine,
 				x1: x(e_0.timestamp),
 				x2: x(e_0.timestamp),
@@ -162768,7 +162793,7 @@ var TimelineChart = (t0) => {
 	const renderTerminations = (band_4) => {
 		const baseline = band_4.top + termPlotBottom;
 		const hitTop = band_4.top + kTermPlotTop - 4;
-		const sortedBins = [...termBins.entries()].sort(_temp8$1);
+		const sortedBins = [...termBins.entries()].sort(_temp8$2);
 		return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("g", { children: [
 			/*#__PURE__*/ (0, import_jsx_runtime.jsx)("text", {
 				className: TimelineChart_module_default.bandLabel,
@@ -163676,17 +163701,17 @@ function _temp5$6(m_0, s) {
 function _temp6$4(m_1, p) {
 	return Math.max(m_1, p.value);
 }
-function _temp7$2(e) {
+function _temp7$3(e) {
 	return e.reason === "rate_limit";
 }
-function _temp8$1(a, b) {
+function _temp8$2(a, b) {
 	return a[0] - b[0];
 }
-function _temp9$1(t_4) {
+function _temp9$2(t_4) {
 	return t_4.status === "completed" ? 1 : 0;
 }
 function _temp10$1(a_0, b_0) {
-	const abnormal = _temp9$1;
+	const abnormal = _temp9$2;
 	return abnormal(a_0) - abnormal(b_0);
 }
 function _temp11$1(m_2) {
@@ -164671,6 +164696,26 @@ var expandGroupedMetrics = (scorers) => {
 	return runs;
 };
 var isGroupRun = (r) => r.group != null && r.metrics.length > 1;
+/**
+* Reorder metrics so the one at `headline` leads, without orphaning it from
+* a dict-metric group run: fronting a grouped metric alone would strip it of
+* the group header that gives its sub-metric name meaning, so its whole run
+* moves to the front (headline leading within it) and stays contiguous. An
+* ungrouped headline moves alone. Out-of-range or already-first is a no-op.
+*/ var leadWithMetricColumn = (metrics, headline) => {
+	const target = metrics[headline];
+	if (headline <= 0 || !target) return metrics;
+	if (target.group == null) return leadWith(metrics, headline);
+	let start = headline;
+	while (start > 0 && metrics[start - 1]?.group === target.group) start--;
+	let end = headline;
+	while (end + 1 < metrics.length && metrics[end + 1]?.group === target.group) end++;
+	return [
+		...leadWith(metrics.slice(start, end + 1), headline - start),
+		...metrics.slice(0, start),
+		...metrics.slice(end + 1)
+	];
+};
 var groupScorers = (scorers) => {
 	const results = {};
 	scorers.forEach((scorer) => {
@@ -164809,6 +164854,7 @@ var ScoreGrid = (t0) => {
 	let t4;
 	if ($[10] !== t2 || $[11] !== t3) {
 		t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			"data-testid": "score-grid",
 			className: t2,
 			children: t3
 		});
@@ -165201,6 +165247,7 @@ function _temp5$5(header_0) {
 //#endregion
 //#region src/app/log-view/title-view/ResultsPanel.tsx
 var kMaxPrimaryScoreRows = 3;
+var kMaxPrimaryMetricColumns = 5;
 var displayScorersFromRunningMetrics = (metrics) => {
 	if (!metrics) return [];
 	const getKey = (metric) => JSON.stringify([
@@ -165252,11 +165299,13 @@ var ResultsPanel = (t0) => {
 			if (onlyScorer) {
 				const showReducer = !!onlyScorer.reducer;
 				const metrics = leadWith(onlyScorer.metrics, onlyScorer.metrics.findIndex(_temp$13));
+				const primaryMetrics = metrics.slice(0, kMaxPrimaryMetricColumns);
+				const showMore = primaryMetrics.length < metrics.length;
 				const unscoredSamples = onlyScorer.unscoredSamples || 0;
 				const scoredSamples = onlyScorer.scoredSamples || 0;
-				t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+				const metricsRow = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 					className: ResultsPanel_module_default.simpleMetricsRows,
-					children: metrics.map((metric_0, i) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)(VerticalMetric, {
+					children: primaryMetrics.map((metric_0, i) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)(VerticalMetric, {
 						reducer: onlyScorer.reducer,
 						metric: metric_0,
 						isFirst: i === 0,
@@ -165265,6 +165314,15 @@ var ResultsPanel = (t0) => {
 						scoredSamples
 					}, `simple-metric-${i}`))
 				});
+				t2 = showMore ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+					className: ResultsPanel_module_default.metricsSummary,
+					children: [metricsRow, /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ScoringDetail, {
+						grouped: groupScorers(expandedScorers),
+						showReducer,
+						showing,
+						setShowing
+					})]
+				}) : metricsRow;
 				break bb0;
 			} else {
 				const showReducer_0 = expandedScorers.findIndex(_temp2$11) !== -1;
@@ -165285,14 +165343,22 @@ var ResultsPanel = (t0) => {
 					t2 = void 0;
 					break bb0;
 				}
-				let showMore = grouped.length > 1;
+				let showMore_0 = grouped.length > 1;
 				if (primaryResults.length > kMaxPrimaryScoreRows) {
 					const shorterResults = headlineDeclared && headlineGroup !== -1 ? void 0 : grouped.find(_temp6$3);
 					if (shorterResults) primaryResults = shorterResults;
 					if (primaryResults.length > kMaxPrimaryScoreRows) {
 						primaryResults = primaryResults.slice(0, kMaxPrimaryScoreRows);
-						showMore = true;
+						showMore_0 = true;
 					}
+				}
+				if (primaryResults.some(_temp7$2)) {
+					const headlineColumn = primaryResults.reduce(_temp9$1, -1);
+					primaryResults = primaryResults.map((score_2) => ({
+						...score_2,
+						metrics: leadWithMetricColumn(score_2.metrics, headlineColumn).slice(0, kMaxPrimaryMetricColumns)
+					}));
+					showMore_0 = true;
 				}
 				let t4;
 				if ($[7] === Symbol.for("react.memo_cache_sentinel")) {
@@ -165316,32 +165382,12 @@ var ResultsPanel = (t0) => {
 					$[11] = t5;
 					$[12] = t6;
 				} else t6 = $[12];
-				const t7 = showMore ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)(Modal, {
-					id: "results-metrics",
-					show: showing,
-					onHide: () => setShowing(false),
-					title: "Scoring Detail",
-					width: "min(1000px, 90vw)",
-					overflow: "hidden",
-					padded: false,
-					className: ResultsPanel_module_default.scoringDetailModal,
-					footer: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
-						type: "button",
-						className: "btn btn-secondary",
-						onClick: () => setShowing(false),
-						children: "Close"
-					}),
-					children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ScoreGrid, {
-						scoreGroups: grouped,
-						showReducer: showReducer_0
-					})
-				}), /*#__PURE__*/ (0, import_jsx_runtime.jsx)(LinkButton, {
-					className: ResultsPanel_module_default.moreButton,
-					text: "All scoring...",
-					onClick: () => {
-						setShowing(true);
-					}
-				})] }) : void 0;
+				const t7 = showMore_0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ScoringDetail, {
+					grouped,
+					showReducer: showReducer_0,
+					showing,
+					setShowing
+				}) : void 0;
 				let t8;
 				if ($[13] !== t6 || $[14] !== t7) {
 					t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
@@ -165363,6 +165409,75 @@ var ResultsPanel = (t0) => {
 		$[5] = t2;
 	} else t2 = $[5];
 	if (t2 !== Symbol.for("react.early_return_sentinel")) return t2;
+};
+var ScoringDetail = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(17);
+	const { grouped, showReducer, showing, setShowing } = t0;
+	let t1;
+	if ($[0] !== setShowing) {
+		t1 = () => setShowing(false);
+		$[0] = setShowing;
+		$[1] = t1;
+	} else t1 = $[1];
+	let t2;
+	if ($[2] !== setShowing) {
+		t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
+			type: "button",
+			className: "btn btn-secondary",
+			onClick: () => setShowing(false),
+			children: "Close"
+		});
+		$[2] = setShowing;
+		$[3] = t2;
+	} else t2 = $[3];
+	let t3;
+	if ($[4] !== grouped || $[5] !== showReducer) {
+		t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ScoreGrid, {
+			scoreGroups: grouped,
+			showReducer
+		});
+		$[4] = grouped;
+		$[5] = showReducer;
+		$[6] = t3;
+	} else t3 = $[6];
+	let t4;
+	if ($[7] !== showing || $[8] !== t1 || $[9] !== t2 || $[10] !== t3) {
+		t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Modal, {
+			id: "results-metrics",
+			show: showing,
+			onHide: t1,
+			title: "Scoring Detail",
+			width: "min(1000px, 90vw)",
+			overflow: "hidden",
+			padded: false,
+			className: ResultsPanel_module_default.scoringDetailModal,
+			footer: t2,
+			children: t3
+		});
+		$[7] = showing;
+		$[8] = t1;
+		$[9] = t2;
+		$[10] = t3;
+		$[11] = t4;
+	} else t4 = $[11];
+	let t5;
+	if ($[12] !== setShowing) {
+		t5 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(LinkButton, {
+			className: ResultsPanel_module_default.moreButton,
+			text: "All scoring...",
+			onClick: () => setShowing(true)
+		});
+		$[12] = setShowing;
+		$[13] = t5;
+	} else t5 = $[13];
+	let t6;
+	if ($[14] !== t4 || $[15] !== t5) {
+		t6 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [t4, t5] });
+		$[14] = t4;
+		$[15] = t5;
+		$[16] = t6;
+	} else t6 = $[16];
+	return t6;
 };
 /** Renders a Vertical Metric
 */ var VerticalMetric = (t0) => {
@@ -165471,6 +165586,15 @@ function _temp5$4(group) {
 }
 function _temp6$3(g) {
 	return g.length <= kMaxPrimaryScoreRows;
+}
+function _temp7$2(score_3) {
+	return score_3.metrics.length > kMaxPrimaryMetricColumns;
+}
+function _temp8$1(metric_1) {
+	return metric_1.headline;
+}
+function _temp9$1(found, score_1) {
+	return found !== -1 ? found : score_1.metrics.findIndex(_temp8$1);
 }
 //#endregion
 //#region src/app/log-view/title-view/CollapsedTitleBar.tsx
@@ -167743,7 +167867,6 @@ function _temp4$4(state_2) {
 //#region src/app/routing/loaders/SampleLoadController.tsx
 var kSampleBagKeys = [
 	"scrollPosition",
-	"listPosition",
 	kTranscriptOutlineListKey,
 	kMetadataGridKeyPrefix
 ];

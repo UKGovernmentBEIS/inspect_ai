@@ -241,3 +241,38 @@ async def test_not_enough_logprobs() -> None:
     assert result is not None
     assert math.isnan(result.as_float())
     assert "num_target_tokens=5" in (result.explanation or "")
+
+
+@pytest.mark.anyio
+async def test_target_perplexity_unscorable_states_carry_reason() -> None:
+    """Unscorable states return Score.unscored with a machine-readable reason."""
+    scorer = target_perplexity()
+
+    state = simple_task_state(model_output="")
+    state.output.choices = []
+    result = await scorer(state, Target(["x"]))
+    assert result is not None
+    assert result.reason == "scoring_failed"
+
+    state = _state_with_prompt_logprobs(None)
+    result = await scorer(state, Target(["x"]))
+    assert result is not None
+    assert result.reason == "scoring_failed"
+
+    # fewer logprobs than num_target_tokens
+    state = _state_with_prompt_logprobs(
+        [Logprob(token="a", logprob=-1.0)],
+        metadata={"num_target_tokens": 5},
+    )
+    result = await scorer(state, Target(["x"]))
+    assert result is not None
+    assert result.reason == "scoring_failed"
+
+    # non-positive num_target_tokens
+    state = _state_with_prompt_logprobs(
+        [Logprob(token="a", logprob=-1.0)],
+        metadata={"num_target_tokens": 0},
+    )
+    result = await scorer(state, Target(["x"]))
+    assert result is not None
+    assert result.reason == "scoring_failed"

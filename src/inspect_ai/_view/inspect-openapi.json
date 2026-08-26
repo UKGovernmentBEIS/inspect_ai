@@ -4023,6 +4023,27 @@
             ],
             "title": "Metadata"
           },
+          "reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "invalid_response_format",
+                  "refusal",
+                  "no_response",
+                  "grader_failed",
+                  "scoring_failed"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
           "sample_id": {
             "anyOf": [
               {
@@ -8792,6 +8813,27 @@
             ],
             "title": "Metadata"
           },
+          "reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "invalid_response_format",
+                  "refusal",
+                  "no_response",
+                  "grader_failed",
+                  "scoring_failed"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
           "value": {
             "anyOf": [
               {
@@ -8958,6 +9000,32 @@
                 "type": "null"
               }
             ]
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "invalid_response_format",
+                  "refusal",
+                  "no_response",
+                  "grader_failed",
+                  "scoring_failed"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "const": "UNCHANGED",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": "UNCHANGED",
+            "title": "Reason"
           },
           "value": {
             "anyOf": [
