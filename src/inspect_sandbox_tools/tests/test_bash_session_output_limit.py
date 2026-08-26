@@ -167,6 +167,49 @@ def test_bash_session_bounds_multibyte_stdout_and_stderr(
     assert "�" not in combined_output
 
 
+async def test_bash_session_survives_split_multibyte_character() -> None:
+    """Output split mid-character across PTY reads must not kill the read loop.
+
+    When a read delivers only the leading bytes of a multi-byte character,
+    the incremental decoder yields an empty string. The read loop used to
+    treat that as EOF and exit, silently dropping all subsequent output
+    (the flake in test_bash_session_bounds_multibyte_stdout_and_stderr).
+    The sleeps force the partial character to be delivered in its own read.
+    """
+    process = await Process.create()
+    try:
+        command = (
+            "python3 - <<'PY'\n"
+            "import sys, time\n"
+            "sys.stdout.buffer.write(b'start-')\n"
+            "sys.stdout.buffer.flush()\n"
+            "time.sleep(0.3)\n"
+            "sys.stdout.buffer.write('界'.encode('utf-8')[:2])\n"
+            "sys.stdout.buffer.flush()\n"
+            "time.sleep(0.5)\n"
+            "sys.stdout.buffer.write('界'.encode('utf-8')[2:])\n"
+            "sys.stdout.buffer.write(b'-final')\n"
+            "sys.stdout.buffer.flush()\n"
+            "PY\n"
+        )
+        combined_output = ""
+        deadline = monotonic() + 30
+        input_text: str | None = command
+        while "-final" not in combined_output and monotonic() < deadline:
+            combined_output += await process.interact(
+                input_text,
+                wait_for_output=5,
+                idle_timeout=0.2,
+                max_output_bytes=4096,
+            )
+            input_text = None
+
+        assert not process._read_task.done(), "PTY read loop exited prematurely"
+        assert "界-final" in combined_output
+    finally:
+        await process.terminate(timeout=10)
+
+
 def test_bash_session_truncation_notice_respects_tiny_limit() -> None:
     process = Process.__new__(Process)
     process._output_limit = 32

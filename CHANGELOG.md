@@ -1,5 +1,20 @@
 ## Unreleased
 
+- Eval Log: Reading a sample from a `.json` log now reports the requested uuid when the sample is missing, and raises a clear error when neither id nor uuid is provided.
+- vLLM: The server's `max_model_len` is now registered as the model's context window, so compaction and context-length handling reflect the served configuration (including LoRA adapters via their parent model). (#4215)
+- Eval Set: Protocol for running a selection of an eval set's tasks (`INSPECT_EVAL_SET_SELECTION`), so an external runner can execute one task per process into a shared log directory while owning the eval-set metadata itself.
+- Eval Log: Samples halted by a limit now record why it fired (`EvalSampleLimit.reason`, `limit_reason` on sample summaries and `samples_df()`), so operator-terminated samples can be told apart without reading transcript events.
+- Eval Log: Each logged sample now records the effective per-sample limits it ran under (new `message_limit` / `time_limit` fields alongside the existing `token_limit`), including mid-run `inspect ctl config` retunes.
+- Sandbox: Sandbox-tools binaries downloaded from S3 are now verified against SHA256 digests pinned in the package; failures warn by default, or fail when `INSPECT_SANDBOX_TOOLS_STRICT_DIGESTS` is set.
+- Sandbox: `bash_session` no longer stops returning output for the rest of the session when multibyte output happens to be split mid-character across reads.
+- Docker Sandbox: New `--sandbox-prebuilt` option (`sandbox_prebuilt` on `eval()`) skips image builds and fails fast at task startup when a prebuilt image is missing.
+- Docker Sandbox: `x-local: false` on a compose service is now treated the same as omitting `x-local` (the image is pulled) rather than marking the image as local.
+- Control Channel: New `inspect ctl sample cancel-tool-call` cancels one hung tool call (the model sees an ordinary tool timeout and the sample continues), with pending tool calls now visible in `inspect ctl sample list --json`.
+
+## 0.3.260 (21 August 2026)
+
+- Metrics: Add `ci()` metric reporting a confidence interval for the mean (as `{"lower", "upper"}`). Defaults to `mean ± t · stderr` with a Student-t critical value (`n - 1` degrees of freedom; `clusters - 1` when `cluster=` is set) so small samples get honest widths; `method="bootstrap"` gives a percentile (cluster) bootstrap interval. (#4160)
+- Anthropic: Compatibility with anthropic SDK 1.0.0, which is now the minimum supported version (`temperature`/`top_p`/`top_k` continue to work on models that support them; browser state tool results and file-based image/document sources no longer fail type checking).
 - OpenAI: Responses API usage now records `cache_write_tokens` as `ModelUsage.input_tokens_cache_write` and excludes it from full-rate `input_tokens` (generate and compaction responses); compaction usage also now excludes cache reads and records reasoning tokens. (#4855)
 - Sandbox: Editable installs now avoid spurious `-dev` sandbox-tools binaries when local main refs are missing, stale, or unavailable.
 - Eval Log: Log directory manifests now strip Windows-style directory prefixes before normalizing paths, avoiding parent directories in bundled listings.
@@ -15,7 +30,7 @@
 - Control Channel: `inspect ctl sample requeue` can now sweep every currently-errored sample in one command (`--errored`) or requeue several `SAMPLE_ID EPOCH` pairs, reporting each sample's result individually.
 - Breaking: Removed the deprecated hidden flat `inspect ctl` spellings (e.g. `ctl tasks`, `ctl limits`); use the noun-group commands (`ctl task list`, `ctl config`, ...) instead.
 - Control Channel: `inspect ctl config` can now retune a running task's per-sample time/token/message limits mid-flight (`--time-limit` / `--token-limit` / `--message-limit`), reaching in-flight samples as well as ones not yet started.
-- Eval Log: Each logged sample now records the effective per-sample limits it ran under (new `message_limit` / `time_limit` fields alongside the existing `token_limit`), including mid-run `inspect ctl config` retunes.
+- Eval Set: Protocol for capturing eval set inputs rather than executing the eval set.
 - Eval Log: Flushing buffered samples to an `.eval` log now yields between samples, so a large flush no longer stalls in-flight samples and control-channel requests for the whole batch.
 - ACP: Emit an `inspect/turn_state` extension notification (`started` / `ended` / `cancelled`) from the agent turn boundary so ACP clients have an exact "agent working" signal.
 - Inspect CTL: Terminal escape sequences and control characters in agent-generated text are now sanitized in `inspect ctl` human-readable output, preventing spoofing of the operator's terminal.
@@ -58,6 +73,8 @@
 - Datasets (breaking): A ragged CSV row now raises `ValueError` naming the file and line, instead of `AttributeError` or a silent load. (#4546)
 - Multiple Choice: Answers listing choices with an Oxford or trailing comma (e.g. `ANSWER: A, B, and C`) are now scored correctly instead of as no answer.
 - Bugfix: MCP sandbox sessions are now cached per tool-source instance and cleared on close, so one instance's sessions and tool lists no longer leak into another's.
+- Agent Bridge: The OpenAI Agents SDK, LangChain, and pydantic-ai examples now run as documented against OpenAI, Anthropic, and Google models.
+- Agent Bridge: Anthropic beta endpoint requests now return beta usage, so clients reading beta-only usage fields (e.g. pydantic-ai) no longer fail with `AttributeError`.
 - Bugfix: Recovered eval logs now report reasoning tokens and total cost in their top-level usage summary, which previously showed both as null.
 
 ## 0.3.258 (11 August 2026)

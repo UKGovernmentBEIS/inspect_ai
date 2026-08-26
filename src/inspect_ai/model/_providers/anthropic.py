@@ -31,6 +31,7 @@ from anthropic import (
 from anthropic.lib.streaming import AsyncMessageStream
 from anthropic.types import (
     Base64PDFSourceParam,
+    BrowserStateBlockParam,
     CacheControlEphemeralParam,
     CitationsConfigParam,
     CodeExecutionToolResultBlock,
@@ -334,11 +335,16 @@ class AnthropicAPI(ModelAPI):
             if base_region is None:
                 aws_region = os.environ.get("AWS_DEFAULT_REGION", None)
 
-            return AsyncAnthropicBedrock(
-                base_url=base_url,
-                aws_region=aws_region,
-                **self.model_args,
-            )
+            try:
+                return AsyncAnthropicBedrock(
+                    base_url=base_url,
+                    aws_region=aws_region,
+                    **self.model_args,
+                )
+            except ValueError as ex:
+                # anthropic >= 1.0 raises when no AWS region is resolvable
+                # (older versions silently fell back to us-east-1)
+                raise PrerequisiteError(str(ex)) from ex
         elif self.is_vertex():
             base_url = model_base_url(
                 self.base_url,
@@ -921,21 +927,19 @@ class AnthropicAPI(ModelAPI):
                 )
             return _THINKING_WARNING.format(parameter=parameter)
 
-        if config.temperature is not None:
-            if forbid_sampling_params:
-                warn_once(logger, sampling_param_warning("temperature"))
-            else:
-                params["temperature"] = config.temperature
-        if config.top_p is not None:
-            if forbid_sampling_params:
-                warn_once(logger, sampling_param_warning("top_p"))
-            else:
-                params["top_p"] = config.top_p
-        if config.top_k is not None:
-            if forbid_sampling_params:
-                warn_once(logger, sampling_param_warning("top_k"))
-            else:
-                params["top_k"] = config.top_k
+        # anthropic >= 1.0 removed temperature/top_p/top_k from the method
+        # signatures (the API still accepts them for models that support
+        # them), so route via extra_body rather than params
+        for parameter, value in (
+            ("temperature", config.temperature),
+            ("top_p", config.top_p),
+            ("top_k", config.top_k),
+        ):
+            if value is not None:
+                if forbid_sampling_params:
+                    warn_once(logger, sampling_param_warning(parameter))
+                else:
+                    extra_body[parameter] = value
 
         # effort
         if config.effort is not None:
@@ -2491,7 +2495,9 @@ def _citation_document_blocks(messages: list[MessageParam]) -> list[DocumentBloc
     return documents
 
 
-CitationCandidateBlock = ContentBlock | ContentBlockParam | ToolReferenceBlockParam
+CitationCandidateBlock = (
+    ContentBlock | ContentBlockParam | ToolReferenceBlockParam | BrowserStateBlockParam
+)
 
 
 def _is_citation_document_block(
