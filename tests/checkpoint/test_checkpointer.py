@@ -1629,6 +1629,19 @@ async def test_write_host_context_always_writes_sample_runtime(tmp_path: Path) -
     assert token_usage["total_tokens"] == 0
 
 
+async def test_host_context_read_missing_sample_runtime_is_none(tmp_path: Path) -> None:
+    """Pre-this-file checkpoints read as sample_runtime=None (legacy reset-to-0)."""
+    from inspect_ai.util._checkpoint._layout import host_context
+    from inspect_ai.util._checkpoint._layout.host_context import SAMPLE_RUNTIME
+
+    cp = _make_cp()
+    work = tmp_path / "work"
+    work.mkdir()
+    await cp._write_host_context(str(work), Store())
+    (work / SAMPLE_RUNTIME).unlink()
+    assert host_context.read(str(work)).sample_runtime is None
+
+
 async def test_resume_for_scoring_over_limit_does_not_raise(tmp_path: Path) -> None:
     """resume_for_scoring reseeds over-limit usage without calling check()."""
     from inspect_ai.model._model_output import ModelUsage

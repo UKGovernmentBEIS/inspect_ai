@@ -1,6 +1,6 @@
 ## Unreleased
 
-- Checkpointing: Resume now restores sample-root limit usage from the checkpoint, so a retried sample cannot spend a second token, cost, or turn budget.
+- Checkpointing: Resume now restores sample-root token, cost, turn, time, and working usage from the checkpoint, so a retried sample cannot spend a second budget.
 
 - Eval Log: Reading a sample from a `.json` log now reports the requested uuid when the sample is missing, and raises a clear error when neither id nor uuid is provided.
 - vLLM: The server's `max_model_len` is now registered as the model's context window, so compaction and context-length handling reflect the served configuration (including LoRA adapters via their parent model). (#4215)

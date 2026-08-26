@@ -649,10 +649,9 @@ class _EnteredCheckpointer:
                 to_json_str_safe(assistant_internal),
             )
         sample_runtime = dump_sample_runtime()
-        if isinstance(sample_runtime, dict):
-            ref = getattr(self._trigger, "_reference", None)
-            if isinstance(ref, int):
-                sample_runtime["token_interval_reference"] = ref
+        ref = getattr(self._trigger, "_reference", None)
+        if isinstance(ref, int) and not isinstance(ref, bool):
+            sample_runtime["token_interval_reference"] = ref
         write_text_atomic(
             context_path / SAMPLE_RUNTIME,
             to_json_str_safe(sample_runtime),

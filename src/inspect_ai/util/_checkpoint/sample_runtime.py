@@ -1,7 +1,6 @@
 """Dump and restore sample-root limit usage and related in-memory runtime.
 
 Persisted as ``sample_runtime.json`` in the checkpoint host context.
-Callers do not learn limit trees, ``SampleTiming``, or usage dicts.
 """
 
 from __future__ import annotations
@@ -11,11 +10,13 @@ from typing import Any
 from pydantic import JsonValue
 
 
-def dump_sample_runtime() -> JsonValue | None:
+def dump_sample_runtime() -> dict[str, Any]:
     """Snapshot sample-root runtime for the host context.
 
     Always returns a payload (zeros included) so fire writes the file.
     Presence on disk means this checkpoint has runtime state.
+    ``token_interval_reference`` is filled in by the checkpointer at write
+    time — the trigger lives there, not on the limit trees.
     """
     from inspect_ai._util.working import sample_waiting_time
     from inspect_ai.model._model import (
@@ -87,36 +88,20 @@ def dump_sample_runtime() -> JsonValue | None:
                 sample_model_fallbacks_context_var.get().items()
             )
         ],
-        "token_interval_reference": _dump_token_interval_reference(),
     }
 
 
 def restore_sample_runtime(value: JsonValue | None, *, check: bool) -> None:
     """Reseed sample-root runtime from a prior :func:`dump_sample_runtime`.
 
-    ``None`` (absent file / pre-this-feature checkpoint) is a no-op: usage
-    stays at whatever the new attempt started with (today's reset-to-0).
-    Restore mutates live objects in place — no ``ContextVar.set()``.
+    ``None`` (absent file / pre-this-feature checkpoint) is a no-op.
+    Mutates live objects in place — no ``ContextVar.set()``.
     ``check`` runs token/cost/turn ``check()`` after seeding; pass True
     only for a normal ``"resume"`` attempt.
     """
-    if value is None:
+    if not isinstance(value, dict):
         return
-    _restore(value, check=check)
 
-
-def _dump_token_interval_reference() -> int | None:
-    from inspect_ai.util._checkpoint.checkpointer import current_checkpointer
-
-    cp = current_checkpointer()
-    if cp is None:
-        return None
-    trigger = getattr(cp, "_trigger", None)
-    ref = getattr(trigger, "_reference", None)
-    return int(ref) if isinstance(ref, int) else None
-
-
-def _restore(value: JsonValue, *, check: bool) -> None:
     import time
 
     import anyio
@@ -145,8 +130,6 @@ def _restore(value: JsonValue, *, check: bool) -> None:
         working_limit_tree,
     )
 
-    if not isinstance(value, dict):
-        return
     payload: dict[str, Any] = value
 
     token_root = _tree_root(token_limit_tree)
@@ -189,8 +172,15 @@ def _restore(value: JsonValue, *, check: bool) -> None:
     if role_usage is not None:
         _restore_usage_dict(role_usage, payload.get("role_usage"))
     fallbacks = sample_model_fallbacks_context_var.get(None)
+    dumped_fallbacks = payload.get("model_fallbacks")
     if fallbacks is not None:
-        _restore_fallbacks(fallbacks, payload.get("model_fallbacks"))
+        fallbacks.clear()
+        if isinstance(dumped_fallbacks, list):
+            for item in dumped_fallbacks:
+                if isinstance(item, dict):
+                    fallbacks[(str(item["model"]), str(item["fallback_model"]))] = int(
+                        item["count"]
+                    )
 
     if check:
         check_token_limit()
@@ -206,13 +196,3 @@ def _restore_usage_dict(current: dict[str, Any], dumped: object) -> None:
         return
     for name, usage in dumped.items():
         current[str(name)] = ModelUsage.model_validate(usage)
-
-
-def _restore_fallbacks(current: dict[tuple[str, str], int], dumped: object) -> None:
-    current.clear()
-    if not isinstance(dumped, list):
-        return
-    for item in dumped:
-        if not isinstance(item, dict):
-            continue
-        current[(str(item["model"]), str(item["fallback_model"]))] = int(item["count"])

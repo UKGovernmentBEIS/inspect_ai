@@ -15,6 +15,7 @@ from inspect_ai.model._model import (
     init_sample_model_data,
     sample_model_fallbacks_context_var,
     sample_model_usage,
+    sample_role_usage,
 )
 from inspect_ai.model._model_output import ModelUsage
 from inspect_ai.util._checkpoint.sample_runtime import (
@@ -93,6 +94,38 @@ def test_over_limit_seed_does_not_raise_until_check() -> None:
     assert exc_info.value.limit == 10
 
 
+def test_over_cost_limit_raises_on_check() -> None:
+    """Cost over-limit is silent on seed and raises from check=True."""
+    with cost_limit(1.0):
+        record_model_cost(1.5)
+        payload = dump_sample_runtime()
+
+    with cost_limit(1.0) as limit:
+        restore_sample_runtime(payload, check=False)
+        assert limit.usage == pytest.approx(1.5)
+
+    with cost_limit(1.0), pytest.raises(LimitExceededError) as exc_info:
+        restore_sample_runtime(payload, check=True)
+    assert exc_info.value.type == "cost"
+
+
+def test_over_turn_limit_raises_on_check() -> None:
+    """Turn over-limit is silent on seed and raises from check=True."""
+    with turn_limit(10):
+        record_turn()
+        record_turn()
+        record_turn()
+        payload = dump_sample_runtime()
+
+    with turn_limit(2) as limit:
+        restore_sample_runtime(payload, check=False)
+        assert limit.usage == 3
+
+    with turn_limit(2), pytest.raises(LimitExceededError) as exc_info:
+        restore_sample_runtime(payload, check=True)
+    assert exc_info.value.type == "turn"
+
+
 async def test_time_remaining_does_not_charge_downtime() -> None:
     """Remaining time is limit minus fire-time elapsed; the dump-to-restore gap is not charged."""
     with time_limit(10.0) as limit:
@@ -110,21 +143,34 @@ async def test_time_remaining_does_not_charge_downtime() -> None:
 
 async def test_working_restore_continues_from_snapshot() -> None:
     """Working/waiting continue from the snapshot; downtime is not working time."""
-    init_sample_working_time(0.0)
-    with working_limit(10.0):
+    import time
+
+    init_sample_working_time(time.monotonic())
+    with working_limit(30.0) as limit:
         report_sample_waiting_time(0.4)
+        await anyio.sleep(0.12)
         payload = dump_sample_runtime()
         assert isinstance(payload, dict)
         waiting = payload["working_waiting"]
+        elapsed = payload["working_elapsed"]
         assert isinstance(waiting, (int, float))
+        assert isinstance(elapsed, (int, float))
         assert float(waiting) == pytest.approx(0.4)
+        await anyio.sleep(0.25)
         restore_sample_runtime(payload, check=False)
-        restored = dump_sample_runtime()
-        assert isinstance(restored, dict)
-        restored_waiting = restored["working_waiting"]
-        assert isinstance(restored_waiting, (int, float))
-        assert float(restored_waiting) == pytest.approx(0.4)
         assert sample_waiting_time() == pytest.approx(0.4)
+        assert limit.usage == pytest.approx(float(elapsed), abs=0.08)
+
+
+async def test_time_elapsed_restore_sets_remaining() -> None:
+    """Restoring a known elapsed value sets remaining to limit minus that elapsed."""
+    with time_limit(100.0) as limit:
+        payload = dump_sample_runtime()
+        assert isinstance(payload, dict)
+        payload["time_elapsed"] = 40.0
+        restore_sample_runtime(payload, check=False)
+        assert limit.usage == pytest.approx(40.0, abs=0.05)
+        assert limit.remaining == pytest.approx(60.0, abs=0.05)
 
 
 async def test_model_usage_restore_from_child_visible_on_outer() -> None:
@@ -148,3 +194,15 @@ async def test_model_usage_restore_from_child_visible_on_outer() -> None:
     await tg_collect([restore_in_child])
     assert sample_model_usage()["mock"].total_tokens == 42
     assert sample_model_fallbacks_context_var.get()[("a", "b")] == 3
+
+
+def test_role_usage_round_trips() -> None:
+    """Per-sample role usage is restored in place, not left empty."""
+    init_sample_model_data()
+    sample_role_usage()["solver"] = ModelUsage(total_tokens=7)
+    payload = dump_sample_runtime()
+
+    init_sample_model_data()
+    assert sample_role_usage() == {}
+    restore_sample_runtime(payload, check=False)
+    assert sample_role_usage()["solver"].total_tokens == 7
