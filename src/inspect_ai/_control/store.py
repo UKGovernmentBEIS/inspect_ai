@@ -116,6 +116,9 @@ async def sample_store(
         raw, missing = _filter_keys(raw, keys)
     from inspect_ai.util._store import dict_jsonable
 
+    # No await between `_running_source`'s dict() copy and this call: the
+    # copy is shallow, so nested values alias live state until serialized —
+    # an inserted await would break live-read atomicity with no test failing.
     jsonable = dict_jsonable(raw)
 
     projected = (

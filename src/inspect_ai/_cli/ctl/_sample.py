@@ -458,7 +458,8 @@ def sample_messages_command(
         "Only these keys (repeatable), selected server-side so one large "
         "key doesn't drag the whole store over the wire. An exact name, or "
         "a trailing-* prefix (e.g. 'AgentState:*' for one StoreModel's "
-        "fields). Unknown exact keys land in `missing` (not an error)."
+        "fields; a bare '*' matches every key). Unknown exact keys land in "
+        "`missing` (not an error)."
     ),
 )
 @click.option(
