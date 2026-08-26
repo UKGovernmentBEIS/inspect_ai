@@ -515,6 +515,194 @@ def test_eval_set_selection_honors_retry_on_error(
     assert logs[0].results.completed_samples == 1
 
 
+def test_eval_set_selection_log_dir_override(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A selection's `log_dir` redirects the worker, leaving the definition's untouched."""
+    capture = enumerate_eval_set(monkeypatch, tmp_path)
+    selected = capture.tasks[0]
+
+    definition_log_dir = tmp_path / "definition-logs"
+    override_log_dir = tmp_path / "scratch" / "smoke"
+    selection = selection_for(selected.identifier)
+    selection.log_dir = str(override_log_dir)
+
+    success, logs = run_selection(monkeypatch, tmp_path, selection, definition_log_dir)
+
+    assert success
+    # the override directory is created and receives the log...
+    assert len(list_eval_logs(str(override_log_dir))) == 1
+    assert logs[0].location.startswith(str(override_log_dir))
+    # ...and the definition's own log directory is left entirely alone, which is
+    # the property a rehearsal run depends on
+    assert not definition_log_dir.exists()
+    # identifiers are unaffected by the redirect: the task the runner asked for
+    # is the task that ran, even though it was enumerated against another dir
+    assert logs[0].eval.task == selected.name
+
+
+def test_eval_set_selection_max_samples_override(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A selection's `max_samples` overrides the definition's sample concurrency."""
+    capture = enumerate_eval_set(monkeypatch, tmp_path)
+    selected = capture.tasks[0]
+
+    selection = selection_for(selected.identifier)
+    selection.max_samples = 3
+
+    success, logs = run_selection(
+        monkeypatch,
+        tmp_path,
+        selection,
+        tmp_path / "logs",
+        max_samples=11,
+    )
+
+    assert success
+    assert logs[0].eval.config.max_samples == 3
+
+
+def test_eval_set_selection_overrides_default_to_the_definition(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Omitting the overrides keeps whatever the definition chose."""
+    capture = enumerate_eval_set(monkeypatch, tmp_path)
+    selected = capture.tasks[0]
+
+    log_dir = tmp_path / "logs"
+    selection = selection_for(selected.identifier)
+    assert selection.log_dir is None and selection.max_samples is None
+
+    success, logs = run_selection(
+        monkeypatch, tmp_path, selection, log_dir, max_samples=7
+    )
+
+    assert success
+    assert logs[0].location.startswith(str(log_dir))
+    assert logs[0].eval.config.max_samples == 7
+
+
+@pytest.mark.parametrize(
+    "field,value,match",
+    [
+        ("log_dir", "   ", "empty 'log_dir'"),
+        ("max_samples", 0, "max_samples=0"),
+        ("max_samples", -1, "max_samples=-1"),
+    ],
+)
+def test_eval_set_selection_invalid_override(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    field: str,
+    value: object,
+    match: str,
+) -> None:
+    """A nonsense override is a runner bug, reported rather than silently applied."""
+    selection = selection_for("unused@unused#unused/unused/unused")
+    setattr(selection, field, value)
+    with pytest.raises(PrerequisiteError, match=match):
+        run_selection(monkeypatch, tmp_path, selection, tmp_path / "logs")
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("log_dir", "/tmp/redirected"),
+        ("max_samples", 4),
+    ],
+)
+def test_eval_set_selection_override_requires_its_version(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, field: str, value: object
+) -> None:
+    """A v1 document may not use v2 fields, even though one model parses both.
+
+    The declared version is what an older inspect gates on, so honouring these
+    here while that inspect rejects them as unknown fields would make the same
+    document behave two different ways.
+    """
+    selection_path = tmp_path / "selection.json"
+    selection_path.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "eval_set_id": "worker-test",
+                "tasks": [{"identifier": "whatever"}],
+                field: value,
+            }
+        )
+    )
+    monkeypatch.setenv(INSPECT_EVAL_SET_SELECTION, str(selection_path))
+    try:
+        with pytest.raises(PrerequisiteError, match=f"version 1 but sets {field}"):
+            eval_set(
+                tasks=[selection_task_one()],
+                model=MODELS,
+                log_dir=str(tmp_path / "logs"),
+                display="plain",
+            )
+    finally:
+        monkeypatch.delenv(INSPECT_EVAL_SET_SELECTION)
+
+
+def test_eval_set_selection_v1_document_still_readable(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A v1 document that uses no v2 fields keeps working."""
+    capture = enumerate_eval_set(monkeypatch, tmp_path)
+    selection_path = tmp_path / "selection.json"
+    selection_path.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "eval_set_id": "worker-test",
+                "tasks": [{"identifier": capture.tasks[0].identifier}],
+            }
+        )
+    )
+    monkeypatch.setenv(INSPECT_EVAL_SET_SELECTION, str(selection_path))
+    try:
+        success, logs = eval_set(
+            tasks=[selection_task_one(), selection_task_two()],
+            model=MODELS,
+            log_dir=str(tmp_path / "logs"),
+            display="plain",
+        )
+    finally:
+        monkeypatch.delenv(INSPECT_EVAL_SET_SELECTION)
+    assert success
+    assert logs[0].eval.eval_set_id == "worker-test"
+
+
+@pytest.mark.parametrize("value", [True, "3", 3.0])
+def test_eval_set_selection_max_samples_is_strict(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, value: object
+) -> None:
+    """Lax coercion would read `true` as 1, silently pinning concurrency."""
+    selection_path = tmp_path / "selection.json"
+    selection_path.write_text(
+        json.dumps(
+            {
+                "version": EVAL_SET_SELECTION_VERSION,
+                "eval_set_id": "worker-test",
+                "tasks": [{"identifier": "whatever"}],
+                "max_samples": value,
+            }
+        )
+    )
+    monkeypatch.setenv(INSPECT_EVAL_SET_SELECTION, str(selection_path))
+    try:
+        with pytest.raises(PrerequisiteError, match="Unable to read"):
+            eval_set(
+                tasks=[selection_task_one()],
+                model=MODELS,
+                log_dir=str(tmp_path / "logs"),
+                display="plain",
+            )
+    finally:
+        monkeypatch.delenv(INSPECT_EVAL_SET_SELECTION)
+
+
 def test_eval_set_selection_unknown_identifier(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -770,7 +958,17 @@ _EXPECTED_SELECTION_FIELDS: dict[int, dict[str, set[str]]] = {
     1: {
         "selection": {"version", "eval_set_id", "tasks"},
         "task": {"identifier", "resume"},
-    }
+    },
+    # v2 added the optional operational overrides `log_dir` and `max_samples`.
+    # Additive though they are, the models forbid extra fields, so a v1 reader
+    # would reject a document carrying them as an unknown-field error rather
+    # than the version gate's actionable "upgrade inspect" -- which is exactly
+    # why adding a field bumps the version here. v1 documents remain readable:
+    # both overrides default to None, meaning "keep the definition's value".
+    2: {
+        "selection": {"version", "eval_set_id", "tasks", "log_dir", "max_samples"},
+        "task": {"identifier", "resume"},
+    },
 }
 
 

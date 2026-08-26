@@ -2,7 +2,6 @@ import asyncio
 import contextlib
 import functools
 import importlib.util
-import logging
 import os
 import signal
 import subprocess
@@ -160,32 +159,6 @@ def with_timeout(
         return async_wrapper
 
     return decorator
-
-
-@contextlib.contextmanager
-def attach_caplog_to_module_logger(
-    caplog: pytest.LogCaptureFixture, module_logger_name: str
-) -> Generator[pytest.LogCaptureFixture, None, None]:
-    """Capture a non-propagating inspect_ai module logger's records exactly once.
-
-    inspect's logger init sets `propagate=False` on the "inspect_ai" package
-    logger, so caplog's root handler misses records once an eval has run.
-    Attaching caplog's handler directly to the module logger fixes that, but
-    pytest >= 9.1 also attaches the handler to already-non-propagating loggers
-    at each test phase entry, which would capture propagated records a second
-    time. Disabling propagation on the module logger while attached keeps the
-    capture single under both behaviors (`addHandler` is idempotent, so
-    pytest's own attachment no-ops).
-    """
-    module_logger = logging.getLogger(module_logger_name)
-    module_logger.addHandler(caplog.handler)
-    orig_propagate = module_logger.propagate
-    module_logger.propagate = False
-    try:
-        yield caplog
-    finally:
-        module_logger.propagate = orig_propagate
-        module_logger.removeHandler(caplog.handler)
 
 
 def setenv_if_unset(name: str, value: str) -> None:
