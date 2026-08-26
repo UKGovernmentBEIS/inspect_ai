@@ -24,14 +24,15 @@ def file_dataset(
     name: str | None = None,
     fs_options: dict[str, Any] = {},
     fieldnames: list[str] | None = None,
+    delimiter: str | None = None,
 ) -> Dataset:
-    """Dataset read from a JSON or CSV file.
+    r"""Dataset read from a JSON or CSV/TSV file.
 
-    The `file_dataset` function supports reading from CSV and JSON files
+    The `file_dataset` function supports reading from CSV, TSV, and JSON files
     (and automatically delegates to the appropriate function to do so)
 
     Args:
-        file (str): Path to JSON or CSV file. Can be a local filesystem path or
+        file (str): Path to JSON or CSV/TSV file. Can be a local filesystem path or
             a path to an S3 bucket (e.g. "s3://my-bucket"). Use `fs_options`
             to pass arguments through to the `S3FileSystem` constructor.
         sample_fields (FieldSpec | RecordToSample): Method of mapping underlying
@@ -45,19 +46,21 @@ def file_dataset(
         shuffle_choices: (bool | int | None): Whether to shuffle the choices. If an int is passed, this will be used as the seed when shuffling.
         limit (int | None): Limit the number of records to read.
         dialect (str): CSV dialect ("unix" or "excel", defaults to "unix"). Only
-            applies to reading CSV files.
+            applies to reading CSV/TSV files.
         encoding (str): Text encoding for file (defaults to "utf-8").
         name (str): Optional name for dataset (for logging). If not specified,
             defaults to the stem of the filename
         fs_options (dict[str, Any]): Optional. Additional arguments to pass through
             to the filesystem provider (e.g. `S3FileSystem`). Use `{"anon": True }`
             if you are accessing a public S3 bucket with no credentials.
-        fieldnames (list[str] | None): Optional. A list of fieldnames to use for the CSV.
+        fieldnames (list[str] | None): Optional. A list of fieldnames to use for the CSV/TSV.
             If None, the values in the first row of the file will be used as the fieldnames.
-            Useful for files without a header. Only applies to reading CSV files.
+            Useful for files without a header. Only applies to reading CSV/TSV files.
+        delimiter (str | None): Optional. Delimiter character for CSV/TSV files.
+            Defaults to "\t" for .tsv and .tab files, and "," for other files.
 
     Returns:
-        Dataset read from JSON or CSV file.
+        Dataset read from JSON or CSV/TSV file.
     """
     parsed_file = urlparse(file)
     file_path = parsed_file.path if parsed_file.scheme else file
@@ -77,7 +80,12 @@ def file_dataset(
                 name=name,
                 fs_options=fs_options,
             )
-        case ".csv":
+        case ".csv" | ".tsv" | ".tab":
+            csv_delimiter = (
+                delimiter
+                if delimiter is not None
+                else ("\t" if ext in (".tsv", ".tab") else ",")
+            )
             return csv_dataset(
                 csv_file=file,
                 sample_fields=sample_fields,
@@ -91,6 +99,7 @@ def file_dataset(
                 name=name,
                 fs_options=fs_options,
                 fieldnames=fieldnames,
+                delimiter=csv_delimiter,
             )
         case _:
             raise ValueError(f"No dataset reader for file with extension {ext}")

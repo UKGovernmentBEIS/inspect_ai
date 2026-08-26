@@ -54,6 +54,8 @@ limit_dataset_params = [
     ("suffix", "reader", "file_argument"),
     [
         (".csv", "csv_dataset", "csv_file"),
+        (".tsv", "csv_dataset", "csv_file"),
+        (".tab", "csv_dataset", "csv_file"),
         (".json", "json_dataset", "json_file"),
         (".jsonl", "json_dataset", "json_file"),
     ],
@@ -71,6 +73,22 @@ def test_file_dataset_url_query_uses_path_extension(
 
     assert file_dataset(url) is expected
     assert mock_reader.call_args.kwargs[file_argument] == url
+
+
+def test_file_dataset_tsv_and_delimiter(tmp_path: Path) -> None:
+    tsv_file = tmp_path / "data.tsv"
+    tsv_file.write_text("input\ttarget\nhello\tworld\nfoo\tbar\n")
+    ds = file_dataset(str(tsv_file))
+    assert len(ds) == 2
+    assert ds[0].input == "hello"
+    assert ds[0].target == "world"
+
+    csv_custom_delim = tmp_path / "custom.csv"
+    csv_custom_delim.write_text("input;target\nalpha;beta\n")
+    ds_custom = file_dataset(str(csv_custom_delim), delimiter=";")
+    assert len(ds_custom) == 1
+    assert ds_custom[0].input == "alpha"
+    assert ds_custom[0].target == "beta"
 
 
 # test reading a dataset using default configuration
