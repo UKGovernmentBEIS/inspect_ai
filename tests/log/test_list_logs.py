@@ -269,7 +269,13 @@ def _client_error() -> Exception:
     return ClientError(
         {
             "Error": {"Code": "AccessDenied", "Message": "Access Denied"},
-            "ResponseMetadata": {"HTTPStatusCode": 403},
+            "ResponseMetadata": {
+                "HTTPStatusCode": 403,
+                "RequestId": "test-request-id",
+                "HostId": "test-host-id",
+                "HTTPHeaders": {},
+                "RetryAttempts": 0,
+            },
         },
         "ListObjectsV2",
     )
@@ -367,5 +373,3 @@ def test_list_logs_async_s3_auth_error_degrades_with_fs_options(
     # fs_options must actually reach the generic branch for this test to be
     # meaningful — it is what forces the slow path in production.
     assert captured["fs_options"] == {"endpoint": "https://minio.local"}
-
-
