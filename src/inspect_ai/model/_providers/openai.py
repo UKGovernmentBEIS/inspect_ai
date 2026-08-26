@@ -1,6 +1,6 @@
 import os
 from logging import getLogger
-from typing import Any
+from typing import Any, Literal
 
 import anyio
 from openai import (
@@ -50,6 +50,7 @@ from .._openai_responses import (
     openai_responses_inputs,
     pad_tool_messages_for_token_counting,
 )
+from .._stream import model_stream_requested
 from ._openai_batch import OpenAIBatcher
 from .util import (
     check_azure_deployment_mismatch,
@@ -105,8 +106,12 @@ class OpenAIAPI(ModelAPI):
         service_tier: str | None = None,
         client_timeout: float | None = None,
         background: bool | None = None,
+        streaming: bool | Literal["auto"] = "auto",
         **model_args: Any,
     ) -> None:
+        # record streaming preference ("auto" streams when the caller passes
+        # on_stream to generate; an explicit True/False overrides)
+        self.streaming = streaming
         # extract azure service prefix from model name (other providers
         # that subclass from us like together expect to have the qualifier
         # in the model name e.g. google/gemma-2b-it)
@@ -519,6 +524,12 @@ class OpenAIAPI(ModelAPI):
             if not await self.reasoning_summaries():
                 config = config.model_copy(update={"reasoning_summary": "none"})
 
+        streaming = (
+            self.streaming
+            if isinstance(self.streaming, bool)
+            else model_stream_requested()
+        )
+
         return await (
             generate_responses(
                 client=self.client,
@@ -538,6 +549,7 @@ class OpenAIAPI(ModelAPI):
                 synthesize_phase=self.responses_phase,
                 model_info=self,
                 batcher=self._responses_batcher,
+                streaming=streaming,
             )
             if use_responses
             else generate_completions(
@@ -553,6 +565,7 @@ class OpenAIAPI(ModelAPI):
                 safety_identifier=self.safety_identifier,
                 openai_api=self,
                 batcher=self._completions_batcher,
+                streaming=streaming,
             )
         )
 

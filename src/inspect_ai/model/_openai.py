@@ -16,9 +16,11 @@ from openai import (
     OpenAIError,
     RateLimitError,
 )
+from openai.lib.streaming.chat import AsyncChatCompletionStream
 from openai.types.chat import (
     ChatCompletion,
     ChatCompletionAssistantMessageParam,
+    ChatCompletionChunk,
     ChatCompletionContentPartImageParam,
     ChatCompletionContentPartInputAudioParam,
     ChatCompletionContentPartParam,
@@ -97,6 +99,14 @@ from ._model_output import (
     StopReason,
     as_stop_reason,
     collect_stop_details,
+)
+from ._stream import (
+    StreamReasoningEvent,
+    StreamTextEvent,
+    StreamToolCallEvent,
+    report_model_stream_delta,
+    report_model_stream_progress,
+    report_model_stream_start,
 )
 
 logger = logging.getLogger(__name__)
@@ -926,6 +936,66 @@ def model_output_from_openai(
             else None
         ),
     )
+
+
+async def openai_chat_completion_stream_final(
+    stream: "AsyncChatCompletionStream[Any]",
+) -> ChatCompletion:
+    """Consume a chat-completions SDK stream and return the final completion.
+
+    Reports each chunk once to the model layer's stream observer
+    (`inspect_ai.model._stream`), which fans out to the caller's `on_stream`
+    callback and the pending event's progress record.
+    """
+    report_model_stream_start()
+    async for event in stream:
+        # the SDK emits semantic events alongside each raw chunk; the raw
+        # chunk alone carries everything reported (content/reasoning/tool-call
+        # deltas plus usage), so other event types are skipped rather than
+        # double-reported
+        if event.type == "chunk":
+            await _report_chat_completion_chunk(event.chunk)
+    return await stream.get_final_completion()
+
+
+async def _report_chat_completion_chunk(chunk: ChatCompletionChunk) -> None:
+    """Report one streamed chunk to the model layer's stream observer."""
+    # cumulative usage arrives on the final chunk when the server reports it
+    # (e.g. via stream_options.include_usage)
+    if chunk.usage is not None:
+        report_model_stream_progress(chunk.usage.completion_tokens)
+
+    # report content deltas from the first choice only — interleaving multiple
+    # choices' fragments into the single delta stream would corrupt
+    # accumulating consumers (num_choices > 1)
+    delta = next((c.delta for c in chunk.choices if c.index == 0), None)
+    reported = False
+    if delta is not None:
+        # openai-compatible servers surface chain-of-thought as a
+        # reasoning_content/reasoning extra field on the delta
+        reasoning = getattr(delta, "reasoning_content", None) or getattr(
+            delta, "reasoning", None
+        )
+        if isinstance(reasoning, str) and reasoning:
+            await report_model_stream_delta(StreamReasoningEvent(reasoning=reasoning))
+            reported = True
+        if delta.content:
+            await report_model_stream_delta(StreamTextEvent(text=delta.content))
+            reported = True
+        for tool_call in delta.tool_calls or []:
+            function = tool_call.function
+            await report_model_stream_delta(
+                StreamToolCallEvent(
+                    id=tool_call.id,
+                    function=function.name if function is not None else None,
+                    arguments=(function.arguments or "")
+                    if function is not None
+                    else "",
+                )
+            )
+            reported = True
+    if not reported and chunk.usage is None:
+        report_model_stream_progress()
 
 
 def openai_stop_details(choice: Any) -> StopDetails | None:

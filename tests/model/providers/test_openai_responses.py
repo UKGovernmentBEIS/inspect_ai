@@ -1,4 +1,6 @@
 import json
+from types import SimpleNamespace
+from typing import Any
 
 from test_helpers.utils import skip_if_no_openai
 
@@ -14,6 +16,13 @@ from inspect_ai.model._openai_responses import (
     _openai_input_items_from_chat_message_assistant,
 )
 from inspect_ai.model._providers.openai_compatible import ModelInfo
+from inspect_ai.model._stream import (
+    ModelStreamObserver,
+    StreamReasoningEvent,
+    StreamTextEvent,
+    StreamToolCallEvent,
+    model_stream_observer,
+)
 from inspect_ai.solver import generate, use_tools, user_message
 
 
@@ -2091,3 +2100,128 @@ def test_visible_cot_encrypted_content_survives_bridge_round_trip():
     assert len(reasoning_items) == 1
     assert reasoning_items[0]["content"] == []
     assert reasoning_items[0]["encrypted_content"] == blob
+
+
+# -- Stream observer reporting (on_stream) -------------------------------------
+
+
+class _StreamCollector:
+    def __init__(self) -> None:
+        self.events: list[Any] = []
+
+    async def __call__(self, event: Any) -> None:
+        self.events.append(event)
+
+
+async def test_responses_stream_reports_deltas() -> None:
+    """The responses streaming path reports deltas and returns the terminal response."""
+    from openai.types.responses import (
+        Response,
+        ResponseCompletedEvent,
+        ResponseFunctionCallArgumentsDeltaEvent,
+        ResponseFunctionToolCall,
+        ResponseOutputItemAddedEvent,
+        ResponseReasoningSummaryTextDeltaEvent,
+        ResponseTextDeltaEvent,
+    )
+
+    from inspect_ai.model._providers.openai_responses import (
+        _generate_responses_stream,
+    )
+
+    final = Response.model_validate(
+        dict(
+            id="resp_1",
+            created_at=0,
+            model="gpt-5",
+            object="response",
+            output=[],
+            parallel_tool_calls=False,
+            tool_choice="auto",
+            tools=[],
+            usage=dict(
+                input_tokens=1,
+                input_tokens_details=dict(cache_write_tokens=0, cached_tokens=0),
+                output_tokens=7,
+                output_tokens_details=dict(reasoning_tokens=2),
+                total_tokens=8,
+            ),
+        )
+    )
+
+    events = [
+        ResponseReasoningSummaryTextDeltaEvent(
+            delta="hmm",
+            item_id="rs_1",
+            output_index=0,
+            sequence_number=0,
+            summary_index=0,
+            type="response.reasoning_summary_text.delta",
+        ),
+        ResponseTextDeltaEvent(
+            content_index=0,
+            delta="hel",
+            item_id="msg_1",
+            logprobs=[],
+            output_index=0,
+            sequence_number=1,
+            type="response.output_text.delta",
+        ),
+        # announces the function call so argument fragments can be attributed
+        ResponseOutputItemAddedEvent(
+            item=ResponseFunctionToolCall(
+                id="fc_1",
+                call_id="call_1",
+                name="bash",
+                arguments="",
+                type="function_call",
+            ),
+            output_index=1,
+            sequence_number=2,
+            type="response.output_item.added",
+        ),
+        ResponseFunctionCallArgumentsDeltaEvent(
+            delta="{",
+            item_id="fc_1",
+            output_index=1,
+            sequence_number=3,
+            type="response.function_call_arguments.delta",
+        ),
+        ResponseCompletedEvent(
+            response=final,
+            sequence_number=4,
+            type="response.completed",
+        ),
+    ]
+
+    class _FakeResponses:
+        async def create(self, **kwargs: Any) -> Any:
+            assert kwargs.get("stream") is True
+
+            async def gen() -> Any:
+                for event in events:
+                    yield event
+
+            return gen()
+
+    fake_client: Any = SimpleNamespace(responses=_FakeResponses())
+
+    collector = _StreamCollector()
+    observer = ModelStreamObserver("test", collector)
+    with model_stream_observer(observer):
+        result = await _generate_responses_stream(fake_client, dict(model="gpt-5"))
+
+    assert result is final
+    assert [type(e) for e in collector.events] == [
+        StreamReasoningEvent,
+        StreamTextEvent,
+        StreamToolCallEvent,
+    ]
+    assert collector.events[0].reasoning == "hmm"
+    assert collector.events[1].text == "hel"
+    tool_event = collector.events[2]
+    assert tool_event.id == "call_1"
+    assert tool_event.function == "bash"
+    assert tool_event.arguments == "{"
+    # the terminal event reported cumulative output tokens
+    assert observer._tokens_current == 7

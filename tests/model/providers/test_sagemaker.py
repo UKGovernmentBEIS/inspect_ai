@@ -23,6 +23,13 @@ from inspect_ai.model._providers.sagemaker import (
     process_chat_message,
     process_content,
 )
+from inspect_ai.model._stream import (
+    ModelStreamObserver,
+    StreamReasoningEvent,
+    StreamTextEvent,
+    StreamToolCallEvent,
+    model_stream_observer,
+)
 from inspect_ai.tool import ToolInfo
 from inspect_ai.tool._tool_choice import ToolFunction
 
@@ -80,7 +87,8 @@ class TestSagemakerInit:
         assert api.model_args["region_name"] == "us-west-2"
         assert api.model_args["read_timeout"] == 600
         assert api.model_args["connect_timeout"] == 60
-        assert api.stream is False
+        # unset stream is "auto" (streams when the caller passes on_stream)
+        assert api.stream is None
 
     def test_stream_bool(self):
         api = _make_api(stream=True)
@@ -1655,6 +1663,157 @@ class TestStreamingReasoning:
         sent_body = json.loads(call_args.kwargs["Body"])
         assert sent_body["stream"] is True
         assert sent_body["stream_options"] == {"include_usage": True}
+
+
+class TestStreamObserver:
+    """Streamed chunks are reported to the model layer's stream observer."""
+
+    def _mock_streaming_client(self, api, chunks: list[dict[str, Any]]):
+        async def mock_event_stream():
+            for chunk in chunks:
+                yield {
+                    "PayloadPart": {
+                        "Bytes": f"data: {json.dumps(chunk)}\n\n".encode("utf-8")
+                    }
+                }
+
+        mock_client = AsyncMock()
+        mock_client.invoke_endpoint_with_response_stream = AsyncMock(
+            return_value={"Body": mock_event_stream()}
+        )
+        mock_ctx = AsyncMock()
+        mock_ctx.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_ctx.__aexit__ = AsyncMock(return_value=False)
+        api._create_client = MagicMock(return_value=mock_ctx)
+        return mock_client
+
+    @pytest.mark.anyio
+    async def test_on_stream_auto_enables_streaming_and_reports_deltas(self):
+        """Unset stream + on_stream streams and reports deltas by kind."""
+        api = _make_api()  # stream unset ("auto")
+
+        chunks = [
+            {
+                "id": "chatcmpl-obs",
+                "created": 1700000000,
+                "model": "m",
+                "choices": [
+                    {
+                        "index": 0,
+                        "delta": {"reasoning_content": "hmm"},
+                        "finish_reason": None,
+                    }
+                ],
+            },
+            {
+                "id": "chatcmpl-obs",
+                "created": 1700000000,
+                "model": "m",
+                "choices": [
+                    {
+                        "index": 0,
+                        "delta": {"content": "hel"},
+                        "finish_reason": None,
+                    }
+                ],
+            },
+            {
+                "id": "chatcmpl-obs",
+                "created": 1700000000,
+                "model": "m",
+                "choices": [
+                    {
+                        "index": 0,
+                        "delta": {
+                            "tool_calls": [
+                                {
+                                    "index": 0,
+                                    "id": "call_1",
+                                    "function": {
+                                        "name": "bash",
+                                        "arguments": '{"cmd": "ls"}',
+                                    },
+                                }
+                            ]
+                        },
+                        "finish_reason": "tool_calls",
+                    }
+                ],
+            },
+            {
+                "id": "chatcmpl-obs",
+                "created": 1700000000,
+                "model": "m",
+                "choices": [],
+                "usage": {
+                    "prompt_tokens": 3,
+                    "completion_tokens": 7,
+                    "total_tokens": 10,
+                },
+            },
+        ]
+        mock_client = self._mock_streaming_client(api, chunks)
+
+        events: list[Any] = []
+
+        async def collect(event: Any) -> None:
+            events.append(event)
+
+        observer = ModelStreamObserver("sagemaker/test", collect)
+        with model_stream_observer(observer):
+            result = await api.generate(
+                [ChatMessageUser(content="Hi")],
+                [],
+                "auto",
+                GenerateConfig(max_tokens=100, temperature=0),
+            )
+
+        # on_stream alone enabled streaming
+        mock_client.invoke_endpoint_with_response_stream.assert_called_once()
+        model_output, _ = result
+        assert model_output.completion == "hel"
+
+        assert [type(e) for e in events] == [
+            StreamReasoningEvent,
+            StreamTextEvent,
+            StreamToolCallEvent,
+        ]
+        assert events[0].reasoning == "hmm"
+        assert events[1].text == "hel"
+        assert events[2].id == "call_1"
+        assert events[2].function == "bash"
+        assert events[2].arguments == '{"cmd": "ls"}'
+        # the usage chunk reported cumulative output tokens
+        assert observer._tokens_current == 7
+
+    @pytest.mark.anyio
+    async def test_explicit_stream_false_wins_over_on_stream(self):
+        """An explicit stream=False opt-out wins over an on_stream callback."""
+        api = _make_api(stream=False)
+
+        mock_client = AsyncMock()
+        mock_body = AsyncMock()
+        mock_body.read = AsyncMock(
+            return_value=json.dumps(OPENAI_RESPONSE).encode("utf-8")
+        )
+        mock_client.invoke_endpoint = AsyncMock(return_value={"Body": mock_body})
+        mock_ctx = AsyncMock()
+        mock_ctx.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_ctx.__aexit__ = AsyncMock(return_value=False)
+        api._create_client = MagicMock(return_value=mock_ctx)
+
+        async def collect(event: Any) -> None:
+            pass
+
+        with model_stream_observer(ModelStreamObserver("sagemaker/test", collect)):
+            await api.generate(
+                [ChatMessageUser(content="Hi")],
+                [],
+                "auto",
+                GenerateConfig(max_tokens=100, temperature=0),
+            )
+
+        mock_client.invoke_endpoint.assert_called_once()
 
 
 class TestCompletionModePromptLogprobs:

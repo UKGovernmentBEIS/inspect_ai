@@ -12,6 +12,7 @@ from tenacity.wait import WaitBaseT
 from typing_extensions import override
 from xai_sdk import AsyncClient  # type: ignore
 from xai_sdk.chat import (  # type: ignore
+    Chunk,
     Response,
     ToolMode,
     chat_pb2,
@@ -53,6 +54,15 @@ from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.model._providers.util.util import model_base_url
 from inspect_ai.model._retry import batch_admin_retry_config
+from inspect_ai.model._stream import (
+    StreamReasoningEvent,
+    StreamTextEvent,
+    StreamToolCallEvent,
+    model_stream_requested,
+    report_model_stream_delta,
+    report_model_stream_progress,
+    report_model_stream_start,
+)
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
 from inspect_ai.tool._mcp._remote import is_mcp_server_tool
 from inspect_ai.tool._tool_call import ToolCall
@@ -104,7 +114,7 @@ class GrokAPI(ModelAPI):
         base_url: str | None = None,
         api_key: str | None = None,
         config: GenerateConfig = GenerateConfig(),
-        streaming: bool = False,
+        streaming: bool | Literal["auto"] = "auto",
         disable_retry: bool = False,
         service_tier: str | None = None,
         **model_args: Any,
@@ -140,8 +150,11 @@ class GrokAPI(ModelAPI):
             model_base_url(self.base_url, [XAI_BASE_URL, GROK_BASE_URL]) or "api.x.ai"
         )
 
-        # save model args
-        self.streaming = streaming
+        # save model args (streaming "auto" streams when the caller passes
+        # on_stream to generate; an explicit True/False overrides)
+        self.streaming: bool | Literal["auto"] = (
+            "auto" if streaming == "auto" else bool(streaming)
+        )
         self.disable_retry = disable_retry
         # fail fast when the SDK can't express service_tier rather than
         # TypeError-ing on every generate
@@ -309,9 +322,12 @@ class GrokAPI(ModelAPI):
                             )
                         )
                     # stream the reponse for improved connectivity for long requests
-                    elif self.streaming:
-                        async for chat_response, _ in chat.stream():
-                            pass
+                    elif self.streaming is True or (
+                        self.streaming == "auto" and model_stream_requested()
+                    ):
+                        report_model_stream_start()
+                        async for chat_response, chunk in chat.stream():
+                            await _report_grok_stream_chunk(chunk)
                     else:
                         chat_response = await chat.sample()
 
@@ -638,6 +654,39 @@ class GrokAPI(ModelAPI):
             return "grok" in tool.options.get("providers", {})
         else:
             return False
+
+
+async def _report_grok_stream_chunk(chunk: Chunk) -> None:
+    """Report one streamed chunk to the model layer's stream observer.
+
+    Text and reasoning stream as fragments; tool calls arrive whole (id, name
+    and complete arguments in one chunk). Chunks carry the server's cumulative
+    usage; report it when present (a proto3 zero means "not reported"), else a
+    bare heartbeat for chunks with no content.
+    """
+    reported = False
+    if chunk.reasoning_content:
+        await report_model_stream_delta(
+            StreamReasoningEvent(reasoning=chunk.reasoning_content)
+        )
+        reported = True
+    if chunk.content:
+        await report_model_stream_delta(StreamTextEvent(text=chunk.content))
+        reported = True
+    for tool_call in chunk.tool_calls:
+        await report_model_stream_delta(
+            StreamToolCallEvent(
+                id=tool_call.id,
+                function=tool_call.function.name,
+                arguments=tool_call.function.arguments,
+            )
+        )
+        reported = True
+    completion_tokens = chunk.proto.usage.completion_tokens
+    if completion_tokens > 0:
+        report_model_stream_progress(completion_tokens)
+    elif not reported:
+        report_model_stream_progress()
 
 
 def _tool_call_from_grok_call(

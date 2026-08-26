@@ -116,7 +116,7 @@ It resolves the pending event via the existing `_active_model_event` ContextVar 
 
 Where the provider reports a real cumulative count, report it; where it doesn't, report bare heartbeats — **no fabricated token estimates** (a chunk count is not a token count, and an estimated number in a monitoring surface will be read as real; see Open questions). A heartbeat alone still delivers the layer-3 idle fix, which is most of the value.
 
-The provider work is independent per provider and can land incrementally; the surface degrades gracefully (null `tokens`, null `last_progress_at`) for any provider not yet instrumented.
+The provider work is independent per provider and can land incrementally; the surface degrades gracefully (null `tokens`, null `last_progress_at`) for any provider not yet instrumented. (As-shipped: all of the above plus the OpenAI provider — whose Responses/chat paths gained an `on_stream`-gated streaming mode for this purpose — and the OpenAI-compatible chat/responses paths are instrumented; each honors `model_stream_requested()` in its stream decision with an explicit provider-level opt-out winning.)
 
 ### Layer 3 — idle means "time since last observed progress"
 

@@ -29,7 +29,11 @@ from .._model_output import (
     as_stop_reason,
     collect_stop_details,
 )
-from .._openai import chat_message_assistant_from_openai, openai_stop_details
+from .._openai import (
+    chat_message_assistant_from_openai,
+    openai_chat_completion_stream_final,
+    openai_stop_details,
+)
 from ._together_batch import TogetherBatcher
 from .openai_compatible import OpenAICompatibleAPI
 from .util import (
@@ -191,10 +195,10 @@ class TogetherAIAPI(OpenAICompatibleAPI):
         if self._batcher:
             return await self._batcher.generate_for_request(request)
         # honor streaming (batching and streaming are mutually exclusive)
-        if self.stream or self.should_stream(config):
+        if self.resolve_stream(config):
             async with self.client.chat.completions.stream(**request) as stream:
                 try:
-                    return await stream.get_final_completion()
+                    return await openai_chat_completion_stream_final(stream)
                 except LengthFinishReasonError as ex:
                     # When structured output (response_format) or tools are in
                     # play, the SDK raises on a length-truncated stream rather

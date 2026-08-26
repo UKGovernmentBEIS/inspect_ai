@@ -1,9 +1,10 @@
+from types import SimpleNamespace
 from typing import Any
 
 import httpx2
 import pytest
 from openai import APIStatusError, LengthFinishReasonError
-from openai.types.chat import ChatCompletion
+from openai.types.chat import ChatCompletion, ChatCompletionChunk
 from test_helpers.utils import (
     skip_if_no_openai,
     skip_if_no_together,
@@ -16,11 +17,18 @@ from inspect_ai.model import (
     GenerateConfig,
     ModelOutput,
     StopReason,
+    StreamReasoningEvent,
+    StreamTextEvent,
+    StreamToolCallEvent,
     get_model,
 )
-from inspect_ai.model._openai import chat_choices_from_openai
+from inspect_ai.model._openai import (
+    chat_choices_from_openai,
+    openai_chat_completion_stream_final,
+)
 from inspect_ai.model._providers.openai_compatible import OpenAICompatibleAPI
 from inspect_ai.model._providers.together import TogetherAIAPI
+from inspect_ai.model._stream import ModelStreamObserver, model_stream_observer
 from inspect_ai.tool import ToolInfo
 
 
@@ -312,8 +320,11 @@ def _together_api(stream: bool | None = None) -> TogetherAIAPI:
     )
 
 
-def test_together_stream_defaults_to_false() -> None:
-    assert _together_api().stream is False
+def test_together_stream_defaults_to_auto() -> None:
+    # unset stream is "auto": stream only when the caller passes on_stream
+    api = _together_api()
+    assert api.stream is None
+    assert api.resolve_stream(GenerateConfig()) is False
 
 
 @pytest.mark.parametrize("stream", [True, False])
@@ -370,6 +381,12 @@ async def test_openai_compatible_streaming_returns_partial_on_length(
         async def __aexit__(self, *exc: object) -> None:
             return None
 
+        def __aiter__(self) -> "_LengthTruncatedStream":
+            return self
+
+        async def __anext__(self) -> object:
+            raise StopAsyncIteration
+
         async def get_final_completion(self) -> ChatCompletion:
             raise LengthFinishReasonError(completion=partial)
 
@@ -385,3 +402,123 @@ async def test_openai_compatible_streaming_returns_partial_on_length(
         assert chat_choices_from_openai(result, [])[0].stop_reason == "max_tokens"
     finally:
         await api.aclose()
+
+
+# -- Stream observer reporting (on_stream) -------------------------------------
+
+
+class _StreamCollector:
+    def __init__(self) -> None:
+        self.events: list[Any] = []
+
+    async def __call__(self, event: Any) -> None:
+        self.events.append(event)
+
+
+def _compatible_api(stream: bool | None = None) -> OpenAICompatibleAPI:
+    return OpenAICompatibleAPI(
+        model_name="openai-api/openai/gpt-5",
+        api_key="test",
+        base_url="https://example.com",
+        stream=stream,
+    )
+
+
+def test_resolve_stream_honors_on_stream() -> None:
+    """Unset stream is "auto": stream iff the caller passed on_stream."""
+    config = GenerateConfig()
+    collector = _StreamCollector()
+
+    api = _compatible_api()
+    assert api.stream is None
+    assert api.resolve_stream(config) is False
+    with model_stream_observer(ModelStreamObserver("test", collector)):
+        assert api.resolve_stream(config) is True
+
+    # explicit opt-out wins over an on_stream callback
+    with model_stream_observer(ModelStreamObserver("test", collector)):
+        assert _compatible_api(stream=False).resolve_stream(config) is False
+
+    # explicit opt-in streams without a callback
+    assert _compatible_api(stream=True).resolve_stream(config) is True
+
+
+def _chunk(payload: dict[str, Any]) -> ChatCompletionChunk:
+    return ChatCompletionChunk.model_validate(
+        dict(
+            id="chatcmpl-1",
+            object="chat.completion.chunk",
+            created=0,
+            model="gpt-5",
+        )
+        | payload
+    )
+
+
+async def test_chat_completion_stream_reports_deltas() -> None:
+    """The shared stream consumer reports chunk deltas to on_stream."""
+    reasoning_delta = dict(role="assistant", reasoning_content="hmm")
+    text_delta = dict(content="hel")
+    tool_delta = dict(
+        tool_calls=[
+            dict(index=0, id="call_1", function=dict(name="bash", arguments="{"))
+        ]
+    )
+    usage = dict(prompt_tokens=3, completion_tokens=7, total_tokens=10)
+    chunks = [
+        _chunk(
+            dict(choices=[dict(index=0, delta=reasoning_delta, finish_reason=None)])
+        ),
+        _chunk(dict(choices=[dict(index=0, delta=text_delta, finish_reason=None)])),
+        _chunk(dict(choices=[dict(index=0, delta=tool_delta, finish_reason=None)])),
+        # final usage chunk (stream_options.include_usage)
+        _chunk(dict(choices=[], usage=usage)),
+    ]
+
+    final = ChatCompletion.model_validate(
+        dict(
+            id="chatcmpl-1",
+            object="chat.completion",
+            created=0,
+            model="gpt-5",
+            choices=[
+                dict(
+                    index=0,
+                    finish_reason="stop",
+                    message=dict(role="assistant", content="hello"),
+                )
+            ],
+        )
+    )
+
+    class _FakeStream:
+        def __aiter__(self) -> Any:
+            async def gen() -> Any:
+                for chunk in chunks:
+                    yield SimpleNamespace(type="chunk", chunk=chunk)
+
+            return gen()
+
+        async def get_final_completion(self) -> ChatCompletion:
+            return final
+
+    fake_stream: Any = _FakeStream()
+    collector = _StreamCollector()
+    observer = ModelStreamObserver("test", collector)
+    with model_stream_observer(observer):
+        result = await openai_chat_completion_stream_final(fake_stream)
+
+    assert result is final
+    assert [type(e) for e in collector.events] == [
+        StreamReasoningEvent,
+        StreamTextEvent,
+        StreamToolCallEvent,
+    ]
+    assert collector.events[0].reasoning == "hmm"
+    assert collector.events[1].text == "hel"
+    tool_event = collector.events[2]
+    assert tool_event.id == "call_1"
+    assert tool_event.function == "bash"
+    assert tool_event.arguments == "{"
+    # the usage chunk reported cumulative output tokens
+    assert observer._tokens_current == 7

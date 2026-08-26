@@ -5,6 +5,7 @@ from openai import (
     AsyncAzureOpenAI,
     AsyncOpenAI,
     BadRequestError,
+    LengthFinishReasonError,
     NotGiven,
     UnprocessableEntityError,
 )
@@ -24,6 +25,7 @@ from .._openai import (
     chat_choices_from_openai,
     messages_to_openai,
     model_output_from_openai,
+    openai_chat_completion_stream_final,
     openai_chat_tool_choice,
     openai_chat_tools,
     openai_completion_params,
@@ -51,7 +53,11 @@ async def generate_completions(
     safety_identifier: str | NotGiven,
     openai_api: "OpenAIAPI",
     batcher: OpenAIBatcher[ChatCompletion] | None,
+    streaming: bool = False,
 ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
+    # batching and streaming are mutually exclusive
+    streaming = streaming and batcher is None
+
     # allocate request_id (so we can see it from ModelCall)
     request_id = http_hooks.start_request()
 
@@ -88,6 +94,10 @@ async def generate_completions(
         request["prompt_cache_retention"] = prompt_cache_retention
     if isinstance(safety_identifier, str):
         request["safety_identifier"] = safety_identifier
+    if streaming:
+        # ask the server for cumulative usage on the final chunk so the
+        # streamed completion carries the same usage as a non-streamed one
+        request["stream_options"] = {"include_usage": True}
 
     model_call = set_active_model_event_call(
         request=request,
@@ -95,11 +105,21 @@ async def generate_completions(
     )
 
     try:
-        completion = await (
-            batcher.generate_for_request(request)
-            if batcher
-            else client.chat.completions.create(**request)
-        )
+        completion: ChatCompletion
+        if batcher:
+            completion = await batcher.generate_for_request(request)
+        elif streaming:
+            async with client.chat.completions.stream(**request) as stream:
+                try:
+                    completion = await openai_chat_completion_stream_final(stream)
+                except LengthFinishReasonError as ex:
+                    # with response_format/tools in play the SDK raises on a
+                    # length-truncated stream; fall back to the partial
+                    # completion so it is handled like the non-streaming path
+                    # (stop_reason="max_tokens")
+                    completion = ex.completion
+        else:
+            completion = await client.chat.completions.create(**request)
         # completion is `CharCompletion | Any`. The lazy type inference engine
         # threw up its hands because of the `**request`.
         assert isinstance(completion, ChatCompletion)

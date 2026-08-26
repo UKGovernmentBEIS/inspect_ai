@@ -22,7 +22,11 @@ from typing_extensions import override
 
 from inspect_ai._util.logger import warn_once
 from inspect_ai.log._samples import set_active_model_event_call
-from inspect_ai.model._openai import chat_choices_from_openai, openai_classify_retry
+from inspect_ai.model._openai import (
+    chat_choices_from_openai,
+    openai_chat_completion_stream_final,
+    openai_classify_retry,
+)
 from inspect_ai.model._openai_responses import ResponsesModelInfo
 from inspect_ai.model._providers.openai_responses import generate_responses
 from inspect_ai.model._providers.util.chatapi import (
@@ -54,6 +58,7 @@ from .._openai import (
     openai_media_filter,
     supports_native_max_reasoning_effort,
 )
+from .._stream import model_stream_requested
 from .util import environment_prerequisite_error, model_base_url
 
 logger = getLogger(__name__)
@@ -134,7 +139,10 @@ class OpenAICompatibleAPI(ModelAPI):
             raise ValueError(
                 "emulate_tools is not compatible with using the responses_api"
             )
-        self.stream = False if stream is None else stream
+        # record streaming preference (None is "auto": stream when the
+        # subclass calls for it or the caller passes on_stream to generate;
+        # an explicit True/False overrides — see resolve_stream)
+        self.stream: bool | None = stream
         self.strict_tools = strict_tools
 
         # store client_timeout for http client creation
@@ -211,6 +219,7 @@ class OpenAICompatibleAPI(ModelAPI):
                 model_info=ModelInfo(self.model_family()),
                 batcher=None,
                 handle_bad_request=self.handle_bad_request,
+                streaming=self.resolve_stream(config),
             )
 
         else:
@@ -313,7 +322,7 @@ class OpenAICompatibleAPI(ModelAPI):
     async def _generate_completion(
         self, request: dict[str, Any], config: GenerateConfig
     ) -> ChatCompletion:
-        if self.stream or self.should_stream(config):
+        if self.resolve_stream(config):
             if config.prompt_logprobs is not None:
                 warn_once(
                     logger,
@@ -323,7 +332,7 @@ class OpenAICompatibleAPI(ModelAPI):
                 )
             async with self.client.chat.completions.stream(**request) as stream:
                 try:
-                    return await stream.get_final_completion()
+                    return await openai_chat_completion_stream_final(stream)
                 except LengthFinishReasonError as ex:
                     return ex.completion
         else:
@@ -396,6 +405,17 @@ class OpenAICompatibleAPI(ModelAPI):
 
     def should_stream(self, config: GenerateConfig) -> bool:
         return False
+
+    def resolve_stream(self, config: GenerateConfig) -> bool:
+        """Whether to use the streaming API for this generate call.
+
+        An explicit `stream` model arg wins; when unset, stream if the
+        subclass calls for it (`should_stream`) or the caller passed
+        `on_stream` to `Model.generate()` (`model_stream_requested`).
+        """
+        if self.stream is not None:
+            return self.stream
+        return self.should_stream(config) or model_stream_requested()
 
     def tools_to_openai(self, tools: list[ToolInfo]) -> list[ChatCompletionToolParam]:
         # some inference platforms (e.g. hf-inference) require strict=True
