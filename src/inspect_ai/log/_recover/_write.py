@@ -214,6 +214,7 @@ async def write_recovered_eval_log(
             # failed_count covers errored and still-in-progress samples, so
             # the remainder is exactly the samples that completed cleanly
             completed_samples=sample_count - failed_count,
+            headline_metric=header.eval.headline_metric,
         )
     except Exception as ex:
         logger.warning(f"Unable to recompute metrics for recovered log: {ex}")
