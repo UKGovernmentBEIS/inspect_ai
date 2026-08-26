@@ -701,7 +701,7 @@ async def test_zip_log_file_flush_cycles() -> None:
         assert read_ids == all_sample_ids
 
 
-def test_zip_log_file_flush_cycles_s3_trio(mock_s3) -> None:
+def test_zip_log_file_flush_cycles_s3_trio(mock_s3: None) -> None:
     """A trio eval flushing a sub-8MB .eval log to S3 keeps its temp file open.
 
     Regression test: the trio backend uploads via sync boto3, and s3transfer's

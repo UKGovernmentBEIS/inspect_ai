@@ -16,6 +16,8 @@ from inspect_ai._util.asyncfiles import (
     _current_async_fs,
     _RetiredClient,
     get_async_filesystem,
+    s3_bucket_and_key,
+    s3_write_file_streaming,
 )
 
 S3_BUCKET = "s3://test-bucket"
@@ -398,8 +400,14 @@ def test_write_file_streaming_s3(mock_s3: None) -> None:
         source = io.BytesIO(test_data)
         async with AsyncFilesystem() as fs:
             await fs.write_file_streaming(s3_path, source)
+            assert not source.closed
             result = await fs.read_file(s3_path)
             assert result == test_data
+            # sub-threshold (non-multipart) uploads must leave the source
+            # open on the asyncio path too
+            small = io.BytesIO(b"small payload")
+            await fs.write_file_streaming(f"{s3_path}.small", small)
+            assert not small.closed
 
     asyncio.run(run())
 
@@ -413,8 +421,6 @@ def test_write_file_streaming_s3_small_upload_leaves_source_open(
     EvalRecorder reuses its temp file after every flush (trio evals take this
     sync boto3 path), so the upload must shield the source from closing.
     """
-    from inspect_ai._util.asyncfiles import s3_bucket_and_key, s3_write_file_streaming
-
     test_data = b"small eval log " * 1024  # well below the 8MB multipart threshold
     bucket, key = s3_bucket_and_key(f"{S3_BUCKET}/streaming_test/small.eval")
 
