@@ -74,6 +74,7 @@ from inspect_ai.log._log import EvalConfig
 from inspect_ai.model import (
     GenerateConfigArgs,
     Model,
+    ModelRoles,
 )
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model import ModelName
@@ -155,7 +156,7 @@ def eval_set(
     model: str | Model | list[str] | list[Model] | None | NotGiven = NOT_GIVEN,
     model_base_url: str | None = None,
     model_args: dict[str, Any] | str = dict(),
-    model_roles: dict[str, str | Model] | None = None,
+    model_roles: ModelRoles | None = None,
     task_args: dict[str, Any] | str = dict(),
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
@@ -237,7 +238,7 @@ def eval_set(
             with the model API.
         model_args: Model creation args
             (as a dictionary or as a path to a JSON or YAML config file)
-        model_roles: Named roles for use in `get_model()`.
+        model_roles: Named roles for use in `get_model()` (a role can also map to a list of models).
         task_args: Task creation arguments
             (as a dictionary or as a path to a JSON or YAML config file)
         sandbox: Sandbox environment type
@@ -1787,14 +1788,17 @@ def task_identifier(
         # base_url is not hashed) and because several providers populate it
         # from env vars during init, which would make the identifier
         # environment-dependent.
+        role_exclude: dict[str, Any] = {
+            "base_url": True,
+            "config": _GENERATE_CONFIG_FIELDS_TO_EXCLUDE,
+        }
         additional_hash_input += to_json_safe(
             model_roles,
             exclude={
-                role: {
-                    "base_url": True,
-                    "config": _GENERATE_CONFIG_FIELDS_TO_EXCLUDE,
-                }
-                for role in model_roles
+                role: {"__all__": role_exclude}
+                if isinstance(value, list)
+                else role_exclude
+                for role, value in model_roles.items()
             },
         )
 
@@ -1873,9 +1877,15 @@ def to_eval_set_task(
     model_name = str(ModelName(task.model))
     model_args = task.model.model_args
 
-    # resolve model roles to names
+    # resolve model roles to names; a list-valued role is comma-joined (the
+    # same syntax --model-role accepts, so the value round-trips through a flag)
     model_roles = (
-        {k: v.name for k, v in task.model_roles.items()} if task.model_roles else None
+        {
+            k: ",".join(m.name for m in v) if isinstance(v, list) else v.name
+            for k, v in task.model_roles.items()
+        }
+        if task.model_roles
+        else None
     )
 
     # see if there an existing task_id that should be used for this

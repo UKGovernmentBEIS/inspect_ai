@@ -20515,46 +20515,6 @@ var isVscode = () => {
 	return location.hostname !== "localhost" && location.hostname !== "127.0.0.1" && location.protocol !== "vscode-webview:";
 };
 //#endregion
-//#region src/scoring/headline.ts
-/**
-* The score and metric that best summarise an eval.
-*
-* Prefers `results.headline`, which scoring resolves and fully qualifies.
-* Logs that carry only the task's declaration — hand-authored, partially
-* migrated, or produced outside inspect — resolve it here instead, mirroring
-* the Python resolver: a set field narrows the candidate scores, an unset one
-* matches any. Failing both, the first metric of the first score.
-*/ var resolveHeadlineMetric = (results, declared) => {
-	const scores = results?.scores;
-	if (!scores || scores.length === 0) return;
-	const headline = results.headline ?? declared;
-	return (headline ? matchDeclared(scores, headline) : void 0) ?? firstMetric(scores[0]);
-};
-var matchDeclared = (scores, headline) => {
-	const candidates = scores.filter((score) => (headline.scorer == null || score.scorer === headline.scorer) && (headline.score == null || score.name === headline.score) && (headline.reducer == null || score.reducer === headline.reducer));
-	const name = headline.metric;
-	if (name == null) return candidates.length > 0 ? firstMetric(candidates[0]) : void 0;
-	const score = candidates.find((candidate) => candidate.metrics[name] !== void 0);
-	const metric = score?.metrics[name];
-	return score && metric ? {
-		score,
-		name,
-		metric
-	} : void 0;
-};
-var firstMetric = (score) => {
-	if (!score) return;
-	const [name] = Object.keys(score.metrics);
-	const metric = name !== void 0 ? score.metrics[name] : void 0;
-	return name !== void 0 && metric ? {
-		score,
-		name,
-		metric
-	} : void 0;
-};
-var headlineMetric = (results, declared) => resolveHeadlineMetric(results, declared)?.metric;
-/** Move `index` to the front, leaving the relative order of the rest intact. */ var leadWith = (items, index) => index <= 0 ? items : [items[index], ...items.filter((_, i) => i !== index)];
-//#endregion
 //#region ../../packages/inspect-common/src/utils/effectiveConfig.ts
 var EVAL_CONFIG_KEYS = {
 	acp_server: true,
@@ -20777,12 +20737,86 @@ function isModelEvent(event) {
 * One "requested → served (×N)" line per fallback rollup entry.
 */ var modelFallbackLines = (fallbacks) => (fallbacks ?? []).map((f) => `${f.model} → ${f.fallback_model}${(f.count ?? 1) > 1 ? ` (×${f.count})` : ""}`);
 //#endregion
+//#region ../../packages/inspect-common/src/utils/modelRoles.ts
+var kModelNameSeparator = ", ";
+/**
+* Normalize a model role binding to a list of model configs. A role may be
+* bound to a single model or to a list of models (e.g. an ensemble of
+* graders); this collapses both shapes for consumers that iterate.
+*/ var modelRoleConfigs = (value) => Array.isArray(value) ? value : [value];
+/**
+* Display string for a model role binding: the model name, comma-separated
+* when the role is bound to a list of models. The viewer joins with `", "`
+* for legibility; inspect_ai's Python surfaces (`to_overview`, the eval-set
+* manifest) deliberately join with a bare `","` to stay round-trippable
+* through `--model-role` flag syntax.
+*/ var modelRoleModelNames = (value) => modelRoleConfigs(value).map((config) => config.model).join(kModelNameSeparator);
+/**
+* The individual model names inside a `modelRoleModelNames` display string —
+* the inverse, for consumers that key by single model (e.g. matching a
+* role's alias against a connection lane). Tolerates the no-space `","` join
+* used by inspect_ai's Python surfaces (model names cannot contain commas).
+*/ var splitModelRoleNames = (names) => names.split(",").map((s) => s.trim());
+/**
+* Role → display-name record for a spec's model roles, dropping roles with
+* no model name. Returns undefined when nothing remains, so callers can
+* treat "no roles" and "absent" uniformly.
+*/ var modelRoleNames = (modelRoles) => {
+	if (!modelRoles) return void 0;
+	const roles = {};
+	for (const [role, value] of Object.entries(modelRoles)) {
+		const names = modelRoleModelNames(value);
+		if (names) roles[role] = names;
+	}
+	return Object.keys(roles).length > 0 ? roles : void 0;
+};
+//#endregion
 //#region ../../packages/inspect-common/src/utils/time.ts
 /** ISO timestamp → epoch seconds (the timeline/connection-history unit). */ var isoToEpoch = (iso) => {
 	if (!iso) return void 0;
 	const ms = new Date(iso).getTime();
 	return Number.isFinite(ms) ? ms / 1e3 : void 0;
 };
+//#endregion
+//#region src/scoring/headline.ts
+/**
+* The score and metric that best summarise an eval.
+*
+* Prefers `results.headline`, which scoring resolves and fully qualifies.
+* Logs that carry only the task's declaration — hand-authored, partially
+* migrated, or produced outside inspect — resolve it here instead, mirroring
+* the Python resolver: a set field narrows the candidate scores, an unset one
+* matches any. Failing both, the first metric of the first score.
+*/ var resolveHeadlineMetric = (results, declared) => {
+	const scores = results?.scores;
+	if (!scores || scores.length === 0) return;
+	const headline = results.headline ?? declared;
+	return (headline ? matchDeclared(scores, headline) : void 0) ?? firstMetric(scores[0]);
+};
+var matchDeclared = (scores, headline) => {
+	const candidates = scores.filter((score) => (headline.scorer == null || score.scorer === headline.scorer) && (headline.score == null || score.name === headline.score) && (headline.reducer == null || score.reducer === headline.reducer));
+	const name = headline.metric;
+	if (name == null) return candidates.length > 0 ? firstMetric(candidates[0]) : void 0;
+	const score = candidates.find((candidate) => candidate.metrics[name] !== void 0);
+	const metric = score?.metrics[name];
+	return score && metric ? {
+		score,
+		name,
+		metric
+	} : void 0;
+};
+var firstMetric = (score) => {
+	if (!score) return;
+	const [name] = Object.keys(score.metrics);
+	const metric = name !== void 0 ? score.metrics[name] : void 0;
+	return name !== void 0 && metric ? {
+		score,
+		name,
+		metric
+	} : void 0;
+};
+var headlineMetric = (results, declared) => resolveHeadlineMetric(results, declared)?.metric;
+/** Move `index` to the front, leaving the relative order of the rest intact. */ var leadWith = (items, index) => index <= 0 ? items : [items[index], ...items.filter((_, i) => i !== index)];
 //#endregion
 //#region src/client/utils/derive.ts
 var deriveLogFields = (header) => {
@@ -20905,7 +20939,7 @@ var prepareLogDetails = (details) => {
 	};
 };
 var toLogPreview = (header) => {
-	const model_roles = header.eval.model_roles ? Object.fromEntries(Object.entries(header.eval.model_roles).map(([role, cfg]) => [role, cfg.model])) : void 0;
+	const model_roles = modelRoleNames(header.eval.model_roles);
 	return {
 		eval_id: header.eval.eval_id,
 		run_id: header.eval.run_id,
@@ -84104,7 +84138,7 @@ var transportRequestApi = (transport) => serverRequestApi(transport.apiBaseUrl |
 	};
 	const toLogPreview = (header) => {
 		const primary_metric = headlineMetric(header.results, header.eval.headline_metric);
-		const model_roles = header.eval.model_roles ? Object.fromEntries(Object.entries(header.eval.model_roles).map(([role, cfg]) => [role, cfg.model])) : void 0;
+		const model_roles = modelRoleNames(header.eval.model_roles);
 		return {
 			eval_id: header.eval.eval_id,
 			run_id: header.eval.run_id,
@@ -107446,7 +107480,11 @@ var ConnectionsView_module_default = {
 };
 //#endregion
 //#region ../../packages/inspect-components/src/usage/roleAliases.ts
-/** Roles whose alias resolves to `model` (the reverse role_aliases lookup). */ var rolesForModel = (role_aliases, model) => Object.entries(role_aliases ?? {}).filter(([, aliased]) => aliased === model).map(([role]) => role);
+/**
+* Roles whose alias resolves to `model` (the reverse role_aliases lookup).
+* An alias is a display string that names every model bound to the role
+* (comma-separated for list roles), so match by membership, not equality.
+*/ var rolesForModel = (role_aliases, model) => Object.entries(role_aliases ?? {}).filter(([, aliased]) => splitModelRoleNames(aliased).includes(model)).map(([role]) => role);
 //#endregion
 //#region ../../packages/inspect-components/src/usage/ConnectionsView.tsx
 /** The legend for the Connections view header row (◆ / rate limit / max). */ var ConnectionsLegend = () => {
@@ -107958,11 +107996,6 @@ var UsagePanel = ({ label, model_usage, role_usage, configs_by_model, configs_by
 };
 //#endregion
 //#region ../../packages/inspect-components/src/usage/configsForUsage.ts
-var stripNullish = (obj) => {
-	const out = {};
-	for (const [k, v] of Object.entries(obj)) if (v !== null && v !== void 0) out[k] = v;
-	return out;
-};
 var mergeDefined = (target, source) => {
 	for (const [k, v] of Object.entries(source)) if (v !== null && v !== void 0) target[k] = v;
 	return target;
@@ -107980,13 +108013,13 @@ var buildConfigsByModel = (evalSpec) => {
 		acc[modelId] = mergeDefined(acc[modelId] ?? {}, cfg);
 	};
 	add(evalSpec.model, evalSpec.model_generate_config);
-	if (evalSpec.model_roles) for (const rc of Object.values(evalSpec.model_roles)) add(rc.model, rc.config);
+	if (evalSpec.model_roles) for (const rc of Object.values(evalSpec.model_roles).flatMap(modelRoleConfigs)) add(rc.model, rc.config);
 	return finalize(acc);
 };
 var buildConfigsByRole = (evalSpec) => {
 	if (!evalSpec?.model_roles) return void 0;
 	const acc = {};
-	for (const [role, rc] of Object.entries(evalSpec.model_roles)) if (rc.config) acc[role] = stripNullish(rc.config);
+	for (const [role, value] of Object.entries(evalSpec.model_roles)) for (const rc of modelRoleConfigs(value)) if (rc.config) acc[role] = mergeDefined(acc[role] ?? {}, rc.config);
 	return finalize(acc);
 };
 var buildArgsByModel = (evalSpec) => {
@@ -107997,13 +108030,13 @@ var buildArgsByModel = (evalSpec) => {
 		acc[modelId] = mergeDefined(acc[modelId] ?? {}, args);
 	};
 	add(evalSpec.model, evalSpec.model_args);
-	if (evalSpec.model_roles) for (const rc of Object.values(evalSpec.model_roles)) add(rc.model, rc.args);
+	if (evalSpec.model_roles) for (const rc of Object.values(evalSpec.model_roles).flatMap(modelRoleConfigs)) add(rc.model, rc.args);
 	return finalize(acc);
 };
 var buildArgsByRole = (evalSpec) => {
 	if (!evalSpec?.model_roles) return void 0;
 	const acc = {};
-	for (const [role, rc] of Object.entries(evalSpec.model_roles)) if (rc.args) acc[role] = stripNullish(rc.args);
+	for (const [role, value] of Object.entries(evalSpec.model_roles)) for (const rc of modelRoleConfigs(value)) if (rc.args) acc[role] = mergeDefined(acc[role] ?? {}, rc.args);
 	return finalize(acc);
 };
 //#endregion
@@ -125187,13 +125220,15 @@ var SampleRetriedErrors = (t0) => {
 /**
 * Resolve the model display string for an EvalSpec.
 *
-* - If `model_roles` is populated, formats it as `role: model[, role: model]…`.
+* - If `model_roles` is populated, formats it as `role: model[; role: model]…`
+*   (`;` between roles, since a list-valued role already uses `,` between its
+*   models).
 * - Otherwise falls back to `eval.model`, ignoring the placeholder `none/none`.
 * - Returns `undefined` if neither source has anything meaningful.
 */ var formatModelText = (evalSpec) => {
 	if (!evalSpec) return void 0;
 	const roles = evalSpec.model_roles;
-	if (roles && Object.keys(roles).length > 0) return Object.entries(roles).map(([role, data]) => `${role}: ${data.model}`).join(", ");
+	if (roles && Object.keys(roles).length > 0) return Object.entries(roles).map(([role, data]) => `${role}: ${modelRoleModelNames(data)}`).join("; ");
 	if (evalSpec.model && evalSpec.model !== "none/none") return evalSpec.model;
 };
 //#endregion
@@ -132970,124 +133005,115 @@ var kNoMessageRows = [];
 var SampleUsagePanel = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(44);
 	const { id, sample, evalSpec } = t0;
-	let t1;
-	bb0: {
-		if (!evalSpec?.model_roles) {
-			t1 = void 0;
-			break bb0;
-		}
-		let t2;
-		if ($[0] !== evalSpec.model_roles) {
-			const roles = {};
-			for (const [role, config] of Object.entries(evalSpec.model_roles)) if (config.model) roles[role] = config.model;
-			t2 = Object.keys(roles).length > 0 ? roles : void 0;
-			$[0] = evalSpec.model_roles;
-			$[1] = t2;
-		} else t2 = $[1];
-		t1 = t2;
-	}
-	const roleAliases = t1;
+	const t1 = evalSpec?.model_roles;
 	let t2;
-	if ($[2] !== evalSpec) {
-		t2 = buildConfigsByModel(evalSpec);
-		$[2] = evalSpec;
-		$[3] = t2;
-	} else t2 = $[3];
-	const configsByModel = t2;
+	if ($[0] !== t1) {
+		t2 = modelRoleNames(t1);
+		$[0] = t1;
+		$[1] = t2;
+	} else t2 = $[1];
+	const roleAliases = t2;
 	let t3;
-	if ($[4] !== evalSpec) {
-		t3 = buildConfigsByRole(evalSpec);
-		$[4] = evalSpec;
-		$[5] = t3;
-	} else t3 = $[5];
-	const configsByRole = t3;
+	if ($[2] !== evalSpec) {
+		t3 = buildConfigsByModel(evalSpec);
+		$[2] = evalSpec;
+		$[3] = t3;
+	} else t3 = $[3];
+	const configsByModel = t3;
 	let t4;
-	if ($[6] !== evalSpec) {
-		t4 = buildArgsByModel(evalSpec);
-		$[6] = evalSpec;
-		$[7] = t4;
-	} else t4 = $[7];
-	const argsByModel = t4;
+	if ($[4] !== evalSpec) {
+		t4 = buildConfigsByRole(evalSpec);
+		$[4] = evalSpec;
+		$[5] = t4;
+	} else t4 = $[5];
+	const configsByRole = t4;
 	let t5;
+	if ($[6] !== evalSpec) {
+		t5 = buildArgsByModel(evalSpec);
+		$[6] = evalSpec;
+		$[7] = t5;
+	} else t5 = $[7];
+	const argsByModel = t5;
+	let t6;
 	if ($[8] !== evalSpec) {
-		t5 = buildArgsByRole(evalSpec);
+		t6 = buildArgsByRole(evalSpec);
 		$[8] = evalSpec;
-		$[9] = t5;
-	} else t5 = $[9];
-	const argsByRole = t5;
+		$[9] = t6;
+	} else t6 = $[9];
+	const argsByRole = t6;
 	let items;
 	if ($[10] !== sample.completed_at || $[11] !== sample.started_at || $[12] !== sample.total_time || $[13] !== sample.working_time) {
 		items = [];
 		if (sample.working_time != null) {
-			let t6;
-			if ($[15] !== sample.working_time) {
-				t6 = fmtCompactDuration(sample.working_time);
-				$[15] = sample.working_time;
-				$[16] = t6;
-			} else t6 = $[16];
 			let t7;
-			if ($[17] !== t6) {
-				t7 = {
+			if ($[15] !== sample.working_time) {
+				t7 = fmtCompactDuration(sample.working_time);
+				$[15] = sample.working_time;
+				$[16] = t7;
+			} else t7 = $[16];
+			let t8;
+			if ($[17] !== t7) {
+				t8 = {
 					label: "Working time",
-					value: t6
+					value: t7
 				};
-				$[17] = t6;
-				$[18] = t7;
-			} else t7 = $[18];
-			items.push(t7);
+				$[17] = t7;
+				$[18] = t8;
+			} else t8 = $[18];
+			items.push(t8);
 		}
 		if (sample.total_time != null) {
-			let t6;
-			if ($[19] !== sample.total_time) {
-				t6 = fmtCompactDuration(sample.total_time);
-				$[19] = sample.total_time;
-				$[20] = t6;
-			} else t6 = $[20];
 			let t7;
-			if ($[21] !== t6) {
-				t7 = {
+			if ($[19] !== sample.total_time) {
+				t7 = fmtCompactDuration(sample.total_time);
+				$[19] = sample.total_time;
+				$[20] = t7;
+			} else t7 = $[20];
+			let t8;
+			if ($[21] !== t7) {
+				t8 = {
 					label: "Total time",
-					value: t6
+					value: t7
 				};
-				$[21] = t6;
-				$[22] = t7;
-			} else t7 = $[22];
-			items.push(t7);
+				$[21] = t7;
+				$[22] = t8;
+			} else t8 = $[22];
+			items.push(t8);
 		}
 		if (sample.started_at || sample.completed_at) {
-			let t6;
+			let t7;
 			if ($[23] !== sample.completed_at || $[24] !== sample.started_at) {
-				t6 = sample.started_at && sample.completed_at && new Date(sample.started_at).toDateString() !== new Date(sample.completed_at).toDateString();
+				t7 = sample.started_at && sample.completed_at && new Date(sample.started_at).toDateString() !== new Date(sample.completed_at).toDateString();
 				$[23] = sample.completed_at;
 				$[24] = sample.started_at;
-				$[25] = t6;
-			} else t6 = $[25];
-			const showDate = !!t6;
-			let t7;
+				$[25] = t7;
+			} else t7 = $[25];
+			const showDate = !!t7;
+			let t8;
 			if ($[26] !== sample.started_at || $[27] !== showDate) {
-				t7 = fmtClock(sample.started_at, showDate);
+				t8 = fmtClock(sample.started_at, showDate);
 				$[26] = sample.started_at;
 				$[27] = showDate;
-				$[28] = t7;
-			} else t7 = $[28];
-			let t8;
+				$[28] = t8;
+			} else t8 = $[28];
+			let t9;
 			if ($[29] !== sample.completed_at || $[30] !== showDate) {
-				t8 = fmtClock(sample.completed_at, showDate);
+				t9 = fmtClock(sample.completed_at, showDate);
 				$[29] = sample.completed_at;
 				$[30] = showDate;
-				$[31] = t8;
-			} else t8 = $[31];
-			const t9 = `${t7} → ${t8}`;
-			let t10;
-			if ($[32] !== t9) {
-				t10 = {
+				$[31] = t9;
+			} else t9 = $[31];
+			const t10 = `${t8} → ${t9}`;
+			let t11;
+			if ($[32] !== t10) {
+				t11 = {
 					label: "Window",
-					value: t9
+					value: t10
 				};
-				$[32] = t9;
-				$[33] = t10;
-			} else t10 = $[33];
-			items.push(t10);
+				$[32] = t10;
+				$[33] = t11;
+			} else t11 = $[33];
+			items.push(t11);
 		}
 		$[10] = sample.completed_at;
 		$[11] = sample.started_at;
@@ -133096,10 +133122,10 @@ var SampleUsagePanel = (t0) => {
 		$[14] = items;
 	} else items = $[14];
 	const meta = items;
-	const t6 = `sample-usage-${id}`;
-	let t7;
-	if ($[34] !== argsByModel || $[35] !== argsByRole || $[36] !== configsByModel || $[37] !== configsByRole || $[38] !== meta || $[39] !== roleAliases || $[40] !== sample.model_usage || $[41] !== sample.role_usage || $[42] !== t6) {
-		t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(UsagePanel, {
+	const t7 = `sample-usage-${id}`;
+	let t8;
+	if ($[34] !== argsByModel || $[35] !== argsByRole || $[36] !== configsByModel || $[37] !== configsByRole || $[38] !== meta || $[39] !== roleAliases || $[40] !== sample.model_usage || $[41] !== sample.role_usage || $[42] !== t7) {
+		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(UsagePanel, {
 			model_usage: sample.model_usage,
 			role_usage: sample.role_usage,
 			configs_by_model: configsByModel,
@@ -133108,7 +133134,7 @@ var SampleUsagePanel = (t0) => {
 			args_by_role: argsByRole,
 			role_aliases: roleAliases,
 			meta
-		}, t6);
+		}, t7);
 		$[34] = argsByModel;
 		$[35] = argsByRole;
 		$[36] = configsByModel;
@@ -133117,10 +133143,10 @@ var SampleUsagePanel = (t0) => {
 		$[39] = roleAliases;
 		$[40] = sample.model_usage;
 		$[41] = sample.role_usage;
-		$[42] = t6;
-		$[43] = t7;
-	} else t7 = $[43];
-	return t7;
+		$[42] = t7;
+		$[43] = t8;
+	} else t8 = $[43];
+	return t8;
 };
 var usageViewsForSample = (id, sample, evalSpec) => {
 	if (!sample) return [];
@@ -136110,26 +136136,17 @@ var ModelTab = (t0) => {
 		$[7] = t4;
 	} else t4 = $[7];
 	const argsByRole = t4;
-	let t5;
-	bb0: {
-		if (!evalSpec?.model_roles) {
-			t5 = void 0;
-			break bb0;
-		}
-		let t6;
-		if ($[8] !== evalSpec.model_roles) {
-			const roles = {};
-			for (const [role, config] of Object.entries(evalSpec.model_roles)) if (config.model) roles[role] = config.model;
-			t6 = Object.keys(roles).length > 0 ? roles : void 0;
-			$[8] = evalSpec.model_roles;
-			$[9] = t6;
-		} else t6 = $[9];
-		t5 = t6;
-	}
-	const roleAliases = t5;
+	const t5 = evalSpec?.model_roles;
 	let t6;
+	if ($[8] !== t5) {
+		t6 = modelRoleNames(t5);
+		$[8] = t5;
+		$[9] = t6;
+	} else t6 = $[9];
+	const roleAliases = t6;
+	let t7;
 	if ($[10] !== evalStats?.completed_at || $[11] !== evalStats?.started_at) {
-		t6 = () => {
+		t7 = () => {
 			const items = [];
 			const startedAt = evalStats?.started_at;
 			const completedAt = evalStats?.completed_at;
@@ -136151,65 +136168,65 @@ var ModelTab = (t0) => {
 		};
 		$[10] = evalStats?.completed_at;
 		$[11] = evalStats?.started_at;
-		$[12] = t6;
-	} else t6 = $[12];
+		$[12] = t7;
+	} else t7 = $[12];
 	evalStats?.started_at;
 	evalStats?.completed_at;
-	let t7;
-	if ($[13] !== t6) {
-		t7 = t6();
-		$[13] = t6;
-		$[14] = t7;
-	} else t7 = $[14];
-	const meta = t7;
+	let t8;
+	if ($[13] !== t7) {
+		t8 = t7();
+		$[13] = t7;
+		$[14] = t8;
+	} else t8 = $[14];
+	const meta = t8;
 	const showUsage = evalStatus !== "started";
 	const hasModelUsage = showUsage && !!evalStats?.model_usage && Object.keys(evalStats.model_usage).length > 0;
 	const hasRoleUsage = showUsage && !!evalStats?.role_usage && Object.keys(evalStats.role_usage).length > 0;
-	let t8;
+	let t10;
 	let t9;
 	if ($[15] === Symbol.for("react.memo_cache_sentinel")) {
-		t8 = { width: "100%" };
-		t9 = {
+		t9 = { width: "100%" };
+		t10 = {
 			padding: "0.5em 1em 0 1em",
 			width: "100%",
 			display: "flex",
 			flexDirection: "column",
 			gap: "0.75rem"
 		};
-		$[15] = t8;
+		$[15] = t10;
 		$[16] = t9;
 	} else {
-		t8 = $[15];
+		t10 = $[15];
 		t9 = $[16];
 	}
-	const t10 = hasModelUsage ? evalStats.model_usage : void 0;
-	const t11 = hasRoleUsage ? evalStats.role_usage : void 0;
-	const t12 = evalStats?.connection_limit_history;
-	const t13 = evalStats?.started_at;
-	const t14 = evalStats?.completed_at;
-	const t15 = evalSpec?.model;
-	const t16 = loadedLog ?? void 0;
-	let t17;
-	if ($[17] !== argsByModel || $[18] !== argsByRole || $[19] !== configUpdates || $[20] !== configsByModel || $[21] !== configsByRole || $[22] !== meta || $[23] !== roleAliases || $[24] !== showTimelineForModel || $[25] !== t10 || $[26] !== t11 || $[27] !== t12 || $[28] !== t13 || $[29] !== t14 || $[30] !== t15 || $[31] !== t16) {
-		t17 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-			style: t8,
+	const t11 = hasModelUsage ? evalStats.model_usage : void 0;
+	const t12 = hasRoleUsage ? evalStats.role_usage : void 0;
+	const t13 = evalStats?.connection_limit_history;
+	const t14 = evalStats?.started_at;
+	const t15 = evalStats?.completed_at;
+	const t16 = evalSpec?.model;
+	const t17 = loadedLog ?? void 0;
+	let t18;
+	if ($[17] !== argsByModel || $[18] !== argsByRole || $[19] !== configUpdates || $[20] !== configsByModel || $[21] !== configsByRole || $[22] !== meta || $[23] !== roleAliases || $[24] !== showTimelineForModel || $[25] !== t11 || $[26] !== t12 || $[27] !== t13 || $[28] !== t14 || $[29] !== t15 || $[30] !== t16 || $[31] !== t17) {
+		t18 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			style: t9,
 			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-				style: t9,
+				style: t10,
 				children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(UsagePanel, {
-					model_usage: t10,
-					role_usage: t11,
+					model_usage: t11,
+					role_usage: t12,
 					configs_by_model: configsByModel,
 					configs_by_role: configsByRole,
 					args_by_model: argsByModel,
 					args_by_role: argsByRole,
 					role_aliases: roleAliases,
 					meta,
-					connection_limit_history: t12,
-					started_at: t13,
-					completed_at: t14,
+					connection_limit_history: t13,
+					started_at: t14,
+					completed_at: t15,
 					config_updates: configUpdates,
-					main_model: t15,
-					state_key: t16,
+					main_model: t16,
+					state_key: t17,
 					onViewTimeline: showTimelineForModel
 				})
 			})
@@ -136222,16 +136239,16 @@ var ModelTab = (t0) => {
 		$[22] = meta;
 		$[23] = roleAliases;
 		$[24] = showTimelineForModel;
-		$[25] = t10;
-		$[26] = t11;
-		$[27] = t12;
-		$[28] = t13;
-		$[29] = t14;
-		$[30] = t15;
-		$[31] = t16;
-		$[32] = t17;
-	} else t17 = $[32];
-	return t17;
+		$[25] = t11;
+		$[26] = t12;
+		$[27] = t13;
+		$[28] = t14;
+		$[29] = t15;
+		$[30] = t16;
+		$[31] = t17;
+		$[32] = t18;
+	} else t18 = $[32];
+	return t18;
 };
 function _temp$24(state) {
 	return state.log.loadedLog;
@@ -166089,7 +166106,8 @@ var ModelRolesView_module_default = {
 	if ($[6] !== modelRoles || $[7] !== singleLine || $[8] !== t3) {
 		const modelEls = t3.map((key) => {
 			const role = key;
-			const model = modelRoles[role]?.model;
+			const roleData = modelRoles[role];
+			const model = roleData ? modelRoleModelNames(roleData) : void 0;
 			return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 				className: clsx(singleLine ? ModelRolesView_module_default.grid : void 0, "text-style-secondary", "text-size-smallest"),
 				children: [/*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {

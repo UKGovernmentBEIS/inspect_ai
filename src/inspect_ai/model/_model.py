@@ -18,6 +18,7 @@ from typing import (
     Callable,
     Iterator,
     Literal,
+    Mapping,
     NamedTuple,
     Protocol,
     Sequence,
@@ -2142,6 +2143,8 @@ def get_model(
           at the task or eval level). Provide a `default` as a fallback
           in the case where the `role` hasn't been externally specified.
           Pass `required` to raise an error if the role has not been specified.
+          If the role is bound to a list of models, the first model in the
+          list is returned (use `model_roles()` to access all of them).
        required: If a model role is specified, is it required? If required
           and not present, an error is raised. Otherwise, the current
           default model is returned.
@@ -2171,9 +2174,14 @@ def get_model(
     if model == "none":
         model = "none/none"
 
-    # resolve model role
+    # resolve model role (a role bound to a list of models resolves to the
+    # first model in the list -- callers that want all of the models for a
+    # role should use model_roles() directly)
     if role is not None:
-        model_for_role = model_roles().get(role, None)
+        models_for_role = model_roles().get(role, None)
+        model_for_role = (
+            models_for_role[0] if isinstance(models_for_role, list) else models_for_role
+        )
         if model_for_role is not None:
             if config.model_dump(exclude_none=True):
                 model_for_role = copy(model_for_role)
@@ -2707,21 +2715,38 @@ def active_model() -> Model | None:
     return active_model_context_var.get(None)
 
 
-def init_model_roles(roles: dict[str, Model]) -> None:
+# Mapping (not dict) so that pre-typed user dicts like dict[str, list[str]]
+# type-check — dict is invariant in its value type, Mapping is covariant
+ModelRoles: TypeAlias = Mapping[str, str | Model | Sequence[str | Model]]
+"""Assignment of models to named roles (e.g. the `model_roles` argument to `eval()` or `Task`).
+
+Maps a role name to a model (name or `Model` instance) or to a list of
+models. Assigned roles are looked up with `get_model(role=...)` or
+`model_roles()` (to *reference* a role, e.g. from a scorer, see `ModelRole`).
+"""
+
+
+def init_model_roles(roles: dict[str, Model | list[Model]]) -> None:
     _model_roles.set(roles)
 
 
-def model_roles() -> dict[str, Model]:
+def model_roles() -> dict[str, Model | list[Model]]:
     """Model roles.
 
-    Get the model roles defined for the current task. Call this method only within a running solver or agent execution (it's not available during task construction).
+    Get the model roles defined for the current task. A role maps to a single
+    `Model`, or to a list of models when a list was assigned to the role (e.g.
+    via the `model_roles` argument to `eval()`). Call this method only within a
+    running solver or agent execution (it's not available during task
+    construction).
     """
     return _model_roles.get()
 
 
 active_model_context_var: ContextVar[Model | None] = ContextVar("active_model")
 
-_model_roles: ContextVar[dict[str, Model]] = ContextVar("model_roles", default={})
+_model_roles: ContextVar[dict[str, Model | list[Model]]] = ContextVar(
+    "model_roles", default={}
+)
 
 
 class ModelEventSink(Protocol):
