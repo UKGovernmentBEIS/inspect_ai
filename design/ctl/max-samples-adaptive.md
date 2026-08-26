@@ -117,19 +117,23 @@ eval's single event-loop thread (see AGENTS.md "No speculative locks").
 
 - Widen the knob: `max_samples: int | Literal["clear"] | None`.
 - Apply branch (currently `ResizableLimiter`-only) gains a
-  `DynamicSampleLimiter` arm:
-  - `int` → `previous = semaphore.override` (may be `None`), then
-    `set_override(max_samples)`. Record via the `ConfigValueChange`
-    machinery: `config="eval", name="max_samples", value=N,
-    previous=previous` (skip the record when `previous == N`, matching
-    `_apply_override_knobs` no-op semantics). A `previous` of `None` is
-    already defined as "no prior override — recording layer falls back to
-    the log's launch value", which for an adaptive task is launch
-    `max_samples=None`; that is honest.
-  - `"clear"` → if an override is active, `set_override(None)` and record
-    `ConfigValueChange(config="eval", name="max_samples", cleared=True,
-    previous=old)`; if none is active, record nothing (no-op clear, same as
-    the other override knobs).
+  `DynamicSampleLimiter` arm, implemented as a single-knob call to
+  `_apply_override_knobs` (same file) rather than respelling its contract
+  inline: a one-entry `values` mapping with `get_override`/`set_override`
+  callbacks onto `semaphore.override` / `semaphore.set_override`,
+  `config="eval"`, and the directive's existing `dry_run` / `requested` /
+  `applied` plumbing. The helper already owns exactly the semantics this
+  knob needs — an `int` sets the override, `"clear"` removes it, a set
+  matching the active override and a clear with no override active both
+  record nothing, and a record's `previous=None` means "no prior override"
+  (the recording layer fills it from the log's launch config, which for an
+  adaptive task is launch `max_samples=None`; that is honest). Its
+  docstring gives the rationale for reusing it: these semantics "live here
+  so they cannot drift apart". One behavioral note: on a no-op clear the
+  helper still calls `set_override(None)` — for an unpinned tracking
+  limiter the §1 clear path makes that a harmless re-sync. Only the two
+  warning branches below (static-limiter `clear`, pre-adoption
+  suppression) stay outside the helper.
 - `"clear"` against a static `ResizableLimiter` task warns rather than
   applies: the static path's launch value is a derivation
   (`max_connections` fallback chain in `create_sample_semaphore`), not a
@@ -206,6 +210,14 @@ eval's single event-loop thread (see AGENTS.md "No speculative locks").
   this pins sample concurrency ('clear' resumes tracking the controller)."`
 - Signature/plumbing: `max_samples: int | Literal["clear"] | None` through
   `_run_config` and the request layer (mirror how `time_limit` flows).
+- `_applied_knob_names` currently decides whether `--max-samples` landed
+  from the view's `adjustable` flag alone, and this design breaks that
+  adjustable-implies-applied equivalence in one corner: `clear` against a
+  static-`ResizableLimiter` task warns and applies nothing, yet its view
+  still reports `adjustable: true` — so the no-live-buffer hard error's
+  "other knobs were still applied" tail would name a knob that only
+  warned. Count a `clear` as applied only when the view also shows
+  `tracks_adaptive` (integer sets keep the plain `adjustable` check).
 - Command docstring gains a sentence on pin/clear.
 
 ### 5. `src/inspect_ai/_cli/ctl/_render.py` — human rendering
@@ -219,6 +231,14 @@ adaptive / no limiter). It becomes:
 - adaptive, pinned: `max samples [task]: 8 (8 in use, pinned — 'clear'
   resumes adaptive tracking)`
 - no live limiter (unchanged): `not adjustable (no live sample limiter)`
+
+Note the arm discriminator changes: the current block keys the static arm
+on `adjustable` first, but under the new view the tracking/pinned arms
+also carry `adjustable: true` — a minimal diff that keeps the `adjustable`
+check first and appends arms after it would silently render adaptive tasks
+with the static arm. Branch on `tracks_adaptive` (then `override`) first,
+or make the static arm condition `adjustable` and not `tracks_adaptive`.
+The §7 renderer tests cover this.
 
 Dry-run `→ requested` arrows come from the existing `_target` helper and
 work once the view carries `limit`.
