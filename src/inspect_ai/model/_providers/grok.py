@@ -370,7 +370,12 @@ class GrokAPI(ModelAPI):
         self._batcher = GrokBatcher(
             self._batch_client,
             batch_config,
-            batch_admin_retry_config(self.model_name, config, self.should_retry),
+            batch_admin_retry_config(
+                self.model_name,
+                config,
+                self.should_retry,
+                qualified_model_name=self.qualified_model_name,
+            ),
         )
 
     def is_auth_failure(self, ex: Exception) -> bool:

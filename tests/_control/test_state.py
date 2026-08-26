@@ -83,12 +83,12 @@ def test_completed_and_running_unaffected() -> None:
 
 async def test_summaries_from_missing_log_degrade_to_empty(tmp_path) -> None:
     from inspect_ai._control.eval_state import EvalState
-    from inspect_ai._control.state import _sample_summaries_from_log
+    from inspect_ai._control.state import completed_eval_sample_summaries
 
     state = EvalState(
         eval_id="e1", total=1, log_location=str(tmp_path / "deleted.eval")
     )
-    assert await _sample_summaries_from_log(state) == []
+    assert await completed_eval_sample_summaries(state) == []
     # the empty degradation is never memoized: a deleted log stays a
     # per-request (cheap, failing) read rather than a pinned empty listing
     assert state.log_sample_summaries is None
