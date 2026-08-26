@@ -42,7 +42,6 @@ from anthropic.types import (
     ContentBlockSourceParam,
     DocumentBlockParam,
     ImageBlockParam,
-    InputJSONDelta,
     Message,
     MessageParam,
     OutputConfigParam,
@@ -53,10 +52,8 @@ from anthropic.types import (
     ServerToolUseBlockParam,
     TextBlock,
     TextBlockParam,
-    TextDelta,
     ThinkingBlock,
     ThinkingBlockParam,
-    ThinkingDelta,
     ToolChoiceAnyParam,
     ToolChoiceAutoParam,
     ToolChoiceNoneParam,
@@ -424,7 +421,7 @@ class AnthropicAPI(ModelAPI):
     def initialize(self) -> None:
         super().initialize()
         self.client = self._create_client()
-        self._http_hooks = HttpxHooks(self.client._client)
+        self._http_hooks = HttpxHooks(self.client._client, api=self)
         self._batcher: AnthropicBatcher | None = None
 
     @override
@@ -806,7 +803,10 @@ class AnthropicAPI(ModelAPI):
                     # TODO: In the future, we could pass max_retries and timeout
                     # from batch_config falling back to config
                     batch_admin_retry_config(
-                        self.model_name, config, self.should_retry
+                        self.model_name,
+                        config,
+                        self.should_retry,
+                        qualified_model_name=self.qualified_model_name,
                     ),
                 )
             head_message = await self._batcher.generate_for_request(request)
@@ -4117,13 +4117,17 @@ async def _capture_compaction_from_stream(
                 tool_blocks[event.index] = event.content_block
             report_model_stream_progress()
         elif event.type == "content_block_delta":
-            if isinstance(event.delta, TextDelta):
+            # dispatch on the wire discriminator, not isinstance: the non-beta
+            # RawContentBlockDelta union has no compaction variant, so the SDK
+            # misparses compaction_delta as TextDelta(type="compaction_delta",
+            # text=None) -- an isinstance check would report it as text
+            if event.delta.type == "text_delta":
                 await report_model_stream_delta(StreamTextEvent(text=event.delta.text))
-            elif isinstance(event.delta, ThinkingDelta):
+            elif event.delta.type == "thinking_delta":
                 await report_model_stream_delta(
                     StreamReasoningEvent(reasoning=event.delta.thinking)
                 )
-            elif isinstance(event.delta, InputJSONDelta):
+            elif event.delta.type == "input_json_delta":
                 tool_block = tool_blocks.get(event.index)
                 await report_model_stream_delta(
                     StreamToolCallEvent(
