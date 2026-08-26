@@ -1,6 +1,7 @@
 import importlib
 import os
 import sys
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -275,6 +276,38 @@ def test_local_path_passthrough_non_file() -> None:
     """Non-file:// values are returned untouched, escapes and all."""
     assert local_path("/tmp/plain path.eval") == "/tmp/plain path.eval"
     assert local_path("s3://bucket/key%20name") == "s3://bucket/key%20name"
+
+
+def test_local_path_idempotent() -> None:
+    """Applying local_path twice never double-decodes.
+
+    The first call strips file:// and decodes; its result is a plain path,
+    so a second call is a no-op — a %-containing filename can't be decoded
+    twice by accidental double application.
+    """
+    path = "/tmp/report%20final.eval"
+    once = local_path(to_uri(path))
+    assert local_path(once) == once == path
+
+
+def test_local_path_is_the_only_file_uri_decoder() -> None:
+    """Tripwire: file:// percent-decoding stays centralized in local_path.
+
+    A second decode site consuming log locations would double-decode
+    (%2520 -> %20 -> space). If this fails, either route the new code
+    through local_path()/to_uri() or extend the allowlist deliberately.
+    """
+    src = Path(__file__).parent.parent.parent / "src" / "inspect_ai"
+    allowed = {
+        src / "_util" / "file.py",  # local_path itself
+        src / "_util" / "package.py",  # setuptools direct_url.json, separate domain
+    }
+    offenders = [
+        str(f)
+        for f in src.rglob("*.py")
+        if "url2pathname" in f.read_text(encoding="utf-8") and f not in allowed
+    ]
+    assert offenders == [], f"new file-URI decode sites: {offenders}"
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="Windows drive-path form")
