@@ -84,6 +84,33 @@ async def test_inline_text_document_round_trip() -> None:
     }
 
 
+def test_file_image_source_raises() -> None:
+    with pytest.raises(RuntimeError, match="Unsupported image source type: file"):
+        content_block_to_content(
+            cast(
+                Any,
+                {"type": "image", "source": {"type": "file", "file_id": "file_123"}},
+            )
+        )
+
+
+def test_file_document_source_raises() -> None:
+    with pytest.raises(RuntimeError, match="Unsupported document source type: file"):
+        content_block_to_content(
+            cast(
+                Any,
+                {"type": "document", "source": {"type": "file", "file_id": "file_123"}},
+            )
+        )
+
+
+def test_browser_state_block_raises() -> None:
+    with pytest.raises(
+        RuntimeError, match="Unsupported content block type: browser_state"
+    ):
+        content_block_to_content(cast(Any, {"type": "browser_state"}))
+
+
 def test_anthropic_system_to_text() -> None:
     assert anthropic_system_to_text("plain") == "plain"
     assert (
