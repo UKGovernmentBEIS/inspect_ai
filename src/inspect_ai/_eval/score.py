@@ -493,7 +493,7 @@ async def _run_score_task(
     sample: EvalSample,
     scorers: list[Scorer],
     model: Model,
-    model_roles: dict[str, Model],
+    model_roles: dict[str, Model | list[Model]],
     action: ScoreAction,
 ) -> Tuple[dict[str, SampleScore], list[str]]:
     state, target, resolved_sample = task_state_from_sample(
