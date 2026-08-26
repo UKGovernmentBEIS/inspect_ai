@@ -150,6 +150,25 @@ def test_parse_model_role_cli_args_without_model_args():
     assert result["critic"].config.temperature == 0.3
 
 
+def test_parse_model_role_cli_args_accepts_provider_args_in_model_args() -> None:
+    """Provider-specific role args must live under model_args."""
+    result = parse_model_role_cli_args(
+        ("grader={model: none/none, model_args: {base_url: http://gpu2:8000/v1}}",)
+    )
+
+    assert "grader" in result
+    assert isinstance(result["grader"], Model)
+    assert result["grader"].api.base_url == "http://gpu2:8000/v1"
+
+
+def test_parse_model_role_cli_args_rejects_provider_args_at_top_level() -> None:
+    """Top-level role keys are GenerateConfig fields, not provider args."""
+    with pytest.raises(ValueError, match="Invalid config"):
+        parse_model_role_cli_args(
+            ("grader={model: none/none, base_url: http://gpu2:8000/v1}",)
+        )
+
+
 def test_parse_no_model_role_cli_args():
     assert parse_model_role_cli_args(None) == {}
 

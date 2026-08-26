@@ -320,11 +320,11 @@ def _model_graded_qa_single(
             )
         else:
             return Score.unscored(
+                reason="grader_failed",
                 answer=state.output.completion,
                 explanation="Grade not found in model output: "
                 + f"{result.completion}",
                 metadata=dict(
-                    unscored_reason="grade_parse_failure",
                     grading=[
                         scoring_prompt,
                         result.message,

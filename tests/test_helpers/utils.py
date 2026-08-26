@@ -161,6 +161,17 @@ def with_timeout(
     return decorator
 
 
+def setenv_if_unset(name: str, value: str) -> None:
+    """Set an environment variable unless it already has a non-empty value.
+
+    Unlike `os.environ.setdefault`, this also overrides empty values: CI
+    environments sometimes export variables set to "" (e.g. AWS_REGION), and
+    an empty region makes anthropic >= 1.0 Bedrock client construction fail.
+    """
+    if not os.environ.get(name):
+        os.environ[name] = value
+
+
 def skip_if_env_var(var: str, exists=True):
     """
     Pytest mark to skip the test if the var environment variable is not defined.

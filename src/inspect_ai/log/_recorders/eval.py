@@ -404,7 +404,9 @@ class EvalRecorder(FileRecorder):
                     None,
                 )
                 if sample is None:
-                    raise ValueError(f"Sample with uuid '{uuid}' not found in log.")
+                    raise IndexError(
+                        f"Sample with uuid '{uuid}' not found in log {location}"
+                    )
                 id = sample.id
                 epoch = sample.epoch
 
