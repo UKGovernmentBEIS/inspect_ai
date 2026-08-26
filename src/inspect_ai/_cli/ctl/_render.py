@@ -410,6 +410,56 @@ def _message_summary(m: dict[str, Any]) -> str:
     return _truncate("  ".join(p for p in parts if p), 100)
 
 
+def _print_store(page: dict[str, Any], *, content: bool, full: bool) -> None:
+    """Render a store snapshot (per-key rows) plus a count footer.
+
+    The table is ``key | type | size [| value]`` per the design
+    (design/ctl/sample-store.md); ``--full`` pretty-prints the raw values.
+    The footer distinguishes an empty store from a filter that matched
+    nothing (``count`` is always the whole store's key count), and a
+    ``missing`` line names requested exact keys not present.
+    """
+    store = page.get("store") or {}
+    count = int(page.get("count") or 0)
+    status = page.get("status")
+
+    if full:
+        # Raw mode is for machine consumption; the human rendering is the
+        # compact projection, so just pretty-print the raw values.
+        _echo_raw(json_lib.dumps(store, indent=2))
+    elif not store:
+        _echo("(store is empty)" if count == 0 else "(no matching keys)")
+    else:
+        rows: list[tuple[str, ...]] = []
+        for key, projected in store.items():
+            projected = projected if isinstance(projected, dict) else {}
+            row: tuple[str, ...] = (
+                str(key),
+                str(projected.get("type", "") or ""),
+                str(projected.get("size", "") or ""),
+            )
+            if content:
+                # clamp client-side like the sibling tables (the server
+                # preview can be 256 chars, which would blow out the padded
+                # table width); the full preview remains available via --json
+                row += (_truncate(str(projected.get("value", "") or ""), 100),)
+            rows.append(row)
+        headers = ("key", "type", "size") + (("value",) if content else ())
+        _render_table(headers, rows)
+
+    shown = len(store)
+    footer = f"{shown} of {count} key" + ("" if count == 1 else "s")
+    if status:
+        footer += f"  ·  {_sanitize_line(str(status))}"
+    if not full and not content:
+        footer += "  ·  metadata only (pass --content for values)"
+    _echo()
+    _echo(footer)
+    missing = page.get("missing") or []
+    if missing:
+        _echo("missing: " + ", ".join(_sanitize_line(str(key)) for key in missing))
+
+
 def _event_summary(e: dict[str, Any]) -> str:
     """One-line summary for an event row (best-effort over compact fields).
 
