@@ -525,3 +525,29 @@ def test_strategy_applies_to_sandbox_absent_from_winning_paths() -> None:
     assert out.sandbox_paths == {"other": ["/x"]}
     assert out.sandbox_strategy_config("default") == ArchiveSnapshots()
     assert out.sandbox_strategy_config("other") == ResticSnapshots()
+
+
+def test_strategy_selection_survives_json_round_trip() -> None:
+    """The strategy union must not collapse when serialized and re-read.
+
+    The strategy configs are otherwise field-less, so without the `name`
+    discriminator both would serialize to `{}` and every pydantic JSON
+    round-trip (log recovery, retry-from-log, the viewer) would validate
+    back to the first union member, silently converting an explicit
+    archive selection into restic.
+    """
+    for strategy_type in (ArchiveSnapshots, ResticSnapshots):
+        sample = Sample(
+            input="x",
+            checkpoint=CheckpointSampleConfig(
+                sandbox_paths={
+                    "default": SandboxSnapshotConfig(strategy=strategy_type())
+                }
+            ),
+        )
+        back = Sample.model_validate_json(sample.model_dump_json())
+        assert back.checkpoint is not None
+        assert back.checkpoint.sandbox_paths is not None
+        value = back.checkpoint.sandbox_paths["default"]
+        assert isinstance(value, SandboxSnapshotConfig)
+        assert type(value.strategy) is strategy_type
