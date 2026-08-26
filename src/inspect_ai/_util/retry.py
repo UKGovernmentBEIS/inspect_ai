@@ -12,6 +12,7 @@ _http_retries_count: int = 0
 def report_http_retry(
     kind: Literal["rate_limit", "transient"] = "transient",
     retry_after: float | None = None,
+    model: str | None = None,
 ) -> None:
     """Report an HTTP retry event.
 
@@ -19,6 +20,12 @@ def report_http_retry(
     the adaptive controller to scale down. `kind="transient"` (default —
     5xx, timeouts, network errors) only marks the request as retried,
     pausing scale-up but not triggering a cut.
+
+    `model` is the qualified `provider/model` name (NOT the bare provider
+    model name — see the key discipline in `design/model-throughput.md`);
+    when set, the retry is additionally attributed to that model in the
+    per-model throughput registry. Call sites without model context (e.g.
+    non-model traffic) leave it None and count only toward the global scalar.
     """
     from inspect_ai.log._samples import report_active_sample_retry
     from inspect_ai.util._concurrency import _active_controller, _request_had_retry
@@ -26,6 +33,12 @@ def report_http_retry(
     # bump global counter
     global _http_retries_count
     _http_retries_count = _http_retries_count + 1
+
+    # attribute to the model's throughput registry when the caller knows it
+    if model is not None:
+        from inspect_ai.model._throughput import record_retry
+
+        record_retry(model, kind)
 
     # report sample retry
     report_active_sample_retry()
