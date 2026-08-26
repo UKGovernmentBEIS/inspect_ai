@@ -46,12 +46,22 @@ class _IntOrClearType(_IntOrClearBase):
 
     name = "integer or 'clear'"
 
-    def __init__(self, minimum: int = 0, bounded: bool = True) -> None:
+    def __init__(
+        self,
+        minimum: int = 0,
+        bounded: bool = True,
+        clear_hint: str = "restore launch config",
+    ) -> None:
         self._minimum = minimum
         # bounded = enforce the shared MAX_GENERATE_CONFIG_OVERRIDE ceiling
         # (resolved lazily at convert time); False for a knob with no upper
         # bound
         self._bounded = bounded
+        # clear_hint = what 'clear' does for this knob, spliced into the
+        # negative-value error; the default fits the override knobs, while
+        # --max-samples clears to adaptive tracking (and is rejected outright
+        # for static-setpoint tasks, so "restore launch config" would mislead)
+        self._clear_hint = clear_hint
 
     def convert(
         self, value: Any, param: click.Parameter | None, ctx: click.Context | None
@@ -72,7 +82,7 @@ class _IntOrClearType(_IntOrClearBase):
         if parsed < self._minimum:
             if parsed < 0:
                 self.fail(
-                    f"{parsed} is negative (pass 'clear' to restore launch config).",
+                    f"{parsed} is negative (pass 'clear' to {self._clear_hint}).",
                     param,
                     ctx,
                 )
@@ -96,7 +106,9 @@ _INT_OR_CLEAR = _IntOrClearType()
 # --max-samples: a concurrency setpoint, not an override-store value — 0 is
 # invalid (a CapacityLimiter needs >= 1) and there is no upper bound (matching
 # the launch-time knob). See design/ctl/max-samples-adaptive.md "Bounds".
-_MIN1_INT_OR_CLEAR = _IntOrClearType(minimum=1, bounded=False)
+_MIN1_INT_OR_CLEAR = _IntOrClearType(
+    minimum=1, bounded=False, clear_hint="resume adaptive tracking"
+)
 
 
 class _NounGroup(click.Group):

@@ -3790,6 +3790,8 @@ def test_config_retry_overrides_accept_clear_keyword(
     result = cli_runner().invoke(ctl_command, ["config", "--timeout=-5"])
     assert result.exit_code == 2
     assert "negative" in result.stderr
+    # override knobs: 'clear' really does restore launch config
+    assert "restore launch config" in result.stderr
 
     # over the shared value bound -> click usage error, no request made
     from inspect_ai.model._generate_overrides import MAX_GENERATE_CONFIG_OVERRIDE
@@ -3831,6 +3833,9 @@ def test_config_max_samples_accepts_clear_and_rejects_zero(
     result = cli_runner().invoke(ctl_command, ["config", "--max-samples=-5"])
     assert result.exit_code == 2
     assert "negative" in result.stderr
+    # not the override knobs' "restore launch config": for this knob 'clear'
+    # only unpins an adaptive task (a static task rejects it outright)
+    assert "resume adaptive tracking" in result.stderr
 
     result = cli_runner().invoke(ctl_command, ["config", "--max-samples", "lots"])
     assert result.exit_code == 2
