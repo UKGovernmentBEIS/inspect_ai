@@ -48,6 +48,7 @@ from inspect_ai._cli.ctl._render import (
 )
 from inspect_ai._cli.ctl._sample import _REQUEUE_ROUTE_MISSING
 from inspect_ai._control.discovery import DiscoveredControlServer
+from inspect_ai._control.views import ProcessConfigView, TaskConfigView
 
 
 def _summary(task_id: str, task: str) -> dict[str, str]:
@@ -1279,8 +1280,10 @@ def _stub_httpx(
 
     Each item is either an ``Exception`` to raise (e.g. a ``TimeoutException``),
     a payload to return from ``response.json()``, or a ``(status_code, payload)``
-    tuple for a non-200 response. Returns a dict whose ``"gets"`` entry counts
-    how many requests were attempted.
+    tuple for a non-200 response. A ``str`` payload is a raw response body:
+    ``json()`` parses it, so plain text raises as it would from real httpx.
+    Returns a dict whose ``"gets"`` entry counts how many requests were
+    attempted.
 
     Both the sync and async clients are stubbed: reads go out over the async
     client, while a non-idempotent mutation still takes the sync path.
@@ -1317,6 +1320,11 @@ def _stub_httpx(
                 )
 
         def json(self) -> object:
+            # faithful to httpx: a str payload is a raw body to be parsed, so
+            # plain text (e.g. uvicorn's connection-limit rejection) raises
+            # JSONDecodeError (a ValueError) just as a real response would
+            if isinstance(self._payload, str):
+                return json.loads(self._payload)
             return self._payload
 
     count_key = {"get": "gets", "post": "posts", "patch": "patches"}
@@ -1464,7 +1472,8 @@ def test_config_read_retries_timeout_then_succeeds(
 
     from inspect_ai._cli.ctl._config import _exec_limits
 
-    view = {"max_samples": {"adjustable": False}, "buffer": None}
+    # deliberately partial (this exercises transport retry, not shape)
+    view: dict[str, Any] = {"max_samples": {"adjustable": False}, "buffer": None}
     counter = _stub_httpx(
         monkeypatch,
         [httpx.ReadTimeout("slow"), httpx.ReadTimeout("slow"), view],
@@ -1538,6 +1547,188 @@ async def test_get_with_retry_busy_raises_without_terminal_echo(
     assert err.count("retrying") == 1
     assert "attempt 2/2" in err
     assert "gave up" not in err
+
+
+async def test_get_with_retry_retries_503_then_succeeds(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A 503 — the server's connection-limit backstop — retries like a timeout.
+
+    The server rejects over-cap connections with an instant 503 (uvicorn
+    ``limit_concurrency``): the process is alive but saturated, so the read
+    must narrate-and-retry (busy semantics) rather than fail as unreachable.
+    """
+    from inspect_ai._cli.ctl import _http
+    from inspect_ai._cli.ctl._http import _get_with_retry_async
+
+    monkeypatch.setattr(_http, "_REJECTED_RETRY_DELAY", 0)
+    counter = _stub_httpx(
+        monkeypatch, [(503, "Service Unavailable"), [{"task_id": "a"}]]
+    )
+    result = await _get_with_retry_async("/tmp/x.sock", "/tasks", what="Reading tasks")
+    assert result == [{"task_id": "a"}]
+    assert counter["gets"] == 2
+    err = capsys.readouterr().err
+    assert "concurrent-connection limit" in err
+    assert "retrying" in err
+
+
+async def test_get_with_retry_503_exhausts_with_rejection_wording(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """All-503 exhaustion reports the connection-limit cause, not the timeout one."""
+    from inspect_ai._cli.ctl import _http
+    from inspect_ai._cli.ctl._http import _REQUEST_ATTEMPTS, _get_with_retry_async
+
+    monkeypatch.setattr(_http, "_REJECTED_RETRY_DELAY", 0)
+    counter = _stub_httpx(
+        monkeypatch, [(503, "Service Unavailable")] * _REQUEST_ATTEMPTS
+    )
+    with pytest.raises(click.exceptions.Exit) as exc_info:
+        await _get_with_retry_async(
+            "/tmp/x.sock", "/tasks", what="Reading tasks", pid=7
+        )
+    assert exc_info.value.exit_code == 1
+    assert counter["gets"] == _REQUEST_ATTEMPTS
+    err = capsys.readouterr().err
+    assert f"gave up after {_REQUEST_ATTEMPTS} attempts" in err
+    assert "concurrent-connection limit" in err
+    # a rejection answers instantly — the terminal line must not claim the
+    # attempts each waited out the timeout
+    assert "15s each" not in err
+    assert "inspect ctl process anomalies 7" in err
+
+
+async def test_get_with_retry_503_raises_busy_with_rejection_cause(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Under raise_on_busy an all-503 read raises _ServerBusy with the cause."""
+    from inspect_ai._cli.ctl import _http
+    from inspect_ai._cli.ctl._http import _get_with_retry_async, _ServerBusy
+
+    monkeypatch.setattr(_http, "_REJECTED_RETRY_DELAY", 0)
+    counter = _stub_httpx(monkeypatch, [(503, "Service Unavailable")] * 2)
+    with pytest.raises(_ServerBusy) as exc_info:
+        await _get_with_retry_async(
+            "/tmp/x.sock",
+            "/tasks",
+            what="Reading tasks",
+            raise_on_busy=True,
+            attempts=2,
+        )
+    assert counter["gets"] == 2
+    assert exc_info.value.busy_cause == _http._REJECTED_PROBLEM
+    assert "concurrent-connection limit" in str(exc_info.value)
+
+
+async def test_get_with_retry_mixed_exhaustion_names_both_causes(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A mixed timeout/503 exhaustion must not claim a single false cause.
+
+    Attempts that hit both failure kinds used to be worded from the final
+    attempt alone — e.g. seven instant rejections then a timeout claimed
+    every attempt waited out the 15s timeout. The terminal error must name
+    both counts.
+    """
+    import httpx
+
+    from inspect_ai._cli.ctl import _http
+    from inspect_ai._cli.ctl._http import _REQUEST_ATTEMPTS, _get_with_retry_async
+
+    monkeypatch.setattr(_http, "_REJECTED_RETRY_DELAY", 0)
+    _stub_httpx(
+        monkeypatch,
+        [httpx.ReadTimeout("slow")]
+        + [(503, "Service Unavailable")] * (_REQUEST_ATTEMPTS - 1),
+    )
+    with pytest.raises(click.exceptions.Exit):
+        await _get_with_retry_async("/tmp/x.sock", "/tasks", what="Reading tasks")
+    err = capsys.readouterr().err
+    assert (
+        f"1 timed out and {_REQUEST_ATTEMPTS - 1} hit the server's "
+        "concurrent-connection limit" in err
+    )
+
+
+@pytest.mark.parametrize(
+    "body",
+    [{"error": "component not ready"}, {"detail": "component not ready"}],
+    ids=["error-convention", "fastapi-http-exception"],
+)
+async def test_get_with_retry_passes_handler_503_through(
+    monkeypatch: pytest.MonkeyPatch,
+    body: dict[str, str],
+) -> None:
+    """A 503 carrying any JSON dict body is a handler's, not the cap's.
+
+    No control endpoint returns 503 today, but uvicorn's connection-limit
+    rejection is always plain text — so a JSON dict body, whether the
+    server's ``{"error": ...}`` convention or FastAPI's stock
+    ``{"detail": ...}`` from ``HTTPException``, must reach the caller
+    (here: non-2xx → unreachable) rather than be consumed and retried as
+    a capacity rejection.
+    """
+    from inspect_ai._cli.ctl._http import _get_with_retry_async, _ServerUnreachable
+
+    counter = _stub_httpx(monkeypatch, [(503, body)])
+    with pytest.raises(_ServerUnreachable):
+        await _get_with_retry_async("/tmp/x.sock", "/tasks", what="Reading tasks")
+    assert counter["gets"] == 1  # not retried as a capacity rejection
+
+
+def test_busy_narrator_dedups_per_attempt_and_problem(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A shared narrator collapses same-cause repeats but not differing causes.
+
+    503 rejections pace differently from timeouts, so a fast-rejected target
+    reaching an attempt number first must not silence a slower sibling's
+    timeout narration for the same attempt (and vice versa).
+    """
+    from inspect_ai._cli.ctl._http import _REJECTED_PROBLEM, _BusyNarrator
+
+    narrator = _BusyNarrator("Reading tasks from 2 processes")
+    narrator.narrate(1, 8, _REJECTED_PROBLEM)  # fast-rejected target
+    narrator.narrate(1, 8)  # slower timing-out sibling, same attempt number
+    narrator.narrate(1, 8, _REJECTED_PROBLEM)  # repeat: collapsed
+    narrator.narrate(1, 8)  # repeat: collapsed
+    err = capsys.readouterr().err
+    assert err.count("concurrent-connection limit") == 1
+    assert err.count("no response after") == 1
+
+
+def test_mutation_503_fails_busy_without_retry(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A single-shot mutation hitting the connection-limit 503 exits as busy.
+
+    The rejection happens before any handler runs, so the mutation was not
+    applied; the failure must say "try again shortly" (busy) rather than
+    surface a bare HTTP 503, and must still not auto-retry (the retry
+    decision stays with the caller, as for every non-idempotent mutation).
+    """
+    from inspect_ai._cli.ctl._config import _exec_limits
+    from inspect_ai._cli.ctl._failure import _CtlFailure
+
+    counter = _stub_httpx(monkeypatch, [(503, "Service Unavailable")])
+    with pytest.raises(_CtlFailure) as exc_info:
+        _exec_limits(
+            "/tmp/x.sock",
+            "t1",
+            max_samples=None,
+            max_sandboxes=None,
+            max_connections=None,
+            model=None,
+            log_buffer=3,
+            dry_run=False,
+        )
+    assert exc_info.value.exit_code == 1
+    assert exc_info.value.kind == "busy"
+    assert counter["patches"] == 1  # tried once, no retry
+    err = capsys.readouterr().err
+    assert "concurrent-connection limit" in err
+    assert "try again shortly" in err
 
 
 def test_fetch_summaries_busy_server_skipped_when_degradable(
@@ -2041,6 +2232,25 @@ def test_task_list_json_carries_no_footer_hints(
     assert result.exit_code == 0, result.output
     payload = json.loads(result.stdout)
     assert payload["tasks"][0]["samples"]["errored"] == 2
+
+
+def test_removed_flat_aliases_fail_as_unknown_commands() -> None:
+    """The pre-reorg flat spellings are gone and must not creep back."""
+    runner = cli_runner()
+    for name in [
+        "tasks",
+        "samples",
+        "errors",
+        "events",
+        "limits",
+        "flush",
+        "buffer",
+        "keep",
+        "release",
+    ]:
+        result = runner.invoke(ctl_command, [name])
+        assert result.exit_code != 0, name
+        assert f"No such command '{name}'" in result.stderr, name
 
 
 def test_sample_selector_in_verb_slot_teaches() -> None:
@@ -3074,16 +3284,18 @@ def _stub_limits(
         # derive from the canonical knob table so a future knob can't be
         # missed here (which would misreport its sets as mutated=False)
         knobs = _KNOB_SCOPE.keys()
+        # typed as the real envelope so shape drift fails mypy
+        view: TaskConfigView = {
+            "max_samples": {"limit": 3, "in_use": 1, "adjustable": True},
+            "max_sandboxes": [],
+            "adaptive": [],
+            "buffer": buffer,
+            "requested": None,
+            "warnings": [],
+            "dry_run": False,
+        }
         return _ConfigResult(
-            view={
-                "max_samples": {"limit": 3, "in_use": 1, "adjustable": True},
-                "max_sandboxes": [],
-                "adaptive": [],
-                "buffer": buffer,
-                "requested": None,
-                "warnings": [],
-                "dry_run": False,
-            },
+            view=view,
             mutated=any(kwargs.get(k) is not None for k in knobs),
         )
 
@@ -3292,7 +3504,14 @@ def test_config_help_sketches_compose_config_keys() -> None:
     scope = _DirectiveScope(
         socket_path="sock", pid=1, task_id=None, task=None, header="", siblings=0
     )
-    view = _compose_config(scope, {}, dry_run=False, set_values=False, notes=[])
+    empty_view: ProcessConfigView = {
+        "dry_run": False,
+        "max_sandboxes": [],
+        "adaptive": [],
+        "requested": None,
+        "warnings": [],
+    }
+    view = _compose_config(scope, empty_view, dry_run=False, set_values=False, notes=[])
     option = next(
         p
         for p in config_command.params
@@ -3511,6 +3730,7 @@ def test_config_provenance_sent_with_mutations_on_current_server(
                 "max_samples": {"limit": 3, "in_use": 1, "adjustable": True},
                 "max_sandboxes": [],
                 "adaptive": [],
+                "buffer": None,
                 "requested": {"max_samples": 3},
                 "warnings": [],
                 "dry_run": False,
@@ -3569,6 +3789,7 @@ def test_config_provenance_gated_on_older_server(
                 "max_samples": {"limit": 3, "in_use": 1, "adjustable": True},
                 "max_sandboxes": [],
                 "adaptive": [],
+                "buffer": None,
                 "requested": {"max_samples": 3},
                 "warnings": [],
                 "dry_run": False,
@@ -3625,6 +3846,7 @@ def test_config_provenance_requires_set_option(
                 "max_samples": {"limit": 3, "in_use": 1, "adjustable": True},
                 "max_sandboxes": [],
                 "adaptive": [],
+                "buffer": None,
                 "requested": {},
                 "warnings": [],
                 "dry_run": False,
@@ -3678,6 +3900,7 @@ def test_config_provenance_rides_key_only_retune(
                 "concurrency": [
                     {"name": "my_api", "limit": 2, "in_use": 0, "adjustable": True}
                 ],
+                "buffer": None,
                 "requested": {"concurrency:my_api": 2},
                 "warnings": [],
                 "dry_run": False,
@@ -3817,6 +4040,188 @@ def test_config_retry_overrides_accept_clear_keyword(
     )
     assert result.exit_code == 2
     assert "maximum override value" in result.stderr
+
+
+def test_config_max_tasks_wiring_and_floor(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`--max-tasks` sends the value (or `clear`) and enforces the CLI floor of 1."""
+    from inspect_ai._control import CONTROL_API_VERSION
+
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        servers=[_DiscServer(7, api_version=CONTROL_API_VERSION)],
+    )
+    sent: dict[str, Any] = {}
+
+    def fake_limits(*args: Any, **kwargs: Any) -> _ConfigResult:
+        sent.update(kwargs)
+        return _ConfigResult(
+            view={
+                "max_samples": {"limit": 3, "in_use": 1, "adjustable": True},
+                "max_tasks": {
+                    "limit": 25,
+                    "launch": 10,
+                    "override": 25,
+                    "in_flight": 10,
+                    "pending": 30,
+                    "adjustable": True,
+                },
+                "max_sandboxes": [],
+                "adaptive": [],
+                "buffer": {"log_buffer": 10, "pending": 0, "log_shared": None},
+                "requested": {"max_tasks": 25},
+                "warnings": [],
+                "dry_run": False,
+            },
+            mutated=True,
+        )
+
+    monkeypatch.setattr("inspect_ai._cli.ctl._config._exec_limits", fake_limits)
+    result = cli_runner().invoke(ctl_command, ["config", "--max-tasks", "25", "--json"])
+    assert result.exit_code == 0, result.output
+    assert sent["max_tasks"] == 25
+    payload = json.loads(result.stdout)
+    assert payload["applied"] is True
+    assert payload["knobs"]["max_tasks"] == {
+        "scope": "process",
+        "limit": 25,
+        "launch": 10,
+        "override": 25,
+        "in_flight": 10,
+        "pending": 30,
+        "adjustable": True,
+    }
+
+    # the human rendering carries the counters and the launch value
+    human = cli_runner().invoke(
+        ctl_command, ["config", "--max-tasks", "25", "--no-terse"]
+    )
+    assert human.exit_code == 0, human.output
+    assert "max tasks [process]" in human.output
+    assert "25 (10 in flight, 30 pending) (override; launch: 10)" in human.output
+
+    result = cli_runner().invoke(
+        ctl_command, ["config", "--max-tasks", "clear", "--json"]
+    )
+    assert result.exit_code == 0, result.output
+    assert sent["max_tasks"] == "clear"
+
+    # 0 is a disguised pause — rejected client-side (`process pause` is the
+    # real spelling), like the server's floor
+    result = cli_runner().invoke(ctl_command, ["config", "--max-tasks", "0"])
+    assert result.exit_code == 2
+    assert "less than 1" in result.stderr
+
+    result = cli_runner().invoke(ctl_command, ["config", "--max-tasks", "soon"])
+    assert result.exit_code == 2
+    assert "is not an integer or 'clear'" in result.stderr
+
+
+def test_config_max_tasks_renders_no_dispatcher_window(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With no live dispatcher the human view says the set still applies later."""
+    from inspect_ai._control import CONTROL_API_VERSION
+
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        servers=[_DiscServer(7, api_version=CONTROL_API_VERSION)],
+    )
+
+    def fake_limits(*args: Any, **kwargs: Any) -> _ConfigResult:
+        return _ConfigResult(
+            view={
+                "max_samples": {"limit": 3, "in_use": 1, "adjustable": True},
+                "max_tasks": {
+                    "limit": 25,
+                    "launch": None,
+                    "override": 25,
+                    "in_flight": None,
+                    "pending": None,
+                    "adjustable": True,
+                },
+                "max_sandboxes": [],
+                "adaptive": [],
+                "buffer": {"log_buffer": 10, "pending": 0, "log_shared": None},
+                "requested": {"max_tasks": 25},
+                "warnings": [],
+                "dry_run": False,
+            },
+            mutated=True,
+        )
+
+    monkeypatch.setattr("inspect_ai._cli.ctl._config._exec_limits", fake_limits)
+    human = cli_runner().invoke(
+        ctl_command, ["config", "--max-tasks", "25", "--no-terse"]
+    )
+    assert human.exit_code == 0, human.output
+    assert "25 (override)" in human.output
+    assert "no task dispatcher is live" in human.output
+    assert "applies to task dispatch later in this run" in human.output
+
+
+def test_config_max_tasks_dry_run_clear_arrow_tracks_override(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A dry-run `clear` renders an arrow only when an override is in effect."""
+    from inspect_ai._control import CONTROL_API_VERSION
+
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        servers=[_DiscServer(7, api_version=CONTROL_API_VERSION)],
+    )
+
+    def make_fake_limits(override: int | None) -> Any:
+        def fake_limits(*args: Any, **kwargs: Any) -> _ConfigResult:
+            return _ConfigResult(
+                view={
+                    "max_samples": {"limit": 3, "in_use": 1, "adjustable": True},
+                    "max_tasks": {
+                        "limit": override if override is not None else 10,
+                        "launch": 10,
+                        "override": override,
+                        "in_flight": 4,
+                        "pending": 6,
+                        "adjustable": True,
+                    },
+                    "max_sandboxes": [],
+                    "adaptive": [],
+                    "buffer": {"log_buffer": 10, "pending": 0, "log_shared": None},
+                    "requested": {"max_tasks": "clear"},
+                    "warnings": [],
+                    "dry_run": True,
+                },
+                mutated=True,
+            )
+
+        return fake_limits
+
+    # no override in effect: `clear` is a no-op, so no arrow (matches the
+    # retry knobs' rendering of the same case)
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl._config._exec_limits", make_fake_limits(None)
+    )
+    human = cli_runner().invoke(
+        ctl_command, ["config", "--max-tasks", "clear", "--dry-run", "--no-terse"]
+    )
+    assert human.exit_code == 0, human.output
+    assert "10 (4 in flight, 6 pending)" in human.output
+    assert "→" not in human.output
+
+    # override in effect: the arrow shows the reversion to launch config
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl._config._exec_limits", make_fake_limits(25)
+    )
+    human = cli_runner().invoke(
+        ctl_command, ["config", "--max-tasks", "clear", "--dry-run", "--no-terse"]
+    )
+    assert human.exit_code == 0, human.output
+    assert (
+        "25 → launch config (4 in flight, 6 pending) (override; launch: 10)"
+        in human.output
+    )
 
 
 def test_discovery_api_version_parsed_with_bootstrap_default(
@@ -4404,8 +4809,16 @@ def test_compose_config_labels_every_knob_with_scope() -> None:
         header="h",
         siblings=3,
     )
-    limits_view = {
+    limits_view: TaskConfigView = {
         "max_samples": {"limit": 3, "in_use": 1, "adjustable": True},
+        "max_tasks": {
+            "limit": 10,
+            "launch": 10,
+            "override": None,
+            "in_flight": 4,
+            "pending": 6,
+            "adjustable": True,
+        },
         "max_sandboxes": [{"type": "docker", "limit": 4, "in_use": 2}],
         "max_subprocesses": {"limit": 8, "in_use": 1},
         "adaptive": [],
@@ -4423,6 +4836,8 @@ def test_compose_config_labels_every_knob_with_scope() -> None:
     )
     assert config["target"] == {"scope": "task", "task_id": "t1", "task": "tn"}
     assert config["knobs"]["max_samples"]["scope"] == "task"
+    assert config["knobs"]["max_tasks"]["scope"] == "process"
+    assert config["knobs"]["max_tasks"]["limit"] == 10
     assert config["knobs"]["max_sandboxes"]["scope"] == "process"
     assert config["knobs"]["max_subprocesses"] == {
         "scope": "process",
@@ -4450,7 +4865,7 @@ def test_compose_config_process_scope_dry_run() -> None:
         header="process · 2 tasks",
         siblings=2,
     )
-    limits_view = {
+    limits_view: ProcessConfigView = {
         "max_sandboxes": [],
         "adaptive": [],
         "requested": {"max_connections": 9},
@@ -5310,6 +5725,156 @@ def test_sample_cancel_rejects_unknown_action() -> None:
     )
     assert result.exit_code == 2
     assert "explode" in result.stderr
+
+
+def test_sample_cancel_tool_call_sends_params(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    summary = _full_summary("aaa111", "t1")
+    summary["epochs"] = 1
+    _patch_surface(monkeypatch, [summary])
+    spy = _RequestSpy(
+        {
+            "ok": True,
+            "sample_id": "s1",
+            "epoch": 1,
+            "changed": True,
+            "tool_call_id": "tc1",
+            "function": "bash",
+        }
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
+    result = cli_runner().invoke(
+        ctl_command,
+        [
+            "sample",
+            "cancel-tool-call",
+            "aaa111",
+            "s1",
+            "--tool-call-id",
+            "tc1",
+            "--json",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert spy.paths == ["/evals/eval_aaa111/sample/cancel-tool-call"]
+    assert spy.params == [{"sample_id": "s1", "epoch": 1, "tool_call_id": "tc1"}]
+    payload = json.loads(result.stdout)
+    assert payload["target"]["sample_id"] == "s1"
+    assert payload["applied"] is True
+    assert payload["detail"]["tool_call_id"] == "tc1"
+
+    # without --tool-call-id the param is omitted (server-side sole-pending
+    # fallback), not sent as an empty value
+    ok = cli_runner().invoke(
+        ctl_command, ["sample", "cancel-tool-call", "aaa111", "s1", "--json"]
+    )
+    assert ok.exit_code == 0, ok.output
+    assert spy.params[-1] == {"sample_id": "s1", "epoch": 1}
+
+
+def test_sample_cancel_tool_call_requires_epoch_when_multi_epoch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A defaulted epoch on a multi-epoch task resolves to a different sample."""
+    summary = _full_summary("aaa111", "t1")
+    summary["epochs"] = 3
+    _patch_surface(monkeypatch, [summary])
+    spy = _RequestSpy({"ok": True, "changed": True})
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "cancel-tool-call", "aaa111", "s1"]
+    )
+    assert result.exit_code == 1
+    assert "pass EPOCH explicitly" in result.stderr
+    assert spy.paths == []  # nothing was sent
+
+    # ...and an explicit epoch goes through
+    ok = cli_runner().invoke(
+        ctl_command, ["sample", "cancel-tool-call", "aaa111", "s1", "2"]
+    )
+    assert ok.exit_code == 0, ok.output
+    assert spy.params == [{"sample_id": "s1", "epoch": 2}]
+
+
+def test_sample_cancel_tool_call_human_output_sanitizes_tokens(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Tool-call ids/functions are model-generated — no forged lines.
+
+    The changed message interpolates the id and function from the wire; a
+    newline smuggled into either must flatten rather than print a line of
+    its own at column 0. The no-op path's pending listing is likewise
+    flattened.
+    """
+    summary = _full_summary("aaa111", "t1")
+    summary["epochs"] = 1
+    _patch_surface(monkeypatch, [summary])
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl._http._request_json",
+        lambda *a, **k: {
+            "ok": True,
+            "sample_id": "s1",
+            "epoch": 1,
+            "changed": True,
+            "tool_call_id": "tc\nFORGED",
+            "function": "bash",
+        },
+    )
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "cancel-tool-call", "aaa111", "s1", "--no-terse"]
+    )
+    assert result.exit_code == 0, result.output
+    assert "Cancel requested for tool call" in result.output
+    assert "FORGED" in result.output
+    assert not any(line.startswith("FORGED") for line in result.output.splitlines())
+
+    # the honest no-op names the reason and lists the pending calls
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl._http._request_json",
+        lambda *a, **k: {
+            "ok": True,
+            "sample_id": "s1",
+            "epoch": 1,
+            "changed": False,
+            "reason": "no pending tool call with that id",
+            "pending": [{"id": "tc\nFORGED2", "function": "bash"}],
+        },
+    )
+    noop = cli_runner().invoke(
+        ctl_command, ["sample", "cancel-tool-call", "aaa111", "s1", "--no-terse"]
+    )
+    assert noop.exit_code == 0, noop.output
+    assert "Nothing to do — no pending tool call with that id" in noop.output
+    assert "Pending:" in noop.output
+    assert not any(line.startswith("FORGED2") for line in noop.output.splitlines())
+
+    # the zero-pending no-op surfaces the activity redirect (where the sample
+    # is actually stuck) in human output; the detail is model-influenceable
+    # and must flatten
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl._http._request_json",
+        lambda *a, **k: {
+            "ok": True,
+            "sample_id": "s1",
+            "epoch": 1,
+            "changed": False,
+            "reason": "no pending tool calls",
+            "activity": {
+                "type": "model",
+                "count": 1,
+                "started_at": 0.0,
+                "detail": "mockllm/model\nFORGED3",
+            },
+        },
+    )
+    zero = cli_runner().invoke(
+        ctl_command, ["sample", "cancel-tool-call", "aaa111", "s1", "--no-terse"]
+    )
+    assert zero.exit_code == 0, zero.output
+    assert "Nothing to do — no pending tool calls" in zero.output
+    assert "Sample activity: model (mockllm/model" in zero.output
+    assert not any(line.startswith("FORGED3") for line in zero.output.splitlines())
 
 
 def test_sample_requeue_defaults_epoch_for_single_epoch_task(
@@ -6416,6 +6981,57 @@ def test_json_invalid_cursor_emits_error_envelope(
     assert "--since-time" in error["message"]
 
 
+def test_json_version_gate_failure_emits_error_envelope(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The config version gates emit `invalid_request` envelopes on --json.
+
+    Both gates (`_gate_strict_floor`, `_gate_provenance_support`) refuse
+    before the PATCH is sent — a terminal failure like any other, so on
+    --json the refusal must be the structured envelope, not stderr prose
+    over an empty stdout (issue #69: the gates once raised a bare click
+    ``Exit``, which `_structured_failures` passes through un-enveloped).
+    """
+    from inspect_ai._cli.ctl._knobs import _PROVENANCE_SINCE, _STRICT_SINCE
+
+    def _no_patch(*args: Any, **kwargs: Any) -> _ConfigResult:
+        raise AssertionError("the mutation must not be sent")
+
+    monkeypatch.setattr("inspect_ai._cli.ctl._config._exec_limits", _no_patch)
+
+    # strict-floor gate: any knob mutation against a pre-strict server
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        servers=[_DiscServer(7, api_version=_STRICT_SINCE - 1)],
+    )
+    result = cli_runner().invoke(
+        ctl_command, ["config", "--max-samples", "3", "--json"]
+    )
+    assert result.exit_code == 1
+    error = _error_envelope(result)
+    assert error["kind"] == "invalid_request"
+    assert "--max-samples" in error["message"]
+    assert "No changes were applied" in error["message"]  # self-contained
+    assert "pid 7 is running an older inspect" in result.stderr
+
+    # provenance gate: explicit --author/--reason against a strict server
+    # that predates provenance recording
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        servers=[_DiscServer(7, api_version=_PROVENANCE_SINCE - 1)],
+    )
+    result = cli_runner().invoke(
+        ctl_command,
+        ["config", "--max-samples", "3", "--reason", "why", "--json"],
+    )
+    assert result.exit_code == 1
+    error = _error_envelope(result)
+    assert error["kind"] == "invalid_request"
+    assert "--reason not supported" in error["message"]
+
+
 def test_json_unexpected_exception_envelope_with_traceback_on_stderr(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -6457,6 +7073,32 @@ def test_human_unexpected_exception_not_swallowed(
     result = cli_runner().invoke(ctl_command, ["task", "list"])
     assert result.exit_code != 0
     assert isinstance(result.exception, RuntimeError)
+
+
+def test_no_bare_click_exit_in_ctl_error_sites() -> None:
+    """Terminal ctl error sites must raise `_CtlFailure`, never a bare `Exit`.
+
+    `_structured_failures` deliberately passes a plain click ``Exit``
+    through un-enveloped (it is click control flow), so an error site
+    raising one silently drops the --json error envelope — stderr prose
+    over an empty stdout (issue #69: the config version gates did exactly
+    that). Only `_failure.py` itself constructs the bare ``Exit`` (the
+    internal-envelope path, after emitting).
+    """
+    import inspect_ai._cli.ctl as ctl_package
+
+    package_dir = Path(ctl_package.__file__).parent
+    offenders = [
+        f"{path.name}:{lineno}"
+        for path in sorted(package_dir.rglob("*.py"))
+        if path.name != "_failure.py"
+        for lineno, line in enumerate(path.read_text().splitlines(), start=1)
+        if "click.exceptions.Exit(" in line
+    ]
+    assert not offenders, (
+        "bare click Exit constructed outside _failure.py — raise _CtlFailure "
+        f"(usually via _fail) so --json failures stay enveloped: {offenders}"
+    )
 
 
 def test_envelope_failures_rejects_runner_without_as_json() -> None:
