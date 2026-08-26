@@ -4,6 +4,7 @@
 - vLLM: The server's `max_model_len` is now registered as the model's context window, so compaction and context-length handling reflect the served configuration (including LoRA adapters via their parent model). (#4215)
 - Eval Set: Protocol for running a selection of an eval set's tasks (`INSPECT_EVAL_SET_SELECTION`), so an external runner can execute one task per process into a shared log directory while owning the eval-set metadata itself.
 - Eval Log: Samples halted by a limit now record why it fired (`EvalSampleLimit.reason`, `limit_reason` on sample summaries and `samples_df()`), so operator-terminated samples can be told apart without reading transcript events.
+- Eval Log: Fixed trio evals crashing with `ValueError: seek of closed file` when writing a `.eval` log smaller than 8MB to S3.
 - Sandbox: Sandbox-tools binaries downloaded from S3 are now verified against SHA256 digests pinned in the package; failures warn by default, or fail when `INSPECT_SANDBOX_TOOLS_STRICT_DIGESTS` is set.
 - Sandbox: `bash_session` no longer stops returning output for the rest of the session when multibyte output happens to be split mid-character across reads.
 - Docker Sandbox: New `--sandbox-prebuilt` option (`sandbox_prebuilt` on `eval()`) skips image builds and fails fast at task startup when a prebuilt image is missing.

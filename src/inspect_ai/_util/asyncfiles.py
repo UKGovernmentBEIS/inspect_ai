@@ -832,10 +832,47 @@ def s3_write_file(s3: Any, bucket: str, key: str, content: bytes) -> None:
     s3.upload_fileobj(Fileobj=io.BytesIO(content), Bucket=bucket, Key=key)
 
 
+class _CloseShieldedReader:
+    """File-like wrapper that turns ``close()`` into a no-op.
+
+    s3transfer's non-multipart PUT path (uploads below ``multipart_threshold``)
+    closes the source fileobj when the request body is closed. Callers of the
+    sync streaming write own the stream's lifecycle and reuse it after the
+    upload — ``EvalRecorder.flush()`` reopens its temp-file zip after every
+    flush — so the upload must not close it. (The multipart path reads parts
+    into memory and never closes the source; the async path uses aioboto3's
+    own ``upload_fileobj``, which doesn't close either.)
+    """
+
+    def __init__(self, fileobj: BinaryIO) -> None:
+        self._fileobj = fileobj
+
+    def read(self, size: int = -1) -> bytes:
+        return self._fileobj.read(size)
+
+    def readable(self) -> bool:
+        return True
+
+    def seek(self, offset: int, whence: int = 0) -> int:
+        return self._fileobj.seek(offset, whence)
+
+    def seekable(self) -> bool:
+        return self._fileobj.seekable()
+
+    def tell(self) -> int:
+        return self._fileobj.tell()
+
+    def close(self) -> None:
+        pass
+
+
 def s3_write_file_streaming(s3: Any, bucket: str, key: str, source: BinaryIO) -> None:
     """Upload a file-like stream to S3 using multipart upload."""
     s3.upload_fileobj(
-        Fileobj=source, Bucket=bucket, Key=key, Config=_s3_transfer_config()
+        Fileobj=_CloseShieldedReader(source),
+        Bucket=bucket,
+        Key=key,
+        Config=_s3_transfer_config(),
     )
 
 
