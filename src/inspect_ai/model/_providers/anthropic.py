@@ -42,7 +42,6 @@ from anthropic.types import (
     ContentBlockSourceParam,
     DocumentBlockParam,
     ImageBlockParam,
-    InputJSONDelta,
     Message,
     MessageParam,
     OutputConfigParam,
@@ -53,10 +52,8 @@ from anthropic.types import (
     ServerToolUseBlockParam,
     TextBlock,
     TextBlockParam,
-    TextDelta,
     ThinkingBlock,
     ThinkingBlockParam,
-    ThinkingDelta,
     ToolChoiceAnyParam,
     ToolChoiceAutoParam,
     ToolChoiceNoneParam,
@@ -4117,25 +4114,17 @@ async def _capture_compaction_from_stream(
                 tool_blocks[event.index] = event.content_block
             report_model_stream_progress()
         elif event.type == "content_block_delta":
-            # match on the wire discriminator, not isinstance alone: the
-            # non-beta RawContentBlockDelta union has no compaction_delta
-            # variant, so the SDK's construct_type() falls back to the first
-            # variant that deserializes (TextDelta) and fills the missing
-            # required field with None -- yielding
-            # TextDelta(type="compaction_delta", text=None), which
-            # StreamTextEvent(text=...) then rejects
-            delta_type = getattr(event.delta, "type", None)
-            if delta_type == "text_delta" and isinstance(event.delta, TextDelta):
+            # dispatch on the wire discriminator, not isinstance: the non-beta
+            # RawContentBlockDelta union has no compaction variant, so the SDK
+            # misparses compaction_delta as TextDelta(type="compaction_delta",
+            # text=None) -- an isinstance check would report it as text
+            if event.delta.type == "text_delta":
                 await report_model_stream_delta(StreamTextEvent(text=event.delta.text))
-            elif delta_type == "thinking_delta" and isinstance(
-                event.delta, ThinkingDelta
-            ):
+            elif event.delta.type == "thinking_delta":
                 await report_model_stream_delta(
                     StreamReasoningEvent(reasoning=event.delta.thinking)
                 )
-            elif delta_type == "input_json_delta" and isinstance(
-                event.delta, InputJSONDelta
-            ):
+            elif event.delta.type == "input_json_delta":
                 tool_block = tool_blocks.get(event.index)
                 await report_model_stream_delta(
                     StreamToolCallEvent(
