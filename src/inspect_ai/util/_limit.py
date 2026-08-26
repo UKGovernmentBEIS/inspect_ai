@@ -508,7 +508,8 @@ def parse_token_limit(value: str) -> int | TokenLimit:
     else:
         type_prefix, count = "all", value
 
-    m = _TOKEN_COUNT_RE.match(count)
+    normalized_count = count.replace("_", "").replace(",", "")
+    m = _TOKEN_COUNT_RE.match(normalized_count)
     if m is None:
         raise ValueError(
             f"token limit: expected [<type>:]<number>[k|m|b], got {value!r}"
