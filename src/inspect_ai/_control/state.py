@@ -44,6 +44,7 @@ from inspect_ai._util.file import local_path
 if TYPE_CHECKING:
     from inspect_ai._control.cancel import PendingToolCall
     from inspect_ai._control.eval_state import EvalState
+    from inspect_ai.log._log import EvalSampleSummary
     from inspect_ai.log._samples import ActiveSample
 
 # The canonical per-sample status vocabulary of the samples listing — the
@@ -311,7 +312,7 @@ async def current_sample_summaries(
       runs (gap-free, ahead of disk; via ``EvalState.live.sample_summaries``),
       falling back to the finalized on-disk log once the recorder is gone
       (eval finished / torn down) — read once and memoized on the state
-      (see :func:`_sample_summaries_from_log`).
+      (see :func:`completed_eval_sample_summaries`).
     - **pending** ← synthesized from the eval's registered planned
       ``(sample_id, epoch)`` pairs (``EvalState.sample_ids`` × ``epochs``)
       that aren't yet running or done — no live source holds these.
@@ -600,32 +601,70 @@ def _sorted_samples(summaries: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return summaries
 
 
+async def completed_eval_sample_summaries(
+    state: "EvalState",
+) -> "list[EvalSampleSummary]":
+    """The eval's raw completed-sample summaries (recorder, else on-disk log).
+
+    The shared recorder-vs-log split (with the on-disk memo) behind both the
+    listing here and the interim-scoring pass's target enumeration, so the
+    two can't drift. Prefer the live recorder: gap-free and independent of
+    realtime logging. It returns ``None`` once torn down (eval finished) — a
+    clean signal to fall back to the log. Any other failure is unexpected
+    and propagates to the API entry point.
+
+    The fallback log is only reached when the live recorder is unavailable
+    (a reused eval, a finished eval whose recorder was torn down, or a
+    superseded retry attempt whose providers were detached), so it is
+    finalized and immutable — the first request's read (possibly against
+    S3, with ``EvalSampleSummary`` validation per sample) is memoized on the
+    state (``EvalState.log_sample_summaries``) and later requests are served
+    from memory; a keep-alive-parked process polled every 30s must not
+    re-pay it per poll. Concurrent first requests may each read (benign:
+    identical immutable data, no await between the read completing and the
+    memo write; all writers run on the eval's loop). The log may however no
+    longer *exist*: the retry sweep deletes superseded attempts' logs while
+    their EvalStates persist (clearing the memo as it does — see
+    ``invalidate_log_sample_summaries``) — degrade to an empty listing,
+    without memoizing it, rather than failing the request.
+    """
+    if state.live is not None:
+        summaries = await state.live.sample_summaries()
+        if summaries is not None:
+            return summaries
+
+    # The log_location is always set on the state (register_eval /
+    # register_completed_eval set it before any sample runs), so there's no
+    # need to also consult active_samples.
+    memoized = state.log_sample_summaries
+    if memoized is not None:
+        return memoized
+    if state.log_location:
+        from inspect_ai.log._file import read_eval_log_sample_summaries_async
+
+        try:
+            summaries = await read_eval_log_sample_summaries_async(state.log_location)
+        except FileNotFoundError:
+            return []
+        state.log_sample_summaries = summaries
+        return summaries
+    return []
+
+
 async def _completed_sample_summaries(eval_id: str) -> list[dict[str, Any]]:
     """The eval's completed-sample summaries (recorder, else on-disk log)."""
     from inspect_ai._control.eval_state import get_eval_state
 
     state = get_eval_state(eval_id)
-
+    if state is None:
+        return []
     # Whether a failure of this attempt will be retried — controls whether a
     # cancelled sample reads as `pending` (re-run coming) or `cancelled`.
-    will_retry = state.will_retry if state is not None else False
-
-    # Prefer the live recorder: gap-free and independent of realtime
-    # logging. It returns None once torn down (eval finished) — a clean
-    # signal to fall back to the log. Any other failure is unexpected and
-    # propagates to the API entry point.
-    if state is not None and state.live is not None:
-        summaries = await state.live.sample_summaries()
-        if summaries is not None:
-            return [_summary_from_eval_sample_summary(s, will_retry) for s in summaries]
-
-    # Fallback: the on-disk log. The log_location is always set on the
-    # state by the time we get here (register_eval / register_completed_eval
-    # set it before any sample runs), so there's no need to also consult
-    # active_samples.
-    if state is not None and state.log_location:
-        return await _sample_summaries_from_log(state)
-    return []
+    will_retry = state.will_retry
+    return [
+        _summary_from_eval_sample_summary(s, will_retry)
+        for s in await completed_eval_sample_summaries(state)
+    ]
 
 
 async def _full_sample(
@@ -878,41 +917,6 @@ def _error_dict(error: Any, content: bool) -> dict[str, Any]:
         "traceback": error.traceback,
         "traceback_ansi": error.traceback_ansi,
     }
-
-
-async def _sample_summaries_from_log(state: "EvalState") -> list[dict[str, Any]]:
-    """Completed-sample summaries read from the on-disk log, memoized.
-
-    Only reached when the live recorder is unavailable (a reused eval, a
-    finished eval whose recorder was torn down, or a superseded retry
-    attempt whose providers were detached), so the log is finalized and
-    immutable — the first request's read (possibly against S3, with
-    ``EvalSampleSummary`` validation per sample) is cached on the state
-    (``EvalState.log_sample_summaries``) and later requests are served from
-    memory; a keep-alive-parked process polled every 30s must not re-pay it
-    per poll. Concurrent first requests may each read (benign: identical
-    immutable data, no await between the read completing and the memo
-    write). The memo write needs no registry lock for the same reason
-    ``_build_summary``'s ``observe_started`` fold doesn't: all writers run
-    on the eval's loop.
-
-    The log may however no longer *exist*: the retry sweep
-    (``retry_cleanup``) deletes superseded attempts' logs while their
-    EvalStates persist through any keep-alive park (clearing the memo as it
-    does — see ``invalidate_log_sample_summaries``) — degrade to an empty
-    listing, without memoizing it, rather than failing the request. Any
-    other read error is unexpected and propagates to the API entry point.
-    """
-    summaries = state.log_sample_summaries
-    if summaries is None:
-        from inspect_ai.log._file import read_eval_log_sample_summaries_async
-
-        try:
-            summaries = await read_eval_log_sample_summaries_async(state.log_location)
-        except FileNotFoundError:
-            return []
-        state.log_sample_summaries = summaries
-    return [_summary_from_eval_sample_summary(s, state.will_retry) for s in summaries]
 
 
 def _cancellation_status(will_retry: bool) -> str:
