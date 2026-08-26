@@ -778,13 +778,12 @@ def _gate_strict_floor(
         return
     flags = ", ".join("--" + knob.replace("_", "-") for knob in requested_knobs)
     target = f"pid {server.pid}" if server is not None else "the target process"
-    _echo(
+    _fail(
+        "invalid_request",
         f"Cannot set {flags} — {target} is running an older inspect that "
         "may silently ignore unrecognized config settings; restart the eval "
         "to pick up the current version. No changes were applied.",
-        err=True,
     )
-    raise click.exceptions.Exit(code=1)
 
 
 def _default_provenance_author() -> str:
@@ -851,13 +850,12 @@ def _gate_provenance_support(
             if value is not None
         )
         target = f"pid {server.pid}" if server is not None else "the target process"
-        _echo(
+        _fail(
+            "invalid_request",
             f"{flags} not supported — {target} is running an older inspect; "
             "restart the eval to pick up the current version. No changes "
             "were applied.",
-            err=True,
         )
-        raise click.exceptions.Exit(code=1)
     return (None, None)
 
 
