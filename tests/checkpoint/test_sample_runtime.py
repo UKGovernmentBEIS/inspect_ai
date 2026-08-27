@@ -219,6 +219,37 @@ async def test_scoring_resume_over_time_budget_is_not_cancelled() -> None:
         assert limit.usage == pytest.approx(45.0, abs=0.5)
 
 
+async def test_scoring_resume_retune_does_not_rearm_spent_deadline() -> None:
+    """A live time_limit retune during a scoring resume does not re-arm the spent budget.
+
+    ``set_sample_limit_override`` re-derives the deadline of every live time
+    scope; the restored elapsed must stay out of that derivation, or a retune
+    in the plan window cancels the very attempt that exists to score.
+    """
+    from inspect_ai.util._limit import message_limit
+    from inspect_ai.util._limit_overrides import (
+        reset_sample_limit_overrides,
+        sample_limit_override_scope,
+        set_sample_limit_override,
+    )
+
+    time_node = time_limit(30)
+    try:
+        with sample_limit_override_scope(
+            "t-scoring",
+            time=time_node,
+            token=token_limit(None),
+            message=message_limit(None),
+        ):
+            with time_node:
+                restore_sample_runtime({"time_elapsed": 45.0}, check=False)
+                set_sample_limit_override("t-scoring", "time_limit", 30)
+                await anyio.sleep(0.05)
+                assert time_node.usage == pytest.approx(45.0, abs=0.5)
+    finally:
+        reset_sample_limit_overrides()
+
+
 async def test_resume_arms_time_deadline_when_over_budget() -> None:
     """A normal resume over the time budget is still cancelled."""
     with pytest.raises(LimitExceededError) as exc_info:

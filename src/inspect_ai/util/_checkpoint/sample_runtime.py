@@ -102,7 +102,9 @@ def restore_sample_runtime(value: JsonValue | None, *, check: bool) -> None:
     deadline — is restored only when ``check`` is True, i.e. for a normal
     ``"resume"``. A ``"resume_for_scoring"`` attempt must be able to score a
     sample whose budget was already spent when the checkpoint fired, so it
-    arms nothing.
+    arms nothing — and the restored elapsed is kept out of the deadline
+    origin, so a later ``_refresh_deadline()`` (a live ``time_limit``
+    retune) cannot re-arm the spent budget either.
 
     Enforcement order matters: the counted checks run before the deadline is
     armed, so a resume over both a counted budget and the time limit reports
@@ -155,13 +157,22 @@ def restore_sample_runtime(value: JsonValue | None, *, check: bool) -> None:
     if isinstance(turn_root, _TurnLimit) and payload.get("turns") is not None:
         turn_root._turns = int(payload["turns"])
 
-    # Backdate the origin so `usage` / `remaining` report the sample's total
-    # elapsed time. The deadline is armed further down, under `check`.
+    # Restore the prior attempt's elapsed time so `usage` / `remaining`
+    # report the sample's total. A normal resume backdates the origin, so the
+    # deadline (armed further down, under `check`) charges the prior attempt
+    # too. A scoring resume must never enforce the prior elapsed — not even
+    # through a later `_refresh_deadline()` (a live `time_limit` retune) — so
+    # it keeps the origin fresh and carries the elapsed in the
+    # reporting-only field.
     time_elapsed = float(payload.get("time_elapsed") or 0.0)
     time_node = _tree_root(time_limit_tree)
     time_root = time_node if isinstance(time_node, _TimeLimit) else None
     if time_root is not None and time_root._start_time is not None:
-        time_root._start_time = anyio.current_time() - time_elapsed
+        if check:
+            time_root._start_time = anyio.current_time() - time_elapsed
+        else:
+            time_root._start_time = anyio.current_time()
+            time_root._prior_elapsed = time_elapsed
     else:
         time_root = None
 
