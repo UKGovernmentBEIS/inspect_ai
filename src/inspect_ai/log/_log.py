@@ -1063,8 +1063,8 @@ class EvalSpec(BaseModel):
     model_args: dict[str, Any] = Field(default_factory=dict)
     """Model specific arguments."""
 
-    model_roles: dict[str, ModelConfig] | None = Field(default=None)
-    """Model roles."""
+    model_roles: dict[str, ModelConfig | list[ModelConfig]] | None = Field(default=None)
+    """Model roles (a role bound to a list of models holds a list of configs)."""
 
     config: EvalConfig
     """Configuration values for eval."""
