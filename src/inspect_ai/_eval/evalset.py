@@ -569,12 +569,14 @@ def eval_set(
                 epochs=capture_epochs.epochs if capture_epochs else None,
                 tags=tags,
                 metadata=metadata,
-                # sample concurrency as the definition asked for it. a runner
-                # that sets max_samples per worker (it is an operational
-                # override in the selection document) otherwise has no way to
-                # see what it is overriding, so a definition's explicit value
-                # is silently replaced by the runner's default.
+                # concurrency as the definition asked for it. a runner that
+                # sets either per worker (both are operational overrides in the
+                # selection document) otherwise has no way to see what it is
+                # overriding, so a definition's explicit value is silently
+                # replaced by the runner's default.
                 max_samples=max_samples,
+                max_sandboxes=max_sandboxes,
+                max_tasks=max_tasks,
                 # error handling as the definition asked for it, so a runner
                 # can see what selection mode honours (retry_on_error) and
                 # what it overrides (fail_on_error) rather than guessing.
@@ -593,16 +595,23 @@ def eval_set(
 
     # a selection may carry operational overrides for this worker. read it
     # before log_dir is used for anything: `filesystem()` is derived from it,
-    # and `run_eval` closes over both names -- closures are late-binding, so
-    # rebinding here is what the closure will see.
+    # and `run_eval` closes over every one of these names -- closures are
+    # late-binding, so rebinding here is what the closure will see.
     selection = (
         read_eval_set_selection(selection_path) if selection_path is not None else None
     )
-    if selection is not None:
-        if selection.log_dir is not None:
-            log_dir = selection.log_dir
-        if selection.max_samples is not None:
-            max_samples = selection.max_samples
+    if selection is not None and selection.overrides is not None:
+        overrides = selection.overrides
+        if overrides.log_dir is not None:
+            log_dir = overrides.log_dir
+        if overrides.max_samples is not None:
+            max_samples = overrides.max_samples
+        if overrides.limit is not None:
+            limit = overrides.limit
+        if overrides.max_sandboxes is not None:
+            max_sandboxes = overrides.max_sandboxes
+        if overrides.max_tasks is not None:
+            max_tasks = overrides.max_tasks
 
     # ensure log_dir
     fs = filesystem(log_dir)
