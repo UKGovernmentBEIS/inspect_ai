@@ -22,8 +22,8 @@ effects of executing it (registered models, `set_model_info`, dynamically
 constructed `Model` objects) in every worker process.
 
 A selection may also carry **operational overrides** for the worker, in an
-`overrides` container: `log_dir`, `max_samples`, `limit`, and `max_sandboxes`.
-These exist because an environment variable cannot help here —
+`overrides` container: `log_dir`, `max_samples`, `limit`, `max_sandboxes`, and
+`max_tasks`. These exist because an environment variable cannot help here —
 `INSPECT_LOG_DIR` and friends supply *defaults*, and `eval_set()` declares
 `log_dir` with no default, so every definition passes it explicitly and a
 default can never win. A runner that needs a worker's logs to land somewhere
@@ -34,7 +34,8 @@ to say so.
 Every one of them is deliberately *operational*, and the boundary is worth
 stating precisely: an override may change how a worker is **operated** — where
 its output goes, how fast it runs, how much of its dataset it runs, how many
-sandboxes it stands up — and never what is evaluated. The operative test is
+sandboxes it stands up, how many of its tasks it runs at once — and never what
+is evaluated. The operative test is
 that no override participates in `task_identifier()`, which is what stops one
 desynchronizing a worker from the capture manifest. `limit` passes it because
 the identifier hashes a task's *execution* limits (message, token, turn, time,
@@ -44,7 +45,12 @@ clock has to do it from outside rather than through here.
 
 Omitting the container, or any field in it, keeps whatever the definition
 chose. The container arrived in schema version 3, and a document may not use a
-field newer than the version it declares — see `_FIELD_MIN_VERSION`.
+field newer than the version it declares — see `_FIELD_MIN_VERSION`. That gate
+is on the container, not on its contents: a field added to `overrides` later
+(`max_tasks`, in version 4) bumps the schema version so an older inspect
+refuses the document as too new rather than as carrying an unknown field, but
+nothing tracks which version each override arrived in. Recording that would
+buy nothing an unknown-field error does not already say.
 
 Two of the definition's options are overridden in worker mode, because both
 are completion decisions that belong to the runner rather than the worker:
@@ -77,7 +83,7 @@ from inspect_ai._util.file import file
 
 INSPECT_EVAL_SET_SELECTION = "INSPECT_EVAL_SET_SELECTION"
 
-EVAL_SET_SELECTION_VERSION = 3
+EVAL_SET_SELECTION_VERSION = 4
 
 
 def eval_set_selection_requested() -> str | None:
@@ -141,6 +147,16 @@ class EvalSetSelectionOverrides(BaseModel):
 
     max_sandboxes: int | None = Field(default=None, strict=True)
     """Sandbox concurrency for this worker, overriding the definition's."""
+
+    # the one override a worker running several tasks cannot do without, and
+    # the default it displaces is not a stable one: outside selection mode
+    # `eval_set()` fills `max_tasks` in itself, but that happens below the
+    # selection branch, so a worker inherits `eval()`'s rule instead -- one
+    # task at a time for a single model, the model count for several. A runner
+    # that hands a worker five tasks and says nothing gets whichever of those
+    # applies, having chosen neither.
+    max_tasks: int | None = Field(default=None, strict=True)
+    """Task concurrency for this worker, overriding the definition's."""
 
 
 class EvalSetSelection(BaseModel):
@@ -297,7 +313,7 @@ def _validate_overrides(
 
     if overrides.log_dir is not None and not overrides.log_dir.strip():
         raise refuse("an empty 'log_dir'")
-    for name in ("max_samples", "max_sandboxes"):
+    for name in ("max_samples", "max_sandboxes", "max_tasks"):
         value = getattr(overrides, name)
         if value is not None and value < 1:
             raise refuse(f"{name}={value}; it must be at least 1")
