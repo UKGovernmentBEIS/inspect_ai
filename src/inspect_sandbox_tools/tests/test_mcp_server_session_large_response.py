@@ -24,10 +24,14 @@ import pytest
 from inspect_sandbox_tools._remote_tools._mcp import (
     mcp_server_session as session_module,
 )
+from inspect_sandbox_tools._remote_tools._mcp.jsonrpc_types import (
+    JSONRPCError,
+    JSONRPCRequest,
+    JSONRPCResponse,
+)
 from inspect_sandbox_tools._remote_tools._mcp.mcp_server_session import (
     MCPServerSession,
 )
-from mcp import JSONRPCError, JSONRPCRequest, JSONRPCResponse
 
 
 class _FakeStdin:
@@ -153,7 +157,9 @@ async def test_create_wires_readline_limit_into_subprocess(
     # dropped, and the reader-level tests above (which build their own
     # StreamReader) would not catch that regression.
     from inspect_sandbox_tools._remote_tools._mcp import mcp_server_session
-    from mcp import StdioServerParameters
+    from inspect_sandbox_tools._remote_tools._mcp.jsonrpc_types import (
+        StdioServerParameters,
+    )
 
     captured: dict[str, object] = {}
 
