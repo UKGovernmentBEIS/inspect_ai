@@ -1,7 +1,7 @@
 import pytest
 from test_helpers.utils import simple_task_state
 
-from inspect_ai.scorer import CORRECT, INCORRECT, NOANSWER, Target, pattern
+from inspect_ai.scorer import CORRECT, INCORRECT, Target, pattern
 
 
 @pytest.mark.anyio
@@ -31,6 +31,7 @@ async def test_single_match_failure_with_target():
     result = await scorer(state, Target(["target doesn't match"]))
 
     assert result.text == INCORRECT
+    assert result.reason is None
 
 
 @pytest.mark.anyio
@@ -39,7 +40,8 @@ async def test_single_match_failure_from_model():
     state = simple_task_state(model_output="model doesn't match")
     result = await scorer(state, Target(["foo"]))
 
-    assert result.text == NOANSWER
+    assert result.text == INCORRECT
+    assert result.reason == "invalid_response_format"
 
 
 @pytest.mark.anyio
@@ -98,6 +100,7 @@ async def test_multi_match_failure_with_target():
     result = await scorer(state, Target(["target doesn't match"]))
 
     assert result.text == INCORRECT
+    assert result.reason is None
 
 
 @pytest.mark.anyio
@@ -106,7 +109,8 @@ async def test_multi_match_failure_from_model():
     state = simple_task_state(model_output="model doesn't match")
     result = await scorer(state, Target(["bar"]))
 
-    assert result.text == NOANSWER
+    assert result.text == INCORRECT
+    assert result.reason == "invalid_response_format"
 
 
 @pytest.mark.anyio

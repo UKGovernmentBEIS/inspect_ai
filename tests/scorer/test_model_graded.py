@@ -12,7 +12,13 @@ from inspect_ai._util.content import ContentImage, ContentText
 from inspect_ai.dataset import Sample
 from inspect_ai.dataset._sources.json import json_dataset
 from inspect_ai.log._condense import resolve_sample_attachments
-from inspect_ai.model import ChatMessageAssistant, ChatMessageUser, ModelName, ModelRole
+from inspect_ai.model import (
+    ChatMessageAssistant,
+    ChatMessageUser,
+    Model,
+    ModelName,
+    ModelRole,
+)
 from inspect_ai.model._model import get_model
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.scorer import (
@@ -278,6 +284,127 @@ def test_model_graded_scorer_model_role_round_trips_through_log() -> None:
     assert rescored_log.status == "success"
 
 
+def _grader_with_output(text: str) -> Model:
+    return get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.from_content("mockllm/model", [ContentText(text=text)])
+        ],
+    )
+
+
+@pytest.mark.parametrize(
+    ["grades", "expected_value"],
+    [
+        pytest.param(
+            ["GRADE: C", "GRADE: I", "GRADE: C"], CORRECT, id="majority_correct"
+        ),
+        pytest.param(
+            ["GRADE: I", "GRADE: C", "GRADE: I"], INCORRECT, id="majority_incorrect"
+        ),
+    ],
+)
+@pytest.mark.parametrize(
+    "scorer_factory", [model_graded_fact, model_graded_qa], ids=["fact", "qa"]
+)
+def test_model_graded_scorer_role_bound_to_model_list(
+    scorer_factory: Callable[..., Scorer], grades: list[str], expected_value: str
+) -> None:
+    """A role bound to a list of models grades by majority vote.
+
+    Binding a list of models to the grader role must behave the same as
+    passing a list of models to the scorer's `model` parameter: each model
+    grades independently and the final grade is the majority vote.
+    """
+    graders = [_grader_with_output(grade) for grade in grades]
+    task = Task(
+        scorer=scorer_factory(),
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+    )
+
+    log = eval(task, model="mockllm/model", model_roles={"grader": graders})[0]
+
+    assert log.status == "success"
+    assert log.samples
+    assert log.samples[0].scores is not None
+    sample_score = list(log.samples[0].scores.values())[0]
+    assert sample_score.value == expected_value
+
+
+def test_model_graded_scorer_required_role_bound_to_model_list() -> None:
+    graders = [_grader_with_output("GRADE: C"), _grader_with_output("GRADE: C")]
+    task = Task(
+        scorer=model_graded_qa(model_role=ModelRole("grader", required=True)),
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+    )
+
+    log = eval(task, model="mockllm/model", model_roles={"grader": graders})[0]
+
+    assert log.status == "success"
+    assert log.samples
+    assert log.samples[0].scores is not None
+    assert list(log.samples[0].scores.values())[0].value == CORRECT
+
+
+def test_model_graded_scorer_explicit_model_overrides_role_list() -> None:
+    """An explicit `model` takes precedence over a list bound to the role."""
+    task = Task(
+        scorer=model_graded_qa(model=_grader_with_output("GRADE: C")),
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+    )
+
+    log = eval(
+        task,
+        model="mockllm/model",
+        model_roles={
+            "grader": [_grader_with_output("GRADE: I"), _grader_with_output("GRADE: I")]
+        },
+    )[0]
+
+    assert log.status == "success"
+    assert log.samples
+    assert log.samples[0].scores is not None
+    assert list(log.samples[0].scores.values())[0].value == CORRECT
+
+
+def test_model_graded_scorer_file_template_resolves_at_construction(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A file-based template is read when the scorer is created, not at scoring time.
+
+    The deferred fan-out for a role bound to a list of models builds its
+    sub-scorers at scoring time, when the CWD may no longer be the directory a
+    relative template path was meant to resolve against. If the template were
+    resolved then, `resource()` would silently treat the missing path as
+    literal content and prompt the graders with the raw path string.
+    """
+    (tmp_path / "tmpl.txt").write_text(
+        "FILE TEMPLATE {question} ANS={answer} CRIT={criterion} {instructions}"
+    )
+    monkeypatch.chdir(tmp_path)
+    task = Task(
+        scorer=model_graded_qa(template="tmpl.txt"),
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+    )
+
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)
+    graders = [_grader_with_output("GRADE: C"), _grader_with_output("GRADE: C")]
+    log = eval(task, model="mockllm/model", model_roles={"grader": graders})[0]
+
+    assert log.status == "success"
+    assert log.samples
+    sample = resolve_sample_attachments(log.samples[0])
+    grader_events = [
+        e for e in sample.events if e.event == "model" and e.role == "grader"
+    ]
+    assert len(grader_events) == len(graders)
+    for event in grader_events:
+        assert event.input
+        assert event.input[0].text.startswith("FILE TEMPLATE What is 1 + 1?")
+
+
 def test_model_graded_answer_set_on_grade_parse_failure():
     # #4025: parse failure is unscored, but answer must still carry the completion.
     subject_answer = "The capital of France is Paris."
@@ -444,8 +571,10 @@ def test_grade_parse_failure_is_unscored(grader_output: str) -> None:
     assert isinstance(score.value, float) and math.isnan(score.value), (
         f"expected unscored (NaN) for {grader_output!r}, got {score.value!r}"
     )
+    assert score.reason == "grader_failed"
     assert score.metadata is not None
-    assert score.metadata["unscored_reason"] == "grade_parse_failure"
+    assert "unscored_reason" not in score.metadata
+    assert "grading" in score.metadata
 
 
 @pytest.mark.parametrize(
@@ -530,7 +659,8 @@ def test_off_menu_verdict_is_unscored(grader_output: str, partial_credit: bool) 
         f"partial_credit={partial_credit}, got {score.value!r}"
     )
     assert score.metadata is not None
-    assert score.metadata["unscored_reason"] == "grade_parse_failure"
+    assert score.reason == "grader_failed"
+    assert "unscored_reason" not in score.metadata
 
 
 def test_partial_verdict_is_unscored_without_partial_credit() -> None:
@@ -542,7 +672,8 @@ def test_partial_verdict_is_unscored_without_partial_credit() -> None:
         f"got {score.value!r}"
     )
     assert score.metadata is not None
-    assert score.metadata["unscored_reason"] == "grade_parse_failure"
+    assert score.reason == "grader_failed"
+    assert "unscored_reason" not in score.metadata
 
 
 @pytest.mark.parametrize(

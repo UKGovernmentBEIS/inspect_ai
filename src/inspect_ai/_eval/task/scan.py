@@ -1020,7 +1020,10 @@ def _scan_config_hash(scanner: "Scanners | None") -> str:
     coerced via `str()` first because `to_json_safe`'s fallback drops
     non-serializable objects to None — losing the discriminator we
     want to detect. `str(model)` produces "<api>/<name>", stable
-    across runs of the same model.
+    across runs of the same model. A role bound to a *list* of models
+    is coerced element-wise — `str()` of the list itself would embed
+    each Model's default `repr` (a memory address), making the hash
+    unstable across identical runs.
     """
     config = scanner if isinstance(scanner, ScannerConfig) else None
     payload = {
@@ -1030,7 +1033,10 @@ def _scan_config_hash(scanner: "Scanners | None") -> str:
         "model_args": config.model_args if config else None,
         "generate_config": config.generate_config if config else None,
         "model_roles": (
-            {k: str(v) for k, v in config.model_roles.items()}
+            {
+                k: [str(m) for m in v] if isinstance(v, list) else str(v)
+                for k, v in config.model_roles.items()
+            }
             if (config and config.model_roles)
             else None
         ),
