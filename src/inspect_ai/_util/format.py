@@ -78,7 +78,11 @@ def format_template(
                     return "{" + field_name + "}", field_name
 
                 obj = params.get(first)
-                if obj is None and skip_unknown:
+                if (
+                    obj is None
+                    and (rest is not None or "[" in field_name)
+                    and skip_unknown
+                ):
                     return "{" + field_name + "}", field_name
 
                 return super().get_field(field_name, args, kwargs)

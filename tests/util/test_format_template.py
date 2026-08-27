@@ -93,6 +93,19 @@ def test_invalid_nested_attributes() -> None:
         assert result == case.expected
 
 
+def test_none_value_substitution() -> None:
+    """Test that placeholders with None value are formatted as 'None'."""
+    assert (
+        format_template("Hello {name}!", {"name": None}, skip_unknown=True)
+        == "Hello None!"
+    )
+    assert (
+        format_template("Hello {name}!", {"name": None}, skip_unknown=False)
+        == "Hello None!"
+    )
+    assert format_template("{a} and {b}", {"a": None, "b": "test"}) == "None and test"
+
+
 def test_format_specifications() -> None:
     """Test handling of format specifications."""
     test_cases: list[FormatterCase] = [
