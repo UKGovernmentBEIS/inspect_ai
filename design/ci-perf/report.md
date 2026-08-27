@@ -398,8 +398,10 @@ tests ≤0.3s, against the ~9s a mid-run install would cost).
      `.claude/skills/ci-perf/`; the agent's edit tooling refuses the path and asks
      for an approval no scheduled run can give. As corrected last run, this is a
      harness permission-policy fix, not a token one.
-   - *Upstream PR creation* — re-probed at the end of this run; see the PR line
-     at the bottom of this report for the outcome.
+   - *No upstream write* — `POST /repos/UKGovernmentBEIS/inspect_ai/pulls` with
+     `head_repo` set as AGENTS.md prescribes still returns
+     `403 Resource not accessible by personal access token`, so this run's output
+     is again a fork PR awaiting maintainer promotion.
 
    Consequence: **proposals 1, 4 and 5 are all unshippable by this skill, and it
    has now shipped zero code for six consecutive runs** — while proposal 1 alone
@@ -495,4 +497,12 @@ viewer component-test regression (#318, resolved — see impact verification).
 
 ## PRs opened by this skill
 
-See `prs.md`.
+See `prs.md`. This run's output (snapshot, report, ledger) is
+[meridianlabs-ai/inspect_ai#343](https://github.com/meridianlabs-ai/inspect_ai/pull/343)
+on the fork — upstream PR creation returned 403 again (proposal 2), so it needs
+maintainer promotion as with #4935, #4948, #4995 and #5057. No code fix was
+shipped. One new structural finding was filed as
+[#342](https://github.com/meridianlabs-ai/inspect_ai/issues/342), evidence was
+added to [#317](https://github.com/meridianlabs-ai/inspect_ai/issues/317), and
+[#318](https://github.com/meridianlabs-ai/inspect_ai/issues/318) was closed out
+with the resolving `ts-mono` range.
