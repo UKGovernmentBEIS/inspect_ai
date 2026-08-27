@@ -145,6 +145,20 @@ def test_eval_set_capture_model_roles(
     )
 
 
+def test_eval_set_capture_model_roles_list(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    capture = capture_eval_set(
+        monkeypatch,
+        tmp_path,
+        model_roles={"grader": ["mockllm/grader_a", "mockllm/grader_b"]},
+    )
+    assert all(
+        task.model_roles == {"grader": "mockllm/grader_a,mockllm/grader_b"}
+        for task in capture.tasks
+    )
+
+
 def test_eval_set_capture_adhoc_task(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

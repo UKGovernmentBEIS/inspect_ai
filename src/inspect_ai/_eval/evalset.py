@@ -74,6 +74,7 @@ from inspect_ai.log._log import EvalConfig
 from inspect_ai.model import (
     GenerateConfigArgs,
     Model,
+    ModelRoles,
 )
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model import ModelName
@@ -105,6 +106,13 @@ from .eval_set_manifest import (
     eval_set_capture_requested,
     samples_for_limit,
     task_args_hash,
+)
+from .eval_set_pruning import (
+    disable_pruning,
+    is_placeholder,
+    materialize_pruned,
+    pruned_anything,
+    pruning_active,
 )
 from .eval_set_selection import (
     INSPECT_EVAL_SET_SELECTION,
@@ -155,7 +163,7 @@ def eval_set(
     model: str | Model | list[str] | list[Model] | None | NotGiven = NOT_GIVEN,
     model_base_url: str | None = None,
     model_args: dict[str, Any] | str = dict(),
-    model_roles: dict[str, str | Model] | None = None,
+    model_roles: ModelRoles | None = None,
     task_args: dict[str, Any] | str = dict(),
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
@@ -237,7 +245,7 @@ def eval_set(
             with the model API.
         model_args: Model creation args
             (as a dictionary or as a path to a JSON or YAML config file)
-        model_roles: Named roles for use in `get_model()`.
+        model_roles: Named roles for use in `get_model()` (a role can also map to a list of models).
         task_args: Task creation arguments
             (as a dictionary or as a path to a JSON or YAML config file)
         sandbox: Sandbox environment type
@@ -568,12 +576,14 @@ def eval_set(
                 epochs=capture_epochs.epochs if capture_epochs else None,
                 tags=tags,
                 metadata=metadata,
-                # sample concurrency as the definition asked for it. a runner
-                # that sets max_samples per worker (it is an operational
-                # override in the selection document) otherwise has no way to
-                # see what it is overriding, so a definition's explicit value
-                # is silently replaced by the runner's default.
+                # concurrency as the definition asked for it. a runner that
+                # sets either per worker (both are operational overrides in the
+                # selection document) otherwise has no way to see what it is
+                # overriding, so a definition's explicit value is silently
+                # replaced by the runner's default.
                 max_samples=max_samples,
+                max_sandboxes=max_sandboxes,
+                max_tasks=max_tasks,
                 # error handling as the definition asked for it, so a runner
                 # can see what selection mode honours (retry_on_error) and
                 # what it overrides (fail_on_error) rather than guessing.
@@ -592,16 +602,23 @@ def eval_set(
 
     # a selection may carry operational overrides for this worker. read it
     # before log_dir is used for anything: `filesystem()` is derived from it,
-    # and `run_eval` closes over both names -- closures are late-binding, so
-    # rebinding here is what the closure will see.
+    # and `run_eval` closes over every one of these names -- closures are
+    # late-binding, so rebinding here is what the closure will see.
     selection = (
         read_eval_set_selection(selection_path) if selection_path is not None else None
     )
-    if selection is not None:
-        if selection.log_dir is not None:
-            log_dir = selection.log_dir
-        if selection.max_samples is not None:
-            max_samples = selection.max_samples
+    if selection is not None and selection.overrides is not None:
+        overrides = selection.overrides
+        if overrides.log_dir is not None:
+            log_dir = overrides.log_dir
+        if overrides.max_samples is not None:
+            max_samples = overrides.max_samples
+        if overrides.limit is not None:
+            limit = overrides.limit
+        if overrides.max_sandboxes is not None:
+            max_sandboxes = overrides.max_sandboxes
+        if overrides.max_tasks is not None:
+            max_tasks = overrides.max_tasks
 
     # ensure log_dir
     fs = filesystem(log_dir)
@@ -631,44 +648,76 @@ def eval_set(
                 "its own share."
             )
         selection_config = GenerateConfig(**kwargs)
-        selection_tasks, _ = eval_resolve_tasks(
-            tasks,
-            task_args,
-            models,
-            model_roles,
-            selection_config,
-            approval,
-            sandbox,
-            sample_shuffle,
-            notification=notification,
-            input_media_policy="trusted_pre_run",
-        )
-        if len(selection_tasks) == 0:
-            raise PrerequisiteError(
-                "Error: No inspect tasks were found at the specified paths."
+
+        def resolve_selection_tasks(selection_input: Tasks) -> list[ResolvedTask]:
+            resolved, _ = eval_resolve_tasks(
+                selection_input,
+                task_args,
+                models,
+                model_roles,
+                selection_config,
+                approval,
+                sandbox,
+                sample_shuffle,
+                notification=notification,
+                input_media_policy="trusted_pre_run",
             )
+            if len(resolved) == 0:
+                raise PrerequisiteError(
+                    "Error: No inspect tasks were found at the specified paths."
+                )
+            return resolved
+
+        selection_args = EvalSetArgsInTaskIdentifier(
+            config=selection_config,
+            solver=solver,
+            message_limit=message_limit,
+            token_limit=token_limit,
+            turn_limit=turn_limit,
+            time_limit=time_limit,
+            working_limit=working_limit,
+            cost_limit=cost_limit,
+        )
+
         # same run-boundary cleanup the eval-set path does in its own `finally`
         # below: the inner eval() runs with eval_set_id set, so it leaves both
         # the keep-alive park and the registry reset to its caller.
-        try:
+        def run_selection(selection_input: Tasks) -> tuple[bool, list[EvalLog]]:
             return _run_eval_set_selection(
                 selection,
-                selection_tasks,
-                EvalSetArgsInTaskIdentifier(
-                    config=selection_config,
-                    solver=solver,
-                    message_limit=message_limit,
-                    token_limit=token_limit,
-                    turn_limit=turn_limit,
-                    time_limit=time_limit,
-                    working_limit=working_limit,
-                    cost_limit=cost_limit,
-                ),
+                resolve_selection_tasks(selection_input),
+                selection_args,
                 lambda worker_eval_set_id, worker_tasks: run_eval(
                     worker_eval_set_id, worker_tasks, selection_mode=True
                 ),
                 log_dir,
             )
+
+        try:
+            try:
+                return run_selection(tasks)
+            except PrunedTaskMissing as ex:
+                # early pruning skipped a task this worker was selected to run,
+                # which is a bug in the matching rather than a fact about the
+                # eval set. Build what was skipped and try once more: the cost
+                # is exactly the resolution that would have happened without
+                # pruning at all, and the alternative is failing a run over an
+                # optimization (eval_set_pruning.py, *The safety property*).
+                #
+                # `materialize_pruned` rather than a bare re-resolve, because
+                # for the ordinary `eval_set(tasks=[foo(), bar()])` shape the
+                # placeholders are already in the caller's list -- they were
+                # made while evaluating the argument, before this function was
+                # entered -- so resolving again would resolve the same
+                # placeholders.
+                logger.warning(
+                    f"Early task pruning skipped selected task "
+                    f"'{ex.identifier}'; building the full eval set and "
+                    f"retrying. This is an inspect bug -- the run is "
+                    f"unaffected apart from its startup cost."
+                )
+                disable_pruning()
+                return run_selection(materialize_pruned(tasks))
         finally:
             reset_run_registries()
 
@@ -1260,6 +1309,17 @@ def _recover_crashed_log(
 # the protocol these implement.
 
 
+class PrunedTaskMissing(Exception):
+    """A selected task was absent from a resolution that skipped tasks.
+
+    Internal and never seen by a user: the selection branch catches it, resolves again with pruning disabled, and either succeeds or raises the ordinary drift error. It exists so that *the definition changed* and *pruning was wrong* are answered differently, since only the second one is worth paying a second resolution for.
+    """
+
+    def __init__(self, identifier: str) -> None:
+        super().__init__(identifier)
+        self.identifier = identifier
+
+
 def _run_eval_set_selection(
     selection: EvalSetSelection,
     resolved_tasks: list[ResolvedTask],
@@ -1319,13 +1379,33 @@ def _selected_eval_set_tasks(
     Raises:
         PrerequisiteError: If an identifier matches no resolved task or more than one of them, or if a `resume` log is missing or belongs to a different task.
     """
+    # placeholders never reach identifier computation, and could not survive it
+    # -- a task that was skipped rather than constructed has no solver plan to
+    # hash. Dropping them here is also the whole of what the boundary has to
+    # know about pruning: everything above this line treated them as ordinary
+    # tasks, so `sequence` and the resolved ordering are what they would have
+    # been without pruning at all
     by_identifier: dict[str, list[ResolvedTask]] = {}
     for task in resolved_tasks:
+        if is_placeholder(task.task):
+            continue
         by_identifier.setdefault(task_identifier(task, eval_set_args), []).append(task)
 
     selected: list[ResolvedTask | PreviousTask] = []
     for entry in selection.tasks:
         matches = by_identifier.get(entry.identifier, [])
+        # `pruning_active()` as well as `pruned_anything()`, and the retry is
+        # why: the flag records that tasks were skipped at some point in this
+        # process, which stays true after pruning is switched off. Without the
+        # first clause the re-resolve raises this again and the real error
+        # never surfaces
+        if len(matches) == 0 and pruning_active() and pruned_anything():
+            # a selected task is missing and tasks were skipped, so the skipping
+            # is the first suspect. Not an error yet: the caller resolves again
+            # with pruning off, which either finds the task (pruning was wrong,
+            # and cost time rather than the run) or raises the drift error below
+            # against a resolution that skipped nothing
+            raise PrunedTaskMissing(entry.identifier)
         if len(matches) == 0:
             raise PrerequisiteError(
                 f"[bold]ERROR[/bold]: Task identifier '{entry.identifier}' does "
@@ -1787,14 +1867,17 @@ def task_identifier(
         # base_url is not hashed) and because several providers populate it
         # from env vars during init, which would make the identifier
         # environment-dependent.
+        role_exclude: dict[str, Any] = {
+            "base_url": True,
+            "config": _GENERATE_CONFIG_FIELDS_TO_EXCLUDE,
+        }
         additional_hash_input += to_json_safe(
             model_roles,
             exclude={
-                role: {
-                    "base_url": True,
-                    "config": _GENERATE_CONFIG_FIELDS_TO_EXCLUDE,
-                }
-                for role in model_roles
+                role: {"__all__": role_exclude}
+                if isinstance(value, list)
+                else role_exclude
+                for role, value in model_roles.items()
             },
         )
 
@@ -1873,9 +1956,15 @@ def to_eval_set_task(
     model_name = str(ModelName(task.model))
     model_args = task.model.model_args
 
-    # resolve model roles to names
+    # resolve model roles to names; a list-valued role is comma-joined (the
+    # same syntax --model-role accepts, so the value round-trips through a flag)
     model_roles = (
-        {k: v.name for k, v in task.model_roles.items()} if task.model_roles else None
+        {
+            k: ",".join(m.name for m in v) if isinstance(v, list) else v.name
+            for k, v in task.model_roles.items()
+        }
+        if task.model_roles
+        else None
     )
 
     # see if there an existing task_id that should be used for this

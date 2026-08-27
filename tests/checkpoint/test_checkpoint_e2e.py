@@ -26,10 +26,15 @@ checkpoint commits *during* the final resume (a ``CheckpointEvent`` outside
 the wraps, continuing the numbering); and resume restored the prior
 conversation (only the remaining turns run, not a replay from scratch).
 
-Requires Docker: the sandbox backup path injects/execs a Linux restic
-binary inside the sandbox, which only works with a Linux container
-(``detect_sandbox_os`` rejects non-Linux hosts). See
-``examples/checkpoint_ctf.py`` for the manual harness this replaces.
+``test_checkpoint_resume_rehydrated_event_layout`` is parametrized over
+both sandbox snapshot strategies — the default ``restic-incremental``
+and ``archive`` — so the full kill/resume cycle (capture, adopt,
+restore, strategy pin round-trip) runs end-to-end against each.
+
+Requires Docker: the sandbox backup path runs Linux tooling inside the
+sandbox (an injected restic binary, or tar + compressor for the archive
+strategy), which only works with a Linux container
+(``detect_sandbox_os`` rejects non-Linux hosts).
 """
 
 from __future__ import annotations
@@ -50,6 +55,7 @@ from checkpoint.resume_kill_harness import (
     CANCEL_FILE_ENV,
     LAYER1_CONTENT,
     SIGNAL_ENV,
+    STRATEGY_ENV,
     TARGET_ENV,
     TURN_LIMIT_ENV,
     generates,
@@ -70,6 +76,11 @@ from inspect_ai.util._checkpoint._layout.eval_checkpoints_dir import (
 )
 from inspect_ai.util._checkpoint._layout.host_context import SAMPLE_RUNTIME
 from inspect_ai.util._checkpoint._sandbox_restic.repo import _SANDBOX_RESTIC_DIR
+from inspect_ai.util._checkpoint._snapshot import (
+    STRATEGY_ARCHIVE,
+    STRATEGY_RESTIC,
+    snapshot_strategy_name,
+)
 
 
 def assert_spans_balanced(events: list[Event]) -> None:
@@ -197,17 +208,22 @@ def _force_remove_project(name: str) -> None:
         subprocess.run(["docker", "rm", "-f", *ids], capture_output=True)
 
 
-def _assert_restic_dir_hidden(container_id: str) -> None:
-    """The injected restic dir is inside ``.cache`` and root-only.
+def _assert_snapshot_dir_hidden(container_id: str, strategy: str) -> None:
+    """The in-sandbox snapshot work area is inside ``.cache`` and root-only.
 
     Probes the live sandbox container of a killed attempt (checkpoints
-    committed → binary + repo injected):
+    committed → the strategy's in-sandbox area exists). Both strategies
+    share the same root-only dir (restic's home doubles as the archive
+    strategy's staging parent):
 
     - the path sits under ``/root/.cache/`` — inside the always-on backup
-      exclude (``**/.cache``, so the repo never backs itself up) and under
-      a parent whose dirent is invisible to non-root; and
-    - the dir is mode 0700 owned by root with the repo present, and a
-      non-root uid cannot list it.
+      exclude (``**/.cache``, so the area never backs itself up) and under
+      a parent whose dirent is invisible to non-root;
+    - the dir is mode 0700 owned by root, and a non-root uid cannot list
+      it;
+    - restic: the injected repo is present. archive: no restic repo was
+      ever injected, and the tar staging area was cleaned up after the
+      last capture.
     """
     assert _SANDBOX_RESTIC_DIR.startswith("/root/.cache/")
 
@@ -216,14 +232,29 @@ def _assert_restic_dir_hidden(container_id: str) -> None:
         capture_output=True,
         text=True,
     )
-    assert stat.returncode == 0, f"restic dir missing in sandbox: {stat.stderr}"
+    assert stat.returncode == 0, f"snapshot dir missing in sandbox: {stat.stderr}"
     assert stat.stdout.split() == ["700", "0"]
 
-    repo = subprocess.run(
-        ["docker", "exec", container_id, "test", "-d", f"{_SANDBOX_RESTIC_DIR}/repo"],
-        capture_output=True,
-    )
-    assert repo.returncode == 0, "restic repo missing in sandbox"
+    def _dir_exists(path: str) -> bool:
+        return (
+            subprocess.run(
+                ["docker", "exec", container_id, "test", "-d", path],
+                capture_output=True,
+            ).returncode
+            == 0
+        )
+
+    if strategy == "restic":
+        assert _dir_exists(f"{_SANDBOX_RESTIC_DIR}/repo"), (
+            "restic repo missing in sandbox"
+        )
+    else:
+        assert not _dir_exists(f"{_SANDBOX_RESTIC_DIR}/repo"), (
+            "restic repo injected despite the archive strategy"
+        )
+        assert not _dir_exists(f"{_SANDBOX_RESTIC_DIR}/snapshot-staging"), (
+            "archive staging area not cleaned up after capture"
+        )
 
     denied = subprocess.run(
         [
@@ -239,7 +270,7 @@ def _assert_restic_dir_hidden(container_id: str) -> None:
         text=True,
     )
     assert denied.returncode != 0, (
-        f"restic dir is listable by a non-root user: {denied.stdout}"
+        f"snapshot dir is listable by a non-root user: {denied.stdout}"
     )
 
 
@@ -401,9 +432,10 @@ def test_checkpoint_resume_carries_budget_usage(
 
 @skip_if_no_docker
 @pytest.mark.slow
+@pytest.mark.parametrize("strategy", ["restic", "archive"])
 @pytest.mark.parametrize("interrupt", ["SIGKILL", "SIGINT"])
 def test_checkpoint_resume_rehydrated_event_layout(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, interrupt: str
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, strategy: str, interrupt: str
 ) -> None:
     """Resume works whether the eval was hard-killed or Ctrl-C'd.
 
@@ -412,10 +444,13 @@ def test_checkpoint_resume_rehydrated_event_layout(
     error — so it reaches checkpoint resume down a different path than
     the SIGKILL case, and gets the same result.
     """
-    # Crash count (host file) + target are inherited by the child processes.
+    # Crash count (host file) + target + snapshot strategy are inherited by
+    # the child processes. Only the fresh attempt reads the strategy; resumes
+    # reconstruct it from the log's recorded task args (pin-checked).
     cancel_file = tmp_path / "cancels.txt"
     monkeypatch.setenv(CANCEL_FILE_ENV, str(cancel_file))
     monkeypatch.setenv(TARGET_ENV, "2")
+    monkeypatch.setenv(STRATEGY_ENV, strategy)
     # The crash count is stateful on disk. Under flaky-retry (this test is
     # `_needs_flaky_retry` via `skip_if_no_docker`) the body re-runs with the
     # same `tmp_path`, so reset it — otherwise a retry would inherit a
@@ -443,9 +478,9 @@ def test_checkpoint_resume_rehydrated_event_layout(
         ]
         if interrupt == "SIGKILL":
             # The hard kill leaves the attempt's sandbox container running —
-            # probe it for the restic dir's location and permissions.
+            # probe it for the snapshot dir's location and permissions.
             assert leaked, "expected the killed attempt to leak its sandbox container"
-            _assert_restic_dir_hidden(leaked[0])
+            _assert_snapshot_dir_hidden(leaked[0], strategy)
         else:
             assert not leaked, f"Ctrl-C should tear down the sandbox; leaked {leaked}"
 
@@ -540,29 +575,56 @@ def test_checkpoint_resume_rehydrated_event_layout(
     }
     assert new_checkpoints == {(4, "turn"), (5, "agent_complete")}
 
-    # File listing (opt-in) records each sandbox snapshot's added/changed
-    # files (diff vs parent), not the whole tree.
-    def _ckpt(checkpoint_id: int) -> CheckpointEvent:
-        return next(
-            e
-            for e in events
-            if isinstance(e, CheckpointEvent) and e.checkpoint_id == checkpoint_id
-        )
+    # The live post-resume bash turns (outside any wrap) cat the turn-0 file —
+    # their output proves the sandbox *filesystem* was actually restored
+    # across both kills (resume merely succeeding can't: the submit answer
+    # comes from the model script, not from the sandbox).
+    live_bash = [
+        e
+        for i, e in enumerate(events)
+        if isinstance(e, ToolEvent) and e.function == "bash" and not _in_wrap(i)
+    ]
+    assert live_bash and live_bash[-1].error is None
+    assert LAYER1_CONTENT in str(live_bash[-1].result)
 
-    # ckpt-1 is the first sandbox snapshot (no parent) → full listing, which
-    # includes the turn-0 write but NOT the XDG cache dir (auto-home excludes
-    # $HOME/.cache).
-    ckpt1_files = _ckpt(1).sandboxes["default"].files
-    assert ckpt1_files is not None
-    assert any(p.endswith("workspace/decoded/layer1.txt") for p in ckpt1_files)
-    assert not any("/.cache/" in p for p in ckpt1_files)
-
-    # ckpt-3 diffs against its parent (ckpt-2): it lists the post-resume write
-    # but NOT the unchanged turn-0 file — proving it's a delta, not the tree.
-    ckpt3_details = _ckpt(3).sandboxes["default"]
-    assert ckpt3_details.files is not None
-    assert any(p.endswith("workspace/resumed.txt") for p in ckpt3_details.files)
-    assert not any(
-        p.endswith("workspace/decoded/layer1.txt") for p in ckpt3_details.files
+    # Every committed snapshot's details name the strategy that wrote them.
+    details_by_id = {
+        e.checkpoint_id: e.sandboxes["default"]
+        for e in events
+        if isinstance(e, CheckpointEvent) and "default" in e.sandboxes
+    }
+    assert {1, 2, 3, 4} <= set(details_by_id)
+    expected_strategy = STRATEGY_ARCHIVE if strategy == "archive" else STRATEGY_RESTIC
+    assert all(
+        snapshot_strategy_name(d) == expected_strategy for d in details_by_id.values()
     )
-    assert ckpt3_details.additional_files is None
+
+    if strategy == "archive":
+        # A complete tar per checkpoint: no parent to diff against, so no
+        # per-snapshot file listing is recorded.
+        assert all(
+            d.files is None and d.additional_files is None
+            for d in details_by_id.values()
+        )
+    else:
+        # File listing (restic) records each sandbox snapshot's added/changed
+        # files (diff vs parent), not the whole tree.
+        #
+        # ckpt-1 is the first sandbox snapshot (no parent) → full listing,
+        # which includes the turn-0 write but NOT the XDG cache dir
+        # (auto-home excludes $HOME/.cache).
+        ckpt1_files = details_by_id[1].files
+        assert ckpt1_files is not None
+        assert any(p.endswith("workspace/decoded/layer1.txt") for p in ckpt1_files)
+        assert not any("/.cache/" in p for p in ckpt1_files)
+
+        # ckpt-3 diffs against its parent (ckpt-2): it lists the post-resume
+        # write but NOT the unchanged turn-0 file — proving it's a delta, not
+        # the tree.
+        ckpt3_details = details_by_id[3]
+        assert ckpt3_details.files is not None
+        assert any(p.endswith("workspace/resumed.txt") for p in ckpt3_details.files)
+        assert not any(
+            p.endswith("workspace/decoded/layer1.txt") for p in ckpt3_details.files
+        )
+        assert ckpt3_details.additional_files is None

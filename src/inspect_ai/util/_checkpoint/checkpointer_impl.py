@@ -49,7 +49,6 @@ from inspect_ai.util._checkpoint.sample_runtime import (
 )
 from inspect_ai.util._restic import (
     ResticBackupSummary,
-    list_changed_files,
     run_backup,
 )
 from inspect_ai.util._sandbox.context import sandbox
@@ -71,17 +70,16 @@ from ._layout.sample_checkpoints_dir import (
     write_checkpoint_file,
 )
 from ._layout.schemas import Checkpoint, SnapshotDetails
-from ._layout.staging_dir import sandbox_repo_dir
-from ._sandbox_restic import egress_sandbox, run_sandbox_backup
+from ._repo_ops import checkpoint_tag
+from ._snapshot import SandboxSnapshotSession
 from ._triggers import CheckpointTriggerKind, create_trigger
 from ._triggers.token import _TokenIntervalTrigger
 from .checkpointer import (
     Checkpointer,
     ResumeCheckpoint,
 )
-from .config import MAX_LISTED_FILES, ResolvedCheckpointConfig
+from .config import ResolvedCheckpointConfig
 from .hydrate import HydrationResult, hydrate
-from .sandbox_paths import SandboxBackupPaths
 
 logger = getLogger(__name__)
 
@@ -261,7 +259,7 @@ class _EnteredCheckpointer:
         self._host_restic = hydration.host_restic
         self._host_repo = hydration.host_repo
         self._restic_password = hydration.restic_password
-        self._sandbox_backup_paths = hydration.sandbox_backup_paths
+        self._sandbox_sessions = hydration.sandbox_sessions
         self._resume_checkpoint = resume_checkpoint
         self._restored = restored
         self._agent_state: dict[str, Any] = (
@@ -490,7 +488,7 @@ class _EnteredCheckpointer:
         with trace_action(
             logger,
             "Checkpoint",
-            f"fire {_restic_tag(next_checkpoint_id)} (trigger={trigger})",
+            f"fire {checkpoint_tag(next_checkpoint_id)} (trigger={trigger})",
         ):
             # Close `checkpoint N` *before* `write_host_context` so the
             # ``SpanEndEvent`` lands in this checkpoint's ``events.json`` —
@@ -510,57 +508,30 @@ class _EnteredCheckpointer:
                     state.store,
                 )
 
-                # Host + each sandbox (backup → egress) in parallel. The
-                # backup-then-egress pair for a given sandbox is sequential
-                # (egress diffs against what backup just wrote), but the pairs
+                # Host + each sandbox snapshot in parallel. Each sandbox's
+                # capture runs entirely inside its strategy's `snapshot()`
+                # (capture → egress to the storage area → per-checkpoint
+                # file listing where the strategy supports it); the calls
                 # are independent across sandboxes and from the host backup.
                 # `tg_collect` takes thunks (zero-arg callables) so coroutines
                 # are only created at task-group start time.
-                sandbox_items = list(self._sandbox_backup_paths.items())
-                backup_funcs: list[Callable[[], Awaitable[ResticBackupSummary]]] = [
+                sandbox_items = list(self._sandbox_sessions.items())
+                snapshot_funcs: list[Callable[[], Awaitable[SnapshotDetails]]] = [
                     partial(self._backup_host, next_checkpoint_id),
                     *[
                         partial(
-                            self._backup_and_egress_sandbox,
+                            self._snapshot_sandbox,
                             name,
-                            spec,
+                            session,
                             next_checkpoint_id,
                         )
-                        for name, spec in sandbox_items
+                        for name, session in sandbox_items
                     ],
                 ]
-                summaries = await tg_collect(backup_funcs)
-                host_info = _snapshot_info(summaries[0])
-                sandbox_summaries = [
-                    (name, summary)
-                    for (name, _), summary in zip(sandbox_items, summaries[1:])
-                ]
-
-                # List each sandbox snapshot's added/changed files (capped at
-                # MAX_LISTED_FILES). Diffs host-side against the
-                # already-egressed repos in parallel, so the in-sandbox
-                # exec-output limit is never hit.
-                file_lists: list[tuple[list[str] | None, int]] = await tg_collect(
-                    [
-                        partial(
-                            list_changed_files,
-                            self._host_restic,
-                            sandbox_repo_dir(self._sample_root, name),
-                            self._restic_password,
-                            summary.snapshot_id,
-                            MAX_LISTED_FILES,
-                        )
-                        for name, summary in sandbox_summaries
-                    ]
-                )
-
+                details = await tg_collect(snapshot_funcs)
+                host_info = details[0]
                 sandbox_infos = {
-                    name: _snapshot_info(
-                        summary, files=files, additional_files=extra or None
-                    )
-                    for (name, summary), (files, extra) in zip(
-                        sandbox_summaries, file_lists
-                    )
+                    name: info for (name, _), info in zip(sandbox_items, details[1:])
                 }
 
                 # Cycle duration measured up to the checkpoint file write — the
@@ -719,33 +690,22 @@ class _EnteredCheckpointer:
             self._transcript_store.attachment(ref) or attachments.get(ref)
         )
 
-    async def _backup_host(self, checkpoint_id: int) -> ResticBackupSummary:
-        return await run_backup(
+    async def _backup_host(self, checkpoint_id: int) -> SnapshotDetails:
+        summary = await run_backup(
             self._host_restic,
             self._host_repo,
             self._restic_password,
             self._context_dir,
-            _restic_tag(checkpoint_id),
+            checkpoint_tag(checkpoint_id),
         )
+        return _snapshot_info(summary)
 
-    async def _backup_and_egress_sandbox(
-        self, name: str, spec: SandboxBackupPaths, checkpoint_id: int
-    ) -> ResticBackupSummary:
-        env = sandbox(name)
-        tag = _restic_tag(checkpoint_id)
-        summary = await run_sandbox_backup(
-            env, self._restic_password, spec.include, tag, exclude=spec.exclude
+    async def _snapshot_sandbox(
+        self, name: str, session: SandboxSnapshotSession, checkpoint_id: int
+    ) -> SnapshotDetails:
+        return await session.strategy.snapshot(
+            sandbox(name), session.paths, checkpoint_id, session.context
         )
-        dest_repo = sandbox_repo_dir(self._sample_root, name)
-        await egress_sandbox(
-            env,
-            dest_repo=dest_repo,
-            password=self._restic_password,
-            host_restic=self._host_restic,
-            tag=tag,
-            snapshot_id=summary.snapshot_id,
-        )
-        return summary
 
 
 async def _scan_next_checkpoint_id(sample_root: str) -> int:
@@ -757,15 +717,6 @@ async def _scan_next_checkpoint_id(sample_root: str) -> int:
     """
     latest = await scan_latest_committed_id(sample_root)
     return latest + 1 if latest is not None else 1
-
-
-def _restic_tag(checkpoint_id: int) -> str:
-    """Format the restic ``--tag`` for a checkpoint's snapshots.
-
-    Matches the checkpoint file's ``ckpt-NNNNN`` prefix, so a tag and a
-    checkpoint file share the same N for the same checkpoint.
-    """
-    return f"ckpt-{checkpoint_id:05d}"
 
 
 def _snapshot_info(
