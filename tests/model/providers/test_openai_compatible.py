@@ -353,15 +353,23 @@ async def test_together_stream_end_to_end() -> None:
     # Use a generous max_tokens: reasoning models (e.g. gpt-oss) spend their
     # budget on the reasoning channel and emit no answer content if it is too
     # low, producing an empty completion (regardless of streaming).
+    events: list[Any] = []
+
+    async def collect(event: Any) -> None:
+        events.append(event)
+
     model = get_model(
         "together/openai/gpt-oss-20b",
         stream=True,
         config=GenerateConfig(max_tokens=1024, temperature=0.0),
     )
     response = await model.generate(
-        input=[ChatMessageUser(content="This is a test string. What are you?")]
+        input=[ChatMessageUser(content="This is a test string. What are you?")],
+        on_stream=collect,
     )
     assert len(response.completion) >= 1
+    streamed = "".join(e.text for e in events if isinstance(e, StreamTextEvent))
+    assert streamed == response.completion
 
 
 class _FakeChunkStream:
