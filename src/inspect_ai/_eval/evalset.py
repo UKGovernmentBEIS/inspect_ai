@@ -107,6 +107,13 @@ from .eval_set_manifest import (
     samples_for_limit,
     task_args_hash,
 )
+from .eval_set_pruning import (
+    disable_pruning,
+    is_placeholder,
+    materialize_pruned,
+    pruned_anything,
+    pruning_active,
+)
 from .eval_set_selection import (
     INSPECT_EVAL_SET_SELECTION,
     EvalSetSelection,
@@ -641,44 +648,76 @@ def eval_set(
                 "its own share."
             )
         selection_config = GenerateConfig(**kwargs)
-        selection_tasks, _ = eval_resolve_tasks(
-            tasks,
-            task_args,
-            models,
-            model_roles,
-            selection_config,
-            approval,
-            sandbox,
-            sample_shuffle,
-            notification=notification,
-            input_media_policy="trusted_pre_run",
-        )
-        if len(selection_tasks) == 0:
-            raise PrerequisiteError(
-                "Error: No inspect tasks were found at the specified paths."
+
+        def resolve_selection_tasks(selection_input: Tasks) -> list[ResolvedTask]:
+            resolved, _ = eval_resolve_tasks(
+                selection_input,
+                task_args,
+                models,
+                model_roles,
+                selection_config,
+                approval,
+                sandbox,
+                sample_shuffle,
+                notification=notification,
+                input_media_policy="trusted_pre_run",
             )
+            if len(resolved) == 0:
+                raise PrerequisiteError(
+                    "Error: No inspect tasks were found at the specified paths."
+                )
+            return resolved
+
+        selection_args = EvalSetArgsInTaskIdentifier(
+            config=selection_config,
+            solver=solver,
+            message_limit=message_limit,
+            token_limit=token_limit,
+            turn_limit=turn_limit,
+            time_limit=time_limit,
+            working_limit=working_limit,
+            cost_limit=cost_limit,
+        )
+
         # same run-boundary cleanup the eval-set path does in its own `finally`
         # below: the inner eval() runs with eval_set_id set, so it leaves both
         # the keep-alive park and the registry reset to its caller.
-        try:
+        def run_selection(selection_input: Tasks) -> tuple[bool, list[EvalLog]]:
             return _run_eval_set_selection(
                 selection,
-                selection_tasks,
-                EvalSetArgsInTaskIdentifier(
-                    config=selection_config,
-                    solver=solver,
-                    message_limit=message_limit,
-                    token_limit=token_limit,
-                    turn_limit=turn_limit,
-                    time_limit=time_limit,
-                    working_limit=working_limit,
-                    cost_limit=cost_limit,
-                ),
+                resolve_selection_tasks(selection_input),
+                selection_args,
                 lambda worker_eval_set_id, worker_tasks: run_eval(
                     worker_eval_set_id, worker_tasks, selection_mode=True
                 ),
                 log_dir,
             )
+
+        try:
+            try:
+                return run_selection(tasks)
+            except PrunedTaskMissing as ex:
+                # early pruning skipped a task this worker was selected to run,
+                # which is a bug in the matching rather than a fact about the
+                # eval set. Build what was skipped and try once more: the cost
+                # is exactly the resolution that would have happened without
+                # pruning at all, and the alternative is failing a run over an
+                # optimization (eval_set_pruning.py, *The safety property*).
+                #
+                # `materialize_pruned` rather than a bare re-resolve, because
+                # for the ordinary `eval_set(tasks=[foo(), bar()])` shape the
+                # placeholders are already in the caller's list -- they were
+                # made while evaluating the argument, before this function was
+                # entered -- so resolving again would resolve the same
+                # placeholders.
+                logger.warning(
+                    f"Early task pruning skipped selected task "
+                    f"'{ex.identifier}'; building the full eval set and "
+                    f"retrying. This is an inspect bug -- the run is "
+                    f"unaffected apart from its startup cost."
+                )
+                disable_pruning()
+                return run_selection(materialize_pruned(tasks))
         finally:
             reset_run_registries()
 
@@ -1270,6 +1309,17 @@ def _recover_crashed_log(
 # the protocol these implement.
 
 
+class PrunedTaskMissing(Exception):
+    """A selected task was absent from a resolution that skipped tasks.
+
+    Internal and never seen by a user: the selection branch catches it, resolves again with pruning disabled, and either succeeds or raises the ordinary drift error. It exists so that *the definition changed* and *pruning was wrong* are answered differently, since only the second one is worth paying a second resolution for.
+    """
+
+    def __init__(self, identifier: str) -> None:
+        super().__init__(identifier)
+        self.identifier = identifier
+
+
 def _run_eval_set_selection(
     selection: EvalSetSelection,
     resolved_tasks: list[ResolvedTask],
@@ -1329,13 +1379,33 @@ def _selected_eval_set_tasks(
     Raises:
         PrerequisiteError: If an identifier matches no resolved task or more than one of them, or if a `resume` log is missing or belongs to a different task.
     """
+    # placeholders never reach identifier computation, and could not survive it
+    # -- a task that was skipped rather than constructed has no solver plan to
+    # hash. Dropping them here is also the whole of what the boundary has to
+    # know about pruning: everything above this line treated them as ordinary
+    # tasks, so `sequence` and the resolved ordering are what they would have
+    # been without pruning at all
     by_identifier: dict[str, list[ResolvedTask]] = {}
     for task in resolved_tasks:
+        if is_placeholder(task.task):
+            continue
         by_identifier.setdefault(task_identifier(task, eval_set_args), []).append(task)
 
     selected: list[ResolvedTask | PreviousTask] = []
     for entry in selection.tasks:
         matches = by_identifier.get(entry.identifier, [])
+        # `pruning_active()` as well as `pruned_anything()`, and the retry is
+        # why: the flag records that tasks were skipped at some point in this
+        # process, which stays true after pruning is switched off. Without the
+        # first clause the re-resolve raises this again and the real error
+        # never surfaces
+        if len(matches) == 0 and pruning_active() and pruned_anything():
+            # a selected task is missing and tasks were skipped, so the skipping
+            # is the first suspect. Not an error yet: the caller resolves again
+            # with pruning off, which either finds the task (pruning was wrong,
+            # and cost time rather than the run) or raises the drift error below
+            # against a resolution that skipped nothing
+            raise PrunedTaskMissing(entry.identifier)
         if len(matches) == 0:
             raise PrerequisiteError(
                 f"[bold]ERROR[/bold]: Task identifier '{entry.identifier}' does "
