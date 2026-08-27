@@ -424,3 +424,44 @@ async def test_grok_stream_chunk_reporting() -> None:
     assert tool_event.arguments == '{"cmd": "ls"}'
     # the chunk's cumulative usage was reported
     assert observer._tokens_current == 7
+
+
+async def test_grok_stream_chunk_gated_without_on_stream(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Without an on_stream consumer only usage/heartbeat progress runs.
+
+    Explicit streaming=true callers stream without asking for stream events,
+    so delta construction (on_stream support code) must not run for them.
+    """
+    from xai_sdk.chat import Chunk, chat_pb2
+
+    import inspect_ai.model._providers.grok as grok_module
+    from inspect_ai.model._providers.grok import _report_grok_stream_chunk
+    from inspect_ai.model._stream import ModelStreamObserver, model_stream_observer
+
+    async def fail(delta: object) -> None:
+        raise AssertionError("delta reported without an on_stream consumer")
+
+    monkeypatch.setattr(grok_module, "report_model_stream_delta", fail)
+
+    proto = chat_pb2.GetChatCompletionChunk(
+        outputs=[
+            chat_pb2.CompletionOutputChunk(
+                index=0,
+                delta=chat_pb2.Delta(
+                    role=chat_pb2.MessageRole.ROLE_ASSISTANT,
+                    content="hel",
+                    reasoning_content="hmm",
+                ),
+            )
+        ],
+    )
+    proto.usage.completion_tokens = 7
+
+    observer = ModelStreamObserver("grok/test", None)
+    with model_stream_observer(observer):
+        await _report_grok_stream_chunk(Chunk(proto, 0))
+
+    # the usage progress channel still ran
+    assert observer._tokens_current == 7
