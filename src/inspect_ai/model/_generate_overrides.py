@@ -46,7 +46,10 @@ them.
 
 from __future__ import annotations
 
-from typing import Literal, get_args
+from typing import TYPE_CHECKING, Literal, cast, get_args
+
+if TYPE_CHECKING:
+    from inspect_ai.model._generate_config import GenerateConfig
 
 GenerateConfigOverrideField = Literal[
     "timeout", "attempt_timeout", "stream_idle_timeout", "max_retries"
@@ -104,6 +107,26 @@ def generate_config_override(
     means "no override in effect").
     """
     return _overrides.get(field, base)
+
+
+def generate_config_override_for_attempt(
+    field: Literal["attempt_timeout", "stream_idle_timeout"],
+    config: GenerateConfig,
+) -> int | None:
+    """The effective value of a per-attempt timeout knob for one attempt.
+
+    Resolved by ``Model._generate`` when opening each attempt's cancel
+    scope, so a live ``inspect ctl config`` override applies from the next
+    attempt onward. A batched call keeps its launch value: its attempt
+    awaits an entire provider batch, and an override cancelling that wait
+    would resubmit the request into a new batch on every retry (duplicated
+    provider work) — the whole-batch blast radius the batchers' admin-op
+    override opt-out exists to avoid. (For ``stream_idle_timeout`` the
+    carve-out is doubly moot: batched calls never stream, so the scope
+    never arms.)
+    """
+    base = cast("int | None", getattr(config, field))
+    return base if config.batch else generate_config_override(field, base)
 
 
 def generate_config_overrides() -> dict[str, int | None]:

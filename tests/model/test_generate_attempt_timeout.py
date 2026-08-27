@@ -225,7 +225,7 @@ class BriefStreamAPI(SlowAPI):
         BriefStreamAPI.attempts += 1
         report_model_stream_start()
         await report_model_stream_delta(StreamTextEvent(text="chunk"))
-        await anyio.sleep(2)
+        await anyio.sleep(1.5)
         return ModelOutput.from_content(model=self.model_name, content="done")
 
 

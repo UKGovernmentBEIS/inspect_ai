@@ -21,7 +21,15 @@ import time
 from contextvars import ContextVar
 from datetime import datetime, timezone
 from logging import getLogger
-from typing import TYPE_CHECKING, Awaitable, Callable, Iterator, Literal, Union
+from typing import (
+    TYPE_CHECKING,
+    Awaitable,
+    Callable,
+    Iterator,
+    Literal,
+    NamedTuple,
+    Union,
+)
 
 import anyio
 from pydantic import BaseModel, Field
@@ -110,12 +118,24 @@ StreamContentEvent: TypeAlias = Union[
 
 
 STALL_DEADLINE_BUMP_INTERVAL = 1.0
-"""Minimum seconds between stall-scope deadline bumps.
+"""Maximum seconds between stall-scope deadline bumps.
 
 Setting `CancelScope.deadline` reschedules a timer handle, so per-chunk
 rescheduling is needless work; 1-second granularity is noise against any
-sane `stream_idle_timeout` (see design/stream-idle-timeout.md).
+sane `stream_idle_timeout` (see design/stream-idle-timeout.md). Throttling
+shrinks the effective silence tolerance by up to one interval (the deadline
+can be an interval staler than the last chunk), so `arm_stall_scope` caps
+the interval at a tenth of the timeout — a small timeout must not spend a
+meaningful fraction of its window on throttle slack.
 """
+
+
+class _StallScope(NamedTuple):
+    """One attempt's stall-detection state (see `arm_stall_scope`)."""
+
+    scope: anyio.CancelScope
+    timeout: float
+    bump_interval: float
 
 
 PARTIAL_OUTPUT_FLUSH_INTERVAL = 1.0
@@ -187,9 +207,8 @@ class ModelStreamObserver:
         self._fragments: list[tuple[str, list[str]]] = []
         self._partial_published = False
         self._last_flush = 0.0
-        # stall-detection scope for the current attempt (see arm_stall_scope)
-        self._stall_scope: anyio.CancelScope | None = None
-        self._stall_timeout: float | None = None
+        # stall-detection state for the current attempt (see arm_stall_scope)
+        self._stall: _StallScope | None = None
         self._last_stall_bump = 0.0
 
     async def begin_attempt(self, event: "ModelEvent") -> None:
@@ -206,8 +225,7 @@ class ModelStreamObserver:
         # drop the prior attempt's stall scope (exited with its attempt);
         # the wrapper re-arms per attempt via arm_stall_scope — a cache-hit
         # attempt runs no provider call, so it deliberately never re-arms
-        self._stall_scope = None
-        self._stall_timeout = None
+        self._stall = None
         self._reset_output_state()
         if self._attempt > 1 and self._delivered:
             await self._deliver(StreamRetryEvent(attempt=self._attempt))
@@ -286,7 +304,9 @@ class ModelStreamObserver:
         broken handler recovers there. Detaching also turns
         `model_stream_requested()` False for this call's later attempts
         (nothing consumes the deltas, so auto-mode providers needn't
-        stream). Only `Exception` is caught — cancellation propagates.
+        stream) — unless a `stream_idle_timeout` stall scope is armed,
+        which keeps the request alive (stall detection still needs
+        chunks). Only `Exception` is caught — cancellation propagates.
         """
         if self._on_stream is None:
             return
@@ -340,31 +360,37 @@ class ModelStreamObserver:
         streams can never fire. The reference is per-attempt state, dropped
         by `begin_attempt`.
         """
-        self._stall_scope = scope
-        self._stall_timeout = float(timeout)
-        self._last_stall_bump = 0.0
+        self._stall = _StallScope(
+            scope=scope,
+            timeout=float(timeout),
+            # cap throttle slack at a tenth of the window (see the
+            # STALL_DEADLINE_BUMP_INTERVAL docstring)
+            bump_interval=min(STALL_DEADLINE_BUMP_INTERVAL, float(timeout) / 10.0),
+        )
 
     def _bump_stall_deadline(self) -> None:
         """Push the stall scope's deadline forward: the stream is alive.
 
         Runs on every report path (all of them funnel through
         `_touch_progress`, plus `output_restarted`). The first report arms
-        the scope unconditionally; later bumps are throttled to one deadline
-        write per `STALL_DEADLINE_BUMP_INTERVAL` — the slack that leaves
-        (deadline up to the interval staler than the last chunk) is noise
-        against any sane timeout value.
+        the scope unconditionally — the still-infinite deadline is what
+        guarantees that, so `_last_stall_bump` needs no per-attempt reset —
+        and later bumps are throttled to one deadline write per
+        `bump_interval`. The throttle gate reads `time.monotonic()` so the
+        common throttled case skips the event-loop clock lookup; the
+        deadline itself is written on the loop clock.
         """
-        scope = self._stall_scope
-        if scope is None or self._stall_timeout is None:
+        stall = self._stall
+        if stall is None:
             return
-        now = anyio.current_time()
+        now = time.monotonic()
         if (
-            scope.deadline != math.inf
-            and now - self._last_stall_bump < STALL_DEADLINE_BUMP_INTERVAL
+            stall.scope.deadline != math.inf
+            and now - self._last_stall_bump < stall.bump_interval
         ):
             return
         self._last_stall_bump = now
-        scope.deadline = now + self._stall_timeout
+        stall.scope.deadline = anyio.current_time() + stall.timeout
 
     def _touch_progress(self) -> None:
         from inspect_ai.event._model import ModelEventProgress
@@ -466,7 +492,7 @@ def model_stream_requested() -> bool:
     """
     observer = _model_stream_observer.get()
     return observer is not None and (
-        observer._on_stream is not None or observer._stall_scope is not None
+        observer._on_stream is not None or observer._stall is not None
     )
 
 

@@ -528,7 +528,7 @@ async def test_stream_idle_timeout_never_arms_without_streaming() -> None:
     """
 
     async def attempt(api: ScriptedStreamAPI) -> ModelOutput:
-        await anyio.sleep(2)
+        await anyio.sleep(1.5)
         return api._output("quiet")
 
     output = await _scripted_generate(
@@ -594,21 +594,19 @@ async def test_stream_idle_timeout_surfaces_when_retries_exhausted() -> None:
     assert ScriptedStreamAPI.attempts == 1
 
 
-async def test_stream_idle_timeout_bumps_keep_slow_stream_alive(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+async def test_stream_idle_timeout_bumps_keep_slow_stream_alive() -> None:
     """Chunks flowing faster than the timeout keep the attempt alive.
 
-    Total attempt duration exceeds the timeout several times over; only
-    inter-chunk silence counts. (Bump throttling is disabled so sub-second
-    chunk gaps register against the 1s test timeout — real timeouts are
-    an order of magnitude above the throttle interval.)
+    Total attempt duration exceeds the timeout; only inter-chunk silence
+    counts. Also a regression test for the throttle cap: bump throttling
+    scales down with the timeout (a fixed 1s throttle against this 1s
+    timeout would swallow every sub-second bump and false-fire despite the
+    flowing chunks).
     """
-    monkeypatch.setattr("inspect_ai.model._stream.STALL_DEADLINE_BUMP_INTERVAL", 0.0)
 
     async def attempt(api: ScriptedStreamAPI) -> ModelOutput:
         report_model_stream_start()
-        for _ in range(6):
+        for _ in range(4):
             await anyio.sleep(0.4)
             report_model_stream_progress()
         return api._output("slow but alive")
@@ -623,9 +621,9 @@ async def test_stream_idle_timeout_bumps_keep_slow_stream_alive(
 async def test_stall_deadline_bumps_are_throttled() -> None:
     """Within-interval reports must not reschedule the scope's timer.
 
-    The first report arms the scope unconditionally; a report inside
-    STALL_DEADLINE_BUMP_INTERVAL of the last bump leaves the deadline
-    untouched.
+    The first report arms the scope unconditionally; a report inside the
+    bump interval (STALL_DEADLINE_BUMP_INTERVAL for this ample timeout) of
+    the last bump leaves the deadline untouched.
     """
     import math
 

@@ -75,7 +75,7 @@ from inspect_ai._util.working import (
     sample_waiting,
     sample_working_time,
 )
-from inspect_ai.model._generate_overrides import generate_config_override
+from inspect_ai.model._generate_overrides import generate_config_override_for_attempt
 from inspect_ai.model._retry import model_retry_config
 from inspect_ai.tool import Tool, ToolChoice, ToolFunction, ToolInfo
 from inspect_ai.tool._mcp._remote import is_mcp_server_tool
@@ -1497,17 +1497,8 @@ class Model:
             )
 
             # create timeout context manager if we have an attempt timeout
-            # (resolved per attempt so a live `inspect ctl config` override
-            # applies from the next attempt onward). A batched call keeps its
-            # launch value: its attempt awaits an entire provider batch, and
-            # an override cancelling that wait would resubmit the request
-            # into a new batch on every retry (duplicated provider work) —
-            # the whole-batch blast radius the batchers' admin-op override
-            # opt-out exists to avoid.
-            attempt_timeout = (
-                config.attempt_timeout
-                if config.batch
-                else generate_config_override("attempt_timeout", config.attempt_timeout)
+            attempt_timeout = generate_config_override_for_attempt(
+                "attempt_timeout", config
             )
             timeout_cm = (
                 anyio.move_on_after(attempt_timeout)
@@ -1518,19 +1509,14 @@ class Model:
             # stall-detection scope (see design/stream-idle-timeout.md): the
             # deadline starts infinite and the stream observer arms/bumps it
             # on each reported chunk, so an attempt that never streams can
-            # never fire. Same live-override resolution and batch carve-out
-            # as attempt_timeout (batched calls never stream, so the knob is
-            # doubly inert there).
-            stream_idle_timeout = (
-                config.stream_idle_timeout
-                if config.batch
-                else generate_config_override(
-                    "stream_idle_timeout", config.stream_idle_timeout
-                )
+            # never fire
+            stream_idle_timeout = generate_config_override_for_attempt(
+                "stream_idle_timeout", config
             )
             idle_scope = (
                 anyio.CancelScope() if stream_idle_timeout is not None else None
             )
+            idle_cm = idle_scope if idle_scope is not None else contextlib.nullcontext()
 
             with trace_action(logger, "Model", f"generate ({str(self)})"):
                 time_start = time.monotonic()
@@ -1548,7 +1534,8 @@ class Model:
                     )
 
                     await stream_observer.begin_attempt(event)
-                    if idle_scope is not None and stream_idle_timeout is not None:
+                    if idle_scope is not None:
+                        assert stream_idle_timeout is not None
                         stream_observer.arm_stall_scope(idle_scope, stream_idle_timeout)
 
                     with (
@@ -1556,12 +1543,7 @@ class Model:
                         _observer.track_model_event(event),
                         model_stream_observer(stream_observer),
                     ):
-                        with (
-                            timeout_cm,
-                            idle_scope
-                            if idle_scope is not None
-                            else contextlib.nullcontext(),
-                        ):
+                        with timeout_cm, idle_cm:
                             result = await self.api.generate(
                                 input=input,
                                 tools=call_tools,

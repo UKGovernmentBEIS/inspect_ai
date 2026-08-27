@@ -144,11 +144,15 @@ The observer then drives the deadline:
 - **Bump on every report** (`stream_started`, `report_progress`,
   `report_delta` — i.e. inside `_touch_progress`, which every reporting path
   already calls): `deadline = current_time() + T`, throttled to at most one
-  bump per second. Setting `CancelScope.deadline` reschedules a timer handle,
-  so per-chunk rescheduling is needless work; 1-second granularity is noise
-  against any sane T (≥ ~15s), and the throttle matches the observer's
-  existing `PARTIAL_OUTPUT_FLUSH_INTERVAL` philosophy of bounding per-chunk
-  cost.
+  bump per `min(1s, T/10)`. Setting `CancelScope.deadline` reschedules a
+  timer handle, so per-chunk rescheduling is needless work; 1-second
+  granularity is noise against any sane T (≥ ~15s), and the throttle matches
+  the observer's existing `PARTIAL_OUTPUT_FLUSH_INTERVAL` philosophy of
+  bounding per-chunk cost. Throttling shrinks the effective silence
+  tolerance by up to one interval (the deadline can be an interval staler
+  than the last chunk), which is why the interval is capped at a tenth of
+  T rather than fixed: a fixed 1s throttle against T=1 would false-fire on
+  a healthy stream delivering sub-second chunks.
 - **The scope stays armed from the first chunk until the attempt returns.**
   Deliberately no disarm-on-stream-close: providers give the observer no
   "stream closed intentionally" signal, and the windows this leaves covered
