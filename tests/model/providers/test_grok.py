@@ -302,3 +302,125 @@ async def test_grok_create_batch_chunks_add_calls() -> None:
     for call in client.batch.add.await_args_list:
         assert call.kwargs["batch_id"] == "batch-123"
         assert len(call.kwargs["batch_requests"]) == 1
+
+
+# -- Stream observer reporting (on_stream) -------------------------------------
+
+
+def test_grok_streaming_defaults_to_auto() -> None:
+    """Unset streaming is auto (streams when the caller passes on_stream)."""
+    from inspect_ai.model._providers.grok import GrokAPI
+
+    assert GrokAPI(model_name="grok-4.6", api_key="test-key").streaming is None
+    # -M streaming=auto arrives as the string "auto" (YAML-parsed) and must
+    # map to the auto sentinel, not a truthy explicit setting
+    assert (
+        GrokAPI(model_name="grok-4.6", api_key="test-key", streaming="auto").streaming
+        is None
+    )
+    assert (
+        GrokAPI(model_name="grok-4.6", api_key="test-key", streaming=True).streaming
+        is True
+    )
+    assert (
+        GrokAPI(model_name="grok-4.6", api_key="test-key", streaming=False).streaming
+        is False
+    )
+    # a typo'd value raises rather than silently forcing streaming on or off
+    with pytest.raises(ValueError, match="streaming"):
+        GrokAPI(
+            model_name="grok-4.6",
+            api_key="test-key",
+            streaming="always",  # type: ignore[arg-type]
+        )
+
+
+def test_grok_resolve_streaming_declines_logprobs() -> None:
+    """Auto mode declines to stream when logprobs are requested.
+
+    xai_sdk's stream accumulator never carries logprobs into the final
+    response, so a display-only on_stream request must not enable streaming
+    (explicit streaming=true keeps its pre-existing lossy behavior).
+    """
+    from typing import Any
+
+    from inspect_ai.model._providers.grok import GrokAPI
+    from inspect_ai.model._stream import ModelStreamObserver, model_stream_observer
+
+    async def collect(event: Any) -> None:
+        pass
+
+    def api(**model_args: Any) -> GrokAPI:
+        return GrokAPI(model_name="grok-4.6", api_key="test-key", **model_args)
+
+    logprobs = GenerateConfig(logprobs=True)
+    with model_stream_observer(ModelStreamObserver("grok/test", collect)):
+        assert api()._resolve_streaming(GenerateConfig()) is True
+        assert api()._resolve_streaming(logprobs) is False
+        # explicit opt-in/opt-out still wins
+        assert api(streaming=True)._resolve_streaming(logprobs) is True
+        assert api(streaming=False)._resolve_streaming(GenerateConfig()) is False
+    # without an on_stream callback, auto never streams
+    assert api()._resolve_streaming(GenerateConfig()) is False
+
+
+async def test_grok_stream_chunk_reporting() -> None:
+    """Streamed chunks are reported to the model layer's stream observer."""
+    from xai_sdk.chat import Chunk, chat_pb2
+
+    from inspect_ai.model import (
+        StreamEvent,
+        StreamReasoningEvent,
+        StreamTextEvent,
+        StreamToolCallEvent,
+    )
+    from inspect_ai.model._providers.grok import _report_grok_stream_chunk
+    from inspect_ai.model._stream import ModelStreamObserver, model_stream_observer
+
+    events: list[StreamEvent] = []
+
+    async def collect(event: StreamEvent) -> None:
+        events.append(event)
+
+    proto = chat_pb2.GetChatCompletionChunk(
+        outputs=[
+            chat_pb2.CompletionOutputChunk(
+                index=0,
+                delta=chat_pb2.Delta(
+                    role=chat_pb2.MessageRole.ROLE_ASSISTANT,
+                    content="hel",
+                    reasoning_content="hmm",
+                    tool_calls=[
+                        chat_pb2.ToolCall(
+                            id="call_1",
+                            function=chat_pb2.FunctionCall(
+                                name="bash", arguments='{"cmd": "ls"}'
+                            ),
+                        )
+                    ],
+                ),
+            )
+        ],
+    )
+    proto.usage.completion_tokens = 7
+
+    observer = ModelStreamObserver("grok/test", collect)
+    with model_stream_observer(observer):
+        await _report_grok_stream_chunk(Chunk(proto, 0))
+
+    assert [type(e) for e in events] == [
+        StreamReasoningEvent,
+        StreamTextEvent,
+        StreamToolCallEvent,
+    ]
+    assert isinstance(events[0], StreamReasoningEvent)
+    assert events[0].reasoning == "hmm"
+    assert isinstance(events[1], StreamTextEvent)
+    assert events[1].text == "hel"
+    tool_event = events[2]
+    assert isinstance(tool_event, StreamToolCallEvent)
+    assert tool_event.id == "call_1"
+    assert tool_event.function == "bash"
+    assert tool_event.arguments == '{"cmd": "ls"}'
+    # the chunk's cumulative usage was reported
+    assert observer._tokens_current == 7
