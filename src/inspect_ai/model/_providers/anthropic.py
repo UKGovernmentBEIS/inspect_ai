@@ -4109,18 +4109,13 @@ async def _capture_compaction_from_stream(
             compaction_content = getattr(event.delta, "content", None)
 
         # report the chunk to the model layer's stream observer: content
-        # deltas by kind, cumulative output tokens from message_delta usage,
-        # and a bare heartbeat for everything else. Delta construction is
-        # gated per chunk on an on_stream consumer being present: this loop
-        # also runs for auto-streamed calls whose caller never asked for
-        # stream events, and parsing wire data into StreamEvents must not be
-        # able to fail such a call.
+        # deltas by kind (gated on model_stream_requested() — see
+        # report_model_stream_delta), cumulative output tokens from
+        # message_delta usage, and a bare heartbeat for everything else
         if event.type == "content_block_start":
             # tool_use / server_tool_use / mcp_tool_use all carry id + name
             # and stream their input as input_json_delta fragments
-            if model_stream_requested() and str(
-                getattr(event.content_block, "type", "")
-            ).endswith("tool_use"):
+            if str(getattr(event.content_block, "type", "")).endswith("tool_use"):
                 tool_blocks[event.index] = event.content_block
             report_model_stream_progress()
         elif event.type == "content_block_delta":

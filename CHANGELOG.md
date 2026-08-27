@@ -1,6 +1,6 @@
 ## Unreleased
 
-- Model streaming: stream-event handling now runs only for callers that pass `on_stream`, so it can no longer fail model calls that stream without a callback (e.g. Anthropic auto-streamed requests).
+- Model streaming: stream-event handling — including live partial-output snapshots in inspect view — now runs only when `on_stream` is passed, so it can no longer fail model calls that stream without a callback.
 - Eval logs: Users can chain conditional S3 writes using the ETag returned by `write_eval_log()` and `write_eval_log_async()`.
 - Breaking (tests only) Sandboxes: `inspect_ai.util._sandbox.self_check` is now a collection of plain pytest tests. See docstring for migration instructions.
 - Eval Set: A worker running a selection now skips the tasks it was not selected to run, so a large eval set need not cost every worker its full startup memory.

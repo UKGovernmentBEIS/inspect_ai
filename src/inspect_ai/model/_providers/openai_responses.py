@@ -303,10 +303,8 @@ async def _generate_responses_stream(
                     code=event.code or "server_error", message=event.message
                 )
             elif not model_stream_requested():
-                # without an on_stream consumer (explicit streaming=true
-                # callers) only the heartbeat progress channel runs: delta
-                # construction is on_stream support code and must not be
-                # able to fail a call that never asked for stream events
+                # content deltas are gated on an on_stream consumer (see
+                # report_model_stream_delta); heartbeat only
                 report_model_stream_progress()
             elif isinstance(event, ResponseTextDeltaEvent):
                 await report_model_stream_delta(StreamTextEvent(text=event.delta))

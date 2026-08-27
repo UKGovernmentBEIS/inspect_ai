@@ -2154,11 +2154,8 @@ async def _report_stream_part_delta(part: Part) -> None:
     Text and thought parts stream as fragments; a function call arrives whole
     in a single part, so it is reported as one tool-call delta with complete
     arguments. Parts carrying neither (executable code, inline data, ...)
-    already produced a heartbeat via the per-chunk progress report.
-
-    No-op without an on_stream consumer (the chunk loop also serves explicit
-    streaming=true callers who never asked for stream events, and delta
-    construction must not be able to fail their call).
+    already produced a heartbeat via the per-chunk progress report. No-op
+    without an on_stream consumer (see `report_model_stream_delta`).
     """
     if not model_stream_requested():
         return

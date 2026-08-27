@@ -606,9 +606,7 @@ class SagemakerAPI(ModelAPI):
             delta = choice.get("delta") or {}
 
             # queue stream deltas only when an on_stream consumer is present
-            # (this parser also serves explicit stream=true callers who never
-            # asked for stream events, and delta construction must not be
-            # able to fail their call)
+            # (see report_model_stream_delta)
             deltas_requested = model_stream_requested()
 
             content = delta.get("content")

@@ -19,9 +19,11 @@ in (a provider may stream for its own reasons — e.g. Anthropic auto-streams
 long/reasoning requests), everything downstream of a content delta is gated
 on an `on_stream` handler being present: providers gate delta construction
 on `model_stream_requested()` (reporting a bare heartbeat instead), and
-`ModelStreamObserver.report_delta` backstops any ungated call site. Without
-`on_stream` only the heartbeat/token progress channel runs — partial-output
-snapshots included, since they are built from the delta stream.
+`ModelStreamObserver.report_delta` backstops the reporting side of any
+ungated call site (construction itself can only be gated where it happens).
+Without `on_stream` only the heartbeat/token progress channel runs —
+partial-output snapshots included, since they are built from the delta
+stream.
 """
 
 import contextlib
@@ -256,12 +258,11 @@ class ModelStreamObserver:
         self._touch_progress()
 
     async def report_delta(self, delta: StreamContentEvent) -> None:
-        # deltas exist to serve `on_stream`; without a live handler (never
-        # passed, or detached after raising) they degrade to a bare progress
-        # heartbeat — no accumulation, no partial snapshots — so none of the
-        # on_stream support code can affect callers that never asked for it.
-        # Providers gate delta *construction* on model_stream_requested() for
-        # the same reason; this is the backstop for any ungated call site.
+        # without a live handler (never passed, or detached after raising)
+        # deltas degrade to a bare heartbeat — no accumulation, no partial
+        # snapshots. Backstops the reporting side of any ungated call site;
+        # construction must still be gated at the call site (see the module
+        # docstring).
         if self._on_stream is None:
             self._touch_progress()
             return

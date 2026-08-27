@@ -1002,18 +1002,10 @@ async def _report_chat_completion_chunk(
     `tool_calls` remembers each call's id/function by index across chunks:
     OpenAI streams them only on a call's first fragment, but reported deltas
     attribute every fragment (matching the other providers' reporters).
-
-    Without an on_stream consumer (explicit stream=true callers, providers
-    that stream by default) only the usage/heartbeat progress channel runs:
-    delta construction is on_stream support code and must not be able to
-    fail a call that never asked for stream events.
+    Content deltas are gated on `model_stream_requested()` (see
+    `report_model_stream_delta`); the usage/heartbeat progress channel runs
+    regardless.
     """
-    if not model_stream_requested():
-        report_model_stream_progress(
-            chunk.usage.completion_tokens if chunk.usage is not None else None
-        )
-        return
-
     # cumulative usage arrives on the final chunk when the server reports it
     # (e.g. via stream_options.include_usage)
     if chunk.usage is not None:
@@ -1024,7 +1016,7 @@ async def _report_chat_completion_chunk(
     # accumulating consumers (num_choices > 1)
     delta = next((c.delta for c in chunk.choices if c.index == 0), None)
     reported = False
-    if delta is not None:
+    if delta is not None and model_stream_requested():
         # openai-compatible servers surface chain-of-thought as a
         # reasoning_content/reasoning extra field on the delta
         reasoning = getattr(delta, "reasoning_content", None) or getattr(
