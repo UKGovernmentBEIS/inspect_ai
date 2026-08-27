@@ -107,6 +107,7 @@ For more detail on the different methods of configuration, see [Configuration](t
 | `--max-retries` | Maximum number of times to retry generate request (defaults to unlimited) |
 | `--timeout` | Generate timeout in seconds (defaults to no timeout) |
 | `--attempt-timeout` | Timeout (in seconds) for any given generate attempt (if exceeded, will abandon attempt and retry according to max_retries). |
+| `--stream-idle-timeout` | Timeout (in seconds) on silence within a streaming response (if a streaming attempt delivers no chunk for this long, will abandon attempt and retry according to max_retries). Setting it requests streaming; it has no effect on calls that do not stream. |
 
 ## Tasks and Solvers
 

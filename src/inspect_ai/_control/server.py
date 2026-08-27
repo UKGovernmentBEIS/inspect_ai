@@ -1119,7 +1119,8 @@ class ControlServer:
         # after a `/`); `key`/`key_limit` retune a named concurrency() registry
         # entry by exact name (400 for a name with no entry — named limits are
         # created lazily on first use). The override knobs (max_tasks and the
-        # retry knobs timeout / attempt_timeout / max_retries) set live
+        # retry knobs timeout / attempt_timeout / stream_idle_timeout /
+        # max_retries) set live
         # overrides; the keyword
         # `clear` removes one. `author`/`reason` are provenance for the eval-log
         # record of any applied change (see EvalLog.config_updates); the
@@ -1139,6 +1140,7 @@ class ControlServer:
             key_limit: int | None = None,
             timeout: str | None = None,
             attempt_timeout: str | None = None,
+            stream_idle_timeout: str | None = None,
             max_retries: str | None = None,
             author: str | None = None,
             reason: str | None = None,
@@ -1161,6 +1163,7 @@ class ControlServer:
                 MAX_GENERATE_CONFIG_OVERRIDE,
                 ("timeout", timeout),
                 ("attempt_timeout", attempt_timeout),
+                ("stream_idle_timeout", stream_idle_timeout),
                 ("max_retries", max_retries),
             )
             if retry_error is not None:
@@ -1179,6 +1182,7 @@ class ControlServer:
                     key_limit=key_limit,
                     timeout=retry_knobs["timeout"],
                     attempt_timeout=retry_knobs["attempt_timeout"],
+                    stream_idle_timeout=retry_knobs["stream_idle_timeout"],
                     max_retries=retry_knobs["max_retries"],
                     author=author,
                     reason=reason,
@@ -1232,6 +1236,7 @@ class ControlServer:
             log_shared: int | None = None,
             timeout: str | None = None,
             attempt_timeout: str | None = None,
+            stream_idle_timeout: str | None = None,
             max_retries: str | None = None,
             time_limit: str | None = None,
             token_limit: str | None = None,
@@ -1261,6 +1266,7 @@ class ControlServer:
                 MAX_GENERATE_CONFIG_OVERRIDE,
                 ("timeout", timeout),
                 ("attempt_timeout", attempt_timeout),
+                ("stream_idle_timeout", stream_idle_timeout),
                 ("max_retries", max_retries),
             )
             if retry_error is not None:
@@ -1291,6 +1297,7 @@ class ControlServer:
                     log_shared=log_shared,
                     timeout=retry_knobs["timeout"],
                     attempt_timeout=retry_knobs["attempt_timeout"],
+                    stream_idle_timeout=retry_knobs["stream_idle_timeout"],
                     max_retries=retry_knobs["max_retries"],
                     time_limit=limit_knobs["time_limit"],
                     token_limit=limit_knobs["token_limit"],

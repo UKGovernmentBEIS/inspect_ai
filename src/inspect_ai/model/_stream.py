@@ -16,12 +16,14 @@ gracefully (see design/ctl/generate-progress.md).
 """
 
 import contextlib
+import math
 import time
 from contextvars import ContextVar
 from datetime import datetime, timezone
 from logging import getLogger
 from typing import TYPE_CHECKING, Awaitable, Callable, Iterator, Literal, Union
 
+import anyio
 from pydantic import BaseModel, Field
 from typing_extensions import TypeAlias
 
@@ -107,6 +109,15 @@ StreamContentEvent: TypeAlias = Union[
 """Content delta reported by a provider streaming loop (internal)."""
 
 
+STALL_DEADLINE_BUMP_INTERVAL = 1.0
+"""Minimum seconds between stall-scope deadline bumps.
+
+Setting `CancelScope.deadline` reschedules a timer handle, so per-chunk
+rescheduling is needless work; 1-second granularity is noise against any
+sane `stream_idle_timeout` (see design/stream-idle-timeout.md).
+"""
+
+
 PARTIAL_OUTPUT_FLUSH_INTERVAL = 1.0
 """Minimum seconds between partial-output snapshot notifications.
 
@@ -176,6 +187,10 @@ class ModelStreamObserver:
         self._fragments: list[tuple[str, list[str]]] = []
         self._partial_published = False
         self._last_flush = 0.0
+        # stall-detection scope for the current attempt (see arm_stall_scope)
+        self._stall_scope: anyio.CancelScope | None = None
+        self._stall_timeout: float | None = None
+        self._last_stall_bump = 0.0
 
     async def begin_attempt(self, event: "ModelEvent") -> None:
         """Bind the observer to a new attempt's pending event.
@@ -188,6 +203,11 @@ class ModelStreamObserver:
         """
         self._attempt += 1
         self._event = event
+        # drop the prior attempt's stall scope (exited with its attempt);
+        # the wrapper re-arms per attempt via arm_stall_scope — a cache-hit
+        # attempt runs no provider call, so it deliberately never re-arms
+        self._stall_scope = None
+        self._stall_timeout = None
         self._reset_output_state()
         if self._attempt > 1 and self._delivered:
             await self._deliver(StreamRetryEvent(attempt=self._attempt))
@@ -212,6 +232,9 @@ class ModelStreamObserver:
         if event is not None and event._progress is not None:
             event._progress.output_tokens = None
         self._reset_output_state()
+        # a provider-internal restart is progress — the replacement stream is
+        # being requested, so the stall clock resets like any other report
+        self._bump_stall_deadline()
         if self._delivered:
             await self._deliver(StreamRetryEvent(attempt=max(self._attempt, 1)))
 
@@ -306,9 +329,47 @@ class ModelStreamObserver:
 
                 transcript()._event_updated(event)
 
+    def arm_stall_scope(self, scope: anyio.CancelScope, timeout: int | float) -> None:
+        """Hand the observer the attempt's stall-detection cancel scope.
+
+        Called by the wrapper before each provider attempt when the call's
+        config sets `stream_idle_timeout` (see design/stream-idle-timeout.md).
+        The scope's deadline starts infinite; the attempt's first report arms
+        it at now + `timeout` and every subsequent report pushes it forward
+        (throttled — see `_bump_stall_deadline`), so an attempt that never
+        streams can never fire. The reference is per-attempt state, dropped
+        by `begin_attempt`.
+        """
+        self._stall_scope = scope
+        self._stall_timeout = float(timeout)
+        self._last_stall_bump = 0.0
+
+    def _bump_stall_deadline(self) -> None:
+        """Push the stall scope's deadline forward: the stream is alive.
+
+        Runs on every report path (all of them funnel through
+        `_touch_progress`, plus `output_restarted`). The first report arms
+        the scope unconditionally; later bumps are throttled to one deadline
+        write per `STALL_DEADLINE_BUMP_INTERVAL` — the slack that leaves
+        (deadline up to the interval staler than the last chunk) is noise
+        against any sane timeout value.
+        """
+        scope = self._stall_scope
+        if scope is None or self._stall_timeout is None:
+            return
+        now = anyio.current_time()
+        if (
+            scope.deadline != math.inf
+            and now - self._last_stall_bump < STALL_DEADLINE_BUMP_INTERVAL
+        ):
+            return
+        self._last_stall_bump = now
+        scope.deadline = now + self._stall_timeout
+
     def _touch_progress(self) -> None:
         from inspect_ai.event._model import ModelEventProgress
 
+        self._bump_stall_deadline()
         event = self._event
         if event is None or event.pending is not True:
             return
@@ -392,17 +453,21 @@ def model_stream_observer(observer: ModelStreamObserver) -> Iterator[None]:
 
 
 def model_stream_requested() -> bool:
-    """True when the current generate call has an `on_stream` consumer.
+    """True when the current generate call asked for stream chunks.
 
-    Providers whose streaming setting is auto/unset consult this in their
-    stream decision so that passing `on_stream` to `Model.generate()` is by
-    itself sufficient to enable streaming (an explicit provider-level
-    streaming opt-out still wins). False when no observer is installed —
-    the monitoring consumers alone never turn streaming on (see the
-    non-goals in design/ctl/generate-progress.md).
+    Two callers request chunks: an `on_stream` consumer, and a
+    `stream_idle_timeout` in the call's config (stall detection cannot work
+    without chunks — see design/stream-idle-timeout.md). Providers whose
+    streaming setting is auto/unset consult this in their stream decision so
+    that either request is by itself sufficient to enable streaming (an
+    explicit provider-level streaming opt-out still wins). False when no
+    observer is installed — the monitoring consumers alone never turn
+    streaming on (see the non-goals in design/ctl/generate-progress.md).
     """
     observer = _model_stream_observer.get()
-    return observer is not None and observer._on_stream is not None
+    return observer is not None and (
+        observer._on_stream is not None or observer._stall_scope is not None
+    )
 
 
 def report_model_stream_start() -> None:

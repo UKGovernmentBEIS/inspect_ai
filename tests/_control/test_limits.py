@@ -446,7 +446,8 @@ async def test_process_limits_model_no_match_warns() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Retry-loop overrides (timeout / attempt_timeout / max_retries)
+# Retry-loop overrides (timeout / attempt_timeout / stream_idle_timeout /
+# max_retries)
 # ---------------------------------------------------------------------------
 
 
@@ -457,6 +458,7 @@ async def test_retry_overrides_default_view() -> None:
     assert result["retry"] == {
         "timeout": None,
         "attempt_timeout": None,
+        "stream_idle_timeout": None,
         "max_retries": None,
     }
 
@@ -464,21 +466,35 @@ async def test_retry_overrides_default_view() -> None:
 async def test_retry_overrides_set_and_clear() -> None:
     from inspect_ai._control.limits import process_limits
 
-    result = await process_limits(timeout=120, attempt_timeout=30, max_retries=5)
+    result = await process_limits(
+        timeout=120, attempt_timeout=30, stream_idle_timeout=15, max_retries=5
+    )
     assert result["requested"] == {
         "timeout": 120,
         "attempt_timeout": 30,
+        "stream_idle_timeout": 15,
         "max_retries": 5,
     }
-    assert result["retry"] == {"timeout": 120, "attempt_timeout": 30, "max_retries": 5}
+    assert result["retry"] == {
+        "timeout": 120,
+        "attempt_timeout": 30,
+        "stream_idle_timeout": 15,
+        "max_retries": 5,
+    }
     # always adjustable — the override layer exists regardless of launch config
     assert result["warnings"] == []
     assert generate_config_override("timeout") == 120
+    assert generate_config_override("stream_idle_timeout") == 15
 
     # "clear" removes an override (restoring launch config); the others stand
     result = await process_limits(timeout="clear")
     assert result["requested"] == {"timeout": "clear"}
-    assert result["retry"] == {"timeout": None, "attempt_timeout": 30, "max_retries": 5}
+    assert result["retry"] == {
+        "timeout": None,
+        "attempt_timeout": 30,
+        "stream_idle_timeout": 15,
+        "max_retries": 5,
+    }
     assert generate_config_override("timeout") is None
 
     # 0 is a real value, not a clear — max_retries 0 = no retries (fail fast)
@@ -1825,13 +1841,18 @@ async def test_retry_overrides_route_patch_and_clear() -> None:
         assert generate_config_override("timeout") == 90
 
         # the task-keyed route carries the same knobs (process-scoped)
-        patched = await client.patch("/tasks/t1/config", params={"max_retries": 4})
+        patched = await client.patch(
+            "/tasks/t1/config",
+            params={"max_retries": 4, "stream_idle_timeout": 20},
+        )
         assert patched.status_code == 200, patched.text
         assert patched.json()["retry"] == {
             "timeout": 90,
             "attempt_timeout": None,
+            "stream_idle_timeout": 20,
             "max_retries": 4,
         }
+        assert generate_config_override("stream_idle_timeout") == 20
 
         # "clear" removes an override; 0 is a real value (no retries)
         cleared = await client.patch("/config", params={"timeout": "clear"})

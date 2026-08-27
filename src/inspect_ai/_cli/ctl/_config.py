@@ -174,6 +174,18 @@ from ._render import _echo, _echo_raw, _print_config
     ),
 )
 @click.option(
+    "--stream-idle-timeout",
+    type=_INT_OR_CLEAR,
+    metavar="SECONDS",
+    default=None,
+    help=(
+        f"[{_KNOB_SCOPE['stream_idle_timeout']}] Override the streaming "
+        "stall timeout, in seconds — abandon and retry an attempt whose "
+        "streaming response goes silent this long ('clear' restores launch "
+        "config)."
+    ),
+)
+@click.option(
     "--max-retries",
     type=_INT_OR_CLEAR,
     metavar="INTEGER",
@@ -227,6 +239,7 @@ def config_command(
     message_limit: int | Literal["clear"] | None,
     timeout: int | Literal["clear"] | None,
     attempt_timeout: int | Literal["clear"] | None,
+    stream_idle_timeout: int | Literal["clear"] | None,
     max_retries: int | Literal["clear"] | None,
     reason: str | None,
     author: str | None,
@@ -251,6 +264,7 @@ def config_command(
     `--log-shared` are the retune side of `inspect ctl task log-flush`: they
     set the buffering policy for future writes, while log-flush writes
     what's already buffered now. `--timeout` / `--attempt-timeout` /
+    `--stream-idle-timeout` /
     `--max-retries` set live overrides read by the model retry loop, so a
     change reaches even generate calls already retrying (in-flight API
     requests still drain first); pass `clear` to remove an override.
@@ -285,6 +299,7 @@ def config_command(
         message_limit=message_limit,
         timeout=timeout,
         attempt_timeout=attempt_timeout,
+        stream_idle_timeout=stream_idle_timeout,
         max_retries=max_retries,
         reason=reason,
         author=author,
@@ -319,6 +334,7 @@ def _applied_knob_names(
     key: tuple[str, int] | None,
     timeout: int | Literal["clear"] | None,
     attempt_timeout: int | Literal["clear"] | None,
+    stream_idle_timeout: int | Literal["clear"] | None,
     max_retries: int | Literal["clear"] | None,
     time_limit: int | Literal["clear"] | None,
     token_limit: int | Literal["clear"] | None,
@@ -376,6 +392,7 @@ def _applied_knob_names(
             ("--max-tasks", max_tasks, True),
             ("--timeout", timeout, True),
             ("--attempt-timeout", attempt_timeout, True),
+            ("--stream-idle-timeout", stream_idle_timeout, True),
             ("--max-retries", max_retries, True),
             ("--time-limit", time_limit, True),
             ("--token-limit", token_limit, True),
@@ -403,6 +420,7 @@ def _run_config(
     message_limit: int | Literal["clear"] | None = None,
     timeout: int | Literal["clear"] | None = None,
     attempt_timeout: int | Literal["clear"] | None = None,
+    stream_idle_timeout: int | Literal["clear"] | None = None,
     max_retries: int | Literal["clear"] | None = None,
     reason: str | None = None,
     author: str | None = None,
@@ -461,6 +479,7 @@ def _run_config(
         "log_shared": log_shared,
         "timeout": timeout,
         "attempt_timeout": attempt_timeout,
+        "stream_idle_timeout": stream_idle_timeout,
         "max_retries": max_retries,
         "time_limit": time_limit,
         "token_limit": token_limit,
@@ -512,6 +531,7 @@ def _run_config(
         message_limit=message_limit,
         timeout=timeout,
         attempt_timeout=attempt_timeout,
+        stream_idle_timeout=stream_idle_timeout,
         max_retries=max_retries,
         author=author,
         reason=reason,
@@ -543,6 +563,7 @@ def _run_config(
                 key=key,
                 timeout=timeout,
                 attempt_timeout=attempt_timeout,
+                stream_idle_timeout=stream_idle_timeout,
                 max_retries=max_retries,
                 time_limit=time_limit,
                 token_limit=token_limit,
@@ -912,6 +933,7 @@ def _exec_limits(
     message_limit: int | Literal["clear"] | None = None,
     timeout: int | Literal["clear"] | None = None,
     attempt_timeout: int | Literal["clear"] | None = None,
+    stream_idle_timeout: int | Literal["clear"] | None = None,
     max_retries: int | Literal["clear"] | None = None,
     author: str | None = None,
     reason: str | None = None,
@@ -929,7 +951,8 @@ def _exec_limits(
     controllers (a read param, applies to both); ``key`` is the ``(name,
     limit)`` pair for a named ``concurrency()`` registry entry, carried on
     the wire as ``key`` / ``key_limit``. The retry overrides (``timeout`` /
-    ``attempt_timeout`` / ``max_retries``) and the per-sample limit
+    ``attempt_timeout`` / ``stream_idle_timeout`` / ``max_retries``) and the
+    per-sample limit
     overrides (``time_limit`` / ``token_limit`` / ``message_limit``,
     task-scoped) accept the keyword ``clear`` to
     remove an override (``0`` is a real value for them). Any settable knob
@@ -951,6 +974,7 @@ def _exec_limits(
         "log_shared": log_shared,
         "timeout": timeout,
         "attempt_timeout": attempt_timeout,
+        "stream_idle_timeout": stream_idle_timeout,
         "max_retries": max_retries,
         "time_limit": time_limit,
         "token_limit": token_limit,

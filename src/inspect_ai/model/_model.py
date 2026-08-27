@@ -1515,6 +1515,23 @@ class Model:
                 else contextlib.nullcontext()
             )
 
+            # stall-detection scope (see design/stream-idle-timeout.md): the
+            # deadline starts infinite and the stream observer arms/bumps it
+            # on each reported chunk, so an attempt that never streams can
+            # never fire. Same live-override resolution and batch carve-out
+            # as attempt_timeout (batched calls never stream, so the knob is
+            # doubly inert there).
+            stream_idle_timeout = (
+                config.stream_idle_timeout
+                if config.batch
+                else generate_config_override(
+                    "stream_idle_timeout", config.stream_idle_timeout
+                )
+            )
+            idle_scope = (
+                anyio.CancelScope() if stream_idle_timeout is not None else None
+            )
+
             with trace_action(logger, "Model", f"generate ({str(self)})"):
                 time_start = time.monotonic()
                 try:
@@ -1531,19 +1548,30 @@ class Model:
                     )
 
                     await stream_observer.begin_attempt(event)
+                    if idle_scope is not None and stream_idle_timeout is not None:
+                        stream_observer.arm_stall_scope(idle_scope, stream_idle_timeout)
 
                     with (
                         track_active_model_event(event),
                         _observer.track_model_event(event),
                         model_stream_observer(stream_observer),
                     ):
-                        with timeout_cm:
+                        with (
+                            timeout_cm,
+                            idle_scope
+                            if idle_scope is not None
+                            else contextlib.nullcontext(),
+                        ):
                             result = await self.api.generate(
                                 input=input,
                                 tools=call_tools,
                                 tool_choice=tool_choice,
                                 config=config,
                             )
+                        # inner scope first: when both fired, the idle scope's
+                        # sharper diagnosis wins
+                        if idle_scope is not None and idle_scope.cancel_called:
+                            raise StreamIdleTimeoutError(stream_idle_timeout)
                         if (
                             isinstance(timeout_cm, anyio.CancelScope)
                             and timeout_cm.cancel_called
@@ -1721,12 +1749,13 @@ class Model:
         # go unattributed in the throughput registry)
         model = self.api.qualified_model_name
         if isinstance(ex, Exception):
-            # attempt timeout is always retried (we rely on `timeout`
-            # and/or `max_retries` for termination). Classified as transient:
-            # _request_had_retry still flips so the eventual success won't
-            # count toward adaptive scale-up, but the controller doesn't
-            # scale down for what's essentially infra noise.
-            if isinstance(ex, AttemptTimeoutError):
+            # attempt/stream-idle timeouts are always retried (we rely on
+            # `timeout` and/or `max_retries` for termination). Classified as
+            # transient: _request_had_retry still flips so the eventual
+            # success won't count toward adaptive scale-up, but the
+            # controller doesn't scale down for what's essentially infra
+            # noise (a stalled connection included).
+            if isinstance(ex, (AttemptTimeoutError, StreamIdleTimeoutError)):
                 report_http_retry(model=model)
                 return True
 
@@ -2026,6 +2055,20 @@ or return ``None`` to allow default processing to continue.
 class AttemptTimeoutError(RuntimeError):
     def __init__(self, timeout: int | None) -> None:
         super().__init__(f"attempt_timeout '{timeout or 0}' exceeded.")
+
+
+class StreamIdleTimeoutError(RuntimeError):
+    """A streaming attempt delivered no chunk for `stream_idle_timeout` seconds.
+
+    Retried exactly like `AttemptTimeoutError` (transient — see
+    `Model.should_retry` and design/stream-idle-timeout.md).
+    """
+
+    def __init__(self, timeout: int | None) -> None:
+        super().__init__(
+            f"stream_idle_timeout '{timeout or 0}' exceeded (streaming "
+            "response stalled)."
+        )
 
 
 class ModelGenerateError(RuntimeError):

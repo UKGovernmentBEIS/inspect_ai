@@ -1,6 +1,7 @@
 # Stream Idle Timeout — kill stalled model calls by chunk silence, not call duration
 
-> **Status: proposed.** Originating issue: meridianlabs-ai/inspect_ai#347 (field
+> **Status: implemented** (phases 1 and 2, in one change). Originating issue:
+> meridianlabs-ai/inspect_ai#347 (field
 > report from Slack: 16% of model API calls hanging against a 600s timeout).
 > Companion to [`ctl/generate-progress.md`](ctl/generate-progress.md), which
 > built the per-chunk progress channel this design turns into an enforcement
@@ -198,20 +199,15 @@ a passive monitoring consumer.
 Enforcement is entirely wrapper + observer; a provider participates iff its
 streaming loop reports chunks, which is precisely the progress-channel
 instrumentation table in
-[`ctl/generate-progress.md`](ctl/generate-progress.md): **Anthropic and
-Google are covered today; SageMaker, Grok, and OpenAI-compatible are
-tracked follow-ups.** On an uninstrumented provider the knob never arms —
-graceful degradation, consistent with every other observer consumer, and
-`attempt_timeout` remains the fallback there.
-
-This feature changes the priority of one follow-up row: **OpenAI-compatible**
-(which today calls `await stream.get_final_completion()` without iterating
-events) covers the largest share of real-world usage, and hang reports
-specifically. Instrumenting it — iterate the SDK stream's events reporting
-bare heartbeats, then `get_final_completion()` as today, exactly as the
-generate-progress table already specifies — should ship with or immediately
-after this knob, or the feature silently no-ops for the users most likely to
-reach for it. Heartbeats alone suffice; per-chunk token counts stay null.
+[`ctl/generate-progress.md`](ctl/generate-progress.md). As of #5077 (which
+landed between this design and its implementation) **every provider in that
+table is instrumented — Anthropic, Google, OpenAI, OpenAI-compatible /
+Together, Grok, and SageMaker** — including OpenAI-compatible, whose
+instrumentation this design originally called out as a should-ship-with
+prerequisite (it covers the largest share of real-world usage, and hang
+reports specifically). On any remaining uninstrumented provider the knob
+never arms — graceful degradation, consistent with every other observer
+consumer, and `attempt_timeout` remains the fallback there.
 
 Documentation must carry the coverage table: "has no effect on calls that do
 not stream" is only honest if users can see which providers stream and

@@ -1,7 +1,8 @@
 """Live mid-flight overrides for the retry-loop ``GenerateConfig`` fields.
 
 A process-wide override layer for ``timeout`` (the total retry budget per
-generate call), ``attempt_timeout`` (the per-attempt timeout) and
+generate call), ``attempt_timeout`` (the per-attempt timeout),
+``stream_idle_timeout`` (the streaming stall timeout) and
 ``max_retries`` — the ``inspect ctl config`` retune surface for riding out
 (or failing fast through) a provider incident without killing the run.
 
@@ -14,8 +15,9 @@ reproducibility.
 The overrides are consulted at the *point of use* rather than merged into
 any ``GenerateConfig`` instance: the tenacity ``stop`` condition built by
 :func:`inspect_ai.model._retry.model_retry_config` reads them on every
-post-attempt check, and ``Model._generate`` reads ``attempt_timeout`` when
-opening each attempt's cancel scope. That makes a change effective for
+post-attempt check, and ``Model._generate`` reads ``attempt_timeout`` and
+``stream_idle_timeout`` when
+opening each attempt's cancel scopes. That makes a change effective for
 generate calls already stuck in a retry loop — the incident case — while
 never preempting an in-flight HTTP request (drain-don't-preempt, matching
 the concurrency knobs). Values a provider bakes into its SDK client at
@@ -23,7 +25,8 @@ initialization are not affected, and batcher admin-operation retry loops
 (batch create/poll) deliberately opt out via ``live_overrides=False`` —
 an exhausted admin-op retry fails every request riding the batch, a blast
 radius no fail-fast retune should trigger. For the same reason a *batched*
-generate call keeps its launch ``attempt_timeout``: its attempt awaits an
+generate call keeps its launch ``attempt_timeout`` / ``stream_idle_timeout``
+(the latter doubly inert — batched calls never stream): its attempt awaits an
 entire provider batch, and an override cancelling that wait would resubmit
 the request into a new batch (duplicated provider work, potentially forever)
 — the ``timeout`` / ``max_retries`` levers still reach batched calls' retry
@@ -45,7 +48,9 @@ from __future__ import annotations
 
 from typing import Literal, get_args
 
-GenerateConfigOverrideField = Literal["timeout", "attempt_timeout", "max_retries"]
+GenerateConfigOverrideField = Literal[
+    "timeout", "attempt_timeout", "stream_idle_timeout", "max_retries"
+]
 """The ``GenerateConfig`` fields that support live mid-flight overrides."""
 
 GENERATE_CONFIG_OVERRIDE_FIELDS: tuple[GenerateConfigOverrideField, ...] = get_args(

@@ -501,6 +501,151 @@ async def test_model_stream_requested_reflects_on_stream() -> None:
     assert model_stream_requested() is False
 
 
+async def test_model_stream_requested_reflects_stream_idle_timeout() -> None:
+    """Setting stream_idle_timeout is a request for chunks.
+
+    Stall detection cannot work without them, so the knob participates in
+    provider auto-streaming decisions exactly as on_stream does.
+    """
+    requested: list[bool] = []
+
+    async def attempt(api: ScriptedStreamAPI) -> ModelOutput:
+        requested.append(model_stream_requested())
+        return api._output("done")
+
+    await _scripted_generate([attempt], config=GenerateConfig(stream_idle_timeout=30))
+    assert requested == [True]
+
+
+# --- stream idle timeout (design/stream-idle-timeout.md) --------------------
+
+
+async def test_stream_idle_timeout_never_arms_without_streaming() -> None:
+    """An attempt that reports no chunks can never fire the idle timeout.
+
+    The stall scope's deadline stays infinite until the first report, so the
+    knob is inert for non-streaming providers however long the call takes.
+    """
+
+    async def attempt(api: ScriptedStreamAPI) -> ModelOutput:
+        await anyio.sleep(2)
+        return api._output("quiet")
+
+    output = await _scripted_generate(
+        [attempt], config=GenerateConfig(stream_idle_timeout=1)
+    )
+    assert output.completion == "quiet"
+    assert ScriptedStreamAPI.attempts == 1
+
+
+async def test_stream_idle_timeout_fires_and_retries() -> None:
+    """A stalled stream abandons the attempt, which retries like any other.
+
+    The failed attempt's partial output is discarded, its event completes
+    with the error, and the retry boundary reaches on_stream — the existing
+    attempt-failure machinery, reused unchanged.
+    """
+
+    async def attempt_1(api: ScriptedStreamAPI) -> ModelOutput:
+        report_model_stream_start()
+        await report_model_stream_delta(StreamTextEvent(text="stall"))
+        await anyio.sleep(60)
+        return api._output("too late")
+
+    async def attempt_2(api: ScriptedStreamAPI) -> ModelOutput:
+        report_model_stream_start()
+        await report_model_stream_delta(StreamTextEvent(text="done"))
+        return api._output("done")
+
+    collector = Collector()
+    output = await _scripted_generate(
+        [attempt_1, attempt_2],
+        on_stream=collector,
+        config=GenerateConfig(stream_idle_timeout=1, max_retries=2),
+    )
+    assert output.completion == "done"
+    assert ScriptedStreamAPI.attempts == 2
+    assert [type(e) for e in collector.events] == [
+        StreamTextEvent,
+        StreamRetryEvent,
+        StreamTextEvent,
+    ]
+    # the stalled attempt's event carries the error, not its partial output
+    event = ScriptedStreamAPI.events[0]
+    assert event.error is not None
+    assert "stream_idle_timeout" in str(event.error)
+    assert event.output.completion == ""
+
+
+async def test_stream_idle_timeout_surfaces_when_retries_exhausted() -> None:
+    from inspect_ai.model._model import StreamIdleTimeoutError
+
+    async def attempt(api: ScriptedStreamAPI) -> ModelOutput:
+        report_model_stream_start()
+        await anyio.sleep(60)
+        return api._output("too late")
+
+    with pytest.raises(tenacity.RetryError) as excinfo:
+        await _scripted_generate(
+            [attempt],
+            config=GenerateConfig(stream_idle_timeout=1, max_retries=0),
+        )
+    assert isinstance(excinfo.value.last_attempt.exception(), StreamIdleTimeoutError)
+    assert ScriptedStreamAPI.attempts == 1
+
+
+async def test_stream_idle_timeout_bumps_keep_slow_stream_alive(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Chunks flowing faster than the timeout keep the attempt alive.
+
+    Total attempt duration exceeds the timeout several times over; only
+    inter-chunk silence counts. (Bump throttling is disabled so sub-second
+    chunk gaps register against the 1s test timeout — real timeouts are
+    an order of magnitude above the throttle interval.)
+    """
+    monkeypatch.setattr("inspect_ai.model._stream.STALL_DEADLINE_BUMP_INTERVAL", 0.0)
+
+    async def attempt(api: ScriptedStreamAPI) -> ModelOutput:
+        report_model_stream_start()
+        for _ in range(6):
+            await anyio.sleep(0.4)
+            report_model_stream_progress()
+        return api._output("slow but alive")
+
+    output = await _scripted_generate(
+        [attempt], config=GenerateConfig(stream_idle_timeout=1)
+    )
+    assert output.completion == "slow but alive"
+    assert ScriptedStreamAPI.attempts == 1
+
+
+async def test_stall_deadline_bumps_are_throttled() -> None:
+    """Within-interval reports must not reschedule the scope's timer.
+
+    The first report arms the scope unconditionally; a report inside
+    STALL_DEADLINE_BUMP_INTERVAL of the last bump leaves the deadline
+    untouched.
+    """
+    import math
+
+    import anyio as _anyio
+
+    from inspect_ai.model._stream import ModelStreamObserver
+
+    observer = ModelStreamObserver(model="mock", on_stream=None)
+    scope = _anyio.CancelScope()
+    observer.arm_stall_scope(scope, 100)
+    assert scope.deadline == math.inf
+
+    observer.stream_started()  # first report arms
+    armed = scope.deadline
+    assert armed != math.inf
+
+    observer.report_progress()  # within the throttle interval: no bump
+    assert scope.deadline == armed
+
+
 class EchoStreamAPI(ScriptedStreamAPI):
     """Streams each call's own input text, asserting per-call isolation."""
 

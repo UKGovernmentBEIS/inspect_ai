@@ -1689,6 +1689,7 @@ _GENERATE_CONFIG_FIELDS_TO_EXCLUDE = {
     "max_retries",
     "timeout",
     "attempt_timeout",
+    "stream_idle_timeout",
     "max_connections",
     "adaptive_connections",
     "batch",
@@ -1714,7 +1715,7 @@ def resolve_solver(
 # Version of the task_identifier computation. Bump this when the task_identifier
 # logic changes, so that persisted identifiers (e.g. in inspect_flow) can be
 # recomputed.
-TASK_IDENTIFIER_VERSION = 3
+TASK_IDENTIFIER_VERSION = 4
 
 
 def task_identifier(
