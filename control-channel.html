@@ -725,8 +725,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#errors-and-retries" id="toc-errors-and-retries" class="nav-link" data-scroll-target="#errors-and-retries">Errors and Retries</a></li>
   <li><a href="#transcript-events" id="toc-transcript-events" class="nav-link" data-scroll-target="#transcript-events">Transcript Events</a></li>
   <li><a href="#conversation-snapshots" id="toc-conversation-snapshots" class="nav-link" data-scroll-target="#conversation-snapshots">Conversation Snapshots</a></li>
+  <li><a href="#store-snapshots" id="toc-store-snapshots" class="nav-link" data-scroll-target="#store-snapshots">Store Snapshots</a></li>
   <li><a href="#cancellation" id="toc-cancellation" class="nav-link" data-scroll-target="#cancellation">Cancellation</a></li>
   <li><a href="#requeue" id="toc-requeue" class="nav-link" data-scroll-target="#requeue">Requeue</a></li>
+  <li><a href="#interim-scoring" id="toc-interim-scoring" class="nav-link" data-scroll-target="#interim-scoring">Interim Scoring</a></li>
   <li><a href="#repeated-mutations" id="toc-repeated-mutations" class="nav-link" data-scroll-target="#repeated-mutations">Repeated Mutations</a></li>
   <li><a href="#pause-and-resume" id="toc-pause-and-resume" class="nav-link" data-scroll-target="#pause-and-resume">Pause and Resume</a></li>
   <li><a href="#stall-diagnosis" id="toc-stall-diagnosis" class="nav-link" data-scroll-target="#stall-diagnosis">Stall Diagnosis</a></li>
@@ -796,86 +798,85 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <td>Resume a paused task.</td>
 </tr>
 <tr class="even">
+<td><code>inspect ctl task score</code></td>
+<td>Score a running task’s samples now and report interim metrics.</td>
+</tr>
+<tr class="odd">
 <td><code>inspect ctl sample list</code></td>
 <td>List samples (running, completed, and pending).</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>inspect ctl sample errors</code></td>
 <td>List samples that errored or were retried.</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>inspect ctl sample show</code></td>
 <td>Show one sample’s summary and error history.</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>inspect ctl sample events</code></td>
 <td>Read one sample’s transcript events.</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>inspect ctl sample messages</code></td>
 <td>Read one sample’s current conversation.</td>
+</tr>
+<tr class="even">
+<td><code>inspect ctl sample store</code></td>
+<td>Read one sample’s current store (shared solver/agent state).</td>
 </tr>
 <tr class="odd">
 <td><code>inspect ctl sample cancel</code></td>
 <td>Cancel one running sample.</td>
 </tr>
 <tr class="even">
+<td><code>inspect ctl sample cancel-tool-call</code></td>
+<td>Cancel one hung tool call and let the sample continue.</td>
+</tr>
+<tr class="odd">
 <td><code>inspect ctl sample requeue</code></td>
 <td>Re-run one errored or cancelled sample inside the live run.</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>inspect ctl config</code></td>
 <td>View or retune launch configuration mid-flight.</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>inspect ctl model pause</code></td>
 <td>Pause one model’s dispatch across the run (<code>--now</code> also holds in-flight calls to it).</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>inspect ctl model resume</code></td>
 <td>Resume a paused model.</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>inspect ctl process list</code></td>
 <td>List running Inspect processes.</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>inspect ctl process anomalies</code></td>
 <td>Show in-flight and anomalous actions from a process’s trace log.</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>inspect ctl process keep</code></td>
 <td>Make a process stay alive after its eval finishes.</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>inspect ctl process release</code></td>
 <td>Let a keep-alive process exit.</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>inspect ctl process pause</code></td>
 <td>Pause a whole running eval or eval-set (<code>--now</code> also holds in-flight samples).</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>inspect ctl process resume</code></td>
 <td>Resume a paused eval or eval-set.</td>
 </tr>
 </tbody>
 </table>
-<p>A bare noun implies <code>list</code>: <code>inspect ctl task</code> ≡ <code>inspect ctl task list</code>, and likewise for <code>sample</code> and <code>process</code>. All commands accept <code>--json</code> for structured output, which makes them straightforward to use from scripts and from coding agents like Claude Code. The <code>list</code> / <code>show</code> / <code>errors</code> / <code>events</code> / <code>messages</code> / <code>anomalies</code> commands are read-only. The others direct the run deliberately: <code>config</code> retunes launch parameters (concurrency changes never interrupt in-flight work; the per-sample limit overrides deliberately reach in-flight samples), <code>task log-flush</code> forces a log write that would happen anyway, <code>process keep</code>/<code>release</code> only affect what happens after the eval finishes, <code>task pause</code>/<code>resume</code>, <code>model pause</code>/<code>resume</code>, and <code>process pause</code>/<code>resume</code> stop and restart dispatch reversibly — leaving in-flight work untouched unless <code>pause --now</code> asks for a hard pause (which also holds in-flight samples at their next model call), <code>task cancel</code> / <code>sample cancel</code> interrupt work explicitly, and <code>sample requeue</code> re-runs an errored or cancelled sample (all three idempotently, with <code>--dry-run</code> support).</p>
+<p>A bare noun implies <code>list</code>: <code>inspect ctl task</code> ≡ <code>inspect ctl task list</code>, and likewise for <code>sample</code> and <code>process</code>. All commands accept <code>--json</code> for structured output, which makes them straightforward to use from scripts and from coding agents like Claude Code. The <code>list</code> / <code>show</code> / <code>errors</code> / <code>events</code> / <code>messages</code> / <code>store</code> / <code>anomalies</code> commands are read-only. The others direct the run deliberately: <code>config</code> retunes launch parameters (concurrency changes never interrupt in-flight work; the per-sample limit overrides deliberately reach in-flight samples), <code>task log-flush</code> forces a log write that would happen anyway, <code>process keep</code>/<code>release</code> only affect what happens after the eval finishes, <code>task pause</code>/<code>resume</code>, <code>model pause</code>/<code>resume</code>, and <code>process pause</code>/<code>resume</code> stop and restart dispatch reversibly — leaving in-flight work untouched unless <code>pause --now</code> asks for a hard pause (which also holds in-flight samples at their next model call), <code>task cancel</code> / <code>sample cancel</code> interrupt work explicitly, <code>sample requeue</code> re-runs an errored or cancelled sample (all three idempotently, with <code>--dry-run</code> support), and <code>task score</code> scores a running task’s samples without ending them (each in-flight sample is briefly held while its work-so-far is scored).</p>
 <p>The endpoint is a Unix domain socket under the current user’s Inspect data directory. It is not reachable over the network or by other users on the same machine, and it requires no configuration.</p>
-<div class="callout callout-style-default callout-note callout-titled">
-<div class="callout-header d-flex align-content-center">
-<div class="callout-icon-container">
-<i class="callout-icon"></i>
-</div>
-<div class="callout-title-container flex-fill">
-Note
-</div>
-</div>
-<div class="callout-body-container callout-body">
-<p>Earlier releases exposed these operations as flat verbs (<code>inspect ctl tasks</code>, <code>samples</code>, <code>sample</code>, <code>errors</code>, <code>events</code>, <code>limits</code>, <code>flush</code>, <code>buffer</code>, <code>keep</code>, <code>release</code>). Those spellings were kept for a transition window as hidden, deprecated aliases and have now been removed — use the noun-group commands in the table above (e.g.&nbsp;<code>inspect ctl task list</code> for <code>inspect ctl tasks</code>, <code>inspect ctl sample show</code> for <code>inspect ctl sample</code>, <code>inspect ctl config</code> for <code>inspect ctl limits</code>).</p>
-</div>
-</div>
 </section>
 <section id="launch-handoff" class="level2">
 <h2 class="anchored" data-anchor-id="launch-handoff">Launch Handoff</h2>
@@ -946,6 +947,7 @@ Note
 <h2 class="anchored" data-anchor-id="selecting-a-task">Selecting a Task</h2>
 <p>Commands that operate on one task take a <code>TASK</code> argument that selects a task from this list. It matches a task id (or unique prefix) first, then a task name — anchored at the start of the name or after a <code>/</code>, so <code>gpqa</code> matches <code>inspect_evals/gpqa_diamond</code>. When only one task is running you can omit it entirely.</p>
 <p>Task ids are stable across retries, so a command keeps working after a task errors and is retried (per-attempt eval ids are not stable, which is why commands don’t use them).</p>
+<p>One task run against several models (<code>--model openai/gpt-5,anthropic/claude-fable-5</code>) makes the task name ambiguous — it matches both rows. Pass <code>--model</code> alongside the selector to pick the row running that model (matched at the name start or after a <code>/</code>, so <code>--model gpt-5</code> matches <code>openai/gpt-5</code>): <code>inspect ctl task cancel my_task --model gpt-5</code>. The model filter applies within the tasks the selector matches — what other tasks happen to be running can’t change the outcome. If the combination is still ambiguous you get the same candidate-table error, and a combination matching nothing the same not-found error — each qualified with the model. An exact task id paired with a <code>--model</code> its task isn’t running errors by naming the contradiction (the task’s actual model) rather than being silently ignored.</p>
 <p>On <em>reads</em> (<code>sample list</code>, <code>sample errors</code>) the selector is a filter: omitting it lists across <strong>all</strong> running tasks (each row carries its <code>task_id</code>), which makes “what’s erroring anywhere in this eval set?” the zero-argument spelling. On <em>mutations</em> (<code>task log-flush</code>, the task-scoped <code>config</code> knobs) an omitted selector must resolve to exactly one target — the sole running task is the default, and anything ambiguous errors with the candidate list rather than fanning out. Destructive commands (<code>task cancel</code>) require the selector outright.</p>
 </section>
 <section id="sample-status" class="level2">
@@ -961,8 +963,8 @@ Note
 <span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a><span class="ex">21</span>      1      running    0:45   0:33  generating 0:33  2150    3         1</span>
 <span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a><span class="ex">1</span>       1      completed  4:02                          18021   9         4</span>
 <span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a><span class="ex">...</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>The <code>idle</code> column shows how long since a running sample last produced a transcript event. A long-running sample with high idle time is the cheap signal that it may be stalled. A single in-flight model request produces no events until it returns, so idle time still accumulates during one long model call — the <code>activity</code> column is what distinguishes that healthy case from a genuine stall.</p>
-<p>The <code>activity</code> column (shown when any running sample has an in-flight operation) names what the sample is doing right now and for how long: <code>generating 6:51</code> for an in-flight model call (with <code>(2 retries)</code> appended when the provider SDK has retried within the call), <code>bash 0:41</code> or <code>2 tools 1:10</code> for pending tool calls, and <code>retrying in 0:45</code> when a model call is waiting out a retry backoff (e.g.&nbsp;rate limiting) between attempts. The <code>--json</code> rows carry the underlying <code>activity</code> object — <code>type</code> (<code>model</code> / <code>tool</code> / <code>retry_wait</code>), <code>count</code>, <code>started_at</code>, <code>detail</code> (model name or tool function), <code>retries</code>, and <code>deadline</code> (when a retry wait elapses) — null on rows with nothing pending.</p>
+<p>The <code>idle</code> column shows how long since a running sample last showed activity — its most recent transcript event, or streamed progress on an in-flight model call where the provider call streams. A long-running sample with high idle time is the cheap signal that it may be stalled. When an in-flight model call streams, its progress keeps idle near zero (so climbing idle on a streamed call is a sharp stall signal); a non-streamed call produces no signal until it returns, so idle still accumulates there — the <code>activity</code> column is what distinguishes that healthy case from a genuine stall.</p>
+<p>The <code>activity</code> column (shown when any running sample has an in-flight operation) names what the sample is doing right now and for how long: <code>generating 6:51</code> for an in-flight model call (with <code>(2 retries)</code> appended when the provider SDK has retried within the call, and <code>· 1.2k tok</code> when the provider call streams cumulative output tokens), <code>bash 0:41</code> or <code>2 tools 1:10</code> for pending tool calls, and <code>retrying in 0:45</code> when a model call is waiting out a retry backoff (e.g.&nbsp;rate limiting) between attempts. The <code>--json</code> rows carry the underlying <code>activity</code> object — <code>type</code> (<code>model</code> / <code>tool</code> / <code>retry_wait</code>), <code>count</code>, <code>started_at</code>, <code>detail</code> (model name or tool function), <code>retries</code>, <code>deadline</code> (when a retry wait elapses), streamed-progress fields <code>tokens</code> / <code>last_progress_at</code> (null for non-streamed calls and providers not reporting them), and — on <code>tool</code> rows — <code>calls</code>, one entry per pending tool call (see <a href="#cancellation">Cancellation</a>) — null on rows with nothing pending.</p>
 <p>The <code>turns</code> column counts top-level model generations (blank when unknown, e.g.&nbsp;for samples logged by older versions of Inspect). When any listed sample has a token limit configured, <code>limit usage</code> and <code>limit total</code> columns are also shown: the metered value for that limit — respecting its type (<code>all</code>, <code>output</code>, or a formula) — against the configured ceiling. The <code>--json</code> rows carry these as <code>turn_count</code>, <code>token_limit_usage</code>, <code>token_limit_total</code>, and <code>token_limit_type</code>.</p>
 <p>The listing is capped at 100 rows per task by default, keeping the head of the running → terminal → pending sort order (running samples sort first, any queued-but-not-started ones just after, then finished ones — completed, error, and cancelled alike — so the cap keeps the most relevant rows and errored samples survive it alongside completed ones). A capped listing says so — the human output prints a <code>listing capped: showing N of M samples</code> footer, and the JSON envelope sets <code>truncated: true</code> — and the aggregate answer stays complete regardless: the envelope’s <code>counts</code> is the status histogram over <em>all</em> of the task’s samples. Adjust with:</p>
 <table class="caption-top table">
@@ -991,7 +993,7 @@ Note
 </tr>
 <tr class="even">
 <td><code>--content</code></td>
-<td>Include each errored row’s error message in the <code>--json</code> rows (agent-influenced free text — withheld by default; see <a href="#agent-controlled-content">Agent-controlled content</a> below).</td>
+<td>Include each row’s error message and <code>limit_reason</code> in the <code>--json</code> rows (agent-influenced free text — withheld by default; see <a href="#agent-controlled-content">Agent-controlled content</a> below).</td>
 </tr>
 </tbody>
 </table>
@@ -1017,7 +1019,7 @@ Note
 </div>
 </div>
 <div class="callout-body-container callout-body">
-<p>Free text that originates from the evaluated agent — model completions, tool arguments and results (a <code>bash</code> tool’s stdout is fully agent-controlled), and error messages that embed tool output — is untrusted content: it can carry prompt-injection payloads aimed at whoever reads it, including an LLM monitor polling these commands. The per-sample reads therefore return <strong>metadata only by default</strong> (statuses, timing, token counts, event types, tool function names, error <em>presence</em>), and every command that can carry agent text gates it behind an explicit <code>--content</code> (or <code>content=true</code> on the HTTP API) opt-in.</p>
+<p>Free text that originates from the evaluated agent — model completions, tool arguments and results (a <code>bash</code> tool’s stdout is fully agent-controlled), error messages that embed tool output, and a sample’s <code>limit_reason</code> (a bridged agent supplies its own termination reason) — is untrusted content: it can carry prompt-injection payloads aimed at whoever reads it, including an LLM monitor polling these commands. The per-sample reads therefore return <strong>metadata only by default</strong> (statuses, timing, token counts, event types, tool function names, error <em>presence</em>), and every command that can carry agent text gates it behind an explicit <code>--content</code> (or <code>content=true</code> on the HTTP API) opt-in.</p>
 <p>This makes the safe consumer the effortless default: a monitoring agent that never passes <code>--content</code> (and has no other route to the content, such as reading the logs directly) never ingests agent-controlled text, so it cannot be prompt-injected by the evaluated agent. A monitor that <em>does</em> read content should be treated as injection-exposed and sandboxed / capability-limited accordingly.</p>
 </div>
 </div>
@@ -1129,45 +1131,101 @@ Note
 </table>
 <p>With <code>--json</code> the response is an <code>{as_of, status, count, messages}</code> envelope, prefixed with the resolved <code>task_id</code> / <code>sample_id</code> / <code>epoch</code> (so a defaulted epoch is visible). As with events, <code>EPOCH</code> defaults to 1, and conversations of samples that have already completed are also readable — they are served from the eval’s log.</p>
 </section>
+<section id="store-snapshots" class="level2">
+<h2 class="anchored" data-anchor-id="store-snapshots">Store Snapshots</h2>
+<p><code>inspect ctl sample store</code> reads one sample’s current store — the shared state that solvers, tools, and agents coordinate through (progress flags, scratchpads, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#storemodel">StoreModel</a></span> fields) — as it stands right now:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb12"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl sample store gpqa 17</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="ex">key</span>                  type    size</span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a><span class="ex">-------------------</span>  <span class="at">------</span>  <span class="at">----</span></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a><span class="ex">phase</span>                string  10</span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a><span class="ex">attempts</span>             number  1</span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a><span class="ex">Scratchpad:i0:notes</span>  string  2048</span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a><span class="ex">3</span> of 3 keys  ·  running  ·  metadata only <span class="er">(</span><span class="ex">pass</span> <span class="at">--content</span> for values<span class="kw">)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Like <code>sample messages</code>, this is a snapshot, not a stream: the store is rewritable (a key can be overwritten or deleted between reads), so there is no resume cursor. Poll and compare the reported key <code>count</code>, or use <code>inspect ctl sample events --type store</code> when you want the change <em>stream</em> rather than the current state. While the sample runs the store is read from the live task state — no log involved, so it works even for samples whose transcript is buffered or bounded; once the sample finishes it is served from the eval’s log.</p>
+<p>The default rows are metadata only — each key’s JSON type and its serialized size in UTF-8 bytes (for spotting the big keys; the <code>--json</code> rows also carry a length hint), with none of the values, which are agent-controlled text (see <a href="#agent-controlled-content">Agent-controlled content</a> above). <code>--content</code> adds a truncated single-line preview of each value; <code>--full</code> returns the raw values.</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 35%">
+<col style="width: 65%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Option</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>--key NAME</code></td>
+<td>Only these keys (repeatable), selected server-side so one large key doesn’t drag the whole store over the wire. An exact name, or a trailing-<code>*</code> prefix (e.g.&nbsp;<code>--key 'AgentState:*'</code> for one <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#storemodel">StoreModel</a></span>’s fields). Requested keys that aren’t present are reported as <code>missing</code> — not an error.</td>
+</tr>
+<tr class="even">
+<td><code>--content</code></td>
+<td>Include a truncated single-line preview of each value.</td>
+</tr>
+<tr class="odd">
+<td><code>--full</code></td>
+<td>Return raw values instead of the compact summary (unbounded — combine with <code>--key</code> to keep the response bounded).</td>
+</tr>
+</tbody>
+</table>
+<p>With <code>--json</code> the response is an <code>{as_of, status, count, store}</code> envelope (plus <code>missing</code> when <code>--key</code> was given), prefixed with the resolved <code>task_id</code> / <code>sample_id</code> / <code>epoch</code>. <code>count</code> is always the whole store’s key count, so a filtered read still shows how much it left out. As with the other reads, <code>EPOCH</code> defaults to 1, and stores of samples that have already completed are also readable — they are served from the eval’s log.</p>
+</section>
 <section id="cancellation" class="level2">
 <h2 class="anchored" data-anchor-id="cancellation">Cancellation</h2>
 <p><code>inspect ctl sample cancel</code> cancels one running sample — the typical move when a sample has stalled (high <code>idle</code> in <code>sample list</code>) or is burning tokens without progress. To see <em>why</em> it is stalled before cancelling, <code>inspect ctl process anomalies</code> shows what the process is actually waiting on (see <a href="#stall-diagnosis">Stall Diagnosis</a> below) — an in-flight operation emits no transcript event until it returns, so a stalled sample’s transcript alone won’t name it. By default the sample completes and the scorer runs on the work done so far (it is recorded with an <code>operator</code> limit, like the in-process TUI’s cancel); pass <code>--action error</code> to mark it errored instead (not permitted for samples configured to fail on errors), or <code>--action cancel</code> to record it as cancelled — its transcript is preserved in the log, it is not scored, and it does not count toward a fail-on-error threshold. The rest of the task is unaffected.</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb12"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl sample cancel gpqa 17</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb13"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl sample cancel gpqa 17</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p><code>EPOCH</code> defaults to 1 but is <em>required</em> whenever the task runs more than one epoch — a defaulted epoch would silently cancel the epoch-1 attempt rather than erroring:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb13"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl sample cancel gpqa 17 3</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb14"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl sample cancel gpqa 17 3</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>When a sample is not merely slow but stuck on one hung <em>tool call</em> — a sandbox command wedged against a dead daemon with no timeout configured, or a timeout whose teardown never completed — cancelling the whole sample discards its progress unnecessarily. <code>inspect ctl sample cancel-tool-call</code> cancels just that call: the model receives an ordinary tool timeout (“Command timed out before completing.”) and the sample continues, using the same per-call cancel primitive as the in-process TUI’s timeout button and ACP’s <code>inspect/cancel_tool_call</code>.</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb15"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl sample cancel-tool-call gpqa 17</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>With no <code>--tool-call-id</code>, the command targets the sample’s sole pending tool call, and errors if there are two or more — it never guesses among targets, and never cancels them all (pass explicit ids for that). <code>--dry-run</code> without an id enumerates the pending calls, and each running sample’s <code>activity</code> in <code>sample list --json</code> carries a per-call list (<code>id</code>, <code>function</code>, <code>started_at</code>, <code>cancel_requested</code>), so a watchdog script can spot a stalled tool call and cancel it by id in one poll loop. Like the other sample mutations it is idempotent — repeating a cancel, naming a call that is no longer pending, or targeting a finished sample is a clean no-op — and <code>EPOCH</code> is required whenever the task runs more than one epoch.</p>
+<p>One honesty note: the cancel is <em>delivered</em> to the call’s cancel scope, which is not a guarantee the tool stops. Cancellation is cooperative, so a call parked on an await (the common hang) unwinds immediately, but sync code running in a thread or teardown inside a shielded scope may never notice — the pending call then keeps reporting <code>cancel_requested: true</code> and a repeat invocation no-ops with “cancel already requested”. The escalation from there is <code>inspect ctl sample cancel</code> (and ultimately killing the process and using <code>inspect eval-retry</code>).</p>
 <p><code>inspect ctl task cancel</code> cancels a whole running task. By default it aborts: in-flight samples are interrupted (their transcripts so far are preserved in the log as cancelled samples), completed samples are kept, and the task’s log is finalized with an error status noting the cancel. An eval set does not retry a cancelled task, and its other tasks are unaffected. <code>TASK</code> is always required — there is no sole-task default for destructive commands.</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb14"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl task cancel gpqa</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb16"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl task cancel gpqa</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Pass <code>--action score</code> or <code>--action error</code> to resolve the task <em>gracefully</em> instead of aborting it: each in-flight sample is scored on the work done so far (or marked errored), still-queued samples are abandoned, and the task runs to natural completion — so the eval finishes with a completed status rather than an error. This is how to abandon a task’s last few stragglers while still bringing the eval to a completed state. Note that a completed status doesn’t mean every sample ran: abandoned samples are absent from the log (visible as <code>completed_samples &lt; total_samples</code> in its results), and an eval set treats the log as complete rather than re-running them — an explicit <code>inspect eval-retry</code> on the log will run them later if you change your mind. <code>--action error</code> is not permitted when the task’s samples are configured to fail on errors. If a graceful cancel stalls — say on a hung scorer — issuing a plain <code>inspect ctl task cancel</code> escalates it to an abort.</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb15"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl task cancel gpqa <span class="at">--action</span> score</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb17"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl task cancel gpqa <span class="at">--action</span> score</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Both commands are idempotent — cancelling something already finished (or already cancelling) is a clean no-op, reported as <code>changed: false</code> in the <code>--json</code> detail, the abort escalation above being the one exception — and both accept <code>--dry-run</code> to report what would be cancelled without doing it. Two cases are rejected rather than no-opped: a task <em>between attempts</em>, whose last attempt errored and whose retry is queued but not yet started, has nothing running to cancel — but is not finished either, so <code>task cancel</code> errors and asks you to re-issue once the retry starts; and a sample that is still <em>queued</em> (it appears in <code>sample list</code> but has not started), which <code>sample cancel</code> rejects — only a running sample can be cancelled.</p>
 </section>
 <section id="requeue" class="level2">
 <h2 class="anchored" data-anchor-id="requeue">Requeue</h2>
 <p><code>inspect ctl sample requeue</code> re-runs one errored or cancelled sample inside the still-running eval — the recovery move when a sample failed for a transient reason (a provider incident, a flaky sandbox) and you’d rather not wait for the whole run to finish and <code>inspect eval-retry</code> it. The sample goes to the back of the sample queue and re-runs under the task’s normal machinery: its prior errors ride along as retry history, a checkpointed sample resumes from its checkpoint, and the run’s final log and counters reflect the fresh outcome (the superseded attempt does not count toward a fail-on-error threshold).</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb16"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl sample requeue gpqa 17</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb18"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl sample requeue gpqa 17</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>As with <code>sample cancel</code>, <code>EPOCH</code> defaults to 1 but is <em>required</em> whenever the task runs more than one epoch — a defaulted epoch would silently requeue a different attempt:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb17"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl sample requeue gpqa 17 3</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb19"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl sample requeue gpqa 17 3</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>The command is idempotent: requeuing a sample whose re-run is already pending, queued, or running — or one that hasn’t started yet — is a clean no-op reporting the sample’s current status (<code>changed: false</code> in the <code>--json</code> detail), so a retrying script can re-issue safely without double-queueing. While the re-run waits its turn, <code>sample list</code> and <code>sample show</code> render the sample as <code>queued</code> with its prior error shown as retry history.</p>
 <p>Requeuing a sample that completed <em>successfully</em> is rejected — re-running or re-scoring a success is out of scope (use score invalidation and <code>inspect eval-retry</code> for post-hoc re-runs). Also rejected: a task that has finished or is between attempts (re-run failures with <code>inspect eval-retry</code>, or let the queued task retry handle them), and a task with a cancel in flight. <code>--dry-run</code> reports what would be re-run — the prior error, the attempt number, and whether a checkpoint resume is available — without changing anything, and reports the rejections above too, so an agent can probe safely.</p>
 </section>
+<section id="interim-scoring" class="level2">
+<h2 class="anchored" data-anchor-id="interim-scoring">Interim Scoring</h2>
+<p><code>inspect ctl task score</code> answers “how is this eval actually doing?” mid-run: it runs the task’s own scorers over the in-flight samples, folds completed samples’ existing final scores in, computes interim metrics, and reports the results, all without ending any sample (the non-destructive counterpart to <code>task cancel --action score</code>).</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb20"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl task score gpqa</span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl task score gpqa <span class="at">--dry-run</span>          <span class="co"># counts by disposition, no scoring</span></span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl task score gpqa <span class="at">--completed-only</span>   <span class="co"># no holds: metrics over final scores</span></span>
+<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl task score gpqa <span class="at">--no-wait</span> <span class="at">--json</span>   <span class="co"># start, then re-run to poll</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Each in-flight sample is scored on its work-so-far by briefly <em>holding</em> it: the sample parks at its next model call (the same gate <code>pause --now</code> uses, applied to just that sample), its then-stable live state is scored — with full fidelity: real conversation, live store, live sandbox — and it is released and keeps running. The interim score is recorded on the sample’s transcript as an intermediate score event (exactly as the in-task <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#score">score()</a></span> API records one), so it persists into the log; the sample’s final scores are unaffected. A sample that doesn’t reach a model call within the hold timeout (a long tool call, a solver phase with no model calls) is skipped and reported rather than scored mid-motion, and one that completes first simply resolves normally — its final score supersedes. Samples are held one at a time, and scorer model calls never count against a held sample’s token/cost limits.</p>
+<p>Completed samples are folded in, never re-scored: already-scored samples contribute their final scores to the interim metrics, and unscored completed samples (a scorer that errored earlier, for example) are reported skipped — writing scores into a mid-run log isn’t safe, so <code>inspect score</code> after the run remains the way to score them. Errored samples count as scoreable only when the eval’s <code>score_on_error</code> would score them; cancelled and not-yet-started samples are skipped. A run started with <code>--no-score</code> can’t be interim scored at all — the task has no scorers in-process, and the command reports exactly that; use <code>inspect score</code> on its log after the run.</p>
+<p>Scoring can take minutes (model-graded scorers), so the command starts a pass and polls it to completion, rendering progress; <code>--no-wait</code> returns immediately, and the follow-up is <code>--status</code>, which reports the current (or most recent) pass without starting one (a bare re-run joins a still-running pass — one pass per task at a time — but would start a fresh pass, with fresh holds, once the first finishes). In the results, <code>failed</code> counts genuine scoring failures; in-flight samples the pass never attempted (they completed on their own, or never parked) or that every scorer declined to score (a scorer may return no score, e.g.&nbsp;for work it considers too incomplete) are reported <code>unscored</code>. Metrics are labeled interim for a reason: epochs may be incomplete and in-flight scores describe a moment mid-run. Two costs to know about: a held sample’s wall-clock <code>time_limit</code> keeps running while held (so avoid <em>recurring</em> full passes — use <code>--completed-only</code>, which takes no holds and makes no scorer calls, for periodic polling), and scorer model calls share the process’s connection limits with the running eval (a held sample’s parked calls release their connection slots while parked, so the pass’s own graders don’t starve behind the hold). Scorers should be read-only with respect to the sandbox to be safely interim-scorable — a scorer that mutates the environment (cleanup scripts, marker files) can perturb the still-running agent.</p>
+</section>
 <section id="repeated-mutations" class="level2">
 <h2 class="anchored" data-anchor-id="repeated-mutations">Repeated Mutations</h2>
-<p>Interactively, each mutation prints a full task header above its outcome for context. When stdout is not a TTY — piped or redirected output, a script whose output is captured, an agent’s shell tool — the task-scoped mutation verbs (<code>sample requeue</code>, <code>sample cancel</code>, <code>task cancel</code>, <code>task pause</code>/<code>resume</code>, <code>task log-flush</code>, and <code>config</code> when setting a knob) switch to a terse mode instead: one <code>verb target: outcome</code> line per call, so N mutations in a loop read as N scannable outcome lines rather than N repeated banners:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb18"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl sample errors gpqa <span class="at">--json</span> <span class="kw">|</span> <span class="ex">jq</span> <span class="at">-r</span> <span class="st">'.samples[] | "\(.sample_id) \(.epoch)"'</span> <span class="kw">|</span></span>
-<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">while</span> <span class="bu">read</span> <span class="at">-r</span> <span class="va">s</span> <span class="va">e</span><span class="kw">;</span> <span class="cf">do</span> <span class="ex">inspect</span> ctl sample requeue gpqa <span class="st">"</span><span class="va">$s</span><span class="st">"</span> <span class="st">"</span><span class="va">$e</span><span class="st">"</span><span class="kw">;</span> <span class="cf">done</span> <span class="kw">|</span> <span class="fu">tee</span> requeue.log</span>
-<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a><span class="ex">requeue</span> gpqa/11 <span class="er">(</span><span class="ex">epoch</span> 1<span class="kw">)</span><span class="bu">:</span> accepted — will re-run from the back of the sample queue</span>
-<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a><span class="ex">requeue</span> gpqa/17 <span class="er">(</span><span class="ex">epoch</span> 1<span class="kw">)</span><span class="bu">:</span> accepted — will resume from its checkpoint</span>
-<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a><span class="ex">requeue</span> gpqa/23 <span class="er">(</span><span class="ex">epoch</span> 1<span class="kw">)</span><span class="bu">:</span> no-op — a re-run is already pending</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>(The pipe is what selects the terse form here — a loop whose stdout still goes to the terminal keeps the full rendering for each call.) One exception to the strict one-line shape: a qualified <code>config</code> set appends <code>!</code> warning and <code>note:</code> lines after its outcome line (a process-scoped retune’s blast-radius note, a knob that could not be applied), so scripts that count lines should prefer <code>--json</code>. Pass <code>--terse</code> to force the one-line mode on a terminal, or <code>--no-terse</code> to keep the full header rendering in a pipe. For scripts that branch on precise per-call outcomes, prefer <code>--json</code>: it takes precedence over both terse flags, and the mutation result envelope (<code>{target, applied, dry_run, detail}</code>) distinguishes applied from the idempotent no-op from dry-run structurally for the cancel, requeue, pause, and resume verbs (<code>task log-flush</code> reports <code>applied: true</code> even when nothing was buffered — its <code>detail</code> carries the flushed count).</p>
+<p>Interactively, each mutation prints a full task header above its outcome for context. When stdout is not a TTY — piped or redirected output, a script whose output is captured, an agent’s shell tool — the task-scoped mutation verbs (<code>sample requeue</code>, <code>sample cancel</code>, <code>sample cancel-tool-call</code>, <code>task cancel</code>, <code>task pause</code>/<code>resume</code>, <code>task score</code>, <code>task log-flush</code>, and <code>config</code> when setting a knob) switch to a terse mode instead: one <code>verb target: outcome</code> line per call, so N mutations in a loop read as N scannable outcome lines rather than N repeated banners:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb21"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl sample errors gpqa <span class="at">--json</span> <span class="kw">|</span> <span class="ex">jq</span> <span class="at">-r</span> <span class="st">'.samples[] | "\(.sample_id) \(.epoch)"'</span> <span class="kw">|</span></span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">while</span> <span class="bu">read</span> <span class="at">-r</span> <span class="va">s</span> <span class="va">e</span><span class="kw">;</span> <span class="cf">do</span> <span class="ex">inspect</span> ctl sample requeue gpqa <span class="st">"</span><span class="va">$s</span><span class="st">"</span> <span class="st">"</span><span class="va">$e</span><span class="st">"</span><span class="kw">;</span> <span class="cf">done</span> <span class="kw">|</span> <span class="fu">tee</span> requeue.log</span>
+<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a><span class="ex">requeue</span> gpqa/11 <span class="er">(</span><span class="ex">epoch</span> 1<span class="kw">)</span><span class="bu">:</span> accepted — will re-run from the back of the sample queue</span>
+<span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a><span class="ex">requeue</span> gpqa/17 <span class="er">(</span><span class="ex">epoch</span> 1<span class="kw">)</span><span class="bu">:</span> accepted — will resume from its checkpoint</span>
+<span id="cb21-5"><a href="#cb21-5" aria-hidden="true" tabindex="-1"></a><span class="ex">requeue</span> gpqa/23 <span class="er">(</span><span class="ex">epoch</span> 1<span class="kw">)</span><span class="bu">:</span> no-op — a re-run is already pending</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>(The pipe is what selects the terse form here — a loop whose stdout still goes to the terminal keeps the full rendering for each call.) Two exceptions to the strict one-line shape: a qualified <code>config</code> set appends <code>!</code> warning and <code>note:</code> lines after its outcome line (a process-scoped retune’s blast-radius note, a knob that could not be applied), and a <code>task score</code> that joins an already-running pass prints a join-note line (which pass it joined, and whether its flags differ) before its outcome line — scripts that count lines should prefer <code>--json</code>. Pass <code>--terse</code> to force the one-line mode on a terminal, or <code>--no-terse</code> to keep the full header rendering in a pipe. For scripts that branch on precise per-call outcomes, prefer <code>--json</code>: it takes precedence over both terse flags, and the mutation result envelope (<code>{target, applied, dry_run, detail}</code>) distinguishes applied from the idempotent no-op from dry-run structurally for the cancel, requeue, pause, and resume verbs (<code>task log-flush</code> reports <code>applied: true</code> even when nothing was buffered — its <code>detail</code> carries the flushed count).</p>
 </section>
 <section id="pause-and-resume" class="level2">
 <h2 class="anchored" data-anchor-id="pause-and-resume">Pause and Resume</h2>
 <p>Pause is the missing state between “running” and “cancelled”: it stops a run from <em>starting</em> new work while keeping the process, its queue, and this control surface alive, and it is non-destructive, idempotent, and reversible. By default the pause applies to dispatch, not to execution — think pausing a job queue, not suspending a process: samples already running (including model calls in flight) are not frozen or interrupted; they run to completion while new work holds. When in-flight spend must stop too, <code>pause --now</code> (the hard pause, below) additionally holds running samples at their next model call. Typical uses: ride out a provider incident without feeding more samples into it, stop spending while a cost question is decided, yield shared rate-limit capacity to a more urgent eval, or hold a run steady while you investigate a suspicious transcript (the read commands keep answering while paused).</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb19"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl process pause                    <span class="co"># pause the whole run (eval or eval-set)</span></span>
-<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl process resume                   <span class="co"># pick up exactly where it left off</span></span>
-<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl model pause openai/gpt-5-nano    <span class="co"># pause just one model's work</span></span>
-<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl model resume openai/gpt-5-nano   <span class="co"># the rest of the run kept going</span></span>
-<span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl process pause <span class="at">--now</span>              <span class="co"># hard pause: also hold in-flight samples</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb22"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl process pause                    <span class="co"># pause the whole run (eval or eval-set)</span></span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl process resume                   <span class="co"># pick up exactly where it left off</span></span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl model pause openai/gpt-5-nano    <span class="co"># pause just one model's work</span></span>
+<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl model resume openai/gpt-5-nano   <span class="co"># the rest of the run kept going</span></span>
+<span id="cb22-5"><a href="#cb22-5" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl process pause <span class="at">--now</span>              <span class="co"># hard pause: also hold in-flight samples</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Under a pause, in-flight samples finish naturally — solving, scoring, and log writes complete under their original limits — but no new samples leave the queue, no task retries start, and (for an eval set) no further tasks dispatch. Queued samples spend none of their time limits: they are exactly as resumable as before the pause. Quiesce time is therefore bounded by the longest in-flight work: a long-running agentic sample, or a batched generate call awaiting a provider batch, holds the run semi-active until it completes. When in-flight work must wind down faster than that, compose pause with <code>inspect ctl config --max-connections</code> (throttle in-flight demand without discarding progress) or a targeted <code>inspect ctl sample cancel</code> — or reach for the hard pause.</p>
 <p>Adding <code>--now</code> to any pause verb makes it a <em>hard</em> pause: in addition to stopping dispatch, in-flight samples hold at their next model call. Outstanding model calls (and batch waits) finish, then no new call starts until resume — the lever for a provider incident or budget stop where an hour-long agentic sample should neither keep spending nor be cancelled and lose its progress. The hold covers provider-native compaction too (compacting rewrites the conversation, and for a long-context sample can be its most expensive single call), but not token counting: <code>count_tokens()</code> traffic is non-generative and cheap, and continues under a hard pause. A held sample’s parked time counts as waiting, so a <code>working_limit</code> does not burn down while held — but the wall clock keeps running: a sample held past its <code>time_limit</code> takes an ordinary time-limit outcome (though if scoring itself calls a model — a model-graded scorer — that call holds at the gate too, so the sample fully completes only after resume), the trade-off you accept for freezing it in place. <code>resume</code> clears both strengths, a plain <code>pause</code> after a <code>pause --now</code> downgrades it to the soft pause (last-write-wins), and cancel still escalates over a hold. One scoping difference from the soft model latch: <code>model pause MODEL --now</code> holds every generate call <em>to</em> MODEL — other tasks’ role and grader calls included — not just the tasks whose primary model matches.</p>
 <p><code>inspect ctl task pause</code> / <code>resume</code> scope the same thing to one task of an eval set, and <code>inspect ctl model pause MODEL</code> / <code>resume MODEL</code> to one model of a multi-model run: every task whose <em>primary</em> model matches holds — including eval-set tasks that haven’t started yet, which task-level pause can’t reach — while other models’ work continues (in-flight samples, including other tasks’ role/grader calls to the paused model, still finish naturally). <code>MODEL</code> is the exact name shown by <code>inspect ctl task list</code>. The task, model, and process pauses are independent latches — resuming one never clears another, so resuming a run after an incident never silently un-pauses a task (or model) you paused for its own reasons. All the verbs accept <code>--dry-run</code> and report <code>changed: false</code> on an idempotent repeat. Pause never blocks teardown: cancel works unchanged on a paused task, config retunes compose with it, and — unlike <code>task cancel</code> — pausing a task that is <em>between attempts</em> works, parking the queued retry.</p>
@@ -1178,25 +1236,25 @@ Note
 <section id="stall-diagnosis" class="level2">
 <h2 class="anchored" data-anchor-id="stall-diagnosis">Stall Diagnosis</h2>
 <p><code>inspect ctl process anomalies [PID]</code> shows <em>why</em> a process is stalled: it reconstructs from the process’s trace log which actions (model calls, sandbox operations, subprocesses) are currently in flight — with live durations — plus any that were cancelled (<code>--all</code> adds errored and timed-out actions, and <code>--filter</code> narrows by message text). An in-flight operation emits no transcript event until it returns, so this is the read that names what a stalled sample with a high <code>idle</code> is actually waiting on.</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb20"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl process anomalies 12345</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb23"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl process anomalies 12345</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Unlike the other reads, this one opens the process’s trace file directly rather than asking the process — so it works even against a process too busy or wedged to answer (the escalation path when another command reports “busy”), and even post-mortem: passing the pid of an exited process reads its trace file (kept on disk for the last 10 runs) to show what was in flight when it died, with durations dated to the file’s last write. With no <code>PID</code> it reads every running Inspect process, one section per pid.</p>
 </section>
 <section id="configuration" class="level2">
 <h2 class="anchored" data-anchor-id="configuration">Configuration</h2>
 <p><code>inspect ctl config</code> shows a running eval’s retunable launch configuration, and can retune it mid-run — for example to throttle an eval that is hammering a provider or overloading a machine, or to open it up when more capacity becomes available. Any <code>inspect eval</code> launch flag that can be retuned mid-flight is settable here, under the same spelling:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb21"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl config gpqa</span>
-<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect_evals/gpqa_diamond</span> <span class="er">(</span><span class="ex">ZByxJpK4bKSz</span><span class="kw">)</span>  <span class="ex">·</span>  openai/gpt-5  ·  running  ·  12/40</span>
-<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a><span class="ex">config:</span></span>
-<span id="cb21-5"><a href="#cb21-5" aria-hidden="true" tabindex="-1"></a>  <span class="ex">max</span> samples <span class="pp">[</span><span class="ss">task</span><span class="pp">]</span>:         tracks adaptive connections <span class="er">(</span><span class="ex">see</span> below<span class="kw">)</span></span>
-<span id="cb21-6"><a href="#cb21-6" aria-hidden="true" tabindex="-1"></a>  <span class="ex">max</span> sandboxes <span class="pp">[</span><span class="ss">process</span><span class="pp">]</span>:    docker 40 <span class="er">(</span><span class="ex">12</span> in use<span class="kw">)</span></span>
-<span id="cb21-7"><a href="#cb21-7" aria-hidden="true" tabindex="-1"></a>  <span class="ex">max</span> subprocesses <span class="pp">[</span><span class="ss">process</span><span class="pp">]</span>: 16 <span class="er">(</span><span class="ex">9</span> in use<span class="kw">)</span></span>
-<span id="cb21-8"><a href="#cb21-8" aria-hidden="true" tabindex="-1"></a>  <span class="ex">adaptive</span> connections <span class="pp">[</span><span class="ss">process</span><span class="pp">]</span>:</span>
-<span id="cb21-9"><a href="#cb21-9" aria-hidden="true" tabindex="-1"></a>    <span class="ex">openai/gpt-5:</span> 45 <span class="er">(</span><span class="ex">38</span> in use<span class="kw">)</span><span class="ex">,</span> range 10–100, last: 40→45 steady_state_up</span>
-<span id="cb21-10"><a href="#cb21-10" aria-hidden="true" tabindex="-1"></a>  <span class="ex">log</span> buffer <span class="pp">[</span><span class="ss">task</span><span class="pp">]</span>:          10 samples <span class="er">(</span><span class="ex">2</span> pending<span class="kw">)</span></span>
-<span id="cb21-11"><a href="#cb21-11" aria-hidden="true" tabindex="-1"></a>  <span class="ex">shared</span> sync <span class="pp">[</span><span class="ss">task</span><span class="pp">]</span>:         off</span>
-<span id="cb21-12"><a href="#cb21-12" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb21-13"><a href="#cb21-13" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl config gpqa <span class="at">--max-connections</span> 20</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb24"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl config gpqa</span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect_evals/gpqa_diamond</span> <span class="er">(</span><span class="ex">ZByxJpK4bKSz</span><span class="kw">)</span>  <span class="ex">·</span>  openai/gpt-5  ·  running  ·  12/40</span>
+<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-4"><a href="#cb24-4" aria-hidden="true" tabindex="-1"></a><span class="ex">config:</span></span>
+<span id="cb24-5"><a href="#cb24-5" aria-hidden="true" tabindex="-1"></a>  <span class="ex">max</span> samples <span class="pp">[</span><span class="ss">task</span><span class="pp">]</span>:         tracks adaptive connections <span class="er">(</span><span class="ex">see</span> below<span class="kw">)</span></span>
+<span id="cb24-6"><a href="#cb24-6" aria-hidden="true" tabindex="-1"></a>  <span class="ex">max</span> sandboxes <span class="pp">[</span><span class="ss">process</span><span class="pp">]</span>:    docker 40 <span class="er">(</span><span class="ex">12</span> in use<span class="kw">)</span></span>
+<span id="cb24-7"><a href="#cb24-7" aria-hidden="true" tabindex="-1"></a>  <span class="ex">max</span> subprocesses <span class="pp">[</span><span class="ss">process</span><span class="pp">]</span>: 16 <span class="er">(</span><span class="ex">9</span> in use<span class="kw">)</span></span>
+<span id="cb24-8"><a href="#cb24-8" aria-hidden="true" tabindex="-1"></a>  <span class="ex">adaptive</span> connections <span class="pp">[</span><span class="ss">process</span><span class="pp">]</span>:</span>
+<span id="cb24-9"><a href="#cb24-9" aria-hidden="true" tabindex="-1"></a>    <span class="ex">openai/gpt-5:</span> 45 <span class="er">(</span><span class="ex">38</span> in use<span class="kw">)</span><span class="ex">,</span> range 10–100, last: 40→45 steady_state_up</span>
+<span id="cb24-10"><a href="#cb24-10" aria-hidden="true" tabindex="-1"></a>  <span class="ex">log</span> buffer <span class="pp">[</span><span class="ss">task</span><span class="pp">]</span>:          10 samples <span class="er">(</span><span class="ex">2</span> pending<span class="kw">)</span></span>
+<span id="cb24-11"><a href="#cb24-11" aria-hidden="true" tabindex="-1"></a>  <span class="ex">shared</span> sync <span class="pp">[</span><span class="ss">task</span><span class="pp">]</span>:         off</span>
+<span id="cb24-12"><a href="#cb24-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-13"><a href="#cb24-13" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl config gpqa <span class="at">--max-connections</span> 20</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Scope is a property of each knob, not of the command: task-scoped knobs apply to the selected task, process-scoped knobs apply to every task in the process. The output labels every knob with its scope (in <code>--json</code>, each knob carries <code>"scope": "task" | "process"</code>), and a <code>--dry-run</code> reports the blast radius of a process-scoped change.</p>
 <table class="caption-top table">
 <colgroup>
@@ -1218,81 +1276,86 @@ Note
 <td>Sample concurrency (not applicable under <a href="./models-concurrency.html">adaptive connections</a>, where sample concurrency tracks the controller).</td>
 </tr>
 <tr class="even">
+<td><code>--max-tasks N</code></td>
+<td>process</td>
+<td>Override the max concurrently running tasks (<code>clear</code> restores launch config).</td>
+</tr>
+<tr class="odd">
 <td><code>--max-sandboxes N</code></td>
 <td>process</td>
 <td>Per-provider sandbox concurrency.</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--max-subprocesses N</code></td>
 <td>process</td>
 <td>Subprocess concurrency (inactive until the run’s first subprocess).</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--max-connections N</code></td>
 <td>process</td>
 <td>Adaptive connections scaling ceiling.</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--key NAME LIMIT</code></td>
 <td>process</td>
 <td>Set a named <a href="./parallelism.html#sec-parallel-solvers-and-scorers"><span class="element-type-name ref-interlink"><span>concurrency()</span></span></a> registry limit — any limit tools or task code register by name.</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--log-buffer N</code></td>
 <td>task</td>
 <td>Completed samples buffered before a log write (lower it to write to S3 more often).</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--log-shared S</code></td>
 <td>task</td>
 <td>Shared-log event sync interval in seconds.</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--timeout S</code></td>
 <td>process</td>
 <td>Override the total retry budget per generate call, in seconds (<code>clear</code> restores launch config).</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--attempt-timeout S</code></td>
 <td>process</td>
 <td>Override the per-attempt API timeout, in seconds (<code>clear</code> restores launch config).</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--max-retries N</code></td>
 <td>process</td>
 <td>Override the max retries per generate call (<code>0</code> fails after the first attempt; <code>clear</code> restores launch config).</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--time-limit S</code></td>
 <td>task</td>
 <td>Override the per-sample wall-clock time limit, in seconds — reaches in-flight samples too (<code>clear</code> restores launch config).</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--token-limit N</code></td>
 <td>task</td>
 <td>Override the per-sample token limit — applies at each sample’s next token check (<code>clear</code> restores launch config).</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--message-limit N</code></td>
 <td>task</td>
 <td>Override the per-sample message limit — applies at each sample’s next message check (<code>clear</code> restores launch config).</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--model M</code></td>
 <td>—</td>
 <td>Restrict <code>--max-connections</code> (and the adaptive view) to matching models in mixed-model runs.</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--reason R</code></td>
 <td>—</td>
 <td>Why the change is being made — recorded with it in each affected eval log.</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--author A</code></td>
 <td>—</td>
 <td>Author recorded with the change (defaults to your git identity, then OS username).</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--dry-run</code></td>
 <td>—</td>
 <td>Report what would change (<code>current → requested</code>) without applying it.</td>
@@ -1302,6 +1365,7 @@ Note
 <p>Applied changes are recorded in each affected eval log (<code>EvalLog.config_updates</code>: author, timestamp, old → new values), so the log tells the truth about the configuration the run actually ran under — <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#effective_eval_config">effective_eval_config()</a></span> / <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#effective_generate_config">effective_generate_config()</a></span> fold the records over the launch config. Include <code>--reason</code> whenever you set a knob, so the record says <em>why</em> (“provider returning 429s”, “throttling for overnight run”): the reason is the one part of the record only you know at retune time, and it’s what lets a later reader — or the person whose eval you retuned — distinguish a considered intervention from a stray command. The result envelope’s <code>persisted</code> field reports, per applied knob, whether the record was written.</p>
 <p>Concurrency changes take effect immediately and never interrupt running work: raising a limit lets more samples/sandboxes/subprocesses/requests start right away, while lowering one below the current in-use count blocks new starts until enough in-flight work drains. Under adaptive connections the view also reports each model’s live controller state — its current limit, in-flight count, scaling range, and recent scale changes — so you can see whether the provider is rate-limiting before deciding to intervene. <code>--log-buffer</code> affects future writes only — run <code>inspect ctl task log-flush</code> to write what is already pending.</p>
 <p><code>--timeout</code> / <code>--attempt-timeout</code> / <code>--max-retries</code> set live overrides of the corresponding generation config fields — the “stop retrying and fail fast” (or “raise retries to ride it out”) lever during a provider incident. The model retry loop reads the overrides at each point of use, so a change reaches even generate calls already inside a retry loop; an in-flight API request always drains first (its attempt timeout is not retroactively shortened), and timeouts a provider SDK bakes into its client at initialization are unaffected. Batch admin operations (creating a provider batch, polling its results) also keep their launch config — failing one of those would fail every request riding the batch — while batched generate requests themselves still honor the <code>--timeout</code> / <code>--max-retries</code> overrides through their own retry loops (<code>--attempt-timeout</code> does not apply to batched calls: an attempt there waits on an entire provider batch, and cancelling that wait would resubmit duplicate requests into a new batch). The overrides are consulted after each attempt completes, so a retune that lands while a call is sitting in an exponential-backoff sleep (which grows to as much as 30 minutes between attempts) takes effect only after that sleep finishes and one more attempt runs — when failing fast, lower <code>--attempt-timeout</code> in the same retune to bound that final attempt. An override applies process-wide until cleared (pass <code>clear</code>) or the run ends; the config view reports each field’s active override, with <code>launch config</code> meaning no override is in effect.</p>
+<p><code>--max-tasks</code> likewise sets a live override — of the task dispatch limit, the lever when task count (rather than per-task concurrency) is what’s holding a run back: an eval set whose adaptive controllers sit far below their ceiling with tasks still pending. The dispatcher reads the override at each dispatch decision, so raising it starts pending tasks immediately; lowering never interrupts running tasks (the in-flight count rides above the new limit until it drains). The config view reports the effective limit alongside the launch value and the dispatcher’s in-flight and pending counts; a set landing while no task dispatcher is live (for example during run startup, while sandboxes are still being provisioned) still applies to task dispatch later in the run. This includes runs launched with <code>max_tasks=1</code>: their queued tasks sit pending in the same dispatcher, so a raise starts them immediately (a raised limit takes precedence over the sequential ordering that <code>max_tasks=1</code> otherwise provides). More concurrent tasks can mean more concurrent sandbox startups — <code>--max-sandboxes</code> remains the guard rail.</p>
 <p><code>--time-limit</code> / <code>--token-limit</code> / <code>--message-limit</code> set live overrides of the task’s per-sample limits — the “these samples are running away” lever. Each sample resolves its effective limit through the override at every limit check, so a retune reaches samples already in flight as well as ones not yet started: a lowered token or message ceiling applies at a sample’s next check (a sample already over it fails with the ordinary limit outcome and is scored on the work done so far, per the task’s configuration), and a lowered time limit reschedules running samples’ deadlines directly — a sample already past the new deadline is cancelled with a time-limit outcome immediately. Raising a limit unblocks in-flight samples the same way (though a sample whose time limit already fired stays cancelled). The overrides only affect each sample’s <em>top-level</em> limits — limits that agents or solvers open themselves are untouched. An override applies to the selected task until cleared (pass <code>clear</code>) or the run ends; the config view reports each field’s active override, and <code>sample list</code>’s token usage/ceiling columns reflect a retuned ceiling.</p>
 <p>Beyond the named flags, any limit registered through the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#concurrency">concurrency()</a></span> API — by built-in tools (for example the web search providers), model compaction, or your own solver and tool code — is settable with <code>--key NAME LIMIT</code>. The config output lists the registered keys under <code>concurrency keys</code>, exactly as addressable here; named limits are created lazily on first use, so a key that names no registered limit errors and lists the keys that do exist.</p>
 <p>Task-scoped knobs are keyed by the task (stable across retries): with eval sets’ default immediate retries, a retune survives a task retry rather than reverting to the launch configuration (legacy batch-mode retries — <code>retry_immediate=False</code> — run as separate calls and revert). With no <code>TASK</code> argument the command targets the sole running task; in a multi-task process the process-scoped knobs still work without a selector (they apply process-wide), while setting a task-scoped knob then requires the <code>TASK</code>.</p>
@@ -1309,22 +1373,22 @@ Note
 <section id="log-flushing" class="level2">
 <h2 class="anchored" data-anchor-id="log-flushing">Log Flushing</h2>
 <p>Completed samples are buffered and written to the (possibly remote, e.g.&nbsp;S3) log in batches (see <code>--log-buffer</code> above). <code>inspect ctl task log-flush</code> writes any buffered samples to the log immediately, so they become readable and analyzable without waiting for the buffer to fill. It is safe to repeat — a flush with nothing pending writes nothing.</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb22"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl task log-flush gpqa</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb25"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl task log-flush gpqa</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
 <section id="processes-and-keep-alive" class="level2">
 <h2 class="anchored" data-anchor-id="processes-and-keep-alive">Processes and Keep Alive</h2>
 <p><code>inspect ctl process</code> lists the running Inspect processes (their pids, keep-alive status, and hosted tasks). The pid is the selector <code>process keep</code> / <code>process release</code> take; with a single running process it can be omitted.</p>
 <p>A process exits as soon as its eval finishes, taking the control endpoint with it. That is a problem for scripted workflows that want to inspect results after completion: the process may be gone by the time they look. The <code>--ctl-server</code> option controls this:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb23"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval ctf.py <span class="at">--ctl-server</span><span class="op">=</span>keep</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb26"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval ctf.py <span class="at">--ctl-server</span><span class="op">=</span>keep</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>With <code>keep</code>, the process stays running after the eval finishes — its state remains queryable via <code>inspect ctl</code> and its logs are fully written — until you release it:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb24"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> ctl process release</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb27"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> ctl process release</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>You can also latch keep-alive onto an eval that is <em>already running</em> (launched without <code>--ctl-server=keep</code>) with <code>inspect ctl process keep</code>.</p>
 <p>If more than one process is parked, <code>release</code> lists their pids and you disambiguate by passing one (<code>inspect ctl process release &lt;pid&gt;</code>). Release also works ahead of time: issued while the eval is still running, it means “exit when done” — the process skips the park and exits as soon as the eval finishes (it never cancels in-flight work). <code>keep</code> and <code>release</code> are last-write-wins, so a <code>keep</code> issued after a <code>release</code> (while the eval is still running) restores the park. From Python, pass <code>ctl_server="keep"</code> to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span> or <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval_set">eval_set()</a></span>. For eval sets, keep-alive requires <code>retry_immediate=True</code> (the default).</p>
 </section>
 <section id="disabling-the-control-server" class="level2">
 <h2 class="anchored" data-anchor-id="disabling-the-control-server">Disabling the Control Server</h2>
 <p>The control server is on by default. To run an eval without it:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb25"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval ctf.py <span class="at">--ctl-server</span><span class="op">=</span>false</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb28"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval ctf.py <span class="at">--ctl-server</span><span class="op">=</span>false</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>The <code>INSPECT_EVAL_CTL_SERVER</code> environment variable mirrors the option (for example, set <code>INSPECT_EVAL_CTL_SERVER=false</code> to disable it across a CI job). If the server fails to bind (for example, on a read-only filesystem) the eval logs a warning and runs normally without it — eval results never depend on the control channel.</p>
 
 

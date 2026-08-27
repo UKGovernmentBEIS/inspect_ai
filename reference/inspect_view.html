@@ -1408,6 +1408,24 @@ ul.task-list li input[type="checkbox"] {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#headlinemetric" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">HeadlineMetric</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#resolvedheadlinemetric" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ResolvedHeadlineMetric</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#headline_metric" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">headline_metric</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.log.html#evalsamplereductions" class="sidebar-item-text sidebar-link">
  <span class="menu-text">EvalSampleReductions</span></a>
   </div>
@@ -1539,6 +1557,12 @@ ul.task-list li input[type="checkbox"] {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#modelroles" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ModelRoles</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.model.html#generateconfig" class="sidebar-item-text sidebar-link">
  <span class="menu-text">GenerateConfig</span></a>
   </div>
@@ -1625,6 +1649,42 @@ ul.task-list li input[type="checkbox"] {
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.model.html#retrydecision" class="sidebar-item-text sidebar-link">
  <span class="menu-text">RetryDecision</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#streamhandler" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">StreamHandler</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#streamevent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">StreamEvent</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#streamtextevent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">StreamTextEvent</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#streamreasoningevent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">StreamReasoningEvent</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#streamtoolcallevent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">StreamToolCallEvent</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#streamretryevent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">StreamRetryEvent</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -3214,6 +3274,30 @@ ul.task-list li input[type="checkbox"] {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#sandboxsnapshotconfig" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">SandboxSnapshotConfig</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#snapshotstrategyconfig" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">SnapshotStrategyConfig</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#resticsnapshots" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ResticSnapshots</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#archivesnapshots" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ArchiveSnapshots</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.util.html#registry_info" class="sidebar-item-text sidebar-link">
  <span class="menu-text">registry_info</span></a>
   </div>
@@ -3521,7 +3605,7 @@ ul.task-list li input[type="checkbox"] {
 <p>Learn more about using the log viewer at <a href="https://inspect.aisi.org.uk/log-viewer.html" class="uri">https://inspect.aisi.org.uk/log-viewer.html</a>.</p>
 <section id="usage" class="level4">
 <h4 class="anchored" data-anchor-id="usage">Usage</h4>
-<pre class="text"><code>inspect view [OPTIONS] COMMAND [ARGS]...</code></pre>
+<pre class="text"><code>inspect view [OPTIONS] [COMMAND] [ARGS]...</code></pre>
 </section>
 <section id="subcommands" class="level4">
 <h4 class="anchored" data-anchor-id="subcommands">Subcommands</h4>
@@ -3593,13 +3677,13 @@ ul.task-list li input[type="checkbox"] {
 <td><code>--trusted-origin</code></td>
 <td>text</td>
 <td>Exact browser origin allowed to use the viewer. Repeat for multiple origins.</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="odd">
 <td><code>--trusted-host</code></td>
 <td>text</td>
 <td>Additional exact HTTP authority allowed for non-browser clients.</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="even">
 <td><code>--unsafe-allow-unauthenticated</code></td>
@@ -3635,7 +3719,7 @@ ul.task-list li input[type="checkbox"] {
 <td><code>--env</code></td>
 <td>text</td>
 <td>Define an environment variable e.g.&nbsp;–env NAME=value (–env can be specified multiple times)</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="even">
 <td><code>--debug</code></td>
@@ -3718,7 +3802,7 @@ ul.task-list li input[type="checkbox"] {
 <td><code>--env</code></td>
 <td>text</td>
 <td>Define an environment variable e.g.&nbsp;–env NAME=value (–env can be specified multiple times)</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="even">
 <td><code>--debug</code></td>
@@ -3742,7 +3826,7 @@ ul.task-list li input[type="checkbox"] {
 <td><code>--output-dir</code></td>
 <td>text</td>
 <td>The directory where bundled output will be placed.</td>
-<td>_required</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="even">
 <td><code>--overwrite</code></td>
@@ -3813,7 +3897,7 @@ ul.task-list li input[type="checkbox"] {
 <td><code>--env</code></td>
 <td>text</td>
 <td>Define an environment variable e.g.&nbsp;–env NAME=value (–env can be specified multiple times)</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="even">
 <td><code>--debug</code></td>

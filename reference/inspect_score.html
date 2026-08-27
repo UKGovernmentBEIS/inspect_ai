@@ -1409,6 +1409,24 @@ ul.task-list li input[type="checkbox"] {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#headlinemetric" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">HeadlineMetric</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#resolvedheadlinemetric" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ResolvedHeadlineMetric</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#headline_metric" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">headline_metric</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.log.html#evalsamplereductions" class="sidebar-item-text sidebar-link">
  <span class="menu-text">EvalSampleReductions</span></a>
   </div>
@@ -1540,6 +1558,12 @@ ul.task-list li input[type="checkbox"] {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#modelroles" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ModelRoles</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.model.html#generateconfig" class="sidebar-item-text sidebar-link">
  <span class="menu-text">GenerateConfig</span></a>
   </div>
@@ -1626,6 +1650,42 @@ ul.task-list li input[type="checkbox"] {
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.model.html#retrydecision" class="sidebar-item-text sidebar-link">
  <span class="menu-text">RetryDecision</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#streamhandler" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">StreamHandler</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#streamevent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">StreamEvent</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#streamtextevent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">StreamTextEvent</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#streamreasoningevent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">StreamReasoningEvent</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#streamtoolcallevent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">StreamToolCallEvent</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#streamretryevent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">StreamRetryEvent</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -3215,6 +3275,30 @@ ul.task-list li input[type="checkbox"] {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#sandboxsnapshotconfig" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">SandboxSnapshotConfig</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#snapshotstrategyconfig" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">SnapshotStrategyConfig</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#resticsnapshots" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ResticSnapshots</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#archivesnapshots" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ArchiveSnapshots</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.util.html#registry_info" class="sidebar-item-text sidebar-link">
  <span class="menu-text">registry_info</span></a>
   </div>
@@ -3537,49 +3621,49 @@ ul.task-list li input[type="checkbox"] {
 <td><code>--model</code></td>
 <td>text</td>
 <td>Model used for re-scoring (overrides the primary model recorded in the log).</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="even">
 <td><code>--model-base-url</code></td>
 <td>text</td>
 <td>Base URL for model API</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="odd">
 <td><code>-M</code></td>
 <td>text</td>
 <td>One or more native model arguments (e.g.&nbsp;-M arg=value)</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="even">
 <td><code>--model-role</code></td>
 <td>text</td>
-<td>Named model role with model name or YAML/JSON config, e.g.&nbsp;–model-role critic=openai/gpt-4o or –model-role grader=“{model: mockllm/model, temperature: 0.5}”. Merged over the model roles recorded in the log.</td>
-<td>None</td>
+<td>Named model role with model name or YAML/JSON config, e.g.&nbsp;–model-role critic=openai/gpt-4o or –model-role grader=“{model: mockllm/model, temperature: 0.5}”. Bind multiple models to a role with a comma-separated list of names or a YAML/JSON list of configs. Merged over the model roles recorded in the log.</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="odd">
 <td><code>--scorer</code></td>
 <td>text</td>
 <td>Scorer to use for scoring</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="even">
 <td><code>-S</code></td>
 <td>text</td>
 <td>One or more scorer arguments (e.g.&nbsp;-S arg=value)</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="odd">
 <td><code>--metric</code></td>
 <td>text</td>
 <td>Metric to use for scoring (overrides metrics in the log).</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="even">
 <td><code>--action</code></td>
 <td>choice (<code>append</code> | <code>overwrite</code>)</td>
 <td>Whether to append or overwrite the existing scores.</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="odd">
 <td><code>--overwrite</code></td>
@@ -3591,7 +3675,7 @@ ul.task-list li input[type="checkbox"] {
 <td><code>--output-file</code></td>
 <td>file</td>
 <td>Output file to write the scored log to.</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="odd">
 <td><code>--stream</code></td>
@@ -3627,7 +3711,7 @@ ul.task-list li input[type="checkbox"] {
 <td><code>--env</code></td>
 <td>text</td>
 <td>Define an environment variable e.g.&nbsp;–env NAME=value (–env can be specified multiple times)</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="odd">
 <td><code>--debug</code></td>

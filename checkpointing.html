@@ -728,6 +728,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#sample-configuration" id="toc-sample-configuration" class="nav-link" data-scroll-target="#sample-configuration">Sample Configuration</a></li>
   <li><a href="#configuration-layers" id="toc-configuration-layers" class="nav-link" data-scroll-target="#configuration-layers">Configuration Layers</a></li>
   <li><a href="#sandbox-paths" id="toc-sandbox-paths" class="nav-link" data-scroll-target="#sandbox-paths">Sandbox Paths</a></li>
+  <li><a href="#snapshot-strategies" id="toc-snapshot-strategies" class="nav-link" data-scroll-target="#snapshot-strategies">Snapshot Strategies</a></li>
   </ul></li>
   <li><a href="#checkpoint-flow" id="toc-checkpoint-flow" class="nav-link" data-scroll-target="#checkpoint-flow">Checkpoint Flow</a></li>
   <li><a href="#custom-agents" id="toc-custom-agents" class="nav-link" data-scroll-target="#custom-agents">Custom Agents</a>
@@ -901,10 +902,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#checkpointconfig">CheckpointConfig</a></span> is the full configuration object passed to the Python API (it can equivalently be passed as YAML to the CLI). All fields default to <code>None</code> so that partial configurations can be layered (see <a href="#configuration-layers">Configuration Layers</a> below).</p>
 <table class="caption-top table">
 <caption>A full Python example:</caption>
-<colgroup>
-<col style="width: 50%">
-<col style="width: 50%">
-</colgroup>
 <thead>
 <tr class="header">
 <th>Field</th>
@@ -918,7 +915,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tr>
 <tr class="even">
 <td><code>sandbox_paths</code></td>
-<td>Per-sandbox-name map of absolute paths inside the sandbox to capture. Defaults to sandbox user’s home directory.</td>
+<td>Per-sandbox-name capture configuration: a list of absolute paths inside the sandbox to capture, or a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#sandboxsnapshotconfig">SandboxSnapshotConfig</a></span> that also selects the <a href="#snapshot-strategies">snapshot strategy</a>. Defaults to the sandbox user’s home directory, captured with the default strategy (incremental restic) — a bare path list carries no strategy selection of its own.</td>
 </tr>
 <tr class="odd">
 <td><code>checkpoints_location</code></td>
@@ -990,6 +987,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a><span class="co"># enable at the eval or task level (uses the sample config)</span></span>
 <span id="cb8-17"><a href="#cb8-17" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(<span class="st">"ctf.py"</span>, model<span class="op">=</span><span class="st">"openai/gpt-5"</span>, checkpoint<span class="op">=</span><span class="va">True</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Sample-level configuration covers capture: <em>what</em> to capture per sandbox and, via <a href="#snapshot-strategies">snapshot strategies</a>, <em>how</em> — a sample whose workload rewrites large amounts of data can select the <code>archive</code> strategy while the rest of the dataset uses the restic default. The eval-wide storage policy (<code>checkpoints_location</code>, <code>retention</code>) can only be set by the task or eval layer.</p>
 </section>
 <section id="configuration-layers" class="level3">
 <h3 class="anchored" data-anchor-id="configuration-layers">Configuration Layers</h3>
@@ -997,8 +995,67 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="sandbox-paths" class="level3">
 <h3 class="anchored" data-anchor-id="sandbox-paths">Sandbox Paths</h3>
-<p><code>sandbox_paths</code> is a map of container name to paths that should be captured for that container. Sandboxes that use only a single container can use the <code>"default"</code> key to refer to that container. Note that <code>sandbox_paths</code> is treated as a single whole-dict value, not key-wise merged. To add a path to one sandbox while inheriting others, the higher-priority layer must redeclare the full map. Also, while sandbox home directories are included by default, if you specify <code>sandbox_paths</code> explicitly you must explicitly include the home directory if you want it checkpointed. An explicit empty list (e.g.&nbsp;<code>sandbox_paths={"tools": []}</code>) opts that sandbox out of checkpointing entirely.</p>
+<p><code>sandbox_paths</code> is a map of container name to paths that should be captured for that container. Sandboxes that use only a single container can use the <code>"default"</code> key to refer to that container. Note that <code>sandbox_paths</code> is treated as a single whole-dict value, not key-wise merged. To add a path to one sandbox while inheriting others, the higher-priority layer must redeclare the full map. The exception is <a href="#snapshot-strategies">snapshot-strategy</a> selection: <code>strategy</code> values merge per-sandbox across all layers (eval &gt; sample &gt; task) regardless of which layer’s paths dict won, so a paths-only override never silently resets a selected strategy. Also, while sandbox home directories are included by default, if you specify <code>sandbox_paths</code> explicitly you must explicitly include the home directory if you want it checkpointed. An explicit empty list (e.g.&nbsp;<code>sandbox_paths={"tools": []}</code>) opts that sandbox out of checkpointing entirely.</p>
 <p>Cache directories are never backed up: any <code>.cache</code> directory at any depth (<code>**/.cache</code>, including the user’s XDG cache dir) is always excluded from sandbox backups — even when you specify <code>sandbox_paths</code> explicitly. Agents should not keep state they need across a resume under a <code>.cache</code> directory.</p>
+</section>
+<section id="snapshot-strategies" class="level3">
+<h3 class="anchored" data-anchor-id="snapshot-strategies">Snapshot Strategies</h3>
+<p>By default, sandbox filesystem state is captured with an incremental <a href="https://restic.net">restic</a> backup: each checkpoint stores only the data that changed since the previous one. Restic requires injecting a restic binary into the sandbox, and its incremental model pays off when most files are stable across checkpoints. The alternative <code>archive</code> strategy captures with tools already present in effectively every image (tar plus zstd or gzip) — nothing is injected — and writes one self-contained archive per checkpoint.</p>
+<p>To select a snapshot strategy for a sandbox, use a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#sandboxsnapshotconfig">SandboxSnapshotConfig</a></span> as its <code>sandbox_paths</code> value in place of a bare path list:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 30%">
+<col style="width: 70%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Strategy</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#resticsnapshots">ResticSnapshots</a></span></td>
+<td>Incremental restic backup (the default). Cheapest when most files are stable across checkpoints; requires injecting a restic binary into the sandbox.</td>
+</tr>
+<tr class="even">
+<td><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#archivesnapshots">ArchiveSnapshots</a></span></td>
+<td>One complete compressed tar archive per checkpoint (zstd when available in the sandbox image, gzip otherwise). Uses only tools already present in the image — nothing is injected — and each checkpoint restores from a single self-contained file. Archives are written <strong>unencrypted</strong> (restic encrypts its repository with a per-sample password), so captured sandbox data lands in the checkpoint storage location as plaintext.</td>
+</tr>
+</tbody>
+</table>
+<p>For example, capturing a directory of large rewritten files as archives:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> <span class="bu">eval</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> (</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>    ArchiveSnapshots, CheckpointConfig, SandboxSnapshotConfig,</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(</span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>    <span class="st">"training.py"</span>, model<span class="op">=</span><span class="st">"openai/gpt-5"</span>,</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>    checkpoint<span class="op">=</span>CheckpointConfig(</span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>        sandbox_paths<span class="op">=</span>{</span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>            <span class="st">"default"</span>: SandboxSnapshotConfig(</span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>                paths<span class="op">=</span>[<span class="st">"/home/user"</span>, <span class="st">"/data"</span>],</span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a>                strategy<span class="op">=</span>ArchiveSnapshots(),</span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a>            )</span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a>        }</span>
+<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a>    ),</span>
+<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>The equivalent YAML for use with <code>--checkpoint=checkpoint.yaml</code> on the CLI:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb10"><pre class="sourceCode yaml code-with-copy"><code class="sourceCode yaml"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="fu">trigger</span><span class="kw">:</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">type</span><span class="kw">:</span><span class="at"> token</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">every</span><span class="kw">:</span><span class="at"> 500k</span></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a><span class="fu">sandbox_paths</span><span class="kw">:</span></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">default</span><span class="kw">:</span></span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">paths</span><span class="kw">:</span><span class="at"> </span><span class="kw">[</span><span class="st">"/home/user"</span><span class="kw">,</span><span class="at"> </span><span class="st">"/data"</span><span class="kw">]</span></span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">strategy</span><span class="kw">:</span><span class="at"> archive</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Notes on semantics:</p>
+<ul>
+<li><p><code>paths</code> carries the same meaning as a bare path-list value (omitted = the sandbox user’s home directory; an empty list opts the sandbox out), and the two value forms can be mixed in one <code>sandbox_paths</code> map. Sandboxes without an entry get the defaults (home directory, restic).</p></li>
+<li><p>Strategy selection is available at every layer: <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#sandboxsnapshotconfig">SandboxSnapshotConfig</a></span> values are accepted in <code>CheckpointConfig.sandbox_paths</code> (task/eval, and the YAML equivalent) and in per-sample <code>CheckpointSampleConfig.sandbox_paths</code>. The strategy suits the workload’s data, and the workload is often sample-specific — one sample training a large model wants <code>archive</code>, another doing a coding exercise is best served by the restic default.</p></li>
+<li><p>Strategy selection merges independently of the capture paths. While <code>sandbox_paths</code> itself merges as a whole-dict value (highest layer wins), the <code>strategy</code> values resolve per-sandbox across all layers (eval &gt; sample &gt; task). A bare path list — or a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#sandboxsnapshotconfig">SandboxSnapshotConfig</a></span> (YAML mapping) without a <code>strategy</code> — expresses no opinion, so a higher layer that overrides paths never silently resets a lower-selected strategy back to the default; to change a strategy, a higher layer sets one explicitly (e.g.&nbsp;<code>strategy=ResticSnapshots()</code>). A sandbox with a selected strategy that is absent from the winning paths dict is still captured (with the default home-directory paths) under that strategy.</p></li>
+<li><p><strong>The strategy is pinned per sample.</strong> The strategy that takes a sample’s first checkpoint is recorded (in each checkpoint record and in a per-sample pin file) and is the strategy for that sample’s lifetime. If a retry runs with a different strategy configured, resume fails with a clear error naming the sandbox and both strategies — restore the original configuration and resume, or start a fresh eval. Checkpoint directories written before strategy selection existed resume unchanged (they are treated as restic).</p></li>
+</ul>
 </section>
 </section>
 <section id="checkpoint-flow" class="level2">
@@ -1006,7 +1063,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>When checkpointing is enabled, each sample proceeds as follows:</p>
 <ol type="1">
 <li><p><strong>Tick</strong>: At each agent turn boundary, the agent calls <code>cp.tick()</code>. The trigger decides whether this tick is a checkpoint moment.</p></li>
-<li><p><strong>Capture</strong>: When the trigger fires, Inspect writes the host-side context files (agent-tracked state, events, and store) and runs a <a href="https://restic.net">restic backup</a> on the agent scaffold host and each configured sandbox path.</p></li>
+<li><p><strong>Capture</strong>: When the trigger fires, Inspect writes the host-side context files (agent-tracked state, events, and store), runs a <a href="https://restic.net">restic backup</a> on the agent scaffold host, and captures each configured sandbox’s paths via its <a href="#snapshot-strategies">snapshot strategy</a> (incremental restic backup by default).</p></li>
 <li><p><strong>Record</strong>: Inspect writes a <code>ckpt-NNNNN.json</code> checkpoint file at the per-sample root. A checkpoint is available for resumption only once this file is in place.</p></li>
 <li><p><strong>Emit</strong>: A structured <code>CheckpointEvent</code> is emitted into the normal event stream (and into the <code>.eval</code> log) carrying the trigger, turn, duration, snapshot ids, and size.</p></li>
 </ol>
@@ -1017,40 +1074,40 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>A custom agent participates in checkpointing by entering a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#checkpointer">checkpointer()</a></span> context and calling <code>tick()</code> at each turn boundary.</p>
 <p>The key checkpointing mechanism for agents is the <code>cp.track</code> method, which gives the agent a way to declare “this variable is important state, capture it at each checkpoint and restore it for me on retry.”</p>
 <p>On a fresh run, <code>track</code> returns the <code>initial_value</code> the agent passes in. On a retry of the same sample, <code>track</code> returns whatever the registered callback captured at the most recent checkpoint of the prior run, so the agent’s important state comes back automatically and can pick up where it left off.</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> checkpointer</span>
-<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> my_agent(state):</span>
-<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="cf">with</span> checkpointer() <span class="im">as</span> cp:</span>
-<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>        <span class="co"># each `track` call: register a callback that</span></span>
-<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>        <span class="co"># captures this variable at every checkpoint</span></span>
-<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>        <span class="co"># fire, AND get back the value captured at the</span></span>
-<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>        <span class="co"># most recent prior checkpoint (or the initial</span></span>
-<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>        <span class="co"># value on a fresh run).</span></span>
-<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>        attempt_count <span class="op">=</span> cp.track(</span>
-<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>            <span class="st">"attempt_count"</span>,</span>
-<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a>            <span class="kw">lambda</span>: attempt_count,</span>
-<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a>            <span class="dv">0</span>,</span>
-<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a>        )</span>
-<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a>        state.messages <span class="op">=</span> cp.track(</span>
-<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a>            <span class="st">"messages"</span>,</span>
-<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a>            <span class="kw">lambda</span>: state.messages,</span>
-<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a>            state.messages,</span>
-<span id="cb9-19"><a href="#cb9-19" aria-hidden="true" tabindex="-1"></a>        )</span>
-<span id="cb9-20"><a href="#cb9-20" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-21"><a href="#cb9-21" aria-hidden="true" tabindex="-1"></a>        <span class="co"># scoring-phase resume: agent already finished in</span></span>
-<span id="cb9-22"><a href="#cb9-22" aria-hidden="true" tabindex="-1"></a>        <span class="co"># the prior attempt — tracked state is restored</span></span>
-<span id="cb9-23"><a href="#cb9-23" aria-hidden="true" tabindex="-1"></a>        <span class="co"># above, return so scoring can re-run.</span></span>
-<span id="cb9-24"><a href="#cb9-24" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> cp.attempt <span class="op">==</span> <span class="st">"resume_for_scoring"</span>:</span>
-<span id="cb9-25"><a href="#cb9-25" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> state</span>
-<span id="cb9-26"><a href="#cb9-26" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-27"><a href="#cb9-27" aria-hidden="true" tabindex="-1"></a>        <span class="co"># agent loop</span></span>
-<span id="cb9-28"><a href="#cb9-28" aria-hidden="true" tabindex="-1"></a>        <span class="cf">while</span> <span class="va">True</span>:</span>
-<span id="cb9-29"><a href="#cb9-29" aria-hidden="true" tabindex="-1"></a>            <span class="co"># fire checkpoint as per trigger </span></span>
-<span id="cb9-30"><a href="#cb9-30" aria-hidden="true" tabindex="-1"></a>            <span class="cf">await</span> cp.tick()  </span>
-<span id="cb9-31"><a href="#cb9-31" aria-hidden="true" tabindex="-1"></a>            ...</span>
-<span id="cb9-32"><a href="#cb9-32" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-33"><a href="#cb9-33" aria-hidden="true" tabindex="-1"></a>        <span class="co"># for manual triggers the agent fires explicitly:</span></span>
-<span id="cb9-34"><a href="#cb9-34" aria-hidden="true" tabindex="-1"></a>        <span class="co"># await cp.checkpoint()</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> checkpointer</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> my_agent(state):</span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="cf">with</span> checkpointer() <span class="im">as</span> cp:</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>        <span class="co"># each `track` call: register a callback that</span></span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>        <span class="co"># captures this variable at every checkpoint</span></span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a>        <span class="co"># fire, AND get back the value captured at the</span></span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a>        <span class="co"># most recent prior checkpoint (or the initial</span></span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a>        <span class="co"># value on a fresh run).</span></span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a>        attempt_count <span class="op">=</span> cp.track(</span>
+<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a>            <span class="st">"attempt_count"</span>,</span>
+<span id="cb11-12"><a href="#cb11-12" aria-hidden="true" tabindex="-1"></a>            <span class="kw">lambda</span>: attempt_count,</span>
+<span id="cb11-13"><a href="#cb11-13" aria-hidden="true" tabindex="-1"></a>            <span class="dv">0</span>,</span>
+<span id="cb11-14"><a href="#cb11-14" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb11-15"><a href="#cb11-15" aria-hidden="true" tabindex="-1"></a>        state.messages <span class="op">=</span> cp.track(</span>
+<span id="cb11-16"><a href="#cb11-16" aria-hidden="true" tabindex="-1"></a>            <span class="st">"messages"</span>,</span>
+<span id="cb11-17"><a href="#cb11-17" aria-hidden="true" tabindex="-1"></a>            <span class="kw">lambda</span>: state.messages,</span>
+<span id="cb11-18"><a href="#cb11-18" aria-hidden="true" tabindex="-1"></a>            state.messages,</span>
+<span id="cb11-19"><a href="#cb11-19" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb11-20"><a href="#cb11-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-21"><a href="#cb11-21" aria-hidden="true" tabindex="-1"></a>        <span class="co"># scoring-phase resume: agent already finished in</span></span>
+<span id="cb11-22"><a href="#cb11-22" aria-hidden="true" tabindex="-1"></a>        <span class="co"># the prior attempt — tracked state is restored</span></span>
+<span id="cb11-23"><a href="#cb11-23" aria-hidden="true" tabindex="-1"></a>        <span class="co"># above, return so scoring can re-run.</span></span>
+<span id="cb11-24"><a href="#cb11-24" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> cp.attempt <span class="op">==</span> <span class="st">"resume_for_scoring"</span>:</span>
+<span id="cb11-25"><a href="#cb11-25" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> state</span>
+<span id="cb11-26"><a href="#cb11-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-27"><a href="#cb11-27" aria-hidden="true" tabindex="-1"></a>        <span class="co"># agent loop</span></span>
+<span id="cb11-28"><a href="#cb11-28" aria-hidden="true" tabindex="-1"></a>        <span class="cf">while</span> <span class="va">True</span>:</span>
+<span id="cb11-29"><a href="#cb11-29" aria-hidden="true" tabindex="-1"></a>            <span class="co"># fire checkpoint as per trigger </span></span>
+<span id="cb11-30"><a href="#cb11-30" aria-hidden="true" tabindex="-1"></a>            <span class="cf">await</span> cp.tick()  </span>
+<span id="cb11-31"><a href="#cb11-31" aria-hidden="true" tabindex="-1"></a>            ...</span>
+<span id="cb11-32"><a href="#cb11-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-33"><a href="#cb11-33" aria-hidden="true" tabindex="-1"></a>        <span class="co"># for manual triggers the agent fires explicitly:</span></span>
+<span id="cb11-34"><a href="#cb11-34" aria-hidden="true" tabindex="-1"></a>        <span class="co"># await cp.checkpoint()</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#checkpointer">Checkpointer</a></span> context has the following members:</p>
 <table class="caption-top table">
 <colgroup>
@@ -1086,12 +1143,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="reaching-the-session-from-a-sub-component" class="level3">
 <h3 class="anchored" data-anchor-id="reaching-the-session-from-a-sub-component">Reaching the session from a sub-component</h3>
 <p><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#checkpointer">checkpointer()</a></span> opens a session and is entered once, by the agent that owns the loop. A sub-component that does <em>not</em> own the session — a custom <code>model</code> agent passed to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#react">react()</a></span>, a tool, or a nested helper — should not re-enter <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#checkpointer">checkpointer()</a></span> (that would open a duplicate transcript span). Use <code>current_checkpointer()</code> instead, a plain accessor for the session the agent has already opened:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> current_checkpointer</span>
-<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>cp <span class="op">=</span> current_checkpointer()</span>
-<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> cp <span class="kw">is</span> <span class="kw">not</span> <span class="va">None</span>:</span>
-<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>    <span class="co"># register the sub-component's state on the agent's session</span></span>
-<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>    state <span class="op">=</span> cp.track(<span class="st">"my_state"</span>, <span class="kw">lambda</span>: state, state)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> current_checkpointer</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>cp <span class="op">=</span> current_checkpointer()</span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> cp <span class="kw">is</span> <span class="kw">not</span> <span class="va">None</span>:</span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>    <span class="co"># register the sub-component's state on the agent's session</span></span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>    state <span class="op">=</span> cp.track(<span class="st">"my_state"</span>, <span class="kw">lambda</span>: state, state)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>It returns <code>None</code> when called outside an active sample, or before the owning agent has opened its session.</p>
 </section>
 </section>
@@ -1100,6 +1157,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Checkpointing enables restoration of the most important agent context after a crash, but has some limitations you should bear in mind when using it:</p>
 <ul>
 <li><p>Turn-boundary granularity only — A long-running tool call (e.g.&nbsp;a 10-minute subprocess) blocks the next checkpoint until the call returns.</p></li>
+<li><p>Nested limit scopes are not restored — Sample-root token, cost, turn, time, and working usage is snapshotted at fire time and reseeded on resume (downtime between fire and resume is not charged against <code>time_limit</code>). Nested <code>apply_limits</code> scopes are not. Checkpoints written by older Inspect versions still resume with usage reset to zero.</p></li>
+<li><p>Scoring-only resume does not enforce the budget — When the agent finished and only scoring needs to re-run, the restored usage is reported but the time and working limits are not re-armed, so a sample that spent its budget can still be scored.</p></li>
 <li><p>Filesystem state only — Anything outside <code>sandbox_paths</code> is not captured. In-memory process state inside the sandbox (running daemons, open sockets, RAM) is lost on resume. The agent is responsible for tolerating this.</p></li>
 <li><p>Failure tolerance — A failed checkpoint attempt records an <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.event.html#infoevent">InfoEvent</a></span> (<code>source="checkpoint"</code>) and logs a warning, but by default the sample keeps running. (durability is treated as a nicety, not a correctness requirement). Set <code>max_consecutive_failures=N</code> to bound this, or <code>0</code> for strict mode.</p></li>
 <li><p>Restic binary — On first use, Inspect fetches a pinned <a href="https://restic.net">restic</a> binary and caches it. For offline / air-gapped environments, pre-warm the cache with <code>inspect download restic</code>.</p></li>

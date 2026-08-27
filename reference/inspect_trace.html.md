@@ -50,10 +50,10 @@ inspect trace dump [OPTIONS] [TRACE_FILE]
 
 #### Options
 
-| Name       | Type    | Description                              | Default |
-|------------|---------|------------------------------------------|---------|
-| `--filter` | text    | Filter (applied to trace message field). | None    |
-| `--help`   | boolean | Show this message and exit.              | `False` |
+| Name | Type | Description | Default |
+|----|----|----|----|
+| `--filter` | text | Filter (applied to trace message field). | `Sentinel.UNSET` |
+| `--help` | boolean | Show this message and exit. | `False` |
 
 ## inspect trace http
 
@@ -69,7 +69,7 @@ inspect trace http [OPTIONS] [TRACE_FILE]
 
 | Name | Type | Description | Default |
 |----|----|----|----|
-| `--filter` | text | Filter (applied to trace message field). | None |
+| `--filter` | text | Filter (applied to trace message field). | `Sentinel.UNSET` |
 | `--failed` | boolean | Show only failed HTTP requests (non-200 status) | `False` |
 | `--json` | boolean | Output as JSON (a `{trace_file, as_of, requests}` envelope). | `False` |
 | `--help` | boolean | Show this message and exit. | `False` |
@@ -88,7 +88,7 @@ inspect trace anomalies [OPTIONS] [TRACE_FILE]
 
 | Name | Type | Description | Default |
 |----|----|----|----|
-| `--filter` | text | Filter (applied to trace message field). | None |
+| `--filter` | text | Filter (applied to trace message field). | `Sentinel.UNSET` |
 | `--all` | boolean | Show all anomalies including errors and timeouts (by default only still running and cancelled actions are shown; JSON output always includes all buckets). | `False` |
 | `--json` | boolean | Output as JSON (a `{trace_file, as_of, running, cancelled, errors, timeouts}` envelope). | `False` |
 | `--help` | boolean | Show this message and exit. | `False` |

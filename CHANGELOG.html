@@ -197,7 +197,8 @@ ul.task-list li input[type="checkbox"] {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#august-2026" id="toc-august-2026" class="nav-link active" data-scroll-target="#august-2026">0.3.260 (21 August 2026)</a></li>
+  <li><a href="#unreleased" id="toc-unreleased" class="nav-link active" data-scroll-target="#unreleased">Unreleased</a></li>
+  <li><a href="#august-2026" id="toc-august-2026" class="nav-link" data-scroll-target="#august-2026">0.3.260 (21 August 2026)</a></li>
   <li><a href="#august-2026-1" id="toc-august-2026-1" class="nav-link" data-scroll-target="#august-2026-1">0.3.259 (16 August 2026)</a></li>
   <li><a href="#august-2026-2" id="toc-august-2026-2" class="nav-link" data-scroll-target="#august-2026-2">0.3.258 (11 August 2026)</a></li>
   <li><a href="#august-2026-3" id="toc-august-2026-3" class="nav-link" data-scroll-target="#august-2026-3">0.3.257 (11 August 2026)</a></li>
@@ -463,6 +464,51 @@ ul.task-list li input[type="checkbox"] {
 
 
 
+<section id="unreleased" class="level2">
+<h2 class="anchored" data-anchor-id="unreleased">Unreleased</h2>
+<ul>
+<li>Breaking (tests only) Sandboxes: <code>inspect_ai.util._sandbox.self_check</code> is now a collection of plain pytest tests. See docstring for migration instructions.</li>
+<li>Eval Set: A worker running a selection now skips the tasks it was not selected to run, so a large eval set need not cost every worker its full startup memory.</li>
+<li>Eval Set: A selection document’s operational overrides gain a dataset <code>limit</code> and <code>max_sandboxes</code>.</li>
+<li>OpenAI: Function call outputs without a <code>call_id</code> (optional as of openai 3.5.0) no longer error in the agent bridge or token-count padding.</li>
+<li>Scoring: Skip Score.unscored() / NaN-at-root sentinels in aggregate() metric. (#5008)</li>
+<li>Scoring: Return inf on OverflowError in perplexity_per_token() and perplexity_per_seq() metrics. (#5028)</li>
+<li>Analysis: Ensure ColumnError.path is a string rather than a JSONPath object on record import errors. (#5006)</li>
+<li>Eval Set: Protocol for running a selection of an eval set’s tasks (<code>INSPECT_EVAL_SET_SELECTION</code>), so an external runner can execute one task per process into a shared log directory while owning the eval-set metadata itself. Selected tasks run through the ordinary <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span> path with no eval-set orchestration; because the runner owns completion decisions, workers neither fail a task on sample errors nor retry a task in-process.</li>
+<li>Scoring: New machine-readable <code>Score.reason</code> field records why a score has an abnormal value (e.g.&nbsp;<code>invalid_response_format</code>, <code>grader_failed</code>), is preserved across score edits, and appears as <code>score_&lt;name&gt;_reason</code> dataframe columns. (#4567)</li>
+<li>Scoring: <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#pattern">pattern()</a></span> and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#answer">answer()</a></span> now score unmatched output as <code>INCORRECT</code> with <code>reason="invalid_response_format"</code> instead of <code>NOANSWER</code>. Default metrics are unchanged (the default <code>value_to_float</code> already maps <code>NOANSWER</code> to 0); analyses that filter on <code>value == "N"</code>, and custom <code>value_to_float</code> mappings that treat noanswer differently, should key on <code>reason</code> instead. (#4567)</li>
+<li>Scoring: <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#perplexity">perplexity()</a></span> and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#target_perplexity">target_perplexity()</a></span> now return <code>Score.unscored()</code> with a <code>reason</code> instead of a raw NaN value when logprobs are unavailable. All unscorable states (including an empty completion, which earlier revisions labeled <code>no_response</code>) carry <code>reason="scoring_failed"</code>: the sample is excluded from metrics, so the reason reports the instrument declining to run — the empty-completion detail remains in <code>explanation</code>. (#4567)</li>
+<li>Inspect CTL: New <code>inspect ctl task score</code> scores a running eval’s in-flight samples (each briefly held while scored) and reports interim metrics that fold in completed samples’ final scores, without ending any sample.</li>
+<li>Eval Log: Reading a sample from a <code>.json</code> log now reports the requested uuid when the sample is missing, and raises a clear error when neither id nor uuid is provided.</li>
+<li>vLLM: The server’s <code>max_model_len</code> is now registered as the model’s context window, so compaction and context-length handling reflect the served configuration (including LoRA adapters via their parent model). (#4215)</li>
+<li>Eval Set: Protocol for running a selection of an eval set’s tasks (<code>INSPECT_EVAL_SET_SELECTION</code>), so an external runner can execute one task per process into a shared log directory while owning the eval-set metadata itself.</li>
+<li>Per-model throughput during HTTP retries: <code>inspect ctl model throughput</code> (and <code>GET /models/throughput</code>) reports each model’s recent output tokens/sec, retries/min, and backoff across the run; trace retry lines and the display footer now carry the current rate.</li>
+<li>Eval Log: Samples halted by a limit now record why it fired (<code>EvalSampleLimit.reason</code>, <code>limit_reason</code> on sample summaries and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#samples_df">samples_df()</a></span>), so operator-terminated samples can be told apart without reading transcript events.</li>
+<li>Eval Log: Each logged sample now records the effective per-sample limits it ran under (new <code>message_limit</code> / <code>time_limit</code> fields alongside the existing <code>token_limit</code>), including mid-run <code>inspect ctl config</code> retunes.</li>
+<li>Sandbox: Sandbox-tools binaries downloaded from S3 are now verified against SHA256 digests pinned in the package; failures warn by default, or fail when <code>INSPECT_SANDBOX_TOOLS_STRICT_DIGESTS</code> is set.</li>
+<li>Sandbox: <code>bash_session</code> no longer stops returning output for the rest of the session when multibyte output happens to be split mid-character across reads.</li>
+<li>Docker Sandbox: New <code>--sandbox-prebuilt</code> option (<code>sandbox_prebuilt</code> on <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span>) skips image builds and fails fast at task startup when a prebuilt image is missing.</li>
+<li>Docker Sandbox: <code>x-local: false</code> on a compose service is now treated the same as omitting <code>x-local</code> (the image is pulled) rather than marking the image as local.</li>
+<li>Control Channel: New <code>inspect ctl sample store</code> command reads a running or just-finished sample’s current store directly (with server-side <code>--key</code> exact/prefix filtering).</li>
+<li>Control Channel: New <code>inspect ctl sample cancel-tool-call</code> cancels one hung tool call (the model sees an ordinary tool timeout and the sample continues), with pending tool calls now visible in <code>inspect ctl sample list --json</code>.</li>
+<li>Metrics: Tasks can now declare a <code>headline_metric</code> naming which scorer and metric summarise the eval, honored by the log listing, the progress display, and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#evals_df">evals_df()</a></span>.</li>
+<li>Models: <code>Model.generate()</code> and <code>Model.generate_loop()</code> accept an optional <code>on_stream</code> callback that by itself enables provider streaming and receives incremental events (text/reasoning/tool-call deltas and retry boundaries), with streamed progress now also visible on <code>inspect ctl sample list</code>.</li>
+<li>Models: <code>on_stream</code> now delivers stream events from the OpenAI, OpenAI-compatible (Together, Fireworks, etc.), Grok, and SageMaker providers, in addition to Anthropic and Google.</li>
+<li>Models: Streamed OpenAI-compatible responses stopped by a content filter now return <code>stop_reason="content_filter"</code> (as non-streamed ones do) instead of failing the call.</li>
+<li>Models: Streamed OpenAI-compatible completions now report token usage, and explicit <code>stream=true</code> with non-strict tools no longer fails before the request is sent.</li>
+<li>Models: The <code>stream</code>/<code>streaming</code> model args now accept <code>auto</code> uniformly across providers, and unrecognized values raise an error instead of silently enabling or disabling streaming.</li>
+<li>Anthropic: Fixed a crash (<code>ValidationError</code> failing the sample) when native compaction ran with streaming enabled.</li>
+<li>Control Channel: <code>inspect ctl config --json</code> refusals against an older eval process now emit the structured <code>{"error": ...}</code> envelope instead of only stderr prose.</li>
+<li>Refactor: Consolidated the per-sample lifecycle in the task runner; samples now reach terminal state before metrics/early-stopping hooks run, so a raising or suspended hook cannot leave a sample uncounted or a finished task accepting requeue/cancel.</li>
+<li>Control Channel: <code>inspect ctl config --max-tasks</code> retunes a running eval’s task concurrency mid-flight — raising it starts pending tasks immediately (pass <code>clear</code> to restore launch config).</li>
+<li>Control Channel: A runaway polling client can no longer starve the eval by piling up queued requests — excess concurrent connections are rejected as busy, and <code>inspect ctl</code> retries them shortly.</li>
+<li>Control Channel: Read requests whose client has already hung up (timed out or killed mid-request) are no longer served, so stale queued polls stop stealing time from running samples.</li>
+<li>Control Channel: Task-selecting <code>inspect ctl</code> commands now take a <code>--model</code> disambiguator, so one task run against several models can be selected by name (e.g.&nbsp;<code>inspect ctl task cancel my_task --model gpt-5</code>).</li>
+<li>Model roles can now be bound to a list of models (e.g.&nbsp;<code>model_roles={"grader": [...]}</code>), with model-graded scorers grading by majority vote across the list.</li>
+<li>Checkpointing: Sandbox snapshots now support selectable strategies (per sandbox, settable at the sample, task, or eval layer) — incremental restic (default) or self-contained per-checkpoint archives captured with in-image tools only.</li>
+<li>Bugfix: Resuming a sample from a checkpoint no longer restarts its token, cost, turn, time, and working budgets from zero.</li>
+</ul>
+</section>
 <section id="august-2026" class="level2">
 <h2 class="anchored" data-anchor-id="august-2026">0.3.260 (21 August 2026)</h2>
 <ul>
@@ -527,6 +573,8 @@ ul.task-list li input[type="checkbox"] {
 <li>Datasets (breaking): A ragged CSV row now raises <code>ValueError</code> naming the file and line, instead of <code>AttributeError</code> or a silent load. (#4546)</li>
 <li>Multiple Choice: Answers listing choices with an Oxford or trailing comma (e.g.&nbsp;<code>ANSWER: A, B, and C</code>) are now scored correctly instead of as no answer.</li>
 <li>Bugfix: MCP sandbox sessions are now cached per tool-source instance and cleared on close, so one instance’s sessions and tool lists no longer leak into another’s.</li>
+<li>Agent Bridge: The OpenAI Agents SDK, LangChain, and pydantic-ai examples now run as documented against OpenAI, Anthropic, and Google models.</li>
+<li>Agent Bridge: Anthropic beta endpoint requests now return beta usage, so clients reading beta-only usage fields (e.g.&nbsp;pydantic-ai) no longer fail with <code>AttributeError</code>.</li>
 <li>Bugfix: Recovered eval logs now report reasoning tokens and total cost in their top-level usage summary, which previously showed both as null.</li>
 </ul>
 </section>

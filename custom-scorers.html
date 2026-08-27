@@ -877,11 +877,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="unscored-samples">Unscored Samples</h3>
 <p>When a scorer cannot produce a value for a sample (e.g.&nbsp;an external grader returned no result, the model refused, or an error occurred) but you still want to record context, use <code>Score.unscored()</code>:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="cf">return</span> Score.unscored(</span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    answer<span class="op">=</span>extracted,</span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    explanation<span class="op">=</span><span class="st">"grader returned no result"</span>,</span>
-<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    metadata<span class="op">=</span>{<span class="st">"reason"</span>: <span class="st">"timeout"</span>},</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    reason<span class="op">=</span><span class="st">"timeout"</span>,</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    answer<span class="op">=</span>extracted,</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    explanation<span class="op">=</span><span class="st">"grader returned no result"</span>,</span>
 <span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>Unscored samples are skipped by aggregate metrics and epoch reducers and are counted toward <code>EvalScore.unscored_samples</code> rather than included as zeros. This works for scalar, dict-valued, and list-valued scorers.</p>
+<p>Unscored samples are skipped by aggregate metrics and epoch reducers and are counted toward <code>EvalScore.unscored_samples</code> rather than included as zeros. This works for scalar, dict-valued, and list-valued scorers. The optional <code>reason</code> field records a machine-readable failure mode — use a standard <code>ScoreReason</code> value (e.g.&nbsp;<code>"grader_failed"</code>, <code>"invalid_response_format"</code>) where one fits, or any custom string.</p>
 </section>
 </section>
 <section id="score-value" class="level2">

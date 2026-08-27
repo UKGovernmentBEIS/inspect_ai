@@ -768,7 +768,7 @@ Check whether the <code>target</code> appears at a known position: <code>begin</
 </dd>
 <dt><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#pattern">pattern()</a></span></dt>
 <dd>
-Extract the answer from model output using a regular expression, for cases where the answer is embedded in templated text. Requires at least one capture group; with multiple groups, set <code>match_all=True</code> to require every captured value to match the target (the default matches any one group). Returns a <code>NOANSWER</code> score when the pattern does not match.
+Extract the answer from model output using a regular expression, for cases where the answer is embedded in templated text. Requires at least one capture group; with multiple groups, set <code>match_all=True</code> to require every captured value to match the target (the default matches any one group). Returns an <code>INCORRECT</code> score with <code>reason="invalid_response_format"</code> when the pattern does not match.
 </dd>
 <dt><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#answer">answer()</a></span></dt>
 <dd>

@@ -25,6 +25,12 @@
   Calibrated judge evaluation — calibrate model-graded scorer accuracy using causal inference with optional oracle labels.
 - **[Docent](https://docs.transluce.org/)** — [Transluce](https://transluce.org/introducing-docent)
   Tools to summarize, cluster, and search over agent transcripts.
+- **[Inspect Claim Support](https://github.com/avalyset/inspect-claim-support)** — [Eirik Botten Nicolaysen](https://github.com/avalyset)
+  Faithfulness / claim-support scorer — checks whether a claimed answer is substantiated by the transcript. Absence of evidence is not treated as support.
+- **[Inspect falsify](https://github.com/studio-11-co/falsify-inspect)** — [Cüneyt Öztürk](https://falsify.dev)
+  Pre-register an evaluation's success criteria (metric, threshold, dataset hash, seed) as a tamper-evident PRML manifest before the run, then verify eval logs against the locked claim via installed hooks.
+- **[Inspect Judge Drift](https://github.com/avalyset/inspect-judge-drift)** — [Eirik Botten Nicolaysen](https://github.com/avalyset)
+  Judge-drift measurement — re-grades a stored eval log with two graders over the same samples, so the judge model is the only variable. Grade-parse failures are reported as unscored, never fabricated into verdicts.
 - **[Inspect MLflow](https://github.com/debu-sinha/inspect-mlflow)** — [Debu Sinha](https://github.com/debu-sinha)
   Experiment tracking, execution tracing, LLM provider autolog, and artifact logging for Inspect AI evaluations.
 - **[Inspect Scout](https://meridianlabs-ai.github.io/inspect_scout/)** — [Meridian](https://github.com/meridianlabs-ai/inspect_scout)
@@ -33,13 +39,13 @@
   Interactive data visualization for Inspect evaluations.
 - **[Inspect WandB](https://github.com/DanielPolatajko/inspect_wandb)** — [Arcadia](https://www.arcadiaimpact.org/)
   Integration with Weights and Biases platform.
-- **[Lunette](https://docs.lunette.dev)** — [Fulcrum Research](https://fulcrumresearch.ai)
-  Platform for understanding and improving agents.
 
 ## Frameworks
 
 - **[Control Arena](https://control-arena.aisi.org.uk)** — [UK AISI](https://github.com/UKGovernmentBEIS/control-arena)
   Framework for running experiments on AI Control and Monitoring.
+- **[EvalPort](https://github.com/adhabnr-ux/evalport)** — [Sahi Katukojula](https://github.com/adhabnr-ux)
+  Open standard for portable LLM evaluation datasets. Convert between Inspect AI and other eval frameworks (DeepEval, Promptfoo, LangSmith, etc.) using a portable JSON format.
 - **[Inspect Cyber](https://ukgovernmentbeis.github.io/inspect_cyber/)** — [UK AISI](https://github.com/UKGovernmentBEIS/inspect_cyber)
   Python package that streamlines the process of creating agentic cyber evaluations in Inspect.
 - **[Inspect Petri](https://meridianlabs-ai.github.io/inspect_petri/)** — [Meridian](https://github.com/meridianlabs-ai/inspect_petri)
@@ -63,3 +69,5 @@
   Platform for running Inspect AI evaluations on cloud infrastructure.
 - **[Inspect VS Code](https://marketplace.visualstudio.com/items?itemName=ukaisi.inspect-ai)** — [Meridian](https://github.com/meridianlabs-ai/inspect-vscode)
   VS Code extension that assists with developing and debugging Inspect evaluations.
+- **[Optstop](https://github.com/UKGovernmentBEIS/optstop)** — [UK AISI](https://github.com/UKGovernmentBEIS/optstop)
+  Adaptive optimal stopping algorithms to help efficiently determine when enough data has been collected to make reliable inferences.

@@ -903,6 +903,7 @@ For a complete matrix of which task, solver, and runtime settings can be configu
 |----|----|
 | `--sandbox` | Sandbox environment type (with optional config file). e.g. ‘docker’ or ‘docker:compose.yml’ |
 | `--no-sandbox-cleanup` | Do not cleanup sandbox environments after task completes |
+| `--sandbox-prebuilt` | Treat sandbox images as prebuilt (skip builds and fail at task startup when an image is missing) |
 
 ## Debugging
 
@@ -1788,6 +1789,7 @@ The table below lists task and runtime parameters and the layers at which each c
 | **Environment** |  |  |  |  |
 | `sandbox` | yes | yes | yes | `--sandbox` |
 | `sandbox_cleanup` |  | yes | yes | `--no-sandbox-cleanup` |
+| `sandbox_prebuilt` |  |  | yes | `--sandbox-prebuilt` |
 | `approval` | yes | yes | yes | `--approval` |
 | **Task identity** |  |  |  |  |
 | `name` | yes | yes |  |  |
@@ -3015,7 +3017,7 @@ Check whether the `target` appears anywhere in the model output (a substring mat
 Check whether the `target` appears at a known position: `begin`, `end` (the default), or `any`. With `location="exact"` the whole output must equal the target. Ignores case and white-space by default. Pass `numeric=True` to compare numbers rather than text; currency symbols (`$`, `€`, `£`), thousands separators (`,`), and formatting markers (`*`, `_`) are stripped first.
 
 [pattern()](./reference/inspect_ai.scorer.html.md#pattern)  
-Extract the answer from model output using a regular expression, for cases where the answer is embedded in templated text. Requires at least one capture group; with multiple groups, set `match_all=True` to require every captured value to match the target (the default matches any one group). Returns a `NOANSWER` score when the pattern does not match.
+Extract the answer from model output using a regular expression, for cases where the answer is embedded in templated text. Requires at least one capture group; with multiple groups, set `match_all=True` to require every captured value to match the target (the default matches any one group). Returns an `INCORRECT` score with `reason="invalid_response_format"` when the pattern does not match.
 
 [answer()](./reference/inspect_ai.scorer.html.md#answer)  
 For prompts that instruct the model to end with `ANSWER: X`. Extracts the letter, word, or remainder of the line that follows.
@@ -3283,6 +3285,29 @@ with get_model("hf/Qwen/Qwen2.5-72B") as model:
 
 Note though that this *won’t work* with model providers that require an async close operation (OpenAI, Anthropic, Grok, Together, Groq, Ollama, llama-cpp-python, and CloudFlare).
 
+### Streaming Events
+
+[generate()](./reference/inspect_ai.solver.html.md#generate) accepts an optional `on_stream` async callback which receives incremental [StreamEvent](./reference/inspect_ai.model.html.md#streamevent)s while the response streams. This is a side-channel for UI display — the final result is still the returned [ModelOutput](./reference/inspect_ai.model.html.md#modeloutput):
+
+``` python
+from inspect_ai.model import StreamEvent, get_model
+
+async def show(event: StreamEvent) -> None:
+    if event.type == "text":
+        print(event.text, end="", flush=True)
+
+model = get_model()
+response = await model.generate("Say hello", on_stream=show)
+```
+
+Events include text deltas (`type="text"`), reasoning deltas (`type="reasoning"`), tool-call argument deltas (`type="tool_call"`), and retry boundaries (`type="retry"`). A retry boundary signals that the call is being retried after a failed attempt: deltas received so far belong to that failed attempt and should be discarded, since the final [ModelOutput](./reference/inspect_ai.model.html.md#modeloutput) comes entirely from the attempt that succeeds.
+
+Passing `on_stream` is itself sufficient to enable streaming: providers that support it stream the response whenever a callback is present, with no provider-level streaming flag required (an explicit opt-out — for example the Anthropic or Google `streaming=false` model arg — still wins). Streaming remains best-effort by design: providers or calls that don’t stream never invoke the callback, and a cached response returns without producing any content deltas (though a cache hit on a retry attempt still delivers the retry boundary). The Anthropic, Google, OpenAI, OpenAI-compatible (`openai-api`, Together, Fireworks, etc.), Grok, and SageMaker providers deliver stream events — for other providers the callback never fires — batched calls can’t stream, and requests where streaming would degrade results decline to auto-stream (for example Azure OpenAI chat-completions calls, or logprobs requests on some providers). Callers therefore must not depend on stream events for correctness — consume them for display and read the returned [ModelOutput](./reference/inspect_ai.model.html.md#modeloutput) for results.
+
+The same contract applies in reverse: an exception raised by the callback never fails the model call. It is logged (with traceback) and the callback is detached for the remainder of that [generate()](./reference/inspect_ai.solver.html.md#generate) call; the next call tries the callback again. This matches how Inspect treats other observability callbacks (see [Hooks](./extensions-hooks.html.md)) — display-layer bugs must not be able to fail, or trigger paid retries of, an otherwise healthy model request.
+
+`generate_loop()` also accepts `on_stream`, forwarding it to each [generate()](./reference/inspect_ai.solver.html.md#generate) call in its tool-calling loop.
+
 ## Model Roles
 
 Model roles enable you to create aliases for the various models used in your tasks, and then dynamically vary those roles when running an evaluation. For example, you might have a “critic” or “monitor” role, or perhaps “red_team” and “blue_team” roles. Roles are included in the log and displayed in model events within the transcript.
@@ -3355,6 +3380,32 @@ inspect eval math.py \
 ```
 
 Note that the built-in [model-graded scorers](./model-graded.html.md) (e.g. [model_graded_qa()](./reference/inspect_ai.scorer.html.md#model_graded_qa), [model_graded_fact()](./reference/inspect_ai.scorer.html.md#model_graded_fact)) look for the `grader` role by default.
+
+### Multiple Models per Role
+
+A role can also be bound to a *list* of models:
+
+``` python
+eval(
+    "math.py",
+    model_roles={
+        "grader": [
+            "openai/gpt-4o",
+            "google/gemini-2.0-flash",
+            "anthropic/claude-sonnet-4-0"
+        ]
+    }
+)
+```
+
+Or equivalently on the CLI with comma-separated model names:
+
+``` bash
+inspect eval math.py \
+    --model-role grader=openai/gpt-4o,google/gemini-2.0-flash,anthropic/claude-sonnet-4-0
+```
+
+When a list is bound to the role used by a [model-graded scorer](./model-graded.html.md), each model grades independently and the final grade is chosen by majority vote (the same behaviour as passing a list of models to the scorer’s `model` parameter). Prefer an odd number of graders: with an even-sized ensemble, a tied vote is resolved in favour of the earliest-listed model. Elsewhere, `get_model(role="...")` resolves to the first model in the list—use [model_roles()](./reference/inspect_ai.model.html.md#model_roles) (from `inspect_ai.model`) to access all of the models bound to a role. Note that a single-element list is equivalent to binding the single model directly.
 
 Model roles can also be specified in a `--run-config` file alongside the full eval configuration. See [Run Config File](./tasks.html.md#run-config).
 
@@ -3508,6 +3559,7 @@ The `openai` provider supports the following custom model args (other model args
 | `service_tier` | Processing type used for serving the request (“auto”, “default”, or “flex”). |
 | `background` | Execute generate requests asynchronously, polling response objects to check status over time. Defaults to `True` for `gpt-5-pro` and `deep-research` models and for requests with `reasoning_mode="pro"`, and `False` otherwise. |
 | `safety_identifier` | A stable identifier used to help detect users of your application. |
+| `streaming` | Whether to use streaming responses. The default (“auto”) streams when the caller passes an `on_stream` callback to [generate()](./reference/inspect_ai.solver.html.md#generate) — except Azure chat-completions requests, which never auto-stream (accumulated streamed responses would lose content-filter stop details); pass `true` or `false` to override. If the server rejects the streaming request itself (a 400 naming the `stream` param — e.g. reasoning models on organizations that haven’t completed verification), auto mode retries the request non-streamed. |
 | `prompt_cache_key` | Used by OpenAI to cache responses for similar requests. |
 | `prompt_cache_retention` | Retention policy for the prompt cache. |
 | `http_client` | Custom instance of `httpx2.AsyncClient` (or legacy `httpx.AsyncClient`) for handling requests. |
@@ -3744,7 +3796,7 @@ Note that 1-hour cache writes are billed at 2x the base input token price (vs. 
 
 ### Streaming
 
-The Anthropic provider supports a `streaming` model arg (`-M`) that controls whether streaming responses are used. The default (“auto”) will automatically use streaming when thinking is enabled or for potentially [long requests](https://github.com/anthropics/anthropic-sdk-python?tab=readme-ov-file#long-requests) (requests with \>= 8192 `max_tokens`). Pass `true` or `false` to override the default behavior:
+The Anthropic provider supports a `streaming` model arg (`-M`) that controls whether streaming responses are used. The default (“auto”) will automatically use streaming when the caller passes an `on_stream` callback to [generate()](./reference/inspect_ai.solver.html.md#generate), when thinking is enabled, or for potentially [long requests](https://github.com/anthropics/anthropic-sdk-python?tab=readme-ov-file#long-requests) (requests with \>= 8192 `max_tokens`). Pass `true` or `false` to override the default behavior:
 
 ``` bash
 inspect eval arc.py --model anthropic/claude-sonnet-4-0 -M streaming=true
@@ -3899,7 +3951,7 @@ inspect eval eval.py -M "safety_settings={'hate_speech': 'low_and_above'}"
 
 ### Streaming
 
-The Google provider supports a `streaming` model arg (`-M`) that controls whether streaming responses are used. Streaming is disabled by default. Pass `true` to enable streaming:
+The Google provider supports a `streaming` model arg (`-M`) that controls whether streaming responses are used. The default (“auto”) uses streaming when the caller passes an `on_stream` callback to [generate()](./reference/inspect_ai.solver.html.md#generate). Pass `true` to always stream (or `false` to never stream):
 
 ``` bash
 inspect eval arc.py --model google/gemini-2.5-pro -M streaming=true
@@ -4005,7 +4057,7 @@ The following environment variables are supported by the Grok provider. The prov
 
 ### Model Args
 
-The `grok` provider supports a `streaming` model argument to enable response streaming (it is disabled by default):
+The `grok` provider supports a `streaming` model argument that controls whether streaming responses are used. The default (“auto”) uses streaming when the caller passes an `on_stream` callback to [generate()](./reference/inspect_ai.solver.html.md#generate). Pass `true` to always stream (or `false` to never stream):
 
 ``` bash
 inspect eval arc.py --model grok/grok-3-mini -M streaming=true
@@ -4072,7 +4124,7 @@ The following model args are supported:
 | `endpoint_url` | Custom SageMaker runtime endpoint URL (required). |
 | `read_timeout` | Read timeout in seconds (default: `600`). |
 | `connect_timeout` | Connection timeout in seconds (default: `60`). |
-| `stream` | Enable streaming responses (default: `false`). |
+| `stream` | Enable streaming responses (default: stream only when the caller passes an `on_stream` callback to [generate()](./reference/inspect_ai.solver.html.md#generate)). |
 | `completion_mode` | Send completions-style payloads for CPT/base models instead of chat-style payloads (default: `false`). |
 | `inference_component_name` | Name of the inference component for multi-model endpoints. |
 | `prompt_logprobs` | Number of prompt log probabilities to return per token. Used for perplexity scoring with vLLM-backed endpoints. |
@@ -4220,7 +4272,7 @@ inspect eval arc.py --model together/MiniMaxAI/MiniMax-M2.7
 
 For the `together` provider, you can enable [Tool Emulation](#tool-emulation-openai) using the `emulate_tools` custom model arg (`-M`). Other custom model args are forwarded to the constructor of the `AsyncOpenAI` class.
 
-The `together` provider supports a `stream` model arg (`-M`) that controls whether streaming responses are used (it is disabled by default). Pass `true` to enable streaming:
+The `together` provider supports a `stream` model arg (`-M`) that controls whether streaming responses are used. The default (“auto”) uses streaming when the caller passes an `on_stream` callback to [generate()](./reference/inspect_ai.solver.html.md#generate). Pass `true` to always stream (or `false` to never stream):
 
 ``` bash
 inspect eval arc.py --model together/MiniMaxAI/MiniMax-M2.7 -M stream=true
@@ -4944,7 +4996,7 @@ eval("arc.py", model="openai-api/<provider>/<model>", model_args=dict(strict_too
 
 ### Streaming
 
-You can enable the use of the streaming with the `openai-api` provider by passing the `stream` model arg. For example:
+The `openai-api` provider streams by default only when the caller passes an `on_stream` callback to [generate()](./reference/inspect_ai.solver.html.md#generate). You can force streaming on (or off) by passing the `stream` model arg. For example:
 
 ``` bash
 $ inspect eval arc.py --model openai-api/<provider>/<model> -M stream=true
@@ -5040,7 +5092,7 @@ The following environment variables are supported by the HF Inference Providers:
 
 ### Streaming
 
-HF Interference Providers uses streaming by default for requests. You can disable streaming using the `stream` model arg. For example:
+HF Interference Providers uses streaming by default for requests. You can disable streaming using the `stream` model arg (or pass `auto` to stream only when the caller passes an `on_stream` callback to [generate()](./reference/inspect_ai.solver.html.md#generate)). For example:
 
 ``` bash
 inspect eval arc.py --model hf-inference-providers/openai/gpt-oss-120b -M stream=false
@@ -6712,7 +6764,7 @@ Check whether the `target` appears anywhere in the model output (a substring mat
 Check whether the `target` appears at a known position: `begin`, `end` (the default), or `any`. With `location="exact"` the whole output must equal the target. Ignores case and white-space by default. Pass `numeric=True` to compare numbers rather than text; currency symbols (`$`, `€`, `£`), thousands separators (`,`), and formatting markers (`*`, `_`) are stripped first.
 
 [pattern()](./reference/inspect_ai.scorer.html.md#pattern)  
-Extract the answer from model output using a regular expression, for cases where the answer is embedded in templated text. Requires at least one capture group; with multiple groups, set `match_all=True` to require every captured value to match the target (the default matches any one group). Returns a `NOANSWER` score when the pattern does not match.
+Extract the answer from model output using a regular expression, for cases where the answer is embedded in templated text. Requires at least one capture group; with multiple groups, set `match_all=True` to require every captured value to match the target (the default matches any one group). Returns an `INCORRECT` score with `reason="invalid_response_format"` when the pattern does not match.
 
 [answer()](./reference/inspect_ai.scorer.html.md#answer)  
 For prompts that instruct the model to end with `ANSWER: X`. Extracts the letter, word, or remainder of the line that follows.
@@ -6891,13 +6943,13 @@ When a scorer cannot produce a value for a sample (e.g. an external grader retu
 
 ``` python
 return Score.unscored(
+    reason="timeout",
     answer=extracted,
     explanation="grader returned no result",
-    metadata={"reason": "timeout"},
 )
 ```
 
-Unscored samples are skipped by aggregate metrics and epoch reducers and are counted toward `EvalScore.unscored_samples` rather than included as zeros. This works for scalar, dict-valued, and list-valued scorers.
+Unscored samples are skipped by aggregate metrics and epoch reducers and are counted toward `EvalScore.unscored_samples` rather than included as zeros. This works for scalar, dict-valued, and list-valued scorers. The optional `reason` field records a machine-readable failure mode — use a standard `ScoreReason` value (e.g. `"grader_failed"`, `"invalid_response_format"`) where one fits, or any custom string.
 
 ## Score Value
 
@@ -7067,7 +7119,7 @@ Model selection follows this precedence:
 
 1.  If `model` is provided, it is used (if a list is provided, each model grades independently and the final grade is by majority vote).
 
-2.  Else if `model_role` is provided (default: `"grader"`), the model bound to that role (via `eval(..., model_roles={...})` or `--model-role grader=...`) is used. Pass `ModelRole("grader", required=True)` (from `inspect_ai.model`) to raise an error when the role is not bound instead of falling back to the model being evaluated.
+2.  Else if `model_role` is provided (default: `"grader"`), the model bound to that role (via `eval(..., model_roles={...})` or `--model-role grader=...`) is used (if a list of models is bound to the role, each model grades independently and the final grade is by majority vote, just as when a list is passed for `model`). Pass `ModelRole("grader", required=True)` (from `inspect_ai.model`) to raise an error when the role is not bound instead of falling back to the model being evaluated.
 
 3.  Else the model currently being evaluated is used.
 
@@ -7304,6 +7356,64 @@ Inspect includes some simple built in metrics for calculating accuracy, mean, et
   - `level="interval"` — numbers on an equal-interval scale. Distance is the squared numeric difference.
 
   For ordinal or interval levels, non-numeric ratings require a `to_float` mapping; pass `to_float=value_to_float()` to map `CORRECT`/`INCORRECT`/`PARTIAL`/`NOANSWER` strings to 1/0/0.5/0, or supply your own ordering for text categories. With two judges, nominal α coincides with Scott’s π (its many-judge analogue is Fleiss’ κ), exactly so only in the large-sample limit owing to α’s small-sample correction.
+
+## Headline Metric
+
+Several places reduce an eval to a single number: the log listing in the viewer, the progress line during a run, and the `score_headline_*` columns of [evals_df()](./reference/inspect_ai.analysis.html.md#evals_df). By default that number is the **first metric of the first score**. That default is usually right, but not when a scorer lists [stderr()](./reference/inspect_ai.scorer.html.md#stderr) ahead of [accuracy()](./reference/inspect_ai.scorer.html.md#accuracy), when a cheap sanity scorer runs first, or when the number you care about comes from a particular epoch reducer.
+
+Declare a `headline_metric` on the [Task](./reference/inspect_ai.html.md#task) to nominate one explicitly. A plain string names the scorer:
+
+``` python
+Task(
+    dataset=dataset,
+    scorer=[sanity_check(), model_graded_qa()],
+    headline_metric="model_graded_qa",
+)
+```
+
+Pass a [HeadlineMetric](./reference/inspect_ai.log.html.md#headlinemetric) to say more. Its four fields are all optional, and any you leave unset falls back to the default convention:
+
+| Field | Matched against | Unset means |
+|----|----|----|
+| `scorer` | `EvalScore.scorer` | Every score — with a `metric` set, the first score carrying it; otherwise the first score. |
+| `score` | `EvalScore.name` | Every score of the selected scorer. |
+| `metric` | A key of `EvalScore.metrics` | The first metric of the selected score. |
+| `reducer` | `EvalScore.reducer` | The first matching score, whatever its reducer. |
+
+So the common cases stay short. To pick a different metric in a single-scorer task:
+
+``` python
+from inspect_ai.log import HeadlineMetric
+
+headline_metric=HeadlineMetric(metric="accuracy")
+```
+
+A [scorer that returns several values](./multiple-scorers.html.md#scorer-with-multiple-values) produces one score per value key, named for that key. The string form addresses one with `"<scorer>.<score>"`:
+
+``` python
+headline_metric="grader.coherence"
+```
+
+That shorthand is only available on the string; a [HeadlineMetric](./reference/inspect_ai.log.html.md#headlinemetric)’s fields are matched literally, so a scorer whose own name contains a dot (`@scorer(name="judge.v2")`) is named there:
+
+``` python
+headline_metric=HeadlineMetric(scorer="grader", score="coherence", metric="mean")
+headline_metric=HeadlineMetric(scorer="judge.v2")
+```
+
+To pick a particular [epoch reducer](#reducing-epochs), name it as it appears in the log — `pass_at(k=5)` is logged as `pass_at_5`:
+
+``` python
+Task(
+    ...,
+    epochs=Epochs(5, ["mean", "pass_at_5"]),
+    headline_metric=HeadlineMetric(metric="accuracy", reducer="pass_at_5"),
+)
+```
+
+The declaration is written to the eval log as `log.eval.headline_metric`, and the metric it resolves to is recorded in full as `log.results.headline`, so readers don’t need to re-apply the rules themselves. If any part of a declaration matches nothing in the results — say the scorer was replaced at eval time — Inspect logs a warning and falls back to the default convention rather than failing the eval or honoring the declaration only in part.
+
+[evals_df()](./reference/inspect_ai.analysis.html.md#evals_df) reports what it resolved to in the `score_headline_*` columns: `score_headline_name` (the scorer), `score_headline_score` (the score — the same as the scorer unless it returned several values), `score_headline_metric`, `score_headline_value`, and `score_headline_stderr`.
 
 ## Metric Grouping
 
@@ -7683,6 +7793,8 @@ Task(
 ```
 
 This is useful when there is more than one way to score a result and you would like preserve the individual score values with each sample (versus reducing the multiple scores to a single value).
+
+With multiple scorers, tools that show a single number for the eval default to the first metric of the first scorer. Use [`headline_metric`](./metrics.html.md#headline-metric) on the [Task](./reference/inspect_ai.html.md#task) to nominate a different one.
 
 ## Scorer with Multiple Values
 
@@ -9041,7 +9153,7 @@ Note that time and token intervals effectively checkpoint at `≥ N` because fir
 | Field | Description |
 |----|----|
 | `trigger` | The trigger that decides when to fire (defaults to 500K tokens). |
-| `sandbox_paths` | Per-sandbox-name map of absolute paths inside the sandbox to capture. Defaults to sandbox user’s home directory. |
+| `sandbox_paths` | Per-sandbox-name capture configuration: a list of absolute paths inside the sandbox to capture, or a [SandboxSnapshotConfig](./reference/inspect_ai.util.html.md#sandboxsnapshotconfig) that also selects the [snapshot strategy](#snapshot-strategies). Defaults to the sandbox user’s home directory, captured with the default strategy (incremental restic) — a bare path list carries no strategy selection of its own. |
 | `checkpoints_location` | Override the parent directory under which the per-eval checkpoint directory lands (defaults to a sibling of the eval log file). |
 | `max_consecutive_failures` | If set, fail the sample after N consecutive failed checkpoint attempts. Defaults to `None` (unlimited tolerance). Specify `0` to make any single failure fatal. |
 | `retention` | `"delete"` or `"retain"`. `"delete"` (default) removes the checkpoint directory on successful eval completion; `"retain"` keeps it. |
@@ -9119,15 +9231,71 @@ Sample(
 eval("ctf.py", model="openai/gpt-5", checkpoint=True)
 ```
 
+Sample-level configuration covers capture: *what* to capture per sandbox and, via [snapshot strategies](#snapshot-strategies), *how* — a sample whose workload rewrites large amounts of data can select the `archive` strategy while the rest of the dataset uses the restic default. The eval-wide storage policy (`checkpoints_location`, `retention`) can only be set by the task or eval layer.
+
 ### Configuration Layers
 
 When more than one of the sample / task / eval layers supplies a configuration, Inspect merges them **per-field** at sample-run time. Each layer’s fields default to `None`; the highest-priority layer with a non-`None` value wins per field. Precedence is **eval \> sample \> task**. Sample beats task because the task defines an agent’s standard policy for *all* of its samples and an individual sample specializes it. Eval/CLI is always highest because it’s the operator’s run-time override.
 
 ### Sandbox Paths
 
-`sandbox_paths` is a map of container name to paths that should be captured for that container. Sandboxes that use only a single container can use the `"default"` key to refer to that container. Note that `sandbox_paths` is treated as a single whole-dict value, not key-wise merged. To add a path to one sandbox while inheriting others, the higher-priority layer must redeclare the full map. Also, while sandbox home directories are included by default, if you specify `sandbox_paths` explicitly you must explicitly include the home directory if you want it checkpointed. An explicit empty list (e.g. `sandbox_paths={"tools": []}`) opts that sandbox out of checkpointing entirely.
+`sandbox_paths` is a map of container name to paths that should be captured for that container. Sandboxes that use only a single container can use the `"default"` key to refer to that container. Note that `sandbox_paths` is treated as a single whole-dict value, not key-wise merged. To add a path to one sandbox while inheriting others, the higher-priority layer must redeclare the full map. The exception is [snapshot-strategy](#snapshot-strategies) selection: `strategy` values merge per-sandbox across all layers (eval \> sample \> task) regardless of which layer’s paths dict won, so a paths-only override never silently resets a selected strategy. Also, while sandbox home directories are included by default, if you specify `sandbox_paths` explicitly you must explicitly include the home directory if you want it checkpointed. An explicit empty list (e.g. `sandbox_paths={"tools": []}`) opts that sandbox out of checkpointing entirely.
 
 Cache directories are never backed up: any `.cache` directory at any depth (`**/.cache`, including the user’s XDG cache dir) is always excluded from sandbox backups — even when you specify `sandbox_paths` explicitly. Agents should not keep state they need across a resume under a `.cache` directory.
+
+### Snapshot Strategies
+
+By default, sandbox filesystem state is captured with an incremental [restic](https://restic.net) backup: each checkpoint stores only the data that changed since the previous one. Restic requires injecting a restic binary into the sandbox, and its incremental model pays off when most files are stable across checkpoints. The alternative `archive` strategy captures with tools already present in effectively every image (tar plus zstd or gzip) — nothing is injected — and writes one self-contained archive per checkpoint.
+
+To select a snapshot strategy for a sandbox, use a [SandboxSnapshotConfig](./reference/inspect_ai.util.html.md#sandboxsnapshotconfig) as its `sandbox_paths` value in place of a bare path list:
+
+| Strategy | Description |
+|----|----|
+| [ResticSnapshots](./reference/inspect_ai.util.html.md#resticsnapshots) | Incremental restic backup (the default). Cheapest when most files are stable across checkpoints; requires injecting a restic binary into the sandbox. |
+| [ArchiveSnapshots](./reference/inspect_ai.util.html.md#archivesnapshots) | One complete compressed tar archive per checkpoint (zstd when available in the sandbox image, gzip otherwise). Uses only tools already present in the image — nothing is injected — and each checkpoint restores from a single self-contained file. Archives are written **unencrypted** (restic encrypts its repository with a per-sample password), so captured sandbox data lands in the checkpoint storage location as plaintext. |
+
+For example, capturing a directory of large rewritten files as archives:
+
+``` python
+from inspect_ai import eval
+from inspect_ai.util import (
+    ArchiveSnapshots, CheckpointConfig, SandboxSnapshotConfig,
+)
+
+eval(
+    "training.py", model="openai/gpt-5",
+    checkpoint=CheckpointConfig(
+        sandbox_paths={
+            "default": SandboxSnapshotConfig(
+                paths=["/home/user", "/data"],
+                strategy=ArchiveSnapshots(),
+            )
+        }
+    ),
+)
+```
+
+The equivalent YAML for use with `--checkpoint=checkpoint.yaml` on the CLI:
+
+``` yaml
+trigger:
+  type: token
+  every: 500k
+sandbox_paths:
+  default:
+    paths: ["/home/user", "/data"]
+    strategy: archive
+```
+
+Notes on semantics:
+
+- `paths` carries the same meaning as a bare path-list value (omitted = the sandbox user’s home directory; an empty list opts the sandbox out), and the two value forms can be mixed in one `sandbox_paths` map. Sandboxes without an entry get the defaults (home directory, restic).
+
+- Strategy selection is available at every layer: [SandboxSnapshotConfig](./reference/inspect_ai.util.html.md#sandboxsnapshotconfig) values are accepted in `CheckpointConfig.sandbox_paths` (task/eval, and the YAML equivalent) and in per-sample `CheckpointSampleConfig.sandbox_paths`. The strategy suits the workload’s data, and the workload is often sample-specific — one sample training a large model wants `archive`, another doing a coding exercise is best served by the restic default.
+
+- Strategy selection merges independently of the capture paths. While `sandbox_paths` itself merges as a whole-dict value (highest layer wins), the `strategy` values resolve per-sandbox across all layers (eval \> sample \> task). A bare path list — or a [SandboxSnapshotConfig](./reference/inspect_ai.util.html.md#sandboxsnapshotconfig) (YAML mapping) without a `strategy` — expresses no opinion, so a higher layer that overrides paths never silently resets a lower-selected strategy back to the default; to change a strategy, a higher layer sets one explicitly (e.g. `strategy=ResticSnapshots()`). A sandbox with a selected strategy that is absent from the winning paths dict is still captured (with the default home-directory paths) under that strategy.
+
+- **The strategy is pinned per sample.** The strategy that takes a sample’s first checkpoint is recorded (in each checkpoint record and in a per-sample pin file) and is the strategy for that sample’s lifetime. If a retry runs with a different strategy configured, resume fails with a clear error naming the sandbox and both strategies — restore the original configuration and resume, or start a fresh eval. Checkpoint directories written before strategy selection existed resume unchanged (they are treated as restic).
 
 ## Checkpoint Flow
 
@@ -9135,7 +9303,7 @@ When checkpointing is enabled, each sample proceeds as follows:
 
 1.  **Tick**: At each agent turn boundary, the agent calls `cp.tick()`. The trigger decides whether this tick is a checkpoint moment.
 
-2.  **Capture**: When the trigger fires, Inspect writes the host-side context files (agent-tracked state, events, and store) and runs a [restic backup](https://restic.net) on the agent scaffold host and each configured sandbox path.
+2.  **Capture**: When the trigger fires, Inspect writes the host-side context files (agent-tracked state, events, and store), runs a [restic backup](https://restic.net) on the agent scaffold host, and captures each configured sandbox’s paths via its [snapshot strategy](#snapshot-strategies) (incremental restic backup by default).
 
 3.  **Record**: Inspect writes a `ckpt-NNNNN.json` checkpoint file at the per-sample root. A checkpoint is available for resumption only once this file is in place.
 
@@ -9219,6 +9387,10 @@ It returns `None` when called outside an active sample, or before the owning age
 Checkpointing enables restoration of the most important agent context after a crash, but has some limitations you should bear in mind when using it:
 
 - Turn-boundary granularity only — A long-running tool call (e.g. a 10-minute subprocess) blocks the next checkpoint until the call returns.
+
+- Nested limit scopes are not restored — Sample-root token, cost, turn, time, and working usage is snapshotted at fire time and reseeded on resume (downtime between fire and resume is not charged against `time_limit`). Nested `apply_limits` scopes are not. Checkpoints written by older Inspect versions still resume with usage reset to zero.
+
+- Scoring-only resume does not enforce the budget — When the agent finished and only scoring needs to re-run, the restored usage is reported but the time and working limits are not re-armed, so a sample that spent its budget can still be scored.
 
 - Filesystem state only — Anything outside `sandbox_paths` is not captured. In-memory process state inside the sandbox (running daemons, open sockets, RAM) is lost on resume. The agent is responsible for tolerating this.
 
@@ -13099,6 +13271,22 @@ services:
 
 See the [Docker Compose](https://docs.docker.com/compose/compose-file/) documentation for information on all available container options.
 
+### Prebuilt Images
+
+If the images for your sandboxes are already present in the local Docker image store (for example, on an air-gapped machine that cannot reach a registry), pass `--sandbox-prebuilt` to skip image builds entirely:
+
+``` bash
+inspect eval ctf.py --sandbox-prebuilt
+```
+
+Or from Python:
+
+``` python
+eval("ctf.py", sandbox_prebuilt=True)
+```
+
+With this option set, task startup verifies images instead of building them. Every service with a `build` section or `x-local: true` must name an `image` that already exists locally, and Inspect’s internal images (e.g. for the computer tool) must also be present. Other services use their local image when present, and a failed pull of a missing one is also an error. A missing image results in an error before any samples run. The option can also be set via the `INSPECT_EVAL_SANDBOX_PREBUILT` environment variable.
+
 ### Multiple Environments
 
 In some cases you may want to create multiple sandbox environments (e.g. if one environment has complex dependencies that conflict with the dependencies of other environments). To do this specify multiple named services:
@@ -15069,12 +15257,15 @@ Commands are grouped by resource noun (`task`, `sample`, `model`, `process`), pl
 | `inspect ctl task cancel` | Cancel a running task. |
 | `inspect ctl task pause` | Pause a running task (stop starting new work; `--now` also holds in-flight samples). |
 | `inspect ctl task resume` | Resume a paused task. |
+| `inspect ctl task score` | Score a running task’s samples now and report interim metrics. |
 | `inspect ctl sample list` | List samples (running, completed, and pending). |
 | `inspect ctl sample errors` | List samples that errored or were retried. |
 | `inspect ctl sample show` | Show one sample’s summary and error history. |
 | `inspect ctl sample events` | Read one sample’s transcript events. |
 | `inspect ctl sample messages` | Read one sample’s current conversation. |
+| `inspect ctl sample store` | Read one sample’s current store (shared solver/agent state). |
 | `inspect ctl sample cancel` | Cancel one running sample. |
+| `inspect ctl sample cancel-tool-call` | Cancel one hung tool call and let the sample continue. |
 | `inspect ctl sample requeue` | Re-run one errored or cancelled sample inside the live run. |
 | `inspect ctl config` | View or retune launch configuration mid-flight. |
 | `inspect ctl model pause` | Pause one model’s dispatch across the run (`--now` also holds in-flight calls to it). |
@@ -15086,13 +15277,9 @@ Commands are grouped by resource noun (`task`, `sample`, `model`, `process`), pl
 | `inspect ctl process pause` | Pause a whole running eval or eval-set (`--now` also holds in-flight samples). |
 | `inspect ctl process resume` | Resume a paused eval or eval-set. |
 
-A bare noun implies `list`: `inspect ctl task` ≡ `inspect ctl task list`, and likewise for `sample` and `process`. All commands accept `--json` for structured output, which makes them straightforward to use from scripts and from coding agents like Claude Code. The `list` / `show` / `errors` / `events` / `messages` / `anomalies` commands are read-only. The others direct the run deliberately: `config` retunes launch parameters (concurrency changes never interrupt in-flight work; the per-sample limit overrides deliberately reach in-flight samples), `task log-flush` forces a log write that would happen anyway, `process keep`/`release` only affect what happens after the eval finishes, `task pause`/`resume`, `model pause`/`resume`, and `process pause`/`resume` stop and restart dispatch reversibly — leaving in-flight work untouched unless `pause --now` asks for a hard pause (which also holds in-flight samples at their next model call), `task cancel` / `sample cancel` interrupt work explicitly, and `sample requeue` re-runs an errored or cancelled sample (all three idempotently, with `--dry-run` support).
+A bare noun implies `list`: `inspect ctl task` ≡ `inspect ctl task list`, and likewise for `sample` and `process`. All commands accept `--json` for structured output, which makes them straightforward to use from scripts and from coding agents like Claude Code. The `list` / `show` / `errors` / `events` / `messages` / `store` / `anomalies` commands are read-only. The others direct the run deliberately: `config` retunes launch parameters (concurrency changes never interrupt in-flight work; the per-sample limit overrides deliberately reach in-flight samples), `task log-flush` forces a log write that would happen anyway, `process keep`/`release` only affect what happens after the eval finishes, `task pause`/`resume`, `model pause`/`resume`, and `process pause`/`resume` stop and restart dispatch reversibly — leaving in-flight work untouched unless `pause --now` asks for a hard pause (which also holds in-flight samples at their next model call), `task cancel` / `sample cancel` interrupt work explicitly, `sample requeue` re-runs an errored or cancelled sample (all three idempotently, with `--dry-run` support), and `task score` scores a running task’s samples without ending them (each in-flight sample is briefly held while its work-so-far is scored).
 
 The endpoint is a Unix domain socket under the current user’s Inspect data directory. It is not reachable over the network or by other users on the same machine, and it requires no configuration.
-
-> **NOTE: Note**
->
-> Earlier releases exposed these operations as flat verbs (`inspect ctl tasks`, `samples`, `sample`, `errors`, `events`, `limits`, `flush`, `buffer`, `keep`, `release`). Those spellings were kept for a transition window as hidden, deprecated aliases and have now been removed — use the noun-group commands in the table above (e.g. `inspect ctl task list` for `inspect ctl tasks`, `inspect ctl sample show` for `inspect ctl sample`, `inspect ctl config` for `inspect ctl limits`).
 
 ## Launch Handoff
 
@@ -15199,6 +15386,8 @@ Commands that operate on one task take a `TASK` argument that selects a task fro
 
 Task ids are stable across retries, so a command keeps working after a task errors and is retried (per-attempt eval ids are not stable, which is why commands don’t use them).
 
+One task run against several models (`--model openai/gpt-5,anthropic/claude-fable-5`) makes the task name ambiguous — it matches both rows. Pass `--model` alongside the selector to pick the row running that model (matched at the name start or after a `/`, so `--model gpt-5` matches `openai/gpt-5`): `inspect ctl task cancel my_task --model gpt-5`. The model filter applies within the tasks the selector matches — what other tasks happen to be running can’t change the outcome. If the combination is still ambiguous you get the same candidate-table error, and a combination matching nothing the same not-found error — each qualified with the model. An exact task id paired with a `--model` its task isn’t running errors by naming the contradiction (the task’s actual model) rather than being silently ignored.
+
 On *reads* (`sample list`, `sample errors`) the selector is a filter: omitting it lists across **all** running tasks (each row carries its `task_id`), which makes “what’s erroring anywhere in this eval set?” the zero-argument spelling. On *mutations* (`task log-flush`, the task-scoped `config` knobs) an omitted selector must resolve to exactly one target — the sole running task is the default, and anything ambiguous errors with the candidate list rather than fanning out. Destructive commands (`task cancel`) require the selector outright.
 
 ## Sample Status
@@ -15218,9 +15407,9 @@ sample  epoch  status     time   idle  activity         tokens  messages  turns
 ...
 ```
 
-The `idle` column shows how long since a running sample last produced a transcript event. A long-running sample with high idle time is the cheap signal that it may be stalled. A single in-flight model request produces no events until it returns, so idle time still accumulates during one long model call — the `activity` column is what distinguishes that healthy case from a genuine stall.
+The `idle` column shows how long since a running sample last showed activity — its most recent transcript event, or streamed progress on an in-flight model call where the provider call streams. A long-running sample with high idle time is the cheap signal that it may be stalled. When an in-flight model call streams, its progress keeps idle near zero (so climbing idle on a streamed call is a sharp stall signal); a non-streamed call produces no signal until it returns, so idle still accumulates there — the `activity` column is what distinguishes that healthy case from a genuine stall.
 
-The `activity` column (shown when any running sample has an in-flight operation) names what the sample is doing right now and for how long: `generating 6:51` for an in-flight model call (with `(2 retries)` appended when the provider SDK has retried within the call), `bash 0:41` or `2 tools 1:10` for pending tool calls, and `retrying in 0:45` when a model call is waiting out a retry backoff (e.g. rate limiting) between attempts. The `--json` rows carry the underlying `activity` object — `type` (`model` / `tool` / `retry_wait`), `count`, `started_at`, `detail` (model name or tool function), `retries`, and `deadline` (when a retry wait elapses) — null on rows with nothing pending.
+The `activity` column (shown when any running sample has an in-flight operation) names what the sample is doing right now and for how long: `generating 6:51` for an in-flight model call (with `(2 retries)` appended when the provider SDK has retried within the call, and `· 1.2k tok` when the provider call streams cumulative output tokens), `bash 0:41` or `2 tools 1:10` for pending tool calls, and `retrying in 0:45` when a model call is waiting out a retry backoff (e.g. rate limiting) between attempts. The `--json` rows carry the underlying `activity` object — `type` (`model` / `tool` / `retry_wait`), `count`, `started_at`, `detail` (model name or tool function), `retries`, `deadline` (when a retry wait elapses), streamed-progress fields `tokens` / `last_progress_at` (null for non-streamed calls and providers not reporting them), and — on `tool` rows — `calls`, one entry per pending tool call (see [Cancellation](#cancellation)) — null on rows with nothing pending.
 
 The `turns` column counts top-level model generations (blank when unknown, e.g. for samples logged by older versions of Inspect). When any listed sample has a token limit configured, `limit usage` and `limit total` columns are also shown: the metered value for that limit — respecting its type (`all`, `output`, or a formula) — against the configured ceiling. The `--json` rows carry these as `turn_count`, `token_limit_usage`, `token_limit_total`, and `token_limit_type`.
 
@@ -15231,7 +15420,7 @@ The listing is capped at 100 rows per task by default, keeping the head of the r
 | `--limit N` | Cap the listing at N rows per task instead of 100. |
 | `--all` | List every sample row (no cap). |
 | `--status running,error` | Only samples with these statuses (`running`, `completed`, `error`, `cancelled`, `pending`, `queued`). Filters rows only — `counts` stays whole-task. |
-| `--content` | Include each errored row’s error message in the `--json` rows (agent-influenced free text — withheld by default; see [Agent-controlled content](#agent-controlled-content) below). |
+| `--content` | Include each row’s error message and `limit_reason` in the `--json` rows (agent-influenced free text — withheld by default; see [Agent-controlled content](#agent-controlled-content) below). |
 
 With `--json` the response is an `{as_of, counts, samples, truncated}` envelope. Pass `--active-since <timestamp>` to get only the samples that started or changed since a previous poll — feed it the `as_of` from the prior response (rather than a locally minted timestamp) so nothing that changed mid-read is missed (`counts` remains the whole-task histogram on a delta poll, so progress tracking rides along for free). The row cap applies to delta polls too, and the rows it drops are typically the terminal ones (running rows sort first and survive the cap) — samples that completed or errored in the window and will never produce activity again, so they won’t match a later `--active-since`. If a delta poll comes back `truncated`, re-issue it with the same `--active-since` plus `--all` (or a higher `--limit`) before advancing to the new `as_of`; otherwise the dropped changes leave the feed permanently.
 
@@ -15253,7 +15442,7 @@ Error messages are withheld unless you pass `--content` — a tool-raised except
 
 > **NOTE: NoteAgent-controlled content**
 >
-> Free text that originates from the evaluated agent — model completions, tool arguments and results (a `bash` tool’s stdout is fully agent-controlled), and error messages that embed tool output — is untrusted content: it can carry prompt-injection payloads aimed at whoever reads it, including an LLM monitor polling these commands. The per-sample reads therefore return **metadata only by default** (statuses, timing, token counts, event types, tool function names, error *presence*), and every command that can carry agent text gates it behind an explicit `--content` (or `content=true` on the HTTP API) opt-in.
+> Free text that originates from the evaluated agent — model completions, tool arguments and results (a `bash` tool’s stdout is fully agent-controlled), error messages that embed tool output, and a sample’s `limit_reason` (a bridged agent supplies its own termination reason) — is untrusted content: it can carry prompt-injection payloads aimed at whoever reads it, including an LLM monitor polling these commands. The per-sample reads therefore return **metadata only by default** (statuses, timing, token counts, event types, tool function names, error *presence*), and every command that can carry agent text gates it behind an explicit `--content` (or `content=true` on the HTTP API) opt-in.
 >
 > This makes the safe consumer the effortless default: a monitoring agent that never passes `--content` (and has no other route to the content, such as reading the logs directly) never ingests agent-controlled text, so it cannot be prompt-injected by the evaluated agent. A monitor that *does* read content should be treated as injection-exposed and sandboxed / capability-limited accordingly.
 
@@ -15327,6 +15516,33 @@ As with events, the default rows are metadata only — index, role, tool-call fu
 
 With `--json` the response is an `{as_of, status, count, messages}` envelope, prefixed with the resolved `task_id` / `sample_id` / `epoch` (so a defaulted epoch is visible). As with events, `EPOCH` defaults to 1, and conversations of samples that have already completed are also readable — they are served from the eval’s log.
 
+## Store Snapshots
+
+`inspect ctl sample store` reads one sample’s current store — the shared state that solvers, tools, and agents coordinate through (progress flags, scratchpads, [StoreModel](./reference/inspect_ai.util.html.md#storemodel) fields) — as it stands right now:
+
+``` bash
+$ inspect ctl sample store gpqa 17
+key                  type    size
+-------------------  ------  ----
+phase                string  10
+attempts             number  1
+Scratchpad:i0:notes  string  2048
+
+3 of 3 keys  ·  running  ·  metadata only (pass --content for values)
+```
+
+Like `sample messages`, this is a snapshot, not a stream: the store is rewritable (a key can be overwritten or deleted between reads), so there is no resume cursor. Poll and compare the reported key `count`, or use `inspect ctl sample events --type store` when you want the change *stream* rather than the current state. While the sample runs the store is read from the live task state — no log involved, so it works even for samples whose transcript is buffered or bounded; once the sample finishes it is served from the eval’s log.
+
+The default rows are metadata only — each key’s JSON type and its serialized size in UTF-8 bytes (for spotting the big keys; the `--json` rows also carry a length hint), with none of the values, which are agent-controlled text (see [Agent-controlled content](#agent-controlled-content) above). `--content` adds a truncated single-line preview of each value; `--full` returns the raw values.
+
+| Option | Description |
+|----|----|
+| `--key NAME` | Only these keys (repeatable), selected server-side so one large key doesn’t drag the whole store over the wire. An exact name, or a trailing-`*` prefix (e.g. `--key 'AgentState:*'` for one [StoreModel](./reference/inspect_ai.util.html.md#storemodel)’s fields). Requested keys that aren’t present are reported as `missing` — not an error. |
+| `--content` | Include a truncated single-line preview of each value. |
+| `--full` | Return raw values instead of the compact summary (unbounded — combine with `--key` to keep the response bounded). |
+
+With `--json` the response is an `{as_of, status, count, store}` envelope (plus `missing` when `--key` was given), prefixed with the resolved `task_id` / `sample_id` / `epoch`. `count` is always the whole store’s key count, so a filtered read still shows how much it left out. As with the other reads, `EPOCH` defaults to 1, and stores of samples that have already completed are also readable — they are served from the eval’s log.
+
 ## Cancellation
 
 `inspect ctl sample cancel` cancels one running sample — the typical move when a sample has stalled (high `idle` in `sample list`) or is burning tokens without progress. To see *why* it is stalled before cancelling, `inspect ctl process anomalies` shows what the process is actually waiting on (see [Stall Diagnosis](#stall-diagnosis) below) — an in-flight operation emits no transcript event until it returns, so a stalled sample’s transcript alone won’t name it. By default the sample completes and the scorer runs on the work done so far (it is recorded with an `operator` limit, like the in-process TUI’s cancel); pass `--action error` to mark it errored instead (not permitted for samples configured to fail on errors), or `--action cancel` to record it as cancelled — its transcript is preserved in the log, it is not scored, and it does not count toward a fail-on-error threshold. The rest of the task is unaffected.
@@ -15340,6 +15556,16 @@ $ inspect ctl sample cancel gpqa 17
 ``` bash
 $ inspect ctl sample cancel gpqa 17 3
 ```
+
+When a sample is not merely slow but stuck on one hung *tool call* — a sandbox command wedged against a dead daemon with no timeout configured, or a timeout whose teardown never completed — cancelling the whole sample discards its progress unnecessarily. `inspect ctl sample cancel-tool-call` cancels just that call: the model receives an ordinary tool timeout (“Command timed out before completing.”) and the sample continues, using the same per-call cancel primitive as the in-process TUI’s timeout button and ACP’s `inspect/cancel_tool_call`.
+
+``` bash
+$ inspect ctl sample cancel-tool-call gpqa 17
+```
+
+With no `--tool-call-id`, the command targets the sample’s sole pending tool call, and errors if there are two or more — it never guesses among targets, and never cancels them all (pass explicit ids for that). `--dry-run` without an id enumerates the pending calls, and each running sample’s `activity` in `sample list --json` carries a per-call list (`id`, `function`, `started_at`, `cancel_requested`), so a watchdog script can spot a stalled tool call and cancel it by id in one poll loop. Like the other sample mutations it is idempotent — repeating a cancel, naming a call that is no longer pending, or targeting a finished sample is a clean no-op — and `EPOCH` is required whenever the task runs more than one epoch.
+
+One honesty note: the cancel is *delivered* to the call’s cancel scope, which is not a guarantee the tool stops. Cancellation is cooperative, so a call parked on an await (the common hang) unwinds immediately, but sync code running in a thread or teardown inside a shielded scope may never notice — the pending call then keeps reporting `cancel_requested: true` and a repeat invocation no-ops with “cancel already requested”. The escalation from there is `inspect ctl sample cancel` (and ultimately killing the process and using `inspect eval-retry`).
 
 `inspect ctl task cancel` cancels a whole running task. By default it aborts: in-flight samples are interrupted (their transcripts so far are preserved in the log as cancelled samples), completed samples are kept, and the task’s log is finalized with an error status noting the cancel. An eval set does not retry a cancelled task, and its other tasks are unaffected. `TASK` is always required — there is no sole-task default for destructive commands.
 
@@ -15373,9 +15599,26 @@ The command is idempotent: requeuing a sample whose re-run is already pending, q
 
 Requeuing a sample that completed *successfully* is rejected — re-running or re-scoring a success is out of scope (use score invalidation and `inspect eval-retry` for post-hoc re-runs). Also rejected: a task that has finished or is between attempts (re-run failures with `inspect eval-retry`, or let the queued task retry handle them), and a task with a cancel in flight. `--dry-run` reports what would be re-run — the prior error, the attempt number, and whether a checkpoint resume is available — without changing anything, and reports the rejections above too, so an agent can probe safely.
 
+## Interim Scoring
+
+`inspect ctl task score` answers “how is this eval actually doing?” mid-run: it runs the task’s own scorers over the in-flight samples, folds completed samples’ existing final scores in, computes interim metrics, and reports the results, all without ending any sample (the non-destructive counterpart to `task cancel --action score`).
+
+``` bash
+$ inspect ctl task score gpqa
+$ inspect ctl task score gpqa --dry-run          # counts by disposition, no scoring
+$ inspect ctl task score gpqa --completed-only   # no holds: metrics over final scores
+$ inspect ctl task score gpqa --no-wait --json   # start, then re-run to poll
+```
+
+Each in-flight sample is scored on its work-so-far by briefly *holding* it: the sample parks at its next model call (the same gate `pause --now` uses, applied to just that sample), its then-stable live state is scored — with full fidelity: real conversation, live store, live sandbox — and it is released and keeps running. The interim score is recorded on the sample’s transcript as an intermediate score event (exactly as the in-task [score()](./reference/inspect_ai.scorer.html.md#score) API records one), so it persists into the log; the sample’s final scores are unaffected. A sample that doesn’t reach a model call within the hold timeout (a long tool call, a solver phase with no model calls) is skipped and reported rather than scored mid-motion, and one that completes first simply resolves normally — its final score supersedes. Samples are held one at a time, and scorer model calls never count against a held sample’s token/cost limits.
+
+Completed samples are folded in, never re-scored: already-scored samples contribute their final scores to the interim metrics, and unscored completed samples (a scorer that errored earlier, for example) are reported skipped — writing scores into a mid-run log isn’t safe, so `inspect score` after the run remains the way to score them. Errored samples count as scoreable only when the eval’s `score_on_error` would score them; cancelled and not-yet-started samples are skipped. A run started with `--no-score` can’t be interim scored at all — the task has no scorers in-process, and the command reports exactly that; use `inspect score` on its log after the run.
+
+Scoring can take minutes (model-graded scorers), so the command starts a pass and polls it to completion, rendering progress; `--no-wait` returns immediately, and the follow-up is `--status`, which reports the current (or most recent) pass without starting one (a bare re-run joins a still-running pass — one pass per task at a time — but would start a fresh pass, with fresh holds, once the first finishes). In the results, `failed` counts genuine scoring failures; in-flight samples the pass never attempted (they completed on their own, or never parked) or that every scorer declined to score (a scorer may return no score, e.g. for work it considers too incomplete) are reported `unscored`. Metrics are labeled interim for a reason: epochs may be incomplete and in-flight scores describe a moment mid-run. Two costs to know about: a held sample’s wall-clock `time_limit` keeps running while held (so avoid *recurring* full passes — use `--completed-only`, which takes no holds and makes no scorer calls, for periodic polling), and scorer model calls share the process’s connection limits with the running eval (a held sample’s parked calls release their connection slots while parked, so the pass’s own graders don’t starve behind the hold). Scorers should be read-only with respect to the sandbox to be safely interim-scorable — a scorer that mutates the environment (cleanup scripts, marker files) can perturb the still-running agent.
+
 ## Repeated Mutations
 
-Interactively, each mutation prints a full task header above its outcome for context. When stdout is not a TTY — piped or redirected output, a script whose output is captured, an agent’s shell tool — the task-scoped mutation verbs (`sample requeue`, `sample cancel`, `task cancel`, `task pause`/`resume`, `task log-flush`, and `config` when setting a knob) switch to a terse mode instead: one `verb target: outcome` line per call, so N mutations in a loop read as N scannable outcome lines rather than N repeated banners:
+Interactively, each mutation prints a full task header above its outcome for context. When stdout is not a TTY — piped or redirected output, a script whose output is captured, an agent’s shell tool — the task-scoped mutation verbs (`sample requeue`, `sample cancel`, `sample cancel-tool-call`, `task cancel`, `task pause`/`resume`, `task score`, `task log-flush`, and `config` when setting a knob) switch to a terse mode instead: one `verb target: outcome` line per call, so N mutations in a loop read as N scannable outcome lines rather than N repeated banners:
 
 ``` bash
 $ inspect ctl sample errors gpqa --json | jq -r '.samples[] | "\(.sample_id) \(.epoch)"' |
@@ -15385,7 +15628,7 @@ requeue gpqa/17 (epoch 1): accepted — will resume from its checkpoint
 requeue gpqa/23 (epoch 1): no-op — a re-run is already pending
 ```
 
-(The pipe is what selects the terse form here — a loop whose stdout still goes to the terminal keeps the full rendering for each call.) One exception to the strict one-line shape: a qualified `config` set appends `!` warning and `note:` lines after its outcome line (a process-scoped retune’s blast-radius note, a knob that could not be applied), so scripts that count lines should prefer `--json`. Pass `--terse` to force the one-line mode on a terminal, or `--no-terse` to keep the full header rendering in a pipe. For scripts that branch on precise per-call outcomes, prefer `--json`: it takes precedence over both terse flags, and the mutation result envelope (`{target, applied, dry_run, detail}`) distinguishes applied from the idempotent no-op from dry-run structurally for the cancel, requeue, pause, and resume verbs (`task log-flush` reports `applied: true` even when nothing was buffered — its `detail` carries the flushed count).
+(The pipe is what selects the terse form here — a loop whose stdout still goes to the terminal keeps the full rendering for each call.) Two exceptions to the strict one-line shape: a qualified `config` set appends `!` warning and `note:` lines after its outcome line (a process-scoped retune’s blast-radius note, a knob that could not be applied), and a `task score` that joins an already-running pass prints a join-note line (which pass it joined, and whether its flags differ) before its outcome line — scripts that count lines should prefer `--json`. Pass `--terse` to force the one-line mode on a terminal, or `--no-terse` to keep the full header rendering in a pipe. For scripts that branch on precise per-call outcomes, prefer `--json`: it takes precedence over both terse flags, and the mutation result envelope (`{target, applied, dry_run, detail}`) distinguishes applied from the idempotent no-op from dry-run structurally for the cancel, requeue, pause, and resume verbs (`task log-flush` reports `applied: true` even when nothing was buffered — its `detail` carries the flushed count).
 
 ## Pause and Resume
 
@@ -15446,6 +15689,7 @@ Scope is a property of each knob, not of the command: task-scoped knobs apply to
 | Option | Scope | Description |
 |----|----|----|
 | `--max-samples N` | task | Sample concurrency (not applicable under [adaptive connections](./models-concurrency.html.md), where sample concurrency tracks the controller). |
+| `--max-tasks N` | process | Override the max concurrently running tasks (`clear` restores launch config). |
 | `--max-sandboxes N` | process | Per-provider sandbox concurrency. |
 | `--max-subprocesses N` | process | Subprocess concurrency (inactive until the run’s first subprocess). |
 | `--max-connections N` | process | Adaptive connections scaling ceiling. |
@@ -15468,6 +15712,8 @@ Applied changes are recorded in each affected eval log (`EvalLog.config_updates`
 Concurrency changes take effect immediately and never interrupt running work: raising a limit lets more samples/sandboxes/subprocesses/requests start right away, while lowering one below the current in-use count blocks new starts until enough in-flight work drains. Under adaptive connections the view also reports each model’s live controller state — its current limit, in-flight count, scaling range, and recent scale changes — so you can see whether the provider is rate-limiting before deciding to intervene. `--log-buffer` affects future writes only — run `inspect ctl task log-flush` to write what is already pending.
 
 `--timeout` / `--attempt-timeout` / `--max-retries` set live overrides of the corresponding generation config fields — the “stop retrying and fail fast” (or “raise retries to ride it out”) lever during a provider incident. The model retry loop reads the overrides at each point of use, so a change reaches even generate calls already inside a retry loop; an in-flight API request always drains first (its attempt timeout is not retroactively shortened), and timeouts a provider SDK bakes into its client at initialization are unaffected. Batch admin operations (creating a provider batch, polling its results) also keep their launch config — failing one of those would fail every request riding the batch — while batched generate requests themselves still honor the `--timeout` / `--max-retries` overrides through their own retry loops (`--attempt-timeout` does not apply to batched calls: an attempt there waits on an entire provider batch, and cancelling that wait would resubmit duplicate requests into a new batch). The overrides are consulted after each attempt completes, so a retune that lands while a call is sitting in an exponential-backoff sleep (which grows to as much as 30 minutes between attempts) takes effect only after that sleep finishes and one more attempt runs — when failing fast, lower `--attempt-timeout` in the same retune to bound that final attempt. An override applies process-wide until cleared (pass `clear`) or the run ends; the config view reports each field’s active override, with `launch config` meaning no override is in effect.
+
+`--max-tasks` likewise sets a live override — of the task dispatch limit, the lever when task count (rather than per-task concurrency) is what’s holding a run back: an eval set whose adaptive controllers sit far below their ceiling with tasks still pending. The dispatcher reads the override at each dispatch decision, so raising it starts pending tasks immediately; lowering never interrupts running tasks (the in-flight count rides above the new limit until it drains). The config view reports the effective limit alongside the launch value and the dispatcher’s in-flight and pending counts; a set landing while no task dispatcher is live (for example during run startup, while sandboxes are still being provisioned) still applies to task dispatch later in the run. This includes runs launched with `max_tasks=1`: their queued tasks sit pending in the same dispatcher, so a raise starts them immediately (a raised limit takes precedence over the sequential ordering that `max_tasks=1` otherwise provides). More concurrent tasks can mean more concurrent sandbox startups — `--max-sandboxes` remains the guard rail.
 
 `--time-limit` / `--token-limit` / `--message-limit` set live overrides of the task’s per-sample limits — the “these samples are running away” lever. Each sample resolves its effective limit through the override at every limit check, so a retune reaches samples already in flight as well as ones not yet started: a lowered token or message ceiling applies at a sample’s next check (a sample already over it fails with the ordinary limit outcome and is scored on the work done so far, per the task’s configuration), and a lowered time limit reschedules running samples’ deadlines directly — a sample already past the new deadline is cancelled with a time-limit outcome immediately. Raising a limit unblocks in-flight samples the same way (though a sample whose time limit already fired stays cancelled). The overrides only affect each sample’s *top-level* limits — limits that agents or solvers open themselves are untouched. An override applies to the selected task until cleared (pass `clear`) or the run ends; the config view reports each field’s active override, and `sample list`’s token usage/ceiling columns reflect a retuned ceiling.
 
@@ -16891,10 +17137,10 @@ evals_df(
 ``` default
 <class 'pandas.core.frame.DataFrame'>
 RangeIndex: 9 entries, 0 to 8
-Columns: 23 entries, eval_id to score_headline_value
+Columns: 25 entries, eval_set_id to score_headline_stderr
 ```
 
-This dataframe has 23 columns rather than the 51 we saw when using the default [evals_df()](./reference/inspect_ai.analysis.html.md#evals_df) congiruation, reflecting the explicit columns groups specified.
+This dataframe has 25 columns rather than the 51 we saw when using the default [evals_df()](./reference/inspect_ai.analysis.html.md#evals_df) congiruation, reflecting the explicit columns groups specified.
 
 You can also use column groups to join columns for doing analysis or plotting. For example, here we include eval level data along with each sample:
 
@@ -17208,7 +17454,7 @@ if len(errors) > 0:
 | [EvalModel](./reference/inspect_ai.analysis.html.md#evalmodel) | Model name, args, generation config, etc. |
 | [EvalDataset](./reference/inspect_ai.log.html.md#evaldataset) | Dataset name, location, sample ids, etc. |
 | [EvalConfiguration](./reference/inspect_ai.analysis.html.md#evalconfiguration) | Epochs, approval, sample limits, etc. |
-| [EvalResults](./reference/inspect_ai.log.html.md#evalresults) | Status, errors, samples completed, headline metric. |
+| [EvalResults](./reference/inspect_ai.log.html.md#evalresults) | Status, errors, samples completed, headline metric (see [`headline_metric`](./metrics.html.md#headline-metric) to control which metric that is). |
 | [EvalScores](./reference/inspect_ai.analysis.html.md#evalscores) | All scores and metrics broken into separate columns. |
 
 The `eval_id` field is automatically included in all eval data frames. Additionally, a `log` field which includes the URI of the log file read from is included.
@@ -17290,6 +17536,7 @@ SampleSummary: list[Column] = [
     SampleColumn("token_limit_usage", path="token_limit_usage", default=None),
     SampleColumn("error", path="error", default=""),
     SampleColumn("limit", path="limit"),
+    SampleColumn("limit_reason", path="limit_reason", default=None),
     SampleColumn("retries", path="retries"),
     SampleColumn("fallbacks", path=sample_total_fallbacks),
 ]
@@ -17364,6 +17611,8 @@ You could also write a custom [extraction](#custom-extraction-1) handler to read
 SampleColumn("limit_type", path="limit.type", full=True)
 SampleColumn("limit_value", path="limit.limit", full=True)
 ```
+
+Note that the limit’s human-readable reason is available from the summary as `limit_reason` (included in [SampleSummary](./reference/inspect_ai.analysis.html.md#samplesummary) above), so reading it does not require `full=True`.
 
 If you are only interested in reading full values for `metadata`, you can use `full=True` when calling [samples_df()](./reference/inspect_ai.analysis.html.md#samples_df) as shorthand for this:
 

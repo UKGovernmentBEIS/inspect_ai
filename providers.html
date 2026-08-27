@@ -962,14 +962,18 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <td>A stable identifier used to help detect users of your application.</td>
 </tr>
 <tr class="odd">
+<td><code>streaming</code></td>
+<td>Whether to use streaming responses. The default (“auto”) streams when the caller passes an <code>on_stream</code> callback to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#generate">generate()</a></span> — except Azure chat-completions requests, which never auto-stream (accumulated streamed responses would lose content-filter stop details); pass <code>true</code> or <code>false</code> to override. If the server rejects the streaming request itself (a 400 naming the <code>stream</code> param — e.g.&nbsp;reasoning models on organizations that haven’t completed verification), auto mode retries the request non-streamed.</td>
+</tr>
+<tr class="even">
 <td><code>prompt_cache_key</code></td>
 <td>Used by OpenAI to cache responses for similar requests.</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>prompt_cache_retention</code></td>
 <td>Retention policy for the prompt cache.</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>http_client</code></td>
 <td>Custom instance of <code>httpx2.AsyncClient</code> (or legacy <code>httpx.AsyncClient</code>) for handling requests.</td>
 </tr>
@@ -979,7 +983,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> openai/gpt-4o-mini <span class="dt">\ </span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>   <span class="ex">-M</span> responses_api=true</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Or from Python:</p>
-<div id="45a28d6c" class="cell">
+<div id="fb5ddf8c" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> <span class="bu">eval</span></span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(</span>
@@ -1197,7 +1201,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="streaming" class="level3">
 <h3 class="anchored" data-anchor-id="streaming">Streaming</h3>
-<p>The Anthropic provider supports a <code>streaming</code> model arg (<code>-M</code>) that controls whether streaming responses are used. The default (“auto”) will automatically use streaming when thinking is enabled or for potentially <a href="https://github.com/anthropics/anthropic-sdk-python?tab=readme-ov-file#long-requests">long requests</a> (requests with &gt;= 8192 <code>max_tokens</code>). Pass <code>true</code> or <code>false</code> to override the default behavior:</p>
+<p>The Anthropic provider supports a <code>streaming</code> model arg (<code>-M</code>) that controls whether streaming responses are used. The default (“auto”) will automatically use streaming when the caller passes an <code>on_stream</code> callback to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#generate">generate()</a></span>, when thinking is enabled, or for potentially <a href="https://github.com/anthropics/anthropic-sdk-python?tab=readme-ov-file#long-requests">long requests</a> (requests with &gt;= 8192 <code>max_tokens</code>). Pass <code>true</code> or <code>false</code> to override the default behavior:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb22"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> anthropic/claude-sonnet-4-0 <span class="at">-M</span> streaming=true</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
 <section id="anthropic-on-aws-bedrock" class="level3">
@@ -1396,7 +1400,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="streaming-1" class="level3">
 <h3 class="anchored" data-anchor-id="streaming-1">Streaming</h3>
-<p>The Google provider supports a <code>streaming</code> model arg (<code>-M</code>) that controls whether streaming responses are used. Streaming is disabled by default. Pass <code>true</code> to enable streaming:</p>
+<p>The Google provider supports a <code>streaming</code> model arg (<code>-M</code>) that controls whether streaming responses are used. The default (“auto”) uses streaming when the caller passes an <code>on_stream</code> callback to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#generate">generate()</a></span>. Pass <code>true</code> to always stream (or <code>false</code> to never stream):</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb33"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> google/gemini-2.5-pro <span class="at">-M</span> streaming=true</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Streaming is particularly useful for Gemini 3+ models that support thinking/reasoning, as it enables proper capture of reasoning summaries from the streaming API.</p>
 </section>
@@ -1543,7 +1547,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </table>
 <section id="model-args-1" class="level3">
 <h3 class="anchored" data-anchor-id="model-args-1">Model Args</h3>
-<p>The <code>grok</code> provider supports a <code>streaming</code> model argument to enable response streaming (it is disabled by default):</p>
+<p>The <code>grok</code> provider supports a <code>streaming</code> model argument that controls whether streaming responses are used. The default (“auto”) uses streaming when the caller passes an <code>on_stream</code> callback to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#generate">generate()</a></span>. Pass <code>true</code> to always stream (or <code>false</code> to never stream):</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb40"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb40-1"><a href="#cb40-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> grok/grok-3-mini <span class="at">-M</span> streaming=true</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>The <code>grok</code> provider also supports a <code>disable_retry</code> model argument that disables internal GRPC retries. For example:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb41"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> grok/grok-3-mini <span class="at">-M</span> disable_retry=true</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
@@ -1608,7 +1612,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tr>
 <tr class="odd">
 <td><code>stream</code></td>
-<td>Enable streaming responses (default: <code>false</code>).</td>
+<td>Enable streaming responses (default: stream only when the caller passes an <code>on_stream</code> callback to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#generate">generate()</a></span>).</td>
 </tr>
 <tr class="even">
 <td><code>completion_mode</code></td>
@@ -1764,7 +1768,7 @@ Note
 <span id="cb55-2"><a href="#cb55-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">TOGETHER_API_KEY</span><span class="op">=</span>your-together-api-key</span>
 <span id="cb55-3"><a href="#cb55-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> together/MiniMaxAI/MiniMax-M2.7</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>For the <code>together</code> provider, you can enable <a href="#tool-emulation-openai">Tool Emulation</a> using the <code>emulate_tools</code> custom model arg (<code>-M</code>). Other custom model args are forwarded to the constructor of the <code>AsyncOpenAI</code> class.</p>
-<p>The <code>together</code> provider supports a <code>stream</code> model arg (<code>-M</code>) that controls whether streaming responses are used (it is disabled by default). Pass <code>true</code> to enable streaming:</p>
+<p>The <code>together</code> provider supports a <code>stream</code> model arg (<code>-M</code>) that controls whether streaming responses are used. The default (“auto”) uses streaming when the caller passes an <code>on_stream</code> callback to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#generate">generate()</a></span>. Pass <code>true</code> to always stream (or <code>false</code> to never stream):</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb56"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb56-1"><a href="#cb56-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> together/MiniMaxAI/MiniMax-M2.7 <span class="at">-M</span> stream=true</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>The following environment variables are supported by the Together AI provider</p>
 <table class="caption-top table">
@@ -2458,7 +2462,7 @@ Note
 </section>
 <section id="streaming-openai-compatible" class="level3">
 <h3 class="anchored" data-anchor-id="streaming-openai-compatible">Streaming</h3>
-<p>You can enable the use of the streaming with the <code>openai-api</code> provider by passing the <code>stream</code> model arg. For example:</p>
+<p>The <code>openai-api</code> provider streams by default only when the caller passes an <code>on_stream</code> callback to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#generate">generate()</a></span>. You can force streaming on (or off) by passing the <code>stream</code> model arg. For example:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb117"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb117-1"><a href="#cb117-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval arc.py <span class="at">--model</span> openai-api/<span class="op">&lt;</span>provider<span class="op">&gt;</span>/<span class="op">&lt;</span>model<span class="op">&gt;</span> -M stream=true</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
 <section id="openai-api-completions" class="level3">
@@ -2578,7 +2582,7 @@ Note
 </table>
 <section id="streaming-hf-inference" class="level3">
 <h3 class="anchored" data-anchor-id="streaming-hf-inference">Streaming</h3>
-<p>HF Interference Providers uses streaming by default for requests. You can disable streaming using the <code>stream</code> model arg. For example:</p>
+<p>HF Interference Providers uses streaming by default for requests. You can disable streaming using the <code>stream</code> model arg (or pass <code>auto</code> to stream only when the caller passes an <code>on_stream</code> callback to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#generate">generate()</a></span>). For example:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb123"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb123-1"><a href="#cb123-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> hf-inference-providers/openai/gpt-oss-120b <span class="at">-M</span> stream=false</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
 </section>

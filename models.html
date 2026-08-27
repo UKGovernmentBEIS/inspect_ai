@@ -724,9 +724,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#model-api" id="toc-model-api" class="nav-link" data-scroll-target="#model-api">Model API</a>
   <ul class="collapse">
   <li><a href="#model-caching" id="toc-model-caching" class="nav-link" data-scroll-target="#model-caching">Model Caching</a></li>
+  <li><a href="#streaming-events" id="toc-streaming-events" class="nav-link" data-scroll-target="#streaming-events">Streaming Events</a></li>
   </ul></li>
   <li><a href="#model-roles" id="toc-model-roles" class="nav-link" data-scroll-target="#model-roles">Model Roles</a>
   <ul class="collapse">
+  <li><a href="#multiple-models-per-role" id="toc-multiple-models-per-role" class="nav-link" data-scroll-target="#multiple-models-per-role">Multiple Models per Role</a></li>
   <li><a href="#role-resolution" id="toc-role-resolution" class="nav-link" data-scroll-target="#role-resolution">Role Resolution</a></li>
   <li><a href="#role-defaults" id="toc-role-defaults" class="nav-link" data-scroll-target="#role-defaults">Role Defaults</a></li>
   <li><a href="#roles-for-tasks" id="toc-roles-for-tasks" class="nav-link" data-scroll-target="#roles-for-tasks">Roles for Tasks</a></li>
@@ -898,109 +900,143 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>    <span class="bu">eval</span>(mytask(), model<span class="op">=</span>model)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Note though that this <em>won’t work</em> with model providers that require an async close operation (OpenAI, Anthropic, Grok, Together, Groq, Ollama, llama-cpp-python, and CloudFlare).</p>
 </section>
+<section id="streaming-events" class="level3">
+<h3 class="anchored" data-anchor-id="streaming-events">Streaming Events</h3>
+<p><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#generate">generate()</a></span> accepts an optional <code>on_stream</code> async callback which receives incremental <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#streamevent">StreamEvent</a></span>s while the response streams. This is a side-channel for UI display — the final result is still the returned <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#modeloutput">ModelOutput</a></span>:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb20"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.model <span class="im">import</span> StreamEvent, get_model</span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> show(event: StreamEvent) <span class="op">-&gt;</span> <span class="va">None</span>:</span>
+<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> event.<span class="bu">type</span> <span class="op">==</span> <span class="st">"text"</span>:</span>
+<span id="cb20-5"><a href="#cb20-5" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(event.text, end<span class="op">=</span><span class="st">""</span>, flush<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb20-6"><a href="#cb20-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-7"><a href="#cb20-7" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> get_model()</span>
+<span id="cb20-8"><a href="#cb20-8" aria-hidden="true" tabindex="-1"></a>response <span class="op">=</span> <span class="cf">await</span> model.generate(<span class="st">"Say hello"</span>, on_stream<span class="op">=</span>show)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Events include text deltas (<code>type="text"</code>), reasoning deltas (<code>type="reasoning"</code>), tool-call argument deltas (<code>type="tool_call"</code>), and retry boundaries (<code>type="retry"</code>). A retry boundary signals that the call is being retried after a failed attempt: deltas received so far belong to that failed attempt and should be discarded, since the final <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#modeloutput">ModelOutput</a></span> comes entirely from the attempt that succeeds.</p>
+<p>Passing <code>on_stream</code> is itself sufficient to enable streaming: providers that support it stream the response whenever a callback is present, with no provider-level streaming flag required (an explicit opt-out — for example the Anthropic or Google <code>streaming=false</code> model arg — still wins). Streaming remains best-effort by design: providers or calls that don’t stream never invoke the callback, and a cached response returns without producing any content deltas (though a cache hit on a retry attempt still delivers the retry boundary). The Anthropic, Google, OpenAI, OpenAI-compatible (<code>openai-api</code>, Together, Fireworks, etc.), Grok, and SageMaker providers deliver stream events — for other providers the callback never fires — batched calls can’t stream, and requests where streaming would degrade results decline to auto-stream (for example Azure OpenAI chat-completions calls, or logprobs requests on some providers). Callers therefore must not depend on stream events for correctness — consume them for display and read the returned <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#modeloutput">ModelOutput</a></span> for results.</p>
+<p>The same contract applies in reverse: an exception raised by the callback never fails the model call. It is logged (with traceback) and the callback is detached for the remainder of that <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#generate">generate()</a></span> call; the next call tries the callback again. This matches how Inspect treats other observability callbacks (see <a href="./extensions-hooks.html">Hooks</a>) — display-layer bugs must not be able to fail, or trigger paid retries of, an otherwise healthy model request.</p>
+<p><code>generate_loop()</code> also accepts <code>on_stream</code>, forwarding it to each <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#generate">generate()</a></span> call in its tool-calling loop.</p>
+</section>
 </section>
 <section id="model-roles" class="level2">
 <h2 class="anchored" data-anchor-id="model-roles">Model Roles</h2>
 <p>Model roles enable you to create aliases for the various models used in your tasks, and then dynamically vary those roles when running an evaluation. For example, you might have a “critic” or “monitor” role, or perhaps “red_team” and “blue_team” roles. Roles are included in the log and displayed in model events within the transcript.</p>
 <p>Here is a scorer that utilises a “grader” role when binding to a model:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb20"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="at">@scorer</span>(metrics<span class="op">=</span>[accuracy(), stderr()])</span>
-<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> model_grader() <span class="op">-&gt;</span> Scorer:</span>
-<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> score(state: TaskState, target: Target):</span>
-<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a>        model <span class="op">=</span> get_model(role<span class="op">=</span><span class="st">"grader"</span>)</span>
-<span id="cb20-5"><a href="#cb20-5" aria-hidden="true" tabindex="-1"></a>        ...</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb21"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="at">@scorer</span>(metrics<span class="op">=</span>[accuracy(), stderr()])</span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> model_grader() <span class="op">-&gt;</span> Scorer:</span>
+<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> score(state: TaskState, target: Target):</span>
+<span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a>        model <span class="op">=</span> get_model(role<span class="op">=</span><span class="st">"grader"</span>)</span>
+<span id="cb21-5"><a href="#cb21-5" aria-hidden="true" tabindex="-1"></a>        ...</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>By default if there is no “grader” role specified, the default model for the evaluation will be returned.</p>
 <p>Model roles can be specified in several ways:</p>
 <p><strong>In the task definition:</strong></p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb21"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a>Task(</span>
-<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a>    ...,</span>
-<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a>    model_roles<span class="op">=</span>{<span class="st">"grader"</span>: <span class="st">"openai/gpt-4o"</span>}</span>
-<span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p><strong>With generation config in the task definition:</strong></p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb22"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a>Task(</span>
 <span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a>    ...,</span>
-<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a>    model_roles<span class="op">=</span>{</span>
-<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a>        <span class="st">"grader"</span>: {</span>
-<span id="cb22-5"><a href="#cb22-5" aria-hidden="true" tabindex="-1"></a>            <span class="st">"model"</span>: <span class="st">"openai/gpt-4o"</span>,</span>
-<span id="cb22-6"><a href="#cb22-6" aria-hidden="true" tabindex="-1"></a>            <span class="st">"temperature"</span>: <span class="fl">0.5</span>,</span>
-<span id="cb22-7"><a href="#cb22-7" aria-hidden="true" tabindex="-1"></a>            <span class="st">"max_tokens"</span>: <span class="dv">2048</span></span>
-<span id="cb22-8"><a href="#cb22-8" aria-hidden="true" tabindex="-1"></a>        }</span>
-<span id="cb22-9"><a href="#cb22-9" aria-hidden="true" tabindex="-1"></a>    }</span>
-<span id="cb22-10"><a href="#cb22-10" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a>    model_roles<span class="op">=</span>{<span class="st">"grader"</span>: <span class="st">"openai/gpt-4o"</span>}</span>
+<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><strong>With generation config in the task definition:</strong></p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb23"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a>Task(</span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a>    ...,</span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a>    model_roles<span class="op">=</span>{</span>
+<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a>        <span class="st">"grader"</span>: {</span>
+<span id="cb23-5"><a href="#cb23-5" aria-hidden="true" tabindex="-1"></a>            <span class="st">"model"</span>: <span class="st">"openai/gpt-4o"</span>,</span>
+<span id="cb23-6"><a href="#cb23-6" aria-hidden="true" tabindex="-1"></a>            <span class="st">"temperature"</span>: <span class="fl">0.5</span>,</span>
+<span id="cb23-7"><a href="#cb23-7" aria-hidden="true" tabindex="-1"></a>            <span class="st">"max_tokens"</span>: <span class="dv">2048</span></span>
+<span id="cb23-8"><a href="#cb23-8" aria-hidden="true" tabindex="-1"></a>        }</span>
+<span id="cb23-9"><a href="#cb23-9" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb23-10"><a href="#cb23-10" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p><strong>With <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#task_with">task_with()</a></span>:</strong></p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb23"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a>task_with(my_task(), model_roles<span class="op">=</span>{<span class="st">"grader"</span>: <span class="st">"google/gemini-2.0-flash"</span>})</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb24"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a>task_with(my_task(), model_roles<span class="op">=</span>{<span class="st">"grader"</span>: <span class="st">"google/gemini-2.0-flash"</span>})</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p><strong>With <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span>:</strong></p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb24"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(<span class="st">"math.py"</span>, model_roles<span class="op">=</span>{<span class="st">"grader"</span>: <span class="st">"google/gemini-2.0-flash"</span>})</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb25"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(<span class="st">"math.py"</span>, model_roles<span class="op">=</span>{<span class="st">"grader"</span>: <span class="st">"google/gemini-2.0-flash"</span>})</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p><strong>On the CLI</strong> with simple model names:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb25"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval math.py <span class="at">--model-role</span> grader=google/gemini-2.0-flash</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb26"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval math.py <span class="at">--model-role</span> grader=google/gemini-2.0-flash</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p><strong>On the CLI</strong> with inline JSON/YAML for generation config:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb26"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="co"># JSON</span></span>
-<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval math.py <span class="dt">\</span></span>
-<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a>    <span class="at">--model-role</span> <span class="st">'grader={"model": "openai/gpt-4o", "temperature": 0.5}'</span></span>
-<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a><span class="co"># YAML</span></span>
-<span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval math.py <span class="dt">\</span></span>
-<span id="cb26-6"><a href="#cb26-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">--model-role</span> <span class="st">'grader={model: openai/gpt-4o, temperature: 0.5}'</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb27"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="co"># JSON</span></span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval math.py <span class="dt">\</span></span>
+<span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a>    <span class="at">--model-role</span> <span class="st">'grader={"model": "openai/gpt-4o", "temperature": 0.5}'</span></span>
+<span id="cb27-4"><a href="#cb27-4" aria-hidden="true" tabindex="-1"></a><span class="co"># YAML</span></span>
+<span id="cb27-5"><a href="#cb27-5" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval math.py <span class="dt">\</span></span>
+<span id="cb27-6"><a href="#cb27-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">--model-role</span> <span class="st">'grader={model: openai/gpt-4o, temperature: 0.5}'</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Note that the built-in <a href="./model-graded.html">model-graded scorers</a> (e.g.&nbsp;<span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#model_graded_qa">model_graded_qa()</a></span>, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#model_graded_fact">model_graded_fact()</a></span>) look for the <code>grader</code> role by default.</p>
+<section id="multiple-models-per-role" class="level3">
+<h3 class="anchored" data-anchor-id="multiple-models-per-role">Multiple Models per Role</h3>
+<p>A role can also be bound to a <em>list</em> of models:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb28"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(</span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">"math.py"</span>,</span>
+<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a>    model_roles<span class="op">=</span>{</span>
+<span id="cb28-4"><a href="#cb28-4" aria-hidden="true" tabindex="-1"></a>        <span class="st">"grader"</span>: [</span>
+<span id="cb28-5"><a href="#cb28-5" aria-hidden="true" tabindex="-1"></a>            <span class="st">"openai/gpt-4o"</span>,</span>
+<span id="cb28-6"><a href="#cb28-6" aria-hidden="true" tabindex="-1"></a>            <span class="st">"google/gemini-2.0-flash"</span>,</span>
+<span id="cb28-7"><a href="#cb28-7" aria-hidden="true" tabindex="-1"></a>            <span class="st">"anthropic/claude-sonnet-4-0"</span></span>
+<span id="cb28-8"><a href="#cb28-8" aria-hidden="true" tabindex="-1"></a>        ]</span>
+<span id="cb28-9"><a href="#cb28-9" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb28-10"><a href="#cb28-10" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Or equivalently on the CLI with comma-separated model names:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb29"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval math.py <span class="dt">\</span></span>
+<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a>    <span class="at">--model-role</span> grader=openai/gpt-4o,google/gemini-2.0-flash,anthropic/claude-sonnet-4-0</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>When a list is bound to the role used by a <a href="./model-graded.html">model-graded scorer</a>, each model grades independently and the final grade is chosen by majority vote (the same behaviour as passing a list of models to the scorer’s <code>model</code> parameter). Prefer an odd number of graders: with an even-sized ensemble, a tied vote is resolved in favour of the earliest-listed model. Elsewhere, <code>get_model(role="...")</code> resolves to the first model in the list—use <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#model_roles">model_roles()</a></span> (from <code>inspect_ai.model</code>) to access all of the models bound to a role. Note that a single-element list is equivalent to binding the single model directly.</p>
 <p>Model roles can also be specified in a <code>--run-config</code> file alongside the full eval configuration. See <a href="./tasks.html#run-config">Run Config File</a>.</p>
 <p>For how model roles fit into the broader override and precedence model, see <a href="./tasks.html#model-roles">Configuration</a>.</p>
+</section>
 <section id="role-resolution" class="level3">
 <h3 class="anchored" data-anchor-id="role-resolution">Role Resolution</h3>
 <p>Model roles are resolved based on what is passed to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span>. This means that if you fully construct tasks before calling <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span> (e.g.&nbsp;by calling their <code>@task</code> function) then the initialization code for tasks, solvers, and scorers for can’t see the model role definitions.</p>
 <p>Given this, you should always call <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#get_model">get_model()</a></span> <em>inside</em> the implementation of your solver or scorer function rather than during initialization. For example:</p>
 <p><strong>Don’t do this (model role not yet visible)</strong></p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="annotated-cell-27"><pre class="sourceCode python code-annotation-code code-with-copy code-annotated"><code class="sourceCode python"><span id="annotated-cell-27-1"><a href="#annotated-cell-27-1" aria-hidden="true" tabindex="-1"></a><span class="at">@scorer</span>(metrics<span class="op">=</span>[accuracy(), stderr()])</span>
-<span id="annotated-cell-27-2"><a href="#annotated-cell-27-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> model_grader() <span class="op">-&gt;</span> Scorer:</span>
-<button class="code-annotation-anchor" data-target-cell="annotated-cell-27" data-target-annotation="1">1</button><span id="annotated-cell-27-3" class="code-annotation-target"><a href="#annotated-cell-27-3" aria-hidden="true" tabindex="-1"></a>    model <span class="op">=</span> get_model(role<span class="op">=</span><span class="st">"grader"</span>)</span>
-<span id="annotated-cell-27-4"><a href="#annotated-cell-27-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> score(state: TaskState, target: Target):   </span>
-<span id="annotated-cell-27-5"><a href="#annotated-cell-27-5" aria-hidden="true" tabindex="-1"></a>        ...</span><div class="code-annotation-gutter-bg"></div><div class="code-annotation-gutter"></div></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="annotated-cell-30"><pre class="sourceCode python code-annotation-code code-with-copy code-annotated"><code class="sourceCode python"><span id="annotated-cell-30-1"><a href="#annotated-cell-30-1" aria-hidden="true" tabindex="-1"></a><span class="at">@scorer</span>(metrics<span class="op">=</span>[accuracy(), stderr()])</span>
+<span id="annotated-cell-30-2"><a href="#annotated-cell-30-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> model_grader() <span class="op">-&gt;</span> Scorer:</span>
+<button class="code-annotation-anchor" data-target-cell="annotated-cell-30" data-target-annotation="1">1</button><span id="annotated-cell-30-3" class="code-annotation-target"><a href="#annotated-cell-30-3" aria-hidden="true" tabindex="-1"></a>    model <span class="op">=</span> get_model(role<span class="op">=</span><span class="st">"grader"</span>)</span>
+<span id="annotated-cell-30-4"><a href="#annotated-cell-30-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> score(state: TaskState, target: Target):   </span>
+<span id="annotated-cell-30-5"><a href="#annotated-cell-30-5" aria-hidden="true" tabindex="-1"></a>        ...</span><div class="code-annotation-gutter-bg"></div><div class="code-annotation-gutter"></div></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl class="code-annotation-container-hidden code-annotation-container-grid">
-<dt data-target-cell="annotated-cell-27" data-target-annotation="1">1</dt>
+<dt data-target-cell="annotated-cell-30" data-target-annotation="1">1</dt>
 <dd>
-<span data-code-cell="annotated-cell-27" data-code-lines="3" data-code-annotation="1">Role is not yet visible when <code>@task</code> function is called before <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span>.</span>
+<span data-code-cell="annotated-cell-30" data-code-lines="3" data-code-annotation="1">Role is not yet visible when <code>@task</code> function is called before <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span>.</span>
 </dd>
 </dl>
 <p><strong>Rather do this (defer until role is visible)</strong></p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="annotated-cell-28"><pre class="sourceCode python code-annotation-code code-with-copy code-annotated"><code class="sourceCode python"><span id="annotated-cell-28-1"><a href="#annotated-cell-28-1" aria-hidden="true" tabindex="-1"></a><span class="at">@scorer</span>(metrics<span class="op">=</span>[accuracy(), stderr()])</span>
-<span id="annotated-cell-28-2"><a href="#annotated-cell-28-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> model_grader() <span class="op">-&gt;</span> Scorer:</span>
-<span id="annotated-cell-28-3"><a href="#annotated-cell-28-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> score(state: TaskState, target: Target):  </span>
-<button class="code-annotation-anchor" data-target-cell="annotated-cell-28" data-target-annotation="1">1</button><span id="annotated-cell-28-4" class="code-annotation-target"><a href="#annotated-cell-28-4" aria-hidden="true" tabindex="-1"></a>        model <span class="op">=</span> get_model(role<span class="op">=</span><span class="st">"grader"</span>)</span>
-<span id="annotated-cell-28-5"><a href="#annotated-cell-28-5" aria-hidden="true" tabindex="-1"></a>        ...</span><div class="code-annotation-gutter-bg"></div><div class="code-annotation-gutter"></div></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="annotated-cell-31"><pre class="sourceCode python code-annotation-code code-with-copy code-annotated"><code class="sourceCode python"><span id="annotated-cell-31-1"><a href="#annotated-cell-31-1" aria-hidden="true" tabindex="-1"></a><span class="at">@scorer</span>(metrics<span class="op">=</span>[accuracy(), stderr()])</span>
+<span id="annotated-cell-31-2"><a href="#annotated-cell-31-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> model_grader() <span class="op">-&gt;</span> Scorer:</span>
+<span id="annotated-cell-31-3"><a href="#annotated-cell-31-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> score(state: TaskState, target: Target):  </span>
+<button class="code-annotation-anchor" data-target-cell="annotated-cell-31" data-target-annotation="1">1</button><span id="annotated-cell-31-4" class="code-annotation-target"><a href="#annotated-cell-31-4" aria-hidden="true" tabindex="-1"></a>        model <span class="op">=</span> get_model(role<span class="op">=</span><span class="st">"grader"</span>)</span>
+<span id="annotated-cell-31-5"><a href="#annotated-cell-31-5" aria-hidden="true" tabindex="-1"></a>        ...</span><div class="code-annotation-gutter-bg"></div><div class="code-annotation-gutter"></div></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl class="code-annotation-container-hidden code-annotation-container-grid">
-<dt data-target-cell="annotated-cell-28" data-target-annotation="1">1</dt>
+<dt data-target-cell="annotated-cell-31" data-target-annotation="1">1</dt>
 <dd>
-<span data-code-cell="annotated-cell-28" data-code-lines="4" data-code-annotation="1">Role is visible since we are calling this after <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span>.</span>
+<span data-code-cell="annotated-cell-31" data-code-lines="4" data-code-annotation="1">Role is visible since we are calling this after <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span>.</span>
 </dd>
 </dl>
 </section>
 <section id="role-defaults" class="level3">
 <h3 class="anchored" data-anchor-id="role-defaults">Role Defaults</h3>
 <p>By default if there is a no role explicitly defined then <code>get_model(role="...")</code> will return the default model for the evaluation. You can specify an alternate default model as follows:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb27"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> get_model(role<span class="op">=</span><span class="st">"grader"</span>, default<span class="op">=</span><span class="st">"openai/gpt-4o"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb30"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> get_model(role<span class="op">=</span><span class="st">"grader"</span>, default<span class="op">=</span><span class="st">"openai/gpt-4o"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>This means that you can use model roles as a means of external configurability even if you aren’t yet explicitly taking advantage of them.</p>
 </section>
 <section id="roles-for-tasks" class="level3">
 <h3 class="anchored" data-anchor-id="roles-for-tasks">Roles for Tasks</h3>
 <p>In some cases it may not be convenient to specify <code>model_roles</code> in the top level call to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span>. For example, you might be running an <a href="./eval-sets.html">Eval Set</a> to explore the behaviour of different models for a given role. In this case, do not specify <code>model_roles</code> at the eval level, rather, specify them at the task level.</p>
 <p>For example, imagine we have a task named <code>blues_clues</code> that we want to vary the red and blue teams for in an eval set:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb28"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> eval_set, task_with</span>
-<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> ctf_tasks <span class="im">import</span> blues_clues </span>
-<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb28-4"><a href="#cb28-4" aria-hidden="true" tabindex="-1"></a>tasks <span class="op">=</span> [</span>
-<span id="cb28-5"><a href="#cb28-5" aria-hidden="true" tabindex="-1"></a>    task_with(blues_clues(), model_roles <span class="op">=</span> {</span>
-<span id="cb28-6"><a href="#cb28-6" aria-hidden="true" tabindex="-1"></a>        <span class="st">"red_team"</span>: <span class="st">"openai/gpt-4o"</span>,</span>
-<span id="cb28-7"><a href="#cb28-7" aria-hidden="true" tabindex="-1"></a>        <span class="st">"blue_team"</span>: <span class="st">"google/gemini-2.0-flash"</span></span>
-<span id="cb28-8"><a href="#cb28-8" aria-hidden="true" tabindex="-1"></a>    }),()</span>
-<span id="cb28-9"><a href="#cb28-9" aria-hidden="true" tabindex="-1"></a>    task_with(blues_clues, model_roles <span class="op">=</span> {</span>
-<span id="cb28-10"><a href="#cb28-10" aria-hidden="true" tabindex="-1"></a>        <span class="st">"red_team"</span>: <span class="st">"google/gemini-2.0-flash"</span>,</span>
-<span id="cb28-11"><a href="#cb28-11" aria-hidden="true" tabindex="-1"></a>        <span class="st">"blue_team"</span>: <span class="st">"openai/gpt-4o"</span></span>
-<span id="cb28-12"><a href="#cb28-12" aria-hidden="true" tabindex="-1"></a>    })</span>
-<span id="cb28-13"><a href="#cb28-13" aria-hidden="true" tabindex="-1"></a>]</span>
-<span id="cb28-14"><a href="#cb28-14" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb28-15"><a href="#cb28-15" aria-hidden="true" tabindex="-1"></a>eval_set(tasks, log_dir<span class="op">=</span><span class="st">"..."</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb31"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> eval_set, task_with</span>
+<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> ctf_tasks <span class="im">import</span> blues_clues </span>
+<span id="cb31-3"><a href="#cb31-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-4"><a href="#cb31-4" aria-hidden="true" tabindex="-1"></a>tasks <span class="op">=</span> [</span>
+<span id="cb31-5"><a href="#cb31-5" aria-hidden="true" tabindex="-1"></a>    task_with(blues_clues(), model_roles <span class="op">=</span> {</span>
+<span id="cb31-6"><a href="#cb31-6" aria-hidden="true" tabindex="-1"></a>        <span class="st">"red_team"</span>: <span class="st">"openai/gpt-4o"</span>,</span>
+<span id="cb31-7"><a href="#cb31-7" aria-hidden="true" tabindex="-1"></a>        <span class="st">"blue_team"</span>: <span class="st">"google/gemini-2.0-flash"</span></span>
+<span id="cb31-8"><a href="#cb31-8" aria-hidden="true" tabindex="-1"></a>    }),()</span>
+<span id="cb31-9"><a href="#cb31-9" aria-hidden="true" tabindex="-1"></a>    task_with(blues_clues, model_roles <span class="op">=</span> {</span>
+<span id="cb31-10"><a href="#cb31-10" aria-hidden="true" tabindex="-1"></a>        <span class="st">"red_team"</span>: <span class="st">"google/gemini-2.0-flash"</span>,</span>
+<span id="cb31-11"><a href="#cb31-11" aria-hidden="true" tabindex="-1"></a>        <span class="st">"blue_team"</span>: <span class="st">"openai/gpt-4o"</span></span>
+<span id="cb31-12"><a href="#cb31-12" aria-hidden="true" tabindex="-1"></a>    })</span>
+<span id="cb31-13"><a href="#cb31-13" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb31-14"><a href="#cb31-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-15"><a href="#cb31-15" aria-hidden="true" tabindex="-1"></a>eval_set(tasks, log_dir<span class="op">=</span><span class="st">"..."</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Note that we also don’t specify a <code>model</code> for this eval (it doesn’t have a main model but rather just the red and blue team roles).</p>
 <p>As illustrated above, you can define as many named roles as you need. When using <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span> or <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#task">Task</a></span> roles are specified using a dictionary. When using <code>inspect eval</code> you can include multiple <code>--model-role</code> options on the command line:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb29"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval math.py <span class="dt">\</span></span>
-<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a>   <span class="at">--model-role</span> red_team=google/gemini-2.0-flash <span class="dt">\</span></span>
-<span id="cb29-3"><a href="#cb29-3" aria-hidden="true" tabindex="-1"></a>   <span class="at">--model-role</span> blue_team=openai/gpt-4o-mini</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb32"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval math.py <span class="dt">\</span></span>
+<span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a>   <span class="at">--model-role</span> red_team=google/gemini-2.0-flash <span class="dt">\</span></span>
+<span id="cb32-3"><a href="#cb32-3" aria-hidden="true" tabindex="-1"></a>   <span class="at">--model-role</span> blue_team=openai/gpt-4o-mini</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
 </section>
 <section id="learning-more" class="level2">

@@ -836,6 +836,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>    ],</span>
 <span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>This is useful when there is more than one way to score a result and you would like preserve the individual score values with each sample (versus reducing the multiple scores to a single value).</p>
+<p>With multiple scorers, tools that show a single number for the eval default to the first metric of the first scorer. Use <a href="./metrics.html#headline-metric"><code>headline_metric</code></a> on the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#task">Task</a></span> to nominate a different one.</p>
 </section>
 <section id="scorer-with-multiple-values" class="level2">
 <h2 class="anchored" data-anchor-id="scorer-with-multiple-values">Scorer with Multiple Values</h2>

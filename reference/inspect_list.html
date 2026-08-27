@@ -1409,6 +1409,24 @@ ul.task-list li input[type="checkbox"] {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#headlinemetric" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">HeadlineMetric</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#resolvedheadlinemetric" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ResolvedHeadlineMetric</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#headline_metric" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">headline_metric</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.log.html#evalsamplereductions" class="sidebar-item-text sidebar-link">
  <span class="menu-text">EvalSampleReductions</span></a>
   </div>
@@ -1540,6 +1558,12 @@ ul.task-list li input[type="checkbox"] {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#modelroles" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ModelRoles</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.model.html#generateconfig" class="sidebar-item-text sidebar-link">
  <span class="menu-text">GenerateConfig</span></a>
   </div>
@@ -1626,6 +1650,42 @@ ul.task-list li input[type="checkbox"] {
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.model.html#retrydecision" class="sidebar-item-text sidebar-link">
  <span class="menu-text">RetryDecision</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#streamhandler" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">StreamHandler</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#streamevent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">StreamEvent</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#streamtextevent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">StreamTextEvent</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#streamreasoningevent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">StreamReasoningEvent</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#streamtoolcallevent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">StreamToolCallEvent</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#streamretryevent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">StreamRetryEvent</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -3215,6 +3275,30 @@ ul.task-list li input[type="checkbox"] {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#sandboxsnapshotconfig" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">SandboxSnapshotConfig</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#snapshotstrategyconfig" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">SnapshotStrategyConfig</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#resticsnapshots" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ResticSnapshots</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#archivesnapshots" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ArchiveSnapshots</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.util.html#registry_info" class="sidebar-item-text sidebar-link">
  <span class="menu-text">registry_info</span></a>
   </div>
@@ -3565,7 +3649,7 @@ ul.task-list li input[type="checkbox"] {
 <td><code>-F</code></td>
 <td>text</td>
 <td>One or more boolean task filters (e.g.&nbsp;-F light=true or -F draft~=false)</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="even">
 <td><code>--absolute</code></td>
@@ -3607,7 +3691,7 @@ ul.task-list li input[type="checkbox"] {
 <td><code>--env</code></td>
 <td>text</td>
 <td>Define an environment variable e.g.&nbsp;–env NAME=value (–env can be specified multiple times)</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="odd">
 <td><code>--debug</code></td>

@@ -74,6 +74,64 @@ Inspect includes some simple built in metrics for calculating accuracy, mean, et
 
   For ordinal or interval levels, non-numeric ratings require a `to_float` mapping; pass `to_float=value_to_float()` to map `CORRECT`/`INCORRECT`/`PARTIAL`/`NOANSWER` strings to 1/0/0.5/0, or supply your own ordering for text categories. With two judges, nominal α coincides with Scott’s π (its many-judge analogue is Fleiss’ κ), exactly so only in the large-sample limit owing to α’s small-sample correction.
 
+## Headline Metric
+
+Several places reduce an eval to a single number: the log listing in the viewer, the progress line during a run, and the `score_headline_*` columns of [evals_df()](./reference/inspect_ai.analysis.html.md#evals_df). By default that number is the **first metric of the first score**. That default is usually right, but not when a scorer lists [stderr()](./reference/inspect_ai.scorer.html.md#stderr) ahead of [accuracy()](./reference/inspect_ai.scorer.html.md#accuracy), when a cheap sanity scorer runs first, or when the number you care about comes from a particular epoch reducer.
+
+Declare a `headline_metric` on the [Task](./reference/inspect_ai.html.md#task) to nominate one explicitly. A plain string names the scorer:
+
+``` python
+Task(
+    dataset=dataset,
+    scorer=[sanity_check(), model_graded_qa()],
+    headline_metric="model_graded_qa",
+)
+```
+
+Pass a [HeadlineMetric](./reference/inspect_ai.log.html.md#headlinemetric) to say more. Its four fields are all optional, and any you leave unset falls back to the default convention:
+
+| Field | Matched against | Unset means |
+|----|----|----|
+| `scorer` | `EvalScore.scorer` | Every score — with a `metric` set, the first score carrying it; otherwise the first score. |
+| `score` | `EvalScore.name` | Every score of the selected scorer. |
+| `metric` | A key of `EvalScore.metrics` | The first metric of the selected score. |
+| `reducer` | `EvalScore.reducer` | The first matching score, whatever its reducer. |
+
+So the common cases stay short. To pick a different metric in a single-scorer task:
+
+``` python
+from inspect_ai.log import HeadlineMetric
+
+headline_metric=HeadlineMetric(metric="accuracy")
+```
+
+A [scorer that returns several values](./multiple-scorers.html.md#scorer-with-multiple-values) produces one score per value key, named for that key. The string form addresses one with `"<scorer>.<score>"`:
+
+``` python
+headline_metric="grader.coherence"
+```
+
+That shorthand is only available on the string; a [HeadlineMetric](./reference/inspect_ai.log.html.md#headlinemetric)’s fields are matched literally, so a scorer whose own name contains a dot (`@scorer(name="judge.v2")`) is named there:
+
+``` python
+headline_metric=HeadlineMetric(scorer="grader", score="coherence", metric="mean")
+headline_metric=HeadlineMetric(scorer="judge.v2")
+```
+
+To pick a particular [epoch reducer](#reducing-epochs), name it as it appears in the log — `pass_at(k=5)` is logged as `pass_at_5`:
+
+``` python
+Task(
+    ...,
+    epochs=Epochs(5, ["mean", "pass_at_5"]),
+    headline_metric=HeadlineMetric(metric="accuracy", reducer="pass_at_5"),
+)
+```
+
+The declaration is written to the eval log as `log.eval.headline_metric`, and the metric it resolves to is recorded in full as `log.results.headline`, so readers don’t need to re-apply the rules themselves. If any part of a declaration matches nothing in the results — say the scorer was replaced at eval time — Inspect logs a warning and falls back to the default convention rather than failing the eval or honoring the declaration only in part.
+
+[evals_df()](./reference/inspect_ai.analysis.html.md#evals_df) reports what it resolved to in the `score_headline_*` columns: `score_headline_name` (the scorer), `score_headline_score` (the score — the same as the scorer unless it returned several values), `score_headline_metric`, `score_headline_value`, and `score_headline_stderr`.
+
 ## Metric Grouping
 
 The [grouped()](./reference/inspect_ai.scorer.html.md#grouped) function applies a given metric to subgroups of samples defined by a key in sample `metadata`, creating a separate metric for each group along with an `"all"` metric that aggregates across all samples or groups. Each sample must have a value for whatever key is used for grouping.

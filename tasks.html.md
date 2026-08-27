@@ -414,6 +414,7 @@ The table below lists task and runtime parameters and the layers at which each c
 | **Environment** |  |  |  |  |
 | `sandbox` | yes | yes | yes | `--sandbox` |
 | `sandbox_cleanup` |  | yes | yes | `--no-sandbox-cleanup` |
+| `sandbox_prebuilt` |  |  | yes | `--sandbox-prebuilt` |
 | `approval` | yes | yes | yes | `--approval` |
 | **Task identity** |  |  |  |  |
 | `name` | yes | yes |  |  |

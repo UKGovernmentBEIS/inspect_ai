@@ -12,22 +12,22 @@ inspect score [OPTIONS] LOG_FILE
 
 | Name | Type | Description | Default |
 |----|----|----|----|
-| `--model` | text | Model used for re-scoring (overrides the primary model recorded in the log). | None |
-| `--model-base-url` | text | Base URL for model API | None |
-| `-M` | text | One or more native model arguments (e.g. -M arg=value) | None |
-| `--model-role` | text | Named model role with model name or YAML/JSON config, e.g. –model-role critic=openai/gpt-4o or –model-role grader=“{model: mockllm/model, temperature: 0.5}”. Merged over the model roles recorded in the log. | None |
-| `--scorer` | text | Scorer to use for scoring | None |
-| `-S` | text | One or more scorer arguments (e.g. -S arg=value) | None |
-| `--metric` | text | Metric to use for scoring (overrides metrics in the log). | None |
-| `--action` | choice (`append` \| `overwrite`) | Whether to append or overwrite the existing scores. | None |
+| `--model` | text | Model used for re-scoring (overrides the primary model recorded in the log). | `Sentinel.UNSET` |
+| `--model-base-url` | text | Base URL for model API | `Sentinel.UNSET` |
+| `-M` | text | One or more native model arguments (e.g. -M arg=value) | `Sentinel.UNSET` |
+| `--model-role` | text | Named model role with model name or YAML/JSON config, e.g. –model-role critic=openai/gpt-4o or –model-role grader=“{model: mockllm/model, temperature: 0.5}”. Bind multiple models to a role with a comma-separated list of names or a YAML/JSON list of configs. Merged over the model roles recorded in the log. | `Sentinel.UNSET` |
+| `--scorer` | text | Scorer to use for scoring | `Sentinel.UNSET` |
+| `-S` | text | One or more scorer arguments (e.g. -S arg=value) | `Sentinel.UNSET` |
+| `--metric` | text | Metric to use for scoring (overrides metrics in the log). | `Sentinel.UNSET` |
+| `--action` | choice (`append` \| `overwrite`) | Whether to append or overwrite the existing scores. | `Sentinel.UNSET` |
 | `--overwrite` | boolean | Overwrite log file with the scored version | `False` |
-| `--output-file` | file | Output file to write the scored log to. | None |
+| `--output-file` | file | Output file to write the scored log to. | `Sentinel.UNSET` |
 | `--stream` | text | Stream the samples through the scoring process instead of reading the entire log into memory. Useful for large logs. Set to an integer to limit the number of concurrent samples being scored. | `False` |
 | `--log-level` | choice (`debug` \| `trace` \| `http` \| `info` \| `warning` \| `error` \| `critical` \| `notset`) | Set the log level (defaults to ‘warning’) | `warning` |
 | `--log-dir` | text | Directory for log files. | `./logs` |
 | `--display` | choice (`full` \| `conversation` \| `rich` \| `plain` \| `log` \| `none`) | Set the display type (defaults to ‘full’) | `full` |
 | `--traceback-locals` | boolean | Include values of local variables in tracebacks (note that this can leak private data e.g. API keys so should typically only be enabled for targeted debugging). | `False` |
-| `--env` | text | Define an environment variable e.g. –env NAME=value (–env can be specified multiple times) | None |
+| `--env` | text | Define an environment variable e.g. –env NAME=value (–env can be specified multiple times) | `Sentinel.UNSET` |
 | `--debug` | boolean | Wait to attach debugger | `False` |
 | `--debug-port` | integer | Port number for debugger | `5678` |
 | `--debug-errors` | boolean | Raise task errors (rather than logging them) so they can be debugged. | `False` |

@@ -7,7 +7,7 @@ Learn more about using the log viewer at <https://inspect.aisi.org.uk/log-viewer
 #### Usage
 
 ``` text
-inspect view [OPTIONS] COMMAND [ARGS]...
+inspect view [OPTIONS] [COMMAND] [ARGS]...
 ```
 
 #### Subcommands
@@ -35,14 +35,14 @@ inspect view start [OPTIONS]
 | `--recursive` | boolean | Include all logs in log_dir recursively. | `True` |
 | `--host` | text | TCP/IP bind host. Non-loopback binds require authorization or an explicit unsafe acknowledgement. | `127.0.0.1` |
 | `--port` | integer | TCP/IP port | `7575` |
-| `--trusted-origin` | text | Exact browser origin allowed to use the viewer. Repeat for multiple origins. | None |
-| `--trusted-host` | text | Additional exact HTTP authority allowed for non-browser clients. | None |
+| `--trusted-origin` | text | Exact browser origin allowed to use the viewer. Repeat for multiple origins. | `Sentinel.UNSET` |
+| `--trusted-host` | text | Additional exact HTTP authority allowed for non-browser clients. | `Sentinel.UNSET` |
 | `--unsafe-allow-unauthenticated` | boolean | Acknowledge unauthenticated access when binding beyond loopback. | `False` |
 | `--log-level` | choice (`debug` \| `trace` \| `http` \| `info` \| `warning` \| `error` \| `critical` \| `notset`) | Set the log level (defaults to ‘warning’) | `warning` |
 | `--log-dir` | text | Directory for log files. | `./logs` |
 | `--display` | choice (`full` \| `conversation` \| `rich` \| `plain` \| `log` \| `none`) | Set the display type (defaults to ‘full’) | `full` |
 | `--traceback-locals` | boolean | Include values of local variables in tracebacks (note that this can leak private data e.g. API keys so should typically only be enabled for targeted debugging). | `False` |
-| `--env` | text | Define an environment variable e.g. –env NAME=value (–env can be specified multiple times) | None |
+| `--env` | text | Define an environment variable e.g. –env NAME=value (–env can be specified multiple times) | `Sentinel.UNSET` |
 | `--debug` | boolean | Wait to attach debugger | `False` |
 | `--debug-port` | integer | Port number for debugger | `5678` |
 | `--debug-errors` | boolean | Raise task errors (rather than logging them) so they can be debugged. | `False` |
@@ -66,11 +66,11 @@ inspect view bundle [OPTIONS]
 | `--log-dir` | text | Directory for log files. | `./logs` |
 | `--display` | choice (`full` \| `conversation` \| `rich` \| `plain` \| `log` \| `none`) | Set the display type (defaults to ‘full’) | `full` |
 | `--traceback-locals` | boolean | Include values of local variables in tracebacks (note that this can leak private data e.g. API keys so should typically only be enabled for targeted debugging). | `False` |
-| `--env` | text | Define an environment variable e.g. –env NAME=value (–env can be specified multiple times) | None |
+| `--env` | text | Define an environment variable e.g. –env NAME=value (–env can be specified multiple times) | `Sentinel.UNSET` |
 | `--debug` | boolean | Wait to attach debugger | `False` |
 | `--debug-port` | integer | Port number for debugger | `5678` |
 | `--debug-errors` | boolean | Raise task errors (rather than logging them) so they can be debugged. | `False` |
-| `--output-dir` | text | The directory where bundled output will be placed. | \_required |
+| `--output-dir` | text | The directory where bundled output will be placed. | `Sentinel.UNSET` |
 | `--overwrite` | boolean | Overwrite files in the output directory. | `False` |
 | `--help` | boolean | Show this message and exit. | `False` |
 
@@ -92,7 +92,7 @@ inspect view embed [OPTIONS]
 | `--log-dir` | text | Directory for log files. | `./logs` |
 | `--display` | choice (`full` \| `conversation` \| `rich` \| `plain` \| `log` \| `none`) | Set the display type (defaults to ‘full’) | `full` |
 | `--traceback-locals` | boolean | Include values of local variables in tracebacks (note that this can leak private data e.g. API keys so should typically only be enabled for targeted debugging). | `False` |
-| `--env` | text | Define an environment variable e.g. –env NAME=value (–env can be specified multiple times) | None |
+| `--env` | text | Define an environment variable e.g. –env NAME=value (–env can be specified multiple times) | `Sentinel.UNSET` |
 | `--debug` | boolean | Wait to attach debugger | `False` |
 | `--debug-port` | integer | Port number for debugger | `5678` |
 | `--debug-errors` | boolean | Raise task errors (rather than logging them) so they can be debugged. | `False` |

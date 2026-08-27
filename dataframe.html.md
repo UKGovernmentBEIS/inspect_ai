@@ -77,10 +77,10 @@ evals_df(
 ``` default
 <class 'pandas.core.frame.DataFrame'>
 RangeIndex: 9 entries, 0 to 8
-Columns: 23 entries, eval_id to score_headline_value
+Columns: 25 entries, eval_set_id to score_headline_stderr
 ```
 
-This dataframe has 23 columns rather than the 51 we saw when using the default [evals_df()](./reference/inspect_ai.analysis.html.md#evals_df) congiruation, reflecting the explicit columns groups specified.
+This dataframe has 25 columns rather than the 51 we saw when using the default [evals_df()](./reference/inspect_ai.analysis.html.md#evals_df) congiruation, reflecting the explicit columns groups specified.
 
 You can also use column groups to join columns for doing analysis or plotting. For example, here we include eval level data along with each sample:
 
@@ -394,7 +394,7 @@ if len(errors) > 0:
 | [EvalModel](./reference/inspect_ai.analysis.html.md#evalmodel) | Model name, args, generation config, etc. |
 | [EvalDataset](./reference/inspect_ai.log.html.md#evaldataset) | Dataset name, location, sample ids, etc. |
 | [EvalConfiguration](./reference/inspect_ai.analysis.html.md#evalconfiguration) | Epochs, approval, sample limits, etc. |
-| [EvalResults](./reference/inspect_ai.log.html.md#evalresults) | Status, errors, samples completed, headline metric. |
+| [EvalResults](./reference/inspect_ai.log.html.md#evalresults) | Status, errors, samples completed, headline metric (see [`headline_metric`](./metrics.html.md#headline-metric) to control which metric that is). |
 | [EvalScores](./reference/inspect_ai.analysis.html.md#evalscores) | All scores and metrics broken into separate columns. |
 
 The `eval_id` field is automatically included in all eval data frames. Additionally, a `log` field which includes the URI of the log file read from is included.
@@ -476,6 +476,7 @@ SampleSummary: list[Column] = [
     SampleColumn("token_limit_usage", path="token_limit_usage", default=None),
     SampleColumn("error", path="error", default=""),
     SampleColumn("limit", path="limit"),
+    SampleColumn("limit_reason", path="limit_reason", default=None),
     SampleColumn("retries", path="retries"),
     SampleColumn("fallbacks", path=sample_total_fallbacks),
 ]
@@ -550,6 +551,8 @@ You could also write a custom [extraction](#custom-extraction-1) handler to read
 SampleColumn("limit_type", path="limit.type", full=True)
 SampleColumn("limit_value", path="limit.limit", full=True)
 ```
+
+Note that the limit’s human-readable reason is available from the summary as `limit_reason` (included in [SampleSummary](./reference/inspect_ai.analysis.html.md#samplesummary) above), so reading it does not require `full=True`.
 
 If you are only interested in reading full values for `metadata`, you can use `full=True` when calling [samples_df()](./reference/inspect_ai.analysis.html.md#samples_df) as shorthand for this:
 

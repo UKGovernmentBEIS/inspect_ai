@@ -16,12 +16,13 @@ inspect eval-retry [OPTIONS] LOG_FILES...
 |----|----|----|----|
 | `--json` | boolean | Emit machine-readable launch output as JSON lines on stdout (implies –display none): a ‘launch’ record printed once the control-channel server is bound — reporting run_id, pid, log_dir, and the control socket path (‘control’ is null when the server is disabled or failed to bind, so its presence guarantees `inspect ctl` is usable) — and a ‘done’ record with each retried task’s log location and status when the retry finishes. Each retried log file runs as its own eval, so a multi-file retry emits one ‘launch’ record per file (sequentially — each supersedes the previous), and the ‘done’ record carries the last launch’s run_id. To launch in the background instead, use –detach (which implies –json and hands off on the first launch record). | `False` |
 | `--detach` / `--no-detach` | boolean | Run the eval in the background: prints the launch record (implies –json) once the control endpoint is bound, then returns, leaving the eval running detached from the terminal (the detached process’s output goes to a file reported as ‘output_file’ in the launch record). While it runs, monitor with `inspect ctl task list` and cancel with `inspect ctl task cancel`. The process exits when the eval finishes, leaving a ‘done’ record — overall success plus each task’s status and log_location — as the output file’s last line; a process that exited without one died mid-run, with diagnostics in the same file. Pass –ctl-server=keep to instead keep the process alive (and queryable via `inspect ctl`) after the eval finishes, until `inspect ctl process release`. | `False` |
-| `--max-samples` | integer | Maximum number of samples to run in parallel (default is running all samples in parallel) | None |
-| `--max-tasks` | integer | Maximum number of tasks to run in parallel (default is 1 for eval and 10 for eval-set) | None |
-| `--max-subprocesses` | integer | Maximum number of subprocesses to run in parallel (default is os.cpu_count()) | None |
-| `--max-sandboxes` | integer | Maximum number of sandboxes (per-provider) to run in parallel. | None |
+| `--max-samples` | integer | Maximum number of samples to run in parallel (default is running all samples in parallel) | `Sentinel.UNSET` |
+| `--max-tasks` | integer | Maximum number of tasks to run in parallel (default is 1 for eval and 10 for eval-set) | `Sentinel.UNSET` |
+| `--max-subprocesses` | integer | Maximum number of subprocesses to run in parallel (default is os.cpu_count()) | `Sentinel.UNSET` |
+| `--max-sandboxes` | integer | Maximum number of sandboxes (per-provider) to run in parallel. | `Sentinel.UNSET` |
 | `--no-sandbox-cleanup` | boolean | Do not cleanup sandbox environments after task completes | `False` |
-| `--fail-on-error` | float | Threshold of sample errors to tolerage (by default, evals fail when any error occurs). Value between 0 to 1 to set a proportion; value greater than 1 to set a count. | None |
+| `--sandbox-prebuilt` | boolean | Treat sandbox images as prebuilt (skip builds and fail at startup when an image is missing) | `False` |
+| `--fail-on-error` | float | Threshold of sample errors to tolerage (by default, evals fail when any error occurs). Value between 0 to 1 to set a proportion; value greater than 1 to set a count. | `Sentinel.UNSET` |
 | `--no-fail-on-error` | boolean | Do not fail the eval if errors occur within samples (instead, continue running other samples) | `False` |
 | `--continue-on-fail` | boolean | Do not immediately fail the eval if the error threshold is exceeded (instead, continue running other samples until the eval completes, and then possibly fail the eval). | None |
 | `--retry-on-error` | text | Retry samples if they encounter errors (by default, no retries occur). Specify –retry-on-error to retry a single time, or specify e.g. `--retry-on-error=3` to retry multiple times. | None |
@@ -31,37 +32,37 @@ inspect eval-retry [OPTIONS] LOG_FILES...
 | `--log-images` / `--no-log-images` | boolean | Retain inline image and other media bytes in the log file. This option does not control media fetching. | `True` |
 | `--log-model-api` / `--no-log-model-api` | boolean | Log raw model api requests and responses. Note that error requests/responses are always logged. | None |
 | `--log-refusals` / `--no-log-refusals` | boolean | Log warnings for model refusals. | `False` |
-| `--log-buffer` | integer | Number of samples to buffer before writing log file. If not specified, an appropriate default for the format and filesystem is chosen (10 for most all cases, 100 for JSON logs on remote filesystems). | None |
+| `--log-buffer` | integer | Number of samples to buffer before writing log file. If not specified, an appropriate default for the format and filesystem is chosen (10 for most all cases, 100 for JSON logs on remote filesystems). | `Sentinel.UNSET` |
 | `--log-shared` | text | Sync sample events to log directory so that users on other systems can see log updates in realtime (defaults to no syncing). If enabled will sync every 10 seconds (or pass a value to sync every `n` seconds). | None |
 | `--no-score` | boolean | Do not score model output (use the inspect score command to score output later) | `False` |
 | `--no-score-display` | boolean | Do not display scoring metrics in realtime. | `False` |
 | `--acp-server` | text | Override the original eval’s Agent Client Protocol server. Bare flag enables a default AF_UNIX socket; pass an integer to bind a TCP loopback port; pass `host:port` to bind on a specific interface (e.g. `0.0.0.0:4444`); pass a filesystem path for a custom UNIX socket; pass `false` to disable. Omit to replay whatever transport the original log used. | None |
 | `--ctl-server` | text | Control-channel server for the retried eval’s process (default: enabled). Pass `false` to disable it; pass `keep` to keep the process running after the retried eval finishes so external clients (the `inspect ctl` CLI, scripted agents) can still query its state. Run `inspect ctl process release` to release. Observe the run from another shell with `inspect ctl task list`. | None |
-| `--max-connections` | integer | Maximum number of concurrent connections to Model API (defaults to 10) | None |
+| `--max-connections` | integer | Maximum number of concurrent connections to Model API (defaults to 10) | `Sentinel.UNSET` |
 | `--adaptive-connections` | text | Adaptive concurrency for Model API connections, automatically scaling between bounds based on rate-limit feedback (default: enabled, with min=10, start=20, max=100). Pass `false` to opt out, an integer N for a custom max (e.g. `200`), or bounds as `min-max` (e.g. `4-80`) or `min-start-max` (e.g. `4-20-80`). Explicit `--max-connections` and `--batch` take precedence. | None |
-| `--max-retries` | integer | Maximum number of times to retry model API requests (defaults to unlimited) | None |
-| `--timeout` | integer | Model API request timeout in seconds (defaults to no timeout) | None |
-| `--attempt-timeout` | integer | Timeout (in seconds) for any given attempt (if exceeded, will abandon attempt and retry according to max_retries). | None |
+| `--max-retries` | integer | Maximum number of times to retry model API requests (defaults to unlimited) | `Sentinel.UNSET` |
+| `--timeout` | integer | Model API request timeout in seconds (defaults to no timeout) | `Sentinel.UNSET` |
+| `--attempt-timeout` | integer | Timeout (in seconds) for any given attempt (if exceeded, will abandon attempt and retry according to max_retries). | `Sentinel.UNSET` |
 | `--log-level-transcript` | choice (`debug` \| `trace` \| `http` \| `info` \| `warning` \| `error` \| `critical` \| `notset`) | Set the log level of the transcript (defaults to ‘info’) | `info` |
 | `--checkpoint` | text | Periodically checkpoint sample state so the eval can be resumed via `inspect eval retry`. Specify –checkpoint for the default (every 500k tokens), –checkpoint=token:N{k,m,b} / time:N{s,m,h,d} / <turn:N> / manual for a shorthand trigger, or pass a YAML/JSON file path for a full CheckpointConfig. For resume to find checkpoint files, pass the same `--checkpoint` value used on the original eval. | None |
-| `--scanner` | text | Scanner(s) to apply after each sample. Pass a YAML/JSON config file (ScannerConfig schema), a Python file with @scanner functions (use <file.py@func> to pick one), or a registry reference (pkg/name). | None |
-| `--scanner-arg` | text | One or more scanner arguments (e.g. –scanner-arg key=value). | None |
-| `--scans` | text | Location to write scan results to (defaults to /scans/). | None |
-| `--scan-name` | text | Scan name written to \_scan.json (defaults to “eval_set”). | None |
-| `--scan-tags` | text | Comma-separated tags written to the scan spec. | None |
-| `--scan-metadata` | text | Metadata written to the scan spec (e.g. –scan-metadata key=value). | None |
-| `-F`, `--scan-filter` | text | SQL WHERE clause(s) applied per-sample to skip transcripts that don’t match (e.g. -F “error = ’’”). | None |
-| `--scan-model` | text | Model used by scanners’ get_model() (overrides the eval model). | None |
-| `--scan-model-base-url` | text | Base URL for the scanner-side model API. | None |
-| `--scan-model-arg` | text | One or more scanner-side model arguments (e.g. –scan-model-arg key=value). | None |
-| `--scan-model-config` | text | YAML or JSON config file with scanner-side model arguments. | None |
-| `--scan-model-role` | text | Named scanner-side model role with model name or YAML/JSON config (e.g. –scan-model-role grader=mockllm/model). | None |
-| `--scan-generate-config` | text | YAML or JSON config file with GenerateConfig for scanner model calls. | None |
+| `--scanner` | text | Scanner(s) to apply after each sample. Pass a YAML/JSON config file (ScannerConfig schema), a Python file with @scanner functions (use <file.py@func> to pick one), or a registry reference (pkg/name). | `Sentinel.UNSET` |
+| `--scanner-arg` | text | One or more scanner arguments (e.g. –scanner-arg key=value). | `Sentinel.UNSET` |
+| `--scans` | text | Location to write scan results to (defaults to /scans/). | `Sentinel.UNSET` |
+| `--scan-name` | text | Scan name written to \_scan.json (defaults to “eval_set”). | `Sentinel.UNSET` |
+| `--scan-tags` | text | Comma-separated tags written to the scan spec. | `Sentinel.UNSET` |
+| `--scan-metadata` | text | Metadata written to the scan spec (e.g. –scan-metadata key=value). | `Sentinel.UNSET` |
+| `-F`, `--scan-filter` | text | SQL WHERE clause(s) applied per-sample to skip transcripts that don’t match (e.g. -F “error = ’’”). | `Sentinel.UNSET` |
+| `--scan-model` | text | Model used by scanners’ get_model() (overrides the eval model). | `Sentinel.UNSET` |
+| `--scan-model-base-url` | text | Base URL for the scanner-side model API. | `Sentinel.UNSET` |
+| `--scan-model-arg` | text | One or more scanner-side model arguments (e.g. –scan-model-arg key=value). | `Sentinel.UNSET` |
+| `--scan-model-config` | text | YAML or JSON config file with scanner-side model arguments. | `Sentinel.UNSET` |
+| `--scan-model-role` | text | Named scanner-side model role with model name or YAML/JSON config (e.g. –scan-model-role grader=mockllm/model). Bind multiple models to a role with a comma-separated list of names or a YAML/JSON list of configs. | `Sentinel.UNSET` |
+| `--scan-generate-config` | text | YAML or JSON config file with GenerateConfig for scanner model calls. | `Sentinel.UNSET` |
 | `--log-level` | choice (`debug` \| `trace` \| `http` \| `info` \| `warning` \| `error` \| `critical` \| `notset`) | Set the log level (defaults to ‘warning’) | `warning` |
 | `--log-dir` | text | Directory for log files. | `./logs` |
 | `--display` | choice (`full` \| `conversation` \| `rich` \| `plain` \| `log` \| `none`) | Set the display type (defaults to ‘full’) | `full` |
 | `--traceback-locals` | boolean | Include values of local variables in tracebacks (note that this can leak private data e.g. API keys so should typically only be enabled for targeted debugging). | `False` |
-| `--env` | text | Define an environment variable e.g. –env NAME=value (–env can be specified multiple times) | None |
+| `--env` | text | Define an environment variable e.g. –env NAME=value (–env can be specified multiple times) | `Sentinel.UNSET` |
 | `--debug` | boolean | Wait to attach debugger | `False` |
 | `--debug-port` | integer | Port number for debugger | `5678` |
 | `--debug-errors` | boolean | Raise task errors (rather than logging them) so they can be debugged. | `False` |

@@ -770,7 +770,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Model selection follows this precedence:</p>
 <ol type="1">
 <li><p>If <code>model</code> is provided, it is used (if a list is provided, each model grades independently and the final grade is by majority vote).</p></li>
-<li><p>Else if <code>model_role</code> is provided (default: <code>"grader"</code>), the model bound to that role (via <code>eval(..., model_roles={...})</code> or <code>--model-role grader=...</code>) is used. Pass <code>ModelRole("grader", required=True)</code> (from <code>inspect_ai.model</code>) to raise an error when the role is not bound instead of falling back to the model being evaluated.</p></li>
+<li><p>Else if <code>model_role</code> is provided (default: <code>"grader"</code>), the model bound to that role (via <code>eval(..., model_roles={...})</code> or <code>--model-role grader=...</code>) is used (if a list of models is bound to the role, each model grades independently and the final grade is by majority vote, just as when a list is passed for <code>model</code>). Pass <code>ModelRole("grader", required=True)</code> (from <code>inspect_ai.model</code>) to raise an error when the role is not bound instead of falling back to the model being evaluated.</p></li>
 <li><p>Else the model currently being evaluated is used.</p></li>
 </ol>
 <p>There are a few ways you can customise the default behaviour:</p>
