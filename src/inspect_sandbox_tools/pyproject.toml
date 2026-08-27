@@ -124,6 +124,9 @@ dev = [
     "anthropic",
     "openai",
     "google-genai",
+    # Test-only: wire-parity tests round-trip the host's mcp models through the
+    # vendored JSON-RPC models (the shipped binary does not bundle mcp).
+    "mcp",
 ]
 
 dist = ["twine", "build"]

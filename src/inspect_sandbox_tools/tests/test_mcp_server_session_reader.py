@@ -17,28 +17,7 @@ from inspect_sandbox_tools._remote_tools._mcp.mcp_server_session import (
     MCPServerSession,
 )
 
-
-class _FakeStdin:
-    def write(self, data: bytes) -> None:
-        pass
-
-    async def drain(self) -> None:
-        pass
-
-
-class _FakeProcess:
-    def __init__(self, stdout: asyncio.StreamReader) -> None:
-        self.stdout = stdout
-        self.stdin = _FakeStdin()
-
-    def terminate(self) -> None:
-        pass
-
-    async def wait(self) -> int:
-        return 0
-
-    def kill(self) -> None:
-        pass
+from .mcp_session_fakes import FakeProcess
 
 
 @pytest.mark.parametrize(
@@ -57,7 +36,7 @@ class _FakeProcess:
 )
 async def test_unexpected_line_does_not_kill_reader(unexpected_line: bytes) -> None:
     reader = asyncio.StreamReader()
-    session = MCPServerSession(_FakeProcess(reader), "utf-8", "strict")
+    session = MCPServerSession(FakeProcess(reader), "utf-8", "strict")
     try:
         # The unexpected line arrives before the response we are waiting on.
         reader.feed_data(unexpected_line)

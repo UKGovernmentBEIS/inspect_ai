@@ -7,18 +7,19 @@ entirely: the JSON-RPC 2.0 wire format is frozen, so these never need porting
 across mcp majors, and the SDK's dependency tree stays out of the PyInstaller
 bundle.
 
-Wire behavior intentionally matches the long-shipped mcp 1.x models rather
-than 2.x: ids validate laxly (a nonconforming server echoing ``7.0`` resolves
-request ``7`` instead of being dropped) and non-spec extra fields on envelopes
-round-trip to the host instead of being stripped (``extra="allow"``).
+Wire behavior intentionally matches the mcp 1.x models the v27 binary shipped:
+ids validate strictly (a nonconforming line with a float or bool id fails
+validation and is skipped by the reader, like any other unparseable line) and
+non-spec extra fields on envelopes round-trip to the host instead of being
+stripped (``extra="allow"``).
 """
 
 from pathlib import Path
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
+from pydantic import BaseModel, ConfigDict, Field, Strict, TypeAdapter
 
-RequestId = str | int
+RequestId = Annotated[int, Strict()] | str
 
 
 class _JSONRPCEnvelope(BaseModel):
@@ -60,6 +61,10 @@ class JSONRPCError(_JSONRPCEnvelope):
     error: ErrorData
 
 
+# Union order matches mcp's JSONRPCMessage. With extra="allow" the order is
+# observable: a nonconforming line carrying both "method" and "result" validates
+# as the leftmost match (JSONRPCRequest) and is dropped as unsolicited, same as
+# the shipped mcp 1.x binary behaved.
 JSONRPCMessage = JSONRPCRequest | JSONRPCNotification | JSONRPCResponse | JSONRPCError
 
 jsonrpc_message_adapter: TypeAdapter[JSONRPCMessage] = TypeAdapter(JSONRPCMessage)
