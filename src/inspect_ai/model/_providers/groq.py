@@ -57,6 +57,7 @@ from inspect_ai._util.http import (
     parse_retry_after_from_exception,
 )
 from inspect_ai._util.images import inline_media_data_uri
+from inspect_ai._util.logger import warn_once
 from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.model._reasoning import (
     clamp_reasoning_effort_to_low_medium_high,
@@ -103,6 +104,17 @@ from .util.hooks import HttpxHooks
 logger = getLogger(__name__)
 
 GROQ_API_KEY = "GROQ_API_KEY"
+
+
+class GroqStreamError(Exception):
+    """The server stopped a chat-completions stream early (`x_groq.error`).
+
+    Classified as transient by `should_retry`: the canonical instance
+    ("over capacity") is the same condition a non-streamed request surfaces
+    as a retryable 429/503, and auto-streaming enabled by a display-only
+    `on_stream` callback must not turn a retried condition into a
+    permanently failed sample.
+    """
 
 
 class GroqAPI(ModelAPI):
@@ -207,6 +219,16 @@ class GroqAPI(ModelAPI):
             model_call.set_response(
                 completion.model_dump(), self._http_hooks.end_request(request_id)
             )
+
+            # a streamed response should carry usage on its final chunk —
+            # warn rather than under-count silently if it does not
+            if streaming and completion.usage is None:
+                warn_once(
+                    logger,
+                    f"groq model '{self.model_name}' reported no token usage "
+                    "for a streamed response; pass -M streaming=false if you "
+                    "require usage reporting.",
+                )
 
             # extract metadata
             metadata: dict[str, Any] = {
@@ -340,6 +362,8 @@ class GroqAPI(ModelAPI):
             return RetryDecision.transient(retry_after=retry_after)
         if isinstance(ex, APITimeoutError):
             return RetryDecision.transient()
+        if isinstance(ex, GroqStreamError):
+            return RetryDecision.transient()
         return RetryDecision.no()
 
     @override
@@ -435,8 +459,8 @@ async def groq_completion_from_stream(
     Usage arrives on the final chunk (under `x_groq` and/or the chunk-level
     `usage` field), carrying the same timing metadata (queue/prompt/completion
     time) as a non-streamed response. A chunk carrying `x_groq.error` (the
-    server stopped the stream early) raises rather than returning a truncated
-    completion.
+    server stopped the stream early) raises `GroqStreamError` (retried as
+    transient) rather than returning a truncated completion.
     """
     report_model_stream_start()
     completion_id: str | None = None
@@ -455,7 +479,7 @@ async def groq_completion_from_stream(
         # x_groq.error means the server stopped the stream early — fail rather
         # than return a silently truncated completion
         if chunk.x_groq is not None and chunk.x_groq.error:
-            raise RuntimeError(
+            raise GroqStreamError(
                 f"Streaming response stopped early: {chunk.x_groq.error}"
             )
         chunk_usage = chunk.usage or (chunk.x_groq.usage if chunk.x_groq else None)

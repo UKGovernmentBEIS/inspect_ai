@@ -9,10 +9,12 @@ from inspect_ai.model import (
     ChatMessageUser,
     GenerateConfig,
     ResponseSchema,
+    RetryDecision,
     get_model,
 )
 from inspect_ai.model._providers.groq import (
     GroqAPI,
+    GroqStreamError,
     chat_tool_choice,
     groq_completion_from_stream,
 )
@@ -265,8 +267,14 @@ async def test_groq_completion_from_stream_error() -> None:
         ),
         _groq_chunk(dict(choices=[], x_groq=dict(error="over capacity"))),
     ]
-    with pytest.raises(RuntimeError, match="stopped early: over capacity"):
+    with pytest.raises(GroqStreamError, match="stopped early: over capacity") as ex:
         await groq_completion_from_stream(_chunk_iter(chunks))
+
+    # a stream stopped early (canonically "over capacity") is the same
+    # transient condition a non-streamed request retries as a 429/503 —
+    # auto-streaming must not turn it into a permanently failed sample
+    decision = _groq_api().should_retry(ex.value)
+    assert isinstance(decision, RetryDecision) and decision.retry is True
 
 
 @skip_if_no_groq

@@ -199,6 +199,13 @@ class MistralAPI(ModelAPI):
             # support streaming — an on_stream caller degrades gracefully to
             # no events; set conversation_api=false to stream)
             if self.conversation_api:
+                if self.streaming is True:
+                    warn_once(
+                        logger,
+                        f"mistral model '{self.model_name}': streaming=true has "
+                        "no effect on the Conversation API (it does not support "
+                        "streaming); pass -M conversation_api=false to stream.",
+                    )
                 return await mistral_conversation_generate(
                     client=client,
                     http_hooks=http_hooks,

@@ -649,6 +649,40 @@ async def test_mistral_completion_from_stream_missing_usage_warns(
 
 
 @skip_if_no_mistral_package
+async def test_mistral_streaming_true_warns_on_conversation_api(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """An explicit streaming=true is ignored by the Conversation API — warn."""
+    from inspect_ai.model import ModelOutput
+    from inspect_ai.model._providers import mistral as mistral_provider
+
+    async def _conversation_generate(**kwargs: Any) -> ModelOutput:
+        return ModelOutput.from_content(
+            model="mistral-conversation-warn-test", content="hi"
+        )
+
+    monkeypatch.setattr(
+        mistral_provider, "mistral_conversation_generate", _conversation_generate
+    )
+    api = mistral_provider.MistralAPI(
+        # unique model name: warn_once dedupes on message text process-wide
+        model_name="mistral-conversation-warn-test",
+        api_key="test",
+        conversation_api=True,
+        streaming=True,
+    )
+    with caplog.at_level(logging.WARNING, logger="inspect_ai.model._providers.mistral"):
+        await api.generate(
+            [ChatMessageUser(content="hi")], [], "auto", GenerateConfig()
+        )
+    assert any(
+        "no effect on the Conversation API" in record.message
+        for record in caplog.records
+    )
+
+
+@skip_if_no_mistral_package
 async def test_mistral_completion_from_stream_empty() -> None:
     from inspect_ai.model._providers.mistral import mistral_completion_from_stream
 
