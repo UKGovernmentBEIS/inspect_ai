@@ -359,8 +359,11 @@ large (10–13s against 384s). The key-design fix is
 
 **#299 (`design/**` excluded from the `test` filter) — holding.** Three
 docs/design-only Build runs this window came in at a 122s median wall against a
-368s code-only median, with the test legs no-ops. This report's own PR is the
-next observation.
+368s code-only median, with the test legs no-ops. This report's own PR
+([#343](https://github.com/meridianlabs-ai/inspect_ai/pull/343)) is the fourth
+observation and the cleanest: `test (3.10)` **6s**, `test (3.11)` **3s**, Build
+wall **102s**, Viewer wall 78s, **7.2 runner-min** for the whole push. `mypy` at
+87s/89s is now the entire long pole of a design-only push.
 
 **#4948 (`--dist worksteal`) — holding at five windows.** +3..+9s imbalance,
 96–99% efficiency, zero stragglers across 12 legs.
