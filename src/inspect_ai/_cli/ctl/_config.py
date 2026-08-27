@@ -18,6 +18,7 @@ from inspect_ai._control.views import ProcessConfigView, TaskConfigView
 from . import _fetch, _http
 from ._failure import _CtlFailure, _envelope_failures, _fail
 from ._group import (
+    _INT_MIN_ONE_OR_CLEAR,
     _INT_OR_CLEAR,
     _echo_no_running_evals,
     _json_option,
@@ -41,6 +42,18 @@ from ._render import _echo, _echo_raw, _print_config
     help=(
         f"[{_KNOB_SCOPE['max_samples']}] Max samples to run concurrently (under "
         "adaptive connections, sample concurrency tracks the controller instead)."
+    ),
+)
+@click.option(
+    "--max-tasks",
+    type=_INT_MIN_ONE_OR_CLEAR,
+    metavar="INTEGER",
+    default=None,
+    help=(
+        f"[{_KNOB_SCOPE['max_tasks']}] Override the max concurrently running "
+        "tasks ('clear' restores launch config). Raising it starts pending "
+        "tasks immediately; more tasks can mean more concurrent sandbox "
+        "startups (see --max-sandboxes)."
     ),
 )
 @click.option(
@@ -201,6 +214,7 @@ from ._render import _echo, _echo_raw, _print_config
 def config_command(
     task: str | None,
     max_samples: int | None,
+    max_tasks: int | Literal["clear"] | None,
     max_sandboxes: int | None,
     max_subprocesses: int | None,
     max_connections: int | None,
@@ -240,6 +254,10 @@ def config_command(
     `--max-retries` set live overrides read by the model retry loop, so a
     change reaches even generate calls already retrying (in-flight API
     requests still drain first); pass `clear` to remove an override.
+    `--max-tasks` likewise sets a live override, read by the task dispatcher
+    at each dispatch decision: raising it starts pending tasks immediately,
+    lowering never interrupts running tasks (new ones wait until in-flight
+    drains below the limit).
     `--time-limit` / `--token-limit` / `--message-limit` likewise set live
     overrides on the task's per-sample limits, read where each sample's
     limits are checked — so a retune reaches in-flight samples (a lowered
@@ -254,6 +272,7 @@ def config_command(
     _run_config(
         task,
         max_samples=max_samples,
+        max_tasks=max_tasks,
         max_sandboxes=max_sandboxes,
         max_subprocesses=max_subprocesses,
         max_connections=max_connections,
@@ -293,6 +312,7 @@ def _applied_knob_names(
     limits_view: TaskConfigView | ProcessConfigView,
     *,
     max_samples: int | None,
+    max_tasks: int | Literal["clear"] | None = None,
     max_sandboxes: int | None,
     max_subprocesses: int | None,
     max_connections: int | None,
@@ -351,6 +371,9 @@ def _applied_knob_names(
                     for row in limits_view.get("concurrency") or []
                 ),
             ),
+            # like the retry overrides, max_tasks is always adjustable (the
+            # override layer exists regardless of launch config)
+            ("--max-tasks", max_tasks, True),
             ("--timeout", timeout, True),
             ("--attempt-timeout", attempt_timeout, True),
             ("--max-retries", max_retries, True),
@@ -367,6 +390,7 @@ def _run_config(
     task: str | None,
     *,
     max_samples: int | None,
+    max_tasks: int | Literal["clear"] | None = None,
     max_sandboxes: int | None,
     max_subprocesses: int | None,
     max_connections: int | None,
@@ -428,6 +452,7 @@ def _run_config(
 
     knob_values: dict[str, int | Literal["clear"] | None] = {
         "max_samples": max_samples,
+        "max_tasks": max_tasks,
         "max_sandboxes": max_sandboxes,
         "max_subprocesses": max_subprocesses,
         "max_connections": max_connections,
@@ -474,6 +499,7 @@ def _run_config(
         scope.socket_path,
         scope.task_id,
         max_samples=max_samples,
+        max_tasks=max_tasks,
         max_sandboxes=max_sandboxes,
         max_subprocesses=max_subprocesses,
         max_connections=max_connections,
@@ -510,6 +536,7 @@ def _run_config(
             applied_names = _applied_knob_names(
                 limits_view,
                 max_samples=max_samples,
+                max_tasks=max_tasks,
                 max_sandboxes=max_sandboxes,
                 max_subprocesses=max_subprocesses,
                 max_connections=max_connections,
@@ -632,6 +659,14 @@ def _compose_config(
         knobs["max_samples"] = {
             "scope": _KNOB_SCOPE["max_samples"],
             **task_view["max_samples"],
+        }
+    # max_tasks (absent from an older server's view — skipped then, like the
+    # retry knobs, rather than shown as a value claim)
+    max_tasks_view = limits_view.get("max_tasks")
+    if max_tasks_view is not None:
+        knobs["max_tasks"] = {
+            "scope": _KNOB_SCOPE["max_tasks"],
+            **max_tasks_view,
         }
     knobs["max_sandboxes"] = {
         "scope": _KNOB_SCOPE["max_sandboxes"],
@@ -778,13 +813,12 @@ def _gate_strict_floor(
         return
     flags = ", ".join("--" + knob.replace("_", "-") for knob in requested_knobs)
     target = f"pid {server.pid}" if server is not None else "the target process"
-    _echo(
+    _fail(
+        "invalid_request",
         f"Cannot set {flags} — {target} is running an older inspect that "
         "may silently ignore unrecognized config settings; restart the eval "
         "to pick up the current version. No changes were applied.",
-        err=True,
     )
-    raise click.exceptions.Exit(code=1)
 
 
 def _default_provenance_author() -> str:
@@ -851,13 +885,12 @@ def _gate_provenance_support(
             if value is not None
         )
         target = f"pid {server.pid}" if server is not None else "the target process"
-        _echo(
+        _fail(
+            "invalid_request",
             f"{flags} not supported — {target} is running an older inspect; "
             "restart the eval to pick up the current version. No changes "
             "were applied.",
-            err=True,
         )
-        raise click.exceptions.Exit(code=1)
     return (None, None)
 
 
@@ -866,6 +899,7 @@ def _exec_limits(
     task_id: str | None,
     *,
     max_samples: int | None,
+    max_tasks: int | Literal["clear"] | None = None,
     max_sandboxes: int | None,
     max_subprocesses: int | None = None,
     max_connections: int | None,
@@ -908,6 +942,7 @@ def _exec_limits(
     """
     knob_values: dict[str, int | Literal["clear"] | None] = {
         "max_samples": max_samples,
+        "max_tasks": max_tasks,
         "max_sandboxes": max_sandboxes,
         "max_subprocesses": max_subprocesses,
         "max_connections": max_connections,

@@ -2531,7 +2531,7 @@ def pad_tool_messages_for_token_counting(
     for i, msg in enumerate(messages):
         # Forward scan: Check for function_call_output without preceding function_call
         if is_function_call_output(msg):
-            call_id = msg.get("call_id", "")
+            call_id = msg.get("call_id") or ""
             has_matching_call = (
                 result
                 and is_response_function_tool_call(result[-1])
