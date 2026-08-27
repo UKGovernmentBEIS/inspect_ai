@@ -41,6 +41,9 @@ _SERVER_STARTUP_TIMEOUT = 5
 _SERVER_PROCESS_STOP_TIMEOUT = 5
 
 
+# Shapes for peeking at host->injectable control RPCs — a different wire
+# contract from the server-relay envelope models in
+# _remote_tools/_mcp/jsonrpc_types.py; the two are not interchangeable.
 class JSONRPCIncoming(BaseModel):
     jsonrpc: Literal["2.0"]
     method: str
