@@ -47,6 +47,7 @@ logger = getLogger(__name__)
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
+    from inspect_ai._control.scoring import TaskScoring
     from inspect_ai._display.core.display import TaskCancel
     from inspect_ai._eval.task.scheduler import SampleRequeue
     from inspect_ai.log._config_update import ConfigUpdate
@@ -236,6 +237,15 @@ class EvalState:
     starts (the scheduler it closes over doesn't exist at
     :func:`register_eval` time); ``None`` for reused/synthetic evals, and
     detached alongside :attr:`live` when a retry supersedes the attempt."""
+
+    task_scoring: "TaskScoring | None" = None
+    """The running attempt's interim-scoring capability — the task's scorers
+    and scoring inputs as resolved at eval start, published for the control
+    channel's ``task score`` directive (see :mod:`inspect_ai._control.scoring`
+    and ``design/ctl/interim-scoring.md``). Set by :func:`set_task_scoring`
+    from the task runner; ``None`` for reused/synthetic evals (nothing is
+    running, so there is nothing to score in-process), and detached alongside
+    :attr:`live` when a retry supersedes the attempt."""
 
     deferred_sample_stats: DeferredStatsProvider | None = None
     """Lazy accessor for a reused eval's summaries-derived stats
@@ -676,6 +686,20 @@ def set_sample_requeue(eval_id: str, handle: "SampleRequeue | None") -> None:
             state.sample_requeue = handle
 
 
+def set_task_scoring(eval_id: str, handle: "TaskScoring | None") -> None:
+    """Register the running attempt's interim-scoring capability.
+
+    Called by ``task_run`` alongside registration, with the task's scorers
+    and scoring inputs as resolved at eval start (the interim-scoring pass
+    uses the task's own scorers — a control-channel non-goal to override
+    them mid-flight). Silently no-ops if the eval isn't registered.
+    """
+    with _lock:
+        state = _eval_states.get(eval_id)
+        if state is not None:
+            state.task_scoring = handle
+
+
 def record_samples_added(
     eval_id: str, total: int, *, sample_ids: list[str | int] | None = None
 ) -> None:
@@ -778,7 +802,13 @@ def detach_eval_live(eval_id: str) -> None:
 
     The attempt-scoped :attr:`sample_requeue` handle is detached here too: a
     requeue aimed at a superseded attempt's ``eval_id`` must be rejected, not
-    mutate a dead attempt's scheduler.
+    mutate a dead attempt's scheduler. Likewise :attr:`task_scoring` — a
+    scoring pass aimed at a superseded attempt must not run against a dead
+    attempt's recorder (the retry attempt registers a fresh handle) — and a
+    scoring pass already *running* against this attempt is cancelled: left
+    alone it would keep presenting itself as the task's current pass and,
+    via the one-pass-per-task guard, block ``ctl task score`` against the
+    new attempt until it drained.
 
     No-ops if the eval isn't registered.
     """
@@ -787,6 +817,11 @@ def detach_eval_live(eval_id: str) -> None:
         if state is not None:
             state.live = None
             state.sample_requeue = None
+            state.task_scoring = None
+    if state is not None and state.task_id:
+        from inspect_ai._control.scoring import cancel_score_pass
+
+        cancel_score_pass(state.task_id, eval_id)
 
 
 def invalidate_log_sample_summaries(eval_id: str) -> None:
@@ -908,18 +943,24 @@ def reset_run_registries() -> None:
     here, not at the call sites.
     """
     from inspect_ai._control.config_record import reset_process_config_updates
+    from inspect_ai._control.max_tasks import reset_max_tasks_override
     from inspect_ai._control.pause import (
         reset_process_pause,
         reset_task_pause_gates,
     )
+    from inspect_ai._control.scoring import reset_score_passes
     from inspect_ai.model._generate_overrides import (
         reset_generate_config_overrides,
     )
+    from inspect_ai.model._throughput import init_model_throughput
     from inspect_ai.util._limit_overrides import reset_sample_limit_overrides
 
     clear_all_eval_states()
     reset_generate_config_overrides()
+    reset_max_tasks_override()
     reset_sample_limit_overrides()
     reset_process_config_updates()
     reset_task_pause_gates()
+    init_model_throughput()
     reset_process_pause()
+    reset_score_passes()
