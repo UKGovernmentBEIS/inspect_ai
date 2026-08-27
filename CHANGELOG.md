@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Eval logs: Users can chain conditional S3 writes using the ETag returned by `write_eval_log()` and `write_eval_log_async()`.
 - Breaking (tests only) Sandboxes: `inspect_ai.util._sandbox.self_check` is now a collection of plain pytest tests. See docstring for migration instructions.
 - Eval Set: A worker running a selection now skips the tasks it was not selected to run, so a large eval set need not cost every worker its full startup memory.
 - Eval Set: A selection document's operational overrides gain a dataset `limit` and `max_sandboxes`.
@@ -20,12 +21,17 @@
 - Eval Log: Each logged sample now records the effective per-sample limits it ran under (new `message_limit` / `time_limit` fields alongside the existing `token_limit`), including mid-run `inspect ctl config` retunes.
 - Sandbox: Sandbox-tools binaries downloaded from S3 are now verified against SHA256 digests pinned in the package; failures warn by default, or fail when `INSPECT_SANDBOX_TOOLS_STRICT_DIGESTS` is set.
 - Sandbox: `bash_session` no longer stops returning output for the rest of the session when multibyte output happens to be split mid-character across reads.
+- Sandbox: MCP sessions in sandboxes now work regardless of installed mcp version; the injected sandbox-tools binary is smaller and tool calls start faster.
 - Docker Sandbox: New `--sandbox-prebuilt` option (`sandbox_prebuilt` on `eval()`) skips image builds and fails fast at task startup when a prebuilt image is missing.
 - Docker Sandbox: `x-local: false` on a compose service is now treated the same as omitting `x-local` (the image is pulled) rather than marking the image as local.
 - Control Channel: New `inspect ctl sample store` command reads a running or just-finished sample's current store directly (with server-side `--key` exact/prefix filtering).
 - Control Channel: New `inspect ctl sample cancel-tool-call` cancels one hung tool call (the model sees an ordinary tool timeout and the sample continues), with pending tool calls now visible in `inspect ctl sample list --json`.
 - Metrics: Tasks can now declare a `headline_metric` naming which scorer and metric summarise the eval, honored by the log listing, the progress display, and `evals_df()`.
 - Models: `Model.generate()` and `Model.generate_loop()` accept an optional `on_stream` callback that by itself enables provider streaming and receives incremental events (text/reasoning/tool-call deltas and retry boundaries), with streamed progress now also visible on `inspect ctl sample list`.
+- Models: `on_stream` now delivers stream events from the OpenAI, OpenAI-compatible (Together, Fireworks, etc.), Grok, and SageMaker providers, in addition to Anthropic and Google.
+- Models: Streamed OpenAI-compatible responses stopped by a content filter now return `stop_reason="content_filter"` (as non-streamed ones do) instead of failing the call.
+- Models: Streamed OpenAI-compatible completions now report token usage, and explicit `stream=true` with non-strict tools no longer fails before the request is sent.
+- Models: The `stream`/`streaming` model args now accept `auto` uniformly across providers, and unrecognized values raise an error instead of silently enabling or disabling streaming.
 - Anthropic: Fixed a crash (`ValidationError` failing the sample) when native compaction ran with streaming enabled.
 - Control Channel: `inspect ctl config --json` refusals against an older eval process now emit the structured `{"error": ...}` envelope instead of only stderr prose.
 - Refactor: Consolidated the per-sample lifecycle in the task runner; samples now reach terminal state before metrics/early-stopping hooks run, so a raising or suspended hook cannot leave a sample uncounted or a finished task accepting requeue/cancel.
