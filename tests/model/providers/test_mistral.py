@@ -1,3 +1,4 @@
+import logging
 from typing import Any
 
 import pytest
@@ -605,6 +606,46 @@ async def test_mistral_completion_from_stream_text_only() -> None:
     message = completion.choices[0].message
     assert message is not None and message.content == "hello"
     assert completion.choices[0].finish_reason == "stop"
+
+
+@skip_if_no_mistral_package
+async def test_mistral_completion_from_stream_missing_usage_warns(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A stream ending without usage warns rather than under-counting silently."""
+    from mistralai.client.models import (
+        CompletionChunk,
+        CompletionEvent,
+        CompletionResponseStreamChoice,
+        DeltaMessage,
+    )
+
+    from inspect_ai.model._providers.mistral import mistral_completion_from_stream
+
+    async def _events() -> Any:
+        yield CompletionEvent(
+            data=CompletionChunk(
+                # unique model name: warn_once dedupes on message text
+                # process-wide, and other stream tests also omit usage
+                id="cmpl-1",
+                model="mistral-missing-usage-test",
+                choices=[
+                    CompletionResponseStreamChoice(
+                        index=0,
+                        delta=DeltaMessage(content="hi"),
+                        finish_reason="stop",
+                    )
+                ],
+            )
+        )
+
+    with caplog.at_level(logging.WARNING, logger="inspect_ai.model._providers.mistral"):
+        completion = await mistral_completion_from_stream(_events())
+    assert completion.usage.total_tokens == 0
+    assert any(
+        "reported no token usage for a streamed response" in record.message
+        for record in caplog.records
+    )
 
 
 @skip_if_no_mistral_package

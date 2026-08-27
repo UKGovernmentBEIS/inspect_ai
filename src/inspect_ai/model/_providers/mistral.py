@@ -1,6 +1,7 @@
 import functools
 import json
 import os
+from logging import getLogger
 from typing import Any, AsyncIterator, Literal, NamedTuple
 
 from mistralai.client import Mistral
@@ -56,6 +57,7 @@ from inspect_ai._util.content import (
 )
 from inspect_ai._util.http import is_retryable_http_status
 from inspect_ai._util.images import inline_media_data_uri, provider_image_data_uri
+from inspect_ai._util.logger import warn_once
 from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.model._reasoning import parse_content_with_reasoning
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
@@ -97,6 +99,8 @@ from .util import (
     resolve_api_key,
 )
 from .util.hooks import HttpxHooks
+
+logger = getLogger(__name__)
 
 AZURE_MISTRAL_API_KEY = "AZURE_MISTRAL_API_KEY"
 AZUREAI_MISTRAL_API_KEY = "AZUREAI_MISTRAL_API_KEY"
@@ -490,13 +494,22 @@ async def mistral_completion_from_stream(
     if completion_id is None or model is None:
         raise RuntimeError("Streaming response ended without delivering any chunks.")
 
+    # a streamed response may end without a usage chunk; usage is a required
+    # response field so fabricate zeros, but warn rather than under-count
+    # silently
+    if usage is None:
+        warn_once(
+            logger,
+            f"mistral model '{model}' reported no token usage for a streamed "
+            "response; pass -M streaming=false if you require usage reporting.",
+        )
+        usage = UsageInfo(prompt_tokens=0, completion_tokens=0, total_tokens=0)
+
     return MistralChatCompletionResponse(
         id=completion_id,
         object="chat.completion",
         model=model,
-        usage=usage
-        if usage is not None
-        else UsageInfo(prompt_tokens=0, completion_tokens=0, total_tokens=0),
+        usage=usage,
         created=created or 0,
         choices=[
             MistralChatCompletionChoice(

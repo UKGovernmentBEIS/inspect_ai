@@ -257,6 +257,18 @@ async def test_groq_completion_from_stream_empty() -> None:
         await groq_completion_from_stream(_chunk_iter([]))
 
 
+async def test_groq_completion_from_stream_error() -> None:
+    """A chunk-level x_groq.error raises rather than truncating silently."""
+    chunks = [
+        _groq_chunk(
+            dict(choices=[dict(index=0, delta=dict(content="hel"), finish_reason=None)])
+        ),
+        _groq_chunk(dict(choices=[], x_groq=dict(error="over capacity"))),
+    ]
+    with pytest.raises(RuntimeError, match="stopped early: over capacity"):
+        await groq_completion_from_stream(_chunk_iter(chunks))
+
+
 @skip_if_no_groq
 async def test_groq_stream_end_to_end() -> None:
     """Passing on_stream alone enables streaming and reconstructs the output."""

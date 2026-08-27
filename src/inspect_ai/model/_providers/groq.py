@@ -434,7 +434,9 @@ async def groq_completion_from_stream(
 
     Usage arrives on the final chunk (under `x_groq` and/or the chunk-level
     `usage` field), carrying the same timing metadata (queue/prompt/completion
-    time) as a non-streamed response.
+    time) as a non-streamed response. A chunk carrying `x_groq.error` (the
+    server stopped the stream early) raises rather than returning a truncated
+    completion.
     """
     report_model_stream_start()
     completion_id: str | None = None
@@ -449,6 +451,13 @@ async def groq_completion_from_stream(
         created = created if created is not None else chunk.created
         model = model or chunk.model
         system_fingerprint = system_fingerprint or chunk.system_fingerprint
+        # the SDK raises only for top-level `error` keys; a chunk-level
+        # x_groq.error means the server stopped the stream early — fail rather
+        # than return a silently truncated completion
+        if chunk.x_groq is not None and chunk.x_groq.error:
+            raise RuntimeError(
+                f"Streaming response stopped early: {chunk.x_groq.error}"
+            )
         chunk_usage = chunk.usage or (chunk.x_groq.usage if chunk.x_groq else None)
         if chunk_usage is not None:
             usage = chunk_usage
