@@ -998,6 +998,12 @@ def tool_params(input: dict[str, Any], func: Callable[..., Any]) -> dict[str, An
     # build params
     params: dict[str, Any] = {}
     for param_name, param in signature.parameters.items():
+        if param.kind in (
+            inspect.Parameter.VAR_POSITIONAL,
+            inspect.Parameter.VAR_KEYWORD,
+        ):
+            continue
+
         # Parse docstring
         docstring_info = parse_docstring(docstring, param_name)
 
