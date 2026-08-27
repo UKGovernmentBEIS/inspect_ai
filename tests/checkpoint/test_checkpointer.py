@@ -353,6 +353,34 @@ async def test_token_interval_fires_when_usage_crosses_threshold(
         assert cp.fire_count == 2
 
 
+async def test_token_interval_first_tick_after_restore_not_full_interval(
+    dirs: _Dirs,
+) -> None:
+    """Seeding _reference from the snapshot avoids delaying the first post-resume tick."""
+    fake_tokens = [5000]
+
+    def tokens() -> int:
+        return fake_tokens[0]
+
+    hydration = _fake_hydration(dirs.checkpoints, dirs.context)
+    hydration.host.sample_runtime = {"token_interval_reference": 5000}
+
+    with patch("inspect_ai.model._model.sample_total_tokens", tokens):
+        cp = _CountingCheckpointer(
+            config=ResolvedCheckpointConfig(trigger=TokenInterval(every=1000)),
+            hydration=hydration,
+            resume_checkpoint=None,
+            reset_transcript_store=True,
+        )
+        fake_tokens[0] = 5500
+        await cp.tick()
+        assert cp.fire_count == 0
+
+        fake_tokens[0] = 6100
+        await cp.tick()
+        assert cp.fire_count == 1
+
+
 # --- manual ---------------------------------------------------------------
 
 
@@ -1559,6 +1587,129 @@ async def test_write_host_context_skips_empty_assistant_internal(
 
     assert not (work / "assistant_internal.json").exists()
     assert host_context.read(str(work)).assistant_internal is None
+
+
+async def test_write_host_context_writes_raw_model_usage(tmp_path: Path) -> None:
+    """Fire writes raw ModelUsage (not the metered number) and read() round-trips."""
+    from inspect_ai.model._model_output import ModelUsage
+    from inspect_ai.util._checkpoint._layout import host_context
+    from inspect_ai.util._limit import record_model_usage, token_limit
+
+    usage = ModelUsage(input_tokens=10, output_tokens=3, total_tokens=13)
+    with token_limit(100, type="output"):
+        record_model_usage(usage)
+        cp = _make_cp()
+        work = tmp_path / "work"
+        work.mkdir()
+        await cp._write_host_context(str(work), Store())
+
+    data = json.loads((work / "sample_runtime.json").read_text())
+    assert data["token_usage"]["input_tokens"] == 10
+    assert data["token_usage"]["output_tokens"] == 3
+    assert data["token_usage"]["total_tokens"] == 13
+    assert host_context.read(str(work)).sample_runtime == data
+
+
+async def test_write_host_context_always_writes_sample_runtime(tmp_path: Path) -> None:
+    """Zeros are written so presence means this checkpoint has runtime state."""
+    from inspect_ai.util._checkpoint._layout import host_context
+
+    cp = _make_cp()
+    work = tmp_path / "work"
+    work.mkdir()
+    await cp._write_host_context(str(work), Store())
+
+    data = host_context.read(str(work)).sample_runtime
+    assert isinstance(data, dict)
+    token_usage = data["token_usage"]
+    assert isinstance(token_usage, dict)
+    assert token_usage["total_tokens"] == 0
+
+
+async def test_host_context_read_missing_sample_runtime_is_none(tmp_path: Path) -> None:
+    """Pre-this-file checkpoints read as sample_runtime=None (legacy reset-to-0)."""
+    from inspect_ai.util._checkpoint._layout import host_context
+    from inspect_ai.util._checkpoint._layout.host_context import SAMPLE_RUNTIME
+
+    cp = _make_cp()
+    work = tmp_path / "work"
+    work.mkdir()
+    await cp._write_host_context(str(work), Store())
+    (work / SAMPLE_RUNTIME).unlink()
+    assert host_context.read(str(work)).sample_runtime is None
+
+
+async def test_resume_for_scoring_over_limit_does_not_raise(tmp_path: Path) -> None:
+    """resume_for_scoring reseeds over-limit usage without calling check()."""
+    from inspect_ai.model._model_output import ModelUsage
+    from inspect_ai.util._limit import record_model_usage, token_limit
+
+    with token_limit(10):
+        record_model_usage(ModelUsage(total_tokens=11))
+        from inspect_ai.util._checkpoint.sample_runtime import dump_sample_runtime
+
+        payload = dump_sample_runtime()
+
+    hydration = _fake_hydration(str(tmp_path / "ckpts"), str(tmp_path / "work"))
+    hydration.host.sample_runtime = payload
+    setup = _CheckpointerSetup(
+        config=ResolvedCheckpointConfig(trigger=TurnInterval(every=1)),
+        log_location=str(tmp_path / "t.eval"),
+        sample_id="s",
+        epoch=0,
+        resume_checkpoint=ResumeCheckpoint(
+            sample_checkpoints_dir="/x", attempt="resume_for_scoring"
+        ),
+    )
+    with (
+        token_limit(10) as limit,
+        patch(
+            "inspect_ai.util._checkpoint.checkpointer_impl.hydrate",
+            return_value=hydration,
+        ),
+    ):
+        await setup.__aenter__()
+        assert limit.usage == 11
+        setup.close()
+
+
+async def test_resume_over_limit_raises(tmp_path: Path) -> None:
+    """Normal resume calls check() after restore and raises when already over limit."""
+    from inspect_ai.model._model_output import ModelUsage
+    from inspect_ai.util._limit import (
+        LimitExceededError,
+        record_model_usage,
+        token_limit,
+    )
+
+    with token_limit(10):
+        record_model_usage(ModelUsage(total_tokens=11))
+        from inspect_ai.util._checkpoint.sample_runtime import dump_sample_runtime
+
+        payload = dump_sample_runtime()
+
+    hydration = _fake_hydration(str(tmp_path / "ckpts"), str(tmp_path / "work"))
+    hydration.host.sample_runtime = payload
+    setup = _CheckpointerSetup(
+        config=ResolvedCheckpointConfig(trigger=TurnInterval(every=1)),
+        log_location=str(tmp_path / "t.eval"),
+        sample_id="s",
+        epoch=0,
+        resume_checkpoint=ResumeCheckpoint(
+            sample_checkpoints_dir="/x", attempt="resume"
+        ),
+    )
+    with (
+        token_limit(10),
+        patch(
+            "inspect_ai.util._checkpoint.checkpointer_impl.hydrate",
+            return_value=hydration,
+        ),
+        pytest.raises(LimitExceededError) as exc_info,
+    ):
+        await setup.__aenter__()
+    assert exc_info.value.type == "token"
+    setup.close()
 
 
 def test_track_noop_session() -> None:
