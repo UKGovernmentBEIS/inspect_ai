@@ -130,7 +130,7 @@ from inspect_ai.model._model import (
     sample_model_usage,
     sample_role_usage,
 )
-from inspect_ai.model._model_output import ModelUsage
+from inspect_ai.model._model_output import ModelOutput, ModelUsage
 from inspect_ai.scorer import Scorer, Target
 from inspect_ai.scorer._metric import Metric, SampleScore
 from inspect_ai.scorer._reducer.types import ScoreReducer
@@ -3048,33 +3048,84 @@ async def log_sample(
     *,
     from_memory: bool,
 ) -> EvalSample:
-    # No realtime buffer DB, or the full history is still resident in memory:
-    # log directly from the in-memory sample (which carries its events). This
-    # avoids the open_sample_history -> materialize_streaming_sample round-trip
-    # (read every event back out of SQLite + re-validate). `complete_sample`
-    # still finalizes the buffer DB via `_finalize_sample`, so when a realtime
-    # buffer exists it stays consistent for live viewing.
-    if logger.buffer_db is None or from_memory:
-        await logger.complete_sample(
-            condense_sample(eval_sample, log_images), flush=True
-        )
-        return eval_sample
+    try:
+        # No realtime buffer DB, or the full history is still resident in memory:
+        # log directly from the in-memory sample (which carries its events). This
+        # avoids the open_sample_history -> materialize_streaming_sample round-trip
+        # (read every event back out of SQLite + re-validate). `complete_sample`
+        # still finalizes the buffer DB via `_finalize_sample`, so when a realtime
+        # buffer exists it stays consistent for live viewing.
+        if logger.buffer_db is None or from_memory:
+            await logger.complete_sample(
+                condense_sample(eval_sample, log_images), flush=True
+            )
+            return eval_sample
 
-    # Events were bounded-evicted from memory: stream them back from the buffer
-    # DB (the only place the full history still lives) without re-materializing
-    # the whole sample in memory at once.
-    logging_sample = condense_sample(
-        eval_sample.model_copy(update={"events": [], "events_data": None}),
-        log_images,
-    )
-    with logger.buffer_db.open_sample_history(
-        eval_sample.id, eval_sample.epoch
-    ) as sample_history:
-        materialized_sample = materialize_streaming_sample(eval_sample, sample_history)
-        await logger.complete_sample_streaming(
-            logging_sample, sample_history, flush=True
+        # Events were bounded-evicted from memory: stream them back from the buffer
+        # DB (the only place the full history still lives) without re-materializing
+        # the whole sample in memory at once.
+        logging_sample = condense_sample(
+            eval_sample.model_copy(update={"events": [], "events_data": None}),
+            log_images,
         )
-    return materialized_sample
+        with logger.buffer_db.open_sample_history(
+            eval_sample.id, eval_sample.epoch
+        ) as sample_history:
+            materialized_sample = materialize_streaming_sample(
+                eval_sample, sample_history
+            )
+            await logger.complete_sample_streaming(
+                logging_sample, sample_history, flush=True
+            )
+        return materialized_sample
+    except Exception as ex:
+        # A sample whose content defeats condensation/serialization (e.g.
+        # structures nested beyond pydantic-core's serialization depth limit)
+        # must not abort the whole eval: this code runs after the
+        # fail_on_error decision, so an escaping exception here would tear
+        # down the scheduler task group (cancelling in-flight sibling
+        # samples) and lose this sample's record entirely. Degrade instead:
+        # strip the sample content and log an error record in its place.
+        py_logger.warning(
+            f"Unable to serialize sample for logging "
+            f"(id: {eval_sample.id}, epoch: {eval_sample.epoch}): {ex}. "
+            f"Logging the sample with its content removed."
+        )
+        fallback_sample = sample_serialization_fallback(eval_sample, ex)
+        await logger.complete_sample(
+            condense_sample(fallback_sample, log_images), flush=True
+        )
+        return fallback_sample
+
+
+def sample_serialization_fallback(eval_sample: EvalSample, ex: Exception) -> EvalSample:
+    """Copy of `eval_sample` with content fields stripped so it can be logged.
+
+    Used when condensing/serializing the full sample for logging fails.
+    Framework-generated scalar fields (ids, timing, usage, limits) are
+    retained; the sample content that may have defeated serialization
+    (messages, output, events, store, metadata, scores) is removed, and the
+    failure is recorded as the sample's error (unless it already has one).
+    """
+    return eval_sample.model_copy(
+        update=dict(
+            metadata={},
+            messages=[],
+            output=ModelOutput(model=eval_sample.output.model),
+            scores=None,
+            store={},
+            events=[],
+            events_data=None,
+            attachments={},
+            error_retries=[
+                retry.model_copy(update=dict(events=None))
+                for retry in eval_sample.error_retries
+            ]
+            if eval_sample.error_retries is not None
+            else None,
+            error=eval_sample.error or eval_error(ex, type(ex), ex, ex.__traceback__),
+        )
+    )
 
 
 async def _resume_if_checkpointed(

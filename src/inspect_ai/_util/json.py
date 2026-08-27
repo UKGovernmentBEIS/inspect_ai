@@ -3,6 +3,7 @@ from copy import deepcopy
 from typing import (
     TYPE_CHECKING,
     Any,
+    Iterable,
     Literal,
     Mapping,
     TypeAlias,
@@ -22,6 +23,32 @@ if TYPE_CHECKING:
 
 # Pre-compile regex to quickly find paths ending in an index for json_changes (e.g., /items/0)
 _ARRAY_INDEX_RE = re.compile(r"^(.*)/(\d+)$")
+
+
+def exceeds_max_depth(value: object, max_depth: int) -> bool:
+    """Whether `value` nests containers deeper than `max_depth` levels.
+
+    Iterative traversal (explicit stack) so that measuring the depth of an
+    adversarially deep value can't itself exhaust the interpreter stack.
+    `BaseModel` values are descended into via their fields (pydantic-core
+    serializes them recursively, so their nesting counts toward the depth a
+    serializer must tolerate).
+    """
+    stack: list[tuple[object, int]] = [(value, 1)]
+    while stack:
+        current, depth = stack.pop()
+        if isinstance(current, dict):
+            children: Iterable[object] = current.values()
+        elif isinstance(current, (list, tuple, set)):
+            children = current
+        elif isinstance(current, BaseModel):
+            children = current.__dict__.values()
+        else:
+            continue
+        if depth > max_depth:
+            return True
+        stack.extend((child, depth + 1) for child in children)
+    return False
 
 
 def is_ijson_nan_inf_error(

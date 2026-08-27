@@ -23,7 +23,7 @@ from inspect_ai._util.content import (
     ContentVideo,
 )
 from inspect_ai._util.hash import mm3_hash
-from inspect_ai._util.json import JsonChange
+from inspect_ai._util.json import JsonChange, exceeds_max_depth
 from inspect_ai._util.url import is_data_uri
 from inspect_ai.dataset._dataset import Sample
 from inspect_ai.event._pool import (
@@ -58,6 +58,16 @@ logger = getLogger(__name__)
 
 ATTACHMENT_PROTOCOL = "attachment://"
 
+MAX_SAMPLE_DUMP_DEPTH = 240
+"""Maximum nesting depth allowed in a condensed sample's full dump.
+
+Set below pydantic-core's hard JSON serialization recursion limit (it fails at
+depth ~254) with headroom above `MAX_JSON_VALUE_DEPTH` (200) plus the nesting
+the sample's own structure adds around walked values, so legitimately condensed
+content always passes and unserializable content is caught before it reaches
+the log writer.
+"""
+
 
 class WalkContext(TypedDict):
     message_cache: dict[str, tuple[ChatMessage, ChatMessage]]
@@ -80,18 +90,20 @@ class WalkContext(TypedDict):
 def attachment_refs_from_value(value: object) -> set[str]:
     refs: set[str] = set()
 
-    def collect(value: object) -> None:
-        if isinstance(value, str):
-            if value.startswith(ATTACHMENT_PROTOCOL):
-                refs.add(value.removeprefix(ATTACHMENT_PROTOCOL))
-        elif isinstance(value, dict):
-            for item in value.values():
-                collect(item)
-        elif isinstance(value, (list, tuple, set)):
-            for item in value:
-                collect(item)
+    # iterative traversal (explicit stack): sample content can embed deeply
+    # nested model-emitted structures, which must not be able to exhaust the
+    # interpreter stack during log condensation
+    stack: list[object] = [value]
+    while stack:
+        current = stack.pop()
+        if isinstance(current, str):
+            if current.startswith(ATTACHMENT_PROTOCOL):
+                refs.add(current.removeprefix(ATTACHMENT_PROTOCOL))
+        elif isinstance(current, dict):
+            stack.extend(current.values())
+        elif isinstance(current, (list, tuple, set)):
+            stack.extend(current)
 
-    collect(value)
     return refs
 
 
@@ -258,9 +270,22 @@ def condense_sample(sample: EvalSample, log_images: bool = True) -> EvalSample:
     # Rewrites can disagree across fields that share one attachment. Determine
     # liveness only after every field is condensed so no surviving reference is
     # orphaned; the full dump is the correctness cost of that final GC pass.
-    referenced_attachments = attachment_refs_from_value(
-        condensed_sample.model_dump(mode="python", exclude={"attachments"})
-    )
+    dumped_sample = condensed_sample.model_dump(mode="python", exclude={"attachments"})
+
+    # Refuse to produce a sample the log writer cannot serialize: pydantic-core
+    # enforces a hard recursion limit (~255) when writing JSON, and content
+    # nested beyond it (e.g. in un-walked `Any`-typed fields like store or
+    # metadata) would otherwise detonate at flush time — outside the
+    # sample-logging path that can degrade gracefully (see `log_sample` in
+    # _eval/task/run.py, which handles this error by logging a stripped record).
+    if exceeds_max_depth(dumped_sample, MAX_SAMPLE_DUMP_DEPTH):
+        raise ValueError(
+            f"Sample content (id: {sample.id}, epoch: {sample.epoch}) is nested "
+            f"more than {MAX_SAMPLE_DUMP_DEPTH} levels deep and cannot be "
+            f"serialized to the eval log."
+        )
+
+    referenced_attachments = attachment_refs_from_value(dumped_sample)
     return condensed_sample.model_copy(
         update={
             "attachments": {
@@ -664,15 +689,36 @@ def walk_state_json_change(
     )
 
 
+MAX_JSON_VALUE_DEPTH = 200
+"""Maximum container nesting depth walked (and preserved) in JSON values.
+
+Deeper content is replaced with `JSON_VALUE_MAX_DEPTH_EXCEEDED`: the walk
+recurses per nesting level (unbounded depth would exhaust the interpreter
+stack), and pydantic-core refuses to serialize structures nested beyond a
+hard limit of ~255, which would otherwise crash sample logging. The cap
+leaves ample headroom over `MAX_TOOL_CALL_ARGUMENTS_DEPTH` (100), so
+depth-bounded tool arguments are never truncated here.
+"""
+
+JSON_VALUE_MAX_DEPTH_EXCEEDED = "<max nesting depth exceeded>"
+"""Marker substituted for JSON content nested beyond `MAX_JSON_VALUE_DEPTH`."""
+
+
 def walk_json_value(
-    value: JsonValue, content_fn: Callable[[str], str], context: WalkContext
+    value: JsonValue,
+    content_fn: Callable[[str], str],
+    context: WalkContext,
+    depth: int = 0,
 ) -> JsonValue:
     if isinstance(value, str):
         return content_fn(value)
-    elif isinstance(value, list):
-        return walk_json_list(value, content_fn, context)
-    elif isinstance(value, dict):
-        return walk_json_dict(value, content_fn, context)
+    elif isinstance(value, (list, dict)):
+        if depth >= MAX_JSON_VALUE_DEPTH:
+            return JSON_VALUE_MAX_DEPTH_EXCEEDED
+        elif isinstance(value, list):
+            return walk_json_list(value, content_fn, context, depth)
+        else:
+            return walk_json_dict(value, content_fn, context, depth)
     else:
         return value
 
@@ -681,11 +727,12 @@ def walk_json_list(
     value: list[JsonValue],
     content_fn: Callable[[str], str],
     context: WalkContext,
+    depth: int = 0,
 ) -> list[JsonValue]:
     walked_list: list[JsonValue] | None = None
 
     for i, v in enumerate(value):
-        walked = walk_json_value(v, content_fn, context)
+        walked = walk_json_value(v, content_fn, context, depth + 1)
         if walked is not v:
             if walked_list is None:
                 walked_list = list(value)
@@ -698,11 +745,12 @@ def walk_json_dict(
     value: dict[str, JsonValue],
     content_fn: Callable[[str], str],
     context: WalkContext,
+    depth: int = 0,
 ) -> dict[str, JsonValue]:
     walked_dict: dict[str, JsonValue] | None = None
 
     for k, v in value.items():
-        walked = walk_json_value(v, content_fn, context)
+        walked = walk_json_value(v, content_fn, context, depth + 1)
         if walked is not v:
             if walked_dict is None:
                 walked_dict = value.copy()

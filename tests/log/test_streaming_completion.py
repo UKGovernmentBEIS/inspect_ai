@@ -460,3 +460,43 @@ async def test_json_recorder_log_sample_streaming_includes_history_attachments(
     assert isinstance(logged_info_event.data, dict)
     assert logged_info_event.data["content"] == buffered_info_event.data["content"]
     assert long_content in log.samples[0].attachments.values()
+
+
+@pytest.mark.anyio
+async def test_log_sample_degrades_gracefully_when_serialization_fails(
+    tmp_path,
+) -> None:
+    # a sample whose content defeats condensation/serialization (here a store
+    # value nested beyond pydantic-core's serialization depth limit) must not
+    # raise out of log_sample (which would tear down the whole eval after the
+    # fail_on_error decision): it is logged with content stripped and the
+    # failure recorded as the sample's error
+    deep: dict[str, object] = {"a": 1}
+    for _ in range(1000):
+        deep = {"a": deep}
+    sample = _sample().model_copy(
+        update={
+            "messages": [ChatMessageUser(content="hello")],
+            "store": {"deep": deep},
+        }
+    )
+    recorder, spec = await _start_eval_recorder(tmp_path)
+    logger = TaskLoggerShim(None)
+    logger.recorder = recorder
+    logger.eval = spec
+    logger.flush_buffer = 1
+    logger.flush_pending = []
+    logger._samples_completed = 0
+
+    logged = await log_sample(sample, logger, log_images=True, from_memory=True)
+    await _finish_eval(recorder, spec)
+
+    assert logged.store == {}
+    assert logged.messages == []
+    assert logged.error is not None
+
+    log = await read_eval_log_async(str(tmp_path / "streaming.eval"))
+    assert log.samples is not None and len(log.samples) == 1
+    assert log.samples[0].id == "sample"
+    assert log.samples[0].store == {}
+    assert log.samples[0].error is not None

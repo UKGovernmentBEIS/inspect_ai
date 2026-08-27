@@ -1,6 +1,17 @@
+import pytest
 from pydantic import JsonValue
 
-from inspect_ai.log._condense import WalkContext, walk_json_value, walk_tool_call
+from inspect_ai.log._condense import (
+    ATTACHMENT_PROTOCOL,
+    JSON_VALUE_MAX_DEPTH_EXCEEDED,
+    MAX_JSON_VALUE_DEPTH,
+    WalkContext,
+    attachment_refs_from_value,
+    condense_sample,
+    walk_json_value,
+    walk_tool_call,
+)
+from inspect_ai.log._log import EvalSample
 from inspect_ai.tool._tool_call import ToolCall, ToolCallContent
 
 
@@ -82,3 +93,57 @@ def test_walk_json_value_copies_only_changed_json_path() -> None:
     assert isinstance(walked["changed"], list)
     assert walked["changed"][0] is not changed_dict
     assert walked["changed"][0] == {"text": "changed"}
+
+
+def test_walk_json_value_truncates_pathologically_deep_values() -> None:
+    # model-emitted structures can nest arbitrarily deep; the walk must not
+    # exhaust the interpreter stack, and content beyond MAX_JSON_VALUE_DEPTH
+    # is replaced with a marker (pydantic-core would refuse to serialize it)
+    deep: JsonValue = "leaf"
+    for _ in range(10_000):
+        deep = {"a": deep}
+
+    walked = walk_json_value(deep, lambda content: content, walk_context())
+
+    depth = 0
+    while isinstance(walked, dict):
+        walked = walked["a"]
+        depth += 1
+    assert depth == MAX_JSON_VALUE_DEPTH
+    assert walked == JSON_VALUE_MAX_DEPTH_EXCEEDED
+
+
+def test_walk_json_value_preserves_values_within_depth_cap() -> None:
+    value: JsonValue = "leaf"
+    for _ in range(MAX_JSON_VALUE_DEPTH - 1):
+        value = {"a": value}
+
+    walked = walk_json_value(value, lambda content: content, walk_context())
+
+    assert walked is value
+
+
+def test_attachment_refs_from_value_handles_pathologically_deep_values() -> None:
+    deep: object = {"ref": f"{ATTACHMENT_PROTOCOL}abc123"}
+    for _ in range(10_000):
+        deep = {"a": [deep]}
+
+    assert attachment_refs_from_value(deep) == {"abc123"}
+
+
+def test_condense_sample_rejects_unserializable_depth() -> None:
+    # content in un-walked Any-typed fields (e.g. store) nested beyond what
+    # pydantic-core can serialize must be rejected by condense_sample (raising
+    # inside the sample-logging path, which degrades gracefully) rather than
+    # detonating later at log flush time, outside any per-sample handling
+    deep: dict[str, object] = {"a": 1}
+    for _ in range(1000):
+        deep = {"a": deep}
+    sample = EvalSample(
+        id="sample", epoch=1, input="question", target="answer", store={"deep": deep}
+    )
+
+    # ValueError from the depth guard (PydanticSerializationError, a ValueError
+    # subclass, on pydantic versions whose python-mode dump enforces the limit)
+    with pytest.raises(ValueError):
+        condense_sample(sample)
