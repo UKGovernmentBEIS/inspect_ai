@@ -330,9 +330,7 @@ class _StreamCollector:
 
 
 @skip_if_no_mistral_package
-def test_mistral_resolve_streaming_honors_on_stream(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_mistral_resolve_streaming_honors_on_stream() -> None:
     """Unset streaming is "auto": stream iff the caller passed on_stream."""
     from inspect_ai.model import ResponseSchema
     from inspect_ai.model._providers.mistral import MistralAPI

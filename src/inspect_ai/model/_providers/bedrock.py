@@ -725,7 +725,9 @@ class BedrockAPI(ModelAPI):
                         converse_response = await converse_response_from_stream(
                             stream_response["stream"]
                         )
-                        response = converse_response.model_dump()
+                        # exclude_none keeps the logged shape consistent
+                        # with the raw boto response of a non-streamed call
+                        response = converse_response.model_dump(exclude_none=True)
                     except ClientError as ex:
                         # ConverseStream needs the separate
                         # bedrock:InvokeModelWithResponseStream permission;
