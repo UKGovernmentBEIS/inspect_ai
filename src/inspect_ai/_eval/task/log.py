@@ -37,6 +37,7 @@ from inspect_ai.log import (
     EvalSpec,
     EvalStats,
     EvalStatus,
+    HeadlineMetric,
 )
 from inspect_ai.log._log import (
     EvalLog,
@@ -157,12 +158,13 @@ class TaskLogger:
         solver: SolverSpec | None,
         tags: list[str] | None,
         model: Model,
-        model_roles: dict[str, Model] | None,
+        model_roles: dict[str, Model | list[Model]] | None,
         dataset: Dataset,
         scorer: list[ScorerSpec] | None,
         metrics: list[MetricSpec | dict[str, list[MetricSpec]]]
         | dict[str, list[MetricSpec]]
         | None,
+        headline_metric: HeadlineMetric | None,
         sandbox: SandboxEnvironmentSpec | None,
         task_attribs: dict[str, Any],
         task_args: dict[str, Any],
@@ -262,6 +264,7 @@ class TaskLogger:
             ),
             scorers=eval_scorers,
             metrics=eval_metrics,
+            headline_metric=headline_metric,
             sandbox=sandbox,
             model_args=model_args,
             config=eval_config,

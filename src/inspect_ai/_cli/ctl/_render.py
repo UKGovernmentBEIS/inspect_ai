@@ -100,6 +100,51 @@ def _print_config(config: dict[str, Any], *, changed: bool) -> None:
                 + "not adjustable (no live sample limiter)"
             )
 
+    # max_tasks — the task dispatchers' live override (absent from an older
+    # server's view). With no live dispatcher (during batch startup / between
+    # sequential batches) there are no counters to show, but a set still
+    # lands in the override layer — say so rather than looking parked.
+    max_tasks_view = knobs.get("max_tasks")
+    if max_tasks_view is not None:
+        override = max_tasks_view.get("override")
+        launch = max_tasks_view.get("launch")
+        limit = max_tasks_view.get("limit")
+
+        def fmt_tasks(value: Any) -> str:
+            return "launch config" if value in (None, "clear") else f"{value}"
+
+        if launch is not None:
+            rendered = fmt_tasks(limit)
+            proposed = requested.get("max_tasks")
+            # a `clear` with no override in effect is a no-op (the effective
+            # limit already is the launch config) — no arrow, like the retry
+            # knobs' rendering of the same case
+            is_change = (
+                override is not None
+                if proposed == "clear"
+                else fmt_tasks(proposed) != fmt_tasks(limit)
+            )
+            if proposed is not None and is_change:
+                rendered += f" → {fmt_tasks(proposed)}"
+            rendered += (
+                f" ({max_tasks_view.get('in_flight')} in flight, "
+                f"{max_tasks_view.get('pending')} pending)"
+            )
+            if override is not None:
+                rendered += f" (override; launch: {launch})"
+        else:
+            rendered = (
+                f"{override} (override)" if override is not None else "launch config"
+            )
+            proposed = requested.get("max_tasks")
+            if proposed is not None and fmt_tasks(proposed) != fmt_tasks(override):
+                rendered += f" → {fmt_tasks(proposed)}"
+            rendered += (
+                " — no task dispatcher is live; applies to task dispatch "
+                "later in this run"
+            )
+        _echo(_knob_label("max tasks", "max_tasks") + rendered)
+
     sandboxes = (knobs.get("max_sandboxes") or {}).get("providers") or []
     if sandboxes:
         rendered = ", ".join(
@@ -363,6 +408,56 @@ def _message_summary(m: dict[str, Any]) -> str:
     elif m.get("has_error"):
         parts.append("error")
     return _truncate("  ".join(p for p in parts if p), 100)
+
+
+def _print_store(page: dict[str, Any], *, content: bool, full: bool) -> None:
+    """Render a store snapshot (per-key rows) plus a count footer.
+
+    The table is ``key | type | size [| value]`` per the design
+    (design/ctl/sample-store.md); ``--full`` pretty-prints the raw values.
+    The footer distinguishes an empty store from a filter that matched
+    nothing (``count`` is always the whole store's key count), and a
+    ``missing`` line names requested exact keys not present.
+    """
+    store = page.get("store") or {}
+    count = int(page.get("count") or 0)
+    status = page.get("status")
+
+    if full:
+        # Raw mode is for machine consumption; the human rendering is the
+        # compact projection, so just pretty-print the raw values.
+        _echo_raw(json_lib.dumps(store, indent=2))
+    elif not store:
+        _echo("(store is empty)" if count == 0 else "(no matching keys)")
+    else:
+        rows: list[tuple[str, ...]] = []
+        for key, projected in store.items():
+            projected = projected if isinstance(projected, dict) else {}
+            row: tuple[str, ...] = (
+                str(key),
+                str(projected.get("type", "") or ""),
+                str(projected.get("size", "") or ""),
+            )
+            if content:
+                # clamp client-side like the sibling tables (the server
+                # preview can be 256 chars, which would blow out the padded
+                # table width); the full preview remains available via --json
+                row += (_truncate(str(projected.get("value", "") or ""), 100),)
+            rows.append(row)
+        headers = ("key", "type", "size") + (("value",) if content else ())
+        _render_table(headers, rows)
+
+    shown = len(store)
+    footer = f"{shown} of {count} key" + ("" if count == 1 else "s")
+    if status:
+        footer += f"  ·  {_sanitize_line(str(status))}"
+    if not full and not content:
+        footer += "  ·  metadata only (pass --content for values)"
+    _echo()
+    _echo(footer)
+    missing = page.get("missing") or []
+    if missing:
+        _echo("missing: " + ", ".join(_sanitize_line(str(key)) for key in missing))
 
 
 def _event_summary(e: dict[str, Any]) -> str:
@@ -682,6 +777,7 @@ def _print_human_table(summaries: list[dict[str, Any]]) -> None:
     # `or 0` also covers an older server, which reports neither key.
     any_refusals = any((s.get("refusals") or 0) > 0 for s in summaries)
     any_http_retries = any((s.get("http_retries") or 0) > 0 for s in summaries)
+    any_tps = any((s.get("tokens_per_second") or 0) > 0 for s in summaries)
     # shown only when some task is paused (or holding samples — a hard model
     # pause can hold another task's grader calls without any latch source on
     # that row), so a paused run doesn't read as stalled (the cell names the
@@ -717,6 +813,8 @@ def _print_human_table(summaries: list[dict[str, Any]]) -> None:
             cells.append(_format_count(s.get("refusals")))
         if any_http_retries:
             cells.append(_format_count(s.get("http_retries")))
+        if any_tps:
+            cells.append(_format_rate(s.get("tokens_per_second")))
         if any_paused:
             cells.append(_format_paused(s))
         if any_resolving:
@@ -738,6 +836,10 @@ def _print_human_table(summaries: list[dict[str, Any]]) -> None:
         # Spelled out rather than "retries": the `attempts` column is also a
         # retry count (of whole task attempts), and these are HTTP-level.
         headers_list.append("http_retries")
+    if any_tps:
+        # Total (not output) tokens per second — the task summary tracks only
+        # total tokens; the per-model out tok/s view is `ctl model throughput`.
+        headers_list.append("tok/s")
     if any_paused:
         headers_list.append("paused")
     if any_resolving:
@@ -756,6 +858,11 @@ def _format_count(value: Any) -> str:
     claims and must not render the same way.
     """
     return "" if value is None else str(value)
+
+
+def _format_rate(value: Any) -> str:
+    """A rate cell: one decimal, or blank when the server didn't report it."""
+    return "" if value is None else f"{float(value):,.1f}"
 
 
 def _format_paused(summary: dict[str, Any]) -> str:

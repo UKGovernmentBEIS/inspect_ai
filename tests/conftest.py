@@ -2,6 +2,7 @@ import contextlib
 import faulthandler
 import importlib.util
 import inspect
+import logging
 import os
 import re
 import shutil
@@ -111,6 +112,63 @@ def chunked_corpus_small_chunks(
     return build_chunked_corpus(
         tmp_path_factory.mktemp("chunked_corpus_small"), CORPUS_SMALL_CHUNK_SIZE
     )
+
+
+class _DedupeRecordsFilter(logging.Filter):
+    """Pass each LogRecord object through the handler at most once.
+
+    Needed because the ``caplog`` override below attaches caplog's handler to
+    the ``inspect_ai`` logger *in addition to* pytest's own attachment at the
+    root logger. While ``inspect_ai.propagate`` is still True (fresh process),
+    a record would otherwise hit the same handler twice and double up
+    ``caplog.records``. Dedupe is by object identity; holding the record in
+    the set keeps it alive so its identity can't be recycled mid-test.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._seen: set[logging.LogRecord] = set()
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if record in self._seen:
+            return False
+        self._seen.add(record)
+        return True
+
+
+@pytest.fixture
+def caplog(caplog: pytest.LogCaptureFixture) -> Iterator[pytest.LogCaptureFixture]:
+    """Override the built-in ``caplog`` so it reliably captures inspect_ai records.
+
+    The first ``eval()`` in a process calls ``init_logger()``, which sets
+    ``propagate = False`` on the ``inspect_ai`` logger and never restores it
+    (the memoized handler guard in ``_util/logger.py`` skips reconfiguration
+    thereafter). From then on, ``inspect_ai.*`` records never reach the root
+    logger that stock ``caplog`` listens at, so any test asserting on them via
+    ``caplog`` is order-dependent: positive assertions flake, negative ones
+    pass vacuously. Attaching caplog's handler directly to the ``inspect_ai``
+    logger captures in every ordering, without mutating any inspect logging
+    config. See meta-tests in ``tests/test_conftest_caplog.py``.
+
+    Caution: never wrap code that may run the process's first ``eval()`` in
+    ``caplog.at_level(..., logger="inspect_ai")`` — ``at_level`` snapshots the
+    level on entry and force-restores it on exit, wiping out the capture level
+    ``init_logger()`` set mid-block (the memoized handler guard means it is
+    never repaired), which silently drops sub-WARNING inspect records for the
+    rest of the process. ``at_level`` on ``inspect_ai.*`` *module* loggers is
+    fine (``init_logger()`` never sets those levels), and is usually
+    unnecessary anyway: this handler attachment captures WARNING+ records
+    without any level change.
+    """
+    dedupe = _DedupeRecordsFilter()
+    caplog.handler.addFilter(dedupe)
+    inspect_logger = logging.getLogger("inspect_ai")
+    inspect_logger.addHandler(caplog.handler)
+    try:
+        yield caplog
+    finally:
+        inspect_logger.removeHandler(caplog.handler)
+        caplog.handler.removeFilter(dedupe)
 
 
 @pytest.fixture(autouse=True)
@@ -624,11 +682,13 @@ def pytest_collection_modifyitems(config, items):
     # Auto-apply a 5-minute per-attempt timeout to every async test, then
     # flaky_retry(max_retries=3) for tests that hit external services (model
     # providers or Docker). The timeout is wrapped first so it sits inside the
-    # retry — each attempt gets its own fresh budget.
+    # retry — each attempt gets its own fresh budget. The item is passed so the
+    # retry can honor xfail markers, including ones added during fixture setup
+    # (as the sandbox self-check suite does): expected failures run once, and a
+    # flaky pass on a retry can't turn into a hard XPASS(strict) failure.
     from test_helpers.utils import flaky_retry, with_timeout
 
     _timeout = with_timeout(300)
-    _retry = flaky_retry(max_retries=3)
     for item in items:
         fn = item.obj
         if inspect.iscoroutinefunction(fn) and not getattr(
@@ -638,7 +698,7 @@ def pytest_collection_modifyitems(config, items):
         if getattr(fn, "_needs_flaky_retry", False) and not getattr(
             fn, "_flaky_retry", False
         ):
-            fn = _retry(fn)
+            fn = flaky_retry(max_retries=3, item=item)(fn)
         item.obj = fn
 
 

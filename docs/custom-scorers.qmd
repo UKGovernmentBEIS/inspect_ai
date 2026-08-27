@@ -123,13 +123,13 @@ When a scorer cannot produce a value for a sample (e.g. an external grader retur
 
 ``` python
 return Score.unscored(
+    reason="timeout",
     answer=extracted,
     explanation="grader returned no result",
-    metadata={"reason": "timeout"},
 )
 ```
 
-Unscored samples are skipped by aggregate metrics and epoch reducers and are counted toward `EvalScore.unscored_samples` rather than included as zeros. This works for scalar, dict-valued, and list-valued scorers.
+Unscored samples are skipped by aggregate metrics and epoch reducers and are counted toward `EvalScore.unscored_samples` rather than included as zeros. This works for scalar, dict-valued, and list-valued scorers. The optional `reason` field records a machine-readable failure mode — use a standard `ScoreReason` value (e.g. `"grader_failed"`, `"invalid_response_format"`) where one fits, or any custom string.
 
 ## Score Value
 
