@@ -141,6 +141,7 @@ from .util import (
     OAUTH_PLACEHOLDER_API_KEY,
     GoogleOAuthCredentials,
     model_base_url,
+    normalize_stream_arg,
     resolve_google_credentials,
 )
 from .util.hooks import HttpHooks, HttpxHooks
@@ -247,11 +248,10 @@ class GoogleGenAIAPI(ModelAPI):
         # record api version
         self.api_version = api_version
 
-        # record streaming preference ("auto" streams when the caller passes
-        # on_stream to generate; an explicit True/False overrides)
-        streaming = model_args.pop("streaming", "auto")
-        self.streaming: bool | Literal["auto"] = (
-            "auto" if streaming == "auto" else bool(streaming)
+        # record streaming preference (unset/"auto" streams when the caller
+        # passes on_stream to generate; an explicit True/False overrides)
+        self.streaming: bool | None = normalize_stream_arg(
+            model_args.pop("streaming", None), "streaming"
         )
 
         # pick out user-provided safety settings and merge against default
@@ -518,7 +518,7 @@ class GoogleGenAIAPI(ModelAPI):
                             batch_request_dict(parameters, gemini_contents)
                         )
                     elif self.streaming is True or (
-                        self.streaming == "auto" and model_stream_requested()
+                        self.streaming is None and model_stream_requested()
                     ):
                         response = await self._stream_generate_content(
                             client=client,

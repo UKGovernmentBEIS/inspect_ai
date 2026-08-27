@@ -14,7 +14,12 @@ import anyio
 import pytest
 import tenacity
 from tenacity.wait import WaitBaseT
-from test_helpers.utils import skip_if_no_anthropic, skip_if_no_google
+from test_helpers.utils import (
+    skip_if_no_anthropic,
+    skip_if_no_google,
+    skip_if_no_grok,
+    skip_if_no_openai,
+)
 
 from inspect_ai._util.content import ContentReasoning, ContentText
 from inspect_ai._util.registry import _registry
@@ -765,6 +770,79 @@ async def test_anthropic_on_stream_tool_call_live() -> None:
 async def test_google_on_stream_live() -> None:
     collector = Collector()
     model = get_model("google/gemini-3.1-flash-lite")
+    output = await model.generate(
+        "Reply with one short sentence about the sea.", on_stream=collector
+    )
+    streamed = "".join(
+        e.text for e in collector.events if isinstance(e, StreamTextEvent)
+    )
+    assert streamed
+    assert streamed == output.completion
+
+
+@skip_if_no_openai
+async def test_openai_on_stream_live() -> None:
+    collector = Collector()
+    # gpt-4o family defaults to the chat-completions API
+    model = get_model("openai/gpt-4o-mini")
+    output = await model.generate(
+        "Reply with one short sentence about the sea.", on_stream=collector
+    )
+    streamed = "".join(
+        e.text for e in collector.events if isinstance(e, StreamTextEvent)
+    )
+    assert streamed
+    assert streamed == output.completion
+
+
+@skip_if_no_openai
+async def test_openai_on_stream_tool_call_live() -> None:
+    # inspect never sets `strict` on tools, so this exercises streaming a
+    # non-strict tool request live (the SDK's .stream() helper would reject
+    # it client-side; the raw create(stream=True) path must accept it)
+    async def add(x: int, y: int) -> int:
+        return x + y
+
+    collector = Collector()
+    model = get_model("openai/gpt-4o-mini")
+    output = await model.generate(
+        "Use the add tool to compute 5 + 3.",
+        tools=[
+            ToolDef(
+                add,
+                name="add",
+                description="Add two numbers.",
+                parameters={"x": "first number", "y": "second number"},
+            )
+        ],
+        on_stream=collector,
+    )
+    assert output.message.tool_calls
+    tool_events = [e for e in collector.events if isinstance(e, StreamToolCallEvent)]
+    assert any(e.function == "add" for e in tool_events)
+    arguments = json.loads("".join(e.arguments for e in tool_events))
+    assert arguments == {"x": 5, "y": 3}
+
+
+@skip_if_no_openai
+async def test_openai_responses_on_stream_live() -> None:
+    collector = Collector()
+    # gpt-5 family defaults to the Responses API
+    model = get_model("openai/gpt-5-mini")
+    output = await model.generate(
+        "Reply with one short sentence about the sea.", on_stream=collector
+    )
+    streamed = "".join(
+        e.text for e in collector.events if isinstance(e, StreamTextEvent)
+    )
+    assert streamed
+    assert streamed == output.completion
+
+
+@skip_if_no_grok
+async def test_grok_on_stream_live() -> None:
+    collector = Collector()
+    model = get_model("grok/grok-3-mini")
     output = await model.generate(
         "Reply with one short sentence about the sea.", on_stream=collector
     )
