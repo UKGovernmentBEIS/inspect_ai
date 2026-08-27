@@ -25,6 +25,7 @@ from inspect_ai._util.registry import (
     registry_add,
     registry_name,
     registry_tag,
+    set_return_annotation,
 )
 
 from ._tool_call import ToolCallModelInput, ToolCallViewer
@@ -265,6 +266,8 @@ def tool(
                 **kwargs,
             )
             return tool
+
+        set_return_annotation(tool_wrapper, Tool)
 
         # register
         return tool_register(cast(Callable[P, Tool], tool_wrapper), tool_name)

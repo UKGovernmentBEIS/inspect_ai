@@ -2,12 +2,14 @@ import json as json_module
 import os
 from pathlib import Path
 from typing import Type, TypeVar
+from unittest.mock import Mock
 
 import pytest
 from pydantic import BaseModel
 from test_helpers.utils import skip_if_github_action
 
 from inspect_ai._util.content import ContentImage
+from inspect_ai._util.file import exists
 from inspect_ai.dataset import (
     Dataset,
     FieldSpec,
@@ -17,6 +19,7 @@ from inspect_ai.dataset import (
     file_dataset,
     json_dataset,
 )
+from inspect_ai.dataset._util import read_choices
 from inspect_ai.model._chat_message import ChatMessageUser
 
 T_ds = TypeVar("T_ds")
@@ -34,6 +37,40 @@ dataset_md_params = [
 dataset_mcq_params = [
     (param[0], param[1].replace(".", "-mcq.")) for param in dataset_params
 ]
+
+limit_dataset_params = [
+    (csv_dataset, ".csv", '"input","target"\n"a","1"\n"b","2"\n'),
+    (
+        json_dataset,
+        ".json",
+        json_module.dumps(
+            [{"input": "a", "target": "1"}, {"input": "b", "target": "2"}]
+        ),
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    ("suffix", "reader", "file_argument"),
+    [
+        (".csv", "csv_dataset", "csv_file"),
+        (".json", "json_dataset", "json_file"),
+        (".jsonl", "json_dataset", "json_file"),
+    ],
+)
+def test_file_dataset_url_query_uses_path_extension(
+    suffix: str,
+    reader: str,
+    file_argument: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    url = f"https://example.test/dataset{suffix}?signature=abc123"
+    expected = object()
+    mock_reader = Mock(return_value=expected)
+    monkeypatch.setattr(f"inspect_ai.dataset._sources.file.{reader}", mock_reader)
+
+    assert file_dataset(url) is expected
+    assert mock_reader.call_args.kwargs[file_argument] == url
 
 
 # test reading a dataset using default configuration
@@ -72,6 +109,24 @@ def test_dataset_multiple_samples_fn(type: Type[T_ds], file: str):
         sample_fields=data_to_sample_multiple,
     )
     assert len(dataset) == 2
+
+
+@pytest.mark.parametrize("type,suffix,contents", limit_dataset_params)
+@pytest.mark.parametrize("limit,expected", [(None, 2), (0, 0), (1, 1)])
+def test_dataset_limit(
+    type: Type[T_ds],
+    suffix: str,
+    contents: str,
+    limit: int | None,
+    expected: int,
+    tmp_path: Path,
+) -> None:
+    dataset_file = tmp_path / f"dataset{suffix}"
+    dataset_file.write_text(contents)
+
+    dataset: Dataset = type.__call__(str(dataset_file), limit=limit)
+
+    assert len(dataset) == expected
 
 
 # test reading metadata field
@@ -174,6 +229,21 @@ def test_dataset_image_paths() -> None:
     assert image.exists()
 
 
+def test_dataset_image_paths_file_uri() -> None:
+    # dataset locations that are filesystem URIs should keep their scheme and
+    # still resolve relative sample files against the dataset's parent dir
+    dataset = json_dataset(Path(dataset_path("images.jsonl")).resolve().as_uri())
+    assert dataset.location is not None
+    assert dataset.location.startswith("file://")
+    sample = dataset[0]
+    assert not isinstance(sample.input, str)
+    assert isinstance(sample.input[0], ChatMessageUser)
+    content = sample.input[0].content[1]
+    assert isinstance(content, ContentImage)
+    assert content.image.startswith("file://")
+    assert exists(content.image)
+
+
 def test_dataset_auto_id() -> None:
     dataset = json_dataset(dataset_path("dataset.jsonl"))
     assert all(sample.id is None for sample in dataset)
@@ -204,6 +274,37 @@ def test_dataset_nan_target_treated_as_missing() -> None:
     sample_num = rec2sample({"input": "x", "target": 4})
     assert not isinstance(sample_num, list)
     assert sample_num.target == "4"
+
+
+def test_dataset_nan_fields_treated_as_missing() -> None:
+    from inspect_ai.dataset._util import record_to_sample_fn
+
+    rec2sample = record_to_sample_fn(FieldSpec())
+
+    # NaN input should raise ValueError("No input in dataset")
+    with pytest.raises(ValueError, match="No input in dataset"):
+        rec2sample({"input": float("nan"), "target": "4"})
+
+    # NaN choices, setup, sandbox, files, metadata should be treated as missing (None)
+    sample = rec2sample(
+        {
+            "input": "x",
+            "target": "y",
+            "choices": float("nan"),
+            "setup": float("nan"),
+            "sandbox": float("nan"),
+            "files": float("nan"),
+            "metadata": float("nan"),
+        }
+    )
+    assert not isinstance(sample, list)
+    assert sample.choices is None, f"expected None for choices, got {sample.choices!r}"
+    assert sample.setup is None, f"expected None for setup, got {sample.setup!r}"
+    assert sample.sandbox is None, f"expected None for sandbox, got {sample.sandbox!r}"
+    assert sample.files is None, f"expected None for files, got {sample.files!r}"
+    assert sample.metadata is None, (
+        f"expected None for metadata, got {sample.metadata!r}"
+    )
 
 
 def test_dataset_zero_seed() -> None:
@@ -244,6 +345,93 @@ def test_json_dataset_supports_kwargs() -> None:
     )
 
 
+def write_ragged_csv(tmp_path: Path, body: str) -> str:
+    path = tmp_path / "data.csv"
+    path.write_text(body, newline="")
+    return str(path)
+
+
+def test_csv_short_blank_row_names_the_line(tmp_path: Path) -> None:
+    csv_file = write_ragged_csv(tmp_path, "input,target,id\n2+2,4,q1\n,\n3+3,6,q2\n")
+
+    with pytest.raises(ValueError) as info:
+        csv_dataset(csv_file)
+
+    message = str(info.value)
+    assert "line 3" in message
+    assert "2 fields, the header has 3" in message
+    assert "id" in message
+
+
+def test_csv_long_row_names_the_line(tmp_path: Path) -> None:
+    csv_file = write_ragged_csv(tmp_path, "input,target\n2+2,4\n,,extra\n")
+
+    with pytest.raises(ValueError) as info:
+        csv_dataset(csv_file)
+
+    message = str(info.value)
+    assert "line 3" in message
+    assert "3 fields, the header has 2" in message
+    assert "extra" in message
+
+
+def test_csv_short_row_with_content_is_not_silently_truncated(tmp_path: Path) -> None:
+    csv_file = write_ragged_csv(tmp_path, "input,target,id\n2+2,4\n")
+
+    with pytest.raises(ValueError, match="No value for: id"):
+        csv_dataset(csv_file)
+
+
+def test_csv_long_row_with_content_is_not_silently_absorbed(tmp_path: Path) -> None:
+    # DictReader collects a long row's extras under the restkey
+    csv_file = write_ragged_csv(tmp_path, "input,target\n2+2,4\n3+3,6,extra\n")
+
+    with pytest.raises(ValueError, match="Unexpected values"):
+        csv_dataset(csv_file)
+
+
+def test_csv_singular_field_count_reads_correctly(tmp_path: Path) -> None:
+    csv_file = write_ragged_csv(tmp_path, "a,b,c,d\n1,2,3,4\nz\n")
+
+    with pytest.raises(ValueError, match="has 1 field, the header has 4"):
+        csv_dataset(csv_file)
+
+
+def test_csv_line_number_with_explicit_fieldnames(tmp_path: Path) -> None:
+    # no header line to skip when fieldnames are supplied
+    csv_file = write_ragged_csv(tmp_path, "2+2,4,q1\n,\n")
+
+    with pytest.raises(ValueError) as info:
+        csv_dataset(csv_file, fieldnames=["input", "target", "id"])
+
+    assert "line 2" in str(info.value)
+
+
+def test_csv_line_number_survives_blank_lines_and_multiline_fields(
+    tmp_path: Path,
+) -> None:
+    # DictReader skips blank lines and a quoted field can span several, so a
+    # count of yielded rows drifts from the physical line. This one is line 7.
+    csv_file = write_ragged_csv(
+        tmp_path, 'input,target\n2+2,4\n\n\n"multi\nline",6\nragged\n'
+    )
+
+    with pytest.raises(ValueError) as info:
+        csv_dataset(csv_file)
+
+    assert "line 7" in str(info.value)
+
+
+def test_csv_well_formed_blank_row_is_still_skipped(tmp_path: Path) -> None:
+    # all columns present and blank: the empty-row filter's actual job
+    csv_file = write_ragged_csv(tmp_path, "input,target\n2+2,4\n,\n3+3,6\n")
+
+    dataset = csv_dataset(csv_file)
+
+    assert len(dataset) == 2
+    assert [sample.input for sample in dataset] == ["2+2", "3+3"]
+
+
 sample_field_spec = FieldSpec(input="input", target="label", metadata=["extra"])
 
 
@@ -272,3 +460,14 @@ def dataset_path(file: str) -> str:
 
 def example_path(*paths: str) -> str:
     return os.path.join("examples", "/".join(paths))
+
+
+def test_read_choices_drops_empty_entries() -> None:
+    assert read_choices("Paris,London,") == ["Paris", "London"]
+    assert read_choices("Paris,,London") == ["Paris", "London"]
+    assert read_choices("Paris, London") == ["Paris", "London"]
+    assert read_choices("Paris London") == ["Paris", "London"]
+    assert read_choices(",,") == []
+    assert read_choices(None) is None
+    assert read_choices(["Paris", "", "London"]) == ["Paris", "London"]
+    assert read_choices(["Paris", " ", "London"]) == ["Paris", "London"]

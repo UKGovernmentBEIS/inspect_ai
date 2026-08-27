@@ -8,7 +8,9 @@ import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from inspect_sandbox_tools._remote_tools._exec_remote import _job as job_module
 from inspect_sandbox_tools._remote_tools._exec_remote._controller import Controller
+from inspect_sandbox_tools._remote_tools._exec_remote._job import Job
 from inspect_sandbox_tools._remote_tools._exec_remote.tool_types import PollResult
 
 
@@ -69,3 +71,64 @@ class TestControllerConcurrentPollAndKill:
 
         # cleanup should have been called exactly once, not twice.
         assert job.cleanup.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_shutdown_terminates_and_removes_all_jobs() -> None:
+    controller = Controller()
+    jobs = []
+    for pid in (41, 42):
+        job = MagicMock()
+        job.shutdown = AsyncMock()
+        job.cleanup = AsyncMock()
+        controller._jobs[pid] = job
+        jobs.append(job)
+
+    await controller.shutdown()
+
+    assert controller._jobs == {}
+    for job in jobs:
+        job.shutdown.assert_awaited_once_with()
+        job.cleanup.assert_awaited_once_with()
+
+
+@pytest.mark.asyncio
+async def test_shutdown_reports_failures_from_every_job() -> None:
+    controller = Controller()
+    for pid, message in ((41, "first shutdown failed"), (42, "second shutdown failed")):
+        job = MagicMock()
+        job.shutdown = AsyncMock(side_effect=RuntimeError(message))
+        job.cleanup = AsyncMock()
+        controller._jobs[pid] = job
+
+    with pytest.raises(RuntimeError) as error:
+        await controller.shutdown()
+
+    assert "first shutdown failed" in str(error.value)
+    assert "second shutdown failed" in str(error.value)
+
+
+@pytest.mark.asyncio
+async def test_retired_job_shutdown_uses_only_its_captured_processes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    process = await asyncio.create_subprocess_exec("true")
+    await process.wait()
+    job = Job(process)
+    captured_child = MagicMock(pid=99)
+    capture_group = MagicMock(return_value=[captured_child])
+    terminate = AsyncMock()
+    monkeypatch.setattr(job_module, "process_group_members", capture_group)
+    monkeypatch.setattr(job_module, "terminate_process_tree", terminate)
+
+    job.retire()
+    await job.shutdown()
+
+    assert process.pid is not None
+    capture_group.assert_called_once_with(process.pid, exclude_pid=process.pid)
+    terminate.assert_awaited_once_with(
+        process,
+        timeout=30,
+        process_group=False,
+        known_descendants=[captured_child],
+    )

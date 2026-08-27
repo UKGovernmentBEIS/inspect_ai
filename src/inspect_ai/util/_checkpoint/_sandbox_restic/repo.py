@@ -5,9 +5,15 @@ generic :mod:`.._restic` operations: the binary is shipped into a
 root-only path inside the sandbox so the agent (running as non-root)
 cannot see, stat, or execute it.
 
-Layout under ``/opt/inspect-restic/`` (root-only, mode 0700):
+Layout under ``/root/.cache/inspect/`` (root-only, mode 0700):
 - ``./restic`` — the binary itself
 - ``./repo`` — the in-sandbox restic repo
+
+The base dir lives under ``/root`` (itself 0700 in virtually every image)
+rather than a world-listable parent like ``/opt``, so not even the dirent
+name is visible to the agent. ``.cache`` also falls inside the always-on
+backup exclude (``**/.cache``), so when the default user is root and its
+home dir is auto-captured, the repo never backs itself up.
 
 The egress protocol that ships repo data back to the host lives in
 :mod:`.egress` and shares this layout.
@@ -19,7 +25,7 @@ from inspect_ai.util._restic import Platform, ResticBackupSummary, resolve_resti
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
 from inspect_ai.util._sandbox.recon import Architecture, detect_sandbox_os
 
-_SANDBOX_RESTIC_DIR = "/opt/inspect-restic"
+_SANDBOX_RESTIC_DIR = "/root/.cache/inspect"
 _SANDBOX_RESTIC_PATH = f"{_SANDBOX_RESTIC_DIR}/restic"
 _SANDBOX_RESTIC_REPO = f"{_SANDBOX_RESTIC_DIR}/repo"
 

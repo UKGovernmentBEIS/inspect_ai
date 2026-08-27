@@ -5,12 +5,17 @@ Backs ``GET /evals/<id>/sample/events`` (and ``inspect ctl sample events``): a
 ``Transcript`` while running, and once terminal from the recorder's
 sample, the realtime buffer (via the eval's events provider — the
 streaming-completion path retains an event-less recorder sample), or the
-on-disk log (see ``_logged_source``).
+on-disk log (see ``_resolve_logged_source``).
 
 The cursor is an opaque token = ``(source nonce, absolute event offset)``.
 The offset indexes the *unfiltered* event sequence; type / time filters are
 applied to the page *after* slicing, and ``next`` advances past every event
 *scanned* (not just matched) so a sparse filter never re-walks or skips. The
+``tail`` seed is the one place that counts *matched* events: it scans the
+trailing page-bounded window and keeps the last ``tail`` matches, so a recent
+tail under the default high-signal filter surfaces a useful window rather
+than the few matches hiding in the last N raw events (a live transcript is
+dominated by structural state / store / span events). The
 nonce identifies one *attempt* of a sample — the sample uuid (``EvalSample
 .uuid`` == ``TaskState.uuid``) plus the attempt count (see :func:`_attempt_
 nonce`). Both the running and terminal sources derive it the same way, so a
@@ -20,7 +25,7 @@ stale and restarting. A retry runs on a fresh transcript, so its nonce differs
 in-process ``retry_on_error``); a cursor carried across one no longer matches
 and correctly restarts from the beginning instead of serving a stale position.
 
-See ``design/control-channel.md`` (phase 2) for the full rationale.
+See ``design/ctl/control-channel.md`` (phase 2) for the full rationale.
 """
 
 from __future__ import annotations
@@ -30,6 +35,11 @@ import json
 from collections.abc import Callable, Sequence
 from logging import getLogger
 from typing import TYPE_CHECKING, Any, NamedTuple
+
+from inspect_ai._control.terminal_cache import (
+    TerminalSourceCache,
+    resolve_sample_source,
+)
 
 if TYPE_CHECKING:
     from inspect_ai.event._event import Event
@@ -49,8 +59,9 @@ EventsFetch = Callable[[int, int], "Sequence[Event]"]
 class EventsSource(NamedTuple):
     """One resolvable source of a sample's transcript events.
 
-    Produced by ``_running_source`` (live transcript) and ``_logged_source``
-    (recorder / buffer / on-disk log); consumed by ``sample_events``.
+    Produced by ``_running_source`` (live transcript) and
+    ``_resolve_logged_source`` (recorder / buffer / on-disk log); consumed by
+    ``sample_events``.
     """
 
     nonce: str
@@ -68,7 +79,8 @@ class EventsSource(NamedTuple):
 
 # Default event-type filter: the "high-signal" tier a monitor cares about,
 # excluding the structural / high-volume tier (state / store / span / step / …)
-# which would drown the stream. ``--type '*'`` opts back into everything.
+# which would drown the stream. ``--type all`` (or the ``'*'`` synonym) opts
+# back into everything.
 HIGH_SIGNAL_EVENT_TYPES = frozenset(
     {
         "model",
@@ -91,6 +103,15 @@ DEFAULT_PAGE_LIMIT = 500
 
 # Compact-projection truncation width for free-text / serialized fields.
 _TRUNCATE = 256
+
+# Short-TTL cache of resolved terminal sources. A flushed sample's transcript
+# is immutable, but resolving it re-reads and re-validates the entire sample
+# per page request (see _resolve_logged_source) — O(N²/limit) aggregate work
+# for a client paginating an N-event transcript, and a full parse per poll
+# even when no new events can ever arrive. See terminal_cache for the
+# staleness bounds (insertion-time TTL, running-attempt invalidation,
+# cleared with the eval-state registry).
+_terminal_sources: TerminalSourceCache[EventsSource] = TerminalSourceCache()
 
 
 def encode_cursor(nonce: str, offset: int) -> str:
@@ -122,6 +143,7 @@ async def sample_events(
     since: str | None = None,
     tail: int | None = None,
     types: frozenset[str] | None = None,
+    content: bool = False,
     full: bool = False,
     since_time: float | None = None,
     until: float | None = None,
@@ -138,18 +160,29 @@ async def sample_events(
         sample_id: The sample's id (string; matched against running + logged).
         epoch: The sample epoch.
         since: Cursor token from a prior page (resume after it). Exclusive.
-        tail: When ``since`` is absent, start ``tail`` events from the end.
-        types: Event-type filter; ``None`` = the high-signal tier, an empty-vs-
-            ``{"*"}`` set means "all". Applied after the cursor slice.
+        tail: When ``since`` is absent, show the last ``tail`` events that
+            match the type/time filters: the trailing ``limit``-bounded
+            window is scanned and the filtered page keeps its last ``tail``
+            entries.
+        types: Event-type filter; ``None`` = the high-signal tier; a set
+            containing ``"all"`` or ``"*"`` means everything (safe magic
+            values — no event type carries either name). Applied after the
+            cursor slice.
+        content: Include (truncated) free-text content — completions, tool
+            arguments/results, error messages — in the compact projection.
+            The default is metadata only (see :func:`_project`).
         full: Raw serialized events instead of the compact projection.
         since_time: Optional lower bound (unix ts) — a wall-clock filter applied
             after the cursor slice, never a cursor.
         until: Optional upper bound (unix ts).
         limit: Max events scanned per page.
     """
-    source = _running_source(eval_id, sample_id, epoch)
-    if source is None:
-        source = await _logged_source(eval_id, sample_id, epoch)
+    source = await resolve_sample_source(
+        (eval_id, sample_id, epoch),
+        running=lambda: _running_source(eval_id, sample_id, epoch),
+        cache=_terminal_sources,
+        resolve_terminal=lambda: _resolve_logged_source(eval_id, sample_id, epoch),
+    )
     if source is None:
         return None
 
@@ -158,12 +191,22 @@ async def sample_events(
     # Resolve the start offset: resume from the cursor (reset to 0 if the nonce
     # is from a different source), else a tail window, else the beginning.
     cursor_nonce, cursor_offset = decode_cursor(since)
+    # When set, slice the filtered page down to its last `tail_count` events.
+    tail_count: int | None = None
     if since is not None and cursor_nonce == nonce:
         offset = max(0, cursor_offset)
     elif since is not None:
         offset = 0  # stale/foreign cursor → restart
     elif tail is not None:
-        offset = max(0, total - tail)
+        # A tail read means "the last `tail` events the caller will see" —
+        # counted after the type/time filters, not over the raw sequence.
+        # Slicing the raw sequence under-delivered badly with the default
+        # high-signal filter: a live transcript is dominated by structural
+        # state/store/span events, so the last N raw events could contain a
+        # single match. Seed at one page bound from the end and keep the
+        # last `tail` matches after filtering (below).
+        offset = max(0, total - limit)
+        tail_count = max(0, tail)
     else:
         offset = 0
 
@@ -176,12 +219,30 @@ async def sample_events(
     # stream. `next` advances by what was actually served, so a fetch that
     # returns short (eg. a buffer that lags the in-memory tail) never skips
     # events — the next poll picks them up.
-    scanned = list(fetch(offset, limit))
+    from inspect_ai.log._transcript import TranscriptHistoryUnavailableError
+
+    try:
+        scanned = list(fetch(offset, limit))
+    except TranscriptHistoryUnavailableError:
+        if tail_count is None:
+            raise
+        # The matched-tail scan window reached below a bounded transcript's
+        # resident window with no provider to recover it (not a production
+        # configuration). Degrade to the raw-event tail seed — the resident
+        # window stays readable — rather than failing the default read.
+        offset = max(0, total - tail_count) if tail_count > 0 else total
+        tail_count = None
+        scanned = list(fetch(offset, limit))
     next_offset = offset + len(scanned)
 
     matched = _filter(scanned, types, since_time, until)
+    if tail_count is not None:
+        # Keep the most recent matches; earlier matches inside the scanned
+        # window are intentionally dropped (the read is seeded "near the
+        # end") while `next` still advances past everything scanned.
+        matched = matched[-tail_count:] if tail_count > 0 else []
     return {
-        "events": [_project(e, full) for e in matched],
+        "events": [_project(e, content=content, full=full) for e in matched],
         "next": encode_cursor(nonce, next_offset),
         "done": done and next_offset >= total,
     }
@@ -241,7 +302,7 @@ def _running_source(eval_id: str, sample_id: str, epoch: int) -> EventsSource | 
     )
 
 
-async def _logged_source(
+async def _resolve_logged_source(
     eval_id: str, sample_id: str, epoch: int
 ) -> EventsSource | None:
     """The terminal source for a sample (recorder buffer, then on-disk log).
@@ -306,9 +367,10 @@ async def _logged_source(
                 # the page fetch gets the same degrade contract as the
                 # event_count read above: a teardown landing between the two
                 # serves a short (empty) page instead of failing the request.
-                # `next` advances only by what was served, so the client's
-                # retry re-resolves the source (recorder / on-disk log)
-                # without skipping events.
+                # `next` advances only by what was served, so no events are
+                # skipped — the client's retry re-resolves the source
+                # (recorder / on-disk log) once the cached entry expires
+                # (see _terminal_sources).
                 def fetch_buffered(start: int, limit: int) -> Sequence["Event"]:
                     try:
                         return resolved_provider.events_from(start, limit)
@@ -369,7 +431,7 @@ def _filter(
     until: float | None,
 ) -> list["Event"]:
     """Apply the type filter (default = high-signal) and time window."""
-    allow_all = types is not None and "*" in types
+    allow_all = types is not None and bool(types & {"all", "*"})
     type_set = HIGH_SIGNAL_EVENT_TYPES if types is None else types
 
     out: list["Event"] = []
@@ -385,12 +447,19 @@ def _filter(
     return out
 
 
-def _project(event: "Event", full: bool) -> dict[str, Any]:
+def _project(event: "Event", *, content: bool, full: bool) -> dict[str, Any]:
     """Raw serialized event (``full``) or a compact, context-cheap summary.
 
     The compact form always carries the common header (type, ids, time); a few
-    high-signal types add a small, truncated summary. Everything else is
-    header-only — ``--full`` is there when the detail is needed.
+    high-signal types add a small summary. That summary is tiered: by default
+    it is **metadata only** — structural fields (model name, token counts,
+    stop reason, tool function names, error *presence*) with none of the
+    free-text content the evaluated agent controls (completions, tool
+    arguments/results, error messages). ``content`` opts into the truncated
+    free-text fields; ``full`` returns the raw event. The metadata default
+    exists so a monitor that never reads agent-controlled text — and so can't
+    be prompt-injected by it — is the effortless default consumer (see
+    "Trust boundary for readers" in design/ctl/control-channel.md).
     """
     if full:
         return event.model_dump(mode="json")
@@ -410,19 +479,35 @@ def _project(event: "Event", full: bool) -> dict[str, Any]:
             usage = getattr(output, "usage", None)
             out["tokens"] = getattr(usage, "total_tokens", None) if usage else None
             out["stop_reason"] = getattr(output, "stop_reason", None)
-            out["completion"] = _truncate(getattr(output, "completion", "") or "")
-        out["error"] = getattr(event, "error", None)
+            if content:
+                out["completion"] = _truncate(getattr(output, "completion", "") or "")
+        error = getattr(event, "error", None)
+        out["has_error"] = error is not None
+        if content:
+            out["error"] = error
     elif et == "tool":
+        # the tool-call id (== the assistant message's ToolCall.id) is what
+        # `sample cancel-tool-call --tool-call-id` targets; metadata tier —
+        # it is a model/provider-generated token, but the messages projection
+        # already exposes ids ungated, so the trust precedent stands
+        out["id"] = getattr(event, "id", None)
         out["function"] = getattr(event, "function", None)
-        out["arguments"] = _truncate(_to_text(getattr(event, "arguments", None)))
-        out["result"] = _truncate(_to_text(getattr(event, "result", None)))
         tool_error = getattr(event, "error", None)
-        out["error"] = getattr(tool_error, "message", None) if tool_error else None
+        out["has_error"] = tool_error is not None
+        if content:
+            out["arguments"] = _truncate(_to_text(getattr(event, "arguments", None)))
+            out["result"] = _truncate(_to_text(getattr(event, "result", None)))
+            out["error"] = getattr(tool_error, "message", None) if tool_error else None
     elif et == "error":
-        err = getattr(event, "error", None)
-        out["error"] = getattr(err, "message", None) if err else None
+        # the event type itself is the metadata-tier signal; only the
+        # message is content
+        if content:
+            err = getattr(event, "error", None)
+            out["error"] = getattr(err, "message", None) if err else None
     elif et == "info":
         out["source"] = getattr(event, "source", None)
+        if content:
+            out["data"] = _truncate(_to_text(getattr(event, "data", None)))
     return out
 
 

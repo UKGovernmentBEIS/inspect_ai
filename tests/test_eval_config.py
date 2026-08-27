@@ -7,7 +7,12 @@ from click.testing import CliRunner, Result
 from pydantic import ValidationError
 
 from inspect_ai import Task, eval, task
-from inspect_ai._cli.eval import RunConfigInput, eval_command, eval_retry_command
+from inspect_ai._cli.eval import (
+    RunConfigInput,
+    eval_command,
+    eval_retry_command,
+    eval_set_command,
+)
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.log import EvalLog
 from inspect_ai.log._file import list_eval_logs, read_eval_log
@@ -40,6 +45,18 @@ def run_eval_retry_cli(
     subprocess).
     """
     return CliRunner().invoke(eval_retry_command, args, env=env)
+
+
+def run_eval_set_cli(
+    args: list[str], env: dict[str, str | None] | None = None
+) -> Result:
+    """Invoke `inspect eval-set` in-process via CliRunner.
+
+    Counterpart to `run_eval_cli` for the `eval-set` command (see that function
+    for why we invoke the click command directly instead of spawning a
+    subprocess).
+    """
+    return CliRunner().invoke(eval_set_command, args, env=env)
 
 
 def assert_cli_success(result: Result) -> None:
@@ -123,6 +140,194 @@ def test_eval_generate_config_cli():
         # these should come from the config file
         assert log.plan.config.max_tokens == 512
         assert log.plan.config.seed == 42
+
+
+MODEL_SPECS = [
+    "--model-spec",
+    "{model: mockllm/model, temperature: 0.25}",
+    "--model-spec",
+    '{"model": "mockllm/model", "temperature": 0.75}',
+]
+
+
+def assert_model_spec_temperatures(log_dir: Path) -> None:
+    """Assert the two MODEL_SPECS each produced their own log.
+
+    The specs name one model twice, so this fails if the two specs collapse
+    onto a single model or a single log.
+    """
+    logs = [read_eval_log(f) for f in list_eval_logs(log_dir.as_posix())]
+    assert [log.eval.model for log in logs] == ["mockllm/model"] * 2
+    assert {log.eval.model_generate_config.temperature for log in logs} == {0.25, 0.75}
+
+
+def test_eval_model_spec_cli():
+    with tempfile.TemporaryDirectory() as temp_dir:
+        log_dir = Path(temp_dir) / "logs"
+        result = run_eval_cli(
+            [
+                "tests/test_eval_config.py@eval_config_task",
+                *MODEL_SPECS,
+                "--log-dir",
+                log_dir.as_posix(),
+            ]
+        )
+        assert_cli_success(result)
+        assert_model_spec_temperatures(log_dir)
+
+
+def test_eval_set_model_spec_cli():
+    """An eval set must treat two specs for one model as two units of work.
+
+    Task identity hashes the model's generate config, so the specs must not
+    dedupe onto each other.
+    """
+    with tempfile.TemporaryDirectory() as temp_dir:
+        log_dir = Path(temp_dir) / "logs"
+        result = run_eval_set_cli(
+            [
+                "tests/test_eval_config.py@eval_config_task",
+                *MODEL_SPECS,
+                "--log-dir",
+                log_dir.as_posix(),
+            ]
+        )
+        assert_cli_success(result)
+        assert_model_spec_temperatures(log_dir)
+
+
+def test_eval_model_spec_cli_with_model_role():
+    """A spec fills the main model and a role fills a named one, so both apply.
+
+    The role is shared across the specs and keeps its own config; it does not
+    override, and is not overridden by, the model of a spec.
+    """
+    with tempfile.TemporaryDirectory() as temp_dir:
+        log_dir = Path(temp_dir) / "logs"
+        result = run_eval_cli(
+            [
+                "tests/test_eval_config.py@eval_config_task",
+                *MODEL_SPECS,
+                "--model-role",
+                "grader={model: mockllm/model, temperature: 0.5, max_tokens: 1000}",
+                "--log-dir",
+                log_dir.as_posix(),
+            ]
+        )
+        assert_cli_success(result)
+        assert_model_spec_temperatures(log_dir)
+        for log in [read_eval_log(f) for f in list_eval_logs(log_dir.as_posix())]:
+            assert log.eval.model_roles is not None
+            grader = log.eval.model_roles["grader"]
+            assert grader.config.temperature == 0.5
+            assert grader.config.max_tokens == 1000
+
+
+def test_eval_model_spec_cli_unset_model_role_inherits_each_spec():
+    """An unset role resolves to the spec that is running, not to one of them."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        log_dir = Path(temp_dir) / "logs"
+        result = run_eval_cli(
+            [
+                "tests/test_eval_config.py@eval_config_task",
+                *MODEL_SPECS,
+                "--log-dir",
+                log_dir.as_posix(),
+            ]
+        )
+        assert_cli_success(result)
+        logs = [read_eval_log(f) for f in list_eval_logs(log_dir.as_posix())]
+        # each log's grader carries that log's own main-model temperature
+        for log in logs:
+            assert log.eval.model_roles is not None
+            assert (
+                log.eval.model_roles["grader"].config.temperature
+                == log.eval.model_generate_config.temperature
+            )
+        assert {log.eval.model_roles["grader"].config.temperature for log in logs} == {
+            0.25,
+            0.75,
+        }
+
+
+@pytest.mark.parametrize(
+    "conflict",
+    [
+        ["--model", "mockllm/model"],
+        ["--model-base-url", "http://localhost:9999/v1"],
+        ["--model-config", "tests/test_eval_config/model.yaml"],
+        ["-M", "custom_outputs=null"],
+    ],
+)
+def test_eval_model_spec_cli_conflicts_with_single_model_options(conflict):
+    """A spec owns the model, so these options would reach nothing."""
+    result = run_eval_cli(
+        ["tests/test_eval_config.py@eval_config_task", *MODEL_SPECS, *conflict]
+    )
+    assert result.exit_code != 0
+    assert isinstance(result.exception, PrerequisiteError)
+    assert f"--model-spec cannot be used with {conflict[0]}" in (
+        result.exception.message
+    )
+
+
+def test_eval_model_spec_env_var_yields_to_explicit_model():
+    """An INSPECT_EVAL_MODEL_SPEC must not break an explicit --model.
+
+    The variable is an ambient default, often from a `.env` file, so a typed
+    option wins over it rather than failing the run.
+    """
+    with tempfile.TemporaryDirectory() as temp_dir:
+        log_dir = Path(temp_dir) / "logs"
+        result = run_eval_cli(
+            [
+                "tests/test_eval_config.py@eval_config_task",
+                "--model",
+                "mockllm/from_cli",
+                "--log-dir",
+                log_dir.as_posix(),
+            ],
+            env={"INSPECT_EVAL_MODEL_SPEC": MODEL_SPECS[1]},
+        )
+        assert_cli_success(result)
+        log = read_eval_log(list_eval_logs(log_dir.as_posix())[0])
+        assert log.eval.model == "mockllm/from_cli"
+        assert log.eval.model_generate_config.temperature is None
+
+
+def test_eval_model_spec_cli_conflicts_with_run_config_model():
+    """A run config `model` field sets args and a base url a spec would drop."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        run_config = Path(temp_dir) / "run.yaml"
+        run_config.write_text(
+            """
+task: tests/test_eval_config.py@eval_config_task
+model:
+  model: mockllm/model
+  base_url: http://localhost:9999/v1
+""".strip()
+        )
+        result = run_eval_cli(["--run-config", run_config.as_posix(), *MODEL_SPECS])
+        assert result.exit_code != 0
+        assert isinstance(result.exception, PrerequisiteError)
+        assert "the 'model' field of --run-config" in result.exception.message
+
+
+def test_eval_model_spec_cli_allows_model_env_var():
+    """INSPECT_EVAL_MODEL is an ambient default, so --model-spec replaces it."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        log_dir = Path(temp_dir) / "logs"
+        result = run_eval_cli(
+            [
+                "tests/test_eval_config.py@eval_config_task",
+                *MODEL_SPECS,
+                "--log-dir",
+                log_dir.as_posix(),
+            ],
+            env={"INSPECT_EVAL_MODEL": "mockllm/from_env"},
+        )
+        assert_cli_success(result)
+        assert_model_spec_temperatures(log_dir)
 
 
 def test_eval_run_config_cli():
@@ -549,9 +754,11 @@ def check_log(log: EvalLog, color="purple", check_model_roles=False) -> None:
     assert log.eval.task_args["color"] == color
     assert log.eval.model_args["foo"] == "bar"
     if log.eval.model_roles and check_model_roles:
-        assert log.eval.model_roles["grader"].config.temperature == 0.5
-        assert log.eval.model_roles["grader"].config.max_tokens == 1000
-        assert log.eval.model_roles["grader"].model == "mockllm/model"
+        grader = log.eval.model_roles["grader"]
+        assert not isinstance(grader, list)
+        assert grader.config.temperature == 0.5
+        assert grader.config.max_tokens == 1000
+        assert grader.model == "mockllm/model"
     if log.eval.solver_args:
         assert log.eval.solver_args["shape"] == "square"
 

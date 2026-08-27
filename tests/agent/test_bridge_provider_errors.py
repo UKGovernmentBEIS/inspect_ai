@@ -24,6 +24,7 @@ from inspect_ai.agent._bridge.sandbox.service import _forward_provider_errors
 from inspect_ai.model import GenerateConfig, get_model
 from inspect_ai.model._model import ModelAPI, ModelGenerateError
 from inspect_ai.model._registry import modelapi
+from inspect_ai.util._limit import LimitExceededError
 
 
 class _ProviderError(Exception):
@@ -159,6 +160,21 @@ async def test_forward_provider_errors_no_warn_on_provider_error(
     result = await _forward_provider_errors(boom)({})
     assert result == {PROVIDER_ERROR_KEY: {"status": 503, "message": "x"}}
     assert warnings == []
+
+
+async def test_forward_provider_errors_reraises_limit_exceeded_error() -> None:
+    """A message/token/cost limit hit during generation must end the sample.
+
+    Previously swallowed into a normal-looking provider-error response, which
+    meant a sandboxed bridge's limit hits during model generation silently
+    never terminated the sample.
+    """
+
+    async def boom(json_data: dict[str, Any]) -> dict[str, Any]:
+        raise LimitExceededError("message", value=2, limit=1)
+
+    with pytest.raises(LimitExceededError):
+        await _forward_provider_errors(boom)({})
 
 
 # ---------- _model.py wrap path (end to end) ----------

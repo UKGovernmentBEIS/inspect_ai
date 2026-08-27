@@ -14,11 +14,14 @@ description: Tasks, evaluation, and scoring.
 
 ### Task
 ### task_with
+### task_identifier
 ### Epochs
 ### TaskInfo
 ### Tasks
 ### TaskSource
+### SampleSource
 ### enqueue_task
+### enqueue_sample
 
 ## Scanning
 

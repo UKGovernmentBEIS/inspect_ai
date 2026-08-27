@@ -43,7 +43,7 @@ The `openai` provider supports the following custom model args (other model args
 | `safety_identifier` | A stable identifier used to help detect users of your application. |
 | `prompt_cache_key` | Used by OpenAI to cache responses for similar requests. |
 | `prompt_cache_retention` | Retention policy for the prompt cache. |
-| `http_client` | Custom instance of `httpx.AsyncClient` for handling requests. |
+| `http_client` | Custom instance of `httpx2.AsyncClient` (or legacy `httpx.AsyncClient`) for handling requests. |
 
 : {tbl-colwidths=\[35,65\]}
 
@@ -260,7 +260,7 @@ See the [Fallbacks](fallbacks.qmd) article for complete documentation, including
 
 #### Cache Diagnostics {#anthropic-cache-diagnostics}
 
-Include the `cache-diagnosis-2026-04-07` beta header to produce diagnostics for prompt cachijng. Diagnostics are automatically included in `ChatMessageAssistant.metadata["diagnostics"]` (which you can see in the viewer) and a warning message is printed for cache misses. For example:
+Include the `cache-diagnosis-2026-04-07` beta header to produce diagnostics for prompt caching. Diagnostics are automatically included in `ChatMessageAssistant.metadata["diagnostics"]` (which you can see in the viewer) and a warning message is printed for cache misses. For example:
 
 ``` bash
 inspect eval arc.py --model anthropic/claude-sonnet-4-6 -M betas=cache-diagnosis-2026-04-07
@@ -280,7 +280,7 @@ Note that 1-hour cache writes are billed at 2x the base input token price (vs. 1
 
 ### Streaming
 
-The Anthropic provider supports a `streaming` model arg (`-M`) that controls whether streaming responses are used. The default ("auto") will automatically use streaming when thinking is enabled or for potentially [long requests](https://github.com/anthropics/anthropic-sdk-python?tab=readme-ov-file#long-requests) (requests with \>= 8192 `max_tokens`). Pass `true` or `false` to override the default behavior:
+The Anthropic provider supports a `streaming` model arg (`-M`) that controls whether streaming responses are used. The default ("auto") will automatically use streaming when the caller passes an `on_stream` callback to `generate()`, when thinking is enabled, or for potentially [long requests](https://github.com/anthropics/anthropic-sdk-python?tab=readme-ov-file#long-requests) (requests with \>= 8192 `max_tokens`). Pass `true` or `false` to override the default behavior:
 
 ``` bash
 inspect eval arc.py --model anthropic/claude-sonnet-4-0 -M streaming=true
@@ -346,8 +346,42 @@ The following environment variables are supported by the Google provider
 
 | Variable          | Description                      |
 |-------------------|----------------------------------|
-| `GOOGLE_API_KEY`  | API key credentials (required).  |
+| `GOOGLE_API_KEY`  | API key credentials (required unless using OAuth/ADC). |
 | `GOOGLE_BASE_URL` | Base URL for requests (optional) |
+| `GOOGLE_USE_ADC` | Set to `true` to authenticate Gemini Developer API models with OAuth/ADC by default (optional). |
+| `GOOGLE_CLOUD_QUOTA_PROJECT` | Quota/billing project sent as `x-goog-user-project` when using OAuth/ADC (optional). |
+
+### Gemini Developer API with OAuth / ADC {#gemini-oauth}
+
+Some Gemini Developer API deployments (for example, partner-served models) are
+reachable only via an OAuth bearer token — Application Default Credentials (ADC)
+— plus a quota-project header, with no API key. Enable this **per model** (so a
+run can mix OAuth and API-key Google models) with `-M use_adc=true`:
+
+``` bash
+gcloud auth application-default login   # or an impersonated service account
+inspect eval task.py --model google/your-model \
+   -M use_adc=true -M quota_project_id=your-project
+```
+
+Alternatively, set `GOOGLE_USE_ADC=true` in the environment (e.g. in `.env`) to
+make OAuth the default for all Gemini Developer API models, so commands don't
+need to differ between API-key and OAuth environments; `-M use_adc=false`
+overrides it per model, and Vertex models ignore it (Vertex uses ADC natively).
+
+ADC covers all the standard credential sources: user credentials from
+`gcloud auth application-default login` (optionally with
+`--impersonate-service-account`), a service-account key or workload identity
+federation config via `GOOGLE_APPLICATION_CREDENTIALS`, and attached service
+accounts on GCP compute.
+
+Supported custom model args (`-M`): `use_adc` (bool), `scopes` (list, defaults
+to `cloud-platform`), and `quota_project_id` (falls back to the
+`GOOGLE_CLOUD_QUOTA_PROJECT` environment variable). Auth precedence: `-M
+use_adc` (or, when unset, `GOOGLE_USE_ADC`) selects OAuth; otherwise an
+explicit API key, then `GOOGLE_API_KEY`, is used. Inspect refreshes the token as needed before each
+request, so long-running evals are supported. Batch inference is **not** supported
+in this mode (the batch client is long-lived and cannot refresh the token).
 
 ### Gemini on Vertex AI {#gemini-on-vertex-ai}
 
@@ -422,7 +456,7 @@ inspect eval eval.py -M "safety_settings={'hate_speech': 'low_and_above'}"
 
 ### Streaming
 
-The Google provider supports a `streaming` model arg (`-M`) that controls whether streaming responses are used. Streaming is disabled by default. Pass `true` to enable streaming:
+The Google provider supports a `streaming` model arg (`-M`) that controls whether streaming responses are used. The default ("auto") uses streaming when the caller passes an `on_stream` callback to `generate()`. Pass `true` to always stream (or `false` to never stream):
 
 ``` bash
 inspect eval arc.py --model google/gemini-2.5-pro -M streaming=true
@@ -472,14 +506,41 @@ inspect eval math.py --model mistral/azure/Mistral-Large-2411
 
 ## DeepSeek {#deepseek}
 
-[DeepSeek](https://www.deepseek.com/) provides an OpenAI compatible API endpoint which you can use with Inspect via the `openai-api` provider. To do this, define the `DEEPSEEK_API_KEY` and `DEEPSEEK_BASE_URL` environment variables then refer to models with `openai-api/deepseek/<model-name>`. For example:
+To use the [DeepSeek](https://www.deepseek.com/) provider, install the `openai` package (which the DeepSeek service provides a compatible backend for), set your credentials, and specify a model using the `--model` option:
 
 ``` bash
 pip install openai
 export DEEPSEEK_API_KEY=your-deepseek-api-key
-export DEEPSEEK_BASE_URL=https://api.deepseek.com
-inspect eval arc.py --model openai-api/deepseek/deepseek-reasoner
+inspect eval arc.py --model deepseek/deepseek-v4-pro
 ```
+
+DeepSeek V4 models (`deepseek-v4-pro` and `deepseek-v4-flash`) think by default. Use `--reasoning-effort` to control thinking (`none` disables it entirely) — see [Reasoning Effort](reasoning.qmd#reasoning-effort) for details. While thinking is enabled the API rejects forced tool choice, so the `deepseek` provider submits forced tool choices as `"auto"` (disable thinking to force tool use). Note that the legacy `deepseek-chat` and `deepseek-reasoner` model names were retired from the DeepSeek API on July 24th, 2026.
+
+The following environment variables are supported by the DeepSeek provider
+
+| Variable | Description |
+|----------------------------|--------------------------------------------|
+| `DEEPSEEK_API_KEY` | API key credentials (required). |
+| `DEEPSEEK_BASE_URL` | Base URL for requests (optional, defaults to `https://api.deepseek.com`). |
+
+## Moonshot AI {#moonshot-ai}
+
+To use the [Moonshot AI](https://platform.moonshot.ai/) provider (Kimi models), install the `openai` package (which the Moonshot AI service provides a compatible backend for), set your credentials, and specify a model using the `--model` option:
+
+``` bash
+pip install openai
+export MOONSHOT_API_KEY=your-moonshot-api-key
+inspect eval arc.py --model moonshot/kimi-k3
+```
+
+Note that Kimi K3 uses fixed sampling (Moonshot recommends omitting sampling parameters), so the `moonshot` provider does not pass `temperature`, `top_p`, or penalty options to K3 models. Similarly, K3's thinking effort currently only accepts `max`, so other `--reasoning-effort` values are submitted as `max`.
+
+The following environment variables are supported by the Moonshot AI provider
+
+| Variable | Description |
+|----------------------------|--------------------------------------------|
+| `MOONSHOT_API_KEY` | API key credentials (required). |
+| `MOONSHOT_BASE_URL` | Base URL for requests (optional, defaults to `https://api.moonshot.ai/v1`). |
 
 ## Grok {#grok}
 
@@ -514,6 +575,14 @@ inspect eval arc.py --model grok/grok-3-mini -M disable_retry=true
 ```
 
 This might be done if you are attempting to accurately track sample `working_time`---typically HTTP retries are subtracted from working time but the Grok provider uses GRPC which has no hooks available for requests and responses (while other providers do).
+
+The `grok` provider also supports a `service_tier` model argument that selects the xAI processing tier for requests (introduced alongside Grok 4.6; requires `xai_sdk` >= 1.17). For example, to use [Priority Processing](https://docs.x.ai/developers/grok-4-6) (billed at higher token rates):
+
+``` bash
+inspect eval arc.py --model grok/grok-4.6 -M service_tier=priority
+```
+
+Note that `service_tier` applies to standard requests only — [batch](models-batch.qmd) requests are processed on xAI's own batch tier, so the argument is omitted for them.
 
 Additional custom model args (`-M`) are forwarded to the constructor of the `AsynClient` class.
 
@@ -749,7 +818,7 @@ To use the [Fireworks AI](https://fireworks.ai/) provider, install the `openai` 
 ``` bash
 pip install openai
 export FIREWORKS_API_KEY=your-firewrks-api-key
-inspect eval arc.py --model fireworks/accounts/fireworks/models/deepseek-r1-0528
+inspect eval arc.py --model fireworks/accounts/fireworks/models/kimi-k3
 ```
 
 For the `fireworks` provider, you can enable [Tool Emulation](#tool-emulation-openai) using the `emulate_tools` custom model arg (`-M`). Other custom model args are forwarded to the constructor of the `AsyncOpenAI` class.
@@ -787,8 +856,10 @@ To use the [Cloudflare](https://developers.cloudflare.com/workers-ai/) provider,
 ``` bash
 export CLOUDFLARE_ACCOUNT_ID=account-id
 export CLOUDFLARE_API_TOKEN=api-token
-inspect eval arc.py --model cf/meta/llama-3.1-70b-instruct
+inspect eval arc.py --model cloudflare/@cf/meta/llama-3.1-70b-instruct
 ```
+
+Specify the model id exactly as it appears in Cloudflare's [model catalog](https://developers.cloudflare.com/workers-ai/models/): Workers AI model ids start with `@cf/`, while gateway-hosted models have plain ids (e.g. `cloudflare/moonshotai/kimi-k3`).
 
 For the `cloudflare` provider, custom model args (`-M`) are included as fields in the post body of the chat request.
 
@@ -990,7 +1061,7 @@ The most ergonomic path is [model roles](models.qmd#model-roles), which lets the
 inspect eval task.py \
     --model vllm/meta-llama/Llama-3-8B \
     --model-base-url http://gpu1:8000/v1 \
-    --model-role 'grader={model: vllm/meta-llama/Llama-3-70B-Instruct, base_url: http://gpu2:8000/v1}'
+    --model-role 'grader={model: vllm/meta-llama/Llama-3-70B-Instruct, model_args: {base_url: http://gpu2:8000/v1}}'
 ```
 
 Equivalent from Python:
@@ -1011,7 +1082,7 @@ eval(
 )
 ```
 
-Any number of roles can be defined this way (e.g. a separate `critic` or `red_team` model); each one can point at its own vLLM server. `VLLM_API_KEY` is also accepted as a per-model `api_key=` argument if your servers use different keys.
+Any number of roles can be defined this way (e.g. a separate `critic` or `red_team` model); each one can point at its own vLLM server. In CLI role dictionaries, place provider-specific values such as `base_url` and `api_key` under `model_args`; in Python, pass them directly to `get_model()`.
 
 Note: Inspect reuses a single server entry per base model name, so two `vllm/<same-model>` instances pointed at different URLs will collapse to the first URL. This caveat does not apply to the typical solver-vs-judge setup since the two models are different.
 
@@ -1395,7 +1466,7 @@ Here is how you would access DeepSeek using the `openai-api` provider:
 ``` bash
 export DEEPSEEK_API_KEY=your-deepseek-api-key
 export DEEPSEEK_BASE_URL=https://api.deepseek.com
-inspect eval arc.py --model openai-api/deepseek/deepseek-reasoner
+inspect eval arc.py --model openai-api/deepseek/deepseek-v4-flash
 ```
 
 ### Responses API

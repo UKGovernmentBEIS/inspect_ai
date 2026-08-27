@@ -1,6 +1,6 @@
 from typing import Any, Literal
 
-from pydantic import Field, model_validator
+from pydantic import ConfigDict, Field, model_validator
 
 from inspect_ai.event._base import BaseEvent
 from inspect_ai.model._model_output import ModelUsage
@@ -38,6 +38,8 @@ class ScoreEvent(BaseEvent):
 
     role_usage: dict[str, ModelUsage] | None = Field(default=None)
     """Cumulative model usage by role at the time of this score."""
+
+    model_config = ConfigDict(ser_json_inf_nan="constants")
 
     @model_validator(mode="before")
     @classmethod

@@ -8,6 +8,12 @@ from ._condense import (
     expand_events,
     resolve_sample_attachments,
 )
+from ._config_update import (
+    ConfigUpdate,
+    ConfigValueChange,
+    effective_eval_config,
+    effective_generate_config,
+)
 from ._convert import convert_eval_logs
 from ._edit import (
     LogEdit,
@@ -22,6 +28,7 @@ from ._edit import (
 from ._file import (
     EvalLogInfo,
     list_eval_logs,
+    list_eval_logs_async,
     read_eval_log,
     read_eval_log_async,
     read_eval_log_sample,
@@ -32,6 +39,7 @@ from ._file import (
     write_eval_log_async,
     write_log_dir_manifest,
 )
+from ._headline import ResolvedHeadlineMetric, headline_metric
 from ._log import (
     ConnectionLimitChange,
     EvalConfig,
@@ -53,6 +61,7 @@ from ._log import (
     EvalStats,
     EvalStatus,
     EventsData,
+    HeadlineMetric,
 )
 from ._metric import recompute_metrics
 from ._recover import (
@@ -73,6 +82,10 @@ from ._transcript import (
 
 __all__ = [
     "WriteConflictError",
+    "ConfigUpdate",
+    "ConfigValueChange",
+    "effective_eval_config",
+    "effective_generate_config",
     "EvalConfig",
     "EvalError",
     "EvalDataset",
@@ -93,12 +106,16 @@ __all__ = [
     "EvalStats",
     "EvalStatus",
     "EvalLogInfo",
+    "HeadlineMetric",
+    "ResolvedHeadlineMetric",
+    "headline_metric",
     "Transcript",
     "TranscriptHistory",
     "TranscriptHistoryUnavailableError",
     "transcript",
     "convert_eval_logs",
     "list_eval_logs",
+    "list_eval_logs_async",
     "read_eval_log",
     "read_eval_log_async",
     "read_eval_log_sample",

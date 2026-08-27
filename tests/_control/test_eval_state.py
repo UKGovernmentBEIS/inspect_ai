@@ -17,6 +17,7 @@ from inspect_ai._control.eval_state import (
     get_eval_state,
     record_sample_completed,
     record_sample_errored,
+    record_samples_added,
     register_eval,
 )
 
@@ -41,6 +42,24 @@ def test_finalize_folds_unaccounted_samples_into_cancelled() -> None:
     assert state.errored == 1
     assert state.cancelled == 5
     assert state.is_finished
+    assert state.completed_at is not None
+
+
+def test_dynamic_eval_not_provisionally_finished() -> None:
+    # a SampleSource-driven eval's totals grow while it runs: counters
+    # reaching total (or an empty seed's 0 >= 0 at registration) must not
+    # read as finished — the task may be idle awaiting its source — so the
+    # stamp waits for finalize_eval, keeping task cancel and status honest
+    state = register_eval("e1", 0, dynamic=True)
+    assert state.completed_at is None
+
+    record_samples_added("e1", 2)
+    record_sample_completed("e1")
+    record_sample_completed("e1")
+    assert state.terminal == state.total
+    assert state.completed_at is None
+
+    finalize_eval("e1")
     assert state.completed_at is not None
 
 
@@ -120,6 +139,68 @@ def test_detach_eval_live_clears_live_data() -> None:
 
     # unregistered evals no-op
     detach_eval_live("never-registered")
+
+
+def test_retry_sweep_removes_log_and_invalidates_summaries_memo(tmp_path) -> None:
+    """Deleting a superseded attempt's log also drops its summaries memo.
+
+    ``EvalState.log_sample_summaries`` holds data read from the attempt's own
+    log, so it stays valid through ``detach_eval_live`` — but must not outlive
+    the file: once the retry sweep removes it, listings must degrade to empty
+    (matching per-request reads' ``FileNotFoundError`` handling) rather than
+    serve memoized rows whose samples 404 on detail reads.
+    """
+    from types import SimpleNamespace
+    from typing import cast
+
+    from inspect_ai._eval.evalset import Log, latest_completed_task_eval_logs
+    from inspect_ai.log import EvalLog, EvalSampleSummary
+    from inspect_ai.log._file import EvalLogInfo
+
+    older = tmp_path / "older.eval"
+    newer = tmp_path / "newer.eval"
+    older.touch()
+    newer.touch()
+
+    def _log(path: Any, eval_id: str, mtime: float, status: str) -> Log:
+        return Log(
+            info=EvalLogInfo(
+                name=str(path),
+                type="file",
+                size=0,
+                mtime=mtime,
+                task="t",
+                task_id="tid",
+                suffix=None,
+            ),
+            # only status / eval.task_id / eval.eval_id are consulted
+            header=cast(
+                EvalLog,
+                SimpleNamespace(
+                    status=status,
+                    eval=SimpleNamespace(task_id="tid", eval_id=eval_id),
+                ),
+            ),
+            task_identifier="tid",
+        )
+
+    state = register_eval("attempt-1", 1, log_location=str(older))
+    state.log_sample_summaries = [
+        EvalSampleSummary(id="s1", epoch=1, input="i", target="t", completed=True)
+    ]
+
+    latest = latest_completed_task_eval_logs(
+        logs=[
+            _log(older, "attempt-1", mtime=1.0, status="error"),
+            _log(newer, "attempt-2", mtime=2.0, status="success"),
+        ],
+        cleanup_older=True,
+    )
+
+    assert [log.header.eval.eval_id for log in latest] == ["attempt-2"]
+    assert not older.exists()
+    assert newer.exists()
+    assert state.log_sample_summaries is None
 
 
 async def test_summary_carries_registration_metadata() -> None:
@@ -403,6 +484,8 @@ async def test_started_at_pinned_as_samples_complete(
             completed=None,
             total_tokens=0,
             total_messages=0,
+            refusals=0,
+            http_retries=0,
         )
 
     # First poll: all three samples in flight (starts 100, 200, 300).
@@ -449,6 +532,8 @@ async def test_started_at_pinned_from_terminal_record_before_first_poll(
             completed=None,
             total_tokens=0,
             total_messages=0,
+            refusals=0,
+            http_retries=0,
         )
 
     # The earliest sample (start 100) finished and left active_samples before
@@ -460,3 +545,39 @@ async def test_started_at_pinned_from_terminal_record_before_first_poll(
     monkeypatch.setattr(samples_mod, "active_samples", lambda: [_sample(300.0)])
     [entry] = await current_eval_summaries(0.0)
     assert entry["started_at"] == 100.0
+
+
+def test_event_counts_accumulate_across_attempts() -> None:
+    """Refusals and HTTP retries are counted per ATTEMPT, unlike the usage totals.
+
+    ``record_sample_completed`` fires once per sample with its final attempt's
+    usage; these fire as each attempt leaves ``active_samples``, because a retried
+    attempt's refusals and retries really did happen. That is also what keeps them
+    consistent with the process-global counters the TUI footer shows.
+    """
+    from inspect_ai._control.eval_state import record_sample_event_counts
+
+    register_eval("e1", 2)
+    record_sample_event_counts("e1", refusals=1, http_retries=3)  # attempt 1
+    record_sample_event_counts("e1", refusals=2, http_retries=0)  # its retry
+    record_sample_event_counts("e1", refusals=0, http_retries=5)  # a second sample
+
+    state = get_eval_state("e1")
+    assert state is not None
+    assert state.refusals == 3
+    assert state.http_retries == 8
+    # the terminal counters are untouched — this records neither an outcome nor usage
+    assert (state.completed, state.errored, state.total_tokens) == (0, 0, 0)
+
+
+def test_event_counts_no_op_when_empty_or_unregistered() -> None:
+    """The common case is a sample with neither, so it must not take the lock."""
+    from inspect_ai._control.eval_state import record_sample_event_counts
+
+    register_eval("e1", 1)
+    record_sample_event_counts("e1")  # nothing to add
+    record_sample_event_counts("nope", refusals=4)  # no such eval
+
+    state = get_eval_state("e1")
+    assert state is not None
+    assert (state.refusals, state.http_retries) == (0, 0)

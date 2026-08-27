@@ -5,6 +5,8 @@ from collections.abc import Iterator, Mapping, Sequence
 from contextlib import AbstractContextManager, contextmanager
 from typing import TYPE_CHECKING, Protocol
 
+from pydantic import JsonValue
+
 from inspect_ai.event._base import BaseEvent
 from inspect_ai.event._event import Event
 from inspect_ai.event._pool import (
@@ -14,8 +16,8 @@ from inspect_ai.event._pool import (
 )
 from inspect_ai.event._validate import validate_events
 from inspect_ai.log._condense import resolve_events_attachments
-from inspect_ai.log._log import EventsData
 from inspect_ai.log._recorders.buffer.types import JsonData
+from inspect_ai.model import ChatMessage
 
 if TYPE_CHECKING:
     from inspect_ai.log._transcript import TranscriptHistoryProvider
@@ -24,8 +26,16 @@ if TYPE_CHECKING:
 
 
 class SampleHistoryLike(Protocol):
-    events_data: EventsData
-    attachments: dict[str, str]
+    # read-only properties: page-scoped histories carry sparse position-keyed
+    # pools, so consumers must resolve refs by position rather than slicing
+    @property
+    def message_pool(self) -> Mapping[int, ChatMessage]: ...
+
+    @property
+    def call_pool(self) -> Mapping[int, JsonValue]: ...
+
+    @property
+    def attachments(self) -> Mapping[str, str]: ...
 
     def iter_events(self) -> Iterator[Event | JsonData]: ...
 
@@ -184,8 +194,8 @@ class BufferTranscriptHistoryProvider:
 def _materialize_events(history: SampleHistoryLike) -> list[Event]:
     events = materialize_pooled_events(
         history.iter_events(),
-        history.events_data["messages"],
-        history.events_data["calls"],
+        history.message_pool,
+        history.call_pool,
     )
     # Resolve content attachments (large text / images) back to their
     # underlying values so callers get usable events, not bare
@@ -195,8 +205,8 @@ def _materialize_events(history: SampleHistoryLike) -> list[Event]:
 
 
 def _iter_materialized_events(history: SampleHistoryLike) -> Iterator[Event]:
-    message_pool = history.events_data["messages"]
-    call_pool = history.events_data["calls"]
+    message_pool = history.message_pool
+    call_pool = history.call_pool
     attachments = history.attachments
     for raw_event in history.iter_events():
         event = (

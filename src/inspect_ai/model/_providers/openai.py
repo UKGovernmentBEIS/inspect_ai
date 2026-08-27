@@ -8,6 +8,7 @@ from openai import (
     AsyncAzureOpenAI,
     AsyncBedrockOpenAI,
     AsyncOpenAI,
+    DefaultAsyncHttpxClient,
     NotFoundError,
     NotGiven,
     RateLimitError,
@@ -26,16 +27,15 @@ from inspect_ai.model._providers.openai_completions import (
 )
 from inspect_ai.model._providers.openai_responses import generate_responses
 from inspect_ai.model._providers.util.hooks import HttpxHooks
-from inspect_ai.model._retry import ModelRetryConfig, model_retry_config
+from inspect_ai.model._retry import ModelRetryConfig, batch_admin_retry_config
 from inspect_ai.tool import ToolChoice, ToolInfo
 
 from .._chat_message import ChatMessage
 from .._generate_config import GenerateConfig
-from .._model import ModelAPI, RetryDecision, log_model_retry
+from .._model import ModelAPI, RetryDecision
 from .._model_call import ModelCall
 from .._model_output import ModelOutput, ModelUsage
 from .._openai import (
-    OpenAIAsyncHttpxClient,
     is_gpt_5_model,
     is_latest_model,
     is_o_series_model,
@@ -240,7 +240,7 @@ class OpenAIAPI(ModelAPI):
 
         # extract http_client and api_version before storing model_args
         self.http_client = (
-            model_args.pop("http_client", None) or OpenAIAsyncHttpxClient()
+            model_args.pop("http_client", None) or DefaultAsyncHttpxClient()
         )
         if self.is_azure():
             # resolve version
@@ -316,7 +316,7 @@ class OpenAIAPI(ModelAPI):
         super().initialize()
 
         if self.http_client.is_closed:
-            self.http_client = OpenAIAsyncHttpxClient()
+            self.http_client = DefaultAsyncHttpxClient()
 
         self.client = self._create_client()
 
@@ -328,7 +328,7 @@ class OpenAIAPI(ModelAPI):
         # side step that complexity and just use two different batchers.
         self._completions_batcher: OpenAIBatcher[ChatCompletion] | None = None
         self._responses_batcher: OpenAIBatcher[Response] | None = None
-        self._http_hooks = HttpxHooks(self.client._client)
+        self._http_hooks = HttpxHooks(self.client._client, api=self)
 
     @override
     async def count_text_tokens(self, text: str) -> int:
@@ -667,13 +667,11 @@ class OpenAIAPI(ModelAPI):
 
     def _resolve_batcher(self, config: GenerateConfig, for_responses_api: bool) -> None:
         def _resolve_retry_config() -> ModelRetryConfig:
-            return model_retry_config(
+            return batch_admin_retry_config(
                 self.model_name,
-                config.max_retries,
-                config.timeout,
+                config,
                 self.should_retry,
-                lambda ex: None,
-                log_model_retry,
+                qualified_model_name=self.qualified_model_name,
             )
 
         # TODO: Bogus that we have to do this on each call. Ideally, it would be
@@ -753,7 +751,7 @@ class OpenAIAPI(ModelAPI):
     def _get_reasoning_params_for_config(
         self, config: GenerateConfig | None
     ) -> Reasoning | None:
-        """Get reasoning parameters from config for compact/count_tokens calls."""
+        """Get reasoning parameters from the generation config."""
         if config is None:
             return None
 

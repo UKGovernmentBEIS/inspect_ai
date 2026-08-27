@@ -1,6 +1,7 @@
 from collections.abc import Awaitable, Callable
 
 from inspect_ai._control.eval_state import BufferConfig
+from inspect_ai.log._config_update import ConfigUpdate
 from inspect_ai.log._log import EvalSample, EvalSampleSummary
 from inspect_ai.log._transcript import TranscriptHistoryProvider
 
@@ -24,12 +25,14 @@ class FakeLiveEvalData:
         | None = None,
         flush: Callable[[], Awaitable[int]] | None = None,
         buffer: Callable[[int | None, int | None], BufferConfig] | None = None,
+        config_update: Callable[[ConfigUpdate], Awaitable[bool]] | None = None,
     ) -> None:
         self._summaries = summaries
         self._sample = sample
         self._events = events
         self._flush = flush
         self._buffer = buffer
+        self._config_update = config_update
 
     async def sample_summaries(self) -> list[EvalSampleSummary] | None:
         return await self._summaries() if self._summaries is not None else None
@@ -59,3 +62,8 @@ class FakeLiveEvalData:
         if self._buffer is None:
             raise AssertionError("buffer_config called on a fake without a buffer")
         return self._buffer(log_buffer, log_shared)
+
+    async def log_config_update(self, update: ConfigUpdate) -> bool:
+        if self._config_update is None:
+            return False
+        return await self._config_update(update)

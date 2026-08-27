@@ -8,6 +8,8 @@ from inspect_ai.model._model_output import ModelUsage
 from inspect_ai.util import SandboxEnvironmentSpec
 from inspect_ai.util._checkpoint.config import CheckpointConfig
 
+from .images import InputMediaPolicy
+
 
 @dataclass(frozen=True)
 class ResolvedTask:
@@ -16,13 +18,14 @@ class ResolvedTask:
     task_args: dict[str, Any]
     task_file: str | None
     model: Model
-    model_roles: dict[str, Model] | None
+    model_roles: dict[str, Model | list[Model]] | None
     sandbox: SandboxEnvironmentSpec | None
     checkpoint: CheckpointConfig | None
     sequence: int
     sample_source: EvalSampleSource | None = field(default=None)
     initial_model_usage: dict[str, ModelUsage] | None = field(default=None)
     initial_role_usage: dict[str, ModelUsage] | None = field(default=None)
+    input_media_policy: InputMediaPolicy = field(default="inline_only")
 
     @property
     def has_sandbox(self) -> bool:

@@ -4,7 +4,7 @@ Reads (and optionally retunes) a running task's concurrency limits mid-flight �
 ``max_samples`` (per-task sample concurrency), ``max_sandboxes`` (per-provider
 sandbox concurrency, process-global) and ``max_subprocesses`` (subprocess
 concurrency, process-global). The first of the phase-3 modify directives
-(see ``design/control-channel.md``). Keyed by task_id — the identity that is
+(see ``design/ctl/control-channel.md``). Keyed by task_id — the identity that is
 stable across retry attempts — via ``GET``/``PATCH /tasks/<task-id>/config``.
 
 These knobs are backed by a :class:`~inspect_ai.util._concurrency.ResizableLimiter`
@@ -39,16 +39,69 @@ process-global (shared across the process's tasks), :func:`process_limits`
 exposes them without a task — the process-level ``GET``/``PATCH /config``
 endpoint — for the common case of viewing or throttling a whole process without
 naming one of its tasks.
+
+Both directives also carry the retry-loop overrides — ``timeout`` /
+``attempt_timeout`` / ``max_retries``, likewise process-global — backed by the
+live override layer in :mod:`inspect_ai.model._generate_overrides` rather than
+a limiter: the generate retry loop reads the overrides at each point of use,
+so a retune reaches calls already inside their retry loop (the keyword
+``clear`` removes an override, restoring launch config).
+
+``max_tasks`` — the task dispatchers' concurrency cap — is likewise
+process-global and override-backed (:mod:`inspect_ai._control.max_tasks`)
+rather than limiter-backed: the dispatcher is a select loop whose admission
+check reads the effective limit each iteration, so raising it starts pending
+tasks immediately (the set fires the dispatch wakers) and the retune survives
+dispatcher recreation within the run; lowering never preempts in-flight
+tasks. The keyword ``clear`` removes the override, restoring the launch
+value.
+
+The task directive additionally carries the per-sample limit overrides —
+``time_limit`` / ``token_limit`` / ``message_limit``, task-scoped — backed by
+the live override layer in :mod:`inspect_ai.util._limit_overrides` on the
+same model: each sample's root limit nodes resolve their effective limit
+through the store at every check, so a retune reaches in-flight samples (the
+incident case — "these samples are running away") as well as ones not yet
+started; a ``time_limit`` retune also re-derives running samples' cancel-scope
+deadlines, since a deadline is slept on rather than polled. The keyword
+``clear`` removes an override, restoring launch config.
+
+Beyond the named knobs, any ``concurrency()`` registry entry — the public API
+tools and user code register named limits through (web-search providers, model
+compaction, sandbox-tools injection, arbitrary solver code) — can be retuned by
+its exact name via ``key`` / ``key_limit``. The view carries a ``concurrency``
+list enumerating every registry entry with its ``(limit, in_use, adjustable)``,
+and the default registry backs every static entry with a resizable semaphore,
+so third-party limits are adjustable without their creator opting in. Named
+limits are created lazily on first use, so a key that names no entry raises
+:class:`UnknownConcurrencyKeyError` (listing the keys that do exist) *before*
+any other knob applies — unlike the shipped knobs' not-adjustable warnings, a
+mistyped name silently matching nothing would read as applied. The registry is
+process-global, so the key knob rides both endpoints.
 """
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, NamedTuple
+from typing import TYPE_CHECKING, Any, Callable, Literal, Mapping, NamedTuple, TypeVar
 
+from inspect_ai._control.views import (
+    AdaptiveControllerView,
+    ConcurrencyKeyView,
+    MaxSamplesView,
+    MaxTasksView,
+    ProcessConfigView,
+    SandboxLimiterView,
+    SubprocessLimiterView,
+    TaskConfigView,
+)
 from inspect_ai._util.name_match import match_name_prefix
 
 if TYPE_CHECKING:
-    from inspect_ai.util._concurrency import AdaptiveConcurrencyController
+    from inspect_ai.log._config_update import ConfigValueChange
+    from inspect_ai.util._concurrency import (
+        AdaptiveConcurrencyController,
+        ConcurrencySemaphore,
+    )
 
 # How many of an adaptive controller's most-recent scale changes to surface in
 # the read view — enough to see whether it's actively being throttled without
@@ -56,40 +109,123 @@ if TYPE_CHECKING:
 _RECENT_CHANGES = 5
 
 
+class UnknownConcurrencyKeyError(ValueError):
+    """A concurrency-key retune named a registry entry that does not exist.
+
+    Named ``concurrency()`` limits are created lazily on first use, so an
+    unknown key may simply not have been exercised yet — the message lists the
+    keys that do exist. Raised by the directive functions before any knob is
+    applied (the routes turn it into a 400), so a combined ``PATCH`` fails
+    whole rather than applying its other knobs first.
+    """
+
+
+def check_concurrency_key(key: str | None) -> None:
+    """Raise :class:`UnknownConcurrencyKeyError` when ``key`` names no entry.
+
+    ``None`` (no key requested) passes. Matching is by exact registered name —
+    a mutation should not fan out on a prefix the caller never spelled.
+    """
+    if key is None:
+        return
+    from inspect_ai.util._concurrency import concurrency_semaphores
+
+    names = sorted({sem.name for sem in concurrency_semaphores()})
+    if key in names:
+        return
+    available = (
+        f"available: {', '.join(names)}"
+        if names
+        else "no concurrency keys are registered yet"
+    )
+    raise UnknownConcurrencyKeyError(
+        f"no concurrency key named '{key}' ({available}). Named limits are "
+        "created lazily on first use, so a key does not exist until the code "
+        "that registers it has run."
+    )
+
+
 async def process_limits(
     *,
+    max_tasks: int | Literal["clear"] | None = None,
     max_sandboxes: int | None = None,
     max_subprocesses: int | None = None,
     max_connections: int | None = None,
     model: str | None = None,
+    timeout: int | Literal["clear"] | None = None,
+    attempt_timeout: int | Literal["clear"] | None = None,
+    max_retries: int | Literal["clear"] | None = None,
+    key: str | None = None,
+    key_limit: int | None = None,
+    author: str | None = None,
+    reason: str | None = None,
     dry_run: bool = False,
-) -> dict[str, Any]:
+) -> ProcessConfigView:
     """Read (and optionally retune) the process-global concurrency limits.
 
     Covers the knobs that are shared across every task in the process:
-    ``max_sandboxes`` (per-provider sandbox concurrency), ``max_subprocesses``
-    (subprocess concurrency) and ``max_connections`` (the adaptive controllers'
-    scaling ceiling). It carries no ``max_samples`` — that is per-task; use
-    :func:`task_limits` when a specific task is in view.
+    ``max_tasks`` (the task dispatchers' concurrency cap — a live override
+    read at each dispatch decision, see
+    :mod:`inspect_ai._control.max_tasks`; the keyword ``clear`` removes it,
+    restoring the launch value), ``max_sandboxes`` (per-provider sandbox
+    concurrency), ``max_subprocesses``
+    (subprocess concurrency), ``max_connections`` (the adaptive controllers'
+    scaling ceiling), ``key`` / ``key_limit`` (a named ``concurrency()``
+    registry entry — the registry is process-global), and the retry-loop
+    overrides (``timeout`` / ``attempt_timeout`` / ``max_retries`` — see the
+    ``retry`` view and :mod:`inspect_ai.model._generate_overrides`; the
+    keyword ``clear`` removes an override, restoring the launch
+    configuration). It carries no
+    ``max_samples`` — that is per-task; use :func:`task_limits` when a
+    specific task is in view.
 
     A process always exists, so unlike :func:`task_limits` this never returns
     ``None``. With every knob ``None`` it's a pure read. ``model`` restricts the
     adaptive controllers considered (matched at name start or after a ``/``).
+    ``author`` / ``reason`` are provenance for the log record of any applied
+    change (see :mod:`inspect_ai._control.config_record`); the ``persisted``
+    key of the result reports, per applied knob, whether that record was
+    written (``None`` when nothing was applied).
+
+    Raises:
+        UnknownConcurrencyKeyError: When ``key`` names no registry entry —
+            before any other knob is applied.
     """
+    from inspect_ai._control.config_record import record_config_changes
+
+    check_concurrency_key(key)
     views = _apply_process_knobs(
+        max_tasks=max_tasks,
         max_sandboxes=max_sandboxes,
         max_subprocesses=max_subprocesses,
         max_connections=max_connections,
         model=model,
+        timeout=timeout,
+        attempt_timeout=attempt_timeout,
+        max_retries=max_retries,
+        key=key,
+        key_limit=key_limit,
         dry_run=dry_run,
+    )
+    persisted = await record_config_changes(
+        task_id=None,
+        task_changes=[],
+        process_changes=views.applied,
+        author=author,
+        reason=reason,
+        metadata=views.record_metadata,
     )
     return {
         "dry_run": dry_run,
+        "max_tasks": views.max_tasks,
         "max_sandboxes": views.max_sandboxes,
         "max_subprocesses": views.max_subprocesses,
         "adaptive": views.adaptive,
+        "retry": views.retry,
+        "concurrency": views.concurrency,
         "requested": views.requested or None,
         "warnings": views.warnings,
+        "persisted": persisted,
     }
 
 
@@ -97,19 +233,32 @@ async def task_limits(
     task_id: str,
     *,
     max_samples: int | None = None,
+    max_tasks: int | Literal["clear"] | None = None,
     max_sandboxes: int | None = None,
     max_subprocesses: int | None = None,
     max_connections: int | None = None,
     model: str | None = None,
+    key: str | None = None,
+    key_limit: int | None = None,
     log_buffer: int | None = None,
     log_shared: int | None = None,
+    timeout: int | Literal["clear"] | None = None,
+    attempt_timeout: int | Literal["clear"] | None = None,
+    max_retries: int | Literal["clear"] | None = None,
+    time_limit: int | Literal["clear"] | None = None,
+    token_limit: int | Literal["clear"] | None = None,
+    message_limit: int | Literal["clear"] | None = None,
+    author: str | None = None,
+    reason: str | None = None,
     dry_run: bool = False,
-) -> dict[str, Any] | None:
+) -> TaskConfigView | None:
     """Read (and optionally retune) a task's retunable config.
 
     A superset of :func:`process_limits`: it adds the per-task knobs — the
-    ``max_samples`` sample concurrency plus the ``log_buffer`` / ``log_shared``
-    sample-buffer params — to the process-global ``max_sandboxes`` /
+    ``max_samples`` sample concurrency, the ``log_buffer`` / ``log_shared``
+    sample-buffer params, and the ``time_limit`` / ``token_limit`` /
+    ``message_limit`` per-sample limit overrides (reported under the
+    ``limits`` view key) — to the process-global ``max_sandboxes`` /
     ``max_subprocesses`` / ``max_connections`` view. Task-scoped state lives in task_id-keyed
     registries: the sample limiter is read straight from the task-semaphore
     registry (shared across the task's retry attempts — see
@@ -133,20 +282,50 @@ async def task_limits(
     Args:
         task_id: The target task (stable across retry attempts).
         max_samples: New sample-concurrency limit, or ``None`` to leave it.
+        max_tasks: New task-dispatch concurrency cap — a live process-wide
+            override read at each dispatch decision (the keyword ``clear``
+            removes it, restoring the launch value), or ``None`` to leave it.
         max_sandboxes: New per-provider sandbox-concurrency limit, or ``None``.
         max_subprocesses: New subprocess-concurrency limit, or ``None``.
         max_connections: New adaptive-controller scaling ceiling (applied to
             every adaptive controller in the process), or ``None`` to leave it.
         model: Restrict the adaptive controllers ``max_connections`` targets (and
             the reported adaptive view) to those matching, or ``None`` for all.
+        key: Name of a ``concurrency()`` registry entry to retune (exact
+            match; the registry is process-global), or ``None``. An unknown
+            name raises :class:`UnknownConcurrencyKeyError` before any other
+            knob is applied.
+        key_limit: The new limit for ``key``, or ``None``.
         log_buffer: New completed-samples-per-log-write buffer threshold, or
             ``None`` to leave it.
         log_shared: New shared-log event sync interval (seconds), or ``None``.
+        timeout: New total retry budget per generate call (seconds) — a live
+            process-wide override (the keyword ``clear`` removes it,
+            restoring launch config), or ``None`` to leave it.
+        attempt_timeout: New per-attempt timeout (seconds) — same override
+            semantics as ``timeout``.
+        max_retries: New max retries per generate call (``0`` = fail after
+            the first attempt) — same override semantics as ``timeout``.
+        time_limit: New per-sample wall-clock limit (seconds) — a live
+            task-scoped override read where the sample limits are resolved,
+            so it reaches in-flight samples too (a time retune re-derives
+            their live cancel-scope deadlines); the keyword ``clear``
+            removes it, restoring launch config.
+        token_limit: New per-sample token limit — same override semantics
+            as ``time_limit`` (applied at each sample's next token check).
+        message_limit: New per-sample message limit — same override
+            semantics as ``time_limit`` (applied at each sample's next
+            message check).
+        author: Provenance author for the log record of any applied change
+            (``None`` falls back to the server's OS user).
+        reason: Provenance reason for the log record of any applied change.
         dry_run: When set, validate and report the intended change without
             applying it.
     """
     from inspect_ai._control.buffer import state_buffer_config
+    from inspect_ai._control.config_record import record_config_changes
     from inspect_ai._control.eval_state import latest_eval_for_task
+    from inspect_ai.log._config_update import ConfigValueChange
     from inspect_ai.util._concurrency import (
         DynamicSampleLimiter,
         ResizableLimiter,
@@ -157,11 +336,16 @@ async def task_limits(
     if latest is None:
         return None
 
+    # an unknown key fails the whole request, so it must be rejected before
+    # the per-task knobs below (not just before the process knobs) apply
+    check_concurrency_key(key)
+
     # max_samples — the task's sample semaphore. Only a ResizableLimiter is a
     # user setpoint; a DynamicSampleLimiter (adaptive path) or a missing entry
     # (reused-log task, or one that ran no samples here) isn't adjustable.
-    sample_requested: dict[str, int] = {}
+    sample_requested: dict[str, int | str] = {}
     sample_warnings: list[str] = []
+    task_applied: list[ConfigValueChange] = []
     semaphore = task_sample_semaphore(task_id)
     sample_limiter = semaphore if isinstance(semaphore, ResizableLimiter) else None
     if max_samples is not None:
@@ -172,7 +356,13 @@ async def task_limits(
                 "connection concurrency, or ran no samples in this process)."
             )
         elif not dry_run:
+            previous_limit = [sample_limiter.limit]
             sample_limiter.limit = max_samples
+            change = _record_retune(
+                previous_limit, max_samples, config="eval", name="max_samples"
+            )
+            if change is not None:
+                task_applied.append(change)
 
     # a DynamicSampleLimiter that never found its model's controller means
     # sample concurrency is stuck at its starting value — generates may be
@@ -196,11 +386,46 @@ async def task_limits(
         sample_requested["log_buffer"] = log_buffer
     if log_shared is not None:
         sample_requested["log_shared"] = log_shared
+    # read the pre-change values first so an applied change can be recorded
+    # with its honest `previous` (the applying call below returns only the
+    # resulting view)
+    previous_buffer = (
+        state_buffer_config(latest)
+        if (log_buffer is not None or log_shared is not None) and not dry_run
+        else None
+    )
     buffer_view = state_buffer_config(
         latest,
         log_buffer=log_buffer if not dry_run else None,
         log_shared=log_shared if not dry_run else None,
     )
+    if previous_buffer is not None and buffer_view is not None:
+        if log_buffer is not None and previous_buffer.get("log_buffer") != (
+            new_log_buffer := buffer_view.get("log_buffer")
+        ):
+            task_applied.append(
+                ConfigValueChange(
+                    config="eval",
+                    name="log_buffer",
+                    value=new_log_buffer,
+                    previous=previous_buffer.get("log_buffer"),
+                )
+            )
+        # a syncless buffer rejects a log_shared set and reports None — only
+        # a change that actually landed is recorded
+        if (
+            log_shared is not None
+            and buffer_view.get("log_shared") is not None
+            and previous_buffer.get("log_shared") != buffer_view.get("log_shared")
+        ):
+            task_applied.append(
+                ConfigValueChange(
+                    config="eval",
+                    name="log_shared",
+                    value=buffer_view.get("log_shared"),
+                    previous=previous_buffer.get("log_shared"),
+                )
+            )
     if buffer_view is None and (log_buffer is not None or log_shared is not None):
         sample_warnings.append(
             "log_buffer/log_shared are not adjustable for this task (no live "
@@ -222,22 +447,73 @@ async def task_limits(
             "--log-shared and requires realtime logging)."
         )
 
+    # time_limit / token_limit / message_limit — the per-sample limit
+    # override layer (task-scoped, read live where each sample's limits are
+    # resolved, so a retune reaches in-flight samples at their next check; a
+    # time retune also re-derives running samples' cancel-scope deadlines).
+    # "clear" removes an override, restoring launch config. Like the retry
+    # overrides these never warn as unadjustable — the layer exists
+    # regardless of the task's launch config (a task with no live samples
+    # simply has nothing reading it yet).
+    from inspect_ai.util._limit_overrides import (
+        SAMPLE_LIMIT_OVERRIDE_FIELDS,
+        SampleLimitOverrideField,
+        sample_limit_override,
+        sample_limit_overrides,
+        set_sample_limit_override,
+    )
+
+    limit_values: dict[SampleLimitOverrideField, int | Literal["clear"] | None] = {
+        "time_limit": time_limit,
+        "token_limit": token_limit,
+        "message_limit": message_limit,
+    }
+    # a field added to the override Literal but missing here would be
+    # settable in the store yet silently not applied by this directive
+    assert set(limit_values) == set(SAMPLE_LIMIT_OVERRIDE_FIELDS)
+    _apply_override_knobs(
+        limit_values,
+        get_override=lambda field: sample_limit_override(task_id, field),
+        set_override=lambda field, value: set_sample_limit_override(
+            task_id, field, value
+        ),
+        config="eval",
+        dry_run=dry_run,
+        requested=sample_requested,
+        applied=task_applied,
+    )
+
     views = _apply_process_knobs(
+        max_tasks=max_tasks,
         max_sandboxes=max_sandboxes,
         max_subprocesses=max_subprocesses,
         max_connections=max_connections,
         model=model,
+        timeout=timeout,
+        attempt_timeout=attempt_timeout,
+        max_retries=max_retries,
+        key=key,
+        key_limit=key_limit,
         dry_run=dry_run,
     )
     # per-task entries lead, then the process-global ones
     requested = {**sample_requested, **views.requested}
     warnings = sample_warnings + views.warnings
 
+    persisted = await record_config_changes(
+        task_id=task_id,
+        task_changes=task_applied,
+        process_changes=views.applied,
+        author=author,
+        reason=reason,
+        metadata=views.record_metadata,
+    )
+
     # `tracks_adaptive` distinguishes the adaptive path (sample concurrency
     # follows this task's controller) from a task with no live limiter at all
     # (reused log / ran no samples here) — the renderer must not claim the
     # latter tracks anything.
-    max_samples_view: dict[str, Any]
+    max_samples_view: MaxSamplesView
     if sample_limiter is not None:
         max_samples_view = {
             "limit": sample_limiter.limit,
@@ -253,12 +529,17 @@ async def task_limits(
     return {
         "dry_run": dry_run,
         "max_samples": max_samples_view,
+        "max_tasks": views.max_tasks,
         "max_sandboxes": views.max_sandboxes,
         "max_subprocesses": views.max_subprocesses,
         "adaptive": views.adaptive,
+        "retry": views.retry,
+        "limits": sample_limit_overrides(task_id),
+        "concurrency": views.concurrency,
         "buffer": buffer_view,
         "requested": requested or None,
         "warnings": warnings,
+        "persisted": persisted,
     }
 
 
@@ -278,19 +559,141 @@ def _match_controllers(
 class _ProcessKnobViews(NamedTuple):
     """The process-global limit views built by :func:`_apply_process_knobs`."""
 
-    max_sandboxes: list[dict[str, Any]]
-    max_subprocesses: dict[str, Any] | None
-    adaptive: list[dict[str, Any]]
-    requested: dict[str, int]
+    max_tasks: MaxTasksView
+    max_sandboxes: list[SandboxLimiterView]
+    max_subprocesses: SubprocessLimiterView | None
+    adaptive: list[AdaptiveControllerView]
+    retry: dict[str, int | None]
+    concurrency: list[ConcurrencyKeyView]
+    requested: dict[str, int | str]
     warnings: list[str]
+    applied: "list[ConfigValueChange]"
+    """Changes that actually took effect (for log recording): no-op re-sends
+    of the current value, warn-and-skip knobs, dry runs, and the ``key`` knob
+    (no recorded counterpart in the log) are excluded."""
+
+    record_metadata: dict[str, Any] | None
+    """Provenance metadata for the log record of ``applied``.
+
+    Carries ``max_connections_model`` when a ``max_connections`` change was
+    restricted with ``model``: the record fans out to every live task log,
+    so without the filter a reader couldn't tell a filtered retune (which
+    never touched some logs' models) from a global one."""
+
+
+def _record_retune(
+    previous: list[int],
+    value: int,
+    *,
+    config: Literal["eval", "generate", "concurrency"],
+    name: str,
+) -> ConfigValueChange | None:
+    """The change record for an applied limiter retune, or ``None`` for a no-op.
+
+    The recording invariants shared by every limiter-backed knob live here:
+    a retune that changed nothing (every target was already at ``value``)
+    records nothing — no-op records would clutter the log — and the record's
+    ``previous`` is the targets' agreed pre-retune value, or ``None`` when
+    several targets disagreed (unknown/mixed — the recording layer then
+    falls back to the log's launch value, where one exists).
+    """
+    from inspect_ai.log._config_update import ConfigValueChange
+
+    if all(prev == value for prev in previous):
+        return None
+    return ConfigValueChange(
+        config=config,
+        name=name,
+        value=value,
+        previous=previous[0] if len(set(previous)) == 1 else None,
+    )
+
+
+_OverrideField = TypeVar("_OverrideField", bound=str)
+
+
+def _apply_override_knobs(
+    values: Mapping[_OverrideField, int | Literal["clear"] | None],
+    *,
+    get_override: Callable[[_OverrideField], int | None],
+    set_override: Callable[[_OverrideField, int | None], None],
+    config: Literal["eval", "generate"],
+    dry_run: bool,
+    requested: dict[str, int | str],
+    applied: list[ConfigValueChange],
+) -> None:
+    """Apply one family of live override knobs and record what changed.
+
+    The apply/record semantics shared by the override-layer knob families
+    (the retry-loop overrides and the per-sample limit overrides) live here
+    so they cannot drift apart: a value sets the field's override, the
+    keyword ``clear`` removes it, and only a change that actually landed is
+    recorded — a set matching the active override and a clear with no
+    override active both record nothing. A record's ``previous`` of ``None``
+    means "no prior override" (the recording layer fills it from the log's
+    launch config). ``None`` values in ``values`` (knob not requested) are
+    skipped; ``requested`` and ``applied`` are updated in place.
+    """
+    from inspect_ai.log._config_update import ConfigValueChange
+
+    for field, value in values.items():
+        if value is not None:
+            requested[field] = value
+            if not dry_run:
+                previous_override = get_override(field)
+                set_override(field, None if value == "clear" else value)
+                if value == "clear":
+                    if previous_override is not None:
+                        applied.append(
+                            ConfigValueChange(
+                                config=config,
+                                name=field,
+                                cleared=True,
+                                previous=previous_override,
+                            )
+                        )
+                elif previous_override != value:
+                    applied.append(
+                        ConfigValueChange(
+                            config=config,
+                            name=field,
+                            value=value,
+                            previous=previous_override,
+                        )
+                    )
+
+
+def _static_semaphores() -> "list[ConcurrencySemaphore]":
+    """The non-adaptive concurrency-registry entries (the key knob's targets).
+
+    Adaptive controllers are excluded: they are surfaced through the
+    ``adaptive`` view and retuned via ``max_connections`` (their limit is a
+    scaling ceiling, not a fixed setpoint a key retune could set directly).
+    """
+    from inspect_ai.util._concurrency import (
+        AdaptiveConcurrencyController,
+        concurrency_semaphores,
+    )
+
+    return [
+        sem
+        for sem in concurrency_semaphores()
+        if not isinstance(sem, AdaptiveConcurrencyController)
+    ]
 
 
 def _apply_process_knobs(
     *,
+    max_tasks: int | Literal["clear"] | None = None,
     max_sandboxes: int | None,
     max_subprocesses: int | None,
     max_connections: int | None,
     model: str | None,
+    timeout: int | Literal["clear"] | None = None,
+    attempt_timeout: int | Literal["clear"] | None = None,
+    max_retries: int | Literal["clear"] | None = None,
+    key: str | None = None,
+    key_limit: int | None = None,
     dry_run: bool,
 ) -> _ProcessKnobViews:
     """Apply the process-global knobs and build their views.
@@ -299,16 +702,74 @@ def _apply_process_knobs(
     warnings (callers merge their own per-task entries in front). The views
     are re-read after applying, so a real set reflects the new values.
     ``model`` restricts the adaptive controllers considered (for both
-    ``max_connections`` and the reported view) to those matching it.
+    ``max_connections`` and the reported view) to those matching it. ``key``
+    must already have passed :func:`check_concurrency_key` (the caller
+    rejects unknown keys before any knob applies).
+
+    ``max_tasks`` and the retry knobs (``timeout`` / ``attempt_timeout`` /
+    ``max_retries``) set (or with the
+    keyword ``clear``, remove) process-wide live overrides —
+    always adjustable, since the override layer exists regardless of what
+    any task's launch config specifies (for ``max_tasks``, a set landing
+    while no dispatcher is live — e.g. during a batch's startup before its
+    dispatcher registers — still governs every later dispatch decision in
+    the run; skip-and-warn would silently drop it).
     """
+    from inspect_ai._control.max_tasks import (
+        max_tasks_override,
+        set_max_tasks_override,
+        task_dispatcher_stats,
+    )
+    from inspect_ai.log._config_update import ConfigValueChange
     from inspect_ai.util._concurrency import (
+        ResizableSemaphore,
         adaptive_controllers,
         sandbox_limiters,
         subprocess_limiter,
     )
 
-    requested: dict[str, int] = {}
+    requested: dict[str, int | str] = {}
     warnings: list[str] = []
+    applied: list[ConfigValueChange] = []
+    record_metadata: dict[str, Any] | None = None
+
+    # max_tasks — the task dispatchers' live override (process-global, read
+    # at each dispatch decision; setting it wakes waiting dispatchers).
+    if max_tasks is not None:
+        requested["max_tasks"] = max_tasks
+        if not dry_run:
+            previous_override = max_tasks_override()
+            stats = task_dispatcher_stats()
+            # the honest pre-change effective limit where a dispatcher is
+            # live; else the prior override (None → the recording layer
+            # fills `previous` from each log's launch config)
+            previous_effective = (
+                stats.launch
+                if previous_override is None and stats is not None
+                else previous_override
+            )
+            if max_tasks == "clear":
+                set_max_tasks_override(None)
+                if previous_override is not None:
+                    applied.append(
+                        ConfigValueChange(
+                            config="eval",
+                            name="max_tasks",
+                            cleared=True,
+                            previous=previous_override,
+                        )
+                    )
+            else:
+                set_max_tasks_override(max_tasks)
+                if previous_effective != max_tasks:
+                    applied.append(
+                        ConfigValueChange(
+                            config="eval",
+                            name="max_tasks",
+                            value=max_tasks,
+                            previous=previous_effective,
+                        )
+                    )
 
     # max_sandboxes — the process-global sandbox limiters, one per sandbox type.
     sandboxes = sandbox_limiters()
@@ -321,8 +782,14 @@ def _apply_process_knobs(
                 "in effect)."
             )
         elif not dry_run:
+            previous_sandboxes = [sem.concurrency for sem in sandboxes.values()]
             for sem in sandboxes.values():
                 sem.concurrency = max_sandboxes
+            change = _record_retune(
+                previous_sandboxes, max_sandboxes, config="eval", name="max_sandboxes"
+            )
+            if change is not None:
+                applied.append(change)
 
     # max_subprocesses — the process-global subprocess limiter (registry key
     # "subprocesses", created lazily by the first concurrency-managed
@@ -337,7 +804,16 @@ def _apply_process_knobs(
                 "subprocess has run yet; the limiter is created on first use)."
             )
         elif not dry_run:
+            previous_subprocesses = [subprocesses.concurrency]
             subprocesses.concurrency = max_subprocesses
+            change = _record_retune(
+                previous_subprocesses,
+                max_subprocesses,
+                config="eval",
+                name="max_subprocesses",
+            )
+            if change is not None:
+                applied.append(change)
 
     # max_connections — the adaptive controllers' scaling ceiling (process-global,
     # one per model). Lowering clamps live concurrency down immediately; raising
@@ -362,14 +838,111 @@ def _apply_process_knobs(
                 "adaptive connections)."
             )
         elif controllers and not dry_run:
+            previous_maxes = [ctrl.max for ctrl in controllers]
             for ctrl in controllers:
                 ctrl.set_max(max_connections)
+            change = _record_retune(
+                previous_maxes,
+                max_connections,
+                config="generate",
+                name="max_connections",
+            )
+            if change is not None:
+                applied.append(change)
+                # a filtered retune never touched the other models' controllers,
+                # yet its record reaches every live log — stamp the filter so a
+                # reader can tell (see _ProcessKnobViews.record_metadata)
+                if model is not None:
+                    record_metadata = {"max_connections_model": model}
+
+    # timeout / attempt_timeout / max_retries — the retry-loop override layer
+    # (process-wide, read live by the generate retry loop). "clear" removes an
+    # override; the store always exists, so these never warn as unadjustable.
+    from inspect_ai.model._generate_overrides import (
+        GENERATE_CONFIG_OVERRIDE_FIELDS,
+        GenerateConfigOverrideField,
+        generate_config_override,
+        generate_config_overrides,
+        set_generate_config_override,
+    )
+
+    retry_values: dict[GenerateConfigOverrideField, int | Literal["clear"] | None] = {
+        "timeout": timeout,
+        "attempt_timeout": attempt_timeout,
+        "max_retries": max_retries,
+    }
+    # a field added to the override Literal but missing here would be
+    # settable in the store yet silently not applied by this directive
+    assert set(retry_values) == set(GENERATE_CONFIG_OVERRIDE_FIELDS)
+    _apply_override_knobs(
+        retry_values,
+        get_override=generate_config_override,
+        set_override=set_generate_config_override,
+        config="generate",
+        dry_run=dry_run,
+        requested=requested,
+        applied=applied,
+    )
+
+    # key — a named concurrency() registry entry, matched by exact name (a
+    # name can back several entries — e.g. one model on two accounts — and the
+    # retune reaches them all, like max_connections' name matching). The
+    # caller already rejected unknown names, so a no-match here means the name
+    # belongs only to an adaptive controller. Recorded as a "concurrency"
+    # change: no launch-config counterpart to fold into, but the audit record
+    # (who, when, why, old → new) belongs in the log like any other retune
+    # (see design/ctl/config-log-persistence.md).
+    if key is not None and key_limit is not None:
+        requested[f"concurrency:{key}"] = key_limit
+        matches = [sem for sem in _static_semaphores() if sem.name == key]
+        resizable_matches = [
+            sem for sem in matches if isinstance(sem, ResizableSemaphore)
+        ]
+        if not matches:
+            warnings.append(
+                f"'{key}' is managed by adaptive connections — retune its "
+                "ceiling with max_connections (scoped with model if needed)."
+            )
+        elif not resizable_matches:
+            warnings.append(
+                f"'{key}' is not adjustable (its semaphore does not support "
+                "live resizing)."
+            )
+        elif not dry_run:
+            previous_limits = [sem.concurrency for sem in resizable_matches]
+            for sem in resizable_matches:
+                sem.concurrency = key_limit
+            change = _record_retune(
+                previous_limits, key_limit, config="concurrency", name=key
+            )
+            if change is not None:
+                applied.append(change)
+
+    # The max_tasks view (re-read after applying, like the others). `limit`
+    # is the effective dispatch cap (override ?? launch); `launch` /
+    # `in_flight` / `pending` are None when no dispatcher is live (during
+    # batch startup, between `enqueue_task`-driven batches) — a set still
+    # applies then, hence `adjustable` is unconditionally True. After a
+    # lowering, `in_flight` may exceed `limit` until it drains (never
+    # preempts).
+    override = max_tasks_override()
+    dispatcher = task_dispatcher_stats()
+    max_tasks_view: MaxTasksView = {
+        "limit": override
+        if override is not None
+        else (dispatcher.launch if dispatcher is not None else None),
+        "launch": dispatcher.launch if dispatcher is not None else None,
+        "override": override,
+        "in_flight": dispatcher.in_flight if dispatcher is not None else None,
+        "pending": dispatcher.pending if dispatcher is not None else None,
+        "adjustable": True,
+    }
 
     # Read `in_use` from the limiter directly (exact borrowed count) rather than
     # deriving it as `concurrency - value`: once a limit is lowered below the
     # in-flight count, `value` clamps to 0 and that derivation would report
     # `concurrency` instead of the true (higher) borrowed count.
-    max_sandboxes_view = [
+    max_sandboxes_view: list[SandboxLimiterView] = [
         {
             "type": sandbox_type,
             "limit": sem.concurrency,
@@ -380,7 +953,7 @@ def _apply_process_knobs(
 
     # `None` distinguishes "no limiter yet" (no subprocess has run) from a
     # live limiter view — the CLI renders the former as inactive.
-    max_subprocesses_view = (
+    max_subprocesses_view: SubprocessLimiterView | None = (
         {"limit": subprocesses.concurrency, "in_use": subprocesses.in_use}
         if subprocesses is not None
         else None
@@ -390,7 +963,7 @@ def _apply_process_knobs(
     # count, scaling bounds (max reflects any max_connections change applied
     # above), and recent scale changes. Controllers are process-global (one per
     # model, keyed by name); with `model` set this shows only the matching ones.
-    adaptive_view = [
+    adaptive_view: list[AdaptiveControllerView] = [
         {
             "name": ctrl.name,
             "limit": ctrl.concurrency,
@@ -405,10 +978,30 @@ def _apply_process_knobs(
         for ctrl in sorted(controllers, key=lambda c: c.name)
     ]
 
+    # The concurrency-key view: every static registry entry by its exact
+    # registered name (the addressable identity for the key knob — no prefix
+    # shortening, `visible=False` entries included). Re-read after applying,
+    # like the other views. A `name` can appear twice when two entries (with
+    # distinct storage keys) share a display name.
+    concurrency_view: list[ConcurrencyKeyView] = [
+        {
+            "name": sem.name,
+            "limit": sem.concurrency,
+            "in_use": sem.in_use,
+            "adjustable": isinstance(sem, ResizableSemaphore),
+        }
+        for sem in sorted(_static_semaphores(), key=lambda s: s.name)
+    ]
+
     return _ProcessKnobViews(
+        max_tasks=max_tasks_view,
         max_sandboxes=max_sandboxes_view,
         max_subprocesses=max_subprocesses_view,
         adaptive=adaptive_view,
+        retry=generate_config_overrides(),
+        concurrency=concurrency_view,
         requested=requested,
         warnings=warnings,
+        applied=applied,
+        record_metadata=record_metadata,
     )

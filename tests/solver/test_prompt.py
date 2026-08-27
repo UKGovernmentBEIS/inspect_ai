@@ -2,7 +2,14 @@ from test_helpers.utils import skip_if_no_openai
 
 from inspect_ai import Task, eval
 from inspect_ai.dataset import Sample
-from inspect_ai.solver import Solver, generate, prompt_template, solver, system_message
+from inspect_ai.solver import (
+    Solver,
+    chain_of_thought,
+    generate,
+    prompt_template,
+    solver,
+    system_message,
+)
 from inspect_ai.solver._prompt import assistant_message, user_message
 from inspect_ai.solver._solver import Generate
 from inspect_ai.solver._task_state import TaskState
@@ -87,3 +94,19 @@ def test_user_and_assistant_message():
     assert log.status == "success"
     assert log.samples
     assert log.samples[0].messages[1].text == ASSISTANT_MESSAGE
+
+
+def test_chain_of_thought_resource(tmp_path):
+    template_file = tmp_path / "cot.txt"
+    template_file.write_text("Reason carefully:\n{prompt}\nANSWER: 42")
+
+    task = Task(
+        dataset=[Sample(input="What is 20 + 22?", target="42")],
+        solver=[chain_of_thought(str(template_file)), generate()],
+    )
+    log = eval(task, model="mockllm/model")[0]
+    assert log.samples
+    assert (
+        "Reason carefully:\nWhat is 20 + 22?\nANSWER: 42"
+        in log.samples[0].messages[0].text
+    )

@@ -1,9 +1,11 @@
 """Host egress: ship sample staging dir → remote sample checkpoints dir.
 
-Runs at the end of each fire when the resolved sample checkpoints dir
-is remote. Mirrors the in-sandbox egress protocol: manifest of files already
-shipped, diff against the live staging dir, ship new files in a safe
-order, then atomically update the manifest.
+Runs when the resolved sample checkpoints dir is remote: at the end of
+each fire, and once at the end of resume hydration (shipping the resume
+payload to the new attempt's destination — with no manifest yet, every
+staged file is "new"). Mirrors the in-sandbox egress protocol: manifest
+of files already shipped, diff against the live staging dir, ship new
+files in a safe order, then atomically update the manifest.
 
 The ``context/`` subdir (restic source — host context files restic
 backs up) and the manifest file itself are excluded from shipping.
@@ -59,26 +61,6 @@ _EXCLUDED_TOP_LEVEL: frozenset[str] = frozenset({"context", MANIFEST_FILENAME})
 # well-formed restic content).
 _CHECKPOINT_FILE_RE = re.compile(r"^ckpt-\d+\.json$")
 _RESTIC_CONFIG = "restic/restic-config.json"
-
-
-def seed_manifest(staging_dir: str) -> int:
-    """Pre-populate ``.egress-manifest.txt`` after resume hydration.
-
-    Lists everything currently in ``staging_dir`` (minus the **context
-    subdir** and the manifest file itself). Use after a remote-resume
-    populates the staging dir from the destination — without seeding,
-    the first post-resume fire's host_egress would treat every
-    downloaded file as "new" and re-ship the whole resume payload to
-    the destination. Returns the entry count for diagnostics.
-    """
-    staging = Path(staging_dir)
-    files = [
-        rel
-        for rel in _scan_new_files(staging, shipped=set())
-        if _committed_checkpoint_or_other(staging, rel)
-    ]
-    _write_manifest(staging / MANIFEST_FILENAME, set(files))
-    return len(files)
 
 
 async def host_egress(*, staging_dir: str, destination_dir: str) -> None:

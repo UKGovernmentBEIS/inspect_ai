@@ -21,7 +21,9 @@ from inspect_ai.log import (
     EvalResults,
     EvalSampleScore,
     EvalScore,
+    HeadlineMetric,
 )
+from inspect_ai.log._headline import headline_metric_ref, resolve_headline_metric
 from inspect_ai.log._log import EvalSampleReductions
 from inspect_ai.scorer import Metric, Score, Scorer
 from inspect_ai.scorer._metric import (
@@ -94,11 +96,22 @@ def eval_results(
     scorer_names: list[str] | None = None,
     early_stopping: EarlyStoppingSummary | None = None,
     metadata: dict[str, Any] | None = None,
+    completed_samples: int | None = None,
+    headline_metric: HeadlineMetric | None = None,
 ) -> Tuple[EvalResults, list[EvalSampleReductions] | None]:
     # initialise results
     results = EvalResults(
         total_samples=samples,
-        completed_samples=len(scores),
+        # `scores` also carries samples that errored but were still scored (by
+        # score_on_error, or by scorers that ran before another one raised), so
+        # its length is not the number of samples that completed without error.
+        # Callers that know that count pass it in; the fallback to the number
+        # of scored samples covers only callers that genuinely can't know it
+        # (e.g. an eval run with --no-log-samples, where the per-sample error
+        # state was never recorded).
+        completed_samples=(
+            completed_samples if completed_samples is not None else len(scores)
+        ),
         early_stopping=early_stopping,
         metadata=metadata,
     )
@@ -166,6 +179,10 @@ def eval_results(
             # build results
         results.scores = result_scores
         reductions = sample_reductions
+
+    resolved_headline = resolve_headline_metric(results, headline_metric)
+    if resolved_headline is not None:
+        results.headline = headline_metric_ref(resolved_headline)
 
     return results, reductions
 
@@ -428,7 +445,9 @@ def scorer_for_metrics(
 
         # If the metric value is a list, turn each element in the list
         # into a result
-        elif isinstance(metric_value, Sequence):
+        elif isinstance(metric_value, Sequence) and not isinstance(
+            metric_value, str | bytes
+        ):
             for index, value in enumerate(metric_value):
                 if value is not None:
                     count = str(index + 1)
@@ -536,7 +555,7 @@ def scorers_from_metric_dict(
             # convert the value to a float (either by expanding the dict or array)
             # or by casting to a float
             group = registry_unqualified_name(target_metric)
-            if isinstance(value, dict):
+            if isinstance(value, Mapping):
                 for key, val in value.items():
                     result_metrics[f"{metric_name}_{key}"] = EvalMetric(
                         name=key,
@@ -544,7 +563,7 @@ def scorers_from_metric_dict(
                         value=cast(float, val),
                         params=metric_params,
                     )
-            elif isinstance(value, list):
+            elif isinstance(value, Sequence) and not isinstance(value, str | bytes):
                 for idx, item in enumerate(value):
                     result_metrics[f"{metric_name}_{idx}"] = EvalMetric(
                         name=str(idx),

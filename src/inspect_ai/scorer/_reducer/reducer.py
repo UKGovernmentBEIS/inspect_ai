@@ -5,7 +5,7 @@ from typing import Callable, cast
 
 from inspect_ai.scorer._metric import Score, Value, ValueToFloat, value_to_float
 
-from .registry import REDUCER_NAME, score_reducer
+from .registry import score_reducer
 from .types import ScoreReducer
 
 
@@ -113,7 +113,6 @@ def at_least(
         else:
             return _count_scalar(scores, gte_n)
 
-    setattr(reduce, REDUCER_NAME, f"at_least_{k}")
     return reduce
 
 
@@ -159,7 +158,6 @@ def pass_at(
         else:
             return _compute_scalar_stat(scores, value_to_float, pass_at_k)
 
-    setattr(reduce, REDUCER_NAME, f"pass_at_{k}")
     return reduce
 
 
@@ -199,7 +197,6 @@ def pass_k(
         else:
             return _compute_scalar_stat(scores, value_to_float, pass_k_k)
 
-    setattr(reduce, REDUCER_NAME, f"pass_k_{k}")
     return reduce
 
 
@@ -256,6 +253,34 @@ def max_score(value_to_float: ValueToFloat = value_to_float()) -> ScoreReducer:
                 scalar_scores, key=lambda score: value_to_float(score.value)
             )
             return _reduced_score(max_score.value, scores)
+
+    return reduce
+
+
+@score_reducer(name="collect")
+def collect_score() -> ScoreReducer:
+    r"""Collect each score's value into a list, preserving every value.
+
+    Keeps the individual values intact instead of aggregating them into one.
+    Score values must be scalar; unscored (NaN) scores are dropped.
+    """
+
+    def reduce(scores: list[Score]) -> Score:
+        values: list[str | int | float | bool] = []
+        for score in scores:
+            try:
+                value = score._as_scalar()
+            except ValueError:
+                raise ValueError(
+                    "collect reducer requires scalar score values, but got "
+                    f"{type(score.value).__name__}. It preserves each scorer's "
+                    "scalar value as a list and cannot collect dict/list values."
+                ) from None
+            if _is_reducible(value):
+                values.append(value)
+        if not values:
+            return _nan_score(scores)
+        return _reduced_score(values, scores)
 
     return reduce
 
@@ -537,6 +562,9 @@ def _reduced_score(value: Value, scores: list[Score]) -> Score:
         explanation=scores[0].explanation
         if len(set(score.explanation for score in scores)) == 1
         else None,
+        reason=scores[0].reason
+        if len(set(score.reason for score in scores)) == 1
+        else None,
         metadata=scores[0].metadata,
     )
 
@@ -561,6 +589,9 @@ def _nan_score(scores: list[Score]) -> Score:
         else None,
         explanation=scores[0].explanation
         if len(set(score.explanation for score in scores)) == 1
+        else None,
+        reason=scores[0].reason
+        if len(set(score.reason for score in scores)) == 1
         else None,
         metadata=scores[0].metadata,
     )

@@ -36,13 +36,17 @@ from __future__ import annotations
 import asyncio
 import math
 from logging import getLogger
-from typing import TYPE_CHECKING, Any, Callable, Final, Literal
+from typing import TYPE_CHECKING, Any, Callable, Final
 
 import anyio
 from acp.exceptions import RequestError
 from pydantic import BaseModel, Field, ValidationError
 
 from inspect_ai.agent._acp._guards import acp_guard, acp_send_guard
+
+# Runtime import (not TYPE_CHECKING): pydantic resolves `CancelSampleParams`'
+# `action` annotation when the model class is built.
+from inspect_ai.log._samples import SampleCancelAction
 
 if TYPE_CHECKING:
     from acp.connection import Connection
@@ -165,6 +169,17 @@ INSPECT_LIST_SAMPLES_METHOD = "inspect/list_samples"
 # picker). Params: ``{"sessionId": "<live-session-uuid>"}``.
 INSPECT_SESSION_ENDED_METHOD = "inspect/session_ended"
 
+# Server → client notification: the bound agent's turn scope has
+# transitioned. Params: ``{"sessionId": "...", "state": "started" |
+# "ended" | "cancelled"}``. Standard ACP expects ``session/prompt`` to
+# span the turn (request → ``end_turn`` response), but Inspect's
+# producer/consumer channel decouples prompt delivery from turn
+# execution — ``session/prompt`` returns immediately and the agent
+# drains the prompt at its own boundary. This notification gives an
+# ACP client an exact "agent is working" signal it would otherwise
+# have to infer from message-chunk traffic.
+INSPECT_TURN_STATE_METHOD = "inspect/turn_state"
+
 
 # ---------------------------------------------------------------------------
 # Capability-detection inputs
@@ -200,7 +215,7 @@ class CancelSampleParams(BaseModel):
     """Pydantic param model for :data:`INSPECT_CANCEL_SAMPLE_METHOD`."""
 
     session_id: str = Field(alias="sessionId")
-    action: Literal["score", "error"]
+    action: SampleCancelAction
 
     model_config = {"populate_by_name": True}
 

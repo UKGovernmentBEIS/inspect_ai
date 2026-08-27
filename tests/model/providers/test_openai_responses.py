@@ -128,6 +128,109 @@ def test_image_generation_call_incomplete():
     assert len(content) == 0
 
 
+def test_oversized_tool_call_arguments_truncated_for_replay():
+    """Oversized arguments are truncated in the verbatim replay cache.
+
+    OpenAI rejects input `arguments` strings longer than 1,048,576 chars
+    (it imposes no such limit on output), so caching an oversized string
+    verbatim would 400 every subsequent request.
+    """
+    from openai.types.responses import ResponseFunctionToolCall
+
+    from inspect_ai.model._assistant_internal import init_sample_assistant_internal
+    from inspect_ai.model._openai_responses import (
+        _MAX_FUNCTION_CALL_ARGUMENTS,
+        _process_response_output_items,
+        _tool_call_items_from_assistant_message,
+        assistant_internal,
+    )
+
+    init_sample_assistant_internal()
+
+    raw_arguments = '{"command":"' + ("x" * 2_000_000) + '","}malformed'
+    outputs = [
+        ResponseFunctionToolCall(
+            type="function_call",
+            id="fc_1",
+            call_id="call_1",
+            name="bash",
+            arguments=raw_arguments,
+        )
+    ]
+    _content, tool_calls, _logprobs, has_tool_calls = _process_response_output_items(
+        outputs, []
+    )
+
+    assert has_tool_calls
+    assert tool_calls[0].parse_error is not None
+    assert tool_calls[0].arguments == {}
+    cached = assistant_internal().tool_calls["call_1"]
+    assert len(cached["arguments"]) <= _MAX_FUNCTION_CALL_ARGUMENTS
+
+    items = _tool_call_items_from_assistant_message(
+        ChatMessageAssistant(content="", tool_calls=tool_calls)
+    )
+    assert len(items[0]["arguments"]) <= _MAX_FUNCTION_CALL_ARGUMENTS
+
+
+def test_tool_call_arguments_within_limit_cached_verbatim():
+    from openai.types.responses import ResponseFunctionToolCall
+
+    from inspect_ai.model._assistant_internal import init_sample_assistant_internal
+    from inspect_ai.model._openai_responses import (
+        _process_response_output_items,
+        assistant_internal,
+    )
+
+    init_sample_assistant_internal()
+
+    raw_arguments = '{"command": "ls"}'
+    outputs = [
+        ResponseFunctionToolCall(
+            type="function_call",
+            id="fc_1",
+            call_id="call_1",
+            name="bash",
+            arguments=raw_arguments,
+        )
+    ]
+    _process_response_output_items(outputs, [])
+
+    assert assistant_internal().tool_calls["call_1"]["arguments"] == raw_arguments
+
+
+def test_oversized_tool_call_arguments_truncated_on_cache_miss():
+    """Valid-but-oversized arguments are truncated in the cache-miss fallback.
+
+    When a tool call isn't in the assistant_internal replay cache (e.g. a
+    message history constructed outside this sample), its arguments are
+    re-serialized from the parsed dict — which for valid oversized JSON
+    regenerates the oversized string.
+    """
+    from inspect_ai.model._assistant_internal import init_sample_assistant_internal
+    from inspect_ai.model._openai_responses import (
+        _MAX_FUNCTION_CALL_ARGUMENTS,
+        _tool_call_items_from_assistant_message,
+    )
+    from inspect_ai.tool._tool_call import ToolCall
+
+    init_sample_assistant_internal()
+
+    message = ChatMessageAssistant(
+        content="",
+        tool_calls=[
+            ToolCall(
+                id="call_1",
+                function="bash",
+                arguments={"command": "x" * 2_000_000},
+            )
+        ],
+    )
+    items = _tool_call_items_from_assistant_message(message)
+
+    assert len(items[0]["arguments"]) <= _MAX_FUNCTION_CALL_ARGUMENTS
+
+
 def test_non_consecutive_reasoning_blocks_filtering():
     """Test that non-consecutive ContentReasoning blocks are both kept."""
     message = ChatMessageAssistant(
@@ -338,7 +441,48 @@ def _completed_mock_response():
     )
 
 
-async def test_responses_api_pro_mode_defaults_to_background():
+def test_model_usage_from_response_preserves_cache_write_tokens() -> None:
+    from openai.types.responses import Response
+    from openai.types.responses.response_usage import (
+        InputTokensDetails,
+        OutputTokensDetails,
+        ResponseUsage,
+    )
+
+    from inspect_ai.model._providers.openai_responses import model_usage_from_response
+
+    response = Response.model_construct(
+        id="resp_test",
+        created_at=0.0,
+        model="gpt-4o",
+        object="response",
+        output=[],
+        tools=[],
+        usage=ResponseUsage(
+            input_tokens=150,
+            output_tokens=20,
+            total_tokens=170,
+            input_tokens_details=InputTokensDetails(
+                cached_tokens=40,
+                cache_write_tokens=30,
+            ),
+            output_tokens_details=OutputTokensDetails(reasoning_tokens=5),
+        ),
+        status="completed",
+    )
+
+    usage = model_usage_from_response(response)
+
+    assert usage is not None
+    assert usage.input_tokens == 80
+    assert usage.input_tokens_cache_read == 40
+    assert usage.input_tokens_cache_write == 30
+    assert usage.output_tokens == 20
+    assert usage.reasoning_tokens == 5
+    assert usage.total_tokens == 170
+
+
+async def test_responses_api_pro_mode_defaults_to_background() -> None:
     request: dict = {}
     await _generate_responses_with_mock(
         _completed_mock_response(),
@@ -348,7 +492,7 @@ async def test_responses_api_pro_mode_defaults_to_background():
     assert request["background"] is True
 
 
-async def test_responses_api_pro_mode_respects_explicit_background():
+async def test_responses_api_pro_mode_respects_explicit_background() -> None:
     request: dict = {}
     await _generate_responses_with_mock(
         _completed_mock_response(),
@@ -359,7 +503,7 @@ async def test_responses_api_pro_mode_respects_explicit_background():
     assert request["background"] is False
 
 
-async def test_responses_api_no_background_by_default():
+async def test_responses_api_no_background_by_default() -> None:
     request: dict = {}
     await _generate_responses_with_mock(
         _completed_mock_response(), capture_request=request
@@ -524,6 +668,49 @@ def test_model_usage_from_compact_response():
     assert usage.input_tokens == 100
     assert usage.output_tokens == 50
     assert usage.total_tokens == 150
+
+
+def test_model_usage_from_compact_response_preserves_cache_write_tokens() -> None:
+    from openai.types.responses import CompactedResponse, ResponseCompactionItem
+    from openai.types.responses.response_usage import (
+        InputTokensDetails,
+        OutputTokensDetails,
+        ResponseUsage,
+    )
+
+    from inspect_ai.model._openai_responses import model_usage_from_compact_response
+
+    compaction_item = ResponseCompactionItem(
+        id="comp_123",
+        encrypted_content="encrypted_data_here",
+        type="compaction",
+    )
+
+    response = CompactedResponse(
+        id="resp_abc",
+        created_at=1234567890,
+        object="response.compaction",
+        output=[compaction_item],
+        usage=ResponseUsage(
+            input_tokens=125,
+            output_tokens=50,
+            total_tokens=175,
+            input_tokens_details=InputTokensDetails(
+                cached_tokens=15,
+                cache_write_tokens=10,
+            ),
+            output_tokens_details=OutputTokensDetails(reasoning_tokens=0),
+        ),
+    )
+
+    usage = model_usage_from_compact_response(response)
+
+    assert usage is not None
+    assert usage.input_tokens == 100
+    assert usage.input_tokens_cache_read == 15
+    assert usage.input_tokens_cache_write == 10
+    assert usage.output_tokens == 50
+    assert usage.total_tokens == 175
 
 
 def test_extract_compaction_from_content_data():
@@ -1171,7 +1358,7 @@ def test_image_generation_round_trip_with_text():
         ),
         ImageGenerationCall(
             id="img_xyz",
-            result="fakeb64data",
+            result="ZmFrZWltYWdl",
             status="completed",
             type="image_generation_call",
         ),

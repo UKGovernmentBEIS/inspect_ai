@@ -8,15 +8,22 @@ from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.package import get_installed_package_name
 from inspect_ai._util.registry import (
     RegistryInfo,
+    create_registry_object,
     extract_named_params,
     registry_add,
-    registry_create,
     registry_info,
     registry_lookup,
     registry_name,
     registry_tag,
+    set_return_annotation,
 )
 
+from .eval_set_pruning import (
+    TASK_PLACEHOLDER_ATTR,
+    TaskPlaceholder,
+    prune_task_call,
+    task_construction,
+)
 from .task import Task
 from .task.constants import TASK_ALL_PARAMS_ATTR, TASK_FILE_ATTR, TASK_RUN_DIR_ATTR
 from .task.task_source import TaskSource
@@ -54,7 +61,22 @@ def task_register(
     return task
 
 
-def task_create(name: str, **kwargs: Any) -> Task:
+def _has_var_keyword(factory: object) -> bool:
+    """Whether a registered factory declares a variadic keyword parameter.
+
+    A factory may name its variadic keyword parameter anything (`**extra`,
+    `**config`), so pass-through checks cannot key on the literal name
+    "kwargs" — ask the signature whether it takes one at all.
+    """
+    return any(
+        param.kind == inspect.Parameter.VAR_KEYWORD
+        for param in inspect.signature(
+            cast(Callable[..., Any], factory)
+        ).parameters.values()
+    )
+
+
+def task_create(name: str, /, **kwargs: Any) -> Task:
     r"""Create a Task based on its registered name.
 
     Tasks can be a function that returns a Task or a
@@ -75,14 +97,18 @@ def task_create(name: str, **kwargs: Any) -> Task:
         raise PrerequisiteError(f"Task named '{name}' not found.")
     task_info = registry_info(task)
     task_params: list[str] = task_info.metadata["params"]
+    has_var_keyword = _has_var_keyword(task)
     task_args: dict[str, Any] = {}
     for param in kwargs.keys():
-        if param in task_params or "kwargs" in task_params:
+        if param in task_params or has_var_keyword:
             task_args[param] = kwargs[param]
         else:
             logger.warning(f"param '{param}' not used by task '{name}'")
 
-    return registry_create("task", name, **task_args)
+    # create_registry_object takes creation args as a dict, so a task arg
+    # named `name`/`type` cannot collide with registry_create's own
+    # leading parameters on replay.
+    return cast(Task, create_registry_object("task", name, task_args))
 
 
 @overload
@@ -116,12 +142,7 @@ def task(*args: Any, name: str | None = None, **attribs: Any) -> Any:
         task_name = registry_name(task_type, name or getattr(task_type, "__name__"))
         params = list(inspect.signature(task_type).parameters.keys())
 
-        # Create and return the wrapper function
-        @wraps(task_type)
-        def wrapper(*w_args: Any, **w_kwargs: Any) -> Task:
-            # Create the task
-            task_instance = task_type(*w_args, **w_kwargs)
-
+        def tag_task(task_instance: Task, *w_args: Any, **w_kwargs: Any) -> Task:
             # Tag the task with registry information
             registry_tag(
                 task_type,
@@ -135,10 +156,6 @@ def task(*args: Any, name: str | None = None, **attribs: Any) -> Any:
                 **w_kwargs,
             )
 
-            # extract all task parameters including defaults
-            named_params = extract_named_params(task_type, True, *w_args, **w_kwargs)
-            setattr(task_instance, TASK_ALL_PARAMS_ATTR, named_params)
-
             # if its not from an installed package then it is a "local"
             # module import, so set its task file and run dir
             if get_installed_package_name(task_type) is None:
@@ -148,12 +165,51 @@ def task(*args: Any, name: str | None = None, **attribs: Any) -> Any:
                     setattr(task_instance, TASK_FILE_ATTR, file.as_posix())
                     setattr(task_instance, TASK_RUN_DIR_ATTR, file.parent.as_posix())
 
-            # Return the task instance
             return task_instance
 
-        # functools.wraps overrides the return type annotation of the inner function, so
-        # we explicitly set it again
-        wrapper.__annotations__["return"] = Task
+        def construct(*w_args: Any, **w_kwargs: Any) -> Task:
+            """Build and tag the task for real. Also what materializes a placeholder."""
+            # the guard makes any @task call the body makes a composition rather
+            # than an eval-set entry, so it is never pruned (eval_set_pruning.py)
+            with task_construction():
+                task_instance = tag_task(
+                    task_type(*w_args, **w_kwargs), *w_args, **w_kwargs
+                )
+
+            # extract all task parameters including defaults
+            named_params = extract_named_params(task_type, True, *w_args, **w_kwargs)
+            setattr(task_instance, TASK_ALL_PARAMS_ATTR, named_params)
+
+            return task_instance
+
+        # Create and return the wrapper function
+        @wraps(task_type)
+        def wrapper(*w_args: Any, **w_kwargs: Any) -> Task:
+            # in a worker running a selection that does not name this task,
+            # skip constructing it -- a dataset loads at construction, and a
+            # worker that resolves the whole eval set to find its own one task
+            # would otherwise pay for every dataset in the set. Purely an
+            # optimization: it fires only on a definite mismatch, the
+            # placeholder holds `construct` so the decision can be undone, and
+            # the boundary filter remains the only thing that decides what
+            # runs (eval_set_pruning.py)
+            if prune_task_call(task_type, task_name, w_args, w_kwargs):
+                # tagged exactly as a real task is, because everything between
+                # here and the boundary treats it as one -- it is resolved,
+                # enumerated, and counted, so `sequence` and the resolved
+                # ordering are unaffected. What it lacks is a dataset, which is
+                # the entire saving
+                placeholder = tag_task(Task(), *w_args, **w_kwargs)
+                setattr(
+                    placeholder,
+                    TASK_PLACEHOLDER_ATTR,
+                    TaskPlaceholder(construct=construct, args=w_args, kwargs=w_kwargs),
+                )
+                return placeholder
+
+            return construct(*w_args, **w_kwargs)
+
+        set_return_annotation(wrapper, Task)
 
         # Register the task and return the wrapper
         return task_register(
@@ -193,7 +249,7 @@ def task_source_register(
     return task_source
 
 
-def task_source_create(name: str, **kwargs: Any) -> TaskSource:
+def task_source_create(name: str, /, **kwargs: Any) -> TaskSource:
     r"""Create a `TaskSource` based on its registered name.
 
     Args:
@@ -209,16 +265,14 @@ def task_source_create(name: str, **kwargs: Any) -> TaskSource:
         raise PrerequisiteError(f"Task source named '{name}' not found.")
     info = registry_info(source)
     params: list[str] = info.metadata["params"]
+    has_var_keyword = _has_var_keyword(source)
     args: dict[str, Any] = {}
     for param in kwargs.keys():
-        if param in params or "kwargs" in params:
+        if param in params or has_var_keyword:
             args[param] = kwargs[param]
         else:
             logger.warning(f"param '{param}' not used by task source '{name}'")
-    # call the registered wrapper directly (it tags the instance with registry
-    # info); registry_create only invokes factories whose return-type name
-    # matches the registry type, which "task_source" / TaskSource does not
-    return cast(Callable[..., TaskSource], source)(**args)
+    return cast(TaskSource, create_registry_object("task_source", name, args))
 
 
 @overload
@@ -285,8 +339,7 @@ def task_source(*args: Any, name: str | None = None, **attribs: Any) -> Any:
 
             return source_instance
 
-        # functools.wraps overrides the return annotation, so set it again
-        wrapper.__annotations__["return"] = TaskSource
+        set_return_annotation(wrapper, TaskSource)
 
         return task_source_register(
             task_source=cast(TaskSourceType, wrapper),

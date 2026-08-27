@@ -1,5 +1,6 @@
 from anyio.abc import TaskGroup
 
+from inspect_ai._control.pause import reset_task_pause_gates
 from inspect_ai._util.background import set_background_task_group
 from inspect_ai._util.dotenv import init_dotenv
 from inspect_ai._util.logger import init_logger
@@ -25,6 +26,9 @@ def init_runtime_context(
 ) -> None:
     init_dotenv()
     init_concurrency()
+    # task pause gates are task-id keyed like the sample-semaphore registry
+    # init_concurrency just cleared, and reset at the same boundary
+    reset_task_pause_gates()
     init_max_subprocesses(max_subprocesses)
 
 
@@ -46,7 +50,7 @@ def init_eval_context(
 
 def init_model_context(
     model: Model,
-    model_roles: dict[str, Model] | None = None,
+    model_roles: dict[str, Model | list[Model]] | None = None,
     config: GenerateConfig = GenerateConfig(),
 ) -> None:
     init_active_model(model, config)
@@ -57,7 +61,7 @@ def init_model_context(
 
 def init_task_context(
     model: Model,
-    model_roles: dict[str, Model] | None = None,
+    model_roles: dict[str, Model | list[Model]] | None = None,
     config: GenerateConfig = GenerateConfig(),
     approval: list[ApprovalPolicy] | None = None,
 ) -> None:

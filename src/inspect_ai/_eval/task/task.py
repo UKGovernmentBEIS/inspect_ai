@@ -2,7 +2,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from logging import getLogger
-from typing import TYPE_CHECKING, Any, Awaitable, Callable, Sequence, cast, overload
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Awaitable,
+    Callable,
+    NamedTuple,
+    Sequence,
+    cast,
+    overload,
+)
 
 from inspect_ai.util._early_stopping import EarlyStopping
 
@@ -33,9 +42,9 @@ from inspect_ai.approval._policy import (
     approval_policies_from_config,
 )
 from inspect_ai.dataset import Dataset, MemoryDataset, Sample
-from inspect_ai.log import EvalLog, EvalLogInfo
+from inspect_ai.log import EvalLog, EvalLogInfo, HeadlineMetric
 from inspect_ai.model import GenerateConfig
-from inspect_ai.model._model import Model
+from inspect_ai.model._model import Model, ModelRoles
 from inspect_ai.model._util import resolve_model, resolve_model_roles
 from inspect_ai.scorer import Metric, Scorer
 from inspect_ai.scorer._reducer import ScoreReducers, create_reducers
@@ -52,6 +61,7 @@ from inspect_ai.util._sandbox.environment import (
 from inspect_ai.viewer import ViewerConfig
 
 from .epochs import Epochs
+from .sample_source import SampleSource
 
 logger = getLogger(__name__)
 
@@ -71,7 +81,7 @@ class Task:
 
     def __init__(
         self,
-        dataset: Dataset | Sequence[Sample] | None = None,
+        dataset: Dataset | Sequence[Sample] | SampleSource | None = None,
         setup: Solver | list[Solver] | None = None,
         solver: Solver | Agent | list[Solver] = generate(),
         cleanup: Callable[[TaskState], Awaitable[None]] | None = None,
@@ -81,7 +91,7 @@ class Task:
         | None = None,
         model: str | Model | None = None,
         config: GenerateConfig = GenerateConfig(),
-        model_roles: dict[str, str | Model] | None = None,
+        model_roles: ModelRoles | None = None,
         sandbox: SandboxEnvironmentType | None = None,
         checkpoint: CheckpointConfig | bool | None = None,
         on_checkpoint: OnCheckpointCallback | None = None,
@@ -104,12 +114,14 @@ class Task:
         metadata: dict[str, Any] | None = None,
         tags: list[str] | None = None,
         viewer: ViewerConfig | None = None,
+        headline_metric: HeadlineMetric | str | None = None,
         **kwargs: Unpack[TaskDeprecatedArgs],
     ) -> None:
         """Create a task.
 
         Args:
-            dataset: Dataset to evaluate
+            dataset: Dataset to evaluate, or a `SampleSource` that generates
+                samples dynamically while the task runs.
             setup: Setup step (always run even when the main `solver` is replaced).
             solver: Solver or list of solvers. Defaults to generate(), a normal call to the model.
             cleanup: Optional cleanup function for task. Called after
@@ -119,7 +131,7 @@ class Task:
             metrics: Alternative metrics (overrides the metrics provided by the specified scorer).
             model: Default model for task (Optional, defaults to eval model).
             config: Model generation config for default model (does not apply to model roles)
-            model_roles: Named roles for use in `get_model()`.
+            model_roles: Named roles for use in `get_model()` (a role can also map to a list of models).
             sandbox: Sandbox environment type (or optionally a str or tuple with a shorthand spec)
             checkpoint: Checkpoint configuration for this task. `True` (or a
                 `CheckpointConfig`) enables checkpointing with the default
@@ -175,6 +187,14 @@ class Task:
             tags: Tags to associate with the task.
             viewer: Log viewer configuration for this task (controls how
                 scanner results are rendered in the sidebar).
+            headline_metric: Which score/metric best summarises this task (e.g.
+                for a leaderboard or log listing). A `str` names the scorer, as
+                `"<scorer>"` or `"<scorer>.<score>"` to address one value of a
+                scorer returning a dict of scores. Pass a `HeadlineMetric` to
+                also name the `metric` or `reducer`. Unset fields resolve by
+                convention, so `HeadlineMetric(metric="accuracy")` takes that
+                metric from the first score reporting it; the default is the
+                first metric of the first score.
             **kwargs: Deprecated arguments.
         """
         # handle deprecated args
@@ -201,7 +221,9 @@ class Task:
                     f"DEPRECATED: the '{arg}' parameter is deprecated (please use the '{newarg}' parameter instead)",
                 )
 
-        self.dataset = resolve_dataset(dataset)
+        resolved_dataset = resolve_dataset_or_source(dataset)
+        self.dataset = resolved_dataset.dataset
+        self.sample_source = resolved_dataset.sample_source
         self.setup = setup
         self.solver = resolve_solver(solver)
         self.cleanup = cleanup
@@ -234,6 +256,7 @@ class Task:
         self.metadata = metadata
         self.tags = tags
         self.viewer = viewer
+        self.headline_metric = resolve_headline_metric_spec(headline_metric)
 
     @property
     def name(self) -> str:
@@ -273,7 +296,7 @@ class Task:
 def task_with(
     task: Task,
     *,
-    dataset: Dataset | Sequence[Sample] | None | NotGiven = NOT_GIVEN,
+    dataset: Dataset | Sequence[Sample] | SampleSource | None | NotGiven = NOT_GIVEN,
     setup: Solver | list[Solver] | None | NotGiven = NOT_GIVEN,
     solver: Solver | Agent | list[Solver] | NotGiven = NOT_GIVEN,
     cleanup: Callable[[TaskState], Awaitable[None]] | None | NotGiven = NOT_GIVEN,
@@ -284,7 +307,7 @@ def task_with(
     | NotGiven = NOT_GIVEN,
     model: str | Model | NotGiven = NOT_GIVEN,
     config: GenerateConfig | NotGiven = NOT_GIVEN,
-    model_roles: dict[str, str | Model] | NotGiven = NOT_GIVEN,
+    model_roles: ModelRoles | NotGiven = NOT_GIVEN,
     sandbox: SandboxEnvironmentType | None | NotGiven = NOT_GIVEN,
     checkpoint: CheckpointConfig | bool | None | NotGiven = NOT_GIVEN,
     on_checkpoint: OnCheckpointCallback | None | NotGiven = NOT_GIVEN,
@@ -310,6 +333,7 @@ def task_with(
     metadata: dict[str, Any] | None | NotGiven = NOT_GIVEN,
     tags: list[str] | None | NotGiven = NOT_GIVEN,
     viewer: ViewerConfig | None | NotGiven = NOT_GIVEN,
+    headline_metric: HeadlineMetric | str | None | NotGiven = NOT_GIVEN,
 ) -> Task:
     """Task adapted with alternate values for one or more options.
 
@@ -319,7 +343,8 @@ def task_with(
 
     Args:
         task: Task to adapt
-        dataset: Dataset to evaluate
+        dataset: Dataset to evaluate, or a `SampleSource` that generates
+            samples dynamically while the task runs.
         setup: Setup step (always run even when the main `solver` is replaced).
         solver: Solver or list of solvers. Defaults to generate(), a normal call to the model.
         cleanup: Optional cleanup function for task. Called after
@@ -329,7 +354,7 @@ def task_with(
         metrics: Alternative metrics (overrides the metrics provided by the specified scorer).
         model: Default model for task (Optional, defaults to eval model).
         config: Model generation config for default model (does not apply to model roles)
-        model_roles: Named roles for use in `get_model()`.
+        model_roles: Named roles for use in `get_model()` (a role can also map to a list of models).
         sandbox: Sandbox environment type (or optionally a str or tuple with a shorthand spec)
         checkpoint: Checkpoint configuration for this task. `True` (or a
             `CheckpointConfig`) enables checkpointing with the default
@@ -388,12 +413,16 @@ def task_with(
         tags: Tags to associate with the task.
         viewer: Log viewer configuration for this task (controls how
             scanner results are rendered in the sidebar).
+        headline_metric: Which score/metric best summarises this task (e.g. for a
+            leaderboard or log listing).
 
     Returns:
         Task: Passed `task` with modifications.
     """
     if not isinstance(dataset, NotGiven):
-        task.dataset = resolve_dataset(dataset)
+        resolved_dataset = resolve_dataset_or_source(dataset)
+        task.dataset = resolved_dataset.dataset
+        task.sample_source = resolved_dataset.sample_source
     if not isinstance(setup, NotGiven):
         task.setup = setup
     if not isinstance(solver, NotGiven):
@@ -454,6 +483,8 @@ def task_with(
         task.tags = tags
     if not isinstance(viewer, NotGiven):
         task.viewer = viewer
+    if not isinstance(headline_metric, NotGiven):
+        task.headline_metric = resolve_headline_metric_spec(headline_metric)
 
     # return modified task
     return task
@@ -488,7 +519,7 @@ class PreviousTask:
     task: str | Task
     task_args: dict[str, Any]
     model: Model | None
-    model_roles: dict[str, Model] | None
+    model_roles: dict[str, Model | list[Model]] | None
     log: EvalLog
     log_info: EvalLogInfo | None
 
@@ -503,12 +534,52 @@ def resolve_approval(
     )
 
 
+def resolve_headline_metric_spec(
+    headline_metric: HeadlineMetric | str | None,
+) -> HeadlineMetric | None:
+    """Expand the `"<scorer>.<score>"` shorthand accepted for a headline metric.
+
+    Split on the first dot: the trailing part addresses one value of a scorer
+    returning a dict of scores. A scorer whose own name contains a dot is named
+    by passing a `HeadlineMetric`, whose fields are matched literally.
+    """
+    if not isinstance(headline_metric, str):
+        return headline_metric
+    scorer, _, score = headline_metric.partition(".")
+    return HeadlineMetric(scorer=scorer, score=score or None)
+
+
 def resolve_epochs(epochs: int | Epochs | None) -> Epochs | None:
     if isinstance(epochs, int):
         epochs = Epochs(epochs)
     if epochs is not None and epochs.epochs < 1:
         raise ValueError("epochs must be a positive integer.")
     return epochs
+
+
+class ResolvedDataset(NamedTuple):
+    """A task's dataset plus the `SampleSource` that seeded it (if any)."""
+
+    dataset: Dataset
+    sample_source: SampleSource | None
+
+
+def resolve_dataset_or_source(
+    dataset: Dataset | Sequence[Sample] | SampleSource | None,
+) -> ResolvedDataset:
+    """Resolve a task's `dataset` argument, which may be a `SampleSource`.
+
+    A `SampleSource` contributes its (possibly empty) `initial_samples()` as
+    the task's up-front dataset — the empty-dataset check doesn't apply since
+    the source can produce samples while the task runs. Consumers that treat
+    a dataset as the complete sample set (e.g. `slice_dataset` validating
+    `--sample-id`) learn that more samples may be produced at runtime via
+    their `dynamic` flag, passed by callers that hold the task.
+    """
+    if isinstance(dataset, SampleSource):
+        return ResolvedDataset(MemoryDataset(list(dataset.initial_samples())), dataset)
+    else:
+        return ResolvedDataset(resolve_dataset(dataset), None)
 
 
 def resolve_dataset(dataset: Dataset | Sequence[Sample] | None) -> Dataset:

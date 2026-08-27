@@ -130,7 +130,7 @@ async def test_native_not_implemented_error_survives_count_tokens_failure(
 async def test_native_compaction_with_supported_model() -> None:
     """CompactionNative succeeds with a provider that supports native compaction."""
     strategy = CompactionNative()
-    model = get_model("openai/gpt-5.1-codex")
+    model = get_model("openai/gpt-5.3-codex")
     messages = _sample_messages()
 
     result, summary = await strategy.compact(model, messages, [])

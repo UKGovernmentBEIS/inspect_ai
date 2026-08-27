@@ -6,6 +6,7 @@ description: List, read, write, and analyse logs.
 ## Eval Logs
 
 ### list_eval_logs
+### list_eval_logs_async
 ### write_eval_log
 ### write_eval_log_async
 ### read_eval_log
@@ -32,6 +33,13 @@ description: List, read, write, and analyse logs.
 ### TagsEdit
 ### ProvenanceData
 
+## Config Updates
+
+### effective_eval_config
+### effective_generate_config
+### ConfigUpdate
+### ConfigValueChange
+
 ## Crash Recovery
 
 ### recover_eval_log
@@ -52,6 +60,9 @@ description: List, read, write, and analyse logs.
 ### EvalResults
 ### EvalScore
 ### EvalMetric
+### HeadlineMetric
+### ResolvedHeadlineMetric
+### headline_metric
 ### EvalSampleReductions
 ### EvalStats
 ### EvalError

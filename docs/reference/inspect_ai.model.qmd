@@ -7,6 +7,8 @@ description: Model interface and providers.
 
 ### get_model
 ### Model
+### ModelRole
+### ModelRoles
 ### GenerateConfig
 ### GenerateConfigArgs
 ### GenerateFilter
@@ -22,6 +24,15 @@ description: Model interface and providers.
 ### OutputModality
 ### ImageOutput
 ### RetryDecision
+
+## Streaming
+
+### StreamHandler
+### StreamEvent
+### StreamTextEvent
+### StreamReasoningEvent
+### StreamToolCallEvent
+### StreamRetryEvent
 
 ## Messages
 

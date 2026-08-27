@@ -3,6 +3,7 @@ from typing import IO, TYPE_CHECKING
 
 from inspect_ai._util.async_zip import AsyncZipReader
 from inspect_ai._util.error import EvalError
+from inspect_ai.log._config_update import ConfigUpdate
 from inspect_ai.log._edit import LogUpdate
 from inspect_ai.log._log import (
     EvalLog,
@@ -43,7 +44,24 @@ class Recorder(abc.ABC):
     async def log_start(self, eval: EvalSpec, plan: EvalPlan) -> None: ...
 
     @abc.abstractmethod
-    async def log_sample(self, eval: EvalSpec, sample: EvalSample) -> None: ...
+    async def log_sample(
+        self, eval: EvalSpec, sample: EvalSample, *, write_through: bool = False
+    ) -> None:
+        """Record a completed sample.
+
+        Args:
+            eval: Spec of the eval the sample belongs to.
+            sample: The completed sample.
+            write_through: Persist the sample to the recorder's cheap local
+                buffer tier immediately (retaining at most a condensed,
+                event-less copy in memory) rather than holding the full
+                sample resident until the next flush. A memory hint for
+                bulk re-logging (retry-reused samples): destination
+                durability still requires a later ``flush``. Recorders
+                without a distinct local tier (e.g. the in-memory ``.json``
+                format) may ignore it.
+        """
+        ...
 
     async def log_sample_streaming(
         self, eval: EvalSpec, sample: EvalSample, history: "SampleHistory"
@@ -78,6 +96,16 @@ class Recorder(abc.ABC):
         """
         return None
 
+    async def log_config_update(self, eval: EvalSpec, update: ConfigUpdate) -> None:
+        """Record a mid-run config change (see ``EvalLog.config_updates``).
+
+        Called while the eval runs, when a `inspect ctl config` retune is
+        applied. The base implementation is a no-op so recorder subclasses
+        that don't persist mid-run state keep working; the built-in
+        recorders override it to journal the update (`.eval`) or accumulate
+        it in the in-memory log (JSON) so it lands in the finished header.
+        """
+
     @abc.abstractmethod
     async def flush(self, eval: EvalSpec) -> None: ...
 
@@ -93,6 +121,7 @@ class Recorder(abc.ABC):
         header_only: bool = False,
         invalidated: bool = False,
         log_updates: list[LogUpdate] | None = None,
+        config_updates: list[ConfigUpdate] | None = None,
     ) -> EvalLog: ...
 
     @classmethod

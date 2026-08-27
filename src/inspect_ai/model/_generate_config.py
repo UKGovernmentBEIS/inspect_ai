@@ -79,7 +79,7 @@ class GenerateConfigArgs(TypedDict, total=False):
     """Type for kwargs that selectively override GenerateConfig."""
 
     max_retries: int | None
-    """Maximum number of times to retry request (defaults to unlimited)."""
+    """Maximum number of times to retry request, so e.g. 1 allows two attempts total (defaults to unlimited)."""
 
     timeout: int | None
     """Request timeout (in seconds)."""
@@ -199,7 +199,7 @@ class GenerateConfig(BaseModel):
     """Model generation options."""
 
     max_retries: int | None = Field(default=None)
-    """Maximum number of times to retry request (defaults to unlimited)."""
+    """Maximum number of times to retry request, so e.g. 1 allows two attempts total (defaults to unlimited)."""
 
     timeout: int | None = Field(default=None)
     """Timeout (in seconds) for an entire request (including retries)."""

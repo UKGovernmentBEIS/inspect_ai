@@ -47,7 +47,7 @@ def wandb_hooks():
 
 ## Hook Events {#sec-hook-events}
 
-Each event method is `async`, returns `None`, and receives a single immutable data object carrying the details of the event. Implement only the methods you need. The events below are grouped by lifecycle level, from the outermost scope (an entire `eval_set()`) down to individual model calls. All of the data types are importable from `inspect_ai.hooks`; see the [`inspect_ai.hooks`](reference/inspect_ai.hooks.qmd) reference for their full field definitions.
+Each event method is `async`, returns `None`, and receives a single data object carrying the details of the event. Treat that data as read-only: the event class itself is frozen, but the models nested inside it are not, and some of them are the objects Inspect goes on to write to the log. Implement only the methods you need. The events below are grouped by lifecycle level, from the outermost scope (an entire `eval_set()`) down to individual model calls. All of the data types are importable from `inspect_ai.hooks`; see the [`inspect_ai.hooks`](reference/inspect_ai.hooks.qmd) reference for their full field definitions.
 
 ### Run and Task
 
@@ -59,7 +59,7 @@ These events bracket the execution of evaluations. A single `eval()` (or `eval_r
 | `on_eval_set_end` | `EvalSetEnd` | When an eval set finishes. |
 | `on_run_start` | `RunStart` | At the start of a single `eval()` / `eval_retry()` invocation (`data.task_names` lists the tasks to run). |
 | `on_run_end` | `RunEnd` | At the end of a run — `data.exception` and `data.logs` carry the outcome. |
-| `on_task_start` | `TaskStart` | When a task begins executing (`data.spec` is the `EvalSpec`). |
+| `on_task_start` | `TaskStart` | When a task begins executing (`data.spec` is the `EvalSpec`; `data.plan` is the resolved `EvalPlan`). |
 | `on_task_end` | `TaskEnd` | When a task completes (`data.log` is the `EvalLog`). |
 
 ### Sample
@@ -93,6 +93,12 @@ Event data is owned by the framework. In particular, objects reachable from `Sam
 Hooks run within the evaluation, so keep them fast and resilient. Events from different samples and tasks may fire concurrently, and any exception raised by a hook is caught and logged as a warning (it does not fail the run) — with the exception of `LimitExceededError`, which is allowed to propagate so that hooks can enforce limits.
 
 In addition to these lifecycle events, two non-event methods let you control hook behaviour: [`enabled()`](#disabling-hooks) gates whether a hook is active, and [`override_api_key()`](#api-key-override) can rewrite model API keys. Both are covered below.
+
+## Hook Object Lifecycle
+
+The `@hooks` decorator instantiates your class **once**, and that single instance is reused for the lifetime of the process. There is no teardown event, so do per-run cleanup in `on_run_end` or `on_eval_set_end`, as the Weights & Biases example above does with `wandb.finish()`.
+
+Consequently `self` is shared by every eval set, run, task, sample, and epoch, and calls for concurrent samples interleave at `await` points. Key per-sample state by `data.sample_id` and remove it in `on_sample_end`, and don't create event-loop-bound resources (async clients, `anyio` primitives) in `__init__` --- create them in `on_run_start`. See the [`Hooks`](reference/inspect_ai.hooks.qmd) reference for the full details.
 
 ## Registration
 

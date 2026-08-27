@@ -14,7 +14,7 @@ from typing import Awaitable, Callable, Generator, ParamSpec, Sequence, TypeVar
 
 import anyio
 import pytest
-from _pytest.outcomes import OutcomeException
+from _pytest.outcomes import OutcomeException, Skipped, XFailed
 
 from inspect_ai import Task, eval, task
 from inspect_ai._util.entrypoints import clear_entry_points_state, ensure_entry_points
@@ -69,9 +69,12 @@ def _rearm_pytest_timeout() -> None:
         pass
 
 
-def flaky_retry(max_retries: int) -> Callable[[F], F]:
+def flaky_retry(max_retries: int, item: pytest.Item | None = None) -> Callable[[F], F]:
     """
     Decorator to retry flaky tests up to max_retries times.
+
+    Deliberate test outcomes -- ``pytest.skip()`` and ``pytest.xfail()`` --
+    are re-raised immediately rather than retried.
 
     **Use with discretion and as a last resort.** This decorator should only be used
     for tests that require specific model behavior to trigger the code under test,
@@ -85,10 +88,18 @@ def flaky_retry(max_retries: int) -> Callable[[F], F]:
 
     Args:
         max_retries: Maximum number of retry attempts
+        item: The collected pytest item, when known (conftest's auto-wrap
+            passes it). A test whose item carries an ``xfail`` marker -- even
+            one added during fixture setup -- fails without retrying: the
+            failure is expected, and a flaky pass on a retry would surface as
+            a hard ``XPASS(strict)`` failure.
 
     Returns:
         Decorated test function that retries on failure
     """
+
+    def expected_to_fail() -> bool:
+        return item is not None and item.get_closest_marker("xfail") is not None
 
     def decorator(func: F) -> F:
         if asyncio.iscoroutinefunction(func):
@@ -99,9 +110,13 @@ def flaky_retry(max_retries: int) -> Callable[[F], F]:
                 for attempt in range(max_retries + 1):
                     try:
                         return await func(*args, **kwargs)
+                    except (Skipped, XFailed):
+                        # pytest.skip()/xfail() are deliberate outcomes, not
+                        # flakiness -- honor them without retrying
+                        raise
                     except (Exception, OutcomeException) as e:
                         last_exception = e
-                        if attempt < max_retries:
+                        if attempt < max_retries and not expected_to_fail():
                             _rearm_pytest_timeout()
                             continue
                         raise last_exception
@@ -115,9 +130,13 @@ def flaky_retry(max_retries: int) -> Callable[[F], F]:
             for attempt in range(max_retries + 1):
                 try:
                     return func(*args, **kwargs)
+                except (Skipped, XFailed):
+                    # pytest.skip()/xfail() are deliberate outcomes, not
+                    # flakiness -- honor them without retrying
+                    raise
                 except (Exception, OutcomeException) as e:
                     last_exception = e
-                    if attempt < max_retries:
+                    if attempt < max_retries and not expected_to_fail():
                         _rearm_pytest_timeout()
                         continue
                     raise last_exception
@@ -148,6 +167,17 @@ def with_timeout(
         return async_wrapper
 
     return decorator
+
+
+def setenv_if_unset(name: str, value: str) -> None:
+    """Set an environment variable unless it already has a non-empty value.
+
+    Unlike `os.environ.setdefault`, this also overrides empty values: CI
+    environments sometimes export variables set to "" (e.g. AWS_REGION), and
+    an empty region makes anthropic >= 1.0 Bedrock client construction fail.
+    """
+    if not os.environ.get(name):
+        os.environ[name] = value
 
 
 def skip_if_env_var(var: str, exists=True):
@@ -260,14 +290,22 @@ def skip_if_no_anthropic(func):
     return pytest.mark.api(skip_if_env_var("ANTHROPIC_API_KEY", exists=False)(func))
 
 
+def skip_if_no_anthropic_package(func):
+    return skip_if_no_package("anthropic")(func)
+
+
 def skip_if_no_google(func):
     func._needs_flaky_retry = True
     return pytest.mark.api(skip_if_env_var("GOOGLE_API_KEY", exists=False)(func))
 
 
 def skip_if_no_mistral(func):
+    # the mistralai SDK uses asyncio.to_thread internally, so always skip
+    # live Mistral tests under trio
     func._needs_flaky_retry = True
-    return pytest.mark.api(skip_if_env_var("MISTRAL_API_KEY", exists=False)(func))
+    return pytest.mark.api(
+        skip_if_env_var("MISTRAL_API_KEY", exists=False)(skip_if_trio(func))
+    )
 
 
 def skip_if_no_mistral_package(func):
@@ -305,6 +343,16 @@ def skip_if_no_together_base_url(func):
 def skip_if_no_fireworks(func):
     func._needs_flaky_retry = True
     return pytest.mark.api(skip_if_env_var("FIREWORKS_API_KEY", exists=False)(func))
+
+
+def skip_if_no_moonshot(func):
+    func._needs_flaky_retry = True
+    return pytest.mark.api(skip_if_env_var("MOONSHOT_API_KEY", exists=False)(func))
+
+
+def skip_if_no_deepseek(func):
+    func._needs_flaky_retry = True
+    return pytest.mark.api(skip_if_env_var("DEEPSEEK_API_KEY", exists=False)(func))
 
 
 def skip_if_no_sambanova(func):
@@ -363,9 +411,9 @@ def skip_if_github_action(func):
     return skip_if_env_var("GITHUB_ACTIONS", exists=True)(func)
 
 
-def skip_if_no_docker(func):
+def is_docker_installed() -> bool:
     try:
-        is_docker_installed = (
+        return (
             subprocess.run(
                 ["docker", "--version"],
                 check=False,
@@ -375,11 +423,13 @@ def skip_if_no_docker(func):
             == 0
         )
     except FileNotFoundError:
-        is_docker_installed = False
+        return False
 
+
+def skip_if_no_docker(func):
     func._needs_flaky_retry = True
     return pytest.mark.skipif(
-        not is_docker_installed, reason="Test doesn't work without Docker installed."
+        not is_docker_installed(), reason="Test doesn't work without Docker installed."
     )(func)
 
 

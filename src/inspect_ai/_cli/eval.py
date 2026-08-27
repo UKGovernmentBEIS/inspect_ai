@@ -20,7 +20,11 @@ from typing_extensions import Unpack
 
 from inspect_ai import Epochs, eval, eval_retry
 from inspect_ai._eval.evalset import eval_set
-from inspect_ai._eval.handoff import LaunchHandoff, set_launch_handoff_listener
+from inspect_ai._eval.handoff import (
+    LaunchHandoff,
+    set_ctl_pointer_armed,
+    set_launch_handoff_listener,
+)
 from inspect_ai._util.config import resolve_args
 from inspect_ai._util.constants import (
     ALL_LOG_LEVELS,
@@ -37,7 +41,7 @@ from inspect_ai._util.file import filesystem
 from inspect_ai._util.samples import parse_sample_id, parse_samples_limit
 from inspect_ai.log._file import log_file_info
 from inspect_ai.log._log import EvalConfig, EvalLog
-from inspect_ai.model import GenerateConfig, GenerateConfigArgs, get_model
+from inspect_ai.model import GenerateConfig, GenerateConfigArgs, Model
 from inspect_ai.model._cache import CachePolicy
 from inspect_ai.model._generate_config import (  # noqa: F811
     BatchConfig,
@@ -45,7 +49,7 @@ from inspect_ai.model._generate_config import (  # noqa: F811
     OutputModality,
     ResponseSchema,
 )
-from inspect_ai.model._model_config import ModelConfig
+from inspect_ai.model._model_config import ModelConfig, model_config_to_model
 from inspect_ai.scorer._reducer import create_reducers
 from inspect_ai.solver._solver import SolverSpec
 from inspect_ai.util import AdaptiveConcurrency
@@ -59,6 +63,7 @@ from .common import (
     common_options,
     process_common_options,
 )
+from .detach import DETACH_HELP, exec_detached
 from .util import (
     SectionedCommand,
     ctl_server_flag_callback,
@@ -68,6 +73,7 @@ from .util import (
     parse_cli_args,
     parse_cli_config,
     parse_model_role_cli_args,
+    parse_model_spec_cli_args,
     parse_sandbox,
     token_limit_flag_callback,
 )
@@ -102,6 +108,7 @@ MAX_SUBPROCESSES_HELP = (
 )
 MAX_SANDBOXES_HELP = "Maximum number of sandboxes (per-provider) to run in parallel."
 NO_SANDBOX_CLEANUP_HELP = "Do not cleanup sandbox environments after task completes"
+SANDBOX_PREBUILT_HELP = "Treat sandbox images as prebuilt (skip builds and fail at startup when an image is missing)"
 FAIL_ON_ERROR_HELP = "Threshold of sample errors to tolerage (by default, evals fail when any error occurs). Value between 0 to 1 to set a proportion; value greater than 1 to set a count."
 NO_LOG_SAMPLES_HELP = "Do not include samples in the log file."
 NO_LOG_REALTIME_HELP = (
@@ -112,7 +119,8 @@ CONTINUE_ON_FAIL_HELP = "Do not immediately fail the eval if the error threshold
 RETRY_ON_ERROR_HELP = "Retry samples if they encounter errors (by default, no retries occur). Specify --retry-on-error to retry a single time, or specify e.g. `--retry-on-error=3` to retry multiple times."
 SCORE_ON_ERROR_HELP = "Score samples that error rather than failing the eval mid-run. Errors still count toward the --fail-on-error threshold for marking the log as 'error'. Only fires after retries (if any) are exhausted."
 LOG_IMAGES_HELP = (
-    "Include base64 encoded versions of filename or URL based images in the log file."
+    "Retain inline image and other media bytes in the log file. "
+    "This option does not control media fetching."
 )
 LOG_MODEL_API_HELP = "Log raw model api requests and responses. Note that error requests/responses are always logged."
 LOG_REFUSALS_HELP = "Log warnings for model refusals."
@@ -249,7 +257,9 @@ def scanner_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         envvar="INSPECT_EVAL_SCAN_MODEL_ROLE",
         help=(
             "Named scanner-side model role with model name or YAML/JSON config "
-            "(e.g. --scan-model-role grader=mockllm/model)."
+            "(e.g. --scan-model-role grader=mockllm/model). Bind multiple models "
+            "to a role with a comma-separated list of names or a YAML/JSON list "
+            "of configs."
         ),
     )
     @click.option(
@@ -291,6 +301,13 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         help="YAML or JSON config file with model arguments.",
     )
     @click.option(
+        "--model-spec",
+        multiple=True,
+        type=str,
+        envvar="INSPECT_EVAL_MODEL_SPEC",
+        help='Model to evaluate along with its own generate config, model args, and base url, as inline YAML or JSON, e.g. --model-spec "{model: openai/gpt-4o, temperature: 0}" (same fields as --model-role, plus base_url). Repeat the option to evaluate several models, each with its own options. Cannot be combined with --model, --model-base-url, --model-config, or -M.',
+    )
+    @click.option(
         "--run-config",
         type=str,
         envvar="INSPECT_EVAL_RUN_CONFIG",
@@ -301,7 +318,7 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         multiple=True,
         type=str,
         envvar="INSPECT_EVAL_MODEL_ROLE",
-        help='Named model role with model name or YAML/JSON config, e.g. --model-role critic=openai/gpt-4o or --model-role grader="{model: mockllm/model, temperature: 0.5}"',
+        help='Named model role with model name or YAML/JSON config, e.g. --model-role critic=openai/gpt-4o or --model-role grader="{model: mockllm/model, temperature: 0.5}". Bind multiple models to a role with a comma-separated list of names or a YAML/JSON list of configs, e.g. --model-role grader=openai/gpt-4o,google/gemini-2.0-flash',
     )
     @click.option(
         "-T",
@@ -406,6 +423,13 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         envvar="INSPECT_EVAL_NO_SANDBOX_CLEANUP",
     )
     @click.option(
+        "--sandbox-prebuilt",
+        type=bool,
+        is_flag=True,
+        help=SANDBOX_PREBUILT_HELP,
+        envvar="INSPECT_EVAL_SANDBOX_PREBUILT",
+    )
+    @click.option(
         "--checkpoint",
         is_flag=False,
         flag_value="default",
@@ -449,7 +473,8 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
             "the process exits when `inspect ctl process release` is run (or POST "
             "/release is sent to the control endpoint). Without `keep` "
             "the process exits as soon as the eval body returns, taking the "
-            "control surface with it."
+            "control surface with it. Observe the run from another shell "
+            "with `inspect ctl task list`."
         ),
         envvar="INSPECT_EVAL_CTL_SERVER",
     )
@@ -935,13 +960,30 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
     is_flag=True,
     default=False,
     envvar="INSPECT_EVAL_JSON",
-    help="Emit machine-readable launch output as JSON lines on stdout (implies --display none): a 'launch' record printed once the control-channel server is bound — reporting run_id, pid, log_dir, and the control socket path ('control' is null when the server is disabled or failed to bind, so its presence guarantees `inspect ctl` is usable) — and a 'done' record with each task's log location and status when the eval finishes.",
+    help="Emit machine-readable launch output as JSON lines on stdout (implies --display none): a 'launch' record printed once the control-channel server is bound — reporting run_id, pid, log_dir, and the control socket path ('control' is null when the server is disabled or failed to bind, so its presence guarantees `inspect ctl` is usable) — and a 'done' record with each task's log location and status when the eval finishes. To launch in the background instead, use --detach (which implies --json).",
+)
+@click.option(
+    "--detach/--no-detach",
+    type=bool,
+    is_flag=True,
+    default=False,
+    envvar="INSPECT_EVAL_DETACH",
+    help=DETACH_HELP,
 )
 @eval_options
 @click.pass_context
 def eval_command(ctx: click.Context, /, **params: Any) -> None:
-    """Evaluate tasks."""
-    with _json_prerequisite_errors_to_stderr(params["json_output"]):
+    """Evaluate tasks.
+
+    Monitor a running eval from another shell with `inspect ctl`
+    (see `inspect ctl --help`).
+    """
+    with (
+        _armed_ctl_pointer(),
+        _json_prerequisite_errors_to_stderr(params["json_output"] or params["detach"]),
+    ):
+        if params.pop("detach"):
+            exec_detached(ctl_server=params["ctl_server"])
         # When --run-config is used, env-sourced CLI values (INSPECT_EVAL_*)
         # defer to the run config _for fields the run config actually
         # provides_. Env values still apply to fields the run config leaves
@@ -960,6 +1002,7 @@ def eval_command(ctx: click.Context, /, **params: Any) -> None:
                 "m": "model_args",
                 "t": "task_args",
                 "model_role": "model_roles",
+                "model_spec": "model",
                 "no_sandbox_cleanup": "sandbox_cleanup",
                 "s": "solver",
                 "solver_config": "solver",
@@ -981,6 +1024,25 @@ def eval_command(ctx: click.Context, /, **params: Any) -> None:
                 params[name] = () if isinstance(value, tuple) else None
 
         _eval_command_impl(**params)
+
+
+@contextlib.contextmanager
+def _armed_ctl_pointer() -> Iterator[None]:
+    """Arm the launch-time ``inspect ctl`` pointer for this CLI invocation.
+
+    Wraps the ``eval`` / ``eval-set`` / ``eval-retry`` command bodies:
+    the pointer (like the launch handoff whose listener these commands
+    also register) is a launch concern of the CLI process, so it is armed
+    process-wide here rather than threaded through ``eval()`` — a bare
+    ``eval()`` call never prints it. Disarming on exit only matters for
+    in-process invocations (tests via ``CliRunner``); a real CLI process
+    exits with the command.
+    """
+    set_ctl_pointer_armed(True)
+    try:
+        yield
+    finally:
+        set_ctl_pointer_armed(False)
 
 
 @contextlib.contextmanager
@@ -1020,6 +1082,7 @@ def _eval_command_impl(
     model_base_url: str | None,
     m: tuple[str, ...] | None,
     model_config: str | None,
+    model_spec: tuple[str, ...] | None,
     run_config: str | None,
     model_role: tuple[str, ...] | None,
     t: tuple[str, ...] | None,
@@ -1046,6 +1109,7 @@ def _eval_command_impl(
     notification: bool | str | None,
     sandbox: str | None,
     no_sandbox_cleanup: bool | None,
+    sandbox_prebuilt: bool | None,
     checkpoint: str | None,
     acp_server: bool | int | str | None,
     ctl_server: bool | str | None,
@@ -1150,6 +1214,7 @@ def _eval_command_impl(
         model_base_url=model_base_url,
         m=m,
         model_config=model_config,
+        model_spec=model_spec,
         run_config=run_config,
         model_role=model_role,
         t=t,
@@ -1176,6 +1241,7 @@ def _eval_command_impl(
         notification=notification,
         sandbox=sandbox,
         no_sandbox_cleanup=no_sandbox_cleanup,
+        sandbox_prebuilt=sandbox_prebuilt,
         checkpoint=checkpoint,
         epochs=epochs,
         epochs_reducer=epochs_reducer,
@@ -1227,7 +1293,15 @@ def _eval_command_impl(
     is_flag=True,
     default=False,
     envvar="INSPECT_EVAL_JSON",
-    help="Emit machine-readable launch output as JSON lines on stdout (implies --display none): a 'launch' record printed once the control-channel server is bound — reporting run_id, eval_set_id, pid, log_dir, and the control socket path ('control' is null when the server is disabled or failed to bind, so its presence guarantees `inspect ctl` is usable) — and a 'done' record with overall success and each task's log location and status when the eval set finishes (the exit code still reports success as usual). When every task is already complete no eval runs, so stdout carries only the 'done' record; with --no-retry-immediate each batch retry binds afresh and emits a fresh 'launch' record, and the 'done' record carries the last launch's run_id.",
+    help="Emit machine-readable launch output as JSON lines on stdout (implies --display none): a 'launch' record printed once the control-channel server is bound — reporting run_id, eval_set_id, pid, log_dir, and the control socket path ('control' is null when the server is disabled or failed to bind, so its presence guarantees `inspect ctl` is usable) — and a 'done' record with overall success and each task's log location and status when the eval set finishes (the exit code still reports success as usual). When every task is already complete no eval runs, so stdout carries only the 'done' record (except under --ctl-server=keep, whose park still binds a control endpoint and emits a 'launch' record with run_id null); with --no-retry-immediate each batch retry binds afresh and emits a fresh 'launch' record, and the 'done' record carries the last launch's run_id. To launch in the background instead, use --detach (which implies --json).",
+)
+@click.option(
+    "--detach/--no-detach",
+    type=bool,
+    is_flag=True,
+    default=False,
+    envvar="INSPECT_EVAL_DETACH",
+    help=DETACH_HELP,
 )
 @click.option(
     "--retry-attempts",
@@ -1312,6 +1386,7 @@ def eval_set_command(
     model_base_url: str | None,
     m: tuple[str, ...] | None,
     model_config: str | None,
+    model_spec: tuple[str, ...] | None,
     run_config: str | None,
     model_role: tuple[str, ...] | None,
     t: tuple[str, ...] | None,
@@ -1335,6 +1410,7 @@ def eval_set_command(
     metadata: tuple[str, ...] | None,
     sandbox: str | None,
     no_sandbox_cleanup: bool | None,
+    sandbox_prebuilt: bool | None,
     checkpoint: str | None,
     acp_server: bool | int | str | None,
     ctl_server: bool | str | None,
@@ -1415,13 +1491,23 @@ def eval_set_command(
     log_level_transcript: str,
     eval_set_id: str | None,
     json_output: bool,
+    detach: bool,
     **common: Unpack[CommonOptions],
 ) -> int:
     """Evaluate a set of tasks with retries.
 
+    Monitor a running eval from another shell with `inspect ctl`
+    (see `inspect ctl --help`).
+
     Learn more about eval sets at https://inspect.aisi.org.uk/eval-sets.html.
     """
-    with _json_prerequisite_errors_to_stderr(json_output):
+    with (
+        _armed_ctl_pointer(),
+        _json_prerequisite_errors_to_stderr(json_output or detach),
+    ):
+        if detach:
+            exec_detached(ctl_server=ctl_server)
+
         # read config
         config = config_from_locals(dict(locals()))
 
@@ -1449,6 +1535,7 @@ def eval_set_command(
             model_base_url=model_base_url,
             m=m,
             model_config=model_config,
+            model_spec=model_spec,
             run_config=run_config,
             model_role=model_role,
             t=t,
@@ -1475,6 +1562,7 @@ def eval_set_command(
             notification=notification,
             sandbox=sandbox,
             no_sandbox_cleanup=no_sandbox_cleanup,
+            sandbox_prebuilt=sandbox_prebuilt,
             checkpoint=checkpoint,
             epochs=epochs,
             epochs_reducer=epochs_reducer,
@@ -1545,7 +1633,9 @@ class RunConfigInput(BaseModel):
 
     task: str | TaskInput | None = None
     model: str | ModelConfig | None = None
-    model_roles: dict[str, ModelConfig] = Field(default_factory=dict)
+    model_roles: dict[str, ModelConfig | list[ModelConfig]] = Field(
+        default_factory=dict
+    )
     generate_config: GenerateConfig = Field(default_factory=GenerateConfig)
     eval_config: EvalConfig = Field(default_factory=EvalConfig)
     solver: str | SolverInput | None = None
@@ -1605,9 +1695,9 @@ class RunConfigInput(BaseModel):
         # Model roles
         if self.model_roles:
             params["model_roles"] = {
-                role: get_model(
-                    mc.model, config=mc.config, base_url=mc.base_url, **mc.args
-                )
+                role: [model_config_to_model(m) for m in mc]
+                if isinstance(mc, list)
+                else model_config_to_model(mc)
                 for role, mc in self.model_roles.items()
             }
 
@@ -1685,6 +1775,75 @@ def merge_run_config_params(
     return params
 
 
+_SINGLE_MODEL_OPTION_NAMES = {"model", "model_base_url", "model_config", "m"}
+"""Click names of the options that configure one shared main model."""
+
+
+def resolve_model_spec(
+    model_spec: tuple[str, ...] | None, run_params: dict[str, Any]
+) -> list[Model] | None:
+    """Resolve `--model-spec` into one model per spec.
+
+    A spec builds a `Model`, and `get_model()` returns a `Model` unchanged. The
+    single model options (`--model`, `--model-base-url`, `--model-config`, `-M`)
+    and a `--run-config` `model` field therefore reach nothing beside a spec, so
+    treat them as mutually exclusive with `--model-spec`.
+
+    A typed option beats an ambient environment value, so the source of each
+    side decides the outcome:
+
+    - Both typed on the command line: raise.
+    - A typed spec against an environment option: the spec wins.
+    - An environment spec against a typed option: the option wins and this
+      returns None. An `INSPECT_EVAL_MODEL_SPEC` in a `.env` file must not
+      break every explicit `--model`.
+
+    A `--run-config` `model` field counts as typed, because a config file states
+    it explicitly.
+
+    Args:
+        model_spec: The `--model-spec` values.
+        run_params: The parameters that `--run-config` supplies.
+
+    Returns:
+        One model per spec, or None to leave the model to `--model`.
+
+    Raises:
+        PrerequisiteError: The command line holds a spec and a conflicting
+            option.
+    """
+    if not model_spec:
+        return None
+
+    from click.core import ParameterSource
+
+    ctx = click.get_current_context(silent=True)
+    if ctx is None:
+        return parse_model_spec_cli_args(model_spec)
+
+    def typed(name: str) -> bool:
+        return ctx.get_parameter_source(name) == ParameterSource.COMMANDLINE
+
+    conflicting = [
+        param.opts[0]
+        for param in ctx.command.params
+        if param.name is not None
+        and param.name in _SINGLE_MODEL_OPTION_NAMES
+        and typed(param.name)
+    ]
+    if "model" in run_params:
+        conflicting.append("the 'model' field of --run-config")
+    if conflicting:
+        if not typed("model_spec"):
+            return None
+        raise PrerequisiteError(
+            f"--model-spec cannot be used with {' / '.join(conflicting)}. Put "
+            "the model, config, args, and base url inside each --model-spec."
+        )
+
+    return parse_model_spec_cli_args(model_spec)
+
+
 def eval_exec(
     tasks: tuple[str, ...] | None,
     solver: str | None,
@@ -1696,6 +1855,7 @@ def eval_exec(
     model_base_url: str | None,
     m: tuple[str, ...] | None,
     model_config: str | None,
+    model_spec: tuple[str, ...] | None,
     run_config: str | None,
     model_role: tuple[str, ...] | None,
     t: tuple[str, ...] | None,
@@ -1722,6 +1882,7 @@ def eval_exec(
     notification: bool | str | None,
     sandbox: str | None,
     no_sandbox_cleanup: bool | None,
+    sandbox_prebuilt: bool | None,
     checkpoint: str | None,
     acp_server: bool | int | str | None,
     ctl_server: bool | str | None,
@@ -1785,6 +1946,8 @@ def eval_exec(
     task_args = parse_cli_config(t, task_config)
     solver_args = parse_cli_config(s, solver_config)
     model_args = parse_cli_config(m, model_config)
+
+    eval_models = resolve_model_spec(model_spec, run_params)
 
     # resolve scanner spec
     from inspect_ai._display.core.results import set_retry_args_suffix
@@ -1873,6 +2036,7 @@ def eval_exec(
 
     # resolve negating options
     sandbox_cleanup = False if no_sandbox_cleanup else None
+    sandbox_prebuilt = True if sandbox_prebuilt else None
     log_samples = False if no_log_samples else None
     log_realtime = False if no_log_realtime else None
     log_images = False if log_images is False else None
@@ -1884,7 +2048,7 @@ def eval_exec(
     cli_params: dict[str, Any] = (
         dict(
             tasks=list(tasks) if tasks else None,
-            model=model,
+            model=eval_models if eval_models is not None else model,
             model_base_url=model_base_url,
             model_args=model_args,
             model_roles=eval_model_roles,
@@ -1898,6 +2062,7 @@ def eval_exec(
             notification=notification,
             sandbox=parse_sandbox(sandbox),
             sandbox_cleanup=sandbox_cleanup,
+            sandbox_prebuilt=sandbox_prebuilt,
             checkpoint=parse_checkpoint(checkpoint),
             log_level=log_level,
             log_level_transcript=log_level_transcript,
@@ -2289,7 +2454,15 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     is_flag=True,
     default=False,
     envvar="INSPECT_EVAL_JSON",
-    help="Emit machine-readable launch output as JSON lines on stdout (implies --display none): a 'launch' record printed once the control-channel server is bound — reporting run_id, pid, log_dir, and the control socket path ('control' is null when the server is disabled or failed to bind, so its presence guarantees `inspect ctl` is usable) — and a 'done' record with each retried task's log location and status when the retry finishes. Each retried log file runs as its own eval, so a multi-file retry emits one 'launch' record per file (sequentially — each supersedes the previous), and the 'done' record carries the last launch's run_id.",
+    help="Emit machine-readable launch output as JSON lines on stdout (implies --display none): a 'launch' record printed once the control-channel server is bound — reporting run_id, pid, log_dir, and the control socket path ('control' is null when the server is disabled or failed to bind, so its presence guarantees `inspect ctl` is usable) — and a 'done' record with each retried task's log location and status when the retry finishes. Each retried log file runs as its own eval, so a multi-file retry emits one 'launch' record per file (sequentially — each supersedes the previous), and the 'done' record carries the last launch's run_id. To launch in the background instead, use --detach (which implies --json and hands off on the first launch record).",
+)
+@click.option(
+    "--detach/--no-detach",
+    type=bool,
+    is_flag=True,
+    default=False,
+    envvar="INSPECT_EVAL_DETACH",
+    help=DETACH_HELP,
 )
 @click.option(
     "--max-samples", type=int, help=MAX_SAMPLES_HELP, envvar="INSPECT_EVAL_MAX_SAMPLES"
@@ -2314,6 +2487,12 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     type=bool,
     is_flag=True,
     help=NO_SANDBOX_CLEANUP_HELP,
+)
+@click.option(
+    "--sandbox-prebuilt",
+    type=bool,
+    is_flag=True,
+    help=SANDBOX_PREBUILT_HELP,
 )
 @click.option(
     "--trace",
@@ -2459,7 +2638,8 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
         "enabled). Pass `false` to disable it; pass `keep` "
         "to keep the process running after the retried eval finishes so "
         "external clients (the `inspect ctl` CLI, scripted agents) can still "
-        "query its state. Run `inspect ctl process release` to release."
+        "query its state. Run `inspect ctl process release` to release. "
+        "Observe the run from another shell with `inspect ctl task list`."
     ),
     envvar="INSPECT_EVAL_CTL_SERVER",
 )
@@ -2510,11 +2690,13 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
 def eval_retry_command(
     log_files: tuple[str, ...],
     json_output: bool,
+    detach: bool,
     max_samples: int | None,
     max_tasks: int | None,
     max_subprocesses: int | None,
     max_sandboxes: int | None,
     no_sandbox_cleanup: bool | None,
+    sandbox_prebuilt: bool | None,
     trace: bool | None,
     fail_on_error: bool | float | None,
     no_fail_on_error: bool | None,
@@ -2554,8 +2736,18 @@ def eval_retry_command(
     scan_generate_config: str | None,
     **common: Unpack[CommonOptions],
 ) -> None:
-    """Retry failed evaluation(s)"""
-    with _json_prerequisite_errors_to_stderr(json_output):
+    """Retry failed evaluation(s).
+
+    Monitor a running eval from another shell with `inspect ctl`
+    (see `inspect ctl --help`).
+    """
+    with (
+        _armed_ctl_pointer(),
+        _json_prerequisite_errors_to_stderr(json_output or detach),
+    ):
+        if detach:
+            exec_detached(ctl_server=ctl_server)
+
         # --json owns stdout (JSON lines only), so route the display to the
         # quiet "none" renderer — including when --no-ansi would otherwise
         # promote it back to "rich" or --trace (/INSPECT_EVAL_TRACE) would
@@ -2570,6 +2762,7 @@ def eval_retry_command(
 
         # resolve negating options
         sandbox_cleanup = False if no_sandbox_cleanup else None
+        sandbox_prebuilt = True if sandbox_prebuilt else None
         log_samples = False if no_log_samples else None
         log_realtime = False if no_log_realtime else None
         log_images = False if log_images is False else None
@@ -2650,6 +2843,7 @@ def eval_retry_command(
                 max_subprocesses=max_subprocesses,
                 max_sandboxes=max_sandboxes,
                 sandbox_cleanup=sandbox_cleanup,
+                sandbox_prebuilt=sandbox_prebuilt,
                 trace=trace,
                 fail_on_error=fail_on_error,
                 continue_on_fail=continue_on_fail,

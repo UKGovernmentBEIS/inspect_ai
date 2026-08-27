@@ -523,7 +523,7 @@ def test_skill_end_to_end() -> None:
 
     result = eval(
         task,
-        model="openai/gpt-5.1-codex",
+        model="openai/gpt-5.3-codex",
     )[0]
 
     assert result.status == "success", f"Eval failed with status: {result.status}"

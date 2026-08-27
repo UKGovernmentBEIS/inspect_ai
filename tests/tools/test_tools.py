@@ -9,8 +9,10 @@ from test_helpers.tool_call_utils import (
 from test_helpers.tools import addition, raise_error, read_file
 from test_helpers.utils import (
     skip_if_no_anthropic,
+    skip_if_no_deepseek,
     skip_if_no_google,
     skip_if_no_mistral,
+    skip_if_no_moonshot,
     skip_if_no_openai,
 )
 
@@ -198,6 +200,22 @@ def test_mistral_tools():
 @skip_if_no_google
 def test_google_tools():
     check_tools("google/gemini-2.5-pro")
+
+
+@skip_if_no_moonshot
+def test_moonshot_tools():
+    # K3 can't force a specific tool among several: named tool_choice is
+    # incompatible with its always-on thinking, so the provider coerces it to
+    # "required" (which suffices for the single-tool "calls" check).
+    check_tools("moonshot/kimi-k3", disable=["force"])
+
+
+@skip_if_no_deepseek
+def test_deepseek_tools():
+    # V4 thinking mode (on by default) rejects any forced tool_choice, so the
+    # provider coerces it to "auto" (which suffices for the single-tool
+    # "calls" check but can't guarantee the multi-tool "force" check).
+    check_tools("deepseek/deepseek-v4-flash", disable=["force"])
 
 
 def test_dynamic_tools():

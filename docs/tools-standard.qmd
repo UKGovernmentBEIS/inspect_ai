@@ -287,15 +287,7 @@ The `computer()` tool provides models with a computer desktop environment along 
 
 ### Configuration
 
-The `computer()` tool runs within a Docker container. To use it with a task you need to reference the `aisiuk/inspect-computer-tool` image in your Docker compose file. For example:
-
-``` {.yaml filename="compose.yaml"}
-services:
-  default:
-    image: aisiuk/inspect-computer-tool
-```
-
-You can configure the container to not have Internet access as follows:
+The `computer()` tool runs within a Docker container. To use it with a task you need to reference the `aisiuk/inspect-computer-tool` image in your Docker compose file. For a task that does not require networking, retain Inspect's no-network posture explicitly:
 
 ``` {.yaml filename="compose.yaml"}
 services:
@@ -304,7 +296,7 @@ services:
     network_mode: none
 ```
 
-Note that if you'd like to be able to view the model's interactions with the computer desktop in realtime, you will need to also do some port mapping to enable a VNC connection with the container. See the [VNC Client](#vnc-client) section below for details on how to do this.
+Omit `network_mode: none` only when the task needs networking. If you'd like to view the model's interactions with the computer desktop in realtime, you will also need port mapping to enable a VNC connection with the container. See the [VNC Client](#vnc-client) section below for details.
 
 The `aisiuk/inspect-computer-tool` image is based on the [ubuntu:22.04](https://hub.docker.com/layers/library/ubuntu/22.04/images/sha256-965fbcae990b0467ed5657caceaec165018ef44a4d2d46c7cdea80a9dff0d1ea?context=explore) image and includes the following additional applications pre-installed:
 
@@ -387,10 +379,16 @@ You can use a [VNC](https://en.wikipedia.org/wiki/VNC) connection to the contain
 services:
   default:
     image: aisiuk/inspect-computer-tool
+    # network_mode is omitted because container networking is required for
+    # these ports. This also permits outbound Internet access.
     ports:
-      - "5900"
-      - "6080"
+      - "127.0.0.1::5900"
+      - "127.0.0.1::6080"
 ```
+
+::: {.callout-warning}
+The bundled VNC server does not require a password, and VNC/noVNC traffic is not encrypted. Keep these ports bound to loopback (127.0.0.1).
+:::
 
 To connect to the container for a given sample, locate the sample in the **Running Samples** UI and expand the sample info panel at the top:
 
@@ -398,7 +396,7 @@ To connect to the container for a given sample, locate the sample in the **Runni
 
 Click on the link for the noVNC browser client, or use a native VNC client to connect to the VNC port. Note that the VNC server will take a few seconds to start up so you should give it some time and attempt to reconnect as required if the first connection fails.
 
-The browser based client provides a view-only interface. If you use a native VNC client you should also set it to "view only" so as to not interfere with the model's use of the computer. For example, for Real VNC Viewer:
+The browser link opens noVNC in view-only mode. This is a client-side setting, not access control: any client that can reach the VNC server can enable keyboard and mouse input. If you use a native VNC client, you should also set it to "view only" so as to not interfere with the model's use of the computer. For example, for Real VNC Viewer:
 
 ![](images/vnc-view-only.png){width="549"}
 
@@ -537,13 +535,14 @@ RUN PIPX_HOME=/opt/inspect/pipx PIPX_BIN_DIR=/opt/inspect/bin PIPX_VENV_DIR=/opt
     inspect-tool-support post-install
 ```
 
-If you don't have a custom Dockerfile, you can alternatively use the pre-built `aisiuk/inspect-tool-support` image:
+If you don't have a custom Dockerfile, you can alternatively use the pre-built `aisiuk/inspect-tool-support` image. This configuration intentionally permits outbound Internet access so the browser can visit external sites:
 
 ``` {.yaml filename="compose.yaml"}
 services:
   default:
     image: aisiuk/inspect-tool-support
     init: true
+    # network_mode is omitted because the browser visits external sites.
 ```
 :::
 
@@ -801,6 +800,22 @@ memory(
     readonly=True,
 )
 ```
+
+### Separate Stores
+
+By default, all `memory()` tools within a sample share a single `/memories` store — every agent and subagent reads and writes the same files. This is usually what you want: a subagent can build on what the parent recorded, and vice versa.
+
+To run independent memory stores within one sample, pass an `instance` name. Each instance has its own files and is seeded independently:
+
+``` python
+# two independent memory stores in the same sample
+notes = memory(instance="notes")
+scratch = memory(instance="scratch")
+```
+
+This mirrors `skill(instance=...)`. Use it when two memory tools must not collide — for example, to give a subagent a private scratchpad, or to compare shared vs. separate memory as conditions in a study.
+
+Note that `instance` namespaces the data within the sample's in-memory store; it is **not** a security boundary, since everything still lives in the same process. For a hard boundary between agents, isolate them with a [Sandbox Environment](sandboxing.qmd) instead.
 
 ### Tool Binding
 
