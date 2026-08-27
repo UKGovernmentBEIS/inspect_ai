@@ -20,8 +20,8 @@ stopping and kill a streaming response with no chunk for say 15s".
 Every defense we have today is scoped to the whole attempt or the whole call:
 
 - `timeout` (`GenerateConfig`) — the total retry budget per generate call
-  (tenacity `stop_after_delay` in `model_retry_config`,
-  `src/inspect_ai/model/_retry.py`).
+  (the custom `stop` callable in `model_retry_config`, semantics matching
+  tenacity's `stop_after_delay`; `src/inspect_ai/model/_retry.py`).
 - `attempt_timeout` — a per-attempt `anyio.move_on_after` cancel scope in
   `Model._generate` (`src/inspect_ai/model/_model.py`); on expiry the attempt
   is abandoned with `AttemptTimeoutError` and retried per `max_retries`.
@@ -326,12 +326,16 @@ Phase 2 is separable and should not gate phase 1.
 
 - `tests/model/test_model_stream.py` (extend): arming only on
   `stream_started` (a non-streaming attempt with the knob set never fires);
-  deadline bumps on progress/delta reports (mock clock via anyio's testing
-  utilities — the autojump clock makes the timeout paths fast); bump
-  throttling; fire → `StreamIdleTimeoutError` → retry with `StreamRetryEvent`
-  boundary and partial-output discard; per-attempt re-arm across retries;
-  interaction when both `attempt_timeout` and `stream_idle_timeout` are set
-  (inner-scope precedence); both anyio backends per the conftest hook.
+  deadline bumps on progress/delta reports; bump throttling.
+- Timeout-fire paths in `tests/model/test_generate_attempt_timeout.py`
+  (extend — it already covers the sibling `attempt_timeout` knob): fire →
+  `StreamIdleTimeoutError` → retry with `StreamRetryEvent` boundary and
+  partial-output discard; per-attempt re-arm across retries; interaction when
+  both `attempt_timeout` and `stream_idle_timeout` are set (inner-scope
+  precedence); both anyio backends per the conftest hook. Use small real
+  timeouts (sub-second, as that file does for `attempt_timeout=1`) — there is
+  no mock clock on the primary asyncio leg (autojump is trio-only, and trio
+  variants are skipped by default).
 - `tests/test_eval.py` / config plumbing: `--stream-idle-timeout` reaches
   `GenerateConfig`; excluded from eval-set task identity.
 - Phase 2: `tests/_control/test_ctl.py` override knob round-trip alongside
