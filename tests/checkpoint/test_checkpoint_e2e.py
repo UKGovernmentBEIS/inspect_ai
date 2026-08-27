@@ -46,6 +46,7 @@ import signal
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any, NamedTuple
 
 import pytest
 from test_helpers.utils import flaky_retry, skip_if_no_anthropic, skip_if_no_docker
@@ -56,6 +57,7 @@ from checkpoint.resume_kill_harness import (
     SIGNAL_ENV,
     STRATEGY_ENV,
     TARGET_ENV,
+    TURN_LIMIT_ENV,
     generates,
     reset_generates,
 )
@@ -64,6 +66,7 @@ from checkpoint.resume_kill_thinking_harness import (
     committed_thinking_signatures,
 )
 from inspect_ai import eval_retry
+from inspect_ai._util.file import local_path
 from inspect_ai.event import Event, SpanBeginEvent, SpanEndEvent, ToolEvent
 from inspect_ai.event._checkpoint import CheckpointEvent
 from inspect_ai.log import list_eval_logs, read_eval_log
@@ -71,6 +74,7 @@ from inspect_ai.scorer import CORRECT
 from inspect_ai.util._checkpoint._layout.eval_checkpoints_dir import (
     eval_checkpoints_dir,
 )
+from inspect_ai.util._checkpoint._layout.host_context import SAMPLE_RUNTIME
 from inspect_ai.util._checkpoint._sandbox_restic.repo import _SANDBOX_RESTIC_DIR
 from inspect_ai.util._checkpoint._snapshot import (
     STRATEGY_ARCHIVE,
@@ -270,6 +274,27 @@ def _assert_snapshot_dir_hidden(container_id: str, strategy: str) -> None:
     )
 
 
+class _SpentBudget(NamedTuple):
+    turns: int
+    tokens: int
+
+
+def _spent_budget(log_location: str) -> _SpentBudget:
+    """Peak turn/token usage across the limit snapshots a run committed."""
+    turns = 0
+    tokens = 0
+    root = Path(local_path(eval_checkpoints_dir(log_location, None)))
+    for path in root.rglob(SAMPLE_RUNTIME):
+        try:
+            snapshot: dict[str, Any] = json.loads(path.read_text())
+        except (OSError, json.JSONDecodeError):
+            continue
+        turns = max(turns, int(snapshot.get("turns") or 0))
+        usage: dict[str, Any] = snapshot.get("token_usage") or {}
+        tokens = max(tokens, int(usage.get("total_tokens") or 0))
+    return _SpentBudget(turns=turns, tokens=tokens)
+
+
 def _thinking_signatures(log_location: str) -> set[str]:
     """Anthropic thinking-block signatures dumped under a run's checkpoints dir.
 
@@ -349,6 +374,60 @@ def test_checkpoint_resume_restores_assistant_internal(
         "pre-kill thinking-block signatures are missing from the resume's own "
         "checkpoint dump — assistant-internal state was not restored on resume"
     )
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+def test_checkpoint_resume_carries_budget_usage(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A resumed sample keeps the budget it already spent.
+
+    Turn count is the readable one: the killed attempt spends at least two
+    turns, the resume spends two more, and the logged count has to include
+    both. Limit counters live in per-sample objects the runner rebuilds on
+    every attempt, so without the restore the resume reports only its own
+    turns and the sample gets a second full budget.
+    """
+    cancel_file = tmp_path / "cancels.txt"
+    monkeypatch.setenv(CANCEL_FILE_ENV, str(cancel_file))
+    monkeypatch.setenv(TARGET_ENV, "1")
+    # generous: this asserts the counter carries, not that it halts anything
+    monkeypatch.setenv(TURN_LIMIT_ENV, "50")
+    cancel_file.unlink(missing_ok=True)
+
+    log_dir = str(tmp_path / "logs")
+    tests_dir = Path(__file__).parent.parent
+
+    prefix = _project_prefix("resume_decode_task")
+    projects_before = _inspect_projects(prefix)
+    try:
+        _run_interrupted_attempt(log_dir, None, tests_dir)
+
+        killed_log = _latest_log(log_dir)
+        spent = _spent_budget(killed_log)
+        assert spent.turns >= 2 and spent.tokens > 0, (
+            f"the killed attempt committed no usable limit snapshot: {spent}"
+        )
+
+        reset_generates()
+        resume = eval_retry(read_eval_log(killed_log), log_dir=log_dir)[0]
+    finally:
+        for name in _inspect_projects(prefix) - projects_before:
+            _force_remove_project(name)
+
+    assert resume.status == "success"
+    assert resume.samples is not None and len(resume.samples) == 1
+    sample = resume.samples[0]
+    assert sample.error is None
+
+    # The resume runs two turns (bash + submit) — no more than the killed
+    # attempt had already spent — so a reset counter cannot reach past it.
+    assert sample.turn_count is not None
+    assert sample.turn_count > spent.turns
+
+    resumed_tokens = sum(usage.total_tokens for usage in sample.model_usage.values())
+    assert resumed_tokens > spent.tokens
 
 
 @skip_if_no_docker

@@ -139,6 +139,13 @@ class _HostHydrationResult:
     child task, and the restore must run where the solver's context is
     current."""
 
+    sample_runtime: JsonValue | None = None
+    """From ``sample_runtime.json`` — restored into sample-root limit
+    usage and related in-memory runtime. Restored by ``_CheckpointerSetup.
+    __aenter__`` rather than ``_push_host_state``: the push runs in a
+    child task, and the restore must run where the solver's context is
+    current."""
+
 
 @dataclass
 class HydrationResult:
@@ -576,6 +583,7 @@ def _load_host_state(
         attachments=ctx.attachments,
         store=ctx.store,
         assistant_internal=ctx.assistant_internal,
+        sample_runtime=ctx.sample_runtime,
     )
 
 

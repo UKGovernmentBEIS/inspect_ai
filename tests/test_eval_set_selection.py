@@ -1147,6 +1147,24 @@ _EXPECTED_SELECTION_FIELDS: dict[int, dict[str, set[str]]] = {
             "max_tasks",
         },
     },
+    # v5 added the first fields to a *task* entry since v1, and they are the
+    # first that are neither protocol nor knob: `registry_name` and `args_hash`
+    # are an optimization hint, letting a worker skip constructing the tasks it
+    # was not selected to run rather than paying for every dataset in the eval
+    # set to find its own. `identifier` remains the only field that decides
+    # anything -- these may be absent, and could be wrong, without changing
+    # what runs (see eval_set_pruning.py).
+    5: {
+        "selection": {"version", "eval_set_id", "tasks", "overrides"},
+        "task": {"identifier", "resume", "registry_name", "args_hash"},
+        "overrides": {
+            "log_dir",
+            "max_samples",
+            "limit",
+            "max_sandboxes",
+            "max_tasks",
+        },
+    },
 }
 
 

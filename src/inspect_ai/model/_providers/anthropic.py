@@ -203,6 +203,7 @@ from .util import (
     check_azure_deployment_mismatch,
     environment_prerequisite_error,
     model_base_url,
+    normalize_stream_arg,
     require_azure_base_url,
     resolve_api_key,
 )
@@ -278,8 +279,8 @@ class AnthropicAPI(ModelAPI):
         else:
             self.service = None
 
-        # record steraming and betas prefs
-        self.streaming = streaming
+        # record streaming and betas prefs
+        self.streaming: bool | None = normalize_stream_arg(streaming, "streaming")
         self.betas = betas if isinstance(betas, list) else [str(betas)]
 
         # validate and record prompt cache ttl
@@ -580,7 +581,7 @@ class AnthropicAPI(ModelAPI):
             # model arg overrides both
             streaming = (
                 (self.auto_streaming(config) or model_stream_requested())
-                if self.streaming == "auto"
+                if self.streaming is None
                 else self.streaming
             )
 
