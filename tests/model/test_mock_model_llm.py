@@ -100,6 +100,35 @@ async def test_mock_generate_custom_callable() -> None:
 
     response = await model.generate(input="unused input")
     assert response.completion == "response from callable"
+    assert response.usage is not None
+    assert response.usage.output_tokens == len("response from callable")
+    assert (
+        response.usage.total_tokens
+        == response.usage.input_tokens + response.usage.output_tokens
+    )
+
+
+@skip_if_trio
+async def test_mock_generate_custom_callable_explicit_usage() -> None:
+    from inspect_ai.model import ModelUsage
+
+    explicit_usage = ModelUsage(input_tokens=10, output_tokens=20, total_tokens=30)
+
+    def custom_output_generator(
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice,
+        config: GenerateConfig,
+    ) -> ModelOutput:
+        out = ModelOutput.from_content(
+            model="mockllm", content="response with explicit usage"
+        )
+        out.usage = explicit_usage
+        return out
+
+    model = get_model("mockllm/model", custom_outputs=custom_output_generator)
+    response = await model.generate(input="test")
+    assert response.usage == explicit_usage
 
 
 @skip_if_trio

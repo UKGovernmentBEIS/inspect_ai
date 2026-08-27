@@ -91,13 +91,11 @@ class MockLLM(ModelAPI):
             output = self.outputs(input, tools, tool_choice, config)
             if _inspect.isawaitable(output):
                 output = await output
-            model_call = ModelCall.create(request, {"content": output.completion})
-            return output, model_call
-
-        try:
-            output = next(self.outputs)
-        except StopIteration:
-            raise ValueError("custom_outputs ran out of values")
+        else:
+            try:
+                output = next(self.outputs)
+            except StopIteration:
+                raise ValueError("custom_outputs ran out of values")
 
         if not isinstance(output, ModelOutput):
             raise ValueError(
