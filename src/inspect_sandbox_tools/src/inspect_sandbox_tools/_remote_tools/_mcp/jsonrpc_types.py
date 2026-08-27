@@ -10,10 +10,10 @@ bundle.
 Wire behavior intentionally matches the mcp 1.x models the v27 binary shipped:
 request/response ids validate strictly (a nonconforming line with a float or
 bool id fails validation and is skipped by the reader, like any other
-unparseable line), the error envelope's id is lax (mcp 1.x coerced a
-float-integral id there, so a late error for request 7 sent as ``7.0`` still
-correlates), and non-spec extra fields on envelopes round-trip to the host
-instead of being stripped (``extra="allow"``).
+unparseable line), the error envelope's id is lax (mcp 1.x coerced
+float-integral and bool ids there, so a late error for request 7 sent as
+``7.0`` still correlates), and non-spec extra fields on envelopes round-trip
+to the host instead of being stripped (``extra="allow"``).
 
 These are not the only JSON-RPC models in the package: ``_cli/main.py`` has
 its own request/notification shapes for the host→injectable control RPC — a
@@ -64,7 +64,7 @@ class JSONRPCError(_JSONRPCEnvelope):
     # Required but nullable per JSON-RPC 2.0: None encodes "id": null (the
     # server could not determine the id, e.g. a parse-error response). Lax
     # (unlike RequestId) to match mcp 1.x, whose error envelope coerced
-    # float-integral ids.
+    # float-integral and bool ids.
     id: int | str | None
     error: ErrorData
 

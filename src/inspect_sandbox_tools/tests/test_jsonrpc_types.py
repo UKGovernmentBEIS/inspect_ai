@@ -8,8 +8,9 @@ places drift could break the relay silently:
   versa for responses). Round-tripping through the real installed mcp catches
   a future mcp release changing its serialization.
 - envelope behavior the vendored models own outright: non-spec extras
-  round-trip, and nonconforming ids fail validation (so the reader skips the
-  line), matching the mcp 1.x models the v27 binary shipped.
+  round-trip, and nonconforming request/response ids fail validation (so the
+  reader skips the line) while error-envelope ids coerce laxly, matching the
+  mcp 1.x models the v27 binary shipped.
 """
 
 import pydantic
@@ -83,11 +84,14 @@ def test_nonconforming_result_ids_fail_validation(bad_id: str) -> None:
         jsonrpc_message_adapter.validate_json(line)
 
 
-def test_error_envelope_id_is_lax() -> None:
-    # mcp 1.x (as shipped in v27) coerced float-integral ids on the error
-    # envelope only; a late error for request 7 sent as 7.0 must correlate.
+@pytest.mark.parametrize(("lax_id", "expected"), [("7.0", 7), ("true", 1)])
+def test_error_envelope_id_is_lax(lax_id: str, expected: int) -> None:
+    # mcp 1.x (as shipped in v27) coerced float-integral and bool ids on the
+    # error envelope only; a late error for request 7 sent as 7.0 must
+    # correlate, and the coerced value must be a true int (not bool) so the
+    # host's strict mcp models accept the relayed envelope.
     message = jsonrpc_message_adapter.validate_json(
-        '{"jsonrpc":"2.0","id":7.0,"error":{"code":-32000,"message":"boom"}}'
+        f'{{"jsonrpc":"2.0","id":{lax_id},"error":{{"code":-32000,"message":"boom"}}}}'
     )
     assert isinstance(message, JSONRPCError)
-    assert message.id == 7 and isinstance(message.id, int)
+    assert message.id == expected and type(message.id) is int
