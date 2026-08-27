@@ -514,6 +514,65 @@ async def test_mistral_completion_from_stream() -> None:
 
 
 @skip_if_no_mistral_package
+async def test_mistral_stream_parallel_tool_calls_without_index() -> None:
+    """Parallel calls with no server index don't collapse into one slot.
+
+    The SDK defaults an absent index to 0, so slotting must not trust the
+    default: each id-bearing fragment starts a new call.
+    """
+    from mistralai.client.models import (
+        CompletionChunk,
+        CompletionEvent,
+        CompletionResponseStreamChoice,
+        DeltaMessage,
+        FunctionCall,
+        ToolCall,
+    )
+
+    from inspect_ai.model._providers.mistral import mistral_completion_from_stream
+
+    async def _events() -> Any:
+        yield CompletionEvent(
+            data=CompletionChunk(
+                id="cmpl-1",
+                model="mistral-large-latest",
+                choices=[
+                    CompletionResponseStreamChoice(
+                        index=0,
+                        delta=DeltaMessage(
+                            tool_calls=[
+                                ToolCall(
+                                    id="call_a",
+                                    function=FunctionCall(
+                                        name="bash", arguments='{"a": 1}'
+                                    ),
+                                ),
+                                ToolCall(
+                                    id="call_b",
+                                    function=FunctionCall(
+                                        name="python", arguments='{"b": 2}'
+                                    ),
+                                ),
+                            ]
+                        ),
+                        finish_reason="tool_calls",
+                    )
+                ],
+            )
+        )
+
+    completion = await mistral_completion_from_stream(_events())
+    message = completion.choices[0].message
+    assert message is not None
+    tool_calls = message.tool_calls
+    assert isinstance(tool_calls, list) and len(tool_calls) == 2
+    assert tool_calls[0].id == "call_a"
+    assert tool_calls[0].function.arguments == '{"a": 1}'
+    assert tool_calls[1].id == "call_b"
+    assert tool_calls[1].function.arguments == '{"b": 2}'
+
+
+@skip_if_no_mistral_package
 async def test_mistral_completion_from_stream_text_only() -> None:
     """All-string fragments join into plain string content."""
     from mistralai.client.models import (

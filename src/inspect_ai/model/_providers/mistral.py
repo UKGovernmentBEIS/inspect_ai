@@ -265,10 +265,14 @@ class MistralAPI(ModelAPI):
                 else:
                     completion = await client.chat.complete_async(**request)
 
-                if completion is not None:
-                    model_call.set_response(
-                        completion.model_dump(), http_hooks.end_request(request_id)
+                if completion is None:
+                    raise RuntimeError(
+                        "Mistral model did not return a response from generate."
                     )
+
+                model_call.set_response(
+                    completion.model_dump(), http_hooks.end_request(request_id)
+                )
             except SDKError as ex:
                 model_call.set_error(
                     as_error_response(ex.body), http_hooks.end_request(request_id)
@@ -277,11 +281,6 @@ class MistralAPI(ModelAPI):
                     return self.handle_bad_request(ex), model_call
                 else:
                     raise ex
-
-            if completion is None:
-                raise RuntimeError(
-                    "Mistral model did not return a response from generate."
-                )
 
             # return model output (w/ tool calls if they exist)
             choices = await completion_choices_from_response(completion, tools)
@@ -443,10 +442,7 @@ async def mistral_completion_from_stream(
                                 StreamReasoningEvent(reasoning=reasoning)
                             )
                             reported = True
-            for position, tool_call in enumerate(delta.tool_calls or []):
-                index = (
-                    tool_call.index if isinstance(tool_call.index, int) else position
-                )
+            for tool_call in delta.tool_calls or []:
                 arguments = tool_call.function.arguments
                 fragment = (
                     arguments
@@ -456,14 +452,23 @@ async def mistral_completion_from_stream(
                     else ""
                 )
                 # id/function may arrive only on a call's first fragment;
-                # remember them by index so continuation fragments are
+                # remember them by slot so continuation fragments are
                 # attributed (the SDK defaults an absent id to "null")
                 tool_call_id = (
                     tool_call.id if tool_call.id and tool_call.id != "null" else None
                 )
-                info = choices[chunk_choice.index].tool_calls.get(
-                    index, _StreamToolCall(None, None, [])
-                )
+                # the SDK defaults an absent index to 0, so only a
+                # server-provided index keys the slot; without one an id
+                # starts a new call and bare fragments extend the latest
+                if "index" in tool_call.model_fields_set and isinstance(
+                    tool_call.index, int
+                ):
+                    index = tool_call.index
+                elif tool_call_id is not None or not choice.tool_calls:
+                    index = max(choice.tool_calls) + 1 if choice.tool_calls else 0
+                else:
+                    index = max(choice.tool_calls)
+                info = choice.tool_calls.get(index, _StreamToolCall(None, None, []))
                 info = _StreamToolCall(
                     id=tool_call_id or info.id,
                     function=tool_call.function.name or info.function,

@@ -119,20 +119,19 @@ def _azureai_api(streaming: bool | Literal["auto"] = "auto") -> AzureAIAPI:
 
 def test_azureai_resolve_streaming_honors_on_stream() -> None:
     """Unset streaming is "auto": stream iff the caller passed on_stream."""
-    config = GenerateConfig()
     collector = _StreamCollector()
 
     api = _azureai_api()
     assert api.streaming is None
-    assert api.resolve_streaming(config) is False
+    assert api.resolve_streaming() is False
     with model_stream_observer(ModelStreamObserver("test", collector)):
-        assert api.resolve_streaming(config) is True
+        assert api.resolve_streaming() is True
 
         # explicit opt-out wins over an on_stream callback
-        assert _azureai_api(streaming=False).resolve_streaming(config) is False
+        assert _azureai_api(streaming=False).resolve_streaming() is False
 
     # explicit opt-in streams without a callback
-    assert _azureai_api(streaming=True).resolve_streaming(config) is True
+    assert _azureai_api(streaming=True).resolve_streaming() is True
 
     # -M args are YAML-parsed so "auto" arrives as a string; a typo'd value
     # raises rather than silently forcing streaming on or off
@@ -239,6 +238,62 @@ async def test_azureai_completion_from_stream() -> None:
     assert collector.events[2].id == "call_1"
     assert collector.events[2].function == "bash"
     assert collector.events[2].arguments == '"cmd": "ls"}'
+
+
+async def test_azureai_stream_parallel_tool_calls_by_index() -> None:
+    """Interleaved fragments with wire indexes attribute to the right call."""
+    updates = [
+        _update(
+            dict(
+                choices=[
+                    dict(
+                        index=0,
+                        delta=dict(
+                            role="assistant",
+                            tool_calls=[
+                                dict(
+                                    index=0,
+                                    id="call_a",
+                                    function=dict(name="bash", arguments='{"a"'),
+                                ),
+                                dict(
+                                    index=1,
+                                    id="call_b",
+                                    function=dict(name="python", arguments='{"b"'),
+                                ),
+                            ],
+                        ),
+                        finish_reason=None,
+                    )
+                ]
+            )
+        ),
+        # continuation fragments carry only the index
+        _update(
+            dict(
+                choices=[
+                    dict(
+                        index=0,
+                        delta=dict(
+                            tool_calls=[
+                                dict(index=0, function=dict(arguments=": 1}")),
+                                dict(index=1, function=dict(arguments=": 2}")),
+                            ]
+                        ),
+                        finish_reason="tool_calls",
+                    )
+                ]
+            )
+        ),
+    ]
+
+    response = await azureai_completion_from_stream(_updates(updates))
+    tool_calls = response.choices[0].message.tool_calls
+    assert tool_calls is not None and len(tool_calls) == 2
+    assert tool_calls[0].id == "call_a"
+    assert tool_calls[0].function.arguments == '{"a": 1}'
+    assert tool_calls[1].id == "call_b"
+    assert tool_calls[1].function.arguments == '{"b": 2}'
 
 
 async def test_azureai_streamed_content_filter_stop_details() -> None:

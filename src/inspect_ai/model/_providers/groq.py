@@ -294,17 +294,24 @@ class GroqAPI(ModelAPI):
         """Whether to use the streaming API for this generate call.
 
         An explicit `streaming` model arg wins; when unset ("auto"), stream
-        when the caller passed `on_stream` to `Model.generate()`. Auto mode
-        declines to stream requests carrying a `response_schema`: structured
-        output under streaming is unverified for Groq, and a display-only
-        `on_stream` request must not risk degrading results (an explicit
-        `streaming=true` opt-in still streams). There is no non-streamed
-        retry when the server rejects a streamed request (see the note on
+        when the caller passed `on_stream` to `Model.generate()`. A
+        display-only `on_stream` request must not risk degrading results, so
+        auto mode declines requests the stream accumulator is (or may be)
+        lossy for — those carrying a `response_schema` (structured output
+        under streaming is unverified for Groq) and compound models (which
+        execute tools server-side and report them via `executed_tools`,
+        not carried by the accumulator). An explicit `streaming=true` opt-in
+        still streams. There is no non-streamed retry when the server
+        rejects a streamed request (see the note on
         `OpenAICompatibleAPI.resolve_stream`); `-M streaming=false` opts out.
         """
         if self.streaming is not None:
             return self.streaming
-        return model_stream_requested() and config.response_schema is None
+        return (
+            model_stream_requested()
+            and config.response_schema is None
+            and "compound" not in self.model_name.lower()
+        )
 
     def _chat_choices_from_response(
         self, response: Any, tools: list[ToolInfo]

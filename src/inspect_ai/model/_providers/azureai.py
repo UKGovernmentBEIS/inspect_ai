@@ -46,6 +46,7 @@ from inspect_ai._util.http import (
     parse_retry_after_from_exception,
 )
 from inspect_ai._util.images import inline_media_data_uri
+from inspect_ai._util.logger import warn_once
 from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.tool import ToolChoice, ToolInfo
 from inspect_ai.tool._tool_call import ToolCall
@@ -238,7 +239,7 @@ class AzureAIAPI(ModelAPI):
 
         # prepare request (resolve streaming while building it, so the
         # ModelCall snapshot below matches the wire request)
-        streaming = self.resolve_streaming(config)
+        streaming = self.resolve_streaming()
         request = dict(
             messages=await chat_request_messages(input, handler, self.is_mistral()),
             **self.completion_params(config),
@@ -296,12 +297,23 @@ class AzureAIAPI(ModelAPI):
 
             model_call.set_response(response.as_dict())
 
+            # a streamed response may end without a usage chunk (e.g. servers
+            # that only report usage when stream_options.include_usage is
+            # set, which the azure-ai-inference API does not expose) — warn
+            # rather than under-count silently
+            if streaming and response.usage is None:
+                warn_once(
+                    logger,
+                    f"azureai model '{self.model_name}' reported no token "
+                    "usage for a streamed response; pass -M streaming=false "
+                    "if you require usage reporting.",
+                )
+
             return ModelOutput(
                 model=response.model,
                 choices=chat_completion_choices(
                     response.model, response.choices, tools, handler
                 ),
-                # a streamed response may end without a usage chunk
                 usage=ModelUsage(
                     input_tokens=response.usage.prompt_tokens,
                     output_tokens=response.usage.completion_tokens,
@@ -339,7 +351,7 @@ class AzureAIAPI(ModelAPI):
 
         return params
 
-    def resolve_streaming(self, config: GenerateConfig) -> bool:
+    def resolve_streaming(self) -> bool:
         """Whether to use the streaming API for this generate call.
 
         An explicit `streaming` model arg wins; when unset ("auto"), stream
@@ -350,7 +362,8 @@ class AzureAIAPI(ModelAPI):
         preserves the last filter annotation seen per choice — the update
         that carries `finish_reason="content_filter"` also carries the
         results for the filtered content — so stop details survive
-        streaming.
+        streaming. (No config-based decline rules apply: this provider does
+        not request features the streamed accumulation would be lossy for.)
         """
         if self.streaming is not None:
             return self.streaming
@@ -456,10 +469,26 @@ class _StreamChoice:
 
     def __init__(self) -> None:
         self.content: list[str] = []
-        # each entry: {"id", "type", "function": {"name", "arguments": [fragments]}}
-        self.tool_calls: list[dict[str, Any]] = []
+        # keyed by wire index (or synthesized slot); each entry:
+        # {"id", "function": {"name", "arguments": [fragments]}}
+        self.tool_calls: dict[int, dict[str, Any]] = {}
         self.finish_reason: str | None = None
         self.content_filter_results: dict[str, Any] | None = None
+
+    def tool_call_slot(self, fragment: dict[str, Any]) -> int:
+        """Resolve which accumulated call a tool-call fragment belongs to.
+
+        OpenAI-compatible servers attribute fragments with an `index`
+        (azure-ai-inference doesn't declare the field, but the raw mapping
+        carries it through). Without one, a fragment bearing an `id` starts
+        a new call and bare argument fragments extend the latest.
+        """
+        index = fragment.get("index")
+        if isinstance(index, int):
+            return index
+        if fragment.get("id") or not self.tool_calls:
+            return max(self.tool_calls) + 1 if self.tool_calls else 0
+        return max(self.tool_calls)
 
 
 async def azureai_completion_from_stream(
@@ -517,28 +546,23 @@ async def azureai_completion_from_stream(
             for tool_call in delta.get("tool_calls") or []:
                 function = tool_call.get("function") or {}
                 arguments = function.get("arguments") or ""
-                if tool_call.get("id") or not choice.tool_calls:
-                    choice.tool_calls.append(
-                        {
-                            "id": tool_call.get("id"),
-                            "type": "function",
-                            "function": {
-                                "name": function.get("name"),
-                                "arguments": [arguments] if arguments else [],
-                            },
-                        }
-                    )
-                else:
-                    current = choice.tool_calls[-1]["function"]
-                    current["name"] = current["name"] or function.get("name")
-                    if arguments:
-                        current["arguments"].append(arguments)
+                slot = choice.tool_call_slot(tool_call)
+                current = choice.tool_calls.setdefault(
+                    slot,
+                    {"id": None, "function": {"name": None, "arguments": []}},
+                )
+                current["id"] = current["id"] or tool_call.get("id")
+                current_function = current["function"]
+                current_function["name"] = current_function["name"] or function.get(
+                    "name"
+                )
+                if arguments:
+                    current_function["arguments"].append(arguments)
                 if report:
-                    current = choice.tool_calls[-1]
                     await report_model_stream_delta(
                         StreamToolCallEvent(
                             id=current["id"],
-                            function=current["function"]["name"],
+                            function=current_function["name"],
                             arguments=arguments,
                         )
                     )
@@ -566,7 +590,7 @@ async def azureai_completion_from_stream(
                     {
                         "tool_calls": [
                             {
-                                "id": tool_call["id"] or f"tool_call_{index}_{i}",
+                                "id": tool_call["id"] or f"tool_call_{index}_{slot}",
                                 "type": "function",
                                 "function": {
                                     "name": tool_call["function"]["name"] or "",
@@ -575,7 +599,7 @@ async def azureai_completion_from_stream(
                                     ),
                                 },
                             }
-                            for i, tool_call in enumerate(choice.tool_calls)
+                            for slot, tool_call in sorted(choice.tool_calls.items())
                         ]
                     }
                     if choice.tool_calls

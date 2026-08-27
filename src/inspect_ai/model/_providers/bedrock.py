@@ -712,15 +712,46 @@ class BedrockAPI(ModelAPI):
 
             try:
                 # Process the response
+                response: dict[str, Any] | None = None
+                converse_response: ConverseResponse | None = None
                 if streaming:
-                    stream_response = await client.converse_stream(
-                        **request.model_dump(exclude_none=True)
-                    )
-                    converse_response = await converse_response_from_stream(
-                        stream_response["stream"]
-                    )
-                    response: dict[str, Any] = converse_response.model_dump()
-                else:
+                    try:
+                        stream_response = await client.converse_stream(
+                            **request.model_dump(exclude_none=True)
+                        )
+                        converse_response = await converse_response_from_stream(
+                            stream_response["stream"]
+                        )
+                        response = converse_response.model_dump()
+                    except ClientError as ex:
+                        # ConverseStream needs the separate
+                        # bedrock:InvokeModelWithResponseStream permission;
+                        # when streaming was enabled by on_stream alone, a
+                        # display-only request must not fail a generate that
+                        # succeeds without streaming — retry non-streamed
+                        # (an explicit streaming=true opt-in still fails loudly)
+                        if (
+                            self.streaming is None
+                            and ex.response.get("Error", {}).get("Code")
+                            == "AccessDeniedException"
+                        ):
+                            warn_once(
+                                logger,
+                                f"bedrock model '{self.model_name}': access "
+                                "denied for ConverseStream; retrying without "
+                                "streaming (on_stream events will not be "
+                                "delivered). Grant "
+                                "bedrock:InvokeModelWithResponseStream or "
+                                "pass -M streaming=false.",
+                            )
+                            model_call = set_active_model_event_call(
+                                request=replace_bytes_with_placeholder(
+                                    request.model_dump(exclude_none=True)
+                                ),
+                            )
+                        else:
+                            raise
+                if converse_response is None or response is None:
                     response = await client.converse(
                         **request.model_dump(exclude_none=True)
                     )
@@ -1035,6 +1066,10 @@ async def converse_response_from_stream(
 
     if stop_reason is None:
         raise RuntimeError("Streaming response ended without delivering a stop reason.")
+    if usage is None:
+        # the metadata event trails messageStop on every well-formed stream;
+        # fabricating zero usage here would silently under-count tokens
+        raise RuntimeError("Streaming response ended without delivering usage.")
 
     content: list[ConverseMessageContent] = []
     for index in sorted(blocks):
@@ -1074,9 +1109,7 @@ async def converse_response_from_stream(
     return ConverseResponse(
         output=ConverseOutput(message=ConverseMessage(role=role, content=content)),
         stopReason=stop_reason,
-        usage=usage
-        if usage is not None
-        else ConverseUsage(inputTokens=0, outputTokens=0, totalTokens=0),
+        usage=usage,
         metrics=ConverseMetrics(latencyMs=latency_ms or 0),
         additionalModelResponseFields=additional_fields,
         trace=trace,

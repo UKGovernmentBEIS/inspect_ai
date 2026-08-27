@@ -198,6 +198,20 @@ async def test_bedrock_stream_without_stop_reason_raises() -> None:
         await converse_response_from_stream(_events(events))
 
 
+async def test_bedrock_stream_without_usage_raises() -> None:
+    """A stream missing its trailing metadata event fails loudly.
+
+    Fabricating zero usage would silently under-count tokens.
+    """
+    events: list[dict[str, Any]] = [
+        {"messageStart": {"role": "assistant"}},
+        {"contentBlockDelta": {"contentBlockIndex": 0, "delta": {"text": "hi"}}},
+        {"messageStop": {"stopReason": "end_turn"}},
+    ]
+    with pytest.raises(RuntimeError, match="without delivering usage"):
+        await converse_response_from_stream(_events(events))
+
+
 from test_helpers.utils import skip_if_no_bedrock  # noqa: E402
 
 from inspect_ai.model import ChatMessageUser, get_model  # noqa: E402

@@ -117,6 +117,11 @@ def test_groq_resolve_streaming_honors_on_stream() -> None:
         # ...but an explicit opt-in still streams them
         assert _groq_api(streaming=True).resolve_streaming(schema_config) is True
 
+        # auto mode declines compound models (server-side executed_tools are
+        # not carried by the stream accumulator)
+        compound = GroqAPI(model_name="groq/compound", api_key="test")
+        assert compound.resolve_streaming(config) is False
+
         # explicit opt-out wins over an on_stream callback
         assert _groq_api(streaming=False).resolve_streaming(config) is False
 
