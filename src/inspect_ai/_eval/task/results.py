@@ -21,7 +21,9 @@ from inspect_ai.log import (
     EvalResults,
     EvalSampleScore,
     EvalScore,
+    HeadlineMetric,
 )
+from inspect_ai.log._headline import headline_metric_ref, resolve_headline_metric
 from inspect_ai.log._log import EvalSampleReductions
 from inspect_ai.scorer import Metric, Score, Scorer
 from inspect_ai.scorer._metric import (
@@ -95,6 +97,7 @@ def eval_results(
     early_stopping: EarlyStoppingSummary | None = None,
     metadata: dict[str, Any] | None = None,
     completed_samples: int | None = None,
+    headline_metric: HeadlineMetric | None = None,
 ) -> Tuple[EvalResults, list[EvalSampleReductions] | None]:
     # initialise results
     results = EvalResults(
@@ -176,6 +179,10 @@ def eval_results(
             # build results
         results.scores = result_scores
         reductions = sample_reductions
+
+    resolved_headline = resolve_headline_metric(results, headline_metric)
+    if resolved_headline is not None:
+        results.headline = headline_metric_ref(resolved_headline)
 
     return results, reductions
 

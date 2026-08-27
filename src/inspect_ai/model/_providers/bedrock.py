@@ -337,7 +337,7 @@ class BedrockAPI(ModelAPI):
             self.session = aioboto3.Session()
 
             # create time tracker
-            self._http_hooks = ConverseHooks(self.session)
+            self._http_hooks = ConverseHooks(self.session, api=self)
 
         except ImportError:
             raise pip_dependency_error("Bedrock API", ["aioboto3"])

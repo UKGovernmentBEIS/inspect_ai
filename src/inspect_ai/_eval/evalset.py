@@ -74,6 +74,7 @@ from inspect_ai.log._log import EvalConfig
 from inspect_ai.model import (
     GenerateConfigArgs,
     Model,
+    ModelRoles,
 )
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model import ModelName
@@ -155,7 +156,7 @@ def eval_set(
     model: str | Model | list[str] | list[Model] | None | NotGiven = NOT_GIVEN,
     model_base_url: str | None = None,
     model_args: dict[str, Any] | str = dict(),
-    model_roles: dict[str, str | Model] | None = None,
+    model_roles: ModelRoles | None = None,
     task_args: dict[str, Any] | str = dict(),
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
@@ -237,7 +238,7 @@ def eval_set(
             with the model API.
         model_args: Model creation args
             (as a dictionary or as a path to a JSON or YAML config file)
-        model_roles: Named roles for use in `get_model()`.
+        model_roles: Named roles for use in `get_model()` (a role can also map to a list of models).
         task_args: Task creation arguments
             (as a dictionary or as a path to a JSON or YAML config file)
         sandbox: Sandbox environment type
@@ -568,12 +569,14 @@ def eval_set(
                 epochs=capture_epochs.epochs if capture_epochs else None,
                 tags=tags,
                 metadata=metadata,
-                # sample concurrency as the definition asked for it. a runner
-                # that sets max_samples per worker (it is an operational
-                # override in the selection document) otherwise has no way to
-                # see what it is overriding, so a definition's explicit value
-                # is silently replaced by the runner's default.
+                # concurrency as the definition asked for it. a runner that
+                # sets either per worker (both are operational overrides in the
+                # selection document) otherwise has no way to see what it is
+                # overriding, so a definition's explicit value is silently
+                # replaced by the runner's default.
                 max_samples=max_samples,
+                max_sandboxes=max_sandboxes,
+                max_tasks=max_tasks,
                 # error handling as the definition asked for it, so a runner
                 # can see what selection mode honours (retry_on_error) and
                 # what it overrides (fail_on_error) rather than guessing.
@@ -592,16 +595,23 @@ def eval_set(
 
     # a selection may carry operational overrides for this worker. read it
     # before log_dir is used for anything: `filesystem()` is derived from it,
-    # and `run_eval` closes over both names -- closures are late-binding, so
-    # rebinding here is what the closure will see.
+    # and `run_eval` closes over every one of these names -- closures are
+    # late-binding, so rebinding here is what the closure will see.
     selection = (
         read_eval_set_selection(selection_path) if selection_path is not None else None
     )
-    if selection is not None:
-        if selection.log_dir is not None:
-            log_dir = selection.log_dir
-        if selection.max_samples is not None:
-            max_samples = selection.max_samples
+    if selection is not None and selection.overrides is not None:
+        overrides = selection.overrides
+        if overrides.log_dir is not None:
+            log_dir = overrides.log_dir
+        if overrides.max_samples is not None:
+            max_samples = overrides.max_samples
+        if overrides.limit is not None:
+            limit = overrides.limit
+        if overrides.max_sandboxes is not None:
+            max_sandboxes = overrides.max_sandboxes
+        if overrides.max_tasks is not None:
+            max_tasks = overrides.max_tasks
 
     # ensure log_dir
     fs = filesystem(log_dir)
@@ -1787,14 +1797,17 @@ def task_identifier(
         # base_url is not hashed) and because several providers populate it
         # from env vars during init, which would make the identifier
         # environment-dependent.
+        role_exclude: dict[str, Any] = {
+            "base_url": True,
+            "config": _GENERATE_CONFIG_FIELDS_TO_EXCLUDE,
+        }
         additional_hash_input += to_json_safe(
             model_roles,
             exclude={
-                role: {
-                    "base_url": True,
-                    "config": _GENERATE_CONFIG_FIELDS_TO_EXCLUDE,
-                }
-                for role in model_roles
+                role: {"__all__": role_exclude}
+                if isinstance(value, list)
+                else role_exclude
+                for role, value in model_roles.items()
             },
         )
 
@@ -1873,9 +1886,15 @@ def to_eval_set_task(
     model_name = str(ModelName(task.model))
     model_args = task.model.model_args
 
-    # resolve model roles to names
+    # resolve model roles to names; a list-valued role is comma-joined (the
+    # same syntax --model-role accepts, so the value round-trips through a flag)
     model_roles = (
-        {k: v.name for k, v in task.model_roles.items()} if task.model_roles else None
+        {
+            k: ",".join(m.name for m in v) if isinstance(v, list) else v.name
+            for k, v in task.model_roles.items()
+        }
+        if task.model_roles
+        else None
     )
 
     # see if there an existing task_id that should be used for this
