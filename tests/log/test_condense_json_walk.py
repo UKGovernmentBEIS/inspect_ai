@@ -5,6 +5,7 @@ from inspect_ai.log._condense import (
     ATTACHMENT_PROTOCOL,
     JSON_VALUE_MAX_DEPTH_EXCEEDED,
     MAX_JSON_VALUE_DEPTH,
+    MAX_SAMPLE_DUMP_DEPTH,
     WalkContext,
     attachment_refs_from_value,
     condense_sample,
@@ -131,19 +132,31 @@ def test_attachment_refs_from_value_handles_pathologically_deep_values() -> None
     assert attachment_refs_from_value(deep) == {"abc123"}
 
 
+def _sample_with_nested_store(depth: int) -> EvalSample:
+    deep: dict[str, object] = {"a": 1}
+    for _ in range(depth):
+        deep = {"a": deep}
+    return EvalSample(
+        id="sample", epoch=1, input="question", target="answer", store={"deep": deep}
+    )
+
+
 def test_condense_sample_rejects_unserializable_depth() -> None:
     # content in un-walked Any-typed fields (e.g. store) nested beyond what
     # pydantic-core can serialize must be rejected by condense_sample (raising
     # inside the sample-logging path, which degrades gracefully) rather than
     # detonating later at log flush time, outside any per-sample handling
-    deep: dict[str, object] = {"a": 1}
-    for _ in range(1000):
-        deep = {"a": deep}
-    sample = EvalSample(
-        id="sample", epoch=1, input="question", target="answer", store={"deep": deep}
-    )
-
-    # ValueError from the depth guard (PydanticSerializationError, a ValueError
-    # subclass, on pydantic versions whose python-mode dump enforces the limit)
     with pytest.raises(ValueError):
-        condense_sample(sample)
+        condense_sample(_sample_with_nested_store(1000))
+
+
+def test_condense_sample_keeps_deep_but_serializable_content() -> None:
+    # the depth check only selects candidates for the serialization check —
+    # content nested past it that pydantic can still write must be logged
+    # unchanged, so offline paths (convert / recover / log rewrite) don't start
+    # failing on samples they previously handled
+    sample = _sample_with_nested_store(MAX_SAMPLE_DUMP_DEPTH - 1)
+
+    condensed = condense_sample(sample)
+
+    assert condensed.store == sample.store

@@ -23,7 +23,7 @@ from inspect_ai._util.content import (
     ContentVideo,
 )
 from inspect_ai._util.hash import mm3_hash
-from inspect_ai._util.json import JsonChange, exceeds_max_depth
+from inspect_ai._util.json import JsonChange, exceeds_max_depth, to_json_safe
 from inspect_ai._util.url import is_data_uri
 from inspect_ai.dataset._dataset import Sample
 from inspect_ai.event._pool import (
@@ -58,14 +58,14 @@ logger = getLogger(__name__)
 
 ATTACHMENT_PROTOCOL = "attachment://"
 
-MAX_SAMPLE_DUMP_DEPTH = 240
-"""Maximum nesting depth allowed in a condensed sample's full dump.
+MAX_SAMPLE_DUMP_DEPTH = 250
+"""Nesting depth at which a condensed sample is checked for serializability.
 
-Set below pydantic-core's hard JSON serialization recursion limit (it fails at
-depth ~254) with headroom above `MAX_JSON_VALUE_DEPTH` (200) plus the nesting
-the sample's own structure adds around walked values, so legitimately condensed
-content always passes and unserializable content is caught before it reaches
-the log writer.
+Not a rejection threshold: exceeding it only triggers the explicit
+serialization check in `condense_sample` (see there). Set just below
+pydantic-core's hard JSON serialization limit (it writes 254 nested containers
+but fails at 255) and well above `MAX_JSON_VALUE_DEPTH` (200) plus the nesting
+the sample's own structure adds, so ordinary samples never pay for the check.
 """
 
 
@@ -90,19 +90,25 @@ class WalkContext(TypedDict):
 def attachment_refs_from_value(value: object) -> set[str]:
     refs: set[str] = set()
 
-    # iterative traversal (explicit stack): sample content can embed deeply
+    # Iterative traversal (explicit stack): sample content can embed deeply
     # nested model-emitted structures, which must not be able to exhaust the
-    # interpreter stack during log condensation
+    # interpreter stack during log condensation. Each container is visited at
+    # most once (tracked by `id()`) so shared sub-containers — a directed
+    # acyclic graph, e.g. the aliased nodes `yaml.safe_load` produces from
+    # anchors/aliases — aren't re-expanded combinatorially, and reference
+    # cycles terminate.
+    visited: set[int] = set()
     stack: list[object] = [value]
     while stack:
         current = stack.pop()
         if isinstance(current, str):
             if current.startswith(ATTACHMENT_PROTOCOL):
                 refs.add(current.removeprefix(ATTACHMENT_PROTOCOL))
-        elif isinstance(current, dict):
-            stack.extend(current.values())
-        elif isinstance(current, (list, tuple, set)):
-            stack.extend(current)
+        elif isinstance(current, (dict, list, tuple, set)):
+            if id(current) in visited:
+                continue
+            visited.add(id(current))
+            stack.extend(current.values() if isinstance(current, dict) else current)
 
     return refs
 
@@ -154,6 +160,19 @@ def expand_events(
     result = resolve_model_event_inputs(list(events), data["messages"])
     result = resolve_model_event_calls(result, data["calls"])
     return result
+
+
+def _is_log_serializable(sample: EvalSample) -> bool:
+    """Whether the log writer can actually serialize this sample.
+
+    Uses the same serialization the recorder performs when it writes a
+    buffered sample, so the answer matches what will happen at flush time.
+    """
+    try:
+        to_json_safe(sample, indent=None)
+        return True
+    except Exception:
+        return False
 
 
 def condense_sample(sample: EvalSample, log_images: bool = True) -> EvalSample:
@@ -272,17 +291,24 @@ def condense_sample(sample: EvalSample, log_images: bool = True) -> EvalSample:
     # orphaned; the full dump is the correctness cost of that final GC pass.
     dumped_sample = condensed_sample.model_dump(mode="python", exclude={"attachments"})
 
-    # Refuse to produce a sample the log writer cannot serialize: pydantic-core
-    # enforces a hard recursion limit (~255) when writing JSON, and content
-    # nested beyond it (e.g. in un-walked `Any`-typed fields like store or
-    # metadata) would otherwise detonate at flush time — outside the
-    # sample-logging path that can degrade gracefully (see `log_sample` in
-    # _eval/task/run.py, which handles this error by logging a stripped record).
-    if exceeds_max_depth(dumped_sample, MAX_SAMPLE_DUMP_DEPTH):
+    # Refuse to produce a sample the log writer cannot serialize. pydantic-core
+    # enforces a hard recursion limit when writing JSON, and content nested
+    # beyond it (e.g. in un-walked `Any`-typed fields like store or metadata)
+    # is not rejected by the python-mode dump above — it would instead detonate
+    # later, when the recorder serializes the buffered sample at flush time,
+    # outside the sample-logging path that can degrade gracefully (see
+    # `log_sample` in _eval/task/run.py, which handles this error by logging a
+    # stripped record). Failing here keeps the failure attributable to one
+    # sample. The depth test only selects candidates: rejection is confirmed by
+    # the writer's own serialization, so content pydantic can in fact write is
+    # never rejected (offline paths — convert, recover, log rewrite — call this
+    # on already-logged samples and must not start failing on them).
+    if exceeds_max_depth(
+        dumped_sample, MAX_SAMPLE_DUMP_DEPTH
+    ) and not _is_log_serializable(condensed_sample):
         raise ValueError(
             f"Sample content (id: {sample.id}, epoch: {sample.epoch}) is nested "
-            f"more than {MAX_SAMPLE_DUMP_DEPTH} levels deep and cannot be "
-            f"serialized to the eval log."
+            "too deeply to be serialized to the eval log."
         )
 
     referenced_attachments = attachment_refs_from_value(dumped_sample)

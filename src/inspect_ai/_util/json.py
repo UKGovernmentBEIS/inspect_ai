@@ -33,7 +33,21 @@ def exceeds_max_depth(value: object, max_depth: int) -> bool:
     `BaseModel` values are descended into via their fields (pydantic-core
     serializes them recursively, so their nesting counts toward the depth a
     serializer must tolerate).
+
+    A container already expanded at an equal-or-greater depth is not expanded
+    again (tracked by `id()`): everything below it was already measured from at
+    least as deep, so it cannot newly exceed the limit. Without this, a
+    structure that shares sub-containers across many paths — a directed acyclic
+    graph, e.g. the aliased nodes `yaml.safe_load` produces from
+    anchors/aliases — would be re-expanded combinatorially, turning a
+    sub-kilobyte input into billions of visits and an uninterruptible CPU hang.
+    It also makes traversal terminate on reference cycles. Re-expansion at a
+    strictly greater depth is required for correctness (a shared node reached
+    by a longer path can push its subtree past the limit) and stays bounded:
+    depth only ever increases, and `max_depth` short-circuits the walk.
     """
+    # container id -> greatest depth it has already been expanded from
+    expanded_at: dict[int, int] = {}
     stack: list[tuple[object, int]] = [(value, 1)]
     while stack:
         current, depth = stack.pop()
@@ -47,6 +61,10 @@ def exceeds_max_depth(value: object, max_depth: int) -> bool:
             continue
         if depth > max_depth:
             return True
+        seen_at = expanded_at.get(id(current))
+        if seen_at is not None and seen_at >= depth:
+            continue
+        expanded_at[id(current)] = depth
         stack.extend((child, depth + 1) for child in children)
     return False
 

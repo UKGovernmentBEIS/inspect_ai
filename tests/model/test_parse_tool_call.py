@@ -1,4 +1,5 @@
 import logging
+import time
 
 from inspect_ai._util.constants import PKG_NAME
 from inspect_ai.model._call_tools import parse_tool_call
@@ -206,3 +207,33 @@ def test_parse_error_on_deeply_nested_yaml_arguments():
         assert tool_call.arguments == {}
         assert tool_call.parse_error is not None
         assert "nesting depth" in tool_call.parse_error
+
+
+def test_parse_yaml_alias_dag_arguments_does_not_hang():
+    # yaml anchors/aliases build a DAG whose distinct paths grow exponentially
+    # with its size; the depth bound must be measured without re-expanding
+    # shared nodes per path, or this ~1KB model-emitted payload would peg the
+    # event loop for hours (uninterruptibly — the parse is synchronous)
+    levels = 40
+    lines = ["l0: &l0 leaf"]
+    lines += [f"l{i}: &l{i} [*l{i - 1}, *l{i - 1}]" for i in range(1, levels + 1)]
+    lines.append(f"top: *l{levels}")
+
+    start = time.monotonic()
+    parse_tool_call("id", "testing_tool", "\n".join(lines), [testing_tool])
+
+    assert time.monotonic() - start < 10
+
+
+def test_parse_error_on_deep_yaml_alias_chain():
+    # the same aliasing used to build depth (rather than width) is still caught
+    levels = 3000
+    lines = ["l0: &l0 leaf"]
+    lines += [f"l{i}: &l{i} [*l{i - 1}]" for i in range(1, levels + 1)]
+    lines.append(f"top: *l{levels}")
+
+    tool_call = parse_tool_call("id", "testing_tool", "\n".join(lines), [testing_tool])
+
+    assert tool_call.arguments == {}
+    assert tool_call.parse_error is not None
+    assert "nesting depth" in tool_call.parse_error
