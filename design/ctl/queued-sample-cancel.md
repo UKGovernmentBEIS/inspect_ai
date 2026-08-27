@@ -72,7 +72,7 @@ planned-but-unqueued 409 rows — see the first note below):
 
 | State | `action=cancel` | `action=score\|error` |
 |---|---|---|
-| task finished / between attempts / task cancel in flight (queued + planned-but-unqueued rows) | **409** (new — mirrors requeue's task-level gates) | same |
+| task finished / between attempts / task cancel in flight (queued + planned-but-unqueued rows; on the latter only the cancel-in-flight gate is reachable — see the first note below) | **409** (new — mirrors requeue's task-level gates) | same |
 | running (`ActiveSample`, started) | interrupt — unchanged | unchanged (score / error, with the fail-on-error gate) |
 | initializing (`ActiveSample`, `started is None`) | 409 — unchanged, message reworded ("initializing", not "queued") | 409 — unchanged |
 | **queued re-run** (pending-requeue key, no `ActiveSample`) | **applied — un-requeue**: the pending entry is withdrawn and the prior terminal record stands | **409** — there is no work to score and no error to record; the message names `--action cancel` (in the departed blind window, every action gets the departed 409 instead — the `--action cancel` hint would immediately 409 there) |
@@ -92,11 +92,14 @@ Notes on the table:
   no-op. But accepting a queued-row cancel when a task cancel is stamped would be a
   no-op lie (the drain abandons the sample anyway) and its counter reconciliation would
   collide with the drain's own recording; between attempts / after drain there is no
-  fanout to act on. And the planned-but-unqueued 409s' "retry" advice needs the gates
-  too: once the task has finished (or a cancel is in flight) that advice would have no
-  exit — e.g. a sample that completed under `log_samples=False` keeps its departed
-  stamp and never gains a readable record. Same honesty rule, same wording style as
-  requeue's `_task_level_reject`.
+  fanout to act on. The planned-but-unqueued 409s' "retry" advice needs the
+  cancel-in-flight gate too — once a task cancel is stamped that advice would have no
+  exit (the drain abandons the queue) — but only that gate row is reachable there:
+  stamping `completed_at` clears `sample_ids` in the same locked block, so on a
+  finished (or between-attempts) task a recordless key already 404'd at the planned
+  check, same as before this change (see the failure-modes bullet on
+  `log_samples=False`). Same honesty rule, same wording style as requeue's
+  `_task_level_reject`.
 - **The never-started row also admits a retry re-park** (fifth state above), by
   design rather than by accident of its conditions: a sample re-parked at the
   semaphore mid-`retry_on_error` matches the row (arrival re-stamped by the recursed
@@ -448,8 +451,12 @@ this window) — but it's not needed for the queued cases this design targets.
   "already cancelled" no-op. Re-runs need no stamp — clearing their pending key
   reverts them to their prior terminal record. The one reader this can't help is a
   sample that completed under `log_samples=False` (no record is ever written); its
-  departed 409 persists until the task finishes, where the task-level gates take
-  over.
+  departed 409 persists until the task finishes, after which the key 404s again —
+  stamping `completed_at` clears `sample_ids` in the same locked block, so
+  `_planned_but_unqueued`'s planned check stops recognizing the key before the
+  finished/between-attempts gate rows could answer (those rows are unreachable
+  there; only the cancel-in-flight row does work). Same answer as before this
+  change, so no regression.
 - **Cancel racing the re-run's start.** If the `ActiveSample` has appeared by resolve
   time, the active row wins (same precedence as the requeue resolver): a started re-run
   is a running sample (ordinary interrupt); one mid-materialization is the initializing

@@ -23,7 +23,7 @@ Commands are grouped by resource noun (`task`, `sample`, `model`, `process`), pl
 | `inspect ctl sample events` | Read one sample's transcript events. |
 | `inspect ctl sample messages` | Read one sample's current conversation. |
 | `inspect ctl sample store` | Read one sample's current store (shared solver/agent state). |
-| `inspect ctl sample cancel` | Cancel one running sample. |
+| `inspect ctl sample cancel` | Cancel one sample — running or not yet started. |
 | `inspect ctl sample cancel-tool-call` | Cancel one hung tool call and let the sample continue. |
 | `inspect ctl sample requeue` | Re-run one errored or cancelled sample inside the live run. |
 | `inspect ctl config` | View or retune launch configuration mid-flight. |
@@ -316,7 +316,7 @@ With `--json` the response is an `{as_of, status, count, store}` envelope (plus 
 
 ## Cancellation
 
-`inspect ctl sample cancel` cancels one running sample — the typical move when a sample has stalled (high `idle` in `sample list`) or is burning tokens without progress. To see *why* it is stalled before cancelling, `inspect ctl process anomalies` shows what the process is actually waiting on (see [Stall Diagnosis](#stall-diagnosis) below) — an in-flight operation emits no transcript event until it returns, so a stalled sample's transcript alone won't name it. By default the sample completes and the scorer runs on the work done so far (it is recorded with an `operator` limit, like the in-process TUI's cancel); pass `--action error` to mark it errored instead (not permitted for samples configured to fail on errors), or `--action cancel` to record it as cancelled — its transcript is preserved in the log, it is not scored, and it does not count toward a fail-on-error threshold. The rest of the task is unaffected.
+`inspect ctl sample cancel` cancels one sample — most often a running one that has stalled (high `idle` in `sample list`) or is burning tokens without progress. To see *why* it is stalled before cancelling, `inspect ctl process anomalies` shows what the process is actually waiting on (see [Stall Diagnosis](#stall-diagnosis) below) — an in-flight operation emits no transcript event until it returns, so a stalled sample's transcript alone won't name it. By default the sample completes and the scorer runs on the work done so far (it is recorded with an `operator` limit, like the in-process TUI's cancel); pass `--action error` to mark it errored instead (not permitted for samples configured to fail on errors), or `--action cancel` to record it as cancelled — its transcript is preserved in the log, it is not scored, and it does not count toward a fail-on-error threshold. The rest of the task is unaffected.
 
 ```bash
 $ inspect ctl sample cancel gpqa 17
@@ -327,6 +327,8 @@ $ inspect ctl sample cancel gpqa 17
 ```bash
 $ inspect ctl sample cancel gpqa 17 3
 ```
+
+`--action cancel` also works on a sample that *hasn't started yet*, resolved by where it stands. A never-started sample (shown as `pending` in `sample list`) is cancelled before it starts: it is removed from the queue, listed as `cancelled`, and absent from the final log — an `inspect eval-retry` on the log will run it later. A queued *re-run* has its pending requeue withdrawn instead (see [Requeue](#requeue)): the prior terminal record stands, and the sample is requeueable again. A cancel-before-start is reversible while the sample still holds its place in the queue — `sample requeue` withdraws the cancel and the sample runs normally when it gets a slot. The other actions are rejected for samples that haven't started (there is no work to score and no error to record), as is the one blind window: a sample that has just left the queue but is not yet running (initializing — its sandbox may still be starting) can't be cancelled until it is running — retry.
 
 When a sample is not merely slow but stuck on one hung *tool call* — a sandbox command wedged against a dead daemon with no timeout configured, or a timeout whose teardown never completed — cancelling the whole sample discards its progress unnecessarily. `inspect ctl sample cancel-tool-call` cancels just that call: the model receives an ordinary tool timeout ("Command timed out before completing.") and the sample continues, using the same per-call cancel primitive as the in-process TUI's timeout button and ACP's `inspect/cancel_tool_call`.
 
@@ -350,7 +352,7 @@ Pass `--action score` or `--action error` to resolve the task *gracefully* inste
 $ inspect ctl task cancel gpqa --action score
 ```
 
-Both commands are idempotent — cancelling something already finished (or already cancelling) is a clean no-op, reported as `changed: false` in the `--json` detail, the abort escalation above being the one exception — and both accept `--dry-run` to report what would be cancelled without doing it. Two cases are rejected rather than no-opped: a task *between attempts*, whose last attempt errored and whose retry is queued but not yet started, has nothing running to cancel — but is not finished either, so `task cancel` errors and asks you to re-issue once the retry starts; and a sample that is still *queued* (it appears in `sample list` but has not started), which `sample cancel` rejects — only a running sample can be cancelled.
+Both commands are idempotent — cancelling something already finished, already cancelling, or already cancelled before start is a clean no-op, reported as `changed: false` in the `--json` detail, the abort escalation above being the one exception — and both accept `--dry-run` to report what would be cancelled without doing it. One case is rejected rather than no-opped: a task *between attempts*, whose last attempt errored and whose retry is queued but not yet started, has nothing running to cancel — but is not finished either, so `task cancel` errors and asks you to re-issue once the retry starts.
 
 ## Requeue
 
@@ -367,6 +369,8 @@ $ inspect ctl sample requeue gpqa 17 3
 ```
 
 The command is idempotent: requeuing a sample whose re-run is already pending, queued, or running — or one that hasn't started yet — is a clean no-op reporting the sample's current status (`changed: false` in the `--json` detail), so a retrying script can re-issue safely without double-queueing. While the re-run waits its turn, `sample list` and `sample show` render the sample as `queued` with its prior error shown as retry history.
+
+`sample requeue` is also how a *cancel-before-start* is reversed (see [Cancellation](#cancellation)): requeuing a sample that was cancelled before it started withdraws the cancel, and the sample runs normally when it gets a slot — it keeps its place in the queue rather than going to the back. Once the cancelled sample's run has been discarded (when it would have started, or at task teardown), the requeue is rejected instead — there is no prior record to re-run from; use `inspect eval-retry` after the run.
 
 Requeuing a sample that completed *successfully* is rejected — re-running or re-scoring a success is out of scope (use score invalidation and `inspect eval-retry` for post-hoc re-runs). Also rejected: a task that has finished or is between attempts (re-run failures with `inspect eval-retry`, or let the queued task retry handle them), and a task with a cancel in flight. `--dry-run` reports what would be re-run — the prior error, the attempt number, and whether a checkpoint resume is available — without changing anything, and reports the rejections above too, so an agent can probe safely.
 

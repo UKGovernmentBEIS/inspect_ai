@@ -526,16 +526,21 @@ def _planned_but_unqueued(
 ) -> CancelSampleRejected | None:
     """The truthful 409s for a planned sample with no record and no queue stamp.
 
-    The task-level gates answer first: once the task has finished (or a
-    cancel is in flight) the retry advice below would have no exit — e.g. a
-    sample that completed under ``log_samples=False`` keeps its departed
-    stamp and never gains a readable record, and a drain-abandoned queued
-    sample resolves only through the cancelled-keys stamp. Past the gates, a
-    departed stamp is the blind window between queue exit and
-    ``ActiveSample`` registration (initializing); no stamp means the sample
-    never reached the queue — on a retry attempt its prior result may be
-    mid-reuse, so the rejection is retryable. ``None`` for an unknown
-    identity (the route 404s). Upgrades today's 404 for planned samples.
+    Of the task-level gates, only the cancel-in-flight row is reachable
+    here — it answers first because the retry advice below would have no
+    exit once the drain abandons the queue. The finished/between-attempts
+    rows can't trip: every write of ``completed_at`` leaves ``sample_ids``
+    empty (``_maybe_mark_finished`` clears it in the same locked block, and
+    ``register_finished_eval`` never populates it), so those states already
+    returned ``None`` at the ``_is_planned`` check above and the route 404s
+    — the pre-existing answer for a finished task, e.g. for a sample that
+    completed under ``log_samples=False`` and never gains a readable
+    record. Past the gate, a departed stamp is the blind window between
+    queue exit and ``ActiveSample`` registration (initializing); no stamp
+    means the sample never reached the queue — on a retry attempt its prior
+    result may be mid-reuse, so the rejection is retryable. ``None`` for an
+    unknown identity (the route 404s). Upgrades today's 404 for planned
+    samples.
     """
     from inspect_ai._control.eval_state import get_eval_state
     from inspect_ai._control.requeue import _is_planned, _task_level_reject
