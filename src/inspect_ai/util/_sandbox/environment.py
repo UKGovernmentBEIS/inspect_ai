@@ -135,6 +135,7 @@ class SandboxEnvironment(abc.ABC):
         self._inject_lock = anyio.Lock()
         self._tools_injected: bool = False
         self._tools_user: str | None = None
+        self._tools_default_user: str | None = None
 
     @abc.abstractmethod
     async def exec(

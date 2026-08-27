@@ -36,6 +36,8 @@ class RootProbeRaisesSandbox(SandboxEnvironment):
         self.exec_calls.append((cmd, user))
         if cmd == ["mkdir", "-p", SANDBOX_TOOLS_DIR] and user == "root":
             raise RuntimeError("runuser: may not be used by non-root users")
+        if cmd == ["id", "-u"]:
+            return ExecResult(success=True, returncode=0, stdout="1000\n", stderr="")
         return ExecResult(success=True, returncode=0, stdout="", stderr="")
 
     async def write_file(self, file: str, contents: str | bytes) -> None:
@@ -95,5 +97,46 @@ async def test_inject_container_tools_falls_back_when_root_probe_raises(
     await sandbox_tools._inject_container_tools_code(sandbox)
 
     assert sandbox._tools_user is None
+    assert sandbox._tools_default_user is None
     assert sandbox.extracted_as_user is None
     assert (["mkdir", "-p", SANDBOX_TOOLS_DIR], "root") in sandbox.exec_calls
+
+
+async def test_inject_container_tools_records_default_user_when_root_is_available(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sandbox = RootProbeRaisesSandbox()
+    original_exec = sandbox.exec
+
+    async def root_exec(*args, **kwargs):
+        cmd = args[0] if args else kwargs["cmd"]
+        if cmd == ["id", "-u"]:
+            sandbox.exec_calls.append((cmd, kwargs.get("user")))
+            return ExecResult(success=True, returncode=0, stdout="1000\n", stderr="")
+        if cmd == ["mkdir", "-p", SANDBOX_TOOLS_DIR] and kwargs.get("user") == "root":
+            sandbox.exec_calls.append((cmd, "root"))
+            return ExecResult(success=True, returncode=0, stdout="", stderr="")
+        return await original_exec(*args, **kwargs)
+
+    monkeypatch.setattr(sandbox, "exec", root_exec)
+    @asynccontextmanager
+    async def fake_open(_arch: Architecture, _musl: bool):
+        yield "inspect-sandbox-tools", BytesIO(b"binary")
+
+    async def fake_extract(*_args, **_kwargs):
+        pass
+
+    async def _supported_container_os(
+        _sandbox: SandboxEnvironment,
+    ) -> SupportedContainerOSInfo:
+        return {"architecture": "amd64", "libc": "glibc"}
+
+    monkeypatch.setattr(sandbox_tools, "detect_sandbox_os", _supported_container_os)
+    monkeypatch.setattr(sandbox_tools, "_open_executable_for_arch", fake_open)
+    monkeypatch.setattr(sandbox_tools, "_extract_tools_tree", fake_extract)
+
+    await sandbox_tools._inject_container_tools_code(sandbox)
+
+    assert sandbox._tools_user == "root"
+    assert sandbox._tools_default_user == "1000"
+    assert (["id", "-u"], None) in sandbox.exec_calls

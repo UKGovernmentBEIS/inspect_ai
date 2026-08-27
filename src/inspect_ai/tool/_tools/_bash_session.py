@@ -203,7 +203,9 @@ def bash_session(
                 store.session_id = (
                     await exec_model_request(
                         method="bash_session_new_session",
-                        params={"user": user} if user else {},
+                        params={"user": user or sandbox._tools_default_user}
+                        if user or sandbox._tools_default_user
+                        else {},
                         result_type=NewSessionResult,
                         transport=transport,
                         error_mapper=SandboxToolsErrorMapper,

@@ -110,6 +110,9 @@ async def _inject_container_tools_code(sandbox: SandboxEnvironment) -> None:
         # server).
         if await _create_tools_dir_as_root(sandbox):
             sandbox._tools_user = "root"
+            default_user = await sandbox.exec(["id", "-u"])
+            if default_user.success:
+                sandbox._tools_default_user = default_user.stdout.strip()
         else:
             result = await sandbox.exec(["mkdir", "-p", SANDBOX_TOOLS_DIR])
             if not result.success:
@@ -120,8 +123,7 @@ async def _inject_container_tools_code(sandbox: SandboxEnvironment) -> None:
         await _extract_tools_tree(sandbox, name, gz_bytes, sandbox._tools_user)
 
         # When running as root, restrict the tree so the agent can neither read nor
-        # execute the tools. The default user (the one that runs `exec`) is root, so
-        # this does not impede tool calls.
+        # execute the tools. RPC requests still run as the sandbox's default user.
         if sandbox._tools_user == "root":
             result = await sandbox.exec(
                 ["chmod", "700", SANDBOX_TOOLS_DIR], user="root"
