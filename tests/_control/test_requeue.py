@@ -1731,11 +1731,22 @@ class _SuspendingEarlyStopping:
 
 @solver
 def _boom_then_ok():
-    """Errors the "boom" sample terminally; everything else succeeds."""
+    """Errors the "boom" sample terminally; everything else succeeds.
+
+    Non-boom samples park until "boom" has been terminal-counted. The
+    fanout starts one task per plan entry (`SampleScheduler.run`),
+    and trio randomizes the order runnable tasks are stepped, so which
+    sample reaches its solver first is not deterministic — the ordering
+    the finished-gate assertions rely on has to be explicit rather than
+    inherited from dataset order.
+    """
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         if state.sample_id == "boom":
             raise RuntimeError("terminal boom")
+        with anyio.fail_after(60):
+            while not any(s.errored for s in get_eval_states()):
+                await anyio.sleep(0.01)
         return state
 
     return solve
@@ -1780,7 +1791,9 @@ async def test_requeue_and_cancel_rejected_during_suspended_hook() -> None:
                     model="mockllm/model",
                     fail_on_error=False,
                     ctl_server=False,
-                    max_samples=1,  # boom goes terminal before last completes
+                    # both samples resident: "last" parks in its solver
+                    # until boom is terminal-counted (see _boom_then_ok)
+                    max_samples=2,
                 )
             )
 
