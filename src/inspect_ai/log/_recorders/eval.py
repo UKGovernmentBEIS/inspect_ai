@@ -465,24 +465,23 @@ class EvalRecorder(FileRecorder):
         """Write an .eval log to S3 and return the upload response ETag."""
         bucket, key = _s3_bucket_and_key(location)
 
-        if header_only:
-            # Download the existing object, rewrite the zip in memory with a
-            # fresh header.json. Sample entries are untouched; any sample
-            # mutations on the in-memory log are discarded, matching the
-            # local .eval contract.
-            async with AsyncFilesystem() as async_fs:
-                body = await async_fs.read_file(location)
-            log_bytes = _rewrite_eval_zip_with_new_header(body, log)
-        else:
-            # Full recreate goes through the recorder, which needs a
-            # filesystem path; read the result back into memory for upload.
-            with tempfile.TemporaryDirectory() as tmpdir:
-                temp_eval_file = os.path.join(tmpdir, "temp_log.eval")
-                await _write_eval_log_with_recorder(log, tmpdir, temp_eval_file)
-                with open(temp_eval_file, "rb") as f:
-                    log_bytes = f.read()
-
         async with AsyncFilesystem() as async_fs:
+            if header_only:
+                # Download the existing object, rewrite the zip in memory with a
+                # fresh header.json. Sample entries are untouched; any sample
+                # mutations on the in-memory log are discarded, matching the
+                # local .eval contract.
+                body = await async_fs.read_file(location)
+                log_bytes = _rewrite_eval_zip_with_new_header(body, log)
+            else:
+                # Full recreate goes through the recorder, which needs a
+                # filesystem path; read the result back into memory for upload.
+                with tempfile.TemporaryDirectory() as tmpdir:
+                    temp_eval_file = os.path.join(tmpdir, "temp_log.eval")
+                    await _write_eval_log_with_recorder(log, tmpdir, temp_eval_file)
+                    with open(temp_eval_file, "rb") as f:
+                        log_bytes = f.read()
+
             if etag is not None:
                 return await _write_s3(
                     async_fs,

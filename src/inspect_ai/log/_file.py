@@ -419,8 +419,8 @@ def write_eval_log(
           without rewriting samples. Defaults to False.
 
     Returns:
-       WriteEvalLogResult containing the post-write S3 ETag, or None for
-       non-S3 locations.
+       WriteEvalLogResult containing the post-write S3 ETag (its `etag`
+       is None for non-S3 locations).
 
     Raises:
        WriteConflictError: If if_match_etag is provided and doesn't match
@@ -462,8 +462,8 @@ async def write_eval_log_async(
           without rewriting samples. Defaults to False.
 
     Returns:
-       WriteEvalLogResult containing the post-write S3 ETag, or None for
-       non-S3 locations.
+       WriteEvalLogResult containing the post-write S3 ETag (its `etag`
+       is None for non-S3 locations).
     """
     # resolve location
     if location is None:
