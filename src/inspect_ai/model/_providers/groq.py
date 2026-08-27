@@ -460,7 +460,9 @@ async def groq_completion_from_stream(
     `usage` field), carrying the same timing metadata (queue/prompt/completion
     time) as a non-streamed response. A chunk carrying `x_groq.error` (the
     server stopped the stream early) raises `GroqStreamError` (retried as
-    transient) rather than returning a truncated completion.
+    transient) rather than returning a truncated completion. Content deltas
+    are gated on `model_stream_requested()` (see `report_model_stream_delta`);
+    the usage/heartbeat progress channel runs regardless.
     """
     report_model_stream_start()
     completion_id: str | None = None
@@ -487,6 +489,10 @@ async def groq_completion_from_stream(
             usage = chunk_usage
             report_model_stream_progress(chunk_usage.completion_tokens)
 
+        # report deltas from the first choice only, and only when an
+        # on_stream consumer is present (see report_model_stream_delta) —
+        # accumulation into the completion always runs
+        deltas_requested = model_stream_requested()
         reported = False
         for chunk_choice in chunk.choices:
             choice = choices.setdefault(chunk_choice.index, _StreamChoice())
@@ -495,7 +501,7 @@ async def groq_completion_from_stream(
             delta = chunk_choice.delta
             if delta is None:
                 continue
-            report = chunk_choice.index == 0
+            report = chunk_choice.index == 0 and deltas_requested
             if delta.reasoning:
                 choice.reasoning.append(delta.reasoning)
                 if report:

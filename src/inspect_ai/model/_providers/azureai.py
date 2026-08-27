@@ -501,7 +501,9 @@ async def azureai_completion_from_stream(
     callback and the pending event's progress record. Accumulates all
     choices, but reports content deltas from the first choice only —
     interleaving multiple choices' fragments into the single delta stream
-    would corrupt accumulating consumers.
+    would corrupt accumulating consumers. Content deltas are gated on
+    `model_stream_requested()` (see `report_model_stream_delta`); the
+    usage/heartbeat progress channel runs regardless.
 
     Updates are read through their raw mapping form (`azure.ai.inference`
     models are dict-backed) so undeclared fields — notably the per-choice
@@ -526,6 +528,10 @@ async def azureai_completion_from_stream(
             usage = update_usage
             report_model_stream_progress(update_usage.get("completion_tokens"))
 
+        # report deltas from the first choice only, and only when an
+        # on_stream consumer is present (see report_model_stream_delta) —
+        # accumulation into the completion always runs
+        deltas_requested = model_stream_requested()
         reported = False
         for update_choice in update.get("choices") or []:
             index = update_choice.get("index", 0)
@@ -536,7 +542,7 @@ async def azureai_completion_from_stream(
             if filter_results:
                 choice.content_filter_results = filter_results
             delta = update_choice.get("delta") or {}
-            report = index == 0
+            report = index == 0 and deltas_requested
             content = delta.get("content")
             if content:
                 choice.content.append(content)

@@ -403,7 +403,9 @@ async def mistral_completion_from_stream(
     callback and the pending event's progress record. Accumulates all
     choices, but reports content deltas from the first choice only —
     interleaving multiple choices' fragments into the single delta stream
-    would corrupt accumulating consumers.
+    would corrupt accumulating consumers. Content deltas are gated on
+    `model_stream_requested()` (see `report_model_stream_delta`); the
+    usage/heartbeat progress channel runs regardless.
     """
     report_model_stream_start()
     completion_id: str | None = None
@@ -421,13 +423,17 @@ async def mistral_completion_from_stream(
             usage = chunk.usage
             report_model_stream_progress(chunk.usage.completion_tokens)
 
+        # report deltas from the first choice only, and only when an
+        # on_stream consumer is present (see report_model_stream_delta) —
+        # accumulation into the completion always runs
+        deltas_requested = model_stream_requested()
         reported = False
         for chunk_choice in chunk.choices:
             choice = choices.setdefault(chunk_choice.index, _StreamChoice())
             if isinstance(chunk_choice.finish_reason, str):
                 choice.finish_reason = chunk_choice.finish_reason
             delta = chunk_choice.delta
-            report = chunk_choice.index == 0
+            report = chunk_choice.index == 0 and deltas_requested
             content = delta.content
             if isinstance(content, str) and content:
                 choice.content.append(content)

@@ -513,6 +513,82 @@ async def test_mistral_completion_from_stream() -> None:
 
 
 @skip_if_no_mistral_package
+async def test_mistral_stream_gated_without_on_stream(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Without an on_stream consumer only usage/heartbeat progress runs.
+
+    Explicit streaming=true callers stream without asking for stream events,
+    so delta construction (on_stream support code) must not run for them.
+    """
+    from mistralai.client.models import (
+        CompletionChunk,
+        CompletionEvent,
+        CompletionResponseStreamChoice,
+        DeltaMessage,
+        UsageInfo,
+    )
+
+    import inspect_ai.model._providers.mistral as mistral_module
+    from inspect_ai.model._providers.mistral import mistral_completion_from_stream
+    from inspect_ai.model._stream import ModelStreamObserver, model_stream_observer
+
+    async def fail(delta: Any) -> None:
+        raise AssertionError("delta reported without an on_stream consumer")
+
+    monkeypatch.setattr(mistral_module, "report_model_stream_delta", fail)
+
+    def _chunk(
+        choices: list[CompletionResponseStreamChoice],
+        usage: UsageInfo | None = None,
+    ) -> CompletionEvent:
+        return CompletionEvent(
+            data=CompletionChunk(
+                id="cmpl-1",
+                model="mistral-large-latest",
+                created=123,
+                choices=choices,
+                usage=usage,
+            )
+        )
+
+    events = [
+        _chunk(
+            [
+                CompletionResponseStreamChoice(
+                    index=0,
+                    delta=DeltaMessage(role="assistant", content="hel"),
+                    finish_reason=None,
+                )
+            ]
+        ),
+        _chunk(
+            [
+                CompletionResponseStreamChoice(
+                    index=0, delta=DeltaMessage(content="lo"), finish_reason="stop"
+                )
+            ]
+        ),
+        _chunk(
+            [], usage=UsageInfo(prompt_tokens=3, completion_tokens=7, total_tokens=10)
+        ),
+    ]
+
+    async def _events() -> Any:
+        for event in events:
+            yield event
+
+    observer = ModelStreamObserver("test", None)
+    with model_stream_observer(observer):
+        completion = await mistral_completion_from_stream(_events())
+
+    # response assembly and the usage progress channel are unaffected
+    message = completion.choices[0].message
+    assert message is not None and message.content == "hello"
+    assert observer._tokens_current == 7
+
+
+@skip_if_no_mistral_package
 async def test_mistral_stream_parallel_tool_calls_without_index() -> None:
     """Parallel calls with no server index don't collapse into one slot.
 

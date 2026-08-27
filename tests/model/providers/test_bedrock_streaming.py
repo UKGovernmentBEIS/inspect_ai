@@ -175,6 +175,44 @@ async def test_bedrock_converse_response_from_stream() -> None:
     assert output.usage is not None and output.usage.total_tokens == 10
 
 
+async def test_bedrock_stream_gated_without_on_stream(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Without an on_stream consumer only usage/heartbeat progress runs.
+
+    Explicit streaming=true callers stream without asking for stream events,
+    so delta construction (on_stream support code) must not run for them.
+    """
+    import inspect_ai.model._providers.bedrock as bedrock_module
+
+    async def fail(delta: Any) -> None:
+        raise AssertionError("delta reported without an on_stream consumer")
+
+    monkeypatch.setattr(bedrock_module, "report_model_stream_delta", fail)
+
+    events: list[dict[str, Any]] = [
+        {"messageStart": {"role": "assistant"}},
+        {"contentBlockDelta": {"contentBlockIndex": 0, "delta": {"text": "hel"}}},
+        {"contentBlockDelta": {"contentBlockIndex": 0, "delta": {"text": "lo"}}},
+        {"contentBlockStop": {"contentBlockIndex": 0}},
+        {"messageStop": {"stopReason": "end_turn"}},
+        {
+            "metadata": {
+                "usage": {"inputTokens": 3, "outputTokens": 7, "totalTokens": 10},
+                "metrics": {"latencyMs": 42},
+            }
+        },
+    ]
+
+    observer = ModelStreamObserver("test", None)
+    with model_stream_observer(observer):
+        response = await converse_response_from_stream(_events(events))
+
+    # response assembly and the usage progress channel are unaffected
+    assert response.output.message.content[0].text == "hello"
+    assert observer._tokens_current == 7
+
+
 async def test_bedrock_stream_error_event_raises_client_error() -> None:
     """Exception members of the event union raise classified ClientErrors."""
     events: list[dict[str, Any]] = [

@@ -277,6 +277,58 @@ async def test_groq_completion_from_stream_error() -> None:
     assert isinstance(decision, RetryDecision) and decision.retry is True
 
 
+async def test_groq_stream_gated_without_on_stream(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Without an on_stream consumer only usage/heartbeat progress runs.
+
+    Explicit streaming=true callers stream without asking for stream events,
+    so delta construction (on_stream support code) must not run for them.
+    """
+    import inspect_ai.model._providers.groq as groq_module
+
+    async def fail(delta: object) -> None:
+        raise AssertionError("delta reported without an on_stream consumer")
+
+    monkeypatch.setattr(groq_module, "report_model_stream_delta", fail)
+
+    chunks = [
+        _groq_chunk(
+            dict(
+                choices=[
+                    dict(
+                        index=0,
+                        delta=dict(role="assistant", content="hel"),
+                        finish_reason=None,
+                    )
+                ]
+            )
+        ),
+        _groq_chunk(
+            dict(
+                choices=[dict(index=0, delta=dict(content="lo"), finish_reason="stop")]
+            )
+        ),
+        _groq_chunk(
+            dict(
+                choices=[],
+                x_groq=dict(
+                    id="req_1",
+                    usage=dict(prompt_tokens=3, completion_tokens=7, total_tokens=10),
+                ),
+            )
+        ),
+    ]
+
+    observer = ModelStreamObserver("test", None)
+    with model_stream_observer(observer):
+        completion = await groq_completion_from_stream(_chunk_iter(chunks))
+
+    # response assembly and the usage progress channel are unaffected
+    assert completion.choices[0].message.content == "hello"
+    assert observer._tokens_current == 7
+
+
 @skip_if_no_groq
 async def test_groq_stream_end_to_end() -> None:
     """Passing on_stream alone enables streaming and reconstructs the output."""

@@ -240,6 +240,55 @@ async def test_azureai_completion_from_stream() -> None:
     assert collector.events[2].arguments == '"cmd": "ls"}'
 
 
+async def test_azureai_stream_gated_without_on_stream(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Without an on_stream consumer only usage/heartbeat progress runs.
+
+    Explicit streaming=true callers stream without asking for stream events,
+    so delta construction (on_stream support code) must not run for them.
+    """
+    import inspect_ai.model._providers.azureai as azureai_module
+
+    async def fail(delta: Any) -> None:
+        raise AssertionError("delta reported without an on_stream consumer")
+
+    monkeypatch.setattr(azureai_module, "report_model_stream_delta", fail)
+
+    updates = [
+        _update(
+            dict(
+                choices=[
+                    dict(
+                        index=0,
+                        delta=dict(role="assistant", content="hel"),
+                        finish_reason=None,
+                    )
+                ]
+            )
+        ),
+        _update(
+            dict(
+                choices=[dict(index=0, delta=dict(content="lo"), finish_reason="stop")]
+            )
+        ),
+        _update(
+            dict(
+                choices=[],
+                usage=dict(prompt_tokens=3, completion_tokens=7, total_tokens=10),
+            )
+        ),
+    ]
+
+    observer = ModelStreamObserver("test", None)
+    with model_stream_observer(observer):
+        response = await azureai_completion_from_stream(_updates(updates))
+
+    # response assembly and the usage progress channel are unaffected
+    assert response.choices[0].message.content == "hello"
+    assert observer._tokens_current == 7
+
+
 async def test_azureai_stream_parallel_tool_calls_by_index() -> None:
     """Interleaved fragments with wire indexes attribute to the right call."""
     updates = [

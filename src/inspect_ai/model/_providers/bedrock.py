@@ -978,7 +978,9 @@ async def converse_response_from_stream(
     model). Usage, metrics, and any guardrail trace arrive on the trailing
     `metadata` event. Exception members of the event union are raised as
     `ClientError`s carrying their AWS error code so retry classification
-    behaves as it does for the non-streaming operation.
+    behaves as it does for the non-streaming operation. Content deltas are
+    gated on `model_stream_requested()` (see `report_model_stream_delta`);
+    the usage/heartbeat progress channel runs regardless.
     """
     from botocore.exceptions import ClientError
 
@@ -1023,14 +1025,23 @@ async def converse_response_from_stream(
             tool_input = (delta.get("toolUse") or {}).get("input")
             if text:
                 block.text.append(text)
-                await report_model_stream_delta(StreamTextEvent(text=text))
             elif reasoning:
                 block.reasoning.append(reasoning)
+            elif tool_input:
+                block.tool_input.append(tool_input)
+            if not model_stream_requested() or not (text or reasoning or tool_input):
+                # bare heartbeat: no on_stream consumer to report deltas to
+                # (see report_model_stream_delta), or a delta with no
+                # reportable content (e.g. reasoning signature/
+                # redacted-content or citation deltas)
+                report_model_stream_progress()
+            elif text:
+                await report_model_stream_delta(StreamTextEvent(text=text))
+            elif reasoning:
                 await report_model_stream_delta(
                     StreamReasoningEvent(reasoning=reasoning)
                 )
             elif tool_input:
-                block.tool_input.append(tool_input)
                 await report_model_stream_delta(
                     StreamToolCallEvent(
                         id=block.tool_use_id,
@@ -1038,9 +1049,6 @@ async def converse_response_from_stream(
                         arguments=tool_input,
                     )
                 )
-            else:
-                # e.g. reasoning signature/redacted-content or citation deltas
-                report_model_stream_progress()
         elif "messageStop" in event:
             stop_reason = event["messageStop"].get("stopReason")
             additional_fields = event["messageStop"].get(
