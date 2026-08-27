@@ -423,6 +423,13 @@ class OpenAICompatibleAPI(ModelAPI):
         subclass calls for it (`should_stream`) or the caller passed
         `on_stream` to `Model.generate()` (`model_stream_requested`) and
         the request is `auto_streamable`.
+
+        Unlike the native OpenAI provider, there is no non-streamed retry
+        when the server rejects an auto-streamed request: OpenAI's rejection
+        shape (a 400 with `param="stream"`) is documented and detectable,
+        while compat servers' error bodies vary too much for a reliable
+        detector (a fuzzy match could misfire or miss). A compat server
+        that rejects streaming fails loudly; `-M stream=false` opts out.
         """
         if self.stream is not None:
             return self.stream
