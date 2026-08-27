@@ -191,6 +191,17 @@ async def test_bedrock_stream_error_event_raises_client_error() -> None:
     decision = api.should_retry(excinfo.value)
     assert bool(decision) is True
 
+    # the stream-only ModelStreamErrorException (documented by AWS as
+    # "Retry your request") classifies as retryable too
+    events = [
+        {"messageStart": {"role": "assistant"}},
+        {"modelStreamErrorException": {"message": "stream interrupted"}},
+    ]
+    with pytest.raises(ClientError) as excinfo:
+        await converse_response_from_stream(_events(events))
+    assert excinfo.value.response["Error"]["Code"] == "ModelStreamErrorException"
+    assert bool(api.should_retry(excinfo.value)) is True
+
 
 async def test_bedrock_stream_without_stop_reason_raises() -> None:
     events: list[dict[str, Any]] = [{"messageStart": {"role": "assistant"}}]

@@ -403,6 +403,9 @@ class BedrockAPI(ModelAPI):
             "RequestTimeout",
             "ServiceUnavailable",
             "ServiceUnavailableException",
+            # stream-only (ConverseStream error event, HTTP 424); AWS documents
+            # it as "Retry your request."
+            "ModelStreamErrorException",
         ]
     )
 
