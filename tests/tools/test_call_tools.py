@@ -483,3 +483,39 @@ async def test_tool_event_message_id_for_multiple_calls():
     # ensure each event has a distinct message_id (regression: previously
     # every event pointed at the first ChatMessageTool)
     assert len({e.message_id for e in tool_events}) == 3
+
+
+async def test_tool_with_varargs_and_kwargs():
+    from inspect_ai.tool._tool_info import parse_tool_info
+
+    @tool
+    def varargs_tool():
+        async def execute(x: int, y: str = "default", *args: Any, **kwargs: Any) -> str:
+            """Tool with varargs and kwargs.
+
+            Args:
+                x (int): An integer.
+                y (str): A string.
+                *args (Any): Variable arguments.
+                **kwargs (Any): Variable keyword arguments.
+            """
+            return f"{x}_{y}"
+
+        return execute
+
+    tool_fn = varargs_tool()
+    info = parse_tool_info(tool_fn)
+    assert "args" not in info.parameters.properties
+    assert "kwargs" not in info.parameters.properties
+    assert info.parameters.required == ["x"]
+    assert "x" in info.parameters.properties
+    assert "y" in info.parameters.properties
+
+    tool_def = ToolDef(tool_fn)
+    call = make_call("varargs_tool", {"x": 42})
+    messages, _ = await execute_tools(
+        [ChatMessageAssistant(content=[], tool_calls=[call])], [tool_def]
+    )
+    assert isinstance(messages[-1], ChatMessageTool)
+    assert messages[-1].error is None
+    assert messages[-1].content == "42_default"
