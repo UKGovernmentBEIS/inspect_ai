@@ -1,4 +1,4 @@
-from typing import Any, Callable
+from typing import Any, Callable, cast
 
 import click
 import yaml
@@ -6,7 +6,7 @@ from pydantic import ValidationError
 
 from inspect_ai._util.config import resolve_args
 from inspect_ai._util.error import PrerequisiteError
-from inspect_ai.model import GenerateConfig, Model, get_model
+from inspect_ai.model import GenerateConfig, Model, ModelRoles, get_model
 from inspect_ai.util._limit import TokenLimit, parse_token_limit
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 
@@ -230,17 +230,19 @@ def parse_cli_args(
 
 def parse_model_role_cli_args(
     model_roles: tuple[str, ...] | None,
-) -> dict[str, str | Model]:
+) -> ModelRoles:
     """Parse model roles from CLI args. Supports key-value, YAML, and JSON formats.
 
     Args:
         model_roles: Tuple of strings to parse as model roles.
 
     Returns:
-        Dictionary of role names to model names or model instances.
+        Dictionary of role names to model names or model instances (or lists
+        thereof for roles with multiple models).
 
     Examples:
         ("grader=mockllm/model",) -> {'grader': 'mockllm/model'}
+        ("grader=mockllm/model_a,mockllm/model_b",) -> {'grader': ['mockllm/model_a', 'mockllm/model_b']}
         ("grader={model: mockllm/model, temperature: 0.5}",) -> {'grader': <Model>}
         ('grader={"model": "mockllm/model", "temperature": 0.5}',) -> {'grader': <Model>}
     """
@@ -250,7 +252,8 @@ def parse_model_role_cli_args(
         raise ValueError(
             "Could not parse model role arguments. Should be key-value pairs or valid YAML/JSON."
         ) from e
-    for role_name, params in parsed_args.items():
+
+    def resolve_role_value(role_name: str, params: Any) -> str | Model:
         # if value is a dict, create a model instance
         if isinstance(params, dict):
             model_name = params.pop("model", None)
@@ -267,11 +270,24 @@ def parse_model_role_cli_args(
             # otherwise roles sharing the same model/config/args collapse onto one
             # cached object and per-role usage is misattributed (see #4450). This
             # mirrors the string-role path in resolve_model_roles().
-            parsed_args[role_name] = get_model(
-                model_name, config=config, memoize=False, **model_args
-            )
+            return get_model(model_name, config=config, memoize=False, **model_args)
         # else assume it is just a model name and leave it as a string
-    return parsed_args
+        return cast(str, params)
+
+    # concrete dict type (ModelRoles is a read-only Mapping alias)
+    resolved_args: dict[str, str | Model | list[str | Model]] = {}
+    for role_name, params in parsed_args.items():
+        # comma-separated model names (or a YAML list) yield a list of models
+        if isinstance(params, list):
+            # strip whitespace and drop empty tokens (e.g. a trailing comma),
+            # mirroring how --model treats comma-separated names
+            items = [p.strip() if isinstance(p, str) else p for p in params]
+            resolved_args[role_name] = [
+                resolve_role_value(role_name, param) for param in items if param != ""
+            ]
+        else:
+            resolved_args[role_name] = resolve_role_value(role_name, params)
+    return resolved_args
 
 
 def parse_model_spec_cli_args(

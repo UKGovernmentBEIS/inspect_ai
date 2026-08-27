@@ -37,6 +37,7 @@ from inspect_ai.log._condense import resolve_sample_attachments
 from inspect_ai.log._log import EvalSampleSummary
 from inspect_ai.log._resolve import rebind_sample_timelines, resolve_sample_events_data
 
+from ._headline import headline_metric
 from ._log import EvalLog, EvalMetric, EvalSample, EvalStatus
 from ._recorders import (
     recorder_type_for_bytes,
@@ -1304,16 +1305,18 @@ def write_log_listing(
 def to_overview(header: EvalLog) -> LogOverview:
     """Convert an EvalLog header to a thinned overview."""
     # Get the primary metric if it exists
-    primary_metric: EvalMetric | None = None
-    if (
-        header.results is not None
-        and header.results.scores
-        and (first_scorer := header.results.scores[0]).metrics
-    ):
-        primary_metric = next(iter(first_scorer.metrics.values()))
+    resolved_headline = headline_metric(header)
+    primary_metric: EvalMetric | None = (
+        resolved_headline.metric if resolved_headline else None
+    )
 
+    # a role bound to a list of models is shown as comma-separated names
+    # (LogOverview keeps a flat string per role)
     model_roles = (
-        {role: cfg.model for role, cfg in header.eval.model_roles.items()}
+        {
+            role: ",".join(mc.model for mc in (cfg if isinstance(cfg, list) else [cfg]))
+            for role, cfg in header.eval.model_roles.items()
+        }
         if header.eval.model_roles
         else None
     )
