@@ -36,6 +36,25 @@ def test_solver_chain():
     assert len(chain(chain2, deepcopy(chain2))) == 12
 
 
+async def test_chain_unroll_tuples():
+    s1 = identity()
+    s2 = identity()
+    s3 = identity()
+
+    # tuple directly passed
+    c1 = chain((s1, s2))
+    assert len(c1) == 2
+
+    # nested list containing a tuple
+    c2 = chain([s1, (s2, s3)])
+    assert len(c2) == 3
+
+    # execute chain to ensure callable execution succeeds
+    state = simple_task_state()
+    res = await c1(state, cast(Generate, None))
+    assert res is state
+
+
 @solver
 def replacer():
     """A solver that returns a *new* TaskState (the fork()/deepcopy pattern)."""
