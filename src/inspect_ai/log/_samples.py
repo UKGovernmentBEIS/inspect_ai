@@ -58,7 +58,7 @@ from inspect_ai.util._checkpoint.checkpointer import CheckpointerSetup, ResumeCh
 from inspect_ai.util._checkpoint.checkpointer_factory import create_checkpointer
 from inspect_ai.util._checkpoint.config import ResolvedCheckpointConfig
 from inspect_ai.util._limit import LimitExceededError
-from inspect_ai.util._sandbox import SandboxConnection
+from inspect_ai.util._sandbox import SandboxConnection, SandboxEnvironment
 from inspect_ai.util._sandbox.context import sandbox_connections
 
 from ..event._model import ModelEvent
@@ -96,6 +96,11 @@ class ActiveSampleRetryWait(NamedTuple):
 
     deadline: float
     """When the wait elapses and the next attempt begins (unix ts)."""
+
+    qualified_model: str | None = None
+    """Qualified `provider/model` name, for the throughput registry's
+    active-waits scan (`model` above is the bare display name and stays
+    what the ctl activity view shows)."""
 
 
 class ActiveSample:
@@ -172,6 +177,14 @@ class ActiveSample:
         self.fallback_models: list[str] = []
         self.transcript = transcript
         self.sandboxes = sandboxes
+        # The sample's live sandbox *environments* (the context-bound dict the
+        # sample's own coroutine works against), published by the runner after
+        # sandbox init. `sandboxes` above carries connection info for the
+        # VS Code surface; this carries the environments themselves so the
+        # interim-scoring pass can bind them into its scoring context and let
+        # sandbox-inspecting scorers work (design/ctl/interim-scoring.md).
+        # Empty when the sample has no sandbox.
+        self.sandbox_environments: dict[str, "SandboxEnvironment"] = {}
         self.checkpointer = checkpointer
         self.eval_set_id = eval_set_id
         self.run_id = run_id
@@ -191,6 +204,11 @@ class ActiveSample:
         self.retry_wait: ActiveSampleRetryWait | None = None
         self._interrupt_action: SampleCancelAction | None = None
         self._limit_exceeded_error: LimitExceededError | None = None
+        # One-shot terminal signal (see `terminal` / `wait_terminal`).
+        # Created lazily on first wait — anyio.Event() needs a running async
+        # context — and set by whichever terminal transition fires first
+        # (complete / interrupt / limit_exceeded, all on the eval's loop).
+        self._terminal_event: anyio.Event | None = None
         self.event_send: MemoryObjectSendStream[SampleEvent] | None = None
         self.event_receive: MemoryObjectReceiveStream[SampleEvent] | None = None
         self.event_done: anyio.Event | None = None
@@ -254,6 +272,38 @@ class ActiveSample:
 
     def complete(self) -> None:
         self.completed = datetime.now(timezone.utc).timestamp()
+        self._fire_terminal()
+
+    @property
+    def terminal(self) -> bool:
+        """Whether the sample has reached a terminal transition.
+
+        True once the sample completed, an interrupt was stamped, or a limit
+        fired — the point after which an observer (the interim-scoring pass)
+        must stop touching its live state.
+        """
+        return (
+            self.completed is not None
+            or self._interrupt_action is not None
+            or self._limit_exceeded_error is not None
+        )
+
+    async def wait_terminal(self) -> None:
+        """Park until the sample reaches a terminal transition.
+
+        The push counterpart to polling :attr:`terminal` — the terminal
+        transitions all run on the eval's single event loop, so the flag
+        check and the wait have no gap between them, and terminality is
+        monotonic (never un-set), so one one-shot event suffices.
+        """
+        while not self.terminal:
+            if self._terminal_event is None:
+                self._terminal_event = anyio.Event()
+            await self._terminal_event.wait()
+
+    def _fire_terminal(self) -> None:
+        if self._terminal_event is not None:
+            self._terminal_event.set()
 
     @property
     def pending_interaction(self) -> Literal["approval", "question"] | None:
@@ -292,6 +342,7 @@ class ActiveSample:
         scoring, not counted as an error).
         """
         self._interrupt_action = action
+        self._fire_terminal()
         if self.tg is None:
             raise RuntimeError(
                 "Attempted to interrupt sample without enclosing task group."
@@ -301,6 +352,7 @@ class ActiveSample:
 
     def limit_exceeded(self, error: LimitExceededError) -> None:
         self._limit_exceeded_error = error
+        self._fire_terminal()
         if self.tg is None:
             raise RuntimeError(
                 "Attempted to interrupt sample for limit without enclosing task group."
@@ -647,7 +699,12 @@ _active_retry_wait: ContextVar["ActiveSampleRetryWait | None"] = ContextVar(
 )
 
 
-def report_active_sample_retry_wait(model: str, attempt: int, wait_time: float) -> None:
+def report_active_sample_retry_wait(
+    model: str,
+    attempt: int,
+    wait_time: float,
+    qualified_model: str | None = None,
+) -> None:
     """Record that the active sample's model call is waiting to retry.
 
     Called from the model retry loop's before-sleep callback (once per
@@ -658,15 +715,21 @@ def report_active_sample_retry_wait(model: str, attempt: int, wait_time: float) 
     (design/ctl/generate-progress.md).
 
     Args:
-        model: Model whose call is waiting to retry.
+        model: Model whose call is waiting to retry (bare display name).
         attempt: Number of the attempt that just failed (1-based).
         wait_time: Seconds until the next attempt begins.
+        qualified_model: Qualified ``provider/model`` name for the
+            throughput registry's active-waits scan.
     """
     active = sample_active()
     if active is not None:
         now = datetime.now(timezone.utc).timestamp()
         record = ActiveSampleRetryWait(
-            model=model, attempt=attempt, started_at=now, deadline=now + wait_time
+            model=model,
+            attempt=attempt,
+            started_at=now,
+            deadline=now + wait_time,
+            qualified_model=qualified_model,
         )
         _active_retry_wait.set(record)
         active.retry_wait = record

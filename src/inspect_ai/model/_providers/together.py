@@ -215,7 +215,12 @@ class TogetherAIAPI(OpenAICompatibleAPI):
             batch_config,
             # TODO: In the future, we could pass max_retries and timeout
             # from batch_config falling back to config
-            batch_admin_retry_config(self.model_name, config, self.should_retry),
+            batch_admin_retry_config(
+                self.model_name,
+                config,
+                self.should_retry,
+                qualified_model_name=self.qualified_model_name,
+            ),
         )
 
 
@@ -291,6 +296,7 @@ class TogetherRESTAPI(ModelAPI):
             url=f"{chat_url}",
             headers={"Authorization": f"Bearer {self.api_key}"},
             json=json,
+            qualified_model_name=self.qualified_model_name,
         )
 
         if "error" in response:

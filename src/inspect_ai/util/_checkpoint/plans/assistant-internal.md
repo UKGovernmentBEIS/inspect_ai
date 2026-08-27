@@ -66,7 +66,7 @@ Move from `run.py:2041-2068` (delete there; update import at `run.py:1091`; keep
 
 1. `pytest tests/checkpoint tests/_eval/test_init_sample_assistant_internal.py` (moved), plus new provider serde tests.
 2. `mypy --exclude tests/test_package src tests`; `ruff format && ruff check --fix`.
-3. E2E (docker, manual): run `examples/checkpoint_ctf.py` with an Anthropic model + thinking past a checkpoint, kill, resume — confirm `assistant_internal.json` in `context/`, and resumed generate requests include replayed `thinking` blocks (trace logs).
+3. E2E (docker): the thinking-resume test in `tests/checkpoint/test_checkpoint_e2e.py` (backed by `resume_kill_thinking_harness.py`) kills an Anthropic thinking run past a checkpoint and asserts the pre-kill thinking-block signatures survive the resume.
 
 ## Resolved decisions
 

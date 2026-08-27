@@ -63,7 +63,7 @@ from .common import CommonOptions, common_options, process_common_options
     multiple=True,
     type=str,
     envvar="INSPECT_SCORE_MODEL_ROLE",
-    help='Named model role with model name or YAML/JSON config, e.g. --model-role critic=openai/gpt-4o or --model-role grader="{model: mockllm/model, temperature: 0.5}". Merged over the model roles recorded in the log.',
+    help='Named model role with model name or YAML/JSON config, e.g. --model-role critic=openai/gpt-4o or --model-role grader="{model: mockllm/model, temperature: 0.5}". Bind multiple models to a role with a comma-separated list of names or a YAML/JSON list of configs. Merged over the model roles recorded in the log.',
 )
 @click.option(
     "--scorer",
