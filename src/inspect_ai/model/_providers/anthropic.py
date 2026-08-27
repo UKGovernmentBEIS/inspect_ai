@@ -4109,8 +4109,9 @@ async def _capture_compaction_from_stream(
             compaction_content = getattr(event.delta, "content", None)
 
         # report the chunk to the model layer's stream observer: content
-        # deltas by kind, cumulative output tokens from message_delta usage,
-        # and a bare heartbeat for everything else
+        # deltas by kind (gated on model_stream_requested() — see
+        # report_model_stream_delta), cumulative output tokens from
+        # message_delta usage, and a bare heartbeat for everything else
         if event.type == "content_block_start":
             # tool_use / server_tool_use / mcp_tool_use all carry id + name
             # and stream their input as input_json_delta fragments
@@ -4118,11 +4119,13 @@ async def _capture_compaction_from_stream(
                 tool_blocks[event.index] = event.content_block
             report_model_stream_progress()
         elif event.type == "content_block_delta":
+            if not model_stream_requested():
+                report_model_stream_progress()
             # dispatch on the wire discriminator, not isinstance: the non-beta
             # RawContentBlockDelta union has no compaction variant, so the SDK
             # misparses compaction_delta as TextDelta(type="compaction_delta",
             # text=None) -- an isinstance check would report it as text
-            if event.delta.type == "text_delta":
+            elif event.delta.type == "text_delta":
                 await report_model_stream_delta(StreamTextEvent(text=event.delta.text))
             elif event.delta.type == "thinking_delta":
                 await report_model_stream_delta(

@@ -687,26 +687,29 @@ async def _report_grok_stream_chunk(chunk: Chunk) -> None:
     Text and reasoning stream as fragments; tool calls arrive whole (id, name
     and complete arguments in one chunk). Chunks carry the server's cumulative
     usage; report it when present (a proto3 zero means "not reported"), else a
-    bare heartbeat for chunks with no content.
+    bare heartbeat for chunks with no content. Content deltas are gated on
+    `model_stream_requested()` (see `report_model_stream_delta`); the
+    usage/heartbeat progress channel runs regardless.
     """
     reported = False
-    if chunk.reasoning_content:
-        await report_model_stream_delta(
-            StreamReasoningEvent(reasoning=chunk.reasoning_content)
-        )
-        reported = True
-    if chunk.content:
-        await report_model_stream_delta(StreamTextEvent(text=chunk.content))
-        reported = True
-    for tool_call in chunk.tool_calls:
-        await report_model_stream_delta(
-            StreamToolCallEvent(
-                id=tool_call.id,
-                function=tool_call.function.name,
-                arguments=tool_call.function.arguments,
+    if model_stream_requested():
+        if chunk.reasoning_content:
+            await report_model_stream_delta(
+                StreamReasoningEvent(reasoning=chunk.reasoning_content)
             )
-        )
-        reported = True
+            reported = True
+        if chunk.content:
+            await report_model_stream_delta(StreamTextEvent(text=chunk.content))
+            reported = True
+        for tool_call in chunk.tool_calls:
+            await report_model_stream_delta(
+                StreamToolCallEvent(
+                    id=tool_call.id,
+                    function=tool_call.function.name,
+                    arguments=tool_call.function.arguments,
+                )
+            )
+            reported = True
     completion_tokens = chunk.proto.usage.completion_tokens
     if completion_tokens > 0:
         report_model_stream_progress(completion_tokens)
