@@ -492,7 +492,8 @@ class EvalRecorder(FileRecorder):
                     location,
                     logger,
                 )
-            write_etag = await async_fs.write_file(location, log_bytes)
+            with trace_action(logger, "Log Write", location):
+                write_etag = await async_fs.write_file(location, log_bytes)
             if write_etag is None:
                 raise RuntimeError("S3 upload completed without returning an ETag")
             return write_etag
