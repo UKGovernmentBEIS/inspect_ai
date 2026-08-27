@@ -37,6 +37,7 @@ from inspect_ai.model import (
     ChatMessageTool,
     GenerateConfig,
     ModelOutput,
+    ModelUsage,
     modelapi,
 )
 from inspect_ai.model._providers.mockllm import MockLLM
@@ -96,9 +97,21 @@ def snapshot_strategy() -> str:
 # sandboxes torn down). Resume must work from either.
 SIGNAL_ENV = "INSPECT_TEST_RESUME_SIGNAL"
 
+# Sample turn budget, when the test sets one. The budget-carry e2e needs a live
+# turn counter for the resume to carry; without a limit nothing counts turns.
+TURN_LIMIT_ENV = "INSPECT_TEST_RESUME_TURN_LIMIT"
+
+# Tokens the scripted model reports per generate, each direction.
+GENERATE_TOKENS = 10
+
 
 def crash_signal() -> signal.Signals:
     return signal.Signals[os.environ.get(SIGNAL_ENV, "SIGKILL")]
+
+
+def turn_limit() -> int | None:
+    value = os.environ.get(TURN_LIMIT_ENV)
+    return int(value) if value else None
 
 
 def cancels_done() -> int:
@@ -198,6 +211,19 @@ def _scripted_outputs(
     config: GenerateConfig,
 ) -> ModelOutput:
     _resume_state.generates += 1
+    output = _scripted_tool_call(input)
+    # MockLLM synthesizes usage only on its iterator path, not the callable one
+    # this harness drives — so stamp a fixed amount, giving the budget-carry
+    # e2e a token count to compare across the kill.
+    output.usage = ModelUsage(
+        input_tokens=GENERATE_TOKENS,
+        output_tokens=GENERATE_TOKENS,
+        total_tokens=2 * GENERATE_TOKENS,
+    )
+    return output
+
+
+def _scripted_tool_call(input: list[ChatMessage]) -> ModelOutput:
     n = sum(1 for m in input if isinstance(m, ChatMessageTool))
     done = cancels_done()
     target = target_cancels()
@@ -269,8 +295,10 @@ def run_eval(log_dir: str, retry_from: str | None = None) -> None:
             resume_decode_task(strategy=snapshot_strategy()),
             model=SCRIPTED_MODEL,
             log_dir=log_dir,
+            turn_limit=turn_limit(),
         )
     else:
+        # limits ride along in the log's eval config
         eval_retry(read_eval_log(retry_from), log_dir=log_dir)
 
 
