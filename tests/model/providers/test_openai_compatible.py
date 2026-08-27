@@ -581,13 +581,24 @@ async def test_chat_completion_stream_reports_deltas() -> None:
             )
         ]
     )
+    # continuation fragment: id/name arrive only on a call's first fragment
+    tool_continuation_delta = dict(
+        tool_calls=[dict(index=0, function=dict(arguments='"cmd": "ls"}'))]
+    )
     usage = dict(prompt_tokens=3, completion_tokens=7, total_tokens=10)
     chunks = [
         _chunk(
             dict(choices=[dict(index=0, delta=reasoning_delta, finish_reason=None)])
         ),
         _chunk(dict(choices=[dict(index=0, delta=text_delta, finish_reason=None)])),
-        _chunk(dict(choices=[dict(index=0, delta=tool_delta, finish_reason="stop")])),
+        _chunk(dict(choices=[dict(index=0, delta=tool_delta, finish_reason=None)])),
+        _chunk(
+            dict(
+                choices=[
+                    dict(index=0, delta=tool_continuation_delta, finish_reason="stop")
+                ]
+            )
+        ),
         # final usage chunk (stream_options.include_usage)
         _chunk(dict(choices=[], usage=usage)),
     ]
@@ -604,11 +615,14 @@ async def test_chat_completion_stream_reports_deltas() -> None:
     assert choice.finish_reason == "stop"
     tool_calls = choice.message.tool_calls
     assert tool_calls is not None and tool_calls[0].id == "call_1"
+    assert tool_calls[0].type == "function"
+    assert tool_calls[0].function.arguments == '{"cmd": "ls"}'
     assert result.usage is not None and result.usage.completion_tokens == 7
 
     assert [type(e) for e in collector.events] == [
         StreamReasoningEvent,
         StreamTextEvent,
+        StreamToolCallEvent,
         StreamToolCallEvent,
     ]
     assert collector.events[0].reasoning == "hmm"
@@ -617,8 +631,21 @@ async def test_chat_completion_stream_reports_deltas() -> None:
     assert tool_event.id == "call_1"
     assert tool_event.function == "bash"
     assert tool_event.arguments == "{"
+    # the continuation fragment is attributed to its call (id/name are
+    # remembered from the first fragment)
+    continuation_event = collector.events[3]
+    assert continuation_event.id == "call_1"
+    assert continuation_event.function == "bash"
+    assert continuation_event.arguments == '"cmd": "ls"}'
     # the usage chunk reported cumulative output tokens
     assert observer._tokens_current == 7
+
+
+async def test_chat_completion_stream_empty_raises() -> None:
+    """A zero-chunk stream raises a descriptive error, not a bare assert."""
+    fake_stream: Any = _FakeChunkStream([])
+    with pytest.raises(RuntimeError, match="without delivering any chunks"):
+        await openai_chat_completion_stream_final(fake_stream)
 
 
 async def test_streaming_requests_usage(monkeypatch: pytest.MonkeyPatch) -> None:

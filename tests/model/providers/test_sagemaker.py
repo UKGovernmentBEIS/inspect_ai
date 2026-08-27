@@ -1731,8 +1731,28 @@ class TestStreamObserver:
                                     "id": "call_1",
                                     "function": {
                                         "name": "bash",
-                                        "arguments": '{"cmd": "ls"}',
+                                        "arguments": '{"cmd": ',
                                     },
+                                }
+                            ]
+                        },
+                        "finish_reason": None,
+                    }
+                ],
+            },
+            # continuation fragment: id/name arrive only on the first fragment
+            {
+                "id": "chatcmpl-obs",
+                "created": 1700000000,
+                "model": "m",
+                "choices": [
+                    {
+                        "index": 0,
+                        "delta": {
+                            "tool_calls": [
+                                {
+                                    "index": 0,
+                                    "function": {"arguments": '"ls"}'},
                                 }
                             ]
                         },
@@ -1777,12 +1797,18 @@ class TestStreamObserver:
             StreamReasoningEvent,
             StreamTextEvent,
             StreamToolCallEvent,
+            StreamToolCallEvent,
         ]
         assert events[0].reasoning == "hmm"
         assert events[1].text == "hel"
         assert events[2].id == "call_1"
         assert events[2].function == "bash"
-        assert events[2].arguments == '{"cmd": "ls"}'
+        assert events[2].arguments == '{"cmd": '
+        # the continuation fragment is attributed to its call (id/name are
+        # remembered from the first fragment)
+        assert events[3].id == "call_1"
+        assert events[3].function == "bash"
+        assert events[3].arguments == '"ls"}'
         # the usage chunk reported cumulative output tokens
         assert observer._tokens_current == 7
 

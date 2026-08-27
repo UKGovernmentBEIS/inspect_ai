@@ -4,7 +4,7 @@ import logging
 import re
 from copy import copy
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Callable, Literal, TypeAlias, cast
+from typing import TYPE_CHECKING, Any, Callable, Literal, NamedTuple, TypeAlias, cast
 
 if TYPE_CHECKING:
     from inspect_ai.model._model import RetryDecision
@@ -966,9 +966,16 @@ async def openai_chat_completion_stream_final(
     # accumulator raise mid-stream on length/content_filter finish reasons
     state: ChatCompletionStreamState[Any] = ChatCompletionStreamState()
     report_model_stream_start()
+    tool_calls: dict[int, _StreamToolCallInfo] = {}
+    saw_chunk = False
     async for chunk in stream:
+        saw_chunk = True
         state.handle_chunk(chunk)
-        await _report_chat_completion_chunk(chunk)
+        await _report_chat_completion_chunk(chunk, tool_calls)
+    if not saw_chunk:
+        # get_final_completion() would fail on a bare assert; raise a
+        # descriptive error instead (misbehaving server: 200 with empty body)
+        raise RuntimeError("Streaming response ended without delivering any chunks.")
     try:
         return state.get_final_completion()
     except LengthFinishReasonError as ex:
@@ -979,8 +986,22 @@ async def openai_chat_completion_stream_final(
         return state.current_completion_snapshot
 
 
-async def _report_chat_completion_chunk(chunk: ChatCompletionChunk) -> None:
-    """Report one streamed chunk to the model layer's stream observer."""
+class _StreamToolCallInfo(NamedTuple):
+    """Attribution for a streamed tool call, remembered across fragments."""
+
+    id: str | None
+    function: str | None
+
+
+async def _report_chat_completion_chunk(
+    chunk: ChatCompletionChunk, tool_calls: dict[int, _StreamToolCallInfo]
+) -> None:
+    """Report one streamed chunk to the model layer's stream observer.
+
+    `tool_calls` remembers each call's id/function by index across chunks:
+    OpenAI streams them only on a call's first fragment, but reported deltas
+    attribute every fragment (matching the other providers' reporters).
+    """
     # cumulative usage arrives on the final chunk when the server reports it
     # (e.g. via stream_options.include_usage)
     if chunk.usage is not None:
@@ -1005,10 +1026,17 @@ async def _report_chat_completion_chunk(chunk: ChatCompletionChunk) -> None:
             reported = True
         for tool_call in delta.tool_calls or []:
             function = tool_call.function
+            info = tool_calls.get(tool_call.index, _StreamToolCallInfo(None, None))
+            info = _StreamToolCallInfo(
+                id=tool_call.id or info.id,
+                function=(function.name if function is not None else None)
+                or info.function,
+            )
+            tool_calls[tool_call.index] = info
             await report_model_stream_delta(
                 StreamToolCallEvent(
-                    id=tool_call.id,
-                    function=function.name if function is not None else None,
+                    id=info.id,
+                    function=info.function,
                     arguments=(function.arguments or "")
                     if function is not None
                     else "",

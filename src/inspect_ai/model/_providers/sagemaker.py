@@ -638,10 +638,13 @@ class SagemakerAPI(ModelAPI):
                     slot["function"]["name"] = fn["name"]
                 if fn.get("arguments"):
                     slot["function"]["arguments"] += fn["arguments"]
+                # report id/function from the accumulated slot — the server
+                # sends them only on a call's first fragment, but reported
+                # deltas attribute every fragment
                 pending_deltas.append(
                     StreamToolCallEvent(
-                        id=tc.get("id"),
-                        function=fn.get("name"),
+                        id=slot["id"],
+                        function=slot["function"]["name"],
                         arguments=fn.get("arguments") or "",
                     )
                 )
