@@ -1,6 +1,6 @@
 import os
 from logging import getLogger
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 import httpx2
 from openai import (
@@ -58,7 +58,11 @@ from .._openai import (
     supports_native_max_reasoning_effort,
 )
 from .._stream import model_stream_requested
-from .util import environment_prerequisite_error, model_base_url
+from .util import (
+    environment_prerequisite_error,
+    model_base_url,
+    normalize_stream_arg,
+)
 
 logger = getLogger(__name__)
 
@@ -76,7 +80,7 @@ class OpenAICompatibleAPI(ModelAPI):
         emulate_tools: bool = False,
         responses_api: bool | None = None,
         responses_store: bool | None = None,
-        stream: bool | None = None,
+        stream: bool | Literal["auto"] | None = None,
         strict_tools: bool = True,
         client_timeout: float | None = None,
         **model_args: Any,
@@ -138,10 +142,10 @@ class OpenAICompatibleAPI(ModelAPI):
             raise ValueError(
                 "emulate_tools is not compatible with using the responses_api"
             )
-        # record streaming preference (None is "auto": stream when the
+        # record streaming preference (None/"auto" is auto: stream when the
         # subclass calls for it or the caller passes on_stream to generate;
         # an explicit True/False overrides — see resolve_stream)
-        self.stream: bool | None = stream
+        self.stream: bool | None = normalize_stream_arg(stream)
         self.strict_tools = strict_tools
 
         # store client_timeout for http client creation

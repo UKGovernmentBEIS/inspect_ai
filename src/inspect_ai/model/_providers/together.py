@@ -2,7 +2,7 @@ import os
 from functools import partial
 from json import dumps
 from logging import getLogger
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 import httpx
 from openai import APIStatusError
@@ -101,7 +101,7 @@ class TogetherAIAPI(OpenAICompatibleAPI):
         api_key: str | None = None,
         config: GenerateConfig = GenerateConfig(),
         emulate_tools: bool = False,
-        stream: bool | None = None,
+        stream: bool | Literal["auto"] | None = None,
     ) -> None:
         super().__init__(
             model_name=model_name,

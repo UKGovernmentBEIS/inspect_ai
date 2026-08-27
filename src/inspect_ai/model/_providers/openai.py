@@ -57,6 +57,7 @@ from .util import (
     check_azure_deployment_mismatch,
     environment_prerequisite_error,
     model_base_url,
+    normalize_stream_arg,
     require_azure_base_url,
     resolve_api_key,
     resolve_azure_token_provider,
@@ -125,9 +126,9 @@ class OpenAIAPI(ModelAPI):
         streaming: bool | Literal["auto"] = "auto",
         **model_args: Any,
     ) -> None:
-        # record streaming preference ("auto" streams when the caller passes
-        # on_stream to generate; an explicit True/False overrides)
-        self.streaming = streaming
+        # record streaming preference (unset/"auto" streams when the caller
+        # passes on_stream to generate; an explicit True/False overrides)
+        self.streaming: bool | None = normalize_stream_arg(streaming, "streaming")
         # extract azure service prefix from model name (other providers
         # that subclass from us like together expect to have the qualifier
         # in the model name e.g. google/gemma-2b-it)

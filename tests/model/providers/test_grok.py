@@ -308,10 +308,16 @@ async def test_grok_create_batch_chunks_add_calls() -> None:
 
 
 def test_grok_streaming_defaults_to_auto() -> None:
-    """Unset streaming is "auto" (streams when the caller passes on_stream)."""
+    """Unset streaming is auto (streams when the caller passes on_stream)."""
     from inspect_ai.model._providers.grok import GrokAPI
 
-    assert GrokAPI(model_name="grok-4.6", api_key="test-key").streaming == "auto"
+    assert GrokAPI(model_name="grok-4.6", api_key="test-key").streaming is None
+    # -M streaming=auto arrives as the string "auto" (YAML-parsed) and must
+    # map to the auto sentinel, not a truthy explicit setting
+    assert (
+        GrokAPI(model_name="grok-4.6", api_key="test-key", streaming="auto").streaming
+        is None
+    )
     assert (
         GrokAPI(model_name="grok-4.6", api_key="test-key", streaming=True).streaming
         is True
@@ -320,6 +326,13 @@ def test_grok_streaming_defaults_to_auto() -> None:
         GrokAPI(model_name="grok-4.6", api_key="test-key", streaming=False).streaming
         is False
     )
+    # a typo'd value raises rather than silently forcing streaming on or off
+    with pytest.raises(ValueError, match="streaming"):
+        GrokAPI(
+            model_name="grok-4.6",
+            api_key="test-key",
+            streaming="always",  # type: ignore[arg-type]
+        )
 
 
 def test_grok_resolve_streaming_declines_logprobs() -> None:

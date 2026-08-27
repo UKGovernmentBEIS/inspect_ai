@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Literal
 
 import httpx2
 import pytest
@@ -314,7 +314,7 @@ def test_user_supplied_http_client_not_overridden() -> None:
     assert api.http_client.timeout.read == 42.0
 
 
-def _together_api(stream: bool | None = None) -> TogetherAIAPI:
+def _together_api(stream: bool | Literal["auto"] | None = None) -> TogetherAIAPI:
     return TogetherAIAPI(
         model_name="together/meta-llama/Llama-3.1-8B-Instruct-Turbo",
         api_key="test",
@@ -333,6 +333,19 @@ def test_together_stream_defaults_to_auto() -> None:
 @pytest.mark.parametrize("stream", [True, False])
 def test_together_stream_model_arg_forwarded(stream: bool) -> None:
     assert _together_api(stream=stream).stream is stream
+
+
+def test_stream_model_arg_normalized() -> None:
+    # -M args are YAML-parsed, so -M stream=auto arrives as the string
+    # "auto" — it must map to the auto sentinel (keeping the
+    # auto_streamable guards in force), not a truthy explicit setting
+    assert _together_api(stream="auto").stream is None
+    # string bool spellings are accepted for non-YAML callers
+    assert _together_api(stream="true").stream is True  # type: ignore[arg-type]
+    assert _together_api(stream="False").stream is False  # type: ignore[arg-type]
+    # a typo'd value raises rather than silently forcing streaming on or off
+    with pytest.raises(ValueError, match="stream"):
+        _together_api(stream="always")  # type: ignore[arg-type]
 
 
 @skip_if_no_together

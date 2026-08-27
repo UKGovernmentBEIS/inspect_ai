@@ -52,7 +52,10 @@ from inspect_ai.model._chat_message import (
 from inspect_ai.model._model import ModelAPI, RetryDecision
 from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._model_output import ModelOutput
-from inspect_ai.model._providers.util.util import model_base_url
+from inspect_ai.model._providers.util.util import (
+    model_base_url,
+    normalize_stream_arg,
+)
 from inspect_ai.model._retry import batch_admin_retry_config
 from inspect_ai.model._stream import (
     StreamReasoningEvent,
@@ -150,11 +153,9 @@ class GrokAPI(ModelAPI):
             model_base_url(self.base_url, [XAI_BASE_URL, GROK_BASE_URL]) or "api.x.ai"
         )
 
-        # save model args (streaming "auto" streams when the caller passes
-        # on_stream to generate; an explicit True/False overrides)
-        self.streaming: bool | Literal["auto"] = (
-            "auto" if streaming == "auto" else bool(streaming)
-        )
+        # save model args (streaming unset/"auto" streams when the caller
+        # passes on_stream to generate; an explicit True/False overrides)
+        self.streaming: bool | None = normalize_stream_arg(streaming, "streaming")
         self.disable_retry = disable_retry
         # fail fast when the SDK can't express service_tier rather than
         # TypeError-ing on every generate

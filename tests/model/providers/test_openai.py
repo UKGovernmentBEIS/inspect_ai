@@ -291,6 +291,24 @@ def test_openai_resolve_streaming_declines_azure_chat_completions() -> None:
     assert api("openai/gpt-4o")._resolve_streaming(use_responses=False) is False
 
 
+def test_openai_streaming_model_arg_normalized() -> None:
+    """-M streaming=auto arrives as the YAML string "auto" and maps to auto."""
+    from typing import Any
+
+    from inspect_ai.model._providers.openai import OpenAIAPI
+
+    def api(**model_args: Any) -> OpenAIAPI:
+        return OpenAIAPI(model_name="openai/gpt-4o", api_key="test-key", **model_args)
+
+    assert api().streaming is None
+    assert api(streaming="auto").streaming is None
+    assert api(streaming=True).streaming is True
+    assert api(streaming=False).streaming is False
+    # a typo'd value raises rather than silently forcing streaming on or off
+    with pytest.raises(ValueError, match="streaming"):
+        api(streaming="always")
+
+
 async def test_openai_auto_stream_falls_back_when_server_rejects_streaming():
     """An on_stream-enabled stream the server rejects retries non-streamed.
 

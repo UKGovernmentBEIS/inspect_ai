@@ -106,6 +106,16 @@ class TestSagemakerInit:
         api = _make_api(stream="True")
         assert api.stream is True
 
+    def test_stream_string_auto(self):
+        # -M stream=auto arrives as the YAML string "auto" and must map to
+        # the auto sentinel (stream only with on_stream), not explicit False
+        api = _make_api(stream="auto")
+        assert api.stream is None
+
+    def test_stream_invalid_raises(self):
+        with pytest.raises(ValueError, match="stream"):
+            _make_api(stream="always")
+
     def test_timeout_coercion_from_string(self):
         api = _make_api(read_timeout="300", connect_timeout="30")
         assert api.model_args["read_timeout"] == 300

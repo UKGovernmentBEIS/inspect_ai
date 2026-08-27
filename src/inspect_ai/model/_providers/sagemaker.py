@@ -46,6 +46,7 @@ from .._stream import (
     report_model_stream_progress,
     report_model_stream_start,
 )
+from .util import normalize_stream_arg
 
 logger = getLogger(__name__)
 
@@ -127,15 +128,10 @@ class SagemakerAPI(ModelAPI):
         self.request_content_type = "application/json"
         self.request_accept_type = "application/json"
 
-        # Extract streaming configuration (handle string "True"/"False" from
-        # CLI). Unset means "auto": stream when the caller passes on_stream
-        # to generate; an explicit True/False overrides.
-        stream_val = model_args.get("stream", None)
-        self.stream: bool | None = (
-            stream_val
-            if isinstance(stream_val, bool) or stream_val is None
-            else str(stream_val).lower() == "true"
-        )
+        # Extract streaming configuration. Unset/"auto" means auto: stream
+        # when the caller passes on_stream to generate; an explicit
+        # True/False overrides.
+        self.stream: bool | None = normalize_stream_arg(model_args.get("stream", None))
 
         # Extract completion mode for CPT/base models (sends completions-style payload with prompt field)
         completion_mode_val = model_args.get("completion_mode", False)
