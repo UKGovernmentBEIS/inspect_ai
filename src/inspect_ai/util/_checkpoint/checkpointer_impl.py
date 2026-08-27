@@ -74,6 +74,7 @@ from ._layout.schemas import Checkpoint, SnapshotDetails
 from ._layout.staging_dir import sandbox_repo_dir
 from ._sandbox_restic import egress_sandbox, run_sandbox_backup
 from ._triggers import CheckpointTriggerKind, create_trigger
+from ._triggers.token import _TokenIntervalTrigger
 from .checkpointer import (
     Checkpointer,
     ResumeCheckpoint,
@@ -279,14 +280,12 @@ class _EnteredCheckpointer:
         # on the trigger instance returned by ``create_trigger``.
         self._trigger = create_trigger(config.trigger)
         runtime = hydration.host.sample_runtime
-        if isinstance(runtime, dict):
+        if isinstance(runtime, dict) and isinstance(
+            self._trigger, _TokenIntervalTrigger
+        ):
             ref = runtime.get("token_interval_reference")
-            if (
-                isinstance(ref, int)
-                and not isinstance(ref, bool)
-                and hasattr(self._trigger, "_reference")
-            ):
-                setattr(self._trigger, "_reference", ref)
+            if isinstance(ref, int) and not isinstance(ref, bool):
+                self._trigger._reference = ref
         # `checkpoint N` span open across the agent's current
         # work-between-fires window. Opened/closed across `span_session()`'s
         # enter/exit and rotated inside `_fire()`. A rotation scope (not
@@ -649,9 +648,11 @@ class _EnteredCheckpointer:
                 to_json_str_safe(assistant_internal),
             )
         sample_runtime = dump_sample_runtime()
-        ref = getattr(self._trigger, "_reference", None)
-        if isinstance(ref, int) and not isinstance(ref, bool):
-            sample_runtime["token_interval_reference"] = ref
+        if (
+            isinstance(self._trigger, _TokenIntervalTrigger)
+            and self._trigger._reference is not None
+        ):
+            sample_runtime["token_interval_reference"] = self._trigger._reference
         write_text_atomic(
             context_path / SAMPLE_RUNTIME,
             to_json_str_safe(sample_runtime),

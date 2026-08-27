@@ -18,7 +18,6 @@ def dump_sample_runtime() -> dict[str, Any]:
     ``token_interval_reference`` is filled in by the checkpointer at write
     time — the trigger lives there, not on the limit trees.
     """
-    from inspect_ai._util.working import sample_waiting_time
     from inspect_ai.model._model import (
         sample_model_fallbacks_context_var,
         sample_model_usage,
@@ -73,7 +72,6 @@ def dump_sample_runtime() -> dict[str, Any]:
         "time_elapsed": time_elapsed,
         "working_elapsed": working_elapsed,
         "working_waiting": working_waiting,
-        "sample_waiting_time": sample_waiting_time(),
         "model_usage": {
             name: usage.model_dump(mode="json")
             for name, usage in sample_model_usage().items()
@@ -96,8 +94,20 @@ def restore_sample_runtime(value: JsonValue | None, *, check: bool) -> None:
 
     ``None`` (absent file / pre-this-feature checkpoint) is a no-op.
     Mutates live objects in place — no ``ContextVar.set()``.
-    ``check`` runs token/cost/turn ``check()`` after seeding; pass True
-    only for a normal ``"resume"`` attempt.
+
+    ``check`` separates reported usage from enforcement. Reported usage
+    (counters, elapsed time, the working-time origin behind every event's
+    ``working_start``) is always restored. Enforcement — the working limit's
+    anchors, the ``check()`` calls, and the time limit's cancel-scope
+    deadline — is restored only when ``check`` is True, i.e. for a normal
+    ``"resume"``. A ``"resume_for_scoring"`` attempt must be able to score a
+    sample whose budget was already spent when the checkpoint fired, so it
+    arms nothing.
+
+    Enforcement order matters: the counted checks run before the deadline is
+    armed, so a resume over both a counted budget and the time limit reports
+    the counted limit rather than a time cancellation delivered at the next
+    ``await``.
     """
     if not isinstance(value, dict):
         return
@@ -123,6 +133,7 @@ def restore_sample_runtime(value: JsonValue | None, *, check: bool) -> None:
         check_cost_limit,
         check_token_limit,
         check_turn_limit,
+        check_working_limit,
         cost_limit_tree,
         time_limit_tree,
         token_limit_tree,
@@ -144,26 +155,40 @@ def restore_sample_runtime(value: JsonValue | None, *, check: bool) -> None:
     if isinstance(turn_root, _TurnLimit) and payload.get("turns") is not None:
         turn_root._turns = int(payload["turns"])
 
+    # Backdate the origin so `usage` / `remaining` report the sample's total
+    # elapsed time. The deadline is armed further down, under `check`.
     time_elapsed = float(payload.get("time_elapsed") or 0.0)
-    time_root = _tree_root(time_limit_tree)
-    if isinstance(time_root, _TimeLimit) and time_root._start_time is not None:
+    time_node = _tree_root(time_limit_tree)
+    time_root = time_node if isinstance(time_node, _TimeLimit) else None
+    if time_root is not None and time_root._start_time is not None:
         time_root._start_time = anyio.current_time() - time_elapsed
-        time_root._refresh_deadline()
+    else:
+        time_root = None
 
     working_elapsed = float(payload.get("working_elapsed") or 0.0)
     working_waiting = float(payload.get("working_waiting") or 0.0)
-    working_root = _tree_root(working_limit_tree)
-    if isinstance(working_root, _WorkingLimit) and working_root._start_time is not None:
-        working_root._waiting_time = working_waiting
-        working_root._start_time = (
-            anyio.current_time() - working_elapsed - working_waiting
-        )
+    if check:
+        # `monitor_working_limit` polls these anchors once a second with no
+        # attempt awareness, so seeding a spent working budget would cancel a
+        # scoring resume's plan task group before it scores.
+        working_root = _tree_root(working_limit_tree)
+        if (
+            isinstance(working_root, _WorkingLimit)
+            and working_root._start_time is not None
+        ):
+            working_root._waiting_time = working_waiting
+            working_root._start_time = (
+                anyio.current_time() - working_elapsed - working_waiting
+            )
 
-    sample_waiting = float(payload.get("sample_waiting_time") or 0.0)
     timing = _sample_timing.get()
     if timing.start_datetime is not None:
-        timing.waiting_time = sample_waiting
-        timing.start_time = time.monotonic() - working_elapsed - sample_waiting
+        # Shift this attempt's origin back by the prior working time so
+        # `sample_working_time()` — and every event's `working_start` — keeps
+        # climbing across attempts. `waiting_time` stays attempt-local: the
+        # logged `working_time` subtracts it from this attempt's wall clock,
+        # which a restored cumulative value would drive negative.
+        timing.start_time = time.monotonic() - working_elapsed
 
     model_usage = sample_model_usage_context_var.get(None)
     if model_usage is not None:
@@ -186,6 +211,11 @@ def restore_sample_runtime(value: JsonValue | None, *, check: bool) -> None:
         check_token_limit()
         check_cost_limit()
         check_turn_limit()
+        check_working_limit()
+        # Last: arming an already-spent deadline does not raise, it schedules a
+        # cancellation for the next `await`.
+        if time_root is not None:
+            time_root._refresh_deadline()
 
 
 def _restore_usage_dict(current: dict[str, Any], dumped: object) -> None:

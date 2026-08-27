@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import anyio
 import pytest
+from pydantic import JsonValue
 
 from inspect_ai._util._async import tg_collect
 from inspect_ai._util.working import (
     init_sample_working_time,
     report_sample_waiting_time,
     sample_waiting_time,
+    sample_working_time,
 )
 from inspect_ai.model._model import (
     init_sample_model_data,
@@ -32,6 +34,7 @@ from inspect_ai.util._limit import (
     token_limit,
     turn_limit,
     working_limit,
+    working_limit_exceeded,
 )
 
 
@@ -157,9 +160,91 @@ async def test_working_restore_continues_from_snapshot() -> None:
         assert isinstance(elapsed, (int, float))
         assert float(waiting) == pytest.approx(0.4)
         await anyio.sleep(0.25)
-        restore_sample_runtime(payload, check=False)
-        assert sample_waiting_time() == pytest.approx(0.4)
+        restore_sample_runtime(payload, check=True)
         assert limit.usage == pytest.approx(float(elapsed), abs=0.08)
+
+
+async def test_scoring_resume_does_not_seed_working_enforcement() -> None:
+    """A scoring resume leaves working anchors fresh, so the monitor can't cancel it.
+
+    ``monitor_working_limit`` polls ``working_limit_exceeded()`` every second
+    with no attempt awareness; seeded anchors would cancel the plan task group
+    of the very attempt that exists to score the sample.
+    """
+    with working_limit(30.0) as limit:
+        restore_sample_runtime({"working_elapsed": 45.0}, check=False)
+        assert limit.usage < 1.0
+        assert working_limit_exceeded() is None
+
+
+async def test_over_working_limit_raises_on_check() -> None:
+    """A normal resume over the working budget reports it at hydrate, not ~1s later."""
+    with working_limit(30.0), pytest.raises(LimitExceededError) as exc_info:
+        restore_sample_runtime({"working_elapsed": 45.0}, check=True)
+    assert exc_info.value.type == "working"
+
+
+async def test_restore_keeps_waiting_time_attempt_local() -> None:
+    """Prior waiting time does not follow the sample into the logged working time.
+
+    ``create_eval_sample`` logs ``total_time - sample_waiting_time()``, where
+    ``total_time`` is this attempt's wall clock. A restored cumulative waiting
+    value drives that figure negative on a short resumed attempt.
+
+    ``sample_waiting_time`` is a key older snapshots carry, so restore has to
+    ignore it rather than merely stop writing it.
+    """
+    import time
+
+    init_sample_working_time(time.monotonic())
+    restore_sample_runtime(
+        {
+            "working_elapsed": 120.0,
+            "working_waiting": 60.0,
+            "sample_waiting_time": 60.0,
+        },
+        check=False,
+    )
+    assert sample_waiting_time() == 0.0
+    # the working-time origin still carries the prior attempt, so event
+    # `working_start` values keep climbing across attempts
+    assert sample_working_time() == pytest.approx(120.0, abs=0.5)
+
+
+async def test_scoring_resume_over_time_budget_is_not_cancelled() -> None:
+    """A scoring resume of a sample whose time budget was spent still runs."""
+    with time_limit(30) as limit:
+        restore_sample_runtime({"time_elapsed": 45.0}, check=False)
+        await anyio.sleep(0.05)
+        assert limit.usage == pytest.approx(45.0, abs=0.5)
+
+
+async def test_resume_arms_time_deadline_when_over_budget() -> None:
+    """A normal resume over the time budget is still cancelled."""
+    with pytest.raises(LimitExceededError) as exc_info:
+        with time_limit(30):
+            restore_sample_runtime({"time_elapsed": 45.0}, check=True)
+            await anyio.sleep(1)
+    assert exc_info.value.type == "time"
+
+
+async def test_counted_limit_reported_before_time_cancellation() -> None:
+    """Over on both tokens and time, the resume reports the token limit.
+
+    Arming the deadline first would leave a cancellation pending while the
+    token error unwinds through async frames.
+    """
+    payload: dict[str, JsonValue] = {
+        "time_elapsed": 45.0,
+        "token_usage": ModelUsage(total_tokens=1500).model_dump(mode="json"),
+    }
+    with time_limit(30), token_limit(1000):
+        with pytest.raises(LimitExceededError) as exc_info:
+            restore_sample_runtime(payload, check=True)
+        assert exc_info.value.type == "token"
+        # an armed deadline would cancel the scope here, and the time limit
+        # would replace the token error on the way out
+        await anyio.sleep(0.05)
 
 
 async def test_time_elapsed_restore_sets_remaining() -> None:

@@ -307,6 +307,8 @@ Checkpointing enables restoration of the most important agent context after a cr
 
 - Nested limit scopes are not restored — Sample-root token, cost, turn, time, and working usage is snapshotted at fire time and reseeded on resume (downtime between fire and resume is not charged against `time_limit`). Nested `apply_limits` scopes are not. Checkpoints written by older Inspect versions still resume with usage reset to zero.
 
+- Scoring-only resume does not enforce the budget — When the agent finished and only scoring needs to re-run, the restored usage is reported but the time and working limits are not re-armed, so a sample that spent its budget can still be scored.
+
 - Filesystem state only — Anything outside `sandbox_paths` is not captured. In-memory process state inside the sandbox (running daemons, open sockets, RAM) is lost on resume. The agent is responsible for tolerating this.
 
 - Failure tolerance — A failed checkpoint attempt records an `InfoEvent` (`source="checkpoint"`) and logs a warning, but by default the sample keeps running. (durability is treated as a nicety, not a correctness requirement). Set `max_consecutive_failures=N` to bound this, or `0` for strict mode.
