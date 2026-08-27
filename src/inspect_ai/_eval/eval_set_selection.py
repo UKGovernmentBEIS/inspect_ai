@@ -50,7 +50,37 @@ is on the container, not on its contents: a field added to `overrides` later
 (`max_tasks`, in version 4) bumps the schema version so an older inspect
 refuses the document as too new rather than as carrying an unknown field, but
 nothing tracks which version each override arrived in. Recording that would
-buy nothing an unknown-field error does not already say.
+buy nothing an unknown-field error does not already say. The same reasoning
+covers the per-task pruning facets added in version 5.
+
+A selection task may also carry **pruning facets** — `registry_name` and
+`args_hash` — which are an optimization and never a decision. Constructing a
+task is what loads its dataset, so a worker that resolves the whole eval set
+to find its own one task pays for every dataset in the set; per-worker cost
+therefore scales with the eval set rather than with the work. The facets let
+the `@task` registry wrapper skip construction of tasks the selection does not
+name, before any dataset loads. They cannot be replaced by `identifier`,
+which is the point: an identifier is computed *from* a constructed task, so it
+can only answer the question after the cost has been paid. See
+`eval_set_pruning.py`, where the safety argument lives — pruning can only
+under-fire, and Layer 1 (the boundary filter here) remains the sole authority
+on what runs.
+
+**Emitting the facets asserts one thing about the definition, and it is the
+only precondition this protocol places on one: a task's construction does not
+depend on another task's having been constructed.** Skipping a `@task` body
+skips its side effects. Executing the definition is unaffected, so
+module-level and driver-level work — registered models, `set_model_info`,
+dynamically constructed `Model` objects — still happens in every worker,
+which is what the paragraph above about side effects rests on. What does not
+happen is the *body* of an unselected `@task`. A definition where one task
+body primes something another task body reads at construction time will
+therefore build the selected task differently from the way capture built it,
+and that difference is undetectable from here: a dataset is not part of
+`task_identifier`, so the altered task matches its identifier exactly. A
+runner whose definitions may do this should omit the facets, or set
+`INSPECT_EVAL_SET_NO_PRUNE` in the worker's environment; there is no
+mechanical check, and this is the reason there is a switch.
 
 Two of the definition's options are overridden in worker mode, because both
 are completion decisions that belong to the runner rather than the worker:
@@ -83,7 +113,7 @@ from inspect_ai._util.file import file
 
 INSPECT_EVAL_SET_SELECTION = "INSPECT_EVAL_SET_SELECTION"
 
-EVAL_SET_SELECTION_VERSION = 4
+EVAL_SET_SELECTION_VERSION = 5
 
 
 def eval_set_selection_requested() -> str | None:
@@ -106,7 +136,14 @@ def eval_set_selection_requested() -> str | None:
 
 
 class EvalSetSelectionTask(BaseModel):
-    """A single task selected for execution by a worker."""
+    """A single task selected for execution by a worker.
+
+    `identifier` is the authoritative field and the only one the boundary
+    filter consults. The two facets below are an optimization hint and nothing
+    more: they let unselected tasks be skipped *before* they are constructed,
+    which an opaque identifier cannot support because computing one requires
+    the constructed task. See `eval_set_pruning.py`.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -115,6 +152,21 @@ class EvalSetSelectionTask(BaseModel):
 
     resume: str | None = None
     """Location of a prior log for this task to resume (completed samples are reused)."""
+
+    # `registry_name` rather than the capture manifest's `name`, and the
+    # difference is the whole reason this field is easy to get wrong. `name` is
+    # `Task.name`, which is the *registry* name only when the task did not pass
+    # `Task(name=...)` -- and a task that did is renamed inside its function
+    # body, which pruning runs before. The registry name is the only name
+    # knowable at the moment the decision has to be made.
+    registry_name: str | None = None
+    """Registry name of the task, for pruning before construction (`None` for an ad-hoc task, which cannot be pruned).
+
+    Supplying this and `args_hash` asserts that the definition's task bodies do not depend on one another — see the module docstring. Omit both to run without pruning.
+    """
+
+    args_hash: str | None = None
+    """`task_args_hash()` of the task's args, as the capture manifest records it. Paired with `registry_name` to identify a task without constructing it."""
 
 
 class EvalSetSelectionOverrides(BaseModel):
@@ -188,6 +240,18 @@ class EvalSetSelection(BaseModel):
 # older inspect ignores usually costs nothing, but an ignored `limit` means a
 # worker asked for two samples runs five thousand.
 _FIELD_MIN_VERSION: dict[str, int] = {"overrides": 3}
+
+# the same rule for fields of a *task* entry. It needs its own dict rather than
+# a dotted key because the check has to look at every entry: a facet set on one
+# task of fifty is as much a version error as one set on all fifty, and it is
+# rather easier to write by accident.
+#
+# The `overrides` container is gated as a whole and its contents are not, which
+# is a different case and not a precedent for these: a field added inside a
+# gated container is already unreachable by an older inspect, because the
+# container it lives in is refused first. These facets sit directly on the task
+# entry with nothing gating them, so they need what `overrides` itself needs.
+_TASK_FIELD_MIN_VERSION: dict[str, int] = {"registry_name": 5, "args_hash": 5}
 
 
 def _document_version(document: object) -> int | None:
@@ -270,12 +334,22 @@ def read_eval_set_selection(selection_path: str) -> EvalSetSelection:
         )
 
     too_new = sorted(
-        name
-        for name, introduced in _FIELD_MIN_VERSION.items()
-        if introduced > selection.version and getattr(selection, name) is not None
+        {
+            name
+            for name, introduced in _FIELD_MIN_VERSION.items()
+            if introduced > selection.version and getattr(selection, name) is not None
+        }
+        | {
+            name
+            for name, introduced in _TASK_FIELD_MIN_VERSION.items()
+            for entry in selection.tasks
+            if introduced > selection.version and getattr(entry, name) is not None
+        }
     )
     if too_new:
-        required = max(_FIELD_MIN_VERSION[name] for name in too_new)
+        required = max(
+            {**_FIELD_MIN_VERSION, **_TASK_FIELD_MIN_VERSION}[name] for name in too_new
+        )
         raise PrerequisiteError(
             f"The eval set selection at '{selection_path}' declares schema "
             f"version {selection.version} but sets {', '.join(too_new)}, "
