@@ -15,6 +15,7 @@ places drift could break the relay silently:
 import pydantic
 import pytest
 from inspect_sandbox_tools._remote_tools._mcp.jsonrpc_types import (
+    ErrorData,
     JSONRPCError,
     JSONRPCNotification,
     JSONRPCRequest,
@@ -60,8 +61,8 @@ def test_response_parity_vendored_to_host() -> None:
 
 
 def test_error_parity_vendored_to_host() -> None:
-    wire = JSONRPCError.model_validate_json(
-        '{"jsonrpc":"2.0","id":7,"error":{"code":-32000,"message":"boom"}}'
+    wire = JSONRPCError(
+        jsonrpc="2.0", id=7, error=ErrorData(code=-32000, message="boom")
     ).model_dump_json(by_alias=True, exclude_none=True)
     assert mcp.types.JSONRPCError.model_validate_json(wire).error.code == -32000
 
@@ -74,9 +75,19 @@ def test_envelope_extras_round_trip() -> None:
 
 
 @pytest.mark.parametrize("bad_id", ["7.0", "true"])
-def test_nonconforming_ids_fail_validation(bad_id: str) -> None:
+def test_nonconforming_result_ids_fail_validation(bad_id: str) -> None:
     # The reader skips unparseable lines; a float or bool id must not coerce
     # into (or hijack) a pending int-id request.
     line = f'{{"jsonrpc":"2.0","id":{bad_id},"result":{{}}}}'
     with pytest.raises(pydantic.ValidationError):
         jsonrpc_message_adapter.validate_json(line)
+
+
+def test_error_envelope_id_is_lax() -> None:
+    # mcp 1.x (as shipped in v27) coerced float-integral ids on the error
+    # envelope only; a late error for request 7 sent as 7.0 must correlate.
+    message = jsonrpc_message_adapter.validate_json(
+        '{"jsonrpc":"2.0","id":7.0,"error":{"code":-32000,"message":"boom"}}'
+    )
+    assert isinstance(message, JSONRPCError)
+    assert message.id == 7 and isinstance(message.id, int)

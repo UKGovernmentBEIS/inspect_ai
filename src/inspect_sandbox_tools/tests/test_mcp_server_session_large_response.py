@@ -28,6 +28,7 @@ from inspect_sandbox_tools._remote_tools._mcp.jsonrpc_types import (
     JSONRPCError,
     JSONRPCRequest,
     JSONRPCResponse,
+    StdioServerParameters,
 )
 from inspect_sandbox_tools._remote_tools._mcp.mcp_server_session import (
     MCPServerSession,
@@ -134,11 +135,6 @@ async def test_create_wires_readline_limit_into_subprocess(
     # create_subprocess_exec. The large-response fix is moot if this kwarg is
     # dropped, and the reader-level tests above (which build their own
     # StreamReader) would not catch that regression.
-    from inspect_sandbox_tools._remote_tools._mcp import mcp_server_session
-    from inspect_sandbox_tools._remote_tools._mcp.jsonrpc_types import (
-        StdioServerParameters,
-    )
-
     captured: dict[str, object] = {}
 
     async def fake_create_subprocess_exec(
@@ -152,7 +148,7 @@ async def test_create_wires_readline_limit_into_subprocess(
 
     session = await MCPServerSession.create(StdioServerParameters(command="true"))
     try:
-        assert captured["limit"] == mcp_server_session._READLINE_LIMIT
+        assert captured["limit"] == session_module._READLINE_LIMIT
         assert captured["start_new_session"] is True
     finally:
         await session.terminate()
