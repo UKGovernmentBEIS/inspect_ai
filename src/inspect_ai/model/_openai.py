@@ -107,6 +107,7 @@ from ._stream import (
     StreamReasoningEvent,
     StreamTextEvent,
     StreamToolCallEvent,
+    model_stream_requested,
     report_model_stream_delta,
     report_model_stream_progress,
     report_model_stream_start,
@@ -1001,7 +1002,18 @@ async def _report_chat_completion_chunk(
     `tool_calls` remembers each call's id/function by index across chunks:
     OpenAI streams them only on a call's first fragment, but reported deltas
     attribute every fragment (matching the other providers' reporters).
+
+    Without an on_stream consumer (explicit stream=true callers, providers
+    that stream by default) only the usage/heartbeat progress channel runs:
+    delta construction is on_stream support code and must not be able to
+    fail a call that never asked for stream events.
     """
+    if not model_stream_requested():
+        report_model_stream_progress(
+            chunk.usage.completion_tokens if chunk.usage is not None else None
+        )
+        return
+
     # cumulative usage arrives on the final chunk when the server reports it
     # (e.g. via stream_options.include_usage)
     if chunk.usage is not None:

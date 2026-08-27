@@ -11,8 +11,17 @@ fans out to its consumers (see the class docstring). Providers with an
 auto/unset streaming setting consult `model_stream_requested()` in their
 stream decision, so passing `on_stream` is by itself sufficient to enable
 streaming. Providers that don't stream never call in, and callers that don't
-pass `on_stream` still feed the monitoring consumers — both degrade
-gracefully (see design/ctl/generate-progress.md).
+pass `on_stream` still feed the progress record via bare heartbeats — both
+degrade gracefully (see design/ctl/generate-progress.md).
+
+To keep on_stream support code from ever affecting callers that didn't opt
+in (a provider may stream for its own reasons — e.g. Anthropic auto-streams
+long/reasoning requests), everything downstream of a content delta is gated
+on an `on_stream` handler being present: providers gate delta construction
+on `model_stream_requested()` (reporting a bare heartbeat instead), and
+`ModelStreamObserver.report_delta` backstops any ungated call site. Without
+`on_stream` only the heartbeat/token progress channel runs — partial-output
+snapshots included, since they are built from the delta stream.
 """
 
 import contextlib
@@ -136,6 +145,12 @@ class ModelStreamObserver:
       raises is logged and detaches it for the remainder of the call — see
       `_deliver` — never failing the model call itself).
 
+    The last two are delta-driven and run only while an `on_stream` handler
+    is attached (`report_delta` degrades to a heartbeat otherwise): they are
+    on_stream support code, and a caller that never passed a callback must
+    not be exposed to it. The progress record alone runs for every streamed
+    call.
+
     The wrapper (not providers) owns retry semantics: `begin_attempt` resets
     per-attempt state and emits a `StreamRetryEvent` boundary to `on_stream`
     when an earlier attempt already delivered deltas, so accumulating
@@ -241,12 +256,20 @@ class ModelStreamObserver:
         self._touch_progress()
 
     async def report_delta(self, delta: StreamContentEvent) -> None:
+        # deltas exist to serve `on_stream`; without a live handler (never
+        # passed, or detached after raising) they degrade to a bare progress
+        # heartbeat — no accumulation, no partial snapshots — so none of the
+        # on_stream support code can affect callers that never asked for it.
+        # Providers gate delta *construction* on model_stream_requested() for
+        # the same reason; this is the backstop for any ungated call site.
+        if self._on_stream is None:
+            self._touch_progress()
+            return
         self._accumulate(delta)
         self._touch_progress()
         self._maybe_flush_partial()
-        if self._on_stream is not None:
-            self._delivered = True
-            await self._deliver(delta)
+        self._delivered = True
+        await self._deliver(delta)
 
     async def _deliver(self, event: StreamEvent) -> None:
         """Deliver one event to `on_stream`, detaching the handler if it raises.
@@ -400,6 +423,13 @@ def model_stream_requested() -> bool:
     streaming opt-out still wins). False when no observer is installed —
     the monitoring consumers alone never turn streaming on (see the
     non-goals in design/ctl/generate-progress.md).
+
+    Provider streaming loops also consult this per chunk to gate delta
+    construction/reporting: when a call streams for reasons other than
+    `on_stream` (auto-streaming heuristics, an explicit streaming opt-in),
+    the loop reports bare heartbeats instead, so on_stream support code
+    never runs for callers that didn't pass a callback. Rechecking per chunk
+    also stops delta work once a raising handler is detached mid-call.
     """
     observer = _model_stream_observer.get()
     return observer is not None and observer._on_stream is not None
@@ -453,12 +483,16 @@ def report_model_stream_progress(output_tokens: int | None = None) -> None:
 async def report_model_stream_delta(delta: StreamContentEvent) -> None:
     """Report a content delta (from a provider streaming loop).
 
-    Feeds every consumer at once: progress heartbeat, the partial-output
-    snapshot, and the caller's `on_stream` callback (awaited here, so a slow
-    consumer applies natural backpressure to the stream read; an exception
-    it raises is logged and detaches the callback for the remainder of the
-    generate call — see `ModelStreamObserver._deliver`). No-op when no
-    observer is installed.
+    Call sites must gate on `model_stream_requested()` (reporting a bare
+    heartbeat instead when it is False) so that delta construction never
+    runs for callers without an `on_stream` handler. When a handler is
+    attached this feeds every consumer at once: progress heartbeat, the
+    partial-output snapshot, and the caller's `on_stream` callback (awaited
+    here, so a slow consumer applies natural backpressure to the stream
+    read; an exception it raises is logged and detaches the callback for
+    the remainder of the generate call — see `ModelStreamObserver._deliver`).
+    Degrades to a bare heartbeat without a handler; no-op when no observer
+    is installed.
     """
     observer = _model_stream_observer.get()
     if observer is not None:

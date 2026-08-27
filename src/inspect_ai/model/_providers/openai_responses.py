@@ -68,6 +68,7 @@ from .._stream import (
     StreamReasoningEvent,
     StreamTextEvent,
     StreamToolCallEvent,
+    model_stream_requested,
     report_model_stream_delta,
     report_model_stream_progress,
     report_model_stream_start,
@@ -268,7 +269,8 @@ async def _generate_responses_stream(
     `request` must already carry `stream=True` (injected before the ModelCall
     snapshot so the logged request matches the wire request). Content deltas
     are reported by kind (text / reasoning / tool-call argument fragments,
-    attributed to their call via the announcing output_item event); usage
+    attributed to their call via the announcing output_item event) and only
+    when an on_stream consumer is present (bare heartbeats otherwise); usage
     arrives only on the terminal event, so intermediate chunks report bare
     heartbeats. Returns the complete `Response` carried by the terminal
     event, so downstream response handling matches the non-streaming path.
@@ -283,7 +285,30 @@ async def _generate_responses_stream(
     # (error events raise below; cancellation can land mid-iteration)
     async with stream:
         async for event in stream:
-            if isinstance(event, ResponseTextDeltaEvent):
+            if isinstance(
+                event,
+                (ResponseCompletedEvent, ResponseIncompleteEvent, ResponseFailedEvent),
+            ):
+                # failed/incomplete responses flow through the same error
+                # handling as their non-streaming equivalents
+                # (model_response.error checks)
+                model_response = event.response
+                report_model_stream_progress(
+                    event.response.usage.output_tokens
+                    if event.response.usage is not None
+                    else None
+                )
+            elif isinstance(event, ResponseErrorEvent):
+                raise OpenAIResponseError(
+                    code=event.code or "server_error", message=event.message
+                )
+            elif not model_stream_requested():
+                # without an on_stream consumer (explicit streaming=true
+                # callers) only the heartbeat progress channel runs: delta
+                # construction is on_stream support code and must not be
+                # able to fail a call that never asked for stream events
+                report_model_stream_progress()
+            elif isinstance(event, ResponseTextDeltaEvent):
                 await report_model_stream_delta(StreamTextEvent(text=event.delta))
             elif isinstance(
                 event,
@@ -307,23 +332,6 @@ async def _generate_responses_stream(
                         function=item.name if item is not None else None,
                         arguments=event.delta,
                     )
-                )
-            elif isinstance(
-                event,
-                (ResponseCompletedEvent, ResponseIncompleteEvent, ResponseFailedEvent),
-            ):
-                # failed/incomplete responses flow through the same error
-                # handling as their non-streaming equivalents
-                # (model_response.error checks)
-                model_response = event.response
-                report_model_stream_progress(
-                    event.response.usage.output_tokens
-                    if event.response.usage is not None
-                    else None
-                )
-            elif isinstance(event, ResponseErrorEvent):
-                raise OpenAIResponseError(
-                    code=event.code or "server_error", message=event.message
                 )
             else:
                 report_model_stream_progress()
