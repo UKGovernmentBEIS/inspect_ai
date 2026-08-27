@@ -249,6 +249,127 @@ async def test_chat_completions_forwards_config_extra_headers():
     assert extra_headers[HttpxHooks.REQUEST_ID_HEADER] == "req_1"
 
 
+def test_openai_resolve_streaming_declines_azure_chat_completions() -> None:
+    """Auto mode declines to stream Azure chat completions.
+
+    Azure annotates every streamed choice chunk with `content_filter_results`,
+    but the SDK stream accumulator keeps choice-level extras only from the
+    first chunk, so an accumulated completion would report stale (or lose)
+    content-filter stop details. A display-only on_stream request must not
+    degrade results (explicit streaming=true keeps its lossy behavior, and
+    the responses path is unaffected).
+    """
+    from typing import Any
+
+    from inspect_ai.model._providers.openai import OpenAIAPI
+    from inspect_ai.model._stream import ModelStreamObserver, model_stream_observer
+
+    async def collect(event: Any) -> None:
+        pass
+
+    def api(model_name: str = "azure/gpt-4o", **model_args: Any) -> OpenAIAPI:
+        return OpenAIAPI(
+            model_name=model_name,
+            base_url="https://test.openai.azure.com",
+            api_key="test-key",
+            **model_args,
+        )
+
+    with model_stream_observer(ModelStreamObserver("openai/test", collect)):
+        assert api()._resolve_streaming(use_responses=False) is False
+        assert api()._resolve_streaming(use_responses=True) is True
+        assert api("openai/gpt-4o")._resolve_streaming(use_responses=False) is True
+        # explicit opt-in/opt-out still wins
+        assert api(streaming=True)._resolve_streaming(use_responses=False) is True
+        assert (
+            api("openai/gpt-4o", streaming=False)._resolve_streaming(
+                use_responses=False
+            )
+            is False
+        )
+    # without an on_stream callback, auto never streams
+    assert api("openai/gpt-4o")._resolve_streaming(use_responses=False) is False
+
+
+async def test_openai_auto_stream_falls_back_when_server_rejects_streaming():
+    """An on_stream-enabled stream the server rejects retries non-streamed.
+
+    OpenAI rejects streaming per se with a 400 naming param="stream" (e.g.
+    reasoning models on organizations that haven't completed verification);
+    a display-only on_stream request must not fail a generate that succeeds
+    without streaming (an explicit streaming=true opt-in still fails loudly).
+    """
+    from typing import Any
+    from unittest.mock import AsyncMock, MagicMock
+
+    import httpx
+    from openai import BadRequestError
+    from openai.types.chat import ChatCompletion, ChatCompletionMessage
+    from openai.types.chat.chat_completion import Choice
+
+    from inspect_ai.model._model_output import ModelOutput
+    from inspect_ai.model._providers.openai import OpenAIAPI
+    from inspect_ai.model._stream import ModelStreamObserver, model_stream_observer
+
+    mock_completion = ChatCompletion.model_construct(
+        id="chatcmpl-test",
+        created=0,
+        model="gpt-4o",
+        object="chat.completion",
+        choices=[
+            Choice.model_construct(
+                finish_reason="stop",
+                index=0,
+                message=ChatCompletionMessage.model_construct(
+                    role="assistant", content="hello"
+                ),
+            )
+        ],
+    )
+
+    message = "Your organization must be verified to stream this model."
+    stream_rejected = BadRequestError(
+        message,
+        response=httpx.Response(
+            400, request=httpx.Request("POST", "https://test/v1/chat/completions")
+        ),
+        body={
+            "message": message,
+            "type": "invalid_request_error",
+            "param": "stream",
+            "code": "unsupported_value",
+        },
+    )
+
+    api = OpenAIAPI(model_name="gpt-4o", api_key="test-key")
+    api.client = MagicMock()
+    api.client.chat.completions.create = AsyncMock(
+        side_effect=[stream_rejected, mock_completion]
+    )
+
+    async def collect(event: Any) -> None:
+        pass
+
+    with model_stream_observer(ModelStreamObserver("openai/test", collect)):
+        result = await api.generate(
+            input=[ChatMessageUser(content="hi")],
+            tools=[],
+            tool_choice="auto",
+            config=GenerateConfig(),
+        )
+
+    assert isinstance(result, tuple)
+    output, _ = result
+    assert isinstance(output, ModelOutput)
+    assert output.completion == "hello"
+
+    # the first request streamed, the retry did not
+    calls = api.client.chat.completions.create.call_args_list
+    assert len(calls) == 2
+    assert calls[0].kwargs["stream"] is True
+    assert "stream" not in calls[1].kwargs
+
+
 async def test_chat_completions_streaming_with_non_strict_tools():
     """Streaming a tool-using request must not require strict tools.
 

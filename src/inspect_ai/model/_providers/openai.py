@@ -8,6 +8,7 @@ from openai import (
     AsyncAzureOpenAI,
     AsyncBedrockOpenAI,
     AsyncOpenAI,
+    BadRequestError,
     DefaultAsyncHttpxClient,
     NotFoundError,
     NotGiven,
@@ -92,6 +93,21 @@ BEDROCK_OPENAI_BASE_URL_VARS = [
 
 
 # NOTE: If you are creating a new provider that is OpenAI compatible you should inherit from OpenAICompatibleAPI rather than OpenAIAPI.
+
+
+def _is_stream_rejected_error(
+    response: ModelOutput | tuple[ModelOutput | Exception, ModelCall],
+) -> bool:
+    """Whether *response* is a 400 that names `stream` as the offending param.
+
+    This is how the API rejects streaming per se (rather than something else
+    about the request) — e.g. streaming a reasoning model from an
+    organization that hasn't completed verification.
+    """
+    if not isinstance(response, tuple):
+        return False
+    error = response[0]
+    return isinstance(error, BadRequestError) and error.param == "stream"
 
 
 class OpenAIAPI(ModelAPI):
@@ -524,50 +540,92 @@ class OpenAIAPI(ModelAPI):
             if not await self.reasoning_summaries():
                 config = config.model_copy(update={"reasoning_summary": "none"})
 
-        streaming = (
-            self.streaming
-            if isinstance(self.streaming, bool)
-            else model_stream_requested()
-        )
+        streaming = self._resolve_streaming(use_responses)
 
-        return await (
-            generate_responses(
-                client=self.client,
-                http_hooks=self._http_hooks,
-                model_name=self.api_model_name(),
-                model_family=self.model_family(),
-                input=input,
-                tools=tools,
-                tool_choice=tool_choice,
-                config=config,
-                background=self.background,
-                service_tier=self.service_tier,
-                prompt_cache_key=self.prompt_cache_key,
-                prompt_cache_retention=self.prompt_cache_retention,
-                safety_identifier=self.safety_identifier,
-                responses_store=self.responses_store,
-                synthesize_phase=self.responses_phase,
-                model_info=self,
-                batcher=self._responses_batcher,
-                streaming=streaming,
+        async def generate_once(
+            streaming: bool,
+        ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
+            return await (
+                generate_responses(
+                    client=self.client,
+                    http_hooks=self._http_hooks,
+                    model_name=self.api_model_name(),
+                    model_family=self.model_family(),
+                    input=input,
+                    tools=tools,
+                    tool_choice=tool_choice,
+                    config=config,
+                    background=self.background,
+                    service_tier=self.service_tier,
+                    prompt_cache_key=self.prompt_cache_key,
+                    prompt_cache_retention=self.prompt_cache_retention,
+                    safety_identifier=self.safety_identifier,
+                    responses_store=self.responses_store,
+                    synthesize_phase=self.responses_phase,
+                    model_info=self,
+                    batcher=self._responses_batcher,
+                    streaming=streaming,
+                )
+                if use_responses
+                else generate_completions(
+                    client=self.client,
+                    http_hooks=self._http_hooks,
+                    model_name=self.api_model_name(),
+                    input=input,
+                    tools=tools,
+                    tool_choice=tool_choice,
+                    config=config,
+                    prompt_cache_key=self.prompt_cache_key,
+                    prompt_cache_retention=self.prompt_cache_retention,
+                    safety_identifier=self.safety_identifier,
+                    openai_api=self,
+                    batcher=self._completions_batcher,
+                    streaming=streaming,
+                )
             )
-            if use_responses
-            else generate_completions(
-                client=self.client,
-                http_hooks=self._http_hooks,
-                model_name=self.api_model_name(),
-                input=input,
-                tools=tools,
-                tool_choice=tool_choice,
-                config=config,
-                prompt_cache_key=self.prompt_cache_key,
-                prompt_cache_retention=self.prompt_cache_retention,
-                safety_identifier=self.safety_identifier,
-                openai_api=self,
-                batcher=self._completions_batcher,
-                streaming=streaming,
+
+        response = await generate_once(streaming)
+
+        # a display-only on_stream request must not degrade results: some
+        # models/deployments reject streaming outright (e.g. reasoning models
+        # on unverified organizations 400 with param="stream"), so when
+        # streaming was enabled by on_stream alone, retry non-streamed rather
+        # than failing a generate that succeeds without streaming (an
+        # explicit streaming=true opt-in still fails loudly)
+        if (
+            streaming
+            and not isinstance(self.streaming, bool)
+            and _is_stream_rejected_error(response)
+        ):
+            warn_once(
+                logger,
+                f"{self.model_name}: server rejected the streaming request; "
+                "retrying without streaming (on_stream events will not be "
+                "delivered)",
             )
-        )
+            response = await generate_once(False)
+
+        return response
+
+    def _resolve_streaming(self, use_responses: bool) -> bool:
+        """Whether to stream this generate call.
+
+        An explicit `streaming` model arg wins; "auto" streams when the
+        caller passed `on_stream` to `Model.generate()` — except for Azure
+        chat completions: Azure annotates every streamed choice chunk with
+        `content_filter_results`, but the SDK stream accumulator keeps
+        choice-level extras only from the chunk that first creates a choice
+        snapshot, so an accumulated completion would report stale (or lose)
+        content-filter stop details. A display-only stream request must not
+        degrade results, so auto mode declines to stream there (explicit
+        `streaming=true` still streams; the responses path returns the
+        terminal event's complete Response and is unaffected).
+        """
+        if isinstance(self.streaming, bool):
+            return self.streaming
+        if self.is_azure() and not use_responses:
+            return False
+        return model_stream_requested()
 
     def service_model_name(self) -> str:
         """Model name without any service prefix."""
