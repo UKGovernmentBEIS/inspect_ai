@@ -95,6 +95,10 @@ description: Miscellaneous utility functions.
 ### TokenInterval
 ### TurnInterval
 ### Manual
+### SandboxSnapshotConfig
+### SnapshotStrategyConfig
+### ResticSnapshots
+### ArchiveSnapshots
 
 ## Registry
 
