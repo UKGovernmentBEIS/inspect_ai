@@ -41,6 +41,7 @@ The `openai` provider supports the following custom model args (other model args
 | `service_tier` | Processing type used for serving the request ("auto", "default", or "flex"). |
 | `background` | Execute generate requests asynchronously, polling response objects to check status over time. Defaults to `True` for `gpt-5-pro` and `deep-research` models and for requests with `reasoning_mode="pro"`, and `False` otherwise. |
 | `safety_identifier` | A stable identifier used to help detect users of your application. |
+| `streaming` | Whether to use streaming responses. The default ("auto") streams when the caller passes an `on_stream` callback to `generate()` — except Azure chat-completions requests, which never auto-stream (accumulated streamed responses would lose content-filter stop details); pass `true` or `false` to override. If the server rejects the streaming request itself (a 400 naming the `stream` param — e.g. reasoning models on organizations that haven't completed verification), auto mode retries the request non-streamed. |
 | `prompt_cache_key` | Used by OpenAI to cache responses for similar requests. |
 | `prompt_cache_retention` | Retention policy for the prompt cache. |
 | `http_client` | Custom instance of `httpx2.AsyncClient` (or legacy `httpx.AsyncClient`) for handling requests. |
@@ -562,7 +563,7 @@ The following environment variables are supported by the Grok provider. The prov
 
 ### Model Args
 
-The `grok` provider supports a `streaming` model argument to enable response streaming (it is disabled by default):
+The `grok` provider supports a `streaming` model argument that controls whether streaming responses are used. The default ("auto") uses streaming when the caller passes an `on_stream` callback to `generate()`. Pass `true` to always stream (or `false` to never stream):
 
 ``` bash
 inspect eval arc.py --model grok/grok-3-mini -M streaming=true
@@ -629,7 +630,7 @@ The following model args are supported:
 | `endpoint_url` | Custom SageMaker runtime endpoint URL (required). |
 | `read_timeout` | Read timeout in seconds (default: `600`). |
 | `connect_timeout` | Connection timeout in seconds (default: `60`). |
-| `stream` | Enable streaming responses (default: `false`). |
+| `stream` | Enable streaming responses (default: stream only when the caller passes an `on_stream` callback to `generate()`). |
 | `completion_mode` | Send completions-style payloads for CPT/base models instead of chat-style payloads (default: `false`). |
 | `inference_component_name` | Name of the inference component for multi-model endpoints. |
 | `prompt_logprobs` | Number of prompt log probabilities to return per token. Used for perplexity scoring with vLLM-backed endpoints. |
@@ -779,7 +780,7 @@ inspect eval arc.py --model together/MiniMaxAI/MiniMax-M2.7
 
 For the `together` provider, you can enable [Tool Emulation](#tool-emulation-openai) using the `emulate_tools` custom model arg (`-M`). Other custom model args are forwarded to the constructor of the `AsyncOpenAI` class.
 
-The `together` provider supports a `stream` model arg (`-M`) that controls whether streaming responses are used (it is disabled by default). Pass `true` to enable streaming:
+The `together` provider supports a `stream` model arg (`-M`) that controls whether streaming responses are used. The default ("auto") uses streaming when the caller passes an `on_stream` callback to `generate()`. Pass `true` to always stream (or `false` to never stream):
 
 ``` bash
 inspect eval arc.py --model together/MiniMaxAI/MiniMax-M2.7 -M stream=true
@@ -1511,7 +1512,7 @@ eval("arc.py", model="openai-api/<provider>/<model>", model_args=dict(strict_too
 
 ### Streaming {#streaming-openai-compatible}
 
-You can enable the use of the streaming with the `openai-api` provider by passing the `stream` model arg. For example:
+The `openai-api` provider streams by default only when the caller passes an `on_stream` callback to `generate()`. You can force streaming on (or off) by passing the `stream` model arg. For example:
 
 ``` bash
 $ inspect eval arc.py --model openai-api/<provider>/<model> -M stream=true
@@ -1609,7 +1610,7 @@ The following environment variables are supported by the HF Inference Providers:
 
 ### Streaming {#streaming-hf-inference}
 
-HF Interference Providers uses streaming by default for requests. You can disable streaming using the `stream` model arg. For example:
+HF Interference Providers uses streaming by default for requests. You can disable streaming using the `stream` model arg (or pass `auto` to stream only when the caller passes an `on_stream` callback to `generate()`). For example:
 
 ``` bash
 inspect eval arc.py --model hf-inference-providers/openai/gpt-oss-120b -M stream=false
