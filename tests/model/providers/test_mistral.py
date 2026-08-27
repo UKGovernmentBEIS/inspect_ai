@@ -1,3 +1,5 @@
+from typing import Any
+
 import pytest
 from test_helpers.utils import skip_if_no_mistral, skip_if_no_mistral_package
 
@@ -313,3 +315,270 @@ async def test_mistral_chat_forwards_reasoning_effort() -> None:
     assert await request_effort(GenerateConfig(reasoning_effort="low")) == "high"
     assert await request_effort(GenerateConfig(reasoning_effort="none")) == "none"
     assert await request_effort(GenerateConfig()) == "OMITTED"
+
+
+# -- Streaming (on_stream) ------------------------------------------------------
+
+
+class _StreamCollector:
+    def __init__(self) -> None:
+        self.events: list[Any] = []
+
+    async def __call__(self, event: Any) -> None:
+        self.events.append(event)
+
+
+@skip_if_no_mistral_package
+def test_mistral_resolve_streaming_honors_on_stream(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Unset streaming is "auto": stream iff the caller passed on_stream."""
+    from inspect_ai.model import ResponseSchema
+    from inspect_ai.model._providers.mistral import MistralAPI
+    from inspect_ai.model._stream import ModelStreamObserver, model_stream_observer
+    from inspect_ai.util._json import JSONSchema
+
+    def _api(**kwargs: Any) -> MistralAPI:
+        return MistralAPI(model_name="mistral-large-latest", api_key="test", **kwargs)
+
+    config = GenerateConfig()
+    collector = _StreamCollector()
+
+    api = _api()
+    assert api.streaming is None
+    assert api.resolve_streaming(config) is False
+    with model_stream_observer(ModelStreamObserver("test", collector)):
+        assert api.resolve_streaming(config) is True
+
+        # auto mode declines requests carrying a response_schema
+        schema_config = GenerateConfig(
+            response_schema=ResponseSchema(
+                name="schema", json_schema=JSONSchema(type="object")
+            )
+        )
+        assert api.resolve_streaming(schema_config) is False
+        assert _api(streaming=True).resolve_streaming(schema_config) is True
+
+        # explicit opt-out wins over an on_stream callback
+        assert _api(streaming=False).resolve_streaming(config) is False
+
+    # explicit opt-in streams without a callback
+    assert _api(streaming=True).resolve_streaming(config) is True
+
+    # -M args are YAML-parsed so "auto" arrives as a string; a typo'd value
+    # raises rather than silently forcing streaming on or off
+    assert _api(streaming="auto").streaming is None
+    with pytest.raises(ValueError, match="streaming"):
+        _api(streaming="always")
+
+
+@skip_if_no_mistral_package
+async def test_mistral_completion_from_stream() -> None:
+    """The stream accumulator reconstructs the completion and reports deltas."""
+    from mistralai.client.models import (
+        CompletionChunk,
+        CompletionEvent,
+        CompletionResponseStreamChoice,
+        DeltaMessage,
+        FunctionCall,
+        TextChunk,
+        ThinkChunk,
+        ToolCall,
+        UsageInfo,
+    )
+
+    from inspect_ai.model._providers.mistral import mistral_completion_from_stream
+    from inspect_ai.model._stream import (
+        ModelStreamObserver,
+        StreamReasoningEvent,
+        StreamTextEvent,
+        StreamToolCallEvent,
+        model_stream_observer,
+    )
+
+    def _chunk(
+        choices: list[CompletionResponseStreamChoice],
+        usage: UsageInfo | None = None,
+    ) -> CompletionEvent:
+        return CompletionEvent(
+            data=CompletionChunk(
+                id="cmpl-1",
+                model="mistral-large-latest",
+                created=123,
+                choices=choices,
+                usage=usage,
+            )
+        )
+
+    events = [
+        # reasoning arrives as ThinkChunk content pieces
+        _chunk(
+            [
+                CompletionResponseStreamChoice(
+                    index=0,
+                    delta=DeltaMessage(
+                        role="assistant",
+                        content=[ThinkChunk(thinking=[TextChunk(text="hmm")])],
+                    ),
+                    finish_reason=None,
+                )
+            ]
+        ),
+        _chunk(
+            [
+                CompletionResponseStreamChoice(
+                    index=0, delta=DeltaMessage(content="hel"), finish_reason=None
+                )
+            ]
+        ),
+        _chunk(
+            [
+                CompletionResponseStreamChoice(
+                    index=0,
+                    delta=DeltaMessage(
+                        tool_calls=[
+                            ToolCall(
+                                id="call_1",
+                                index=0,
+                                function=FunctionCall(name="bash", arguments="{"),
+                            )
+                        ]
+                    ),
+                    finish_reason=None,
+                )
+            ]
+        ),
+        # continuation fragment for the same tool call index
+        _chunk(
+            [
+                CompletionResponseStreamChoice(
+                    index=0,
+                    delta=DeltaMessage(
+                        tool_calls=[
+                            ToolCall(
+                                index=0,
+                                function=FunctionCall(
+                                    name="", arguments='"cmd": "ls"}'
+                                ),
+                            )
+                        ]
+                    ),
+                    finish_reason="tool_calls",
+                )
+            ]
+        ),
+        # final chunk carries usage
+        _chunk(
+            [], usage=UsageInfo(prompt_tokens=3, completion_tokens=7, total_tokens=10)
+        ),
+    ]
+
+    async def _events() -> Any:
+        for event in events:
+            yield event
+
+    collector = _StreamCollector()
+    with model_stream_observer(ModelStreamObserver("test", collector)):
+        completion = await mistral_completion_from_stream(_events())
+
+    # final completion accumulated from the chunks
+    choice = completion.choices[0]
+    assert choice.finish_reason == "tool_calls"
+    message = choice.message
+    assert message is not None
+    content = message.content
+    assert isinstance(content, list)
+    assert isinstance(content[0], ThinkChunk)
+    think_text = content[0].thinking[0]
+    assert isinstance(think_text, TextChunk) and think_text.text == "hmm"
+    assert isinstance(content[1], TextChunk)
+    assert content[1].text == "hel"
+    tool_calls = message.tool_calls
+    assert isinstance(tool_calls, list) and tool_calls[0].id == "call_1"
+    assert tool_calls[0].function.name == "bash"
+    assert tool_calls[0].function.arguments == '{"cmd": "ls"}'
+    assert completion.usage.total_tokens == 10
+
+    # deltas were reported to on_stream (with tool fragments attributed)
+    assert [type(e) for e in collector.events] == [
+        StreamReasoningEvent,
+        StreamTextEvent,
+        StreamToolCallEvent,
+        StreamToolCallEvent,
+    ]
+    assert collector.events[0].reasoning == "hmm"
+    assert collector.events[1].text == "hel"
+    assert collector.events[3].id == "call_1"
+    assert collector.events[3].function == "bash"
+    assert collector.events[3].arguments == '"cmd": "ls"}'
+
+
+@skip_if_no_mistral_package
+async def test_mistral_completion_from_stream_text_only() -> None:
+    """All-string fragments join into plain string content."""
+    from mistralai.client.models import (
+        CompletionChunk,
+        CompletionEvent,
+        CompletionResponseStreamChoice,
+        DeltaMessage,
+    )
+
+    from inspect_ai.model._providers.mistral import mistral_completion_from_stream
+
+    async def _events() -> Any:
+        fragments: list[tuple[str, Any]] = [("hel", None), ("lo", "stop")]
+        for text, finish in fragments:
+            yield CompletionEvent(
+                data=CompletionChunk(
+                    id="cmpl-1",
+                    model="mistral-large-latest",
+                    choices=[
+                        CompletionResponseStreamChoice(
+                            index=0,
+                            delta=DeltaMessage(content=text),
+                            finish_reason=finish,
+                        )
+                    ],
+                )
+            )
+
+    completion = await mistral_completion_from_stream(_events())
+    message = completion.choices[0].message
+    assert message is not None and message.content == "hello"
+    assert completion.choices[0].finish_reason == "stop"
+
+
+@skip_if_no_mistral_package
+async def test_mistral_completion_from_stream_empty() -> None:
+    from inspect_ai.model._providers.mistral import mistral_completion_from_stream
+
+    async def _events() -> Any:
+        return
+        yield
+
+    with pytest.raises(RuntimeError, match="without delivering any chunks"):
+        await mistral_completion_from_stream(_events())
+
+
+@skip_if_no_mistral
+async def test_mistral_stream_end_to_end() -> None:
+    """Passing on_stream alone enables streaming on the chat-completions path."""
+    from inspect_ai.model._stream import StreamTextEvent
+
+    events: list[Any] = []
+
+    async def collect(event: Any) -> None:
+        events.append(event)
+
+    model = get_model(
+        "mistral/mistral-small-latest",
+        conversation_api=False,
+        config=GenerateConfig(max_tokens=256, temperature=0.0),
+    )
+    response = await model.generate(
+        input=[ChatMessageUser(content="This is a test string. What are you?")],
+        on_stream=collect,
+    )
+    assert len(response.completion) >= 1
+    streamed = "".join(e.text for e in events if isinstance(e, StreamTextEvent))
+    assert streamed == response.completion

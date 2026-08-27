@@ -2,6 +2,7 @@ import functools
 import json
 import logging
 import re
+from collections.abc import Mapping
 from copy import copy
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Callable, Literal, NamedTuple, TypeAlias, cast
@@ -1067,6 +1068,10 @@ def openai_stop_details(choice: Any) -> StopDetails | None:
         )
         if isinstance(extra, dict):
             filter_results = extra.get("content_filter_results")
+    # azure.ai.inference models are dict-backed and don't expose undeclared
+    # fields as attributes — read the raw mapping directly
+    if filter_results is None and isinstance(choice, Mapping):
+        filter_results = choice.get("content_filter_results")
 
     # Only categories that actually triggered filtering count — `detected` alone
     # (e.g. protected-material/jailbreak flagged but not blocked) can appear on a

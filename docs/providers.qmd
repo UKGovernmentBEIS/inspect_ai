@@ -490,6 +490,16 @@ inspect eval arc.py --model mistral/mistral-large-latest -M conversation_api=fal
 
 Additional custom model args (`-M`) are forwarded to the constructor of the `Mistral` class.
 
+### Streaming {#streaming-mistral}
+
+The `mistral` provider supports a `streaming` model arg (`-M`) that controls whether streaming responses are used on the completions API path. The default ("auto") uses streaming when the caller passes an `on_stream` callback to `generate()` (declining requests that use a `response_schema`). Pass `true` to always stream (or `false` to never stream):
+
+``` bash
+inspect eval arc.py --model mistral/mistral-large-latest -M conversation_api=false -M streaming=true
+```
+
+Note that streaming applies only to the completions API — the default Conversation API path does not stream (an `on_stream` callback simply receives no events), so pass `-M conversation_api=false` to stream.
+
 ### Mistral on Azure AI {#mistral-on-azure-ai}
 
 The `mistral` provider supports Mistral models deployed on the [Azure AI Foundry](https://ai.azure.com/). To use Mistral models on Azure AI, specify the following environment variables:
@@ -605,6 +615,14 @@ Note that all models on AWS Bedrock require that you [request model access](http
 You should be also sure that you have the appropriate AWS credentials before accessing models on Bedrock. You aren't likely to need to, but you can also specify a custom base URL for AWS Bedrock using the `BEDROCK_BASE_URL` environment variable.
 
 If you are using Anthropic models on Bedrock, you can alternatively use the [Anthropic provider](#anthropic-on-aws-bedrock) as your means of access. If you are using OpenAI models on Bedrock, access them via the `openai` provider with the `bedrock` qualifier — see [OpenAI on AWS Bedrock](#openai-on-aws-bedrock).
+
+### Streaming {#streaming-bedrock}
+
+The `bedrock` provider supports a `streaming` model arg (`-M`) that controls whether the [ConverseStream](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_ConverseStream.html) API is used. The default ("auto") uses streaming when the caller passes an `on_stream` callback to `generate()` (declining requests that use a `response_schema`). Pass `true` to always stream (or `false` to never stream):
+
+``` bash
+inspect eval arc.py --model bedrock/us.anthropic.claude-sonnet-4-6 -M streaming=true
+```
 
 ## AWS SageMaker {#aws-sagemaker}
 
@@ -768,6 +786,14 @@ inspect eval ctf.py -M emulate_tools=true
 
 You can also use this option to disable tool emulation for Llama models with `emulate_tools=false`.
 
+### Streaming {#streaming-azureai}
+
+The `azureai` provider supports a `streaming` model arg (`-M`) that controls whether streaming responses are used. The default ("auto") uses streaming when the caller passes an `on_stream` callback to `generate()`. Pass `true` to always stream (or `false` to never stream):
+
+``` bash
+inspect eval arc.py --model azureai/Llama-3.3-70B-Instruct -M streaming=true
+```
+
 ## Together AI {#together-ai}
 
 To use the [Together AI](https://www.together.ai/) provider, install the `openai` package (which the Together AI service provides a compatible backend for), set your credentials, and specify a model using the `--model` option:
@@ -811,6 +837,14 @@ The following environment variables are supported by the Groq provider
 |----------------------------|--------------------------------------------|
 | `GROQ_API_KEY` | API key credentials (required). |
 | `GROQ_BASE_URL` | Base URL for requests (optional, defaults to `https://api.groq.com`) |
+
+### Streaming {#streaming-groq}
+
+The `groq` provider supports a `streaming` model arg (`-M`) that controls whether streaming responses are used. The default ("auto") uses streaming when the caller passes an `on_stream` callback to `generate()` (declining requests that use a `response_schema`). Pass `true` to always stream (or `false` to never stream):
+
+``` bash
+inspect eval arc.py --model groq/llama-3.3-70b-versatile -M streaming=true
+```
 
 ## Fireworks AI {#fireworks-ai}
 

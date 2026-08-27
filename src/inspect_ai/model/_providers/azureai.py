@@ -3,11 +3,12 @@ import json
 import os
 from copy import copy
 from logging import getLogger
-from typing import Any
+from typing import Any, AsyncIterator, Literal, cast
 
 from azure.ai.inference.aio import ChatCompletionsClient
 from azure.ai.inference.models import (
     AssistantMessage,
+    AsyncStreamingChatCompletions,
     ChatChoice,
     ChatCompletions,
     ChatCompletionsNamedToolChoice,
@@ -23,6 +24,7 @@ from azure.ai.inference.models import (
     FunctionDefinition,
     ImageContentItem,
     ImageUrl,
+    StreamingChatCompletionsUpdate,
     SystemMessage,
     TextContentItem,
     ToolMessage,
@@ -73,9 +75,18 @@ from .._openai import (
     openai_media_filter,
     openai_stop_details,
 )
+from .._stream import (
+    StreamTextEvent,
+    StreamToolCallEvent,
+    model_stream_requested,
+    report_model_stream_delta,
+    report_model_stream_progress,
+    report_model_stream_start,
+)
 from .util import (
     environment_prerequisite_error,
     model_base_url,
+    normalize_stream_arg,
 )
 from .util.chatapi import ChatAPIHandler
 from .util.llama31 import Llama31Handler
@@ -122,8 +133,13 @@ class AzureAIAPI(ModelAPI):
         base_url: str | None = None,
         api_key: str | None = None,
         config: GenerateConfig = GenerateConfig(),
+        streaming: bool | Literal["auto"] = "auto",
         **model_args: Any,
     ):
+        # record streaming preference (unset/"auto" streams when the caller
+        # passes on_stream to generate; an explicit True/False overrides)
+        self.streaming: bool | None = normalize_stream_arg(streaming, "streaming")
+
         # Check for explicit org prefix: azureai/moonshotai/kimi-k2.5 -> org=moonshotai
         # We keep the full model_name (including prefix) so it appears in logs
         # but use service_model_name() for actual API calls
@@ -220,11 +236,15 @@ class AzureAIAPI(ModelAPI):
         if handler:
             input = handler.input_with_tools(input, tools)
 
-        # prepare request
+        # prepare request (resolve streaming while building it, so the
+        # ModelCall snapshot below matches the wire request)
+        streaming = self.resolve_streaming(config)
         request = dict(
             messages=await chat_request_messages(input, handler, self.is_mistral()),
             **self.completion_params(config),
         )
+        if streaming:
+            request["stream"] = True
         # newer versions of vllm reject requests with tools or tool_choice if the
         # server hasn't been started explicitly with the --tool-call-parser and
         # --enable-auto-tool-choice flags
@@ -263,7 +283,16 @@ class AzureAIAPI(ModelAPI):
 
         # make call
         try:
-            response: ChatCompletions = await client.complete(**request)
+            if streaming:
+                updates = cast(
+                    AsyncStreamingChatCompletions, await client.complete(**request)
+                )
+                try:
+                    response = await azureai_completion_from_stream(updates)
+                finally:
+                    await updates.aclose()
+            else:
+                response = cast(ChatCompletions, await client.complete(**request))
 
             model_call.set_response(response.as_dict())
 
@@ -272,11 +301,14 @@ class AzureAIAPI(ModelAPI):
                 choices=chat_completion_choices(
                     response.model, response.choices, tools, handler
                 ),
+                # a streamed response may end without a usage chunk
                 usage=ModelUsage(
                     input_tokens=response.usage.prompt_tokens,
                     output_tokens=response.usage.completion_tokens,
                     total_tokens=response.usage.total_tokens,
-                ),
+                )
+                if response.usage is not None
+                else None,
             ), model_call
 
         except AzureError as ex:
@@ -306,6 +338,23 @@ class AzureAIAPI(ModelAPI):
             params["seed"] = config.seed
 
         return params
+
+    def resolve_streaming(self, config: GenerateConfig) -> bool:
+        """Whether to use the streaming API for this generate call.
+
+        An explicit `streaming` model arg wins; when unset ("auto"), stream
+        when the caller passed `on_stream` to `Model.generate()`. Unlike the
+        openai provider's Azure chat-completions path (which never
+        auto-streams because the SDK accumulator only keeps the first chunk's
+        `content_filter_results`), the hand-rolled accumulation here
+        preserves the last filter annotation seen per choice — the update
+        that carries `finish_reason="content_filter"` also carries the
+        results for the filtered content — so stop details survive
+        streaming.
+        """
+        if self.streaming is not None:
+            return self.streaming
+        return model_stream_requested()
 
     @override
     def max_tokens(self) -> int | None:
@@ -400,6 +449,150 @@ class AzureAIAPI(ModelAPI):
                 return ex
 
         raise ex
+
+
+class _StreamChoice:
+    """Accumulated state for one streamed choice."""
+
+    def __init__(self) -> None:
+        self.content: list[str] = []
+        # each entry: {"id", "type", "function": {"name", "arguments": [fragments]}}
+        self.tool_calls: list[dict[str, Any]] = []
+        self.finish_reason: str | None = None
+        self.content_filter_results: dict[str, Any] | None = None
+
+
+async def azureai_completion_from_stream(
+    updates: AsyncIterator[StreamingChatCompletionsUpdate],
+) -> ChatCompletions:
+    """Consume an Azure AI chat-completions update stream into a completion.
+
+    Reports each update once to the model layer's stream observer
+    (`inspect_ai.model._stream`), which fans out to the caller's `on_stream`
+    callback and the pending event's progress record. Accumulates all
+    choices, but reports content deltas from the first choice only —
+    interleaving multiple choices' fragments into the single delta stream
+    would corrupt accumulating consumers.
+
+    Updates are read through their raw mapping form (`azure.ai.inference`
+    models are dict-backed) so undeclared fields — notably the per-choice
+    `content_filter_results` Azure attaches — carry into the synthesized
+    response for stop-details extraction. Tool-call fragments carry no index;
+    a fragment bearing an `id` starts a new call and bare argument fragments
+    extend the latest one.
+    """
+    report_model_stream_start()
+    completion_id: str | None = None
+    created: int | None = None
+    model: str | None = None
+    usage: dict[str, Any] | None = None
+    choices: dict[int, _StreamChoice] = {}
+
+    async for update in updates:
+        completion_id = completion_id or update.get("id")
+        created = created if created is not None else update.get("created")
+        model = model or update.get("model")
+        update_usage = update.get("usage")
+        if update_usage is not None:
+            usage = update_usage
+            report_model_stream_progress(update_usage.get("completion_tokens"))
+
+        reported = False
+        for update_choice in update.get("choices") or []:
+            index = update_choice.get("index", 0)
+            choice = choices.setdefault(index, _StreamChoice())
+            if update_choice.get("finish_reason") is not None:
+                choice.finish_reason = update_choice["finish_reason"]
+            filter_results = update_choice.get("content_filter_results")
+            if filter_results:
+                choice.content_filter_results = filter_results
+            delta = update_choice.get("delta") or {}
+            report = index == 0
+            content = delta.get("content")
+            if content:
+                choice.content.append(content)
+                if report:
+                    await report_model_stream_delta(StreamTextEvent(text=content))
+                    reported = True
+            for tool_call in delta.get("tool_calls") or []:
+                function = tool_call.get("function") or {}
+                arguments = function.get("arguments") or ""
+                if tool_call.get("id") or not choice.tool_calls:
+                    choice.tool_calls.append(
+                        {
+                            "id": tool_call.get("id"),
+                            "type": "function",
+                            "function": {
+                                "name": function.get("name"),
+                                "arguments": [arguments] if arguments else [],
+                            },
+                        }
+                    )
+                else:
+                    current = choice.tool_calls[-1]["function"]
+                    current["name"] = current["name"] or function.get("name")
+                    if arguments:
+                        current["arguments"].append(arguments)
+                if report:
+                    current = choice.tool_calls[-1]
+                    await report_model_stream_delta(
+                        StreamToolCallEvent(
+                            id=current["id"],
+                            function=current["function"]["name"],
+                            arguments=arguments,
+                        )
+                    )
+                    reported = True
+        if not reported and update_usage is None:
+            report_model_stream_progress()
+
+    if completion_id is None and model is None:
+        raise RuntimeError("Streaming response ended without delivering any chunks.")
+
+    response: dict[str, Any] = {
+        "id": completion_id or "",
+        "created": created or 0,
+        "model": model or "",
+        "object": "chat.completion",
+        "choices": [
+            {
+                "index": index,
+                "finish_reason": choice.finish_reason,
+                "message": {
+                    "role": "assistant",
+                    "content": "".join(choice.content),
+                }
+                | (
+                    {
+                        "tool_calls": [
+                            {
+                                "id": tool_call["id"] or f"tool_call_{index}_{i}",
+                                "type": "function",
+                                "function": {
+                                    "name": tool_call["function"]["name"] or "",
+                                    "arguments": "".join(
+                                        tool_call["function"]["arguments"]
+                                    ),
+                                },
+                            }
+                            for i, tool_call in enumerate(choice.tool_calls)
+                        ]
+                    }
+                    if choice.tool_calls
+                    else {}
+                ),
+            }
+            | (
+                {"content_filter_results": choice.content_filter_results}
+                if choice.content_filter_results
+                else {}
+            )
+            for index, choice in sorted(choices.items())
+        ],
+    }
+    if usage is not None:
+        response["usage"] = usage
+    return ChatCompletions(response)
 
 
 async def chat_request_messages(
