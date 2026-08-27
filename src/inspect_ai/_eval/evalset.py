@@ -576,6 +576,7 @@ def eval_set(
                 # replaced by the runner's default.
                 max_samples=max_samples,
                 max_sandboxes=max_sandboxes,
+                max_tasks=max_tasks,
                 # error handling as the definition asked for it, so a runner
                 # can see what selection mode honours (retry_on_error) and
                 # what it overrides (fail_on_error) rather than guessing.
@@ -609,6 +610,8 @@ def eval_set(
             limit = overrides.limit
         if overrides.max_sandboxes is not None:
             max_sandboxes = overrides.max_sandboxes
+        if overrides.max_tasks is not None:
+            max_tasks = overrides.max_tasks
 
     # ensure log_dir
     fs = filesystem(log_dir)

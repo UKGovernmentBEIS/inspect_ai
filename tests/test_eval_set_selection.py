@@ -629,6 +629,37 @@ def test_eval_set_selection_max_sandboxes_override(
     assert logs[0].eval.config.max_sandboxes == 2
 
 
+def test_eval_set_selection_max_tasks_override(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A selection's `max_tasks` reaches the worker and outranks the definition.
+
+    The override a runner giving one worker several tasks cannot do without.
+    Every other field left unset falls back to what the definition passed;
+    `max_tasks` does not, because `eval_set()` fills its own default in below
+    the selection branch — so a worker with no override gets `eval()`'s rule
+    rather than anyone's decision.
+    """
+    capture = enumerate_eval_set(monkeypatch, tmp_path)
+    selected = [t for t in capture.tasks if t.model == "mockllm/model"]
+    assert len(selected) == 2
+
+    selection = EvalSetSelection(
+        version=EVAL_SET_SELECTION_VERSION,
+        eval_set_id="worker-test",
+        tasks=[EvalSetSelectionTask(identifier=t.identifier) for t in selected],
+        overrides=EvalSetSelectionOverrides(max_tasks=2),
+    )
+
+    success, logs = run_selection(
+        monkeypatch, tmp_path, selection, tmp_path / "logs", max_tasks=1
+    )
+
+    assert success
+    assert len(logs) == 2
+    assert [log.eval.config.max_tasks for log in logs] == [2, 2]
+
+
 def test_eval_set_capture_records_what_a_runner_may_override(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -639,12 +670,13 @@ def test_eval_set_capture_records_what_a_runner_may_override(
     runner's default.
     """
     capture = enumerate_eval_set(
-        monkeypatch, tmp_path, max_samples=9, max_sandboxes=4, limit=3
+        monkeypatch, tmp_path, max_samples=9, max_sandboxes=4, limit=3, max_tasks=2
     )
 
     assert capture.options["max_samples"] == 9
     assert capture.options["max_sandboxes"] == 4
     assert capture.options["limit"] == 3
+    assert capture.options["max_tasks"] == 2
 
 
 def test_eval_set_selection_overrides_default_to_the_definition(
@@ -684,6 +716,7 @@ def test_eval_set_selection_overrides_default_to_the_definition(
         ("max_samples", 0, "max_samples=0"),
         ("max_samples", -1, "max_samples=-1"),
         ("max_sandboxes", 0, "max_sandboxes=0"),
+        ("max_tasks", 0, "max_tasks=0"),
         ("limit", 0, "limit=0"),
         ("limit", -1, "limit=-1"),
         # a range is a Python slice, so an unordered one selects nothing and an
@@ -780,6 +813,7 @@ def test_eval_set_selection_v1_document_still_readable(
         ("max_samples", "3"),
         ("max_samples", 3.0),
         ("max_sandboxes", True),
+        ("max_tasks", True),
         # a `limit` read leniently is the worst of these: `true` as 1 pins
         # concurrency, but a dropped or coerced limit runs five thousand samples
         # where two were asked for
@@ -1095,6 +1129,23 @@ _EXPECTED_SELECTION_FIELDS: dict[int, dict[str, set[str]]] = {
         "selection": {"version", "eval_set_id", "tasks", "overrides"},
         "task": {"identifier", "resume"},
         "overrides": {"log_dir", "max_samples", "limit", "max_sandboxes"},
+    },
+    # v4 added `max_tasks`, for a runner that gives one worker several tasks.
+    # It is the one override whose absence is not neutral: every other field
+    # left unset keeps what the definition passed, but `eval_set()` fills
+    # `max_tasks` in below the selection branch, so an unset one falls through
+    # to `eval()`'s own rule (one task at a time for a single model, the model
+    # count for several) rather than to anything the definition chose.
+    4: {
+        "selection": {"version", "eval_set_id", "tasks", "overrides"},
+        "task": {"identifier", "resume"},
+        "overrides": {
+            "log_dir",
+            "max_samples",
+            "limit",
+            "max_sandboxes",
+            "max_tasks",
+        },
     },
 }
 
