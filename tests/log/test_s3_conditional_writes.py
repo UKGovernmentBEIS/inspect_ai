@@ -33,6 +33,14 @@ def temp_dir():
         yield Path(tmpdirname)
 
 
+@pytest.fixture
+def s3_eval_log_for_header_edit(sample_log, mock_s3) -> str:
+    """Create the existing S3 object required by a header-only edit."""
+    log_path = "s3://test-bucket/test_async_header_only.eval"
+    write_eval_log(sample_log, log_path)
+    return log_path
+
+
 @pytest.mark.parametrize("format", ["json", "eval"])
 def test_read_eval_log_returns_no_etag_for_local_path(sample_log, temp_dir, format):
     """Test that ETag is None for local files in different formats."""
@@ -201,6 +209,20 @@ async def test_write_eval_log_async_returns_s3_etag(sample_log, mock_s3, format)
 
     assert result.etag is not None
     assert result.etag == persisted.etag
+
+
+async def test_write_eval_log_async_s3_header_only_supports_trio(
+    sample_log, s3_eval_log_for_header_edit
+) -> None:
+    """Unconditional S3 header edits use the active async backend."""
+    sample_log.eval.metadata = {"header-edited": True}
+    result = await write_eval_log_async(
+        sample_log, s3_eval_log_for_header_edit, header_only=True
+    )
+    persisted = await read_eval_log_async(s3_eval_log_for_header_edit, header_only=True)
+
+    assert result.etag is not None
+    assert persisted.eval.metadata == {"header-edited": True}
 
 
 def test_s3_conditional_write_error(sample_log, mock_s3):

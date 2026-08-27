@@ -1372,9 +1372,14 @@ class _TimeLimit(Limit, _Node):
         # `self.limit` (not `self._limit`) so a sample started after a live
         # override was set opens its scope with the override already applied
         self._active_limit = self.limit
-        self._cancel_scope = anyio.move_on_after(self._active_limit)
+        self._cancel_scope = anyio.CancelScope()
         self._cancel_scope.__enter__()
+        # derive the deadline from _start_time (as _refresh_deadline does)
+        # rather than a separate clock read, so deadline, usage, and any
+        # later retune are all measured from the same instant
         self._start_time = anyio.current_time()
+        if self._active_limit is not None:
+            self._cancel_scope.deadline = self._start_time + self._active_limit
         return self
 
     def __exit__(

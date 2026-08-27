@@ -33,7 +33,7 @@ from typing_extensions import override
 from inspect_ai._util._async import current_async_backend, tg_collect
 from inspect_ai._util.async_bytes_reader import adapt_to_reader
 from inspect_ai._util.async_zip import AsyncZipReader
-from inspect_ai._util.asyncfiles import AsyncFilesystem, _map_missing_s3_object
+from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.atomic_write import atomic_write
 from inspect_ai._util.constants import (
     LOG_SCHEMA_VERSION,
@@ -471,10 +471,7 @@ class EvalRecorder(FileRecorder):
             # mutations on the in-memory log are discarded, matching the
             # local .eval contract.
             async with AsyncFilesystem() as async_fs:
-                s3_client = await async_fs.s3_client_async()
-                with _map_missing_s3_object(location):
-                    response = await s3_client.get_object(Bucket=bucket, Key=key)
-                    body = await response["Body"].read()
+                body = await async_fs.read_file(location)
             log_bytes = _rewrite_eval_zip_with_new_header(body, log)
         else:
             # Full recreate goes through the recorder, which needs a

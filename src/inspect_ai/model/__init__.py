@@ -65,6 +65,7 @@ from ._model import (
     Model,
     ModelAPI,
     ModelName,
+    ModelRoles,
     RetryDecision,
     get_model,
     model_roles,
@@ -97,6 +98,14 @@ from ._openai_convert import (
 from ._prompt import user_prompt
 from ._providers.providers import *
 from ._registry import modelapi
+from ._stream import (
+    StreamEvent,
+    StreamHandler,
+    StreamReasoningEvent,
+    StreamRetryEvent,
+    StreamTextEvent,
+    StreamToolCallEvent,
+)
 from ._trim import trim_messages
 
 __all__ = [
@@ -156,6 +165,7 @@ __all__ = [
     "ModelAPI",
     "ModelName",
     "ModelRole",
+    "ModelRoles",
     "RetryDecision",
     "ModelConfig",
     "ModelFallback",
@@ -163,6 +173,12 @@ __all__ = [
     "StopCategory",
     "StopDetails",
     "StopReason",
+    "StreamEvent",
+    "StreamHandler",
+    "StreamReasoningEvent",
+    "StreamRetryEvent",
+    "StreamTextEvent",
+    "StreamToolCallEvent",
     "call_tools",
     "execute_tools",
     "ExecuteToolsResult",
