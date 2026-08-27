@@ -40,7 +40,10 @@ from inspect_ai.model._chat_message import (
     ChatMessageTool,
     ChatMessageUser,
 )
-from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.model._generate_config import (
+    GenerateConfig,
+    ResponseSchema,
+)
 from inspect_ai.model._internal import CONTENT_INTERNAL_TAG, parse_content_with_internal
 from inspect_ai.model._model import ModelName
 from inspect_ai.model._model_output import ModelUsage, StopReason
@@ -82,10 +85,12 @@ from .util import (
     apply_message_ids,
     bridge_generate,
     clear_generation_params,
+    client_json_schema,
     relax_tool_choice_for_withheld,
     resolve_generate_config,
     resolve_inspect_model,
     validate_bridge_media,
+    validate_client_config,
     withheld_bridge_tool,
 )
 
@@ -144,6 +149,7 @@ async def inspect_anthropic_api_request_impl(
     config = generate_config_from_anthropic(json_data)
     if not bridge.forward_generation_config:
         clear_generation_params(config)
+    validate_client_config(config)
     config.extra_headers = headers
     if config.system_message is not None:
         messages.insert(0, ChatMessageSystem(content=config.system_message))
@@ -226,6 +232,34 @@ def generate_config_from_anthropic(json_data: dict[str, Any]) -> GenerateConfig:
         effort = output_config.get("effort", None)
         if effort is not None:
             config.effort = effort
+
+        # `output_config.format` is Anthropic's native structured-output request.
+        # The provider already sends `config.response_schema` as the
+        # `output_format` extra_body field under the structured-outputs beta, so
+        # the schema only needs mapping onto it -- the same mapping the OpenAI
+        # (`response_format`/`text.format`) and Google (`responseJsonSchema`)
+        # paths already do. Without it a client asking for JSON silently gets
+        # prose, which fails a JSON-field extractor as "no candidate" rather
+        # than as an error.
+        output_format = output_config.get("format", None)
+        if (
+            isinstance(output_format, dict)
+            and output_format.get("type") == "json_schema"
+        ):
+            schema = output_format.get("schema", None)
+            if schema is not None:
+                config.response_schema = ResponseSchema(
+                    name=output_format.get("name") or "response",
+                    # NOTE: Inspect's `JSONSchema` does not model every keyword
+                    # Anthropic's structured outputs accept (`allOf`, `const`,
+                    # `$ref`/`$defs`, `minItems`), and unmodelled keywords are dropped
+                    # rather than rejected -- so a schema using them is forwarded
+                    # weaker than the client asked for. Raised on the PR for a
+                    # decision; not silently coerced without this note.
+                    json_schema=client_json_schema(
+                        schema, "output_config.format.schema"
+                    ),
+                )
 
     tool_choice = json_data.get("tool_choice", {})
     if tool_choice.get("disable_parallel_tool_use", None) is True:

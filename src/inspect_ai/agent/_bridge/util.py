@@ -3,8 +3,10 @@ import warnings
 from contextlib import contextmanager
 from contextvars import ContextVar
 from logging import getLogger
-from typing import Iterator, Sequence, cast
+from typing import Any, Iterator, Sequence, cast
 
+from pydantic import ValidationError
+from pydantic_core import PydanticSerializationError
 from typing_extensions import TypeIs
 
 from inspect_ai._util.content import (
@@ -49,6 +51,7 @@ from inspect_ai.tool._tools._web_search._web_search import (
     WebSearchProviders,
     _normalize_config,
 )
+from inspect_ai.util._json import JSONSchema
 
 # Generation-tuning fields a scaffold may set on a bridged request that describe
 # *how* the underlying model generates. These are the Inspect model's province
@@ -73,6 +76,7 @@ _GENERATION_PARAM_FIELDS: tuple[str, ...] = (
     "reasoning_effort",
     "reasoning_tokens",
     "reasoning_summary",
+    "verbosity",
 )
 
 
@@ -85,6 +89,70 @@ def clear_generation_params(config: GenerateConfig) -> None:
     """
     for field in _GENERATION_PARAM_FIELDS:
         setattr(config, field, None)
+
+
+def validate_client_config(config: GenerateConfig) -> None:
+    """Re-validate a config built from a client request, raising on bad values.
+
+    The `generate_config_from_*` extractors assign request values straight onto
+    `GenerateConfig`, and pydantic does not validate on assignment, so a client
+    can put any value into a typed field. That value is legal in memory, is
+    serialized into the `ModelEvent`, and then fails `model_validate` when the
+    event is READ back -- which is not a per-event failure: it aborts the read of
+    the whole sample transcript (`inspect ctl sample events` returns 500, and any
+    log reader hits the same `ValidationError`). One bad request field therefore
+    costs the entire sample's transcript.
+
+    Reachable without any bridge configuration: `stop_seqs` and `seed` are not
+    generation params, so `stop_sequences: 5` or `seed: "x"` poisons the event
+    even when the bridge is dropping generation params. Forwarding them widens it
+    to `effort`, `temperature` and the rest.
+
+    Raising `BridgePolicyError` makes the bridge answer 400, which is what the
+    real provider APIs answer for these values -- so the client sees the same
+    rejection it would have seen unbridged, rather than a 200 whose transcript
+    cannot be read afterwards.
+    """
+    try:
+        GenerateConfig.model_validate(config.model_dump(mode="json", warnings=False))
+    except PydanticSerializationError as ex:
+        # The dump half can fail too, and its escape is worse than a bad value: the
+        # sandbox path logs a traceback and forwards status `None`, the in-process
+        # path raises into the SDK caller. Unreachable from a real JSON body, but the
+        # in-process Anthropic patch merges `options.extra_json` into `json_data`
+        # before SDK serialization, so a scaffold can put a live Python object here.
+        raise BridgePolicyError(
+            f"generation parameter in bridged request is not serializable ({ex})"
+        ) from ex
+    except ValidationError as ex:
+        details = "; ".join(
+            f"{'.'.join(str(p) for p in err['loc'])}: {err['msg']}"
+            for err in ex.errors()
+        )
+        raise BridgePolicyError(
+            f"invalid generation parameter in bridged request ({details})"
+        ) from ex
+
+
+def client_json_schema(schema: dict[str, Any], dialect_field: str) -> JSONSchema:
+    """Parse a client-supplied JSON Schema, answering 400 rather than escaping.
+
+    `JSONSchema.model_validate` raises `ValidationError`, and an uncaught one here
+    is worse than the bad value that caused it: `provider_error_payload` reports
+    `status: None`, which the sandbox service treats as a translation failure --
+    traceback in the log, no status for the client. That is the same unreadable
+    outcome `validate_client_config` exists to prevent, so route it to the same 400.
+    """
+    try:
+        return JSONSchema.model_validate(schema)
+    except ValidationError as ex:
+        details = "; ".join(
+            f"{'.'.join(str(p) for p in err['loc'])}: {err['msg']}"
+            for err in ex.errors()
+        )
+        raise BridgePolicyError(
+            f"invalid response schema in bridged request ({dialect_field}: {details})"
+        ) from ex
 
 
 _bridge_model_generate: ContextVar[bool] = ContextVar(

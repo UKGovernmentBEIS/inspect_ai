@@ -6,6 +6,12 @@ forward client generation parameters, the default). They are fast and require no
 provider SDKs or API keys.
 """
 
+import pytest
+
+from inspect_ai.agent._bridge._errors import (
+    BridgePolicyError,
+    provider_error_payload,
+)
 from inspect_ai.agent._bridge.anthropic_api_impl import generate_config_from_anthropic
 from inspect_ai.agent._bridge.completions import (
     generate_config_from_openai_completions,
@@ -17,6 +23,7 @@ from inspect_ai.agent._bridge.responses_impl import (
 from inspect_ai.agent._bridge.util import (
     _GENERATION_PARAM_FIELDS,
     clear_generation_params,
+    validate_client_config,
 )
 
 # generation-tuning fields that must be dropped when not forwarding.
@@ -38,6 +45,7 @@ GENERATION_FIELDS = {
     "reasoning_effort",
     "reasoning_tokens",
     "reasoning_summary",
+    "verbosity",
 }
 
 
@@ -251,3 +259,323 @@ def test_google_response_json_schema_used_directly():
 def test_google_no_schema_leaves_response_schema_unset():
     config = generate_config_from_google({"temperature": 0.5})
     assert config.response_schema is None
+
+
+def test_anthropic_output_config_format_maps_to_response_schema():
+    """`output_config.format` is Anthropic's native structured-output request.
+
+    It had no extraction site at all, so a client asking for JSON silently got
+    prose. Its sibling `output_config.effort` WAS read, which is what made the
+    gap easy to miss.
+    """
+    config = generate_config_from_anthropic(
+        {
+            "model": "inspect",
+            "messages": [],
+            "output_config": {
+                "format": {
+                    "type": "json_schema",
+                    "schema": {
+                        "type": "object",
+                        "properties": {"answer": {"type": "string"}},
+                        "required": ["answer"],
+                    },
+                }
+            },
+        }
+    )
+    assert config.response_schema is not None
+    assert config.response_schema.json_schema.type == "object"
+    # structured output is not a tuning knob, so it must survive clearing
+    clear_generation_params(config)
+    assert config.response_schema is not None
+
+
+def test_anthropic_invalid_output_config_schema_is_rejected_not_raised():
+    """A bad schema must answer 400, not escape as a raw `ValidationError`.
+
+    `JSONSchema.model_validate` raises `ValidationError`, and an uncaught one is
+    worse than the bad value: `provider_error_payload` reports `status: None`,
+    which the sandbox service treats as a translation failure -- traceback in the
+    log, no status for the client. That is the unreadable outcome this module
+    exists to prevent, so it must be the same `BridgePolicyError` 400 that an
+    invalid generation param gets.
+    """
+    with pytest.raises(BridgePolicyError) as ex:
+        generate_config_from_anthropic(
+            {
+                "model": "inspect",
+                "max_tokens": 16,
+                "messages": [{"role": "user", "content": "hi"}],
+                "output_config": {
+                    "format": {"type": "json_schema", "schema": {"type": 5}}
+                },
+            }
+        )
+    assert "output_config.format.schema" in str(ex.value)
+    assert provider_error_payload(ex.value)["status"] == 400
+
+
+def test_anthropic_output_config_effort_and_format_coexist():
+    config = generate_config_from_anthropic(
+        {
+            "model": "inspect",
+            "messages": [],
+            "output_config": {
+                "effort": "low",
+                "format": {"type": "json_schema", "schema": {"type": "object"}},
+            },
+        }
+    )
+    assert config.effort == "low"
+    assert config.response_schema is not None
+
+
+def test_google_thinking_config_maps_to_reasoning_tokens():
+    """Gemini's thinking budget had no extraction site.
+
+    The provider rebuilds a `ThinkingConfig` from `reasoning_tokens`, so the
+    budget only needed mapping onto it; without this a client asking for a
+    thinking budget silently got the model default.
+    """
+    config = generate_config_from_google({"thinkingConfig": {"thinkingBudget": 2048}})
+    assert config.reasoning_tokens == 2048
+
+    snake = generate_config_from_google({"thinking_config": {"thinking_budget": 512}})
+    assert snake.reasoning_tokens == 512
+
+    # it IS a tuning knob, so it must clear
+    clear_generation_params(config)
+    assert config.reasoning_tokens is None
+
+
+def test_openai_responses_text_verbosity_is_read():
+    """`text.verbosity` was never read off the request.
+
+    It has a GenerateConfig slot and the provider already sends it; only the
+    extraction was missing.
+    """
+    config = generate_config_from_openai_responses(
+        {"model": "inspect", "input": "hello", "text": {"verbosity": "low"}}
+    )
+    assert config.verbosity == "low"
+
+    # And it must clear like every other generation param. A bridge left on the
+    # default `forward_generation_config=False` drops the client's tuning knobs so
+    # they fall back to the eval's own config; verbosity extracted but not cleared
+    # would leak the scaffold's value to the served model whenever the eval config
+    # leaves it unset -- the common case, and the exact defect class this change is
+    # about (one swept parameter measured under several labels).
+    clear_generation_params(config)
+    assert config.verbosity is None
+
+
+def test_openai_responses_text_format_and_verbosity_coexist():
+    config = generate_config_from_openai_responses(
+        {
+            "model": "inspect",
+            "input": "hello",
+            "text": {
+                "verbosity": "low",
+                "format": {
+                    "type": "json_schema",
+                    "name": "message",
+                    "schema": {"type": "object"},
+                },
+            },
+        }
+    )
+    assert config.verbosity == "low"
+    assert config.response_schema is not None
+
+
+@pytest.mark.parametrize(
+    "extractor,json_data,expected_field",
+    [
+        (
+            generate_config_from_anthropic,
+            {"model": "m", "messages": [], "stop_sequences": 5},
+            "stop_seqs",
+        ),
+        (
+            generate_config_from_anthropic,
+            {"model": "m", "messages": [], "output_config": {"effort": "banana"}},
+            "effort",
+        ),
+        (
+            generate_config_from_anthropic,
+            {"model": "m", "messages": [], "temperature": "hot"},
+            "temperature",
+        ),
+        (
+            generate_config_from_openai_completions,
+            {"model": "m", "messages": [], "seed": "not-an-int"},
+            "seed",
+        ),
+        (
+            generate_config_from_openai_completions,
+            {"model": "m", "messages": [], "reasoning_effort": "banana"},
+            "reasoning_effort",
+        ),
+    ],
+)
+def test_invalid_client_value_is_rejected_not_recorded(
+    extractor, json_data, expected_field
+):
+    """A bad request value must 400, not poison the transcript.
+
+    pydantic does not validate on assignment, so an extractor will happily put
+    any value into a typed field. That value serializes into the `ModelEvent`
+    and then fails `model_validate` when the event is READ -- aborting the read
+    of the WHOLE sample transcript, not just that event (`inspect ctl sample
+    events` 500s; every log reader hits the same error). Measured live: one
+    `output_config.effort: "banana"` request made 55 subsequent events
+    unreadable.
+
+    `stop_seqs` and `seed` reach this without any bridge configuration, since
+    they are structural rather than generation params.
+    """
+    config = extractor(json_data)
+    # the raw extractor accepts it -- that is the hazard being guarded
+    assert getattr(config, expected_field) is not None
+
+    with pytest.raises(BridgePolicyError, match=expected_field):
+        validate_client_config(config)
+
+
+def test_valid_client_config_passes_validation():
+    config = generate_config_from_anthropic(
+        {
+            "model": "m",
+            "messages": [],
+            "max_tokens": 7,
+            "temperature": 0.5,
+            "stop_sequences": ["x"],
+            "output_config": {"effort": "low"},
+        }
+    )
+    validate_client_config(config)  # must not raise
+
+
+@pytest.mark.anyio
+async def test_bridged_request_rejects_invalid_value_at_the_call_site():
+    """The rejection must be wired into the REQUEST PATH, not just available.
+
+    Asserting on `validate_client_config` alone passes even when no caller
+    invokes it, so this drives the real
+    `inspect_anthropic_api_request_impl` and asserts it raises before reaching
+    the model. A model that is never called is the evidence: it proves the
+    request was rejected rather than sent and recorded.
+    """
+    from inspect_ai.agent._agent import AgentState
+    from inspect_ai.agent._bridge.anthropic_api_impl import (
+        inspect_anthropic_api_request_impl,
+    )
+    from inspect_ai.agent._bridge.types import AgentBridge
+    from inspect_ai.model._chat_message import ChatMessageUser
+    from inspect_ai.model._model import get_model
+    from inspect_ai.model._model_output import ModelOutput
+
+    called = []
+
+    def _never(input, tools, tool_choice, config):
+        called.append(config)
+        return ModelOutput.from_content(model="mockllm/model", content="unreachable")
+
+    model = get_model("mockllm/model", custom_outputs=_never)
+    bridge = AgentBridge(
+        state=AgentState(messages=[ChatMessageUser(content="hi")]),
+        model=str(model),
+        forward_generation_config=True,
+    )
+    bridge.model_aliases = {"claude-sonnet-5": model}
+
+    with pytest.raises(BridgePolicyError, match="effort"):
+        await inspect_anthropic_api_request_impl(
+            json_data={
+                "model": "claude-sonnet-5",
+                "max_tokens": 64,
+                "messages": [{"role": "user", "content": "hi"}],
+                "output_config": {"effort": "banana"},
+            },
+            headers=None,
+            web_search=None,
+            code_execution=None,
+            bridge=bridge,
+        )
+
+    assert called == [], "request must be rejected before the model is called"
+
+
+def test_google_generation_config_fields_the_provider_sends_are_all_read():
+    """Every `generationConfig` field the Google provider sends must be read.
+
+    The provider passes `candidate_count`, `presence_penalty`,
+    `frequency_penalty`, `response_logprobs` and `logprobs` to the SDK, but the
+    extractor read none of them, so a client setting any silently got the model
+    default.
+    """
+    config = generate_config_from_google(
+        {
+            "candidateCount": 2,
+            "presencePenalty": 0.5,
+            "frequencyPenalty": 0.25,
+            "responseLogprobs": True,
+            "logprobs": 3,
+        }
+    )
+    # candidateCount is deliberately NOT forwarded: the response builder emits
+    # exactly one candidate, so forwarding it would bill for N and return 1.
+    assert config.num_choices is None
+    assert config.presence_penalty == 0.5
+    assert config.frequency_penalty == 0.25
+    assert config.logprobs is True
+    assert config.top_logprobs == 3
+
+    snake = generate_config_from_google(
+        {"presence_penalty": 0.1, "frequency_penalty": 0.2}
+    )
+    assert snake.presence_penalty == 0.1
+    assert snake.frequency_penalty == 0.2
+
+    # all five are tuning knobs, so all must clear
+    clear_generation_params(config)
+    _assert_cleared(config)
+
+
+def test_google_usage_metadata_reports_thinking_tokens():
+    """A bridged Gemini client must be able to see thinking tokens.
+
+    The provider already parses `thoughts_token_count` into
+    `usage.reasoning_tokens`, but the bridge's usage metadata omitted it, so a
+    client measuring thinking tokens through the bridge got nothing -- the same
+    defect class as the Anthropic `output_tokens_details` bug.
+    """
+    from inspect_ai.agent._bridge.google_api_impl import gemini_usage_metadata
+    from inspect_ai.model._model_output import ModelUsage
+
+    with_thinking = gemini_usage_metadata(
+        ModelUsage(
+            input_tokens=10, output_tokens=40, total_tokens=50, reasoning_tokens=30
+        )
+    )
+    assert with_thinking["thoughtsTokenCount"] == 30
+
+    # ...and the pair must obey Gemini's own arithmetic. `candidatesTokenCount`
+    # EXCLUDES thinking tokens upstream, while Inspect's `output_tokens` includes
+    # them, so emitting both without subtracting made the two sum past
+    # `totalTokenCount` -- a response no real Gemini call could produce. Asserting
+    # only `thoughtsTokenCount` let that through.
+    assert with_thinking["candidatesTokenCount"] == 10
+    assert (
+        with_thinking["candidatesTokenCount"] + with_thinking["thoughtsTokenCount"]
+        == 40
+    )
+
+    # absent rather than zeroed, so "no thinking" and "not reported" stay distinct
+    without = gemini_usage_metadata(
+        ModelUsage(input_tokens=10, output_tokens=40, total_tokens=50)
+    )
+    assert "thoughtsTokenCount" not in without
+    # nothing to subtract, so output_tokens passes straight through
+    assert without["candidatesTokenCount"] == 40
