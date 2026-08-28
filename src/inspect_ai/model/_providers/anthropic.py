@@ -17,6 +17,8 @@ from typing import (
     cast,
 )
 
+import anthropic
+import httpx2
 from anthropic import (
     APIConnectionError,
     APIStatusError,
@@ -136,6 +138,11 @@ from inspect_ai._util.hash import mm3_hash
 from inspect_ai._util.http import (
     is_retryable_http_status,
     parse_retry_after_from_exception,
+)
+from inspect_ai._util.http_defaults_httpx2 import (
+    DEFAULT_REQUEST_TIMEOUT,
+    default_async_client,
+    default_timeout,
 )
 from inspect_ai._util.images import inline_media_data, inline_media_data_uri
 from inspect_ai._util.json import to_json_str_safe
@@ -325,6 +332,40 @@ class AnthropicAPI(ModelAPI):
         self.model_args = model_args
         self.initialize()
 
+    def _http_default_args(self) -> dict[str, Any]:
+        """Model args with the shared HTTP defaults filled in.
+
+        A caller's own `http_client` is left alone. A caller's `timeout` is
+        kept as the request budget but still gets our client, so the connect
+        floor and pool settings apply.
+        """
+        # A copy, so every initialize() builds a fresh client: aclose() then
+        # initialize() is the auth-retry path in _model.py's before_retry, and
+        # a closed client fails every later request with the error class these
+        # defaults exist to prevent.
+        model_args = dict(self.model_args)
+        if "http_client" in model_args:
+            return model_args
+        # Handing httpx objects to an httpx2-based SDK is what broke every
+        # OpenAI request under openai 3.0.
+        sdk_timeout = getattr(anthropic, "DEFAULT_TIMEOUT", None)
+        if not isinstance(sdk_timeout, httpx2.Timeout):
+            return model_args
+        # The SDK gates its "streaming is required for long requests" guard on
+        # `client.timeout == DEFAULT_TIMEOUT`, so hand back that exact object
+        # unless an operator overrode the budget. Substituting an equivalent
+        # timeout turns an immediate ValueError into a request that stalls to
+        # the read deadline and then retries. The connect floor still reaches
+        # the wire: the event hook raises the deadline the SDK stamps.
+        timeout = default_timeout(
+            request_timeout=sdk_timeout.read or DEFAULT_REQUEST_TIMEOUT
+        )
+        model_args.setdefault(
+            "timeout", sdk_timeout if timeout.read == sdk_timeout.read else timeout
+        )
+        model_args["http_client"] = default_async_client()
+        return model_args
+
     def _create_client(
         self,
     ) -> (
@@ -333,6 +374,7 @@ class AnthropicAPI(ModelAPI):
         | AsyncAnthropicVertex
         | AsyncAnthropicFoundry
     ):
+        model_args = self._http_default_args()
         if self.is_bedrock():
             base_url = model_base_url(
                 self.base_url,
@@ -349,7 +391,7 @@ class AnthropicAPI(ModelAPI):
                 return AsyncAnthropicBedrock(
                     base_url=base_url,
                     aws_region=aws_region,
-                    **self.model_args,
+                    **model_args,
                 )
             except ValueError as ex:
                 # anthropic >= 1.0 raises when no AWS region is resolvable
@@ -366,7 +408,7 @@ class AnthropicAPI(ModelAPI):
                 region=region,
                 project_id=project_id,
                 base_url=base_url,
-                **self.model_args,
+                **model_args,
             )
         elif self.is_azure():
             # resolve base_url (required for Azure)
@@ -388,7 +430,7 @@ class AnthropicAPI(ModelAPI):
             return AsyncAnthropicFoundry(
                 base_url=base_url,
                 api_key=self.api_key,
-                **self.model_args,
+                **model_args,
             )
         else:
             base_url = model_base_url(self.base_url, "ANTHROPIC_BASE_URL")
@@ -405,7 +447,7 @@ class AnthropicAPI(ModelAPI):
                     default_headers={
                         "anthropic-beta": "oauth-2025-04-20",
                     },
-                    **self.model_args,
+                    **model_args,
                 )
             # resolve api_key
             if not self.api_key:
@@ -415,7 +457,7 @@ class AnthropicAPI(ModelAPI):
             return AsyncAnthropic(
                 base_url=base_url,
                 api_key=self.api_key,
-                **self.model_args,
+                **model_args,
             )
 
     @override
