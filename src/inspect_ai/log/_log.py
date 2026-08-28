@@ -223,7 +223,7 @@ class EvalConfig(BaseModel):
     """Expose this eval over an Agent Client Protocol server.
 
     `True` enables a default AF_UNIX socket at
-    `<inspect_data_dir>/acp/<eval_id>.sock`; an integer binds a TCP
+    `<inspect_data_dir>/acp/<pid>.sock`; an integer binds a TCP
     loopback port (127.0.0.1:<int>); a string of the form `host:port`
     (e.g. `0.0.0.0:4444`) binds TCP on a specific interface; any other
     string is taken as a custom AF_UNIX socket path; `None` (default)

@@ -1402,9 +1402,24 @@ class AnthropicAPI(ModelAPI):
     def should_retry(self, ex: BaseException) -> bool | RetryDecision:
         if isinstance(ex, APIStatusError):
             retry_after = parse_retry_after_from_exception(ex)
-            # when streaming, anthropic does not set status_code == 529
-            # for overloaded or internal server errors so we check for them explicitly
-            if isinstance(ex.body, dict):
+            # An error event delivered mid-stream surfaces as an
+            # APIStatusError with status_code == 200 (the SDK builds it from
+            # the SSE error body, not an HTTP status), so the status-based
+            # checks below can't classify it — classify from the body's
+            # error type: these are the in-band analogues of 429/529/500/408.
+            # Scoped to status 200 so that a real HTTP error status (e.g. a
+            # proxy's 4xx wrapping an anthropic-format body) keeps failing
+            # fast via the status rules.
+            if ex.status_code == 200 and isinstance(ex.body, dict):
+                error_type = _error_type_from_body(ex.body)
+                if error_type == "rate_limit_error":
+                    return RetryDecision.rate_limit(retry_after=retry_after)
+                if error_type in ("overloaded_error", "api_error", "timeout_error"):
+                    return RetryDecision.transient(retry_after=retry_after)
+            if isinstance(ex.body, dict | str):
+                # message-based fallback for error bodies without a
+                # recognized type (a mid-stream error event whose data fails
+                # JSON parsing attaches the raw SSE string as the body)
                 body_str = str(ex.body).lower()
                 if "overloaded" in body_str or "internal server error" in body_str:
                     return RetryDecision.transient(retry_after=retry_after)
@@ -4087,6 +4102,20 @@ def _warn_refusal_without_fallback(
         "requests automatically. Learn more at "
         "https://inspect.aisi.org.uk/fallbacks.html.",
     )
+
+
+def _error_type_from_body(body: dict[str, Any]) -> str | None:
+    """Extract the API error type from an error response body.
+
+    The SDK attaches the full error envelope as `ex.body` — for both
+    mid-stream SSE error events and non-streaming HTTP errors —
+    ({"type": "error", "error": {"type": "rate_limit_error", ...}}).
+    """
+    error = body.get("error")
+    if isinstance(error, dict):
+        error_type = error.get("type")
+        return error_type if isinstance(error_type, str) else None
+    return None
 
 
 def _strip_reasoning(message: ChatMessageAssistant) -> ChatMessageAssistant:
