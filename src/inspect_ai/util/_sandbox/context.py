@@ -224,8 +224,11 @@ async def sandbox_with_injection(
     return target_sandbox
 
 
-async def sandbox_connections() -> dict[str, SandboxConnection]:
-    environments = sandbox_environments_context_var.get(None)
+async def sandbox_connections(
+    environments: dict[str, SandboxEnvironment] | None = None,
+) -> dict[str, SandboxConnection]:
+    if environments is None:
+        environments = sandbox_environments_context_var.get(None)
     if environments:
         connections: dict[str, SandboxConnection] = {}
         for name, environment in environments.items():

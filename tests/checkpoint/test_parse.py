@@ -9,8 +9,11 @@ from pathlib import Path
 import pytest
 
 from inspect_ai.util._checkpoint import (
+    ArchiveSnapshots,
     CheckpointConfig,
     Manual,
+    ResticSnapshots,
+    SandboxSnapshotConfig,
     TimeInterval,
     TokenInterval,
     TurnInterval,
@@ -116,6 +119,30 @@ def test_yaml_file(tmp_path: Path) -> None:
     assert cfg.retention == "retain"
 
 
+def test_yaml_file_omitted_fields_get_defaults(tmp_path: Path) -> None:
+    """Fields omitted from a config file take the parser's defaults.
+
+    These non-None defaults count as "explicitly set" in
+    ``merge_checkpoint_configs`` and override lower-priority layers.
+    Changing omitted fields to inherit instead is a planned follow-up
+    behavior change, deliberately kept out of the strategy-selection PR.
+    """
+    path = tmp_path / "ckpt.yaml"
+    path.write_text("trigger: manual\n")
+    cfg = _parse(str(path))
+    assert cfg.sandbox_paths == {}
+    assert cfg.retention == "delete"
+    assert cfg.max_consecutive_failures is None
+    assert cfg.checkpoints_location is None
+
+
+def test_yaml_file_requires_trigger(tmp_path: Path) -> None:
+    path = tmp_path / "ckpt.yaml"
+    path.write_text("sandbox_paths:\n  default:\n    strategy: archive\n")
+    with pytest.raises(ValueError, match="trigger"):
+        _parse(str(path))
+
+
 def test_yaml_file_manual_trigger(tmp_path: Path) -> None:
     path = tmp_path / "ckpt.yaml"
     path.write_text("trigger: manual\n")
@@ -158,3 +185,52 @@ def test_json_file(tmp_path: Path) -> None:
     path.write_text(json.dumps({"trigger": {"type": "turn", "every": 3}}))
     cfg = _parse(str(path))
     assert isinstance(cfg.trigger, TurnInterval) and cfg.trigger.every == 3
+
+
+def test_yaml_file_sandbox_paths_with_strategies(tmp_path: Path) -> None:
+    """`sandbox_paths` values mix bare path lists and strategy mappings."""
+    path = tmp_path / "ckpt.yaml"
+    path.write_text(
+        "trigger:\n  type: turn\n  every: 2\n"
+        "sandbox_paths:\n"
+        "  default:\n"
+        "    paths: ['/data']\n"
+        "    strategy: archive\n"
+        "  web:\n"
+        "    strategy: restic-incremental\n"
+        "  scratch: ['/scratch']\n"
+    )
+    cfg = _parse(str(path))
+    assert cfg.sandbox_paths == {
+        "default": SandboxSnapshotConfig(
+            paths=["/data"],
+            strategy=ArchiveSnapshots(),
+        ),
+        "web": SandboxSnapshotConfig(paths=None, strategy=ResticSnapshots()),
+        "scratch": ["/scratch"],
+    }
+
+
+def test_yaml_file_sandbox_paths_omitted_strategy_inherits(
+    tmp_path: Path,
+) -> None:
+    """A mapping-form entry without ``strategy:`` expresses no strategy opinion.
+
+    Matching a bare path-list value, so it doesn't stomp a
+    lower-priority layer's selection for that sandbox.
+    """
+    path = tmp_path / "ckpt.yaml"
+    path.write_text(
+        "trigger: manual\nsandbox_paths:\n  default:\n    paths: ['/data']\n"
+    )
+    cfg = _parse(str(path))
+    assert cfg.sandbox_paths == {
+        "default": SandboxSnapshotConfig(paths=["/data"], strategy=None)
+    }
+
+
+def test_yaml_file_unknown_strategy_rejected(tmp_path: Path) -> None:
+    path = tmp_path / "ckpt.yaml"
+    path.write_text("trigger: manual\nsandbox_paths:\n  default:\n    strategy: zfs\n")
+    with pytest.raises(ValueError):
+        parse_checkpoint(str(path))

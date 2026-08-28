@@ -18,7 +18,7 @@ class ResolvedTask:
     task_args: dict[str, Any]
     task_file: str | None
     model: Model
-    model_roles: dict[str, Model] | None
+    model_roles: dict[str, Model | list[Model]] | None
     sandbox: SandboxEnvironmentSpec | None
     checkpoint: CheckpointConfig | None
     sequence: int
