@@ -1,6 +1,6 @@
 """On-disk schema for the host context written at each checkpoint fire.
 
-A sample working dir holds six JSON files that restic snapshots each
+A sample working dir holds seven JSON files that restic snapshots each
 cycle:
 
 - ``events.json`` — condensed transcript events.
@@ -12,6 +12,9 @@ cycle:
 - ``assistant_internal.json`` — provider-smuggled wire content (optional;
   written only when a provider has recorded something — see
   ``inspect_ai.model._assistant_internal``).
+- ``sample_runtime.json`` — sample-root limit usage and related in-memory
+  runtime (always written on fire; absence on read means a pre-this-file
+  checkpoint and usage stays reset-to-0).
 
 This module owns the on-disk schema: filename constants, the
 serialization format, and the read shape. Keeping the schema centralized
@@ -37,6 +40,7 @@ ATTACHMENTS = "attachments.json"
 STORE = "store.json"
 AGENT_STATE = "agent_state.json"
 ASSISTANT_INTERNAL = "assistant_internal.json"
+SAMPLE_RUNTIME = "sample_runtime.json"
 
 
 @dataclass
@@ -59,6 +63,12 @@ class HostContext:
     writing ``assistant_internal.json``; on read, ``None`` is returned
     when the file is absent (no provider recorded anything, or the
     checkpoint predates this file)."""
+
+    sample_runtime: JsonValue | None = None
+    """Dump of sample-root limit usage and related runtime from
+    ``dump_sample_runtime()``. Always written on fire. On read, ``None``
+    is returned when the file is absent (checkpoint predates this
+    file) — restore is then a no-op."""
 
 
 def read(working_dir: str) -> HostContext:
@@ -83,6 +93,12 @@ def read(working_dir: str) -> HostContext:
         if assistant_internal_path.is_file()
         else None
     )
+    sample_runtime_path = p / SAMPLE_RUNTIME
+    sample_runtime: JsonValue | None = (
+        json.loads(sample_runtime_path.read_text())
+        if sample_runtime_path.is_file()
+        else None
+    )
     return HostContext(
         condensed_events=condensed_events,
         msg_pool=msg_pool,
@@ -91,4 +107,5 @@ def read(working_dir: str) -> HostContext:
         store=store_data,
         agent_state=agent_state,
         assistant_internal=assistant_internal,
+        sample_runtime=sample_runtime,
     )
