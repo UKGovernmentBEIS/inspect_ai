@@ -34,7 +34,9 @@ from test_helpers.utils import skip_if_no_docker
 
 from checkpoint.resume_scoring_kill_harness import (
     ANSWER,
+    BUDGET_ENV,
     CANCEL_FILE_ENV,
+    SPEND_ENV,
     TARGET_ENV,
     generates,
     reset_generates,
@@ -114,6 +116,54 @@ def _force_remove_project(name: str) -> None:
     ).stdout.split()
     if ids:
         subprocess.run(["docker", "rm", "-f", *ids], capture_output=True)
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+def test_checkpoint_scoring_phase_resume_over_budget(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Scoring still runs when the time budget was spent before the crash.
+
+    The agent finished and the scorer died, so this retry exists only to
+    score. The killed attempt's last checkpoint reports 900s against a 600s
+    budget (``spend_time_budget``), so restoring that as *enforcement* state
+    arms an already-past deadline and the retry is cancelled out of hydration
+    before it can score. The usage has to be restored for reporting without
+    the deadline being armed.
+    """
+    cancel_file = tmp_path / "cancels.txt"
+    monkeypatch.setenv(CANCEL_FILE_ENV, str(cancel_file))
+    monkeypatch.setenv(TARGET_ENV, "1")
+    monkeypatch.setenv(BUDGET_ENV, "600")
+    monkeypatch.setenv(SPEND_ENV, "900")
+    cancel_file.unlink(missing_ok=True)
+
+    log_dir = str(tmp_path / "logs")
+    tests_dir = Path(__file__).parent.parent
+
+    projects_before = _inspect_projects()
+    try:
+        _run_killed_attempt(log_dir, None, tests_dir)
+
+        reset_generates()
+        resume = eval_retry(read_eval_log(_latest_log(log_dir)), log_dir=log_dir)[0]
+    finally:
+        for name in _inspect_projects() - projects_before:
+            _force_remove_project(name)
+
+    assert resume.status == "success"
+    assert resume.samples is not None and len(resume.samples) == 1
+    sample = resume.samples[0]
+    assert sample.error is None
+    assert sample.limit is None
+    assert generates() == 0
+    assert sample.scores is not None
+    assert sample.scores["crashing_includes"].value == CORRECT
+
+    # the spent budget is still reported, it just isn't enforced here
+    assert sample.total_time is not None and sample.total_time < 900.0
+    assert sample.working_time is not None and sample.working_time >= 0.0
 
 
 @skip_if_no_docker

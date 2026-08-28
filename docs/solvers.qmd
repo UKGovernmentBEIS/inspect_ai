@@ -173,7 +173,7 @@ We'll present an example and then discuss the various options below (in most cas
 1.  The `Sample` must include the available `choices`. Choices should not include letters (as they are automatically included when presenting the choices to the model).
 2.  The `Sample` `target` should be a capital letter (e.g. A, B, C, D, etc.)
 3.  You should always pair it with the `choice()` scorer in your task definition. For custom answer parsing or scoring needs (like handling complex model outputs), implement a custom scorer.
-4.  It calls `generate()` internally, so you do need to separately include the `generate()` solver.
+4.  It calls `generate()` internally, so you do not need to separately include the `generate()` solver.
 
 ### Example
 

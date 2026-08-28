@@ -342,6 +342,27 @@ class OpenRouterAPI(OpenAICompatibleAPI):
         return True
 
     @override
+    def auto_streamable(self, config: GenerateConfig) -> bool:
+        # OpenRouter returns reasoning as a message-level `reasoning_details`
+        # list (including Anthropic signed reasoning blocks that must round-trip
+        # intact for multi-turn replay). Whether the SDK stream accumulator
+        # reassembles streamed reasoning_details losslessly depends on
+        # OpenRouter's exact chunk shapes (unverified against the live API), so
+        # a display-only on_stream request declines to stream when the request
+        # asks for reasoning — an explicit stream=true still streams.
+        if self.reasoning_enabled is False:
+            # reasoning explicitly disabled (wins over effort/tokens)
+            return super().auto_streamable(config)
+        reasoning_requested = (
+            config.reasoning_effort is not None
+            or config.reasoning_tokens is not None
+            or self.reasoning_enabled is True
+            # the :thinking model variant enables reasoning without any config
+            or ":thinking" in self.model_name
+        )
+        return super().auto_streamable(config) and not reasoning_requested
+
+    @override
     def completion_params(self, config: GenerateConfig, tools: bool) -> dict[str, Any]:
         # default params
         params = super().completion_params(config, tools)
