@@ -513,3 +513,79 @@ async def test_chat_completions_streaming_with_non_strict_tools():
     assert request["stream"] is True
     assert request["stream_options"] == {"include_usage": True}
     assert "strict" not in request["tools"][0]["function"]
+
+
+async def test_chat_completions_streaming_converts_mid_stream_safeguard_block() -> None:
+    """A safeguard block raised mid-stream (as a plain APIError) becomes content_filter output."""
+    from typing import Any
+    from unittest.mock import AsyncMock, MagicMock
+
+    import httpx2
+    from openai import APIError
+    from openai._types import NOT_GIVEN
+
+    from inspect_ai.model._model_output import ModelOutput
+    from inspect_ai.model._providers.openai_completions import generate_completions
+    from inspect_ai.model._providers.util.hooks import HttpxHooks
+
+    error = APIError(
+        message="Your prompt was blocked by our content policy.",
+        request=httpx2.Request("POST", "https://test/v1/chat/completions"),
+        body=dict(
+            message="Your prompt was blocked by our content policy.",
+            type="invalid_request_error",
+            code="content_policy_violation",
+        ),
+    )
+
+    class _FakeStream:
+        async def __aenter__(self) -> "_FakeStream":
+            return self
+
+        async def __aexit__(self, *exc: object) -> None:
+            return None
+
+        def __aiter__(self) -> Any:
+            async def gen() -> Any:
+                raise error
+                yield  # pragma: no cover
+
+            return gen()
+
+    client = MagicMock()
+    client.chat.completions.create = AsyncMock(return_value=_FakeStream())
+
+    http_hooks = MagicMock(spec=HttpxHooks)
+    http_hooks.start_request = MagicMock(return_value="req_1")
+    http_hooks.end_request = MagicMock(return_value=None)
+
+    openai_api = MagicMock()
+    openai_api.api_model_name.return_value = "gpt-4o"
+    openai_api.service_model_name.return_value = "gpt-4o"
+    openai_api.service_tier = None
+    openai_api.is_o_series.return_value = False
+    openai_api.is_gpt.return_value = True
+    openai_api.is_gpt_5.return_value = False
+
+    result = await generate_completions(
+        client=client,
+        http_hooks=http_hooks,
+        model_name="gpt-4o",
+        input=[ChatMessageUser(content="hi")],
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(),
+        prompt_cache_key=NOT_GIVEN,
+        prompt_cache_retention=NOT_GIVEN,
+        safety_identifier=NOT_GIVEN,
+        openai_api=openai_api,
+        batcher=None,
+        streaming=True,
+    )
+
+    assert isinstance(result, tuple)
+    output, model_call = result
+    assert isinstance(output, ModelOutput)
+    assert output.choices[0].stop_reason == "content_filter"
+    assert "blocked" in output.completion
+    assert model_call.error is True
