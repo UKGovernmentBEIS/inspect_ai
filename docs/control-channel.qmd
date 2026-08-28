@@ -1,6 +1,6 @@
 ---
 title: Control Channel
-llms-description: Launch evals from scripts and agents (inspect eval --json launch handoff, and --detach to run an eval in the background, detached from the terminal), then observe and direct them from another process with the inspect ctl commands - live task and sample status, error and retry detail, transcript events, conversation snapshots, stall diagnosis from trace logs, task and sample cancellation, sample requeue, pause and resume, launch-config retuning, log flushing, and keep-alive.
+llms-description: Launch evals from scripts and agents (inspect eval --json launch handoff, and --detach to run an eval in the background, detached from the terminal), then observe and direct them from another process with the inspect ctl commands - live task and sample status, error and retry detail, transcript events, conversation and store snapshots, stall diagnosis from trace logs, task, sample, and tool-call cancellation, sample requeue, pause and resume, interim scoring, launch-config retuning, log flushing, and keep-alive.
 ---
 
 ## Overview
@@ -16,12 +16,15 @@ Commands are grouped by resource noun (`task`, `sample`, `model`, `process`), pl
 | `inspect ctl task cancel` | Cancel a running task. |
 | `inspect ctl task pause` | Pause a running task (stop starting new work; `--now` also holds in-flight samples). |
 | `inspect ctl task resume` | Resume a paused task. |
+| `inspect ctl task score` | Score a running task's samples now and report interim metrics. |
 | `inspect ctl sample list` | List samples (running, completed, and pending). |
 | `inspect ctl sample errors` | List samples that errored or were retried. |
 | `inspect ctl sample show` | Show one sample's summary and error history. |
 | `inspect ctl sample events` | Read one sample's transcript events. |
 | `inspect ctl sample messages` | Read one sample's current conversation. |
+| `inspect ctl sample store` | Read one sample's current store (shared solver/agent state). |
 | `inspect ctl sample cancel` | Cancel one running sample. |
+| `inspect ctl sample cancel-tool-call` | Cancel one hung tool call and let the sample continue. |
 | `inspect ctl sample requeue` | Re-run one errored or cancelled sample inside the live run. |
 | `inspect ctl config` | View or retune launch configuration mid-flight. |
 | `inspect ctl model pause` | Pause one model's dispatch across the run (`--now` also holds in-flight calls to it). |
@@ -35,13 +38,9 @@ Commands are grouped by resource noun (`task`, `sample`, `model`, `process`), pl
 
 : {tbl-colwidths=[35,65]}
 
-A bare noun implies `list`: `inspect ctl task` ≡ `inspect ctl task list`, and likewise for `sample` and `process`. All commands accept `--json` for structured output, which makes them straightforward to use from scripts and from coding agents like Claude Code. The `list` / `show` / `errors` / `events` / `messages` / `anomalies` commands are read-only. The others direct the run deliberately: `config` retunes launch parameters (concurrency changes never interrupt in-flight work; the per-sample limit overrides deliberately reach in-flight samples), `task log-flush` forces a log write that would happen anyway, `process keep`/`release` only affect what happens after the eval finishes, `task pause`/`resume`, `model pause`/`resume`, and `process pause`/`resume` stop and restart dispatch reversibly — leaving in-flight work untouched unless `pause --now` asks for a hard pause (which also holds in-flight samples at their next model call), `task cancel` / `sample cancel` interrupt work explicitly, and `sample requeue` re-runs an errored or cancelled sample (all three idempotently, with `--dry-run` support).
+A bare noun implies `list`: `inspect ctl task` ≡ `inspect ctl task list`, and likewise for `sample` and `process`. All commands accept `--json` for structured output, which makes them straightforward to use from scripts and from coding agents like Claude Code. The `list` / `show` / `errors` / `events` / `messages` / `store` / `anomalies` commands are read-only. The others direct the run deliberately: `config` retunes launch parameters (concurrency changes never interrupt in-flight work; the per-sample limit overrides deliberately reach in-flight samples), `task log-flush` forces a log write that would happen anyway, `process keep`/`release` only affect what happens after the eval finishes, `task pause`/`resume`, `model pause`/`resume`, and `process pause`/`resume` stop and restart dispatch reversibly — leaving in-flight work untouched unless `pause --now` asks for a hard pause (which also holds in-flight samples at their next model call), `task cancel` / `sample cancel` interrupt work explicitly, `sample requeue` re-runs an errored or cancelled sample (all three idempotently, with `--dry-run` support), and `task score` scores a running task's samples without ending them (each in-flight sample is briefly held while its work-so-far is scored).
 
 The endpoint is a Unix domain socket under the current user's Inspect data directory. It is not reachable over the network or by other users on the same machine, and it requires no configuration.
-
-::: {.callout-note}
-Earlier releases exposed these operations as flat verbs (`inspect ctl tasks`, `samples`, `sample`, `errors`, `events`, `limits`, `flush`, `buffer`, `keep`, `release`). Those spellings were kept for a transition window as hidden, deprecated aliases and have now been removed — use the noun-group commands in the table above (e.g. `inspect ctl task list` for `inspect ctl tasks`, `inspect ctl sample show` for `inspect ctl sample`, `inspect ctl config` for `inspect ctl limits`).
-:::
 
 ## Launch Handoff
 
@@ -148,6 +147,8 @@ Commands that operate on one task take a `TASK` argument that selects a task fro
 
 Task ids are stable across retries, so a command keeps working after a task errors and is retried (per-attempt eval ids are not stable, which is why commands don't use them).
 
+One task run against several models (`--model openai/gpt-5,anthropic/claude-fable-5`) makes the task name ambiguous — it matches both rows. Pass `--model` alongside the selector to pick the row running that model (matched at the name start or after a `/`, so `--model gpt-5` matches `openai/gpt-5`): `inspect ctl task cancel my_task --model gpt-5`. The model filter applies within the tasks the selector matches — what other tasks happen to be running can't change the outcome. If the combination is still ambiguous you get the same candidate-table error, and a combination matching nothing the same not-found error — each qualified with the model. An exact task id paired with a `--model` its task isn't running errors by naming the contradiction (the task's actual model) rather than being silently ignored.
+
 On *reads* (`sample list`, `sample errors`) the selector is a filter: omitting it lists across **all** running tasks (each row carries its `task_id`), which makes "what's erroring anywhere in this eval set?" the zero-argument spelling. On *mutations* (`task log-flush`, the task-scoped `config` knobs) an omitted selector must resolve to exactly one target — the sole running task is the default, and anything ambiguous errors with the candidate list rather than fanning out. Destructive commands (`task cancel`) require the selector outright.
 
 ## Sample Status
@@ -167,9 +168,13 @@ sample  epoch  status     time   idle  activity         tokens  messages  turns
 ...
 ```
 
-The `idle` column shows how long since a running sample last produced a transcript event. A long-running sample with high idle time is the cheap signal that it may be stalled. A single in-flight model request produces no events until it returns, so idle time still accumulates during one long model call — the `activity` column is what distinguishes that healthy case from a genuine stall.
+The `idle` column shows how long since a running sample last showed activity — its most recent transcript event, or streamed progress on an in-flight model call where the provider call streams. A long-running sample with high idle time is the cheap signal that it may be stalled. When an in-flight model call streams, its progress keeps idle near zero (so climbing idle on a streamed call is a sharp stall signal); a non-streamed call produces no signal until it returns, so idle still accumulates there — the `activity` column is what distinguishes that healthy case from a genuine stall.
 
-The `activity` column (shown when any running sample has an in-flight operation) names what the sample is doing right now and for how long: `generating 6:51` for an in-flight model call (with `(2 retries)` appended when the provider SDK has retried within the call), `bash 0:41` or `2 tools 1:10` for pending tool calls, and `retrying in 0:45` when a model call is waiting out a retry backoff (e.g. rate limiting) between attempts. The `--json` rows carry the underlying `activity` object — `type` (`model` / `tool` / `retry_wait`), `count`, `started_at`, `detail` (model name or tool function), `retries`, and `deadline` (when a retry wait elapses) — null on rows with nothing pending.
+The `activity` column (shown when any running sample has an in-flight operation) names what the sample is doing right now and for how long: `generating 6:51` for an in-flight model call (with `(2 retries)` appended when the provider SDK has retried within the call, and `· 1.2k tok` when the provider call streams cumulative output tokens), `bash 0:41` or `2 tools 1:10` for pending tool calls, `retrying in 0:45` when a model call is waiting out a retry backoff (e.g. rate limiting) between attempts, and `approval: bash 6:12` or `question 2:03` when the sample is parked waiting for a person (see [Human Approval](approval.qmd#human-approver) and `ask_user()`).
+
+A pending human interaction takes precedence over anything else the sample has in flight, and it is the only thing that reports the wait at all: an approval is awaited *before* the tool call's event is recorded, so a sample parked overnight has nothing pending in its transcript and would otherwise read as silently idle. If you are watching a run from another process, this is the signal that tells "working" from "stopped on you". The elapsed time is the wait's own, not the sample's.
+
+The `--json` rows carry the underlying `activity` object — `type` (`model` / `tool` / `retry_wait` / `approval` / `question`), `count`, `started_at`, `detail` (model name, or the tool function an approval is deciding; empty for a `question`, whose prompt is the request), `retries`, `deadline` (when a retry wait elapses), streamed-progress fields `tokens` / `last_progress_at` (null for non-streamed calls and providers not reporting them), and — on `tool` rows, and on a human wait that sits inside a running tool — `calls`, one entry per pending tool call (see [Cancellation](#cancellation)) — null on rows with nothing pending.
 
 The `turns` column counts top-level model generations (blank when unknown, e.g. for samples logged by older versions of Inspect). When any listed sample has a token limit configured, `limit usage` and `limit total` columns are also shown: the metered value for that limit — respecting its type (`all`, `output`, or a formula) — against the configured ceiling. The `--json` rows carry these as `turn_count`, `token_limit_usage`, `token_limit_total`, and `token_limit_type`.
 
@@ -180,7 +185,7 @@ The listing is capped at 100 rows per task by default, keeping the head of the r
 | `--limit N` | Cap the listing at N rows per task instead of 100. |
 | `--all` | List every sample row (no cap). |
 | `--status running,error` | Only samples with these statuses (`running`, `completed`, `error`, `cancelled`, `pending`, `queued`). Filters rows only — `counts` stays whole-task. |
-| `--content` | Include each errored row's error message in the `--json` rows (agent-influenced free text — withheld by default; see [Agent-controlled content](#agent-controlled-content) below). |
+| `--content` | Include each row's error message and `limit_reason` in the `--json` rows (agent-influenced free text — withheld by default; see [Agent-controlled content](#agent-controlled-content) below). |
 
 : {tbl-colwidths=[35,65]}
 
@@ -205,7 +210,7 @@ Error messages are withheld unless you pass `--content` — a tool-raised except
 ::: {#agent-controlled-content .callout-note}
 ## Agent-controlled content
 
-Free text that originates from the evaluated agent — model completions, tool arguments and results (a `bash` tool's stdout is fully agent-controlled), and error messages that embed tool output — is untrusted content: it can carry prompt-injection payloads aimed at whoever reads it, including an LLM monitor polling these commands. The per-sample reads therefore return **metadata only by default** (statuses, timing, token counts, event types, tool function names, error *presence*), and every command that can carry agent text gates it behind an explicit `--content` (or `content=true` on the HTTP API) opt-in.
+Free text that originates from the evaluated agent — model completions, tool arguments and results (a `bash` tool's stdout is fully agent-controlled), error messages that embed tool output, and a sample's `limit_reason` (a bridged agent supplies its own termination reason) — is untrusted content: it can carry prompt-injection payloads aimed at whoever reads it, including an LLM monitor polling these commands. The per-sample reads therefore return **metadata only by default** (statuses, timing, token counts, event types, tool function names, error *presence*), and every command that can carry agent text gates it behind an explicit `--content` (or `content=true` on the HTTP API) opt-in.
 
 This makes the safe consumer the effortless default: a monitoring agent that never passes `--content` (and has no other route to the content, such as reading the logs directly) never ingests agent-controlled text, so it cannot be prompt-injected by the evaluated agent. A monitor that *does* read content should be treated as injection-exposed and sandboxed / capability-limited accordingly.
 :::
@@ -284,6 +289,35 @@ As with events, the default rows are metadata only — index, role, tool-call fu
 
 With `--json` the response is an `{as_of, status, count, messages}` envelope, prefixed with the resolved `task_id` / `sample_id` / `epoch` (so a defaulted epoch is visible). As with events, `EPOCH` defaults to 1, and conversations of samples that have already completed are also readable — they are served from the eval's log.
 
+## Store Snapshots
+
+`inspect ctl sample store` reads one sample's current store — the shared state that solvers, tools, and agents coordinate through (progress flags, scratchpads, `StoreModel` fields) — as it stands right now:
+
+```bash
+$ inspect ctl sample store gpqa 17
+key                  type    size
+-------------------  ------  ----
+phase                string  10
+attempts             number  1
+Scratchpad:i0:notes  string  2048
+
+3 of 3 keys  ·  running  ·  metadata only (pass --content for values)
+```
+
+Like `sample messages`, this is a snapshot, not a stream: the store is rewritable (a key can be overwritten or deleted between reads), so there is no resume cursor. Poll and compare the reported key `count`, or use `inspect ctl sample events --type store` when you want the change *stream* rather than the current state. While the sample runs the store is read from the live task state — no log involved, so it works even for samples whose transcript is buffered or bounded; once the sample finishes it is served from the eval's log.
+
+The default rows are metadata only — each key's JSON type and its serialized size in UTF-8 bytes (for spotting the big keys; the `--json` rows also carry a length hint), with none of the values, which are agent-controlled text (see [Agent-controlled content](#agent-controlled-content) above). `--content` adds a truncated single-line preview of each value; `--full` returns the raw values.
+
+| Option | Description |
+|----|----|
+| `--key NAME` | Only these keys (repeatable), selected server-side so one large key doesn't drag the whole store over the wire. An exact name, or a trailing-`*` prefix (e.g. `--key 'AgentState:*'` for one `StoreModel`'s fields). Requested keys that aren't present are reported as `missing` — not an error. |
+| `--content` | Include a truncated single-line preview of each value. |
+| `--full` | Return raw values instead of the compact summary (unbounded — combine with `--key` to keep the response bounded). |
+
+: {tbl-colwidths=[35,65]}
+
+With `--json` the response is an `{as_of, status, count, store}` envelope (plus `missing` when `--key` was given), prefixed with the resolved `task_id` / `sample_id` / `epoch`. `count` is always the whole store's key count, so a filtered read still shows how much it left out. As with the other reads, `EPOCH` defaults to 1, and stores of samples that have already completed are also readable — they are served from the eval's log.
+
 ## Cancellation
 
 `inspect ctl sample cancel` cancels one running sample — the typical move when a sample has stalled (high `idle` in `sample list`) or is burning tokens without progress. To see *why* it is stalled before cancelling, `inspect ctl process anomalies` shows what the process is actually waiting on (see [Stall Diagnosis](#stall-diagnosis) below) — an in-flight operation emits no transcript event until it returns, so a stalled sample's transcript alone won't name it. By default the sample completes and the scorer runs on the work done so far (it is recorded with an `operator` limit, like the in-process TUI's cancel); pass `--action error` to mark it errored instead (not permitted for samples configured to fail on errors), or `--action cancel` to record it as cancelled — its transcript is preserved in the log, it is not scored, and it does not count toward a fail-on-error threshold. The rest of the task is unaffected.
@@ -297,6 +331,16 @@ $ inspect ctl sample cancel gpqa 17
 ```bash
 $ inspect ctl sample cancel gpqa 17 3
 ```
+
+When a sample is not merely slow but stuck on one hung *tool call* — a sandbox command wedged against a dead daemon with no timeout configured, or a timeout whose teardown never completed — cancelling the whole sample discards its progress unnecessarily. `inspect ctl sample cancel-tool-call` cancels just that call: the model receives an ordinary tool timeout ("Command timed out before completing.") and the sample continues, using the same per-call cancel primitive as the in-process TUI's timeout button and ACP's `inspect/cancel_tool_call`.
+
+```bash
+$ inspect ctl sample cancel-tool-call gpqa 17
+```
+
+With no `--tool-call-id`, the command targets the sample's sole pending tool call, and errors if there are two or more — it never guesses among targets, and never cancels them all (pass explicit ids for that). `--dry-run` without an id enumerates the pending calls, and each running sample's `activity` in `sample list --json` carries a per-call list (`id`, `function`, `started_at`, `cancel_requested`), so a watchdog script can spot a stalled tool call and cancel it by id in one poll loop. Like the other sample mutations it is idempotent — repeating a cancel, naming a call that is no longer pending, or targeting a finished sample is a clean no-op — and `EPOCH` is required whenever the task runs more than one epoch.
+
+One honesty note: the cancel is *delivered* to the call's cancel scope, which is not a guarantee the tool stops. Cancellation is cooperative, so a call parked on an await (the common hang) unwinds immediately, but sync code running in a thread or teardown inside a shielded scope may never notice — the pending call then keeps reporting `cancel_requested: true` and a repeat invocation no-ops with "cancel already requested". The escalation from there is `inspect ctl sample cancel` (and ultimately killing the process and using `inspect eval-retry`).
 
 `inspect ctl task cancel` cancels a whole running task. By default it aborts: in-flight samples are interrupted (their transcripts so far are preserved in the log as cancelled samples), completed samples are kept, and the task's log is finalized with an error status noting the cancel. An eval set does not retry a cancelled task, and its other tasks are unaffected. `TASK` is always required — there is no sole-task default for destructive commands.
 
@@ -330,9 +374,26 @@ The command is idempotent: requeuing a sample whose re-run is already pending, q
 
 Requeuing a sample that completed *successfully* is rejected — re-running or re-scoring a success is out of scope (use score invalidation and `inspect eval-retry` for post-hoc re-runs). Also rejected: a task that has finished or is between attempts (re-run failures with `inspect eval-retry`, or let the queued task retry handle them), and a task with a cancel in flight. `--dry-run` reports what would be re-run — the prior error, the attempt number, and whether a checkpoint resume is available — without changing anything, and reports the rejections above too, so an agent can probe safely.
 
+## Interim Scoring
+
+`inspect ctl task score` answers "how is this eval actually doing?" mid-run: it runs the task's own scorers over the in-flight samples, folds completed samples' existing final scores in, computes interim metrics, and reports the results, all without ending any sample (the non-destructive counterpart to `task cancel --action score`).
+
+```bash
+$ inspect ctl task score gpqa
+$ inspect ctl task score gpqa --dry-run          # counts by disposition, no scoring
+$ inspect ctl task score gpqa --completed-only   # no holds: metrics over final scores
+$ inspect ctl task score gpqa --no-wait --json   # start, then re-run to poll
+```
+
+Each in-flight sample is scored on its work-so-far by briefly *holding* it: the sample parks at its next model call (the same gate `pause --now` uses, applied to just that sample), its then-stable live state is scored — with full fidelity: real conversation, live store, live sandbox — and it is released and keeps running. The interim score is recorded on the sample's transcript as an intermediate score event (exactly as the in-task `score()` API records one), so it persists into the log; the sample's final scores are unaffected. A sample that doesn't reach a model call within the hold timeout (a long tool call, a solver phase with no model calls) is skipped and reported rather than scored mid-motion, and one that completes first simply resolves normally — its final score supersedes. Samples are held one at a time, and scorer model calls never count against a held sample's token/cost limits.
+
+Completed samples are folded in, never re-scored: already-scored samples contribute their final scores to the interim metrics, and unscored completed samples (a scorer that errored earlier, for example) are reported skipped — writing scores into a mid-run log isn't safe, so `inspect score` after the run remains the way to score them. Errored samples count as scoreable only when the eval's `score_on_error` would score them; cancelled and not-yet-started samples are skipped. A run started with `--no-score` can't be interim scored at all — the task has no scorers in-process, and the command reports exactly that; use `inspect score` on its log after the run.
+
+Scoring can take minutes (model-graded scorers), so the command starts a pass and polls it to completion, rendering progress; `--no-wait` returns immediately, and the follow-up is `--status`, which reports the current (or most recent) pass without starting one (a bare re-run joins a still-running pass — one pass per task at a time — but would start a fresh pass, with fresh holds, once the first finishes). In the results, `failed` counts genuine scoring failures; in-flight samples the pass never attempted (they completed on their own, or never parked) or that every scorer declined to score (a scorer may return no score, e.g. for work it considers too incomplete) are reported `unscored`. Metrics are labeled interim for a reason: epochs may be incomplete and in-flight scores describe a moment mid-run. Two costs to know about: a held sample's wall-clock `time_limit` keeps running while held (so avoid *recurring* full passes — use `--completed-only`, which takes no holds and makes no scorer calls, for periodic polling), and scorer model calls share the process's connection limits with the running eval (a held sample's parked calls release their connection slots while parked, so the pass's own graders don't starve behind the hold). Scorers should be read-only with respect to the sandbox to be safely interim-scorable — a scorer that mutates the environment (cleanup scripts, marker files) can perturb the still-running agent.
+
 ## Repeated Mutations
 
-Interactively, each mutation prints a full task header above its outcome for context. When stdout is not a TTY — piped or redirected output, a script whose output is captured, an agent's shell tool — the task-scoped mutation verbs (`sample requeue`, `sample cancel`, `task cancel`, `task pause`/`resume`, `task log-flush`, and `config` when setting a knob) switch to a terse mode instead: one `verb target: outcome` line per call, so N mutations in a loop read as N scannable outcome lines rather than N repeated banners:
+Interactively, each mutation prints a full task header above its outcome for context. When stdout is not a TTY — piped or redirected output, a script whose output is captured, an agent's shell tool — the task-scoped mutation verbs (`sample requeue`, `sample cancel`, `sample cancel-tool-call`, `task cancel`, `task pause`/`resume`, `task score`, `task log-flush`, and `config` when setting a knob) switch to a terse mode instead: one `verb target: outcome` line per call, so N mutations in a loop read as N scannable outcome lines rather than N repeated banners:
 
 ```bash
 $ inspect ctl sample errors gpqa --json | jq -r '.samples[] | "\(.sample_id) \(.epoch)"' |
@@ -342,7 +403,7 @@ requeue gpqa/17 (epoch 1): accepted — will resume from its checkpoint
 requeue gpqa/23 (epoch 1): no-op — a re-run is already pending
 ```
 
-(The pipe is what selects the terse form here — a loop whose stdout still goes to the terminal keeps the full rendering for each call.) One exception to the strict one-line shape: a qualified `config` set appends `!` warning and `note:` lines after its outcome line (a process-scoped retune's blast-radius note, a knob that could not be applied), so scripts that count lines should prefer `--json`. Pass `--terse` to force the one-line mode on a terminal, or `--no-terse` to keep the full header rendering in a pipe. For scripts that branch on precise per-call outcomes, prefer `--json`: it takes precedence over both terse flags, and the mutation result envelope (`{target, applied, dry_run, detail}`) distinguishes applied from the idempotent no-op from dry-run structurally for the cancel, requeue, pause, and resume verbs (`task log-flush` reports `applied: true` even when nothing was buffered — its `detail` carries the flushed count).
+(The pipe is what selects the terse form here — a loop whose stdout still goes to the terminal keeps the full rendering for each call.) Two exceptions to the strict one-line shape: a qualified `config` set appends `!` warning and `note:` lines after its outcome line (a process-scoped retune's blast-radius note, a knob that could not be applied), and a `task score` that joins an already-running pass prints a join-note line (which pass it joined, and whether its flags differ) before its outcome line — scripts that count lines should prefer `--json`. Pass `--terse` to force the one-line mode on a terminal, or `--no-terse` to keep the full header rendering in a pipe. For scripts that branch on precise per-call outcomes, prefer `--json`: it takes precedence over both terse flags, and the mutation result envelope (`{target, applied, dry_run, detail}`) distinguishes applied from the idempotent no-op from dry-run structurally for the cancel, requeue, pause, and resume verbs (`task log-flush` reports `applied: true` even when nothing was buffered — its `detail` carries the flushed count).
 
 ## Pause and Resume
 
@@ -403,6 +464,7 @@ Scope is a property of each knob, not of the command: task-scoped knobs apply to
 | Option | Scope | Description |
 |----|----|----|
 | `--max-samples N` | task | Sample concurrency (not applicable under [adaptive connections](models-concurrency.qmd), where sample concurrency tracks the controller). |
+| `--max-tasks N` | process | Override the max concurrently running tasks (`clear` restores launch config). |
 | `--max-sandboxes N` | process | Per-provider sandbox concurrency. |
 | `--max-subprocesses N` | process | Subprocess concurrency (inactive until the run's first subprocess). |
 | `--max-connections N` | process | Adaptive connections scaling ceiling. |
@@ -427,6 +489,8 @@ Applied changes are recorded in each affected eval log (`EvalLog.config_updates`
 Concurrency changes take effect immediately and never interrupt running work: raising a limit lets more samples/sandboxes/subprocesses/requests start right away, while lowering one below the current in-use count blocks new starts until enough in-flight work drains. Under adaptive connections the view also reports each model's live controller state — its current limit, in-flight count, scaling range, and recent scale changes — so you can see whether the provider is rate-limiting before deciding to intervene. `--log-buffer` affects future writes only — run `inspect ctl task log-flush` to write what is already pending.
 
 `--timeout` / `--attempt-timeout` / `--max-retries` set live overrides of the corresponding generation config fields — the "stop retrying and fail fast" (or "raise retries to ride it out") lever during a provider incident. The model retry loop reads the overrides at each point of use, so a change reaches even generate calls already inside a retry loop; an in-flight API request always drains first (its attempt timeout is not retroactively shortened), and timeouts a provider SDK bakes into its client at initialization are unaffected. Batch admin operations (creating a provider batch, polling its results) also keep their launch config — failing one of those would fail every request riding the batch — while batched generate requests themselves still honor the `--timeout` / `--max-retries` overrides through their own retry loops (`--attempt-timeout` does not apply to batched calls: an attempt there waits on an entire provider batch, and cancelling that wait would resubmit duplicate requests into a new batch). The overrides are consulted after each attempt completes, so a retune that lands while a call is sitting in an exponential-backoff sleep (which grows to as much as 30 minutes between attempts) takes effect only after that sleep finishes and one more attempt runs — when failing fast, lower `--attempt-timeout` in the same retune to bound that final attempt. An override applies process-wide until cleared (pass `clear`) or the run ends; the config view reports each field's active override, with `launch config` meaning no override is in effect.
+
+`--max-tasks` likewise sets a live override — of the task dispatch limit, the lever when task count (rather than per-task concurrency) is what's holding a run back: an eval set whose adaptive controllers sit far below their ceiling with tasks still pending. The dispatcher reads the override at each dispatch decision, so raising it starts pending tasks immediately; lowering never interrupts running tasks (the in-flight count rides above the new limit until it drains). The config view reports the effective limit alongside the launch value and the dispatcher's in-flight and pending counts; a set landing while no task dispatcher is live (for example during run startup, while sandboxes are still being provisioned) still applies to task dispatch later in the run. This includes runs launched with `max_tasks=1`: their queued tasks sit pending in the same dispatcher, so a raise starts them immediately (a raised limit takes precedence over the sequential ordering that `max_tasks=1` otherwise provides). More concurrent tasks can mean more concurrent sandbox startups — `--max-sandboxes` remains the guard rail.
 
 `--time-limit` / `--token-limit` / `--message-limit` set live overrides of the task's per-sample limits — the "these samples are running away" lever. Each sample resolves its effective limit through the override at every limit check, so a retune reaches samples already in flight as well as ones not yet started: a lowered token or message ceiling applies at a sample's next check (a sample already over it fails with the ordinary limit outcome and is scored on the work done so far, per the task's configuration), and a lowered time limit reschedules running samples' deadlines directly — a sample already past the new deadline is cancelled with a time-limit outcome immediately. Raising a limit unblocks in-flight samples the same way (though a sample whose time limit already fired stays cancelled). The overrides only affect each sample's *top-level* limits — limits that agents or solvers open themselves are untouched. An override applies to the selected task until cleared (pass `clear`) or the run ends; the config view reports each field's active override, and `sample list`'s token usage/ceiling columns reflect a retuned ceiling.
 

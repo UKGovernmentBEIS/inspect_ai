@@ -76,6 +76,9 @@ def test_eval_set_capture_manifest(
     assert capture.options["log_dir"] == str(tmp_path / "logs")
     # effective value (default 10), not the raw None parameter
     assert capture.options["retry_attempts"] == 10
+    # unset means the definition expressed no preference, which is different
+    # from asking for whatever the runner's default happens to be
+    assert capture.options["max_samples"] is None
 
     # two tasks crossed over two models
     assert len(capture.tasks) == 4
@@ -120,6 +123,17 @@ def test_eval_set_capture_limit_and_epochs(
     assert capture.options["epochs"] == 5
 
 
+def test_eval_set_capture_max_samples(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    # a runner sets max_samples per worker through the selection document, so
+    # it needs to see what the definition asked for or it will silently
+    # override an explicit value with its own default
+    capture = capture_eval_set(monkeypatch, tmp_path, max_samples=25)
+
+    assert capture.options["max_samples"] == 25
+
+
 def test_eval_set_capture_model_roles(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -128,6 +142,20 @@ def test_eval_set_capture_model_roles(
     )
     assert all(
         task.model_roles == {"grader": "mockllm/grader"} for task in capture.tasks
+    )
+
+
+def test_eval_set_capture_model_roles_list(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    capture = capture_eval_set(
+        monkeypatch,
+        tmp_path,
+        model_roles={"grader": ["mockllm/grader_a", "mockllm/grader_b"]},
+    )
+    assert all(
+        task.model_roles == {"grader": "mockllm/grader_a,mockllm/grader_b"}
+        for task in capture.tasks
     )
 
 

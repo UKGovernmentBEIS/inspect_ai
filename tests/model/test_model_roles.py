@@ -44,7 +44,9 @@ def role_task():
 def test_model_role() -> None:
     log = eval(role_task(), model_roles={RED_TEAM: GEMINI_FLASH_3_PREVIEW})[0]
     assert log.eval.model_roles
-    assert log.eval.model_roles[RED_TEAM].model == GEMINI_FLASH_3_PREVIEW
+    red_team = log.eval.model_roles[RED_TEAM]
+    assert not isinstance(red_team, list)
+    assert red_team.model == GEMINI_FLASH_3_PREVIEW
     check_model_role(log, RED_TEAM, GEMINI_FLASH_3_PREVIEW)
 
 
@@ -62,7 +64,9 @@ def test_model_role_retry() -> None:
     log.samples = []
     log = eval_retry(log)[0]
     assert log.eval.model_roles
-    assert log.eval.model_roles[RED_TEAM].model == GEMINI_FLASH_3_PREVIEW
+    red_team = log.eval.model_roles[RED_TEAM]
+    assert not isinstance(red_team, list)
+    assert red_team.model == GEMINI_FLASH_3_PREVIEW
     check_model_role(log, RED_TEAM, GEMINI_FLASH_3_PREVIEW)
 
 
@@ -202,6 +206,7 @@ def test_role_models_share_connection_concurrency_key() -> None:
     resolved = resolve_model_roles({"auditor": "none/none", "judge": "none/none"})
     assert resolved is not None
     auditor, judge = resolved["auditor"], resolved["judge"]
+    assert isinstance(auditor, Model) and isinstance(judge, Model)
 
     assert auditor is not judge
     assert model_concurrency_key(auditor.api) == model_concurrency_key(judge.api)
@@ -226,9 +231,11 @@ def test_resolve_model_roles_copies_model_objects(no_model_copyreg_reducer) -> N
     # the same object handed to two roles must not collapse onto the last role
     resolved = resolve_model_roles({"auditor": m, "judge": m})
     assert resolved is not None
-    assert resolved["auditor"] is not resolved["judge"]
-    assert resolved["auditor"].role == "auditor"
-    assert resolved["judge"].role == "judge"
+    auditor, judge = resolved["auditor"], resolved["judge"]
+    assert isinstance(auditor, Model) and isinstance(judge, Model)
+    assert auditor is not judge
+    assert auditor.role == "auditor"
+    assert judge.role == "judge"
 
     # and the caller's original object is left untouched (role not stamped in place)
     assert m.role is None
@@ -401,3 +408,126 @@ def test_model_role_merge_preserves_get_model_config_defaults() -> None:
     model_event = next(e for e in log.samples[0].events if e.event == "model")
     assert model_event.config.max_tokens == 17
     assert model_event.config.reasoning_effort == "low"
+
+
+# -- List-valued role tests (mockllm, no API keys needed) --
+
+
+def test_resolve_model_roles_list() -> None:
+    resolved = resolve_model_roles({GRADER: [MOCK_A, MOCK_B], REVIEWER: MOCK_C})
+    assert resolved is not None
+    graders = resolved[GRADER]
+    assert isinstance(graders, list)
+    assert [str(m) for m in graders] == [MOCK_A, MOCK_B]
+    assert all(m.role == GRADER for m in graders)
+    reviewer = resolved[REVIEWER]
+    assert isinstance(reviewer, Model)
+    assert reviewer.role == REVIEWER
+
+
+def test_resolve_model_roles_single_element_list_collapses() -> None:
+    resolved = resolve_model_roles({GRADER: [MOCK_A]})
+    assert resolved is not None
+    assert isinstance(resolved[GRADER], Model)
+
+
+def test_resolve_model_roles_rejects_empty_list() -> None:
+    with pytest.raises(PrerequisiteError, match="empty"):
+        resolve_model_roles({GRADER: []})
+
+
+@pytest.mark.parametrize("value", [None, 123, [1, 2]])
+def test_resolve_model_roles_rejects_invalid_values(value) -> None:
+    with pytest.raises(PrerequisiteError, match="invalid value"):
+        resolve_model_roles({GRADER: value})
+
+
+def test_model_roles_list_config_round_trip() -> None:
+    from inspect_ai.model._model_config import (
+        model_roles_config_to_model_roles,
+        model_roles_to_model_roles_config,
+    )
+
+    resolved = resolve_model_roles({GRADER: [MOCK_A, MOCK_B, MOCK_C], REVIEWER: MOCK_A})
+    assert resolved is not None
+
+    config = model_roles_to_model_roles_config(resolved)
+    assert config is not None
+    assert list(config.keys()) == [GRADER, REVIEWER]
+    grader_configs = config[GRADER]
+    assert isinstance(grader_configs, list)
+    assert [mc.model for mc in grader_configs] == [MOCK_A, MOCK_B, MOCK_C]
+    reviewer_config = config[REVIEWER]
+    assert not isinstance(reviewer_config, list)
+    assert reviewer_config.model == MOCK_A
+
+    round_tripped = model_roles_config_to_model_roles(config)
+    assert round_tripped is not None
+    graders = round_tripped[GRADER]
+    assert isinstance(graders, list)
+    assert [str(m) for m in graders] == [MOCK_A, MOCK_B, MOCK_C]
+    assert isinstance(round_tripped[REVIEWER], Model)
+
+
+def test_model_role_list_get_model_returns_first() -> None:
+    log = eval(
+        Task(solver=grader_role_solver()),
+        model_roles={GRADER: [MOCK_A, MOCK_B]},
+    )[0]
+    assert log.status == "success"
+    # get_model(role=...) resolves to the first model in the list
+    check_model_role(log, GRADER, MOCK_A)
+    # the log stores the role as a list of model configs
+    assert log.eval.model_roles is not None
+    graders = log.eval.model_roles[GRADER]
+    assert isinstance(graders, list)
+    assert [mc.model for mc in graders] == [MOCK_A, MOCK_B]
+
+
+def test_model_role_list_eval_set_identity() -> None:
+    """A list-valued role hashes consistently between live tasks and logs."""
+
+    def make_task() -> Task:
+        return Task(
+            dataset=[Sample(input="Say hello", target="hello")],
+            solver=grader_role_solver(),
+        )
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        success, logs = eval_set(
+            make_task(),
+            log_dir=log_dir,
+            model="mockllm/model",
+            model_roles={GRADER: [MOCK_A, MOCK_B]},
+        )
+        assert success
+        # a second run must match the completed log via task identity
+        # (rather than re-running the task under a new identity)
+        success2, logs2 = eval_set(
+            make_task(),
+            log_dir=log_dir,
+            model="mockllm/model",
+            model_roles={GRADER: [MOCK_A, MOCK_B]},
+        )
+        assert success2
+        assert logs2[0].eval.task_id == logs[0].eval.task_id
+
+
+def test_model_role_list_eval_retry() -> None:
+    @task
+    def grader_list_role_task() -> Task:
+        return Task(solver=grader_role_solver())
+
+    log = eval(
+        grader_list_role_task(),
+        model_roles={GRADER: [MOCK_A, MOCK_B]},
+    )[0]
+    log.status = "cancelled"
+    log.samples = []
+    log_retry = eval_retry(log)[0]
+    assert log_retry.status == "success"
+    assert log_retry.eval.model_roles is not None
+    graders = log_retry.eval.model_roles[GRADER]
+    assert isinstance(graders, list)
+    assert [mc.model for mc in graders] == [MOCK_A, MOCK_B]
+    check_model_role(log_retry, GRADER, MOCK_A)

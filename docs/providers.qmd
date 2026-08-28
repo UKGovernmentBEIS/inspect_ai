@@ -41,6 +41,7 @@ The `openai` provider supports the following custom model args (other model args
 | `service_tier` | Processing type used for serving the request ("auto", "default", or "flex"). |
 | `background` | Execute generate requests asynchronously, polling response objects to check status over time. Defaults to `True` for `gpt-5-pro` and `deep-research` models and for requests with `reasoning_mode="pro"`, and `False` otherwise. |
 | `safety_identifier` | A stable identifier used to help detect users of your application. |
+| `streaming` | Whether to use streaming responses. The default ("auto") streams when the caller passes an `on_stream` callback to `generate()` — except Azure chat-completions requests, which never auto-stream (accumulated streamed responses would lose content-filter stop details); pass `true` or `false` to override. If the server rejects the streaming request itself (a 400 naming the `stream` param — e.g. reasoning models on organizations that haven't completed verification), auto mode retries the request non-streamed. |
 | `prompt_cache_key` | Used by OpenAI to cache responses for similar requests. |
 | `prompt_cache_retention` | Retention policy for the prompt cache. |
 | `http_client` | Custom instance of `httpx2.AsyncClient` (or legacy `httpx.AsyncClient`) for handling requests. |
@@ -280,7 +281,7 @@ Note that 1-hour cache writes are billed at 2x the base input token price (vs. 1
 
 ### Streaming
 
-The Anthropic provider supports a `streaming` model arg (`-M`) that controls whether streaming responses are used. The default ("auto") will automatically use streaming when thinking is enabled or for potentially [long requests](https://github.com/anthropics/anthropic-sdk-python?tab=readme-ov-file#long-requests) (requests with \>= 8192 `max_tokens`). Pass `true` or `false` to override the default behavior:
+The Anthropic provider supports a `streaming` model arg (`-M`) that controls whether streaming responses are used. The default ("auto") will automatically use streaming when the caller passes an `on_stream` callback to `generate()`, when thinking is enabled, or for potentially [long requests](https://github.com/anthropics/anthropic-sdk-python?tab=readme-ov-file#long-requests) (requests with \>= 8192 `max_tokens`). Pass `true` or `false` to override the default behavior:
 
 ``` bash
 inspect eval arc.py --model anthropic/claude-sonnet-4-0 -M streaming=true
@@ -456,7 +457,7 @@ inspect eval eval.py -M "safety_settings={'hate_speech': 'low_and_above'}"
 
 ### Streaming
 
-The Google provider supports a `streaming` model arg (`-M`) that controls whether streaming responses are used. Streaming is disabled by default. Pass `true` to enable streaming:
+The Google provider supports a `streaming` model arg (`-M`) that controls whether streaming responses are used. The default ("auto") uses streaming when the caller passes an `on_stream` callback to `generate()`. Pass `true` to always stream (or `false` to never stream):
 
 ``` bash
 inspect eval arc.py --model google/gemini-2.5-pro -M streaming=true
@@ -562,7 +563,7 @@ The following environment variables are supported by the Grok provider. The prov
 
 ### Model Args
 
-The `grok` provider supports a `streaming` model argument to enable response streaming (it is disabled by default):
+The `grok` provider supports a `streaming` model argument that controls whether streaming responses are used. The default ("auto") uses streaming when the caller passes an `on_stream` callback to `generate()`. Pass `true` to always stream (or `false` to never stream):
 
 ``` bash
 inspect eval arc.py --model grok/grok-3-mini -M streaming=true
@@ -585,6 +586,14 @@ inspect eval arc.py --model grok/grok-4.6 -M service_tier=priority
 Note that `service_tier` applies to standard requests only — [batch](models-batch.qmd) requests are processed on xAI's own batch tier, so the argument is omitted for them.
 
 Additional custom model args (`-M`) are forwarded to the constructor of the `AsynClient` class.
+
+### Prompt Caching
+
+xAI caches prompt prefixes automatically, but its cache is per-server and requests are otherwise load balanced across servers, so a turn can land on a server that has never seen its prefix. Inspect therefore sends xAI's [`x-grok-conv-id`](https://docs.x.ai/developers/advanced-api-usage/prompt-caching/maximizing-cache-hits) header, set to the running sample's unique id, which pins all of that sample's requests to a single server. Multi-turn agents benefit the most: each turn re-sends the whole conversation so far, and that prefix is already cached on the server the previous turn landed on.
+
+Cached tokens are billed at a lower rate and are reported in the eval log as `input_tokens_cache_read`.
+
+This requires no configuration. Note that the header is not sent for [batch](models-batch.qmd) requests (which share a single long-lived client and are not multi-turn), or when the model is used outside of a running sample (where there is no conversation to pin).
 
 ## AWS Bedrock {#aws-bedrock}
 
@@ -629,7 +638,7 @@ The following model args are supported:
 | `endpoint_url` | Custom SageMaker runtime endpoint URL (required). |
 | `read_timeout` | Read timeout in seconds (default: `600`). |
 | `connect_timeout` | Connection timeout in seconds (default: `60`). |
-| `stream` | Enable streaming responses (default: `false`). |
+| `stream` | Enable streaming responses (default: stream only when the caller passes an `on_stream` callback to `generate()`). |
 | `completion_mode` | Send completions-style payloads for CPT/base models instead of chat-style payloads (default: `false`). |
 | `inference_component_name` | Name of the inference component for multi-model endpoints. |
 | `prompt_logprobs` | Number of prompt log probabilities to return per token. Used for perplexity scoring with vLLM-backed endpoints. |
@@ -779,7 +788,7 @@ inspect eval arc.py --model together/MiniMaxAI/MiniMax-M2.7
 
 For the `together` provider, you can enable [Tool Emulation](#tool-emulation-openai) using the `emulate_tools` custom model arg (`-M`). Other custom model args are forwarded to the constructor of the `AsyncOpenAI` class.
 
-The `together` provider supports a `stream` model arg (`-M`) that controls whether streaming responses are used (it is disabled by default). Pass `true` to enable streaming:
+The `together` provider supports a `stream` model arg (`-M`) that controls whether streaming responses are used. The default ("auto") uses streaming when the caller passes an `on_stream` callback to `generate()`. Pass `true` to always stream (or `false` to never stream):
 
 ``` bash
 inspect eval arc.py --model together/MiniMaxAI/MiniMax-M2.7 -M stream=true
@@ -1061,7 +1070,7 @@ The most ergonomic path is [model roles](models.qmd#model-roles), which lets the
 inspect eval task.py \
     --model vllm/meta-llama/Llama-3-8B \
     --model-base-url http://gpu1:8000/v1 \
-    --model-role 'grader={model: vllm/meta-llama/Llama-3-70B-Instruct, base_url: http://gpu2:8000/v1}'
+    --model-role 'grader={model: vllm/meta-llama/Llama-3-70B-Instruct, model_args: {base_url: http://gpu2:8000/v1}}'
 ```
 
 Equivalent from Python:
@@ -1082,7 +1091,7 @@ eval(
 )
 ```
 
-Any number of roles can be defined this way (e.g. a separate `critic` or `red_team` model); each one can point at its own vLLM server. `VLLM_API_KEY` is also accepted as a per-model `api_key=` argument if your servers use different keys.
+Any number of roles can be defined this way (e.g. a separate `critic` or `red_team` model); each one can point at its own vLLM server. In CLI role dictionaries, place provider-specific values such as `base_url` and `api_key` under `model_args`; in Python, pass them directly to `get_model()`.
 
 Note: Inspect reuses a single server entry per base model name, so two `vllm/<same-model>` instances pointed at different URLs will collapse to the first URL. This caveat does not apply to the typical solver-vs-judge setup since the two models are different.
 
@@ -1511,7 +1520,7 @@ eval("arc.py", model="openai-api/<provider>/<model>", model_args=dict(strict_too
 
 ### Streaming {#streaming-openai-compatible}
 
-You can enable the use of the streaming with the `openai-api` provider by passing the `stream` model arg. For example:
+The `openai-api` provider streams by default only when the caller passes an `on_stream` callback to `generate()`. You can force streaming on (or off) by passing the `stream` model arg. For example:
 
 ``` bash
 $ inspect eval arc.py --model openai-api/<provider>/<model> -M stream=true
@@ -1609,7 +1618,7 @@ The following environment variables are supported by the HF Inference Providers:
 
 ### Streaming {#streaming-hf-inference}
 
-HF Interference Providers uses streaming by default for requests. You can disable streaming using the `stream` model arg. For example:
+HF Interference Providers uses streaming by default for requests. You can disable streaming using the `stream` model arg (or pass `auto` to stream only when the caller passes an `on_stream` callback to `generate()`). For example:
 
 ``` bash
 inspect eval arc.py --model hf-inference-providers/openai/gpt-oss-120b -M stream=false

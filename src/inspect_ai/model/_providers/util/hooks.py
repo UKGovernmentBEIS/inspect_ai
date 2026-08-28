@@ -1,13 +1,25 @@
 import re
 import time
 from logging import getLogger
-from typing import Any, Callable, Literal, Mapping, NamedTuple, Protocol, cast
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Literal,
+    Mapping,
+    NamedTuple,
+    Protocol,
+    cast,
+)
 
 from shortuuid import uuid
 
 from inspect_ai._util.constants import HTTP
 from inspect_ai._util.http import parse_retry_after
 from inspect_ai._util.retry import report_http_retry
+
+if TYPE_CHECKING:
+    from inspect_ai.model._model import ModelAPI
 
 logger = getLogger(__name__)
 
@@ -56,9 +68,16 @@ class HttpHooks:
 
     REQUEST_ID_HEADER = "x-irid"
 
-    def __init__(self) -> None:
+    def __init__(self, api: "ModelAPI | None" = None) -> None:
         # track request start times
         self._requests: dict[str, RequestInfo] = {}
+        # The owning ModelAPI, read lazily for the qualified model name when
+        # reporting retries: hooks are constructed in provider __init__s,
+        # *before* get_model() stamps `qualified_model_name` on the instance,
+        # so the name can't be captured here. None (e.g. the urllib3 global
+        # hooks, or a bare ModelAPI used outside get_model) leaves retries
+        # unattributed in the throughput registry.
+        self._api = api
 
     def start_request(self) -> str:
         request_id = uuid()
@@ -153,12 +172,17 @@ class HttpHooks:
         # when the HTTP status alone is insufficient — e.g. Bedrock) or
         # falling back to status==429 detection.
         if new_attempts > 1:
+            model = self._api.qualified_model_name if self._api is not None else None
             if prev_kind is not None:
-                report_http_retry(kind=prev_kind, retry_after=prev_retry_after)
+                report_http_retry(
+                    kind=prev_kind, retry_after=prev_retry_after, model=model
+                )
             elif prev_status == 429:
-                report_http_retry(kind="rate_limit", retry_after=prev_retry_after)
+                report_http_retry(
+                    kind="rate_limit", retry_after=prev_retry_after, model=model
+                )
             else:
-                report_http_retry()
+                report_http_retry(model=model)
 
 
 class ConverseHooks(HttpHooks):
@@ -166,10 +190,10 @@ class ConverseHooks(HttpHooks):
     # context dict so the response-received handler can look it up.
     _CTX_REQUEST_ID = "_inspect_request_id"
 
-    def __init__(self, session: Any) -> None:
+    def __init__(self, session: Any, api: "ModelAPI | None" = None) -> None:
         from aiobotocore.session import AioSession
 
-        super().__init__()
+        super().__init__(api)
 
         # register hooks. We use:
         #   * request-created (per-attempt): record start time + stash request_id
@@ -278,9 +302,9 @@ class ConverseHooks(HttpHooks):
 
 
 # Structural stand-ins for httpx types, covering only what the hooks touch.
-# The openai SDK is built on `httpx2` while other SDKs (anthropic, google,
-# mistral, groq) hand us legacy `httpx` clients; both flavors satisfy these
-# protocols.
+# The openai (>= 3) and anthropic (>= 1) SDKs are built on `httpx2` while
+# other SDKs (google, mistral, groq) hand us legacy `httpx` clients; both
+# flavors satisfy these protocols.
 class HttpxRequestLike(Protocol):
     @property
     def method(self) -> str: ...
@@ -313,8 +337,8 @@ class HttpxClientLike(Protocol):
 
 
 class HttpxHooks(HttpHooks):
-    def __init__(self, client: HttpxClientLike):
-        super().__init__()
+    def __init__(self, client: HttpxClientLike, api: "ModelAPI | None" = None):
+        super().__init__(api)
 
         # install hooks
         client.event_hooks["request"].append(self.request_hook)

@@ -16,7 +16,7 @@ import pytest
 from test_helpers.live_eval_data import FakeLiveEvalData
 
 from inspect_ai import SampleSource, Task, enqueue_sample, eval_async
-from inspect_ai._control.cancel import cancel_sample
+from inspect_ai._control.cancel import cancel_sample, cancel_task
 from inspect_ai._control.eval_state import (
     clear_all_eval_states,
     detach_eval_live,
@@ -46,9 +46,10 @@ from inspect_ai._util._async import Wake
 from inspect_ai._util.error import EvalError, is_cancellation_message
 from inspect_ai.dataset import Sample
 from inspect_ai.log import EvalLog, read_eval_log_async
-from inspect_ai.log._log import EvalSample, EvalSampleSummary
-from inspect_ai.scorer import CORRECT, Score, Target, accuracy, scorer
+from inspect_ai.log._log import EvalSample, EvalSampleSummary, EvalSpec
+from inspect_ai.scorer import CORRECT, SampleScore, Score, Target, accuracy, scorer
 from inspect_ai.solver import Generate, TaskState, solver
+from inspect_ai.util import EarlyStop
 from inspect_ai.util._display import init_display_type
 
 
@@ -1444,7 +1445,8 @@ async def test_requeue_after_operator_errored_sample() -> None:
         eval_id = states[0].eval_id
 
         cancelled = await cancel_sample(eval_id, "victim", 1, action="error")
-        assert cancelled is not None and cancelled["changed"] is True
+        assert cancelled is not None and cancelled["ok"] is True
+        assert cancelled["changed"] is True
 
         with anyio.fail_after(60):
             while True:
@@ -1694,3 +1696,135 @@ async def test_requeue_dynamic_while_awaiting_source() -> None:
     flaky = next(s for s in log.samples if s.id == "flaky")
     assert flaky.error is None
     assert flaky.error_retries is not None and len(flaky.error_retries) == 1
+
+
+# ---------------------------------------------------------------------------
+# End to end: the task-finished gates during a suspended early-stopping hook
+# ---------------------------------------------------------------------------
+
+_GATE_HOOK_ENTERED: anyio.Event | None = None
+_GATE_HOOK_RELEASE: anyio.Event | None = None
+
+
+class _SuspendingEarlyStopping:
+    """Parks in `complete_sample` until released (an unbounded hook await)."""
+
+    async def start_task(
+        self, task: EvalSpec, samples: list[Sample], epochs: int
+    ) -> str:
+        return "suspender"
+
+    async def schedule_sample(self, id: str | int, epoch: int) -> EarlyStop | None:
+        return None
+
+    async def complete_sample(
+        self, id: str | int, epoch: int, scores: dict[str, SampleScore]
+    ) -> None:
+        assert _GATE_HOOK_ENTERED is not None and _GATE_HOOK_RELEASE is not None
+        _GATE_HOOK_ENTERED.set()
+        with anyio.fail_after(60):
+            await _GATE_HOOK_RELEASE.wait()
+
+    async def complete_task(self) -> dict[str, Any]:
+        return {}
+
+
+@solver
+def _boom_then_ok():
+    """Errors the "boom" sample terminally; everything else succeeds.
+
+    Non-boom samples park until "boom" has been terminal-counted. The
+    fanout starts one task per plan entry (`SampleScheduler.run`),
+    and trio randomizes the order runnable tasks are stepped, so which
+    sample reaches its solver first is not deterministic — the ordering
+    the finished-gate assertions rely on has to be explicit rather than
+    inherited from dataset order.
+    """
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        if state.sample_id == "boom":
+            raise RuntimeError("terminal boom")
+        with anyio.fail_after(60):
+            while not any(s.errored for s in get_eval_states()):
+                await anyio.sleep(0.01)
+        return state
+
+    return solve
+
+
+async def test_requeue_and_cancel_rejected_during_suspended_hook() -> None:
+    """Directives during the last sample's suspended hook see a finished task.
+
+    Terminal state (counter + `completed_at`) stamps before the
+    metrics/early-stopping await (design/sample-lifecycle.md), so a requeue
+    of the errored sample and a task cancel arriving while
+    `EarlyStopping.complete_sample` is suspended on the last sample's
+    completion are rejected as "task already finished" — not accepted
+    against a de facto finished task (an accepted requeue would re-run the
+    sample; an accepted cancel would stamp a user-cancel that suppresses an
+    eval-set retry).
+    """
+    global _GATE_HOOK_ENTERED, _GATE_HOOK_RELEASE
+    _GATE_HOOK_ENTERED = anyio.Event()
+    _GATE_HOOK_RELEASE = anyio.Event()
+
+    task = Task(
+        dataset=[
+            Sample(id="boom", input="x", target="y"),
+            Sample(id="last", input="x", target="y"),
+        ],
+        solver=_boom_then_ok(),
+        scorer=_always_correct(),
+        early_stopping=_SuspendingEarlyStopping(),
+        name="finished_gates_e2e",
+    )
+
+    init_display_type("none")
+    logs: list[EvalLog] = []
+
+    async with anyio.create_task_group() as tg:
+
+        async def run_eval() -> None:
+            logs.extend(
+                await eval_async(
+                    task,
+                    model="mockllm/model",
+                    fail_on_error=False,
+                    ctl_server=False,
+                    # both samples resident: "last" parks in its solver
+                    # until boom is terminal-counted (see _boom_then_ok)
+                    max_samples=2,
+                )
+            )
+
+        tg.start_soon(run_eval)
+
+        # the last sample's completion suspends in the hook; every sample is
+        # terminal-counted by then, so the finish stamp must already be set
+        with anyio.fail_after(60):
+            await _GATE_HOOK_ENTERED.wait()
+
+        states = get_eval_states()
+        assert len(states) == 1
+        state = states[0]
+        assert (state.completed, state.errored) == (1, 1)
+        assert state.completed_at is not None
+
+        requeue = await requeue_sample(state.eval_id, "boom", 1)
+        assert requeue is not None
+        assert requeue["ok"] is False
+        assert "task already finished" in requeue["error"]
+
+        cancel = cancel_task(state.task_id)
+        assert cancel is not None
+        assert cancel["ok"] is True and cancel["changed"] is False
+        assert cancel["reason"] == "task already finished"
+
+        _GATE_HOOK_RELEASE.set()
+
+    (log,) = logs
+    assert log.status == "success"
+    log = await read_eval_log_async(log.location)
+    assert log.samples is not None
+    boom = next(s for s in log.samples if s.id == "boom")
+    assert boom.error is not None  # the rejected requeue never re-ran it
