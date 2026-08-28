@@ -12,6 +12,7 @@ if TYPE_CHECKING:
 from openai import (
     APIConnectionError,
     APIError,
+    APIResponseValidationError,
     APIStatusError,
     APITimeoutError,
     AsyncStream,
@@ -1327,29 +1328,35 @@ def _http_status_from_error_code(code: object) -> int | None:
     return None
 
 
-def openai_handle_bad_request(
-    model_name: str, e: APIStatusError
-) -> ModelOutput | Exception:
-    # extract message
-    if isinstance(e.body, dict) and "message" in e.body.keys():
-        content = str(e.body.get("message"))
-    else:
-        content = e.message
+def openai_refusal_model_output(
+    model_name: str,
+    code: str | None,
+    error_type: str | None,
+    message: str,
+    content: str | None = None,
+) -> ModelOutput | None:
+    """Map an OpenAI refusal/limit error to model output, or None if unrecognized.
+
+    `message` is the SDK error message (used for heuristic matching); `content`
+    is the text recorded as the model output when it differs (e.g. the error
+    body's message), defaulting to `message`.
+    """
+    content = content if content is not None else message
 
     # narrow stop_reason
     stop_reason: StopReason | None = None
     stop_details: StopDetails | None = None
-    if e.code == "context_length_exceeded":
+    if code == "context_length_exceeded":
         stop_reason = "model_length"
     elif (
-        e.code == "invalid_prompt"  # seems to happen for o1/o3
-        or e.code == "content_policy_violation"  # seems to happen for vision
-        or e.code == "content_filter"  # seems to happen on azure
-        or e.code == "cyber_policy"  # seems to happen for 5.4
-        or (e.type == "invalid_request_error" and "blocked" in e.message)
+        code == "invalid_prompt"  # seems to happen for o1/o3
+        or code == "content_policy_violation"  # seems to happen for vision
+        or code == "content_filter"  # seems to happen on azure
+        or code == "cyber_policy"  # seems to happen for 5.4
+        or (error_type == "invalid_request_error" and "blocked" in message)
     ):
         stop_reason = "content_filter"
-        if e.code == "cyber_policy":
+        if code == "cyber_policy":
             stop_details = StopDetails(
                 type="refusal",
                 category="cyber",
@@ -1367,7 +1374,49 @@ def openai_handle_bad_request(
             stop_details=stop_details,
         )
     else:
-        return e
+        return None
+
+
+def openai_handle_bad_request(model_name: str, e: APIError) -> ModelOutput | Exception:
+    """Convert a refusal/limit error into model output where possible.
+
+    Accepts the `APIError` base (not just `APIStatusError`): only `body`,
+    `message`, `code`, and `type` are read, and mid-stream errors (see
+    `openai_handle_stream_error`) carry those without a status code.
+    """
+    # extract message
+    if isinstance(e.body, dict) and "message" in e.body.keys():
+        content = str(e.body.get("message"))
+    else:
+        content = e.message
+
+    output = openai_refusal_model_output(model_name, e.code, e.type, e.message, content)
+    return output if output is not None else e
+
+
+def openai_handle_stream_error(
+    model_name: str, e: APIError | OpenAIResponseError
+) -> ModelOutput | None:
+    """Convert a mid-stream safeguard/content-filter block into model output.
+
+    With streaming enabled the server returns HTTP 200 and then delivers
+    safeguard blocks as an error event in the stream body, bypassing the
+    bad-request handling that converts blocks into `content_filter` output on
+    the non-streaming path. Depending on the error's shape the SDK raises it
+    from the stream iterator as a plain `APIError` (with no error status it
+    cannot infer a `BadRequestError`), or yields it as an error event that
+    inspect raises as `OpenAIResponseError` (responses API). Returns the
+    converted `ModelOutput` for recognized blocks, or None when the caller
+    should re-raise: either the error is a status/validation/connection error
+    (which must keep their existing retry semantics) or it isn't a recognized
+    refusal.
+    """
+    if isinstance(e, OpenAIResponseError):
+        return openai_refusal_model_output(model_name, e.code, None, e.message)
+    if isinstance(e, APIStatusError | APIResponseValidationError | APIConnectionError):
+        return None
+    handled = openai_handle_bad_request(model_name, e)
+    return handled if isinstance(handled, ModelOutput) else None
 
 
 def openai_media_filter(key: JsonValue | None, value: JsonValue) -> JsonValue:

@@ -13,6 +13,8 @@
 - Grok: Requests now carry xAI's conversation id header, which improves prompt cache hit rates for multi-turn samples.
 - OpenAI: Function call outputs without a `call_id` (optional as of openai 3.5.0) no longer error in the agent bridge or token-count padding.
 - Model streaming: Transient errors delivered mid-stream after HTTP 200 (provider stream error events, and streams that end with no data) are now retried instead of failing the sample.
+- OpenAI: Transient server errors and rate limits delivered mid-stream on chat-completions streaming are now retried instead of failing the sample.
+- OpenAI: Safeguard/content-policy blocks emitted mid-stream or as terminal response errors are now reported as `content_filter` stop reasons instead of failing the sample.
 - Scoring: Skip Score.unscored() / NaN-at-root sentinels in aggregate() metric. (#5008)
 - Scoring: Return inf on OverflowError in perplexity_per_token() and perplexity_per_seq() metrics. (#5028)
 - Analysis: Ensure ColumnError.path is a string rather than a JSONPath object on record import errors. (#5006)
