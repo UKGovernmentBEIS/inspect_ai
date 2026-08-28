@@ -1321,11 +1321,7 @@ def _http_status_from_error_code(code: object) -> int | None:
     `Optional[str]` but passes body values through unconverted, so an int
     arrives as an int at runtime.
     """
-    if isinstance(code, bool):
-        return None
-    if isinstance(code, int):
-        return code if 100 <= code <= 599 else None
-    if isinstance(code, str) and code.isdigit():
+    if isinstance(code, int) or (isinstance(code, str) and code.isdecimal()):
         status = int(code)
         return status if 100 <= status <= 599 else None
     return None

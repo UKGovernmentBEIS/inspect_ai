@@ -504,6 +504,46 @@ def test_anthropic_mid_stream_permanent_error_does_not_retry() -> None:
     assert decision.retry is False
 
 
+def test_anthropic_transient_body_type_on_permanent_status_does_not_retry() -> None:
+    """Type-based classification is scoped to status 200 (the mid-stream case).
+
+    A real HTTP error status — e.g. a proxy's 4xx wrapping an
+    anthropic-format body with a transient inner type — must keep failing
+    fast via the status rules rather than retrying forever.
+    """
+    from anthropic import APIStatusError
+
+    from inspect_ai.model._providers.anthropic import AnthropicAPI
+
+    api = AnthropicAPI.__new__(AnthropicAPI)
+    ex = APIStatusError(
+        message="not found",
+        response=_httpx2_response(404),
+        body={"type": "error", "error": {"type": "api_error", "message": "no route"}},
+    )
+    decision = api.should_retry(ex)
+    assert isinstance(decision, RetryDecision)
+    assert decision.retry is False
+
+
+def test_anthropic_mid_stream_unparseable_string_body_falls_back_to_substring() -> None:
+    """An SSE error event whose data fails JSON parsing attaches the raw string body."""
+    from anthropic import APIStatusError
+
+    from inspect_ai.model._providers.anthropic import AnthropicAPI
+
+    api = AnthropicAPI.__new__(AnthropicAPI)
+    ex = APIStatusError(
+        message="overloaded",
+        response=_httpx2_response(200),
+        body='{"type": "error", "error": {"type": "overloaded_er',
+    )
+    decision = api.should_retry(ex)
+    assert isinstance(decision, RetryDecision)
+    assert decision.retry is True
+    assert decision.kind == "transient"
+
+
 def test_anthropic_httpx2_transport_error_classifies_as_transient() -> None:
     """Anthropic >= 1 is built on httpx2 — raw httpx2 transport errors that escape the SDK unwrapped must still retry."""
     from inspect_ai.model._providers.anthropic import AnthropicAPI
@@ -890,23 +930,27 @@ def test_sagemaker_other_error_does_not_retry() -> None:
     assert decision.retry is False
 
 
-@pytest.mark.parametrize("error_code", ["ModelInvocationTimeExceeded", "StreamBroken"])
-def test_sagemaker_mid_stream_model_stream_error_classifies_as_transient(
-    error_code: str,
+@pytest.mark.parametrize("code", ["ModelStreamError", "InternalStreamFailure"])
+def test_sagemaker_mid_stream_event_stream_error_classifies_as_transient(
+    code: str,
 ) -> None:
-    """In-band ModelStreamError events (after HTTP 200) classify by ErrorCode.
+    """In-band stream errors (after HTTP 200) surface as EventStreamError.
 
-    Both AWS-documented codes are infrastructure transients whose
-    non-streaming analogues (container timeout / connection reset) retry.
+    Both event shapes are marked `exception` in the AWS service model, so
+    botocore raises them from the stream iterator as EventStreamError (a
+    ClientError) with the exception type as the code — and both are
+    infrastructure transients (AWS documents InternalStreamFailure as "Try
+    your request again"; ModelStreamError's documented ErrorCodes are a
+    model timeout and a TCP reset).
     """
-    from inspect_ai.model._providers.sagemaker import (
-        SagemakerAPI,
-        SageMakerStreamError,
-    )
+    from botocore.exceptions import EventStreamError
+
+    from inspect_ai.model._providers.sagemaker import SagemakerAPI
 
     api = SagemakerAPI.__new__(SagemakerAPI)
-    ex = SageMakerStreamError(
-        f"ModelStreamError [{error_code}]: stream failed", error_code=error_code
+    ex = EventStreamError(
+        {"Error": {"Code": code, "Message": "stream failed"}},
+        "InvokeEndpointWithResponseStream",
     )
     decision = api.should_retry(ex)
     assert isinstance(decision, RetryDecision)
@@ -914,29 +958,15 @@ def test_sagemaker_mid_stream_model_stream_error_classifies_as_transient(
     assert decision.kind == "transient"
 
 
-def test_sagemaker_mid_stream_unknown_error_code_does_not_retry() -> None:
+def test_sagemaker_in_band_stream_error_backstop_classifies_as_transient() -> None:
+    """The typed backstop for in-band error events also classifies as transient."""
     from inspect_ai.model._providers.sagemaker import (
         SagemakerAPI,
         SageMakerStreamError,
     )
 
     api = SagemakerAPI.__new__(SagemakerAPI)
-    for error_code in ("SomeFutureCode", None):
-        ex = SageMakerStreamError("ModelStreamError: stream failed", error_code)
-        decision = api.should_retry(ex)
-        assert isinstance(decision, RetryDecision)
-        assert decision.retry is False
-
-
-def test_sagemaker_internal_stream_failure_classifies_as_transient() -> None:
-    """InternalStreamFailure is documented by AWS as transient ("Try your request again")."""
-    from inspect_ai.model._providers.sagemaker import (
-        SagemakerAPI,
-        SageMakerInternalStreamFailure,
-    )
-
-    api = SagemakerAPI.__new__(SagemakerAPI)
-    ex = SageMakerInternalStreamFailure("InternalStreamFailure: unknown failure")
+    ex = SageMakerStreamError("ModelStreamError [StreamBroken]: tcp reset")
     decision = api.should_retry(ex)
     assert isinstance(decision, RetryDecision)
     assert decision.retry is True

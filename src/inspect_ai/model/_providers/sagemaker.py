@@ -68,12 +68,15 @@ SAGEMAKER_RETRY_ERROR_CODES = {
     # 507, # Insufficient storage
 }
 
-# ModelStreamError ErrorCodes documented as transient by AWS (the full
-# documented set — both are infrastructure/timeout conditions whose
-# non-streaming analogues are retried above; unknown codes don't retry).
+# In-band stream errors (delivered after HTTP 200). Both are transient:
+# InternalStreamFailure by definition (AWS: "unknown error ... Try your
+# request again") and ModelStreamError because its documented ErrorCodes —
+# ModelInvocationTimeExceeded and StreamBroken, the full documented set —
+# are infrastructure/timeout conditions whose non-streaming analogues
+# (container timeout, connection reset) are retried above.
 SAGEMAKER_RETRY_STREAM_ERROR_CODES = {
-    "ModelInvocationTimeExceeded",  # model didn't finish within the allowed time
-    "StreamBroken",  # TCP connection between client and model reset or closed
+    "ModelStreamError",
+    "InternalStreamFailure",
 }
 
 # botocore transport-layer exceptions raised before a response is received —
@@ -99,23 +102,16 @@ SAGEMAKER_RETRY_TRANSPORT_ERRORS = (
 
 
 class SageMakerStreamError(RuntimeError):
-    """In-band ModelStreamError event from a streaming response (after HTTP 200).
+    """In-band ModelStreamError/InternalStreamFailure from a response stream.
 
-    Preserves the event's structured `ErrorCode` so `should_retry` can
-    classify it (folding it into the message string would hide it from the
-    retry classifier and fail the sample on transient conditions).
-    """
-
-    def __init__(self, message: str, error_code: str | None = None) -> None:
-        super().__init__(message)
-        self.error_code = error_code
-
-
-class SageMakerInternalStreamFailure(RuntimeError):
-    """In-band InternalStreamFailure event from a streaming response.
-
-    AWS documents this as an unknown backend failure with explicit guidance
-    to "Try your request again", so `should_retry` treats it as transient.
+    Both event shapes are marked `exception` in the AWS service model, so
+    botocore normally surfaces them as `EventStreamError` (a `ClientError`
+    with the exception type as `Error.Code`) raised from the stream
+    iterator — `should_retry` classifies that path directly. This typed
+    exception backstops the defensive in-band checks in the stream loop so
+    that if either shape ever does arrive as a yielded event, it still
+    classifies as transient rather than failing the sample (see
+    `SAGEMAKER_RETRY_STREAM_ERROR_CODES` for why both are transient).
     """
 
 
@@ -209,21 +205,18 @@ class SagemakerAPI(ModelAPI):
                 and status_code in SAGEMAKER_RETRY_ERROR_CODES
             ):
                 return RetryDecision.transient()
+            # In-band stream errors (delivered after HTTP 200) surface as
+            # EventStreamError — a ClientError raised from the response
+            # stream iterator with the exception type as the code
+            if error_code in SAGEMAKER_RETRY_STREAM_ERROR_CODES:
+                return RetryDecision.transient()
         # Transport-layer failures (connection could not be established/was
         # dropped/timed out) are transient — the request never reached the
         # model, so a redial typically succeeds.
         elif isinstance(ex, SAGEMAKER_RETRY_TRANSPORT_ERRORS):
             return RetryDecision.transient()
-        # In-band stream errors (delivered after HTTP 200): an
-        # InternalStreamFailure is documented by AWS as transient; a
-        # ModelStreamError is classified by its ErrorCode (both documented
-        # codes are transient — see SAGEMAKER_RETRY_STREAM_ERROR_CODES).
-        elif isinstance(ex, SageMakerInternalStreamFailure):
-            return RetryDecision.transient()
-        elif (
-            isinstance(ex, SageMakerStreamError)
-            and ex.error_code in SAGEMAKER_RETRY_STREAM_ERROR_CODES
-        ):
+        # backstop for in-band stream error events (see the class docstring)
+        elif isinstance(ex, SageMakerStreamError):
             return RetryDecision.transient()
         return RetryDecision.no()
 
@@ -723,15 +716,18 @@ class SagemakerAPI(ModelAPI):
         report_model_stream_start()
 
         async for event in event_stream:
-            # Check for error events first
+            # Defensive checks for in-band error events. botocore normally
+            # raises these two shapes as EventStreamError from the iterator
+            # (classified in should_retry) rather than yielding them, but if
+            # one arrives as an event it must raise something the retry
+            # classifier recognizes.
             if "ModelStreamError" in event:
                 error_info = event["ModelStreamError"]
-                error_code = error_info.get("ErrorCode")
+                error_code = error_info.get("ErrorCode", "Unknown")
                 error_message = error_info.get("Message", "Model stream error occurred")
                 logger.error(f"ModelStreamError: {error_code} - {error_message}")
                 raise SageMakerStreamError(
-                    f"ModelStreamError [{error_code or 'Unknown'}]: {error_message}",
-                    error_code=error_code,
+                    f"ModelStreamError [{error_code}]: {error_message}"
                 )
 
             if "InternalStreamFailure" in event:
@@ -739,9 +735,7 @@ class SagemakerAPI(ModelAPI):
                     "Message", "Internal stream failure occurred"
                 )
                 logger.error(f"InternalStreamFailure: {error_message}")
-                raise SageMakerInternalStreamFailure(
-                    f"InternalStreamFailure: {error_message}"
-                )
+                raise SageMakerStreamError(f"InternalStreamFailure: {error_message}")
 
             # Process payload chunks
             if "PayloadPart" in event:
