@@ -1823,6 +1823,77 @@ class TestStreamObserver:
         assert observer._tokens_current == 7
 
     @pytest.mark.anyio
+    async def test_stream_gated_without_on_stream(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        """Without an on_stream consumer only usage/heartbeat progress runs.
+
+        Explicit stream=true callers stream without asking for stream events,
+        so delta construction (on_stream support code) must not run for them.
+        """
+        import inspect_ai.model._providers.sagemaker as sagemaker_module
+
+        async def fail(delta: Any) -> None:
+            raise AssertionError("delta reported without an on_stream consumer")
+
+        monkeypatch.setattr(sagemaker_module, "report_model_stream_delta", fail)
+
+        api = _make_api(stream=True)
+        chunks = [
+            {
+                "id": "chatcmpl-obs",
+                "created": 1700000000,
+                "model": "m",
+                "choices": [
+                    {
+                        "index": 0,
+                        "delta": {"content": "hel"},
+                        "finish_reason": None,
+                    }
+                ],
+            },
+            {
+                "id": "chatcmpl-obs",
+                "created": 1700000000,
+                "model": "m",
+                "choices": [
+                    {
+                        "index": 0,
+                        "delta": {"content": "lo"},
+                        "finish_reason": "stop",
+                    }
+                ],
+            },
+            {
+                "id": "chatcmpl-obs",
+                "created": 1700000000,
+                "model": "m",
+                "choices": [],
+                "usage": {
+                    "prompt_tokens": 3,
+                    "completion_tokens": 7,
+                    "total_tokens": 10,
+                },
+            },
+        ]
+        mock_client = self._mock_streaming_client(api, chunks)
+
+        observer = ModelStreamObserver("sagemaker/test", None)
+        with model_stream_observer(observer):
+            result = await api.generate(
+                [ChatMessageUser(content="Hi")],
+                [],
+                "auto",
+                GenerateConfig(max_tokens=100, temperature=0),
+            )
+
+        # response assembly and the usage progress channel are unaffected
+        mock_client.invoke_endpoint_with_response_stream.assert_called_once()
+        model_output, _ = result
+        assert model_output.completion == "hello"
+        assert observer._tokens_current == 7
+
+    @pytest.mark.anyio
     async def test_explicit_stream_false_wins_over_on_stream(self):
         """An explicit stream=False opt-out wins over an on_stream callback."""
         api = _make_api(stream=False)

@@ -78,6 +78,8 @@ class _FakeActiveSample:
         # sidecar (and retry_wait, via the zero-pending activity detail)
         self.transcript = SimpleNamespace(pending_events=pending_events or [])
         self.retry_wait = None
+        self.pending_interaction: str | None = None
+        self.pending_interactions: tuple[object, ...] = ()
 
     def interrupt(self, action: Literal["score", "error", "cancel"]) -> None:
         self.interrupts.append(action)

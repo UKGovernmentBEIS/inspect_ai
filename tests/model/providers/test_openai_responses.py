@@ -2,6 +2,7 @@ import json
 from types import SimpleNamespace
 from typing import Any
 
+import pytest
 from test_helpers.utils import skip_if_no_openai
 
 from inspect_ai import Task, eval
@@ -286,15 +287,8 @@ def test_mixed_reasoning_blocks_filtering():
 
 async def test_responses_api_invalid_prompt_content_filter():
     """Test that invalid_prompt error in responses API returns content_filter."""
-    from unittest.mock import AsyncMock, MagicMock
-
-    from openai._types import NOT_GIVEN
     from openai.types.responses import Response, ResponseError
 
-    from inspect_ai.model._providers.openai_responses import generate_responses
-    from inspect_ai.model._providers.util.hooks import HttpxHooks
-
-    # Create a mock Response with an invalid_prompt error
     mock_response = Response.model_construct(
         id="resp_test",
         created_at=0.0,
@@ -309,44 +303,14 @@ async def test_responses_api_invalid_prompt_content_filter():
         status="failed",
     )
 
-    # Mock the client
-    client = MagicMock()
-    client.responses = MagicMock()
-    client.responses.create = AsyncMock(return_value=mock_response)
-
-    # Mock http_hooks
-    http_hooks = MagicMock(spec=HttpxHooks)
-    http_hooks.start_request = MagicMock(return_value="req_1")
-    http_hooks.end_request = MagicMock(return_value=None)
-
-    # Mock model_info
-    model_info = MagicMock()
-    model_info.is_o_series.return_value = False
-    model_info.is_gpt.return_value = True
-    model_info.is_gpt_5.return_value = False
-
-    result = await generate_responses(
-        client=client,
-        http_hooks=http_hooks,
-        model_name="gpt-4o",
-        input=[],
-        tools=[],
-        tool_choice=None,
-        config=GenerateConfig(),
-        background=None,
-        service_tier=None,
-        prompt_cache_key=NOT_GIVEN,
-        prompt_cache_retention=NOT_GIVEN,
-        safety_identifier=NOT_GIVEN,
-        responses_store=None,
-        synthesize_phase=False,
-        model_info=model_info,
-        batcher=None,
-    )
-    output, model_call = result
+    output, _ = await _generate_responses_with_mock(mock_response)
     assert isinstance(output, ModelOutput)
     assert output.stop_reason == "content_filter"
     assert "blocked by content filter" in output.completion
+    # invalid_prompt converts via the same handler as the other block codes,
+    # so it carries the refusal StopDetails like they do
+    assert output.choices[0].stop_details is not None
+    assert output.choices[0].stop_details.type == "refusal"
 
 
 async def _generate_responses_with_mock(
@@ -397,6 +361,55 @@ async def _generate_responses_with_mock(
     if capture_request is not None:
         capture_request.update(client.responses.create.call_args.kwargs)
     return result
+
+
+async def test_responses_api_terminal_error_block_code_converts() -> None:
+    """A terminal `model_response.error` with a recognized block code converts.
+
+    The raise for terminal response errors is caught by the same handler as
+    mid-stream errors, so recognized block codes convert to `content_filter`
+    on every responses path (non-streaming included), while unrecognized
+    codes still raise `OpenAIResponseError` with their retry classification.
+    """
+    from openai.types.responses import Response, ResponseError
+
+    from inspect_ai.model._openai import OpenAIResponseError
+
+    blocked_response = Response.model_construct(
+        id="resp_test",
+        created_at=0.0,
+        model="gpt-4o",
+        object="response",
+        output=[],
+        tools=[],
+        error=ResponseError.model_construct(
+            code="content_policy_violation",
+            message="Your prompt was blocked by our content policy.",
+        ),
+        status="failed",
+    )
+    output, model_call = await _generate_responses_with_mock(blocked_response)
+    assert isinstance(output, ModelOutput)
+    assert output.stop_reason == "content_filter"
+    assert "blocked" in output.completion
+    assert model_call.error is True
+
+    server_error_response = Response.model_construct(
+        id="resp_test",
+        created_at=0.0,
+        model="gpt-4o",
+        object="response",
+        output=[],
+        tools=[],
+        error=ResponseError.model_construct(
+            code="server_error",
+            message="The model had an error while generating a response.",
+        ),
+        status="failed",
+    )
+    with pytest.raises(OpenAIResponseError) as excinfo:
+        await _generate_responses_with_mock(server_error_response)
+    assert excinfo.value.code == "server_error"
 
 
 async def test_responses_api_metadata_surfaced():
@@ -2238,6 +2251,95 @@ async def test_responses_stream_reports_deltas() -> None:
     assert observer._tokens_current == 7
 
 
+async def test_responses_stream_gated_without_on_stream(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Without an on_stream consumer only heartbeat/usage progress runs.
+
+    Explicit streaming=true callers stream without asking for stream events,
+    so delta construction (on_stream support code) must not run for them.
+    """
+    from openai.types.responses import (
+        Response,
+        ResponseCompletedEvent,
+        ResponseTextDeltaEvent,
+    )
+
+    import inspect_ai.model._providers.openai_responses as responses_module
+    from inspect_ai.model._providers.openai_responses import (
+        _generate_responses_stream,
+    )
+
+    async def fail(delta: object) -> None:
+        raise AssertionError("delta reported without an on_stream consumer")
+
+    monkeypatch.setattr(responses_module, "report_model_stream_delta", fail)
+
+    final = Response.model_validate(
+        dict(
+            id="resp_1",
+            created_at=0,
+            model="gpt-5",
+            object="response",
+            output=[],
+            parallel_tool_calls=False,
+            tool_choice="auto",
+            tools=[],
+            usage=dict(
+                input_tokens=1,
+                input_tokens_details=dict(cache_write_tokens=0, cached_tokens=0),
+                output_tokens=7,
+                output_tokens_details=dict(reasoning_tokens=2),
+                total_tokens=8,
+            ),
+        )
+    )
+    events = [
+        ResponseTextDeltaEvent(
+            content_index=0,
+            delta="hel",
+            item_id="msg_1",
+            logprobs=[],
+            output_index=0,
+            sequence_number=0,
+            type="response.output_text.delta",
+        ),
+        ResponseCompletedEvent(
+            response=final, sequence_number=1, type="response.completed"
+        ),
+    ]
+
+    class _FakeStream:
+        async def __aenter__(self) -> "_FakeStream":
+            return self
+
+        async def __aexit__(self, *exc: object) -> None:
+            return None
+
+        def __aiter__(self) -> Any:
+            async def gen() -> Any:
+                for event in events:
+                    yield event
+
+            return gen()
+
+    class _FakeResponses:
+        async def create(self, **kwargs: Any) -> Any:
+            return _FakeStream()
+
+    fake_client: Any = SimpleNamespace(responses=_FakeResponses())
+
+    observer = ModelStreamObserver("test", None)
+    with model_stream_observer(observer):
+        result = await _generate_responses_stream(
+            fake_client, dict(model="gpt-5", stream=True)
+        )
+
+    # the terminal response and its usage progress are unaffected
+    assert result is final
+    assert observer._tokens_current == 7
+
+
 async def test_responses_streaming_logged_in_model_call() -> None:
     """Streaming injects stream=True into the request before the ModelCall snapshot.
 
@@ -2327,3 +2429,162 @@ async def test_responses_streaming_logged_in_model_call() -> None:
     assert captured["stream"] is True
     # the logged request matches what was sent on the wire
     assert model_call.request["stream"] is True
+
+
+async def test_responses_streaming_converts_mid_stream_safeguard_block() -> None:
+    """A safeguard block the SDK raises mid-stream as a plain APIError becomes content_filter."""
+    from unittest.mock import MagicMock
+
+    import httpx2
+    from openai import APIError
+    from openai._types import NOT_GIVEN
+
+    from inspect_ai.model._providers.openai_responses import generate_responses
+    from inspect_ai.model._providers.util.hooks import HttpxHooks
+
+    error = APIError(
+        message="Your prompt was blocked by our content policy.",
+        request=httpx2.Request(method="POST", url="https://example.com"),
+        body=dict(
+            message="Your prompt was blocked by our content policy.",
+            type="invalid_request_error",
+            code="content_policy_violation",
+        ),
+    )
+
+    class _FakeStream:
+        async def __aenter__(self) -> "_FakeStream":
+            return self
+
+        async def __aexit__(self, *exc: object) -> None:
+            return None
+
+        def __aiter__(self) -> Any:
+            async def gen() -> Any:
+                raise error
+                yield  # pragma: no cover
+
+            return gen()
+
+    class _FakeResponses:
+        async def create(self, **kwargs: Any) -> Any:
+            return _FakeStream()
+
+    client: Any = SimpleNamespace(responses=_FakeResponses())
+
+    http_hooks = MagicMock(spec=HttpxHooks)
+    http_hooks.start_request = MagicMock(return_value="req_1")
+    http_hooks.end_request = MagicMock(return_value=None)
+
+    model_info = MagicMock()
+    model_info.is_o_series.return_value = False
+    model_info.is_gpt.return_value = True
+    model_info.is_gpt_5.return_value = False
+
+    result = await generate_responses(
+        client=client,
+        http_hooks=http_hooks,
+        model_name="gpt-5",
+        input=[],
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(),
+        background=None,
+        service_tier=None,
+        prompt_cache_key=NOT_GIVEN,
+        prompt_cache_retention=NOT_GIVEN,
+        safety_identifier=NOT_GIVEN,
+        responses_store=None,
+        synthesize_phase=False,
+        model_info=model_info,
+        batcher=None,
+        streaming=True,
+    )
+    assert isinstance(result, tuple)
+    output, model_call = result
+    assert isinstance(output, ModelOutput)
+    assert output.choices[0].stop_reason == "content_filter"
+    assert "blocked" in output.completion
+    assert model_call.error is True
+
+
+async def test_responses_streaming_converts_error_event_safeguard_block() -> None:
+    """A safeguard block delivered as a ResponseErrorEvent becomes content_filter.
+
+    Error events with the documented responses shape are yielded by the SDK as
+    `ResponseErrorEvent` (rather than raised as `APIError`) and re-raised by
+    inspect as `OpenAIResponseError`; recognized block codes must convert the
+    same way as the non-streaming 400 path.
+    """
+    from unittest.mock import MagicMock
+
+    from openai._types import NOT_GIVEN
+    from openai.types.responses import ResponseErrorEvent
+
+    from inspect_ai.model._providers.openai_responses import generate_responses
+    from inspect_ai.model._providers.util.hooks import HttpxHooks
+
+    events = [
+        ResponseErrorEvent(
+            type="error",
+            code="content_policy_violation",
+            message="Your prompt was blocked by our content policy.",
+            param=None,
+            sequence_number=0,
+        )
+    ]
+
+    class _FakeStream:
+        async def __aenter__(self) -> "_FakeStream":
+            return self
+
+        async def __aexit__(self, *exc: object) -> None:
+            return None
+
+        def __aiter__(self) -> Any:
+            async def gen() -> Any:
+                for event in events:
+                    yield event
+
+            return gen()
+
+    class _FakeResponses:
+        async def create(self, **kwargs: Any) -> Any:
+            return _FakeStream()
+
+    client: Any = SimpleNamespace(responses=_FakeResponses())
+
+    http_hooks = MagicMock(spec=HttpxHooks)
+    http_hooks.start_request = MagicMock(return_value="req_1")
+    http_hooks.end_request = MagicMock(return_value=None)
+
+    model_info = MagicMock()
+    model_info.is_o_series.return_value = False
+    model_info.is_gpt.return_value = True
+    model_info.is_gpt_5.return_value = False
+
+    result = await generate_responses(
+        client=client,
+        http_hooks=http_hooks,
+        model_name="gpt-5",
+        input=[],
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(),
+        background=None,
+        service_tier=None,
+        prompt_cache_key=NOT_GIVEN,
+        prompt_cache_retention=NOT_GIVEN,
+        safety_identifier=NOT_GIVEN,
+        responses_store=None,
+        synthesize_phase=False,
+        model_info=model_info,
+        batcher=None,
+        streaming=True,
+    )
+    assert isinstance(result, tuple)
+    output, model_call = result
+    assert isinstance(output, ModelOutput)
+    assert output.choices[0].stop_reason == "content_filter"
+    assert "blocked" in output.completion
+    assert model_call.error is True

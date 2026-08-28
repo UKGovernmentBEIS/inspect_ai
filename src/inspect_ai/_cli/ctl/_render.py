@@ -1198,9 +1198,10 @@ def _format_activity(activity: dict[str, Any] | None, now: float) -> str:
 
     ``generating 7:12`` (with ``(N retries)`` for in-call provider retries
     and ``· 1.2k tok`` when streamed progress is reported), ``bash 0:41`` /
-    ``2 tools 1:10`` for pending tool calls, and ``retrying in 0:45`` for a
+    ``2 tools 1:10`` for pending tool calls, ``retrying in 0:45`` for a
     generate retry backoff (time until the next attempt; bare ``retrying``
-    once the deadline passes). Elapsed is client-computed from
+    once the deadline passes), and ``approval: bash 6:12`` / ``question
+    2:03`` for a sample parked on a person. Elapsed is client-computed from
     ``started_at``, matching the idle column's convention. Empty for a
     null/absent activity; an unknown type from a newer server renders as
     its name rather than blank.
@@ -1212,6 +1213,15 @@ def _format_activity(activity: dict[str, Any] | None, now: float) -> str:
         _format_duration(now - started) if isinstance(started, (int, float)) else ""
     )
     activity_type = activity.get("type")
+    if activity_type in ("approval", "question"):
+        count = int(activity.get("count") or 1)
+        if count > 1:
+            cell = f"{count} {activity_type}s"
+        elif activity_type == "approval" and activity.get("detail"):
+            cell = f"approval: {activity.get('detail')}"
+        else:
+            cell = str(activity_type)
+        return cell + (f" {elapsed}" if elapsed else "")
     if activity_type == "model":
         cell = "generating" + (f" {elapsed}" if elapsed else "")
         retries = activity.get("retries")
