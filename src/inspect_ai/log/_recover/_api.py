@@ -332,11 +332,7 @@ async def _recoverable_eval_logs_async(
         try:
             crashed = await read_crashed_eval_log(location)
             flushed = len(crashed.sample_entries)
-            dataset_samples = (
-                (crashed.eval.dataset.samples or 0) if crashed.eval.dataset else 0
-            )
-            epochs = crashed.eval.config.epochs or 1
-            total = dataset_samples * epochs
+            total = expected_samples(crashed.eval)
         except Exception:
             flushed = 0
             total = 0
