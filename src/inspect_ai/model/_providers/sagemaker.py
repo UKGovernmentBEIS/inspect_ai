@@ -605,15 +605,21 @@ class SagemakerAPI(ModelAPI):
             choice = choices[0]
             delta = choice.get("delta") or {}
 
+            # queue stream deltas only when an on_stream consumer is present
+            # (see report_model_stream_delta)
+            deltas_requested = model_stream_requested()
+
             content = delta.get("content")
             if content:
                 accumulated_text += content
-                pending_deltas.append(StreamTextEvent(text=content))
+                if deltas_requested:
+                    pending_deltas.append(StreamTextEvent(text=content))
 
             reasoning = delta.get("reasoning_content") or delta.get("reasoning")
             if reasoning:
                 accumulated_reasoning += reasoning
-                pending_deltas.append(StreamReasoningEvent(reasoning=reasoning))
+                if deltas_requested:
+                    pending_deltas.append(StreamReasoningEvent(reasoning=reasoning))
 
             for tc in delta.get("tool_calls") or []:
                 idx = tc.get("index", 0)
@@ -637,13 +643,14 @@ class SagemakerAPI(ModelAPI):
                 # report id/function from the accumulated slot — the server
                 # sends them only on a call's first fragment, but reported
                 # deltas attribute every fragment
-                pending_deltas.append(
-                    StreamToolCallEvent(
-                        id=slot["id"],
-                        function=slot["function"]["name"],
-                        arguments=fn.get("arguments") or "",
+                if deltas_requested:
+                    pending_deltas.append(
+                        StreamToolCallEvent(
+                            id=slot["id"],
+                            function=slot["function"]["name"],
+                            arguments=fn.get("arguments") or "",
+                        )
                     )
-                )
 
             # Track finish_reason across all chunks — only the dedicated stop
             # chunk has a non-null value, and it may arrive before the usage
