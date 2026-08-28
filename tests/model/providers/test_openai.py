@@ -515,14 +515,8 @@ async def test_chat_completions_streaming_with_non_strict_tools():
     assert "strict" not in request["tools"][0]["function"]
 
 
-async def test_chat_completions_streaming_converts_mid_stream_safeguard_block():
-    """A safeguard block raised mid-stream becomes content_filter output.
-
-    With streaming enabled the server returns HTTP 200 and delivers blocks
-    as an error event, which the SDK raises from the stream iterator as a
-    plain APIError (not a BadRequestError), so it must convert like the
-    non-streaming 400 path rather than failing the sample.
-    """
+async def test_chat_completions_streaming_converts_mid_stream_safeguard_block() -> None:
+    """A safeguard block raised mid-stream (as a plain APIError) becomes content_filter output."""
     from typing import Any
     from unittest.mock import AsyncMock, MagicMock
 

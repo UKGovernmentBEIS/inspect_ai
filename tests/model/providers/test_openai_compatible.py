@@ -27,6 +27,7 @@ from inspect_ai.model import (
     get_model,
 )
 from inspect_ai.model._openai import (
+    OpenAIResponseError,
     chat_choices_from_openai,
     openai_chat_completion_stream_final,
     openai_handle_stream_error,
@@ -484,12 +485,7 @@ async def test_openai_compatible_streaming_returns_snapshot_on_content_filter(
 
 
 def _mid_stream_error(body: dict[str, Any]) -> APIError:
-    """The exact exception the SDK's stream iterator raises for an error event.
-
-    With streaming enabled, errors arrive after HTTP 200 as an error event in
-    the stream body, which `openai._streaming` raises as a plain `APIError`
-    (there is no error status from which to infer a `BadRequestError`).
-    """
+    """The exception the SDK's stream iterator raises for an error event: a plain APIError."""
     return APIError(
         message=str(body.get("message")),
         request=httpx2.Request(method="POST", url="https://example.com"),
@@ -516,12 +512,7 @@ class _ErroringChunkStream(_FakeChunkStream):
 async def test_openai_compatible_streaming_converts_mid_stream_safeguard_block(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A safeguard block raised mid-stream becomes content_filter output.
-
-    On the non-streaming path these blocks are 400s converted by
-    handle_bad_request; mid-stream they surface as a plain APIError and must
-    convert the same way rather than failing the sample.
-    """
+    """A safeguard block raised mid-stream becomes content_filter output (like the 400 path)."""
     api = OpenAICompatibleAPI(
         model_name="openai-api/openai/gpt-5",
         api_key="test",
@@ -607,8 +598,8 @@ async def test_openai_compatible_streaming_raises_unrecognized_mid_stream_error(
         await api.aclose()
 
 
-def test_openai_handle_stream_error_ignores_subclasses() -> None:
-    """Only exact mid-stream APIErrors convert; status errors keep retry semantics."""
+def test_openai_handle_stream_error_ignores_status_errors() -> None:
+    """Status errors are never converted mid-stream; they keep retry semantics."""
     status_error = APIStatusError(
         message="blocked",
         response=httpx2.Response(
@@ -625,6 +616,25 @@ def test_openai_handle_stream_error_ignores_subclasses() -> None:
     )
     assert isinstance(converted, ModelOutput)
     assert converted.choices[0].stop_reason == "content_filter"
+
+
+def test_openai_handle_stream_error_converts_response_errors() -> None:
+    """Responses-API error events (OpenAIResponseError) convert by block code.
+
+    Unrecognized codes return None so `server_error`/`rate_limit_exceeded`
+    keep their retry classification.
+    """
+    converted = openai_handle_stream_error(
+        "gpt-5",
+        OpenAIResponseError(code="content_policy_violation", message="blocked"),
+    )
+    assert isinstance(converted, ModelOutput)
+    assert converted.choices[0].stop_reason == "content_filter"
+
+    unrecognized = openai_handle_stream_error(
+        "gpt-5", OpenAIResponseError(code="server_error", message="oops")
+    )
+    assert unrecognized is None
 
 
 def test_sdk_stream_state_contract() -> None:

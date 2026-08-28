@@ -2420,13 +2420,7 @@ async def test_responses_streaming_logged_in_model_call() -> None:
 
 
 async def test_responses_streaming_converts_mid_stream_safeguard_block() -> None:
-    """A safeguard block raised mid-stream becomes content_filter output.
-
-    On the non-streaming path these blocks are 400s converted by
-    handle_bad_request; mid-stream the SDK raises a plain APIError (there is
-    no error status once the HTTP response was 200) and it must convert the
-    same way rather than failing the sample.
-    """
+    """A safeguard block the SDK raises mid-stream as a plain APIError becomes content_filter."""
     from unittest.mock import MagicMock
 
     import httpx2
@@ -2457,6 +2451,88 @@ async def test_responses_streaming_converts_mid_stream_safeguard_block() -> None
             async def gen() -> Any:
                 raise error
                 yield  # pragma: no cover
+
+            return gen()
+
+    class _FakeResponses:
+        async def create(self, **kwargs: Any) -> Any:
+            return _FakeStream()
+
+    client: Any = SimpleNamespace(responses=_FakeResponses())
+
+    http_hooks = MagicMock(spec=HttpxHooks)
+    http_hooks.start_request = MagicMock(return_value="req_1")
+    http_hooks.end_request = MagicMock(return_value=None)
+
+    model_info = MagicMock()
+    model_info.is_o_series.return_value = False
+    model_info.is_gpt.return_value = True
+    model_info.is_gpt_5.return_value = False
+
+    result = await generate_responses(
+        client=client,
+        http_hooks=http_hooks,
+        model_name="gpt-5",
+        input=[],
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(),
+        background=None,
+        service_tier=None,
+        prompt_cache_key=NOT_GIVEN,
+        prompt_cache_retention=NOT_GIVEN,
+        safety_identifier=NOT_GIVEN,
+        responses_store=None,
+        synthesize_phase=False,
+        model_info=model_info,
+        batcher=None,
+        streaming=True,
+    )
+    assert isinstance(result, tuple)
+    output, model_call = result
+    assert isinstance(output, ModelOutput)
+    assert output.choices[0].stop_reason == "content_filter"
+    assert "blocked" in output.completion
+    assert model_call.error is True
+
+
+async def test_responses_streaming_converts_error_event_safeguard_block() -> None:
+    """A safeguard block delivered as a ResponseErrorEvent becomes content_filter.
+
+    Error events with the documented responses shape are yielded by the SDK as
+    `ResponseErrorEvent` (rather than raised as `APIError`) and re-raised by
+    inspect as `OpenAIResponseError`; recognized block codes must convert the
+    same way as the non-streaming 400 path.
+    """
+    from unittest.mock import MagicMock
+
+    from openai._types import NOT_GIVEN
+    from openai.types.responses import ResponseErrorEvent
+
+    from inspect_ai.model._providers.openai_responses import generate_responses
+    from inspect_ai.model._providers.util.hooks import HttpxHooks
+
+    events = [
+        ResponseErrorEvent(
+            type="error",
+            code="content_policy_violation",
+            message="Your prompt was blocked by our content policy.",
+            param=None,
+            sequence_number=0,
+        )
+    ]
+
+    class _FakeStream:
+        async def __aenter__(self) -> "_FakeStream":
+            return self
+
+        async def __aexit__(self, *exc: object) -> None:
+            return None
+
+        def __aiter__(self) -> Any:
+            async def gen() -> Any:
+                for event in events:
+                    yield event
 
             return gen()
 

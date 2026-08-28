@@ -261,12 +261,15 @@ async def generate_responses(
             return handle_bad_request(e), model_call
         else:
             return openai_handle_bad_request(model_name, e), model_call
-    except APIError as e:
+    except (APIError, OpenAIResponseError) as e:
         output = openai_handle_stream_error(model_name, e)
         if output is None:
             raise
+        error_body = (
+            e.body if isinstance(e, APIError) else dict(code=e.code, message=e.message)
+        )
         model_call.set_error(
-            as_error_response(e.body), http_hooks.end_request(request_id)
+            as_error_response(error_body), http_hooks.end_request(request_id)
         )
         return output, model_call
 
