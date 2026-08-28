@@ -28,17 +28,21 @@ def _score_target(target: Target, choices: Choices) -> tuple[list[int], list[str
 
     # a target that references a position beyond the task's choices is a
     # dataset error (e.g. a "10" target in a 30-option task resolves to
-    # index 35): raise loudly rather than silently scoring incorrect forever
-    out_of_range = [
-        answer
-        for answer, position in zip(target_answers, target_positions)
-        if position >= len(choices)
-    ]
-    if out_of_range:
-        raise ValueError(
-            f"Choice scorer target references answer(s) beyond the task's "
-            f"{len(choices)} choices: {', '.join(out_of_range)}"
-        )
+    # index 35): raise loudly rather than silently scoring incorrect forever.
+    # a sample with no choices isn't a multiple choice sample at all (e.g.
+    # re-scoring a non-multiple-choice log), so there is nothing to validate
+    # against -- score it incorrect as before
+    if len(choices) > 0:
+        out_of_range = [
+            answer
+            for answer, position in zip(target_answers, target_positions)
+            if position >= len(choices)
+        ]
+        if out_of_range:
+            raise ValueError(
+                f"Choice scorer target references answer(s) beyond the task's "
+                f"{len(choices)} choices: {', '.join(out_of_range)}"
+            )
 
     choice_positions = [i for i, choice in enumerate(choices) if choice.correct is True]
 
