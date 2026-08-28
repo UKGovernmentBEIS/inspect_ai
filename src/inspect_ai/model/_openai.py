@@ -4,21 +4,28 @@ import logging
 import re
 from copy import copy
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Callable, Literal, TypeAlias, cast
+from typing import TYPE_CHECKING, Any, Callable, Literal, NamedTuple, TypeAlias, cast
 
 if TYPE_CHECKING:
     from inspect_ai.model._model import RetryDecision
 
 from openai import (
     APIConnectionError,
+    APIError,
+    APIResponseValidationError,
     APIStatusError,
     APITimeoutError,
+    AsyncStream,
+    ContentFilterFinishReasonError,
+    LengthFinishReasonError,
     OpenAIError,
     RateLimitError,
 )
+from openai.lib.streaming.chat import ChatCompletionStreamState
 from openai.types.chat import (
     ChatCompletion,
     ChatCompletionAssistantMessageParam,
+    ChatCompletionChunk,
     ChatCompletionContentPartImageParam,
     ChatCompletionContentPartInputAudioParam,
     ChatCompletionContentPartParam,
@@ -97,6 +104,16 @@ from ._model_output import (
     StopReason,
     as_stop_reason,
     collect_stop_details,
+)
+from ._stream import (
+    NoStreamDataError,
+    StreamReasoningEvent,
+    StreamTextEvent,
+    StreamToolCallEvent,
+    model_stream_requested,
+    report_model_stream_delta,
+    report_model_stream_progress,
+    report_model_stream_start,
 )
 
 logger = logging.getLogger(__name__)
@@ -928,6 +945,118 @@ def model_output_from_openai(
     )
 
 
+async def openai_chat_completion_stream_final(
+    stream: AsyncStream[ChatCompletionChunk],
+) -> ChatCompletion:
+    """Consume a raw chat-completions chunk stream and return the final completion.
+
+    Accumulates chunks with the SDK's `ChatCompletionStreamState` rather than
+    the resource-level `.stream()` helper: the helper validates tools before
+    sending anything and raises `ValueError` for any function tool without
+    `strict: true`, which would fail every tool-using generate (inspect does
+    not set `strict` by default).
+
+    Reports each chunk once to the model layer's stream observer
+    (`inspect_ai.model._stream`), which fans out to the caller's `on_stream`
+    callback and the pending event's progress record.
+
+    The SDK's final parse raises on length-truncated and content-filtered
+    completions rather than returning them; both are recovered here so they
+    are handled like the non-streaming path (stop_reason "max_tokens" /
+    "content_filter").
+    """
+    # no input_tools/response_format: parsed arguments aren't used (choices
+    # are read from the raw completion), and parseable input would make the
+    # accumulator raise mid-stream on length/content_filter finish reasons
+    state: ChatCompletionStreamState[Any] = ChatCompletionStreamState()
+    report_model_stream_start()
+    tool_calls: dict[int, _StreamToolCallInfo] = {}
+    saw_chunk = False
+    async for chunk in stream:
+        saw_chunk = True
+        state.handle_chunk(chunk)
+        await _report_chat_completion_chunk(chunk, tool_calls)
+    if not saw_chunk:
+        # get_final_completion() would fail on a bare assert; raise a
+        # descriptive, retryable error instead (misbehaving server: 200 with
+        # empty body)
+        raise NoStreamDataError(
+            "Streaming response ended without delivering any chunks."
+        )
+    try:
+        return state.get_final_completion()
+    except LengthFinishReasonError as ex:
+        return ex.completion
+    except ContentFilterFinishReasonError:
+        # the SDK raises without a payload; the snapshot carries
+        # finish_reason and any partial content
+        return state.current_completion_snapshot
+
+
+class _StreamToolCallInfo(NamedTuple):
+    """Attribution for a streamed tool call, remembered across fragments."""
+
+    id: str | None
+    function: str | None
+
+
+async def _report_chat_completion_chunk(
+    chunk: ChatCompletionChunk, tool_calls: dict[int, _StreamToolCallInfo]
+) -> None:
+    """Report one streamed chunk to the model layer's stream observer.
+
+    `tool_calls` remembers each call's id/function by index across chunks:
+    OpenAI streams them only on a call's first fragment, but reported deltas
+    attribute every fragment (matching the other providers' reporters).
+    Content deltas are gated on `model_stream_requested()` (see
+    `report_model_stream_delta`); the usage/heartbeat progress channel runs
+    regardless.
+    """
+    # cumulative usage arrives on the final chunk when the server reports it
+    # (e.g. via stream_options.include_usage)
+    if chunk.usage is not None:
+        report_model_stream_progress(chunk.usage.completion_tokens)
+
+    # report content deltas from the first choice only — interleaving multiple
+    # choices' fragments into the single delta stream would corrupt
+    # accumulating consumers (num_choices > 1)
+    delta = next((c.delta for c in chunk.choices if c.index == 0), None)
+    reported = False
+    if delta is not None and model_stream_requested():
+        # openai-compatible servers surface chain-of-thought as a
+        # reasoning_content/reasoning extra field on the delta
+        reasoning = getattr(delta, "reasoning_content", None) or getattr(
+            delta, "reasoning", None
+        )
+        if isinstance(reasoning, str) and reasoning:
+            await report_model_stream_delta(StreamReasoningEvent(reasoning=reasoning))
+            reported = True
+        if delta.content:
+            await report_model_stream_delta(StreamTextEvent(text=delta.content))
+            reported = True
+        for tool_call in delta.tool_calls or []:
+            function = tool_call.function
+            info = tool_calls.get(tool_call.index, _StreamToolCallInfo(None, None))
+            info = _StreamToolCallInfo(
+                id=tool_call.id or info.id,
+                function=(function.name if function is not None else None)
+                or info.function,
+            )
+            tool_calls[tool_call.index] = info
+            await report_model_stream_delta(
+                StreamToolCallEvent(
+                    id=info.id,
+                    function=info.function,
+                    arguments=(function.arguments or "")
+                    if function is not None
+                    else "",
+                )
+            )
+            reported = True
+    if not reported and chunk.usage is None:
+        report_model_stream_progress()
+
+
 def openai_stop_details(choice: Any) -> StopDetails | None:
     """Extract refusal/content-filter detail from an OpenAI-style `Choice`.
 
@@ -1157,32 +1286,77 @@ def openai_classify_retry(ex: BaseException) -> "RetryDecision | None":
         return None
     if isinstance(ex, APIConnectionError | APITimeoutError):
         return RetryDecision.transient()
+    if isinstance(ex, APIError):
+        # A failure delivered mid-stream (after HTTP 200) is raised by the
+        # SDK as a bare APIError with no status code, carrying only the
+        # error body's `code`/`type`. OpenAI itself signals with
+        # `server_error` / `rate_limit_exceeded`; OpenAI-compatible servers
+        # use their own vocabulary — often a numeric HTTP status in `code`
+        # (vLLM/SGLang: {"type": "InternalServerError", "code": 500},
+        # OpenRouter: {"code": 502}), which classifies through the standard
+        # status rules. Anything unrecognized stays unretried.
+        code_status = _http_status_from_error_code(ex.code)
+        if code_status is not None:
+            if code_status == 429:
+                return RetryDecision.rate_limit()
+            if is_retryable_http_status(code_status):
+                return RetryDecision.transient()
+            return None
+        # normalize code/type spellings (rate_limit_error/RateLimitError/...)
+        names = {
+            v.lower().replace("_", "") for v in (ex.code, ex.type) if isinstance(v, str)
+        }
+        if names & {"ratelimitexceeded", "ratelimiterror"}:
+            return RetryDecision.rate_limit()
+        if names & {"servererror", "internalservererror", "internalerror"}:
+            return RetryDecision.transient()
+        return None
     return None
 
 
-def openai_handle_bad_request(
-    model_name: str, e: APIStatusError
-) -> ModelOutput | Exception:
-    # extract message
-    if isinstance(e.body, dict) and "message" in e.body.keys():
-        content = str(e.body.get("message"))
-    else:
-        content = e.message
+def _http_status_from_error_code(code: object) -> int | None:
+    """Coerce an error body `code` to an HTTP status when it is one.
+
+    OpenAI-compatible servers often put a numeric HTTP status in `code`
+    (as an int or a digit string). The SDK annotates `APIError.code` as
+    `Optional[str]` but passes body values through unconverted, so an int
+    arrives as an int at runtime.
+    """
+    if isinstance(code, int) or (isinstance(code, str) and code.isdecimal()):
+        status = int(code)
+        return status if 100 <= status <= 599 else None
+    return None
+
+
+def openai_refusal_model_output(
+    model_name: str,
+    code: str | None,
+    error_type: str | None,
+    message: str,
+    content: str | None = None,
+) -> ModelOutput | None:
+    """Map an OpenAI refusal/limit error to model output, or None if unrecognized.
+
+    `message` is the SDK error message (used for heuristic matching); `content`
+    is the text recorded as the model output when it differs (e.g. the error
+    body's message), defaulting to `message`.
+    """
+    content = content if content is not None else message
 
     # narrow stop_reason
     stop_reason: StopReason | None = None
     stop_details: StopDetails | None = None
-    if e.code == "context_length_exceeded":
+    if code == "context_length_exceeded":
         stop_reason = "model_length"
     elif (
-        e.code == "invalid_prompt"  # seems to happen for o1/o3
-        or e.code == "content_policy_violation"  # seems to happen for vision
-        or e.code == "content_filter"  # seems to happen on azure
-        or e.code == "cyber_policy"  # seems to happen for 5.4
-        or (e.type == "invalid_request_error" and "blocked" in e.message)
+        code == "invalid_prompt"  # seems to happen for o1/o3
+        or code == "content_policy_violation"  # seems to happen for vision
+        or code == "content_filter"  # seems to happen on azure
+        or code == "cyber_policy"  # seems to happen for 5.4
+        or (error_type == "invalid_request_error" and "blocked" in message)
     ):
         stop_reason = "content_filter"
-        if e.code == "cyber_policy":
+        if code == "cyber_policy":
             stop_details = StopDetails(
                 type="refusal",
                 category="cyber",
@@ -1200,7 +1374,49 @@ def openai_handle_bad_request(
             stop_details=stop_details,
         )
     else:
-        return e
+        return None
+
+
+def openai_handle_bad_request(model_name: str, e: APIError) -> ModelOutput | Exception:
+    """Convert a refusal/limit error into model output where possible.
+
+    Accepts the `APIError` base (not just `APIStatusError`): only `body`,
+    `message`, `code`, and `type` are read, and mid-stream errors (see
+    `openai_handle_stream_error`) carry those without a status code.
+    """
+    # extract message
+    if isinstance(e.body, dict) and "message" in e.body.keys():
+        content = str(e.body.get("message"))
+    else:
+        content = e.message
+
+    output = openai_refusal_model_output(model_name, e.code, e.type, e.message, content)
+    return output if output is not None else e
+
+
+def openai_handle_stream_error(
+    model_name: str, e: APIError | OpenAIResponseError
+) -> ModelOutput | None:
+    """Convert a mid-stream safeguard/content-filter block into model output.
+
+    With streaming enabled the server returns HTTP 200 and then delivers
+    safeguard blocks as an error event in the stream body, bypassing the
+    bad-request handling that converts blocks into `content_filter` output on
+    the non-streaming path. Depending on the error's shape the SDK raises it
+    from the stream iterator as a plain `APIError` (with no error status it
+    cannot infer a `BadRequestError`), or yields it as an error event that
+    inspect raises as `OpenAIResponseError` (responses API). Returns the
+    converted `ModelOutput` for recognized blocks, or None when the caller
+    should re-raise: either the error is a status/validation/connection error
+    (which must keep their existing retry semantics) or it isn't a recognized
+    refusal.
+    """
+    if isinstance(e, OpenAIResponseError):
+        return openai_refusal_model_output(model_name, e.code, None, e.message)
+    if isinstance(e, APIStatusError | APIResponseValidationError | APIConnectionError):
+        return None
+    handled = openai_handle_bad_request(model_name, e)
+    return handled if isinstance(handled, ModelOutput) else None
 
 
 def openai_media_filter(key: JsonValue | None, value: JsonValue) -> JsonValue:
