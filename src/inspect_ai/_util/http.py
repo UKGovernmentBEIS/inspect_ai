@@ -1,3 +1,4 @@
+import math
 import re
 from collections.abc import Mapping
 from datetime import datetime, timezone
@@ -104,6 +105,16 @@ def parse_retry_after_from_exception(ex: BaseException) -> float | None:
         return None
 
 
+def _positive_seconds(seconds: float) -> float | None:
+    """Accept a parsed duration only if it is positive and finite.
+
+    `Retry-After: inf` (and values that overflow to inf, like `1e400`) parse
+    as floats and pass a bare `> 0` check, then poison any arithmetic the
+    value feeds.
+    """
+    return seconds if seconds > 0 and math.isfinite(seconds) else None
+
+
 def _parse_retry_after_value(value: str) -> float | None:
     """Parse a single header value into seconds-from-now.
 
@@ -118,7 +129,7 @@ def _parse_retry_after_value(value: str) -> float | None:
     # delta-seconds (most common)
     try:
         seconds = float(value)
-        return seconds if seconds > 0 else None
+        return _positive_seconds(seconds)
     except ValueError:
         pass
 
@@ -127,7 +138,7 @@ def _parse_retry_after_value(value: str) -> float | None:
     matches = _DURATION_RE.findall(compact)
     if matches and "".join(a + u for a, u in matches) == compact:
         total = sum(float(a) * _DURATION_UNITS[u] for a, u in matches)
-        return total if total > 0 else None
+        return _positive_seconds(total)
 
     # HTTP-date (RFC 9110, e.g. "Wed, 21 Oct 2026 07:28:00 GMT").
     # parsedate_to_datetime can return a *naive* datetime for malformed dates
@@ -142,7 +153,7 @@ def _parse_retry_after_value(value: str) -> float | None:
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=timezone.utc)
         seconds = (dt - datetime.now(timezone.utc)).total_seconds()
-        return seconds if seconds > 0 else None
+        return _positive_seconds(seconds)
 
     # ISO 8601 / RFC 3339 timestamp
     try:
@@ -152,7 +163,7 @@ def _parse_retry_after_value(value: str) -> float | None:
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=timezone.utc)
         seconds = (dt - datetime.now(timezone.utc)).total_seconds()
-        return seconds if seconds > 0 else None
+        return _positive_seconds(seconds)
     except ValueError:
         pass
 

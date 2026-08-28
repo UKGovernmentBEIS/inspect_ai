@@ -27,6 +27,25 @@ def test_retry_after_negative_returns_none() -> None:
     assert parse_retry_after({"Retry-After": "0"}) is None
 
 
+def test_retry_after_non_finite_returns_none() -> None:
+    """A non-finite duration must never reach a caller.
+
+    `float("inf") > 0` is True, so without an explicit finiteness check
+    these parse successfully and land in the adaptive controller's cooldown
+    arithmetic as `now + inf`, disabling it for the life of the process.
+    """
+    assert parse_retry_after({"Retry-After": "inf"}) is None
+    assert parse_retry_after({"Retry-After": "-inf"}) is None
+    assert parse_retry_after({"Retry-After": "infinity"}) is None
+    # overflows to inf rather than raising
+    assert parse_retry_after({"Retry-After": "1e400"}) is None
+    # the reset-window fallback shares the same parser
+    assert parse_retry_after({"x-ratelimit-reset-tokens": "inf"}) is None
+    # the duration-shorthand branch overflows independently of the
+    # delta-seconds branch, so it needs its own guard and its own case
+    assert parse_retry_after({"Retry-After": f"{'9' * 320}d"}) is None
+
+
 def test_retry_after_unparseable_falls_through() -> None:
     # garbage in Retry-After but a valid reset header — should fall back
     headers = {
