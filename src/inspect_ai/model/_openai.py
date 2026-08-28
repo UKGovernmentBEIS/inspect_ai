@@ -11,6 +11,7 @@ if TYPE_CHECKING:
 
 from openai import (
     APIConnectionError,
+    APIError,
     APIStatusError,
     APITimeoutError,
     AsyncStream,
@@ -1280,6 +1281,16 @@ def openai_classify_retry(ex: BaseException) -> "RetryDecision | None":
         return None
     if isinstance(ex, APIConnectionError | APITimeoutError):
         return RetryDecision.transient()
+    if isinstance(ex, APIError):
+        # A failure delivered mid-stream (after HTTP 200) is raised by the SDK
+        # as a bare APIError with no status code, carrying only the error
+        # body's `code`/`type`. Classify from those the same way the
+        # OpenAIResponseError branch above does; anything else re-raises.
+        if "rate_limit_exceeded" in (ex.code, ex.type):
+            return RetryDecision.rate_limit()
+        if "server_error" in (ex.code, ex.type):
+            return RetryDecision.transient()
+        return None
     return None
 
 
