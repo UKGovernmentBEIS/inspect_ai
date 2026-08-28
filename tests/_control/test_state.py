@@ -7,7 +7,7 @@ cancellation error. Those cancellations must not render as ``error`` — a
 sample that will be retried is ``pending``; one that won't is ``cancelled``.
 """
 
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 from inspect_ai._control.state import _summary_from_eval_sample_summary
 from inspect_ai.log import EvalSampleSummary
@@ -83,12 +83,12 @@ def test_completed_and_running_unaffected() -> None:
 
 async def test_summaries_from_missing_log_degrade_to_empty(tmp_path) -> None:
     from inspect_ai._control.eval_state import EvalState
-    from inspect_ai._control.state import _sample_summaries_from_log
+    from inspect_ai._control.state import completed_eval_sample_summaries
 
     state = EvalState(
         eval_id="e1", total=1, log_location=str(tmp_path / "deleted.eval")
     )
-    assert await _sample_summaries_from_log(state) == []
+    assert await completed_eval_sample_summaries(state) == []
     # the empty degradation is never memoized: a deleted log stays a
     # per-request (cheap, failing) read rather than a pinned empty listing
     assert state.log_sample_summaries is None
@@ -474,6 +474,7 @@ def test_running_summary_reports_token_limit_and_turns(monkeypatch) -> None:
     s.transcript.pending_events = []
     s.retry_wait = None
     s.retries = 0
+    s.pending_interaction = None
 
     monkeypatch.setattr("inspect_ai.log._samples.active_samples", lambda: [s])
     rows = _sample_summaries_from_active("e1")
@@ -514,18 +515,33 @@ def _pending_model_event(retries: int | None = None) -> "ModelEvent":
     )
 
 
-def _pending_tool_event(function: str = "bash") -> "ToolEvent":
+def _pending_tool_event(function: str = "bash", id: str = "t1") -> "ToolEvent":
     from inspect_ai.event._tool import ToolEvent
 
-    return ToolEvent(id="t1", function=function, arguments={}, pending=True)
+    return ToolEvent(id=id, function=function, arguments={}, pending=True)
 
 
-def _active_with(pending_events: list[Any], retry_wait: Any = None) -> "MagicMock":
+def _active_with(
+    pending_events: list[Any],
+    retry_wait: Any = None,
+    pending_interactions: tuple[Any, ...] = (),
+) -> "MagicMock":
     from unittest.mock import MagicMock
 
     s = MagicMock()
     s.transcript.pending_events = pending_events
     s.retry_wait = retry_wait
+    # explicit rather than left to the mock's auto-attributes, which would
+    # answer truthy and put every case below on the parked branch
+    s.pending_interactions = pending_interactions
+    kinds = {pending.kind for pending in pending_interactions}
+    s.pending_interaction = (
+        "approval"
+        if "approval" in kinds
+        else "question"
+        if "question" in kinds
+        else None
+    )
     return s
 
 
@@ -540,9 +556,62 @@ def test_activity_pending_model() -> None:
     assert activity["started_at"] == event.timestamp.timestamp()
     assert activity["detail"] == "openai/gpt-5-nano"
     assert activity["retries"] is None
-    # layer-2 fields are present (stable shape) but null until it ships
+    # layer-2 fields are present (stable shape) but null until the provider
+    # stream reports progress
     assert activity["tokens"] is None
     assert activity["last_progress_at"] is None
+
+
+def test_activity_pending_model_carries_stream_progress() -> None:
+    from inspect_ai._control.state import _sample_activity
+    from inspect_ai.event._model import ModelEventProgress
+
+    event = _pending_model_event()
+    event._progress = ModelEventProgress(last_progress_at=123.0, output_tokens=456)
+    activity = _sample_activity(_active_with([event]))
+    assert activity is not None
+    assert activity["tokens"] == 456
+    assert activity["last_progress_at"] == 123.0
+
+
+def test_last_activity_upgraded_by_stream_progress(monkeypatch) -> None:
+    """Idle means "time since last observed progress".
+
+    Streamed progress on a pending model call advances `last_activity_at`
+    past the last transcript event (which for a long call is the pending
+    event's own append).
+    """
+    from unittest.mock import MagicMock
+
+    from inspect_ai._control.state import _sample_summaries_from_active
+    from inspect_ai.event._model import ModelEventProgress
+
+    event = _pending_model_event()
+    event._progress = ModelEventProgress(
+        last_progress_at=event.timestamp.timestamp() + 60.0
+    )
+
+    s = MagicMock()
+    s.eval_id = "e1"
+    s.completed = None
+    s.started = 100.0
+    s.sample.id = "s1"
+    s.epoch = 1
+    s.retries = 0
+    s.retry_wait = None
+    s.transcript.history.last_event = event
+    s.transcript.history.event_count = 1
+    s.transcript.pending_events = [event]
+    s.pending_interaction = None
+
+    monkeypatch.setattr("inspect_ai.log._samples.active_samples", lambda: [s])
+    row = _sample_summaries_from_active("e1")[0]
+    assert row["last_activity_at"] == event.timestamp.timestamp() + 60.0
+    # a stale progress stamp never moves last_activity_at backwards
+    assert event._progress is not None
+    event._progress.last_progress_at = event.timestamp.timestamp() - 60.0
+    row = _sample_summaries_from_active("e1")[0]
+    assert row["last_activity_at"] == event.timestamp.timestamp()
 
 
 def test_activity_pending_model_carries_in_call_retries() -> None:
@@ -564,6 +633,136 @@ def test_activity_tool_wins_over_model_and_earliest_leads() -> None:
     assert activity["count"] == 2
     assert activity["detail"] == "bash"
     assert activity["started_at"] == first_tool.timestamp.timestamp()
+
+
+def test_activity_tool_carries_per_call_list() -> None:
+    """Tool activity lists every pending call with its cancellable id.
+
+    The list is what lets `sample list --json` alone power the watchdog loop
+    (spot stall → `sample cancel-tool-call` by id); `cancel_requested`
+    surfaces a delivered-but-unheeded cancel on a wedged call.
+    """
+    from inspect_ai._control.state import _sample_activity
+
+    first = _pending_tool_event("bash", id="t1")
+    second = _pending_tool_event("python", id="t2")
+    second._set_cancel_fn(lambda: None)
+    second._cancel()
+    activity = _sample_activity(_active_with([first, second]))
+    assert activity is not None
+    assert activity["calls"] == [
+        {
+            "id": "t1",
+            "function": "bash",
+            "started_at": first.timestamp.timestamp(),
+            "cancel_requested": False,
+        },
+        {
+            "id": "t2",
+            "function": "python",
+            "started_at": second.timestamp.timestamp(),
+            "cancel_requested": True,
+        },
+    ]
+
+
+def test_activity_calls_null_outside_tool_activity() -> None:
+    # stable shape: the key is present on every activity type, null unless
+    # the activity is a tool
+    from inspect_ai._control.state import _sample_activity
+
+    activity = _sample_activity(_active_with([_pending_model_event()]))
+    assert activity is not None
+    assert activity["type"] == "model" and activity["calls"] is None
+
+
+def _waiting(
+    kind: Literal["approval", "question"],
+    subject: str = "",
+    started_at: float = 100.0,
+) -> Any:
+    from inspect_ai.log._samples import PendingInteraction
+
+    return PendingInteraction(kind=kind, subject=subject, started_at=started_at)
+
+
+def test_activity_reports_an_approval_the_transcript_does_not_show() -> None:
+    """A parked approval is invisible in the transcript, not merely unlabelled.
+
+    `call_tool` records the tool's event only *after* the approval resolves,
+    so a sample parked overnight has no pending event of any kind and would
+    otherwise read as silently idle — with `last_activity_at` frozen at
+    whatever it last did.
+    """
+    from inspect_ai._control.state import _sample_activity
+
+    activity = _sample_activity(
+        _active_with([], pending_interactions=(_waiting("approval", "bash", 250.0),))
+    )
+    assert activity is not None
+    assert activity["type"] == "approval"
+    assert activity["count"] == 1
+    # the tool being decided: structural, and the one part of the request that
+    # is safe to relay, since the arguments are model-generated text
+    assert activity["detail"] == "bash"
+    # the wait's own start, not the sample's -- how long somebody has been
+    # holding this is the figure that decides whether to go and find them
+    assert activity["started_at"] == 250.0
+    assert activity["calls"] is None
+
+
+def test_activity_approval_leads_a_tool_that_is_also_pending() -> None:
+    # a second, already-approved call can be in flight beside a parked one;
+    # the person is the thing worth reporting, and the running call stays
+    # cancellable from the same row
+    from inspect_ai._control.state import _sample_activity
+
+    tool = _pending_tool_event("python")
+    activity = _sample_activity(
+        _active_with([tool], pending_interactions=(_waiting("approval", "bash"),))
+    )
+    assert activity is not None
+    assert activity["type"] == "approval"
+    assert activity["detail"] == "bash"
+    assert activity["calls"] is not None
+    assert [c["id"] for c in activity["calls"]] == ["t1"]
+
+
+def test_activity_counts_concurrent_waits_of_the_leading_kind() -> None:
+    # `parallel=True` tool calls park independently, and an approval leads a
+    # question because it gates execution
+    from inspect_ai._control.state import _sample_activity
+
+    activity = _sample_activity(
+        _active_with(
+            [],
+            pending_interactions=(
+                _waiting("question", started_at=50.0),
+                _waiting("approval", "bash", 300.0),
+                _waiting("approval", "python", 200.0),
+            ),
+        )
+    )
+    assert activity is not None
+    assert activity["type"] == "approval"
+    assert activity["count"] == 2
+    # the earliest of the leading kind, and the first that has a subject
+    assert activity["started_at"] == 200.0
+    assert activity["detail"] == "bash"
+
+
+def test_activity_question_has_no_subject() -> None:
+    # the prompt *is* the request and it is model-generated text, so there is
+    # nothing structural to name
+    from inspect_ai._control.state import _sample_activity
+
+    activity = _sample_activity(
+        _active_with([], pending_interactions=(_waiting("question", started_at=100.0),))
+    )
+    assert activity is not None
+    assert activity["type"] == "question"
+    assert activity["detail"] == ""
+    assert activity["started_at"] == 100.0
 
 
 def test_activity_retry_wait_when_nothing_pending() -> None:
