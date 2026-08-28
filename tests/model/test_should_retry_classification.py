@@ -168,6 +168,87 @@ def test_openai_classify_rate_limit_error_subclass() -> None:
     assert decision.retry_after == 5.0
 
 
+def test_openai_classify_mid_stream_server_error_as_transient() -> None:
+    """A transient failure delivered mid-stream (after HTTP 200) is a bare APIError.
+
+    The chat-completions stream iterator raises openai.APIError (no status
+    code) built from the SSE error body — it must classify from code/type
+    like the equivalent non-streaming 5xx does.
+    """
+    from openai import APIError
+
+    from inspect_ai.model._openai import openai_classify_retry
+
+    ex = APIError(
+        message="The server had an error while processing your request.",
+        request=httpx2.Request("POST", "https://example.com/v1/chat/completions"),
+        body={
+            "message": "The server had an error while processing your request.",
+            "type": "server_error",
+            "code": None,
+        },
+    )
+    decision = openai_classify_retry(ex)
+    assert decision is not None
+    assert decision.retry is True
+    assert decision.kind == "transient"
+
+    # some backends signal via `code` rather than `type`
+    ex2 = APIError(
+        message="server error",
+        request=httpx2.Request("POST", "https://example.com/v1/chat/completions"),
+        body={"message": "server error", "type": "error", "code": "server_error"},
+    )
+    decision2 = openai_classify_retry(ex2)
+    assert decision2 is not None
+    assert decision2.kind == "transient"
+
+
+def test_openai_classify_mid_stream_rate_limit_as_rate_limit() -> None:
+    from openai import APIError
+
+    from inspect_ai.model._openai import openai_classify_retry
+
+    ex = APIError(
+        message="rate limited",
+        request=httpx2.Request("POST", "https://example.com/v1/chat/completions"),
+        body={
+            "message": "rate limited",
+            "type": "requests",
+            "code": "rate_limit_exceeded",
+        },
+    )
+    decision = openai_classify_retry(ex)
+    assert decision is not None
+    assert decision.kind == "rate_limit"
+
+
+def test_openai_classify_mid_stream_permanent_error_does_not_retry() -> None:
+    """A permanent bare APIError (non-transient code/type) must re-raise, not retry."""
+    from openai import APIError
+
+    from inspect_ai.model._openai import openai_classify_retry
+
+    ex = APIError(
+        message="invalid request",
+        request=httpx2.Request("POST", "https://example.com/v1/chat/completions"),
+        body={
+            "message": "invalid request",
+            "type": "invalid_request_error",
+            "code": "invalid_api_key",
+        },
+    )
+    assert openai_classify_retry(ex) is None
+
+    # non-dict body leaves code/type as None — also not retryable
+    ex_no_body = APIError(
+        message="opaque failure",
+        request=httpx2.Request("POST", "https://example.com/v1/chat/completions"),
+        body=None,
+    )
+    assert openai_classify_retry(ex_no_body) is None
+
+
 def test_openai_provider_quota_exceeded_does_not_retry() -> None:
     """OpenAI's monthly-quota error (RateLimitError with specific message) shouldn't retry."""
     from openai import RateLimitError

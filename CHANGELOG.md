@@ -12,6 +12,7 @@
 - Eval Set: A selection document's operational overrides gain a dataset `limit` and `max_sandboxes`.
 - Grok: Requests now carry xAI's conversation id header, which improves prompt cache hit rates for multi-turn samples.
 - OpenAI: Function call outputs without a `call_id` (optional as of openai 3.5.0) no longer error in the agent bridge or token-count padding.
+- OpenAI: Transient server errors and rate limits delivered mid-stream on chat-completions streaming are now retried instead of failing the sample.
 - OpenAI: Safeguard/content-policy blocks emitted mid-stream or as terminal response errors are now reported as `content_filter` stop reasons instead of failing the sample.
 - Scoring: Skip Score.unscored() / NaN-at-root sentinels in aggregate() metric. (#5008)
 - Scoring: Return inf on OverflowError in perplexity_per_token() and perplexity_per_seq() metrics. (#5028)
