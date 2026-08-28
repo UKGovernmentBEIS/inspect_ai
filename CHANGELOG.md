@@ -11,6 +11,7 @@
 - Eval Set: A selection document's operational overrides gain a dataset `limit` and `max_sandboxes`.
 - Grok: Requests now carry xAI's conversation id header, which improves prompt cache hit rates for multi-turn samples.
 - OpenAI: Function call outputs without a `call_id` (optional as of openai 3.5.0) no longer error in the agent bridge or token-count padding.
+- OpenAI: Responses API requests now omit the `id` key on synthesized message and reasoning items rather than sending an explicit null, which backends like vLLM reject.
 - Scoring: Skip Score.unscored() / NaN-at-root sentinels in aggregate() metric. (#5008)
 - Scoring: Return inf on OverflowError in perplexity_per_token() and perplexity_per_seq() metrics. (#5028)
 - Analysis: Ensure ColumnError.path is a string rather than a JSONPath object on record import errors. (#5006)
