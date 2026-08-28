@@ -271,7 +271,9 @@ def test_client_timeout_sets_http_timeout() -> None:
     assert timeout.read == 1800.0
     assert timeout.write == 1800.0
     assert timeout.pool == 1800.0
-    assert timeout.connect == 5.0
+    # The connect deadline is floored at the shared default rather than pinned
+    # to it, so a budget already above the floor carries through unchanged.
+    assert timeout.connect == 1800.0
 
 
 def test_client_timeout_default_uses_sdk_default() -> None:
@@ -297,7 +299,7 @@ async def test_client_timeout_preserved_after_reinitialize() -> None:
     api.initialize()
     assert not api.http_client.is_closed
     assert api.http_client.timeout.read == 1800.0
-    assert api.http_client.timeout.connect == 5.0
+    assert api.http_client.timeout.connect == 1800.0
 
 
 def test_user_supplied_http_client_not_overridden() -> None:
@@ -659,6 +661,53 @@ async def test_chat_completion_stream_reports_deltas() -> None:
     assert continuation_event.function == "bash"
     assert continuation_event.arguments == '"cmd": "ls"}'
     # the usage chunk reported cumulative output tokens
+    assert observer._tokens_current == 7
+
+
+async def test_chat_completion_stream_gated_without_on_stream(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Without an on_stream consumer only usage/heartbeat progress runs.
+
+    Explicit stream=true callers (and providers that stream by default)
+    stream without asking for stream events, so delta construction
+    (on_stream support code) must not run for them.
+    """
+    import inspect_ai.model._openai as openai_module
+
+    async def fail(delta: object) -> None:
+        raise AssertionError("delta reported without an on_stream consumer")
+
+    monkeypatch.setattr(openai_module, "report_model_stream_delta", fail)
+
+    usage = dict(prompt_tokens=3, completion_tokens=7, total_tokens=10)
+    chunks = [
+        _chunk(
+            dict(
+                choices=[
+                    dict(
+                        index=0,
+                        delta=dict(role="assistant", content="hel"),
+                        finish_reason=None,
+                    )
+                ]
+            )
+        ),
+        _chunk(
+            dict(
+                choices=[dict(index=0, delta=dict(content="lo"), finish_reason="stop")]
+            )
+        ),
+        _chunk(dict(choices=[], usage=usage)),
+    ]
+
+    fake_stream: Any = _FakeChunkStream(chunks)
+    observer = ModelStreamObserver("test", None)
+    with model_stream_observer(observer):
+        result = await openai_chat_completion_stream_final(fake_stream)
+
+    # response assembly and the usage progress channel are unaffected
+    assert result.choices[0].message.content == "hello"
     assert observer._tokens_current == 7
 
 

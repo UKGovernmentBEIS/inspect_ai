@@ -2,6 +2,7 @@ import json
 from types import SimpleNamespace
 from typing import Any
 
+import pytest
 from test_helpers.utils import skip_if_no_openai
 
 from inspect_ai import Task, eval
@@ -2235,6 +2236,95 @@ async def test_responses_stream_reports_deltas() -> None:
     assert tool_event.function == "bash"
     assert tool_event.arguments == "{"
     # the terminal event reported cumulative output tokens
+    assert observer._tokens_current == 7
+
+
+async def test_responses_stream_gated_without_on_stream(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Without an on_stream consumer only heartbeat/usage progress runs.
+
+    Explicit streaming=true callers stream without asking for stream events,
+    so delta construction (on_stream support code) must not run for them.
+    """
+    from openai.types.responses import (
+        Response,
+        ResponseCompletedEvent,
+        ResponseTextDeltaEvent,
+    )
+
+    import inspect_ai.model._providers.openai_responses as responses_module
+    from inspect_ai.model._providers.openai_responses import (
+        _generate_responses_stream,
+    )
+
+    async def fail(delta: object) -> None:
+        raise AssertionError("delta reported without an on_stream consumer")
+
+    monkeypatch.setattr(responses_module, "report_model_stream_delta", fail)
+
+    final = Response.model_validate(
+        dict(
+            id="resp_1",
+            created_at=0,
+            model="gpt-5",
+            object="response",
+            output=[],
+            parallel_tool_calls=False,
+            tool_choice="auto",
+            tools=[],
+            usage=dict(
+                input_tokens=1,
+                input_tokens_details=dict(cache_write_tokens=0, cached_tokens=0),
+                output_tokens=7,
+                output_tokens_details=dict(reasoning_tokens=2),
+                total_tokens=8,
+            ),
+        )
+    )
+    events = [
+        ResponseTextDeltaEvent(
+            content_index=0,
+            delta="hel",
+            item_id="msg_1",
+            logprobs=[],
+            output_index=0,
+            sequence_number=0,
+            type="response.output_text.delta",
+        ),
+        ResponseCompletedEvent(
+            response=final, sequence_number=1, type="response.completed"
+        ),
+    ]
+
+    class _FakeStream:
+        async def __aenter__(self) -> "_FakeStream":
+            return self
+
+        async def __aexit__(self, *exc: object) -> None:
+            return None
+
+        def __aiter__(self) -> Any:
+            async def gen() -> Any:
+                for event in events:
+                    yield event
+
+            return gen()
+
+    class _FakeResponses:
+        async def create(self, **kwargs: Any) -> Any:
+            return _FakeStream()
+
+    fake_client: Any = SimpleNamespace(responses=_FakeResponses())
+
+    observer = ModelStreamObserver("test", None)
+    with model_stream_observer(observer):
+        result = await _generate_responses_stream(
+            fake_client, dict(model="gpt-5", stream=True)
+        )
+
+    # the terminal response and its usage progress are unaffected
+    assert result is final
     assert observer._tokens_current == 7
 
 
