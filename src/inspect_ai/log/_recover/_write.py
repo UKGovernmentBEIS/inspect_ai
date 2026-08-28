@@ -22,7 +22,7 @@ from inspect_ai.log._log import (
     EvalStatus,
 )
 from inspect_ai.log._recorders.buffer.filestore import SampleBufferFilestore
-from inspect_ai.log._recorders.eval import EvalRecorder
+from inspect_ai.log._recorders.eval import EvalRecorder, _sample_filename
 from inspect_ai.model._model_output import ModelUsage
 
 from ._read import CrashedEvalLog, read_flushed_sample
@@ -158,7 +158,7 @@ async def write_recovered_eval_log(
             total_streaming = len(streaming_summaries)
             processed = 0
             for summary, is_in_progress in streaming_summaries:
-                entry = f"samples/{summary.id}_epoch_{summary.epoch}.json"
+                entry = _sample_filename(summary.id, summary.epoch)
                 if entry in effective_flushed:
                     continue
                 processed += 1

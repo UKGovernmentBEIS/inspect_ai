@@ -1478,6 +1478,13 @@ def _selected_eval_set_tasks(
 
 
 def _resumed_task(task: ResolvedTask, identifier: str, resume: str) -> PreviousTask:
+    """Build the PreviousTask for a worker resuming from the `resume` log.
+
+    Recovery here deliberately uses the default "retry" disposition rather
+    than threading `incomplete_action` through: in selection (worker) mode the
+    external runner that assigned this resume owns retry/completion decisions,
+    so a worker never resolves stalled samples on its own.
+    """
     from inspect_ai.log._file import log_file_info
 
     fs = filesystem(resume)

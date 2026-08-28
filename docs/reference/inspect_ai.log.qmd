@@ -45,6 +45,7 @@ description: List, read, write, and analyse logs.
 
 ### recover_eval_log
 ### recoverable_eval_logs
+### IncompleteAction
 ### RecoverableEvalLog
 ### RecoveryNotAvailable
 ### RecoveryThresholdExceeded

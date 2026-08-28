@@ -15,6 +15,7 @@ from inspect_ai.log._file import (
 )
 from inspect_ai.log._log import EvalLog, EvalSample, EvalSampleSummary
 from inspect_ai.log._recorders.buffer.filestore import SampleBufferFilestore
+from inspect_ai.log._recorders.eval import _sample_filename
 
 from ._buffer import read_buffer_recovery_data
 from ._read import read_crashed_eval_log
@@ -192,7 +193,7 @@ async def recover_eval_log_async(
         unresolved = [
             summary
             for summary in recovery_data.in_progress
-            if f"samples/{summary.id}_epoch_{summary.epoch}.json" not in flushed_keys
+            if _sample_filename(summary.id, summary.epoch) not in flushed_keys
         ]
         threshold = (
             incomplete_max
@@ -232,7 +233,7 @@ async def recover_eval_log_async(
         ]
 
         for summary, is_in_progress in all_summaries:
-            entry = f"samples/{summary.id}_epoch_{summary.epoch}.json"
+            entry = _sample_filename(summary.id, summary.epoch)
             if entry in flushed_keys:
                 continue
 

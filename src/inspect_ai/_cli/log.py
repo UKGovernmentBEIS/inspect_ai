@@ -495,10 +495,10 @@ def recover_command(
         except RecoveryThresholdExceeded as e:
             raise click.ClickException(str(e))
         output_path = log.location or output
-        print(
-            f"Recovered {stats.sample_count} samples to {output_path} "
-            f"(status: {log.status})"
-        )
+        # keep the historical success line intact (scripts may anchor on its
+        # shape); report the status on its own line
+        print(f"Recovered {stats.sample_count} samples to {output_path}")
+        print(f"  status: {log.status}")
         if incomplete_action == "error" and stats.in_progress_count > 0:
             print(
                 f"  {stats.in_progress_count} in-progress samples resolved "
