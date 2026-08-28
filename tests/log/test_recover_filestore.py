@@ -403,6 +403,43 @@ async def test_recover_from_filestore_end_to_end() -> None:
             assert len(read_log.samples) == 1
 
 
+async def test_recover_from_filestore_incomplete_action_error_finalizes() -> None:
+    """Streaming (filestore) recovery honors incomplete_action='error'.
+
+    The single expected sample is in progress; resolving it as an error
+    leaves every expected sample final, so the recovered log finalizes with
+    status 'success'.
+    """
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            eval_path, _ = _create_filestore_fixture(
+                temp_dir, num_segments=3, completed=False
+            )
+            _write_crashed_eval(eval_path)
+            db_dir = os.path.join(temp_dir, "empty_db_dir")
+            output_path = os.path.join(temp_dir, "test-recovered.eval")
+
+            log = await recover_eval_log_async(
+                eval_path,
+                output=output_path,
+                cleanup=False,
+                _db_dir=db_dir,
+                incomplete_action="error",
+            )
+
+            assert log.status == "success"
+            assert log.error is None
+            assert log.results is not None
+            assert log.results.total_samples == 1
+
+            read_log = await read_eval_log_async(output_path)
+            assert read_log.status == "success"
+            assert read_log.samples is not None
+            resolved = read_log.samples[0]
+            assert resolved.error is not None
+            assert "terminated by operator during recovery" in resolved.error.message
+
+
 async def test_recover_from_filestore_with_missing_segment() -> None:
     """Recovery continues with best-effort when a segment is missing."""
     async with AsyncFilesystem():

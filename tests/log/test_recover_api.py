@@ -30,6 +30,7 @@ from inspect_ai.log._recorders.eval import HEADER_JSON, LogStart
 from inspect_ai.log._recorders.types import SampleEvent
 from inspect_ai.log._recover import (
     RecoveryNotAvailable,
+    RecoveryThresholdExceeded,
     recover_eval_log_async,
     recoverable_eval_logs,
 )
@@ -183,6 +184,142 @@ async def test_recover_eval_log_end_to_end() -> None:
             assert read_log.status == "error"
             assert read_log.samples is not None
             assert len(read_log.samples) == 4
+
+
+async def test_recover_incomplete_action_error_finalizes() -> None:
+    """incomplete_action='error' resolves in-progress samples and finalizes.
+
+    All 4 expected samples are present (2 flushed, 1 buffer-complete, 1
+    in-progress resolved as an error), so the recovered log finalizes with
+    status 'success' and results covering the expected sample count.
+    """
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            eval_path = os.path.join(temp_dir, "test.eval")
+            db_dir = os.path.join(temp_dir, "bufferdb")
+            output_path = os.path.join(temp_dir, "test-recovered.eval")
+
+            flushed = [_make_sample(1), _make_sample(2)]
+            _write_crashed_eval(eval_path, samples=flushed)
+            _create_buffer_db(
+                eval_path, completed_ids=[3], in_progress_ids=[4], db_dir=db_dir
+            )
+
+            log = await recover_eval_log_async(
+                eval_path,
+                output=output_path,
+                cleanup=False,
+                _db_dir=db_dir,
+                incomplete_action="error",
+            )
+
+            assert log.status == "success"
+            assert log.error is None
+            assert log.results is not None
+            assert log.results.total_samples == 4
+
+            read_log = await read_eval_log_async(output_path)
+            assert read_log.status == "success"
+            assert read_log.samples is not None
+            assert len(read_log.samples) == 4
+
+            resolved = next(s for s in read_log.samples if s.id == 4)
+            assert resolved.error is not None
+            assert "terminated by operator during recovery" in resolved.error.message
+            assert resolved.scores is None
+
+            completed = next(s for s in read_log.samples if s.id == 3)
+            assert completed.error is None
+            assert completed.scores is not None
+
+
+async def test_recover_incomplete_action_error_missing_samples_stays_error() -> None:
+    """Missing (never started) samples prevent finalization.
+
+    Only 3 of the 4 expected samples are present, so the log keeps status
+    'error' and remains retryable — while the in-progress sample is still
+    marked with the operator-termination error.
+    """
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            eval_path = os.path.join(temp_dir, "test.eval")
+            db_dir = os.path.join(temp_dir, "bufferdb")
+            output_path = os.path.join(temp_dir, "test-recovered.eval")
+
+            flushed = [_make_sample(1), _make_sample(2)]
+            _write_crashed_eval(eval_path, samples=flushed)
+            _create_buffer_db(
+                eval_path, completed_ids=[], in_progress_ids=[3], db_dir=db_dir
+            )
+
+            log = await recover_eval_log_async(
+                eval_path,
+                output=output_path,
+                cleanup=False,
+                _db_dir=db_dir,
+                incomplete_action="error",
+            )
+
+            assert log.status == "error"
+            assert log.error is not None
+
+            read_log = await read_eval_log_async(output_path)
+            assert read_log.samples is not None
+            assert len(read_log.samples) == 3
+            resolved = next(s for s in read_log.samples if s.id == 3)
+            assert resolved.error is not None
+            assert "terminated by operator during recovery" in resolved.error.message
+
+
+async def test_recover_incomplete_max() -> None:
+    """incomplete_max refuses to resolve too many in-progress samples."""
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            eval_path = os.path.join(temp_dir, "test.eval")
+            db_dir = os.path.join(temp_dir, "bufferdb")
+            output_path = os.path.join(temp_dir, "test-recovered.eval")
+
+            flushed = [_make_sample(1), _make_sample(2)]
+            _write_crashed_eval(eval_path, samples=flushed)
+            _create_buffer_db(
+                eval_path, completed_ids=[], in_progress_ids=[3, 4], db_dir=db_dir
+            )
+
+            # count form: 2 in-progress > 1
+            with pytest.raises(RecoveryThresholdExceeded):
+                await recover_eval_log_async(
+                    eval_path,
+                    output=output_path,
+                    cleanup=False,
+                    _db_dir=db_dir,
+                    incomplete_action="error",
+                    incomplete_max=1,
+                )
+
+            # proportion form: 2 of 4 expected = 0.5 > 0.25
+            with pytest.raises(RecoveryThresholdExceeded):
+                await recover_eval_log_async(
+                    eval_path,
+                    output=output_path,
+                    cleanup=False,
+                    _db_dir=db_dir,
+                    incomplete_action="error",
+                    incomplete_max=0.25,
+                )
+
+            # nothing was written by the refused recoveries
+            assert not os.path.exists(output_path)
+
+            # at the threshold the recovery proceeds and finalizes
+            log = await recover_eval_log_async(
+                eval_path,
+                output=output_path,
+                cleanup=False,
+                _db_dir=db_dir,
+                incomplete_action="error",
+                incomplete_max=2,
+            )
+            assert log.status == "success"
 
 
 async def test_recover_eval_log_preserves_completed_sample_metadata() -> None:

@@ -2324,3 +2324,111 @@ def test_eval_set_resume_preserves_buffered_sample_metadata() -> None:
             assert resumed.samples[0].metadata["world"] == ground_truth
         finally:
             buffer.cleanup()
+
+
+def test_eval_set_incomplete_action_error_finalizes() -> None:
+    """A crashed log recovered with incomplete_action='error' completes the set.
+
+    The crashed log covers the whole dataset (one completed sample, one in
+    progress at crash), so startup recovery resolves the in-progress sample as
+    an error, the recovered log finalizes as "success", the task classifies as
+    complete, and nothing re-runs.
+    """
+    samples = [
+        Sample(id=1, input="Say hello", target="hello"),
+        Sample(id=2, input="Say hello", target="hello"),
+    ]
+    resume_task = Task(
+        dataset=samples,
+        solver=[identity_solver()],
+        name="incomplete_action_error",
+    )
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        # create a log with the exact task identity eval_set expects, then
+        # rewrite it as a hard-crash artifact (start journal, no header)
+        started_log = eval(
+            resume_task,
+            model="mockllm/model",
+            log_dir=log_dir,
+            run_samples=False,
+        )[0]
+        with zipfile.ZipFile(local_path(started_log.location), "w") as zf:
+            zf.writestr(
+                "_journal/start.json",
+                to_json_str_safe(
+                    LogStart(
+                        version=started_log.version,
+                        eval=started_log.eval,
+                        plan=started_log.plan,
+                    )
+                ),
+            )
+
+        buffer = SampleBufferDatabase(started_log.location)
+        try:
+            now = "2026-01-01T00:00:00+00:00"
+            # sample 1: completed (scored) but unflushed at crash
+            completed = EvalSampleSummary(
+                id=1,
+                epoch=1,
+                input="Say hello",
+                target="hello",
+                scores={"accuracy": Score(value="C", answer="hello")},
+                started_at=now,
+                completed_at=now,
+            )
+            buffer.start_sample(completed)
+            buffer.log_events(
+                [
+                    SampleEvent(
+                        id=1,
+                        epoch=1,
+                        event=SampleInitEvent(sample=samples[0], state={}),
+                    )
+                ]
+            )
+            buffer.complete_sample(completed, sample_metadata=None)
+
+            # sample 2: in progress at crash
+            in_progress = EvalSampleSummary(
+                id=2, epoch=1, input="Say hello", target="hello", started_at=now
+            )
+            buffer.start_sample(in_progress)
+            buffer.log_events(
+                [
+                    SampleEvent(
+                        id=2,
+                        epoch=1,
+                        event=SampleInitEvent(sample=samples[1], state={}),
+                    )
+                ]
+            )
+            simulate_crashed_buffer_db(buffer)
+
+            success, logs = eval_set(
+                tasks=resume_task,
+                log_dir=log_dir,
+                model="mockllm/model",
+                retry_attempts=1,
+                retry_immediate=True,
+                retry_cleanup=False,
+                incomplete_action="error",
+            )
+
+            assert success
+            assert len(logs) == 1
+            final = logs[0]
+            assert final.status == "success"
+            # the finalized recovered log completed the set — nothing re-ran
+            assert final.location is not None
+            assert "-recovered" in final.location
+
+            recovered = read_eval_log(final.location)
+            assert recovered.samples is not None
+            assert len(recovered.samples) == 2
+            resolved = next(s for s in recovered.samples if s.id == 2)
+            assert resolved.error is not None
+            assert "terminated by operator during recovery" in resolved.error.message
+        finally:
+            buffer.cleanup()

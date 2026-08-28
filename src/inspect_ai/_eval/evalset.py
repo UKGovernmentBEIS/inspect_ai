@@ -160,6 +160,8 @@ def eval_set(
     retry_connections: float | None = None,
     retry_cleanup: bool | None = None,
     retry_immediate: bool | None = None,
+    incomplete_action: Literal["retry", "error"] = "retry",
+    incomplete_max: int | float | None = None,
     model: str | Model | list[str] | list[Model] | None | NotGiven = NOT_GIVEN,
     model_base_url: str | None = None,
     model_args: dict[str, Any] | str = dict(),
@@ -238,6 +240,16 @@ def eval_set(
         retry_cleanup: Cleanup failed log files after retries
             (defaults to True)
         retry_immediate: If True (the default), immediately retry tasks as they fail without waiting for all tasks to complete; completed samples are reused from logs on retry. If False, wait for all tasks to complete before retrying any tasks (legacy batch-retry behavior). When True, `retry_wait` and `retry_connections` are ignored.
+        incomplete_action: Disposition applied when recovering a crashed log
+            from a previous execution, for samples that were in progress at
+            crash. `"retry"` (default) re-runs them; `"error"` resolves them
+            as operator terminations — if that leaves every expected sample
+            final, the recovered log finalizes as `status="success"`, the
+            task classifies as complete, and nothing re-runs.
+        incomplete_max: Safety threshold for `incomplete_action="error"`
+            (count, or proportion of expected samples if < 1): when more
+            than this many samples are in progress, fall back to the default
+            recover-and-retry behavior.
         model: Model(s) for evaluation. If not specified use the value of the INSPECT_EVAL_MODEL
             environment variable. Specify `None` to define no default model(s), which will
             leave model usage entirely up to tasks.
@@ -897,6 +909,8 @@ def eval_set(
                 epochs=epochs,
                 limit=limit,
                 cleanup_older=retry_cleanup,
+                incomplete_action=incomplete_action,
+                incomplete_max=incomplete_max,
             )
             if not failed_logs:
                 failed_tasks = []
@@ -1280,7 +1294,10 @@ def as_previous_tasks(
 
 
 def _recover_crashed_log(
-    eval_log: EvalLog, log_info: EvalLogInfo
+    eval_log: EvalLog,
+    log_info: EvalLogInfo,
+    incomplete_action: Literal["retry", "error"] = "retry",
+    incomplete_max: int | float | None = None,
 ) -> tuple[EvalLog, EvalLogInfo]:
     """Opportunistically recover a still-"started" log before retrying it.
 
@@ -1292,6 +1309,11 @@ def _recover_crashed_log(
     Args:
         eval_log: Header of the log to retry.
         log_info: File info for that log.
+        incomplete_action: Disposition for samples in progress at crash
+            (see `recover_eval_log`). Exceeding `incomplete_max` falls back
+            to the default "retry" disposition rather than failing, so a
+            systemic crash still recovers-and-retries as it does today.
+        incomplete_max: Safety threshold for a resolving disposition.
 
     Returns:
         The recovered log and file info, or the originals when no recovery was available.
@@ -1299,11 +1321,24 @@ def _recover_crashed_log(
     if eval_log.status == "started" and eval_log.location:
         from inspect_ai.log._recover import (
             RecoveryNotAvailable,
+            RecoveryThresholdExceeded,
             recover_eval_log,
         )
 
         try:
-            recovered = recover_eval_log(eval_log.location, cleanup=False)
+            try:
+                recovered = recover_eval_log(
+                    eval_log.location,
+                    cleanup=False,
+                    incomplete_action=incomplete_action,
+                    incomplete_max=incomplete_max,
+                )
+            except RecoveryThresholdExceeded as ex:
+                logger.warning(
+                    f"Recovery for {eval_log.location} exceeded incomplete_max; "
+                    f"falling back to recover-and-retry: {ex}"
+                )
+                recovered = recover_eval_log(eval_log.location, cleanup=False)
             if recovered.location:
                 log_info = log_info.model_copy(update={"name": recovered.location})
             eval_log = recovered
@@ -1516,10 +1551,33 @@ def list_latest_eval_logs(
     epochs: int | Epochs | None,
     limit: int | tuple[int, int] | None,
     cleanup_older: bool,
+    incomplete_action: Literal["retry", "error"] = "retry",
+    incomplete_max: int | float | None = None,
 ) -> tuple[list[Log], list[Log]]:
     latest_logs = latest_completed_task_eval_logs(
         logs=logs, cleanup_older=cleanup_older
     )
+
+    # a resolving disposition recovers crashed logs *before* the completeness
+    # classification below, so a recovery that finalizes (status "success")
+    # classifies as complete and nothing re-runs. With the default "retry"
+    # disposition recovery happens later, in as_previous_tasks, since the
+    # recovered log is always incomplete there.
+    if incomplete_action != "retry":
+        recovered_logs: list[Log] = []
+        for log in latest_logs:
+            header, info = _recover_crashed_log(
+                log.header,
+                log.info,
+                incomplete_action=incomplete_action,
+                incomplete_max=incomplete_max,
+            )
+            recovered_logs.append(
+                log
+                if header is log.header
+                else Log(info=info, header=header, task_identifier=log.task_identifier)
+            )
+        latest_logs = recovered_logs
 
     # resolve epochs
     epochs = resolve_epochs(epochs)

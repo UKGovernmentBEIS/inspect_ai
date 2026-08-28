@@ -17,13 +17,16 @@ from inspect_ai.log._log import (
     EvalSample,
     EvalSampleReductions,
     EvalSampleSummary,
+    EvalSpec,
     EvalStats,
+    EvalStatus,
 )
 from inspect_ai.log._recorders.buffer.filestore import SampleBufferFilestore
 from inspect_ai.log._recorders.eval import EvalRecorder
 from inspect_ai.model._model_output import ModelUsage
 
 from ._read import CrashedEvalLog, read_flushed_sample
+from ._reconstruct import IncompleteAction
 from ._stream import _write_sample_streaming
 
 logger = getLogger(__name__)
@@ -38,17 +41,25 @@ class RecoveryStats:
 
     sample_count: int = 0
     failed_count: int = 0
+    in_progress_count: int = 0
+
+
+def expected_samples(eval: EvalSpec) -> int:
+    """Total samples the eval expected to run (dataset samples x epochs)."""
+    dataset_samples = (eval.dataset.samples or 0) if eval.dataset else 0
+    return dataset_samples * (eval.config.epochs or 1)
 
 
 async def write_recovered_eval_log(
     crashed: CrashedEvalLog,
-    buffer_samples: Iterator[EvalSample],
+    buffer_samples: Iterator[tuple[EvalSample, bool]],
     output: str,
     *,
     streaming_buffer: SampleBufferFilestore | None = None,
     streaming_summaries: list[tuple[EvalSampleSummary, bool]] | None = None,
     flushed_keys: set[str] | None = None,
     no_events: bool = False,
+    incomplete_action: IncompleteAction = "retry",
     stats: RecoveryStats | None = None,
 ) -> EvalLog:
     """Write a recovered .eval file with true streaming.
@@ -64,12 +75,19 @@ async def write_recovered_eval_log(
 
     Args:
         crashed: Start data from the crashed .eval file.
-        buffer_samples: Iterator of reconstructed buffer DB samples.
+        buffer_samples: Iterator of (reconstructed buffer DB sample,
+            is_in_progress) tuples.
         output: Output file path.
         streaming_buffer: If set, use streaming segment-at-a-time path.
         streaming_summaries: (summary, is_in_progress) tuples for streaming.
         flushed_keys: Sample entry keys already flushed (for dedup).
         no_events: Exclude event transcript from recovered samples.
+        incomplete_action: Disposition for samples in progress at crash.
+            With `"error"` they are resolved (final, recorded as operator
+            terminations), and when every expected sample is then final the
+            recovered log is finalized with `status="success"`; with
+            `"retry"` (default) they become cancelled errors and the log
+            keeps `status="error"` so retries re-run them.
         stats: If provided, populated with sample and failed counts so
             callers can report progress without re-reading the just-written
             file (which would trigger lazy loading of all samples).
@@ -94,11 +112,14 @@ async def write_recovered_eval_log(
 
     sample_count = 0
     failed_count = 0
+    in_progress_count = 0
     stats_acc = _StatsAccumulator(crashed)
     scores_acc: list[dict[str, SampleScore]] = []
 
-    async def _write_sample(sample: EvalSample) -> None:
-        nonlocal sample_count, failed_count
+    async def _write_sample(sample: EvalSample, in_progress: bool = False) -> None:
+        nonlocal sample_count, failed_count, in_progress_count
+        if in_progress:
+            in_progress_count += 1
         stats_acc.add_sample(sample)
         if sample.scores:
             scores_acc.append(
@@ -141,6 +162,8 @@ async def write_recovered_eval_log(
                 if entry in effective_flushed:
                     continue
                 processed += 1
+                if is_in_progress:
+                    in_progress_count += 1
                 seg_count = next(
                     (
                         len(sm.segments)
@@ -161,6 +184,7 @@ async def write_recovered_eval_log(
                     manifest,
                     eval_spec=crashed.eval,
                     is_in_progress=is_in_progress,
+                    incomplete_action=incomplete_action,
                     include_events=not no_events,
                 )
                 stats_acc.add_summary(written_summary)
@@ -187,8 +211,8 @@ async def write_recovered_eval_log(
                     await recorder.flush(crashed.eval)
     else:
         # Non-streaming path: consume buffer_samples iterator
-        for sample in buffer_samples:
-            await _write_sample(sample)
+        for sample, in_progress in buffer_samples:
+            await _write_sample(sample, in_progress)
 
     # Compute results from collected scores
     results: EvalResults | None = None
@@ -219,19 +243,45 @@ async def write_recovered_eval_log(
     except Exception as ex:
         logger.warning(f"Unable to recompute metrics for recovered log: {ex}")
 
-    error = EvalError(
-        message="Eval recovered from crash",
-        traceback="Eval process crashed; log recovered from sample buffer database.\n",
-        traceback_ansi="Eval process crashed; log recovered from sample buffer database.\n",
+    # A resolving disposition finalizes the log with status "success" when
+    # every expected sample is final (present in the recovered log: flushed,
+    # buffer-complete, or resolved) — nothing is left to run, so eval_set's
+    # completeness predicate is satisfied and nothing will retry it. If
+    # expected samples are missing entirely (never started, or lost between
+    # flush and crash), the log keeps status "error" and stays retryable.
+    # `fail_on_error` is deliberately not applied: the operator explicitly
+    # chose to complete the eval; recording the resolved samples as errors
+    # is for analysis honesty, not for status computation. Finalization also
+    # requires recomputed results — without them the log would fail the
+    # completeness predicate and be re-run despite its "success" status.
+    expected = expected_samples(crashed.eval)
+    finalized = (
+        incomplete_action == "error"
+        and results is not None
+        and expected > 0
+        and sample_count >= expected
     )
+
+    status: EvalStatus
+    if finalized:
+        status = "success"
+        error = None
+    else:
+        status = "error"
+        error = EvalError(
+            message="Eval recovered from crash",
+            traceback="Eval process crashed; log recovered from sample buffer database.\n",
+            traceback_ansi="Eval process crashed; log recovered from sample buffer database.\n",
+        )
 
     if stats is not None:
         stats.sample_count = sample_count
         stats.failed_count = failed_count
+        stats.in_progress_count = in_progress_count
 
     return await recorder.log_finish(
         crashed.eval,
-        "error",
+        status,
         stats_acc.stats(),
         results,
         reductions,

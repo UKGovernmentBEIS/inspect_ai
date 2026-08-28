@@ -1297,6 +1297,8 @@ def eval_retry(
     max_connections: int | None = None,
     adaptive_connections: bool | int | AdaptiveConcurrency | None = None,
     checkpoint: CheckpointConfig | bool | None = None,
+    incomplete_action: Literal["retry", "error"] = "retry",
+    incomplete_max: int | float | None = None,
 ) -> list[EvalLog]:
     """Retry a previously failed evaluation task.
 
@@ -1389,6 +1391,16 @@ def eval_retry(
             Must match the config used on the original eval for resume
             detection to find the checkpoint files (the original
             `--checkpoint` is not recorded in the log file).
+        incomplete_action: Disposition applied when recovering a crashed log
+            before retrying, for samples that were in progress at crash.
+            `"retry"` (default) re-runs them; `"error"` resolves them as
+            operator terminations — if that leaves every expected sample
+            final, the recovered log finalizes as `status="success"` and is
+            returned without retrying.
+        incomplete_max: Safety threshold for `incomplete_action="error"`
+            (count, or proportion of expected samples if < 1): when more
+            than this many samples are in progress, fall back to the default
+            recover-and-retry behavior.
 
     Returns:
         List of EvalLog (one for each task)
@@ -1435,6 +1447,8 @@ def eval_retry(
             max_connections=max_connections,
             adaptive_connections=adaptive_connections,
             checkpoint=checkpoint,
+            incomplete_action=incomplete_action,
+            incomplete_max=incomplete_max,
         )
 
     result = task_display().run_task_app(with_async_fs(run_task_app))
@@ -1488,6 +1502,8 @@ async def eval_retry_async(
     max_connections: int | None = None,
     adaptive_connections: bool | int | AdaptiveConcurrency | None = None,
     checkpoint: CheckpointConfig | bool | None = None,
+    incomplete_action: Literal["retry", "error"] = "retry",
+    incomplete_max: int | float | None = None,
 ) -> list[EvalLog]:
     """Retry a previously failed evaluation task.
 
@@ -1556,6 +1572,16 @@ async def eval_retry_async(
         max_connections: Maximum number of concurrent connections to Model API (default is per Model API)
         adaptive_connections: Adaptive concurrency for Model API connections. Defaults to enabled (resolves to `AdaptiveConcurrency()` defaults: min=10, start=20, max=100). Pass `False` to opt out, an integer `N` as shorthand for `AdaptiveConcurrency(max=N)`, or an `AdaptiveConcurrency` to fully customize bounds and tuning (cooldown_seconds, decrease_factor, scale_up_percent). An explicit `max_connections` or `batch=True` takes precedence and uses static concurrency.
         checkpoint: Checkpoint configuration for this retry, or `True` to enable checkpointing with the default trigger (every 500k tokens). Must match the config used on the original eval for resume detection to find the checkpoint files (the original `--checkpoint` is not recorded in the log file).
+        incomplete_action: Disposition applied when recovering a crashed log
+            before retrying, for samples that were in progress at crash.
+            `"retry"` (default) re-runs them; `"error"` resolves them as
+            operator terminations — if that leaves every expected sample
+            final, the recovered log finalizes as `status="success"` and is
+            returned without retrying.
+        incomplete_max: Safety threshold for `incomplete_action="error"`
+            (count, or proportion of expected samples if < 1): when more
+            than this many samples are in progress, fall back to the default
+            recover-and-retry behavior.
 
     Returns:
         List of EvalLog (one for each task)
@@ -1582,19 +1608,38 @@ async def eval_retry_async(
 
     # opportunistically recover crashed logs before retrying
     recovered_files: dict[int, str] = {}
+    finalized_indexes: set[int] = set()
     for i, eval_log in enumerate(retry_eval_logs):
         if eval_log.status == "started" and eval_log.location:
             from inspect_ai.log._recover import (
                 RecoveryNotAvailable,
+                RecoveryThresholdExceeded,
                 recover_eval_log_async,
             )
 
             try:
-                recovered = await recover_eval_log_async(
-                    eval_log.location, cleanup=False
-                )
+                try:
+                    recovered = await recover_eval_log_async(
+                        eval_log.location,
+                        cleanup=False,
+                        incomplete_action=incomplete_action,
+                        incomplete_max=incomplete_max,
+                    )
+                except RecoveryThresholdExceeded as ex:
+                    logging.getLogger(__name__).warning(
+                        f"Recovery for {eval_log.location} exceeded "
+                        f"incomplete_max; falling back to recover-and-retry: {ex}"
+                    )
+                    recovered = await recover_eval_log_async(
+                        eval_log.location, cleanup=False
+                    )
                 retry_eval_logs[i] = recovered
-                if recovered.location:
+                if recovered.status == "success":
+                    # recovery resolved every in-progress sample and finalized
+                    # the log — there is nothing left to retry (and the
+                    # recovered file is the final log, so don't clean it up)
+                    finalized_indexes.add(i)
+                elif recovered.location:
                     recovered_files[i] = recovered.location
             except RecoveryNotAvailable:
                 pass  # no recovery data available — proceed with flushed samples
@@ -1605,7 +1650,10 @@ async def eval_retry_async(
 
     # eval them in turn
     eval_logs: list[EvalLog] = []
-    for eval_log in retry_eval_logs:
+    for i, eval_log in enumerate(retry_eval_logs):
+        if i in finalized_indexes:
+            eval_logs.append(eval_log)
+            continue
         # the task needs to be either filesystem or registry
         # based in order to do a retry (we don't have enough
         # context to reconstruct ephemeral Task instances)
