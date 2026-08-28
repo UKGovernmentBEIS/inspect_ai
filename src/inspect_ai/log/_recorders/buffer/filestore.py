@@ -37,11 +37,8 @@ logger = getLogger(__name__)
 
 
 class Segment(TypedDict):
-    # A TypedDict rather than a BaseModel: a long run's manifest holds tens of
-    # thousands of these, and as models they dominated both manifest parse time
-    # and the runner's GC load (a model plus its __pydantic_fields_set__ are two
-    # GC-tracked objects each, where a dict of scalars is tracked zero times).
-    # The serialized form is unchanged.
+    # Not a BaseModel: a manifest holds tens of thousands of these, and each
+    # model is two GC-tracked objects where a dict of scalars is tracked none.
     id: int
     last_event_id: int
     last_attachment_id: int
@@ -271,10 +268,8 @@ class SampleBufferFilestore(SampleBuffer):
                 f.write(data)
 
     def write_manifest(self, manifest: Manifest) -> None:
-        # No indentation: the manifest is machine-read only and is rewritten on
-        # every sync, where whitespace was ~41% of its bytes. Passed here rather
-        # than changed in to_json_safe, whose output is hashed for the eval-set
-        # task identifier and the sample-metadata filename.
+        # Machine-read only, so no indentation. Set here rather than in
+        # to_json_safe, whose bytes are hashed for the eval-set task identifier.
         self._write_bytes(self._manifest_file(), to_json_safe(manifest, indent=None))
 
     def write_segment(self, id: int, files: list[SegmentFile]) -> None:

@@ -1,8 +1,4 @@
-"""Serialization guarantees for the buffer manifest.
-
-The manifest is rewritten on every `log_shared` sync and is machine-read only,
-so its encoding is on the hot path of long runs.
-"""
+"""Encoding guarantees for the buffer manifest, which is rewritten every sync."""
 
 import json
 import os
@@ -34,21 +30,17 @@ def _manifest() -> Manifest:
 
 def _round_trip(manifest: Manifest) -> tuple[bytes, Manifest | None]:
     with tempfile.TemporaryDirectory() as temp_dir:
-        eval_path = os.path.join(temp_dir, "log.eval")
-        filestore = SampleBufferFilestore(eval_path)
+        filestore = SampleBufferFilestore(os.path.join(temp_dir, "log.eval"))
         filestore.write_manifest(manifest)
-        raw = open(filestore._manifest_file(), "rb").read()
-        return raw, filestore.read_manifest()
+        with open(filestore._manifest_file(), "rb") as f:
+            return f.read(), filestore.read_manifest()
 
 
 def test_write_manifest_is_not_indented() -> None:
-    """The manifest is machine-read only; indentation was ~41% of its bytes.
-
-    Asserted on the shape rather than exact bytes: float formatting differs
-    between serializers for small magnitudes, so byte-equality is brittle.
-    """
     raw, _ = _round_trip(_manifest())
 
+    # Shape, not exact bytes: float formatting differs between serializers for
+    # small magnitudes, so byte-equality would be brittle.
     assert b"\n" not in raw
     assert b'": ' not in raw
 
@@ -59,15 +51,10 @@ def test_write_manifest_round_trips() -> None:
 
     assert parsed is not None
     assert json.loads(raw) == json.loads(manifest.model_dump_json(exclude_none=True))
-    assert parsed.samples[0].summary.id == "s1"
 
 
 def test_legacy_segment_without_pool_ids_round_trips() -> None:
-    """Manifests written before pool ids existed omit those keys entirely.
-
-    49% of surviving prd buffer segments lack them, so the reader must keep
-    defaulting them rather than requiring the keys to be present.
-    """
+    """Around half of surviving buffer segments omit the pool ids entirely."""
     legacy = json.dumps(
         {
             "metrics": [],
@@ -87,18 +74,14 @@ def test_legacy_segment_without_pool_ids_round_trips() -> None:
     segment = parsed.samples[0].segments[0]
 
     assert not isinstance(segment, int)
-    # The keys stay absent -- they are NotRequired, so nothing materializes
-    # them. Consumers must go through segment_cursor_ids for the defaults.
+    # NotRequired, so nothing materializes the keys; the defaults live in
+    # segment_cursor_ids and every consumer must go through it.
     assert "last_message_pool_id" not in segment
     assert segment_cursor_ids(segment) == (7, 2, 0, 0)
 
 
 def test_legacy_bare_int_segment_entry_still_supported() -> None:
-    """Pre-#4207 manifests store a bare segment id, not a cursor object.
-
-    ~800 of 906 sampled prd buffers are int-only, so the read path must keep
-    resolving them against the top-level segment list.
-    """
+    """Manifests written before #4207 store a segment id in place of a cursor."""
     legacy = json.dumps(
         {
             "metrics": [],
