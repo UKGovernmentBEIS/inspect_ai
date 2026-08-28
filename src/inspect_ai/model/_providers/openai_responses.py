@@ -210,23 +210,12 @@ async def generate_responses(
         if background:
             model_response = await wait_for_background_response(client, model_response)
 
-        # check for error
+        # check for error (recognized block codes, including invalid_prompt,
+        # convert to model output in the handler below)
         if model_response.error is not None:
-            # check for content filter
-            if model_response.error.code == "invalid_prompt":
-                model_call.set_error(
-                    as_error_response(model_response.error),
-                    http_hooks.end_request(request_id),
-                )
-                return ModelOutput.from_content(
-                    model=model_name,
-                    content=model_response.error.message,
-                    stop_reason="content_filter",
-                ), model_call
-            else:
-                raise OpenAIResponseError(
-                    code=model_response.error.code, message=model_response.error.message
-                )
+            raise OpenAIResponseError(
+                code=model_response.error.code, message=model_response.error.message
+            )
 
         # save response for model_call
         _fix_function_tool_parameters(model_response)

@@ -287,15 +287,8 @@ def test_mixed_reasoning_blocks_filtering():
 
 async def test_responses_api_invalid_prompt_content_filter():
     """Test that invalid_prompt error in responses API returns content_filter."""
-    from unittest.mock import AsyncMock, MagicMock
-
-    from openai._types import NOT_GIVEN
     from openai.types.responses import Response, ResponseError
 
-    from inspect_ai.model._providers.openai_responses import generate_responses
-    from inspect_ai.model._providers.util.hooks import HttpxHooks
-
-    # Create a mock Response with an invalid_prompt error
     mock_response = Response.model_construct(
         id="resp_test",
         created_at=0.0,
@@ -310,44 +303,14 @@ async def test_responses_api_invalid_prompt_content_filter():
         status="failed",
     )
 
-    # Mock the client
-    client = MagicMock()
-    client.responses = MagicMock()
-    client.responses.create = AsyncMock(return_value=mock_response)
-
-    # Mock http_hooks
-    http_hooks = MagicMock(spec=HttpxHooks)
-    http_hooks.start_request = MagicMock(return_value="req_1")
-    http_hooks.end_request = MagicMock(return_value=None)
-
-    # Mock model_info
-    model_info = MagicMock()
-    model_info.is_o_series.return_value = False
-    model_info.is_gpt.return_value = True
-    model_info.is_gpt_5.return_value = False
-
-    result = await generate_responses(
-        client=client,
-        http_hooks=http_hooks,
-        model_name="gpt-4o",
-        input=[],
-        tools=[],
-        tool_choice=None,
-        config=GenerateConfig(),
-        background=None,
-        service_tier=None,
-        prompt_cache_key=NOT_GIVEN,
-        prompt_cache_retention=NOT_GIVEN,
-        safety_identifier=NOT_GIVEN,
-        responses_store=None,
-        synthesize_phase=False,
-        model_info=model_info,
-        batcher=None,
-    )
-    output, model_call = result
+    output, _ = await _generate_responses_with_mock(mock_response)
     assert isinstance(output, ModelOutput)
     assert output.stop_reason == "content_filter"
     assert "blocked by content filter" in output.completion
+    # invalid_prompt converts via the same handler as the other block codes,
+    # so it carries the refusal StopDetails like they do
+    assert output.choices[0].stop_details is not None
+    assert output.choices[0].stop_details.type == "refusal"
 
 
 async def _generate_responses_with_mock(
