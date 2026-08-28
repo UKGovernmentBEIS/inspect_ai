@@ -554,6 +554,26 @@ message-history prefix (no client cooperation), enforced at a network
 chokepoint, backed by a per-tenant lock budget against fresh-conversation
 probing.
 
+### Why nobody built it
+
+The absence is explained by threat models, not carelessness:
+
+1. For content guardrails, each bad output is blocked independently, so an
+   attacker gains little by learning the boundary. Probing pays only when
+   a single success wins (an action: one exfiltration, one escape). Almost
+   no one else defends against one-success-wins actions.
+2. These products defend an app from its users. Persistent abusers are
+   handled one layer up by account bans and fraud systems, on identity the
+   platform controls. The monitor proxy cannot lean on that layer: its
+   adversary is the client itself.
+3. False-positive economics run the other way. A stateless guardrail's
+   false positive costs one retry; condemnation turns it into a
+   permanently dead session. Consumer products optimize for low friction.
+4. Doing it right needs session identity without client cooperation, which
+   is unsolved (and the monitor-proxy design's own top open question).
+   Vendors whose threat model didn't force the hard version didn't build
+   it; LiteLLM declined the feature as "not planned".
+
 ## Gaps vs the monitor-proxy design
 
 Where the design is genuinely differentiated, and where it is not:

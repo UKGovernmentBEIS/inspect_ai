@@ -192,6 +192,14 @@ changes the prefix, so one conversation can look like a new session, and
 condemnation may not follow the agent across a compaction. Whether
 prefix-hashing is sufficient session identity is not settled.
 
+**The state itself is an implementation concern, and it is small.** The
+spec requires condemnation; how an implementation keeps the state is its
+business. At eval scale a per-port set of condemned session keys fits in
+memory, and the audit log can rebuild it on restart. The reference
+implementation should demonstrate this. Nothing at the scale of a global
+edge network is needed. The hard part is not storing the state but
+deriving the session key (above).
+
 **Limit on fresh conversations.** A prober can abandon a condemned
 conversation and start a new one (losing all its progress). Each tenant
 (port, see below) carries a budget for new conversations and/or total
