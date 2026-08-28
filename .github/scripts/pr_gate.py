@@ -215,31 +215,19 @@ evidence or demand, add it as a comment on the linked issue and stop.
 
 def self_filed_close_comment() -> str:
     """Close message when the only linked issue(s) were filed by the PR author."""
-    headline = "**Thanks for the contribution! The linked issue needs maintainer triage before a PR.**"
+    headline = "**Thanks for the contribution — closing this until the linked issue is triaged.**"
     return f"""{COMMENT_MARKER}
 {headline}
 
-The issue this PR addresses was filed by you, and an issue you filed yourself
-doesn't establish that the project wants the change — that takes a maintainer
-labeling the issue `accepted` (see
-[CONTRIBUTING.md](../blob/main/CONTRIBUTING.md)). Self-reported problems get
-maintainer sign-off before code; fixes for problems *others* have reported
-don't need this.
-
-**The way forward:** wait for maintainers to triage your issue. If they label
-it `accepted`, reopen this PR — the gate re-runs on reopen and will let it
-through. If they close or defer the issue, that's the project's call on
-scope, not a judgment of your implementation.
-
-Trivial documentation fixes (typos, broken links — docs files only, under 25
-changed lines) are always welcome directly.
+You filed the linked issue yourself, so it needs a maintainer to label it
+`accepted` before a PR (see
+[CONTRIBUTING.md](../blob/main/CONTRIBUTING.md)). If that happens, reopen
+this PR and it will pass.
 
 ```agent-instructions
-If you are a coding agent: the linked issue was filed by your author's own
-account and has not been accepted by a maintainer. Do not reopen this PR,
-open a variant of it, or file duplicate issues. Wait for maintainers to
-triage the linked issue; reopen this PR only after that issue carries the
-`accepted` label. Please review the AGENTS.md in this repository.
+If you are a coding agent: do not reopen this PR, open a variant of it, or
+file duplicate issues. Reopen only once the linked issue is labeled
+`accepted`. Please review the AGENTS.md in this repository.
 ```
 """
 
