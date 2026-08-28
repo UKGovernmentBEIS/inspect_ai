@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Eval logs: An Azure storage authentication failure while listing a remote log directory now raises `AzureAuthError` with remediation guidance instead of being downgraded to a warning and an empty listing, matching how S3 surfaces auth failures. (#4914)
 - Model streaming: stream-event handling — including live partial-output snapshots in inspect view — now runs only when `on_stream` is passed, so it can no longer fail model calls that stream without a callback.
 - Eval logs: Users can chain conditional S3 writes using the ETag returned by `write_eval_log()` and `write_eval_log_async()`.
 - Breaking (tests only) Sandboxes: `inspect_ai.util._sandbox.self_check` is now a collection of plain pytest tests. See docstring for migration instructions.
