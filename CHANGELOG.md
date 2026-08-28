@@ -46,6 +46,7 @@
 - Bugfix: Resuming a sample from a checkpoint no longer restarts its token, cost, turn, time, and working budgets from zero.
 - Models: Provider HTTP connection settings are now tunable with `INSPECT_HTTP_*` environment variables, and connection setup gets 60s rather than the SDKs' 5s.
 - Mistral: Requests are no longer capped at the SDK's flat 5s timeout, which cut off generations that took longer.
+- Sandbox: When remote exec polling exhausts its retries, the error now names the sandbox's actual failure instead of an opaque tenacity RetryError.
 
 ## 0.3.260 (21 August 2026)
 
@@ -60,7 +61,6 @@
 - Sandbox: Recognized Docker failures to run a command (stopped container; missing or unlaunchable timeout wrapper) now surface as tool errors of type `sandbox_unavailable` rather than as command output; non-tool callers (e.g. scorers) get a `SandboxUnavailableError` or `PermissionError` raise. (#4709)
 - Sandbox: When a Docker sandbox container is found not running, container state, exit detail (including OOM-killed), and recent logs are now captured in a log warning; containers that die mid-command are now detected as sandbox failures.
 - Scoring: Treat numeric string metric return values as scalar values rather than sequences in eval results. (#4903)
-- Sandbox: When remote exec polling exhausts its retries, the error now names the sandbox's actual failure instead of an opaque tenacity RetryError.
 - Multiple Choice: A single-choice answer carrying a stray trailing comma (e.g. `ANSWER: A,`) is now scored instead of rejected as no answer.
 - Model-graded scorers now warn once when an explicit model bypasses a required model role.
 - Dataset: Choices fields read from CSV or JSON no longer produce an empty-string choice from trailing or doubled commas.
