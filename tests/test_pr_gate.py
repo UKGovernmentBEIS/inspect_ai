@@ -15,6 +15,11 @@ pr_gate = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(pr_gate)
 
 
+def issue(labels=None, author="issue-author"):
+    """A linked closing issue as fetch_ctx shapes it (not the PR author unless a test says so)."""
+    return {"author": author, "labels": labels or []}
+
+
 def make_ctx(**overrides):
     ctx = {
         "author": "somebody",
@@ -22,7 +27,7 @@ def make_ctx(**overrides):
         "author_association": "NONE",
         "pr_labels": [],
         "files": [{"filename": "src/inspect_ai/x.py", "additions": 40, "deletions": 3}],
-        "linked_issue_labels": [],  # flattened labels across all closing issues
+        "linked_issues": [],  # closing issues: [{"author": login, "labels": [...]}]
         "qualified_users": {111222},  # account ids from .github/qualified.yml
         "has_prior_nontrivial_merge": False,
         "open_prs": 0,  # author's OTHER open PRs in this repo (excludes this one)
@@ -113,12 +118,12 @@ def test_trivial_docs_pr_passes():
 
 
 def test_accepted_linked_issue_passes():
-    v = pr_gate.decide(make_ctx(linked_issue_labels=["accepted"]))
+    v = pr_gate.decide(make_ctx(linked_issues=[issue(["accepted"])]))
     assert v.verdict == "pass" and v.tier == "issue-approved"
 
 
 def test_good_first_issue_implies_accepted():
-    v = pr_gate.decide(make_ctx(linked_issue_labels=["good first issue"]))
+    v = pr_gate.decide(make_ctx(linked_issues=[issue(["good first issue"])]))
     assert v.verdict == "pass" and v.tier == "issue-approved"
 
 
@@ -129,7 +134,7 @@ def test_unknown_author_no_issue_fails():
 
 
 def test_linked_issue_without_accepted_fails():
-    v = pr_gate.decide(make_ctx(linked_issue_labels=["enhancement"]))
+    v = pr_gate.decide(make_ctx(linked_issues=[issue(["enhancement"])]))
     assert v.verdict == "close"
 
 
@@ -139,13 +144,13 @@ def test_linked_issue_without_accepted_fails():
 
 def test_deferred_linked_issue_fails_established_author():
     v = pr_gate.decide(
-        make_ctx(has_prior_nontrivial_merge=True, linked_issue_labels=["deferred"])
+        make_ctx(has_prior_nontrivial_merge=True, linked_issues=[issue(["deferred"])])
     )
     assert v.verdict == "close" and v.tier == "deferred"
 
 
 def test_deferred_overrides_accepted_on_same_issue():
-    v = pr_gate.decide(make_ctx(linked_issue_labels=["accepted", "deferred"]))
+    v = pr_gate.decide(make_ctx(linked_issues=[issue(["accepted", "deferred"])]))
     assert v.verdict == "close" and v.tier == "deferred"
 
 
@@ -153,34 +158,114 @@ def test_deferred_overrides_trivial_carveout():
     v = pr_gate.decide(
         make_ctx(
             files=[{"filename": "README.md", "additions": 2, "deletions": 0}],
-            linked_issue_labels=["deferred"],
+            linked_issues=[issue(["deferred"])],
         )
     )
     assert v.verdict == "close" and v.tier == "deferred"
 
 
 def test_deferred_label_is_case_insensitive():
-    v = pr_gate.decide(make_ctx(linked_issue_labels=["Deferred"]))
+    v = pr_gate.decide(make_ctx(linked_issues=[issue(["Deferred"])]))
     assert v.verdict == "close" and v.tier == "deferred"
 
 
 def test_team_passes_despite_deferred():
     v = pr_gate.decide(
-        make_ctx(author_association="MEMBER", linked_issue_labels=["deferred"])
+        make_ctx(author_association="MEMBER", linked_issues=[issue(["deferred"])])
     )
     assert v.verdict == "pass" and v.tier == "qualified"
 
 
 def test_listed_account_passes_despite_deferred():
-    v = pr_gate.decide(make_ctx(author_id=111222, linked_issue_labels=["deferred"]))
+    v = pr_gate.decide(make_ctx(author_id=111222, linked_issues=[issue(["deferred"])]))
     assert v.verdict == "pass" and v.tier == "qualified"
 
 
 def test_qualified_label_passes_despite_deferred():
     v = pr_gate.decide(
-        make_ctx(pr_labels=["qualified"], linked_issue_labels=["deferred"])
+        make_ctx(pr_labels=["qualified"], linked_issues=[issue(["deferred"])])
     )
     assert v.verdict == "pass" and v.tier == "qualified"
+
+
+# --- self-filed veto: an issue the PR author filed themselves doesn't
+# establish demand — the PR needs that issue (or another linked issue)
+# labeled `accepted`, whatever the author's tier. Trivial stays welcome,
+# qualified outranks, deferred is the more informative close ---
+
+
+def test_self_filed_unaccepted_issue_closes_established_author():
+    v = pr_gate.decide(
+        make_ctx(
+            has_prior_nontrivial_merge=True,
+            linked_issues=[issue(author="somebody")],
+        )
+    )
+    assert v.verdict == "close" and v.tier == "self-filed"
+
+
+def test_self_filed_unaccepted_issue_closes_new_author_as_self_filed():
+    v = pr_gate.decide(make_ctx(linked_issues=[issue(author="somebody")]))
+    assert v.verdict == "close" and v.tier == "self-filed"
+
+
+def test_self_filed_issue_with_accepted_passes():
+    v = pr_gate.decide(make_ctx(linked_issues=[issue(["accepted"], author="somebody")]))
+    assert v.verdict == "pass" and v.tier == "issue-approved"
+
+
+def test_self_filed_plus_other_accepted_issue_passes():
+    v = pr_gate.decide(
+        make_ctx(
+            linked_issues=[
+                issue(author="somebody"),
+                issue(["accepted"], author="someone-else"),
+            ]
+        )
+    )
+    assert v.verdict == "pass" and v.tier == "issue-approved"
+
+
+def test_team_passes_despite_self_filed():
+    v = pr_gate.decide(
+        make_ctx(author_association="MEMBER", linked_issues=[issue(author="somebody")])
+    )
+    assert v.verdict == "pass" and v.tier == "qualified"
+
+
+def test_trivial_passes_despite_self_filed():
+    v = pr_gate.decide(
+        make_ctx(
+            files=[{"filename": "README.md", "additions": 2, "deletions": 0}],
+            linked_issues=[issue(author="somebody")],
+        )
+    )
+    assert v.verdict == "pass" and v.tier == "trivial"
+
+
+def test_deferred_reported_over_self_filed():
+    v = pr_gate.decide(make_ctx(linked_issues=[issue(["deferred"], author="somebody")]))
+    assert v.verdict == "close" and v.tier == "deferred"
+
+
+def test_self_filed_reported_over_capped():
+    v = pr_gate.decide(
+        make_ctx(
+            has_prior_nontrivial_merge=True,
+            open_prs=9,
+            linked_issues=[issue(author="somebody")],
+        )
+    )
+    assert v.verdict == "close" and v.tier == "self-filed"
+
+
+def test_self_filed_close_comment_is_distinct_and_marked():
+    body = pr_gate.self_filed_close_comment()
+    assert pr_gate.COMMENT_MARKER in body
+    assert "accepted" in body
+    assert "reopen" in body.lower()
+    assert body != pr_gate.close_comment()
+    assert body != pr_gate.deferred_close_comment()
 
 
 # --- open-PR cap: the Established tier's "may open PRs directly" privilege
@@ -216,7 +301,7 @@ def test_accepted_issue_passes_despite_cap():
     v = pr_gate.decide(
         make_ctx(
             has_prior_nontrivial_merge=True,
-            linked_issue_labels=["accepted"],
+            linked_issues=[issue(["accepted"])],
             open_prs=9,
         )
     )
@@ -238,7 +323,7 @@ def test_deferred_reported_over_capped():
     v = pr_gate.decide(
         make_ctx(
             has_prior_nontrivial_merge=True,
-            linked_issue_labels=["deferred"],
+            linked_issues=[issue(["deferred"])],
             open_prs=9,
         )
     )

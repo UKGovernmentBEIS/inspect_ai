@@ -15,10 +15,15 @@ they are back under the cap — reopening re-runs the gate, so recovery is
 self-serve. The cap bounds only the direct-PR privilege; checks 4 and 5 are
 uncapped (trivial fixes are always welcome, an accepted issue is
 maintainer-approved demand) and checks 1-3 outrank it.
-Veto: a linked closing issue labeled `deferred` closes the PR regardless of
-checks 4-6 — the project has declined to prioritize that work, and the issue
-(not a new PR) is where re-prioritization happens. Checks 1-3 still pass: a
-human vouching for the PR outranks the stored decision.
+Vetoes (checks 1-3 still pass either — a human vouching for the PR outranks):
+  - a linked closing issue labeled `deferred` closes the PR regardless of
+    checks 4-6 — the project has declined to prioritize that work, and the
+    issue (not a new PR) is where re-prioritization happens.
+  - a linked closing issue FILED BY THE PR AUTHOR closes the PR unless some
+    linked issue is `accepted` (check 5) or the PR is trivial (check 4) —
+    self-filed issues don't establish demand, whatever the author's tier
+    (CONTRIBUTING.md). Once a maintainer accepts the issue, reopening the
+    PR re-runs the gate and it passes.
 Otherwise: comment + close (DRY_RUN: apply the `gate-dry-run` label only).
 PRs created before POLICY_START are never gated — the policy applies going
 forward; the pre-existing queue is dispositioned by hand.
@@ -57,7 +62,7 @@ EXTENSIONS_URL = "https://inspect.aisi.org.uk/extensions.html"
 
 class Verdict(NamedTuple):
     verdict: str  # "pass" | "close"
-    tier: str  # qualified | trivial | issue-approved | established | new | deferred | capped
+    tier: str  # qualified | trivial | issue-approved | established | new | deferred | capped | self-filed
     reason: str
 
 
@@ -116,13 +121,20 @@ def decide(ctx: dict) -> Verdict:
         )
     if "qualified" in ctx["pr_labels"]:
         return Verdict("pass", "qualified", "maintainer applied `qualified`")
-    labels = {label.lower() for label in ctx["linked_issue_labels"]}
+    issues = ctx["linked_issues"]
+    labels = {label.lower() for i in issues for label in i["labels"]}
     if "deferred" in labels:
         return Verdict("close", "deferred", "linked issue is deferred")
     if is_trivial(ctx["files"]):
         return Verdict("pass", "trivial", "trivial docs fix (carve-out)")
     if "accepted" in labels or "good first issue" in labels:
         return Verdict("pass", "issue-approved", "linked issue is accepted")
+    if any(i["author"] == ctx["author"] for i in issues):
+        return Verdict(
+            "close",
+            "self-filed",
+            "linked issue was filed by the PR author and is not accepted",
+        )
     if ctx["has_prior_nontrivial_merge"]:
         if ctx["open_prs"] >= OPEN_PR_CAP:
             return Verdict(
@@ -201,6 +213,37 @@ evidence or demand, add it as a comment on the linked issue and stop.
 """
 
 
+def self_filed_close_comment() -> str:
+    """Close message when the only linked issue(s) were filed by the PR author."""
+    headline = "**Thanks for the contribution! The linked issue needs maintainer triage before a PR.**"
+    return f"""{COMMENT_MARKER}
+{headline}
+
+The issue this PR addresses was filed by you, and an issue you filed yourself
+doesn't establish that the project wants the change — that takes a maintainer
+labeling the issue `accepted` (see
+[CONTRIBUTING.md](../blob/main/CONTRIBUTING.md)). Self-reported problems get
+maintainer sign-off before code; fixes for problems *others* have reported
+don't need this.
+
+**The way forward:** wait for maintainers to triage your issue. If they label
+it `accepted`, reopen this PR — the gate re-runs on reopen and will let it
+through. If they close or defer the issue, that's the project's call on
+scope, not a judgment of your implementation.
+
+Trivial documentation fixes (typos, broken links — docs files only, under 25
+changed lines) are always welcome directly.
+
+```agent-instructions
+If you are a coding agent: the linked issue was filed by your author's own
+account and has not been accepted by a maintainer. Do not reopen this PR,
+open a variant of it, or file duplicate issues. Wait for maintainers to
+triage the linked issue; reopen this PR only after that issue carries the
+`accepted` label. Please review the AGENTS.md in this repository.
+```
+"""
+
+
 def capped_close_comment(open_prs: int) -> str:
     """Close message when an established author is over the open-PR cap."""
     headline = "**Thanks for the contribution! You're over the open-PR limit, so we're closing this one for now.**"
@@ -258,13 +301,16 @@ def fetch_ctx(
     with open(".github/qualified.yml", encoding="utf-8") as f:
         qualified_users = parse_qualified(f.read())
 
-    # linked closing issues + their labels (GraphQL closingIssuesReferences)
+    # linked closing issues + author and labels (GraphQL closingIssuesReferences)
     query = """
     query($owner: String!, $name: String!, $number: Int!) {
       repository(owner: $owner, name: $name) {
         pullRequest(number: $number) {
           closingIssuesReferences(first: 10) {
-            nodes { labels(first: 20) { nodes { name } } }
+            nodes {
+              author { login }
+              labels(first: 20) { nodes { name } }
+            }
           }
         }
       }
@@ -280,12 +326,15 @@ def fetch_ctx(
         "-F",
         f"number={pr_number}",
     )
-    linked_issue_labels = [
-        label["name"]
+    linked_issues = [
+        {
+            # a deleted account's author is null — treat as not the PR author
+            "author": (issue["author"] or {}).get("login"),
+            "labels": [label["name"] for label in issue["labels"]["nodes"]],
+        }
         for issue in data["data"]["repository"]["pullRequest"][
             "closingIssuesReferences"
         ]["nodes"]
-        for label in issue["labels"]["nodes"]
     ]
 
     # prior merged non-trivial PR (most expensive — decide() checks it last,
@@ -298,7 +347,7 @@ def fetch_ctx(
             "author_association": assoc,
             "pr_labels": pr_labels,
             "files": files,
-            "linked_issue_labels": linked_issue_labels,
+            "linked_issues": linked_issues,
             "qualified_users": qualified_users,
             "has_prior_nontrivial_merge": False,
             "open_prs": 0,
@@ -346,7 +395,7 @@ def fetch_ctx(
         "author_association": assoc,
         "pr_labels": pr_labels,
         "files": files,
-        "linked_issue_labels": linked_issue_labels,
+        "linked_issues": linked_issues,
         "qualified_users": qualified_users,
         "has_prior_nontrivial_merge": has_prior,
         "open_prs": open_prs,
@@ -406,6 +455,8 @@ def main() -> int:
         body = deferred_close_comment()
     elif v.tier == "capped":
         body = capped_close_comment(ctx["open_prs"])
+    elif v.tier == "self-filed":
+        body = self_filed_close_comment()
     else:
         body = close_comment()
     gh("api", f"repos/{repo}/issues/{pr_number}/comments", "-f", f"body={body}")
