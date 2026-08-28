@@ -115,6 +115,22 @@ Discriminate on ``adjustable`` first (adjustable vs not), then
 ``tracks_adaptive`` (static setpoint vs adaptive pin/tracking)."""
 
 
+class MaxTasksView(TypedDict):
+    """The ``max_tasks`` view (the task dispatchers' live override).
+
+    Every counter is ``None`` when no task dispatcher is live (during batch
+    startup / between sequential batches) — the override layer still exists
+    then, which is why ``adjustable`` is unconditionally ``True``.
+    """
+
+    limit: int | None
+    launch: int | None
+    override: int | None
+    in_flight: int | None
+    pending: int | None
+    adjustable: Literal[True]
+
+
 class ProcessConfigView(TypedDict):
     """Envelope of ``GET``/``PATCH /config``.
 
@@ -124,6 +140,9 @@ class ProcessConfigView(TypedDict):
     """
 
     dry_run: bool
+    max_tasks: NotRequired[MaxTasksView]
+    """Absent before version 7."""
+
     max_sandboxes: list[SandboxLimiterView]
     max_subprocesses: NotRequired[SubprocessLimiterView | None]
     """``None`` = no subprocess limiter yet; absent before version 1."""

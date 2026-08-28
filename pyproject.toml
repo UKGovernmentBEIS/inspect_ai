@@ -104,7 +104,7 @@ minversion = "7.0"
 # a 4-worker CI runner: 4 of 10 legs stranded 76-80s on a single worker.
 # worksteal lets an idle worker take pending tests back off a straggler.
 # No effect unless the run is distributed (-n); see design/ci-perf/report.md.
-addopts = "-rA --doctest-modules --color=yes --dist worksteal"
+addopts = "-ra --doctest-modules --color=yes --dist worksteal"
 testpaths = ["tests"]
 doctest_optionflags = ["NORMALIZE_WHITESPACE", "IGNORE_EXCEPTION_DETAIL"]
 norecursedirs = [

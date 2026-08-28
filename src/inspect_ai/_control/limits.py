@@ -52,6 +52,15 @@ a limiter: the generate retry loop reads the overrides at each point of use,
 so a retune reaches calls already inside their retry loop (the keyword
 ``clear`` removes an override, restoring launch config).
 
+``max_tasks`` — the task dispatchers' concurrency cap — is likewise
+process-global and override-backed (:mod:`inspect_ai._control.max_tasks`)
+rather than limiter-backed: the dispatcher is a select loop whose admission
+check reads the effective limit each iteration, so raising it starts pending
+tasks immediately (the set fires the dispatch wakers) and the retune survives
+dispatcher recreation within the run; lowering never preempts in-flight
+tasks. The keyword ``clear`` removes the override, restoring the launch
+value.
+
 The task directive additionally carries the per-sample limit overrides —
 ``time_limit`` / ``token_limit`` / ``message_limit``, task-scoped — backed by
 the live override layer in :mod:`inspect_ai.util._limit_overrides` on the
@@ -85,6 +94,7 @@ from inspect_ai._control.views import (
     AdaptiveMaxSamplesView,
     ConcurrencyKeyView,
     MaxSamplesView,
+    MaxTasksView,
     ProcessConfigView,
     SandboxLimiterView,
     SubprocessLimiterView,
@@ -143,6 +153,7 @@ def check_concurrency_key(key: str | None) -> None:
 
 async def process_limits(
     *,
+    max_tasks: int | Literal["clear"] | None = None,
     max_sandboxes: int | None = None,
     max_subprocesses: int | None = None,
     max_connections: int | None = None,
@@ -159,7 +170,11 @@ async def process_limits(
     """Read (and optionally retune) the process-global concurrency limits.
 
     Covers the knobs that are shared across every task in the process:
-    ``max_sandboxes`` (per-provider sandbox concurrency), ``max_subprocesses``
+    ``max_tasks`` (the task dispatchers' concurrency cap — a live override
+    read at each dispatch decision, see
+    :mod:`inspect_ai._control.max_tasks`; the keyword ``clear`` removes it,
+    restoring the launch value), ``max_sandboxes`` (per-provider sandbox
+    concurrency), ``max_subprocesses``
     (subprocess concurrency), ``max_connections`` (the adaptive controllers'
     scaling ceiling), ``key`` / ``key_limit`` (a named ``concurrency()``
     registry entry — the registry is process-global), and the retry-loop
@@ -186,6 +201,7 @@ async def process_limits(
 
     check_concurrency_key(key)
     views = _apply_process_knobs(
+        max_tasks=max_tasks,
         max_sandboxes=max_sandboxes,
         max_subprocesses=max_subprocesses,
         max_connections=max_connections,
@@ -207,6 +223,7 @@ async def process_limits(
     )
     return {
         "dry_run": dry_run,
+        "max_tasks": views.max_tasks,
         "max_sandboxes": views.max_sandboxes,
         "max_subprocesses": views.max_subprocesses,
         "adaptive": views.adaptive,
@@ -222,6 +239,7 @@ async def task_limits(
     task_id: str,
     *,
     max_samples: int | Literal["clear"] | None = None,
+    max_tasks: int | Literal["clear"] | None = None,
     max_sandboxes: int | None = None,
     max_subprocesses: int | None = None,
     max_connections: int | None = None,
@@ -275,6 +293,9 @@ async def task_limits(
             leave it. Under adaptive connections an integer pins sample
             concurrency (decoupling it from the controller) and the keyword
             ``clear`` unpins, resuming controller tracking.
+        max_tasks: New task-dispatch concurrency cap — a live process-wide
+            override read at each dispatch decision (the keyword ``clear``
+            removes it, restoring the launch value), or ``None`` to leave it.
         max_sandboxes: New per-provider sandbox-concurrency limit, or ``None``.
         max_subprocesses: New subprocess-concurrency limit, or ``None``.
         max_connections: New adaptive-controller scaling ceiling (applied to
@@ -512,6 +533,7 @@ async def task_limits(
     )
 
     views = _apply_process_knobs(
+        max_tasks=max_tasks,
         max_sandboxes=max_sandboxes,
         max_subprocesses=max_subprocesses,
         max_connections=max_connections,
@@ -566,6 +588,7 @@ async def task_limits(
     return {
         "dry_run": dry_run,
         "max_samples": max_samples_view,
+        "max_tasks": views.max_tasks,
         "max_sandboxes": views.max_sandboxes,
         "max_subprocesses": views.max_subprocesses,
         "adaptive": views.adaptive,
@@ -595,6 +618,7 @@ def _match_controllers(
 class _ProcessKnobViews(NamedTuple):
     """The process-global limit views built by :func:`_apply_process_knobs`."""
 
+    max_tasks: MaxTasksView
     max_sandboxes: list[SandboxLimiterView]
     max_subprocesses: SubprocessLimiterView | None
     adaptive: list[AdaptiveControllerView]
@@ -720,6 +744,7 @@ def _static_semaphores() -> "list[ConcurrencySemaphore]":
 
 def _apply_process_knobs(
     *,
+    max_tasks: int | Literal["clear"] | None = None,
     max_sandboxes: int | None,
     max_subprocesses: int | None,
     max_connections: int | None,
@@ -741,13 +766,21 @@ def _apply_process_knobs(
     must already have passed :func:`check_concurrency_key` (the caller
     rejects unknown keys before any knob applies).
 
-    ``timeout`` / ``attempt_timeout`` / ``max_retries`` set (or with the
-    keyword ``clear``, remove) the process-wide retry-loop overrides —
+    ``max_tasks`` and the retry knobs (``timeout`` / ``attempt_timeout`` /
+    ``max_retries``) set (or with the
+    keyword ``clear``, remove) process-wide live overrides —
     always adjustable, since the override layer exists regardless of what
-    any task's launch config specifies. The ``retry`` view reports the
-    active overrides (``None`` = no override; each generate call's own
-    config applies).
+    any task's launch config specifies (for ``max_tasks``, a set landing
+    while no dispatcher is live — e.g. during a batch's startup before its
+    dispatcher registers — still governs every later dispatch decision in
+    the run; skip-and-warn would silently drop it).
     """
+    from inspect_ai._control.max_tasks import (
+        max_tasks_override,
+        set_max_tasks_override,
+        task_dispatcher_stats,
+    )
+    from inspect_ai.log._config_update import ConfigValueChange
     from inspect_ai.util._concurrency import (
         ResizableSemaphore,
         adaptive_controllers,
@@ -759,6 +792,44 @@ def _apply_process_knobs(
     warnings: list[str] = []
     applied: list[ConfigValueChange] = []
     record_metadata: dict[str, Any] | None = None
+
+    # max_tasks — the task dispatchers' live override (process-global, read
+    # at each dispatch decision; setting it wakes waiting dispatchers).
+    if max_tasks is not None:
+        requested["max_tasks"] = max_tasks
+        if not dry_run:
+            previous_override = max_tasks_override()
+            stats = task_dispatcher_stats()
+            # the honest pre-change effective limit where a dispatcher is
+            # live; else the prior override (None → the recording layer
+            # fills `previous` from each log's launch config)
+            previous_effective = (
+                stats.launch
+                if previous_override is None and stats is not None
+                else previous_override
+            )
+            if max_tasks == "clear":
+                set_max_tasks_override(None)
+                if previous_override is not None:
+                    applied.append(
+                        ConfigValueChange(
+                            config="eval",
+                            name="max_tasks",
+                            cleared=True,
+                            previous=previous_override,
+                        )
+                    )
+            else:
+                set_max_tasks_override(max_tasks)
+                if previous_effective != max_tasks:
+                    applied.append(
+                        ConfigValueChange(
+                            config="eval",
+                            name="max_tasks",
+                            value=max_tasks,
+                            previous=previous_effective,
+                        )
+                    )
 
     # max_sandboxes — the process-global sandbox limiters, one per sandbox type.
     sandboxes = sandbox_limiters()
@@ -907,6 +978,26 @@ def _apply_process_knobs(
             if change is not None:
                 applied.append(change)
 
+    # The max_tasks view (re-read after applying, like the others). `limit`
+    # is the effective dispatch cap (override ?? launch); `launch` /
+    # `in_flight` / `pending` are None when no dispatcher is live (during
+    # batch startup, between `enqueue_task`-driven batches) — a set still
+    # applies then, hence `adjustable` is unconditionally True. After a
+    # lowering, `in_flight` may exceed `limit` until it drains (never
+    # preempts).
+    override = max_tasks_override()
+    dispatcher = task_dispatcher_stats()
+    max_tasks_view: MaxTasksView = {
+        "limit": override
+        if override is not None
+        else (dispatcher.launch if dispatcher is not None else None),
+        "launch": dispatcher.launch if dispatcher is not None else None,
+        "override": override,
+        "in_flight": dispatcher.in_flight if dispatcher is not None else None,
+        "pending": dispatcher.pending if dispatcher is not None else None,
+        "adjustable": True,
+    }
+
     # Read `in_use` from the limiter directly (exact borrowed count) rather than
     # deriving it as `concurrency - value`: once a limit is lowered below the
     # in-flight count, `value` clamps to 0 and that derivation would report
@@ -963,6 +1054,7 @@ def _apply_process_knobs(
     ]
 
     return _ProcessKnobViews(
+        max_tasks=max_tasks_view,
         max_sandboxes=max_sandboxes_view,
         max_subprocesses=max_subprocesses_view,
         adaptive=adaptive_view,

@@ -179,6 +179,39 @@ Increasing the max connections might yield better performance due to higher para
 Since it can be difficult to tune this value (especially across different times of day), you are generally much better off using [Adaptive Connections](#adaptive-connections) which will dynamically find the maximum throughput that can be supported.
 
 
+## HTTP Client Settings
+
+The settings above govern how many requests Inspect has in flight. Separately, the HTTP client underneath each provider has its own connection settings, tunable by environment variable so a deployment can adjust them without a release.
+
+The defaults differ from the provider SDKs' in one respect that matters for long-running evals. SDK defaults assume a responsive event loop, but an eval's loop is held for seconds at a time by CPU-bound work, and a connect deadline that expires during one of those pauses fails a connection the kernel had already completed. Inspect therefore allows 60s for connection setup rather than the 5s most SDKs use, and retries connection establishment once.
+
+| Variable | Default | Effect |
+|-----------------|-----------------|--------------------------------------|
+| `INSPECT_HTTP_CONNECT_TIMEOUT` | 60 | Seconds allowed to establish a connection. |
+| `INSPECT_HTTP_REQUEST_TIMEOUT` | 600 | Seconds allowed for the rest of a request. |
+| `INSPECT_HTTP_POOL_CONNECTIONS` | 1000 | Sockets in the HTTP connection pool. Distinct from `--max-connections`, which bounds requests in flight. |
+| `INSPECT_HTTP_POOL_KEEPALIVE_CONNECTIONS` | the connection pool size | Idle connections kept for reuse. |
+| `INSPECT_HTTP_KEEPALIVE_EXPIRY` | 5 | Seconds an idle connection is kept. |
+| `INSPECT_HTTP_CONNECT_RETRIES` | 1 | Retries of connection establishment. Only the connect is retried, never the request, so this is safe for non-idempotent calls. Unavailable through a proxy, which httpx does not retry. |
+
+Two of these interact with settings a provider may already have:
+
+- A request budget you set yourself, via `-M client_timeout`, `-M timeout` or `service_tier="flex"`, is kept. `INSPECT_HTTP_CONNECT_TIMEOUT` acts as a floor alongside it: it raises a connect deadline shorter than the floor, and leaves a longer one alone.
+
+- A provider whose SDK default is deliberately different keeps that default until you set the variable. Groq, for example, uses a tighter request budget and an unbounded connection pool; setting `INSPECT_HTTP_REQUEST_TIMEOUT` or `INSPECT_HTTP_POOL_CONNECTIONS` overrides it.
+
+These settings reach the OpenAI, OpenAI-compatible (including vLLM, SGLang, Ollama, OpenRouter, Together and the other `openai-api/` services), Anthropic, Groq and Mistral providers.
+
+Google under Trio gets the pool and connect-retry settings but not the deadlines: it applies its own overall budget to every request, which is already far longer than the connect floor.
+
+They do not reach the remaining providers, which are on other HTTP stacks and are not exposed to the problem these defaults address:
+
+- Bedrock and SageMaker have their own connection deadline, already 60s, set per model with `-M connect_timeout`. Azure AI likewise uses its own, which is longer still.
+
+- Google on asyncio applies a single overall budget with no separate connection deadline, so there is none to outlast. (Under Trio it uses a different HTTP stack, which is why the settings apply there.)
+
+- Grok speaks gRPC and establishes connections off the event loop, where the pause that motivates these defaults cannot affect it.
+
 ## Learning More
 
 - [Parallelism](parallelism.qmd): running multiple tasks or models in parallel, sandbox container concurrency, and writing parallel custom code.
