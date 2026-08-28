@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Eval logs: An Azure storage authentication failure while listing a remote log directory now raises `AzureAuthError` with remediation guidance instead of being downgraded to a warning and an empty listing, matching how S3 surfaces auth failures. (#4914)
 - Human Agent: End-of-input (e.g. Ctrl+D) at the `task submit`/`task quit` confirmation prompt now declines cleanly instead of raising an `EOFError` traceback.
 - Model streaming: stream-event handling — including live partial-output snapshots in inspect view — now runs only when `on_stream` is passed, so it can no longer fail model calls that stream without a callback.
 - Eval logs: Users can chain conditional S3 writes using the ETag returned by `write_eval_log()` and `write_eval_log_async()`.
@@ -12,6 +13,7 @@
 - Grok: Requests now carry xAI's conversation id header, which improves prompt cache hit rates for multi-turn samples.
 - OpenAI: Function call outputs without a `call_id` (optional as of openai 3.5.0) no longer error in the agent bridge or token-count padding.
 - OpenAI: Transient server errors and rate limits delivered mid-stream on chat-completions streaming are now retried instead of failing the sample.
+- OpenAI: Safeguard/content-policy blocks emitted mid-stream or as terminal response errors are now reported as `content_filter` stop reasons instead of failing the sample.
 - Scoring: Skip Score.unscored() / NaN-at-root sentinels in aggregate() metric. (#5008)
 - Scoring: Return inf on OverflowError in perplexity_per_token() and perplexity_per_seq() metrics. (#5028)
 - Analysis: Ensure ColumnError.path is a string rather than a JSONPath object on record import errors. (#5006)
