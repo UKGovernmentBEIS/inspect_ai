@@ -28,12 +28,7 @@ def test_retry_after_negative_returns_none() -> None:
 
 
 def test_retry_after_non_finite_returns_none() -> None:
-    """A non-finite duration must never reach a caller.
-
-    `float("inf") > 0` is True, so without an explicit finiteness check
-    these parse successfully and land in the adaptive controller's cooldown
-    arithmetic as `now + inf`, disabling it for the life of the process.
-    """
+    """A non-finite duration must never reach a caller (`float("inf") > 0` is True)."""
     assert parse_retry_after({"Retry-After": "inf"}) is None
     assert parse_retry_after({"Retry-After": "-inf"}) is None
     assert parse_retry_after({"Retry-After": "infinity"}) is None
@@ -76,10 +71,10 @@ def test_ratelimit_reset_iso_timestamp() -> None:
 
 
 def test_ratelimit_reset_takes_larger_of_two() -> None:
-    """Conservative cooldown picks the longer reset window.
+    """Conservative parse picks the longer reset window.
 
     Without knowing which dimension triggered the 429, the longer reset is
-    the safer floor for the next-cut debounce.
+    the safer estimate of when capacity returns.
     """
     headers = {
         "x-ratelimit-reset-requests": "60",
@@ -124,12 +119,24 @@ def test_naive_http_date_does_not_raise() -> None:
     assert parse_retry_after({"Retry-After": "Wed, 21 Oct 2099 07:28:00"}) is not None
 
 
+def test_absurd_http_date_year_does_not_raise() -> None:
+    """parsedate_to_datetime raises OverflowError for years >= 2**31.
+
+    That escapes into tenacity's retry predicate, turning a retryable 429 into
+    a hard sample failure, so the parser must swallow it.
+    """
+    assert (
+        parse_retry_after({"Retry-After": "Wed, 21 Oct 9999999999 07:28:00 GMT"})
+        is None
+    )
+
+
 def test_ratelimit_reset_uses_max_not_min_when_multiple() -> None:
-    """Conservative cooldown picks the largest of multiple reset windows.
+    """Conservative parse picks the largest of multiple reset windows.
 
     When requests and tokens both report reset times, we don't know which
     dimension triggered the 429, so use the *largest* reset to avoid
-    prematurely cutting again.
+    reporting a window that has not actually elapsed.
     """
     headers = {
         "x-ratelimit-reset-requests": "10",

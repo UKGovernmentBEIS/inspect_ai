@@ -1,4 +1,5 @@
 import contextlib
+import math
 import time
 from collections.abc import Callable, Iterable
 from contextvars import ContextVar
@@ -40,10 +41,10 @@ class AdaptiveConcurrency(BaseModel):
     """Starting concurrency (must be within [min, max])."""
 
     cooldown_seconds: float = Field(default=15.0)
-    """Minimum seconds between scale-down cuts. The server's `Retry-After` header (or the `x-ratelimit-reset-*` family as a fallback) extends this when larger."""
+    """Minimum seconds between scale-down cuts."""
 
     decrease_factor: float = Field(default=0.8)
-    """Multiplicative cut applied on each rate-limit episode (must be in (0, 1))."""
+    """Multiplicative factor applied to the limit on each cut (must be in (0, 1))."""
 
     scale_up_percent: float = Field(default=0.05)
     """Steady-state additive growth per clean round, as a fraction of current limit (must be in (0, 1])."""
@@ -112,9 +113,9 @@ class AdaptiveConcurrency(BaseModel):
                 f"AdaptiveConcurrency start ({self.start}) must be within "
                 f"[min={self.min}, max={self.max}]"
             )
-        if self.cooldown_seconds < 0:
+        if not (math.isfinite(self.cooldown_seconds) and self.cooldown_seconds >= 0):
             raise ValueError(
-                f"AdaptiveConcurrency cooldown_seconds must be >= 0 "
+                f"AdaptiveConcurrency cooldown_seconds must be a finite value >= 0 "
                 f"(got {self.cooldown_seconds})"
             )
         if not (0 < self.decrease_factor < 1):
@@ -955,15 +956,15 @@ class AdaptiveConcurrencyController:
 
         Cooldown debounces the *limit cut* — a single rate-limit episode
         produces multiple retries (Inspect-level + SDK-internal) and we
-        cut at most once per episode. Success-counting is reset on every
+        cut at most once per `cooldown_seconds`, so a sustained episode
+        keeps walking the limit down. Success-counting is reset on every
         call regardless of cooldown, so a debounced retry still
         invalidates the in-progress clean window — without this, under
         high throughput the controller could climb to a scale-up
         immediately after a suppressed retry.
 
-        If `retry_after` is provided (from the server's `Retry-After`
-        header or the `x-ratelimit-reset-*` fallback), the cooldown is
-        extended to honor it when larger than the configured floor.
+        `retry_after` is accepted for call-site compatibility but does not
+        affect the cooldown.
         """
         # always reset success accounting on any retry signal (even debounced).
         # Also reset the saturation high-water mark — peak in-flight observed
@@ -974,24 +975,20 @@ class AdaptiveConcurrencyController:
 
         now = time.monotonic()
 
-        # already in cooldown from a previous cut?
+        # already in cooldown from a previous cut? don't cut again.
         if now < self._cooldown_until:
-            # don't cut again — but a longer server hint should still push
-            # the cooldown horizon out so a subsequent 429 within the same
-            # window can't trip a second cut, and so success-counting stays
-            # suppressed for the full server-recommended wait.
-            if retry_after is not None and retry_after > 0:
-                extended = now + retry_after
-                if extended > self._cooldown_until:
-                    self._cooldown_until = extended
             return
 
         old = self.concurrency
         target = int(old * self._config.decrease_factor)
         new = _floor_to_nice(target)
         new = max(new, self._config.min, 1)
-        cooldown = max(retry_after or 0.0, self._config.cooldown_seconds)
-        self._cooldown_until = now + cooldown
+        # Deliberately not max(retry_after, cooldown_seconds): this horizon
+        # paces our own decrease and gates success accounting and saturation
+        # sampling, never request scheduling, so a provider-chosen number would
+        # invert the loop — a larger hint meaning fewer cuts and a longer
+        # growth freeze.
+        self._cooldown_until = now + self._config.cooldown_seconds
         if new != old:
             self._set_limit(new, "rate_limit")
 

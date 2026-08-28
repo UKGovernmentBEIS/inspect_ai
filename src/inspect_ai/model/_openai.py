@@ -1252,8 +1252,7 @@ def openai_classify_retry(ex: BaseException) -> "RetryDecision | None":
     """Classify an OpenAI SDK exception as rate_limit / transient / not retryable.
 
     Returns None when the exception isn't retryable. Reads `Retry-After` and
-    `x-ratelimit-reset-*` from the response headers when available so the
-    adaptive controller can honor server-suggested wait times.
+    `x-ratelimit-reset-*` from the response headers when available.
     """
     from inspect_ai.model._model import RetryDecision
 

@@ -44,7 +44,7 @@
 - Model roles can now be bound to a list of models (e.g. `model_roles={"grader": [...]}`), with model-graded scorers grading by majority vote across the list.
 - Checkpointing: Sandbox snapshots now support selectable strategies (per sandbox, settable at the sample, task, or eval layer) — incremental restic (default) or self-contained per-checkpoint archives captured with in-image tools only.
 - Bugfix: Resuming a sample from a checkpoint no longer restarts its token, cost, turn, time, and working budgets from zero.
-- Bugfix: A malformed `Retry-After` response header no longer permanently stops the adaptive connection limit from adjusting.
+- Bugfix: Sustained rate limiting no longer pins the adaptive connection limit after a single reduction; it keeps adapting up and down as conditions change.
 
 ## 0.3.260 (21 August 2026)
 

@@ -396,8 +396,7 @@ class BedrockAPI(ModelAPI):
         if isinstance(ex, ClientError):
             error_code = ex.response.get("Error", {}).get("Code", "")
             if error_code in self._BEDROCK_THROTTLE_CODES:
-                # AWS doesn't include Retry-After on ThrottlingException — fall
-                # back to the controller's configured cooldown floor.
+                # AWS doesn't include Retry-After on ThrottlingException.
                 return RetryDecision.rate_limit()
             if error_code in self._BEDROCK_TRANSIENT_CODES:
                 return RetryDecision.transient()
