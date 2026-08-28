@@ -6,7 +6,7 @@ from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from logging import getLogger
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal, TypeAlias
+from typing import TYPE_CHECKING, Annotated, Any, Literal, TypeAlias
 from urllib.parse import urlparse
 from zipfile import ZipFile
 
@@ -42,26 +42,20 @@ class Segment(TypedDict):
     id: int
     last_event_id: int
     last_attachment_id: int
-    # Absent in manifests written before pool ids existed; readers must default.
-    last_message_pool_id: NotRequired[int]
-    last_call_pool_id: NotRequired[int]
+    # Absent in manifests written before #3681. Pydantic fills the default on
+    # validation, so a legacy manifest is rewritten with them present; only
+    # hand-built segments can lack the keys, hence .get() at the read sites.
+    last_message_pool_id: NotRequired[Annotated[int, Field(default=0)]]
+    last_call_pool_id: NotRequired[Annotated[int, Field(default=0)]]
 
 
-# Same shape as Segment, but scoped to one sample's contribution.
+# A segment scoped to one sample's contribution. Identical shape, so this is an
+# alias: narrow the union below on `isinstance(x, dict)`, never on SampleSegment
+# -- isinstance against a TypedDict raises TypeError.
 SampleSegment: TypeAlias = Segment
 
 # Manifests written before #4207 store a bare segment id here instead.
 SampleSegmentEntry: TypeAlias = int | SampleSegment
-
-
-def segment_cursor_ids(segment: Segment) -> tuple[int, int, int, int]:
-    """Cursor ids for a segment, defaulting the optional pool ids."""
-    return (
-        segment["last_event_id"],
-        segment["last_attachment_id"],
-        segment.get("last_message_pool_id", 0),
-        segment.get("last_call_pool_id", 0),
-    )
 
 
 class SegmentFile(BaseModel):
@@ -108,7 +102,7 @@ def sample_segment_id(segment: SampleSegmentEntry) -> int:
 def sample_segment_cursor(
     segment: SampleSegmentEntry, segments_by_id: dict[int, Segment]
 ) -> Segment | None:
-    if not isinstance(segment, int):
+    if isinstance(segment, dict):
         return segment
     return segments_by_id.get(segment)
 
@@ -155,14 +149,11 @@ def segments_for_sample_cursor(
         if segment is None:
             continue
         cursor = segment if isinstance(sample_segment, int) else sample_segment
-        last_event, last_attachment, last_message_pool, last_call_pool = (
-            segment_cursor_ids(cursor)
-        )
         if (
-            last_event > after_event
-            or last_attachment > after_attachment
-            or last_message_pool > after_message_pool
-            or last_call_pool > after_call_pool
+            cursor["last_event_id"] > after_event
+            or cursor["last_attachment_id"] > after_attachment
+            or cursor.get("last_message_pool_id", 0) > after_message_pool
+            or cursor.get("last_call_pool_id", 0) > after_call_pool
         ):
             seen_ids.add(segment_id)
             matching.append(segment)

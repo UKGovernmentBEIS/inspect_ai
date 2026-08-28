@@ -72,7 +72,6 @@ from .filestore import (
     Segment,
     SegmentFile,
     sample_segment_cursor,
-    segment_cursor_ids,
 )
 from .types import (
     AttachmentData,
@@ -1818,13 +1817,16 @@ def sync_to_filestore(
         for sample_segment in manifest_sample.segments:
             seg = sample_segment_cursor(sample_segment, segment_by_id)
             if seg is not None:
-                seg_event, seg_attachment, seg_message_pool, seg_call_pool = (
-                    segment_cursor_ids(seg)
+                after_event_id = max(after_event_id, seg["last_event_id"])
+                after_attachment_id = max(
+                    after_attachment_id, seg["last_attachment_id"]
                 )
-                after_event_id = max(after_event_id, seg_event)
-                after_attachment_id = max(after_attachment_id, seg_attachment)
-                after_message_pool_id = max(after_message_pool_id, seg_message_pool)
-                after_call_pool_id = max(after_call_pool_id, seg_call_pool)
+                after_message_pool_id = max(
+                    after_message_pool_id, seg.get("last_message_pool_id", 0)
+                )
+                after_call_pool_id = max(
+                    after_call_pool_id, seg.get("last_call_pool_id", 0)
+                )
 
         # get sample data
         sample_data = db.get_sample_data(

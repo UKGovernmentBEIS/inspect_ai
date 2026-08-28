@@ -1,4 +1,4 @@
-"""Encoding guarantees for the buffer manifest, which is rewritten every sync."""
+"""Encoding and legacy-compatibility guarantees for the buffer manifest."""
 
 import json
 import os
@@ -11,8 +11,9 @@ from inspect_ai.log._recorders.buffer.filestore import (
     SampleManifest,
     SampleSegment,
     Segment,
-    segment_cursor_ids,
 )
+
+POOL_KEYS = {"last_message_pool_id", "last_call_pool_id"}
 
 
 def _manifest() -> Manifest:
@@ -39,49 +40,25 @@ def _round_trip(manifest: Manifest) -> tuple[bytes, Manifest | None]:
 def test_write_manifest_is_not_indented() -> None:
     raw, _ = _round_trip(_manifest())
 
-    # Shape, not exact bytes: float formatting differs between serializers for
-    # small magnitudes, so byte-equality would be brittle.
     assert b"\n" not in raw
     assert b'": ' not in raw
 
 
 def test_write_manifest_round_trips() -> None:
     manifest = _manifest()
-    raw, parsed = _round_trip(manifest)
+    _, parsed = _round_trip(manifest)
 
-    assert parsed is not None
-    assert json.loads(raw) == json.loads(manifest.model_dump_json(exclude_none=True))
-
-
-def test_legacy_segment_without_pool_ids_round_trips() -> None:
-    """Around half of surviving buffer segments omit the pool ids entirely."""
-    legacy = json.dumps(
-        {
-            "metrics": [],
-            "samples": [
-                {
-                    "summary": {"id": "s1", "epoch": 1, "input": "i", "target": "t"},
-                    "segments": [
-                        {"id": 1, "last_event_id": 7, "last_attachment_id": 2}
-                    ],
-                }
-            ],
-            "segments": [{"id": 1, "last_event_id": 7, "last_attachment_id": 2}],
-        }
-    )
-
-    parsed = Manifest.model_validate_json(legacy)
-    segment = parsed.samples[0].segments[0]
-
-    assert not isinstance(segment, int)
-    # NotRequired, so nothing materializes the keys; the defaults live in
-    # segment_cursor_ids and every consumer must go through it.
-    assert "last_message_pool_id" not in segment
-    assert segment_cursor_ids(segment) == (7, 2, 0, 0)
+    assert parsed == manifest
 
 
-def test_legacy_bare_int_segment_entry_still_supported() -> None:
-    """Manifests written before #4207 store a segment id in place of a cursor."""
+def test_legacy_manifest_regains_pool_ids_on_rewrite() -> None:
+    """A pre-#3681 manifest omits the pool ids; validation fills them.
+
+    Segments predating #3681 have no pool-id keys, and per-sample entries
+    predating #4207 are a bare segment id. Both must keep loading, and the
+    rewrite must restore the keys rather than propagating the legacy shape --
+    otherwise a reader indexing them directly breaks on a file we just wrote.
+    """
     legacy = json.dumps(
         {
             "metrics": [],
@@ -91,18 +68,15 @@ def test_legacy_bare_int_segment_entry_still_supported() -> None:
                     "segments": [1],
                 }
             ],
-            "segments": [
-                {
-                    "id": 1,
-                    "last_event_id": 7,
-                    "last_attachment_id": 2,
-                    "last_message_pool_id": 0,
-                    "last_call_pool_id": 0,
-                }
-            ],
+            "segments": [{"id": 1, "last_event_id": 7, "last_attachment_id": 2}],
         }
     )
 
     parsed = Manifest.model_validate_json(legacy)
 
     assert parsed.samples[0].segments == [1]
+    assert parsed.segments[0]["last_message_pool_id"] == 0
+
+    raw, _ = _round_trip(parsed)
+
+    assert POOL_KEYS <= json.loads(raw)["segments"][0].keys()
