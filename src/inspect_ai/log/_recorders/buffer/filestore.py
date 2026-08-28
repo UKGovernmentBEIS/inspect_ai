@@ -255,7 +255,11 @@ class SampleBufferFilestore(SampleBuffer):
                 f.write(data)
 
     def write_manifest(self, manifest: Manifest) -> None:
-        self._write_bytes(self._manifest_file(), to_json_safe(manifest))
+        # No indentation: the manifest is machine-read only and is rewritten on
+        # every sync, where whitespace was ~41% of its bytes. Passed here rather
+        # than changed in to_json_safe, whose output is hashed for the eval-set
+        # task identifier and the sample-metadata filename.
+        self._write_bytes(self._manifest_file(), to_json_safe(manifest, indent=None))
 
     def write_segment(self, id: int, files: list[SegmentFile]) -> None:
         # write the file locally
