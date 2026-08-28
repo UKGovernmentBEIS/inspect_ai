@@ -482,7 +482,19 @@ def eval_set(
             score_display=score_display,
             eval_set_id=eval_set_id,
             task_retry_attempts=0 if selection_mode else task_retry_attempts,
-            acp_server=acp_server,
+            # On in selection mode, and not an override a definition can
+            # decline. A selection-mode worker is detached: human input
+            # dispatches ACP -> Textual panel -> console, and with no display
+            # and a closed stdin the last of those raises EOFError into the
+            # tool call -- so `approver: human` and `ask_user` neither park nor
+            # fail loudly, they land as errored samples in successful logs.
+            # A property of running detached rather than of any one runner,
+            # which is why it is decided here beside the other two and not left
+            # to the caller: of the definition shapes an external runner drives,
+            # only some can pass the flag at all. A failed bind fails the
+            # worker (see `acp_server`) rather than degrading, because the
+            # channel it would degrade to is the dead end above.
+            acp_server=True if selection_mode else acp_server,
             # Demoted to a plain on/off: eval-set owns the keep-alive park
             # itself (after the display closes), so the inner eval() must
             # not park inside the task display. See the park below.
