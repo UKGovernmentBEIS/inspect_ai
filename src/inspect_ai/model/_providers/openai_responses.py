@@ -5,6 +5,7 @@ from typing import Any
 
 import anyio
 from openai import (
+    APIError,
     APIStatusError,
     AsyncAzureOpenAI,
     AsyncOpenAI,
@@ -51,6 +52,7 @@ from .._model_output import ModelOutput, ModelUsage
 from .._openai import (
     OpenAIResponseError,
     openai_handle_bad_request,
+    openai_handle_stream_error,
     openai_media_filter,
 )
 from .._openai_responses import (
@@ -259,6 +261,14 @@ async def generate_responses(
             return handle_bad_request(e), model_call
         else:
             return openai_handle_bad_request(model_name, e), model_call
+    except APIError as e:
+        output = openai_handle_stream_error(model_name, e)
+        if output is None:
+            raise
+        model_call.set_error(
+            as_error_response(e.body), http_hooks.end_request(request_id)
+        )
+        return output, model_call
 
 
 async def _generate_responses_stream(

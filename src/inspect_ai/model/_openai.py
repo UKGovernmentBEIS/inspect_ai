@@ -11,6 +11,7 @@ if TYPE_CHECKING:
 
 from openai import (
     APIConnectionError,
+    APIError,
     APIStatusError,
     APITimeoutError,
     AsyncStream,
@@ -1283,9 +1284,13 @@ def openai_classify_retry(ex: BaseException) -> "RetryDecision | None":
     return None
 
 
-def openai_handle_bad_request(
-    model_name: str, e: APIStatusError
-) -> ModelOutput | Exception:
+def openai_handle_bad_request(model_name: str, e: APIError) -> ModelOutput | Exception:
+    """Convert a refusal/limit error into model output where possible.
+
+    Accepts the `APIError` base (not just `APIStatusError`): only `body`,
+    `message`, `code`, and `type` are read, and mid-stream errors (see
+    `openai_handle_stream_error`) carry those without a status code.
+    """
     # extract message
     if isinstance(e.body, dict) and "message" in e.body.keys():
         content = str(e.body.get("message"))
@@ -1324,6 +1329,25 @@ def openai_handle_bad_request(
         )
     else:
         return e
+
+
+def openai_handle_stream_error(model_name: str, e: APIError) -> ModelOutput | None:
+    """Convert a mid-stream safeguard/content-filter block into model output.
+
+    With streaming enabled the server returns HTTP 200 and then delivers
+    safeguard blocks as an error event in the stream body. The SDK raises
+    these from the stream iterator as a plain `APIError` (with no error
+    status it cannot infer a `BadRequestError`), bypassing the bad-request
+    handling that converts blocks into `content_filter` output on the
+    non-streaming path. Returns the converted `ModelOutput` for recognized
+    blocks, or None when the caller should re-raise: either the error is an
+    `APIError` subclass (status/connection errors, which must keep their
+    retry semantics) or it isn't a recognized refusal.
+    """
+    if type(e) is not APIError:
+        return None
+    handled = openai_handle_bad_request(model_name, e)
+    return handled if isinstance(handled, ModelOutput) else None
 
 
 def openai_media_filter(key: JsonValue | None, value: JsonValue) -> JsonValue:
