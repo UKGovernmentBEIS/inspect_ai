@@ -70,6 +70,7 @@ from ._model import (
     get_model,
     model_roles,
 )
+from ._model_alias import model_aliases_from_log
 from ._model_call import ModelCall
 from ._model_config import ModelConfig
 from ._model_data.model_data import ModelCost, ModelInfo
@@ -194,6 +195,7 @@ __all__ = [
     "set_model_cost",
     "set_model_info",
     "model_roles",
+    "model_aliases_from_log",
     "ModelInfo",
     "modelapi",
     "Citation",

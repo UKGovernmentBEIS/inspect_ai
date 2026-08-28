@@ -72,6 +72,7 @@ For more detail on the different methods of configuration, see [Configuration](t
 | `-M`               | Model specific arguments (`key=value`).      |
 | `--model-spec`     | Model with its own generation config, model args, and base url (inline JSON or YAML, same fields as `--model-role`). Repeat for several models. Cannot be combined with the four options above, nor with the `model` field of `--run-config`. See [Multiple Models](models.qmd#multiple-models). |
 | `--model-role`     | Named model role with model name or config (e.g. `grader=openai/gpt-4o`). See [Model Roles](models.qmd#model-roles). |
+| `--model-alias`    | Alias to evaluate a model under (e.g. `safe/name=openai/gpt-4o`), so that logs and displays report only the alias. Repeat the option and/or pass a comma-separated list; also settable via `INSPECT_MODEL_ALIASES` (note: not the `INSPECT_EVAL_` prefix). See [Model Aliases](models.qmd#model-aliases). |
 
 ## Model Generation
 

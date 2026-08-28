@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Model: New `--model-alias` option (`INSPECT_MODEL_ALIASES`) evaluates a model under an alias, so the eval log, transcript, telemetry, and displays report only the alias rather than the real model. (#4193)
 - Human Agent: End-of-input (e.g. Ctrl+D) at the `task submit`/`task quit` confirmation prompt now declines cleanly instead of raising an `EOFError` traceback.
 - Model streaming: stream-event handling — including live partial-output snapshots in inspect view — now runs only when `on_stream` is passed, so it can no longer fail model calls that stream without a callback.
 - Eval logs: Users can chain conditional S3 writes using the ETag returned by `write_eval_log()` and `write_eval_log_async()`.

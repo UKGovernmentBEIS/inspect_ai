@@ -1066,6 +1066,15 @@ class EvalSpec(BaseModel):
     model_roles: dict[str, ModelConfig | list[ModelConfig]] | None = Field(default=None)
     """Model roles (a role bound to a list of models holds a list of configs)."""
 
+    model_aliases: str | None = Field(default=None)
+    """Model aliases in effect for the eval (if any).
+
+    Base64-encoded JSON mapping of aliases to the real models they resolve
+    to (encoded so real model names are not stored in plaintext rather than
+    to protect them; decode with
+    `inspect_ai.model.model_aliases_from_log()`).
+    """
+
     config: EvalConfig
     """Configuration values for eval."""
 
