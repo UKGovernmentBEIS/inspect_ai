@@ -1761,6 +1761,135 @@ async def test_anthropic_stream_capture_restores_container() -> None:
     assert message.container.id == "container_from_delta"
 
 
+async def test_anthropic_stream_capture_tolerates_compaction_delta() -> None:
+    """A compaction_delta must not be reported as a text stream delta.
+
+    The non-beta RawContentBlockDelta union has no compaction variant, so the
+    SDK deserializes the event into TextDelta(type="compaction_delta",
+    text=None); reporting that as StreamTextEvent raised a ValidationError.
+    Delta reporting only runs with an on_stream consumer, so one is installed
+    here to keep the dispatch path under test.
+    """
+    from anthropic._models import construct_type
+    from anthropic.types import Message, RawMessageStreamEvent
+
+    from inspect_ai.model._providers.anthropic import (
+        _capture_compaction_from_stream,
+    )
+    from inspect_ai.model._stream import (
+        ModelStreamObserver,
+        StreamEvent,
+        model_stream_observer,
+    )
+
+    snapshot = cast(
+        Message,
+        construct_type(
+            value={
+                "id": "msg_x",
+                "type": "message",
+                "role": "assistant",
+                "model": "claude-opus-4-6",
+                "content": [{"type": "compaction", "content": None}],
+                "stop_reason": "end_turn",
+                "usage": {"input_tokens": 1, "output_tokens": 1},
+            },
+            type_=Message,
+        ),
+    )
+    delta_event = construct_type(
+        value={
+            "type": "content_block_delta",
+            "index": 0,
+            "delta": {"type": "compaction_delta", "content": "compacted summary"},
+        },
+        type_=RawMessageStreamEvent,
+    )
+
+    class FakeStream:
+        current_message_snapshot = snapshot
+
+        def __aiter__(self) -> Any:
+            async def events() -> Any:
+                yield types.SimpleNamespace(type="message_start")
+                yield delta_event
+
+            return events()
+
+    collected: list[StreamEvent] = []
+
+    async def collect(event: StreamEvent) -> None:
+        collected.append(event)
+
+    with model_stream_observer(ModelStreamObserver("anthropic/test", collect)):
+        message, compaction_content = await _capture_compaction_from_stream(
+            cast(Any, FakeStream())
+        )
+    assert compaction_content == "compacted summary"
+    # the compaction block in the snapshot must be fixed up with the content
+    assert getattr(message.content[0], "content", None) == "compacted summary"
+    # the misparsed delta fell through to a heartbeat, not a text event
+    assert collected == []
+
+
+async def test_anthropic_stream_reports_no_deltas_without_on_stream() -> None:
+    """Delta construction must not run for callers without on_stream.
+
+    Anthropic auto-streams (reasoning / large max_tokens) for callers that
+    never asked for stream events, so even a delta the SDK misparsed into an
+    invalid shape (here text=None, which StreamTextEvent would reject) must
+    not be able to fail their call.
+    """
+    from anthropic._models import construct_type
+    from anthropic.types import Message
+
+    from inspect_ai.model._providers.anthropic import (
+        _capture_compaction_from_stream,
+    )
+    from inspect_ai.model._stream import ModelStreamObserver, model_stream_observer
+
+    snapshot = cast(
+        Message,
+        construct_type(
+            value={
+                "id": "msg_x",
+                "type": "message",
+                "role": "assistant",
+                "model": "claude-opus-4-6",
+                "content": [{"type": "text", "text": "hi"}],
+                "stop_reason": "end_turn",
+                "usage": {"input_tokens": 1, "output_tokens": 1},
+            },
+            type_=Message,
+        ),
+    )
+
+    class FakeStream:
+        current_message_snapshot = snapshot
+
+        def __aiter__(self) -> Any:
+            async def events() -> Any:
+                yield types.SimpleNamespace(type="message_start")
+                # a text delta whose construction as StreamTextEvent would
+                # raise ValidationError (text must be a str)
+                yield types.SimpleNamespace(
+                    type="content_block_delta",
+                    index=0,
+                    delta=types.SimpleNamespace(type="text_delta", text=None),
+                )
+
+            return events()
+
+    # no observer at all (provider-internal generate)
+    message, _ = await _capture_compaction_from_stream(cast(Any, FakeStream()))
+    assert message.content[0].text == "hi"  # type: ignore[union-attr]
+
+    # observer installed but no on_stream handler (a normal eval's generate)
+    with model_stream_observer(ModelStreamObserver("anthropic/test", None)):
+        message, _ = await _capture_compaction_from_stream(cast(Any, FakeStream()))
+    assert message.content[0].text == "hi"  # type: ignore[union-attr]
+
+
 @skip_if_no_anthropic
 @pytest.mark.slow
 async def test_anthropic_container_continuation_live() -> None:

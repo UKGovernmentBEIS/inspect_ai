@@ -1091,6 +1091,28 @@ def test_aggregate_nan_skipped_under_zero():
     assert result == 2.0
 
 
+def test_aggregate_skips_unscored_samples():
+    # Score.unscored() (NaN-at-root sentinel) is skipped regardless of on_missing
+    result = aggregate("x", agg=mean())(
+        [
+            SampleScore(score=Score(value={"x": 1}), sample_id=1),
+            SampleScore(score=Score.unscored(), sample_id=2),
+            SampleScore(score=Score(value={"x": 3}), sample_id=3),
+        ]
+    )
+    assert result == 2.0
+
+
+def test_aggregate_all_unscored_returns_nan():
+    result = aggregate("x", agg=mean())(
+        [
+            SampleScore(score=Score.unscored(), sample_id=1),
+            SampleScore(score=Score.unscored(), sample_id=2),
+        ]
+    )
+    assert isinstance(result, float) and math.isnan(result)
+
+
 def test_aggregate_invalid_on_missing_raises():
     # Invalid on_missing must fail at construction, not silently behave like
     # "zero" only when a key happens to be missing.
@@ -1121,6 +1143,66 @@ def test_metrics_return_zero_for_empty_scores() -> None:
         bootstrap_stderr(),
     ):
         assert metric_fn([]) == 0.0
+
+
+def test_score_reason_field() -> None:
+    # reason is optional, open (custom strings allowed), and round-trips
+    score_default = Score(value=1)
+    assert score_default.reason is None
+
+    score_vocab = Score(value="I", reason="invalid_response_format")
+    assert score_vocab.reason == "invalid_response_format"
+
+    score_custom = Score(value=1, reason="sandbox_flake")
+    reloaded = Score.model_validate(score_custom.model_dump())
+    assert reloaded.reason == "sandbox_flake"
+
+
+def test_unscored_with_reason() -> None:
+    import math as _math
+
+    score = Score.unscored(
+        reason="grader_failed",
+        answer="the answer",
+        explanation="Grader did not return a parseable verdict.",
+    )
+    assert isinstance(score.value, float) and _math.isnan(score.value)
+    assert score.reason == "grader_failed"
+    assert score.answer == "the answer"
+
+
+def test_score_reason_exported() -> None:
+    from inspect_ai.scorer import ScoreReason  # noqa: F401
+
+
+def test_unscored_reason_metadata_lifted_to_reason() -> None:
+    # logs written by 0.3.245+ (#4048) carry metadata["unscored_reason"]
+    data = {
+        "value": float("nan"),
+        "metadata": {"unscored_reason": "grade_parse_failure", "grading": []},
+    }
+    score = Score.model_validate(data)
+    assert score.reason == "grade_parse_failure"
+    # the metadata key stays in place so round-tripped logs don't differ
+    assert score.metadata is not None
+    assert score.metadata["unscored_reason"] == "grade_parse_failure"
+
+
+def test_explicit_reason_not_overridden_by_metadata() -> None:
+    data = {
+        "value": float("nan"),
+        "reason": "grader_failed",
+        "metadata": {"unscored_reason": "grade_parse_failure"},
+    }
+    score = Score.model_validate(data)
+    assert score.reason == "grader_failed"
+
+
+def test_author_reason_metadata_not_lifted() -> None:
+    # metadata["reason"] is author namespace with author-defined semantics
+    data = {"value": 0, "metadata": {"reason": "timeout"}}
+    score = Score.model_validate(data)
+    assert score.reason is None
 
 
 def test_grouped_metric_empty_scores() -> None:

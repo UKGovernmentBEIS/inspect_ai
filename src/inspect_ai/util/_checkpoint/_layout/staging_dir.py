@@ -62,11 +62,6 @@ def host_repo_dir(sample_root: str) -> str:
     return f"{sample_root}/restic/host"
 
 
-def sandbox_repo_dir(sample_root: str, name: str) -> str:
-    """Path to the per-sample restic repo for sandbox ``name``."""
-    return f"{sample_root}/restic/sandboxes/{name}"
-
-
 def restic_config_path(sample_root: str) -> str:
     """Path to the per-sample restic config file (password store)."""
     return f"{sample_root}/restic/restic-config.json"

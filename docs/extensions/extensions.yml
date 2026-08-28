@@ -94,6 +94,12 @@
   author: "[Joanna Ciesielski](https://github.com/joanna-ciesielski)"
   categories: ["Analysis"]
 
+- name: "[Inspect Refusal Fidelity](https://github.com/IvanSFlowGit/inspect-refusal-fidelity)"
+  description: |
+    Scores whether a system refuses when it cannot honestly answer, reporting over-refusal and false confidence as separate metrics.
+  author: "[Ivan Skachek](https://github.com/IvanSFlowGit)"
+  categories: ["Analysis"]
+
 - name: "[Inspect Flow](https://meridianlabs-ai.github.io/inspect_flow/)"
   description: |
     Workflow orchestration for reproducibly running evals at scale.

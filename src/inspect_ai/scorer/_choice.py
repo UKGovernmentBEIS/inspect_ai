@@ -16,13 +16,29 @@ def _choices_are_shuffled(choices: Choices) -> bool:
 
 
 def _score_target(target: Target, choices: Choices) -> tuple[list[int], list[str]]:
-    # Filter out separator characters (e.g. "A,B" or "A, B") so that only
-    # actual answer letters/digits are mapped to choice indices.
-    target_positions = [
-        answer_index(target_character)
-        for target_character in target.text
-        if target_character not in (",", " ")
+    target_answers: list[str] = []
+    for target_value in target:
+        for token in target_value.replace(",", " ").split():
+            if token.isnumeric():
+                target_answers.append(token)
+            else:
+                target_answers.extend(token)
+
+    target_positions = [answer_index(answer) for answer in target_answers]
+
+    # a target that references a position beyond the task's choices is a
+    # dataset error (e.g. a "10" target in a 30-option task resolves to
+    # index 35): raise loudly rather than silently scoring incorrect forever
+    out_of_range = [
+        answer
+        for answer, position in zip(target_answers, target_positions)
+        if position >= len(choices)
     ]
+    if out_of_range:
+        raise ValueError(
+            f"Choice scorer target references answer(s) beyond the task's "
+            f"{len(choices)} choices: {', '.join(out_of_range)}"
+        )
 
     choice_positions = [i for i, choice in enumerate(choices) if choice.correct is True]
 

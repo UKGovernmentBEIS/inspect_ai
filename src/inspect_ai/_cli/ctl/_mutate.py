@@ -12,7 +12,12 @@ from typing import Any, NamedTuple
 from inspect_ai._control.discovery import DiscoveredControlServer
 
 from ._failure import _fail
-from ._fetch import _exit_ambiguous, _resolve_target_eval
+from ._fetch import (
+    _exit_ambiguous,
+    _model_qualifier,
+    _narrow_by_model,
+    _resolve_target_eval,
+)
 from ._render import _task_header
 
 
@@ -155,6 +160,7 @@ def _resolve_scope(
     *,
     per_task_option: str | None = None,
     no_task_id_advice: str = "",
+    model: str | None = None,
 ) -> _DirectiveScope | None:
     """Resolve the task-or-process scope a directive command targets.
 
@@ -163,7 +169,14 @@ def _resolve_scope(
     explicit ``TASK`` targets that task; no ``TASK`` defaults to the sole
     process — a single-active-task process resolves to that task (completed
     eval-set siblings don't count), a multi-task process resolves to the
-    process-level scope. ``per_task_option`` names the option or command
+    process-level scope. ``model`` composes with both paths — an explicit
+    ``TASK``'s matches are filtered to tasks running a matching model (see
+    ``_resolve_target_eval``), and the no-``TASK`` defaults resolve over the
+    model-narrowed rows (see ``_narrow_by_model``) — so one task run
+    against several models resolves by name plus ``--model``. Sibling counts
+    stay on the full summaries: the blast radius of a process-scoped knob is
+    unaffected by a narrowed view. ``per_task_option`` names the option or
+    command
     (e.g. ``--max-samples``, ``task log-flush``) that requires a single task
     and therefore forbids the process-scope fallbacks. ``no_task_id_advice``
     is an optional caller-specific sentence appended to the pre-task-id
@@ -191,7 +204,7 @@ def _resolve_scope(
         return None
 
     if task is not None:
-        target = _resolve_target_eval(summaries, task)
+        target = _resolve_target_eval(summaries, task, model=model)
         socket_path = str(target["socket_path"])
         task_id = str(target["task_id"])
         if not task_id:
@@ -219,13 +232,19 @@ def _resolve_scope(
             siblings=siblings,
         )
 
-    sockets = sorted({str(s.get("socket_path")) for s in summaries})
+    visible = _narrow_by_model(summaries, model) if model is not None else summaries
+    qualifier = _model_qualifier(model)
+    sockets = sorted({str(s.get("socket_path")) for s in visible})
     if len(sockets) > 1:
         # multiple processes: can't default to one — passing a task id
         # disambiguates the process too
-        _exit_ambiguous(summaries, "Multiple processes are running")
+        _exit_ambiguous(
+            visible,
+            "Multiple processes are running"
+            + (f" tasks{qualifier}" if model is not None else ""),
+        )
     socket_path = sockets[0]
-    tasks_in_proc = [s for s in summaries if str(s.get("socket_path")) == socket_path]
+    tasks_in_proc = [s for s in visible if str(s.get("socket_path")) == socket_path]
     # a finished task's config is no longer meaningfully adjustable, so the
     # sole-task default keys on what is still active — an eval-set with one
     # running and N completed tasks resolves to the running one
@@ -262,7 +281,7 @@ def _resolve_scope(
         _exit_ambiguous(
             candidates,
             f"{per_task_option} targets a single task, but this process is "
-            f"running {count} task{'s' if count != 1 else ''}",
+            f"running {count} task{'s' if count != 1 else ''}{qualifier}",
         )
     total = len(tasks_in_proc)
     header = f"process · {total} task{'s' if total != 1 else ''}" + (
