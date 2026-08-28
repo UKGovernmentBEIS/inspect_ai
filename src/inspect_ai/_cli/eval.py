@@ -41,7 +41,7 @@ from inspect_ai._util.file import filesystem
 from inspect_ai._util.samples import parse_sample_id, parse_samples_limit
 from inspect_ai.log._file import log_file_info
 from inspect_ai.log._log import EvalConfig, EvalLog
-from inspect_ai.model import GenerateConfig, GenerateConfigArgs, Model, get_model
+from inspect_ai.model import GenerateConfig, GenerateConfigArgs, Model
 from inspect_ai.model._cache import CachePolicy
 from inspect_ai.model._generate_config import (  # noqa: F811
     BatchConfig,
@@ -50,7 +50,7 @@ from inspect_ai.model._generate_config import (  # noqa: F811
     ResponseSchema,
 )
 from inspect_ai.model._model_alias import init_model_aliases, parse_model_aliases
-from inspect_ai.model._model_config import ModelConfig
+from inspect_ai.model._model_config import ModelConfig, model_config_to_model
 from inspect_ai.scorer._reducer import create_reducers
 from inspect_ai.solver._solver import SolverSpec
 from inspect_ai.util import AdaptiveConcurrency
@@ -258,7 +258,9 @@ def scanner_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         envvar="INSPECT_EVAL_SCAN_MODEL_ROLE",
         help=(
             "Named scanner-side model role with model name or YAML/JSON config "
-            "(e.g. --scan-model-role grader=mockllm/model)."
+            "(e.g. --scan-model-role grader=mockllm/model). Bind multiple models "
+            "to a role with a comma-separated list of names or a YAML/JSON list "
+            "of configs."
         ),
     )
     @click.option(
@@ -317,7 +319,7 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         multiple=True,
         type=str,
         envvar="INSPECT_EVAL_MODEL_ROLE",
-        help='Named model role with model name or YAML/JSON config, e.g. --model-role critic=openai/gpt-4o or --model-role grader="{model: mockllm/model, temperature: 0.5}"',
+        help='Named model role with model name or YAML/JSON config, e.g. --model-role critic=openai/gpt-4o or --model-role grader="{model: mockllm/model, temperature: 0.5}". Bind multiple models to a role with a comma-separated list of names or a YAML/JSON list of configs, e.g. --model-role grader=openai/gpt-4o,google/gemini-2.0-flash',
     )
     @click.option(
         "--model-alias",
@@ -1643,7 +1645,9 @@ class RunConfigInput(BaseModel):
 
     task: str | TaskInput | None = None
     model: str | ModelConfig | None = None
-    model_roles: dict[str, ModelConfig] = Field(default_factory=dict)
+    model_roles: dict[str, ModelConfig | list[ModelConfig]] = Field(
+        default_factory=dict
+    )
     generate_config: GenerateConfig = Field(default_factory=GenerateConfig)
     eval_config: EvalConfig = Field(default_factory=EvalConfig)
     solver: str | SolverInput | None = None
@@ -1703,9 +1707,9 @@ class RunConfigInput(BaseModel):
         # Model roles
         if self.model_roles:
             params["model_roles"] = {
-                role: get_model(
-                    mc.model, config=mc.config, base_url=mc.base_url, **mc.args
-                )
+                role: [model_config_to_model(m) for m in mc]
+                if isinstance(mc, list)
+                else model_config_to_model(mc)
                 for role, mc in self.model_roles.items()
             }
 

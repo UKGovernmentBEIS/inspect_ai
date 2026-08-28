@@ -36,6 +36,17 @@ from .._model import ModelAPI, RetryDecision
 from .._model_call import ModelCall
 from .._model_output import ModelOutput
 from .._reasoning import clamp_reasoning_effort_to_low_medium_high
+from .._stream import (
+    StreamContentEvent,
+    StreamReasoningEvent,
+    StreamTextEvent,
+    StreamToolCallEvent,
+    model_stream_requested,
+    report_model_stream_delta,
+    report_model_stream_progress,
+    report_model_stream_start,
+)
+from .util import normalize_stream_arg
 
 logger = getLogger(__name__)
 
@@ -117,13 +128,10 @@ class SagemakerAPI(ModelAPI):
         self.request_content_type = "application/json"
         self.request_accept_type = "application/json"
 
-        # Extract streaming configuration (handle string "True"/"False" from CLI)
-        stream_val = model_args.get("stream", False)
-        self.stream = (
-            stream_val
-            if isinstance(stream_val, bool)
-            else str(stream_val).lower() == "true"
-        )
+        # Extract streaming configuration. Unset/"auto" means auto: stream
+        # when the caller passes on_stream to generate; an explicit
+        # True/False overrides.
+        self.stream: bool | None = normalize_stream_arg(model_args.get("stream", None))
 
         # Extract completion mode for CPT/base models (sends completions-style payload with prompt field)
         completion_mode_val = model_args.get("completion_mode", False)
@@ -207,16 +215,30 @@ class SagemakerAPI(ModelAPI):
             config, processed_messages, tools_config, tool_choice
         )
 
-        # Add stream parameter to request body
-        request_body["stream"] = self.stream
-        if self.stream:
+        # Add stream parameter to request body. Unset stream ("auto") streams
+        # when the caller passed on_stream — unless the request uses features
+        # the streaming parser drops (multiple choices, logprobs, prompt
+        # logprobs); an explicit stream=True opts into that loss as before.
+        auto_streamable = (
+            config.num_choices is None
+            and not config.logprobs
+            and self.prompt_logprobs is None
+            and config.prompt_logprobs is None
+        )
+        stream = (
+            self.stream
+            if self.stream is not None
+            else (model_stream_requested() and auto_streamable)
+        )
+        request_body["stream"] = stream
+        if stream:
             # Ask vLLM to emit a final usage chunk in the stream so token
             # counts are populated (otherwise streaming usage is all zeros).
             request_body["stream_options"] = {"include_usage": True}
 
         # Make request
         async with self._create_client() as client:
-            if self.stream:
+            if stream:
                 body_bytes, output = await self._invoke_endpoint_streaming(
                     client, request_body
                 )
@@ -532,6 +554,10 @@ class SagemakerAPI(ModelAPI):
         final_model = self.endpoint_name
         final_usage: dict[str, Any] | None = None
         final_finish_reason = "stop"
+        # Content deltas queued for the model layer's stream observer — the
+        # SSE parser below is sync, so deltas are reported (awaited) from the
+        # async read loop after each buffer pass.
+        pending_deltas: list[StreamContentEvent] = []
 
         # Incremental UTF-8 decoder: SageMaker splits the response body on
         # arbitrary byte boundaries, which can fall in the middle of a
@@ -556,6 +582,13 @@ class SagemakerAPI(ModelAPI):
 
             n_chunks += 1
 
+            # report chunk progress to the stream observer: cumulative tokens
+            # from the usage chunk, else a bare heartbeat
+            usage = chunk_data.get("usage")
+            report_model_stream_progress(
+                usage.get("completion_tokens") if usage else None
+            )
+
             # Track metadata from each chunk
             if chunk_data.get("id"):
                 final_id = chunk_data["id"]
@@ -572,13 +605,21 @@ class SagemakerAPI(ModelAPI):
             choice = choices[0]
             delta = choice.get("delta") or {}
 
+            # queue stream deltas only when an on_stream consumer is present
+            # (see report_model_stream_delta)
+            deltas_requested = model_stream_requested()
+
             content = delta.get("content")
             if content:
                 accumulated_text += content
+                if deltas_requested:
+                    pending_deltas.append(StreamTextEvent(text=content))
 
             reasoning = delta.get("reasoning_content") or delta.get("reasoning")
             if reasoning:
                 accumulated_reasoning += reasoning
+                if deltas_requested:
+                    pending_deltas.append(StreamReasoningEvent(reasoning=reasoning))
 
             for tc in delta.get("tool_calls") or []:
                 idx = tc.get("index", 0)
@@ -599,6 +640,17 @@ class SagemakerAPI(ModelAPI):
                     slot["function"]["name"] = fn["name"]
                 if fn.get("arguments"):
                     slot["function"]["arguments"] += fn["arguments"]
+                # report id/function from the accumulated slot — the server
+                # sends them only on a call's first fragment, but reported
+                # deltas attribute every fragment
+                if deltas_requested:
+                    pending_deltas.append(
+                        StreamToolCallEvent(
+                            id=slot["id"],
+                            function=slot["function"]["name"],
+                            arguments=fn.get("arguments") or "",
+                        )
+                    )
 
             # Track finish_reason across all chunks — only the dedicated stop
             # chunk has a non-null value, and it may arrive before the usage
@@ -622,6 +674,13 @@ class SagemakerAPI(ModelAPI):
                 if line.startswith("data:"):
                     handle_data_line(line[len("data:") :].strip())
 
+        async def report_pending_deltas() -> None:
+            for delta in pending_deltas:
+                await report_model_stream_delta(delta)
+            pending_deltas.clear()
+
+        report_model_stream_start()
+
         async for event in event_stream:
             # Check for error events first
             if "ModelStreamError" in event:
@@ -642,10 +701,12 @@ class SagemakerAPI(ModelAPI):
             if "PayloadPart" in event:
                 line_buffer += decoder.decode(event["PayloadPart"]["Bytes"])
                 process_buffer()
+                await report_pending_deltas()
 
         # Flush any trailing buffered bytes / final line.
         line_buffer += decoder.decode(b"", final=True)
         process_buffer(flush=True)
+        await report_pending_deltas()
 
         logger.info(
             "Streaming complete: %d chunks, content length: %d, reasoning length: %d",

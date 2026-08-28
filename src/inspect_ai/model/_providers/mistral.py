@@ -58,6 +58,7 @@ from inspect_ai.model._reasoning import parse_content_with_reasoning
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 from inspect_ai.util._json import json_schema_dump
 
+from ..._util.http_defaults import default_async_client
 from ..._util.httpx import httpx_classify_retry
 from .._call_tools import parse_tool_call
 from .._chat_message import (
@@ -160,6 +161,17 @@ class MistralAPI(ModelAPI):
     def is_azure(self) -> bool:
         return self.service == "azure"
 
+    def _http_default_args(self) -> dict[str, Any]:
+        """Model args with the shared HTTP defaults filled in.
+
+        The SDK's own client applies a flat 5s to every phase, which is both a
+        connect deadline a blocked loop outlasts and a request budget far too
+        short for a generation.
+        """
+        model_args = dict(self.model_args)
+        model_args.setdefault("async_client", default_async_client())
+        return model_args
+
     async def generate(
         self,
         input: list[ChatMessage],
@@ -168,9 +180,9 @@ class MistralAPI(ModelAPI):
         config: GenerateConfig,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
         # create client
-        with Mistral(api_key=self.api_key, **self.model_args) as client:
+        with Mistral(api_key=self.api_key, **self._http_default_args()) as client:
             # create time tracker
-            http_hooks = HttpxHooks(client.sdk_configuration.async_client)
+            http_hooks = HttpxHooks(client.sdk_configuration.async_client, api=self)
 
             # use the conversation api if requested
             if self.conversation_api:

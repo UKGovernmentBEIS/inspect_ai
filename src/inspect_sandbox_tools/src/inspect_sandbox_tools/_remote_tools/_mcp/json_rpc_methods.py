@@ -1,9 +1,8 @@
 import asyncio
 from itertools import count
 
-from mcp import JSONRPCError, JSONRPCResponse
-
 from ..._util.json_rpc_helpers import validated_json_rpc_method
+from .jsonrpc_types import JSONRPCError, JSONRPCResponse
 from .mcp_server_session import MCPServerSession
 from .tool_types import (
     KillServerParams,

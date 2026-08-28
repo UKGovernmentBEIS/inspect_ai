@@ -40,7 +40,6 @@ using the returned :class:`HydrationResult`.
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass, field
 from functools import partial
 from logging import getLogger
@@ -62,8 +61,10 @@ from inspect_ai.log._transcript import transcript
 from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.solver._task_state import sample_state
 from inspect_ai.util._restic import init_repo, resolve_restic, restore_repo
-from inspect_ai.util._restic.ops import restic_env
-from inspect_ai.util._sandbox.context import sandbox
+from inspect_ai.util._sandbox.context import (
+    sandbox,
+    sandbox_environments_context_var,
+)
 from inspect_ai.util._span import current_span_id
 
 from ._host_egress import host_egress
@@ -72,7 +73,7 @@ from ._layout.eval_checkpoints_dir import eval_checkpoints_dir
 from ._layout.sample_checkpoints_dir import (
     ensure_restic_config,
     ensure_sample_checkpoints_dir,
-    scan_latest_committed_id,
+    scan_latest_committed_checkpoint,
 )
 from ._layout.schemas import Checkpoint
 from ._layout.staging_dir import (
@@ -80,12 +81,26 @@ from ._layout.staging_dir import (
     ensure_sample_staging_dir,
     host_repo_dir,
     is_remote_destination,
-    sandbox_repo_dir,
 )
-from ._sandbox_restic import ingress_sandbox, init_sandbox_repo, inject_restic
+from ._repo_ops import drop_orphan_snapshots, fs_copy_repo
+from ._snapshot import (
+    PriorAttempt,
+    SandboxSnapshotSession,
+    SnapshotContext,
+    create_strategy,
+    strategy_config_name,
+    strategy_storage_subpath,
+)
+from ._snapshot.pin import (
+    STRATEGY_PIN_SUBPATH,
+    check_strategy_pin,
+    read_strategy_pin,
+    write_strategy_pin,
+)
+from ._snapshot.registry import KNOWN_STRATEGY_NAMES, STRATEGY_RESTIC
 from .checkpointer import ResumeCheckpoint
 from .config import ResolvedCheckpointConfig
-from .sandbox_paths import SandboxBackupPaths, resolve_sandbox_backup_paths
+from .sandbox_paths import resolve_sandbox_backup_paths
 
 logger = getLogger(__name__)
 
@@ -124,6 +139,13 @@ class _HostHydrationResult:
     child task, and the restore must run where the solver's context is
     current."""
 
+    sample_runtime: JsonValue | None = None
+    """From ``sample_runtime.json`` — restored into sample-root limit
+    usage and related in-memory runtime. Restored by ``_CheckpointerSetup.
+    __aenter__`` rather than ``_push_host_state``: the push runs in a
+    child task, and the restore must run where the solver's context is
+    current."""
+
 
 @dataclass
 class HydrationResult:
@@ -150,11 +172,12 @@ class HydrationResult:
     restic_password: str
     host: _HostHydrationResult
 
-    sandbox_backup_paths: dict[str, SandboxBackupPaths] = field(default_factory=dict)
-    """Effective sandbox name → backup spec (include + exclude) used for
-    backup: each live sandbox's default-user home dir (XDG cache excluded),
-    with ``sandbox_paths`` config entries replacing the default (empty-list
-    entries opt out). See ``sandbox_paths``."""
+    sandbox_sessions: dict[str, SandboxSnapshotSession] = field(default_factory=dict)
+    """Effective sandbox name → live snapshot session (strategy instance,
+    per-attempt context, and backup paths). The name set comes from
+    ``resolve_sandbox_backup_paths``: each live sandbox's default-user
+    home dir (XDG cache excluded), with config entries replacing the
+    default (empty-path entries opt out)."""
 
 
 async def hydrate(
@@ -218,16 +241,19 @@ async def hydrate(
     host_restic = await resolve_restic()
     host_repo = host_repo_dir(sample_root)
 
-    # On resume, find the highest committed checkpoint id (checkpoint
-    # files are the source of truth — see ``Checkpoint`` design notes).
-    # Any restic snapshot tagged ``ckpt-NNNNN`` with N > this id is an
-    # orphan from an interrupted fire that completed its backup but
+    # On resume, find the latest committed checkpoint (checkpoint files
+    # are the source of truth — see ``Checkpoint`` design notes). Any
+    # strategy snapshot tagged ``ckpt-NNNNN`` with N > its id is an
+    # orphan from an interrupted fire that completed its capture but
     # never wrote its checkpoint file; ``_hydrate_host`` /
-    # ``_hydrate_sandbox`` drop those below so ``restic restore latest``
-    # picks the committed snapshot.
+    # ``_hydrate_sandbox`` drop those below so restore materializes the
+    # committed snapshot.
+    latest_checkpoint: Checkpoint | None = None
     latest_committed_id: int | None = None
     if resume_checkpoint:
-        latest_committed_id = await scan_latest_committed_id(sample_root)
+        latest_checkpoint = await scan_latest_committed_checkpoint(sample_root)
+        if latest_checkpoint is not None:
+            latest_committed_id = latest_checkpoint.checkpoint_id
 
     # Phase 2: host + sandboxes in parallel. Host work runs alongside
     # the per-sandbox fan-out; each sandbox's work is independent of
@@ -243,6 +269,55 @@ async def hydrate(
     sandbox_backup_paths = await resolve_sandbox_backup_paths(
         config.sandbox_paths or {}
     )
+
+    # Strategy pin (§4.7 of the design): the strategy that starts a
+    # sample's checkpoint lineage is the strategy for its lifetime. On
+    # resume, validate the configured strategies against the pin
+    # *before* instantiating anything; on fresh samples, write the pin
+    # so every dir a retry can resume from carries it.
+    configured_strategies = {
+        name: strategy_config_name(config.sandbox_strategy_config(name))
+        for name in sandbox_backup_paths
+    }
+    if resume_checkpoint:
+        pinned = await read_strategy_pin(sample_root)
+        check_strategy_pin(
+            pinned=pinned,
+            configured=configured_strategies,
+            known_strategies=KNOWN_STRATEGY_NAMES,
+            default_strategy=STRATEGY_RESTIC,
+            live_sandboxes=set(sandbox_environments_context_var.get({}).keys()),
+            opted_out={
+                name
+                for name, paths in (config.sandbox_paths or {}).items()
+                if not paths
+            },
+        )
+        if pinned is None:
+            # Pre-pin dir (validated all-default above): write the pin so
+            # later retries resume with an explicit record.
+            await write_strategy_pin(sample_root, configured_strategies)
+    else:
+        await write_strategy_pin(sample_root, configured_strategies)
+
+    # One strategy instance + frozen context per sandbox for this attempt.
+    sandbox_sessions: dict[str, SandboxSnapshotSession] = {}
+    for name, paths in sandbox_backup_paths.items():
+        strategy_config = config.sandbox_strategy_config(name)
+        storage_subpath = strategy_storage_subpath(
+            strategy_config_name(strategy_config), name
+        )
+        sandbox_sessions[name] = SandboxSnapshotSession(
+            strategy=create_strategy(strategy_config),
+            context=SnapshotContext(
+                sandbox_name=name,
+                storage_dir=f"{sample_root}/{storage_subpath}",
+                storage_subpath=storage_subpath,
+                secret=restic_config.restic_password,
+                resuming=resume_checkpoint is not None,
+            ),
+            paths=paths,
+        )
 
     async def _run_host() -> None:
         nonlocal host_result
@@ -262,11 +337,9 @@ async def hydrate(
         tg.start_soon(
             _hydrate_sandboxes,
             resume_checkpoint,
-            sandbox_backup_paths,
-            restic_config.restic_password,
-            sample_root,
-            host_restic,
+            sandbox_sessions,
             latest_committed_id,
+            latest_checkpoint,
             action,
         )
     assert host_result is not None  # task group ran _run_host to completion
@@ -301,7 +374,7 @@ async def hydrate(
         host_repo=host_repo,
         restic_password=restic_config.restic_password,
         host=host_result,
-        sandbox_backup_paths=sandbox_backup_paths,
+        sandbox_sessions=sandbox_sessions,
     )
 
 
@@ -326,14 +399,14 @@ async def _hydrate_host(
     # latest committed checkpoint file, restic-restore the latest
     # snapshot into the new context subdir, then load the JSON files
     # and push framework state into the live Transcript + Store.
-    await _fs_copy_repo(
+    await fs_copy_repo(
         resume.sample_checkpoints_dir,
         "restic/host",
         host_repo,
         label="host",
     )
     if latest_committed_id is not None:
-        await _drop_orphan_snapshots(
+        await drop_orphan_snapshots(
             host_restic, host_repo, restic_password, latest_committed_id
         )
     with trace_action(logger, action, "host restore"):
@@ -356,28 +429,25 @@ async def _hydrate_host(
 
 async def _hydrate_sandboxes(
     resume: ResumeCheckpoint | None,
-    sandbox_paths: dict[str, SandboxBackupPaths],
-    restic_password: str,
-    sample_root: str,
-    host_restic: Path,
+    sandbox_sessions: dict[str, SandboxSnapshotSession],
     latest_committed_id: int | None,
+    latest_checkpoint: Checkpoint | None,
     action: str,
 ) -> None:
-    if not sandbox_paths:
+    if not sandbox_sessions:
         return
     await tg_collect(
         [
             partial(
                 _hydrate_sandbox,
                 name=name,
+                session=session,
                 resume=resume,
-                restic_password=restic_password,
-                sample_root=sample_root,
-                host_restic=host_restic,
                 latest_committed_id=latest_committed_id,
+                latest_checkpoint=latest_checkpoint,
                 action=action,
             )
-            for name in sandbox_paths
+            for name, session in sandbox_sessions.items()
         ]
     )
 
@@ -385,91 +455,50 @@ async def _hydrate_sandboxes(
 async def _hydrate_sandbox(
     *,
     name: str,
+    session: SandboxSnapshotSession,
     resume: ResumeCheckpoint | None,
-    restic_password: str,
-    sample_root: str,
-    host_restic: Path,
     latest_committed_id: int | None,
+    latest_checkpoint: Checkpoint | None,
     action: str,
 ) -> None:
+    """Provision (and on resume, restore) one sandbox via its strategy.
+
+    Call order per the Protocol contract: ``setup`` on both paths, then
+    on resume ``adopt`` (carry prior-attempt state into this attempt's
+    storage area) → ``discard_orphans`` (drop captures from fires that
+    never committed) → ``restore`` (materialize the latest committed
+    snapshot into the fresh sandbox).
+    """
     env = sandbox(name)
-    with trace_action(logger, action, f"sandbox {name} inject"):
-        await inject_restic(env)
+    strategy, ctx, _ = session
+    with trace_action(logger, action, f"sandbox {name} setup"):
+        await strategy.setup(env, ctx)
     if resume is None:
-        with trace_action(logger, action, f"sandbox {name} init"):
-            await init_sandbox_repo(env, restic_password)
         return
 
-    # Resume: FS-copy the old host-side sandbox repo into the new sample
-    # root, drop any orphan snapshots beyond the latest committed
-    # checkpoint file (so the in-container ingress restores the
-    # committed snapshot, not a torn-fire orphan), then ingress it into the
-    # container (which also runs restic-restore to put files at their
-    # original paths).
-    new_host_side_repo = sandbox_repo_dir(sample_root, name)
-    await _fs_copy_repo(
-        resume.sample_checkpoints_dir,
-        f"restic/sandboxes/{name}",
-        new_host_side_repo,
-        label=f"sandbox {name!r}",
+    prior = PriorAttempt(
+        sample_checkpoints_dir=resume.sample_checkpoints_dir,
+        storage_subpath=ctx.storage_subpath,
     )
+    await strategy.adopt(prior, ctx)
     if latest_committed_id is not None:
-        await _drop_orphan_snapshots(
-            host_restic, new_host_side_repo, restic_password, latest_committed_id
-        )
-    with trace_action(logger, action, f"sandbox {name} ingress"):
-        await ingress_sandbox(env, new_host_side_repo, restic_password)
-
-
-async def _drop_orphan_snapshots(
-    restic: Path, repo: str, password: str, latest_id: int
-) -> list[str]:
-    """Forget restic snapshots tagged ``ckpt-NNNNN`` where NNNNN > latest_id.
-
-    A fire that completed its restic backup but was interrupted before
-    ``write_checkpoint_file`` leaves an orphan snapshot in the repo
-    with no corresponding ``ckpt-NNNNN.json`` to acknowledge it. On resume we
-    drop those so ``restic restore latest`` picks the committed
-    snapshot — and so the next fire can write its tag without colliding
-    with a stale tag of the same id. Returns the list of dropped tag
-    names for logging.
-    """
-    proc = await anyio.run_process(
-        [str(restic), "-r", repo, "snapshots", "--json"],
-        env=restic_env(password),
-        check=True,
-    )
-    snapshots = json.loads(proc.stdout.decode())
-    orphan_ids: list[str] = []
-    orphan_tags: list[str] = []
-    for snap in snapshots:
-        for tag in snap.get("tags") or []:
-            if not tag.startswith("ckpt-"):
-                continue
-            try:
-                n = int(tag.removeprefix("ckpt-"))
-            except ValueError:
-                continue
-            if n > latest_id:
-                orphan_ids.append(snap["short_id"])
-                orphan_tags.append(tag)
-                break
-    if orphan_ids:
-        await anyio.run_process(
-            [str(restic), "-r", repo, "forget", *orphan_ids],
-            env=restic_env(password),
-            check=True,
-        )
-    return orphan_tags
+        await strategy.discard_orphans(latest_committed_id, ctx)
+    ref = latest_checkpoint.sandboxes.get(name) if latest_checkpoint else None
+    with trace_action(logger, action, f"sandbox {name} restore"):
+        await strategy.restore(env, ref, ctx)
 
 
 async def _fs_copy_cross_cutting(old_sample_dir: str, new_sample_dir: str) -> list[str]:
-    """Copy `restic-config.json` and `ckpt-*.json` from old to new sample dir.
+    """Copy the core-owned per-sample files from old to new sample dir.
 
-    Cross-cutting in the sense that neither belongs exclusively to the
-    host or to any sandbox — they live at the top of the sample
-    checkpoints dir (the checkpoint files) and one level into
-    ``restic/`` (the config) alongside the per-domain repo subtrees.
+    Name-scoped, not directory-scoped: exactly ``restic/restic-config.json``,
+    the strategy pin (``restic/snapshot-strategies.json``), and the
+    top-level ``ckpt-*.json`` files. Cross-cutting in the sense that none
+    belongs exclusively to the host or to any sandbox. The pin must ride
+    this copy so that every attempt's dir carries it no matter how many
+    retries preceded (§4.7 — without the carry-over, the second retry of
+    a non-default-strategy sample would find no pin and the absent-file
+    default would turn into a spurious mismatch error).
 
     ``old_sample_dir`` may be local or remote (e.g. ``s3://``); the new
     sample dir is always local. Returns the list of paths written,
@@ -480,59 +509,19 @@ async def _fs_copy_cross_cutting(old_sample_dir: str, new_sample_dir: str) -> li
     written: list[str] = []
 
     with trace_action(logger, "Checkpoint Hydrate", "fs-copy cross-cutting"):
-        src_restic_config = f"{old_sample_dir}/restic/restic-config.json"
-        if await async_fs.exists(src_restic_config):
-            (new / "restic").mkdir(parents=True, exist_ok=True)
-            dst = new / "restic" / "restic-config.json"
-            await async_fs.get_file(src_restic_config, str(dst))
-            written.append("restic/restic-config.json")
+        for subpath in ("restic/restic-config.json", STRATEGY_PIN_SUBPATH):
+            src = f"{old_sample_dir}/{subpath}"
+            if await async_fs.exists(src):
+                dst = new / subpath
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                await async_fs.get_file(src, str(dst))
+                written.append(subpath)
 
         async for uri in async_fs.iter_files(old_sample_dir, pattern="ckpt-*.json"):
             name = uri.rsplit("/", 1)[-1]
             dst = new / name
             await async_fs.get_file(uri, str(dst))
             written.append(name)
-    return written
-
-
-async def _fs_copy_repo(
-    old_sample_dir: str, subpath: str, new_repo: str, *, label: str
-) -> list[str]:
-    """Recursively copy a restic repo subtree from old sample dir to new.
-
-    ``subpath`` is the per-domain path under the old sample checkpoints
-    dir (``"restic/host"`` or ``"restic/sandboxes/<name>"``). ``old_sample_dir``
-    may be local or remote; ``new_repo`` is always local. ``label`` is
-    a short descriptor used only for the diagnostic print line.
-
-    Returns the list of paths written, relative to the new sample root
-    (i.e. each path starts with ``subpath``). Raises if the source
-    enumerated no files — S3 has no real directories, so existence is
-    only knowable via "any object with this prefix?", and a valid restic
-    repo always has at least one file (`config`).
-    """
-    async_fs = get_async_filesystem()
-    src_base = f"{old_sample_dir}/{subpath}"
-    new_root = Path(new_repo)
-    written: list[str] = []
-    # `iter_files` yields URIs verbatim-prefixed by `src_base` for S3, but
-    # fsspec-normalized (absolute) for local sources — so slicing by
-    # `len(src_base)` mangles local relative sources. Relativize against the
-    # `/<subpath>/` repo-root boundary instead: it's the last such marker in
-    # the URI (a restic repo's own tree never contains `<subpath>`), so this
-    # is correct regardless of how the backend normalizes the prefix.
-    marker = f"/{subpath}/"
-    with trace_action(logger, "Checkpoint Hydrate", f"fs-copy {label}"):
-        async for uri in async_fs.iter_files(src_base, recursive=True):
-            rel = uri.rsplit(marker, 1)[-1]
-            dst = new_root / rel
-            dst.parent.mkdir(parents=True, exist_ok=True)
-            await async_fs.get_file(uri, str(dst))
-            written.append(f"{subpath}/{rel}")
-        if not written:
-            raise RuntimeError(
-                f"resume: expected {label} repo at {src_base}, but no files were found"
-            )
     return written
 
 
@@ -594,6 +583,7 @@ def _load_host_state(
         attachments=ctx.attachments,
         store=ctx.store,
         assistant_internal=ctx.assistant_internal,
+        sample_runtime=ctx.sample_runtime,
     )
 
 

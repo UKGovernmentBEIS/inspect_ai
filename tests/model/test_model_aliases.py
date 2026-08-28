@@ -209,7 +209,10 @@ def test_eval_log_records_alias_only(tmp_path) -> None:
     # model fields carry the alias only
     assert log.eval.model == ALIAS
     assert log.eval.model_roles is not None
-    assert log.eval.model_roles["grader"].model == "other/alias"
+    grader_role = log.eval.model_roles["grader"]
+    # model_roles values became ModelConfig | list[ModelConfig] upstream
+    assert not isinstance(grader_role, list)
+    assert grader_role.model == "other/alias"
     sample = log.samples[0]
     assert sample.output.model == ALIAS
     assert sample.output.message.model == ALIAS

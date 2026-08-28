@@ -42,9 +42,9 @@ from inspect_ai.approval._policy import (
     approval_policies_from_config,
 )
 from inspect_ai.dataset import Dataset, MemoryDataset, Sample
-from inspect_ai.log import EvalLog, EvalLogInfo
+from inspect_ai.log import EvalLog, EvalLogInfo, HeadlineMetric
 from inspect_ai.model import GenerateConfig
-from inspect_ai.model._model import Model
+from inspect_ai.model._model import Model, ModelRoles
 from inspect_ai.model._util import resolve_model, resolve_model_roles
 from inspect_ai.scorer import Metric, Scorer
 from inspect_ai.scorer._reducer import ScoreReducers, create_reducers
@@ -91,7 +91,7 @@ class Task:
         | None = None,
         model: str | Model | None = None,
         config: GenerateConfig = GenerateConfig(),
-        model_roles: dict[str, str | Model] | None = None,
+        model_roles: ModelRoles | None = None,
         sandbox: SandboxEnvironmentType | None = None,
         checkpoint: CheckpointConfig | bool | None = None,
         on_checkpoint: OnCheckpointCallback | None = None,
@@ -114,6 +114,7 @@ class Task:
         metadata: dict[str, Any] | None = None,
         tags: list[str] | None = None,
         viewer: ViewerConfig | None = None,
+        headline_metric: HeadlineMetric | str | None = None,
         **kwargs: Unpack[TaskDeprecatedArgs],
     ) -> None:
         """Create a task.
@@ -130,7 +131,7 @@ class Task:
             metrics: Alternative metrics (overrides the metrics provided by the specified scorer).
             model: Default model for task (Optional, defaults to eval model).
             config: Model generation config for default model (does not apply to model roles)
-            model_roles: Named roles for use in `get_model()`.
+            model_roles: Named roles for use in `get_model()` (a role can also map to a list of models).
             sandbox: Sandbox environment type (or optionally a str or tuple with a shorthand spec)
             checkpoint: Checkpoint configuration for this task. `True` (or a
                 `CheckpointConfig`) enables checkpointing with the default
@@ -186,6 +187,14 @@ class Task:
             tags: Tags to associate with the task.
             viewer: Log viewer configuration for this task (controls how
                 scanner results are rendered in the sidebar).
+            headline_metric: Which score/metric best summarises this task (e.g.
+                for a leaderboard or log listing). A `str` names the scorer, as
+                `"<scorer>"` or `"<scorer>.<score>"` to address one value of a
+                scorer returning a dict of scores. Pass a `HeadlineMetric` to
+                also name the `metric` or `reducer`. Unset fields resolve by
+                convention, so `HeadlineMetric(metric="accuracy")` takes that
+                metric from the first score reporting it; the default is the
+                first metric of the first score.
             **kwargs: Deprecated arguments.
         """
         # handle deprecated args
@@ -247,6 +256,7 @@ class Task:
         self.metadata = metadata
         self.tags = tags
         self.viewer = viewer
+        self.headline_metric = resolve_headline_metric_spec(headline_metric)
 
     @property
     def name(self) -> str:
@@ -297,7 +307,7 @@ def task_with(
     | NotGiven = NOT_GIVEN,
     model: str | Model | NotGiven = NOT_GIVEN,
     config: GenerateConfig | NotGiven = NOT_GIVEN,
-    model_roles: dict[str, str | Model] | NotGiven = NOT_GIVEN,
+    model_roles: ModelRoles | NotGiven = NOT_GIVEN,
     sandbox: SandboxEnvironmentType | None | NotGiven = NOT_GIVEN,
     checkpoint: CheckpointConfig | bool | None | NotGiven = NOT_GIVEN,
     on_checkpoint: OnCheckpointCallback | None | NotGiven = NOT_GIVEN,
@@ -323,6 +333,7 @@ def task_with(
     metadata: dict[str, Any] | None | NotGiven = NOT_GIVEN,
     tags: list[str] | None | NotGiven = NOT_GIVEN,
     viewer: ViewerConfig | None | NotGiven = NOT_GIVEN,
+    headline_metric: HeadlineMetric | str | None | NotGiven = NOT_GIVEN,
 ) -> Task:
     """Task adapted with alternate values for one or more options.
 
@@ -343,7 +354,7 @@ def task_with(
         metrics: Alternative metrics (overrides the metrics provided by the specified scorer).
         model: Default model for task (Optional, defaults to eval model).
         config: Model generation config for default model (does not apply to model roles)
-        model_roles: Named roles for use in `get_model()`.
+        model_roles: Named roles for use in `get_model()` (a role can also map to a list of models).
         sandbox: Sandbox environment type (or optionally a str or tuple with a shorthand spec)
         checkpoint: Checkpoint configuration for this task. `True` (or a
             `CheckpointConfig`) enables checkpointing with the default
@@ -402,6 +413,8 @@ def task_with(
         tags: Tags to associate with the task.
         viewer: Log viewer configuration for this task (controls how
             scanner results are rendered in the sidebar).
+        headline_metric: Which score/metric best summarises this task (e.g. for a
+            leaderboard or log listing).
 
     Returns:
         Task: Passed `task` with modifications.
@@ -470,6 +483,8 @@ def task_with(
         task.tags = tags
     if not isinstance(viewer, NotGiven):
         task.viewer = viewer
+    if not isinstance(headline_metric, NotGiven):
+        task.headline_metric = resolve_headline_metric_spec(headline_metric)
 
     # return modified task
     return task
@@ -504,7 +519,7 @@ class PreviousTask:
     task: str | Task
     task_args: dict[str, Any]
     model: Model | None
-    model_roles: dict[str, Model] | None
+    model_roles: dict[str, Model | list[Model]] | None
     log: EvalLog
     log_info: EvalLogInfo | None
 
@@ -517,6 +532,21 @@ def resolve_approval(
         if isinstance(approval, str | ApprovalPolicyConfig)
         else approval
     )
+
+
+def resolve_headline_metric_spec(
+    headline_metric: HeadlineMetric | str | None,
+) -> HeadlineMetric | None:
+    """Expand the `"<scorer>.<score>"` shorthand accepted for a headline metric.
+
+    Split on the first dot: the trailing part addresses one value of a scorer
+    returning a dict of scores. A scorer whose own name contains a dot is named
+    by passing a `HeadlineMetric`, whose fields are matched literally.
+    """
+    if not isinstance(headline_metric, str):
+        return headline_metric
+    scorer, _, score = headline_metric.partition(".")
+    return HeadlineMetric(scorer=scorer, score=score or None)
 
 
 def resolve_epochs(epochs: int | Epochs | None) -> Epochs | None:
