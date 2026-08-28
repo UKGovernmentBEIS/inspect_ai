@@ -195,11 +195,11 @@ def react(
         if result is None:
             return None
 
-        # Prefer the answer from the tool call arguments: the result message
-        # has passed through max_tool_output truncation, which would replace
-        # a long answer with a truncation envelope (and produce a nested
-        # envelope when the completion is itself returned as a tool result,
-        # e.g. from a subagent).
+        # The result message above establishes that the submit succeeded, but
+        # its content has passed through max_tool_output truncation — so read
+        # the answer from the originating call's arguments instead (otherwise
+        # a long answer becomes a truncation envelope, nested once the
+        # completion is itself returned as a tool result, e.g. by a subagent).
         call = next(
             (c for c in (tool_calls or []) if c.id == result.tool_call_id), None
         )
