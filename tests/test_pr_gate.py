@@ -25,6 +25,7 @@ def make_ctx(**overrides):
         "linked_issue_labels": [],  # flattened labels across all closing issues
         "qualified_users": {111222},  # account ids from .github/qualified.yml
         "has_prior_nontrivial_merge": False,
+        "open_prs": 0,  # author's OTHER open PRs in this repo (excludes this one)
     }
     ctx.update(overrides)
     return ctx
@@ -180,6 +181,82 @@ def test_qualified_label_passes_despite_deferred():
         make_ctx(pr_labels=["qualified"], linked_issue_labels=["deferred"])
     )
     assert v.verdict == "pass" and v.tier == "qualified"
+
+
+# --- open-PR cap: the Established tier's "may open PRs directly" privilege
+# is bounded at OPEN_PR_CAP open PRs; the other pass paths are not (trivial
+# stays always-welcome, an accepted issue is maintainer-approved demand, and
+# qualified is a human vouch) ---
+
+
+def test_established_at_cap_is_closed():
+    v = pr_gate.decide(
+        make_ctx(has_prior_nontrivial_merge=True, open_prs=pr_gate.OPEN_PR_CAP)
+    )
+    assert v.verdict == "close" and v.tier == "capped"
+
+
+def test_established_just_under_cap_passes():
+    v = pr_gate.decide(
+        make_ctx(has_prior_nontrivial_merge=True, open_prs=pr_gate.OPEN_PR_CAP - 1)
+    )
+    assert v.verdict == "pass" and v.tier == "established"
+
+
+def test_cap_is_five():
+    assert pr_gate.OPEN_PR_CAP == 5
+
+
+def test_team_passes_despite_cap():
+    v = pr_gate.decide(make_ctx(author_association="MEMBER", open_prs=20))
+    assert v.verdict == "pass" and v.tier == "qualified"
+
+
+def test_accepted_issue_passes_despite_cap():
+    v = pr_gate.decide(
+        make_ctx(
+            has_prior_nontrivial_merge=True,
+            linked_issue_labels=["accepted"],
+            open_prs=9,
+        )
+    )
+    assert v.verdict == "pass" and v.tier == "issue-approved"
+
+
+def test_trivial_passes_despite_cap():
+    v = pr_gate.decide(
+        make_ctx(
+            files=[{"filename": "README.md", "additions": 2, "deletions": 0}],
+            has_prior_nontrivial_merge=True,
+            open_prs=9,
+        )
+    )
+    assert v.verdict == "pass" and v.tier == "trivial"
+
+
+def test_deferred_reported_over_capped():
+    v = pr_gate.decide(
+        make_ctx(
+            has_prior_nontrivial_merge=True,
+            linked_issue_labels=["deferred"],
+            open_prs=9,
+        )
+    )
+    assert v.verdict == "close" and v.tier == "deferred"
+
+
+def test_new_author_over_cap_still_reports_new():
+    v = pr_gate.decide(make_ctx(open_prs=9))
+    assert v.verdict == "close" and v.tier == "new"
+
+
+def test_capped_close_comment_is_distinct_and_marked():
+    body = pr_gate.capped_close_comment(6)
+    assert pr_gate.COMMENT_MARKER in body
+    assert str(pr_gate.OPEN_PR_CAP) in body
+    assert "reopen" in body.lower()
+    assert body != pr_gate.close_comment()
+    assert body != pr_gate.deferred_close_comment()
 
 
 # --- close comment ---

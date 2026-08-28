@@ -47,7 +47,9 @@ Devin, and similar) preparing contributions. Human contributors: see
 If you do open a PR: reference the accepted issue (`Fixes #NNN`); run
 `make check` and `make test` and report results honestly; disclose agent
 involvement in the PR description; one issue per PR — no bundled drive-by
-changes; respect the open-PR limit (4 per account without write access).
+changes; respect the open-PR limit (5 per account without write access,
+drafts included — enforced automatically; a PR over the limit is closed and
+can be reopened once the account is back under it).
 
 As part of disclosing agent involvement, include an `### Agent review`
 section in the PR description summarizing pre-PR review passes: what

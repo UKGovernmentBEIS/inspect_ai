@@ -12,7 +12,12 @@ Your path depends on your history with the project:
 
 - **Established contributors**: anyone with at least one merged non-trivial
   PR in this repository (trivial documentation fixes don't count toward this)
-  — may open PRs directly, subject to a limit of 4 open PRs at a time.
+  — may open PRs directly, subject to a limit of 5 open PRs at a time
+  (drafts count). A PR that would exceed the limit is closed automatically;
+  once you're back under it — by getting existing PRs merged or closing ones
+  you no longer want to pursue — reopen the closed PR and it will pass. A PR
+  linked to an issue a maintainer has labeled `accepted` is never blocked by
+  the limit.
   One caveat: an issue you filed yourself doesn't establish demand. A PR
   addressing your own issue needs that issue labeled `accepted` first, just
   as for new contributors — self-reported problems get maintainer sign-off
