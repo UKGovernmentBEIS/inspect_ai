@@ -137,6 +137,7 @@ class EvalRecorder(FileRecorder):
     ) -> str:
         # if the file exists then read summaries
         if not clean and location is not None and self.fs.exists(location):
+            destination_exists = True
             async with AsyncFilesystem() as fs:
                 reader = AsyncZipReader(fs, location)
                 log_start = await _read_start_async(reader)
@@ -146,6 +147,7 @@ class EvalRecorder(FileRecorder):
                     config_update_counter,
                 ) = await _read_config_updates_async(reader)
         else:
+            destination_exists = False
             log_start = None
             summary_counter = 0
             summaries = []
@@ -161,6 +163,7 @@ class EvalRecorder(FileRecorder):
             summaries,
             config_update_counter,
             config_updates,
+            destination_exists=destination_exists,
         )
 
         # track zip
@@ -215,10 +218,13 @@ class EvalRecorder(FileRecorder):
         # push the journal entry out to the destination log now rather than
         # waiting for the sample-flush cadence — updates are rare (a handful
         # per run) and the record should survive a crash from this point on.
-        # Skip when start.json hasn't been written yet (an inherited snapshot
-        # recorded at logger init): a zip without start.json isn't readable
-        # as an in-progress log, and log_start's own flush follows shortly.
-        if log.log_start is not None:
+        # Skip while the destination hasn't been written at all: an inherited
+        # snapshot recorded at logger init (a zip without start.json isn't
+        # readable as an in-progress log, and log_start's own flush follows
+        # shortly), or a held retry attempt deferring every destination write
+        # until its reuse sweep settles — the journal entry rides out with
+        # the settle flush.
+        if log.destination_written:
             await log.flush(fsync=False)
 
     @override
@@ -398,7 +404,9 @@ class EvalRecorder(FileRecorder):
                     None,
                 )
                 if sample is None:
-                    raise ValueError(f"Sample with uuid '{uuid}' not found in log.")
+                    raise IndexError(
+                        f"Sample with uuid '{uuid}' not found in log {location}"
+                    )
                 id = sample.id
                 epoch = sample.epoch
 
@@ -434,58 +442,60 @@ class EvalRecorder(FileRecorder):
         log: EvalLog,
         if_match_etag: str | None = None,
         header_only: bool = False,
-    ) -> None:
-        if filesystem(location).is_s3() and if_match_etag:
-            # Use S3 conditional write
-            await cls._write_log_s3_conditional(
+    ) -> str | None:
+        fs = filesystem(location)
+        if fs.is_s3() and (if_match_etag is not None or header_only):
+            return await cls._write_log_s3(
                 location, log, if_match_etag, header_only=header_only
             )
-        else:
-            # Standard write using the recorder (so we get all of the extra streams)
-            await _write_eval_log_with_recorder(
-                log, dirname(location), location, header_only=header_only
-            )
+
+        # Standard write using the recorder (so we get all of the extra streams)
+        return await _write_eval_log_with_recorder(
+            log, dirname(location), location, header_only=header_only
+        )
 
     @classmethod
-    async def _write_log_s3_conditional(
+    async def _write_log_s3(
         cls,
         location: str,
         log: EvalLog,
-        etag: str,
+        etag: str | None,
         header_only: bool = False,
-    ) -> None:
-        """Perform S3 conditional write for .eval format using boto3."""
+    ) -> str:
+        """Write an .eval log to S3 and return the upload response ETag."""
         bucket, key = _s3_bucket_and_key(location)
 
-        if header_only:
-            # Download the existing object, rewrite the zip in memory with a
-            # fresh header.json. Sample entries are untouched; any sample
-            # mutations on the in-memory log are discarded, matching the
-            # local .eval contract.
-            async with AsyncFilesystem() as async_fs:
-                s3_client = await async_fs.s3_client_async()
-                response = await s3_client.get_object(Bucket=bucket, Key=key)
-                body = await response["Body"].read()
-            log_bytes = _rewrite_eval_zip_with_new_header(body, log)
-        else:
-            # Full recreate goes through the recorder, which needs a
-            # filesystem path; read the result back into memory for upload.
-            with tempfile.TemporaryDirectory() as tmpdir:
-                temp_eval_file = os.path.join(tmpdir, "temp_log.eval")
-                await _write_eval_log_with_recorder(log, tmpdir, temp_eval_file)
-                with open(temp_eval_file, "rb") as f:
-                    log_bytes = f.read()
-
         async with AsyncFilesystem() as async_fs:
-            await _write_s3_conditional(
-                async_fs,
-                bucket,
-                key,
-                log_bytes,
-                etag,
-                location,
-                logger,
-            )
+            if header_only:
+                # Download the existing object, rewrite the zip in memory with a
+                # fresh header.json. Sample entries are untouched; any sample
+                # mutations on the in-memory log are discarded, matching the
+                # local .eval contract.
+                body = await async_fs.read_file(location)
+                log_bytes = _rewrite_eval_zip_with_new_header(body, log)
+            else:
+                # Full recreate goes through the recorder, which needs a
+                # filesystem path; read the result back into memory for upload.
+                with tempfile.TemporaryDirectory() as tmpdir:
+                    temp_eval_file = os.path.join(tmpdir, "temp_log.eval")
+                    await _write_eval_log_with_recorder(log, tmpdir, temp_eval_file)
+                    with open(temp_eval_file, "rb") as f:
+                        log_bytes = f.read()
+
+            if etag is not None:
+                return await _write_s3(
+                    async_fs,
+                    bucket,
+                    key,
+                    log_bytes,
+                    etag,
+                    location,
+                    logger,
+                )
+            write_etag = await async_fs.write_file(location, log_bytes)
+            if write_etag is None:
+                raise RuntimeError("S3 upload completed without returning an ETag")
+            return write_etag
 
 
 def _replace_eval_header_in_place(zip_path: str, log: EvalLog) -> None:
@@ -561,10 +571,9 @@ def _eval_log_header(log: EvalLog) -> EvalLog:
 def _rewrite_eval_zip_via_filesystem(location: str, log: EvalLog) -> None:
     """Read a remote .eval, rewrite zip with a new header, write it back.
 
-    Works for any fsspec-backed filesystem (S3, GCS, abfs, …). Used by the
-    unconditional header_only write path — the S3 conditional path inlines
-    the equivalent steps so it can route the upload through
-    `_write_s3_conditional` with `If-Match`.
+    Used for non-S3 fsspec-backed filesystems such as GCS and abfs. S3
+    header-only writes instead use `_write_log_s3` so they can return the
+    exact upload ETag and apply `If-Match` when requested.
     """
     with file(location, "rb") as f:
         existing_bytes = f.read()
@@ -632,14 +641,14 @@ async def _read_member_json_excluding(
 
 async def _write_eval_log_with_recorder(
     log: EvalLog, recorder_dir: str, output_file: str, header_only: bool = False
-) -> None:
+) -> str | None:
     """Helper function to write EvalLog using EvalRecorder pattern."""
     if header_only:
         if filesystem(output_file).is_local():
             _replace_eval_header_in_place(local_path(output_file), log)
         else:
             _rewrite_eval_zip_via_filesystem(output_file, log)
-        return
+        return None
 
     recorder = EvalRecorder(recorder_dir)
     await recorder.log_init(log.eval, output_file, clean=True)
@@ -647,7 +656,7 @@ async def _write_eval_log_with_recorder(
     for sample in log.samples or []:
         sample = condense_sample(sample)
         await recorder.log_sample(log.eval, sample)
-    await recorder.log_finish(
+    result = await recorder.log_finish(
         log.eval,
         log.status,
         log.stats,
@@ -658,6 +667,7 @@ async def _write_eval_log_with_recorder(
         log_updates=log.log_updates,
         config_updates=log.config_updates,
     )
+    return result.etag
 
 
 def _s3_bucket_and_key(location: str) -> tuple[str, str]:
@@ -670,25 +680,55 @@ def _s3_bucket_and_key(location: str) -> tuple[str, str]:
     return bucket, key
 
 
-async def _s3_conditional_put_object(
-    async_fs: AsyncFilesystem, bucket: str, key: str, body: bytes, etag: str
-) -> None:
-    """Helper function to perform S3 conditional write with aioboto3."""
+async def _s3_put_object(
+    async_fs: AsyncFilesystem,
+    bucket: str,
+    key: str,
+    body: bytes,
+    etag: str | None,
+) -> str:
+    """Write to S3 and return the ETag from that exact PutObject response."""
     s3_client = await async_fs.s3_client_async()
-    # Preflight HEAD: some S3-compatible backends (notably moto) do not honor the
-    # IfMatch header on put_object, so verify the current ETag matches before writing.
-    current = await s3_client.head_object(Bucket=bucket, Key=key)
-    current_etag = str(current["ETag"]).strip('"')
-    if current_etag != etag:
-        raise WriteConflictError(
-            f"Log file was modified by another process. Expected ETag: {etag}"
-        )
-    await s3_client.put_object(
-        Bucket=bucket,
-        Key=key,
-        Body=body,
-        IfMatch=f'"{etag}"',  # S3 requires quotes around ETag
-    )
+    put_args: dict[str, Any] = {"Bucket": bucket, "Key": key, "Body": body}
+    if etag is not None:
+        # Some S3-compatible backends (notably moto) do not honor IfMatch on
+        # put_object, so verify the current ETag before the conditional write.
+        current = await s3_client.head_object(Bucket=bucket, Key=key)
+        current_etag = str(current["ETag"]).strip('"')
+        if current_etag != etag:
+            raise WriteConflictError(
+                f"Log file was modified by another process. Expected ETag: {etag}"
+            )
+        put_args["IfMatch"] = f'"{etag}"'
+
+    response = await s3_client.put_object(**put_args)
+    return str(response["ETag"]).strip('"')
+
+
+async def _write_s3(
+    async_fs: AsyncFilesystem,
+    bucket: str,
+    key: str,
+    body: bytes,
+    etag: str | None,
+    location: str,
+    logger: logging.Logger,
+) -> str:
+    """Write to S3 with conditional-conflict translation when requested."""
+    from botocore.exceptions import ClientError
+
+    from inspect_ai._util.trace import trace_action
+
+    action = "Log Conditional Write" if etag is not None else "Log Write"
+    with trace_action(logger, action, location):
+        try:
+            return await _s3_put_object(async_fs, bucket, key, body, etag)
+        except ClientError as e:
+            if etag is not None and e.response["Error"]["Code"] == "PreconditionFailed":
+                raise WriteConflictError(
+                    f"Log file was modified by another process. Expected ETag: {etag}"
+                )
+            raise
 
 
 async def _s3_download_with_etag(
@@ -711,46 +751,6 @@ async def _s3_download_with_etag(
 
     etag: str = response["ETag"]
     return etag.strip('"')  # S3 returns ETag with quotes
-
-
-async def s3_head_etag(location: str) -> str:
-    """Return an S3 object's current ETag via a HEAD request.
-
-    Cheaper than `read_eval_log_async(..., header_only=True)` when the
-    caller only needs the ETag — no central-directory read, no zip
-    parsing, no body bytes. Used by the viewer's edit endpoint to
-    surface the post-write ETag without re-fetching the header.
-    """
-    bucket, key = _s3_bucket_and_key(location)
-    async with AsyncFilesystem() as async_fs:
-        s3_client = await async_fs.s3_client_async()
-        response = await s3_client.head_object(Bucket=bucket, Key=key)
-        return str(response["ETag"]).strip('"')
-
-
-async def _write_s3_conditional(
-    async_fs: AsyncFilesystem,
-    bucket: str,
-    key: str,
-    body: bytes,
-    etag: str,
-    location: str,
-    logger: logging.Logger,
-) -> None:
-    """Write to S3 with conditional check and error handling."""
-    from botocore.exceptions import ClientError
-
-    from inspect_ai._util.trace import trace_action
-
-    with trace_action(logger, "Log Conditional Write", location):
-        try:
-            await _s3_conditional_put_object(async_fs, bucket, key, body, etag)
-        except ClientError as e:
-            if e.response["Error"]["Code"] == "PreconditionFailed":
-                raise WriteConflictError(
-                    f"Log file was modified by another process. Expected ETag: {etag}"
-                )
-            raise
 
 
 def _copy_temp_to_local(temp_file: BinaryIO, dest: str, fsync: bool) -> None:
@@ -800,6 +800,8 @@ class ZipLogFile:
         self._config_update_counter = 0
         self._config_updates: list[ConfigUpdate] = []
         self._log_start: LogStart | None = None
+        self._destination_written = False
+        self._etag: str | None = None
 
     async def init(
         self,
@@ -808,6 +810,7 @@ class ZipLogFile:
         summaries: list[EvalSampleSummary],
         config_update_counter: int = 0,
         config_updates: list[ConfigUpdate] | None = None,
+        destination_exists: bool = False,
     ) -> None:
         async with self._lock:
             self._open()
@@ -816,10 +819,24 @@ class ZipLogFile:
             self._config_update_counter = config_update_counter
             self._config_updates = config_updates or []
             self._log_start = log_start
+            self._destination_written = destination_exists
 
     @property
     def log_start(self) -> LogStart | None:
         return self._log_start
+
+    @property
+    def destination_written(self) -> bool:
+        """Whether the destination log file has been written at least once.
+
+        True after a successful :meth:`flush`, or from the start when
+        ``init`` was seeded from an existing file (re-logging into an
+        existing log, e.g. ``score --overwrite``). Gates eager per-update
+        flushes in ``log_config_update``: while False the destination may
+        be deliberately absent (a held retry attempt before its reuse-sweep
+        settle flush), so nothing should force it into existence early.
+        """
+        return self._destination_written
 
     @property
     def config_updates(self) -> list[ConfigUpdate]:
@@ -1050,6 +1067,7 @@ class ZipLogFile:
             # (atomic local write, native S3 multipart upload, or chunked
             # copy via fsspec).
             written = True
+            etag: str | None = None
             with trace_action(logger, "Log Write", self._file):
                 try:
                     if self._fs.is_local():
@@ -1071,7 +1089,7 @@ class ZipLogFile:
                     else:
                         self._temp_file.seek(0)
                         async with AsyncFilesystem() as async_fs:
-                            await async_fs.write_file_streaming(
+                            etag = await async_fs.write_file_streaming(
                                 self._file, self._temp_file
                             )
                 finally:
@@ -1084,9 +1102,13 @@ class ZipLogFile:
             # cleared by ``write_buffered_samples``, which the flush callers run
             # first). A skipped write must NOT clear: ``buffered_sample`` falls
             # back to the on-disk log once cleared, which doesn't yet contain
-            # these samples.
+            # these samples. A skipped write likewise leaves
+            # ``_destination_written`` alone — nothing reached the destination,
+            # so the next successful flush is what sets it.
             if written:
                 self._streaming_samples.clear()
+                self._destination_written = True
+                self._etag = etag
 
     async def close(self, header_only: bool) -> EvalLog:
         async with self._lock:
@@ -1096,9 +1118,11 @@ class ZipLogFile:
                 # bytes: LazyList materialization goes through the sync
                 # read_eval_log(), which raises in a trio async context.
                 if not header_only and current_async_backend() == "trio":
-                    return _read_log_from_bytes(
+                    eval_log = _read_log_from_bytes(
                         self._temp_file, self._file, header_only=False
                     )
+                    eval_log.etag = self._etag
+                    return eval_log
                 # Always read header only from temp file (fast path)
                 eval_log = _read_log_from_bytes(
                     self._temp_file, self._file, header_only=True
@@ -1122,6 +1146,7 @@ class ZipLogFile:
                         )
                         lazy_data.reductions_list = reductions_lazy
                         eval_log.reductions = reductions_lazy  # type: ignore[assignment]
+                eval_log.etag = self._etag
                 return eval_log
             finally:
                 self._temp_file.close()

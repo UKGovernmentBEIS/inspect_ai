@@ -4,7 +4,7 @@ import logging
 import re
 from copy import copy
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Callable, Literal, TypeAlias, cast
+from typing import TYPE_CHECKING, Any, Callable, Literal, NamedTuple, TypeAlias, cast
 
 if TYPE_CHECKING:
     from inspect_ai.model._model import RetryDecision
@@ -13,12 +13,17 @@ from openai import (
     APIConnectionError,
     APIStatusError,
     APITimeoutError,
+    AsyncStream,
+    ContentFilterFinishReasonError,
+    LengthFinishReasonError,
     OpenAIError,
     RateLimitError,
 )
+from openai.lib.streaming.chat import ChatCompletionStreamState
 from openai.types.chat import (
     ChatCompletion,
     ChatCompletionAssistantMessageParam,
+    ChatCompletionChunk,
     ChatCompletionContentPartImageParam,
     ChatCompletionContentPartInputAudioParam,
     ChatCompletionContentPartParam,
@@ -97,6 +102,15 @@ from ._model_output import (
     StopReason,
     as_stop_reason,
     collect_stop_details,
+)
+from ._stream import (
+    StreamReasoningEvent,
+    StreamTextEvent,
+    StreamToolCallEvent,
+    model_stream_requested,
+    report_model_stream_delta,
+    report_model_stream_progress,
+    report_model_stream_start,
 )
 
 logger = logging.getLogger(__name__)
@@ -926,6 +940,115 @@ def model_output_from_openai(
             else None
         ),
     )
+
+
+async def openai_chat_completion_stream_final(
+    stream: AsyncStream[ChatCompletionChunk],
+) -> ChatCompletion:
+    """Consume a raw chat-completions chunk stream and return the final completion.
+
+    Accumulates chunks with the SDK's `ChatCompletionStreamState` rather than
+    the resource-level `.stream()` helper: the helper validates tools before
+    sending anything and raises `ValueError` for any function tool without
+    `strict: true`, which would fail every tool-using generate (inspect does
+    not set `strict` by default).
+
+    Reports each chunk once to the model layer's stream observer
+    (`inspect_ai.model._stream`), which fans out to the caller's `on_stream`
+    callback and the pending event's progress record.
+
+    The SDK's final parse raises on length-truncated and content-filtered
+    completions rather than returning them; both are recovered here so they
+    are handled like the non-streaming path (stop_reason "max_tokens" /
+    "content_filter").
+    """
+    # no input_tools/response_format: parsed arguments aren't used (choices
+    # are read from the raw completion), and parseable input would make the
+    # accumulator raise mid-stream on length/content_filter finish reasons
+    state: ChatCompletionStreamState[Any] = ChatCompletionStreamState()
+    report_model_stream_start()
+    tool_calls: dict[int, _StreamToolCallInfo] = {}
+    saw_chunk = False
+    async for chunk in stream:
+        saw_chunk = True
+        state.handle_chunk(chunk)
+        await _report_chat_completion_chunk(chunk, tool_calls)
+    if not saw_chunk:
+        # get_final_completion() would fail on a bare assert; raise a
+        # descriptive error instead (misbehaving server: 200 with empty body)
+        raise RuntimeError("Streaming response ended without delivering any chunks.")
+    try:
+        return state.get_final_completion()
+    except LengthFinishReasonError as ex:
+        return ex.completion
+    except ContentFilterFinishReasonError:
+        # the SDK raises without a payload; the snapshot carries
+        # finish_reason and any partial content
+        return state.current_completion_snapshot
+
+
+class _StreamToolCallInfo(NamedTuple):
+    """Attribution for a streamed tool call, remembered across fragments."""
+
+    id: str | None
+    function: str | None
+
+
+async def _report_chat_completion_chunk(
+    chunk: ChatCompletionChunk, tool_calls: dict[int, _StreamToolCallInfo]
+) -> None:
+    """Report one streamed chunk to the model layer's stream observer.
+
+    `tool_calls` remembers each call's id/function by index across chunks:
+    OpenAI streams them only on a call's first fragment, but reported deltas
+    attribute every fragment (matching the other providers' reporters).
+    Content deltas are gated on `model_stream_requested()` (see
+    `report_model_stream_delta`); the usage/heartbeat progress channel runs
+    regardless.
+    """
+    # cumulative usage arrives on the final chunk when the server reports it
+    # (e.g. via stream_options.include_usage)
+    if chunk.usage is not None:
+        report_model_stream_progress(chunk.usage.completion_tokens)
+
+    # report content deltas from the first choice only — interleaving multiple
+    # choices' fragments into the single delta stream would corrupt
+    # accumulating consumers (num_choices > 1)
+    delta = next((c.delta for c in chunk.choices if c.index == 0), None)
+    reported = False
+    if delta is not None and model_stream_requested():
+        # openai-compatible servers surface chain-of-thought as a
+        # reasoning_content/reasoning extra field on the delta
+        reasoning = getattr(delta, "reasoning_content", None) or getattr(
+            delta, "reasoning", None
+        )
+        if isinstance(reasoning, str) and reasoning:
+            await report_model_stream_delta(StreamReasoningEvent(reasoning=reasoning))
+            reported = True
+        if delta.content:
+            await report_model_stream_delta(StreamTextEvent(text=delta.content))
+            reported = True
+        for tool_call in delta.tool_calls or []:
+            function = tool_call.function
+            info = tool_calls.get(tool_call.index, _StreamToolCallInfo(None, None))
+            info = _StreamToolCallInfo(
+                id=tool_call.id or info.id,
+                function=(function.name if function is not None else None)
+                or info.function,
+            )
+            tool_calls[tool_call.index] = info
+            await report_model_stream_delta(
+                StreamToolCallEvent(
+                    id=info.id,
+                    function=info.function,
+                    arguments=(function.arguments or "")
+                    if function is not None
+                    else "",
+                )
+            )
+            reported = True
+    if not reported and chunk.usage is None:
+        report_model_stream_progress()
 
 
 def openai_stop_details(choice: Any) -> StopDetails | None:

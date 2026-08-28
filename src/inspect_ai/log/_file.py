@@ -37,6 +37,7 @@ from inspect_ai.log._condense import resolve_sample_attachments
 from inspect_ai.log._log import EvalSampleSummary
 from inspect_ai.log._resolve import rebind_sample_timelines, resolve_sample_events_data
 
+from ._headline import headline_metric
 from ._log import EvalLog, EvalMetric, EvalSample, EvalStatus
 from ._recorders import (
     recorder_type_for_bytes,
@@ -70,6 +71,13 @@ class EvalLogInfo(BaseModel):
 
     suffix: str | None
     """Log file suffix (e.g. "-scored")"""
+
+
+class WriteEvalLogResult(BaseModel):
+    """Result of writing an evaluation log."""
+
+    etag: str | None
+    """ETag of the written S3 object, or None for non-S3 locations."""
 
 
 class LogOverview(BaseModel):
@@ -396,7 +404,7 @@ def write_eval_log(
     format: Literal["eval", "json", "auto"] = "auto",
     if_match_etag: str | None = None,
     header_only: bool = False,
-) -> None:
+) -> WriteEvalLogResult:
     """Write an evaluation log.
 
     Args:
@@ -409,6 +417,10 @@ def write_eval_log(
        header_only (bool): If True, only write the header to the log file.
           For .eval files, this appends the header to the existing zip
           without rewriting samples. Defaults to False.
+
+    Returns:
+       WriteEvalLogResult containing the post-write S3 ETag (its `etag`
+       is None for non-S3 locations).
 
     Raises:
        WriteConflictError: If if_match_etag is provided and doesn't match
@@ -422,7 +434,7 @@ def write_eval_log(
 
     # will use s3fs and is not called from main inspect solver/scorer/tool/sandbox
     # flow, so force the use of asyncio
-    run_coroutine(
+    return run_coroutine(
         write_eval_log_async(
             log, location, format, if_match_etag, header_only=header_only
         )
@@ -435,7 +447,7 @@ async def write_eval_log_async(
     format: Literal["eval", "json", "auto"] = "auto",
     if_match_etag: str | None = None,
     header_only: bool = False,
-) -> None:
+) -> WriteEvalLogResult:
     """Write an evaluation log.
 
     Args:
@@ -448,6 +460,10 @@ async def write_eval_log_async(
        header_only (bool): If True, only write the header to the log file.
           For .eval files, this appends the header to the existing zip
           without rewriting samples. Defaults to False.
+
+    Returns:
+       WriteEvalLogResult containing the post-write S3 ETag (its `etag`
+       is None for non-S3 locations).
     """
     # resolve location
     if location is None:
@@ -472,9 +488,12 @@ async def write_eval_log_async(
         recorder_type = recorder_type_for_location(location)
     else:
         recorder_type = recorder_type_for_format(format)
-    await recorder_type.write_log(location, log, if_match_etag, header_only=header_only)
+    etag = await recorder_type.write_log(
+        location, log, if_match_etag, header_only=header_only
+    )
 
     logger.debug(f"Writing eval log to {location} completed")
+    return WriteEvalLogResult(etag=etag)
 
 
 def write_log_dir_manifest(
@@ -1088,7 +1107,7 @@ def read_eval_log_samples(
 def manifest_eval_log_name(info: EvalLogInfo, log_dir: str, sep: str) -> str:
     # ensure that log dir has a trailing seperator
     if not log_dir.endswith(sep):
-        log_dir = f"{log_dir}/"
+        log_dir = f"{log_dir}{sep}"
 
     # slice off log_dir from the front
     log = info.name.replace(log_dir, "")
@@ -1304,16 +1323,18 @@ def write_log_listing(
 def to_overview(header: EvalLog) -> LogOverview:
     """Convert an EvalLog header to a thinned overview."""
     # Get the primary metric if it exists
-    primary_metric: EvalMetric | None = None
-    if (
-        header.results is not None
-        and header.results.scores
-        and (first_scorer := header.results.scores[0]).metrics
-    ):
-        primary_metric = next(iter(first_scorer.metrics.values()))
+    resolved_headline = headline_metric(header)
+    primary_metric: EvalMetric | None = (
+        resolved_headline.metric if resolved_headline else None
+    )
 
+    # a role bound to a list of models is shown as comma-separated names
+    # (LogOverview keeps a flat string per role)
     model_roles = (
-        {role: cfg.model for role, cfg in header.eval.model_roles.items()}
+        {
+            role: ",".join(mc.model for mc in (cfg if isinstance(cfg, list) else [cfg]))
+            for role, cfg in header.eval.model_roles.items()
+        }
         if header.eval.model_roles
         else None
     )

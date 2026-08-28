@@ -16,6 +16,7 @@ from inspect_ai.util._concurrency import concurrency as concurrency_manager
 from inspect_ai.util._display import display_type, display_type_plain
 from inspect_ai.util._subprocess import ExecResult, subprocess
 
+from .config import is_auto_compose_file
 from .prereqs import (
     DOCKER_COMPOSE_REQUIRED_VERSION_PULL_POLICY,
     validate_docker_compose,
@@ -139,13 +140,14 @@ async def compose_ps(
     ]
     | None = None,
     all: bool = False,
+    timeout: int = 300,
 ) -> list[dict[str, Any]]:
     command = ["ps", "--format", "json"]
     if all:
         command.append("--all")
     if status:
         command = command + ["--status", status]
-    result = await compose_command(command, project=project, timeout=300)
+    result = await compose_command(command, project=project, timeout=timeout)
     if not result.success:
         msg = f"Error querying for running services: {result.stderr}"
         raise RuntimeError(msg)
@@ -182,6 +184,49 @@ async def compose_pull(
         timeout=None,  # no timeout for pull
         capture_output=capture_output,
     )
+
+
+PREBUILT_IMAGES_ERROR_PREFIX = (
+    "Sandbox images are expected to be prebuilt (sandbox_prebuilt is set) but "
+)
+
+
+async def compose_verify_prebuilt_images(
+    project: ComposeProject, services: dict[str, ComposeService]
+) -> None:
+    unnamed: list[str] = []
+    missing: list[str] = []
+    for name, service in services.items():
+        if "build" not in service and not service.get("x-local"):
+            continue
+        image = service.get("image")
+        if not image:
+            unnamed.append(name)
+        elif not await docker_image_exists_locally(image):
+            missing.append(f"{name} ({image})")
+    problems: list[str] = []
+    if unnamed:
+        if project.config is not None and is_auto_compose_file(project.config):
+            problems.append(
+                "the task's sandbox config does not name an 'image' under which a "
+                "prebuilt image can be located. Name one via an 'image' key in a "
+                "compose.yaml, or via 'image' on the sandbox's ComposeService"
+            )
+        else:
+            problems.append(
+                "no prebuilt image can be located for these services because they have a 'build' "
+                "section but no 'image' key. Add an explicit 'image' name to the compose file and "
+                f"provide the image under that name: {', '.join(unnamed)}"
+            )
+    if missing:
+        problems.append(
+            "these services' images are not present in the Docker image store: "
+            f"{', '.join(missing)}"
+        )
+    if problems:
+        raise PrerequisiteError(
+            PREBUILT_IMAGES_ERROR_PREFIX + ". Additionally, ".join(problems)
+        )
 
 
 async def docker_image_exists_locally(image: str) -> bool:

@@ -1,6 +1,8 @@
 import json
 import math
+import os
 import shutil
+import signal
 import tempfile
 import threading
 import time
@@ -928,20 +930,25 @@ def test_task_identifier_with_model_roles_model_configs():
 )
 def test_task_identifier_ignores_runtime_config(field: str, value: object):
     # runtime concurrency / caching knobs don't affect outputs and shouldn't
-    # break eval_set resume — for any of the three GenerateConfig sites that
-    # feed task_identifier: the primary model's config, the eval_set-level
-    # config (which becomes eval_plan.config), and each role model's config.
+    # break eval_set resume — for any of the GenerateConfig sites that feed
+    # task_identifier: the primary model's config, the eval_set-level config
+    # (which becomes eval_plan.config), and each role model's config (both
+    # single-model roles and every element of list-valued roles).
     tuned = GenerateConfig.model_validate({field: value})
 
     def ident(
         primary_cfg: GenerateConfig = GenerateConfig(),
         plan_cfg: GenerateConfig = GenerateConfig(),
         role_cfg: GenerateConfig = GenerateConfig(),
+        role_list_cfg: GenerateConfig = GenerateConfig(),
     ) -> str:
         p = get_model("mockllm/model", config=primary_cfg)
         r = get_model("mockllm/scorer", config=role_cfg)
+        # role_list_cfg lands on a non-first list element so the test catches
+        # an exclusion that only reaches index 0
+        r2 = get_model("mockllm/scorer2", config=role_list_cfg)
         t = hello_world()
-        task_with(t, model=p, model_roles={"scorer": r})
+        task_with(t, model=p, model_roles={"scorer": r, "graders": [r, r2]})
         (resolved,) = resolve_tasks([t], {}, p, None, None, None)
         return task_identifier(resolved, EvalSetArgsInTaskIdentifier(config=plan_cfg))
 
@@ -949,6 +956,7 @@ def test_task_identifier_ignores_runtime_config(field: str, value: object):
     assert ident(primary_cfg=tuned) == baseline, f"primary model config: {field}"
     assert ident(plan_cfg=tuned) == baseline, f"eval_plan.config: {field}"
     assert ident(role_cfg=tuned) == baseline, f"role model config: {field}"
+    assert ident(role_list_cfg=tuned) == baseline, f"role list model config: {field}"
 
     # sanity: a field that DOES affect identity still changes the hash on
     # every path, so the test isn't trivially passing.
@@ -956,6 +964,7 @@ def test_task_identifier_ignores_runtime_config(field: str, value: object):
     assert ident(primary_cfg=semantic) != baseline
     assert ident(plan_cfg=semantic) != baseline
     assert ident(role_cfg=semantic) != baseline
+    assert ident(role_list_cfg=semantic) != baseline
 
 
 def test_task_identifier_ignores_role_base_url():
@@ -964,7 +973,7 @@ def test_task_identifier_ignores_role_base_url():
     # part of a role model's identifier either.
     primary = get_model("mockllm/model")
 
-    def ident(role: Model) -> str:
+    def ident(role: Model | list[Model]) -> str:
         t = hello_world()
         task_with(t, model=primary, model_roles={"scorer": role})
         (resolved,) = resolve_tasks([t], {}, primary, None, None, None)
@@ -974,6 +983,14 @@ def test_task_identifier_ignores_role_base_url():
 
     assert ident(get_model("mockllm/scorer")) == ident(
         get_model("mockllm/scorer", base_url="http://localhost:8000")
+    )
+
+    # same for every element of a list-valued role
+    assert ident([get_model("mockllm/scorer"), get_model("mockllm/scorer2")]) == ident(
+        [
+            get_model("mockllm/scorer"),
+            get_model("mockllm/scorer2", base_url="http://localhost:8000"),
+        ]
     )
 
 
@@ -2110,6 +2127,67 @@ def test_eval_set_retry_immediate(retry_immediate: bool | None) -> None:
             errored_sample,
             errored_sample,
         ]
+
+
+def test_retry_attempt_killed_mid_sweep_leaves_completed_samples_reusable(
+    tmp_path: Path,
+) -> None:
+    """A retry attempt hard-killed before its reuse sweep settles loses nothing.
+
+    Regression for the failure in ``design/retry-deferred-destination-log.md``:
+    the killed attempt used to leave a start-only log that became the newest
+    log for the task, so the next retry found nothing to reuse and re-ran every
+    completed sample (permanently losing them once ``retry_cleanup`` deleted
+    the prior log). The attempt now writes nothing until its sweep settles, so
+    the kill leaves no file and the next retry chains to the prior log.
+    """
+    import subprocess
+    import sys
+
+    log_dir = str(tmp_path / "logs")
+    probe_dir = str(tmp_path / "probe")
+    os.makedirs(log_dir)
+    os.makedirs(probe_dir)
+    tests_dir = Path(__file__).parent
+    harness = str(tests_dir / "test_helpers" / "retry_deferred_log_harness.py")
+
+    def run_harness(kill_at_settle: bool) -> subprocess.CompletedProcess[bytes]:
+        env = {
+            **os.environ,
+            "PYTHONPATH": os.pathsep.join(
+                p for p in (str(tests_dir), os.environ.get("PYTHONPATH", "")) if p
+            ),
+        }
+        if kill_at_settle:
+            env["INSPECT_TEST_KILL_AT_SETTLE"] = "1"
+        return subprocess.run(
+            [sys.executable, harness, log_dir, probe_dir], env=env, timeout=600
+        )
+
+    # attempt 1 completes s1 and errors s2; the in-process retry attempt is
+    # killed the moment its reuse sweep settles
+    killed = run_harness(kill_at_settle=True)
+    assert killed.returncode == -signal.SIGKILL, (
+        f"expected the child to die by SIGKILL; got returncode {killed.returncode}"
+    )
+
+    # the killed attempt wrote no destination log, so the newest log for the
+    # task is still attempt 1's — the one holding the completed s1
+    logs = list_eval_logs(log_dir)
+    assert len(logs) == 1
+    assert read_eval_log(logs[0].name, header_only=True).status == "error"
+
+    # a fresh eval_set pass reuses s1 and re-runs only s2
+    assert run_harness(kill_at_settle=False).returncode == 0
+
+    with open(os.path.join(probe_dir, "solver_calls.txt")) as f:
+        calls = f.read().split()
+    assert calls.count("s1") == 1, f"s1 was re-run instead of reused: {calls}"
+
+    final = read_eval_log(max(list_eval_logs(log_dir), key=lambda i: i.name).name)
+    assert final.status == "success"
+    assert final.samples is not None
+    assert {(s.id, s.epoch) for s in final.samples} == {("s1", 1), ("s2", 1)}
 
 
 def test_carried_forward_samples_remain_condensed() -> None:
