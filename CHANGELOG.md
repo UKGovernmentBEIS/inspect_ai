@@ -1,10 +1,12 @@
 ## Unreleased
 
 - Human Agent: End-of-input (e.g. Ctrl+D) at the `task submit`/`task quit` confirmation prompt now declines cleanly instead of raising an `EOFError` traceback.
+- Model streaming: stream-event handling — including live partial-output snapshots in inspect view — now runs only when `on_stream` is passed, so it can no longer fail model calls that stream without a callback.
 - Eval logs: Users can chain conditional S3 writes using the ETag returned by `write_eval_log()` and `write_eval_log_async()`.
 - Breaking (tests only) Sandboxes: `inspect_ai.util._sandbox.self_check` is now a collection of plain pytest tests. See docstring for migration instructions.
 - Eval Set: A worker running a selection now skips the tasks it was not selected to run, so a large eval set need not cost every worker its full startup memory.
 - Eval Set: A selection document's operational overrides gain a dataset `limit` and `max_sandboxes`.
+- Grok: Requests now carry xAI's conversation id header, which improves prompt cache hit rates for multi-turn samples.
 - OpenAI: Function call outputs without a `call_id` (optional as of openai 3.5.0) no longer error in the agent bridge or token-count padding.
 - Scoring: Skip Score.unscored() / NaN-at-root sentinels in aggregate() metric. (#5008)
 - Scoring: Return inf on OverflowError in perplexity_per_token() and perplexity_per_seq() metrics. (#5028)
@@ -43,6 +45,8 @@
 - Model roles can now be bound to a list of models (e.g. `model_roles={"grader": [...]}`), with model-graded scorers grading by majority vote across the list.
 - Checkpointing: Sandbox snapshots now support selectable strategies (per sandbox, settable at the sample, task, or eval layer) — incremental restic (default) or self-contained per-checkpoint archives captured with in-image tools only.
 - Bugfix: Resuming a sample from a checkpoint no longer restarts its token, cost, turn, time, and working budgets from zero.
+- Models: Provider HTTP connection settings are now tunable with `INSPECT_HTTP_*` environment variables, and connection setup gets 60s rather than the SDKs' 5s.
+- Mistral: Requests are no longer capped at the SDK's flat 5s timeout, which cut off generations that took longer.
 
 ## 0.3.260 (21 August 2026)
 

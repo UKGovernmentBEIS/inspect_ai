@@ -1,6 +1,7 @@
 import json
 import os
 import time
+from collections.abc import Mapping
 from copy import copy
 from typing import Any, Literal, cast
 
@@ -40,7 +41,7 @@ from inspect_ai._util.content import (
 )
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.images import inline_media_data_uri
-from inspect_ai.log._samples import set_active_model_event_call
+from inspect_ai.log._samples import sample_active, set_active_model_event_call
 from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.model._chat_message import (
     ChatMessage,
@@ -90,6 +91,12 @@ XAI_BASE_URL = "XAI_BASE_URL"
 GROK_API_KEY = "GROK_API_KEY"
 GROK_BASE_URL = "GROK_BASE_URL"
 
+# xAI's prompt cache is per-server, and requests are otherwise load balanced
+# across servers. This header pins a conversation to one server so its turns
+# hit the cache the earlier turns populated.
+# https://docs.x.ai/developers/advanced-api-usage/prompt-caching/maximizing-cache-hits
+GROK_CONV_ID_HEADER = "x-grok-conv-id"
+
 # xAI model-name tokens for non-generative models (image/video generation,
 # embeddings) that must never be treated as a "latest" frontier chat model
 # by is_latest().
@@ -99,6 +106,33 @@ _NON_GENERATIVE_TOKENS = (
     "embedding",
     "tts",
 )
+
+
+def _client_metadata(metadata: Any) -> tuple[tuple[str, str], ...]:
+    """Normalize a caller-supplied `metadata` model arg to the SDK's shape.
+
+    `-M metadata=...` arrives as JSON, so it may be a mapping, or pairs may be
+    lists rather than the tuples `AsyncClient` expects. A mapping must be
+    handled explicitly: iterating one yields bare keys, which would unpack into
+    silently wrong header pairs.
+    """
+    if metadata is None:
+        return ()
+    if isinstance(metadata, Mapping):
+        metadata = metadata.items()
+    return tuple((str(key), str(value)) for key, value in metadata)
+
+
+def _grok_conv_id() -> str | None:
+    """Conversation id for xAI's cache server-affinity header.
+
+    A sample is Inspect's unit of conversation: every turn of its agent loop
+    shares a growing prefix, so pinning them to one server is what makes the
+    cache hit. Outside a sample there is no conversation to key on, so the
+    header is omitted and requests are load balanced as before.
+    """
+    active = sample_active()
+    return active.sample_uuid if active is not None else None
 
 
 def _sdk_supports_xhigh_effort() -> bool:
@@ -175,6 +209,9 @@ class GrokAPI(ModelAPI):
                 ("grpc.enable_retries", 0),
                 ("grpc.service_config", "{}"),
             ]
+        # held apart from model_args so model_client() can extend rather than
+        # collide with it when adding the conversation id header
+        self.client_metadata = _client_metadata(model_args.pop("metadata", None))
         self.model_args = model_args
 
         # initialize batcher
@@ -232,11 +269,15 @@ class GrokAPI(ModelAPI):
         # is_at_least_grok_4() and the DB-miss branch of input_tokens_name()
         return "grok" not in name
 
-    def model_client(self) -> AsyncClient:
+    def model_client(self, conv_id: str | None = None) -> AsyncClient:
+        metadata = self.client_metadata
+        if conv_id is not None:
+            metadata += ((GROK_CONV_ID_HEADER, conv_id),)
         return AsyncClient(
             api_key=self.api_key,
             api_host=self.base_url,
             timeout=3600,
+            metadata=metadata or None,
             **self.model_args,
         )
 
@@ -283,6 +324,12 @@ class GrokAPI(ModelAPI):
             else grok_tool_choice,
             **grok_params,
         )
+        # batch requests share one long-lived client, so they can't carry a
+        # per-conversation header (and aren't multi-turn conversations anyway)
+        conv_id = None if self._batcher else _grok_conv_id()
+        if conv_id is not None:
+            request["metadata"] = {GROK_CONV_ID_HEADER: conv_id}
+
         if self._batcher and config.response_schema is not None:
             schema_model = json_schema_to_base_model(config.response_schema.json_schema)
             # Batch queue payloads are dict-shaped; encode full schema here so the
@@ -305,7 +352,7 @@ class GrokAPI(ModelAPI):
                 # used in the direct path below.
                 chat_response = await self._batcher.generate_for_request(request)
             else:
-                async with self.model_client() as client:
+                async with self.model_client(conv_id) as client:
                     # chat call
                     chat = client.chat.create(
                         model=self.service_model_name(),
@@ -687,26 +734,29 @@ async def _report_grok_stream_chunk(chunk: Chunk) -> None:
     Text and reasoning stream as fragments; tool calls arrive whole (id, name
     and complete arguments in one chunk). Chunks carry the server's cumulative
     usage; report it when present (a proto3 zero means "not reported"), else a
-    bare heartbeat for chunks with no content.
+    bare heartbeat for chunks with no content. Content deltas are gated on
+    `model_stream_requested()` (see `report_model_stream_delta`); the
+    usage/heartbeat progress channel runs regardless.
     """
     reported = False
-    if chunk.reasoning_content:
-        await report_model_stream_delta(
-            StreamReasoningEvent(reasoning=chunk.reasoning_content)
-        )
-        reported = True
-    if chunk.content:
-        await report_model_stream_delta(StreamTextEvent(text=chunk.content))
-        reported = True
-    for tool_call in chunk.tool_calls:
-        await report_model_stream_delta(
-            StreamToolCallEvent(
-                id=tool_call.id,
-                function=tool_call.function.name,
-                arguments=tool_call.function.arguments,
+    if model_stream_requested():
+        if chunk.reasoning_content:
+            await report_model_stream_delta(
+                StreamReasoningEvent(reasoning=chunk.reasoning_content)
             )
-        )
-        reported = True
+            reported = True
+        if chunk.content:
+            await report_model_stream_delta(StreamTextEvent(text=chunk.content))
+            reported = True
+        for tool_call in chunk.tool_calls:
+            await report_model_stream_delta(
+                StreamToolCallEvent(
+                    id=tool_call.id,
+                    function=tool_call.function.name,
+                    arguments=tool_call.function.arguments,
+                )
+            )
+            reported = True
     completion_tokens = chunk.proto.usage.completion_tokens
     if completion_tokens > 0:
         report_model_stream_progress(completion_tokens)
