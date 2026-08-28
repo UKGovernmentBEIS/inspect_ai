@@ -140,6 +140,7 @@ from inspect_ai._util.http import (
     parse_retry_after_from_exception,
 )
 from inspect_ai._util.http_defaults_httpx2 import (
+    DEFAULT_REQUEST_TIMEOUT,
     default_async_client,
     default_timeout,
 )
@@ -347,9 +348,21 @@ class AnthropicAPI(ModelAPI):
             return model_args
         # Handing httpx objects to an httpx2-based SDK is what broke every
         # OpenAI request under openai 3.0.
-        if not isinstance(getattr(anthropic, "DEFAULT_TIMEOUT", None), httpx2.Timeout):
+        sdk_timeout = getattr(anthropic, "DEFAULT_TIMEOUT", None)
+        if not isinstance(sdk_timeout, httpx2.Timeout):
             return model_args
-        model_args.setdefault("timeout", default_timeout())
+        # The SDK gates its "streaming is required for long requests" guard on
+        # `client.timeout == DEFAULT_TIMEOUT`, so hand back that exact object
+        # unless an operator overrode the budget. Substituting an equivalent
+        # timeout turns an immediate ValueError into a request that stalls to
+        # the read deadline and then retries. The connect floor still reaches
+        # the wire: the event hook raises the deadline the SDK stamps.
+        timeout = default_timeout(
+            request_timeout=sdk_timeout.read or DEFAULT_REQUEST_TIMEOUT
+        )
+        model_args.setdefault(
+            "timeout", sdk_timeout if timeout.read == sdk_timeout.read else timeout
+        )
         model_args["http_client"] = default_async_client()
         return model_args
 

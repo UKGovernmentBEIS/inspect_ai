@@ -14,6 +14,7 @@ import pytest
 from test_helpers.utils import skip_if_trio
 
 import inspect_ai._util._async as _async_backend
+import inspect_ai._util.logger as logger_module
 from inspect_ai._util import http_defaults, http_defaults_httpx2
 from inspect_ai._util.http_defaults import (
     CONNECT_RETRIES_ENV,
@@ -215,6 +216,36 @@ def test_an_unusable_env_value_keeps_the_caller_default(
     monkeypatch.setenv(POOL_CONNECTIONS_ENV, value)
     assert defaults.default_timeout(request_timeout=60.0).read == 60.0
     assert defaults.default_limits(max_connections=None).max_connections is None
+
+
+@pytest.mark.parametrize("defaults", DEFAULT_MODULES)
+def test_a_zero_connection_pool_is_rejected(
+    monkeypatch: pytest.MonkeyPatch, defaults: Any
+) -> None:
+    # A pool of zero can never issue a request, so it is junk rather than a
+    # deliberately tiny setting.
+    monkeypatch.setenv(POOL_CONNECTIONS_ENV, "0")
+    assert defaults.default_limits().max_connections == DEFAULT_POOL_CONNECTIONS
+
+
+@pytest.mark.parametrize("defaults", DEFAULT_MODULES)
+@pytest.mark.parametrize(
+    "var,value", [(CONNECT_TIMEOUT_ENV, "60s"), (POOL_CONNECTIONS_ENV, "0")]
+)
+def test_an_ignored_env_value_is_warned_about(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    var: str,
+    value: str,
+    defaults: Any,
+) -> None:
+    # Falling back silently leaves an operator believing their setting took.
+    monkeypatch.setattr(logger_module, "_warned", [])
+    monkeypatch.setenv(var, value)
+    with caplog.at_level("WARNING"):
+        defaults.default_limits()
+        defaults.default_timeout()
+    assert any(var in r.message and value in r.message for r in caplog.records)
 
 
 @pytest.mark.parametrize("defaults,httpx_mod", FLAVORS)
@@ -535,10 +566,7 @@ async def anthropic_transport_timeout(api: AnthropicAPI) -> dict[str, float]:
 
 class TestAnthropicDefaults:
     def test_client_gets_the_defaults(self) -> None:
-        # This provider passes no timeout of its own, so without this it
-        # inherits the SDK's connect=5s.
         client = anthropic_api().client
-        assert timeout_of(client).connect == DEFAULT_CONNECT_TIMEOUT
         pool = pool_of(client._client._transport)
         assert pool._max_keepalive_connections == DEFAULT_POOL_CONNECTIONS
         assert pool._retries == DEFAULT_CONNECT_RETRIES
@@ -553,6 +581,31 @@ class TestAnthropicDefaults:
     def test_caller_http_client_wins(self) -> None:
         supplied = httpx2.AsyncClient()
         assert anthropic_api(http_client=supplied).client._client is supplied
+
+    async def test_the_sdk_long_request_guard_still_fires(self) -> None:
+        # The SDK runs this check only while `client.timeout` is its own
+        # DEFAULT_TIMEOUT. Substituting an equivalent timeout would turn an
+        # immediate ValueError into a request that stalls to the read deadline
+        # and then retries — the failure this module exists to remove.
+        api = anthropic_api()
+        # The guard fires before any request, so this transport should never be
+        # reached — it is here so a regression fails offline instead of calling
+        # the live API.
+        capture_timeout(api.client._client, _MESSAGE, httpx2)
+        with pytest.raises(ValueError, match="Streaming is required"):
+            await api.client.messages.create(
+                model="m",
+                max_tokens=100_000,
+                messages=[{"role": "user", "content": "hi"}],
+            )
+
+    def test_an_operator_budget_still_reaches_the_client(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Overriding the budget necessarily gives up the SDK guard above; the
+        # operator asked for it, so their value must win.
+        monkeypatch.setenv(REQUEST_TIMEOUT_ENV, "123")
+        assert timeout_of(anthropic_api().client).read == 123.0
 
     def test_skipped_when_sdk_is_not_httpx_based(
         self, monkeypatch: pytest.MonkeyPatch
@@ -671,6 +724,28 @@ class TestGroqDefaults:
         supplied = httpx.AsyncClient()
         api = GroqAPI(model_name="m", api_key="gsk-test", http_client=supplied)
         assert api.client._client is supplied
+
+
+def test_mistral_gets_the_defaults() -> None:
+    # The SDK client it replaces applies a flat 5s to every phase.
+    from inspect_ai.model._providers.mistral import MistralAPI
+
+    api = MistralAPI(model_name="mistral-large-latest", api_key="test")
+    client = api._http_default_args()["async_client"]
+    assert client.timeout.connect == DEFAULT_CONNECT_TIMEOUT
+    pool = pool_of(client._transport)
+    assert pool._retries == DEFAULT_CONNECT_RETRIES
+    assert (socket.SOL_SOCKET, socket.SO_KEEPALIVE, True) in pool._socket_options
+
+
+def test_mistral_caller_async_client_wins() -> None:
+    from inspect_ai.model._providers.mistral import MistralAPI
+
+    supplied = httpx.AsyncClient()
+    api = MistralAPI(
+        model_name="mistral-large-latest", api_key="test", async_client=supplied
+    )
+    assert api._http_default_args()["async_client"] is supplied
 
 
 def test_google_uses_the_defaults_on_its_httpx_path(

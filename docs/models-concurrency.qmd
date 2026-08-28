@@ -200,7 +200,7 @@ Two of these interact with settings a provider may already have:
 
 - A provider whose SDK default is deliberately different keeps that default until you set the variable. Groq, for example, uses a tighter request budget and an unbounded connection pool; setting `INSPECT_HTTP_REQUEST_TIMEOUT` or `INSPECT_HTTP_POOL_CONNECTIONS` overrides it.
 
-These settings reach the OpenAI, OpenAI-compatible (including vLLM, SGLang, Ollama, OpenRouter, Together and the other `openai-api/` services), Anthropic and Groq providers.
+These settings reach the OpenAI, OpenAI-compatible (including vLLM, SGLang, Ollama, OpenRouter, Together and the other `openai-api/` services), Anthropic, Groq and Mistral providers.
 
 Google under Trio gets the pool and connect-retry settings but not the deadlines: it applies its own overall budget to every request, which is already far longer than the connect floor.
 

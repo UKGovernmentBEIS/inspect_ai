@@ -45,6 +45,7 @@
 - Checkpointing: Sandbox snapshots now support selectable strategies (per sandbox, settable at the sample, task, or eval layer) — incremental restic (default) or self-contained per-checkpoint archives captured with in-image tools only.
 - Bugfix: Resuming a sample from a checkpoint no longer restarts its token, cost, turn, time, and working budgets from zero.
 - Models: Provider HTTP connection settings are now tunable with `INSPECT_HTTP_*` environment variables, and connection setup gets 60s rather than the SDKs' 5s.
+- Mistral: Requests are no longer capped at the SDK's flat 5s timeout, which cut off generations that took longer.
 
 ## 0.3.260 (21 August 2026)
 

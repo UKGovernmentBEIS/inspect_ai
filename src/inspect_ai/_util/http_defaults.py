@@ -47,9 +47,14 @@ from __future__ import annotations
 
 import os
 import socket
+from logging import getLogger
 from typing import Any, overload
 
 import httpx
+
+from inspect_ai._util.logger import warn_once
+
+logger = getLogger(__name__)
 
 
 def _no_environment_proxies() -> dict[str, str | None]:
@@ -78,6 +83,11 @@ KEEPALIVE_EXPIRY_ENV = "INSPECT_HTTP_KEEPALIVE_EXPIRY"
 CONNECT_RETRIES_ENV = "INSPECT_HTTP_CONNECT_RETRIES"
 
 
+def _ignored(name: str, raw: str, reason: str, fallback: object) -> None:
+    # Silence would leave an operator believing a setting took effect.
+    warn_once(logger, f"Ignoring {name}={raw!r} ({reason}); using {fallback} instead.")
+
+
 def _env_float(name: str, fallback: float) -> float:
     """A non-negative float from the environment, `fallback` on unset or junk."""
     raw = os.environ.get(name)
@@ -86,28 +96,36 @@ def _env_float(name: str, fallback: float) -> float:
     try:
         value = float(raw)
     except ValueError:
+        _ignored(name, raw, "not a number", fallback)
         return fallback
-    return value if value >= 0 else fallback
+    if value < 0:
+        _ignored(name, raw, "must be >= 0", fallback)
+        return fallback
+    return value
 
 
 @overload
-def _env_int(name: str, fallback: int) -> int: ...
+def _env_int(name: str, fallback: int, *, minimum: int = 0) -> int: ...
 
 
 @overload
-def _env_int(name: str, fallback: None) -> int | None: ...
+def _env_int(name: str, fallback: None, *, minimum: int = 0) -> int | None: ...
 
 
-def _env_int(name: str, fallback: int | None) -> int | None:
-    """A non-negative int from the environment, `fallback` on unset or junk."""
+def _env_int(name: str, fallback: int | None, *, minimum: int = 0) -> int | None:
+    """A whole number >= `minimum` from the environment, `fallback` on unset or junk."""
     raw = os.environ.get(name)
     if raw is None or not raw.strip():
         return fallback
     try:
         value = int(raw)
     except ValueError:
+        _ignored(name, raw, "not a whole number", fallback)
         return fallback
-    return value if value >= 0 else fallback
+    if value < minimum:
+        _ignored(name, raw, f"must be >= {minimum}", fallback)
+        return fallback
+    return value
 
 
 def connect_timeout() -> float:
@@ -136,7 +154,8 @@ def default_limits(
     The argument is only the fallback, so a provider whose pool is deliberately
     uncapped can pass None and keep it until an operator sets the variable.
     """
-    connections = _env_int(POOL_CONNECTIONS_ENV, max_connections)
+    # A zero-connection pool can never issue a request, so it is junk not a setting.
+    connections = _env_int(POOL_CONNECTIONS_ENV, max_connections, minimum=1)
     return httpx.Limits(
         max_connections=connections,
         # Tracks the pool size unless set outright, so lowering the limit
