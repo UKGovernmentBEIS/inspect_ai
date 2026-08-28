@@ -39,6 +39,7 @@ from inspect_ai.model._providers.util.llama31 import Llama31Handler
 from inspect_ai.tool import ToolChoice, ToolInfo
 from inspect_ai.util._json import JSON_SCHEMA_EXTENDED_FIELDS
 
+from ..._util.http_defaults_httpx2 import connect_timeout, default_client_kwargs
 from .._chat_message import ChatMessage, ChatMessageTool
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI, RetryDecision
@@ -162,16 +163,22 @@ class OpenAICompatibleAPI(ModelAPI):
 
     def _create_http_client(self) -> DefaultAsyncHttpxClient:
         # DefaultAsyncHttpxClient is the SDK's own httpx2.AsyncClient with
-        # OpenAI's recommended defaults (timeout, connection limits, redirect
-        # and proxy handling). Source the client from the SDK rather than
-        # hand-building an httpx client with equivalent defaults: a client and
-        # its config objects must be the same httpx flavor — a mismatch
-        # silently corrupts the timeout config (#4837).
+        # OpenAI's recommended defaults. Source the client from the SDK rather
+        # than hand-building one: a client and its config objects must be the
+        # same httpx flavor — a mismatch silently corrupts the timeout config
+        # (#4837). Our kwargs win over its setdefaults.
         if self.client_timeout is not None:
+            # client_timeout is the overall budget and must not shorten the
+            # connect deadline.
             return DefaultAsyncHttpxClient(
-                timeout=httpx2.Timeout(timeout=self.client_timeout, connect=5.0)
+                **default_client_kwargs(
+                    timeout=httpx2.Timeout(
+                        timeout=self.client_timeout,
+                        connect=max(self.client_timeout, connect_timeout()),
+                    )
+                )
             )
-        return DefaultAsyncHttpxClient()
+        return DefaultAsyncHttpxClient(**default_client_kwargs())
 
     def _create_client(self) -> AsyncOpenAI:
         return AsyncOpenAI(
