@@ -117,10 +117,8 @@ async def test_model_complexity_rejection_is_incorrect() -> None:
 
     assert result is not None
     assert result.value == INCORRECT
-    assert result.metadata == {
-        "math_scorer_status": "answer_limit",
-        "reason": "invalid_response_format",
-    }
+    assert result.reason == "invalid_response_format"
+    assert result.metadata == {"math_scorer_status": "answer_limit"}
 
 
 @pytest.mark.parametrize(
@@ -133,18 +131,18 @@ async def test_model_complexity_rejection_is_incorrect() -> None:
         ),
     ],
 )
-async def test_parse_failure_tags_reason_metadata(output: str) -> None:
-    """Tag answer-extraction failures with a machine-readable reason.
+async def test_parse_failure_records_invalid_response_format(output: str) -> None:
+    """Record answer-extraction failures in the machine-readable `reason`.
 
     Prose answers compare as text and score plain incorrect, so
     `answer_parse_error` is reserved for output yielding no readable
     candidate at all (empty completions, rejected payloads). That is a
     format violation by the model under test: it stays INCORRECT (it must
-    not inflate accuracy by leaving the metric denominator), with the
-    reason recorded so analysis can separate "wrong answer" from "couldn't
-    parse an answer" (#4091 / #4567 convention). The full completion is
-    surfaced as the answer when no candidate was extracted, per the
-    custom-scorers guidance for extraction scorers.
+    not inflate accuracy by leaving the metric denominator), with `reason`
+    recording the failure mode so analysis can separate "wrong answer" from
+    "couldn't parse an answer". The full completion is surfaced as the
+    answer when no candidate was extracted, per the custom-scorers guidance
+    for extraction scorers.
     """
     scorer = math()
     state = simple_task_state(model_output=output)
@@ -152,9 +150,8 @@ async def test_parse_failure_tags_reason_metadata(output: str) -> None:
 
     assert result is not None
     assert result.value == INCORRECT
-    assert result.metadata is not None
-    assert result.metadata["reason"] == "invalid_response_format"
-    assert result.metadata["math_scorer_status"] == "answer_parse_error"
+    assert result.reason == "invalid_response_format"
+    assert result.metadata == {"math_scorer_status": "answer_parse_error"}
     assert result.answer == output
 
 
@@ -166,6 +163,7 @@ async def test_parse_success_with_wrong_value_has_no_reason() -> None:
 
     assert result is not None
     assert result.value == INCORRECT
+    assert result.reason is None
     assert result.metadata == {"math_scorer_status": "incorrect"}
     assert result.answer == "5"
 
