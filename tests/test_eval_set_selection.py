@@ -1,8 +1,10 @@
 import json
 import os
+import socket
 import subprocess
 import sys
 import textwrap
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
@@ -448,6 +450,170 @@ def test_eval_set_selection_forces_fail_on_error_off(
     assert logs[0].results is not None
     assert logs[0].results.total_samples == 2
     assert logs[0].results.completed_samples == 1
+
+
+def _acp_probe_tasks(
+    observed: list[bool], discovered: list[tuple[int, str]] | None = None
+) -> list[Task]:
+    """One sample that records whether ACP is the live human channel."""
+
+    @solver
+    def observe_acp() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            from inspect_ai.agent._acp.discovery import list_discovered_evals
+            from inspect_ai.agent._acp.server import acp_server_accepting_clients
+
+            observed.append(acp_server_accepting_clients())
+            if discovered is not None:
+                discovered.extend(
+                    (e.pid, str(e.target.socket_path)) for e in list_discovered_evals()
+                )
+            return state
+
+        return solve
+
+    @scorer(metrics=[accuracy()])
+    def always_correct() -> Scorer:
+        async def score(state: TaskState, target: Target) -> Score:
+            return Score(value="C")
+
+        return score
+
+    return [
+        Task(
+            dataset=[Sample(id="one", input="one")],
+            solver=observe_acp(),
+            scorer=always_correct(),
+            name="acp_probe",
+        )
+    ]
+
+
+@pytest.fixture
+def short_acp_dir(monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
+    """Point the ACP discovery dir at /tmp so AF_UNIX paths fit in 104 bytes.
+
+    pytest's `tmp_path` is buried under `/private/var/folders/...` on macOS,
+    which is over the limit before the socket name is appended.
+    """
+    import shutil
+    import tempfile
+
+    dirpath = Path(tempfile.mkdtemp(prefix="acp_", dir="/tmp"))
+    monkeypatch.setattr(
+        "inspect_ai.agent._acp.discovery.inspect_data_dir",
+        lambda subdir: _mkdir(dirpath / (subdir or "")),
+    )
+    try:
+        yield dirpath
+    finally:
+        shutil.rmtree(dirpath, ignore_errors=True)
+
+
+@pytest.mark.skipif(
+    not hasattr(socket, "AF_UNIX"), reason="AF_UNIX sockets not available."
+)
+def test_eval_set_selection_binds_an_acp_server(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, short_acp_dir: Path
+) -> None:
+    """A selection-mode worker is reachable over ACP without being asked.
+
+    Detached, the human-input chain is ACP -> Textual panel -> console, and a
+    worker has neither of the last two. Binding the server is what turns
+    `approver: human` and `ask_user()` from an errored sample in a successful
+    log into a sample that parks for someone to attach to.
+    """
+    observed: list[bool] = []
+    discovered: list[tuple[int, str]] = []
+
+    kwargs: dict[str, Any] = dict(
+        model="mockllm/model",
+        log_dir=str(tmp_path / "logs"),
+        display="plain",
+    )
+    manifest_path = tmp_path / "manifest.json"
+    monkeypatch.setenv(INSPECT_EVAL_SET_CAPTURE, str(manifest_path))
+    try:
+        with pytest.raises(SystemExit):
+            eval_set(tasks=_acp_probe_tasks([]), **kwargs)
+    finally:
+        monkeypatch.delenv(INSPECT_EVAL_SET_CAPTURE)
+    capture = EvalSetCapture.model_validate_json(manifest_path.read_bytes())
+    # nothing bound during the enumeration pass -- it never runs a sample
+    assert observed == []
+
+    selection_path = tmp_path / "selection.json"
+    selection_path.write_text(
+        selection_for(capture.tasks[0].identifier).model_dump_json()
+    )
+    monkeypatch.setenv(INSPECT_EVAL_SET_SELECTION, str(selection_path))
+    try:
+        success, logs = eval_set(tasks=_acp_probe_tasks(observed, discovered), **kwargs)
+    finally:
+        monkeypatch.delenv(INSPECT_EVAL_SET_SELECTION)
+
+    assert success
+    assert logs[0].status == "success"
+    # the routing shims commit to ACP rather than falling through to a panel
+    # and a console that are not there
+    assert observed == [True]
+    # and the socket is discoverable from the pid, which is all an external
+    # runner knows about the worker it spawned
+    expected = (short_acp_dir / "acp" / f"{os.getpid()}.sock").resolve()
+    assert discovered == [(os.getpid(), str(expected))]
+
+
+def test_eval_set_selection_fails_on_an_unbindable_acp_path(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A worker that cannot bind its ACP server fails at startup.
+
+    Worker mode is detached: ACP *is* the human channel, and the panel and
+    console the routing would otherwise fall through to are a display that
+    does not exist and a closed stdin. So a path that cannot be bound (here,
+    one past the `sun_path` limit) is not a lost surface with a fallback
+    behind it -- it is a worker that would run until something asked for a
+    person and then error a sample, which is worth refusing up front.
+    """
+    too_long = tmp_path / ("d" * 120)
+    monkeypatch.setattr(
+        "inspect_ai.agent._acp.discovery.inspect_data_dir",
+        lambda subdir: _mkdir(too_long / (subdir or "")),
+    )
+
+    observed: list[bool] = []
+    kwargs: dict[str, Any] = dict(
+        model="mockllm/model",
+        log_dir=str(tmp_path / "logs"),
+        display="plain",
+    )
+    manifest_path = tmp_path / "manifest.json"
+    monkeypatch.setenv(INSPECT_EVAL_SET_CAPTURE, str(manifest_path))
+    try:
+        with pytest.raises(SystemExit):
+            eval_set(tasks=_acp_probe_tasks([]), **kwargs)
+    finally:
+        monkeypatch.delenv(INSPECT_EVAL_SET_CAPTURE)
+    capture = EvalSetCapture.model_validate_json(manifest_path.read_bytes())
+
+    selection_path = tmp_path / "selection.json"
+    selection_path.write_text(
+        selection_for(capture.tasks[0].identifier).model_dump_json()
+    )
+    monkeypatch.setenv(INSPECT_EVAL_SET_SELECTION, str(selection_path))
+    try:
+        with pytest.raises(OSError, match="path too long"):
+            eval_set(tasks=_acp_probe_tasks(observed), **kwargs)
+    finally:
+        monkeypatch.delenv(INSPECT_EVAL_SET_SELECTION)
+
+    # it failed before running a sample rather than while pretending to work
+    assert observed == []
+
+
+def _mkdir(path: Path) -> Path:
+    path.mkdir(parents=True, exist_ok=True)
+    return path.resolve()
 
 
 def test_eval_set_selection_honors_retry_on_error(

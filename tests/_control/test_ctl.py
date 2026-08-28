@@ -539,6 +539,22 @@ def test_activity_cell_renders_retry_wait() -> None:
     assert _format_activity(overdue, now) == "retrying"
 
 
+def test_activity_cell_renders_pending_human_interaction() -> None:
+    import time
+
+    from inspect_ai._cli.ctl._render import _format_activity
+
+    # sample `now` after building so elapsed rounds to the intended value
+    approval = _activity("approval", 372, detail="bash")
+    two = _activity("approval", 372, detail="bash", count=2)
+    question = _activity("question", 123, detail="")
+    now = time.time()
+    # the gated tool call names the approval; a question has no subject
+    assert _format_activity(approval, now) == "approval: bash 6:12"
+    assert _format_activity(two, now) == "2 approvals 6:12"
+    assert _format_activity(question, now) == "question 2:03"
+
+
 def test_activity_cell_degrades_for_unknown_type_and_null() -> None:
     import time
 
