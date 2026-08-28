@@ -1534,3 +1534,51 @@ async def test_eval_recorder_log_sample_write_through(tmp_path) -> None:
     summaries = await recorder.sample_summaries(spec)
     assert summaries is not None
     assert [(s.id, s.epoch) for s in summaries] == [(1, 1)]
+
+
+@pytest.mark.anyio
+async def test_file_recorder_read_log_sample_uuid_and_missing_args() -> None:
+    from unittest.mock import patch
+
+    from inspect_ai.log._log import EvalConfig, EvalDataset, EvalSpec
+    from inspect_ai.log._recorders.file import FileRecorder
+
+    fake_log = EvalLog(
+        eval=EvalSpec(
+            task="t",
+            task_id="1",
+            run_id="1",
+            created="2026-01-01T00:00:00Z",
+            model="m",
+            dataset=EvalDataset(name="d", samples=1),
+            config=EvalConfig(),
+        ),
+        samples=[
+            EvalSample(
+                id=1,
+                epoch=1,
+                uuid="real-uuid",
+                input="test input",
+                target="test target",
+            )
+        ],
+    )
+
+    with patch.object(FileRecorder, "_log_file_maybe_cached", return_value=fake_log):
+        # Missing both id and uuid
+        with pytest.raises(
+            ValueError, match=r"You must specify an 'id' or 'uuid' to read"
+        ):
+            await FileRecorder.read_log_sample("dummy.eval")
+
+        # Nonexistent uuid
+        with pytest.raises(
+            IndexError,
+            match=r"Sample with uuid 'missing-uuid' not found in log dummy\.eval",
+        ):
+            await FileRecorder.read_log_sample("dummy.eval", uuid="missing-uuid")
+
+        # Existing uuid
+        sample = await FileRecorder.read_log_sample("dummy.eval", uuid="real-uuid")
+        assert sample.id == 1
+        assert sample.uuid == "real-uuid"

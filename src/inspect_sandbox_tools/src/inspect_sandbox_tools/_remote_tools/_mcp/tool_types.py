@@ -1,6 +1,6 @@
-from mcp import JSONRPCRequest, StdioServerParameters
-from mcp.types import JSONRPCNotification
 from pydantic import BaseModel
+
+from .jsonrpc_types import JSONRPCNotification, JSONRPCRequest, StdioServerParameters
 
 
 class McpBaseParams(BaseModel):

@@ -41,7 +41,7 @@ from inspect_ai._util.file import filesystem
 from inspect_ai._util.samples import parse_sample_id, parse_samples_limit
 from inspect_ai.log._file import log_file_info
 from inspect_ai.log._log import EvalConfig, EvalLog
-from inspect_ai.model import GenerateConfig, GenerateConfigArgs, Model, get_model
+from inspect_ai.model import GenerateConfig, GenerateConfigArgs, Model
 from inspect_ai.model._cache import CachePolicy
 from inspect_ai.model._generate_config import (  # noqa: F811
     BatchConfig,
@@ -49,7 +49,7 @@ from inspect_ai.model._generate_config import (  # noqa: F811
     OutputModality,
     ResponseSchema,
 )
-from inspect_ai.model._model_config import ModelConfig
+from inspect_ai.model._model_config import ModelConfig, model_config_to_model
 from inspect_ai.scorer._reducer import create_reducers
 from inspect_ai.solver._solver import SolverSpec
 from inspect_ai.util import AdaptiveConcurrency
@@ -108,6 +108,7 @@ MAX_SUBPROCESSES_HELP = (
 )
 MAX_SANDBOXES_HELP = "Maximum number of sandboxes (per-provider) to run in parallel."
 NO_SANDBOX_CLEANUP_HELP = "Do not cleanup sandbox environments after task completes"
+SANDBOX_PREBUILT_HELP = "Treat sandbox images as prebuilt (skip builds and fail at startup when an image is missing)"
 FAIL_ON_ERROR_HELP = "Threshold of sample errors to tolerage (by default, evals fail when any error occurs). Value between 0 to 1 to set a proportion; value greater than 1 to set a count."
 NO_LOG_SAMPLES_HELP = "Do not include samples in the log file."
 NO_LOG_REALTIME_HELP = (
@@ -256,7 +257,9 @@ def scanner_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         envvar="INSPECT_EVAL_SCAN_MODEL_ROLE",
         help=(
             "Named scanner-side model role with model name or YAML/JSON config "
-            "(e.g. --scan-model-role grader=mockllm/model)."
+            "(e.g. --scan-model-role grader=mockllm/model). Bind multiple models "
+            "to a role with a comma-separated list of names or a YAML/JSON list "
+            "of configs."
         ),
     )
     @click.option(
@@ -315,7 +318,7 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         multiple=True,
         type=str,
         envvar="INSPECT_EVAL_MODEL_ROLE",
-        help='Named model role with model name or YAML/JSON config, e.g. --model-role critic=openai/gpt-4o or --model-role grader="{model: mockllm/model, temperature: 0.5}"',
+        help='Named model role with model name or YAML/JSON config, e.g. --model-role critic=openai/gpt-4o or --model-role grader="{model: mockllm/model, temperature: 0.5}". Bind multiple models to a role with a comma-separated list of names or a YAML/JSON list of configs, e.g. --model-role grader=openai/gpt-4o,google/gemini-2.0-flash',
     )
     @click.option(
         "-T",
@@ -418,6 +421,13 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         is_flag=True,
         help=NO_SANDBOX_CLEANUP_HELP,
         envvar="INSPECT_EVAL_NO_SANDBOX_CLEANUP",
+    )
+    @click.option(
+        "--sandbox-prebuilt",
+        type=bool,
+        is_flag=True,
+        help=SANDBOX_PREBUILT_HELP,
+        envvar="INSPECT_EVAL_SANDBOX_PREBUILT",
     )
     @click.option(
         "--checkpoint",
@@ -1099,6 +1109,7 @@ def _eval_command_impl(
     notification: bool | str | None,
     sandbox: str | None,
     no_sandbox_cleanup: bool | None,
+    sandbox_prebuilt: bool | None,
     checkpoint: str | None,
     acp_server: bool | int | str | None,
     ctl_server: bool | str | None,
@@ -1230,6 +1241,7 @@ def _eval_command_impl(
         notification=notification,
         sandbox=sandbox,
         no_sandbox_cleanup=no_sandbox_cleanup,
+        sandbox_prebuilt=sandbox_prebuilt,
         checkpoint=checkpoint,
         epochs=epochs,
         epochs_reducer=epochs_reducer,
@@ -1398,6 +1410,7 @@ def eval_set_command(
     metadata: tuple[str, ...] | None,
     sandbox: str | None,
     no_sandbox_cleanup: bool | None,
+    sandbox_prebuilt: bool | None,
     checkpoint: str | None,
     acp_server: bool | int | str | None,
     ctl_server: bool | str | None,
@@ -1549,6 +1562,7 @@ def eval_set_command(
             notification=notification,
             sandbox=sandbox,
             no_sandbox_cleanup=no_sandbox_cleanup,
+            sandbox_prebuilt=sandbox_prebuilt,
             checkpoint=checkpoint,
             epochs=epochs,
             epochs_reducer=epochs_reducer,
@@ -1619,7 +1633,9 @@ class RunConfigInput(BaseModel):
 
     task: str | TaskInput | None = None
     model: str | ModelConfig | None = None
-    model_roles: dict[str, ModelConfig] = Field(default_factory=dict)
+    model_roles: dict[str, ModelConfig | list[ModelConfig]] = Field(
+        default_factory=dict
+    )
     generate_config: GenerateConfig = Field(default_factory=GenerateConfig)
     eval_config: EvalConfig = Field(default_factory=EvalConfig)
     solver: str | SolverInput | None = None
@@ -1679,9 +1695,9 @@ class RunConfigInput(BaseModel):
         # Model roles
         if self.model_roles:
             params["model_roles"] = {
-                role: get_model(
-                    mc.model, config=mc.config, base_url=mc.base_url, **mc.args
-                )
+                role: [model_config_to_model(m) for m in mc]
+                if isinstance(mc, list)
+                else model_config_to_model(mc)
                 for role, mc in self.model_roles.items()
             }
 
@@ -1866,6 +1882,7 @@ def eval_exec(
     notification: bool | str | None,
     sandbox: str | None,
     no_sandbox_cleanup: bool | None,
+    sandbox_prebuilt: bool | None,
     checkpoint: str | None,
     acp_server: bool | int | str | None,
     ctl_server: bool | str | None,
@@ -2019,6 +2036,7 @@ def eval_exec(
 
     # resolve negating options
     sandbox_cleanup = False if no_sandbox_cleanup else None
+    sandbox_prebuilt = True if sandbox_prebuilt else None
     log_samples = False if no_log_samples else None
     log_realtime = False if no_log_realtime else None
     log_images = False if log_images is False else None
@@ -2044,6 +2062,7 @@ def eval_exec(
             notification=notification,
             sandbox=parse_sandbox(sandbox),
             sandbox_cleanup=sandbox_cleanup,
+            sandbox_prebuilt=sandbox_prebuilt,
             checkpoint=parse_checkpoint(checkpoint),
             log_level=log_level,
             log_level_transcript=log_level_transcript,
@@ -2470,6 +2489,12 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     help=NO_SANDBOX_CLEANUP_HELP,
 )
 @click.option(
+    "--sandbox-prebuilt",
+    type=bool,
+    is_flag=True,
+    help=SANDBOX_PREBUILT_HELP,
+)
+@click.option(
     "--trace",
     type=bool,
     is_flag=True,
@@ -2671,6 +2696,7 @@ def eval_retry_command(
     max_subprocesses: int | None,
     max_sandboxes: int | None,
     no_sandbox_cleanup: bool | None,
+    sandbox_prebuilt: bool | None,
     trace: bool | None,
     fail_on_error: bool | float | None,
     no_fail_on_error: bool | None,
@@ -2736,6 +2762,7 @@ def eval_retry_command(
 
         # resolve negating options
         sandbox_cleanup = False if no_sandbox_cleanup else None
+        sandbox_prebuilt = True if sandbox_prebuilt else None
         log_samples = False if no_log_samples else None
         log_realtime = False if no_log_realtime else None
         log_images = False if log_images is False else None
@@ -2816,6 +2843,7 @@ def eval_retry_command(
                 max_subprocesses=max_subprocesses,
                 max_sandboxes=max_sandboxes,
                 sandbox_cleanup=sandbox_cleanup,
+                sandbox_prebuilt=sandbox_prebuilt,
                 trace=trace,
                 fail_on_error=fail_on_error,
                 continue_on_fail=continue_on_fail,

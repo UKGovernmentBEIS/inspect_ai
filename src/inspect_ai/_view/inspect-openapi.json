@@ -338,6 +338,22 @@
         "title": "ApproverPolicyConfig",
         "type": "object"
       },
+      "ArchiveSnapshots": {
+        "description": "One complete compressed tar archive per checkpoint.\n\nCaptures with tools already present in effectively every image\n(tar, dd, sha256sum, zstd or gzip) \u2014 nothing is injected into the\nsandbox. Each checkpoint's archive is self-contained, so restore\nreads a single file. Best choice when restic injection is\nimpractical, or when the captured data is dominated by large,\nhigh-entropy, frequently-rewritten files where incremental backup\nstores roughly the full dataset again at every checkpoint anyway.\n\nUnlike restic (which encrypts its repository with a per-sample\npassword), archives are written unencrypted: checkpoint data \u2014\nincluding any credentials or keys the agent wrote into captured\npaths \u2014 lands in the checkpoint storage location (possibly S3) as\nplaintext tar archives.",
+        "properties": {
+          "name": {
+            "const": "archive",
+            "default": "archive",
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "ArchiveSnapshots",
+        "type": "object"
+      },
       "AttachmentData": {
         "properties": {
           "content": {
@@ -1278,7 +1294,7 @@
         "type": "object"
       },
       "CheckpointSampleConfig": {
-        "description": "Checkpoint configuration fields that may be set at the sample layer.\n\nThese fields can be specified on ``Sample(checkpoint=...)`` and are\nalso accepted at the task and eval layers (where they participate in\nthe per-field merge \u2014 precedence: eval > sample > task).\n\nThe fields excluded from this base class \u2014 ``checkpoints_location``\nand ``retention`` \u2014 are eval-wide concerns that the sample layer must\nnot influence. They live only on the derived :class:`CheckpointConfig`,\nwhich is the type used at the task and eval layers.",
+        "description": "Checkpoint configuration fields that may be set at the sample layer.\n\nThese fields can be specified on ``Sample(checkpoint=...)`` and are\nalso accepted at the task and eval layers (where they participate in\nthe per-field merge \u2014 precedence: eval > sample > task). Capture\nconfiguration \u2014 what to snapshot and with which strategy \u2014 is a\nproperty of the sample's workload, so it lives here.\n\nExcluded from the sample layer: ``checkpoints_location`` and\n``retention``. These are eval-wide storage-policy concerns that the\nsample layer must not influence; they live only on\n:class:`CheckpointConfig`, the subclass used at the task and eval\nlayers.",
         "properties": {
           "max_consecutive_failures": {
             "anyOf": [
@@ -1295,10 +1311,17 @@
             "anyOf": [
               {
                 "additionalProperties": {
-                  "items": {
-                    "type": "string"
-                  },
-                  "type": "array"
+                  "anyOf": [
+                    {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    {
+                      "$ref": "#/components/schemas/SandboxSnapshotConfig"
+                    }
+                  ]
                 },
                 "type": "object"
               },
@@ -2711,6 +2734,17 @@
             ],
             "title": "Sandbox Cleanup"
           },
+          "sandbox_prebuilt": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sandbox Prebuilt"
+          },
           "score_display": {
             "anyOf": [
               {
@@ -3198,6 +3232,16 @@
               }
             ]
           },
+          "headline": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HeadlineMetric"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "metadata": {
             "anyOf": [
               {
@@ -3654,6 +3698,17 @@
               }
             ]
           },
+          "message_limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message Limit"
+          },
           "messages": {
             "items": {
               "anyOf": [
@@ -3775,6 +3830,17 @@
             ],
             "title": "Target"
           },
+          "time_limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Time Limit"
+          },
           "timelines": {
             "anyOf": [
               {
@@ -3891,6 +3957,17 @@
             "title": "Limit",
             "type": "number"
           },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
           "type": {
             "enum": [
               "context",
@@ -3990,6 +4067,27 @@
               }
             ],
             "title": "Metadata"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "invalid_response_format",
+                  "refusal",
+                  "no_response",
+                  "grader_failed",
+                  "scoring_failed"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
           },
           "sample_id": {
             "anyOf": [
@@ -4168,6 +4266,17 @@
             ],
             "title": "Limit"
           },
+          "limit_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Limit Reason"
+          },
           "message_count": {
             "anyOf": [
               {
@@ -4178,6 +4287,17 @@
               }
             ],
             "title": "Message Count"
+          },
+          "message_limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message Limit"
           },
           "metadata": {
             "additionalProperties": true,
@@ -4261,6 +4381,17 @@
               }
             ],
             "title": "Target"
+          },
+          "time_limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Time Limit"
           },
           "token_limit": {
             "anyOf": [
@@ -4624,6 +4755,16 @@
             ],
             "title": "Eval Set Id"
           },
+          "headline_metric": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HeadlineMetric"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "metadata": {
             "anyOf": [
               {
@@ -4699,7 +4840,17 @@
             "anyOf": [
               {
                 "additionalProperties": {
-                  "$ref": "#/components/schemas/ModelConfig"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ModelConfig"
+                    },
+                    {
+                      "items": {
+                        "$ref": "#/components/schemas/ModelConfig"
+                      },
+                      "type": "array"
+                    }
+                  ]
                 },
                 "type": "object"
               },
@@ -5774,6 +5925,57 @@
           }
         },
         "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "HeadlineMetric": {
+        "description": "Reference to the headline metric of an eval.\n\nThe headline metric is the single number that best summarises an eval (e.g.\nfor a leaderboard or log listing). Set fields narrow ``EvalResults.scores``\nin turn; unset ones resolve by convention. A ``metric`` on its own selects\nthe first score *carrying* that metric, so ``HeadlineMetric(metric=\"accuracy\")``\nskips scores that don't report one. With no ``metric``, the first metric of\nthe first remaining score is used \u2014 the default when nothing is declared.\n\nFields are matched literally. ``Task(headline_metric=...)`` additionally\naccepts a ``\"<scorer>.<score>\"`` shorthand string, which is split into these\nfields before it reaches the model \u2014 scorer names may themselves contain a\ndot (``@scorer(name=\"judge.v2\")``), so the shorthand is only applied where\nit is unambiguously requested.",
+        "properties": {
+          "metric": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metric"
+          },
+          "reducer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reducer"
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score"
+          },
+          "scorer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scorer"
+          }
+        },
+        "title": "HeadlineMetric",
         "type": "object"
       },
       "ImageOutput": {
@@ -7820,6 +8022,22 @@
         "title": "ResponseSchema",
         "type": "object"
       },
+      "ResticSnapshots": {
+        "description": "Incremental restic-based sandbox snapshots (the default).\n\nEach checkpoint stores only data changed since the previous one.\nBest choice when most files are stable across checkpoints. Requires\ninjecting a restic binary into the sandbox.",
+        "properties": {
+          "name": {
+            "const": "restic-incremental",
+            "default": "restic-incremental",
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "ResticSnapshots",
+        "type": "object"
+      },
       "Result": {
         "description": "Scan result.",
         "properties": {
@@ -8547,6 +8765,52 @@
         "title": "SandboxEvent",
         "type": "object"
       },
+      "SandboxSnapshotConfig": {
+        "description": "Per-sandbox snapshot configuration: what to capture and how.\n\nUsed as a ``sandbox_paths`` value in place of a bare path list when\na sandbox needs a non-default snapshot strategy. The ``paths``\nfield carries the same semantics as a bare path-list value\n(``None`` = the sandbox default user's home directory; an empty\nlist opts the sandbox out entirely).",
+        "properties": {
+          "paths": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paths"
+          },
+          "strategy": {
+            "anyOf": [
+              {
+                "discriminator": {
+                  "mapping": {
+                    "archive": "#/components/schemas/ArchiveSnapshots",
+                    "restic-incremental": "#/components/schemas/ResticSnapshots"
+                  },
+                  "propertyName": "name"
+                },
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/ResticSnapshots"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ArchiveSnapshots"
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Strategy"
+          }
+        },
+        "title": "SandboxSnapshotConfig",
+        "type": "object"
+      },
       "ScannerResultField": {
         "description": "A built-in scanner-result section (e.g. `value`, `explanation`).",
         "properties": {
@@ -8687,6 +8951,27 @@
               }
             ],
             "title": "Metadata"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "invalid_response_format",
+                  "refusal",
+                  "no_response",
+                  "grader_failed",
+                  "scoring_failed"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
           },
           "value": {
             "anyOf": [
@@ -8854,6 +9139,32 @@
                 "type": "null"
               }
             ]
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "invalid_response_format",
+                  "refusal",
+                  "no_response",
+                  "grader_failed",
+                  "scoring_failed"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "const": "UNCHANGED",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": "UNCHANGED",
+            "title": "Reason"
           },
           "value": {
             "anyOf": [
@@ -9953,6 +10264,11 @@
       },
       "TaskDisplayMetric": {
         "properties": {
+          "headline": {
+            "default": false,
+            "title": "Headline",
+            "type": "boolean"
+          },
           "name": {
             "title": "Name",
             "type": "string"
@@ -9984,6 +10300,17 @@
             "title": "Scorer",
             "type": "string"
           },
+          "scorer_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scorer Name"
+          },
           "value": {
             "anyOf": [
               {
@@ -10001,6 +10328,7 @@
         },
         "required": [
           "scorer",
+          "headline",
           "name"
         ],
         "title": "TaskDisplayMetric",
