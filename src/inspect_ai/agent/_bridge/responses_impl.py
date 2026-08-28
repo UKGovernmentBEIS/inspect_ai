@@ -1027,10 +1027,11 @@ def messages_from_responses_input(
             else:
                 messages.append(ChatMessageSystem(content=content))
         elif is_function_call_output(item):
+            call_id = item.get("call_id")
             messages.append(
                 ChatMessageTool(
-                    tool_call_id=item["call_id"],
-                    function=function_calls_by_id.get(item["call_id"]),
+                    tool_call_id=call_id,
+                    function=function_calls_by_id.get(call_id) if call_id else None,
                     content=_tool_content_from_openai_tool_output(item["output"]),
                 )
             )
