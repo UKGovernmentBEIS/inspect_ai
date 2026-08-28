@@ -285,7 +285,7 @@ jobs:
         # -n logical, not auto: auto means physical cores when psutil is
         # importable (it always is — a runtime dependency), using only 2 of
         # the runner's 4 vCPUs. Measured: 449s → 334s of pytest wall.
-        run: uv run pytest -rA --doctest-modules --color=yes -n logical --timeout=900 --timeout-method=thread --durations=50 --durations-min=1 --report-log=test-report-log.jsonl --report-log-exclude-logs-on-passed-tests
+        run: uv run pytest -ra --doctest-modules --color=yes -n logical --timeout=900 --timeout-method=thread --durations=50 --durations-min=1 --report-log=test-report-log.jsonl --report-log-exclude-logs-on-passed-tests
 
       - name: Upload test order log
         if: ${{ !cancelled() && env.RUN_TESTS == 'true' }}
@@ -327,7 +327,7 @@ jobs:
           uv pip install "./src/inspect_sandbox_tools[dev]"
 
       - name: Test with pytest
-        run: uv run pytest src/inspect_sandbox_tools/tests/ -rA --color=yes
+        run: uv run pytest src/inspect_sandbox_tools/tests/ -ra --color=yes
 
       - name: Minimize uv cache
         if: ${{ !cancelled() }}
