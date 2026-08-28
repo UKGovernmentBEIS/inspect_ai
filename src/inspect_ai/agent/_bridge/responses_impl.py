@@ -291,7 +291,7 @@ async def inspect_responses_api_request_impl(
     debug_log("SCAFFOLD INPUT", input)
 
     messages = messages_from_responses_input(input, tools, model_name)
-    validate_bridge_media(bridge, messages)
+    await validate_bridge_media(bridge, messages)
     debug_log("INSPECT MESSAGES", messages)
 
     # extract generate config (hoist instructions into system_message)
@@ -1027,10 +1027,11 @@ def messages_from_responses_input(
             else:
                 messages.append(ChatMessageSystem(content=content))
         elif is_function_call_output(item):
+            call_id = item.get("call_id")
             messages.append(
                 ChatMessageTool(
-                    tool_call_id=item["call_id"],
-                    function=function_calls_by_id.get(item["call_id"]),
+                    tool_call_id=call_id,
+                    function=function_calls_by_id.get(call_id) if call_id else None,
                     content=_tool_content_from_openai_tool_output(item["output"]),
                 )
             )

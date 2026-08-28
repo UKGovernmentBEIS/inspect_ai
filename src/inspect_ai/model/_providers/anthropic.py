@@ -31,6 +31,7 @@ from anthropic import (
 from anthropic.lib.streaming import AsyncMessageStream
 from anthropic.types import (
     Base64PDFSourceParam,
+    BrowserStateBlockParam,
     CacheControlEphemeralParam,
     CitationsConfigParam,
     CodeExecutionToolResultBlock,
@@ -64,7 +65,6 @@ from anthropic.types import (
     ToolTextEditor20250124Param,
     ToolUseBlock,
     ToolUseBlockParam,
-    URLPDFSourceParam,
     WebSearchResultBlock,
     WebSearchTool20250305Param,
     WebSearchTool20260209Param,
@@ -137,11 +137,11 @@ from inspect_ai._util.http import (
     is_retryable_http_status,
     parse_retry_after_from_exception,
 )
-from inspect_ai._util.images import file_as_data, file_as_data_uri
+from inspect_ai._util.images import inline_media_data, inline_media_data_uri
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.trace import trace_message
-from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64, is_http_url
+from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64
 from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.model._compaction.edit import (
     TOOL_RESULT_REMOVED,
@@ -189,11 +189,21 @@ from .._providers._anthropic_citations import (
     to_inspect_citation,
 )
 from .._reasoning import effort_to_reasoning_tokens
+from .._stream import (
+    StreamReasoningEvent,
+    StreamTextEvent,
+    StreamToolCallEvent,
+    model_stream_requested,
+    report_model_stream_delta,
+    report_model_stream_progress,
+    report_model_stream_start,
+)
 from ._anthropic_batch import AnthropicBatcher
 from .util import (
     check_azure_deployment_mismatch,
     environment_prerequisite_error,
     model_base_url,
+    normalize_stream_arg,
     require_azure_base_url,
     resolve_api_key,
 )
@@ -269,8 +279,8 @@ class AnthropicAPI(ModelAPI):
         else:
             self.service = None
 
-        # record steraming and betas prefs
-        self.streaming = streaming
+        # record streaming and betas prefs
+        self.streaming: bool | None = normalize_stream_arg(streaming, "streaming")
         self.betas = betas if isinstance(betas, list) else [str(betas)]
 
         # validate and record prompt cache ttl
@@ -335,11 +345,16 @@ class AnthropicAPI(ModelAPI):
             if base_region is None:
                 aws_region = os.environ.get("AWS_DEFAULT_REGION", None)
 
-            return AsyncAnthropicBedrock(
-                base_url=base_url,
-                aws_region=aws_region,
-                **self.model_args,
-            )
+            try:
+                return AsyncAnthropicBedrock(
+                    base_url=base_url,
+                    aws_region=aws_region,
+                    **self.model_args,
+                )
+            except ValueError as ex:
+                # anthropic >= 1.0 raises when no AWS region is resolvable
+                # (older versions silently fell back to us-east-1)
+                raise PrerequisiteError(str(ex)) from ex
         elif self.is_vertex():
             base_url = model_base_url(
                 self.base_url,
@@ -407,7 +422,7 @@ class AnthropicAPI(ModelAPI):
     def initialize(self) -> None:
         super().initialize()
         self.client = self._create_client()
-        self._http_hooks = HttpxHooks(self.client._client)
+        self._http_hooks = HttpxHooks(self.client._client, api=self)
         self._batcher: AnthropicBatcher | None = None
 
     @override
@@ -561,10 +576,12 @@ class AnthropicAPI(ModelAPI):
 
             model_call = set_active_model_event_call(request, model_call_filter)
 
-            # stream if we are using reasoning or >= 8192 max_tokens
+            # stream if the caller passed on_stream or (in auto mode) when
+            # using reasoning or >= 8192 max_tokens; an explicit streaming
+            # model arg overrides both
             streaming = (
-                self.auto_streaming(config)
-                if self.streaming == "auto"
+                (self.auto_streaming(config) or model_stream_requested())
+                if self.streaming is None
                 else self.streaming
             )
 
@@ -787,7 +804,10 @@ class AnthropicAPI(ModelAPI):
                     # TODO: In the future, we could pass max_retries and timeout
                     # from batch_config falling back to config
                     batch_admin_retry_config(
-                        self.model_name, config, self.should_retry
+                        self.model_name,
+                        config,
+                        self.should_retry,
+                        qualified_model_name=self.qualified_model_name,
                     ),
                 )
             head_message = await self._batcher.generate_for_request(request)
@@ -922,21 +942,19 @@ class AnthropicAPI(ModelAPI):
                 )
             return _THINKING_WARNING.format(parameter=parameter)
 
-        if config.temperature is not None:
-            if forbid_sampling_params:
-                warn_once(logger, sampling_param_warning("temperature"))
-            else:
-                params["temperature"] = config.temperature
-        if config.top_p is not None:
-            if forbid_sampling_params:
-                warn_once(logger, sampling_param_warning("top_p"))
-            else:
-                params["top_p"] = config.top_p
-        if config.top_k is not None:
-            if forbid_sampling_params:
-                warn_once(logger, sampling_param_warning("top_k"))
-            else:
-                params["top_k"] = config.top_k
+        # anthropic >= 1.0 removed temperature/top_p/top_k from the method
+        # signatures (the API still accepts them for models that support
+        # them), so route via extra_body rather than params
+        for parameter, value in (
+            ("temperature", config.temperature),
+            ("top_p", config.top_p),
+            ("top_k", config.top_k),
+        ):
+            if value is not None:
+                if forbid_sampling_params:
+                    warn_once(logger, sampling_param_warning(parameter))
+                else:
+                    extra_body[parameter] = value
 
         # effort
         if config.effort is not None:
@@ -2492,7 +2510,9 @@ def _citation_document_blocks(messages: list[MessageParam]) -> list[DocumentBloc
     return documents
 
 
-CitationCandidateBlock = ContentBlock | ContentBlockParam | ToolReferenceBlockParam
+CitationCandidateBlock = (
+    ContentBlock | ContentBlockParam | ToolReferenceBlockParam | BrowserStateBlockParam
+)
 
 
 def _is_citation_document_block(
@@ -4065,6 +4085,11 @@ async def _capture_compaction_from_stream(
     """
     compaction_content: str | None = None
     container: Container | None = None
+    # tool_use blocks by content index, so input_json_delta fragments can be
+    # attributed to their call id / function when reported as stream deltas
+    tool_blocks: dict[int, Any] = {}
+
+    report_model_stream_start()
 
     # Iterate through all streaming events to capture compaction_delta content
     async for event in stream:
@@ -4082,6 +4107,48 @@ async def _capture_compaction_from_stream(
             and getattr(event.delta, "type", None) == "compaction_delta"
         ):
             compaction_content = getattr(event.delta, "content", None)
+
+        # report the chunk to the model layer's stream observer: content
+        # deltas by kind (gated on model_stream_requested() — see
+        # report_model_stream_delta), cumulative output tokens from
+        # message_delta usage, and a bare heartbeat for everything else
+        if event.type == "content_block_start":
+            # tool_use / server_tool_use / mcp_tool_use all carry id + name
+            # and stream their input as input_json_delta fragments
+            if str(getattr(event.content_block, "type", "")).endswith("tool_use"):
+                tool_blocks[event.index] = event.content_block
+            report_model_stream_progress()
+        elif event.type == "content_block_delta":
+            if not model_stream_requested():
+                report_model_stream_progress()
+            # dispatch on the wire discriminator, not isinstance: the non-beta
+            # RawContentBlockDelta union has no compaction variant, so the SDK
+            # misparses compaction_delta as TextDelta(type="compaction_delta",
+            # text=None) -- an isinstance check would report it as text
+            elif event.delta.type == "text_delta":
+                await report_model_stream_delta(StreamTextEvent(text=event.delta.text))
+            elif event.delta.type == "thinking_delta":
+                await report_model_stream_delta(
+                    StreamReasoningEvent(reasoning=event.delta.thinking)
+                )
+            elif event.delta.type == "input_json_delta":
+                tool_block = tool_blocks.get(event.index)
+                await report_model_stream_delta(
+                    StreamToolCallEvent(
+                        id=getattr(tool_block, "id", None),
+                        function=getattr(tool_block, "name", None),
+                        arguments=event.delta.partial_json,
+                    )
+                )
+            else:
+                report_model_stream_progress()
+        elif event.type == "message_delta":
+            usage = getattr(event, "usage", None)
+            report_model_stream_progress(
+                getattr(usage, "output_tokens", None) if usage is not None else None
+            )
+        else:
+            report_model_stream_progress()
 
     # Get the final message snapshot
     message = stream.current_message_snapshot
@@ -4348,20 +4415,26 @@ async def message_block_params(
             )
     elif isinstance(content, ContentDocument):
         if content.mime_type == "application/pdf":
-            if is_http_url(content.document):
-                source: Source = URLPDFSourceParam(type="url", url=content.document)
-            else:
-                pdf_data_uri = await file_as_data_uri(content.document)
-                pdf_data = data_uri_to_base64(pdf_data_uri)
-                source = Base64PDFSourceParam(
-                    type="base64", data=pdf_data, media_type="application/pdf"
-                )
+            pdf_data_uri = inline_media_data_uri(
+                content.document, "document", mime_type_hint=content.mime_type
+            )
+            pdf_data = data_uri_to_base64(pdf_data_uri)
+            source: Source = Base64PDFSourceParam(
+                type="base64", data=pdf_data, media_type="application/pdf"
+            )
         elif is_image_type(content.mime_type):
             source = ContentBlockSourceParam(
-                type="content", content=[await image_block_param(content.document)]
+                type="content",
+                content=[
+                    await image_block_param(
+                        content.document, mime_type_hint=content.mime_type
+                    )
+                ],
             )
         else:
-            file_bytes, _ = await file_as_data(content.document)
+            file_bytes, _ = inline_media_data(
+                content.document, "document", mime_type_hint=content.mime_type
+            )
             source = PlainTextSourceParam(
                 type="text", media_type="text/plain", data=file_bytes.decode()
             )
@@ -4608,9 +4681,10 @@ def _content_list(input: str | list[Content]) -> list[Content]:
         return input
 
 
-async def image_block_param(image: str) -> ImageBlockParam:
-    # resolve to url
-    image = await file_as_data_uri(image)
+async def image_block_param(
+    image: str, mime_type_hint: str | None = None
+) -> ImageBlockParam:
+    image = inline_media_data_uri(image, "image", mime_type_hint=mime_type_hint)
 
     # resolve mime type and base64 content
     media_type = data_uri_mime_type(image) or "image/png"

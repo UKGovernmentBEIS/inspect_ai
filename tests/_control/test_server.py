@@ -10,6 +10,7 @@ which would pollute the thread-leak assertion below; an isolated
 import asyncio
 import contextlib
 import threading
+from pathlib import Path
 
 import httpx
 import pytest
@@ -173,9 +174,146 @@ def test_endpoint_error_becomes_structured_500(monkeypatch: pytest.MonkeyPatch) 
     assert "RuntimeError" in error and "kaboom" in error
 
 
+async def _asgi_get(
+    app: object, path: str, query: str, *, disconnected: bool, method: str = "GET"
+) -> tuple[int, bytes]:
+    """Drive one request through the ASGI app with a scripted receive channel.
+
+    ``httpx.ASGITransport`` can't model a client that hung up before the
+    handler ran (its receive channel only reports disconnect after the
+    response completes), so this speaks raw ASGI: ``disconnected=True``
+    makes the very first ``receive()`` return ``http.disconnect`` — what
+    uvicorn's channel yields for a request whose client is already gone.
+    Returns the response ``(status, body)``.
+    """
+    sent: list[dict] = []
+
+    async def receive() -> dict:
+        if disconnected:
+            return {"type": "http.disconnect"}
+        return {"type": "http.request", "body": b"", "more_body": False}
+
+    async def send(message: dict) -> None:
+        sent.append(message)
+
+    scope = {
+        "type": "http",
+        "asgi": {"version": "3.0", "spec_version": "2.3"},
+        "http_version": "1.1",
+        "method": method,
+        "scheme": "http",
+        "path": path,
+        "raw_path": path.encode(),
+        "query_string": query.encode(),
+        "headers": [(b"host", b"localhost")],
+        "client": None,
+        "server": ("localhost", 80),
+        "root_path": "",
+    }
+    await app(scope, receive, send)  # type: ignore[operator]
+    start = next((m for m in sent if m["type"] == "http.response.start"), None)
+    assert start is not None, f"no response started for {method} {path}"
+    body = b"".join(
+        m.get("body", b"") for m in sent if m["type"] == "http.response.body"
+    )
+    return start["status"], body
+
+
+def test_read_endpoints_skip_disconnected_client(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A hung-up client's read request is answered 499 without doing the work.
+
+    Each guarded read must return before touching its data source — the
+    rationale lives in ``_control/disconnect.py``'s module docstring.
+    """
+    import json
+
+    from inspect_ai._control import server as server_mod
+
+    async def _must_not_run(*args: object, **kwargs: object) -> None:
+        raise AssertionError("handler did work for a disconnected client")
+
+    for name in (
+        "current_eval_summaries",
+        "current_sample_listing",
+        "sample_error_detail",
+        "sample_events",
+        "sample_messages",
+    ):
+        monkeypatch.setattr(server_mod, name, _must_not_run)
+
+    endpoints = [
+        ("/tasks", ""),
+        ("/evals/e1/samples", ""),
+        ("/evals/e1/sample", "sample_id=s1"),
+        ("/evals/e1/sample/events", "sample_id=s1"),
+        ("/evals/e1/sample/messages", "sample_id=s1"),
+    ]
+
+    async def scenario() -> None:
+        app = server_mod.ControlServer(run_id="test")._build_app()
+        for path, query in endpoints:
+            status, body = await _asgi_get(app, path, query, disconnected=True)
+            assert status == 499, f"{path}: expected 499, got {status}"
+            assert json.loads(body) == {"error": "client disconnected"}
+
+    asyncio.run(scenario())
+
+
+def test_read_endpoints_serve_connected_client(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The disconnect guard must not false-positive on a live connection.
+
+    Companion to the skip test above, over the same raw-ASGI channel: with a
+    normal ``http.request`` message queued (what uvicorn's receive yields for
+    a connected GET), the guard passes and the handler serves.
+    """
+    from inspect_ai._control import server as server_mod
+
+    async def _no_summaries(*args: object, **kwargs: object) -> list:
+        return []
+
+    monkeypatch.setattr(server_mod, "current_eval_summaries", _no_summaries)
+
+    async def scenario() -> None:
+        app = server_mod.ControlServer(run_id="test")._build_app()
+        status, body = await _asgi_get(app, "/tasks", "", disconnected=False)
+        assert status == 200
+        assert body == b"[]"
+
+    asyncio.run(scenario())
+
+
+def test_mutations_apply_for_disconnected_client() -> None:
+    """Mutations from a hung-up client still apply — they are NOT guarded.
+
+    Pins that a future blanket guard doesn't swallow mutations (why they
+    must pass through: ``_control/disconnect.py``'s module docstring):
+    ``POST /keep`` from an already-disconnected client must still latch
+    keep-alive on.
+    """
+    from inspect_ai._control import server as server_mod
+    from inspect_ai._control.server import keep_alive_intent, reset_keep_alive
+
+    async def scenario() -> int:
+        app = server_mod.ControlServer(run_id="test")._build_app()
+        status, _ = await _asgi_get(app, "/keep", "", disconnected=True, method="POST")
+        return status
+
+    reset_keep_alive()
+    try:
+        status = asyncio.run(scenario())
+        assert status == 200
+        assert keep_alive_intent() is True
+    finally:
+        reset_keep_alive()
+
+
 def test_error_detail_prefers_server_body() -> None:
     """The CLI surfaces the server's ``{"error": ...}`` over the bare HTTP error."""
-    from inspect_ai._cli.ctl import _error_detail
+    from inspect_ai._cli.ctl._http import _error_detail
 
     request = httpx.Request("GET", "http://localhost/evals/x/samples")
     response = httpx.Response(
@@ -486,6 +624,108 @@ def test_control_server_cleans_up_partial_startup_failure(
         sock_dir.rmdir()
 
 
+def test_control_server_rejects_excess_connections_with_503(
+    monkeypatch: pytest.MonkeyPatch, short_data_dir: Path
+) -> None:
+    """Over the connection cap the server answers 503 instead of queueing.
+
+    The pile-up backstop (uvicorn ``limit_concurrency`` — see
+    ``_MAX_CONCURRENT_CONNECTIONS``): the server shares the eval's event
+    loop, so a runaway poller's excess connections must be rejected
+    immediately rather than queued as unbounded work. And the rejection must
+    clear once connections drop under the cap again — a transient pile-up
+    can't wedge the surface. The cap is monkeypatched down to 2 so one idle
+    connection saturates it (uvicorn counts the requesting connection itself
+    toward the limit).
+
+    This is the only test that sees uvicorn's real rejection response, so it
+    also pins the CLI's classification of it (``_rejection_503``) — the unit
+    tests over in test_ctl.py stub that body, and a future uvicorn switching
+    it to a JSON dict would otherwise regress the CLI to "unreachable"
+    without any test failing.
+
+    Isolated ``asyncio.run`` like the other full-start tests here (the idle
+    connection also uses an asyncio-only API).
+    """
+    from inspect_ai._cli.ctl._http import _rejection_503
+    from inspect_ai._control import server as server_mod
+
+    monkeypatch.setattr(server_mod, "_MAX_CONCURRENT_CONNECTIONS", 2)
+
+    async def read_tasks(uds: str) -> httpx.Response:
+        async with httpx.AsyncClient(
+            transport=httpx.AsyncHTTPTransport(uds=uds),
+            base_url="http://localhost",
+            timeout=5,
+        ) as client:
+            return await client.get("/tasks")
+
+    async def status_settles_to(uds: str, expected: int) -> httpx.Response:
+        # The accept/close we just triggered lands on this same loop, so one
+        # scheduling pass usually suffices — poll briefly rather than racing
+        # it with a fixed sleep; return the last response so a failed wait
+        # asserts with what the server actually said.
+        deadline = asyncio.get_running_loop().time() + 5
+        while True:
+            response = await read_tasks(uds)
+            if (
+                response.status_code == expected
+                or asyncio.get_running_loop().time() > deadline
+            ):
+                return response
+            await asyncio.sleep(0.05)
+
+    async def scenario() -> None:
+        server = server_mod.ControlServer(run_id="test")
+        await server.start()
+        writer: asyncio.StreamWriter | None = None
+        try:
+            assert server.socket_path is not None
+            uds = str(server.socket_path)
+            # one idle connection + the requesting one reaches the cap of 2
+            _, writer = await asyncio.open_unix_connection(uds)
+            rejected = await status_settles_to(uds, 503)
+            assert rejected.status_code == 503
+            assert _rejection_503(rejected), (
+                "real rejection body no longer classifies as a capacity "
+                f"rejection: {rejected.text!r}"
+            )
+            writer.close()
+            await writer.wait_closed()
+            writer = None
+            assert (await status_settles_to(uds, 200)).status_code == 200
+        finally:
+            if writer is not None:
+                writer.close()
+            await server.stop()
+
+    asyncio.run(scenario())
+
+
+def test_concurrency_warning_filter_rate_limits() -> None:
+    """Uvicorn's per-rejection warning is collapsed to one per window.
+
+    A runaway poller triggers one 'Exceeded concurrency limit.' WARNING per
+    rejected request; unfiltered, the eval log would grow at the poller's
+    request rate — the very pile-up the connection cap exists to stop.
+    Unrelated records must pass through untouched.
+    """
+    import logging
+
+    from inspect_ai._control.server import _ConcurrencyLimitWarningFilter
+
+    def record(msg: str) -> logging.LogRecord:
+        return logging.LogRecord(
+            "uvicorn.error", logging.WARNING, __file__, 0, msg, None, None
+        )
+
+    filter_ = _ConcurrencyLimitWarningFilter()
+    assert filter_.filter(record("Exceeded concurrency limit.")) is True
+    assert filter_.filter(record("Exceeded concurrency limit.")) is False
+    assert filter_.filter(record("Exceeded concurrency limit.")) is False
+    assert filter_.filter(record("something unrelated")) is True
+
+
 async def test_sample_events_endpoint_parses_type_and_404(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -642,6 +882,74 @@ async def test_sample_messages_endpoint_round_trips_and_404(
         assert missing.status_code == 404
 
 
+async def test_sample_store_endpoint_round_trips_and_404(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The sample-store route passes repeatable `key`/`full`, round-trips a reserved id, 404s.
+
+    `GET /evals/<id>/sample/store`: `sample_id` as a query param (so reserved
+    chars address), `key` repeatable on the wire, `content`/`full` forwarded,
+    and a missing sample → 404. The helper logic is unit-tested in
+    test_store.py; this pins the route wiring.
+    """
+    from inspect_ai._control import server as server_mod
+
+    seen: dict[str, object] = {}
+
+    async def _fake(
+        eval_id: str,
+        sample_id: str,
+        epoch: int,
+        *,
+        keys: object,
+        content: object,
+        full: object,
+    ) -> dict[str, object] | None:
+        seen["sample_id"] = sample_id
+        seen["keys"] = keys
+        seen["content"] = content
+        seen["full"] = full
+        if sample_id == "missing":
+            return None
+        return {"as_of": 1.0, "status": "running", "count": 0, "store": {}}
+
+    monkeypatch.setattr(server_mod, "sample_store", _fake)
+
+    app = server_mod.ControlServer(run_id="test")._build_app()
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://localhost"
+    ) as client:
+        ok = await client.get(
+            "/evals/e1/sample/store",
+            params=[
+                ("sample_id", "case/001"),
+                ("key", "phase"),
+                ("key", "AgentState:*"),
+                ("full", "true"),
+            ],
+        )
+        assert ok.status_code == 200, ok.text
+        assert seen["sample_id"] == "case/001"  # reserved-char id round-trips
+        assert seen["keys"] == ["phase", "AgentState:*"]  # `key` repeats
+        assert seen["full"] is True
+        assert seen["content"] is False  # metadata-only default
+
+        # an unfiltered read reaches the helper with no key selection
+        unfiltered = await client.get(
+            "/evals/e1/sample/store",
+            params={"sample_id": "case/001", "content": "true"},
+        )
+        assert unfiltered.status_code == 200, unfiltered.text
+        assert seen["keys"] is None
+        assert seen["content"] is True
+
+        missing = await client.get(
+            "/evals/e1/sample/store", params={"sample_id": "missing"}
+        )
+        assert missing.status_code == 404
+
+
 async def test_samples_endpoint_parses_filter(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -709,7 +1017,7 @@ async def test_404_body_shape_distinguishes_missing_route(
     convention comment in ``_build_app``. A handler 404 that dropped the
     ``error`` key would misreport an entity-not-found as version skew.
     """
-    from inspect_ai._cli.ctl import _handler_404
+    from inspect_ai._cli.ctl._http import _handler_404
     from inspect_ai._control import server as server_mod
 
     monkeypatch.setattr(

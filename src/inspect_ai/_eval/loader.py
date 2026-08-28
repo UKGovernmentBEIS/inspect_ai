@@ -10,6 +10,7 @@ from typing import Any, Callable, Tuple, cast
 
 from shortuuid import uuid
 
+from inspect_ai._eval.task.images import InputMediaPolicy
 from inspect_ai._eval.task.resolved import ResolvedTask
 from inspect_ai._eval.task.util import split_spec, task_file, task_run_dir
 from inspect_ai._util.decorator import parse_decorators
@@ -60,10 +61,10 @@ logger = getLogger(__name__)
 
 
 def _merge_model_roles(
-    *roles_dicts: dict[str, Model] | None,
-) -> dict[str, Model] | None:
+    *roles_dicts: dict[str, Model | list[Model]] | None,
+) -> dict[str, Model | list[Model]] | None:
     """Merge model_roles dicts with later dicts taking priority."""
-    merged: dict[str, Model] = {}
+    merged: dict[str, Model | list[Model]] = {}
     for d in roles_dicts:
         if d:
             merged.update(d)
@@ -74,11 +75,12 @@ def resolve_tasks(
     tasks: Tasks,
     task_args: dict[str, Any],
     model: Model,
-    model_roles: dict[str, Model] | None,
+    model_roles: dict[str, Model | list[Model]] | None,
     sandbox: SandboxEnvironmentType | None,
     sample_shuffle: bool | int | None,
     eval_checkpoint: CheckpointConfig | None = None,
     warn_unconsumed_task_args: bool = False,
+    input_media_policy: InputMediaPolicy = "inline_only",
 ) -> list[ResolvedTask]:
     # A TaskSource drives a run dynamically and is handled by eval() (which
     # resolves its initial_tasks() and pulls next_tasks()); it isn't a concrete,
@@ -116,6 +118,7 @@ def resolve_tasks(
                 sandbox=resolve_task_sandbox(task, sandbox),
                 checkpoint=task.checkpoint,
                 sequence=sequence,
+                input_media_policy=input_media_policy,
             )
             for sequence, task in enumerate(tasks)
         ]
@@ -282,7 +285,7 @@ def resolve_previous_tasks(
     tasks: list[ResolvedTask] | list[PreviousTask] | list[ResolvedTask | PreviousTask],
     sample_shuffle: bool | int | None,
     model: Model,
-    model_roles: dict[str, Model] | None,
+    model_roles: dict[str, Model | list[Model]] | None,
     eval_checkpoint: CheckpointConfig | None = None,
 ) -> list[ResolvedTask]:
     result = []
@@ -324,7 +327,7 @@ def resolve_previous_task(
     loaded_task: Task,
     loaded_task_args: dict[str, Any],
     model: Model,
-    model_roles: dict[str, Model] | None,
+    model_roles: dict[str, Model | list[Model]] | None,
     previous_task: PreviousTask,
     sequence: int,
     eval_checkpoint: CheckpointConfig | None = None,
@@ -367,6 +370,7 @@ def resolve_previous_task(
         ),
         initial_model_usage=initial_model_usage,
         initial_role_usage=initial_role_usage,
+        input_media_policy="trusted_pre_run",
     )
 
 

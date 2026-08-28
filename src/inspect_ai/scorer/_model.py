@@ -1,3 +1,4 @@
+import logging
 import re
 from functools import partial
 from typing import Any, Callable
@@ -6,6 +7,7 @@ from inspect_ai._util.content import Content, ContentText
 from inspect_ai._util.dict import omit
 from inspect_ai._util.format import format_function_call
 from inspect_ai._util.list import remove_last_match_and_after
+from inspect_ai._util.logger import warn_once
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -13,7 +15,7 @@ from inspect_ai.model._chat_message import (
     ChatMessageTool,
     ChatMessageUser,
 )
-from inspect_ai.model._model import Model, get_model
+from inspect_ai.model._model import Model, get_model, model_roles
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.model._model_role import ModelRole, as_model_role
 from inspect_ai.solver._task_state import TaskState
@@ -24,6 +26,8 @@ from ._metrics import accuracy, stderr
 from ._multi import multi_scorer
 from ._scorer import Scorer, scorer
 from ._target import Target
+
+logger = logging.getLogger(__name__)
 
 
 @scorer(metrics=[accuracy(), stderr()])
@@ -80,8 +84,11 @@ def model_graded_fact(
         Pass `ModelRole(name, required=True)` to require a model to be bound
         to the role. Ignored if `model` is provided. If specified and a model
         is bound to this role (e.g. via the `model_roles` argument to `eval()`),
-        that model is used. If no role-bound model is available and the role
-        is not required, the model being evaluated (the default model) is used.
+        that model is used. If a list of models is bound to this role, each
+        model grades independently and the final grade is computed by majority
+        vote (as when a list is passed for `model`). If no role-bound model is
+        available and the role is not required, the model being evaluated (the
+        default model) is used.
     """
     return model_graded_qa(
         template=template if template else DEFAULT_MODEL_GRADED_FACT_TEMPLATE,
@@ -149,44 +156,89 @@ def model_graded_qa(
         Pass `ModelRole(name, required=True)` to require a model to be bound
         to the role. Ignored if `model` is provided. If specified and a model
         is bound to this role (e.g. via the `model_roles` argument to `eval()`),
-        that model is used. If no role-bound model is available and the role
-        is not required, the model being evaluated (the default model) is used.
+        that model is used. If a list of models is bound to this role, each
+        model grades independently and the final grade is computed by majority
+        vote (as when a list is passed for `model`). If no role-bound model is
+        available and the role is not required, the model being evaluated (the
+        default model) is used.
     """
+    # resolve a file/resource template to its content now, at factory time:
+    # the deferred fan-out path below constructs its sub-scorers at scoring
+    # time, when the CWD may no longer be the task directory a relative
+    # template path was meant to resolve against (and `resource()` would then
+    # silently treat the missing path as literal template content)
+    grading_template = resource(
+        template if template else DEFAULT_MODEL_GRADED_QA_TEMPLATE
+    )
+
     # bind variables
     get_scorer = partial(
         _model_graded_qa_single,
-        template,
+        grading_template,
         instructions,
         grade_pattern,
         include_history,
         partial_credit,
-        model_role=model_role,
     )
-    # if only a single model is passed, return a single scorer
-    if model is None or not isinstance(model, list):
+
+    # an explicit model takes precedence over model_role (documented); when
+    # the role is required, the caller asked for a hard prerequisite that is
+    # silently bypassed, so surface it at construction time. warn_once dedups
+    # on the message text, so independent bypasses sharing a role name (across
+    # scorers or models) report once per process — one signal is enough for
+    # the caller to change the pattern.
+    if model is not None and model_role is not None:
+        role = as_model_role(model_role)
+        if role.required:
+            warn_once(
+                logger,
+                f"model_graded scorer: an explicit 'model' is provided, so the "
+                f"required '{role.name}' role will not be consulted",
+            )
+
+    # explicit model(s): a list grades by majority vote
+    if isinstance(model, list):
+        return multi_scorer([get_scorer(m) for m in model], "mode")
+    if model is not None:
         return get_scorer(model)
 
-    # otherwise, use multi scorer
-    assert isinstance(model, list)
-    scorers = [get_scorer(model) for model in model]
-    return multi_scorer(scorers, "mode")
+    # no role in play: grade with the default model
+    if model_role is None:
+        return get_scorer(None)
+
+    # a model_role is in play, and its binding (a single model or a list of
+    # models, e.g. via the `model_roles` argument to `eval()`) isn't knowable
+    # here -- tasks and their scorers are typically constructed before `eval()`
+    # binds roles -- so resolve it at scoring time: fan out to a grader per
+    # role-bound model (majority vote) when the role is bound to a list
+    role = as_model_role(model_role)
+
+    async def score(state: TaskState, target: Target) -> Score | None:
+        role_models = model_roles().get(role.name)
+        if isinstance(role_models, list):
+            graders = [get_scorer(m) for m in role_models]
+            return await multi_scorer(graders, "mode")(state, target)
+        grader = get_model(role=role.name, required=role.required)
+        return await get_scorer(grader)(state, target)
+
+    return score
 
 
 @scorer(metrics=[accuracy(), stderr()])
 def _model_graded_qa_single(
-    template: str | None = None,
+    grading_template: str,
     instructions: str | None = None,
     grade_pattern: str | None = None,
     include_history: bool | Callable[[TaskState], str] = False,
     partial_credit: bool = False,
     model: str | Model | None = None,
-    model_role: str | ModelRole | None = "grader",
 ) -> Scorer:
-    # returns a scorer that does model graded qa for a single model
+    # returns a scorer that does model graded qa for a single model (None =
+    # the default model being evaluated). `grading_template` is resolved
+    # template *content* and all model/role precedence has been applied --
+    # `model_graded_qa` resolves both (see comments there)
 
-    # resolve grading template, instructions, and grade_pattern
-    template = template if template else DEFAULT_MODEL_GRADED_QA_TEMPLATE
-    grading_template = resource(template)
+    # resolve instructions and grade_pattern
     using_default_instructions = not instructions
     instructions = (
         instructions if instructions else default_instructions(partial_credit)
@@ -213,14 +265,7 @@ def _model_graded_qa_single(
     async def score(state: TaskState, target: Target) -> Score:
         # resolve model
         nonlocal model
-        # Order of precedence: `model` > `model_role` > default model
-        if model is not None:
-            model = model if isinstance(model, Model) else get_model(model)
-        elif model_role is not None:
-            role = as_model_role(model_role)
-            model = get_model(role=role.name, required=role.required)
-        else:
-            model = get_model()
+        model = model if isinstance(model, Model) else get_model(model)
 
         # metadata without grading template variables
         metadata = omit(
@@ -275,11 +320,11 @@ def _model_graded_qa_single(
             )
         else:
             return Score.unscored(
+                reason="grader_failed",
                 answer=state.output.completion,
                 explanation="Grade not found in model output: "
                 + f"{result.completion}",
                 metadata=dict(
-                    unscored_reason="grade_parse_failure",
                     grading=[
                         scoring_prompt,
                         result.message,

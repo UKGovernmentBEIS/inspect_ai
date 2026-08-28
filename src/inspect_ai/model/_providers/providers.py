@@ -377,7 +377,9 @@ def validate_openai_client(feature: str) -> None:
 
 def validate_anthropic_client(feature: str) -> None:
     PACKAGE = "anthropic"
-    MIN_VERSION = "0.115.0"
+    # 1.0.0 removed temperature/top_p/top_k from method signatures, removed
+    # LegacyAPIResponse, and moved from httpx to httpx2 — inspect requires it
+    MIN_VERSION = "1.0.0"
 
     # verify we have the package
     try:
