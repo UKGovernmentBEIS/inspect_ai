@@ -35,7 +35,9 @@ def grep(
 
         Args:
             pattern: Regular expression pattern to search for
-                (or literal string if fixed_strings is True).
+                (or literal string if fixed_strings is True). Uses
+                grep's basic regex (BRE): `|`, `+`, `?`, and `()`
+                match literally unless backslash-escaped.
             path: File or directory to search (defaults to working
                 directory).
             glob: Glob pattern to filter which files to search

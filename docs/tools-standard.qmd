@@ -723,7 +723,7 @@ grep()
 grep(timeout=60)
 ```
 
-The model can specify a `pattern`, `path`, optional `glob` filter (e.g. `"*.py"`), `fixed_strings` flag for literal matching, and `output_mode` (`"content"`, `"files_with_matches"`, or `"count"`). Results include file paths and line numbers by default.
+The model can specify a `pattern`, `path`, optional `glob` filter (e.g. `"*.py"`), `fixed_strings` flag for literal matching, and `output_mode` (`"content"`, `"files_with_matches"`, or `"count"`). Patterns use grep's basic regex (BRE), so `|`, `+`, `?`, and `()` match literally unless backslash-escaped. Results include file paths and line numbers by default.
 
 ### Task Setup
 

@@ -90,6 +90,17 @@ def test_grep_fixed_strings() -> None:
 
 @skip_if_no_docker
 @pytest.mark.slow
+def test_grep_uses_basic_regex() -> None:
+    """Patterns are BRE: unescaped alternation is literal, escaped works."""
+    content = _run_grep({"pattern": "hello|goodbye", "path": "/tmp/testdir"})
+    assert "no matches" in content.lower()
+    content = _run_grep({"pattern": r"hello\|goodbye", "path": "/tmp/testdir"})
+    assert "hello.py" in content
+    assert "goodbye.txt" in content
+
+
+@skip_if_no_docker
+@pytest.mark.slow
 def test_grep_no_matches() -> None:
     content = _run_grep({"pattern": "zzz_nonexistent_zzz", "path": "/tmp/testdir"})
     assert "no matches" in content.lower()
