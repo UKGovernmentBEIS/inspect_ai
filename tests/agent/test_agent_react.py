@@ -22,6 +22,7 @@ from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
     ChatMessageSystem,
+    ChatMessageTool,
 )
 from inspect_ai.scorer import Score, Target, accuracy, includes, scorer
 from inspect_ai.solver import Generate, Solver, TaskState, solver
@@ -264,6 +265,89 @@ def check_custom_submit(log: EvalLog, name: str, description: str) -> None:
     assert model_event
     assert model_event.tools[1].name == name
     assert model_event.tools[1].description == description
+
+
+def test_react_agent_long_submit_answer_not_truncated() -> None:
+    """A long submitted answer becomes the completion untruncated.
+
+    The submit tool's result message passes through max_tool_output
+    truncation like any other tool output; the answer used for the
+    completion must be the raw submitted answer, not the truncation
+    envelope.
+    """
+    answer = "ANSWER_MARKER_42 " + ("finding " * 1000)
+    task = Task(
+        dataset=[Sample(input="Do the task")],
+        solver=react(tools=[addition()], submit=AgentSubmit(answer_only=True)),
+    )
+    model = mockllm_model_with_submissions([answer])
+    log = eval(task, model=model, max_tool_output=1024)[0]
+    assert log.status == "success"
+    assert log.samples
+    assert log.samples[0].output.completion == answer
+    for message in log.samples[0].messages:
+        if isinstance(message, ChatMessageAssistant):
+            assert "was too long to be displayed" not in message.text
+
+
+def test_react_agent_as_tool_long_answer_truncated_once() -> None:
+    """A long agent-as-tool answer is truncated once, not wrapped twice.
+
+    The child react agent's submit() result passes through max_tool_output
+    truncation; the answer surfaced through the parent's tool result must be
+    the raw answer (truncated once by the parent), not a truncation envelope
+    nested inside another one.
+    """
+    from inspect_ai.agent._as_tool import as_tool
+
+    marker = "AS_TOOL_ANSWER_MARKER_42"
+    answer = f"{marker} " + ("finding " * 1000)
+
+    researcher = react(
+        name="researcher",
+        description="Researches things.",
+        tools=[addition()],
+    )
+    task = Task(
+        dataset=[Sample(input="Do the task")],
+        solver=react(tools=[as_tool(researcher)]),
+    )
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            # 1. Parent calls the researcher tool
+            ModelOutput.for_tool_call(
+                model="mockllm/model",
+                tool_name="researcher",
+                tool_arguments={"input": "Find the answer."},
+            ),
+            # 2. Child researcher submits a very long answer
+            ModelOutput.for_tool_call(
+                model="mockllm/model",
+                tool_name="submit",
+                tool_arguments={"answer": answer},
+            ),
+            # 3. Parent submits its own answer
+            ModelOutput.for_tool_call(
+                model="mockllm/model",
+                tool_name="submit",
+                tool_arguments={"answer": "done"},
+            ),
+        ],
+    )
+    log = eval(task, model=model, max_tool_output=1024)[0]
+    assert log.status == "success"
+    assert log.samples
+    tool_messages = [
+        m
+        for m in log.samples[0].messages
+        if isinstance(m, ChatMessageTool) and m.function == "researcher"
+    ]
+    assert len(tool_messages) == 1
+    result = tool_messages[0].text
+    assert result.count("was too long to be displayed") == 1
+    assert "call to submit" not in result
+    assert marker in result
 
 
 def addition_dataset() -> list[Sample]:

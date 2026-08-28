@@ -24,6 +24,7 @@ from inspect_ai.model._trim import partition_messages, trim_messages
 from inspect_ai.scorer._score import score
 from inspect_ai.tool._mcp.connection import mcp_connection
 from inspect_ai.tool._tool import Tool, ToolResult, ToolSource, tool
+from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tool_info import parse_tool_info
 from inspect_ai.util._checkpoint import Checkpointer, checkpointer
@@ -177,10 +178,12 @@ def react(
     # resolve attempts
     attempts = AgentAttempts(attempts) if isinstance(attempts, int) else attempts
 
-    def submission(tool_results: list[ChatMessage]) -> str | None:
-        return next(
+    def submission(
+        tool_calls: list[ToolCall] | None, tool_results: list[ChatMessage]
+    ) -> str | None:
+        result = next(
             (
-                result.text
+                result
                 for result in tool_results
                 if isinstance(result, ChatMessageTool)
                 and result.function == submit_tool.name
@@ -189,6 +192,25 @@ def react(
             ),
             None,
         )
+        if result is None:
+            return None
+
+        # Prefer the answer from the tool call arguments: the result message
+        # has passed through max_tool_output truncation, which would replace
+        # a long answer with a truncation envelope (and produce a nested
+        # envelope when the completion is itself returned as a tool result,
+        # e.g. from a subagent).
+        call = next(
+            (c for c in (tool_calls or []) if c.id == result.tool_call_id), None
+        )
+        if call is not None:
+            answer = call.arguments.get("answer")
+            if isinstance(answer, str):
+                return answer
+
+        # Fall back to the result text (custom submit tools aren't required
+        # to take an `answer` argument).
+        return result.text
 
     async def execute(state: AgentState) -> AgentState:
         async with checkpointer() as cp:
@@ -274,7 +296,9 @@ def react(
                                     state.output = output
 
                                 # check for a submission
-                                answer = submission(messages)
+                                answer = submission(
+                                    state.output.message.tool_calls, messages
+                                )
                                 if answer is not None:
                                     # set the output to the answer for scoring
                                     if submit.answer_only:

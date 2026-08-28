@@ -15,6 +15,7 @@ def _eval_deepagent(
     input: str = "Do the task",
     target: str = "n/a",
     message_limit: int = 20,
+    max_tool_output: int | None = None,
 ) -> dict:
     """Helper to run a deepagent eval and return results."""
     agent_kwargs.setdefault("submit", True)
@@ -26,7 +27,7 @@ def _eval_deepagent(
         message_limit=message_limit,
     )
     model = get_model("mockllm/model", custom_outputs=outputs)
-    log = eval(task, model=model)[0]
+    log = eval(task, model=model, max_tool_output=max_tool_output)[0]
     return {
         "log": log,
         "status": log.status,
@@ -277,6 +278,58 @@ class TestSubmitIntegration:
         assert any(marker in r for r in agent_results), (
             "parent did not receive the subagent's answer"
         )
+
+    def test_long_subagent_answer_truncated_once(self) -> None:
+        """A long subagent answer is truncated once, not wrapped twice.
+
+        The child's submit() result passes through max_tool_output truncation
+        like any other tool output. Previously the truncation envelope (rather
+        than the raw answer) became the subagent's completion, so the parent's
+        agent tool result nested a second envelope around the first.
+        """
+        marker = "LONG_ANSWER_MARKER_42"
+        answer = f"{marker} " + ("finding " * 1000)
+        result = _eval_deepagent(
+            agent_kwargs={"submit": True},
+            max_tool_output=1024,
+            outputs=[
+                # 1. Parent dispatches research
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="agent",
+                    tool_arguments={
+                        "subagent_type": "research",
+                        "prompt": "Find the answer.",
+                    },
+                ),
+                # 2. Research subagent submits a very long answer
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="submit",
+                    tool_arguments={"answer": answer},
+                ),
+                # 3. Parent submits its own answer
+                _submit(),
+            ],
+        )
+        assert result["status"] == "success"
+
+        agent_results = [
+            str(e.result)
+            for e in result["events"]
+            if isinstance(e, ToolEvent) and e.function == "agent"
+        ]
+        assert len(agent_results) == 1
+        agent_result = agent_results[0]
+
+        # exactly one truncation envelope: the parent's own truncation of the
+        # (legitimately oversized) agent tool output
+        assert agent_result.count("was too long to be displayed") == 1
+        assert "call to agent" in agent_result
+        # the child's submit truncation envelope must not leak into the parent
+        assert "call to submit" not in agent_result
+        # the truncated content is the answer itself
+        assert marker in agent_result
 
 
 class TestCustomSubagents:
