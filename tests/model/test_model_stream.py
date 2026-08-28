@@ -14,7 +14,12 @@ import anyio
 import pytest
 import tenacity
 from tenacity.wait import WaitBaseT
-from test_helpers.utils import skip_if_no_anthropic, skip_if_no_google
+from test_helpers.utils import (
+    skip_if_no_anthropic,
+    skip_if_no_google,
+    skip_if_no_grok,
+    skip_if_no_openai,
+)
 
 from inspect_ai._util.content import ContentReasoning, ContentText
 from inspect_ai._util.registry import _registry
@@ -164,6 +169,28 @@ async def test_streaming_provider_works_without_on_stream() -> None:
 
     output = await _scripted_generate([attempt])
     assert output.completion == "hi"
+
+
+async def test_deltas_without_on_stream_are_heartbeat_only() -> None:
+    """Deltas reported without `on_stream` feed only the progress heartbeat.
+
+    A reported delta is on_stream support code with no consumer: no
+    accumulation, no partial-output snapshot on the pending event.
+    """
+
+    async def attempt(api: ScriptedStreamAPI) -> ModelOutput:
+        event = _active_model_event.get()
+        assert isinstance(event, ModelEvent)
+        await report_model_stream_delta(StreamTextEvent(text="unconsumed"))
+        # heartbeat recorded, but no partial output was published
+        progress = model_event_progress(event)
+        assert progress is not None
+        assert progress.last_progress_at is not None
+        assert event.output.completion == ""
+        return api._output("done")
+
+    output = await _scripted_generate([attempt])
+    assert output.completion == "done"
 
 
 async def test_uninstrumented_provider_never_invokes_callback() -> None:
@@ -332,7 +359,8 @@ async def test_partial_output_snapshot_on_pending_event(
         snapshots.append((event.pending, list(content)))
         return api._output("hello")
 
-    output = await _scripted_generate([attempt])
+    # partial snapshots are delta-driven, so they require an on_stream consumer
+    output = await _scripted_generate([attempt], on_stream=Collector())
     assert output.completion == "hello"
     (pending, content) = snapshots[0]
     assert pending is True
@@ -381,7 +409,7 @@ async def test_partial_output_flushes_are_throttled(
         assert calls["n"] == before + 1
         return api._output("abc")
 
-    output = await _scripted_generate([attempt])
+    output = await _scripted_generate([attempt], on_stream=Collector())
     assert output.completion == "abc"
 
 
@@ -395,7 +423,7 @@ async def test_partial_output_discarded_when_attempt_fails() -> None:
         raise RuntimeError("boom")
 
     with pytest.raises(Exception):
-        await _scripted_generate([attempt])
+        await _scripted_generate([attempt], on_stream=Collector())
     event = ScriptedStreamAPI.events[0]
     assert event.pending is None
     assert event.error is not None
@@ -679,7 +707,7 @@ async def test_partial_output_discard_on_cancellation_notifies_transcript(
         raise FakeCancellation()
 
     with pytest.raises(FakeCancellation):
-        await _scripted_generate([attempt])
+        await _scripted_generate([attempt], on_stream=Collector())
     event = ScriptedStreamAPI.events[0]
     # finalization stays with the interrupt machinery — still pending
     assert event.pending is True
@@ -765,6 +793,79 @@ async def test_anthropic_on_stream_tool_call_live() -> None:
 async def test_google_on_stream_live() -> None:
     collector = Collector()
     model = get_model("google/gemini-3.1-flash-lite")
+    output = await model.generate(
+        "Reply with one short sentence about the sea.", on_stream=collector
+    )
+    streamed = "".join(
+        e.text for e in collector.events if isinstance(e, StreamTextEvent)
+    )
+    assert streamed
+    assert streamed == output.completion
+
+
+@skip_if_no_openai
+async def test_openai_on_stream_live() -> None:
+    collector = Collector()
+    # gpt-4o family defaults to the chat-completions API
+    model = get_model("openai/gpt-4o-mini")
+    output = await model.generate(
+        "Reply with one short sentence about the sea.", on_stream=collector
+    )
+    streamed = "".join(
+        e.text for e in collector.events if isinstance(e, StreamTextEvent)
+    )
+    assert streamed
+    assert streamed == output.completion
+
+
+@skip_if_no_openai
+async def test_openai_on_stream_tool_call_live() -> None:
+    # inspect never sets `strict` on tools, so this exercises streaming a
+    # non-strict tool request live (the SDK's .stream() helper would reject
+    # it client-side; the raw create(stream=True) path must accept it)
+    async def add(x: int, y: int) -> int:
+        return x + y
+
+    collector = Collector()
+    model = get_model("openai/gpt-4o-mini")
+    output = await model.generate(
+        "Use the add tool to compute 5 + 3.",
+        tools=[
+            ToolDef(
+                add,
+                name="add",
+                description="Add two numbers.",
+                parameters={"x": "first number", "y": "second number"},
+            )
+        ],
+        on_stream=collector,
+    )
+    assert output.message.tool_calls
+    tool_events = [e for e in collector.events if isinstance(e, StreamToolCallEvent)]
+    assert any(e.function == "add" for e in tool_events)
+    arguments = json.loads("".join(e.arguments for e in tool_events))
+    assert arguments == {"x": 5, "y": 3}
+
+
+@skip_if_no_openai
+async def test_openai_responses_on_stream_live() -> None:
+    collector = Collector()
+    # gpt-5 family defaults to the Responses API
+    model = get_model("openai/gpt-5-mini")
+    output = await model.generate(
+        "Reply with one short sentence about the sea.", on_stream=collector
+    )
+    streamed = "".join(
+        e.text for e in collector.events if isinstance(e, StreamTextEvent)
+    )
+    assert streamed
+    assert streamed == output.completion
+
+
+@skip_if_no_grok
+async def test_grok_on_stream_live() -> None:
+    collector = Collector()
+    model = get_model("grok/grok-3-mini")
     output = await model.generate(
         "Reply with one short sentence about the sea.", on_stream=collector
     )
