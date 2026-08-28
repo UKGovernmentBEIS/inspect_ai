@@ -262,6 +262,10 @@ async def generate_responses(
         else:
             return openai_handle_bad_request(model_name, e), model_call
     except (APIError, OpenAIResponseError) as e:
+        # intentionally also catches the terminal `model_response.error` raise
+        # above, so recognized block codes convert on every path (streaming,
+        # non-streaming, background, batch); unrecognized codes return None
+        # and re-raise with their retry classification intact
         output = openai_handle_stream_error(model_name, e)
         if output is None:
             raise

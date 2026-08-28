@@ -400,6 +400,55 @@ async def _generate_responses_with_mock(
     return result
 
 
+async def test_responses_api_terminal_error_block_code_converts() -> None:
+    """A terminal `model_response.error` with a recognized block code converts.
+
+    The raise for terminal response errors is caught by the same handler as
+    mid-stream errors, so recognized block codes convert to `content_filter`
+    on every responses path (non-streaming included), while unrecognized
+    codes still raise `OpenAIResponseError` with their retry classification.
+    """
+    from openai.types.responses import Response, ResponseError
+
+    from inspect_ai.model._openai import OpenAIResponseError
+
+    blocked_response = Response.model_construct(
+        id="resp_test",
+        created_at=0.0,
+        model="gpt-4o",
+        object="response",
+        output=[],
+        tools=[],
+        error=ResponseError.model_construct(
+            code="content_policy_violation",
+            message="Your prompt was blocked by our content policy.",
+        ),
+        status="failed",
+    )
+    output, model_call = await _generate_responses_with_mock(blocked_response)
+    assert isinstance(output, ModelOutput)
+    assert output.stop_reason == "content_filter"
+    assert "blocked" in output.completion
+    assert model_call.error is True
+
+    server_error_response = Response.model_construct(
+        id="resp_test",
+        created_at=0.0,
+        model="gpt-4o",
+        object="response",
+        output=[],
+        tools=[],
+        error=ResponseError.model_construct(
+            code="server_error",
+            message="The model had an error while generating a response.",
+        ),
+        status="failed",
+    )
+    with pytest.raises(OpenAIResponseError) as excinfo:
+        await _generate_responses_with_mock(server_error_response)
+    assert excinfo.value.code == "server_error"
+
+
 async def test_responses_api_metadata_surfaced():
     """Response-level metadata is surfaced as ModelOutput.metadata."""
     from openai.types.responses import Response
