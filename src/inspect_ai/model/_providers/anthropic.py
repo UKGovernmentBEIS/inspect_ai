@@ -1402,10 +1402,20 @@ class AnthropicAPI(ModelAPI):
     def should_retry(self, ex: BaseException) -> bool | RetryDecision:
         if isinstance(ex, APIStatusError):
             retry_after = parse_retry_after_from_exception(ex)
-            # when streaming, anthropic does not set status_code == 529
-            # for overloaded or internal server errors so we check for them explicitly
+            # An error event delivered mid-stream surfaces as an
+            # APIStatusError with status_code == 200 (the SDK builds it from
+            # the SSE error body, not an HTTP status), so the status-based
+            # checks below can't classify it — classify from the body's
+            # error type: these are the in-band analogues of 429/529/500/408.
             if isinstance(ex.body, dict):
+                error_type = _error_type_from_body(ex.body)
+                if error_type == "rate_limit_error":
+                    return RetryDecision.rate_limit(retry_after=retry_after)
+                if error_type in ("overloaded_error", "api_error", "timeout_error"):
+                    return RetryDecision.transient(retry_after=retry_after)
                 body_str = str(ex.body).lower()
+                # message-based fallback for error bodies without a
+                # recognized type
                 if "overloaded" in body_str or "internal server error" in body_str:
                     return RetryDecision.transient(retry_after=retry_after)
                 # TCP interruptions can truncate large request bodies in transit,
@@ -4087,6 +4097,23 @@ def _warn_refusal_without_fallback(
         "requests automatically. Learn more at "
         "https://inspect.aisi.org.uk/fallbacks.html.",
     )
+
+
+def _error_type_from_body(body: dict[str, Any]) -> str | None:
+    """Extract the API error type from an error response body.
+
+    Handles both the full error envelope the SDK attaches as `ex.body`
+    ({"type": "error", "error": {"type": "rate_limit_error", ...}}) and a
+    bare inner error object ({"type": "overloaded_error", ...}).
+    """
+    error = body.get("error")
+    if isinstance(error, dict):
+        error_type = error.get("type")
+        return error_type if isinstance(error_type, str) else None
+    error_type = body.get("type")
+    if isinstance(error_type, str) and error_type != "error":
+        return error_type
+    return None
 
 
 def _strip_reasoning(message: ChatMessageAssistant) -> ChatMessageAssistant:

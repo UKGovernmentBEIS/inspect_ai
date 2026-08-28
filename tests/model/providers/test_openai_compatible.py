@@ -712,9 +712,11 @@ async def test_chat_completion_stream_gated_without_on_stream(
 
 
 async def test_chat_completion_stream_empty_raises() -> None:
-    """A zero-chunk stream raises a descriptive error, not a bare assert."""
+    """A zero-chunk stream raises a descriptive, retryable error, not a bare assert."""
+    from inspect_ai.model._stream import NoStreamDataError
+
     fake_stream: Any = _FakeChunkStream([])
-    with pytest.raises(RuntimeError, match="without delivering any chunks"):
+    with pytest.raises(NoStreamDataError, match="without delivering any chunks"):
         await openai_chat_completion_stream_final(fake_stream)
 
 

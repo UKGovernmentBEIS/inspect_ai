@@ -11,6 +11,7 @@ if TYPE_CHECKING:
 
 from openai import (
     APIConnectionError,
+    APIError,
     APIStatusError,
     APITimeoutError,
     AsyncStream,
@@ -104,6 +105,7 @@ from ._model_output import (
     collect_stop_details,
 )
 from ._stream import (
+    NoStreamDataError,
     StreamReasoningEvent,
     StreamTextEvent,
     StreamToolCallEvent,
@@ -975,8 +977,11 @@ async def openai_chat_completion_stream_final(
         await _report_chat_completion_chunk(chunk, tool_calls)
     if not saw_chunk:
         # get_final_completion() would fail on a bare assert; raise a
-        # descriptive error instead (misbehaving server: 200 with empty body)
-        raise RuntimeError("Streaming response ended without delivering any chunks.")
+        # descriptive, retryable error instead (misbehaving server: 200 with
+        # empty body)
+        raise NoStreamDataError(
+            "Streaming response ended without delivering any chunks."
+        )
     try:
         return state.get_final_completion()
     except LengthFinishReasonError as ex:
@@ -1280,6 +1285,49 @@ def openai_classify_retry(ex: BaseException) -> "RetryDecision | None":
         return None
     if isinstance(ex, APIConnectionError | APITimeoutError):
         return RetryDecision.transient()
+    if isinstance(ex, APIError):
+        # A failure delivered mid-stream (after HTTP 200) is raised by the
+        # SDK as a bare APIError with no status code, carrying only the
+        # error body's `code`/`type`. OpenAI itself signals with
+        # `server_error` / `rate_limit_exceeded`; OpenAI-compatible servers
+        # use their own vocabulary — often a numeric HTTP status in `code`
+        # (vLLM/SGLang: {"type": "InternalServerError", "code": 500},
+        # OpenRouter: {"code": 502}), which classifies through the standard
+        # status rules. Anything unrecognized stays unretried.
+        code_status = _http_status_from_error_code(ex.code)
+        if code_status is not None:
+            if code_status == 429:
+                return RetryDecision.rate_limit()
+            if is_retryable_http_status(code_status):
+                return RetryDecision.transient()
+            return None
+        # normalize code/type spellings (rate_limit_error/RateLimitError/...)
+        names = {
+            v.lower().replace("_", "") for v in (ex.code, ex.type) if isinstance(v, str)
+        }
+        if names & {"ratelimitexceeded", "ratelimiterror"}:
+            return RetryDecision.rate_limit()
+        if names & {"servererror", "internalservererror", "internalerror"}:
+            return RetryDecision.transient()
+        return None
+    return None
+
+
+def _http_status_from_error_code(code: object) -> int | None:
+    """Coerce an error body `code` to an HTTP status when it is one.
+
+    OpenAI-compatible servers often put a numeric HTTP status in `code`
+    (as an int or a digit string). The SDK annotates `APIError.code` as
+    `Optional[str]` but passes body values through unconverted, so an int
+    arrives as an int at runtime.
+    """
+    if isinstance(code, bool):
+        return None
+    if isinstance(code, int):
+        return code if 100 <= code <= 599 else None
+    if isinstance(code, str) and code.isdigit():
+        status = int(code)
+        return status if 100 <= status <= 599 else None
     return None
 
 

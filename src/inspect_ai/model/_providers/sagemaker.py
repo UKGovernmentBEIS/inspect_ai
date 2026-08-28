@@ -37,6 +37,7 @@ from .._model_call import ModelCall
 from .._model_output import ModelOutput
 from .._reasoning import clamp_reasoning_effort_to_low_medium_high
 from .._stream import (
+    NoStreamDataError,
     StreamContentEvent,
     StreamReasoningEvent,
     StreamTextEvent,
@@ -67,6 +68,14 @@ SAGEMAKER_RETRY_ERROR_CODES = {
     # 507, # Insufficient storage
 }
 
+# ModelStreamError ErrorCodes documented as transient by AWS (the full
+# documented set — both are infrastructure/timeout conditions whose
+# non-streaming analogues are retried above; unknown codes don't retry).
+SAGEMAKER_RETRY_STREAM_ERROR_CODES = {
+    "ModelInvocationTimeExceeded",  # model didn't finish within the allowed time
+    "StreamBroken",  # TCP connection between client and model reset or closed
+}
+
 # botocore transport-layer exceptions raised before a response is received —
 # the connection could not be established, was dropped mid-flight, or timed
 # out. These are transient (a redialed request typically succeeds) and are not
@@ -87,6 +96,27 @@ SAGEMAKER_RETRY_TRANSPORT_ERRORS = (
 # container only exposes chat/completion inference fields. Users of
 # target_perplexity() must provide num_target_tokens in sample metadata
 # rather than relying on auto-tokenization.
+
+
+class SageMakerStreamError(RuntimeError):
+    """In-band ModelStreamError event from a streaming response (after HTTP 200).
+
+    Preserves the event's structured `ErrorCode` so `should_retry` can
+    classify it (folding it into the message string would hide it from the
+    retry classifier and fail the sample on transient conditions).
+    """
+
+    def __init__(self, message: str, error_code: str | None = None) -> None:
+        super().__init__(message)
+        self.error_code = error_code
+
+
+class SageMakerInternalStreamFailure(RuntimeError):
+    """In-band InternalStreamFailure event from a streaming response.
+
+    AWS documents this as an unknown backend failure with explicit guidance
+    to "Try your request again", so `should_retry` treats it as transient.
+    """
 
 
 class SagemakerAPI(ModelAPI):
@@ -183,6 +213,17 @@ class SagemakerAPI(ModelAPI):
         # dropped/timed out) are transient — the request never reached the
         # model, so a redial typically succeeds.
         elif isinstance(ex, SAGEMAKER_RETRY_TRANSPORT_ERRORS):
+            return RetryDecision.transient()
+        # In-band stream errors (delivered after HTTP 200): an
+        # InternalStreamFailure is documented by AWS as transient; a
+        # ModelStreamError is classified by its ErrorCode (both documented
+        # codes are transient — see SAGEMAKER_RETRY_STREAM_ERROR_CODES).
+        elif isinstance(ex, SageMakerInternalStreamFailure):
+            return RetryDecision.transient()
+        elif (
+            isinstance(ex, SageMakerStreamError)
+            and ex.error_code in SAGEMAKER_RETRY_STREAM_ERROR_CODES
+        ):
             return RetryDecision.transient()
         return RetryDecision.no()
 
@@ -685,17 +726,22 @@ class SagemakerAPI(ModelAPI):
             # Check for error events first
             if "ModelStreamError" in event:
                 error_info = event["ModelStreamError"]
-                error_code = error_info.get("ErrorCode", "Unknown")
+                error_code = error_info.get("ErrorCode")
                 error_message = error_info.get("Message", "Model stream error occurred")
                 logger.error(f"ModelStreamError: {error_code} - {error_message}")
-                raise RuntimeError(f"ModelStreamError [{error_code}]: {error_message}")
+                raise SageMakerStreamError(
+                    f"ModelStreamError [{error_code or 'Unknown'}]: {error_message}",
+                    error_code=error_code,
+                )
 
             if "InternalStreamFailure" in event:
                 error_message = event["InternalStreamFailure"].get(
                     "Message", "Internal stream failure occurred"
                 )
                 logger.error(f"InternalStreamFailure: {error_message}")
-                raise RuntimeError(f"InternalStreamFailure: {error_message}")
+                raise SageMakerInternalStreamFailure(
+                    f"InternalStreamFailure: {error_message}"
+                )
 
             # Process payload chunks
             if "PayloadPart" in event:
@@ -716,10 +762,9 @@ class SagemakerAPI(ModelAPI):
         )
 
         if n_chunks == 0:
-            # No data chunks at all — surface as an error so the request can be
-            # retried / counted as a failure rather than silently scored as an
-            # empty (wrong) completion.
-            raise RuntimeError(
+            # No data chunks at all — surface as a retryable error rather than
+            # silently scoring an empty (wrong) completion.
+            raise NoStreamDataError(
                 "No data chunks received from streaming SageMaker endpoint "
                 f"'{self.endpoint_name}'."
             )
