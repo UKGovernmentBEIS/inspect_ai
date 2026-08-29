@@ -147,7 +147,7 @@ against a venv built the way CI builds it:
 pytest writes `conftest.cpython-311-pytest-9.1.1.pyc` next to the plain
 `conftest.cpython-311.pyc`: the rewritten module is a *different* cache entry,
 validated by source mtime + size, and `compileall` never produces it. That is
-why the "cache `__pycache__`" idea in the last two reports was mis-attributed —
+why the "cache `__pycache__`" idea in the last two reports was misattributed —
 and also why it can still work, but only if source mtimes are normalized after
 checkout so the restored rewrite cache validates (proposal 4).
 
@@ -393,7 +393,7 @@ crossed the noise band in either direction.
    is worth shipping. Note what does *not* work, both measured today:
    `compileall` (wrong cache entry, 1.3s and no effect) and `uv`'s
    `compile-bytecode` (+13.6s install for −3.5s collect). Structural (workflow
-   change). Status: **new, replaces the mis-attributed "bytecode compilation"
+   change). Status: **new, replaces the misattributed "bytecode compilation"
    item from the last two reports**.
 
 5. **`uv run` re-syncs the environment the previous step just installed.**
