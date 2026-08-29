@@ -843,6 +843,36 @@ def responses_model_usage(usage: ModelUsage | None) -> ResponseUsage | None:
         return None
 
 
+def model_usage_from_response_usage(usage: ResponseUsage | None) -> ModelUsage | None:
+    if usage is None:
+        return None
+
+    input_tokens_details = usage.input_tokens_details
+    cached_tokens = (
+        input_tokens_details.cached_tokens
+        if input_tokens_details is not None
+        and input_tokens_details.cached_tokens is not None
+        else 0
+    )
+    cache_write_tokens = (
+        input_tokens_details.cache_write_tokens
+        if input_tokens_details is not None
+        and input_tokens_details.cache_write_tokens is not None
+        else 0
+    )
+
+    return ModelUsage(
+        input_tokens=usage.input_tokens - cached_tokens - cache_write_tokens,
+        output_tokens=usage.output_tokens,
+        input_tokens_cache_write=cache_write_tokens if cache_write_tokens > 0 else None,
+        input_tokens_cache_read=cached_tokens if cached_tokens > 0 else None,
+        reasoning_tokens=usage.output_tokens_details.reasoning_tokens
+        if usage.output_tokens_details is not None
+        else None,
+        total_tokens=usage.total_tokens,
+    )
+
+
 def _process_response_output_items(
     outputs: Iterable[Any],
     tools: list[ToolInfo],
@@ -1937,9 +1967,11 @@ def _responses_call_to_inspect(
 
     Reverses the todo_write->update_plan swap (only when a todo_write tool is present and no
     first-party update_plan tool is — so we never hijack a user's own update_plan), then
-    falls back to the name-only alias mechanism. Malformed arguments are passed through with
-    the mapped name so parse_tool_call() reports the parse error rather than silently
-    producing an empty plan.
+    falls back to the name-only alias mechanism. Malformed arguments — including ones
+    parse_tool_call() will itself recover (a complete object trailed by stray quotes) — are
+    passed through with the mapped name rather than mapped here, so any resulting error
+    surfaces at the tool (e.g. "Required parameter todos not provided") rather than at the
+    parse.
     """
     if name == UPDATE_PLAN_NAME and _tools_swap_todo_write(tools):
         try:
@@ -2467,13 +2499,7 @@ def model_usage_from_compact_response(
     Returns:
         ModelUsage if usage information is available, None otherwise.
     """
-    if response.usage:
-        return ModelUsage(
-            input_tokens=response.usage.input_tokens,
-            output_tokens=response.usage.output_tokens,
-            total_tokens=response.usage.total_tokens,
-        )
-    return None
+    return model_usage_from_response_usage(response.usage)
 
 
 def pad_tool_messages_for_token_counting(
@@ -2505,7 +2531,7 @@ def pad_tool_messages_for_token_counting(
     for i, msg in enumerate(messages):
         # Forward scan: Check for function_call_output without preceding function_call
         if is_function_call_output(msg):
-            call_id = msg.get("call_id", "")
+            call_id = msg.get("call_id") or ""
             has_matching_call = (
                 result
                 and is_response_function_tool_call(result[-1])

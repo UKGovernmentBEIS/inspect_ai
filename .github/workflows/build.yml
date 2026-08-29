@@ -149,7 +149,23 @@ jobs:
           fetch-tags: true
           filter: "blob:none"
 
+      # The cache holds only a marker recording that this exact input set
+      # rendered successfully, never the rendered site — nothing consumes
+      # this job's output, so a stale hit can only skip a redundant
+      # validation, not publish stale docs. The key covers everything the
+      # render reads: the docs sources, the doc toolchain pins, and the
+      # inspect_ai source that reference docs are generated from (griffe).
+      # The marker is created only after a successful render and the cache
+      # is saved only when the job succeeds, so a hit implies a past pass.
+      - name: Check for previous successful render
+        id: render-cache
+        uses: actions/cache@v6
+        with:
+          path: .docs-render-ok
+          key: docs-render-${{ hashFiles('docs/**', 'requirements-doc.txt', 'src/inspect_ai/**') }}
+
       - name: Install uv
+        if: steps.render-cache.outputs.cache-hit != 'true'
         uses: astral-sh/setup-uv@v9.0.0
         with:
           version: ${{ env.UV_VERSION }}
@@ -158,15 +174,19 @@ jobs:
       # The package itself is installed because reference docs are
       # generated from the inspect_ai module (griffe).
       - name: Install dependencies
+        if: steps.render-cache.outputs.cache-hit != 'true'
         run: |-
           uv venv
           uv pip install -r requirements-doc.txt .
 
       - name: Render docs
-        run: uv run quarto render docs
+        if: steps.render-cache.outputs.cache-hit != 'true'
+        run: |-
+          uv run quarto render docs
+          touch .docs-render-ok
 
       - name: Minimize uv cache
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.render-cache.outputs.cache-hit != 'true' }}
         run: uv cache prune --ci
 
   test:
@@ -216,6 +236,7 @@ jobs:
             code:
               - '**'
               - '!docs/**'
+              - '!design/**'
               - '!**/*.md'
 
       - name: Set RUN_TESTS
@@ -261,7 +282,10 @@ jobs:
         # uncompressed: reportlog flushes every line, and flushing a .gz forces
         # a zlib flush per line (~4x the per-test cost). upload-artifact
         # compresses on upload anyway.
-        run: uv run pytest -rA --doctest-modules --color=yes -n auto --timeout=900 --timeout-method=thread --durations=50 --durations-min=1 --report-log=test-report-log.jsonl --report-log-exclude-logs-on-passed-tests
+        # -n logical, not auto: auto means physical cores when psutil is
+        # importable (it always is — a runtime dependency), using only 2 of
+        # the runner's 4 vCPUs. Measured: 449s → 334s of pytest wall.
+        run: uv run pytest -ra --doctest-modules --color=yes -n logical --timeout=900 --timeout-method=thread --durations=50 --durations-min=1 --report-log=test-report-log.jsonl --report-log-exclude-logs-on-passed-tests
 
       - name: Upload test order log
         if: ${{ !cancelled() && env.RUN_TESTS == 'true' }}
@@ -303,7 +327,7 @@ jobs:
           uv pip install "./src/inspect_sandbox_tools[dev]"
 
       - name: Test with pytest
-        run: uv run pytest src/inspect_sandbox_tools/tests/ -rA --color=yes
+        run: uv run pytest src/inspect_sandbox_tools/tests/ -ra --color=yes
 
       - name: Minimize uv cache
         if: ${{ !cancelled() }}
@@ -378,6 +402,7 @@ jobs:
         with:
           fetch-depth: 0
           fetch-tags: true
+          filter: "blob:none"
 
       - name: Check version bump
         id: bump
@@ -399,6 +424,21 @@ jobs:
             fi
           else
             if [ "$PR_VERSION" = "$BASE_VERSION" ]; then
+              # Unbumped direction of the digest-pinning rule: a SHA256SUMS-only
+              # change is a re-publication of an existing version, which is
+              # forbidden (published S3 objects are immutable). Applies only when
+              # the sums file exists on the base ref so the PR that seeds the
+              # file (no bump) doesn't fail the rule it introduces. The bumped
+              # direction (sums must be rewritten) is deliberately enforced only
+              # by slow-tool-tests-release: the sums are written at post-approval
+              # upload, and a red fast gate here would block slow-tool-tests-dev
+              # for the whole review window.
+              SUMS_PATH="src/inspect_ai/tool/_sandbox_tools_utils/SHA256SUMS"
+              if git cat-file -e "origin/${BASE_REF}:${SUMS_PATH}" 2>/dev/null && \
+                 ! git diff --quiet "origin/${BASE_REF}" -- "${SUMS_PATH}"; then
+                echo "::error::${SUMS_PATH} changed but ${VERSION_PATH} is unchanged. Digests for a published version are immutable; bump the version and publish fresh artifacts instead."
+                exit 1
+              fi
               echo "correctly_bumped=false" >> "$GITHUB_OUTPUT"
             else
               echo "::error::${VERSION_PATH} changed to v${PR_VERSION} but src/inspect_sandbox_tools/ is unchanged. Either revert the version change or include the injectable source change."
@@ -420,6 +460,7 @@ jobs:
         with:
           fetch-depth: 0
           fetch-tags: true
+          filter: "blob:none"
           submodules: true
 
       - name: Create local main ref
@@ -460,6 +501,9 @@ jobs:
         env:
           DOCKER_BUILDKIT: 1
           BUILDKIT_PROGRESS: plain
+          # Digest verification is warning-only by default during its soft
+          # launch; CI exercises strict mode.
+          INSPECT_SANDBOX_TOOLS_STRICT_DIGESTS: 1
         run: uv run pytest --runslow -m slow tests/tools/ -x
 
       - name: Minimize uv cache
@@ -469,9 +513,11 @@ jobs:
   # Release gate: runs only when the version bumped to N+1. Verifies the
   # new v{N+1} artifact is published to S3 (fails fast with upload_to_s3.py
   # hint if not), then re-runs the slow tests against it. Maintainer reruns
-  # from the Actions UI after uploading.
+  # from the Actions UI after uploading. Runs in parallel with
+  # slow-tool-tests-dev: it consumes only the published S3 artifacts,
+  # nothing the dev job produces.
   slow-tool-tests-release:
-    needs: [detect-slow, check-version-bump, slow-tool-tests-dev]
+    needs: [detect-slow, check-version-bump]
     if: needs.detect-slow.outputs.tools_changed == 'true' && needs.check-version-bump.outputs.version_correctly_bumped == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -481,6 +527,7 @@ jobs:
         with:
           fetch-depth: 0
           fetch-tags: true
+          filter: "blob:none"
           submodules: true
 
       - name: Setup Docker Buildx
@@ -504,20 +551,50 @@ jobs:
           uv venv
           uv pip install .[dev]
 
-      - name: Fetch published non-dev sandbox-tools binaries (glibc + musl)
+      - name: Fetch and verify published non-dev sandbox-tools binaries
         run: |
           VERSION=$(tr -d '[:space:]' < src/inspect_ai/tool/_sandbox_tools_utils/sandbox_tools_version.txt)
+          SUMS=src/inspect_ai/tool/_sandbox_tools_utils/SHA256SUMS
           mkdir -p src/inspect_ai/binaries
-          # Both libc variants: the slow suite includes an Alpine (musl) case.
+          # Digest file must be in lockstep with the version bump: four non-blank
+          # entries, all named -v${VERSION}. (Entry format/distinctness is enforced
+          # by a fast unit test.) A flag records the failure rather than an early
+          # exit: `exit 1` in the awk body jumps to END, whose own exit would
+          # override the status.
+          if ! awk -v v="v${VERSION}" 'NF { n++; if ($2 !~ ("-" v "$")) bad = 1 } END { exit (bad || n != 4) }' "$SUMS"; then
+            echo "::error::${SUMS} is not updated for v${VERSION}. Build+upload the artifacts (upload_to_s3.py rewrites it) and commit it in this PR."
+            exit 1
+          fi
+          # All four artifacts are fetched and digest-checked, not just the amd64
+          # pair the slow tests exercise on this runner. Otherwise a crash partway
+          # through upload_to_s3.py's upload order (amd64 first) would leave the
+          # gate green with the arm64 objects missing, and the committed arm64
+          # digests would never be compared against S3 by anything but the
+          # maintainer-run round trip. The extra ~30 MB download is trivial in CI.
           for FILENAME in \
             "inspect-sandbox-tools-amd64-v${VERSION}" \
-            "inspect-sandbox-tools-amd64-musl-v${VERSION}"; do
+            "inspect-sandbox-tools-amd64-musl-v${VERSION}" \
+            "inspect-sandbox-tools-arm64-v${VERSION}" \
+            "inspect-sandbox-tools-arm64-musl-v${VERSION}"; do
             URL="https://inspect-sandbox-tools.s3.us-east-2.amazonaws.com/${FILENAME}"
+            # Keep today's explicit not-yet-uploaded error (a bare curl -f 404 is
+            # terse and carries no ::error annotation).
             if ! curl -fsI "$URL" >/dev/null; then
-              echo "::error::Published binary ${FILENAME} not found at ${URL}. Run: python src/inspect_ai/tool/_sandbox_tools_utils/upload_to_s3.py ${VERSION} then rerun this job."
+              echo "::error::Published binary ${FILENAME} not found at ${URL}. Run: python src/inspect_ai/tool/_sandbox_tools_utils/upload_to_s3.py ${VERSION}, commit the rewritten SHA256SUMS, then rerun this job."
               exit 1
             fi
             curl -fSL -o "src/inspect_ai/binaries/${FILENAME}" "$URL"
+            # Exactly-one-match assertion: without it, zero or duplicate entries
+            # feed sha256sum a malformed line and its "no properly formatted
+            # checksum lines" failure would be mislabeled a digest mismatch below.
+            DIGEST=$(awk -v f="$FILENAME" '$2 == f { print $1; n++ } END { exit n != 1 }' "$SUMS") || {
+              echo "::error::Expected exactly one ${SUMS} entry for ${FILENAME}; found none or duplicates (malformed sums file)."
+              exit 1
+            }
+            echo "${DIGEST}  src/inspect_ai/binaries/${FILENAME}" | sha256sum -c - || {
+              echo "::error::Digest mismatch for ${FILENAME}: the published S3 object does not match the digests committed in this PR. Do NOT re-upload over it. Investigate (wrong-checkout build, truncated upload, or tampering), and if the object is wrong, bump the version and publish fresh artifacts."
+              exit 1
+            }
             chmod +x "src/inspect_ai/binaries/${FILENAME}"
           done
 
@@ -529,6 +606,9 @@ jobs:
           # the non-dev name; _check_main_divergence would otherwise return
           # "edited" on this PR (version.txt differs from main).
           INSPECT_SANDBOX_TOOLS_INSTALL_STATE: clean
+          # Digest verification is warning-only by default during its soft
+          # launch; CI exercises strict mode.
+          INSPECT_SANDBOX_TOOLS_STRICT_DIGESTS: 1
         run: uv run pytest --runslow -m slow tests/tools/ -x
 
       - name: Minimize uv cache
@@ -555,6 +635,7 @@ jobs:
         with:
           fetch-depth: 0
           fetch-tags: true
+          filter: "blob:none"
           submodules: true
 
       - name: Install uv

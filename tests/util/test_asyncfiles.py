@@ -10,7 +10,7 @@ import pytest
 from anyio import EndOfStream
 from botocore.exceptions import ClientError
 
-from inspect_ai._util._async import run_coroutine, tg_collect
+from inspect_ai._util._async import current_async_backend, run_coroutine, tg_collect
 from inspect_ai._util.asyncfiles import (
     AsyncFilesystem,
     _current_async_fs,
@@ -389,19 +389,30 @@ async def test_write_file_streaming_local():
             assert f.read() == large_data
 
 
-def test_write_file_streaming_s3(mock_s3: None) -> None:
+async def test_write_file_streaming_s3(
+    mock_s3: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Test AsyncFilesystem.write_file_streaming with mock S3."""
+    if current_async_backend() == "trio":
+
+        def reject_transfer_manager_factory(*args: Any, **kwargs: Any) -> None:
+            raise AssertionError("Trio S3 uploads must not auto-select the CRT manager")
+
+        monkeypatch.setattr(
+            "boto3.s3.transfer.create_transfer_manager",
+            reject_transfer_manager_factory,
+        )
+
     test_data = b"\xab" * (10 * 1024 * 1024)  # 10MB, exceeds 8MB multipart threshold
     s3_path = f"{S3_BUCKET}/streaming_test/file.bin"
 
-    async def run() -> None:
-        source = io.BytesIO(test_data)
-        async with AsyncFilesystem() as fs:
-            await fs.write_file_streaming(s3_path, source)
-            result = await fs.read_file(s3_path)
-            assert result == test_data
-
-    asyncio.run(run())
+    source = io.BytesIO(test_data)
+    async with AsyncFilesystem() as fs:
+        etag = await fs.write_file_streaming(s3_path, source)
+        result = await fs.read_file(s3_path)
+        assert result == test_data
+        assert etag == (await fs.info(s3_path)).etag
+        assert etag is not None and "-" in etag
 
 
 class _RetryingUploadClient:
@@ -664,6 +675,98 @@ def test_exists_s3_false(mock_s3: None) -> None:
     async def run() -> None:
         async with AsyncFilesystem() as fs:
             assert await fs.exists(s3_path) is False
+
+    asyncio.run(run())
+
+
+# =============================================================================
+# Tests for missing-object reads (NoSuchKey/404 -> FileNotFoundError)
+# =============================================================================
+
+
+def test_missing_s3_object_reads_raise_file_not_found(mock_s3: None) -> None:
+    """A missing S3 object reads like a missing local file, not a ClientError.
+
+    Callers treat an absent log file as a routine state (a retry attempt whose
+    destination log is deferred until its reuse sweep settles, or a crashed
+    attempt that never wrote one) and catch FileNotFoundError.
+    """
+    s3_path = f"{S3_BUCKET}/missing_test/absent.eval"
+
+    async def run() -> None:
+        async with AsyncFilesystem() as fs:
+            with pytest.raises(FileNotFoundError):
+                await fs.read_file(s3_path)
+            with pytest.raises(FileNotFoundError):
+                await fs.read_file_suffix(s3_path, 100)
+            with pytest.raises(FileNotFoundError):
+                await fs.read_file_bytes_fully(s3_path, 0, 10)
+            with pytest.raises(FileNotFoundError):
+                await fs.info(s3_path)
+            with pytest.raises(FileNotFoundError):
+                await fs.get_size(s3_path)
+            with tempfile.TemporaryDirectory() as temp_dir:
+                with pytest.raises(FileNotFoundError):
+                    await fs.get_file(s3_path, str(Path(temp_dir) / "dst.bin"))
+
+    asyncio.run(run())
+
+
+def test_missing_s3_object_zip_read_raises_file_not_found(mock_s3: None) -> None:
+    """AsyncZipReader over a missing S3 object raises FileNotFoundError.
+
+    The reuse presence probe and the retry sample source both catch
+    FileNotFoundError to degrade to no-reuse; on S3 the raw ClientError would
+    otherwise surface per lookup.
+    """
+    from inspect_ai._util.async_zip import AsyncZipReader
+
+    async def run() -> None:
+        async with AsyncFilesystem() as fs:
+            reader = AsyncZipReader(fs, f"{S3_BUCKET}/missing_test/absent-zip.eval")
+            with pytest.raises(FileNotFoundError):
+                await reader.entries()
+
+    asyncio.run(run())
+
+
+async def test_missing_s3_object_reads_raise_file_not_found_both_backends(
+    mock_s3: None,
+) -> None:
+    """The mapping covers the trio path too (sync boto3 via a worker thread)."""
+    s3_path = f"{S3_BUCKET}/missing_test/absent-backend.eval"
+
+    async with AsyncFilesystem() as fs:
+        with pytest.raises(FileNotFoundError):
+            await fs.read_file(s3_path)
+        with pytest.raises(FileNotFoundError):
+            await fs.info(s3_path)
+        with pytest.raises(FileNotFoundError):
+            await fs.read_file_suffix(s3_path, 100)
+
+
+def test_non_missing_s3_client_error_still_raises(monkeypatch) -> None:
+    """Only 404/NoSuchKey map to FileNotFoundError; other errors propagate."""
+
+    class _DenyingClient:
+        async def get_object(self, **kwargs: Any) -> Any:
+            raise ClientError(
+                cast(
+                    Any,
+                    {"Error": {"Code": "AccessDenied", "Message": "denied"}},
+                ),
+                "GetObject",
+            )
+
+    async def s3_client_async(self):
+        return _DenyingClient()
+
+    monkeypatch.setattr(AsyncFilesystem, "s3_client_async", s3_client_async)
+
+    async def run() -> None:
+        async with AsyncFilesystem() as fs:
+            with pytest.raises(ClientError):
+                await fs.read_file("s3://bucket/denied.eval")
 
     asyncio.run(run())
 

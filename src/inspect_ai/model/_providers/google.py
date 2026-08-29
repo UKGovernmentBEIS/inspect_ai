@@ -13,7 +13,6 @@ from typing import Any, Literal, NamedTuple, cast
 # SDK Docs: https://googleapis.github.io/python-genai/
 import aiohttp
 import anyio
-import httpx
 from google.genai import Client
 from google.genai.errors import APIError, ClientError
 from google.genai.types import (
@@ -74,6 +73,7 @@ from inspect_ai._util.http import (
     is_retryable_http_status,
     parse_retry_after_from_exception,
 )
+from inspect_ai._util.http_defaults import default_async_client
 from inspect_ai._util.images import inline_media_data
 from inspect_ai._util.kvstore import inspect_kvstore
 from inspect_ai._util.logger import warn_once
@@ -119,6 +119,17 @@ from inspect_ai.model._reasoning import (
     reasoning_to_think_tag,
 )
 from inspect_ai.model._retry import batch_admin_retry_config
+from inspect_ai.model._stream import (
+    NoStreamDataError,
+    StreamReasoningEvent,
+    StreamTextEvent,
+    StreamToolCallEvent,
+    model_stream_requested,
+    report_model_stream_delta,
+    report_model_stream_progress,
+    report_model_stream_restart,
+    report_model_stream_start,
+)
 from inspect_ai.tool import (
     ToolCall,
     ToolChoice,
@@ -131,6 +142,7 @@ from .util import (
     OAUTH_PLACEHOLDER_API_KEY,
     GoogleOAuthCredentials,
     model_base_url,
+    normalize_stream_arg,
     resolve_google_credentials,
 )
 from .util.hooks import HttpHooks, HttpxHooks
@@ -164,6 +176,11 @@ _NON_GENERATIVE_TOKENS = (
 
 SAFETY_SETTINGS = "safety_settings"
 DEFAULT_GOOGLE_HTTP_TIMEOUT = 60 * 60
+
+# Total request budget (initial attempt + retries) for the internal
+# MALFORMED_FUNCTION_CALL retry loop. The stream-restart boundary inside the
+# loop must use the same bound: it only fires when another request will run.
+MAX_TOOL_CALLING_ATTEMPTS = 3
 
 # Key under ContentReasoning.internal that links a redacted reasoning block
 # to the function_call whose thought_signature it carries. Used to preserve
@@ -232,8 +249,11 @@ class GoogleGenAIAPI(ModelAPI):
         # record api version
         self.api_version = api_version
 
-        # record streaming preference
-        self.streaming = bool(model_args.pop("streaming", False))
+        # record streaming preference (unset/"auto" streams when the caller
+        # passes on_stream to generate; an explicit True/False overrides)
+        self.streaming: bool | None = normalize_stream_arg(
+            model_args.pop("streaming", None), "streaming"
+        )
 
         # pick out user-provided safety settings and merge against default
         self.safety_settings: list[SafetySettingDict] = DEFAULT_SAFETY_SETTINGS.copy()
@@ -419,9 +439,9 @@ class GoogleGenAIAPI(ModelAPI):
             # create hooks and allocate request
             async_httpx_client = client._api_client._async_httpx_client
             if async_httpx_client is not None:
-                http_hooks: HttpHooks = HttpxHooks(async_httpx_client)
+                http_hooks: HttpHooks = HttpxHooks(async_httpx_client, api=self)
             else:
-                http_hooks = HttpHooks()
+                http_hooks = HttpHooks(api=self)
             request_id = http_hooks.start_request()
 
             # Create google-genai types.
@@ -493,12 +513,14 @@ class GoogleGenAIAPI(ModelAPI):
                 # google sometimes requires retries for malformed function calls
                 # (see https://github.com/googleapis/python-genai/issues/430#issuecomment-3592369131)
                 tool_calling_attempts = 0
-                while tool_calling_attempts < 3:
+                while tool_calling_attempts < MAX_TOOL_CALLING_ATTEMPTS:
                     if self._batcher:
                         response = await self._batcher.generate_for_request(
                             batch_request_dict(parameters, gemini_contents)
                         )
-                    elif self.streaming:
+                    elif self.streaming is True or (
+                        self.streaming is None and model_stream_requested()
+                    ):
                         response = await self._stream_generate_content(
                             client=client,
                             model=self.service_model_name(),
@@ -520,6 +542,14 @@ class GoogleGenAIAPI(ModelAPI):
                     ):
                         # tick retries
                         tool_calling_attempts += 1
+
+                        # the retried request regenerates the response, so any
+                        # output already streamed to observers is stale — but
+                        # only announce a restart when a retry will actually
+                        # run; on exhaustion the malformed response *is* the
+                        # returned output, so its deltas must not be discarded
+                        if tool_calling_attempts < MAX_TOOL_CALLING_ATTEMPTS:
+                            await report_model_stream_restart()
 
                         # apply retry context
                         retry_contents, retry_tool_config = _malformed_function_retry(
@@ -583,8 +613,21 @@ class GoogleGenAIAPI(ModelAPI):
             config=config,
         )
 
+        report_model_stream_start()
+
         async for chunk in stream:
             last_chunk = chunk
+
+            # report cumulative output tokens when the chunk carries usage
+            # (candidates + thoughts, matching usage_metadata_to_model_usage's
+            # output_tokens convention), else a bare heartbeat
+            output_tokens: int | None = None
+            if chunk.usage_metadata is not None:
+                output_tokens = (chunk.usage_metadata.candidates_token_count or 0) + (
+                    chunk.usage_metadata.thoughts_token_count or 0
+                ) or None
+            report_model_stream_progress(output_tokens)
+
             if chunk.candidates:
                 for candidate in chunk.candidates:
                     if candidate.index is None:
@@ -596,9 +639,16 @@ class GoogleGenAIAPI(ModelAPI):
 
                     if candidate.content and candidate.content.parts:
                         candidates_parts[idx].extend(candidate.content.parts)
+                        # report content deltas for the first candidate only —
+                        # interleaving multiple candidates' fragments into the
+                        # single delta stream would corrupt accumulating
+                        # consumers
+                        if idx == 0:
+                            for part in candidate.content.parts:
+                                await _report_stream_part_delta(part)
 
         if last_chunk is None:
-            raise RuntimeError(
+            raise NoStreamDataError(
                 f"No response chunks received from streaming API for model {model}"
             )
 
@@ -910,12 +960,14 @@ class GoogleGenAIAPI(ModelAPI):
             base_url=self.base_url,
             api_version=self.api_version,
         )
-        # aiohttp requires asyncio; use httpx under trio for compatibility
+        # aiohttp requires asyncio; use httpx under trio for compatibility.
+        # Only this path gets the shared HTTP defaults: the aiohttp path sets no
+        # connect deadline at all, so there is none there to be outlasted.
         if (
             current_async_backend() == "trio"
             and http_options.httpx_async_client is None
         ):
-            http_options.httpx_async_client = httpx.AsyncClient()
+            http_options.httpx_async_client = default_async_client()
         api_key = self.api_key
         if self._oauth and self._credentials is not None:
             # The dev-endpoint client requires a non-empty api_key; pass a
@@ -1174,7 +1226,12 @@ class GoogleGenAIAPI(ModelAPI):
         self._batcher = GoogleBatcher(
             client,
             batch_config,
-            batch_admin_retry_config(self.model_name, config, self.should_retry),
+            batch_admin_retry_config(
+                self.model_name,
+                config,
+                self.should_retry,
+                qualified_model_name=self.qualified_model_name,
+            ),
             self.service_model_name(),
         )
 
@@ -2092,6 +2149,35 @@ def prompt_feedback_to_content(
             [rating.model_dump_json(indent=2) for rating in feedback.safety_ratings]
         )
     return "\n".join(content)
+
+
+async def _report_stream_part_delta(part: Part) -> None:
+    """Report one streamed content part to the model layer's stream observer.
+
+    Text and thought parts stream as fragments; a function call arrives whole
+    in a single part, so it is reported as one tool-call delta with complete
+    arguments. Parts carrying neither (executable code, inline data, ...)
+    already produced a heartbeat via the per-chunk progress report. No-op
+    without an on_stream consumer (see `report_model_stream_delta`).
+    """
+    if not model_stream_requested():
+        return
+    if part.thought is True and part.text:
+        await report_model_stream_delta(StreamReasoningEvent(reasoning=part.text))
+    elif part.text:
+        await report_model_stream_delta(StreamTextEvent(text=part.text))
+    elif part.function_call is not None:
+        await report_model_stream_delta(
+            StreamToolCallEvent(
+                id=part.function_call.id,
+                function=part.function_call.name,
+                arguments=(
+                    json.dumps(part.function_call.args)
+                    if part.function_call.args is not None
+                    else ""
+                ),
+            )
+        )
 
 
 def usage_metadata_to_model_usage(

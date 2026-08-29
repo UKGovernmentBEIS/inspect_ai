@@ -3,7 +3,7 @@ from typing import Any, Literal, cast
 from unittest.mock import AsyncMock, create_autospec
 
 import pytest
-from test_helpers.utils import skip_if_no_anthropic
+from test_helpers.utils import setenv_if_unset, skip_if_no_anthropic
 
 from inspect_ai import Task, eval
 from inspect_ai._util.content import (
@@ -330,14 +330,14 @@ def test_anthropic_full_thinking_beta_via_client_default_header() -> None:
 
 
 @skip_if_no_anthropic
-def test_anthropic_should_retry():
-    import httpx
+def test_anthropic_should_retry() -> None:
+    import httpx2
     from anthropic import APIStatusError
 
     # scaffold for should_retry
     model = get_model("anthropic/claude-sonnet-4-6")
-    response = httpx.Response(
-        status_code=405, request=httpx.Request("GET", "https://example.com")
+    response = httpx2.Response(
+        status_code=405, request=httpx2.Request("GET", "https://example.com")
     )
 
     # check whether we handle overloaded_error correctly
@@ -355,8 +355,8 @@ def test_anthropic_should_retry():
     model.api.should_retry(ex)
 
     # truncated request body (TCP interruption) should be retried
-    truncation_response = httpx.Response(
-        status_code=400, request=httpx.Request("POST", "https://example.com")
+    truncation_response = httpx2.Response(
+        status_code=400, request=httpx2.Request("POST", "https://example.com")
     )
     ex = APIStatusError(
         "error",
@@ -372,8 +372,8 @@ def test_anthropic_should_retry():
     assert model.api.should_retry(ex)
 
     # genuine 400 errors should NOT be retried
-    genuine_400_response = httpx.Response(
-        status_code=400, request=httpx.Request("POST", "https://example.com")
+    genuine_400_response = httpx2.Response(
+        status_code=400, request=httpx2.Request("POST", "https://example.com")
     )
     ex = APIStatusError(
         "error",
@@ -391,8 +391,8 @@ def test_anthropic_should_retry():
     # deterministic encoding errors (e.g. surrogate pairs) should NOT be retried
     ex = APIStatusError(
         "error",
-        response=httpx.Response(
-            status_code=400, request=httpx.Request("POST", "https://example.com")
+        response=httpx2.Response(
+            status_code=400, request=httpx2.Request("POST", "https://example.com")
         ),
         body={
             "type": "error",
@@ -414,7 +414,7 @@ def test_anthropic_handle_bad_request_content_filter_apistatuserror() -> None:
     rather than BadRequestError. handle_bad_request() must still convert
     "content filtering" messages into a content_filter refusal.
     """
-    import httpx
+    import httpx2
     from anthropic import APIStatusError
 
     from inspect_ai.model._model_output import ModelOutput
@@ -422,9 +422,9 @@ def test_anthropic_handle_bad_request_content_filter_apistatuserror() -> None:
     api = AnthropicAPI(model_name="claude-opus-4-6", api_key="test-key")
     ex = APIStatusError(
         "Output blocked by content filtering policy",
-        response=httpx.Response(
+        response=httpx2.Response(
             status_code=200,
-            request=httpx.Request("POST", "https://api.anthropic.com/v1/messages"),
+            request=httpx2.Request("POST", "https://api.anthropic.com/v1/messages"),
         ),
         body={
             "type": "error",
@@ -448,7 +448,7 @@ async def test_anthropic_generate_handles_midstream_content_filter() -> None:
     status_code == 413 and re-raised everything else, so content-filter errors
     that surfaced mid-stream killed the eval instead of becoming a refusal.
     """
-    import httpx
+    import httpx2
     from anthropic import APIStatusError
 
     from inspect_ai.model._model_output import ModelOutput
@@ -466,9 +466,9 @@ async def test_anthropic_generate_handles_midstream_content_filter() -> None:
     ) -> tuple[dict[str, Any], ModelOutput]:
         raise APIStatusError(
             "Output blocked by content filtering policy",
-            response=httpx.Response(
+            response=httpx2.Response(
                 status_code=200,
-                request=httpx.Request("POST", "https://api.anthropic.com/v1/messages"),
+                request=httpx2.Request("POST", "https://api.anthropic.com/v1/messages"),
             ),
             body={
                 "type": "error",
@@ -976,13 +976,11 @@ async def test_anthropic_top_level_cache_control_skipped_on_bedrock_vertex(
     `cache_control: Extra inputs are not permitted`.
     ref: https://docs.claude.com/en/docs/build-with-claude/prompt-caching#automatic-caching
     """
-    import os
-
-    os.environ.setdefault("AWS_REGION", "us-east-1")
-    os.environ.setdefault("AWS_ACCESS_KEY_ID", "fake")
-    os.environ.setdefault("AWS_SECRET_ACCESS_KEY", "fake")
-    os.environ.setdefault("ANTHROPIC_VERTEX_PROJECT_ID", "fake")
-    os.environ.setdefault("ANTHROPIC_VERTEX_REGION", "us-east5")
+    setenv_if_unset("AWS_REGION", "us-east-1")
+    setenv_if_unset("AWS_ACCESS_KEY_ID", "fake")
+    setenv_if_unset("AWS_SECRET_ACCESS_KEY", "fake")
+    setenv_if_unset("ANTHROPIC_VERTEX_PROJECT_ID", "fake")
+    setenv_if_unset("ANTHROPIC_VERTEX_REGION", "us-east5")
 
     api = AnthropicAPI(model_name=model_name, api_key="test-key")
 
@@ -1138,10 +1136,9 @@ def test_anthropic_claude_4_7_strips_sampling_params(
 ) -> None:
     """Claude 4.7+ rejects temperature/top_p/top_k outright; the provider must omit them."""
     api = AnthropicAPI(model_name="claude-opus-4-7", api_key="test-key")
-    params, _extra_body, _headers, _betas = api.completion_config(
-        _cfg(**{param: value})
-    )
+    params, extra_body, _headers, _betas = api.completion_config(_cfg(**{param: value}))
     assert param not in params
+    assert param not in extra_body
 
 
 @pytest.mark.parametrize("param,value", list(_SAMPLING_PARAMS.items()))
@@ -1150,10 +1147,11 @@ def test_anthropic_claude_4_7_strips_sampling_params_with_reasoning_effort_none(
 ) -> None:
     """reasoning_effort='none' must not re-enable sending sampling params on 4.7."""
     api = AnthropicAPI(model_name="claude-opus-4-7", api_key="test-key")
-    params, _extra_body, _headers, _betas = api.completion_config(
+    params, extra_body, _headers, _betas = api.completion_config(
         _cfg(reasoning_effort="none", **{param: value})
     )
     assert param not in params
+    assert param not in extra_body
 
 
 @pytest.mark.parametrize(
@@ -1163,12 +1161,15 @@ def test_anthropic_claude_4_7_strips_sampling_params_with_reasoning_effort_none(
 def test_anthropic_pre_4_7_keeps_sampling_params_without_thinking(
     model_name: str, param: str, value: float | int
 ) -> None:
-    """Pre-4.7 models still accept sampling params when thinking is off."""
+    """Pre-4.7 models still send sampling params when thinking is off.
+
+    anthropic >= 1.0 removed them from the method signatures, so they are
+    routed via extra_body rather than params.
+    """
     api = AnthropicAPI(model_name=model_name, api_key="test-key")
-    params, _extra_body, _headers, _betas = api.completion_config(
-        _cfg(**{param: value})
-    )
-    assert params[param] == value
+    params, extra_body, _headers, _betas = api.completion_config(_cfg(**{param: value}))
+    assert param not in params
+    assert extra_body[param] == value
 
 
 @pytest.mark.parametrize(
@@ -1187,10 +1188,51 @@ def test_anthropic_future_4_7_plus_strips_sampling_params(
 ) -> None:
     """All 4.7+ models inherit the adaptive-thinking restriction."""
     api = AnthropicAPI(model_name=model_name, api_key="test-key")
-    params, _extra_body, _headers, _betas = api.completion_config(
-        _cfg(**{param: value})
-    )
+    params, extra_body, _headers, _betas = api.completion_config(_cfg(**{param: value}))
     assert param not in params
+    assert param not in extra_body
+
+
+@pytest.mark.anyio
+async def test_anthropic_batch_merges_extra_body_into_params() -> None:
+    """The Batches API has no extra_body — its fields (e.g. sampling params) must land directly in each request's params."""
+    from unittest.mock import AsyncMock, MagicMock
+
+    import anyio
+
+    from inspect_ai.model._generate_config import BatchConfig
+    from inspect_ai.model._providers._anthropic_batch import AnthropicBatcher
+    from inspect_ai.model._providers.util.batch import BatchRequest
+    from inspect_ai.model._retry import model_retry_config
+
+    client = MagicMock()
+    client.messages.batches.create = AsyncMock(return_value=MagicMock(id="batch_1"))
+    batcher = AnthropicBatcher(
+        client,
+        BatchConfig(size=1, send_delay=0.01, tick=0.001),
+        model_retry_config(
+            "test", 3, None, lambda e: True, lambda ex: None, lambda m, s: None
+        ),
+    )
+    send_stream, _receive_stream = anyio.create_memory_object_stream[Any]()
+    request: BatchRequest[Any] = BatchRequest(
+        request={
+            "model": "claude-sonnet-4-6",
+            "max_tokens": 64,
+            "messages": [{"role": "user", "content": "hi"}],
+            "extra_headers": {"x-header": "y"},
+            "extra_body": {"temperature": 0.5, "top_k": 10},
+        },
+        result_stream=send_stream,
+    )
+    batch_id = await batcher._create_batch([request])
+    assert batch_id == "batch_1"
+    (call,) = client.messages.batches.create.call_args_list
+    params = call.kwargs["requests"][0]["params"]
+    assert params["temperature"] == 0.5
+    assert params["top_k"] == 10
+    assert "extra_body" not in params
+    assert call.kwargs["extra_headers"] == {"x-header": "y"}
 
 
 @pytest.fixture
@@ -1717,6 +1759,135 @@ async def test_anthropic_stream_capture_restores_container() -> None:
     message, _ = await _capture_compaction_from_stream(cast(Any, FakeStream()))
     assert message.container is not None
     assert message.container.id == "container_from_delta"
+
+
+async def test_anthropic_stream_capture_tolerates_compaction_delta() -> None:
+    """A compaction_delta must not be reported as a text stream delta.
+
+    The non-beta RawContentBlockDelta union has no compaction variant, so the
+    SDK deserializes the event into TextDelta(type="compaction_delta",
+    text=None); reporting that as StreamTextEvent raised a ValidationError.
+    Delta reporting only runs with an on_stream consumer, so one is installed
+    here to keep the dispatch path under test.
+    """
+    from anthropic._models import construct_type
+    from anthropic.types import Message, RawMessageStreamEvent
+
+    from inspect_ai.model._providers.anthropic import (
+        _capture_compaction_from_stream,
+    )
+    from inspect_ai.model._stream import (
+        ModelStreamObserver,
+        StreamEvent,
+        model_stream_observer,
+    )
+
+    snapshot = cast(
+        Message,
+        construct_type(
+            value={
+                "id": "msg_x",
+                "type": "message",
+                "role": "assistant",
+                "model": "claude-opus-4-6",
+                "content": [{"type": "compaction", "content": None}],
+                "stop_reason": "end_turn",
+                "usage": {"input_tokens": 1, "output_tokens": 1},
+            },
+            type_=Message,
+        ),
+    )
+    delta_event = construct_type(
+        value={
+            "type": "content_block_delta",
+            "index": 0,
+            "delta": {"type": "compaction_delta", "content": "compacted summary"},
+        },
+        type_=RawMessageStreamEvent,
+    )
+
+    class FakeStream:
+        current_message_snapshot = snapshot
+
+        def __aiter__(self) -> Any:
+            async def events() -> Any:
+                yield types.SimpleNamespace(type="message_start")
+                yield delta_event
+
+            return events()
+
+    collected: list[StreamEvent] = []
+
+    async def collect(event: StreamEvent) -> None:
+        collected.append(event)
+
+    with model_stream_observer(ModelStreamObserver("anthropic/test", collect)):
+        message, compaction_content = await _capture_compaction_from_stream(
+            cast(Any, FakeStream())
+        )
+    assert compaction_content == "compacted summary"
+    # the compaction block in the snapshot must be fixed up with the content
+    assert getattr(message.content[0], "content", None) == "compacted summary"
+    # the misparsed delta fell through to a heartbeat, not a text event
+    assert collected == []
+
+
+async def test_anthropic_stream_reports_no_deltas_without_on_stream() -> None:
+    """Delta construction must not run for callers without on_stream.
+
+    Anthropic auto-streams (reasoning / large max_tokens) for callers that
+    never asked for stream events, so even a delta the SDK misparsed into an
+    invalid shape (here text=None, which StreamTextEvent would reject) must
+    not be able to fail their call.
+    """
+    from anthropic._models import construct_type
+    from anthropic.types import Message
+
+    from inspect_ai.model._providers.anthropic import (
+        _capture_compaction_from_stream,
+    )
+    from inspect_ai.model._stream import ModelStreamObserver, model_stream_observer
+
+    snapshot = cast(
+        Message,
+        construct_type(
+            value={
+                "id": "msg_x",
+                "type": "message",
+                "role": "assistant",
+                "model": "claude-opus-4-6",
+                "content": [{"type": "text", "text": "hi"}],
+                "stop_reason": "end_turn",
+                "usage": {"input_tokens": 1, "output_tokens": 1},
+            },
+            type_=Message,
+        ),
+    )
+
+    class FakeStream:
+        current_message_snapshot = snapshot
+
+        def __aiter__(self) -> Any:
+            async def events() -> Any:
+                yield types.SimpleNamespace(type="message_start")
+                # a text delta whose construction as StreamTextEvent would
+                # raise ValidationError (text must be a str)
+                yield types.SimpleNamespace(
+                    type="content_block_delta",
+                    index=0,
+                    delta=types.SimpleNamespace(type="text_delta", text=None),
+                )
+
+            return events()
+
+    # no observer at all (provider-internal generate)
+    message, _ = await _capture_compaction_from_stream(cast(Any, FakeStream()))
+    assert message.content[0].text == "hi"  # type: ignore[union-attr]
+
+    # observer installed but no on_stream handler (a normal eval's generate)
+    with model_stream_observer(ModelStreamObserver("anthropic/test", None)):
+        message, _ = await _capture_compaction_from_stream(cast(Any, FakeStream()))
+    assert message.content[0].text == "hi"  # type: ignore[union-attr]
 
 
 @skip_if_no_anthropic

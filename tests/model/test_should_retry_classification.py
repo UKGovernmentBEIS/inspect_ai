@@ -27,10 +27,10 @@ def _http_response(
     )
 
 
-def _openai_http_response(
+def _httpx2_response(
     status: int, headers: dict[str, str] | None = None
 ) -> httpx2.Response:
-    """Like _http_response, but httpx2-flavored (what openai >= 3 is built on)."""
+    """Like _http_response, but httpx2-flavored (what openai >= 3 and anthropic >= 1 are built on)."""
     request = httpx2.Request("POST", "https://example.com/v1/chat/completions")
     return httpx2.Response(
         status_code=status,
@@ -71,6 +71,23 @@ def test_model_unrelated_attribute_error_does_not_retry() -> None:
     model = get_model("mockllm/model")
     ex = AttributeError("'NoneType' object has no attribute 'read'")
     assert model.should_retry(ex) is False
+
+
+def test_model_empty_stream_classifies_as_retryable_for_any_provider() -> None:
+    """A 200 stream that ended with zero chunks retries regardless of provider.
+
+    Provider streaming loops raise NoStreamDataError when a misbehaving
+    server delivers nothing; there is no payload to classify from, so the
+    model layer retries it generically.
+    """
+    from inspect_ai.model._stream import NoStreamDataError
+
+    model = get_model("mockllm/model")
+    ex = NoStreamDataError("Streaming response ended without delivering any chunks.")
+    assert model.should_retry(ex) is True
+
+    # a plain RuntimeError with the same message must not retry
+    assert model.should_retry(RuntimeError(str(ex))) is False
 
 
 def test_model_call_soon_on_non_none_object_does_not_retry() -> None:
@@ -117,7 +134,7 @@ def test_openai_classify_rate_limit_429() -> None:
 
     from inspect_ai.model._openai import openai_classify_retry
 
-    response = _openai_http_response(429, {"retry-after": "30"})
+    response = _httpx2_response(429, {"retry-after": "30"})
     ex = APIStatusError(message="rate limited", response=response, body=None)
     decision = openai_classify_retry(ex)
     assert decision is not None
@@ -133,7 +150,7 @@ def test_openai_classify_transient_5xx() -> None:
 
     ex = APIStatusError(
         message="internal error",
-        response=_openai_http_response(503),
+        response=_httpx2_response(503),
         body=None,
     )
     decision = openai_classify_retry(ex)
@@ -149,7 +166,7 @@ def test_openai_classify_non_retryable_4xx_returns_none() -> None:
 
     ex = APIStatusError(
         message="bad request",
-        response=_openai_http_response(400),
+        response=_httpx2_response(400),
         body=None,
     )
     assert openai_classify_retry(ex) is None
@@ -160,12 +177,162 @@ def test_openai_classify_rate_limit_error_subclass() -> None:
 
     from inspect_ai.model._openai import openai_classify_retry
 
-    response = _openai_http_response(429, {"retry-after": "5"})
+    response = _httpx2_response(429, {"retry-after": "5"})
     ex = RateLimitError(message="too many", response=response, body=None)
     decision = openai_classify_retry(ex)
     assert decision is not None
     assert decision.kind == "rate_limit"
     assert decision.retry_after == 5.0
+
+
+def test_openai_classify_mid_stream_server_error_as_transient() -> None:
+    """A transient failure delivered mid-stream (after HTTP 200) is a bare APIError.
+
+    The chat-completions stream iterator raises openai.APIError (no status
+    code) built from the SSE error body — it must classify from code/type
+    like the equivalent non-streaming 5xx does.
+    """
+    from openai import APIError
+
+    from inspect_ai.model._openai import openai_classify_retry
+
+    ex = APIError(
+        message="The server had an error while processing your request.",
+        request=httpx2.Request("POST", "https://example.com/v1/chat/completions"),
+        body={
+            "message": "The server had an error while processing your request.",
+            "type": "server_error",
+            "code": None,
+        },
+    )
+    decision = openai_classify_retry(ex)
+    assert decision is not None
+    assert decision.retry is True
+    assert decision.kind == "transient"
+
+    # some backends signal via `code` rather than `type`
+    ex2 = APIError(
+        message="server error",
+        request=httpx2.Request("POST", "https://example.com/v1/chat/completions"),
+        body={"message": "server error", "type": "error", "code": "server_error"},
+    )
+    decision2 = openai_classify_retry(ex2)
+    assert decision2 is not None
+    assert decision2.kind == "transient"
+
+
+def test_openai_classify_mid_stream_rate_limit_as_rate_limit() -> None:
+    from openai import APIError
+
+    from inspect_ai.model._openai import openai_classify_retry
+
+    ex = APIError(
+        message="rate limited",
+        request=httpx2.Request("POST", "https://example.com/v1/chat/completions"),
+        body={
+            "message": "rate limited",
+            "type": "requests",
+            "code": "rate_limit_exceeded",
+        },
+    )
+    decision = openai_classify_retry(ex)
+    assert decision is not None
+    assert decision.kind == "rate_limit"
+
+
+def test_openai_classify_mid_stream_vllm_numeric_code_as_transient() -> None:
+    """vLLM/SGLang deliver mid-stream errors as {"type": "InternalServerError", "code": 500}.
+
+    The numeric code (an int at runtime despite the SDK's Optional[str]
+    annotation) classifies through the standard HTTP status rules, and the
+    CamelCase type spelling is recognized on its own too.
+    """
+    from openai import APIError
+
+    from inspect_ai.model._openai import openai_classify_retry
+
+    request = httpx2.Request("POST", "https://example.com/v1/chat/completions")
+    ex = APIError(
+        message="internal error",
+        request=request,
+        body={"message": "internal error", "type": "InternalServerError", "code": 500},
+    )
+    decision = openai_classify_retry(ex)
+    assert decision is not None
+    assert decision.kind == "transient"
+
+    # type-only spelling (no code at all)
+    ex2 = APIError(
+        message="internal error",
+        request=request,
+        body={"message": "internal error", "type": "InternalServerError"},
+    )
+    decision2 = openai_classify_retry(ex2)
+    assert decision2 is not None
+    assert decision2.kind == "transient"
+
+
+def test_openai_classify_mid_stream_openrouter_numeric_code() -> None:
+    """OpenRouter delivers mid-stream errors as {"error": {"code": 502, "message": ...}}."""
+    from openai import APIError
+
+    from inspect_ai.model._openai import openai_classify_retry
+
+    request = httpx2.Request("POST", "https://example.com/v1/chat/completions")
+    ex = APIError(
+        message="Provider returned error",
+        request=request,
+        body={"message": "Provider returned error", "code": 502},
+    )
+    decision = openai_classify_retry(ex)
+    assert decision is not None
+    assert decision.kind == "transient"
+
+    # numeric 429 (as int or digit string) classifies as rate limit
+    for code in (429, "429"):
+        ex2 = APIError(
+            message="rate limited",
+            request=request,
+            body={"message": "rate limited", "code": code},
+        )
+        decision2 = openai_classify_retry(ex2)
+        assert decision2 is not None
+        assert decision2.kind == "rate_limit"
+
+
+def test_openai_classify_mid_stream_permanent_error_does_not_retry() -> None:
+    """A permanent bare APIError (non-transient code/type) must re-raise, not retry."""
+    from openai import APIError
+
+    from inspect_ai.model._openai import openai_classify_retry
+
+    request = httpx2.Request("POST", "https://example.com/v1/chat/completions")
+    ex = APIError(
+        message="invalid request",
+        request=request,
+        body={
+            "message": "invalid request",
+            "type": "invalid_request_error",
+            "code": "invalid_api_key",
+        },
+    )
+    assert openai_classify_retry(ex) is None
+
+    # a numeric non-retryable status must not retry either
+    ex_400 = APIError(
+        message="bad request",
+        request=request,
+        body={"message": "bad request", "code": 400},
+    )
+    assert openai_classify_retry(ex_400) is None
+
+    # non-dict body leaves code/type as None — also not retryable
+    ex_no_body = APIError(
+        message="opaque failure",
+        request=request,
+        body=None,
+    )
+    assert openai_classify_retry(ex_no_body) is None
 
 
 def test_openai_provider_quota_exceeded_does_not_retry() -> None:
@@ -177,7 +344,7 @@ def test_openai_provider_quota_exceeded_does_not_retry() -> None:
     api = OpenAIAPI.__new__(OpenAIAPI)  # avoid full init
     ex = RateLimitError(
         message="You exceeded your current quota, please check your plan.",
-        response=_openai_http_response(429),
+        response=_httpx2_response(429),
         body=None,
     )
     decision = api.should_retry(ex)
@@ -193,7 +360,7 @@ def test_openai_provider_429_classifies_as_rate_limit() -> None:
     api = OpenAIAPI.__new__(OpenAIAPI)
     ex = RateLimitError(
         message="rate limited",
-        response=_openai_http_response(429, {"retry-after": "10"}),
+        response=_httpx2_response(429, {"retry-after": "10"}),
         body=None,
     )
     decision = api.should_retry(ex)
@@ -228,7 +395,7 @@ def test_anthropic_429_classifies_as_rate_limit() -> None:
     api = AnthropicAPI.__new__(AnthropicAPI)
     ex = APIStatusError(
         message="rate limited",
-        response=_http_response(429, {"retry-after": "20"}),
+        response=_httpx2_response(429, {"retry-after": "20"}),
         body=None,
     )
     decision = api.should_retry(ex)
@@ -245,7 +412,7 @@ def test_anthropic_503_classifies_as_transient() -> None:
     api = AnthropicAPI.__new__(AnthropicAPI)
     ex = APIStatusError(
         message="overloaded",
-        response=_http_response(503),
+        response=_httpx2_response(503),
         body=None,
     )
     decision = api.should_retry(ex)
@@ -262,9 +429,127 @@ def test_anthropic_streaming_overloaded_body_classifies_as_transient() -> None:
     api = AnthropicAPI.__new__(AnthropicAPI)
     ex = APIStatusError(
         message="overloaded",
-        response=_http_response(200),
+        response=_httpx2_response(200),
         body={"error": {"message": "overloaded"}},
     )
+    decision = api.should_retry(ex)
+    assert isinstance(decision, RetryDecision)
+    assert decision.retry is True
+    assert decision.kind == "transient"
+
+
+def test_anthropic_mid_stream_rate_limit_classifies_as_rate_limit() -> None:
+    """A mid-stream SSE error event surfaces as APIStatusError with status 200.
+
+    The SDK builds it from the error body (the HTTP response was 200), so
+    classification must come from the body's error type — a mid-stream
+    rate_limit_error is the same condition as a 429 on the non-streaming path.
+    """
+    from anthropic import APIStatusError
+
+    from inspect_ai.model._providers.anthropic import AnthropicAPI
+
+    api = AnthropicAPI.__new__(AnthropicAPI)
+    ex = APIStatusError(
+        message="rate limited",
+        response=_httpx2_response(200),
+        body={
+            "type": "error",
+            "error": {"type": "rate_limit_error", "message": "rate limited"},
+        },
+    )
+    decision = api.should_retry(ex)
+    assert isinstance(decision, RetryDecision)
+    assert decision.kind == "rate_limit"
+
+
+@pytest.mark.parametrize(
+    "error_type", ["overloaded_error", "api_error", "timeout_error"]
+)
+def test_anthropic_mid_stream_transient_types_classify_as_transient(
+    error_type: str,
+) -> None:
+    from anthropic import APIStatusError
+
+    from inspect_ai.model._providers.anthropic import AnthropicAPI
+
+    api = AnthropicAPI.__new__(AnthropicAPI)
+    ex = APIStatusError(
+        message=error_type,
+        response=_httpx2_response(200),
+        body={"type": "error", "error": {"type": error_type, "message": "boom"}},
+    )
+    decision = api.should_retry(ex)
+    assert isinstance(decision, RetryDecision)
+    assert decision.retry is True
+    assert decision.kind == "transient"
+
+
+def test_anthropic_mid_stream_permanent_error_does_not_retry() -> None:
+    from anthropic import APIStatusError
+
+    from inspect_ai.model._providers.anthropic import AnthropicAPI
+
+    api = AnthropicAPI.__new__(AnthropicAPI)
+    ex = APIStatusError(
+        message="invalid request",
+        response=_httpx2_response(200),
+        body={
+            "type": "error",
+            "error": {"type": "invalid_request_error", "message": "bad input"},
+        },
+    )
+    decision = api.should_retry(ex)
+    assert isinstance(decision, RetryDecision)
+    assert decision.retry is False
+
+
+def test_anthropic_transient_body_type_on_permanent_status_does_not_retry() -> None:
+    """Type-based classification is scoped to status 200 (the mid-stream case).
+
+    A real HTTP error status — e.g. a proxy's 4xx wrapping an
+    anthropic-format body with a transient inner type — must keep failing
+    fast via the status rules rather than retrying forever.
+    """
+    from anthropic import APIStatusError
+
+    from inspect_ai.model._providers.anthropic import AnthropicAPI
+
+    api = AnthropicAPI.__new__(AnthropicAPI)
+    ex = APIStatusError(
+        message="not found",
+        response=_httpx2_response(404),
+        body={"type": "error", "error": {"type": "api_error", "message": "no route"}},
+    )
+    decision = api.should_retry(ex)
+    assert isinstance(decision, RetryDecision)
+    assert decision.retry is False
+
+
+def test_anthropic_mid_stream_unparseable_string_body_falls_back_to_substring() -> None:
+    """An SSE error event whose data fails JSON parsing attaches the raw string body."""
+    from anthropic import APIStatusError
+
+    from inspect_ai.model._providers.anthropic import AnthropicAPI
+
+    api = AnthropicAPI.__new__(AnthropicAPI)
+    ex = APIStatusError(
+        message="overloaded",
+        response=_httpx2_response(200),
+        body='{"type": "error", "error": {"type": "overloaded_er',
+    )
+    decision = api.should_retry(ex)
+    assert isinstance(decision, RetryDecision)
+    assert decision.retry is True
+    assert decision.kind == "transient"
+
+
+def test_anthropic_httpx2_transport_error_classifies_as_transient() -> None:
+    """Anthropic >= 1 is built on httpx2 — raw httpx2 transport errors that escape the SDK unwrapped must still retry."""
+    from inspect_ai.model._providers.anthropic import AnthropicAPI
+
+    api = AnthropicAPI.__new__(AnthropicAPI)
+    ex = httpx2.ConnectError("connection reset")
     decision = api.should_retry(ex)
     assert isinstance(decision, RetryDecision)
     assert decision.retry is True
@@ -645,6 +930,49 @@ def test_sagemaker_other_error_does_not_retry() -> None:
     assert decision.retry is False
 
 
+@pytest.mark.parametrize("code", ["ModelStreamError", "InternalStreamFailure"])
+def test_sagemaker_mid_stream_event_stream_error_classifies_as_transient(
+    code: str,
+) -> None:
+    """In-band stream errors (after HTTP 200) surface as EventStreamError.
+
+    Both event shapes are marked `exception` in the AWS service model, so
+    botocore raises them from the stream iterator as EventStreamError (a
+    ClientError) with the exception type as the code — and both are
+    infrastructure transients (AWS documents InternalStreamFailure as "Try
+    your request again"; ModelStreamError's documented ErrorCodes are a
+    model timeout and a TCP reset).
+    """
+    from botocore.exceptions import EventStreamError
+
+    from inspect_ai.model._providers.sagemaker import SagemakerAPI
+
+    api = SagemakerAPI.__new__(SagemakerAPI)
+    ex = EventStreamError(
+        {"Error": {"Code": code, "Message": "stream failed"}},
+        "InvokeEndpointWithResponseStream",
+    )
+    decision = api.should_retry(ex)
+    assert isinstance(decision, RetryDecision)
+    assert decision.retry is True
+    assert decision.kind == "transient"
+
+
+def test_sagemaker_in_band_stream_error_backstop_classifies_as_transient() -> None:
+    """The typed backstop for in-band error events also classifies as transient."""
+    from inspect_ai.model._providers.sagemaker import (
+        SagemakerAPI,
+        SageMakerStreamError,
+    )
+
+    api = SagemakerAPI.__new__(SagemakerAPI)
+    ex = SageMakerStreamError("ModelStreamError [StreamBroken]: tcp reset")
+    decision = api.should_retry(ex)
+    assert isinstance(decision, RetryDecision)
+    assert decision.retry is True
+    assert decision.kind == "transient"
+
+
 # ---------- Together (RetryError unwrapping) ----------
 
 
@@ -695,7 +1023,7 @@ def test_together_openai_compatible_429_classifies_as_rate_limit() -> None:
     api = TogetherAIAPI.__new__(TogetherAIAPI)
     ex = APIStatusError(
         message="rate limited",
-        response=_openai_http_response(429, {"retry-after": "15"}),
+        response=_httpx2_response(429, {"retry-after": "15"}),
         body=None,
     )
     decision = api.should_retry(ex)
