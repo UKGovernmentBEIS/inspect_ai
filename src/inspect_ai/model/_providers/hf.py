@@ -370,6 +370,10 @@ class HuggingFaceAPI(ModelAPI):
         tools_list: list[dict[str, Any]],
         chat_template: str | None,
     ) -> str:
+        # convert to dicts so templates that use dict methods
+        # (e.g. `message.get('reasoning')`) render correctly
+        messages = [message.model_dump(exclude_none=True) for message in hf_messages]
+
         template_args: dict[str, Any] = dict(
             add_generation_prompt=True,
             tokenize=False,
@@ -382,7 +386,7 @@ class HuggingFaceAPI(ModelAPI):
                 return cast(
                     str,
                     self.tokenizer.apply_chat_template(
-                        hf_messages,  # type: ignore[arg-type]
+                        messages,
                         chat_template=chat_template,
                         **template_args,
                     ),
@@ -395,7 +399,7 @@ class HuggingFaceAPI(ModelAPI):
                     return cast(
                         str,
                         self.tokenizer.apply_chat_template(
-                            hf_messages,  # type: ignore[arg-type]
+                            messages,
                             **template_args,
                         ),
                     )
@@ -405,7 +409,7 @@ class HuggingFaceAPI(ModelAPI):
         return cast(
             str,
             self.tokenizer.apply_chat_template(
-                hf_messages,  # type: ignore[arg-type]
+                messages,
                 **template_args,
             ),
         )
