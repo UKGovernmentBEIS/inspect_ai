@@ -611,23 +611,28 @@ def _preserve_score_history(
     of the predecessor with the same machinery `edit_score()` uses: the
     predecessor's values are snapshotted into `history[0]` (unless it already
     carries a history, which is carried forward instead) and the edit is
-    appended. The resulting history is attached to the new score -- whose
-    fields are otherwise exactly as the scorer produced them -- and a
-    `ScoreEditEvent` is recorded within the (new) scorers span. The
-    predecessor is copied rather than mutated so callers using `copy=False`
-    don't see score objects they hold rewritten.
+    appended. The resulting history is attached to a copy of the new score --
+    whose fields are otherwise exactly as the scorer produced them -- which
+    replaces the original in `sample.scores` and the returned results, and a
+    `ScoreEditEvent` is recorded within the (new) scorers span. Copies are
+    used on both sides of the graft: the predecessor so callers using
+    `copy=False` don't see score objects they hold rewritten, and the new
+    score because the scorer-produced object is also embedded in the
+    already-recorded `ScoreEvent`, whose payload should stay exactly what a
+    plain overwrite records (lineage lives on `Score.history` and in the
+    `ScoreEditEvent`, not in the `ScoreEvent`).
 
     A new field value that literally equals the `"UNCHANGED"` sentinel is
     recorded as such in the edit (a `ScoreEdit` schema limitation shared with
     `edit_score()`); the score itself is unaffected.
     """
-    new_score = sample_score.score
+    produced_score = sample_score.score
     edit = ScoreEdit(
-        value=new_score.value,
-        answer=new_score.answer,
-        explanation=new_score.explanation,
-        reason=new_score.reason,
-        metadata=new_score.metadata or {},
+        value=produced_score.value,
+        answer=produced_score.answer,
+        explanation=produced_score.explanation,
+        reason=produced_score.reason,
+        metadata=produced_score.metadata or {},
         provenance=ProvenanceData(
             author=_rescore_author(),
             reason=f"Re-scored with scorer '{scorer_name}' (action='overwrite').",
@@ -635,7 +640,11 @@ def _preserve_score_history(
     )
     predecessor = previous_score.model_copy(deep=True)
     apply_score_edit(predecessor, edit)
+    new_score = produced_score.model_copy()
     new_score.history = predecessor.history
+    sample_score.score = new_score
+    assert sample.scores is not None
+    sample.scores[scorer_name] = new_score
     insert_score_edit_event(sample, scorer_name, edit)
 
 

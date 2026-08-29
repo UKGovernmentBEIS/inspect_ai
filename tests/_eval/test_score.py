@@ -975,6 +975,17 @@ async def test_score_overwrite_preserve_history() -> None:
     )
     assert sample.events.index(edit_event) < span_end_index
 
+    # the recorded ScoreEvent keeps the scorer-produced payload -- exactly what
+    # a plain overwrite records -- with no grafted history
+    score_events = [
+        e
+        for e in sample.events
+        if isinstance(e, ScoreEvent) and e.scorer == "fixed_scorer"
+    ]
+    assert len(score_events) == 1
+    assert score_events[0].score.value == 1.0
+    assert score_events[0].score.history == []
+
     # the input log was deep-copied, not mutated
     assert scored.samples is not None
     assert scored.samples[0].scores is not None
