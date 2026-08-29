@@ -435,5 +435,19 @@ async def test_approver_inference_exempt_from_limits():
     assert turns.usage == 0
 
 
+def test_approval_policy_comma_separated_tools():
+    policy = ApprovalPolicy(
+        approver=auto_approver(), tools="web_browser*, addition, python"
+    )
+    check_approval(policy, decision="approve")
+
+
+def test_approval_policy_comma_separated_list():
+    policy = ApprovalPolicy(
+        approver=auto_approver(), tools=["web_browser*", "addition, python"]
+    )
+    check_approval(policy, decision="approve")
+
+
 if __name__ == "__main__":
     test_approve_escalate()

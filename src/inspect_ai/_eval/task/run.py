@@ -2654,7 +2654,7 @@ async def _task_run_sample_attempt(
                                 if error is None or (
                                     raise_error is None
                                     and score_on_error
-                                    and retry_on_error == 0
+                                    and attempt.retries_remaining == 0
                                     and cancelled_error is None
                                 ):
                                     async with span(name="scorers"):
@@ -2798,11 +2798,11 @@ async def _task_run_sample_attempt(
 
                 if (
                     not error
-                    or retry_on_error == 0
-                    or cancelled_error is not None
-                    or raise_error is not None
+                    or (attempt.retries_remaining == 0)
+                    or (cancelled_error is not None)
+                    or (raise_error is not None)
                 ):
-                    progress(SAMPLE_TOTAL_PROGRESS_UNITS)
+                    reporter.progress()
 
                     # ensure there are no base64 images in sample or messages
                     if not log_images:
@@ -2932,7 +2932,10 @@ async def _task_run_sample_attempt(
     # later (at the retry attempt's queue check) would: abandoned as
     # cancelled, absent from the log, buffered events removed.
     elif (
-        error and retry_on_error > 0 and cancelled_error is None and raise_error is None
+        error
+        and attempt.retries_remaining > 0
+        and cancelled_error is None
+        and raise_error is None
     ):
         await emit_attempt_end(will_retry=False)
 
