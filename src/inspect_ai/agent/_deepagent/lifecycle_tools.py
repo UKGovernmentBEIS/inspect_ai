@@ -40,6 +40,9 @@ from .agent_tool import (
 # agent's status peek.
 _PEEK_MAX_BYTES = 2000
 
+# Maximum bytes of an errored agent's message included in a brief listing.
+_BRIEF_ERROR_MAX_BYTES = 200
+
 # Bounded wait (seconds) for an agent_cancel to settle. Cancellation is
 # cooperative, so a child stuck in a shielded or un-yielding call may not
 # stop promptly; rather than block the parent indefinitely we cap the wait
@@ -110,11 +113,50 @@ def _format_future_status(future: AgentFuture) -> str:
     return header
 
 
-def _format_many(futures: list[AgentFuture]) -> str:
-    """Join multiple agent status blocks with a separator."""
+def _format_brief(future: AgentFuture) -> str:
+    """Render one agent as a single line, without its result.
+
+    A completed agent's report can be arbitrarily large, and terminal futures
+    stay in the registry for the whole sample — so a listing that embedded
+    them would grow without bound as dispatches accumulate. That is exactly
+    backwards for the tool the model reaches for to re-orient after
+    compaction. The result is fetched one agent at a time via ``agent_status``
+    (the same split the eager completion push already uses: it announces the
+    finish and points at ``agent_status`` rather than carrying the result).
+    """
+    line = f"**{future.agent_id}** ({future.subagent_name}) — {future.status}"
+
+    if future.status == "running":
+        elapsed = max(0, int(anyio.current_time() - future.started_at))
+        message_count, tool_call_count, _ = _peek_messages(future)
+        return (
+            f"{line}; {elapsed}s, {message_count} messages "
+            f"({tool_call_count} tool calls)"
+        )
+
+    if future.status == "completed":
+        chars = len(future.result or "")
+        return (
+            f"{line}; {chars:,} chars — "
+            f"call agent_status('{future.agent_id}') to read it"
+        )
+
+    if future.status == "errored":
+        error = (future.error or "(no error detail)").splitlines()[0]
+        truncated = truncate_string_to_bytes(error, _BRIEF_ERROR_MAX_BYTES)
+        if truncated is not None:
+            error = truncated.output
+        return f"{line}; {error}"
+
+    # cancelled
+    return line
+
+
+def _format_listing(futures: list[AgentFuture]) -> str:
+    """Render a brief one-line-per-agent listing."""
     if not futures:
         return "No background agents."
-    return "\n\n---\n\n".join(_format_future_status(f) for f in futures)
+    return "\n".join(f"- {_format_brief(f)}" for f in futures)
 
 
 # ---------------------------------------------------------------------------
@@ -330,7 +372,10 @@ def agent_cancel() -> Tool:
     return execute
 
 
-@tool(viewer=_list_viewer, max_output=SUBAGENT_RESULT_MAX_OUTPUT)
+# No max_output exemption here, unlike the other three lifecycle tools: this
+# one lists *every* agent and deliberately omits their results, so it stays
+# small on its own and has no reason to opt out of the configured limit.
+@tool(viewer=_list_viewer)
 def agent_list() -> Tool:
     """List background agents and their statuses."""
 
@@ -341,9 +386,10 @@ def agent_list() -> Tool:
         """List background agents and their statuses.
 
         Returns all background agents you have dispatched (optionally
-        filtered by status), with a brief status for each. Useful for
-        recovering track of agents — for example after a long stretch of
-        work or after context compaction.
+        filtered by status), one line each. Useful for recovering track of
+        agents — for example after a long stretch of work or after context
+        compaction. Results are not included; call agent_status(agent_id)
+        to read a completed agent's output.
 
         Args:
             status_filter: Only include agents in this state. One of
@@ -357,7 +403,7 @@ def agent_list() -> Tool:
         if status_filter is not None:
             futures = [f for f in futures if f.status == status_filter]
         _note_seen_terminal(registry, futures)
-        return _format_many(futures)
+        return _format_listing(futures)
 
     return execute
 

@@ -22,6 +22,7 @@ from ._tool import (
     TOOL_VIEWER,
     Tool,
     ToolSource,
+    validate_tool_max_output,
 )
 from ._tool_call import ToolCallModelInput, ToolCallViewer
 from ._tool_description import (
@@ -73,6 +74,8 @@ class ToolDef:
         Returns:
           Tool definition.
         """
+        validate_tool_max_output(max_output)
+
         # tool
         self.tool = tool
 

@@ -298,24 +298,21 @@ def test_react_agent_long_submission_not_truncated() -> None:
     assert log.samples[0].output.completion.endswith(answer)
 
 
-def test_react_agent_custom_submit_tool_long_submission_not_truncated() -> None:
-    """The exemption follows a caller-supplied submit ToolDef too."""
+@tool
+def custom_submit_tool():
+    async def execute(answer: str) -> str:
+        """The tool used to submit.
 
-    @tool
-    def custom_submit():
-        async def execute(answer: str) -> str:
-            """The tool used to submit.
+        Args:
+            answer: The submitted answer.
+        """
+        return answer
 
-            Args:
-                answer: The submitted answer.
-            """
-            return answer
+    return execute
 
-        return execute
 
-    answer = "B" * 2000
-    submit_tool = ToolDef(custom_submit(), name="submit")
-    log = eval(
+def _run_custom_submit(answer: str, submit_tool: ToolDef) -> EvalLog:
+    return eval(
         Task(
             dataset=addition_dataset(),
             solver=react(submit=AgentSubmit(tool=submit_tool)),
@@ -323,11 +320,33 @@ def test_react_agent_custom_submit_tool_long_submission_not_truncated() -> None:
         ),
         model=mockllm_model_with_submissions([answer]),
     )[0]
+
+
+def test_react_agent_custom_submit_tool_long_submission_not_truncated() -> None:
+    """The exemption is defaulted onto a caller-supplied submit ToolDef too."""
+    answer = "B" * 2000
+    log = _run_custom_submit(answer, ToolDef(custom_submit_tool(), name="submit"))
     assert log.status == "success"
     assert log.samples
     assert log.samples[0].output.completion.endswith(answer)
-    # the caller's ToolDef is copied before the exemption is applied
-    assert submit_tool.max_output is None
+
+
+def test_react_agent_custom_submit_tool_explicit_max_output_respected() -> None:
+    """React defaults the submit exemption but never overrides an explicit one.
+
+    Truncating a submission is normally a bug (the notice gets scored in place
+    of the answer), but a caller who asks for a cap on their own submit tool
+    gets it.
+    """
+    answer = "C" * 2000
+    log = _run_custom_submit(
+        answer, ToolDef(custom_submit_tool(), name="submit", max_output=500)
+    )
+    assert log.status == "success"
+    assert log.samples
+    completion = log.samples[0].output.completion
+    assert answer not in completion
+    assert len(completion) < len(answer)
 
 
 def test_react_agent_no_submit() -> None:

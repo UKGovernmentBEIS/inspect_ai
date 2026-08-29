@@ -1,3 +1,5 @@
+import pytest
+
 from inspect_ai import Task, eval
 from inspect_ai.dataset import Sample
 from inspect_ai.model import ModelOutput, get_model
@@ -104,3 +106,25 @@ def test_tool_max_output_declaration_inherited_by_outer_tool() -> None:
     assert ToolDef(inner()).max_output == 0
     assert ToolDef(outer()).max_output == 0
     assert ToolDef(overriding()).max_output == 64
+
+
+def test_negative_max_output_rejected() -> None:
+    # a negative value would silently disable truncation (truncate_string_to_bytes
+    # short-circuits on max_bytes <= 0) rather than cap it, so reject it up front
+    async def noop(x: int) -> int:
+        return x
+
+    with pytest.raises(ValueError, match="max_output must be"):
+
+        @tool(max_output=-1)
+        def bad():
+            return noop
+
+    with pytest.raises(ValueError, match="max_output must be"):
+        ToolDef(
+            tool=noop,
+            name="noop",
+            description="Noop",
+            parameters={"x": "Integer"},
+            max_output=-1,
+        )

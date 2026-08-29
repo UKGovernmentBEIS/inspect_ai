@@ -144,7 +144,11 @@ def summarize():
     return summarize
 ```
 
-`0` disables truncation for the tool, and a positive value caps it at that many bytes. Reserve `max_output=0` for tools whose result is a payload the caller depends on in full rather than incidental output the model reads and moves on from — for example the `submit()` tool of a [ReAct agent](react-agent.qmd) (whose result becomes the scored completion) and the `agent()` tool of a [Deep Agent](deepagent.qmd) (whose result is a subagent's report). Leave it unset for tools that read files, run commands, or fetch pages, where an unbounded result can flood the context window.
+`0` disables truncation for the tool, and a positive value caps it at that many bytes (a negative value is an error). Reserve `max_output=0` for tools whose result is a payload the caller depends on in full rather than incidental output the model reads and moves on from — for example the `submit()` tool of a [ReAct agent](react-agent.qmd) (whose result becomes the scored completion) and the `agent()` tool of a [Deep Agent](deepagent.qmd) (whose result is a subagent's report). Leave it unset for tools that read files, run commands, or fetch pages, where an unbounded result can flood the context window.
+
+Note that a single unbounded result is not the same risk as an unbounded *accumulation* of them. A tool that returns one agent's report is bounded by what that agent can generate; a tool that concatenates every result it has ever seen is not, and should stay capped (or summarise) no matter how important each individual payload is.
+
+`as_tool()` applies `max_output=0` by default, since an agent's response is the payload the caller asked for. Pass `as_tool(agent, max_output=...)` to cap it instead.
 
 
 ## Stateful Tools

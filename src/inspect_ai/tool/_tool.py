@@ -207,6 +207,8 @@ def tool(
             return execute
         ```
     """
+    validate_tool_max_output(max_output)
+
     if prompt:
         from inspect_ai._util.logger import warn_once
 
@@ -311,6 +313,20 @@ def tool_result_content(
             ):
                 result.append(c)
         return result
+
+
+def validate_tool_max_output(max_output: int | None) -> None:
+    """Reject a negative tool output limit.
+
+    `truncate_string_to_bytes` short-circuits on `max_bytes <= 0`, so a
+    negative value would silently disable truncation rather than cap it —
+    the opposite of what a typo'd or computed-negative value intends.
+    """
+    if max_output is not None and max_output < 0:
+        raise ValueError(
+            f"max_output must be 0 (no truncation) or a positive number of "
+            f"bytes (got {max_output})."
+        )
 
 
 TOOL_PROMPT = "prompt"

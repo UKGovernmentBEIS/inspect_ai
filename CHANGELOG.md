@@ -8,6 +8,7 @@
 - Human Agent: End-of-input (e.g. Ctrl+D) at the `task submit`/`task quit` confirmation prompt now declines cleanly instead of raising an `EOFError` traceback.
 - Agents: Long subagent reports and submitted answers are no longer clipped at the maximum tool output size (they were previously truncated, subagent reports twice over).
 - Agents: An agent used as a tool via `as_tool()` returns its full response rather than one clipped at the maximum tool output size.
+- Deep Agent: `agent_list()` now reports one line per background agent instead of embedding every completed agent's full report.
 - Tools: Tools can declare their own output limit with `@tool(max_output=...)`, overriding `max_tool_output` (`0` disables truncation for that tool).
 - Model streaming: stream-event handling — including live partial-output snapshots in inspect view — now runs only when `on_stream` is passed, so it can no longer fail model calls that stream without a callback.
 - Eval logs: Users can chain conditional S3 writes using the ETag returned by `write_eval_log()` and `write_eval_log_async()`.

@@ -299,7 +299,7 @@ When enabled, the `agent()` tool gains a `background` argument. Calling `agent(s
 | `agent_status(agent_id)` | Non-blocking peek — status, and for a running agent a brief progress snapshot (elapsed time, message/tool-call counts, latest message); for a finished agent, its result. |
 | `agent_wait(agent_ids, mode, timeout)` | Block until the listed agents finish. `mode="all"` (default) waits for every agent; `mode="any"` returns on the first. On `timeout`, still-running agents are reported honestly. |
 | `agent_cancel(agent_id)` | Terminate a running agent. No-op on an already-finished agent. |
-| `agent_list(status_filter)` | Enumerate all dispatched agents (optionally filtered by status) — useful for recovering handles after a long stretch of work or context compaction. |
+| `agent_list(status_filter)` | Enumerate all dispatched agents (optionally filtered by status), one line each — useful for recovering handles after a long stretch of work or context compaction. Results are not included; `agent_status()` reads them. |
 
 : {tbl-colwidths=\[35,65\]}
 
