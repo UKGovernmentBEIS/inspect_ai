@@ -128,10 +128,10 @@ Timestamps from the raw job log of `test (3.10)` in run 33229493965, and the
 | phase | seconds | note |
 |---|---:|---|
 | `uv run` re-sync | 5.1 | uninstalls 38 packages, reinstalls 39, rebuilds `inspect-ai` |
-| collection (5 interpreters) | 50.2 | banner "test session starts" appears at 55.3s |
-| test execution | 230.2 | 846.2 worker-seconds over 4 workers |
-| reporting (durations, summary) | ~7 | was ~46s before `-ra` |
-| **step total** | **292.5** | |
+| collection (5 interpreters) | 50.2 | banner "test session starts" appears at 55.3s into the step |
+| test execution | 231.3 | 846.2 worker-seconds over 4 workers |
+| reporting (durations, summary) | ~1.4 | this is the phase `-ra` emptied; it was ~46s |
+| **step total, this leg** | **288** | window median 292.5 |
 
 Startup is **19% of the step**. Local measurement on the same 4-core shape,
 against a venv built the way CI builds it:
