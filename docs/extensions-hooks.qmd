@@ -90,7 +90,31 @@ These events surround calls to model providers, and are useful for tracking usag
 Event data is owned by the framework. In particular, objects reachable from `SampleEvent.event` and `SampleEnd.sample` **must not be mutated in place** — read what you need (and deep-copy if you need a mutable working copy). Mutating inputs in `on_before_model_generate` is the exception: it is explicitly supported and intended.
 :::
 
-Hooks run within the evaluation, so keep them fast and resilient. Events from different samples and tasks may fire concurrently, and any exception raised by a hook is caught and logged as a warning (it does not fail the run) — with the exception of `LimitExceededError`, which is allowed to propagate so that hooks can enforce limits.
+Hooks run within the evaluation, so keep them fast and resilient. Events from different samples and tasks may fire concurrently, and any exception raised by a hook is caught and logged as a warning (it does not fail the run) — with the exception of `LimitExceededError`, which is allowed to propagate so that hooks can enforce limits, and the explicit termination exceptions described below.
+
+### Terminating samples or tasks
+
+A hook can terminate the current sample or task evaluation by raising an explicit termination exception:
+
+``` python
+from inspect_ai.hooks import (
+    Hooks,
+    SampleEvent,
+    TerminateSampleError,
+    TerminateTaskError,
+    hooks,
+)
+
+@hooks(name="policy_hook", description="Stop evaluations on policy violations")
+class PolicyHook(Hooks):
+    async def on_sample_event(self, data: SampleEvent) -> None:
+        if should_stop_sample(data):
+            raise TerminateSampleError("Sample policy condition was not met.")
+        if should_stop_task(data):
+            raise TerminateTaskError("Task policy condition was not met.")
+```
+
+`TerminateSampleError` ends only the current sample using Inspect's normal operator-limit path. Raise it from a sample-scoped hook before `on_sample_end`. `TerminateTaskError` stops the current task evaluation regardless of its `fail_on_error`, `retry_on_error`, or `score_on_error` settings; raise it from `on_task_start` or a sample-scoped hook before the corresponding end event. Ending hooks should be used for observation and cleanup only.
 
 In addition to these lifecycle events, two non-event methods let you control hook behaviour: [`enabled()`](#disabling-hooks) gates whether a hook is active, and [`override_api_key()`](#api-key-override) can rewrite model API keys. Both are covered below.
 

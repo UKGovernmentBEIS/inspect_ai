@@ -2161,9 +2161,32 @@ async def _task_run_sample_attempt(
             on_checkpoint=task.on_checkpoint,
             on_resume=task.on_resume,
         )
+        limit: EvalSampleLimit | None = None
+
+        def handle_sample_termination(ex: TerminateSampleError) -> None:
+            nonlocal state, limit
+
+            transcript()._event(
+                SampleLimitEvent(type="operator", limit=1, message=ex.reason)
+            )
+            state = sample_state() or state
+            limit = EvalSampleLimit(type="operator", limit=1, reason=ex.reason)
 
         # helper to handle exceptions (will throw if we've exceeded the limit)
-        def handle_error(ex: BaseException) -> tuple[EvalError, BaseException | None]:
+        def handle_error(
+            ex: BaseException,
+        ) -> tuple[EvalError | None, BaseException | None]:
+            if isinstance(ex, TerminateSampleError):
+                handle_sample_termination(ex)
+                return None, None
+
+            # Task termination is intentional control flow and must stop the task
+            # regardless of retry_on_error, score_on_error, or fail_on_error.
+            if isinstance(ex, TerminateTaskError):
+                error = eval_error(ex, type(ex), ex, ex.__traceback__)
+                transcript()._event(ErrorEvent(error=error))
+                return error, ex
+
             # helper to log sample error
             def log_sample_error() -> None:
                 msg = f"Sample error (id: {sample.id}, epoch: {state.epoch}): {exception_message(ex)})"
@@ -2178,7 +2201,7 @@ async def _task_run_sample_attempt(
                 log_sample_error()
                 return eval_error(ex, type(ex), ex, ex.__traceback__), None
             else:
-                err = sample_error(ex)
+                err: tuple[EvalError, BaseException | None] = sample_error(ex)
                 # with score_on_error, suppress the raise so we can score the
                 # sample; error_count was still incremented on sample_error()
                 # above, so the eval-level fail_on_error threshold continues
@@ -2242,7 +2265,6 @@ async def _task_run_sample_attempt(
             cancelled_error: BaseException | None = None
             operator_cancelled = False
             results: ScoresByScorer = {}
-            limit: EvalSampleLimit | None = None
             sample_summary: EvalSampleSummary | None = None
             attempt_started = False
             sample_row_started = False
@@ -2588,18 +2610,7 @@ async def _task_run_sample_attempt(
                         )
 
                     except TerminateSampleError as ex:
-                        # emit event
-                        transcript()._event(
-                            SampleLimitEvent(
-                                type="operator", limit=1, message=ex.reason
-                            )
-                        )
-
-                        # capture most recent state for scoring
-                        state = sample_state() or state
-                        limit = EvalSampleLimit(
-                            type="operator", limit=1, reason=ex.reason
-                        )
+                        handle_sample_termination(ex)
 
                     except anyio.get_cancelled_exc_class() as ex:
                         with anyio.CancelScope(shield=True):
@@ -2641,7 +2652,8 @@ async def _task_run_sample_attempt(
                                 # score on success, or when score_on_error is on
                                 # for the final attempt (no retries left, not cancelled)
                                 if error is None or (
-                                    score_on_error
+                                    raise_error is None
+                                    and score_on_error
                                     and attempt.retries_remaining == 0
                                     and cancelled_error is None
                                 ):
@@ -2770,12 +2782,25 @@ async def _task_run_sample_attempt(
             # complete the sample if there is no error or if there is no retry_on_error in play
             with anyio.CancelScope(shield=cancelled_error is not None):
                 # drain sample events for both completion and retry paths
-                await drain_sample_events()
+                try:
+                    await drain_sample_events()
+                except TerminateSampleError as ex:
+                    handle_sample_termination(ex)
+                except TerminateTaskError as ex:
+                    error, raise_error = handle_error(ex)
+                except LimitExceededError as ex:
+                    state = sample_state() or state
+                    limit = EvalSampleLimit(
+                        type=ex.type,
+                        limit=ex.limit if ex.limit is not None else -1,
+                        reason=ex.message,
+                    )
 
                 if (
                     not error
                     or (attempt.retries_remaining == 0)
                     or (cancelled_error is not None)
+                    or (raise_error is not None)
                 ):
                     reporter.progress()
 
@@ -2882,6 +2907,7 @@ async def _task_run_sample_attempt(
         and attempt.retries_remaining > 0
         and cancelled_error is None
         and active.interrupt_action is None
+        and raise_error is None
     ):
         await emit_attempt_end(will_retry=True)
 
@@ -2905,7 +2931,12 @@ async def _task_run_sample_attempt(
     # events — resolve it instead exactly as the interrupt landing a moment
     # later (at the retry attempt's queue check) would: abandoned as
     # cancelled, absent from the log, buffered events removed.
-    elif error and attempt.retries_remaining > 0 and cancelled_error is None:
+    elif (
+        error
+        and attempt.retries_remaining > 0
+        and cancelled_error is None
+        and raise_error is None
+    ):
         await emit_attempt_end(will_retry=False)
 
         # remove any buffered sample events
