@@ -953,18 +953,27 @@ async def test_slow_request_does_not_block_later_requests() -> None:
     service.add_method("quick", quick)
 
     async with anyio.create_task_group() as tg:
-        service.start_handling_requests(tg)
-
         _enqueue(fake, service, "req-slow", "slow")
-        await service.handle_requests()
+        # bounded: without `tg` threaded through, this call would wait for
+        # `slow` to finish before returning -- which never happens, since
+        # `release` is only set below, after this call returns -- turning a
+        # regression into a hang instead of a fast failure.
+        with anyio.fail_after(5):
+            await service.handle_requests(tg)
         await anyio.sleep(0.05)
 
+        assert "req-slow" in service._in_flight, "slow request did not start"
+
         _enqueue(fake, service, "req-quick", "quick")
-        await service.handle_requests()
+        with anyio.fail_after(5):
+            await service.handle_requests(tg)
         await anyio.sleep(0.05)
 
         assert served == ["quick"], (
             "later request was not served while one was in flight"
+        )
+        assert "req-slow" in service._in_flight, (
+            "slow request must still be in flight while the quick one is served"
         )
         assert f"{service._responses_dir}/req-quick.json" in fake.files
 
@@ -990,11 +999,14 @@ async def test_in_flight_request_is_not_dispatched_twice() -> None:
     service.add_method("slow", slow)
 
     async with anyio.create_task_group() as tg:
-        service.start_handling_requests(tg)
-
         _enqueue(fake, service, "req-slow", "slow")
         for _ in range(3):
-            await service.handle_requests()
+            # bounded: without `tg` threaded through on every call, the first
+            # call here would wait for `slow` to finish -- which never
+            # happens until `release` is set below -- turning a regression
+            # into a hang instead of a fast failure.
+            with anyio.fail_after(5):
+                await service.handle_requests(tg)
             await anyio.sleep(0.02)
 
         assert starts == ["slow"], f"request dispatched {len(starts)} times"
@@ -1002,3 +1014,76 @@ async def test_in_flight_request_is_not_dispatched_twice() -> None:
         release.set()
         await anyio.sleep(0.05)
         tg.cancel_scope.cancel()
+
+
+@dataclass
+class _DelayedWriteSandbox(_QueueSandbox):
+    """`_QueueSandbox` that delays writing service response files.
+
+    Used to simulate a request whose `_write_response()` is still in flight
+    when `until()` becomes true, so a regression test can assert the
+    response is still written (and the request file removed) after the poll
+    loop stops, instead of the write being cancelled mid-flight.
+    """
+
+    write_delay: float = 0.05
+
+    async def exec(
+        self,
+        cmd: list[str],
+        *,
+        user: str | None = None,
+        input: str | None = None,
+        timeout: int | None = None,
+        concurrency: bool = True,
+    ) -> ExecResult[str]:
+        if cmd[0] == "tee" and "/responses/" in cmd[-1]:
+            await anyio.sleep(self.write_delay)
+        return await super().exec(
+            cmd, user=user, input=input, timeout=timeout, concurrency=concurrency
+        )
+
+
+async def test_normal_exit_drains_in_flight_response_write() -> None:
+    """`until()` becoming true must not cancel the write that made it true.
+
+    A request handler can flip `until()` (e.g. by setting a flag the caller
+    watches) before its own response has finished being written. If the poll
+    loop cancels its task group as soon as it notices `until()`, it can kill
+    that very write -- and the sandbox caller, which just polls the response
+    file with no timeout, is left blocked forever. The loop must drain
+    already-dispatched handlers instead.
+    """
+    fake = _DelayedWriteSandbox()
+    name = "finisher_service"
+    request_id = "req-finisher"
+    request_file = f"{SERVICES_DIR}/{name}/requests/{request_id}.json"
+    response_file = f"{SERVICES_DIR}/{name}/responses/{request_id}.json"
+    fake.files[request_file] = json.dumps(
+        {"id": request_id, "method": "finish", "params": {}}
+    )
+
+    finished = anyio.Event()
+
+    async def finish() -> JsonValue:
+        # flips until() while _write_response() for this very call is still
+        # in flight (delayed by _DelayedWriteSandbox)
+        finished.set()
+        return "done"
+
+    # bounded: if the loop drained forever (or the fix regressed to hanging
+    # some other way) this turns it into a fast failure instead of a hang.
+    with anyio.fail_after(5):
+        await sandbox_service(
+            name=name,
+            methods=[finish],
+            until=finished.is_set,
+            sandbox=cast(SandboxEnvironment, fake),
+            polling_interval=0.01,
+        )
+
+    assert response_file in fake.files, (
+        "response write was cancelled instead of drained on normal exit"
+    )
+    assert json.loads(fake.files[response_file])["result"] == "done"
+    assert request_file not in fake.files, "request file was not removed"
