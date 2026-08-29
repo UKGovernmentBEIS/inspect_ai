@@ -22,6 +22,7 @@ from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._sample_init import SampleInitEvent
 from inspect_ai.event._score import ScoreEvent
 from inspect_ai.log import (
+    EvalLog,
     EvalSample,
     Transcript,
 )
@@ -848,3 +849,275 @@ async def test_score_restores_sample_timelines() -> None:
         action="append",
     )
     assert seen == ["target"]
+
+
+def _preserve_history_log(sample: EvalSample) -> EvalLog:
+    from inspect_ai.log._log import (
+        EvalConfig,
+        EvalDataset,
+        EvalPlan,
+        EvalPlanStep,
+        EvalSpec,
+    )
+
+    return EvalLog(
+        version=2,
+        status="success",
+        eval=EvalSpec(
+            created="2025-01-01T00:00:00Z",
+            task="t",
+            task_id="t",
+            run_id="r",
+            dataset=EvalDataset(),
+            model="mockllm/model",
+            config=EvalConfig(),
+        ),
+        plan=EvalPlan(
+            name="t", steps=[EvalPlanStep(solver="generate")], config=GenerateConfig()
+        ),
+        samples=[sample],
+    )
+
+
+def _preserve_history_sample() -> EvalSample:
+    return EvalSample(
+        id="test-1",
+        epoch=1,
+        input="q",
+        target="a",
+        messages=[ChatMessageUser(role="user", content="q")],
+        output=ModelOutput(
+            choices=[
+                ChatCompletionChoice(
+                    message=ChatMessageAssistant(role="assistant", content="a")
+                )
+            ]
+        ),
+    )
+
+
+@scorer(metrics=[accuracy()])
+def fixed_scorer(value: float | str, answer: str | None = None) -> Scorer:
+    async def score(state: TaskState, target: Target) -> Score:
+        return Score(value=value, answer=answer)
+
+    return score
+
+
+@scorer(metrics=[accuracy()])
+def another_scorer() -> Scorer:
+    async def score(state: TaskState, target: Target) -> Score:
+        return Score(value=0.5)
+
+    return score
+
+
+async def test_score_overwrite_preserve_history() -> None:
+    """Overwrite with preserve_history carries the replaced score into history.
+
+    The predecessor's values must land in `history[0]` (provenance None, as
+    with `edit_score()`), the re-scored values must be appended as an edit
+    with provenance, and a `ScoreEditEvent` must be recorded within the new
+    scorers span. Scores without a predecessor are unaffected.
+    """
+    from inspect_ai.event import ScoreEditEvent, SpanBeginEvent, SpanEndEvent
+
+    log = _preserve_history_log(_preserve_history_sample())
+    scored = await score_async(log, [fixed_scorer(0.0, "old")], action="overwrite")
+    rescored = await score_async(
+        scored,
+        [fixed_scorer(1.0, "new"), another_scorer()],
+        action="overwrite",
+        preserve_history=True,
+    )
+
+    assert rescored.samples is not None
+    sample = rescored.samples[0]
+    assert sample.scores is not None
+
+    # the replaced score carries the new values plus its predecessor in history
+    replaced = sample.scores["fixed_scorer"]
+    assert replaced.value == 1.0
+    assert replaced.answer == "new"
+    assert replaced.metadata is None  # scorer-produced fields are untouched
+    assert len(replaced.history) == 2
+    original, edit = replaced.history
+    assert original.value == 0.0
+    assert original.answer == "old"
+    assert original.provenance is None
+    assert edit.value == 1.0
+    assert edit.answer == "new"
+    assert edit.provenance is not None
+    assert edit.provenance.author
+
+    # a score without a predecessor gets no history and no edit event
+    fresh = sample.scores["another_scorer"]
+    assert fresh.value == 0.5
+    assert fresh.history == []
+
+    # a single ScoreEditEvent records the replacement, inside the new scorers span
+    edit_events = [e for e in sample.events if isinstance(e, ScoreEditEvent)]
+    assert len(edit_events) == 1
+    edit_event = edit_events[0]
+    assert edit_event.score_name == "fixed_scorer"
+    assert edit_event.edit == edit
+    scorers_spans = [
+        e
+        for e in sample.events
+        if isinstance(e, SpanBeginEvent) and e.name == "scorers"
+    ]
+    assert len(scorers_spans) == 1  # the overwrite replaced the original span
+    assert edit_event.span_id == scorers_spans[0].id
+    span_end_index = next(
+        i
+        for i, e in enumerate(sample.events)
+        if isinstance(e, SpanEndEvent) and e.id == scorers_spans[0].id
+    )
+    assert sample.events.index(edit_event) < span_end_index
+
+    # the input log was deep-copied, not mutated
+    assert scored.samples is not None
+    assert scored.samples[0].scores is not None
+    assert scored.samples[0].scores["fixed_scorer"].value == 0.0
+    assert scored.samples[0].scores["fixed_scorer"].history == []
+
+
+async def test_score_overwrite_preserve_history_previously_edited() -> None:
+    """A predecessor's existing edit history is carried forward, not re-snapshotted."""
+    from inspect_ai.log import edit_score
+    from inspect_ai.log._edit import ProvenanceData
+    from inspect_ai.scorer._metric import ScoreEdit
+
+    log = _preserve_history_log(_preserve_history_sample())
+    scored = await score_async(log, [fixed_scorer(0.0, "old")], action="overwrite")
+    edit_score(
+        scored,
+        "test-1",
+        "fixed_scorer",
+        ScoreEdit(
+            value=0.25,
+            provenance=ProvenanceData(author="human", reason="manual review"),
+        ),
+        recompute_metrics=False,
+    )
+
+    rescored = await score_async(
+        scored, [fixed_scorer(1.0, "new")], action="overwrite", preserve_history=True
+    )
+
+    assert rescored.samples is not None
+    assert rescored.samples[0].scores is not None
+    replaced = rescored.samples[0].scores["fixed_scorer"]
+    assert replaced.value == 1.0
+    assert [e.value for e in replaced.history] == [0.0, 0.25, 1.0]
+    assert replaced.history[0].provenance is None
+    human_edit = replaced.history[1]
+    assert human_edit.provenance is not None
+    assert human_edit.provenance.author == "human"
+    assert replaced.history[2].provenance is not None
+
+
+async def test_score_overwrite_default_discards_history() -> None:
+    """Without preserve_history an overwrite behaves as before.
+
+    The replacement score has no history (even when the predecessor carried
+    one) and no `ScoreEditEvent` is recorded.
+    """
+    from inspect_ai.event import ScoreEditEvent
+    from inspect_ai.log import edit_score
+    from inspect_ai.log._edit import ProvenanceData
+    from inspect_ai.scorer._metric import ScoreEdit
+
+    log = _preserve_history_log(_preserve_history_sample())
+    scored = await score_async(log, [fixed_scorer(0.0, "old")], action="overwrite")
+    edit_score(
+        scored,
+        "test-1",
+        "fixed_scorer",
+        ScoreEdit(value=0.25, provenance=ProvenanceData(author="human")),
+        recompute_metrics=False,
+    )
+
+    rescored = await score_async(scored, [fixed_scorer(1.0, "new")], action="overwrite")
+
+    assert rescored.samples is not None
+    sample = rescored.samples[0]
+    assert sample.scores is not None
+    replaced = sample.scores["fixed_scorer"]
+    assert replaced.value == 1.0
+    assert replaced.history == []
+    assert not any(isinstance(e, ScoreEditEvent) for e in sample.events)
+
+
+async def test_score_preserve_history_requires_overwrite() -> None:
+    log = _preserve_history_log(_preserve_history_sample())
+    with pytest.raises(ValueError, match="preserve_history"):
+        await score_async(
+            log, [fixed_scorer(0.0)], action="append", preserve_history=True
+        )
+    # action=None defaults to append, so it is rejected too
+    with pytest.raises(ValueError, match="preserve_history"):
+        await score_async(log, [fixed_scorer(0.0)], preserve_history=True)
+
+
+async def test_score_preserve_history_unscored_sample() -> None:
+    """preserve_history on a never-scored sample is a no-op."""
+    from inspect_ai.event import ScoreEditEvent
+
+    log = _preserve_history_log(_preserve_history_sample())
+    scored = await score_async(
+        log, [fixed_scorer(0.0)], action="overwrite", preserve_history=True
+    )
+
+    assert scored.samples is not None
+    sample = scored.samples[0]
+    assert sample.scores is not None
+    assert sample.scores["fixed_scorer"].history == []
+    assert not any(isinstance(e, ScoreEditEvent) for e in sample.events)
+
+
+async def test_score_preserve_history_unchanged_sentinel_value() -> None:
+    """A score value that literally equals the "UNCHANGED" sentinel survives.
+
+    The replacement keeps the scorer-produced fields verbatim (only its
+    history comes from the edit machinery), so the `ScoreEdit` sentinel
+    cannot swallow a legitimate "UNCHANGED" value.
+    """
+    log = _preserve_history_log(_preserve_history_sample())
+    scored = await score_async(log, [fixed_scorer(0.0, "old")], action="overwrite")
+    rescored = await score_async(
+        scored,
+        [fixed_scorer("UNCHANGED")],
+        action="overwrite",
+        preserve_history=True,
+    )
+
+    assert rescored.samples is not None
+    assert rescored.samples[0].scores is not None
+    replaced = rescored.samples[0].scores["fixed_scorer"]
+    assert replaced.value == "UNCHANGED"
+    assert len(replaced.history) == 2
+    assert replaced.history[0].value == 0.0
+
+
+async def test_score_preserve_history_does_not_mutate_predecessor() -> None:
+    """With copy=False the caller-held predecessor Score object is not rewritten."""
+    log = _preserve_history_log(_preserve_history_sample())
+    scored = await score_async(log, [fixed_scorer(0.0, "old")], action="overwrite")
+    assert scored.samples is not None
+    assert scored.samples[0].scores is not None
+    predecessor = scored.samples[0].scores["fixed_scorer"]
+
+    await score_async(
+        scored,
+        [fixed_scorer(1.0, "new")],
+        action="overwrite",
+        preserve_history=True,
+        copy=False,
+    )
+
+    # the log itself was mutated (copy=False), but not the old Score object
+    assert scored.samples[0].scores["fixed_scorer"].value == 1.0
+    assert predecessor.value == 0.0
+    assert predecessor.answer == "old"
+    assert predecessor.history == []

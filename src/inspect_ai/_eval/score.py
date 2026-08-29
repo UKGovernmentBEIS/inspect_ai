@@ -33,6 +33,7 @@ from inspect_ai._util.registry import (
     registry_params,
     registry_unqualified_name,
 )
+from inspect_ai._view.user_info import user_info
 from inspect_ai.event._event import Event
 from inspect_ai.event._score import ScoreEvent
 from inspect_ai.event._tree import (
@@ -45,17 +46,22 @@ from inspect_ai.log import (
     EvalLog,
 )
 from inspect_ai.log._condense import resolve_sample_attachments
+from inspect_ai.log._edit import ProvenanceData
 from inspect_ai.log._headline import headline_metric_ref, resolve_headline_metric
 from inspect_ai.log._log import EvalMetricDefinition, EvalSample
 from inspect_ai.log._resolve import rebind_sample_timelines
-from inspect_ai.log._score import _find_scorers_span
+from inspect_ai.log._score import (
+    _find_scorers_span,
+    apply_score_edit,
+    insert_score_edit_event,
+)
 from inspect_ai.log._transcript import Transcript, init_transcript, transcript
 from inspect_ai.model import ModelName
 from inspect_ai.model._model import Model, ModelRoles, get_model
 from inspect_ai.model._model_config import model_roles_config_to_model_roles
 from inspect_ai.model._util import resolve_model_roles
 from inspect_ai.scorer import Metric, Scorer, Target
-from inspect_ai.scorer._metric import SampleScore, Score, metric_create
+from inspect_ai.scorer._metric import SampleScore, Score, ScoreEdit, metric_create
 from inspect_ai.scorer._reducer import (
     ScoreReducer,
     ScoreReducers,
@@ -88,6 +94,7 @@ def score(
     model: str | Model | None = None,
     model_roles: ModelRoles | None = None,
     action: ScoreAction | None = None,
+    preserve_history: bool = False,
     display: DisplayType | None = None,
     copy: bool = True,
 ) -> EvalLog:
@@ -107,6 +114,12 @@ def score(
        model_roles: Optional. Named model roles used for re-scoring
            (merged over the model roles reconstructed from the log header).
        action: Whether to append or overwrite this score
+       preserve_history: Carry each replaced score's prior values into the
+           replacement's `Score.history` and record a `ScoreEditEvent` (as
+           `edit_score()` does), rather than discarding them. A score is
+           replaced when this pass produces a score with the same name;
+           existing scores whose scorer is not re-run are still dropped by
+           the overwrite. Only valid with `action="overwrite"`.
        display: Progress/status display
        copy: Whether to deepcopy the log before scoring.
 
@@ -132,6 +145,7 @@ def score(
                 model=model,
                 model_roles=model_roles,
                 action=action,
+                preserve_history=preserve_history,
                 copy=copy,
             )
         )
@@ -142,6 +156,7 @@ def score(
                 model=model,
                 model_roles=model_roles,
                 action=action,
+                preserve_history=preserve_history,
                 copy=copy,
             ),
             log,
@@ -220,6 +235,7 @@ async def score_async(
     model: str | Model | None = None,
     model_roles: ModelRoles | None = None,
     action: ScoreAction | None = None,
+    preserve_history: bool = False,
     display: DisplayType | None = None,
     copy: bool = True,
     samples: Callable[[int], AsyncContextManager[EvalSample]] | None = None,
@@ -242,6 +258,12 @@ async def score_async(
        model_roles: Optional. Named model roles used for re-scoring
          (merged over the model roles reconstructed from the log header).
        action: Whether to append or overwrite this score
+       preserve_history: Carry each replaced score's prior values into the
+         replacement's `Score.history` and record a `ScoreEditEvent` (as
+         `edit_score()` does), rather than discarding them. A score is
+         replaced when this pass produces a score with the same name;
+         existing scores whose scorer is not re-run are still dropped by
+         the overwrite. Only valid with `action="overwrite"`.
        display: Progress/status display
        copy: Whether to deepcopy the log before scoring.
        samples:
@@ -254,6 +276,9 @@ async def score_async(
     """
     if samples is None and log.samples is None:
         raise ValueError("There are no samples to score in the log.")
+
+    if preserve_history and action != "overwrite":
+        raise ValueError('preserve_history is only valid with action="overwrite"')
 
     # resolve scorers
     resolved_scorers = resolve_scorer(scorers)
@@ -323,7 +348,13 @@ async def score_async(
                 # since the sample score carries the scorer name that generated
                 # it (so using sample.scores directly isn't enough)
                 sample_score, names = await _run_score_task(
-                    log, sample, resolved_scorers, active_model, active_roles, action
+                    log,
+                    sample,
+                    resolved_scorers,
+                    active_model,
+                    active_roles,
+                    action,
+                    preserve_history=preserve_history,
                 )
 
             assert sample.scores is not None
@@ -495,6 +526,7 @@ async def _run_score_task(
     model: Model,
     model_roles: dict[str, Model | list[Model]],
     action: ScoreAction,
+    preserve_history: bool = False,
 ) -> Tuple[dict[str, SampleScore], list[str]]:
     state, target, resolved_sample = task_state_from_sample(
         sample,
@@ -548,12 +580,75 @@ async def _run_score_task(
     # slice off only the newly added events
     new_events = transcript().events[len(resolved_sample.events) :]
 
+    # capture the scores the overwrite below will replace so they can be
+    # carried into the replacement scores' history
+    previous_scores: dict[str, Score] = (
+        dict(sample.scores or {}) if preserve_history and action == "overwrite" else {}
+    )
+
     sample.scores = _get_updated_scores(sample, results, action=action)
     sample.events = _get_updated_events(sample, new_events, action=action)
+
+    for scorer_name, sample_score in results.items():
+        previous_score = previous_scores.get(scorer_name)
+        if previous_score is not None:
+            _preserve_score_history(sample, scorer_name, sample_score, previous_score)
 
     # return the actual sample scorers and scorer names that
     # were used to generate this set of scores
     return results, scorer_names
+
+
+def _preserve_score_history(
+    sample: EvalSample,
+    scorer_name: str,
+    sample_score: SampleScore,
+    previous_score: Score,
+) -> None:
+    """Carry a replaced score's predecessor into the replacement's edit history.
+
+    A `ScoreEdit` describing the newly generated score is applied to a copy
+    of the predecessor with the same machinery `edit_score()` uses: the
+    predecessor's values are snapshotted into `history[0]` (unless it already
+    carries a history, which is carried forward instead) and the edit is
+    appended. The resulting history is attached to the new score -- whose
+    fields are otherwise exactly as the scorer produced them -- and a
+    `ScoreEditEvent` is recorded within the (new) scorers span. The
+    predecessor is copied rather than mutated so callers using `copy=False`
+    don't see score objects they hold rewritten.
+
+    A new field value that literally equals the `"UNCHANGED"` sentinel is
+    recorded as such in the edit (a `ScoreEdit` schema limitation shared with
+    `edit_score()`); the score itself is unaffected.
+    """
+    new_score = sample_score.score
+    edit = ScoreEdit(
+        value=new_score.value,
+        answer=new_score.answer,
+        explanation=new_score.explanation,
+        reason=new_score.reason,
+        metadata=new_score.metadata or {},
+        provenance=ProvenanceData(
+            author=_rescore_author(),
+            reason=f"Re-scored with scorer '{scorer_name}' (action='overwrite').",
+        ),
+    )
+    predecessor = previous_score.model_copy(deep=True)
+    apply_score_edit(predecessor, edit)
+    new_score.history = predecessor.history
+    insert_score_edit_event(sample, scorer_name, edit)
+
+
+@functools.cache
+def _rescore_author() -> str:
+    """The provenance author for re-score edits.
+
+    The same best-effort identity the viewer prefills in its edit dialogs
+    (git email local-part, then git user.name, then OS login), so a person's
+    re-score edits and manual edits record the same author. Cached because
+    `user_info()` shells out to git.
+    """
+    return user_info().name or "unknown"
 
 
 def metrics_from_log_header(
