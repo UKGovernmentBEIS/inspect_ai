@@ -329,6 +329,11 @@ crossed the noise band in either direction.
   appears anywhere in the durations tail.
 - **#342 was the report proposal; it is now closed by #5075.** Verification
   comment posted on the issue.
+- **#299, fifth observation — this run's own PR.** Being design-only, its
+  `test (3.10)` and `test (3.11)` legs ran **4s each** instead of ~330s, Build
+  wall was **100s** against the 341s code-only median, and the whole push cost
+  **7.5 runner-minutes** (Build 4.5 + Viewer 3.0), with `mypy` (84s/96s) the long
+  pole.
 
 ## Proposals (ranked)
 
