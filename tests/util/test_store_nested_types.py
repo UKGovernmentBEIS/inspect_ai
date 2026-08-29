@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from typing import Any, Dict, List, Literal, Optional, Tuple, Union, cast
 
+import pytest
 from pydantic import BaseModel, Field
 from typing_extensions import TypedDict
 
@@ -372,6 +373,93 @@ def test_invalid_data_returns_raw() -> None:
     person = model.person
     assert isinstance(person, dict)
     assert person == {"invalid": "data"}
+
+
+class StrictPersonStore(StoreModel):
+    strict_coercion = True
+
+    person: Person = Field(default_factory=lambda: Person(name="", age=0))
+    count: int = 0
+
+
+def test_strict_coercion_raises_on_invalid_data() -> None:
+    """Test that strict_coercion raises an informative error instead of returning raw."""
+    store = Store()
+    store.set("StrictPersonStore:person", {"invalid": "data"})
+
+    with pytest.raises(ValueError) as excinfo:
+        StrictPersonStore(store=store)
+
+    message = str(excinfo.value)
+    assert "StrictPersonStore:person" in message
+    assert "Person" in message
+    assert "dict" in message
+
+
+def test_strict_coercion_validates_scalar_values() -> None:
+    """Test that strict_coercion validates scalar stored values against the field type."""
+    store = Store()
+    # a scalar stored where a model is declared skips coercion entirely in
+    # lenient mode; strict mode must catch it
+    store.set("StrictPersonStore:person", "not a person")
+
+    with pytest.raises(ValueError, match="StrictPersonStore:person"):
+        StrictPersonStore(store=store)
+
+
+def test_strict_coercion_valid_data_round_trip() -> None:
+    """Test that strict_coercion leaves valid data behavior unchanged."""
+    store = Store()
+    store.set("StrictPersonStore:person", {"name": "Alice", "age": 30, "address": None})
+
+    model = StrictPersonStore(store=store)
+    assert isinstance(model.person, Person)
+    assert model.person.name == "Alice"
+
+    model.person = Person(name="Bob", age=25)
+    assert model.person.name == "Bob"
+    assert model.count == 0
+    model.count = 3
+    assert model.count == 3
+    assert store.get("StrictPersonStore:count") == 3
+
+
+def test_strict_coercion_dump_skips_missing_keys() -> None:
+    """Test that strict_coercion model_dump tolerates fields deleted from the store."""
+    store = Store()
+    model = StrictPersonStore(store=store)
+    store.delete("StrictPersonStore:count")
+
+    dumped = model.model_dump()
+    assert dumped["person"] == Person(name="", age=0).model_dump()
+
+
+@pytest.mark.filterwarnings("ignore::UserWarning")  # pydantic's shadow warning
+def test_strict_coercion_may_not_be_a_field() -> None:
+    """Test that declaring strict_coercion as an annotated field raises clearly."""
+    with pytest.raises(TypeError, match="strict_coercion"):
+
+        class ShadowStore(StoreModel):
+            strict_coercion: bool = True  # type: ignore[misc]
+
+
+def test_strict_coercion_arbitrary_types_returned_as_is() -> None:
+    """Test that strict_coercion leaves fields of non-validatable types alone."""
+
+    class Opaque:
+        pass
+
+    class ArbitraryStore(StoreModel):
+        strict_coercion = True
+
+        obj: Opaque | None = None
+
+    store = Store()
+    opaque = Opaque()
+    store.set("ArbitraryStore:obj", opaque)
+
+    model = ArbitraryStore(store=store)
+    assert model.obj is opaque
 
 
 def test_multiple_instances_with_nested_types():

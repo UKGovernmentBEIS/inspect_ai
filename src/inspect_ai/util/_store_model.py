@@ -1,4 +1,4 @@
-from typing import Any, Type, TypeVar
+from typing import Any, ClassVar, Type, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 
@@ -14,8 +14,41 @@ class StoreModel(BaseModel):
     your model fields (the latter approach is recommended).
     """
 
+    strict_coercion: ClassVar[bool] = False
+    """Raise on reads of stored values that fail field validation.
+
+    By default, when a value read from the store cannot be validated
+    against the declared field type, the raw stored value is returned
+    as-is and callers must check the type themselves. Set to `True` on a
+    subclass (as a plain assignment, not an annotated field) to instead
+    raise `ValueError` (naming the store key, the declared type, and the
+    actual value type) whenever a stored value — scalar or not — fails
+    validation. During model construction the error surfaces wrapped in a
+    pydantic `ValidationError`.
+
+    Validation uses pydantic's default (lax) mode, so stored values that
+    pydantic can coerce to the declared type (e.g. `"5"` for an `int`
+    field) are converted and cached back to the store, not rejected.
+    Fields whose declared types pydantic cannot build a validator for
+    (e.g. arbitrary types) are still returned as-is, as no validation is
+    possible for them.
+    """
+
     store: Store = Field(exclude=True, default_factory=store)
     instance: str | None = Field(exclude=True, default=None)
+
+    @classmethod
+    def __pydantic_init_subclass__(cls, **kwargs: Any) -> None:
+        super().__pydantic_init_subclass__(**kwargs)
+        # an annotated `strict_coercion: bool = True` would become a model
+        # field, and reading it from _coerce_value would then recurse through
+        # __getattribute__ infinitely -- reject it with a legible error
+        if "strict_coercion" in cls.model_fields:
+            raise TypeError(
+                f"'strict_coercion' is a StoreModel class setting and may not be "
+                f"declared as a model field on {cls.__name__} (assign it without "
+                f"a type annotation, e.g. `strict_coercion = True`)."
+            )
 
     def model_post_init(self, __context: Any) -> None:
         for name in self.__class__.model_fields.keys():
@@ -76,6 +109,11 @@ class StoreModel(BaseModel):
         self._validate_store()
         for field_name in self.__class__.model_fields.keys():
             if field_name == "store":
+                continue
+            # in strict mode, a field with no stored value (e.g. deleted from
+            # the store) has nothing to validate -- skip it rather than raising
+            # about the None that Store.get returns for a missing key
+            if self.strict_coercion and self._ns_name(field_name) not in self.store:
                 continue
             self._get_and_coerce_field(field_name)
 
@@ -140,23 +178,39 @@ class StoreModel(BaseModel):
         This handles nested Pydantic models, lists of models, dicts of models,
         TypedDicts, dataclasses, tuples, and other complex types.
         """
-        if field_name not in self.__class__.model_fields or value is None:
+        if field_name not in self.__class__.model_fields:
+            return value
+
+        # Skip coercion for None and scalar values (they don't need it). In
+        # strict mode they are validated like everything else, so that e.g. a
+        # stored str where a model is declared raises rather than passing through.
+        if not self.strict_coercion and self._is_scalar(value):
             return value
 
         field_info = self.__class__.model_fields[field_name]  # pylint: disable=unsubscriptable-object
         field_type = field_info.annotation
 
-        # Skip coercion for scalar types (they don't need it)
-        if self._is_scalar(value):
-            return value
-
-        # For everything else, attempt coercion with TypeAdapter
-        # This handles BaseModels, TypedDicts, dataclasses, tuples, lists, dicts, etc.
-        # Since we cache the result in the Store, this only happens once per field
+        # Attempt coercion with TypeAdapter. This handles BaseModels, TypedDicts,
+        # dataclasses, tuples, lists, dicts, etc. Coerced non-scalar values are
+        # cached back into the Store; validation itself reruns on each read
         try:
             adapter: TypeAdapter[Any] = TypeAdapter(field_type)
-            return adapter.validate_python(value)
         except Exception:
+            # pydantic cannot build a validator for this field type (e.g. an
+            # arbitrary type permitted by arbitrary_types_allowed) so no
+            # coercion is possible -- return the stored value as-is
+            return value
+
+        try:
+            return adapter.validate_python(value)
+        except Exception as ex:
+            if self.strict_coercion:
+                raise ValueError(
+                    f"Stored value for key '{self._ns_name(field_name)}' does not "
+                    f"validate against the declared type {field_type!r} of field "
+                    f"'{field_name}' on {self.__class__.__name__} (stored value has "
+                    f"type {type(value).__name__}): {ex}"
+                ) from ex
             # If coercion fails, return the raw value
             return value
 

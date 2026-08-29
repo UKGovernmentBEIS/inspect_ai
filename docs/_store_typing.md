@@ -52,6 +52,20 @@ blue_activity = state.store_as(Activity, instance="blue_team")
 ```
 
 
+#### Strict Coercion
+
+The `Store` is shared and untyped, so a value read through your model may not actually match the declared field type (for example, if other code wrote a different shape to the same key, or a log was written with an older version of your model). By default, a stored value that fails validation against the declared field type is returned as-is, and it is up to you to check its type. If you would rather fail fast, set `strict_coercion = True` on your model to raise an error (naming the store key, declared type, and actual value type) whenever a stored value fails validation:
+
+```python
+class Activity(StoreModel):
+    strict_coercion = True
+
+    active: bool = Field(default=False)
+    tries: int = Field(default=0)
+```
+
+Note that `strict_coercion` must be assigned without a type annotation (it is a class setting, not a model field). Validation uses Pydantic's default (lax) mode, so stored values that Pydantic can coerce to the declared type (e.g. `"5"` for an `int` field) are converted rather than rejected. Fields whose declared types Pydantic cannot validate (e.g. arbitrary types) are always returned as-is.
+
 #### Explicit Store
 
 The `store_as()` function automatically binds to the current sample `Store`. You can alternatively create an explicit `Store` and pass it directly to the model (e.g. for testing purposes):
