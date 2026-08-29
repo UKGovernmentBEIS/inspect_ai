@@ -6,7 +6,7 @@ from inspect_ai.event._score_edit import ScoreEditEvent
 from inspect_ai.event._tree import EventTree, EventTreeSpan, event_tree, walk_node_spans
 from inspect_ai.scorer._metric import Score, ScoreEdit
 
-from ._log import EvalLog
+from ._log import EvalLog, EvalSample
 from ._metric import recompute_metrics as _recompute_metrics
 
 
@@ -94,46 +94,69 @@ def edit_score(
         )
         sample.scores[score_name] = new_score
     else:
-        score = sample.scores[score_name]
+        apply_score_edit(sample.scores[score_name], edit)
 
-        if not score.history:
-            original = ScoreEdit(
-                value=score.value,
-                answer=score.answer,
-                explanation=score.explanation,
-                reason=score.reason,
-                metadata=score.metadata or {},
-            )
-            score.history.append(original)
+    insert_score_edit_event(sample, score_name, edit)
 
-        if edit.value != "UNCHANGED":
-            score.value = edit.value
-        if edit.answer != "UNCHANGED":
-            score.answer = edit.answer
-        if edit.explanation != "UNCHANGED":
-            score.explanation = edit.explanation
-        if edit.reason != "UNCHANGED":
-            score.reason = edit.reason
-        if edit.metadata != "UNCHANGED":
-            score.metadata = edit.metadata
+    if recompute_metrics:
+        _recompute_metrics(log)
 
-        if edit.reason != "UNCHANGED":
-            # An explicit edit to `reason` (including clearing it to None)
-            # supersedes any legacy `metadata["unscored_reason"]` left over
-            # from pre-#4567 logs - otherwise a future re-read of the
-            # persisted log would resurrect the old reason via the
-            # `_lift_unscored_reason` shim.
-            score.metadata = _drop_legacy_unscored_reason(score.metadata)
 
-        score.history.append(edit)
+def apply_score_edit(score: Score, edit: ScoreEdit) -> None:
+    """Apply an edit to an existing score in place, maintaining `Score.history`.
 
+    On the first recorded change the pre-edit state is snapshotted into
+    `history` (with `provenance=None`, marking it as the original score), so
+    `history[0]` always preserves the original values. The applied edit is
+    then appended, so `history[-1]` always describes the current state.
+    """
+    if not score.history:
+        original = ScoreEdit(
+            value=score.value,
+            answer=score.answer,
+            explanation=score.explanation,
+            reason=score.reason,
+            metadata=score.metadata or {},
+        )
+        score.history.append(original)
+
+    if edit.value != "UNCHANGED":
+        score.value = edit.value
+    if edit.answer != "UNCHANGED":
+        score.answer = edit.answer
+    if edit.explanation != "UNCHANGED":
+        score.explanation = edit.explanation
+    if edit.reason != "UNCHANGED":
+        score.reason = edit.reason
+    if edit.metadata != "UNCHANGED":
+        score.metadata = edit.metadata
+
+    if edit.reason != "UNCHANGED":
+        # An explicit edit to `reason` (including clearing it to None)
+        # supersedes any legacy `metadata["unscored_reason"]` left over
+        # from pre-#4567 logs - otherwise a future re-read of the
+        # persisted log would resurrect the old reason via the
+        # `_lift_unscored_reason` shim.
+        score.metadata = _drop_legacy_unscored_reason(score.metadata)
+
+    score.history.append(edit)
+
+
+def insert_score_edit_event(
+    sample: EvalSample, score_name: str, edit: ScoreEdit
+) -> None:
+    """Record a `ScoreEditEvent` on the sample.
+
+    The event is attributed to the sample's final scorers span (when present)
+    and inserted just before that span's end; otherwise it is appended to the
+    end of the event list.
+    """
     final_scorers_node = _find_scorers_span(event_tree(sample.events))
     score_edit_event = ScoreEditEvent(score_name=score_name, edit=edit)
 
     if final_scorers_node:
         score_edit_event.span_id = final_scorers_node.begin.id
 
-    # Insert event just before the end of the scorers span, or at end if no span
     end_index = len(sample.events)
     if final_scorers_node and final_scorers_node.end is not None:
         for i, ev in enumerate(reversed(sample.events)):
@@ -142,9 +165,6 @@ def edit_score(
                 break
 
     sample.events.insert(end_index, score_edit_event)
-
-    if recompute_metrics:
-        _recompute_metrics(log)
 
 
 def _find_scorers_span(tree: EventTree) -> EventTreeSpan | None:

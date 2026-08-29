@@ -128,6 +128,15 @@ for model, scored_log in zip(grader_models, scoring_logs):
     write_eval_log(scored_log, output_file)
 ```
 
+When overwriting, you can keep the replaced scores as part of each new score's edit history rather than discarding them:
+
+``` python
+scored_log = score(log, model_graded_qa(), action="overwrite",
+                   preserve_history=True)
+```
+
+For each sample score that is replaced, the previous score's values are snapshotted into the new score's `history` (exactly as `edit_score()` does) and a `ScoreEditEvent` is recorded in the sample transcript with provenance for the change. A score counts as replaced when the new scoring pass produces a score with the same name — existing scores whose scorer is not re-run are still dropped by the overwrite. See [Editing Logs](eval-logs.qmd#sec-eval-log-modification) for details on score history.
+
 ## Editing Scores
 
 You may need to modify the results, for example correcting scoring errors or adjusting sample scores based on manual review. Inspect provides functions for modifying logs while maintaining data integrity and audit trails. Learn more about modifying scores in [Editing Logs](eval-logs.qmd#sec-eval-log-modification).
