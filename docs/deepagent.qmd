@@ -71,6 +71,8 @@ The parent agent decides when to delegate vs. do work directly. The system promp
 
 Subagents run in isolated context by default. Each gets a fresh message history with only the task prompt, and only its summary returns to the parent. This prevents context rot and keeps the parent's context lean. All subagents inherit the parent's model by default — for cost-sensitive workloads, consider overriding `research()` with a cheaper model (e.g. `research(model="anthropic/claude-haiku-4-5")`), since read-only information gathering is the highest-volume subagent task. See [Subagents](#sec-customizing-builtins) below for how to customize or replace the defaults.
 
+A subagent's report is the whole point of the delegation, so it is exempt from the `max_tool_output` limit that applies to ordinary tool results — however long the report, the parent sees all of it. Use `limits` on a [customized subagent](#sec-customizing-builtins) (e.g. `token_limit()`) to bound how much work a subagent can do.
+
 ### Memory
 
 The `memory()` tool provides a scratchpad for the top-level agent for the duration of the evaluation. The model can create, view, update, delete, and search memory entries, storing intermediate results, findings, and status as it works.

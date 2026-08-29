@@ -157,6 +157,7 @@ def tool(
     viewer: ToolCallViewer | None = None,
     model_input: ToolCallModelInput | None = None,
     parallel: bool | None = None,
+    max_output: int | None = None,
     prompt: str | None = None,
 ) -> Callable[[Callable[P, Tool]], Callable[P, Tool]]: ...
 
@@ -168,6 +169,7 @@ def tool(
     viewer: ToolCallViewer | None = None,
     model_input: ToolCallModelInput | None = None,
     parallel: bool | None = None,
+    max_output: int | None = None,
     prompt: str | None = None,
 ) -> Callable[P, Tool] | Callable[[Callable[P, Tool]], Callable[P, Tool]]:
     r"""Decorator for registering tools.
@@ -183,6 +185,11 @@ def tool(
             the same assistant message? Defaults to `False` (opt-in). Set
             `True` only after auditing the tool for concurrent-safety (no
             shared `Store`/sandbox mutations, no order-dependent side effects).
+        max_output: Maximum size (in bytes) of this tool's result before it is
+            truncated. `None` (the default) defers to `max_tool_output` in the
+            active `GenerateConfig` (16KB by default); `0` disables truncation
+            for this tool. A value specified here takes precedence over the
+            generate config.
         prompt: Deprecated (provide all descriptive information about
             the tool within the tool function's doc comment)
 
@@ -229,20 +236,21 @@ def tool(
             tool_parallel: bool = parallel is True
             tool_viewer = viewer
             tool_model_input = model_input
+            tool_max_output = max_output
             tool_options: dict[str, object] | None = None
             if is_registry_object(tool):
-                _, _, reg_parallel, reg_viewer, reg_model_input, options = (
-                    tool_registry_info(tool)
-                )
+                reg = tool_registry_info(tool)
                 # An unspecified outer (None) inherits the inner tool's
                 # declaration; an explicit outer value overrides.
                 if parallel is None:
-                    tool_parallel = reg_parallel
+                    tool_parallel = reg.parallel
                 else:
                     tool_parallel = parallel
-                tool_viewer = viewer or reg_viewer
-                tool_model_input = model_input or reg_model_input
-                tool_options = options
+                tool_viewer = viewer or reg.viewer
+                tool_model_input = model_input or reg.model_input
+                if max_output is None:
+                    tool_max_output = reg.max_output
+                tool_options = reg.options
 
             # tag the object
             registry_tag(
@@ -259,6 +267,7 @@ def tool(
                             tool_model_input
                             or getattr(tool, TOOL_INIT_MODEL_INPUT, None)
                         ),
+                        TOOL_MAX_OUTPUT: tool_max_output,
                         TOOL_OPTIONS: tool_options,
                     },
                 ),
@@ -308,6 +317,7 @@ TOOL_PROMPT = "prompt"
 TOOL_PARALLEL = "parallel"
 TOOL_VIEWER = "viewer"
 TOOL_MODEL_INPUT = "model_input"
+TOOL_MAX_OUTPUT = "max_output"
 TOOL_OPTIONS = "options"
 
 

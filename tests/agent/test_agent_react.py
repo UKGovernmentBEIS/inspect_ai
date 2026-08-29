@@ -17,7 +17,12 @@ from inspect_ai.agent._types import (
 )
 from inspect_ai.dataset import Sample
 from inspect_ai.log import EvalLog
-from inspect_ai.model import ChatMessageUser, ModelOutput, get_model
+from inspect_ai.model import (
+    ChatMessageUser,
+    GenerateConfig,
+    ModelOutput,
+    get_model,
+)
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -268,6 +273,61 @@ def check_custom_submit(log: EvalLog, name: str, description: str) -> None:
 
 def addition_dataset() -> list[Sample]:
     return [Sample(input="What is 1 + 1?", target=["2", "2.0", "Two"])]
+
+
+def test_react_agent_long_submission_not_truncated() -> None:
+    """A submitted answer larger than max_tool_output reaches the completion intact.
+
+    The submit result is the scored answer, not model-facing tool output, so
+    clipping it would score a truncation notice in place of what the model
+    actually wrote.
+    """
+    answer = "A" * 2000
+    log = eval(
+        Task(
+            dataset=addition_dataset(),
+            solver=react(),
+            config=GenerateConfig(max_tool_output=100),
+        ),
+        model=mockllm_model_with_submissions([answer]),
+    )[0]
+    assert log.status == "success"
+    assert log.samples
+    # answer_only is False by default, so the answer is appended to the
+    # content the model generated alongside the submit call
+    assert log.samples[0].output.completion.endswith(answer)
+
+
+def test_react_agent_custom_submit_tool_long_submission_not_truncated() -> None:
+    """The exemption follows a caller-supplied submit ToolDef too."""
+
+    @tool
+    def custom_submit():
+        async def execute(answer: str) -> str:
+            """The tool used to submit.
+
+            Args:
+                answer: The submitted answer.
+            """
+            return answer
+
+        return execute
+
+    answer = "B" * 2000
+    submit_tool = ToolDef(custom_submit(), name="submit")
+    log = eval(
+        Task(
+            dataset=addition_dataset(),
+            solver=react(submit=AgentSubmit(tool=submit_tool)),
+            config=GenerateConfig(max_tool_output=100),
+        ),
+        model=mockllm_model_with_submissions([answer]),
+    )[0]
+    assert log.status == "success"
+    assert log.samples
+    assert log.samples[0].output.completion.endswith(answer)
+    # the caller's ToolDef is copied before the exemption is applied
+    assert submit_tool.max_output is None
 
 
 def test_react_agent_no_submit() -> None:

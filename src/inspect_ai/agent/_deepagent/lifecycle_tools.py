@@ -30,6 +30,7 @@ from inspect_ai.tool._tool import Tool, tool
 from inspect_ai.tool._tool_call import ToolCall, ToolCallContent, ToolCallView
 
 from .agent_tool import (
+    SUBAGENT_RESULT_MAX_OUTPUT,
     AgentFuture,
     BackgroundRegistry,
     current_background_registry,
@@ -190,7 +191,7 @@ def _list_viewer(call: ToolCall) -> ToolCallView:
 # ---------------------------------------------------------------------------
 
 
-@tool(viewer=_status_viewer)
+@tool(viewer=_status_viewer, max_output=SUBAGENT_RESULT_MAX_OUTPUT)
 def agent_status() -> Tool:
     """Check the status of a background agent without blocking."""
 
@@ -220,7 +221,7 @@ def agent_status() -> Tool:
     return execute
 
 
-@tool(viewer=_wait_viewer)
+@tool(viewer=_wait_viewer, max_output=SUBAGENT_RESULT_MAX_OUTPUT)
 def agent_wait() -> Tool:
     """Wait for one or more background agents to complete."""
 
@@ -288,7 +289,7 @@ def agent_wait() -> Tool:
     return execute
 
 
-@tool(viewer=_cancel_viewer)
+@tool(viewer=_cancel_viewer, max_output=SUBAGENT_RESULT_MAX_OUTPUT)
 def agent_cancel() -> Tool:
     """Cancel a running background agent."""
 
@@ -329,7 +330,7 @@ def agent_cancel() -> Tool:
     return execute
 
 
-@tool(viewer=_list_viewer)
+@tool(viewer=_list_viewer, max_output=SUBAGENT_RESULT_MAX_OUTPUT)
 def agent_list() -> Tool:
     """List background agents and their statuses."""
 

@@ -62,3 +62,45 @@ def test_tool_def_does_not_duplicate_prompt_text() -> None:
 
     assert first.description == second.description
     assert second.description.count("Use this tool when addition is required.") == 1
+
+
+def test_tool_def_max_output_round_trips() -> None:
+    async def addition(x: int, y: int):
+        return x + y
+
+    tool_def = ToolDef(
+        tool=addition,
+        name="addition",
+        description="Add two numbers",
+        parameters={"x": "Integer", "y": "Integer"},
+        max_output=0,
+    )
+    assert ToolDef(tool_def.as_tool()).max_output == 0
+
+
+def test_tool_max_output_declaration_inherited_by_outer_tool() -> None:
+    @tool(max_output=0)
+    def inner():
+        async def execute(x: int) -> int:
+            """Echo an integer.
+
+            Args:
+                x: The integer.
+            """
+            return x
+
+        return execute
+
+    # an unspecified outer max_output inherits the inner declaration
+    @tool
+    def outer():
+        return inner()
+
+    # an explicit outer max_output overrides it
+    @tool(max_output=64)
+    def overriding():
+        return inner()
+
+    assert ToolDef(inner()).max_output == 0
+    assert ToolDef(outer()).max_output == 0
+    assert ToolDef(overriding()).max_output == 64

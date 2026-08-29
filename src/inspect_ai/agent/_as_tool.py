@@ -89,12 +89,16 @@ def as_tool(
     } | tool_info.parameters.properties
     tool_info.parameters.required.append("input")
 
-    # create tool
+    # create tool (max_output=0 because the agent's report is the payload the
+    # caller asked for -- clipping it would substitute a truncation notice.
+    # It was also only ever clipped for agents whose final message content is
+    # a plain string; structured content already bypassed truncation.)
     tool_def = ToolDef(
         execute,
         name=tool_info.name,
         description=tool_info.description,
         parameters=tool_info.parameters,
+        max_output=0,
     )
     return tool_def.as_tool()
 
