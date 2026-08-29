@@ -120,6 +120,7 @@ from inspect_ai.model._reasoning import (
 )
 from inspect_ai.model._retry import batch_admin_retry_config
 from inspect_ai.model._stream import (
+    NoStreamDataError,
     StreamReasoningEvent,
     StreamTextEvent,
     StreamToolCallEvent,
@@ -647,7 +648,7 @@ class GoogleGenAIAPI(ModelAPI):
                                 await _report_stream_part_delta(part)
 
         if last_chunk is None:
-            raise RuntimeError(
+            raise NoStreamDataError(
                 f"No response chunks received from streaming API for model {model}"
             )
 

@@ -22,7 +22,7 @@ from pydantic import (
 from inspect_ai._util._async import current_async_backend, run_coroutine, tg_collect
 from inspect_ai._util.async_zip import AsyncZipReader
 from inspect_ai._util.asyncfiles import AsyncFilesystem, get_async_filesystem
-from inspect_ai._util.azure import azure_warning_hint, should_suppress_azure_error
+from inspect_ai._util.azure import AzureAuthError, is_azure_listing_auth_error
 from inspect_ai._util.constants import ALL_LOG_FORMATS, EVAL_LOG_FORMAT
 from inspect_ai._util.dateutil import UtcDatetimeStr
 from inspect_ai._util.error import EvalError
@@ -263,28 +263,27 @@ async def _list_eval_logs_async(
         try:
             exists = fs.exists(log_dir)
         except Exception as ex:  # noqa: BLE001
-            if should_suppress_azure_error(log_dir, ex):
-                logger.warning(azure_warning_hint(log_dir, ex))
-                exists = True
-            else:
-                raise
+            if is_azure_listing_auth_error(log_dir, ex):
+                # An auth failure is not an empty directory: surface it with
+                # remediation guidance instead of silently reporting no logs.
+                raise AzureAuthError(log_dir, ex) from ex
+            raise
         if not exists:
             return []
         logs = fs.ls(log_dir, recursive=recursive)
         return await log_files_from_ls_async(logs, formats, descending)
     elif fs.is_async():
         async with async_filesystem(log_dir, fs_options=fs_options) as async_fs:
-            # Attempt existence check with robust handling for Azure-style auth issues.
             try:
                 exists = await async_fs._exists(log_dir)
             except Exception as ex:  # noqa: BLE001
-                if should_suppress_azure_error(log_dir, ex):
-                    logger.warning(azure_warning_hint(log_dir, ex))
-                    exists = True
-                else:
-                    # TODO: Add S3 login error catching, as well as any other remote file system of interest
-                    # Re-raise non-auth related issues
-                    raise
+                if is_azure_listing_auth_error(log_dir, ex):
+                    # An auth failure is not an empty directory: surface it with
+                    # remediation guidance instead of silently reporting no logs.
+                    raise AzureAuthError(log_dir, ex) from ex
+                # TODO: Add S3 login error catching, as well as any other remote file system of interest
+                # Re-raise non-auth related issues
+                raise
 
             if exists:
                 # prevent caching of listings

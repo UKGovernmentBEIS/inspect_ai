@@ -1,5 +1,11 @@
 ## Unreleased
 
+- OpenAI: Fixed background responses failing on transient connection and timeout errors.
+- Scorers: `match(numeric=True)` now parses numbers with attached sentence or enclosing punctuation (e.g. "42!", "(42)"); operator prefixes (`<42`, `~42`) still do not match, and `location="exact"` remains strict. (#4742)
+- Multiple choice: The choice scorer now handles multi-digit labels when tasks have 36 or more options, and raises a clear error when a target references a position beyond the task's choices (samples without choices always score incorrect rather than raising). (#4590)
+- Approval: Support comma-separated tool patterns in approval policy configs, matching the documented `tools: web_browser*, bash` syntax; policy file paths given as `file://` URLs are normalized to local paths. (#5025)
+- Solver: Preserve Choice original_position across multiple shuffles in Choices.shuffle(). (#5010)
+- Eval logs: An Azure storage authentication failure while listing a remote log directory now raises `AzureAuthError` with remediation guidance instead of being downgraded to a warning and an empty listing, matching how S3 surfaces auth failures. (#4914)
 - Human Agent: End-of-input (e.g. Ctrl+D) at the `task submit`/`task quit` confirmation prompt now declines cleanly instead of raising an `EOFError` traceback.
 - Model streaming: stream-event handling — including live partial-output snapshots in inspect view — now runs only when `on_stream` is passed, so it can no longer fail model calls that stream without a callback.
 - Eval logs: Users can chain conditional S3 writes using the ETag returned by `write_eval_log()` and `write_eval_log_async()`.
@@ -11,6 +17,9 @@
 - Eval Set: A selection document's operational overrides gain a dataset `limit` and `max_sandboxes`.
 - Grok: Requests now carry xAI's conversation id header, which improves prompt cache hit rates for multi-turn samples.
 - OpenAI: Function call outputs without a `call_id` (optional as of openai 3.5.0) no longer error in the agent bridge or token-count padding.
+- Model streaming: Transient errors delivered mid-stream after HTTP 200 (provider stream error events, and streams that end with no data) are now retried instead of failing the sample.
+- OpenAI: Transient server errors and rate limits delivered mid-stream on chat-completions streaming are now retried instead of failing the sample.
+- OpenAI: Safeguard/content-policy blocks emitted mid-stream or as terminal response errors are now reported as `content_filter` stop reasons instead of failing the sample.
 - Scoring: Skip Score.unscored() / NaN-at-root sentinels in aggregate() metric. (#5008)
 - Scoring: Return inf on OverflowError in perplexity_per_token() and perplexity_per_seq() metrics. (#5028)
 - Analysis: Ensure ColumnError.path is a string rather than a JSONPath object on record import errors. (#5006)
@@ -30,7 +39,28 @@
 - Sandbox: MCP sessions in sandboxes now work regardless of installed mcp version; the injected sandbox-tools binary is smaller and tool calls start faster.
 - Docker Sandbox: New `--sandbox-prebuilt` option (`sandbox_prebuilt` on `eval()`) skips image builds and fails fast at task startup when a prebuilt image is missing.
 - Docker Sandbox: `x-local: false` on a compose service is now treated the same as omitting `x-local` (the image is pulled) rather than marking the image as local.
-- OpenAI: Fixed background responses failing on transient connection/timeout errors.
+- Control Channel: New `inspect ctl sample store` command reads a running or just-finished sample's current store directly (with server-side `--key` exact/prefix filtering).
+- Control Channel: New `inspect ctl sample cancel-tool-call` cancels one hung tool call (the model sees an ordinary tool timeout and the sample continues), with pending tool calls now visible in `inspect ctl sample list --json`.
+- Metrics: Tasks can now declare a `headline_metric` naming which scorer and metric summarise the eval, honored by the log listing, the progress display, and `evals_df()`.
+- Models: `Model.generate()` and `Model.generate_loop()` accept an optional `on_stream` callback that by itself enables provider streaming and receives incremental events (text/reasoning/tool-call deltas and retry boundaries), with streamed progress now also visible on `inspect ctl sample list`.
+- Models: `on_stream` now delivers stream events from the OpenAI, OpenAI-compatible (Together, Fireworks, etc.), Grok, and SageMaker providers, in addition to Anthropic and Google.
+- Models: Streamed OpenAI-compatible responses stopped by a content filter now return `stop_reason="content_filter"` (as non-streamed ones do) instead of failing the call.
+- Models: Streamed OpenAI-compatible completions now report token usage, and explicit `stream=true` with non-strict tools no longer fails before the request is sent.
+- Models: The `stream`/`streaming` model args now accept `auto` uniformly across providers, and unrecognized values raise an error instead of silently enabling or disabling streaming.
+- Anthropic: Fixed a crash (`ValidationError` failing the sample) when native compaction ran with streaming enabled.
+- Control Channel: `inspect ctl config --json` refusals against an older eval process now emit the structured `{"error": ...}` envelope instead of only stderr prose.
+- Refactor: Consolidated the per-sample lifecycle in the task runner; samples now reach terminal state before metrics/early-stopping hooks run, so a raising or suspended hook cannot leave a sample uncounted or a finished task accepting requeue/cancel.
+- Control Channel: `inspect ctl config --max-tasks` retunes a running eval's task concurrency mid-flight — raising it starts pending tasks immediately (pass `clear` to restore launch config).
+- Control Channel: A runaway polling client can no longer starve the eval by piling up queued requests — excess concurrent connections are rejected as busy, and `inspect ctl` retries them shortly.
+- Control Channel: Read requests whose client has already hung up (timed out or killed mid-request) are no longer served, so stale queued polls stop stealing time from running samples.
+- Control Channel: Task-selecting `inspect ctl` commands now take a `--model` disambiguator, so one task run against several models can be selected by name (e.g. `inspect ctl task cancel my_task --model gpt-5`).
+- Model roles can now be bound to a list of models (e.g. `model_roles={"grader": [...]}`), with model-graded scorers grading by majority vote across the list.
+- Checkpointing: Sandbox snapshots now support selectable strategies (per sandbox, settable at the sample, task, or eval layer) — incremental restic (default) or self-contained per-checkpoint archives captured with in-image tools only.
+- Bugfix: Resuming a sample from a checkpoint no longer restarts its token, cost, turn, time, and working budgets from zero.
+- Models: Provider HTTP connection settings are now tunable with `INSPECT_HTTP_*` environment variables, and connection setup gets 60s rather than the SDKs' 5s.
+- Mistral: Requests are no longer capped at the SDK's flat 5s timeout, which cut off generations that took longer.
+- Hugging Face: Chat templates that use dict methods (e.g. Gemma's `message.get(...)`) no longer fail with a Jinja `UndefinedError`.
+- Sandbox: When remote exec polling exhausts its retries, the error now names the sandbox's actual failure instead of an opaque tenacity RetryError.
 
 ## 0.3.260 (21 August 2026)
 
