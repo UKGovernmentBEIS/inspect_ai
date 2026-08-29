@@ -447,18 +447,26 @@ class TaskState:
 
         return metadata_as(self.metadata, metadata_cls)
 
-    def store_as(self, model_cls: Type[SMT], instance: str | None = None) -> SMT:
+    def store_as(
+        self, model_cls: Type[SMT], instance: str | None = None, strict: bool = False
+    ) -> SMT:
         """Pydantic model interface to the store.
 
         Args:
           model_cls: Pydantic model type (must derive from StoreModel)
           instance: Optional instances name for store (enables multiple instances
             of a given StoreModel type within a single sample)
+          strict: When `True`, reads through the returned instance raise
+            `ValueError` if a stored value fails validation against the
+            declared field type (see `store_as()` for details).
 
         Returns:
           StoreModel: model_cls bound to sample store data.
         """
-        return model_cls(store=self.store, instance=instance)
+        model = model_cls(store=self.store, instance=instance)
+        if strict:
+            model._activate_strict_coercion()
+        return model
 
 
 def sample_state() -> TaskState | None:

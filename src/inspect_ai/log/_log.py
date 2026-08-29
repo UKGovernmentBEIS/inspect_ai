@@ -466,13 +466,22 @@ class EvalSample(BaseModel):
     store: dict[str, Any] = Field(default_factory=dict)
     """State at end of sample execution."""
 
-    def store_as(self, model_cls: Type[SMT], instance: str | None = None) -> SMT:
+    def store_as(
+        self, model_cls: Type[SMT], instance: str | None = None, strict: bool = False
+    ) -> SMT:
         """Pydantic model interface to the store.
 
         Args:
           model_cls: Pydantic model type (must derive from StoreModel)
           instance: Optional instances name for store (enables multiple instances
             of a given StoreModel type within a single sample)
+          strict: When `True`, reads through the returned instance raise
+            `ValueError` if a stored value fails validation against the
+            declared field type (see `store_as()` for details). Note that
+            the sample's logged store data is always validated by pydantic
+            when this interface is constructed (regardless of `strict`), so
+            this only affects values written through the returned model
+            afterwards.
 
         Returns:
           StoreModel: model_cls bound to sample store data.
@@ -490,7 +499,10 @@ class EvalSample(BaseModel):
             data["instance"] = instance
 
         # create the model
-        return model_cls.model_validate(data)
+        model = model_cls.model_validate(data)
+        if strict:
+            model._activate_strict_coercion()
+        return model
 
     events: list[DiscriminatedEvent] = Field(default_factory=list)
     """Events that occurred during sample execution."""
