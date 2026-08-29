@@ -121,6 +121,30 @@ async def test_score_target_beyond_choices_raises():
         await scorer(state, Target("10"))
 
 
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "target",
+    [
+        "No",  # alphanumeric, parseable as answer labels
+        "The answer is 42.",  # free text, unparseable as answer labels
+        "",  # empty
+    ],
+)
+async def test_score_no_choices_does_not_raise(target: str):
+    # the choice scorer applied to a sample with no choices (e.g. re-scoring a
+    # non-multiple-choice log) should score incorrect, not abort the run --
+    # whatever the target looks like
+    scorer = choice()
+    state = simple_task_state(model_output="No", choices=[])
+
+    result = await scorer(state, Target(target))
+
+    assert result is not None
+    assert result.text == INCORRECT
+    assert result.answer == ""
+    assert result.explanation == "No"
+
+
 def test_answer_index_rejects_separators():
     # answer_index() should never silently return garbage indices for
     # separator characters -- it should raise so callers know to filter.
