@@ -412,6 +412,10 @@ class ExecRemoteProcess:
             wait=wait_exponential_jitter(initial=2),
             stop=(stop_after_attempt(5) | stop_after_delay(30)),
             retry=retry_if_exception(lambda e: isinstance(e, RuntimeError)),
+            # reraise the underlying RuntimeError on exhaustion so callers and
+            # eval logs see the sandbox's own message instead of an opaque
+            # RetryError wrapping a Future
+            reraise=True,
         )
         async def poll() -> _PollResult:
             from inspect_ai.util._sandbox.events import SandboxEnvironmentProxy

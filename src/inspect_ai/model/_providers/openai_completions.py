@@ -2,6 +2,7 @@ from logging import getLogger
 from typing import TYPE_CHECKING, Any, Literal
 
 from openai import (
+    APIError,
     AsyncAzureOpenAI,
     AsyncOpenAI,
     BadRequestError,
@@ -29,6 +30,7 @@ from .._openai import (
     openai_chat_tools,
     openai_completion_params,
     openai_handle_bad_request,
+    openai_handle_stream_error,
     openai_media_filter,
 )
 from .util.hooks import HttpxHooks
@@ -131,6 +133,14 @@ async def generate_completions(
             as_error_response(e.body), http_hooks.end_request(request_id)
         )
         return openai_handle_bad_request(openai_api.service_model_name(), e), model_call
+    except APIError as e:
+        output = openai_handle_stream_error(openai_api.service_model_name(), e)
+        if output is None:
+            raise
+        model_call.set_error(
+            as_error_response(e.body), http_hooks.end_request(request_id)
+        )
+        return output, model_call
 
 
 def completion_params_completions(
