@@ -1923,3 +1923,46 @@ def test_model_client_reuses_ssl_context_with_client_args(
     assert calls <= 1, (
         f"rebuilt the SSL context {calls} times across 5 clients with client_args"
     )
+
+
+def test_model_client_preserves_custom_verify_for_async(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A caller-supplied CA/SSLContext on `client_args` must reach async requests too.
+
+    genai's SSL-context resolution (`_ensure_httpx_ssl_ctx`) only consults
+    `async_client_args` when `client_args` is non-empty, so pre-seeding
+    `async_client_args` with the shared default before genai runs would silently
+    override a caller-supplied custom verify for async requests while sync
+    requests stayed correctly validated against it.
+    """
+    import ssl as ssl_module
+    from typing import Any
+
+    from google.genai._api_client import AsyncHttpxClient
+    from google.genai.types import HttpOptions
+
+    from inspect_ai.model._providers.google import GoogleGenAIAPI
+
+    custom_context = ssl_module.create_default_context()
+
+    captured: dict[str, Any] = {}
+    real_init = AsyncHttpxClient.__init__
+
+    def capturing_init(self: Any, **kwargs: Any) -> None:
+        captured.update(kwargs)
+        real_init(self, **kwargs)
+
+    monkeypatch.setattr(AsyncHttpxClient, "__init__", capturing_init)
+
+    api = GoogleGenAIAPI(
+        model_name="gemini-2.0-flash",
+        base_url=None,
+        api_key="x" * 20,
+    )
+    GoogleGenAIAPI._ssl_context.cache_clear()
+    api.model_client(HttpOptions(client_args={"verify": custom_context}))
+
+    assert captured["verify"] is custom_context, (
+        "async httpx client did not receive the caller-supplied custom verify"
+    )

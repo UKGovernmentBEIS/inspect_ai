@@ -987,15 +987,10 @@ class GoogleGenAIAPI(ModelAPI):
         """The shared SSL context for genai clients, built once per process.
 
         `Client()` is constructed per `generate()` call (deliberately — a shared client
-        would share a principal), and each construction calls both
-        `_ensure_httpx_ssl_ctx` and `_ensure_websocket_ssl_ctx`, which build a default
-        context from `certifi.where()`. That reads and parses the CA bundle from disk
-        SYNCHRONOUSLY on the event loop, once per model call. At high sandbox
-        concurrency it showed up in py-spy dumps of a saturated runner loop, where
-        blocking work starves the sandbox-service RPC consumer.
-
-        A context carries only CA trust, not credentials, so unlike the client itself it
-        is safe to share across principals.
+        would share a principal). Each construction otherwise rebuilds a default context
+        from `certifi.where()`, synchronously on the event loop. A context carries only
+        CA trust, not credentials, so unlike the client itself it is safe to share across
+        principals.
         """
         import certifi
 
@@ -1011,28 +1006,28 @@ class GoogleGenAIAPI(ModelAPI):
             base_url=self.base_url,
             api_version=self.api_version,
         )
-        # Pre-seed the SSL context genai would otherwise rebuild per client. It reads
-        # `verify` for httpx and `ssl` for the websocket transport, and skips creating
-        # one when either is already present.
-        #
-        # Seed BOTH dicts. genai resolves the context with
-        #     args.get(verify) if args else None or async_args.get(verify) if async_args
-        # which parses as
-        #     args.get(v) if args else ((None or async_args.get(v)) if async_args else None)
-        # so a non-empty `client_args` makes it read the SYNC dict and never consult the
-        # async one. The bridge passes `client_args`, so seeding only the async dict
-        # missed there and genai rebuilt the context on the event loop -- observed with
-        # py-spy as create_default_context under bridge_generate on a live run.
+        # Seed both `client_args` and `async_client_args`: genai's SSL-context
+        # resolution reads only the sync dict when it is non-empty, ignoring the
+        # async dict entirely, so a value supplied on one side must be copied to
+        # the other explicitly to keep sync and async verification consistent.
+        # Never override a value the caller already supplied.
         context = self._ssl_context()
-        async_client_args = dict(http_options.async_client_args or {})
-        if "verify" not in async_client_args or "ssl" not in async_client_args:
-            async_client_args.setdefault("verify", context)
-            async_client_args.setdefault("ssl", context)
-            http_options.async_client_args = async_client_args
         client_args = dict(http_options.client_args or {})
+        async_client_args = dict(http_options.async_client_args or {})
+        if "verify" in client_args:
+            verify = client_args["verify"]
+        elif "verify" in async_client_args:
+            verify = async_client_args["verify"]
+        else:
+            verify = context
         if "verify" not in client_args:
-            client_args["verify"] = context
-            http_options.client_args = client_args
+            client_args["verify"] = verify
+        if "verify" not in async_client_args:
+            async_client_args["verify"] = verify
+        if "ssl" not in async_client_args:
+            async_client_args["ssl"] = verify
+        http_options.client_args = client_args
+        http_options.async_client_args = async_client_args
         # aiohttp requires asyncio; use httpx under trio for compatibility.
         # Only this path gets the shared HTTP defaults: the aiohttp path sets no
         # connect deadline at all, so there is none there to be outlasted.

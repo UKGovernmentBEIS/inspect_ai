@@ -1,6 +1,6 @@
 ## Unreleased
 
-- Google: Reuse one SSL context across model clients, including bridged agent calls, instead of rebuilding it per request, removing blocking CA-bundle reads that could stall evals at high sandbox concurrency.
+- Google/Gemini: Faster client setup under high sandbox concurrency, with custom CA bundles now preserved on both sync and async requests.
 
 ## 0.3.262 (02 September 2026)
 
