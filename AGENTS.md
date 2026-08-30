@@ -102,6 +102,29 @@ is worse than disclosing none. Example:
 
 - **Respect existing patterns**: Respect existing code patterns when modifying files. Run linting before committing changes.
 
+## Suppression gate
+
+- Do NOT suppress lint or type errors (`# noqa`, `# type: ignore`,
+  `# pyright: ignore`, or the file-wide `# ruff: noqa` /
+  `# mypy: ignore-errors`). Fix the code. A deterministic gate enforces
+  this (`make suppressions-check` against `suppressions.json`); maintainers
+  reject suppressions that just make an error go away.
+- In the rare case a suppression is correct, it requires both: a reason in
+  a trailing hash comment segment on the same line — the only style mypy
+  accepts, e.g. `x = f()  # type: ignore[assignment]  # stub is wrong
+  upstream` — and `make suppressions-update` to record it in
+  `suppressions.json`. Always suppress the specific code
+  (`# noqa: E501`, `# type: ignore[assignment]`), never the bare code-less
+  form.
+- Every new suppression requires human maintainer approval of the
+  `suppressions.json` diff; expect the PR to be blocked until then, and
+  say in the PR description why no fix is possible.
+- If the `suppressions` CI check fails, never hand-edit the ledger to make
+  it pass. Run `make suppressions-update` so the change shows in the
+  ledger diff. `--update` refuses to grow any rule's repo-wide reason-less
+  total (the ratchet): new suppressions must carry a reason, and the
+  baselined reason-less ones burn down over time.
+
 ## Testing Async Code
 
 All async test functions automatically run under both asyncio and trio backends via anyio (applied by the `pytest_pycollect_makeitem` hook in `tests/conftest.py`). Trio variants are skipped by default; use `--runtrio` to enable them.

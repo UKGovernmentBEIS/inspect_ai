@@ -1,0 +1,74 @@
+# Suppression ledger gate — see .github/scripts/check_suppressions.py and
+# the "Suppression gate" section in AGENTS.md. Standalone workflow (not a
+# build.yml job) to keep the fork's drift surface against upstream small.
+name: Suppressions
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+      - "release/**"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  suppressions:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7
+
+      # setup-python rather than the runner's system python: Ubuntu 24.04
+      # marks system python externally-managed, so `pip install` there fails.
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      # The gate is stdlib-only by design: no dependency install needed.
+      - name: Check suppressions ledger
+        run: python3 .github/scripts/check_suppressions.py
+
+      # --noconftest / addopts="": the gate test is self-contained; skip
+      # tests/conftest.py (imports boto3/moto) and the xdist addopts so a
+      # bare pytest install suffices.
+      - name: Test the gate script
+        run: |
+          python3 -m pip install --quiet pytest
+          python3 -m pytest --noconftest -o addopts="" -q tests/test_check_suppressions.py
+
+      - name: Comment ledger delta on PR
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          BASE_REF: ${{ github.base_ref }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          git fetch --depth=1 origin "$BASE_REF"
+          git show "origin/$BASE_REF:suppressions.json" > /tmp/base-suppressions.json 2>/dev/null \
+            || echo '{}' > /tmp/base-suppressions.json
+          body=$(python3 .github/scripts/suppressions_pr_delta.py /tmp/base-suppressions.json suppressions.json)
+          # Sticky comment: match on the marker, not --edit-last, so other
+          # bot comments on the PR are never clobbered.
+          cid=$(gh api "repos/$GH_REPO/issues/$PR/comments" --paginate \
+            -q '.[] | select(.body | startswith("<!-- suppressions-delta -->")) | .id' | head -1)
+          if [ -n "$body" ] && [ -n "$cid" ]; then
+            gh api -X PATCH "repos/$GH_REPO/issues/comments/$cid" -f body="$body" > /dev/null
+          elif [ -n "$body" ]; then
+            gh pr comment "$PR" --body "$body"
+          elif [ -n "$cid" ]; then
+            gh api -X PATCH "repos/$GH_REPO/issues/comments/$cid" \
+              -f body="$(printf '<!-- suppressions-delta -->\nThis PR no longer changes the suppression ledger.')" > /dev/null
+          fi
