@@ -1,3 +1,9 @@
+## Unreleased
+
+- Eval Set: `eval_set()` now defaults `log_dir` to `INSPECT_LOG_DIR` or `./logs`, as `eval()` does, rather than requiring it.
+- Eval Set: An external runner driving `eval_set()` can now override any argument that does not change task identity, rather than only five.
+- Eval Set: An eval set driven by an external runner now honors the `INSPECT_EVAL_*` environment variables with the same meanings `inspect eval-set` gives them.
+
 ## 0.3.261 (30 August 2026)
 
 - Bedrock: Converse requests now reuse cached prompt prefixes across turns and samples, cutting input token cost, and report cache read and write tokens in usage.
