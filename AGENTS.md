@@ -110,9 +110,9 @@ is worse than disclosing none. Example:
   this (`make suppressions-check` against `suppressions.json`); maintainers
   reject suppressions that just make an error go away.
 - In the rare case a suppression is correct, it requires both: a reason in
-  a trailing hash comment segment on the same line — the only style mypy
-  accepts, e.g. `x = f()  # type: ignore[assignment]  # stub is wrong
-  upstream` — and `make suppressions-update` to record it in
+  a trailing hash comment segment on the same line, the only style mypy
+  accepts (e.g. `x = f()  # type: ignore[assignment]  # stub is wrong
+  upstream`), and `make suppressions-update` to record it in
   `suppressions.json`. Always suppress the specific code
   (`# noqa: E501`, `# type: ignore[assignment]`), never the bare code-less
   form.
