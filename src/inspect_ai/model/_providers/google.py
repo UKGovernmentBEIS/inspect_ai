@@ -999,6 +999,18 @@ class GoogleGenAIAPI(ModelAPI):
             capath=os.environ.get("SSL_CERT_DIR"),
         )
 
+    @staticmethod
+    @functools.lru_cache
+    def _ssl_context_for_path(path: str) -> ssl.SSLContext:
+        """An SSLContext built from a caller-supplied CA-bundle path.
+
+        httpx's `verify` legally accepts a CA-bundle path (`str` or `os.PathLike`), but
+        aiohttp's `ssl` param only accepts `SSLContext | bool | Fingerprint | None` —
+        `aiohttp.client_reqrep` raises `TypeError` on a bare path. Cached per path since
+        `model_client()` is constructed per `generate()` call.
+        """
+        return ssl.create_default_context(cafile=path)
+
     def model_client(self, http_options: HttpOptions | None = None) -> Client:
         from inspect_ai._util._async import current_async_backend
 
@@ -1025,7 +1037,10 @@ class GoogleGenAIAPI(ModelAPI):
         if "verify" not in async_client_args:
             async_client_args["verify"] = verify
         if "ssl" not in async_client_args:
-            async_client_args["ssl"] = verify
+            if isinstance(verify, (str, os.PathLike)):
+                async_client_args["ssl"] = self._ssl_context_for_path(os.fspath(verify))
+            else:
+                async_client_args["ssl"] = verify
         http_options.client_args = client_args
         http_options.async_client_args = async_client_args
         # aiohttp requires asyncio; use httpx under trio for compatibility.

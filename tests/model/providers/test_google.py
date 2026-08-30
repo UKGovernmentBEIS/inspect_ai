@@ -1966,3 +1966,70 @@ def test_model_client_preserves_custom_verify_for_async(
     assert captured["verify"] is custom_context, (
         "async httpx client did not receive the caller-supplied custom verify"
     )
+
+
+def test_model_client_converts_str_verify_for_aiohttp(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A caller-supplied CA-bundle *path* must not reach aiohttp's `ssl` param.
+
+    httpx's `verify` legally accepts a CA-bundle path (the PR's stated contract, e.g.
+    `certifi.where()`), but aiohttp's `ssl` param only accepts
+    `SSLContext | bool | Fingerprint | None` — `aiohttp.client_reqrep` raises
+    `TypeError` on a bare path, so every aiohttp/websocket request would fail before
+    sending unless the path is converted into a context first.
+    """
+    import ssl as ssl_module
+
+    import certifi
+    from google.genai._api_client import AsyncHttpxClient
+    from google.genai.types import HttpOptions
+
+    from inspect_ai.model._providers.google import GoogleGenAIAPI
+
+    ca_path = str(certifi.where())
+
+    captured: dict[str, Any] = {}
+    real_init = AsyncHttpxClient.__init__
+
+    def capturing_init(self: Any, **kwargs: Any) -> None:
+        captured.update(kwargs)
+        real_init(self, **kwargs)
+
+    monkeypatch.setattr(AsyncHttpxClient, "__init__", capturing_init)
+
+    api = GoogleGenAIAPI(
+        model_name="gemini-2.0-flash",
+        base_url=None,
+        api_key="x" * 20,
+    )
+    GoogleGenAIAPI._ssl_context.cache_clear()
+    GoogleGenAIAPI._ssl_context_for_path.cache_clear()
+    client = api.model_client(HttpOptions(client_args={"verify": ca_path}))
+
+    # httpx's async client keeps the original path -- that's a legal httpx `verify`.
+    assert captured["verify"] == ca_path
+
+    # aiohttp's `ssl` param only accepts SSLContext | bool | Fingerprint | None; the
+    # resolved verify value must be converted, not copied verbatim.
+    aiohttp_args = client._api_client._async_client_session_request_args
+    assert isinstance(aiohttp_args["ssl"], ssl_module.SSLContext), (
+        f"aiohttp 'ssl' arg was {aiohttp_args['ssl']!r}, not an SSLContext"
+    )
+
+
+def test_model_client_preserves_verify_false_for_aiohttp() -> None:
+    """`verify=False` must reach aiohttp as `ssl=False` unchanged, not converted."""
+    from google.genai.types import HttpOptions
+
+    from inspect_ai.model._providers.google import GoogleGenAIAPI
+
+    api = GoogleGenAIAPI(
+        model_name="gemini-2.0-flash",
+        base_url=None,
+        api_key="x" * 20,
+    )
+    GoogleGenAIAPI._ssl_context.cache_clear()
+    client = api.model_client(HttpOptions(client_args={"verify": False}))
+
+    assert client._api_client._async_client_session_request_args["ssl"] is False
