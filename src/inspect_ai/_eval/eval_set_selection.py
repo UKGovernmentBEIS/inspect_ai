@@ -31,15 +31,16 @@ a whole is said once in the run-wide document so that capture sees it too.
 
 Omitting the container, or any field in it, keeps whatever the definition
 chose. The container arrived in schema version 3, and a document may not use a
-field newer than the version it declares — see `_FIELD_MIN_VERSION`. That gate
-is on the container, not on its contents: a field added to `overrides` later
-(`max_tasks` in version 4, the identity-neutral remainder of `eval_set()`'s
-signature in version 6) bumps the schema version so an older inspect refuses
-the document as too new rather than as carrying an unknown field, but nothing
-tracks which version each override arrived in. Recording that would buy
-nothing an unknown-field error does not already say — the container forbids
-extras, so an older inspect fails on the field rather than ignoring it. The
-same reasoning covers the per-task pruning facets added in version 5.
+field newer than the version it declares — see `_FIELD_MIN_VERSION`, and
+`_OVERRIDE_FIELD_INTRODUCED` for the contents of the container, which are gated
+one by one (`max_tasks` in version 4, the identity-neutral remainder of
+`eval_set()`'s signature in version 6). Gating only the container was tried and
+is not enough: it makes the *outcome* safe, since an older inspect forbids
+extras and so fails on an unknown override rather than ignoring it, but it
+leaves a document declaring version 5 and setting `metadata` accepted here and
+rejected there — the exact split the gate exists to prevent, decided in the one
+deployment that still runs an older inspect rather than on the writer's own
+machine. The per-task pruning facets added in version 5 are gated the same way.
 
 A selection task may also carry **pruning facets** — `registry_name` and
 `args_hash` — which are an optimization and never a decision. Constructing a
@@ -201,6 +202,32 @@ _FIELD_MIN_VERSION: dict[str, int] = {"overrides": 3}
 # entry with nothing gating them, so they need what `overrides` itself needs.
 _TASK_FIELD_MIN_VERSION: dict[str, int] = {"registry_name": 5, "args_hash": 5}
 
+# and the same rule for fields *inside* the overrides container. The container
+# being gated at 3 was once thought to cover them -- an older inspect forbids
+# extras, so it fails on an unknown override rather than ignoring one -- but
+# that only makes the outcome safe, not the check honest: a document declaring
+# version 5 and setting `metadata` is accepted here and rejected there, which
+# is precisely the split this gate exists to prevent, and the reason is the one
+# `limit` gives above. Deciding it on the writer's machine is the whole point.
+#
+# Derived from the container's own fields rather than listed, so a field added
+# upstream is gated without anybody remembering to add it. Only the pre-version-6
+# entries are named, because everything else arrived with the identity-neutral
+# expansion; `test_eval_set_selection.py` asserts the three account for every
+# field.
+_OVERRIDE_FIELD_INTRODUCED: dict[str, int] = {
+    "log_dir": 3,
+    "max_samples": 3,
+    "max_sandboxes": 3,
+    "limit": 3,
+    "max_tasks": 4,
+}
+
+
+def _override_field_min_version(name: str) -> int:
+    """The schema version an override field arrived in."""
+    return _OVERRIDE_FIELD_INTRODUCED.get(name, 6)
+
 
 def _document_version(document: object) -> int | None:
     """Read a selection document's version before it has been validated.
@@ -293,10 +320,22 @@ def read_eval_set_selection(selection_path: str) -> EvalSetSelection:
             for entry in selection.tasks
             if introduced > selection.version and getattr(entry, name) is not None
         }
+        | {
+            f"overrides.{name}"
+            for name in (
+                EvalSetOverrides.model_fields if selection.overrides is not None else ()
+            )
+            if _override_field_min_version(name) > selection.version
+            and getattr(selection.overrides, name) is not None
+        }
     )
     if too_new:
+        versions = {**_FIELD_MIN_VERSION, **_TASK_FIELD_MIN_VERSION}
         required = max(
-            {**_FIELD_MIN_VERSION, **_TASK_FIELD_MIN_VERSION}[name] for name in too_new
+            _override_field_min_version(name.removeprefix("overrides."))
+            if name.startswith("overrides.")
+            else versions[name]
+            for name in too_new
         )
         raise PrerequisiteError(
             f"The eval set selection at '{selection_path}' declares schema "

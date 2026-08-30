@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from pydantic import ValidationError
 
 from inspect_ai import Task, eval_set, task
 from inspect_ai._eval.eval_set_manifest import (
@@ -463,3 +464,109 @@ def test_the_three_selectors_are_overridden_as_one_choice(
     # and whatever comes out is a combination `eval()` accepts
     limit, sample_id, sample_shuffle = resolved
     assert sample_id is None or (limit is None and sample_shuffle is None)
+
+
+# --- the run-wide document and one worker's ----------------------------------
+
+
+def test_a_workers_selector_takes_the_whole_trio() -> None:
+    """The three move together across the merge, as they do everywhere else.
+
+    Merged field by field, a run-wide `sample_id` and a worker `limit` both
+    survive into a document `eval()` refuses — and whichever the application
+    happens to prefer silently discards the *narrower* instruction, which is
+    the one the split exists to let a worker give.
+    """
+    merged = merge_eval_set_overrides(
+        EvalSetOverrides(sample_id=["run-id"]), EvalSetOverrides(limit=5)
+    )
+    assert merged is not None
+    assert (merged.limit, merged.sample_id, merged.sample_shuffle) == (5, None, None)
+
+    # and the other direction, which is the same rule rather than a special case
+    reversed = merge_eval_set_overrides(
+        EvalSetOverrides(limit=5, sample_shuffle=42), EvalSetOverrides(sample_id=["w"])
+    )
+    assert reversed is not None
+    assert (reversed.limit, reversed.sample_id, reversed.sample_shuffle) == (
+        None,
+        ["w"],
+        None,
+    )
+
+
+def test_a_worker_silent_on_selection_keeps_the_runs() -> None:
+    merged = merge_eval_set_overrides(
+        EvalSetOverrides(sample_id=["run-id"]), EvalSetOverrides(log_dir="/logs")
+    )
+    assert merged is not None
+    assert merged.sample_id == ["run-id"] and merged.log_dir == "/logs"
+
+
+def test_only_the_generate_config_merges_by_its_members() -> None:
+    """`epochs` is a value; `generate_config` is a container of them.
+
+    A bare count means what `eval_set(epochs=5)` means — five epochs and the
+    definition's reducers dropped. Merged by member it would inherit the
+    run-wide reducers and quietly mean something no caller can write.
+    """
+    merged = merge_eval_set_overrides(
+        EvalSetOverrides(epochs=EvalSetOverridesEpochs(epochs=3, reducer=["max"])),
+        EvalSetOverrides(epochs=5),
+    )
+    assert merged is not None and merged.epochs == 5
+
+
+def test_a_worker_epochs_object_still_replaces_whole() -> None:
+    merged = merge_eval_set_overrides(
+        EvalSetOverrides(epochs=EvalSetOverridesEpochs(epochs=3, reducer=["max"])),
+        EvalSetOverrides(epochs=EvalSetOverridesEpochs(epochs=5)),
+    )
+    assert merged is not None
+    assert isinstance(merged.epochs, EvalSetOverridesEpochs)
+    assert merged.epochs.epochs == 5 and merged.epochs.reducer is None
+
+
+# --- the wire format is strict all the way down ------------------------------
+
+COERCIONS: list[tuple[str, dict[str, Any]]] = [
+    ("a boolean where a count goes", {"generate_config": {"max_connections": True}}),
+    ("a quoted count", {"generate_config": {"max_connections": "3"}}),
+    ("a quoted timeout", {"generate_config": {"timeout": "60"}}),
+    ("a boolean sample id", {"sample_id": True}),
+    ("a boolean inside a sample id list", {"sample_id": ["a", True]}),
+]
+
+
+@pytest.mark.parametrize(
+    "document",
+    [document for _, document in COERCIONS],
+    ids=[case for case, _ in COERCIONS],
+)
+def test_a_coercion_the_outer_fields_refuse_is_refused_inside_them_too(
+    document: dict[str, Any],
+) -> None:
+    """The document is written by a template or a script, not typed by a person.
+
+    `"3"` for three and `true` for one are that layer's characteristic
+    mistakes, which is why every scalar here is a `Strict*`. `GenerateConfig`
+    is not strict and `sample_id` was not either, so the two of them were the
+    door left open in a wall built for exactly this.
+    """
+    with pytest.raises(ValidationError):
+        EvalSetOverrides.model_validate(document)
+
+
+def test_the_values_those_coercions_would_have_produced_are_still_accepted() -> None:
+    # the refusals above are about the *spelling*, not the value
+    assert (
+        EvalSetOverrides.model_validate(
+            {"generate_config": {"max_connections": 3}}
+        ).generate_config
+        is not None
+    )
+    assert EvalSetOverrides.model_validate({"sample_id": ["a", "b"]}).sample_id == [
+        "a",
+        "b",
+    ]
+    assert EvalSetOverrides.model_validate({"sample_id": 3}).sample_id == 3

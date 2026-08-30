@@ -31,6 +31,24 @@ asserts rather than trusts — along with the more important claim, that the
 variable names and negations here are the ones `_cli/eval.py` actually
 declares. A test can import both layers where this module cannot.
 
+**Four settings cannot be turned *off* from here, and that is parity rather
+than a gap in the reading.** `INSPECT_EVAL_SAMPLE_SHUFFLE=false`,
+`INSPECT_EVAL_RETRY_ON_ERROR=false`, `INSPECT_EVAL_BATCH=false` and
+`INSPECT_EVAL_CACHE=false` all resolve to *no override* — the same place
+`inspect eval-set` puts them, since each option's callback maps false to a
+value the command body then drops as falsy. For the CLI that is a wart: there
+is no definition underneath, so *no opinion* and *off* land in the same place
+anyway. For an overrides document there is a definition underneath, and *keep
+whatever it chose* is emphatically not *off*.
+
+Reading them differently here would be the one thing this module must not do,
+since a runner honouring the result would then diverge from the command it is
+standing in for. A runner that needs to express *off* has to say so in its own
+vocabulary — inspect_steward's `STEWARD_RETRY_ON_ERROR=0` goes through its own
+parser into the same field, which is why the split between the two spellings
+is worth having. Making these sayable to `inspect eval` too is a CLI change,
+and belongs upstream of this module rather than inside it.
+
 **The `eval_options` stack is what this mirrors** — the decorator `inspect
 eval` and `inspect eval-set` share, a driven run being an eval set. `inspect
 eval-retry` carries its own copy of several options under *different* variable
@@ -549,19 +567,33 @@ def _generate_config(environ: Mapping[str, str]) -> dict[str, Any] | None:
     from .evalset import GENERATE_CONFIG_FIELDS_TO_EXCLUDE
 
     locals: dict[str, Any] = {}
+    consulted: list[str] = []
     if (found := _first(environ, (GENERATE_CONFIG,))) is not None:
         locals["generate_config"] = found[1]
+        consulted.append(found[0])
     for field, convert in GENERATE_CONFIG_VARIABLES.items():
         variable = f"INSPECT_EVAL_{field.upper()}"
         if (found := _first(environ, (variable,))) is not None:
             locals[field] = convert(found[1], found[0])
+            consulted.append(found[0])
     if not locals:
         return None
 
+    # every failure leaves as a `PrerequisiteError`, which is the whole of this
+    # function's contract to a runner. `config_from_locals` is shared with the
+    # CLI and raises click's own errors for a value it cannot parse -- correct
+    # where a person typed it and wrong here, since a runner catching what the
+    # docstring promises would let a `BadParameter` through as a crash
     try:
         config = dict(config_from_locals(locals))
-    except (PrerequisiteError, click.ClickException):
+    except PrerequisiteError:
         raise
+    except click.ClickException as ex:
+        # click names the option, which is a flag nobody typed here; the
+        # variables that fed the pass are what the reader can act on
+        raise PrerequisiteError(
+            f"ERROR: {ex.format_message()} (reading {', '.join(consulted)})"
+        ) from ex
     except Exception as ex:
         raise PrerequisiteError(
             f"ERROR: the generate config in the environment is not usable: {ex}"

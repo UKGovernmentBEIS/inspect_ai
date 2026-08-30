@@ -89,6 +89,7 @@ from pydantic import (
     ConfigDict,
     StrictBool,
     StrictInt,
+    StrictStr,
     ValidationError,
     field_validator,
 )
@@ -192,7 +193,14 @@ class EvalSetOverrides(BaseModel):
     limit: StrictInt | tuple[StrictInt, StrictInt] | None = None
     """Dataset slice, overriding the definition's: a sample count, or a `(start, end)` range."""
 
-    sample_id: str | int | list[str] | list[int] | list[str | int] | None = None
+    sample_id: (
+        StrictStr
+        | StrictInt
+        | list[StrictStr]
+        | list[StrictInt]
+        | list[StrictStr | StrictInt]
+        | None
+    ) = None
     """Specific sample id(s) to run, overriding the definition's."""
 
     sample_shuffle: StrictBool | StrictInt | None = None
@@ -233,6 +241,19 @@ class EvalSetOverrides(BaseModel):
 
     Restricted to the fields `task_identifier()` excludes from the generate config — `max_retries`, `timeout`, `attempt_timeout`, `max_connections`, `adaptive_connections`, `batch`, `cache`, and `cache_prompt`. Every other generate-config field is part of what the model is asked to do, so setting one here is refused by name rather than silently changing task identity.
     """
+
+    @field_validator("generate_config", mode="before")
+    @classmethod
+    def _strict_config(cls, value: object) -> object:
+        """Validate a generate config as strictly as the scalars beside it.
+
+        Every scalar on this model is a `Strict*`, because the document is written by a template or a script and the coercions pydantic performs by default are exactly that layer's mistakes: `"3"` for three, `true` for one. `GenerateConfig` is not strict, so a nested field slipped through the door the outer ones are bolted — `max_connections: true` became one connection, and nothing said so.
+
+        A `before` validator rather than a stricter annotation, because the strictness has to reach *inside* the sub-model and `Strict*` on the field itself would only govern the outer shape.
+        """
+        if isinstance(value, dict):
+            return GenerateConfig.model_validate(value, strict=True)
+        return value
 
     @field_validator("generate_config", mode="after")
     @classmethod
@@ -355,6 +376,12 @@ Read by `test_eval_set_overrides.py` together with `EvalSetOverrides.model_field
 GENERATE_CONFIG_PARAMETER = "kwargs"
 """The `eval_set()` parameter `EvalSetOverrides.generate_config` stands in for."""
 
+SELECTORS = ("limit", "sample_id", "sample_shuffle")
+"""The three fields that say *which* samples run, which move together.
+
+`eval()` accepts `sample_id` with neither of the other two, so these cannot be resolved one at a time: every layer that combines two sources of them has to take all three from whichever source spoke, or produce a combination the run will refuse. `merge_eval_set_overrides` does that between the run-wide document and a worker's, `evalset._overridden_selection` between an overrides document and the definition, and `check_eval_set_overrides` refuses a single document that names both sides.
+"""
+
 
 def eval_set_overrides_requested() -> str | None:
     """Overrides path if a run-wide overrides document is named.
@@ -400,7 +427,9 @@ def merge_eval_set_overrides(
 
     Field by field rather than document by document, so a run-wide `epochs` survives a worker that only sets `log_dir`. That is the arrangement the split is for: the run-wide document says what this run is, and the per-worker container says which share of it this process has.
 
-    **`generate_config` merges by its own members, for the same reason.** It is a container of independently-set settings rather than one value — the `**kwargs` an `eval_set()` caller spreads — so replacing it wholesale would let a worker that sets `max_connections` silently drop a run-wide `timeout`. Applying the rule one level down is the same rule, not an exception to it.
+    **`generate_config` merges by its own members, and it is the only field that does.** It is a container of independently-set settings rather than one value — the `**kwargs` an `eval_set()` caller spreads — so replacing it wholesale would let a worker that sets `max_connections` silently drop a run-wide `timeout`. Applying the rule one level down is the same rule, not an exception to it.
+
+    The other sub-models are values rather than containers and must replace whole. `epochs` is the one that shows why: a bare count means what `eval_set(epochs=5)` means, which is *five epochs and the definition's reducers dropped*. Merged by member, a worker's bare five would inherit the run-wide `["max"]` and quietly mean something the caller cannot write.
 
     Args:
         run: Overrides for the whole run, or `None`.
@@ -420,11 +449,22 @@ def merge_eval_set_overrides(
     # is the one reading that survives the round trip -- and it costs nothing,
     # since no field has a use for an explicit `None` that differs from silence.
     merged = run.model_copy()
+    # the three selectors are one choice rather than three fields (see
+    # `_overridden_selection`), so a worker naming any of them takes all three
+    # -- merged field by field, a run-wide `sample_id` and a worker `limit`
+    # both survive into a document that `eval()` refuses, and whichever the
+    # application happens to prefer silently discards the *narrower*
+    # instruction
+    if any(getattr(worker, name) is not None for name in SELECTORS):
+        for name in SELECTORS:
+            setattr(merged, name, getattr(worker, name))
     for name in EvalSetOverrides.model_fields:
+        if name in SELECTORS:
+            continue
         value = getattr(worker, name)
         if value is None:
             continue
-        if isinstance(value, BaseModel):
+        if name == "generate_config" and isinstance(value, BaseModel):
             existing = getattr(run, name)
             if isinstance(existing, BaseModel):
                 value = existing.model_copy(

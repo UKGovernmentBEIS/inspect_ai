@@ -668,3 +668,41 @@ def test_a_choice_is_matched_as_click_matches_it() -> None:
         env={"INSPECT_LOG_FORMAT": " eval"},
     )
     assert result.exit_code != 0
+
+
+# --- what cannot be said, said out loud --------------------------------------
+
+CANNOT_DISABLE: list[tuple[str, str]] = [
+    ("INSPECT_EVAL_SAMPLE_SHUFFLE", "sample_shuffle"),
+    ("INSPECT_EVAL_RETRY_ON_ERROR", "retry_on_error"),
+    ("INSPECT_EVAL_BATCH", "batch"),
+    ("INSPECT_EVAL_CACHE", "cache"),
+]
+
+
+@pytest.mark.parametrize(
+    ("variable", "field"), CANNOT_DISABLE, ids=[name for name, _ in CANNOT_DISABLE]
+)
+def test_an_explicit_false_reaches_the_same_nothing_the_cli_reaches(
+    variable: str, field: str
+) -> None:
+    """Four settings that cannot be turned off from the environment, in either reader.
+
+    Each option's callback maps `false` to a value the command body then drops
+    as falsy, so `inspect eval-set` passes nothing for it — and so does this. A
+    runner wanting *off* rather than *no opinion* has to say so in its own
+    vocabulary; reading it differently here would diverge from the command this
+    module exists to stand in for.
+
+    Pinned as a test because it is the kind of parity that reads like a bug and
+    would otherwise be "fixed" into a divergence.
+    """
+    assert resolve_eval_env({variable: "false"}) is None
+
+    from_cli = _cli_kwargs({variable: "false"})
+    reached = (
+        from_cli.get("kwargs", {}).get(field)
+        if field in ("batch", "cache")
+        else from_cli.get(field)
+    )
+    assert reached is None, variable

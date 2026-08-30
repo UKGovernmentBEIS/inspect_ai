@@ -25,6 +25,7 @@ from inspect_ai._eval.eval_set_selection import (
     INSPECT_EVAL_SET_SELECTION,
     EvalSetSelection,
     EvalSetSelectionTask,
+    read_eval_set_selection,
 )
 from inspect_ai._eval.evalset import task_identifier
 from inspect_ai._util.error import PrerequisiteError
@@ -1435,3 +1436,66 @@ def test_eval_set_selection_schema_stability() -> None:
     # `test_eval_set_overrides.py` makes the general one, over the whole of
     # `eval_set()`'s signature
     assert "time_limit" not in EvalSetOverrides.model_fields
+
+
+# --- the override container's contents are gated one by one ------------------
+
+
+def test_every_override_field_has_a_version() -> None:
+    """Derived rather than listed, so a field added upstream is gated anyway.
+
+    The named entries are the historical ones; everything else arrived with the
+    identity-neutral expansion in version 6. If a future field needs a version
+    of its own, it goes in the dict — and this fails only if the dict names a
+    field the container does not have, which is the drift worth catching.
+    """
+    from inspect_ai._eval.eval_set_selection import _OVERRIDE_FIELD_INTRODUCED
+
+    unknown = set(_OVERRIDE_FIELD_INTRODUCED) - set(EvalSetOverrides.model_fields)
+    assert unknown == set(), sorted(unknown)
+
+
+VERSIONED: list[tuple[str, int, dict[str, Any], bool]] = [
+    ("a version 6 field under version 5", 5, {"metadata": {"a": 1}}, False),
+    ("a version 6 field under version 6", 6, {"metadata": {"a": 1}}, True),
+    ("a version 4 field under version 5", 5, {"max_tasks": 2}, True),
+    ("a version 4 field under version 3", 3, {"max_tasks": 2}, False),
+    ("a version 3 field under version 3", 3, {"log_dir": "/logs"}, True),
+    ("the container itself under version 2", 2, {"log_dir": "/logs"}, False),
+]
+
+
+@pytest.mark.parametrize(
+    ("version", "overrides", "accepted"),
+    [(version, overrides, ok) for _, version, overrides, ok in VERSIONED],
+    ids=[case for case, _, _, _ in VERSIONED],
+)
+def test_an_override_newer_than_the_declared_version_is_refused(
+    version: int, overrides: dict[str, Any], accepted: bool, tmp_path: Path
+) -> None:
+    """Gating the container alone left the check dishonest about its own rule.
+
+    An older inspect forbids extras, so it fails on an unknown override rather
+    than ignoring one — the outcome is safe either way. What was not safe is
+    *where* it fails: a document declaring version 5 and setting `metadata` was
+    accepted here and rejected there, so the split surfaced in the one
+    deployment still running an older inspect rather than on the machine that
+    wrote the document.
+    """
+    path = tmp_path / "selection.json"
+    path.write_text(
+        json.dumps(
+            {
+                "version": version,
+                "eval_set_id": "probe",
+                "tasks": [{"identifier": "a"}],
+                "overrides": overrides,
+            }
+        )
+    )
+
+    if accepted:
+        assert read_eval_set_selection(str(path)) is not None
+    else:
+        with pytest.raises(PrerequisiteError, match="schema version"):
+            read_eval_set_selection(str(path))
