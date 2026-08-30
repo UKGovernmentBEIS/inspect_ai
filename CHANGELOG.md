@@ -1,7 +1,10 @@
-## 0.3.261 (30 August 2026)
+## Unreleased
 
 - Eval Set: An external runner driving `eval_set()` can now override any argument that does not change task identity, rather than only five.
 - Eval Set: A driven eval set now honors the `INSPECT_EVAL_*` environment variables with the same meanings `inspect eval-set` gives them.
+
+## 0.3.261 (30 August 2026)
+
 - Bedrock: Converse requests now reuse cached prompt prefixes across turns and samples, cutting input token cost, and report cache read and write tokens in usage.
 - Scorers: `match(numeric=True)` now parses numbers with attached sentence or enclosing punctuation (e.g. "42!", "(42)"); operator prefixes (`<42`, `~42`) still do not match, and `location="exact"` remains strict. (#4742)
 - Multiple choice: The choice scorer now handles multi-digit labels when tasks have 36 or more options, and raises a clear error when a target references a position beyond the task's choices (samples without choices always score incorrect rather than raising). (#4590)
