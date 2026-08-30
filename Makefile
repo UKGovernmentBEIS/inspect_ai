@@ -14,7 +14,7 @@ mypy:
 	mypy --exclude tests/test_package src tests
 
 .PHONY: check
-check: ruff mypy
+check: ruff mypy suppressions-check
 
 .PHONY: suppressions-check
 suppressions-check:
