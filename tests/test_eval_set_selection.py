@@ -31,9 +31,12 @@ from inspect_ai._eval.evalset import task_identifier
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.dataset import Sample
 from inspect_ai.log import EvalLog, list_eval_logs, read_eval_log
+from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.scorer import Score, Scorer, Target, exact, scorer
 from inspect_ai.scorer._metrics import accuracy
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
+from inspect_ai.util._checkpoint import CheckpointConfig
+from inspect_ai.util._checkpoint._triggers.types import TokenInterval
 
 MODELS = ["mockllm/model", "mockllm/model2"]
 
@@ -1499,3 +1502,33 @@ def test_an_override_newer_than_the_declared_version_is_refused(
     else:
         with pytest.raises(PrerequisiteError, match="schema version"):
             read_eval_set_selection(str(path))
+
+
+def test_a_whole_selection_survives_being_written_and_read_back(
+    tmp_path: Path,
+) -> None:
+    """The document a worker is handed is one a runner wrote with `model_dump_json()`.
+
+    So the round trip is the contract, not an incidental property — and it was
+    broken two ways at once: a `token` checkpoint trigger came back as `turn`,
+    and the nulls a full dump writes for every unset generate-config member
+    came back in `model_fields_set` and failed the identity check.
+    """
+    selection = EvalSetSelection(
+        version=EVAL_SET_SELECTION_VERSION,
+        eval_set_id="probe",
+        tasks=[EvalSetSelectionTask(identifier="a")],
+        overrides=EvalSetOverrides(
+            limit=5,
+            generate_config=GenerateConfig(max_connections=4),
+            checkpoint=CheckpointConfig(trigger=TokenInterval(every=500_000)),
+        ),
+    )
+    path = tmp_path / "selection.json"
+    path.write_text(selection.model_dump_json())
+
+    back = read_eval_set_selection(str(path))
+
+    assert back == selection
+    assert back.overrides is not None and selection.overrides is not None
+    assert back.overrides.checkpoint == selection.overrides.checkpoint

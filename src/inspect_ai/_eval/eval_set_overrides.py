@@ -82,7 +82,8 @@ imports them from this module).
 """
 
 import os
-from typing import Any, Literal
+from dataclasses import asdict
+from typing import Any, Literal, cast
 
 from pydantic import (
     BaseModel,
@@ -90,7 +91,9 @@ from pydantic import (
     StrictBool,
     StrictInt,
     StrictStr,
+    TypeAdapter,
     ValidationError,
+    field_serializer,
     field_validator,
 )
 
@@ -101,6 +104,15 @@ from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_data.model_data import ModelCost
 from inspect_ai.util import DisplayType, SandboxEnvironmentType
 from inspect_ai.util._checkpoint import CheckpointConfig
+from inspect_ai.util._checkpoint._triggers.types import (
+    BudgetPercent,
+    CheckpointTrigger,
+    CostInterval,
+    Manual,
+    TimeInterval,
+    TokenInterval,
+    TurnInterval,
+)
 
 INSPECT_EVAL_SET_OVERRIDES = "INSPECT_EVAL_SET_OVERRIDES"
 
@@ -252,7 +264,19 @@ class EvalSetOverrides(BaseModel):
         A `before` validator rather than a stricter annotation, because the strictness has to reach *inside* the sub-model and `Strict*` on the field itself would only govern the outer shape.
         """
         if isinstance(value, dict):
-            return GenerateConfig.model_validate(value, strict=True)
+            # a member explicitly `null` is silence, not an instruction. Whole
+            # documents are written with `model_dump_json()`, which spells every
+            # unset field that way -- so keeping them would put the identity-
+            # bearing half of the config in `model_fields_set` and make a
+            # document carrying nothing but `max_connections` fail the check
+            # below, and would let `{"max_connections": null}` replace a
+            # definition's seventeen with nothing at all
+            supplied = {
+                name: member
+                for name, member in cast(dict[str, Any], value).items()
+                if member is not None
+            }
+            return GenerateConfig.model_validate(supplied, strict=True)
         return value
 
     @field_validator("generate_config", mode="after")
@@ -296,7 +320,58 @@ class EvalSetOverrides(BaseModel):
     """Whether sandbox images are prebuilt, overriding the definition's."""
 
     checkpoint: CheckpointConfig | StrictBool | None = None
-    """Sample checkpointing, overriding the definition's."""
+    """Sample checkpointing, overriding the definition's.
+
+    A trigger travels with its kind named (`{"kind": "token", "every": 500000}`), which the union it belongs to cannot express on its own: `TurnInterval`, `TokenInterval` and `CostInterval` are all `{"every": N}`, so a document written from a `--checkpoint token:500k` came back as *every five hundred thousand turns* — checkpointing switched off, silently, for any run that does not take half a million turns.
+    """
+
+    @field_serializer("checkpoint")
+    def _tag_trigger(self, value: CheckpointConfig | bool | None) -> Any:
+        """Write the trigger's kind beside its fields."""
+        if not isinstance(value, CheckpointConfig):
+            return value
+        # a dataclass rather than a model, so `asdict` rather than
+        # `model_dump`; unset fields are dropped for the reason the nested
+        # generate config drops them, which is that a document read back has
+        # to say what it set and nothing else
+        config = {
+            name: field for name, field in asdict(value).items() if field is not None
+        }
+        if value.trigger is not None:
+            config["trigger"] = {
+                "kind": _trigger_kind(value.trigger),
+                **asdict(value.trigger),
+            }
+        return config
+
+    @field_validator("checkpoint", mode="before")
+    @classmethod
+    def _read_tagged_trigger(cls, value: object) -> object:
+        """Build the trigger the document names, and refuse one it does not.
+
+        An untagged trigger is not read as a default — it is refused. Two of the three shapes it could be mean different things by the same JSON, so guessing would be choosing one at random and doing it quietly, which is the failure this tag exists to end.
+        """
+        if not isinstance(value, dict):
+            return value
+        trigger = value.get("trigger")
+        if not isinstance(trigger, dict):
+            return value
+
+        fields = dict(cast(dict[str, Any], trigger))
+        kind = fields.pop("kind", None)
+        if kind not in TRIGGER_KINDS:
+            raise ValueError(
+                f"checkpoint trigger must name its kind — one of "
+                f"{', '.join(sorted(TRIGGER_KINDS))} — because "
+                f"{'turn'!r}, {'token'!r} and {'cost'!r} triggers are "
+                f"otherwise the same document"
+            )
+        # through a `TypeAdapter` rather than by calling the dataclass, so that
+        # the field coercions still happen: `TimeInterval.every` is a
+        # `timedelta`, and constructing it raw leaves the ISO string the wire
+        # carries sitting in a field nothing will do arithmetic on
+        adapter: TypeAdapter[Any] = TypeAdapter(TRIGGER_KINDS[cast(str, kind)])
+        return {**value, "trigger": adapter.validate_python(fields)}
 
     approval: str | ApprovalPolicyConfig | None = None
     """Approval policy (or a path to one), overriding the definition's.
@@ -375,6 +450,30 @@ Read by `test_eval_set_overrides.py` together with `EvalSetOverrides.model_field
 
 GENERATE_CONFIG_PARAMETER = "kwargs"
 """The `eval_set()` parameter `EvalSetOverrides.generate_config` stands in for."""
+
+TRIGGER_KINDS: dict[str, type[CheckpointTrigger]] = {
+    "manual": Manual,
+    "turn": TurnInterval,
+    "time": TimeInterval,
+    "token": TokenInterval,
+    "cost": CostInterval,
+    "budget": BudgetPercent,
+}
+"""Every checkpoint trigger, by the word `--checkpoint` names it with.
+
+The union these belong to is undiscriminated and three of its arms serialize identically — `TurnInterval`, `TokenInterval` and `CostInterval` are each `{"every": N}` — so a document has to carry the kind or pydantic picks the first arm that validates. It picked `turn`, which turned `--checkpoint token:500k` into a checkpoint every five hundred thousand turns.
+
+Spelled with the CLI's words rather than the class names, so that a hand-written document and a `--checkpoint` argument say the same thing.
+"""
+
+
+def _trigger_kind(trigger: CheckpointTrigger) -> str:
+    """The word a trigger is named by, for the wire."""
+    for kind, cls in TRIGGER_KINDS.items():
+        if type(trigger) is cls:
+            return kind
+    raise ValueError(f"unknown checkpoint trigger {type(trigger).__name__}")
+
 
 SELECTORS = ("limit", "sample_id", "sample_shuffle")
 """The three fields that say *which* samples run, which move together.

@@ -9,6 +9,7 @@ a worker's own container wins where both speak.
 
 import inspect
 import json
+from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
@@ -24,6 +25,7 @@ from inspect_ai._eval.eval_set_overrides import (
     GENERATE_CONFIG_PARAMETER,
     INSPECT_EVAL_SET_OVERRIDES,
     NOT_OVERRIDABLE,
+    TRIGGER_KINDS,
     EvalSetOverrides,
     EvalSetOverridesEpochs,
     check_eval_set_overrides,
@@ -35,6 +37,16 @@ from inspect_ai.dataset import Sample
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.scorer import exact
 from inspect_ai.solver import generate
+from inspect_ai.util._checkpoint import CheckpointConfig
+from inspect_ai.util._checkpoint._triggers.types import (
+    BudgetPercent,
+    CheckpointTrigger,
+    CostInterval,
+    Manual,
+    TimeInterval,
+    TokenInterval,
+    TurnInterval,
+)
 
 # --- the partition -----------------------------------------------------------
 
@@ -570,3 +582,91 @@ def test_the_values_those_coercions_would_have_produced_are_still_accepted() -> 
         "b",
     ]
     assert EvalSetOverrides.model_validate({"sample_id": 3}).sample_id == 3
+
+
+# --- the document survives being written and read back -----------------------
+
+TRIGGERS: list[tuple[str, CheckpointTrigger]] = [
+    ("manual", Manual()),
+    ("turn", TurnInterval(every=3)),
+    ("time", TimeInterval(every=timedelta(minutes=10))),
+    ("token", TokenInterval(every=500_000)),
+    ("cost", CostInterval(every=2.5)),
+    ("budget", BudgetPercent(budget="token", percent=25.0)),
+]
+
+
+def test_every_checkpoint_trigger_has_a_name_on_the_wire() -> None:
+    """The table is the union, so a trigger added upstream is caught here."""
+    assert set(TRIGGER_KINDS.values()) == {type(trigger) for _, trigger in TRIGGERS}
+
+
+@pytest.mark.parametrize(
+    "trigger", [trigger for _, trigger in TRIGGERS], ids=[kind for kind, _ in TRIGGERS]
+)
+def test_a_checkpoint_trigger_survives_the_round_trip(
+    trigger: CheckpointTrigger,
+) -> None:
+    """Three of the six are the same JSON without a name for the kind.
+
+    `TurnInterval`, `TokenInterval` and `CostInterval` are each `{"every": N}`,
+    so an undiscriminated union reads whichever arm validates first — `turn`.
+    `--checkpoint token:500k` therefore came back as a checkpoint every five
+    hundred thousand *turns*, which for any ordinary run is checkpointing
+    switched off, with nothing said.
+    """
+    overrides = EvalSetOverrides(checkpoint=CheckpointConfig(trigger=trigger))
+
+    back = EvalSetOverrides.model_validate_json(overrides.model_dump_json())
+
+    assert isinstance(back.checkpoint, CheckpointConfig)
+    assert back.checkpoint.trigger == trigger
+    assert type(back.checkpoint.trigger) is type(trigger)
+
+
+def test_an_unnamed_trigger_is_refused_rather_than_guessed() -> None:
+    # guessing would be picking one of three meanings at random and doing it
+    # quietly, which is the failure the name exists to end
+    with pytest.raises(ValidationError, match="kind"):
+        EvalSetOverrides.model_validate({"checkpoint": {"trigger": {"every": 500}}})
+
+
+def test_the_whole_document_survives_a_full_dump() -> None:
+    """`model_dump_json()` writes every unset field as null, and that has to be readable.
+
+    It was not. The nulls came back in `model_fields_set`, so a document
+    carrying nothing but `max_connections` failed the identity check on
+    `temperature` and every other field it had never set.
+    """
+    overrides = EvalSetOverrides(
+        limit=5,
+        sample_shuffle=None,
+        generate_config=GenerateConfig(max_connections=4),
+        checkpoint=CheckpointConfig(trigger=TokenInterval(every=500_000)),
+        tags=["smoke"],
+    )
+
+    back = EvalSetOverrides.model_validate_json(overrides.model_dump_json())
+
+    assert back == overrides
+    assert back.generate_config is not None
+    assert back.generate_config.model_fields_set == {"max_connections"}
+
+
+def test_a_null_generate_config_member_keeps_the_definitions_value() -> None:
+    """`None` means *keep what the definition chose* one level down too.
+
+    Read as an instruction, `{"max_connections": null}` replaced a definition's
+    seventeen with nothing — the opposite of what the field's own contract
+    says, reachable from any document written with a plain `model_dump_json()`.
+    """
+    overrides = EvalSetOverrides.model_validate(
+        {"generate_config": {"max_connections": None, "timeout": 60}}
+    )
+
+    assert overrides.generate_config is not None
+    assert overrides.generate_config.model_fields_set == {"timeout"}
+    applied = overrides.generate_config.model_dump(
+        exclude_unset=True, exclude_none=True
+    )
+    assert applied == {"timeout": 60}

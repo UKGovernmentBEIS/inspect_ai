@@ -685,7 +685,9 @@ def eval_set(
                 GenerateConfigArgs,
                 {
                     **kwargs,
-                    **overrides.generate_config.model_dump(exclude_unset=True),
+                    **overrides.generate_config.model_dump(
+                        exclude_unset=True, exclude_none=True
+                    ),
                 },
             )
 
