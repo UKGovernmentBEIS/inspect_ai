@@ -9,28 +9,13 @@ Usage: python3 suppressions_pr_delta.py <base.json> <head.json>
 import json
 import sys
 from pathlib import Path
-from typing import NamedTuple
+
+# Sibling-script import: resolves because sys.path[0] is this script's
+# directory when invoked by path (as the workflow does); the test suite
+# pre-registers the module in sys.modules instead.
+from check_suppressions import Delta, Ledger, diff_ledgers, totals
 
 MARKER = "<!-- suppressions-delta -->"
-
-
-class Counts(NamedTuple):
-    total: int
-    undescribed: int
-
-
-NONE = Counts(0, 0)
-
-Key = tuple[str, str]  # (file, rule)
-Ledger = dict[str, dict[str, dict[str, int]]]
-
-
-def flatten(ledger: Ledger) -> dict[Key, Counts]:
-    return {
-        (file, rule): Counts(tally["count"], tally.get("undescribed", 0))
-        for file, rules in ledger.items()
-        for rule, tally in rules.items()
-    }
 
 
 def _load(path: str) -> Ledger:
@@ -41,13 +26,7 @@ def _load(path: str) -> Ledger:
         return {}
 
 
-class Row(NamedTuple):
-    key: Key
-    before: Counts
-    after: Counts
-
-
-def render(base: dict[Key, Counts], head: dict[Key, Counts]) -> str | None:
+def render(base: Ledger, head: Ledger) -> str | None:
     """The comment body for a base -> head ledger change, or None if none.
 
     An undescribed-only change (a reason added or removed) renders too:
@@ -55,17 +34,12 @@ def render(base: dict[Key, Counts], head: dict[Key, Counts]) -> str | None:
     would falsely reset the sticky comment to "no longer changes the
     ledger".
     """
-    rows = [
-        row
-        for key in sorted(base.keys() | head.keys())
-        if (row := Row(key, base.get(key, NONE), head.get(key, NONE))).before
-        != row.after
-    ]
+    rows = diff_ledgers(base, head)
     if not rows:
         return None
 
-    total_before = sum(c.total for c in base.values())
-    total_after = sum(c.total for c in head.values())
+    total_before, undescribed_before = totals(base)
+    total_after, undescribed_after = totals(head)
     delta = total_after - total_before
     heading = (
         f"⚠️ Suppression ledger grew: {total_before} → {total_after} (+{delta})"
@@ -74,7 +48,7 @@ def render(base: dict[Key, Counts], head: dict[Key, Counts]) -> str | None:
         f"({'±0' if delta == 0 else delta})"
     )
 
-    def render_row(row: Row) -> str:
+    def render_row(row: Delta) -> str:
         file, rule = row.key
         change = row.after.total - row.before.total
         change_cell = "±0" if change == 0 else f"{change:+d}"
@@ -87,8 +61,6 @@ def render(base: dict[Key, Counts], head: dict[Key, Counts]) -> str | None:
 
     table = "\n".join(render_row(row) for row in rows)
 
-    undescribed_before = sum(c.undescribed for c in base.values())
-    undescribed_after = sum(c.undescribed for c in head.values())
     undescribed_line = (
         ""
         if undescribed_before == undescribed_after
@@ -112,7 +84,7 @@ def render(base: dict[Key, Counts], head: dict[Key, Counts]) -> str | None:
 
 def main() -> int:
     base_path, head_path = sys.argv[1:3]
-    body = render(flatten(_load(base_path)), flatten(_load(head_path)))
+    body = render(_load(base_path), _load(head_path))
     if body is not None:
         print(body)
     return 0

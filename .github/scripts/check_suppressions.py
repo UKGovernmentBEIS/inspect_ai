@@ -10,8 +10,12 @@ comment segment on the same line, the only style mypy accepts after
 `type: ignore`) is a ratchet: --update refuses to increase any rule's
 repo-wide total, so new suppressions must carry a reason while the
 baselined reason-less ones burn down over time. The ratchet is per rule,
-not per file, so moving a file doesn't trip it. See the "Suppression gate"
-section in AGENTS.md.
+not per file, so moving a file doesn't trip it. `--update --allow-growth`
+overrides the refusal for the one sanctioned case — a merge from upstream
+that brings in reason-less suppressions on lines this repo must not edit —
+and prints every rule that grew so the override is loud in the run log
+(the growth still shows in the ledger diff for review). See the
+"Suppression gate" section in AGENTS.md.
 
 Scanned directives (found via tokenize, so directive text inside string
 literals is never counted):
@@ -108,13 +112,25 @@ def _is_mypy(m: re.Match[str]) -> bool:
     return any(m.group(g) for g in ("type_ignore", "mypy_ignore", "mypy_codes"))
 
 
-def _active(m: re.Match[str], text: str) -> bool:
+def _is_file_wide(m: re.Match[str]) -> bool:
+    return any(m.group(g) for g in ("file_noqa", "mypy_ignore", "mypy_codes"))
+
+
+def _active(m: re.Match[str], text: str, own_line: bool) -> bool:
     # mypy honors `type: ignore` and `mypy:` config comments only when they
     # open the comment (verified: `# prose  # type: ignore` and
-    # `## type: ignore` suppress nothing), so a match elsewhere is inert.
-    # ruff, in contrast, honors a noqa directive in any comment segment.
-    if _is_mypy(m):
-        return m.start() == 0 and not text.startswith("##")
+    # `## type: ignore` suppress nothing), and ruff's file-level directives
+    # (`# ruff: noqa` / `# flake8: noqa`) behave the same way (verified:
+    # `# prose  # ruff: noqa` suppresses nothing). File-wide directives are
+    # additionally honored only on a comment line of their own — a trailing
+    # `x = 1  # ruff: noqa` draws a ruff warning and suppresses nothing, and
+    # a trailing `# mypy: ignore-errors` is likewise inert (both verified).
+    # Line-level ruff/pyright directives count in any comment segment.
+    if _is_mypy(m) or m.group("file_noqa"):
+        if m.start() != 0 or text.startswith("##"):
+            return False
+    if _is_file_wide(m):
+        return own_line
     return True
 
 
@@ -129,11 +145,14 @@ def _described(m: re.Match[str], rest: str) -> bool:
     return bool(_SEPARATORS_RE.sub("", rest))
 
 
-def scan_comment(text: str) -> list[Suppression]:
+def scan_comment(text: str, own_line: bool = True) -> list[Suppression]:
     """Suppression records in one comment token's text.
 
-    A directive is "described" when reason text follows it in the comment,
-    stopping at the next directive — see _described for the per-tool rules.
+    `own_line` says whether the comment is a line of its own (nothing but
+    whitespace before it) — file-wide directives are inert in a trailing
+    comment. A directive is "described" when reason text follows it in the
+    comment, stopping at the next directive — see _described for the
+    per-tool rules.
     """
     # Inert matches (see _active) produce no records but still bound the
     # reason region: a duplicated `# type: ignore  # type: ignore` must not
@@ -143,7 +162,7 @@ def scan_comment(text: str) -> list[Suppression]:
     return [
         Suppression(rule, _described(m, text[m.end() : end]))
         for m, end in zip(matches, ends)
-        if _active(m, text)
+        if _active(m, text, own_line)
         for rule in _rules(m)
     ]
 
@@ -160,7 +179,8 @@ def scan_source(source: str) -> list[Suppression]:
         if tok.type not in _PREAMBLE_TOKENS:
             preamble = False
         if tok.type == tokenize.COMMENT:
-            for record in scan_comment(tok.string):
+            own_line = not tok.line[: tok.start[1]].strip()
+            for record in scan_comment(tok.string, own_line):
                 # A bare `# type: ignore` on its own line before any code or
                 # docstring silences the entire module in mypy (verified;
                 # the bracketed form there is a mypy error, not file-wide).
@@ -206,7 +226,8 @@ NONE = Counts(0, 0)
 Key = tuple[str, str]  # (file, rule)
 
 
-def _entries(ledger: Ledger) -> dict[Key, Counts]:
+def flatten(ledger: Ledger) -> dict[Key, Counts]:
+    """Ledger as a flat (file, rule) -> Counts map (suppressions_pr_delta.py reuses this)."""
     return {
         (file, rule): Counts(tally["count"], tally.get("undescribed", 0))
         for file, rules in ledger.items()
@@ -227,8 +248,8 @@ def diff_ledgers(ledger: Ledger, actual: Ledger) -> list[Delta]:
     too, or a stale undescribed allowance would let the reason be deleted
     again unnoticed.
     """
-    before = _entries(ledger)
-    after = _entries(actual)
+    before = flatten(ledger)
+    after = flatten(actual)
     deltas = [
         Delta(key, before.get(key, NONE), after.get(key, NONE))
         for key in sorted(before.keys() | after.keys())
@@ -274,13 +295,15 @@ def ratchet_violations(ledger: Ledger, actual: Ledger) -> list[RatchetViolation]
 
 
 def totals(ledger: Ledger) -> Counts:
-    counts = _entries(ledger).values()
+    counts = flatten(ledger).values()
     return Counts(sum(c.total for c in counts), sum(c.undescribed for c in counts))
 
 
 def _list_files() -> list[str]:
     out = subprocess.run(
-        ["git", "ls-files", "-z", "--", "*.py"],
+        # *.pyi too: mypy type-checks stubs, so a `type: ignore` there is a
+        # real suppression (tokenize handles stub syntax fine).
+        ["git", "ls-files", "-z", "--", "*.py", "*.pyi"],
         capture_output=True,
         text=True,
         check=True,
@@ -346,7 +369,13 @@ def main() -> int:
         ).stdout.strip()
     )
 
-    update = "--update" in sys.argv[1:]
+    args = sys.argv[1:]
+    update = "--update" in args
+    allow_growth = "--allow-growth" in args
+    if allow_growth and not update:
+        print("--allow-growth is only meaningful with --update.", file=sys.stderr)
+        return 2
+
     # No ledger yet: the first --update captures the baseline as-is.
     bootstrap = not LEDGER_PATH.exists()
     ledger: Ledger = json.loads(LEDGER_PATH.read_text()) if not bootstrap else {}
@@ -354,16 +383,29 @@ def main() -> int:
 
     violations = [] if update and bootstrap else ratchet_violations(ledger, actual)
     for v in violations:
+        prefix = "ALLOWED GROWTH" if allow_growth else "UNDESCRIBED"
         print(
-            f"UNDESCRIBED: {v.rule} — {v.after} suppression(s) without a "
+            f"{prefix}: {v.rule} — {v.after} suppression(s) without a "
             f"reason repo-wide, ledger allows {v.before}. New suppressions "
             f"need a trailing `# reason` comment.",
             file=sys.stderr,
         )
 
     if update:
-        if violations:
+        if violations and not allow_growth:
+            print(
+                "refusing to record reason-less growth; fix the code or add "
+                "a `# reason` segment. For a merge from upstream that brings "
+                "in suppressions on lines this repo must not edit, rerun "
+                "with --allow-growth (the growth stays visible in the "
+                "ledger diff).",
+                file=sys.stderr,
+            )
             return 1
+        if bootstrap:
+            # A missing ledger silently skips the ratchet above; say so, or
+            # deleting the file becomes an invisible bypass.
+            print("no existing ledger: baseline captured, ratchet not applied.")
         LEDGER_PATH.write_text(json.dumps(actual, indent=2) + "\n")
         print(f"{LEDGER_PATH} updated: {_summarize(actual)}.")
         return 0

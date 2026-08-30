@@ -1,19 +1,26 @@
 """Tests for the suppression ledger gate (.github/scripts/check_suppressions.py).
 
-Pure-logic tests over the scanner and ledger diffing — no git, no filesystem.
-Directive examples live inside string literals, which the tokenize-based
-scanner never counts, so this file adds nothing to the ledger.
+Mostly pure-logic tests over the scanner and ledger diffing, plus a few CLI
+tests that run the script against a throwaway git repo. Directive examples
+live inside string literals, which the tokenize-based scanner never counts,
+so this file adds nothing to the ledger.
 """
 
 import importlib.util
 import pathlib
+import subprocess
+import sys
+
+SCRIPTS_DIR = pathlib.Path(__file__).parents[1] / ".github" / "scripts"
 
 spec = importlib.util.spec_from_file_location(
-    "check_suppressions",
-    pathlib.Path(__file__).parents[1] / ".github" / "scripts" / "check_suppressions.py",
+    "check_suppressions", SCRIPTS_DIR / "check_suppressions.py"
 )
 assert spec is not None and spec.loader is not None
 cs = importlib.util.module_from_spec(spec)
+# Register before exec so suppressions_pr_delta.py's `import
+# check_suppressions` resolves to this instance when loaded below.
+sys.modules["check_suppressions"] = cs
 spec.loader.exec_module(cs)
 
 
@@ -74,6 +81,19 @@ def test_file_wide_ruff_noqa_with_space_separated_codes() -> None:
 
 def test_file_wide_flake8_noqa() -> None:
     assert scan("# flake8: noqa\n") == [("noqa (file-wide)", False)]
+
+
+def test_trailing_file_wide_noqa_is_inert() -> None:
+    # ruff warns ("File-level suppression comments must appear on their own
+    # line") and suppresses nothing (verified), for either spelling.
+    assert scan("x = 1  # ruff: noqa\n") == []
+    assert scan("x = 1  # flake8: noqa\n") == []
+
+
+def test_file_wide_noqa_mid_comment_is_inert() -> None:
+    # Own line, but the directive doesn't open the comment: ruff silently
+    # ignores it (verified).
+    assert scan("# prose  # ruff: noqa\nimport os\n") == []
 
 
 # --- scanner: mypy ---
@@ -154,6 +174,20 @@ def test_bracketed_type_ignore_at_top_of_file_stays_line_level() -> None:
 
 def test_mypy_ignore_errors_file_wide() -> None:
     assert scan("# mypy: ignore-errors\n") == [
+        ("mypy: ignore-errors (file-wide)", False)
+    ]
+
+
+def test_trailing_mypy_config_comment_is_inert() -> None:
+    # mypy config comments are honored only on a line of their own; a
+    # trailing one suppresses nothing (verified).
+    assert scan("x = 1  # mypy: ignore-errors\n") == []
+
+
+def test_mid_file_own_line_mypy_config_comment_counts() -> None:
+    # Own-line placement is what matters, not top-of-file (verified: a
+    # mid-file `# mypy: ignore-errors` suppresses the module).
+    assert scan("x = 1\n# mypy: ignore-errors\ny = 2\n") == [
         ("mypy: ignore-errors (file-wide)", False)
     ]
 
@@ -319,11 +353,7 @@ def test_totals_sums_counts_and_undescribed() -> None:
 # --- PR delta comment (suppressions_pr_delta.py) ---
 
 delta_spec = importlib.util.spec_from_file_location(
-    "suppressions_pr_delta",
-    pathlib.Path(__file__).parents[1]
-    / ".github"
-    / "scripts"
-    / "suppressions_pr_delta.py",
+    "suppressions_pr_delta", SCRIPTS_DIR / "suppressions_pr_delta.py"
 )
 assert delta_spec is not None and delta_spec.loader is not None
 delta = importlib.util.module_from_spec(delta_spec)
@@ -331,7 +361,7 @@ delta_spec.loader.exec_module(delta)
 
 
 def render(base: dict, head: dict) -> str | None:
-    body = delta.render(delta.flatten(base), delta.flatten(head))
+    body = delta.render(base, head)
     assert body is None or isinstance(body, str)
     return body
 
@@ -368,3 +398,63 @@ def test_delta_undescribed_only_change_still_renders() -> None:
     assert body is not None
     assert "| `a.py` | `r` | ±0 (reason-less 1 → 0) |" in body
     assert "Reason-less (baselined) suppressions: 1 → 0" in body
+
+
+# --- CLI: bootstrap, ratchet refusal, and --allow-growth (throwaway git repo) ---
+
+
+def _init_repo(tmp_path: pathlib.Path, files: dict[str, str]) -> pathlib.Path:
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    for name, content in files.items():
+        (tmp_path / name).write_text(content)
+    # ls-files only sees tracked files; staging suffices (no commit needed).
+    subprocess.run(["git", "add", "-A"], cwd=tmp_path, check=True)
+    return tmp_path
+
+
+def _run_gate(repo: pathlib.Path, *args: str) -> "subprocess.CompletedProcess[str]":
+    return subprocess.run(
+        [sys.executable, str(SCRIPTS_DIR / "check_suppressions.py"), *args],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+    )
+
+
+def test_update_bootstrap_ratchet_refusal_and_allow_growth(
+    tmp_path: pathlib.Path,
+) -> None:
+    repo = _init_repo(tmp_path, {"a.py": "x = 1  # noqa: E501\n"})
+
+    # Bootstrap --update captures the baseline and says the ratchet was skipped.
+    boot = _run_gate(repo, "--update")
+    assert boot.returncode == 0
+    assert "ratchet not applied" in boot.stdout
+
+    # A second reason-less suppression: --update refuses via the ratchet
+    # and points at the sanctioned override.
+    (repo / "a.py").write_text("x = 1  # noqa: E501\ny = 2  # noqa: E501\n")
+    refused = _run_gate(repo, "--update")
+    assert refused.returncode == 1
+    assert "UNDESCRIBED: noqa:E501" in refused.stderr
+    assert "--allow-growth" in refused.stderr
+
+    # --allow-growth records the growth, loudly.
+    allowed = _run_gate(repo, "--update", "--allow-growth")
+    assert allowed.returncode == 0
+    assert "ALLOWED GROWTH: noqa:E501" in allowed.stderr
+    assert _run_gate(repo).returncode == 0
+
+
+def test_allow_growth_without_update_is_an_error(tmp_path: pathlib.Path) -> None:
+    repo = _init_repo(tmp_path, {})
+    result = _run_gate(repo, "--allow-growth")
+    assert result.returncode == 2
+    assert "--update" in result.stderr
+
+
+def test_pyi_stubs_are_scanned(tmp_path: pathlib.Path) -> None:
+    repo = _init_repo(tmp_path, {"a.pyi": "x: int  # type: ignore[assignment]\n"})
+    result = _run_gate(repo, "--update")
+    assert result.returncode == 0
+    assert '"a.pyi"' in (repo / "suppressions.json").read_text()

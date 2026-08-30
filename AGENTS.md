@@ -124,6 +124,12 @@ is worse than disclosing none. Example:
   ledger diff. `--update` refuses to grow any rule's repo-wide reason-less
   total (the ratchet): new suppressions must carry a reason, and the
   baselined reason-less ones burn down over time.
+- Merges from upstream are the one sanctioned ratchet exception: when a
+  sync brings in new reason-less suppressions, do not edit the
+  upstream-owned lines to add reasons (that creates permanent merge
+  drift). Instead run `python3 .github/scripts/check_suppressions.py
+  --update --allow-growth` to record them; it prints each rule that grew,
+  and the growth still shows in the ledger diff for maintainer review.
 
 ## Testing Async Code
 
