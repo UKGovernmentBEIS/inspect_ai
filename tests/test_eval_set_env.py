@@ -612,3 +612,59 @@ def test_a_choice_the_cli_refuses_is_refused_here() -> None:
     for variable in ("INSPECT_LOG_LEVEL", "INSPECT_LOG_FORMAT", "INSPECT_DISPLAY"):
         with pytest.raises(PrerequisiteError, match=variable):
             resolve_eval_env({variable: "chatty"})
+
+
+# --- the option's constraints, not only its conversion -----------------------
+
+CONSTRAINED: list[tuple[str, str]] = [
+    # `--max-dataset-memory` is an `IntRange(min=0)`
+    ("INSPECT_EVAL_MAX_DATASET_MEMORY", "-1"),
+    # and the concurrency ceilings are refused below one
+    ("INSPECT_EVAL_MAX_SAMPLES", "0"),
+    ("INSPECT_EVAL_MAX_TASKS", "-2"),
+    ("INSPECT_EVAL_LOG_BUFFER", "0"),
+]
+
+
+@pytest.mark.parametrize(
+    ("variable", "value"), CONSTRAINED, ids=[name for name, _ in CONSTRAINED]
+)
+def test_a_value_the_option_constrains_is_refused_with_the_variable_named(
+    variable: str, value: str
+) -> None:
+    """A converter answers *what does this text mean*, not *is it allowed*.
+
+    Left to the reader of the persisted document, an out-of-range value is a
+    manifest already committed and a fleet that fails one worker at a time
+    hours later. And the message has to name the variable: `max_dataset_memory`
+    names nothing the operator typed.
+    """
+    assert _cli_kwargs.__name__  # the CLI's own refusal is asserted below
+    with pytest.raises(PrerequisiteError, match=variable):
+        resolve_eval_env({variable: value})
+
+
+@pytest.mark.parametrize(
+    ("variable", "value"), CONSTRAINED, ids=[name for name, _ in CONSTRAINED]
+)
+def test_the_cli_refuses_the_same_values(variable: str, value: str) -> None:
+    # the parity claim for the refusals, since the agreement test above can only
+    # compare values that both sides accept
+    result = CliRunner().invoke(
+        cli_eval.eval_set_command, ["nonexistent.py"], env={variable: value}
+    )
+    assert result.exit_code != 0, variable
+
+
+def test_a_choice_is_matched_as_click_matches_it() -> None:
+    # `click.Choice` does not strip, so neither does this -- accepted here it
+    # would be a value `inspect eval` refuses at the door
+    with pytest.raises(PrerequisiteError, match="INSPECT_LOG_FORMAT"):
+        resolve_eval_env({"INSPECT_LOG_FORMAT": " eval"})
+
+    result = CliRunner().invoke(
+        cli_eval.eval_set_command,
+        ["nonexistent.py"],
+        env={"INSPECT_LOG_FORMAT": " eval"},
+    )
+    assert result.exit_code != 0

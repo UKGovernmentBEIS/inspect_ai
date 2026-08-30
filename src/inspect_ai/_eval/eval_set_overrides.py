@@ -400,6 +400,8 @@ def merge_eval_set_overrides(
 
     Field by field rather than document by document, so a run-wide `epochs` survives a worker that only sets `log_dir`. That is the arrangement the split is for: the run-wide document says what this run is, and the per-worker container says which share of it this process has.
 
+    **`generate_config` merges by its own members, for the same reason.** It is a container of independently-set settings rather than one value — the `**kwargs` an `eval_set()` caller spreads — so replacing it wholesale would let a worker that sets `max_connections` silently drop a run-wide `timeout`. Applying the rule one level down is the same rule, not an exception to it.
+
     Args:
         run: Overrides for the whole run, or `None`.
         worker: Overrides for this worker, or `None`.
@@ -420,8 +422,15 @@ def merge_eval_set_overrides(
     merged = run.model_copy()
     for name in EvalSetOverrides.model_fields:
         value = getattr(worker, name)
-        if value is not None:
-            setattr(merged, name, value)
+        if value is None:
+            continue
+        if isinstance(value, BaseModel):
+            existing = getattr(run, name)
+            if isinstance(existing, BaseModel):
+                value = existing.model_copy(
+                    update=value.model_dump(exclude_unset=True, exclude_none=True)
+                )
+        setattr(merged, name, value)
     return merged
 
 
@@ -475,6 +484,19 @@ def check_eval_set_overrides(overrides: EvalSetOverrides) -> tuple[str, str] | N
             "environment variable with notification=true, so that they never "
             "end up somewhere they are recorded",
         )
+    # the rule `eval()` enforces at its own door, enforced here so that a
+    # document carrying the contradiction is refused where it is written rather
+    # than where it is read. Applying the three selectors displaces whichever
+    # side the override did not name, which is only well defined because a
+    # document cannot name both
+    if overrides.sample_id is not None:
+        for name in ("limit", "sample_shuffle"):
+            if getattr(overrides, name) is not None:
+                return (
+                    "sample_id",
+                    f"sample_id and {name} together; they select samples two "
+                    "different ways and `eval()` accepts only one",
+                )
     for name in (
         "max_samples",
         "max_sandboxes",

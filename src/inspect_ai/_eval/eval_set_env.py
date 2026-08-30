@@ -64,7 +64,11 @@ from inspect_ai._util.samples import parse_sample_id, parse_samples_limit
 from inspect_ai.util._checkpoint.parse_cli import parse_checkpoint
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 
-from .eval_set_overrides import EvalSetOverrides, EvalSetOverridesEpochs
+from .eval_set_overrides import (
+    EvalSetOverrides,
+    EvalSetOverridesEpochs,
+    check_eval_set_overrides,
+)
 
 # --- reading one variable ----------------------------------------------------
 
@@ -146,7 +150,11 @@ def _choice(*choices: str) -> Callable[[str, str], str]:
     """
 
     def convert(text: str, variable: str) -> str:
-        lowered = text.strip().lower()
+        # not stripped: `click.Choice` matches the value as it stands, so a
+        # leading space is a usage error there and would be a silent
+        # acceptance here. `_integer` and `_flag` do strip, because the
+        # converters click gives *those* options strip too
+        lowered = text.lower()
         if lowered not in choices:
             raise PrerequisiteError(
                 f"ERROR: {variable}={text!r} is not one of {', '.join(choices)}."
@@ -460,7 +468,32 @@ def resolve_eval_env(environ: Mapping[str, str]) -> EvalSetOverrides | None:
     if (config := _generate_config(environ)) is not None:
         values["generate_config"] = config
 
-    return EvalSetOverrides.model_validate(values) if values else None
+    if not values:
+        return None
+    overrides = EvalSetOverrides.model_validate(values)
+
+    # the constraints the options carry, which the converters above do not:
+    # `--max-dataset-memory` is an `IntRange(min=0)` and the concurrency
+    # ceilings are refused below one. Checked here rather than left to the
+    # reader of the document, because a runner resolves these at launch and
+    # persists them -- so an unchecked value is a manifest committed to a
+    # repository and a fleet that fails one worker at a time, hours later
+    if (found := check_eval_set_overrides(overrides)) is not None:
+        field, detail = found
+        raise PrerequisiteError(f"ERROR: {_named(field)} has {detail}")
+    return overrides
+
+
+def _named(field: str) -> str:
+    """The variable a field came from, for a message about its value.
+
+    The field name is what `check_eval_set_overrides` reports, and it is the
+    wrong half to show somebody staring at a shell: `max_dataset_memory` names
+    nothing they typed. Falls back to the field where no variable carries it,
+    which is only reachable through the generate-config file.
+    """
+    variable = ENV_VARIABLES.get(field)
+    return variable.names[0] if variable else field
 
 
 def _first(

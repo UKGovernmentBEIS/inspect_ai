@@ -108,6 +108,7 @@ from .eval_set_manifest import (
     task_args_hash,
 )
 from .eval_set_overrides import (
+    EvalSetOverrides,
     EvalSetOverridesEpochs,
     eval_set_overrides_requested,
     merge_eval_set_overrides,
@@ -166,6 +167,41 @@ def _applied(value: _T, override: "_T | None") -> _T:
     `None` on an override field means *keep what the definition chose*, which is what makes an omitted field and an absent document mean the same thing. Written as a function so that thirty-odd applications read as a list of names rather than as thirty-odd conditionals, and so that a mistyped pairing is a type error.
     """
     return value if override is None else override
+
+
+def _overridden_selection(
+    limit: "int | tuple[int, int] | None",
+    sample_id: "str | int | list[str] | list[int] | list[str | int] | None",
+    sample_shuffle: "bool | int | None",
+    overrides: EvalSetOverrides,
+) -> tuple[
+    "int | tuple[int, int] | None",
+    "str | int | list[str] | list[int] | list[str | int] | None",
+    "bool | int | None",
+]:
+    """Which samples run, applied as one choice rather than as three fields.
+
+    `eval()` forbids `sample_id` alongside either `limit` or `sample_shuffle`, so these three cannot be overridden the way the other thirty are. Applied independently, a definition that names `sample_id` and a runner that says `--limit 5` leave *both* set: capture counts by the ids and writes a manifest, and then every worker raises. A launch succeeds and the whole fleet fails, which is the worst available ordering.
+
+    **So naming either side clears the other.** That is the only reading that lets an override express what it means — with `None` meaning *keep the definition's*, there is otherwise no way to say *ignore the ids and take the first five*, and the runner is stuck with a combination it cannot dissolve. `limit` and `sample_shuffle` are one side because `eval()` permits them together; `sample_id` is the other because it permits nothing with it.
+
+    Silence still keeps everything: an overrides document that mentions none of the three is not a statement about selection at all.
+    """
+    # a document naming both sides is refused by `check_eval_set_overrides`
+    # before it reaches here, so these two branches cannot both apply
+    ids = overrides.sample_id
+    sliced = (
+        overrides.limit if overrides.limit is not None else overrides.sample_shuffle
+    )
+    if ids is not None:
+        return None, ids, None
+    if sliced is not None:
+        return (
+            _applied(limit, overrides.limit),
+            None,
+            _applied(sample_shuffle, overrides.sample_shuffle),
+        )
+    return limit, sample_id, sample_shuffle
 
 
 def _overridden_epochs(
@@ -616,9 +652,11 @@ def eval_set(
         log_level_transcript = _applied(
             log_level_transcript, overrides.log_level_transcript
         )
-        limit = _applied(limit, overrides.limit)
-        sample_id = _applied(sample_id, overrides.sample_id)
-        sample_shuffle = _applied(sample_shuffle, overrides.sample_shuffle)
+        # one choice rather than three fields, because `eval()` forbids two of
+        # the combinations these could otherwise be left in
+        limit, sample_id, sample_shuffle = _overridden_selection(
+            limit, sample_id, sample_shuffle, overrides
+        )
         epochs = _applied(epochs, _overridden_epochs(overrides.epochs))
         max_samples = _applied(max_samples, overrides.max_samples)
         max_tasks = _applied(max_tasks, overrides.max_tasks)

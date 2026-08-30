@@ -325,3 +325,141 @@ def test_a_zero_dataset_memory_budget_is_a_real_setting() -> None:
 
     found = check_eval_set_overrides(EvalSetOverrides(max_dataset_memory=-1))
     assert found is not None and found[0] == "max_dataset_memory"
+
+
+def test_a_workers_generate_config_keeps_the_runs_other_settings() -> None:
+    """`generate_config` is a container of settings, not one setting.
+
+    Replaced wholesale, a worker that names `max_connections` would silently
+    drop a run-wide `timeout` — and nothing downstream could tell, since the
+    result is a valid config that simply runs with inspect's default.
+    """
+    merged = merge_eval_set_overrides(
+        EvalSetOverrides(generate_config=GenerateConfig(timeout=60, max_retries=3)),
+        EvalSetOverrides(generate_config=GenerateConfig(max_connections=4)),
+    )
+
+    assert merged is not None and merged.generate_config is not None
+    assert merged.generate_config.max_connections == 4
+    assert merged.generate_config.timeout == 60
+    assert merged.generate_config.max_retries == 3
+
+
+def test_a_worker_can_still_replace_one_generate_config_setting() -> None:
+    merged = merge_eval_set_overrides(
+        EvalSetOverrides(generate_config=GenerateConfig(timeout=60)),
+        EvalSetOverrides(generate_config=GenerateConfig(timeout=10)),
+    )
+
+    assert merged is not None and merged.generate_config is not None
+    assert merged.generate_config.timeout == 10
+
+
+@pytest.mark.parametrize(
+    ("overrides", "beside"),
+    [
+        (EvalSetOverrides(sample_id=["a"], limit=5), "limit"),
+        (EvalSetOverrides(sample_id=["a"], sample_shuffle=42), "sample_shuffle"),
+    ],
+    ids=["limit", "sample_shuffle"],
+)
+def test_a_document_selecting_samples_two_ways_is_refused(
+    overrides: EvalSetOverrides, beside: str
+) -> None:
+    """The rule `eval()` enforces at its own door, enforced where the document is written.
+
+    Refused here, a runner learns at launch; left to `eval()`, it learns once
+    per worker, hours later, after a manifest naming the contradiction has
+    already been committed. It is also what makes `_overridden_selection`
+    well defined: displacing whichever side the override did not name only
+    makes sense while a document cannot name both.
+    """
+    found = check_eval_set_overrides(overrides)
+
+    assert found is not None
+    field, detail = found
+    assert field == "sample_id"
+    assert beside in detail
+
+
+SELECTION: list[tuple[str, dict[str, Any], dict[str, Any], tuple[Any, Any, Any]]] = [
+    (
+        "silence keeps everything",
+        {"limit": 5, "sample_id": None, "sample_shuffle": None},
+        {},
+        (5, None, None),
+    ),
+    (
+        "ids displace a limit",
+        {"limit": 5, "sample_id": None, "sample_shuffle": None},
+        {"sample_id": ["a", "b"]},
+        (None, ["a", "b"], None),
+    ),
+    (
+        "ids displace a shuffle",
+        {"limit": None, "sample_id": None, "sample_shuffle": 42},
+        {"sample_id": ["a"]},
+        (None, ["a"], None),
+    ),
+    (
+        "a limit displaces ids",
+        {"limit": None, "sample_id": ["a", "b"], "sample_shuffle": None},
+        {"limit": 5},
+        (5, None, None),
+    ),
+    (
+        "a shuffle displaces ids",
+        {"limit": None, "sample_id": ["a"], "sample_shuffle": None},
+        {"sample_shuffle": 42},
+        (None, None, 42),
+    ),
+    (
+        "a limit and a shuffle still compose",
+        {"limit": None, "sample_id": None, "sample_shuffle": 42},
+        {"limit": 5},
+        (5, None, 42),
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    ("definition", "overridden", "expected"),
+    [
+        (definition, overridden, expected)
+        for _, definition, overridden, expected in SELECTION
+    ],
+    ids=[case for case, _, _, _ in SELECTION],
+)
+def test_the_three_selectors_are_overridden_as_one_choice(
+    definition: dict[str, Any],
+    overridden: dict[str, Any],
+    expected: tuple[Any, Any, Any],
+) -> None:
+    """`eval()` forbids `sample_id` beside either of the other two.
+
+    Applied as three independent fields, a definition naming `sample_id` and a
+    runner saying `--limit 5` leave both set: capture counts by the ids and
+    writes a manifest, and then every worker raises. The launch succeeds and
+    the whole fleet fails, hours later and one worker at a time.
+
+    It is also the only reading that lets an override say what it means. With
+    `None` meaning *keep the definition's*, there is otherwise no way at all to
+    say *ignore the ids and take the first five*.
+    """
+    from inspect_ai._eval.evalset import _overridden_selection
+
+    resolved = _overridden_selection(
+        definition["limit"],
+        definition["sample_id"],
+        definition["sample_shuffle"],
+        EvalSetOverrides(
+            limit=overridden.get("limit"),
+            sample_id=overridden.get("sample_id"),
+            sample_shuffle=overridden.get("sample_shuffle"),
+        ),
+    )
+
+    assert resolved == expected
+    # and whatever comes out is a combination `eval()` accepts
+    limit, sample_id, sample_shuffle = resolved
+    assert sample_id is None or (limit is None and sample_shuffle is None)
