@@ -39,6 +39,13 @@ RESULT = "result"
 
 POLLING_INTERVAL = 0.1
 
+# Grace period given to in-flight request handlers to finish writing their
+# responses after until() becomes true, before the remainder are cancelled.
+# Long enough that ordinary handlers (including the one whose response made
+# until() true) always finish; bounded so a handler stuck in user/model code
+# can't hold the service open indefinitely.
+NORMAL_EXIT_DRAIN_TIMEOUT = 30.0
+
 SERVICE_NAME_PATTERN = re.compile(r"[A-Za-z_][A-Za-z0-9_]{0,127}")
 FILENAME_TOKEN_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
 
@@ -183,16 +190,24 @@ async def sandbox_service(
         # request can't stop the queue being served (model generation retries
         # indefinitely by default, so one rate-limited request would otherwise
         # strand every request behind it). On normal exit (until() becomes
-        # true) stop polling but let the group drain already-dispatched
-        # handlers rather than cancelling it -- cancelling here could kill
-        # the very handler whose response made until() true, leaving its
-        # sandbox caller blocked forever polling for a response that never
-        # arrives. External teardown (this coroutine itself being cancelled)
-        # still cancels the group via ordinary cancel-scope propagation.
+        # true) stop polling and give already-dispatched handlers a bounded
+        # grace period to drain -- long enough that the handler whose
+        # response made until() true (and ordinary in-flight handlers)
+        # finish writing their responses, so their sandbox callers (which
+        # just poll the response file with no timeout) aren't left blocked
+        # forever. Anything still running once the grace period elapses is
+        # cancelled, so a handler stuck in user/model code can't hold the
+        # service open indefinitely. External teardown (this coroutine
+        # itself being cancelled) still cancels the group immediately via
+        # ordinary cancel-scope propagation.
         async with anyio.create_task_group() as tg:
             while not until():
                 await anyio.sleep(polling_interval)
                 await safe_handle_requests(tg)
+            with anyio.move_on_after(NORMAL_EXIT_DRAIN_TIMEOUT):
+                while service._in_flight:
+                    await anyio.sleep(polling_interval)
+            tg.cancel_scope.cancel()
         return None
     else:
         return safe_handle_requests

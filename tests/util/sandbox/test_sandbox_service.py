@@ -1087,3 +1087,61 @@ async def test_normal_exit_drains_in_flight_response_write() -> None:
     )
     assert json.loads(fake.files[response_file])["result"] == "done"
     assert request_file not in fake.files, "request file was not removed"
+
+
+async def test_stuck_handler_is_cancelled_after_grace_period() -> None:
+    """A handler stuck in user/model code must not hold the service open forever.
+
+    Draining in-flight handlers on normal exit must be bounded: an unrelated
+    request whose handler never returns must not stop `sandbox_service()`
+    from returning once the grace period elapses, and a fast in-flight
+    response (the one whose completion made `until()` true) must still be
+    written before that happens.
+    """
+    fake = _QueueSandbox()
+    service_name = "grace_service"
+    stuck_id = "req-stuck"
+    finish_id = "req-finish"
+    fake.files[f"{SERVICES_DIR}/{service_name}/requests/{stuck_id}.json"] = json.dumps(
+        {"id": stuck_id, "method": "stuck", "params": {}}
+    )
+    fake.files[f"{SERVICES_DIR}/{service_name}/requests/{finish_id}.json"] = json.dumps(
+        {"id": finish_id, "method": "finish", "params": {}}
+    )
+
+    finished = anyio.Event()
+    stuck_cancelled = False
+
+    async def stuck() -> JsonValue:
+        nonlocal stuck_cancelled
+        try:
+            await anyio.sleep_forever()
+            return "unreachable"
+        except anyio.get_cancelled_exc_class():
+            stuck_cancelled = True
+            raise
+
+    async def finish() -> JsonValue:
+        finished.set()
+        return "done"
+
+    grace = 0.1
+    with patch("inspect_ai.util._sandbox.service.NORMAL_EXIT_DRAIN_TIMEOUT", grace):
+        # bounded well past the grace period: proves the service returns
+        # once the grace period elapses instead of waiting on the stuck
+        # handler forever.
+        with anyio.fail_after(grace + 5):
+            await sandbox_service(
+                name=service_name,
+                methods=[stuck, finish],
+                until=finished.is_set,
+                sandbox=cast(SandboxEnvironment, fake),
+                polling_interval=0.01,
+            )
+
+    assert stuck_cancelled, "stuck handler was not cancelled after the grace period"
+    response_file = f"{SERVICES_DIR}/{service_name}/responses/{finish_id}.json"
+    assert response_file in fake.files, (
+        "in-flight response was not written before the grace period forced cancellation"
+    )
+    assert json.loads(fake.files[response_file])["result"] == "done"
