@@ -197,16 +197,16 @@ ul.task-list li input[type="checkbox"] {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#unreleased" id="toc-unreleased" class="nav-link active" data-scroll-target="#unreleased">Unreleased</a></li>
-  <li><a href="#august-2026" id="toc-august-2026" class="nav-link" data-scroll-target="#august-2026">0.3.260 (21 August 2026)</a></li>
-  <li><a href="#august-2026-1" id="toc-august-2026-1" class="nav-link" data-scroll-target="#august-2026-1">0.3.259 (16 August 2026)</a></li>
-  <li><a href="#august-2026-2" id="toc-august-2026-2" class="nav-link" data-scroll-target="#august-2026-2">0.3.258 (11 August 2026)</a></li>
-  <li><a href="#august-2026-3" id="toc-august-2026-3" class="nav-link" data-scroll-target="#august-2026-3">0.3.257 (11 August 2026)</a></li>
-  <li><a href="#august-2026-4" id="toc-august-2026-4" class="nav-link" data-scroll-target="#august-2026-4">0.3.256 (11 August 2026)</a></li>
-  <li><a href="#august-2026-5" id="toc-august-2026-5" class="nav-link" data-scroll-target="#august-2026-5">0.3.255 (09 August 2026)</a></li>
-  <li><a href="#august-2026-6" id="toc-august-2026-6" class="nav-link" data-scroll-target="#august-2026-6">0.3.254 (08 August 2026)</a></li>
-  <li><a href="#august-2026-7" id="toc-august-2026-7" class="nav-link" data-scroll-target="#august-2026-7">0.3.253 (08 August 2026)</a></li>
-  <li><a href="#august-2026-8" id="toc-august-2026-8" class="nav-link" data-scroll-target="#august-2026-8">0.3.252 (04 August 2026)</a></li>
+  <li><a href="#august-2026" id="toc-august-2026" class="nav-link active" data-scroll-target="#august-2026">0.3.261 (30 August 2026)</a></li>
+  <li><a href="#august-2026-1" id="toc-august-2026-1" class="nav-link" data-scroll-target="#august-2026-1">0.3.260 (21 August 2026)</a></li>
+  <li><a href="#august-2026-2" id="toc-august-2026-2" class="nav-link" data-scroll-target="#august-2026-2">0.3.259 (16 August 2026)</a></li>
+  <li><a href="#august-2026-3" id="toc-august-2026-3" class="nav-link" data-scroll-target="#august-2026-3">0.3.258 (11 August 2026)</a></li>
+  <li><a href="#august-2026-4" id="toc-august-2026-4" class="nav-link" data-scroll-target="#august-2026-4">0.3.257 (11 August 2026)</a></li>
+  <li><a href="#august-2026-5" id="toc-august-2026-5" class="nav-link" data-scroll-target="#august-2026-5">0.3.256 (11 August 2026)</a></li>
+  <li><a href="#august-2026-6" id="toc-august-2026-6" class="nav-link" data-scroll-target="#august-2026-6">0.3.255 (09 August 2026)</a></li>
+  <li><a href="#august-2026-7" id="toc-august-2026-7" class="nav-link" data-scroll-target="#august-2026-7">0.3.254 (08 August 2026)</a></li>
+  <li><a href="#august-2026-8" id="toc-august-2026-8" class="nav-link" data-scroll-target="#august-2026-8">0.3.253 (08 August 2026)</a></li>
+  <li><a href="#august-2026-9" id="toc-august-2026-9" class="nav-link" data-scroll-target="#august-2026-9">0.3.252 (04 August 2026)</a></li>
   <li><a href="#july-2026" id="toc-july-2026" class="nav-link" data-scroll-target="#july-2026">0.3.251 (29 July 2026)</a></li>
   <li><a href="#july-2026-1" id="toc-july-2026-1" class="nav-link" data-scroll-target="#july-2026-1">0.3.250 (28 July 2026)</a></li>
   <li><a href="#july-2026-2" id="toc-july-2026-2" class="nav-link" data-scroll-target="#july-2026-2">0.3.249 (20 July 2026)</a></li>
@@ -464,9 +464,10 @@ ul.task-list li input[type="checkbox"] {
 
 
 
-<section id="unreleased" class="level2">
-<h2 class="anchored" data-anchor-id="unreleased">Unreleased</h2>
+<section id="august-2026" class="level2">
+<h2 class="anchored" data-anchor-id="august-2026">0.3.261 (30 August 2026)</h2>
 <ul>
+<li>Bedrock: Converse requests now reuse cached prompt prefixes across turns and samples, cutting input token cost, and report cache read and write tokens in usage.</li>
 <li>Scorers: <code>match(numeric=True)</code> now parses numbers with attached sentence or enclosing punctuation (e.g.&nbsp;“42!”, “(42)”); operator prefixes (<code>&lt;42</code>, <code>~42</code>) still do not match, and <code>location="exact"</code> remains strict. (#4742)</li>
 <li>Multiple choice: The choice scorer now handles multi-digit labels when tasks have 36 or more options, and raises a clear error when a target references a position beyond the task’s choices (samples without choices always score incorrect rather than raising). (#4590)</li>
 <li>Approval: Support comma-separated tool patterns in approval policy configs, matching the documented <code>tools: web_browser*, bash</code> syntax; policy file paths given as <code>file://</code> URLs are normalized to local paths. (#5025)</li>
@@ -534,8 +535,8 @@ ul.task-list li input[type="checkbox"] {
 <li>Sandbox: When remote exec polling exhausts its retries, the error now names the sandbox’s actual failure instead of an opaque tenacity RetryError.</li>
 </ul>
 </section>
-<section id="august-2026" class="level2">
-<h2 class="anchored" data-anchor-id="august-2026">0.3.260 (21 August 2026)</h2>
+<section id="august-2026-1" class="level2">
+<h2 class="anchored" data-anchor-id="august-2026-1">0.3.260 (21 August 2026)</h2>
 <ul>
 <li>Metrics: Add <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#ci">ci()</a></span> metric reporting a confidence interval for the mean (as <code>{"lower", "upper"}</code>). Defaults to <code>mean ± t · stderr</code> with a Student-t critical value (<code>n - 1</code> degrees of freedom; <code>clusters - 1</code> when <code>cluster=</code> is set) so small samples get honest widths; <code>method="bootstrap"</code> gives a percentile (cluster) bootstrap interval. (#4160)</li>
 <li>Anthropic: Compatibility with anthropic SDK 1.0.0, which is now the minimum supported version (<code>temperature</code>/<code>top_p</code>/<code>top_k</code> continue to work on models that support them; browser state tool results and file-based image/document sources no longer fail type checking).</li>
@@ -572,8 +573,8 @@ ul.task-list li input[type="checkbox"] {
 <li>Docs: Clarify that the sandbox <code>exec()</code> output limit is enforced by front-truncating the output streams rather than by raising <code>OutputLimitExceededError</code> (which remains the behaviour for <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#read_file">read_file()</a></span>). (#4778)</li>
 </ul>
 </section>
-<section id="august-2026-1" class="level2">
-<h2 class="anchored" data-anchor-id="august-2026-1">0.3.259 (16 August 2026)</h2>
+<section id="august-2026-2" class="level2">
+<h2 class="anchored" data-anchor-id="august-2026-2">0.3.259 (16 August 2026)</h2>
 <ul>
 <li>Inspect View: The Messages tab now paginates chunked evals, loading further pages as you scroll instead of the entire sample up front, so huge samples open quickly (non-chunked evals still load in full). (#498)</li>
 <li>Inspect View: Image-heavy info events now show their “more…” toggle — previously the clipped content was unexpandable. (#529)</li>
@@ -603,8 +604,8 @@ ul.task-list li input[type="checkbox"] {
 <li>Bugfix: Recovered eval logs now report reasoning tokens and total cost in their top-level usage summary, which previously showed both as null.</li>
 </ul>
 </section>
-<section id="august-2026-2" class="level2">
-<h2 class="anchored" data-anchor-id="august-2026-2">0.3.258 (11 August 2026)</h2>
+<section id="august-2026-3" class="level2">
+<h2 class="anchored" data-anchor-id="august-2026-3">0.3.258 (11 August 2026)</h2>
 <ul>
 <li>Control Channel: <code>inspect ctl sample</code> and other unscoped commands no longer appear to hang on eval sets with many running tasks. (#4789)</li>
 <li>Inspect View: <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#bundle_log_dir">bundle_log_dir()</a></span> allows <code>output_dir</code> starting with <code>hf/</code> when <code>log_dir</code> is current directory or parent directory.</li>
@@ -621,8 +622,8 @@ ul.task-list li input[type="checkbox"] {
 <li>Models: New <code>--model-spec</code> option runs several models in one <code>inspect eval</code> or <code>inspect eval-set</code> command, each with its own generation config, model args, and base url.</li>
 </ul>
 </section>
-<section id="august-2026-3" class="level2">
-<h2 class="anchored" data-anchor-id="august-2026-3">0.3.257 (11 August 2026)</h2>
+<section id="august-2026-4" class="level2">
+<h2 class="anchored" data-anchor-id="august-2026-4">0.3.257 (11 August 2026)</h2>
 <ul>
 <li>Extend model database to include Fireworks models.</li>
 <li>Scorer: <code>stderr(cluster=...)</code> avoids quadratic time and memory in cluster size; results and warnings can differ for extreme scores.</li>
@@ -633,30 +634,30 @@ ul.task-list li input[type="checkbox"] {
 <li>Control Channel: Sample listings for finished and reused evals now read the log once and serve later requests from memory, instead of re-reading it (possibly from S3) on every poll.</li>
 </ul>
 </section>
-<section id="august-2026-4" class="level2">
-<h2 class="anchored" data-anchor-id="august-2026-4">0.3.256 (11 August 2026)</h2>
+<section id="august-2026-5" class="level2">
+<h2 class="anchored" data-anchor-id="august-2026-5">0.3.256 (11 August 2026)</h2>
 <ul>
 <li>Security: Parse <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#math">math()</a></span> scorer answers with a non-evaluating grammar under a bounded worker thread, preventing model output from executing Python on the evaluator host.</li>
 <li>Hooks: <code>on_task_start</code> now receives the resolved solver plan as <code>data.plan</code>, including any <code>Task.setup</code> solvers.</li>
 </ul>
 </section>
-<section id="august-2026-5" class="level2">
-<h2 class="anchored" data-anchor-id="august-2026-5">0.3.255 (09 August 2026)</h2>
+<section id="august-2026-6" class="level2">
+<h2 class="anchored" data-anchor-id="august-2026-6">0.3.255 (09 August 2026)</h2>
 <ul>
 <li>Sandbox Agent Bridge: Agents can no longer reach the web via provider web search, code execution, or remote MCP unless the eval grants it.</li>
 <li>Sandbox Agent Bridge: Agents can no longer make Inspect fetch a URL or read a host file by putting it in image or document content.</li>
 <li>Control Channel: <code>inspect ctl task list</code> now reports per-eval <code>refusals</code> and <code>http_retries</code>.</li>
 </ul>
 </section>
-<section id="august-2026-6" class="level2">
-<h2 class="anchored" data-anchor-id="august-2026-6">0.3.254 (08 August 2026)</h2>
+<section id="august-2026-7" class="level2">
+<h2 class="anchored" data-anchor-id="august-2026-7">0.3.254 (08 August 2026)</h2>
 <ul>
 <li>Approval policies now apply to tool calls made by bridged agents; a rejected call is never run and the model is told to try something else.</li>
 <li>Deepagent: Remove the <code>subagent_type</code> parameter from the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agent">agent()</a></span> tool when there is only one subagent type.</li>
 </ul>
 </section>
-<section id="august-2026-7" class="level2">
-<h2 class="anchored" data-anchor-id="august-2026-7">0.3.253 (08 August 2026)</h2>
+<section id="august-2026-8" class="level2">
+<h2 class="anchored" data-anchor-id="august-2026-8">0.3.253 (08 August 2026)</h2>
 <ul>
 <li>Agent Bridge: Codex agents on Multi-Agent V2 models can now spawn subagents through the bridge instead of failing the sample. (#4762)</li>
 <li>Sandbox: <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#composeservice">ComposeService</a></span> now accepts the standard compose keys <code>restart</code>, <code>stdin_open</code>, and <code>tty</code> (previously rejected as unknown fields).</li>
@@ -685,8 +686,8 @@ ul.task-list li input[type="checkbox"] {
 <li>Inspect View: Accessibility improvements across viewer components (jsx-a11y recommended ruleset). (#484)</li>
 </ul>
 </section>
-<section id="august-2026-8" class="level2">
-<h2 class="anchored" data-anchor-id="august-2026-8">0.3.252 (04 August 2026)</h2>
+<section id="august-2026-9" class="level2">
+<h2 class="anchored" data-anchor-id="august-2026-9">0.3.252 (04 August 2026)</h2>
 <ul>
 <li>Grok: Unknown (predeployment) model names are now treated as the latest Grok model for context window (compaction) and capability detection.</li>
 <li>Analysis: string values for <code>bool</code>-typed columns now coerce via YAML, so <code>"false"</code>/<code>"0"</code>/<code>"no"</code>/<code>"off"</code> parse to <code>False</code> instead of every non-empty string becoming <code>True</code>.</li>
