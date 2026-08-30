@@ -106,6 +106,52 @@ def test_type_ignore_word_prefix_ignored() -> None:
     assert scan("x = 1  # type: ignored by design\n") == []
 
 
+def test_type_ignore_mid_comment_is_inert() -> None:
+    # mypy only honors type: ignore when it opens the comment.
+    assert scan("x = f()  # prose  # type: ignore\n") == []
+
+
+def test_double_hash_type_ignore_is_inert() -> None:
+    assert scan("## type: ignore\nimport x\n") == []
+
+
+def test_duplicate_type_ignore_counts_once_and_is_not_a_reason() -> None:
+    assert scan("x = f()  # type: ignore  # type: ignore\n") == [
+        ("type: ignore", False)
+    ]
+
+
+def test_type_ignore_trailing_prose_is_not_a_reason() -> None:
+    # mypy rejects the directive outright when bare prose follows it, so
+    # prose there is a broken comment, not a reason.
+    assert scan("x = f()  # type: ignore stub is wrong\n") == [("type: ignore", False)]
+
+
+def test_type_ignore_space_before_bracket() -> None:
+    # mypy honors and scopes the code despite the space (verified).
+    assert scan("x = f()  # type: ignore [assignment]\n") == [
+        ("type: ignore[assignment]", False)
+    ]
+
+
+def test_bare_type_ignore_at_top_of_file_is_file_wide() -> None:
+    # A bare own-line type: ignore before any code or docstring silences
+    # the whole module in mypy.
+    assert scan("# type: ignore\nimport x\n") == [("type: ignore (file-wide)", False)]
+
+
+def test_type_ignore_after_docstring_is_not_file_wide() -> None:
+    assert scan('"""Doc."""\nx = f()  # type: ignore\n') == [("type: ignore", False)]
+
+
+def test_bracketed_type_ignore_at_top_of_file_stays_line_level() -> None:
+    # mypy errors on the bracketed form at module level rather than
+    # treating it as file-wide.
+    assert scan("# type: ignore[assignment]\nimport x\n") == [
+        ("type: ignore[assignment]", False)
+    ]
+
+
 def test_mypy_ignore_errors_file_wide() -> None:
     assert scan("# mypy: ignore-errors\n") == [
         ("mypy: ignore-errors (file-wide)", False)
@@ -268,3 +314,57 @@ def test_totals_sums_counts_and_undescribed() -> None:
             "b.py": {"r": {"count": 3, "undescribed": 3}},
         }
     ) == cs.Counts(6, 4)
+
+
+# --- PR delta comment (suppressions_pr_delta.py) ---
+
+delta_spec = importlib.util.spec_from_file_location(
+    "suppressions_pr_delta",
+    pathlib.Path(__file__).parents[1]
+    / ".github"
+    / "scripts"
+    / "suppressions_pr_delta.py",
+)
+assert delta_spec is not None and delta_spec.loader is not None
+delta = importlib.util.module_from_spec(delta_spec)
+delta_spec.loader.exec_module(delta)
+
+
+def render(base: dict, head: dict) -> str | None:
+    body = delta.render(delta.flatten(base), delta.flatten(head))
+    assert body is None or isinstance(body, str)
+    return body
+
+
+def test_delta_renders_nothing_when_unchanged() -> None:
+    ledger = {"a.py": {"r": {"count": 1, "undescribed": 1}}}
+    assert render(ledger, ledger) is None
+
+
+def test_delta_growth_renders_marker_warning_row_and_footer() -> None:
+    body = render({}, {"a.py": {"r": {"count": 1}}})
+    assert body is not None
+    assert body.startswith(delta.MARKER)
+    assert "⚠️ Suppression ledger grew: 0 → 1 (+1)" in body
+    assert "| `a.py` | `r` | +1 |" in body
+    assert "maintainer sign-off" in body
+
+
+def test_delta_shrink_renders_plain_heading_without_footer() -> None:
+    body = render(
+        {"a.py": {"r": {"count": 2}}},
+        {"a.py": {"r": {"count": 1}}},
+    )
+    assert body is not None
+    assert "Suppression ledger changed: 2 → 1 (-1)" in body
+    assert "maintainer sign-off" not in body
+
+
+def test_delta_undescribed_only_change_still_renders() -> None:
+    body = render(
+        {"a.py": {"r": {"count": 1, "undescribed": 1}}},
+        {"a.py": {"r": {"count": 1}}},
+    )
+    assert body is not None
+    assert "| `a.py` | `r` | ±0 (reason-less 1 → 0) |" in body
+    assert "Reason-less (baselined) suppressions: 1 → 0" in body

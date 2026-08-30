@@ -235,8 +235,8 @@
   },
   "src/inspect_ai/_util/file.py": {
     "type: ignore": {
-      "count": 6,
-      "undescribed": 6
+      "count": 4,
+      "undescribed": 4
     }
   },
   "src/inspect_ai/_util/json.py": {
@@ -1816,7 +1816,7 @@
     }
   },
   "tests/scorer/test_scorer.py": {
-    "type: ignore": {
+    "type: ignore (file-wide)": {
       "count": 1,
       "undescribed": 1
     }

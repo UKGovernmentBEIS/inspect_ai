@@ -51,8 +51,8 @@ DIRECTIVE_RE = re.compile(
     r"""\#+\s*(?:
         (?:ruff|flake8):\s*(?P<file_noqa>noqa)(?:\s*:\s*(?P<file_noqa_codes>{noqa_codes}))?
       | (?P<noqa>(?i:noqa))(?![\w])(?:\s*:\s*(?P<noqa_codes>{noqa_codes}))?
-      | type:\s*(?P<type_ignore>ignore)(?![\w])(?:{type_codes})?
-      | pyright:\s*(?P<pyright>ignore)(?![\w])(?:{pyright_codes})?
+      | type:\s*(?P<type_ignore>ignore)(?![\w])(?:\s*{type_codes})?
+      | pyright:\s*(?P<pyright>ignore)(?![\w])(?:\s*{pyright_codes})?
       | mypy:\s*(?:
             (?P<mypy_ignore>ignore-errors)(?![\w-])
           | disable-error-code\s*=\s*"?(?P<mypy_codes>[\w-]+(?:\s*,\s*[\w-]+)*)"?
@@ -104,30 +104,70 @@ def _rules(m: re.Match[str]) -> list[str]:
     return [f"mypy: disable-error-code[{c}]{FILE_WIDE}" for c in _split_codes(codes)]
 
 
+def _is_mypy(m: re.Match[str]) -> bool:
+    return any(m.group(g) for g in ("type_ignore", "mypy_ignore", "mypy_codes"))
+
+
+def _active(m: re.Match[str], text: str) -> bool:
+    # mypy honors `type: ignore` and `mypy:` config comments only when they
+    # open the comment (verified: `# prose  # type: ignore` and
+    # `## type: ignore` suppress nothing), so a match elsewhere is inert.
+    # ruff, in contrast, honors a noqa directive in any comment segment.
+    if _is_mypy(m):
+        return m.start() == 0 and not text.startswith("##")
+    return True
+
+
+def _described(m: re.Match[str], rest: str) -> bool:
+    # For `type: ignore` a reason must be a new `#` segment: mypy rejects
+    # the whole directive when bare prose follows it (verified), so prose
+    # there is a broken comment, not a reason. After noqa codes ruff
+    # tolerates prose (and the repo already uses `— reason`), so any
+    # non-separator text counts.
+    if m.group("type_ignore") and not rest.lstrip().startswith("#"):
+        return False
+    return bool(_SEPARATORS_RE.sub("", rest))
+
+
 def scan_comment(text: str) -> list[Suppression]:
     """Suppression records in one comment token's text.
 
-    A directive is "described" when non-separator text follows it in the
-    comment, stopping at the next directive: a trailing `# reason` segment,
-    or trailing prose after noqa codes (which ruff tolerates).
+    A directive is "described" when reason text follows it in the comment,
+    stopping at the next directive — see _described for the per-tool rules.
     """
+    # Inert matches (see _active) produce no records but still bound the
+    # reason region: a duplicated `# type: ignore  # type: ignore` must not
+    # read its inert twin as a reason.
     matches = list(DIRECTIVE_RE.finditer(text))
     ends = [n.start() for n in matches[1:]] + [len(text)]
     return [
-        Suppression(rule, bool(_SEPARATORS_RE.sub("", text[m.end() : end])))
+        Suppression(rule, _described(m, text[m.end() : end]))
         for m, end in zip(matches, ends)
+        if _active(m, text)
         for rule in _rules(m)
     ]
 
 
+# Tokens that can precede a module's first docstring/code line.
+_PREAMBLE_TOKENS = (tokenize.COMMENT, tokenize.NL, tokenize.ENCODING)
+
+
 def scan_source(source: str) -> list[Suppression]:
     """Suppression records in Python source text (comments only)."""
-    return [
-        record
-        for tok in tokenize.generate_tokens(io.StringIO(source).readline)
-        if tok.type == tokenize.COMMENT
-        for record in scan_comment(tok.string)
-    ]
+    records: list[Suppression] = []
+    preamble = True
+    for tok in tokenize.generate_tokens(io.StringIO(source).readline):
+        if tok.type not in _PREAMBLE_TOKENS:
+            preamble = False
+        if tok.type == tokenize.COMMENT:
+            for record in scan_comment(tok.string):
+                # A bare `# type: ignore` on its own line before any code or
+                # docstring silences the entire module in mypy (verified;
+                # the bracketed form there is a mypy error, not file-wide).
+                if preamble and record.rule == "type: ignore":
+                    record = Suppression(record.rule + FILE_WIDE, record.described)
+                records.append(record)
+    return records
 
 
 Tally = dict[str, int]  # {"count": n} or {"count": n, "undescribed": u}
@@ -251,7 +291,12 @@ def _list_files() -> list[str]:
 def _scan_repo() -> Ledger:
     def scan_file(path: str) -> list[Suppression]:
         with tokenize.open(path) as fh:
-            return scan_source(fh.read())
+            source = fh.read()
+        try:
+            return scan_source(source)
+        except (tokenize.TokenError, SyntaxError) as ex:
+            # tokenize reports positions but not the file; name it.
+            raise RuntimeError(f"cannot tokenize {path}: {ex}") from ex
 
     return build_ledger({f: scan_file(f) for f in _list_files()})
 

@@ -22,18 +22,23 @@ class Counts(NamedTuple):
 NONE = Counts(0, 0)
 
 Key = tuple[str, str]  # (file, rule)
+Ledger = dict[str, dict[str, dict[str, int]]]
 
 
-def load(path: str) -> dict[Key, Counts]:
-    try:
-        ledger = json.loads(Path(path).read_text())
-    except (OSError, json.JSONDecodeError):
-        ledger = {}
+def flatten(ledger: Ledger) -> dict[Key, Counts]:
     return {
         (file, rule): Counts(tally["count"], tally.get("undescribed", 0))
         for file, rules in ledger.items()
         for rule, tally in rules.items()
     }
+
+
+def _load(path: str) -> Ledger:
+    try:
+        ledger: Ledger = json.loads(Path(path).read_text())
+        return ledger
+    except (OSError, json.JSONDecodeError):
+        return {}
 
 
 class Row(NamedTuple):
@@ -42,15 +47,14 @@ class Row(NamedTuple):
     after: Counts
 
 
-def main() -> int:
-    base_path, head_path = sys.argv[1:3]
-    base = load(base_path)
-    head = load(head_path)
+def render(base: dict[Key, Counts], head: dict[Key, Counts]) -> str | None:
+    """The comment body for a base -> head ledger change, or None if none.
 
-    # Undescribed-only changes count too (someone added/removed a reason):
-    # otherwise such a ledger diff would render nothing and the workflow
-    # would falsely reset the sticky comment to "no longer changes the
-    # ledger".
+    An undescribed-only change (a reason added or removed) renders too:
+    otherwise such a ledger diff would produce nothing and the workflow
+    would falsely reset the sticky comment to "no longer changes the
+    ledger".
+    """
     rows = [
         row
         for key in sorted(base.keys() | head.keys())
@@ -58,7 +62,7 @@ def main() -> int:
         != row.after
     ]
     if not rows:
-        return 0
+        return None
 
     total_before = sum(c.total for c in base.values())
     total_after = sum(c.total for c in head.values())
@@ -70,7 +74,7 @@ def main() -> int:
         f"({'±0' if delta == 0 else delta})"
     )
 
-    def render(row: Row) -> str:
+    def render_row(row: Row) -> str:
         file, rule = row.key
         change = row.after.total - row.before.total
         change_cell = "±0" if change == 0 else f"{change:+d}"
@@ -81,7 +85,7 @@ def main() -> int:
         )
         return f"| `{file}` | `{rule}` | {change_cell}{reason_note} |"
 
-    table = "\n".join(render(row) for row in rows)
+    table = "\n".join(render_row(row) for row in rows)
 
     undescribed_before = sum(c.undescribed for c in base.values())
     undescribed_after = sum(c.undescribed for c in head.values())
@@ -100,10 +104,17 @@ def main() -> int:
         else ""
     )
 
-    print(
+    return (
         f"{MARKER}\n### {heading}\n\n| File | Rule | Change |\n|---|---|---|\n"
         f"{table}\n{undescribed_line}{footer}"
     )
+
+
+def main() -> int:
+    base_path, head_path = sys.argv[1:3]
+    body = render(flatten(_load(base_path)), flatten(_load(head_path)))
+    if body is not None:
+        print(body)
     return 0
 
 
