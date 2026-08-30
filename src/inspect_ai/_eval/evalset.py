@@ -218,7 +218,7 @@ def _overridden_epochs(
 
 def eval_set(
     tasks: Tasks,
-    log_dir: str,
+    log_dir: str | None = None,
     retry_attempts: int | None = None,
     retry_wait: float | None = None,
     retry_connections: float | None = None,
@@ -288,8 +288,9 @@ def eval_set(
     Args:
         tasks: Task(s) to evaluate. If None, attempt
             to evaluate a task in the current working directory
-        log_dir: Output path for logging results
-            (required to ensure that a unique storage scope is assigned for the set).
+        log_dir: Output path for logging results (defaults to INSPECT_LOG_DIR
+            or ./logs). The directory is the eval set's storage scope, so a set
+            that shares one with another set shares its results.
         retry_attempts: Maximum number of retry attempts before giving up
             (defaults to 10).
         retry_wait: Time to wait between attempts when `retry_immediate=False`,
@@ -763,6 +764,16 @@ def eval_set(
         with file(capture_path, mode="wb") as f:
             f.write(to_json_safe(capture))
         raise SystemExit(0)
+
+    # resolve log_dir, matching eval(). deliberately below the capture branch,
+    # which exits before any log_dir side effect: a capture manifest records
+    # the options *the definition passed*, so a definition that named no
+    # directory must be reported as having named none rather than as having
+    # named this default. absolute_file_path() is likewise not applied -- eval()
+    # does it, but doing it here would change the recorded location of every
+    # relative log_dir an eval set already uses
+    if log_dir is None:
+        log_dir = os.environ.get("INSPECT_LOG_DIR", "./logs")
 
     # ensure log_dir
     fs = filesystem(log_dir)
