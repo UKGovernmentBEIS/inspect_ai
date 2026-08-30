@@ -136,9 +136,13 @@ class EvalSetOverrides(BaseModel):
     scalar can be read leniently it is `Strict*` instead: lax coercion would
     read `true` as `1` and `"3"` as `3`, so a runner's templating bug could
     silently pin a run to one concurrent sample rather than failing.
+
+    `use_attribute_docstrings` is on so that a runner exposing these as flags
+    of its own can take the help text from here rather than keeping a third
+    copy of it in step with the other two.
     """
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", use_attribute_docstrings=True)
 
     # --- where output goes ---------------------------------------------------
 
@@ -222,7 +226,7 @@ class EvalSetOverrides(BaseModel):
     """Sandbox concurrency, overriding the definition's."""
 
     max_dataset_memory: StrictInt | None = None
-    """Dataset memory ceiling in bytes, overriding the definition's."""
+    """Maximum MiB of dataset sample data to hold in memory per task, overriding the definition's. Zero pages every sample to disk."""
 
     generate_config: GenerateConfig | None = None
     """Model transport settings, overriding the definition's.
@@ -424,8 +428,6 @@ def merge_eval_set_overrides(
 def validate_eval_set_overrides(overrides: EvalSetOverrides, source: str) -> None:
     """Refuse an override whose value cannot mean anything.
 
-    Every override is optional, but an explicitly supplied nonsense value is a runner bug worth reporting here rather than letting it surface as an empty path, a semaphore that admits nothing, or an empty dataset.
-
     Args:
         overrides: The container to check.
         source: Path to the document the overrides came from, for the message.
@@ -433,48 +435,88 @@ def validate_eval_set_overrides(overrides: EvalSetOverrides, source: str) -> Non
     Raises:
         PrerequisiteError: An override carries a value that is not usable.
     """
-
-    def refuse(detail: str) -> PrerequisiteError:
-        return PrerequisiteError(
+    if (found := check_eval_set_overrides(overrides)) is not None:
+        _, detail = found
+        raise PrerequisiteError(
             f"The eval set overrides at '{source}' have {detail} "
             "(omit the field to keep the definition's value)."
         )
 
+
+def check_eval_set_overrides(overrides: EvalSetOverrides) -> tuple[str, str] | None:
+    """The first override whose value cannot mean anything, and what is wrong with it.
+
+    Every override is optional, but an explicitly supplied nonsense value is a runner bug worth reporting rather than letting it surface as an empty path, a semaphore that admits nothing, or an empty dataset. Separated from the raising above so that a runner reading these from somewhere other than a file can name its own source — an environment variable, say — rather than being told about a path it never wrote.
+
+    Args:
+        overrides: The container to check.
+
+    Returns:
+        The offending field and a phrase describing the problem, or `None` where everything is usable.
+    """
     for name in ("log_dir", "log_level", "log_level_transcript", "model_base_url"):
         value = getattr(overrides, name)
         if value is not None and not value.strip():
-            raise refuse(f"an empty '{name}'")
+            return name, f"an empty '{name}'"
+    # the same rule `build_apprise` applies, applied here so that it is applied
+    # *early*. A runner resolves these before it runs anything and typically
+    # persists them -- inspect_steward writes them into a manifest it commits to
+    # git -- so a notification URL supplied as the option's value is a
+    # credential in a repository by the time the worker rejects it. The URL
+    # belongs in INSPECT_EVAL_NOTIFICATION, which `notification=True` reads and
+    # nothing records
+    if isinstance(overrides.notification, str) and not os.path.isfile(
+        overrides.notification
+    ):
+        return (
+            "notification",
+            f"notification={overrides.notification!r}, which is not an existing "
+            "file; supply URLs through the INSPECT_EVAL_NOTIFICATION "
+            "environment variable with notification=true, so that they never "
+            "end up somewhere they are recorded",
+        )
     for name in (
         "max_samples",
         "max_sandboxes",
         "max_tasks",
         "max_subprocesses",
-        "max_dataset_memory",
         "log_buffer",
     ):
         value = getattr(overrides, name)
         if value is not None and value < 1:
-            raise refuse(f"{name}={value}; it must be at least 1")
+            return name, f"{name}={value}; it must be at least 1"
+    # zero is a real setting here rather than the degenerate one it is for the
+    # concurrency ceilings above: `maybe_page_to_disk` multiplies it out to a
+    # budget of zero bytes, which pages every sample to disk. `--max-dataset-
+    # memory` is an `IntRange(min=0)` for the same reason
+    if overrides.max_dataset_memory is not None and overrides.max_dataset_memory < 0:
+        return (
+            "max_dataset_memory",
+            f"max_dataset_memory={overrides.max_dataset_memory}; it cannot be negative",
+        )
     if overrides.retry_on_error is not None and overrides.retry_on_error < 0:
-        raise refuse(
-            f"retry_on_error={overrides.retry_on_error}; it cannot be negative"
+        return (
+            "retry_on_error",
+            f"retry_on_error={overrides.retry_on_error}; it cannot be negative",
         )
     if isinstance(overrides.limit, int):
         if overrides.limit < 1:
-            raise refuse(f"limit={overrides.limit}; it must be at least 1")
+            return "limit", f"limit={overrides.limit}; it must be at least 1"
     elif overrides.limit is not None:
         start, end = overrides.limit
         # a half-open range as `eval_set()` reads it, so start == end is an
         # empty slice rather than one sample -- worth refusing for the same
         # reason limit=0 is
         if start < 0 or end <= start:
-            raise refuse(
-                f"limit=({start}, {end}); a range must be ordered and non-negative"
+            return (
+                "limit",
+                f"limit=({start}, {end}); a range must be ordered and non-negative",
             )
     epochs = overrides.epochs
     count = epochs.epochs if isinstance(epochs, EvalSetOverridesEpochs) else epochs
     if count is not None and count < 1:
-        raise refuse(f"epochs={count}; it must be at least 1")
+        return "epochs", f"epochs={count}; it must be at least 1"
+    return None
 
 
 def _unreadable(overrides_path: str, ex: Exception) -> PrerequisiteError:

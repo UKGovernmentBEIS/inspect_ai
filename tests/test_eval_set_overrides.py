@@ -25,6 +25,7 @@ from inspect_ai._eval.eval_set_overrides import (
     NOT_OVERRIDABLE,
     EvalSetOverrides,
     EvalSetOverridesEpochs,
+    check_eval_set_overrides,
     merge_eval_set_overrides,
     read_eval_set_overrides,
 )
@@ -255,3 +256,72 @@ def test_capture_counts_the_samples_the_run_will_actually_have(
     assert capture.options["limit"] is None
     assert capture.overrides is not None
     assert capture.overrides.epochs == 3
+
+
+def test_capture_counts_the_samples_a_sample_id_selects(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`sample_id` narrows a task exactly as `limit` does, and the count has to follow.
+
+    Counting the whole dataset here is not a cosmetic error in a manifest: a
+    runner comparing the count against a finished log sees one sample where it
+    was told to expect five, calls the task short, and re-runs it until its
+    attempt budget is gone. `log_samples_complete` reached the same wrong
+    conclusion for a plain `eval_set(sample_id=...)` re-run, which is why both
+    callers now take the count from `samples_selected`.
+    """
+    manifest_path = tmp_path / "manifest.json"
+    monkeypatch.setenv(INSPECT_EVAL_SET_CAPTURE, str(manifest_path))
+    monkeypatch.setenv(
+        INSPECT_EVAL_SET_OVERRIDES, written(tmp_path, {"sample_id": ["1", "3"]})
+    )
+
+    with pytest.raises(SystemExit):
+        eval_set(
+            tasks=[overridable_task()],
+            log_dir=str(tmp_path / "logs"),
+            model="mockllm/model",
+            display="plain",
+        )
+
+    capture = EvalSetCapture.model_validate_json(manifest_path.read_bytes())
+    (task,) = capture.tasks
+    assert task.samples == 2
+
+
+def test_a_notification_url_is_refused_before_it_can_be_recorded() -> None:
+    """A credential supplied as an option value, caught at the door rather than in a worker.
+
+    `build_apprise` already refuses a `notification` string that is not a file
+    — but it refuses it inside the worker, and a runner resolves overrides
+    before it runs anything and typically writes them down first
+    (inspect_steward commits them to git). By then the URL is in a repository.
+    """
+    found = check_eval_set_overrides(
+        EvalSetOverrides(notification="slack://T000/B000/xoxb-secret")
+    )
+
+    assert found is not None
+    field, detail = found
+    assert field == "notification"
+    assert "INSPECT_EVAL_NOTIFICATION" in detail
+
+
+def test_a_notification_config_file_is_fine(tmp_path: Path) -> None:
+    config = tmp_path / "apprise.cfg"
+    config.write_text("mailto://example\n")
+
+    assert (
+        check_eval_set_overrides(EvalSetOverrides(notification=config.as_posix()))
+        is None
+    )
+
+
+def test_a_zero_dataset_memory_budget_is_a_real_setting() -> None:
+    # `--max-dataset-memory` is an IntRange(min=0) and the budget multiplies
+    # out to zero bytes, which pages every sample to disk -- unlike the
+    # concurrency ceilings beside it, where zero admits nothing
+    assert check_eval_set_overrides(EvalSetOverrides(max_dataset_memory=0)) is None
+
+    found = check_eval_set_overrides(EvalSetOverrides(max_dataset_memory=-1))
+    assert found is not None and found[0] == "max_dataset_memory"

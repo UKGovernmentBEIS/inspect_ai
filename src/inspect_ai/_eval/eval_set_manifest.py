@@ -27,6 +27,8 @@ from inspect_ai._eval.task.constants import TASK_ALL_PARAMS_ATTR
 from inspect_ai._eval.task.resolved import ResolvedTask
 from inspect_ai._eval.task.run import plan_agent_name, resolve_plan
 from inspect_ai._eval.task.task import resolve_epochs
+from inspect_ai._eval.task.util import sample_id_filter
+from inspect_ai.dataset import Dataset
 from inspect_ai.model._model import ModelName
 from inspect_ai.model._model_config import model_args_for_log
 
@@ -166,12 +168,56 @@ def samples_for_limit(count: int, limit: int | tuple[int, int] | None) -> int:
     return count
 
 
+def samples_selected(
+    dataset: Dataset,
+    limit: int | tuple[int, int] | None,
+    sample_id: str | int | list[str] | list[int] | list[str | int] | None,
+) -> int:
+    """Number of dataset samples a `limit` or a `sample_id` selects.
+
+    The count `slice_dataset` would produce, without slicing — which is what
+    the two callers need: one records it in the capture manifest, the other
+    decides whether an existing log already holds every sample the task asks
+    for. Counting only the `limit` leaves a `sample_id` run looking short of
+    its own dataset forever: the log has the one sample that was requested,
+    the count says the dataset has five, and the task is retried until the
+    attempt budget runs out.
+
+    `limit` and `sample_id` are mutually exclusive at the `eval()` door, so the
+    branch order is presentational; `sample_id` leads because `slice_dataset`
+    applies it first.
+
+    **An unset id counts as the position it is about to be given.** `eval_run`
+    numbers a dataset's samples from one just before slicing it, so a dataset
+    written in Python without explicit ids still answers to `--sample-id 3`.
+    Capture happens before that numbering, so matching `sample.id` as it stands
+    would find nothing and record a task with zero samples.
+
+    Args:
+        dataset: The task's dataset.
+        limit: Eval limit (first n samples, or [start, stop] range).
+        sample_id: Sample id pattern(s) selected, if any.
+
+    Returns:
+        Number of samples that would run.
+    """
+    if sample_id is not None:
+        matcher = sample_id_filter(sample_id)
+        return sum(
+            1
+            for position, sample in enumerate(dataset, start=1)
+            if matcher.matches(sample.id if sample.id is not None else position)
+        )
+    return samples_for_limit(len(dataset), limit)
+
+
 def build_eval_set_capture(
     resolved_tasks: list[ResolvedTask],
     eval_set_args: "EvalSetArgsInTaskIdentifier",
     *,
     epochs: int | Epochs | None,
     limit: int | tuple[int, int] | None,
+    sample_id: str | int | list[str] | list[int] | list[str | int] | None = None,
     eval_set_id: str | None,
     options: dict[str, Any],
     overrides: "EvalSetOverrides | None" = None,
@@ -183,6 +229,7 @@ def build_eval_set_capture(
         eval_set_args: Eval-set level args that participate in task identity.
         epochs: Eval-set level epochs (task epochs are used when not specified).
         limit: Eval-set level sample limit.
+        sample_id: Eval-set level sample id selection.
         eval_set_id: Eval set id as passed to `eval_set()`.
         options: Informational `eval_set()` options as the definition passed them.
         overrides: Operational overrides in force, or `None`.
@@ -232,7 +279,7 @@ def build_eval_set_capture(
                 ),
                 sequence=task.sequence,
                 identifier=task_identifier(task, eval_set_args),
-                samples=samples_for_limit(len(task.task.dataset), limit),
+                samples=samples_selected(task.task.dataset, limit, sample_id),
                 epochs=epoch_count,
             )
         )

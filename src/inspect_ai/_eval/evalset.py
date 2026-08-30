@@ -104,7 +104,7 @@ from .eval_set_manifest import (
     INSPECT_EVAL_SET_CAPTURE,
     build_eval_set_capture,
     eval_set_capture_requested,
-    samples_for_limit,
+    samples_selected,
     task_args_hash,
 )
 from .eval_set_overrides import (
@@ -702,6 +702,7 @@ def eval_set(
             ),
             epochs=epochs,
             limit=limit,
+            sample_id=sample_id,
             eval_set_id=eval_set_id,
             options=definition_options,
             overrides=overrides,
@@ -974,6 +975,7 @@ def eval_set(
                 all_logs,
                 epochs=epochs,
                 limit=limit,
+                sample_id=sample_id,
                 cleanup_older=retry_cleanup,
             )
             if not failed_logs:
@@ -1593,6 +1595,7 @@ def list_latest_eval_logs(
     logs: list[Log],
     epochs: int | Epochs | None,
     limit: int | tuple[int, int] | None,
+    sample_id: str | int | list[str] | list[int] | list[str | int] | None,
     cleanup_older: bool,
 ) -> tuple[list[Log], list[Log]]:
     latest_logs = latest_completed_task_eval_logs(
@@ -1612,7 +1615,9 @@ def list_latest_eval_logs(
             incomplete_logs.append(log)
         elif log.header.invalidated:
             incomplete_logs.append(log)
-        elif not log_samples_complete(log, all_tasks, epochs=epochs, limit=limit):
+        elif not log_samples_complete(
+            log, all_tasks, epochs=epochs, limit=limit, sample_id=sample_id
+        ):
             incomplete_logs.append(log)
         else:
             complete_logs.append(log)
@@ -1625,6 +1630,7 @@ def log_samples_complete(
     all_tasks: list[tuple[str, ResolvedTask]],
     epochs: Epochs | None,
     limit: int | tuple[int, int] | None,
+    sample_id: str | int | list[str] | list[int] | list[str | int] | None = None,
 ) -> bool:
     if not log.header.results:
         return False
@@ -1640,7 +1646,7 @@ def log_samples_complete(
         return False
     epoch_count = epochs.epochs if epochs else 1
 
-    count = samples_for_limit(len(task.task.dataset), limit)
+    count = samples_selected(task.task.dataset, limit, sample_id)
 
     if log.header.results.total_samples < count * epoch_count:
         return False
