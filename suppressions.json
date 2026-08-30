@@ -1660,12 +1660,6 @@
       "undescribed": 2
     }
   },
-  "tests/model/providers/test_bedrock_prompt_cache.py": {
-    "noqa:E402": {
-      "count": 6,
-      "undescribed": 6
-    }
-  },
   "tests/model/providers/test_bedrock_structured_output.py": {
     "noqa:E402": {
       "count": 6,
