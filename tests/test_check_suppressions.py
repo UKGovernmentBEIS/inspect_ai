@@ -135,6 +135,38 @@ def test_double_hash_type_ignore_is_inert() -> None:
     assert scan("## type: ignore\nimport x\n") == []
 
 
+def test_type_ignore_after_legacy_type_comment_counts() -> None:
+    # mypy honors the trailing ignore of a legacy type comment (verified),
+    # so it must be counted or it would evade the ledger.
+    assert scan("x = f()  # type: List[int]  # type: ignore\n") == [
+        ("type: ignore", False)
+    ]
+    assert scan("x = f()  # type: List[int]  # type: ignore[assignment]\n") == [
+        ("type: ignore[assignment]", False)
+    ]
+
+
+def test_type_ignore_after_legacy_type_comment_with_reason_segment() -> None:
+    assert scan("x = f()  # type: List[int]  # type: ignore  # stub is wrong\n") == [
+        ("type: ignore", True)
+    ]
+
+
+def test_type_ignore_after_legacy_type_comment_with_prose_between_is_inert() -> None:
+    # mypy honors the ignore only as the type comment's first embedded
+    # segment (verified: a prose segment in between defeats it).
+    assert scan("x = f()  # type: List[int]  # prose  # type: ignore\n") == []
+
+
+def test_legacy_type_comment_in_preamble_is_not_file_wide() -> None:
+    # An own-line legacy type comment before any code is a mypy syntax
+    # error (verified), so its trailing ignore must not upgrade to the
+    # module-wide form the way a bare preamble type: ignore does.
+    assert scan("# type: List[int]  # type: ignore\nimport x\n") == [
+        ("type: ignore", False)
+    ]
+
+
 def test_duplicate_type_ignore_counts_once_and_is_not_a_reason() -> None:
     assert scan("x = f()  # type: ignore  # type: ignore\n") == [
         ("type: ignore", False)
@@ -156,8 +188,11 @@ def test_type_ignore_space_before_bracket() -> None:
 
 def test_bare_type_ignore_at_top_of_file_is_file_wide() -> None:
     # A bare own-line type: ignore before any code or docstring silences
-    # the whole module in mypy.
+    # the whole module in mypy, even indented (verified).
     assert scan("# type: ignore\nimport x\n") == [("type: ignore (file-wide)", False)]
+    assert scan("    # type: ignore\nimport x\n") == [
+        ("type: ignore (file-wide)", False)
+    ]
 
 
 def test_type_ignore_after_docstring_is_not_file_wide() -> None:
@@ -190,6 +225,19 @@ def test_mid_file_own_line_mypy_config_comment_counts() -> None:
     assert scan("x = 1\n# mypy: ignore-errors\ny = 2\n") == [
         ("mypy: ignore-errors (file-wide)", False)
     ]
+
+
+def test_indented_mypy_config_comment_is_inert() -> None:
+    # mypy config comments must start at column 0: an indented own-line
+    # one suppresses nothing (verified for both forms).
+    assert scan("if x:\n    # mypy: ignore-errors\n    pass\n") == []
+    assert scan('if x:\n    # mypy: disable-error-code="assignment"\n    pass\n') == []
+
+
+def test_indented_file_level_noqa_still_counts() -> None:
+    # Unlike mypy config comments, ruff honors an indented own-line
+    # file-level noqa comment (verified: it suppresses file-wide).
+    assert scan("if x:\n    # ruff: noqa\n    pass\n") == [("noqa (file-wide)", False)]
 
 
 def test_mypy_disable_error_code_file_wide() -> None:

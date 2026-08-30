@@ -72,6 +72,15 @@ DIRECTIVE_RE = re.compile(
 # Text that is only separators (hashes, dashes, whitespace) is not a reason.
 _SEPARATORS_RE = re.compile(r"[#\s—–-]+")
 
+# A legacy type comment (PEP 484 `x = f()  # type: List[int]`), which may
+# carry a trailing suppression: mypy honors the ignore in
+# `x = f()  # type: List[int]  # type: ignore` (verified) even though it
+# doesn't open the comment, but only when the ignore is the type comment's
+# first embedded segment — a prose segment in between defeats it (verified).
+# The lookahead keeps a leading `type: ignore` directive from qualifying as
+# a type comment, so its duplicate/reason segments stay inert.
+_LEGACY_TYPE_COMMENT_RE = re.compile(r"#\s*type:(?!\s*ignore\b)[^#]*")
+
 
 class Suppression(NamedTuple):
     rule: str
@@ -116,21 +125,28 @@ def _is_file_wide(m: re.Match[str]) -> bool:
     return any(m.group(g) for g in ("file_noqa", "mypy_ignore", "mypy_codes"))
 
 
-def _active(m: re.Match[str], text: str, own_line: bool) -> bool:
+def _active(m: re.Match[str], text: str, own_line: bool, col: int) -> bool:
     # mypy honors `type: ignore` and `mypy:` config comments only when they
     # open the comment (verified: `# prose  # type: ignore` and
-    # `## type: ignore` suppress nothing), and ruff's file-level directives
-    # (`# ruff: noqa` / `# flake8: noqa`) behave the same way (verified:
-    # `# prose  # ruff: noqa` suppresses nothing). File-wide directives are
-    # additionally honored only on a comment line of their own — a trailing
-    # `x = 1  # ruff: noqa` draws a ruff warning and suppresses nothing, and
-    # a trailing `# mypy: ignore-errors` is likewise inert (both verified).
+    # `## type: ignore` suppress nothing), except for a `type: ignore`
+    # trailing a legacy type comment (see _LEGACY_TYPE_COMMENT_RE). ruff's
+    # file-level directives (`ruff: noqa` / `flake8: noqa` opening a
+    # comment) must open the comment the same way, and are additionally
+    # honored only on a comment line of their own — trailing code, they
+    # draw a ruff warning and suppress nothing (all verified; the quoted
+    # spellings here avoid a literal hash before the directive because
+    # newer ruff warns on that even inside prose). mypy config comments
+    # must further start at column 0: an indented own-line
+    # `mypy: ignore-errors` comment suppresses nothing (verified), while
+    # ruff's file-level forms are honored even indented (verified).
     # Line-level ruff/pyright directives count in any comment segment.
+    if m.group("type_ignore") and m.start() != 0:
+        return bool(_LEGACY_TYPE_COMMENT_RE.fullmatch(text, 0, m.start()))
     if _is_mypy(m) or m.group("file_noqa"):
         if m.start() != 0 or text.startswith("##"):
             return False
     if _is_file_wide(m):
-        return own_line
+        return own_line if m.group("file_noqa") else own_line and col == 0
     return True
 
 
@@ -145,14 +161,15 @@ def _described(m: re.Match[str], rest: str) -> bool:
     return bool(_SEPARATORS_RE.sub("", rest))
 
 
-def scan_comment(text: str, own_line: bool = True) -> list[Suppression]:
+def scan_comment(text: str, own_line: bool = True, col: int = 0) -> list[Suppression]:
     """Suppression records in one comment token's text.
 
     `own_line` says whether the comment is a line of its own (nothing but
-    whitespace before it) — file-wide directives are inert in a trailing
-    comment. A directive is "described" when reason text follows it in the
-    comment, stopping at the next directive — see _described for the
-    per-tool rules.
+    whitespace before it) and `col` where it starts — file-wide directives
+    are inert in a trailing comment, and mypy's config comments further
+    require column 0. A directive is "described" when reason text follows
+    it in the comment, stopping at the next directive — see _described for
+    the per-tool rules.
     """
     # Inert matches (see _active) produce no records but still bound the
     # reason region: a duplicated `# type: ignore  # type: ignore` must not
@@ -162,7 +179,7 @@ def scan_comment(text: str, own_line: bool = True) -> list[Suppression]:
     return [
         Suppression(rule, _described(m, text[m.end() : end]))
         for m, end in zip(matches, ends)
-        if _active(m, text, own_line)
+        if _active(m, text, own_line, col)
         for rule in _rules(m)
     ]
 
@@ -180,11 +197,18 @@ def scan_source(source: str) -> list[Suppression]:
             preamble = False
         if tok.type == tokenize.COMMENT:
             own_line = not tok.line[: tok.start[1]].strip()
-            for record in scan_comment(tok.string, own_line):
+            for record in scan_comment(tok.string, own_line, tok.start[1]):
                 # A bare `# type: ignore` on its own line before any code or
-                # docstring silences the entire module in mypy (verified;
-                # the bracketed form there is a mypy error, not file-wide).
-                if preamble and record.rule == "type: ignore":
+                # docstring silences the entire module in mypy (verified,
+                # indented included; the bracketed form there is a mypy
+                # error, not file-wide). Only a comment the directive opens
+                # qualifies: a preamble legacy type comment is a mypy
+                # syntax error (verified), not a module-wide ignore.
+                if (
+                    preamble
+                    and record.rule == "type: ignore"
+                    and DIRECTIVE_RE.match(tok.string)
+                ):
                     record = Suppression(record.rule + FILE_WIDE, record.described)
                 records.append(record)
     return records
