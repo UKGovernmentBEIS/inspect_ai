@@ -633,7 +633,13 @@ def eval_set(
     selection = (
         read_eval_set_selection(selection_path) if selection_path is not None else None
     )
-    overrides_path = eval_set_overrides_requested()
+    # The overrides document is runner protocol, not another source of
+    # defaults for ordinary Python API calls. Capture needs the run-wide values
+    # so its manifest describes what workers will run; selection needs them to
+    # operate a worker. Outside those two modes the environment variable is
+    # deliberately ignored.
+    driven = capture_path is not None or selection_path is not None
+    overrides_path = eval_set_overrides_requested() if driven else None
     overrides = merge_eval_set_overrides(
         read_eval_set_overrides(overrides_path) if overrides_path is not None else None,
         selection.overrides if selection is not None else None,

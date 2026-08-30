@@ -12,8 +12,9 @@ explicitly beats a default every time.
 This module is where a runner says so. An overrides document is a JSON object
 of `EvalSetOverrides`, reaching `eval_set()` two ways:
 
-- `INSPECT_EVAL_SET_OVERRIDES` names a file that applies to the **whole run**,
-  and is read in both capture and selection mode. That is what keeps the
+- `INSPECT_EVAL_SET_OVERRIDES` names a file that applies to the **whole driven
+  run**, and is read in both capture and selection mode (ordinary `eval_set()`
+  calls ignore it). That is what keeps the
   manifest describing the run that actually happens: `epochs` and `limit`
   decide how many samples a task has, so a selection that overrode them
   without capture seeing the same values would leave every per-task count in

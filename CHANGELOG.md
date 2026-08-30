@@ -1,7 +1,7 @@
 ## Unreleased
 
 - Eval Set: An external runner driving `eval_set()` can now override any argument that does not change task identity, rather than only five.
-- Eval Set: A driven eval set now honors the `INSPECT_EVAL_*` environment variables with the same meanings `inspect eval-set` gives them.
+- Eval Set: An eval set driven by an external runner now honors the `INSPECT_EVAL_*` environment variables with the same meanings `inspect eval-set` gives them.
 
 ## 0.3.261 (30 August 2026)
 

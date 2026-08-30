@@ -221,7 +221,7 @@ def test_epochs_carry_their_reducers() -> None:
     assert overrides.epochs.reducer == ["mean", "max"]
 
 
-# --- capture honours the run-wide document ------------------------------------
+# --- only driven modes honour the run-wide document --------------------------
 
 
 @task
@@ -231,6 +231,30 @@ def overridable_task() -> Task:
         solver=[generate()],
         scorer=exact(),
     )
+
+
+def test_an_ordinary_eval_set_ignores_the_run_wide_document(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The overrides environment variable belongs to the runner protocol.
+
+    A normal Python API call in an environment inherited from a runner must
+    still mean what its definition says. Only capture and selection mode opt
+    into the document.
+    """
+    monkeypatch.setenv(INSPECT_EVAL_SET_OVERRIDES, written(tmp_path, {"limit": 1}))
+
+    success, logs = eval_set(
+        tasks=[overridable_task()],
+        log_dir=str(tmp_path / "logs"),
+        model="mockllm/model",
+        display="plain",
+        limit=2,
+    )
+
+    assert success
+    assert logs[0].results is not None
+    assert logs[0].results.completed_samples == 2
 
 
 def test_capture_counts_the_samples_the_run_will_actually_have(
