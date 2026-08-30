@@ -83,6 +83,29 @@ def test_file_wide_flake8_noqa() -> None:
     assert scan("# flake8: noqa\n") == [("noqa (file-wide)", False)]
 
 
+def test_file_wide_noqa_loose_spellings_honored_by_ruff() -> None:
+    # ruff honors the noqa token in any case and whitespace around the
+    # colons (all verified against the pinned ruff); miss these and a
+    # whole-file suppression lands with no ledger entry.
+    for text in (
+        "# ruff: NOQA\n",
+        "# ruff: Noqa\n",
+        "# ruff : noqa\n",
+        "#ruff : noqa\n",
+        "# flake8 : noqa\n",
+    ):
+        assert scan(text) == [("noqa (file-wide)", False)], text
+    assert scan("# ruff: NOQA: F401\n") == [("noqa:F401 (file-wide)", False)]
+
+
+def test_file_wide_noqa_uppercase_prefix_is_inert() -> None:
+    # ruff ignores an uppercase prefix ("RUFF: NOQA" suppresses nothing,
+    # verified), and the scanner matches nothing either: the file-level
+    # prefix is case-sensitive on purpose, and the line-level noqa branch
+    # requires the token to open a comment segment.
+    assert scan("# RUFF: NOQA\n") == []
+
+
 def test_trailing_file_wide_noqa_is_inert() -> None:
     # ruff warns ("File-level suppression comments must appear on their own
     # line") and suppresses nothing (verified), for either spelling.
@@ -499,6 +522,14 @@ def test_allow_growth_without_update_is_an_error(tmp_path: pathlib.Path) -> None
     result = _run_gate(repo, "--allow-growth")
     assert result.returncode == 2
     assert "--update" in result.stderr
+
+
+def test_unknown_argument_is_an_error(tmp_path: pathlib.Path) -> None:
+    # A typo'd flag must not silently fall through to check mode.
+    repo = _init_repo(tmp_path, {})
+    result = _run_gate(repo, "--updat")
+    assert result.returncode == 2
+    assert "--updat" in result.stderr
 
 
 def test_pyi_stubs_are_scanned(tmp_path: pathlib.Path) -> None:

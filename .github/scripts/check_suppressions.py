@@ -51,9 +51,15 @@ _BRACKET = r"\[\s*(?P<{name}>[\w-]+(?:\s*,\s*[\w-]+)*)\s*\]"
 # A directive counts only when it opens a comment segment (anchored at `#`),
 # mirroring how ruff and mypy themselves locate directives, so prose like
 # "remove the type: ignore below" never matches.
+#
+# The file-level ruff/flake8 form is spelled loosely to match what ruff
+# honors (verified against the pinned ruff): the noqa token in any case and
+# whitespace tolerated around the colons ("ruff : NOQA" suppresses
+# file-wide). The ruff/flake8 prefix itself stays case-sensitive — ruff
+# ignores "RUFF: NOQA" (verified).
 DIRECTIVE_RE = re.compile(
     r"""\#+\s*(?:
-        (?:ruff|flake8):\s*(?P<file_noqa>noqa)(?:\s*:\s*(?P<file_noqa_codes>{noqa_codes}))?
+        (?:ruff|flake8)\s*:\s*(?P<file_noqa>(?i:noqa))(?:\s*:\s*(?P<file_noqa_codes>{noqa_codes}))?
       | (?P<noqa>(?i:noqa))(?![\w])(?:\s*:\s*(?P<noqa_codes>{noqa_codes}))?
       | type:\s*(?P<type_ignore>ignore)(?![\w])(?:\s*{type_codes})?
       | pyright:\s*(?P<pyright>ignore)(?![\w])(?:\s*{pyright_codes})?
@@ -394,6 +400,14 @@ def main() -> int:
     )
 
     args = sys.argv[1:]
+    if unknown := [a for a in args if a not in ("--update", "--allow-growth")]:
+        # A silently-ignored typo (e.g. --updat) would run check mode instead.
+        print(
+            f"unknown argument(s): {' '.join(unknown)} "
+            f"(expected --update and/or --allow-growth)",
+            file=sys.stderr,
+        )
+        return 2
     update = "--update" in args
     allow_growth = "--allow-growth" in args
     if allow_growth and not update:
