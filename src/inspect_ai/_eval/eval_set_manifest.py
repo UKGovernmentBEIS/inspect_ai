@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING, Any
 from pydantic import BaseModel
 from pydantic_core import to_json
 
+from inspect_ai._eval.eval_set_overrides import EvalSetOverrides
 from inspect_ai._eval.task import Epochs
 from inspect_ai._eval.task.constants import TASK_ALL_PARAMS_ATTR
 from inspect_ai._eval.task.resolved import ResolvedTask
@@ -34,7 +35,7 @@ if TYPE_CHECKING:
 
 INSPECT_EVAL_SET_CAPTURE = "INSPECT_EVAL_SET_CAPTURE"
 
-EVAL_SET_CAPTURE_VERSION = 1
+EVAL_SET_CAPTURE_VERSION = 2
 
 
 def eval_set_capture_requested() -> str | None:
@@ -115,7 +116,16 @@ class EvalSetCapture(BaseModel):
     """Eval set id as passed to `eval_set()` (never derived from `log_dir`)."""
 
     options: dict[str, Any]
-    """Informational `eval_set()` options (e.g. `log_dir`, `retry_attempts`, `limit`)."""
+    """Informational `eval_set()` options as the *definition* passed them (e.g. `log_dir`, `retry_attempts`, `limit`).
+
+    What the definition asked for, never what this capture ran with — a runner already knows what it overrode and cannot otherwise learn what it displaced. Where the two differ, `overrides` says so.
+    """
+
+    overrides: "EvalSetOverrides | None" = None
+    """Operational overrides in force for this capture, or `None` where the run is the definition's own.
+
+    Added in version 2. Every field in it is one `task_identifier()` ignores, so no identifier here is affected by one — but `epochs` and `limit` change a task's sample count, so `tasks[].samples` reflects these and `options` does not. Recording them is what lets a reader account for the difference rather than infer it.
+    """
 
     tasks: list[EvalSetCaptureTask]
     """Resolved tasks in the eval set."""
@@ -164,6 +174,7 @@ def build_eval_set_capture(
     limit: int | tuple[int, int] | None,
     eval_set_id: str | None,
     options: dict[str, Any],
+    overrides: "EvalSetOverrides | None" = None,
 ) -> EvalSetCapture:
     """Build a capture manifest for a set of resolved tasks.
 
@@ -173,7 +184,8 @@ def build_eval_set_capture(
         epochs: Eval-set level epochs (task epochs are used when not specified).
         limit: Eval-set level sample limit.
         eval_set_id: Eval set id as passed to `eval_set()`.
-        options: Informational `eval_set()` options to record.
+        options: Informational `eval_set()` options as the definition passed them.
+        overrides: Operational overrides in force, or `None`.
 
     Returns:
         Capture manifest for the eval set.
@@ -230,5 +242,6 @@ def build_eval_set_capture(
         identifier_version=TASK_IDENTIFIER_VERSION,
         eval_set_id=eval_set_id,
         options=options,
+        overrides=overrides,
         tasks=capture_tasks,
     )

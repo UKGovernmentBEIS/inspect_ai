@@ -22,36 +22,24 @@ effects of executing it (registered models, `set_model_info`, dynamically
 constructed `Model` objects) in every worker process.
 
 A selection may also carry **operational overrides** for the worker, in an
-`overrides` container: `log_dir`, `max_samples`, `limit`, `max_sandboxes`, and
-`max_tasks`. These exist because an environment variable cannot help here —
-`INSPECT_LOG_DIR` and friends supply *defaults*, and `eval_set()` declares
-`log_dir` with no default, so every definition passes it explicitly and a
-default can never win. A runner that needs a worker's logs to land somewhere
-else (a rehearsal writing to local scratch rather than to the definition's S3
-bucket), or two samples of a task rather than five thousand, has no other way
-to say so.
-
-Every one of them is deliberately *operational*, and the boundary is worth
-stating precisely: an override may change how a worker is **operated** — where
-its output goes, how fast it runs, how much of its dataset it runs, how many
-sandboxes it stands up, how many of its tasks it runs at once — and never what
-is evaluated. The operative test is
-that no override participates in `task_identifier()`, which is what stops one
-desynchronizing a worker from the capture manifest. `limit` passes it because
-the identifier hashes a task's *execution* limits (message, token, turn, time,
-working, cost) and not its dataset slice. `time_limit` is the field this rules
-out: it *is* in the identifier, so a runner wanting to cap a rehearsal's wall
-clock has to do it from outside rather than through here.
+`overrides` container of `EvalSetOverrides` — see `eval_set_overrides.py`,
+which owns the model, the rule deciding what may be in it, and the run-wide
+document a worker's container is merged on top of. Only the split belongs
+here: this container is what differs *between* workers, which in practice is
+`log_dir`, `max_samples`, and `max_tasks`, while everything true of the run as
+a whole is said once in the run-wide document so that capture sees it too.
 
 Omitting the container, or any field in it, keeps whatever the definition
 chose. The container arrived in schema version 3, and a document may not use a
 field newer than the version it declares — see `_FIELD_MIN_VERSION`. That gate
 is on the container, not on its contents: a field added to `overrides` later
-(`max_tasks`, in version 4) bumps the schema version so an older inspect
-refuses the document as too new rather than as carrying an unknown field, but
-nothing tracks which version each override arrived in. Recording that would
-buy nothing an unknown-field error does not already say. The same reasoning
-covers the per-task pruning facets added in version 5.
+(`max_tasks` in version 4, the identity-neutral remainder of `eval_set()`'s
+signature in version 6) bumps the schema version so an older inspect refuses
+the document as too new rather than as carrying an unknown field, but nothing
+tracks which version each override arrived in. Recording that would buy
+nothing an unknown-field error does not already say — the container forbids
+extras, so an older inspect fails on the field rather than ignoring it. The
+same reasoning covers the per-task pruning facets added in version 5.
 
 A selection task may also carry **pruning facets** — `registry_name` and
 `args_hash` — which are an optimization and never a decision. Constructing a
@@ -106,14 +94,16 @@ import json
 import os
 from collections import Counter
 
-from pydantic import BaseModel, ConfigDict, Field, StrictInt, ValidationError
+from pydantic import BaseModel, ConfigDict, ValidationError
 
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import file
 
+from .eval_set_overrides import EvalSetOverrides, validate_eval_set_overrides
+
 INSPECT_EVAL_SET_SELECTION = "INSPECT_EVAL_SET_SELECTION"
 
-EVAL_SET_SELECTION_VERSION = 5
+EVAL_SET_SELECTION_VERSION = 6
 
 
 def eval_set_selection_requested() -> str | None:
@@ -169,48 +159,6 @@ class EvalSetSelectionTask(BaseModel):
     """`task_args_hash()` of the task's args, as the capture manifest records it. Paired with `registry_name` to identify a task without constructing it."""
 
 
-class EvalSetSelectionOverrides(BaseModel):
-    """How a worker is operated, overriding what the definition passed.
-
-    `None` on any field keeps the definition's value, which is also what an
-    absent container means. Nothing here changes what is evaluated: see the
-    module docstring for the rule and for the one field it rules out.
-    """
-
-    model_config = ConfigDict(extra="forbid")
-
-    log_dir: str | None = None
-    """Log directory for this worker, overriding the definition's."""
-
-    # strict: lax coercion would read JSON `true` as 1 and `"3"` as 3, so a
-    # runner's templating bug could silently pin a worker to one concurrent
-    # sample instead of failing. `log_dir` needs no such guard -- pydantic
-    # already refuses non-strings for it.
-    max_samples: int | None = Field(default=None, strict=True)
-    """Sample concurrency for this worker, overriding the definition's."""
-
-    # `StrictInt` rather than `Field(strict=True)`, which pydantic cannot apply
-    # to a union at all -- and strictness matters more here than anywhere else
-    # in this model, because a `limit` read leniently is a rehearsal that runs
-    # the whole dataset. The tuple arm stays lax about list-to-tuple so a JSON
-    # `[1, 5]` round-trips; its members do not.
-    limit: StrictInt | tuple[StrictInt, StrictInt] | None = None
-    """Dataset slice for this worker, overriding the definition's: a sample count, or a `(start, end)` range."""
-
-    max_sandboxes: int | None = Field(default=None, strict=True)
-    """Sandbox concurrency for this worker, overriding the definition's."""
-
-    # the one override a worker running several tasks cannot do without, and
-    # the default it displaces is not a stable one: outside selection mode
-    # `eval_set()` fills `max_tasks` in itself, but that happens below the
-    # selection branch, so a worker inherits `eval()`'s rule instead -- one
-    # task at a time for a single model, the model count for several. A runner
-    # that hands a worker five tasks and says nothing gets whichever of those
-    # applies, having chosen neither.
-    max_tasks: int | None = Field(default=None, strict=True)
-    """Task concurrency for this worker, overriding the definition's."""
-
-
 class EvalSetSelection(BaseModel):
     """Tasks an external runner has selected for a worker to run."""
 
@@ -225,8 +173,8 @@ class EvalSetSelection(BaseModel):
     tasks: list[EvalSetSelectionTask]
     """Tasks to run (identified by `task_identifier`)."""
 
-    overrides: EvalSetSelectionOverrides | None = None
-    """How to operate this worker, or `None` to run it as the definition asked."""
+    overrides: EvalSetOverrides | None = None
+    """How to operate this worker, overriding both the definition and the run-wide overrides document, or `None` to take those as they come."""
 
 
 # The version each optional field was introduced in. A document may not use a
@@ -361,45 +309,6 @@ def read_eval_set_selection(selection_path: str) -> EvalSetSelection:
     # runner bug worth reporting here rather than letting it surface as an empty
     # path, a semaphore that admits nothing, or an empty dataset.
     if selection.overrides is not None:
-        _validate_overrides(selection.overrides, selection_path)
+        validate_eval_set_overrides(selection.overrides, selection_path)
 
     return selection
-
-
-def _validate_overrides(
-    overrides: EvalSetSelectionOverrides, selection_path: str
-) -> None:
-    """Refuse an override whose value cannot mean anything.
-
-    Args:
-        overrides: The container to check.
-        selection_path: Path to the selection, for the message.
-
-    Raises:
-        PrerequisiteError: An override carries a value that is not usable.
-    """
-
-    def refuse(detail: str) -> PrerequisiteError:
-        return PrerequisiteError(
-            f"The eval set selection at '{selection_path}' has {detail} "
-            "(omit the field to keep the definition's value)."
-        )
-
-    if overrides.log_dir is not None and not overrides.log_dir.strip():
-        raise refuse("an empty 'log_dir'")
-    for name in ("max_samples", "max_sandboxes", "max_tasks"):
-        value = getattr(overrides, name)
-        if value is not None and value < 1:
-            raise refuse(f"{name}={value}; it must be at least 1")
-    if isinstance(overrides.limit, int):
-        if overrides.limit < 1:
-            raise refuse(f"limit={overrides.limit}; it must be at least 1")
-    elif overrides.limit is not None:
-        start, end = overrides.limit
-        # a half-open range as `eval_set()` reads it, so start == end is an
-        # empty slice rather than one sample -- worth refusing for the same
-        # reason limit=0 is
-        if start < 0 or end <= start:
-            raise refuse(
-                f"limit=({start}, {end}); a range must be ordered and non-negative"
-            )

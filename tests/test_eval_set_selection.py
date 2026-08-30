@@ -16,11 +16,14 @@ from inspect_ai._eval.eval_set_manifest import (
     INSPECT_EVAL_SET_CAPTURE,
     EvalSetCapture,
 )
+from inspect_ai._eval.eval_set_overrides import (
+    INSPECT_EVAL_SET_OVERRIDES,
+    EvalSetOverrides,
+)
 from inspect_ai._eval.eval_set_selection import (
     EVAL_SET_SELECTION_VERSION,
     INSPECT_EVAL_SET_SELECTION,
     EvalSetSelection,
-    EvalSetSelectionOverrides,
     EvalSetSelectionTask,
 )
 from inspect_ai._eval.evalset import task_identifier
@@ -693,7 +696,7 @@ def test_eval_set_selection_log_dir_override(
     definition_log_dir = tmp_path / "definition-logs"
     override_log_dir = tmp_path / "scratch" / "smoke"
     selection = selection_for(selected.identifier)
-    selection.overrides = EvalSetSelectionOverrides(log_dir=str(override_log_dir))
+    selection.overrides = EvalSetOverrides(log_dir=str(override_log_dir))
 
     success, logs = run_selection(monkeypatch, tmp_path, selection, definition_log_dir)
 
@@ -717,7 +720,7 @@ def test_eval_set_selection_max_samples_override(
     selected = capture.tasks[0]
 
     selection = selection_for(selected.identifier)
-    selection.overrides = EvalSetSelectionOverrides(max_samples=3)
+    selection.overrides = EvalSetOverrides(max_samples=3)
 
     success, logs = run_selection(
         monkeypatch,
@@ -729,6 +732,35 @@ def test_eval_set_selection_max_samples_override(
 
     assert success
     assert logs[0].eval.config.max_samples == 3
+
+
+def test_eval_set_selection_run_wide_overrides_reach_a_worker(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The run-wide document reaches a worker, and the worker's own container wins.
+
+    The two halves of the split: what is true of the run is said once, where
+    capture sees it too, and what differs between workers is said in the
+    selection. A worker that names its own `max_samples` still inherits the
+    run's `max_sandboxes`.
+    """
+    capture = enumerate_eval_set(monkeypatch, tmp_path)
+    selected = capture.tasks[0]
+
+    overrides_path = tmp_path / "overrides.json"
+    overrides_path.write_text(
+        json.dumps({"max_samples": 2, "max_sandboxes": 5}), encoding="utf-8"
+    )
+    monkeypatch.setenv(INSPECT_EVAL_SET_OVERRIDES, str(overrides_path))
+
+    selection = selection_for(selected.identifier)
+    selection.overrides = EvalSetOverrides(max_samples=3)
+
+    success, logs = run_selection(monkeypatch, tmp_path, selection, tmp_path / "logs")
+
+    assert success
+    assert logs[0].eval.config.max_samples == 3
+    assert logs[0].eval.config.max_sandboxes == 5
 
 
 def test_eval_set_selection_limit_override(
@@ -746,7 +778,7 @@ def test_eval_set_selection_limit_override(
     selected = next(t for t in capture.tasks if t.name == "selection_task_one")
 
     selection = selection_for(selected.identifier)
-    selection.overrides = EvalSetSelectionOverrides(limit=1)
+    selection.overrides = EvalSetOverrides(limit=1)
 
     success, logs = run_selection(monkeypatch, tmp_path, selection, tmp_path / "logs")
 
@@ -764,7 +796,7 @@ def test_eval_set_selection_limit_override_as_a_range(
     selected = next(t for t in capture.tasks if t.name == "selection_task_one")
 
     selection = selection_for(selected.identifier)
-    selection.overrides = EvalSetSelectionOverrides(limit=(1, 2))
+    selection.overrides = EvalSetOverrides(limit=(1, 2))
 
     success, logs = run_selection(monkeypatch, tmp_path, selection, tmp_path / "logs")
 
@@ -787,7 +819,7 @@ def test_eval_set_selection_max_sandboxes_override(
     selected = capture.tasks[0]
 
     selection = selection_for(selected.identifier)
-    selection.overrides = EvalSetSelectionOverrides(max_sandboxes=2)
+    selection.overrides = EvalSetOverrides(max_sandboxes=2)
 
     success, logs = run_selection(monkeypatch, tmp_path, selection, tmp_path / "logs")
 
@@ -814,7 +846,7 @@ def test_eval_set_selection_max_tasks_override(
         version=EVAL_SET_SELECTION_VERSION,
         eval_set_id="worker-test",
         tasks=[EvalSetSelectionTask(identifier=t.identifier) for t in selected],
-        overrides=EvalSetSelectionOverrides(max_tasks=2),
+        overrides=EvalSetOverrides(max_tasks=2),
     )
 
     success, logs = run_selection(
@@ -866,7 +898,7 @@ def test_eval_set_selection_overrides_default_to_the_definition(
 
     # and a container present but silent about a field is the same answer, which
     # is the case a runner setting only `log_dir` actually writes
-    selection.overrides = EvalSetSelectionOverrides(log_dir=str(log_dir))
+    selection.overrides = EvalSetOverrides(log_dir=str(log_dir))
     success, logs = run_selection(
         monkeypatch, tmp_path, selection, log_dir, max_samples=7, name="partial"
     )
@@ -901,7 +933,7 @@ def test_eval_set_selection_invalid_override(
 ) -> None:
     """A nonsense override is a runner bug, reported rather than silently applied."""
     selection = selection_for("unused@unused#unused/unused/unused")
-    selection.overrides = EvalSetSelectionOverrides.model_validate({field: value})
+    selection.overrides = EvalSetOverrides.model_validate({field: value})
     with pytest.raises(PrerequisiteError, match=match):
         run_selection(monkeypatch, tmp_path, selection, tmp_path / "logs")
 
@@ -1331,6 +1363,58 @@ _EXPECTED_SELECTION_FIELDS: dict[int, dict[str, set[str]]] = {
             "max_tasks",
         },
     },
+    # v6 stopped curating the override set and derived it. The rule -- an
+    # eval-set argument is overridable iff `task_identifier()` ignores it -- was
+    # already computed by evalset.py, so the five fields above were an arbitrary
+    # subset of a principled line rather than a line of their own. The container
+    # also moved to `eval_set_overrides.py`, because a run-wide document now
+    # carries the same shape and capture honours it; see
+    # `test_eval_set_overrides.py`, which fails by name when an `eval_set()`
+    # parameter lands in neither half of the partition.
+    6: {
+        "selection": {"version", "eval_set_id", "tasks", "overrides"},
+        "task": {"identifier", "resume", "registry_name", "args_hash"},
+        "overrides": {
+            "approval",
+            "checkpoint",
+            "debug_errors",
+            "display",
+            "epochs",
+            "generate_config",
+            "limit",
+            "log_buffer",
+            "log_dir",
+            "log_format",
+            "log_images",
+            "log_level",
+            "log_level_transcript",
+            "log_model_api",
+            "log_realtime",
+            "log_refusals",
+            "log_samples",
+            "log_shared",
+            "max_dataset_memory",
+            "max_samples",
+            "max_sandboxes",
+            "max_subprocesses",
+            "max_tasks",
+            "metadata",
+            "model_base_url",
+            "model_cost_config",
+            "notification",
+            "retry_on_error",
+            "sample_id",
+            "sample_shuffle",
+            "sandbox",
+            "sandbox_cleanup",
+            "sandbox_prebuilt",
+            "score",
+            "score_display",
+            "score_on_error",
+            "tags",
+            "trace",
+        },
+    },
 }
 
 
@@ -1339,13 +1423,15 @@ def test_eval_set_selection_schema_stability() -> None:
     expected = _EXPECTED_SELECTION_FIELDS[EVAL_SET_SELECTION_VERSION]
     assert set(EvalSetSelection.model_fields.keys()) == expected["selection"]
     assert set(EvalSetSelectionTask.model_fields.keys()) == expected["task"]
-    assert set(EvalSetSelectionOverrides.model_fields.keys()) == expected["overrides"]
+    assert set(EvalSetOverrides.model_fields.keys()) == expected["overrides"]
     # the field sets above are the whole format: loosening this would let a
     # runner's typo through as a silently dropped field
     assert EvalSetSelection.model_config.get("extra") == "forbid"
     assert EvalSetSelectionTask.model_config.get("extra") == "forbid"
-    assert EvalSetSelectionOverrides.model_config.get("extra") == "forbid"
+    assert EvalSetOverrides.model_config.get("extra") == "forbid"
     # and no override may participate in task identity, which is what stops one
     # desynchronizing a worker from the capture manifest. `time_limit` is the
-    # field this rules out, so its absence is the assertion worth making
-    assert "time_limit" not in EvalSetSelectionOverrides.model_fields
+    # field this rules out, so its absence is the assertion worth making --
+    # `test_eval_set_overrides.py` makes the general one, over the whole of
+    # `eval_set()`'s signature
+    assert "time_limit" not in EvalSetOverrides.model_fields
