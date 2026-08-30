@@ -18,17 +18,23 @@ import pytest
 from click.testing import CliRunner
 
 import inspect_ai._cli.eval as cli_eval
+from inspect_ai._cli import main
 from inspect_ai._eval.eval_set_env import (
     _FALSE,
     _TRUE,
     ASSEMBLED,
+    DISPLAYS,
     ENV_VARIABLES,
     GENERATE_CONFIG_VARIABLES,
+    LOG_FORMATS,
+    LOG_LEVELS,
     NOT_FROM_ENV,
     resolve_eval_env,
 )
 from inspect_ai._eval.eval_set_overrides import EvalSetOverrides
 from inspect_ai._eval.evalset import GENERATE_CONFIG_FIELDS_TO_EXCLUDE
+from inspect_ai._eval.task import Epochs
+from inspect_ai._eval.task.task import resolve_epochs
 from inspect_ai._util.error import PrerequisiteError
 
 TASK = "tests/test_eval_config.py@eval_config_task"
@@ -377,3 +383,232 @@ def test_a_generate_config_variable_beats_the_file(tmp_path: Path) -> None:
     )
     assert resolved is not None and resolved.generate_config is not None
     assert resolved.generate_config.max_connections == 40
+
+
+# --- every variable, not a representative subset -----------------------------
+
+# One value per variable, chosen to exercise whatever conversion it has rather
+# than to be typical: a flag gets a truthy word, an int-or-flag gets the word
+# meaning "the default", a comma list gets two items, a case-insensitive choice
+# gets the wrong case. Where an option takes a free string the value is
+# arbitrary and the row still earns its place, since it pins that nothing
+# mangles it. Every name in `ENV_VARIABLES` appears, aliases included — the
+# alias is exactly the kind of thing that goes unread.
+EVERY: dict[str, str] = {
+    "INSPECT_LOG_FORMAT": "EVAL",
+    "INSPECT_EVAL_LOG_FORMAT": "json",
+    "INSPECT_EVAL_NO_LOG_SAMPLES": "1",
+    "INSPECT_EVAL_NO_LOG_REALTIME": "1",
+    "INSPECT_EVAL_LOG_MODEL_API": "1",
+    "INSPECT_EVAL_LOG_REFUSALS": "1",
+    "INSPECT_EVAL_LOG_BUFFER": "25",
+    "INSPECT_LOG_SHARED": "true",
+    "INSPECT_EVAL_LOG_SHARED": "30",
+    "INSPECT_LOG_LEVEL": "warning",
+    "INSPECT_LOG_LEVEL_TRANSCRIPT": "DEBUG",
+    "INSPECT_EVAL_LIMIT": "10-20",
+    "INSPECT_EVAL_SAMPLE_ID": "alpha,beta",
+    "INSPECT_EVAL_SAMPLE_SHUFFLE": "true",
+    "INSPECT_EVAL_EPOCHS": "3",
+    "INSPECT_EVAL_MAX_SAMPLES": "20",
+    "INSPECT_EVAL_MAX_TASKS": "4",
+    "INSPECT_EVAL_MAX_SUBPROCESSES": "5",
+    "INSPECT_EVAL_MAX_SANDBOXES": "6",
+    "INSPECT_EVAL_MAX_DATASET_MEMORY": "0",
+    "INSPECT_EVAL_MODEL_COST_CONFIG": "costs.yaml",
+    "INSPECT_EVAL_SANDBOX": "docker:compose.yaml",
+    "INSPECT_EVAL_NO_SANDBOX_CLEANUP": "1",
+    "INSPECT_EVAL_SANDBOX_PREBUILT": "1",
+    "INSPECT_EVAL_CHECKPOINT": "turn:3",
+    "INSPECT_EVAL_APPROVAL": "approval.yaml",
+    "INSPECT_EVAL_RETRY_ON_ERROR": "true",
+    "INSPECT_EVAL_SCORE_ON_ERROR": "1",
+    "INSPECT_DEBUG_ERRORS": "1",
+    "INSPECT_EVAL_NO_SCORE": "1",
+    "INSPECT_EVAL_SCORE_DISPLAY": "true",
+    "INSPECT_EVAL_TAGS": "smoke,nightly",
+    "INSPECT_EVAL_METADATA": "a=1 b=two",
+    "INSPECT_EVAL_TRACE": "1",
+    # the generate-config half, whose values need the command body's pass too
+    "INSPECT_EVAL_MAX_RETRIES": "3",
+    "INSPECT_EVAL_TIMEOUT": "60",
+    "INSPECT_EVAL_ATTEMPT_TIMEOUT": "30",
+    "INSPECT_EVAL_MAX_CONNECTIONS": "40",
+    "INSPECT_EVAL_ADAPTIVE_CONNECTIONS": "true",
+    "INSPECT_EVAL_BATCH": "true",
+    "INSPECT_EVAL_CACHE": "7",
+    "INSPECT_EVAL_CACHE_PROMPT": "true",
+}
+
+GENERATE_CONFIG_FIELD = {
+    f"INSPECT_EVAL_{field.upper()}": field for field in GENERATE_CONFIG_VARIABLES
+}
+
+# `--display` is a group option on `inspect`, not an eval option, so the CLI
+# reads INSPECT_DISPLAY and calls `init_display_type` with it instead of passing
+# it to `eval_set()`. There is no kwarg to compare against, and the test below
+# asserts that rather than the value.
+NO_KWARG = {"INSPECT_DISPLAY": "display"}
+
+# The reducer variables adjust `epochs` rather than carrying a field of their
+# own, so they have no row of their own either; `test_the_reducer_flag...`
+# covers them.
+ADJUSTS_ANOTHER = {"INSPECT_EVAL_EPOCHS_REDUCER", "INSPECT_EVAL_NO_EPOCHS_REDUCER"}
+
+
+def test_the_matrix_covers_every_variable_that_is_read() -> None:
+    """The gap that let five divergences through.
+
+    The first version of the agreement test used a representative subset, so it
+    proved the cases somebody had already thought about — and `CACHE=7`,
+    `BATCH=true`, `CACHE_PROMPT=true`, `LOG_FORMAT=EVAL` and the reducer flag
+    were all wrong underneath it. A subset cannot find what nobody suspected,
+    so the matrix is required to name every variable this module reads.
+    """
+    read = {name for variable in ENV_VARIABLES.values() for name in variable.names}
+    read |= set(GENERATE_CONFIG_FIELD)
+
+    covered = set(EVERY) | set(NO_KWARG) | ADJUSTS_ANOTHER
+    assert read - covered == set(), sorted(read - covered)
+    assert covered - read - ADJUSTS_ANOTHER == set(), sorted(covered - read)
+
+
+@pytest.mark.parametrize(
+    ("variable", "value"),
+    sorted(EVERY.items()),
+    ids=sorted(EVERY),
+)
+def test_every_variable_reaches_the_value_the_cli_reaches(
+    variable: str, value: str
+) -> None:
+    """One environment per variable, compared against `inspect eval-set` itself.
+
+    Per-variable rather than all at once, so a failure names the variable
+    instead of the set — and so a value one option rejects cannot mask what
+    another option answered.
+    """
+    field = GENERATE_CONFIG_FIELD.get(variable)
+    for candidate, entry in ENV_VARIABLES.items():
+        if variable in entry.names:
+            field = candidate
+            break
+    assert field is not None, variable
+
+    from_cli = _cli_kwargs({variable: value})
+    resolved = resolve_eval_env({variable: value})
+    assert resolved is not None, variable
+
+    if variable in GENERATE_CONFIG_FIELD:
+        config = resolved.generate_config
+        assert config is not None, variable
+        assert getattr(config, field) == from_cli[field], variable
+    else:
+        ours, theirs = getattr(resolved, field), from_cli[field]
+        if field == "epochs":
+            ours, theirs = _epochs_shape(ours), _epochs_shape(theirs)
+        assert ours == theirs, variable
+
+
+def _epochs_shape(value: int | Epochs | None) -> Any:
+    """An epoch count in a form the two spellings of it can be compared in.
+
+    The CLI always builds an `Epochs`, where the overrides document spells a
+    plain count as an integer — the shape `eval_set(epochs=4)` itself takes,
+    and what `_overridden_epochs` turns back into an `Epochs` on the way in. So
+    the two differ in spelling and agree in meaning, which `resolve_epochs` is
+    the function that says.
+    """
+    resolved = resolve_epochs(value)
+    if resolved is None:
+        return None
+    return (resolved.epochs, [str(reducer) for reducer in resolved.reducer or []])
+
+
+def test_the_display_variable_is_read_but_not_as_an_eval_set_argument() -> None:
+    """`--display` is a group option, so the CLI never passes it to `eval_set()`.
+
+    It initialises the display for the whole process instead. `eval_set()` does
+    the same thing from its own `display` argument, but only where nothing has
+    initialised one yet — which in a driven worker is the case, so honouring the
+    variable through the overrides document reaches the same place by the other
+    route. The agreement test cannot express that, so it is asserted here.
+    """
+    assert "display" not in _cli_kwargs({"INSPECT_DISPLAY": "plain"})
+    resolved = resolve_eval_env({"INSPECT_DISPLAY": "PLAIN"})
+    assert resolved is not None and resolved.display == "plain"
+
+
+def test_a_generate_config_variable_the_cli_rejects_is_a_configuration_error() -> None:
+    """Not an unhandled pydantic error, which a runner cannot present as one.
+
+    `resolve_eval_env` is called by a runner at launch and again on every
+    scheduled turn; a `ValidationError` escaping it crashes the turn where a
+    `PrerequisiteError` degrades it.
+    """
+    with pytest.raises((PrerequisiteError, click.ClickException)):
+        resolve_eval_env({"INSPECT_EVAL_CACHE_PROMPT": "TRUE"})
+
+
+def test_the_reducer_flag_is_read_as_a_flag() -> None:
+    # bound to `--no-epochs-reducer`, so its value decides rather than its
+    # presence: exported false, it must leave the reducers alone
+    off = resolve_eval_env(
+        {"INSPECT_EVAL_EPOCHS": "3", "INSPECT_EVAL_NO_EPOCHS_REDUCER": "false"}
+    )
+    assert off is not None and off.epochs == 3
+
+    on = resolve_eval_env(
+        {"INSPECT_EVAL_EPOCHS": "3", "INSPECT_EVAL_NO_EPOCHS_REDUCER": "true"}
+    )
+    assert on is not None and not isinstance(on.epochs, int)
+    assert on.epochs is not None and on.epochs.reducer == []
+
+
+# --- the choice lists are the CLI's ------------------------------------------
+
+CHOICES: list[tuple[str, tuple[str, ...]]] = [
+    ("INSPECT_LOG_FORMAT", LOG_FORMATS),
+    ("INSPECT_LOG_LEVEL", LOG_LEVELS),
+    ("INSPECT_LOG_LEVEL_TRANSCRIPT", LOG_LEVELS),
+    ("INSPECT_DISPLAY", DISPLAYS),
+    ("INSPECT_EVAL_CACHE_PROMPT", ("auto", "true", "false")),
+]
+
+
+@pytest.mark.parametrize(
+    ("variable", "choices"), CHOICES, ids=[variable for variable, _ in CHOICES]
+)
+def test_a_choice_list_is_the_one_the_option_declares(
+    variable: str, choices: tuple[str, ...]
+) -> None:
+    """Reproduced rather than imported, so pin the two together.
+
+    A choice added upstream and missing here would be refused from the
+    environment while `inspect eval` accepted it — the first failure mode this
+    module exists to prevent, arriving through the fix for the third.
+    """
+    declared: tuple[str, ...] | None = None
+    for command in (cli_eval.eval_set_command, main.inspect):
+        for parameter in command.params:
+            envvar = getattr(parameter, "envvar", None)
+            names = (
+                [envvar]
+                if isinstance(envvar, str)
+                else [str(name) for name in envvar or ()]
+            )
+            if variable in names and isinstance(parameter.type, click.Choice):
+                declared = tuple(str(choice) for choice in parameter.type.choices)
+        if declared is not None:
+            break
+
+    assert declared is not None, variable
+    assert set(declared) == set(choices), variable
+
+
+def test_a_choice_the_cli_refuses_is_refused_here() -> None:
+    # accepted, `log_level` would reach `eval_set()` as a level nothing knows;
+    # `log_format` and `display` would escape as a pydantic error instead,
+    # because the model types those two as `Literal`
+    for variable in ("INSPECT_LOG_LEVEL", "INSPECT_LOG_FORMAT", "INSPECT_DISPLAY"):
+        with pytest.raises(PrerequisiteError, match=variable):
+            resolve_eval_env({variable: "chatty"})

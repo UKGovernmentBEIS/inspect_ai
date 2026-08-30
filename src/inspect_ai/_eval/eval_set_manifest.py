@@ -27,7 +27,7 @@ from inspect_ai._eval.task.constants import TASK_ALL_PARAMS_ATTR
 from inspect_ai._eval.task.resolved import ResolvedTask
 from inspect_ai._eval.task.run import plan_agent_name, resolve_plan
 from inspect_ai._eval.task.task import resolve_epochs
-from inspect_ai._eval.task.util import sample_id_filter
+from inspect_ai._eval.task.util import resolve_task_sample_ids, sample_id_filter
 from inspect_ai.dataset import Dataset
 from inspect_ai.model._model import ModelName
 from inspect_ai.model._model_config import model_args_for_log
@@ -172,6 +172,7 @@ def samples_selected(
     dataset: Dataset,
     limit: int | tuple[int, int] | None,
     sample_id: str | int | list[str] | list[int] | list[str | int] | None,
+    task: str | None = None,
 ) -> int:
     """Number of dataset samples a `limit` or a `sample_id` selects.
 
@@ -193,15 +194,28 @@ def samples_selected(
     Capture happens before that numbering, so matching `sample.id` as it stands
     would find nothing and record a task with zero samples.
 
+    **A `task:id` selector belongs to one task and is stripped for it.**
+    `--sample-id alpha:one,beta:two` runs one sample of each, because
+    `resolve_task_sample_ids` narrows the list per task before the filter sees
+    it. Matching the qualified list against every dataset instead counts zero
+    for both, which is the same class of mistake as ignoring `sample_id`
+    altogether and produces the same never-settling task.
+
     Args:
         dataset: The task's dataset.
         limit: Eval limit (first n samples, or [start, stop] range).
         sample_id: Sample id pattern(s) selected, if any.
+        task: The task's registry name, for resolving `task:id` selectors. `None` skips that resolution, which is right only where the caller has already done it.
 
     Returns:
         Number of samples that would run.
     """
     if sample_id is not None:
+        if task is not None:
+            sample_id = resolve_task_sample_ids(task, sample_id)
+            if not sample_id:
+                # every selector named some other task
+                return 0
         matcher = sample_id_filter(sample_id)
         return sum(
             1
@@ -279,7 +293,9 @@ def build_eval_set_capture(
                 ),
                 sequence=task.sequence,
                 identifier=task_identifier(task, eval_set_args),
-                samples=samples_selected(task.task.dataset, limit, sample_id),
+                samples=samples_selected(
+                    task.task.dataset, limit, sample_id, task.task.name
+                ),
                 epochs=epoch_count,
             )
         )

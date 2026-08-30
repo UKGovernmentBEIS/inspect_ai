@@ -47,11 +47,19 @@ returns, it is machinery for external runners (currently inspect_steward).
 from collections.abc import Callable, Mapping
 from typing import Any, NamedTuple
 
+import click
 import yaml
 
-from inspect_ai._util.config import resolve_args
-from inspect_ai._util.constants import DEFAULT_LOG_SHARED, DEFAULT_RETRY_ON_ERROR
+from inspect_ai._util.constants import (
+    ALL_LOG_LEVELS,
+    DEFAULT_BATCH_SIZE,
+    DEFAULT_CACHE_DAYS,
+    DEFAULT_LOG_SHARED,
+    DEFAULT_RETRY_ON_ERROR,
+)
 from inspect_ai._util.error import PrerequisiteError
+from inspect_ai._util.flag_values import int_bool_or_str_value, int_or_bool_value
+from inspect_ai._util.generate_config_args import config_from_locals
 from inspect_ai._util.samples import parse_sample_id, parse_samples_limit
 from inspect_ai.util._checkpoint.parse_cli import parse_checkpoint
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
@@ -84,17 +92,29 @@ def _int_or_bool(true_value: int) -> Callable[[str, str], int]:
     """An option that is a bare flag or an integer (`int_or_bool_flag_callback`)."""
 
     def convert(text: str, variable: str) -> int:
-        lowered = text.strip().lower()
-        if lowered in ("true", "yes", "1"):
-            return true_value
-        if lowered in ("false", "no", "0"):
-            return 0
         try:
-            return int(text)
+            return int_or_bool_value(text.strip(), true_value)
         except ValueError:
             raise PrerequisiteError(
                 f"ERROR: {variable}={text!r} is not 'true', 'false', or an integer."
             ) from None
+
+    return convert
+
+
+def _int_bool_or_str(
+    true_value: int, false_value: int | None = None
+) -> Callable[[str, str], int | str | None]:
+    """An option that is a bare flag, an integer, or a config file path.
+
+    `int_bool_or_str_flag_callback`, which `--cache` and `--batch` use. The
+    string branch is why a value that is neither boolean nor integer cannot be
+    an error here: `--cache costs.yaml` is a policy file, and `INSPECT_EVAL_CACHE`
+    means the same.
+    """
+
+    def convert(text: str, variable: str) -> int | str | None:
+        return int_bool_or_str_value(text.strip(), true_value, false_value)
 
     return convert
 
@@ -110,6 +130,50 @@ def _integer(text: str, variable: str) -> int:
 
 def _text(text: str, variable: str) -> str:
     return text
+
+
+def _choice(*choices: str) -> Callable[[str, str], str]:
+    """A `click.Choice(..., case_sensitive=False)` option: lowercase, then match.
+
+    Both halves are load-bearing and each was missing once. Without the
+    lowercasing, `INSPECT_LOG_FORMAT=EVAL` is a valid log format to `inspect
+    eval` and a validation error here. Without the match, `INSPECT_LOG_LEVEL`
+    accepts a level `inspect eval` refuses at the door and hands it to
+    `eval_set()`, where it fails somewhere with nothing to say about where it
+    came from — and for the two fields the model types as `Literal` it escapes
+    as a `ValidationError` instead, which is not what a runner is told to
+    expect.
+    """
+
+    def convert(text: str, variable: str) -> str:
+        lowered = text.strip().lower()
+        if lowered not in choices:
+            raise PrerequisiteError(
+                f"ERROR: {variable}={text!r} is not one of {', '.join(choices)}."
+            )
+        return lowered
+
+    return convert
+
+
+def _strict_choice(*choices: str) -> Callable[[str, str], str]:
+    """A `click.Choice` declared case-sensitively, which matches without lowercasing.
+
+    Only `--cache-prompt` is spelled this way in this surface; the rest pass
+    `case_sensitive=False` and take `_choice`. The distinction is worth keeping
+    because click enforces it: `INSPECT_EVAL_CACHE_PROMPT=TRUE` is a usage error
+    to `inspect eval`, and a reader that accepted it would let a driven run
+    honour a value the command being driven rejects.
+    """
+
+    def convert(text: str, variable: str) -> str:
+        if text not in choices:
+            raise PrerequisiteError(
+                f"ERROR: {variable}={text!r} is not one of {', '.join(choices)}."
+            )
+        return text
+
+    return convert
 
 
 def _only_true(text: str, variable: str) -> bool | None:
@@ -199,6 +263,14 @@ def _sandbox(text: str, variable: str) -> SandboxEnvironmentSpec:
 
 # --- the table ---------------------------------------------------------------
 
+# The choice lists, reproduced rather than imported for the reason the boolean
+# vocabulary above is: `_eval` does not depend on `_cli`. Each is asserted
+# against the option that declares it, so a choice added upstream fails here by
+# name rather than being silently refused from the environment.
+LOG_FORMATS = ("eval", "json")
+LOG_LEVELS = tuple(level.lower() for level in ALL_LOG_LEVELS)
+DISPLAYS = ("full", "conversation", "rich", "plain", "log", "none")
+
 
 class EnvVariable(NamedTuple):
     """What an override field answers to in the environment, and how it reads."""
@@ -212,7 +284,9 @@ class EnvVariable(NamedTuple):
 
 ENV_VARIABLES: dict[str, EnvVariable] = {
     # --- where output goes ---------------------------------------------------
-    "log_format": EnvVariable(("INSPECT_LOG_FORMAT", "INSPECT_EVAL_LOG_FORMAT"), _text),
+    "log_format": EnvVariable(
+        ("INSPECT_LOG_FORMAT", "INSPECT_EVAL_LOG_FORMAT"), _choice(*LOG_FORMATS)
+    ),
     "log_samples": EnvVariable(("INSPECT_EVAL_NO_LOG_SAMPLES",), _only_false),
     "log_realtime": EnvVariable(("INSPECT_EVAL_NO_LOG_REALTIME",), _only_false),
     "log_model_api": EnvVariable(("INSPECT_EVAL_LOG_MODEL_API",), _flag),
@@ -222,8 +296,10 @@ ENV_VARIABLES: dict[str, EnvVariable] = {
         ("INSPECT_LOG_SHARED", "INSPECT_EVAL_LOG_SHARED"),
         _int_or_bool(DEFAULT_LOG_SHARED),
     ),
-    "log_level": EnvVariable(("INSPECT_LOG_LEVEL",), _text),
-    "log_level_transcript": EnvVariable(("INSPECT_LOG_LEVEL_TRANSCRIPT",), _text),
+    "log_level": EnvVariable(("INSPECT_LOG_LEVEL",), _choice(*LOG_LEVELS)),
+    "log_level_transcript": EnvVariable(
+        ("INSPECT_LOG_LEVEL_TRANSCRIPT",), _choice(*LOG_LEVELS)
+    ),
     # --- how much of the dataset runs ----------------------------------------
     "limit": EnvVariable(("INSPECT_EVAL_LIMIT",), _limit),
     "sample_id": EnvVariable(("INSPECT_EVAL_SAMPLE_ID",), _sample_id),
@@ -251,7 +327,7 @@ ENV_VARIABLES: dict[str, EnvVariable] = {
     "score_display": EnvVariable(("INSPECT_EVAL_SCORE_DISPLAY",), _only_false),
     "tags": EnvVariable(("INSPECT_EVAL_TAGS",), _comma_separated),
     "metadata": EnvVariable(("INSPECT_EVAL_METADATA",), _metadata),
-    "display": EnvVariable(("INSPECT_DISPLAY",), _text),
+    "display": EnvVariable(("INSPECT_DISPLAY",), _choice(*DISPLAYS)),
     "trace": EnvVariable(("INSPECT_EVAL_TRACE",), _only_true),
 }
 """Every override field inspect's CLI reads from the environment.
@@ -323,10 +399,23 @@ GENERATE_CONFIG_VARIABLES: dict[str, Callable[[str, str], Any]] = {
     "attempt_timeout": _integer,
     "max_connections": _integer,
     "adaptive_connections": _text,
-    "batch": _int_or_bool(1),
-    "cache": _text,
-    "cache_prompt": _text,
+    "batch": _int_bool_or_str(DEFAULT_BATCH_SIZE),
+    "cache": _int_bool_or_str(DEFAULT_CACHE_DAYS),
+    "cache_prompt": _strict_choice("auto", "true", "false"),
 }
+"""Variables carrying one identity-neutral generate-config field each.
+
+The field set is `GENERATE_CONFIG_FIELDS_TO_EXCLUDE` — the same partition that
+decides what `generate_config` may carry at all — so this cannot drift from it
+without the exhaustiveness test noticing.
+
+**Two passes reach these values, and both are needed.** The conversion here is
+the option's click `type` or `callback`, exactly as for every other field;
+`config_from_locals` afterwards is the CLI *body*'s normalisation, which turns
+seven into a seven-day `CachePolicy` and `"1x2"` into an `AdaptiveConcurrency`.
+Skipping the first was tried: `INSPECT_EVAL_CACHE=7` reached the second as the
+string `"7"`, which it read as the name of a policy file.
+"""
 
 GENERATE_CONFIG = "INSPECT_EVAL_GENERATE_CONFIG"
 """A YAML or JSON file of generate-config values, as `--generate-config` takes."""
@@ -393,8 +482,11 @@ def _epochs(
     """An epoch count with its reducers, which the CLI assembles from three variables."""
     if count is None:
         return None
-    if _first(environ, ("INSPECT_EVAL_NO_EPOCHS_REDUCER",)) is not None:
-        return EvalSetOverridesEpochs(epochs=count, reducer=[])
+    # the variable is bound to a flag, so its value decides rather than its
+    # presence -- INSPECT_EVAL_NO_EPOCHS_REDUCER=false leaves the reducers alone
+    if (found := _first(environ, ("INSPECT_EVAL_NO_EPOCHS_REDUCER",))) is not None:
+        if _flag(found[1], found[0]):
+            return EvalSetOverridesEpochs(epochs=count, reducer=[])
     if (found := _first(environ, ("INSPECT_EVAL_EPOCHS_REDUCER",))) is not None:
         return EvalSetOverridesEpochs(epochs=count, reducer=found[1].split(","))
     return count
@@ -403,36 +495,58 @@ def _epochs(
 def _generate_config(environ: Mapping[str, str]) -> dict[str, Any] | None:
     """The identity-neutral generate-config fields, from a file and the per-field variables.
 
+    **Each variable converts as its option does, then the whole goes through
+    `config_from_locals`** — the normalisation `inspect eval` runs over these
+    options in the command body. Both passes matter and they do different work:
+    the first is the option's type or callback (`INSPECT_EVAL_CACHE=true` is
+    seven days, not the string), the second turns what that produces into the
+    config's own types (seven days becomes a `CachePolicy`). Doing only the
+    second was tried and agreed with the CLI about two thirds of the time,
+    which is why `config_from_locals` moved to `_util` and this calls it rather
+    than restating it.
+
     A variable beats the file for the same reason a flag beats a file
-    everywhere else: it is the more specific instruction.
+    everywhere else: it is the more specific instruction — and that is also
+    `config_from_locals`' own rule, since it starts from the file and lets the
+    locals overwrite it.
     """
     # deferred for the reason `eval_set_overrides` defers the same import:
     # evalset.py imports this package's manifest module, so a module-level
     # import here would close the cycle
     from .evalset import GENERATE_CONFIG_FIELDS_TO_EXCLUDE
 
-    config: dict[str, Any] = {}
+    locals: dict[str, Any] = {}
     if (found := _first(environ, (GENERATE_CONFIG,))) is not None:
-        name, path = found
-        try:
-            supplied = resolve_args(path)
-        except Exception as ex:
-            raise PrerequisiteError(
-                f"ERROR: {name}={path!r} is not usable: {ex}"
-            ) from ex
-        unknown = set(supplied) - set(GENERATE_CONFIG_FIELDS_TO_EXCLUDE)
-        if unknown:
-            raise PrerequisiteError(
-                f"ERROR: {name} sets {', '.join(sorted(unknown))}, which "
-                "task identity covers — a driven run cannot override those "
-                "without orphaning the logs it has already written."
-            )
-        config.update(supplied)
-
+        locals["generate_config"] = found[1]
     for field, convert in GENERATE_CONFIG_VARIABLES.items():
-        found = _first(environ, (f"INSPECT_EVAL_{field.upper()}",))
-        if found is not None:
-            name, text = found
-            config[field] = convert(text, name)
+        variable = f"INSPECT_EVAL_{field.upper()}"
+        if (found := _first(environ, (variable,))) is not None:
+            locals[field] = convert(found[1], found[0])
+    if not locals:
+        return None
 
-    return config or None
+    try:
+        config = dict(config_from_locals(locals))
+    except (PrerequisiteError, click.ClickException):
+        raise
+    except Exception as ex:
+        raise PrerequisiteError(
+            f"ERROR: the generate config in the environment is not usable: {ex}"
+        ) from ex
+
+    # `config_from_locals` accepts the whole of GenerateConfigArgs, because a
+    # command line may set the whole of it. A driven run may not: everything
+    # outside the exclusion set is part of what the model is asked to do, so
+    # setting one would change task identity and orphan the logs already
+    # written. Checked after the pass rather than before it, since the file is
+    # the one input that can name a field no variable does
+    supplied = {field: value for field, value in config.items() if value is not None}
+    unknown = set(supplied) - set(GENERATE_CONFIG_FIELDS_TO_EXCLUDE)
+    if unknown:
+        raise PrerequisiteError(
+            f"ERROR: the generate config in the environment sets "
+            f"{', '.join(sorted(unknown))}, which task identity covers — a "
+            "driven run cannot override those without orphaning the logs it "
+            "has already written."
+        )
+    return supplied or None

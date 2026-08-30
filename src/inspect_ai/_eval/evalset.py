@@ -558,7 +558,14 @@ def eval_set(
     definition_options: dict[str, Any] = dict(
         log_dir=log_dir,
         retry_attempts=num_retry_attempts,
+        # *which* samples run, all three of them. `limit` was here alone, which
+        # left a runner unable to tell a definition that shuffles from one that
+        # does not -- and a runner comparing a finished log against this to
+        # decide whether it still answers the question then sees a shuffle in
+        # the log, nothing here, and calls a settled task stale forever.
         limit=limit,
+        sample_id=sample_id,
+        sample_shuffle=sample_shuffle,
         epochs=definition_epochs.epochs if definition_epochs else None,
         tags=tags,
         metadata=metadata,
@@ -1646,7 +1653,7 @@ def log_samples_complete(
         return False
     epoch_count = epochs.epochs if epochs else 1
 
-    count = samples_selected(task.task.dataset, limit, sample_id)
+    count = samples_selected(task.task.dataset, limit, sample_id, task.task.name)
 
     if log.header.results.total_samples < count * epoch_count:
         return False
