@@ -575,6 +575,14 @@ Note that `service_tier` applies to standard requests only — [batch](./models-
 
 Additional custom model args (`-M`) are forwarded to the constructor of the `AsynClient` class.
 
+### Prompt Caching
+
+xAI caches prompt prefixes automatically, but its cache is per-server and requests are otherwise load balanced across servers, so a turn can land on a server that has never seen its prefix. Inspect therefore sends xAI’s [`x-grok-conv-id`](https://docs.x.ai/developers/advanced-api-usage/prompt-caching/maximizing-cache-hits) header, set to the running sample’s unique id, which pins all of that sample’s requests to a single server. Multi-turn agents benefit the most: each turn re-sends the whole conversation so far, and that prefix is already cached on the server the previous turn landed on.
+
+Cached tokens are billed at a lower rate and are reported in the eval log as `input_tokens_cache_read`.
+
+This requires no configuration. Note that the header is not sent for [batch](./models-batch.html.md) requests (which share a single long-lived client and are not multi-turn), or when the model is used outside of a running sample (where there is no conversation to pin).
+
 ## AWS Bedrock
 
 To use the [AWS Bedrock](https://aws.amazon.com/bedrock/) provider, install the `aioboto3` package, set your credentials, and specify a model using the `--model` option:
@@ -809,6 +817,14 @@ inspect eval arc.py --model fireworks/accounts/fireworks/models/kimi-k3
 ```
 
 For the `fireworks` provider, you can enable [Tool Emulation](#tool-emulation-openai) using the `emulate_tools` custom model arg (`-M`). Other custom model args are forwarded to the constructor of the `AsyncOpenAI` class.
+
+### Prompt Caching
+
+Fireworks caches prompt prefixes automatically, but a cache lives on a single replica and requests are otherwise load balanced across replicas, so a turn can land on a replica that has never seen its prefix. Inspect therefore sends Fireworks’ [`x-session-affinity`](https://docs.fireworks.ai/guides/prompt-caching) header, set to the running sample’s unique id, which pins all of that sample’s requests to a single replica. Multi-turn agents benefit the most: each turn re-sends the whole conversation so far, and that prefix is already cached on the replica the previous turn landed on.
+
+Cached tokens are billed at a lower rate and are reported in the eval log as `input_tokens_cache_read`.
+
+This requires no configuration, though you can override the header by setting your own value in `GenerateConfig(extra_headers={"x-session-affinity": ...})`. Note that the header is not sent when the model is used outside of a running sample (where there is no conversation to pin).
 
 The following environment variables are supported by the Together AI provider
 

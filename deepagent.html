@@ -853,6 +853,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </table>
 <p>The parent agent decides when to delegate vs.&nbsp;do work directly. The system prompt guides it to delegate when the work is complex, independent, or would benefit from an isolated context, and to do the work directly when it’s a simple lookup or a single tool call.</p>
 <p>Subagents run in isolated context by default. Each gets a fresh message history with only the task prompt, and only its summary returns to the parent. This prevents context rot and keeps the parent’s context lean. All subagents inherit the parent’s model by default — for cost-sensitive workloads, consider overriding <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#research">research()</a></span> with a cheaper model (e.g.&nbsp;<code>research(model="anthropic/claude-haiku-4-5")</code>), since read-only information gathering is the highest-volume subagent task. See <a href="#sec-customizing-builtins">Subagents</a> below for how to customize or replace the defaults.</p>
+<p>A subagent’s report is the whole point of the delegation, so it is exempt from the <code>max_tool_output</code> limit that applies to ordinary tool results — however long the report, the parent sees all of it. Use <code>limits</code> on a <a href="#sec-customizing-builtins">customized subagent</a> (e.g.&nbsp;<span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#token_limit">token_limit()</a></span>) to bound how much work a subagent can do.</p>
 </section>
 <section id="memory" class="level3">
 <h3 class="anchored" data-anchor-id="memory">Memory</h3>
@@ -1122,7 +1123,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tr>
 <tr class="even">
 <td><code>agent_list(status_filter)</code></td>
-<td>Enumerate all dispatched agents (optionally filtered by status) — useful for recovering handles after a long stretch of work or context compaction.</td>
+<td>Enumerate all dispatched agents (optionally filtered by status), one line each — useful for recovering handles after a long stretch of work or context compaction. Results are not included; <code>agent_status()</code> reads them.</td>
 </tr>
 </tbody>
 </table>

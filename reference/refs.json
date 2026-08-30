@@ -155,6 +155,7 @@
   "write_log_dir_manifest": "inspect_ai.log.qmd#write_log_dir_manifest",
   "retryable_eval_logs": "inspect_ai.log.qmd#retryable_eval_logs",
   "EvalLogInfo": "inspect_ai.log.qmd#evalloginfo",
+  "WriteEvalLogResult": "inspect_ai.log.qmd#writeevallogresult",
   "edit_eval_log": "inspect_ai.log.qmd#edit_eval_log",
   "edit_score": "inspect_ai.log.qmd#edit_score",
   "invalidate_samples": "inspect_ai.log.qmd#invalidate_samples",

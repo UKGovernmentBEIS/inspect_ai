@@ -167,7 +167,7 @@ We’ll present an example and then discuss the various options below (in most c
 1.  The [Sample](./reference/inspect_ai.dataset.html.md#sample) must include the available `choices`. Choices should not include letters (as they are automatically included when presenting the choices to the model).
 2.  The [Sample](./reference/inspect_ai.dataset.html.md#sample) `target` should be a capital letter (e.g. A, B, C, D, etc.)
 3.  You should always pair it with the [choice()](./reference/inspect_ai.scorer.html.md#choice) scorer in your task definition. For custom answer parsing or scoring needs (like handling complex model outputs), implement a custom scorer.
-4.  It calls [generate()](./reference/inspect_ai.solver.html.md#generate) internally, so you do need to separately include the [generate()](./reference/inspect_ai.solver.html.md#generate) solver.
+4.  It calls [generate()](./reference/inspect_ai.solver.html.md#generate) internally, so you do not need to separately include the [generate()](./reference/inspect_ai.solver.html.md#generate) solver.
 
 ### Example
 
@@ -344,7 +344,7 @@ A few things to note about this implementation:
 
 3.  The [resource()](./reference/inspect_ai.util.html.md#resource) function is used to read the specified `template`. This function accepts a string, file, or URL as its argument, and then returns a string with the contents of the resource.
 
-4.  We make use of the `user_prompt` property on the [TaskState](./reference/inspect_ai.solver.html.md#taskstate). This is a convenience property for locating the first `role="user"` message (otherwise you might need to skip over system messages, etc). Since this is a string templating solver, we use the `state.user_prompt.text` property (so we are dealing with prompt as a string, recall that it can also be a list of messages).
+4.  We make use of the `user_prompt` property on the [TaskState](./reference/inspect_ai.solver.html.md#taskstate). This is a convenience property for locating the first `role="user"` message (otherwise you might need to skip over system messages, etc). Since this is a string templating solver, we use the `state.user_prompt.text` property to get a plain string. This is necessary because the `content` field of a [ChatMessageUser](./reference/inspect_ai.model.html.md#chatmessageuser) can be either a string or a list of multimodal [Content](./reference/inspect_ai.model.html.md#content) objects, and `.text` handles either case.
 
 5.  We make sample `metadata` available to the template as well as any `params` passed to the function.
 

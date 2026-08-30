@@ -304,6 +304,29 @@ If one parallel call raises an unhandled exception, its in-flight siblings are c
 
 Only opt a tool in to parallel execution after auditing it for concurrent-safety. Stateful tools like [bash_session()](./reference/inspect_ai.tool.html.md#bash_session) and [web_browser()](./reference/inspect_ai.tool.html.md#web_browser) keep the default (`parallel=False`) and run serially.
 
+## Output Size
+
+Tool results are truncated at `max_tool_output` from the active generate config (16KB by default), with the model shown a notice that the output was too long. A tool can declare its own limit with `@tool(max_output=...)`, which takes precedence over the generate config:
+
+``` python
+@tool(max_output=0)
+def summarize():
+    async def summarize(text: str) -> str:
+        """Summarize a body of text.
+
+        Args:
+            text: The text to summarize.
+        """
+        ...
+    return summarize
+```
+
+`0` disables truncation for the tool, and a positive value caps it at that many bytes (a negative value is an error). Reserve `max_output=0` for tools whose result is a payload the caller depends on in full rather than incidental output the model reads and moves on from — for example the `submit()` tool of a [ReAct agent](./react-agent.html.md) (whose result becomes the scored completion) and the [agent()](./reference/inspect_ai.agent.html.md#agent) tool of a [Deep Agent](./deepagent.html.md) (whose result is a subagent’s report). Leave it unset for tools that read files, run commands, or fetch pages, where an unbounded result can flood the context window.
+
+Note that a single unbounded result is not the same risk as an unbounded *accumulation* of them. A tool that returns one agent’s report is bounded by what that agent can generate; a tool that concatenates every result it has ever seen is not, and should stay capped (or summarise) no matter how important each individual payload is.
+
+[as_tool()](./reference/inspect_ai.agent.html.md#as_tool) applies `max_output=0` by default, since an agent’s response is the payload the caller asked for. Pass `as_tool(agent, max_output=...)` to cap it instead.
+
 ## Stateful Tools
 
 Some tools need to retain state across invocations (for example, the [bash_session()](./reference/inspect_ai.tool.html.md#bash_session) and [web_browser()](./reference/inspect_ai.tool.html.md#web_browser) tools both interact with a stateful remote process). You can create stateful tools by using the [store_as()](./reference/inspect_ai.util.html.md#store_as) function to access discrete storage for your tool and/or specific instances of your tool.

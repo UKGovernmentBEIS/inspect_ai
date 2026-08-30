@@ -754,6 +754,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#grok" id="toc-grok" class="nav-link" data-scroll-target="#grok">Grok</a>
   <ul class="collapse">
   <li><a href="#model-args-1" id="toc-model-args-1" class="nav-link" data-scroll-target="#model-args-1">Model Args</a></li>
+  <li><a href="#prompt-caching" id="toc-prompt-caching" class="nav-link" data-scroll-target="#prompt-caching">Prompt Caching</a></li>
   </ul></li>
   <li><a href="#aws-bedrock" id="toc-aws-bedrock" class="nav-link" data-scroll-target="#aws-bedrock">AWS Bedrock</a></li>
   <li><a href="#aws-sagemaker" id="toc-aws-sagemaker" class="nav-link" data-scroll-target="#aws-sagemaker">AWS SageMaker</a>
@@ -769,7 +770,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </ul></li>
   <li><a href="#together-ai" id="toc-together-ai" class="nav-link" data-scroll-target="#together-ai">Together AI</a></li>
   <li><a href="#groq" id="toc-groq" class="nav-link" data-scroll-target="#groq">Groq</a></li>
-  <li><a href="#fireworks-ai" id="toc-fireworks-ai" class="nav-link" data-scroll-target="#fireworks-ai">Fireworks AI</a></li>
+  <li><a href="#fireworks-ai" id="toc-fireworks-ai" class="nav-link" data-scroll-target="#fireworks-ai">Fireworks AI</a>
+  <ul class="collapse">
+  <li><a href="#fireworks-prompt-caching" id="toc-fireworks-prompt-caching" class="nav-link" data-scroll-target="#fireworks-prompt-caching">Prompt Caching</a></li>
+  </ul></li>
   <li><a href="#sambanova" id="toc-sambanova" class="nav-link" data-scroll-target="#sambanova">SambaNova</a></li>
   <li><a href="#cloudflare" id="toc-cloudflare" class="nav-link" data-scroll-target="#cloudflare">Cloudflare</a></li>
   <li><a href="#perplexity" id="toc-perplexity" class="nav-link" data-scroll-target="#perplexity">Perplexity</a></li>
@@ -983,7 +987,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> openai/gpt-4o-mini <span class="dt">\ </span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>   <span class="ex">-M</span> responses_api=true</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Or from Python:</p>
-<div id="d55bb736" class="cell">
+<div id="c0beb8f7" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> <span class="bu">eval</span></span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(</span>
@@ -1557,6 +1561,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Note that <code>service_tier</code> applies to standard requests only — <a href="./models-batch.html">batch</a> requests are processed on xAI’s own batch tier, so the argument is omitted for them.</p>
 <p>Additional custom model args (<code>-M</code>) are forwarded to the constructor of the <code>AsynClient</code> class.</p>
 </section>
+<section id="prompt-caching" class="level3">
+<h3 class="anchored" data-anchor-id="prompt-caching">Prompt Caching</h3>
+<p>xAI caches prompt prefixes automatically, but its cache is per-server and requests are otherwise load balanced across servers, so a turn can land on a server that has never seen its prefix. Inspect therefore sends xAI’s <a href="https://docs.x.ai/developers/advanced-api-usage/prompt-caching/maximizing-cache-hits"><code>x-grok-conv-id</code></a> header, set to the running sample’s unique id, which pins all of that sample’s requests to a single server. Multi-turn agents benefit the most: each turn re-sends the whole conversation so far, and that prefix is already cached on the server the previous turn landed on.</p>
+<p>Cached tokens are billed at a lower rate and are reported in the eval log as <code>input_tokens_cache_read</code>.</p>
+<p>This requires no configuration. Note that the header is not sent for <a href="./models-batch.html">batch</a> requests (which share a single long-lived client and are not multi-turn), or when the model is used outside of a running sample (where there is no conversation to pin).</p>
+</section>
 </section>
 <section id="aws-bedrock" class="level2">
 <h2 class="anchored" data-anchor-id="aws-bedrock">AWS Bedrock</h2>
@@ -1832,6 +1842,11 @@ Note
 <span id="cb58-2"><a href="#cb58-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">FIREWORKS_API_KEY</span><span class="op">=</span>your-firewrks-api-key</span>
 <span id="cb58-3"><a href="#cb58-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> fireworks/accounts/fireworks/models/kimi-k3</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>For the <code>fireworks</code> provider, you can enable <a href="#tool-emulation-openai">Tool Emulation</a> using the <code>emulate_tools</code> custom model arg (<code>-M</code>). Other custom model args are forwarded to the constructor of the <code>AsyncOpenAI</code> class.</p>
+<section id="fireworks-prompt-caching" class="level3">
+<h3 class="anchored" data-anchor-id="fireworks-prompt-caching">Prompt Caching</h3>
+<p>Fireworks caches prompt prefixes automatically, but a cache lives on a single replica and requests are otherwise load balanced across replicas, so a turn can land on a replica that has never seen its prefix. Inspect therefore sends Fireworks’ <a href="https://docs.fireworks.ai/guides/prompt-caching"><code>x-session-affinity</code></a> header, set to the running sample’s unique id, which pins all of that sample’s requests to a single replica. Multi-turn agents benefit the most: each turn re-sends the whole conversation so far, and that prefix is already cached on the replica the previous turn landed on.</p>
+<p>Cached tokens are billed at a lower rate and are reported in the eval log as <code>input_tokens_cache_read</code>.</p>
+<p>This requires no configuration, though you can override the header by setting your own value in <code>GenerateConfig(extra_headers={"x-session-affinity": ...})</code>. Note that the header is not sent when the model is used outside of a running sample (where there is no conversation to pin).</p>
 <p>The following environment variables are supported by the Together AI provider</p>
 <table class="caption-top table">
 <colgroup>
@@ -1855,6 +1870,7 @@ Note
 </tr>
 </tbody>
 </table>
+</section>
 </section>
 <section id="sambanova" class="level2">
 <h2 class="anchored" data-anchor-id="sambanova">SambaNova</h2>

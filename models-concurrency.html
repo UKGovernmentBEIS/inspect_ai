@@ -728,6 +728,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#limiting-retries" id="toc-limiting-retries" class="nav-link" data-scroll-target="#limiting-retries">Limiting Retries</a></li>
   <li><a href="#debugging-retries" id="toc-debugging-retries" class="nav-link" data-scroll-target="#debugging-retries">Debugging Retries</a></li>
   <li><a href="#static-connections" id="toc-static-connections" class="nav-link" data-scroll-target="#static-connections">Static Connections</a></li>
+  <li><a href="#http-client-settings" id="toc-http-client-settings" class="nav-link" data-scroll-target="#http-client-settings">HTTP Client Settings</a></li>
   <li><a href="#learning-more" id="toc-learning-more" class="nav-link" data-scroll-target="#learning-more">Learning More</a></li>
   </ul>
 </nav>
@@ -876,6 +877,70 @@ Note
 <p><a href="./models-batch.html">Batch mode</a> likewise uses static concurrency regardless of <code>--adaptive-connections</code>.</p>
 <p>Increasing the max connections might yield better performance due to higher parallelism, however it might also result in <em>worse</em> performance if this causes us to frequently hit rate limits (which are retried with exponential backoff). The “correct” max connections for your evaluations will vary based on your actual rate limit and the size and complexity of your evaluations.</p>
 <p>Since it can be difficult to tune this value (especially across different times of day), you are generally much better off using <a href="#adaptive-connections">Adaptive Connections</a> which will dynamically find the maximum throughput that can be supported.</p>
+</section>
+<section id="http-client-settings" class="level2">
+<h2 class="anchored" data-anchor-id="http-client-settings">HTTP Client Settings</h2>
+<p>The settings above govern how many requests Inspect has in flight. Separately, the HTTP client underneath each provider has its own connection settings, tunable by environment variable so a deployment can adjust them without a release.</p>
+<p>The defaults differ from the provider SDKs’ in one respect that matters for long-running evals. SDK defaults assume a responsive event loop, but an eval’s loop is held for seconds at a time by CPU-bound work, and a connect deadline that expires during one of those pauses fails a connection the kernel had already completed. Inspect therefore allows 60s for connection setup rather than the 5s most SDKs use, and retries connection establishment once.</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 23%">
+<col style="width: 23%">
+<col style="width: 52%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Variable</th>
+<th>Default</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>INSPECT_HTTP_CONNECT_TIMEOUT</code></td>
+<td>60</td>
+<td>Seconds allowed to establish a connection.</td>
+</tr>
+<tr class="even">
+<td><code>INSPECT_HTTP_REQUEST_TIMEOUT</code></td>
+<td>600</td>
+<td>Seconds allowed for the rest of a request.</td>
+</tr>
+<tr class="odd">
+<td><code>INSPECT_HTTP_POOL_CONNECTIONS</code></td>
+<td>1000</td>
+<td>Sockets in the HTTP connection pool. Distinct from <code>--max-connections</code>, which bounds requests in flight.</td>
+</tr>
+<tr class="even">
+<td><code>INSPECT_HTTP_POOL_KEEPALIVE_CONNECTIONS</code></td>
+<td>the connection pool size</td>
+<td>Idle connections kept for reuse.</td>
+</tr>
+<tr class="odd">
+<td><code>INSPECT_HTTP_KEEPALIVE_EXPIRY</code></td>
+<td>5</td>
+<td>Seconds an idle connection is kept.</td>
+</tr>
+<tr class="even">
+<td><code>INSPECT_HTTP_CONNECT_RETRIES</code></td>
+<td>1</td>
+<td>Retries of connection establishment. Only the connect is retried, never the request, so this is safe for non-idempotent calls. Unavailable through a proxy, which httpx does not retry.</td>
+</tr>
+</tbody>
+</table>
+<p>Two of these interact with settings a provider may already have:</p>
+<ul>
+<li><p>A request budget you set yourself, via <code>-M client_timeout</code>, <code>-M timeout</code> or <code>service_tier="flex"</code>, is kept. <code>INSPECT_HTTP_CONNECT_TIMEOUT</code> acts as a floor alongside it: it raises a connect deadline shorter than the floor, and leaves a longer one alone.</p></li>
+<li><p>A provider whose SDK default is deliberately different keeps that default until you set the variable. Groq, for example, uses a tighter request budget and an unbounded connection pool; setting <code>INSPECT_HTTP_REQUEST_TIMEOUT</code> or <code>INSPECT_HTTP_POOL_CONNECTIONS</code> overrides it.</p></li>
+</ul>
+<p>These settings reach the OpenAI, OpenAI-compatible (including vLLM, SGLang, Ollama, OpenRouter, Together and the other <code>openai-api/</code> services), Anthropic, Groq and Mistral providers.</p>
+<p>Google under Trio gets the pool and connect-retry settings but not the deadlines: it applies its own overall budget to every request, which is already far longer than the connect floor.</p>
+<p>They do not reach the remaining providers, which are on other HTTP stacks and are not exposed to the problem these defaults address:</p>
+<ul>
+<li><p>Bedrock and SageMaker have their own connection deadline, already 60s, set per model with <code>-M connect_timeout</code>. Azure AI likewise uses its own, which is longer still.</p></li>
+<li><p>Google on asyncio applies a single overall budget with no separate connection deadline, so there is none to outlast. (Under Trio it uses a different HTTP stack, which is why the settings apply there.)</p></li>
+<li><p>Grok speaks gRPC and establishes connections off the event loop, where the pause that motivates these defaults cannot affect it.</p></li>
+</ul>
 </section>
 <section id="learning-more" class="level2">
 <h2 class="anchored" data-anchor-id="learning-more">Learning More</h2>

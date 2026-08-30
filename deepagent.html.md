@@ -66,6 +66,8 @@ The parent agent decides when to delegate vs. do work directly. The system prom
 
 Subagents run in isolated context by default. Each gets a fresh message history with only the task prompt, and only its summary returns to the parent. This prevents context rot and keeps the parent’s context lean. All subagents inherit the parent’s model by default — for cost-sensitive workloads, consider overriding [research()](./reference/inspect_ai.agent.html.md#research) with a cheaper model (e.g. `research(model="anthropic/claude-haiku-4-5")`), since read-only information gathering is the highest-volume subagent task. See [Subagents](#sec-customizing-builtins) below for how to customize or replace the defaults.
 
+A subagent’s report is the whole point of the delegation, so it is exempt from the `max_tool_output` limit that applies to ordinary tool results — however long the report, the parent sees all of it. Use `limits` on a [customized subagent](#sec-customizing-builtins) (e.g. [token_limit()](./reference/inspect_ai.util.html.md#token_limit)) to bound how much work a subagent can do.
+
 ### Memory
 
 The [memory()](./reference/inspect_ai.tool.html.md#memory) tool provides a scratchpad for the top-level agent for the duration of the evaluation. The model can create, view, update, delete, and search memory entries, storing intermediate results, findings, and status as it works.
@@ -297,7 +299,7 @@ When enabled, the [agent()](./reference/inspect_ai.agent.html.md#agent) tool gai
 | `agent_status(agent_id)` | Non-blocking peek — status, and for a running agent a brief progress snapshot (elapsed time, message/tool-call counts, latest message); for a finished agent, its result. |
 | `agent_wait(agent_ids, mode, timeout)` | Block until the listed agents finish. `mode="all"` (default) waits for every agent; `mode="any"` returns on the first. On `timeout`, still-running agents are reported honestly. |
 | `agent_cancel(agent_id)` | Terminate a running agent. No-op on an already-finished agent. |
-| `agent_list(status_filter)` | Enumerate all dispatched agents (optionally filtered by status) — useful for recovering handles after a long stretch of work or context compaction. |
+| `agent_list(status_filter)` | Enumerate all dispatched agents (optionally filtered by status), one line each — useful for recovering handles after a long stretch of work or context compaction. Results are not included; `agent_status()` reads them. |
 
 The system prompt teaches the model the dispatch discipline: do useful independent work while waiting, prefer a single `agent_wait` over a polling loop of `agent_status` calls, and call `agent_list()` to recover handles if it loses track of them.
 

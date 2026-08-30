@@ -1276,6 +1276,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#writeevallogresult" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">WriteEvalLogResult</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.log.html#edit_eval_log" class="sidebar-item-text sidebar-link">
  <span class="menu-text">edit_eval_log</span></a>
   </div>
@@ -3674,7 +3680,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h4 class="anchored" data-anchor-id="ownership-of-hook-event-data">Ownership of hook event data</h4>
 <p>Event objects passed via <code>on_sample_event</code> and the <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.log.html#evalsample">EvalSample</a></span> passed via <code>on_sample_end</code> are owned by the framework. Hook implementations may read these objects and may retain references for inspection, but <strong>must not mutate them in place</strong>. The framework retains references to these objects and may serialize, copy, or further transform them after the hook returns; in-place mutation is undefined behavior. If a hook needs a mutable working copy, call <code>data.event.model_copy(deep=True)</code> (or the equivalent on the sample) inside the hook and operate on that copy.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/1d76b14bd4181167409a9fd2d28a9bf3ddd0d926/src/inspect_ai/hooks/_hooks.py#L361">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/56c9cae65844c87479b10e212a93b91e1a17c351/src/inspect_ai/hooks/_hooks.py#L361">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Hooks</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
@@ -3688,7 +3694,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Hooks may wish to override this to e.g.&nbsp;check the presence of an environment variable or a configuration setting.</p>
 <p>Will be called frequently, so consider caching the result if the computation is expensive.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/1d76b14bd4181167409a9fd2d28a9bf3ddd0d926/src/inspect_ai/hooks/_hooks.py#L399">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/56c9cae65844c87479b10e212a93b91e1a17c351/src/inspect_ai/hooks/_hooks.py#L399">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> enabled(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="bu">bool</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div>
@@ -3700,7 +3706,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>On eval set start.</p>
 <p>A “eval set” is an invocation of <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.html#eval_set">eval_set()</a></span> for a log directory. Note that the <code>eval_set_id</code> will be stable across multiple invocations of <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.html#eval_set">eval_set()</a></span> for the same log directory.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/1d76b14bd4181167409a9fd2d28a9bf3ddd0d926/src/inspect_ai/hooks/_hooks.py#L412">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/56c9cae65844c87479b10e212a93b91e1a17c351/src/inspect_ai/hooks/_hooks.py#L412">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> on_eval_set_start(<span class="va">self</span>, data: EvalSetStart) <span class="op">-&gt;</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
@@ -3714,7 +3720,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>On eval set end.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/1d76b14bd4181167409a9fd2d28a9bf3ddd0d926/src/inspect_ai/hooks/_hooks.py#L424">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/56c9cae65844c87479b10e212a93b91e1a17c351/src/inspect_ai/hooks/_hooks.py#L424">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> on_eval_set_end(<span class="va">self</span>, data: EvalSetEnd) <span class="op">-&gt;</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
@@ -3729,7 +3735,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>On run start.</p>
 <p>A “run” is a single invocation of <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.html#eval">eval()</a></span> or <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.html#eval_retry">eval_retry()</a></span> which may contain many Tasks, each with many Samples and many epochs. Note that <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.html#eval_retry">eval_retry()</a></span> can be invoked multiple times within an <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.html#eval_set">eval_set()</a></span>.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/1d76b14bd4181167409a9fd2d28a9bf3ddd0d926/src/inspect_ai/hooks/_hooks.py#L432">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/56c9cae65844c87479b10e212a93b91e1a17c351/src/inspect_ai/hooks/_hooks.py#L432">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> on_run_start(<span class="va">self</span>, data: RunStart) <span class="op">-&gt;</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
@@ -3743,7 +3749,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>On run end.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/1d76b14bd4181167409a9fd2d28a9bf3ddd0d926/src/inspect_ai/hooks/_hooks.py#L444">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/56c9cae65844c87479b10e212a93b91e1a17c351/src/inspect_ai/hooks/_hooks.py#L444">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> on_run_end(<span class="va">self</span>, data: RunEnd) <span class="op">-&gt;</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
@@ -3757,7 +3763,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>On task start.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/1d76b14bd4181167409a9fd2d28a9bf3ddd0d926/src/inspect_ai/hooks/_hooks.py#L452">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/56c9cae65844c87479b10e212a93b91e1a17c351/src/inspect_ai/hooks/_hooks.py#L452">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> on_task_start(<span class="va">self</span>, data: TaskStart) <span class="op">-&gt;</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
@@ -3771,7 +3777,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>On task end.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/1d76b14bd4181167409a9fd2d28a9bf3ddd0d926/src/inspect_ai/hooks/_hooks.py#L460">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/56c9cae65844c87479b10e212a93b91e1a17c351/src/inspect_ai/hooks/_hooks.py#L460">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> on_task_end(<span class="va">self</span>, data: TaskEnd) <span class="op">-&gt;</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
@@ -3788,7 +3794,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>If the sample errors and retries, this will not be called again.</p>
 <p>If a sample is run for multiple epochs, this will be called once per epoch.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/1d76b14bd4181167409a9fd2d28a9bf3ddd0d926/src/inspect_ai/hooks/_hooks.py#L468">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/56c9cae65844c87479b10e212a93b91e1a17c351/src/inspect_ai/hooks/_hooks.py#L468">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> on_sample_init(<span class="va">self</span>, data: SampleInit) <span class="op">-&gt;</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
@@ -3804,7 +3810,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Called when a sample is about to be start. If the sample errors and retries, this will not be called again.</p>
 <p>If a sample is run for multiple epochs, this will be called once per epoch.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/1d76b14bd4181167409a9fd2d28a9bf3ddd0d926/src/inspect_ai/hooks/_hooks.py#L484">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/56c9cae65844c87479b10e212a93b91e1a17c351/src/inspect_ai/hooks/_hooks.py#L484">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> on_sample_start(<span class="va">self</span>, data: SampleStart) <span class="op">-&gt;</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
@@ -3819,7 +3825,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>On sample event.</p>
 <p>Called when a sample event is emmitted. Pending events are not logged here (i.e.&nbsp;ToolEvent and ModelEvent are not logged until they are complete).</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/1d76b14bd4181167409a9fd2d28a9bf3ddd0d926/src/inspect_ai/hooks/_hooks.py#L497">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/56c9cae65844c87479b10e212a93b91e1a17c351/src/inspect_ai/hooks/_hooks.py#L497">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> on_sample_event(<span class="va">self</span>, data: SampleEvent) <span class="op">-&gt;</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
@@ -3835,7 +3841,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Called when a sample has either completed successfully, or when a sample has errored and has no retries remaining.</p>
 <p>If a sample is run for multiple epochs, this will be called once per epoch.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/1d76b14bd4181167409a9fd2d28a9bf3ddd0d926/src/inspect_ai/hooks/_hooks.py#L509">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/56c9cae65844c87479b10e212a93b91e1a17c351/src/inspect_ai/hooks/_hooks.py#L509">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> on_sample_end(<span class="va">self</span>, data: SampleEnd) <span class="op">-&gt;</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
@@ -3851,7 +3857,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>This is called before cache lookup and before model API access verification, so hook mutations to inputs/tools/config are reflected in cache keys and in the actual API call.</p>
 <p>Note that this fires inside the retry wrapper, so it will be called on each retry attempt, not just the first.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/1d76b14bd4181167409a9fd2d28a9bf3ddd0d926/src/inspect_ai/hooks/_hooks.py#L522">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/56c9cae65844c87479b10e212a93b91e1a17c351/src/inspect_ai/hooks/_hooks.py#L522">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> on_before_model_generate(<span class="va">self</span>, data: BeforeModelGenerate) <span class="op">-&gt;</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
@@ -3866,7 +3872,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Called before a model call is retried after a transient failure.</p>
 <p>Fires once per retry (i.e.&nbsp;not for the initial attempt), before the backoff sleep. Useful for surfacing how much time is spent in rate limiting and other retries (see <code>data.wait_time</code> for the upcoming backoff duration).</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/1d76b14bd4181167409a9fd2d28a9bf3ddd0d926/src/inspect_ai/hooks/_hooks.py#L537">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/56c9cae65844c87479b10e212a93b91e1a17c351/src/inspect_ai/hooks/_hooks.py#L537">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> on_model_retry(<span class="va">self</span>, data: ModelRetry) <span class="op">-&gt;</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
@@ -3881,7 +3887,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>On sample attempt start.</p>
 <p>Fired at the beginning of every attempt (including the first). Unlike on_sample_start which fires once per sample, this fires on retries too.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/1d76b14bd4181167409a9fd2d28a9bf3ddd0d926/src/inspect_ai/hooks/_hooks.py#L550">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/56c9cae65844c87479b10e212a93b91e1a17c351/src/inspect_ai/hooks/_hooks.py#L550">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb15"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> on_sample_attempt_start(<span class="va">self</span>, data: SampleAttemptStart) <span class="op">-&gt;</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
@@ -3896,7 +3902,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>On sample attempt end.</p>
 <p>Fired at the end of every attempt (including the last). Unlike on_sample_end which fires once per sample, this fires on retries too.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/1d76b14bd4181167409a9fd2d28a9bf3ddd0d926/src/inspect_ai/hooks/_hooks.py#L561">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/56c9cae65844c87479b10e212a93b91e1a17c351/src/inspect_ai/hooks/_hooks.py#L561">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> on_sample_attempt_end(<span class="va">self</span>, data: SampleAttemptEnd) <span class="op">-&gt;</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
@@ -3911,7 +3917,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Called when a call to a model’s generate() method completes successfully without hitting Inspect’s local cache.</p>
 <p>Note that this is not called when Inspect’s local cache is used and is a cache hit (i.e.&nbsp;if no external API call was made). Provider-side caching will result in this being called.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/1d76b14bd4181167409a9fd2d28a9bf3ddd0d926/src/inspect_ai/hooks/_hooks.py#L572">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/56c9cae65844c87479b10e212a93b91e1a17c351/src/inspect_ai/hooks/_hooks.py#L572">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb17"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> on_model_usage(<span class="va">self</span>, data: ModelUsageData) <span class="op">-&gt;</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
@@ -3925,7 +3931,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Called when a call to a model’s generate() method completes successfully by hitting Inspect’s local cache.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/1d76b14bd4181167409a9fd2d28a9bf3ddd0d926/src/inspect_ai/hooks/_hooks.py#L584">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/56c9cae65844c87479b10e212a93b91e1a17c351/src/inspect_ai/hooks/_hooks.py#L584">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb18"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> on_model_cache_usage(<span class="va">self</span>, data: ModelCacheUsageData) <span class="op">-&gt;</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
@@ -3940,7 +3946,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Called before the sample is scored.</p>
 <p>Can be used by hooks to demarcate the end of solver execution and the start of scoring.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/1d76b14bd4181167409a9fd2d28a9bf3ddd0d926/src/inspect_ai/hooks/_hooks.py#L592">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/56c9cae65844c87479b10e212a93b91e1a17c351/src/inspect_ai/hooks/_hooks.py#L592">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb19"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> on_sample_scoring(<span class="va">self</span>, data: SampleScoring) <span class="op">-&gt;</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
@@ -3955,7 +3961,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Optionally override an API key.</p>
 <p>When overridden, this method may return a new API key value which will be used in place of the original one during the eval.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/1d76b14bd4181167409a9fd2d28a9bf3ddd0d926/src/inspect_ai/hooks/_hooks.py#L602">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/56c9cae65844c87479b10e212a93b91e1a17c351/src/inspect_ai/hooks/_hooks.py#L602">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb20"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> override_api_key(<span class="va">self</span>, data: ApiKeyOverride) <span class="op">-&gt;</span> <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
@@ -3974,7 +3980,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Either decorate a subclass of <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.hooks.html#hooks">Hooks</a></span>, or a function which returns the type of a subclass of <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.hooks.html#hooks">Hooks</a></span>. This decorator will instantiate the hook class and store it in the registry.</p>
 <p>Instantiation happens eagerly, when the decorator runs (i.e.&nbsp;when the defining module is imported), and the resulting instance is reused for every event for the lifetime of the process. See <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.hooks.html#hooks">Hooks</a></span> for what that implies for instance state.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/1d76b14bd4181167409a9fd2d28a9bf3ddd0d926/src/inspect_ai/hooks/_hooks.py#L620">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/56c9cae65844c87479b10e212a93b91e1a17c351/src/inspect_ai/hooks/_hooks.py#L620">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb21"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> hooks(name: <span class="bu">str</span>, description: <span class="bu">str</span>) <span class="op">-&gt;</span> Callable[..., Type[T]]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
@@ -3995,7 +4001,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="apikeyoverride">ApiKeyOverride</h3>
 <p>Api key override hook event data.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/1d76b14bd4181167409a9fd2d28a9bf3ddd0d926/src/inspect_ai/hooks/_hooks.py#L351">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/56c9cae65844c87479b10e212a93b91e1a17c351/src/inspect_ai/hooks/_hooks.py#L351">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb22"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span>(frozen<span class="op">=</span><span class="va">True</span>)</span>
 <span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ApiKeyOverride</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
@@ -4017,7 +4023,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="modelusagedata">ModelUsageData</h3>
 <p>Model usage hook event data.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/1d76b14bd4181167409a9fd2d28a9bf3ddd0d926/src/inspect_ai/hooks/_hooks.py#L245">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/56c9cae65844c87479b10e212a93b91e1a17c351/src/inspect_ai/hooks/_hooks.py#L245">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb23"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span>(frozen<span class="op">=</span><span class="va">True</span>)</span>
 <span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ModelUsageData</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
@@ -4063,7 +4069,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="modelretry">ModelRetry</h3>
 <p>Model retry hook event data.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/1d76b14bd4181167409a9fd2d28a9bf3ddd0d926/src/inspect_ai/hooks/_hooks.py#L310">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/56c9cae65844c87479b10e212a93b91e1a17c351/src/inspect_ai/hooks/_hooks.py#L310">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb24"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span>(frozen<span class="op">=</span><span class="va">True</span>)</span>
 <span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ModelRetry</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
@@ -4117,7 +4123,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="evalsetstart">EvalSetStart</h3>
 <p>Eval set start hook event data.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/1d76b14bd4181167409a9fd2d28a9bf3ddd0d926/src/inspect_ai/hooks/_hooks.py#L39">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/56c9cae65844c87479b10e212a93b91e1a17c351/src/inspect_ai/hooks/_hooks.py#L39">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb25"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span>(frozen<span class="op">=</span><span class="va">True</span>)</span>
 <span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> EvalSetStart</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
@@ -4139,7 +4145,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="evalsetend">EvalSetEnd</h3>
 <p>Eval set end event data.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/1d76b14bd4181167409a9fd2d28a9bf3ddd0d926/src/inspect_ai/hooks/_hooks.py#L51">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/56c9cae65844c87479b10e212a93b91e1a17c351/src/inspect_ai/hooks/_hooks.py#L51">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb26"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span>(frozen<span class="op">=</span><span class="va">True</span>)</span>
 <span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> EvalSetEnd</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
@@ -4161,7 +4167,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="runend">RunEnd</h3>
 <p>Run end hook event data.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/1d76b14bd4181167409a9fd2d28a9bf3ddd0d926/src/inspect_ai/hooks/_hooks.py#L75">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/56c9cae65844c87479b10e212a93b91e1a17c351/src/inspect_ai/hooks/_hooks.py#L75">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb27"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span>(frozen<span class="op">=</span><span class="va">True</span>)</span>
 <span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> RunEnd</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
@@ -4191,7 +4197,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="runstart">RunStart</h3>
 <p>Run start hook event data.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/1d76b14bd4181167409a9fd2d28a9bf3ddd0d926/src/inspect_ai/hooks/_hooks.py#L63">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/56c9cae65844c87479b10e212a93b91e1a17c351/src/inspect_ai/hooks/_hooks.py#L63">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb28"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span>(frozen<span class="op">=</span><span class="va">True</span>)</span>
 <span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> RunStart</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
@@ -4217,7 +4223,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="sampleend">SampleEnd</h3>
 <p>Sample end hook event data.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/1d76b14bd4181167409a9fd2d28a9bf3ddd0d926/src/inspect_ai/hooks/_hooks.py#L181">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/56c9cae65844c87479b10e212a93b91e1a17c351/src/inspect_ai/hooks/_hooks.py#L181">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb29"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span>(frozen<span class="op">=</span><span class="va">True</span>)</span>
 <span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> SampleEnd</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
@@ -4251,7 +4257,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="sampleinit">SampleInit</h3>
 <p>Sample init hook event data.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/1d76b14bd4181167409a9fd2d28a9bf3ddd0d926/src/inspect_ai/hooks/_hooks.py#L133">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/56c9cae65844c87479b10e212a93b91e1a17c351/src/inspect_ai/hooks/_hooks.py#L133">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb30"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span>(frozen<span class="op">=</span><span class="va">True</span>)</span>
 <span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> SampleInit</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
@@ -4285,7 +4291,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="samplestart">SampleStart</h3>
 <p>Sample start hook event data.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/1d76b14bd4181167409a9fd2d28a9bf3ddd0d926/src/inspect_ai/hooks/_hooks.py#L149">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/56c9cae65844c87479b10e212a93b91e1a17c351/src/inspect_ai/hooks/_hooks.py#L149">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb31"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span>(frozen<span class="op">=</span><span class="va">True</span>)</span>
 <span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> SampleStart</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
@@ -4320,7 +4326,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Sample attempt start hook event data.</p>
 <p>Fired at the beginning of every attempt (including the first). Unlike on_sample_start which fires once per sample, this fires on retries too.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/1d76b14bd4181167409a9fd2d28a9bf3ddd0d926/src/inspect_ai/hooks/_hooks.py#L197">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/56c9cae65844c87479b10e212a93b91e1a17c351/src/inspect_ai/hooks/_hooks.py#L197">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb32"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span>(frozen<span class="op">=</span><span class="va">True</span>)</span>
 <span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> SampleAttemptStart</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
@@ -4359,7 +4365,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Sample attempt end hook event data.</p>
 <p>Fired at the end of every attempt (including the last). Unlike on_sample_end which fires once per sample, this fires on retries too.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/1d76b14bd4181167409a9fd2d28a9bf3ddd0d926/src/inspect_ai/hooks/_hooks.py#L219">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/56c9cae65844c87479b10e212a93b91e1a17c351/src/inspect_ai/hooks/_hooks.py#L219">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb33"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span>(frozen<span class="op">=</span><span class="va">True</span>)</span>
 <span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> SampleAttemptEnd</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
@@ -4405,7 +4411,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="sampleevent">SampleEvent</h3>
 <p>Sample event hook event data.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/1d76b14bd4181167409a9fd2d28a9bf3ddd0d926/src/inspect_ai/hooks/_hooks.py#L165">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/56c9cae65844c87479b10e212a93b91e1a17c351/src/inspect_ai/hooks/_hooks.py#L165">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb34"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span>(frozen<span class="op">=</span><span class="va">True</span>)</span>
 <span id="cb34-2"><a href="#cb34-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> SampleEvent</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
@@ -4439,7 +4445,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="taskend">TaskEnd</h3>
 <p>Task end hook event data.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/1d76b14bd4181167409a9fd2d28a9bf3ddd0d926/src/inspect_ai/hooks/_hooks.py#L118">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/56c9cae65844c87479b10e212a93b91e1a17c351/src/inspect_ai/hooks/_hooks.py#L118">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb35"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span>(frozen<span class="op">=</span><span class="va">True</span>)</span>
 <span id="cb35-2"><a href="#cb35-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> TaskEnd</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
@@ -4469,7 +4475,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="taskstart">TaskStart</h3>
 <p>Task start hook event data.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/1d76b14bd4181167409a9fd2d28a9bf3ddd0d926/src/inspect_ai/hooks/_hooks.py#L91">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/56c9cae65844c87479b10e212a93b91e1a17c351/src/inspect_ai/hooks/_hooks.py#L91">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb36"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span>(frozen<span class="op">=</span><span class="va">True</span>)</span>
 <span id="cb36-2"><a href="#cb36-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> TaskStart</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
