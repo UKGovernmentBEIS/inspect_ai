@@ -36,7 +36,28 @@ from inspect_ai.tool._tool_params import ToolParams
 
 
 def _refs_via_dump(event: Event) -> set[str]:
-    return attachment_refs_from_value(event.model_dump(mode="python"))
+    """Independent oracle: collect refs by recursing over the event's dump.
+
+    Deliberately not ``attachment_refs_from_value`` — that delegates to
+    ``attachment_refs_from_object``, so the parity assertions would compare
+    the object walker against itself. Kept naive on purpose (tuple/set are
+    defensive: ``mode="python"`` output is not strictly JSON).
+    """
+    refs: set[str] = set()
+
+    def collect(value: object) -> None:
+        if isinstance(value, str):
+            if value.startswith(ATTACHMENT_PROTOCOL):
+                refs.add(value.removeprefix(ATTACHMENT_PROTOCOL))
+        elif isinstance(value, dict):
+            for item in value.values():
+                collect(item)
+        elif isinstance(value, (list, tuple, set)):
+            for item in value:
+                collect(item)
+
+    collect(event.model_dump(mode="python"))
+    return refs
 
 
 def _model_event_with_refs_everywhere() -> ModelEvent:
