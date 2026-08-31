@@ -80,12 +80,23 @@ class WalkContext(TypedDict):
     Each value is ``(pre_walk_message, walked_result)``: lookups verify
     against the *pre-walk* message (by identity first, then equality)
     because the walked result has rewritten content and never compares
-    equal to an incoming un-walked message. A message mutated in place
-    after first being walked identity-hits and resolves to its
-    first-walked form (consistent with ``event/_pool_index.py``;
-    contexts are per-pass, so no mutation interleaves). Entries are
-    only valid for one content function — never share a context across
-    walks with different content functions.
+    equal to an incoming un-walked message.
+
+    The entry holds the live pre-walk object, so a message mutated in
+    place after being walked identity-hits and resolves to its stale
+    first-walked form (consistent with ``event/_pool_index.py``). What
+    keeps that unreachable is that a context only ever sees messages its
+    own walk owns: ``condense_sample`` / ``resolve_*_attachments`` / the
+    chunked converter / ``_transcript_store`` build a context, walk, and
+    drop it with nothing else running in between, and log recovery holds
+    its contexts across an async segment loop but walks only messages it
+    deserialized itself. ``Transcript`` holds one context for a whole
+    sample, but it reaches ``CallWalkCache.condense`` only, which walks
+    the JSON call payload — never a ``ChatMessage`` — so that cache stays
+    empty.
+
+    Entries are only valid for one content function — never share a
+    context across walks with different content functions.
     """
 
     only_core: bool
