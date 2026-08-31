@@ -2359,6 +2359,7 @@ async def test_anthropic_collapsed_message_ignores_recorded_positions() -> None:
         content=content, tool_calls=tool_calls, model="claude-opus-4-8"
     )
     combined = combine_messages(injected, parsed, ChatMessageAssistant)
+    assert isinstance(combined, ChatMessageAssistant)
     assert combined.metadata and "combined_from" in combined.metadata
 
     order: list[str] = [
