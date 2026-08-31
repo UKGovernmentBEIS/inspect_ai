@@ -4,6 +4,7 @@
 - Eval Set: An external runner driving `eval_set()` can now override any argument that does not change task identity, rather than only five.
 - Eval Set: An eval set driven by an external runner now honors the `INSPECT_EVAL_*` environment variables with the same meanings `inspect eval-set` gives them.
 - Control Channel: `inspect ctl config --max-samples` now works for tasks using adaptive connections — an integer pins sample concurrency, and `clear` resumes adaptive tracking.
+- Eval logs: Header-only `.eval` log uploads to S3 now appear in `inspect trace` output.
 
 ## 0.3.261 (30 August 2026)
 
