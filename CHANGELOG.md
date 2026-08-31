@@ -1,5 +1,14 @@
 ## Unreleased
 
+- Eval Set: `eval_set()` now defaults `log_dir` to `INSPECT_LOG_DIR` or `./logs`, as `eval()` does, rather than requiring it.
+- Eval Set: An external runner driving `eval_set()` can now override any argument that does not change task identity, rather than only five.
+- Eval Set: An eval set driven by an external runner now honors the `INSPECT_EVAL_*` environment variables with the same meanings `inspect eval-set` gives them.
+- Control Channel: `inspect ctl config --max-samples` now works for tasks using adaptive connections — an integer pins sample concurrency, and `clear` resumes adaptive tracking.
+- Eval logs: Header-only `.eval` log uploads to S3 now appear in `inspect trace` output.
+
+## 0.3.261 (30 August 2026)
+
+- Bedrock: Converse requests now reuse cached prompt prefixes across turns and samples, cutting input token cost, and report cache read and write tokens in usage.
 - Scorers: `match(numeric=True)` now parses numbers with attached sentence or enclosing punctuation (e.g. "42!", "(42)"); operator prefixes (`<42`, `~42`) still do not match, and `location="exact"` remains strict. (#4742)
 - Multiple choice: The choice scorer now handles multi-digit labels when tasks have 36 or more options, and raises a clear error when a target references a position beyond the task's choices (samples without choices always score incorrect rather than raising). (#4590)
 - Approval: Support comma-separated tool patterns in approval policy configs, matching the documented `tools: web_browser*, bash` syntax; policy file paths given as `file://` URLs are normalized to local paths. (#5025)
