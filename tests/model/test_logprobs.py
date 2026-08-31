@@ -60,13 +60,30 @@ async def test_moonshot_logprobs() -> None:
     assert len(response.choices[0].logprobs.content[0].top_logprobs) == 2
 
 
+def test_together_logprobs_params_passthrough() -> None:
+    # Together now follows the OpenAI logprobs contract: `logprobs` must stay
+    # a boolean (the old integer rewrite 400s on newer models) and
+    # `top_logprobs` must be passed through (deleting it capped results at 1)
+    from inspect_ai.model._providers.together import TogetherAIAPI
+
+    api = TogetherAIAPI(model_name="MiniMaxAI/MiniMax-M3", api_key="test-key")
+    params = api.completion_params(
+        GenerateConfig(logprobs=True, top_logprobs=2), tools=False
+    )
+    assert params["logprobs"] is True
+    assert params["top_logprobs"] == 2
+
+
 @skip_if_no_together
 async def test_together_logprobs() -> None:
-    response = await generate_with_logprobs("together/MiniMaxAI/MiniMax-M2.7")
+    # gemma rather than a thinking model (e.g. MiniMax-M3), whose reasoning
+    # would consume the small max_tokens budget before any completion tokens
+    # (and their logprobs) are emitted
+    response = await generate_with_logprobs("together/google/gemma-4-31B-it")
     assert response.choices[0].logprobs is not None
     top_logprobs = response.choices[0].logprobs.content[0].top_logprobs
     assert top_logprobs is not None
-    assert len(top_logprobs) == 1
+    assert len(top_logprobs) == 2
 
 
 @skip_if_no_together
@@ -75,7 +92,7 @@ async def test_together_logprobs_openai_format() -> None:
     assert response.choices[0].logprobs is not None
     top_logprobs = response.choices[0].logprobs.content[0].top_logprobs
     assert top_logprobs is not None
-    assert len(top_logprobs) == 1
+    assert len(top_logprobs) == 2
 
 
 @pytest.mark.anyio
