@@ -45,25 +45,30 @@ Devin, and similar) preparing contributions. Human contributors: see
    proceed. File an issue with your evidence instead.
 
 If you do open a PR: reference the accepted issue (`Fixes #NNN`); run
-`make check` and `make test` and report results honestly; disclose agent
-involvement in the PR description; one issue per PR — no bundled drive-by
-changes; respect the open-PR limit (4 per account without write access).
+`make check` and `make test` and report results honestly; for non-trivial
+changes, run at least one code review pass in a fresh context on a strong
+(frontier-class) model (see "Authoring pull requests" below); disclose
+agent involvement in the PR description; one issue per PR — no bundled
+drive-by changes; respect the open-PR limit (4 per account without write
+access).
 
 As part of disclosing agent involvement, include an `### Agent review`
-section in the PR description summarizing pre-PR review passes: what
-model/tool reviewed and whether the review ran in a fresh context and/or
-used a different model from the author, how many passes, and the findings
-— issues found, which
-were fixed, and which were dismissed with a one-line reason each. Multiple
-passes, each in a fresh context, often catch issues a single pass misses —
-prefer that for non-trivial changes. We'd also prefer review passes run on
-a strong (frontier-class) model: in our experience, reviews from small
-fast-tier models rarely surface real issues, and maintainers weight the
-disclosed reviewer model and pass count when deciding how much independent
-review a PR still needs. If no
-review pass was run, say so explicitly. Never report a review that didn't
-happen — a fabricated or content-free review claim ("reviewed, looks good")
-is worse than disclosing none. Example:
+section in the PR description. What to disclose, and how it's read:
+
+- **Disclose**: what model/tool reviewed, whether the review ran in a fresh
+  context and/or on a different model from the author, how many passes, and
+  the findings — issues found, which were fixed, and which were dismissed
+  with a one-line reason each.
+- **How it's read**: maintainers weight the disclosed reviewer model and
+  pass count when deciding how much independent review a PR still needs.
+  Multiple passes, each in a fresh context, often catch issues a single
+  pass misses — prefer that for non-trivial changes.
+- **Honesty**: if no review pass was run, say so explicitly (disclosure is
+  not a substitute for running one where required above). Never report a
+  review that didn't happen — a fabricated or content-free review claim
+  ("reviewed, looks good") is worse than disclosing none.
+
+Example:
 
 ```
 ### Agent review
@@ -78,6 +83,7 @@ is worse than disclosing none. Example:
 - Format code: `ruff format`
 - Lint code: `ruff check --fix`
 - Type check: `mypy --exclude tests/test_package src tests`
+- If a lint or type check fails on lines your diff didn't touch, check whether `main` has the same failure before debugging your change (run the same check on a clean `main` checkout, or look at the latest CI run on `main`) — a new toolchain release (e.g. a mypy major) can turn `main` red with no code change. If `main` is also failing, don't bundle an unrelated fix into your PR; flag it (in the PR description or an issue) and let it be fixed separately.
 
 ## Code Style Guidelines
 - **Formatting**: Follow Google style convention. Use ruff for formatting
@@ -121,11 +127,15 @@ Additional files provide context when working in specific areas:
 
 `design/` contains architecture notes, subsystem internals, and documentation of repo/CI/development processes and workflows. Browse it before diving into an unfamiliar area.
 
-## Pull requests
+## Authoring pull requests
+
+These conventions apply to every PR, whoever authors it. External contributions must also satisfy the contribution policy above.
 
 Write the PR description using the template at `.github/pull_request_template.md` (fill in its sections — the "This PR contains" checklist, current vs. new behavior, breaking changes, other info). Include the `### Agent review` section described in the contribution policy above (put it under "Other information"). Please include a sufficiently detailed description of the PR, including briefly noting the user facing experience that triggered the fix or change.
 
 Title the PR with the user-facing outcome — the bug a user hit or the capability they gain — not the mechanism of the fix: "Fix eval hang when resuming with S3 logs", not "Add AsyncFilesystem to log recorder". A good test: would a user scanning titles recognize their problem or their feature request? PRs with no user-facing outcome (refactoring, dev tooling, docs) describe the change itself instead. CHANGELOG entries follow the same outcome-not-mechanism rule; only product-functionality changes get one (see below), so the carve-out doesn't arise there.
+
+Before opening a non-trivial PR, run at least one code review pass in a fresh context — a reviewer that hasn't seen the authoring conversation (e.g. `/code-review` or a subagent) — using a strong (frontier-class) model; in our experience reviews from small fast-tier models rarely surface real issues. Fix or explicitly dismiss each finding before opening, and disclose the pass in the `### Agent review` section.
 
 When asked to open a PR, don't stop at creation — monitor it afterward: watch its CI checks (e.g. `gh pr checks <number> --repo <owner>/<repo> --watch`) until they complete, report the outcome, and investigate/fix any failures. If the branch has fallen behind its base (out of date), update it — merge or rebase the base branch in and push — so CI runs against current code.
 
