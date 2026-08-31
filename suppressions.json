@@ -113,18 +113,6 @@
     "noqa:F811": {
       "count": 1,
       "undescribed": 1
-    },
-    "type: ignore": {
-      "count": 2,
-      "undescribed": 2
-    },
-    "type: ignore[arg-type]": {
-      "count": 1,
-      "undescribed": 1
-    },
-    "type: ignore[misc]": {
-      "count": 1,
-      "undescribed": 1
     }
   },
   "src/inspect_ai/_cli/log.py": {
@@ -237,6 +225,20 @@
     "type: ignore": {
       "count": 4,
       "undescribed": 4
+    }
+  },
+  "src/inspect_ai/_util/generate_config_args.py": {
+    "type: ignore": {
+      "count": 2,
+      "undescribed": 2
+    },
+    "type: ignore[arg-type]": {
+      "count": 1,
+      "undescribed": 1
+    },
+    "type: ignore[misc]": {
+      "count": 1,
+      "undescribed": 1
     }
   },
   "src/inspect_ai/_util/json.py": {
@@ -1168,6 +1170,10 @@
     "type: ignore[attr-defined]": {
       "count": 1,
       "undescribed": 1
+    },
+    "type: ignore[typeddict-item]": {
+      "count": 1,
+      "undescribed": 1
     }
   },
   "tests/_control/test_server.py": {
@@ -1658,6 +1664,12 @@
     "noqa:E402": {
       "count": 2,
       "undescribed": 2
+    }
+  },
+  "tests/model/providers/test_bedrock_prompt_cache.py": {
+    "noqa:E402": {
+      "count": 6,
+      "undescribed": 6
     }
   },
   "tests/model/providers/test_bedrock_structured_output.py": {
