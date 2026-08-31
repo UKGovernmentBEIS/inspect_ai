@@ -101,6 +101,29 @@ def test_eval_sample_token_limit_fields_none_without_limit():
     assert sample.token_limit is None
     assert sample.token_limit_type is None
     assert sample.token_limit_usage is None
+    # and so are the other per-sample limit ceilings
+    assert sample.message_limit is None
+    assert sample.time_limit is None
+
+
+def test_eval_sample_records_message_and_time_limits():
+    task = Task(
+        dataset=[Sample(input="s1")],
+        message_limit=10,
+        time_limit=600,
+    )
+    log = eval(task, model="mockllm/model")[0]
+    assert log.status == "success"
+    assert log.samples is not None
+    sample = log.samples[0]
+
+    # the configured ceilings are persisted on the sample record
+    assert sample.message_limit == 10
+    assert sample.time_limit == 600
+    # the summary carries the same values
+    summary = sample.summary()
+    assert summary.message_limit == 10
+    assert summary.time_limit == 600
 
 
 def test_dynamic_token_limit_updates_active_sample() -> None:

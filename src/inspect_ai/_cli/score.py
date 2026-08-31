@@ -13,12 +13,11 @@ from typing_extensions import Unpack
 
 from inspect_ai._cli.util import (
     int_or_bool_flag_callback,
-    parse_cli_args,
     parse_cli_config,
     parse_model_role_cli_args,
 )
 from inspect_ai._display import display
-from inspect_ai._display.core.results import task_scores
+from inspect_ai._display.core.results import sample_coverage_messages, task_scores
 from inspect_ai._display.core.rich import rich_theme
 from inspect_ai._eval.context import init_eval_context
 from inspect_ai._eval.loader import metric_from_spec
@@ -28,9 +27,10 @@ from inspect_ai._eval.score import (
     score_async,
 )
 from inspect_ai._util._async import configured_async_backend
+from inspect_ai._util.config import parse_cli_args
 from inspect_ai._util.file import filesystem
 from inspect_ai._util.platform import platform_init
-from inspect_ai.log._log import EvalLog, EvalSample
+from inspect_ai.log._log import EvalLog, EvalResults, EvalSample
 from inspect_ai.log._recorders import create_recorder_for_location
 from inspect_ai.model._model import Model, get_model
 from inspect_ai.scorer._metric import Metric, MetricSpec
@@ -63,7 +63,7 @@ from .common import CommonOptions, common_options, process_common_options
     multiple=True,
     type=str,
     envvar="INSPECT_SCORE_MODEL_ROLE",
-    help='Named model role with model name or YAML/JSON config, e.g. --model-role critic=openai/gpt-4o or --model-role grader="{model: mockllm/model, temperature: 0.5}". Merged over the model roles recorded in the log.',
+    help='Named model role with model name or YAML/JSON config, e.g. --model-role critic=openai/gpt-4o or --model-role grader="{model: mockllm/model, temperature: 0.5}". Bind multiple models to a role with a comma-separated list of names or a YAML/JSON list of configs. Merged over the model roles recorded in the log.',
 )
 @click.option(
     "--scorer",
@@ -196,6 +196,13 @@ async def score(
             f"Cannot determine the number of samples to score for {log_file}"
         )
 
+    # Sample coverage describes the original run, not this scoring pass, and
+    # `--action overwrite` replaces `results` with counts taken over the samples
+    # present in the log. Early-stopped samples were never written, so those
+    # counts no longer share a denominator with the early-stopping summary
+    # carried forward from the header. Read the coverage before scoring.
+    pre_score_coverage = eval_log.results
+
     scorers = resolve_scorers(eval_log, scorer, scorer_args)
     if len(scorers) == 0:
         raise ValueError(
@@ -261,10 +268,12 @@ async def score(
     else:
         await recorder.write_log(output_file, eval_log)
 
-    print_results(output_file, eval_log)
+    print_results(output_file, eval_log, coverage=pre_score_coverage)
 
 
-def print_results(output_file: str, eval_log: EvalLog) -> None:
+def print_results(
+    output_file: str, eval_log: EvalLog, coverage: EvalResults | None = None
+) -> None:
     # the theme
     theme = rich_theme()
 
@@ -276,6 +285,19 @@ def print_results(output_file: str, eval_log: EvalLog) -> None:
     if eval_log.results:
         for row in task_scores(eval_log.results.scores, pad_edge=True):
             grid.add_row(row)
+
+        coverage = coverage or eval_log.results
+        for message in sample_coverage_messages(
+            total_samples=coverage.total_samples,
+            completed_samples=coverage.completed_samples,
+            early_stopping=coverage.early_stopping,
+            # this pass scored every sample in the log, errored ones included,
+            # so their scores are in the metrics above whatever the original
+            # run's `score_on_error` was: don't claim they went unscored
+            score_on_error=True,
+        ):
+            grid.add_row("")
+            grid.add_row(f" {message}")
 
     grid.add_row("")
     grid.add_row(f" Log: [{theme.link}]{output_file}[/{theme.link}]")

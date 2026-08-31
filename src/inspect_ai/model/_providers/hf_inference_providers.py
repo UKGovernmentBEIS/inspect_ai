@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Literal
 
 from typing_extensions import override
 
@@ -15,9 +15,14 @@ class HFInferenceProvidersAPI(OpenAICompatibleAPI):
         base_url: str | None = None,
         api_key: str | None = None,
         config: GenerateConfig = GenerateConfig(),
-        stream: bool | None = None,
+        stream: bool | Literal["auto"] | None = None,
         **model_args: Any,
     ) -> None:
+        # hf-inference streams by default: unset means always stream;
+        # explicit true/false overrides and "auto" defers to the base class
+        # (stream only when the caller passes on_stream)
+        if stream is None:
+            stream = True
         super().__init__(
             model_name=model_name,
             base_url=base_url or "https://router.huggingface.co/v1",
@@ -26,7 +31,7 @@ class HFInferenceProvidersAPI(OpenAICompatibleAPI):
             config=config,
             service="HF Inference Providers",
             service_base_url="https://router.huggingface.co/v1",
-            stream=stream is not False,
+            stream=stream,
             **model_args,
         )
 

@@ -26,7 +26,7 @@ from test_helpers.utils import (
 
 from inspect_ai import Task, eval, task
 from inspect_ai._eval.evalset import (
-    _GENERATE_CONFIG_FIELDS_TO_EXCLUDE,
+    GENERATE_CONFIG_FIELDS_TO_EXCLUDE,
     EvalSetArgsInTaskIdentifier,
     _embed_viewer,
     epochs_changed,
@@ -930,20 +930,25 @@ def test_task_identifier_with_model_roles_model_configs():
 )
 def test_task_identifier_ignores_runtime_config(field: str, value: object):
     # runtime concurrency / caching knobs don't affect outputs and shouldn't
-    # break eval_set resume — for any of the three GenerateConfig sites that
-    # feed task_identifier: the primary model's config, the eval_set-level
-    # config (which becomes eval_plan.config), and each role model's config.
+    # break eval_set resume — for any of the GenerateConfig sites that feed
+    # task_identifier: the primary model's config, the eval_set-level config
+    # (which becomes eval_plan.config), and each role model's config (both
+    # single-model roles and every element of list-valued roles).
     tuned = GenerateConfig.model_validate({field: value})
 
     def ident(
         primary_cfg: GenerateConfig = GenerateConfig(),
         plan_cfg: GenerateConfig = GenerateConfig(),
         role_cfg: GenerateConfig = GenerateConfig(),
+        role_list_cfg: GenerateConfig = GenerateConfig(),
     ) -> str:
         p = get_model("mockllm/model", config=primary_cfg)
         r = get_model("mockllm/scorer", config=role_cfg)
+        # role_list_cfg lands on a non-first list element so the test catches
+        # an exclusion that only reaches index 0
+        r2 = get_model("mockllm/scorer2", config=role_list_cfg)
         t = hello_world()
-        task_with(t, model=p, model_roles={"scorer": r})
+        task_with(t, model=p, model_roles={"scorer": r, "graders": [r, r2]})
         (resolved,) = resolve_tasks([t], {}, p, None, None, None)
         return task_identifier(resolved, EvalSetArgsInTaskIdentifier(config=plan_cfg))
 
@@ -951,6 +956,7 @@ def test_task_identifier_ignores_runtime_config(field: str, value: object):
     assert ident(primary_cfg=tuned) == baseline, f"primary model config: {field}"
     assert ident(plan_cfg=tuned) == baseline, f"eval_plan.config: {field}"
     assert ident(role_cfg=tuned) == baseline, f"role model config: {field}"
+    assert ident(role_list_cfg=tuned) == baseline, f"role list model config: {field}"
 
     # sanity: a field that DOES affect identity still changes the hash on
     # every path, so the test isn't trivially passing.
@@ -958,6 +964,7 @@ def test_task_identifier_ignores_runtime_config(field: str, value: object):
     assert ident(primary_cfg=semantic) != baseline
     assert ident(plan_cfg=semantic) != baseline
     assert ident(role_cfg=semantic) != baseline
+    assert ident(role_list_cfg=semantic) != baseline
 
 
 def test_task_identifier_ignores_role_base_url():
@@ -966,7 +973,7 @@ def test_task_identifier_ignores_role_base_url():
     # part of a role model's identifier either.
     primary = get_model("mockllm/model")
 
-    def ident(role: Model) -> str:
+    def ident(role: Model | list[Model]) -> str:
         t = hello_world()
         task_with(t, model=primary, model_roles={"scorer": role})
         (resolved,) = resolve_tasks([t], {}, primary, None, None, None)
@@ -978,11 +985,19 @@ def test_task_identifier_ignores_role_base_url():
         get_model("mockllm/scorer", base_url="http://localhost:8000")
     )
 
+    # same for every element of a list-valued role
+    assert ident([get_model("mockllm/scorer"), get_model("mockllm/scorer2")]) == ident(
+        [
+            get_model("mockllm/scorer"),
+            get_model("mockllm/scorer2", base_url="http://localhost:8000"),
+        ]
+    )
+
 
 # GenerateConfig fields whose value can change model/tool outputs, and which
 # therefore form part of task identity (i.e. are hashed into task_identifier).
 # Every GenerateConfig field MUST appear either here or in
-# _GENERATE_CONFIG_FIELDS_TO_EXCLUDE — see test_generate_config_fields_classified.
+# GENERATE_CONFIG_FIELDS_TO_EXCLUDE — see test_generate_config_fields_classified.
 _GENERATE_CONFIG_IDENTITY_FIELDS = {
     "system_message",
     "max_tokens",
@@ -1021,13 +1036,13 @@ def test_generate_config_fields_classified():
     """Force every GenerateConfig field to be explicitly classified.
 
     eval_set resume matches live tasks to existing logs by hashing
-    GenerateConfig minus _GENERATE_CONFIG_FIELDS_TO_EXCLUDE. A new field that
+    GenerateConfig minus GENERATE_CONFIG_FIELDS_TO_EXCLUDE. A new field that
     isn't classified is hashed by default, so tuning it between runs silently
     breaks resume — which is exactly how `adaptive_connections` slipped
     through after it was added.
     """
     fields = set(GenerateConfig.model_fields)
-    excluded = _GENERATE_CONFIG_FIELDS_TO_EXCLUDE
+    excluded = GENERATE_CONFIG_FIELDS_TO_EXCLUDE
     identity = _GENERATE_CONFIG_IDENTITY_FIELDS
 
     unclassified = fields - excluded - identity
@@ -1036,7 +1051,7 @@ def test_generate_config_fields_classified():
         f"for task_identifier hashing.\n"
         f"  → If the field is a runtime/transport knob (concurrency, retries, "
         f"timeouts, caching, batching) that does NOT change model outputs: "
-        f"add it to _GENERATE_CONFIG_FIELDS_TO_EXCLUDE in "
+        f"add it to GENERATE_CONFIG_FIELDS_TO_EXCLUDE in "
         f"src/inspect_ai/_eval/evalset.py and bump TASK_IDENTIFIER_VERSION.\n"
         f"  → If the field CAN change model outputs (sampling params, "
         f"reasoning config, tool behaviour, etc.): add it to "
@@ -1047,14 +1062,14 @@ def test_generate_config_fields_classified():
     overlap = excluded & identity
     assert not overlap, (
         f"GenerateConfig field(s) {sorted(overlap)} appear in both "
-        f"_GENERATE_CONFIG_FIELDS_TO_EXCLUDE and "
+        f"GENERATE_CONFIG_FIELDS_TO_EXCLUDE and "
         f"_GENERATE_CONFIG_IDENTITY_FIELDS — pick one."
     )
 
     stale = (excluded | identity) - fields
     assert not stale, (
         f"GenerateConfig field(s) {sorted(stale)} no longer exist on "
-        f"GenerateConfig — remove from _GENERATE_CONFIG_FIELDS_TO_EXCLUDE "
+        f"GenerateConfig — remove from GENERATE_CONFIG_FIELDS_TO_EXCLUDE "
         f"(evalset.py) or _GENERATE_CONFIG_IDENTITY_FIELDS (this file)."
     )
 

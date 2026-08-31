@@ -504,6 +504,42 @@ async def test_samples_endpoint_rejects_bad_params(
             assert "at least one status" in response.json()["error"]
 
 
+async def test_sample_score_status_distinguishes_superseded_from_missing() -> None:
+    """The sample-score GET splits its rejections by status code.
+
+    A superseded attempt's eval id is a 409 (matching the POST), so the CLI
+    surfaces the server's superseded-by-a-retry message via the error body;
+    a plain 404 only ever means "no pass for this sample", whose static CLI
+    text would mischaracterize a mid-poll task retry.
+    """
+    from inspect_ai._control import server as server_mod
+    from inspect_ai._control.eval_state import clear_all_eval_states, register_eval
+    from inspect_ai._control.scoring import reset_score_passes
+
+    clear_all_eval_states()
+    reset_score_passes()
+    try:
+        register_eval("e1", 1, task_id="t1")
+        register_eval("e2", 1, task_id="t1")  # supersedes e1
+
+        app = server_mod.ControlServer(run_id="test")._build_app()
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://localhost"
+        ) as client:
+            params: dict[str, str | int] = {"sample_id": "s1", "epoch": 1}
+            stale = await client.get("/evals/e1/sample/score", params=params)
+            assert stale.status_code == 409
+            assert "superseded" in stale.json()["error"]
+
+            missing = await client.get("/evals/e2/sample/score", params=params)
+            assert missing.status_code == 404
+            assert "no scoring pass" in missing.json()["error"]
+    finally:
+        clear_all_eval_states()
+        reset_score_passes()
+
+
 async def test_sample_endpoint_addresses_reserved_char_ids(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
