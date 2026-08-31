@@ -18,10 +18,11 @@ from .openai_compatible import OpenAICompatibleAPI
 
 logger = getLogger(__name__)
 
-# Sampling parameters that Kimi models reject while thinking is enabled (the
-# default): the API pins each to a fixed value and 400s on any other value
-# (e.g. "invalid temperature: only 1 is allowed for this model"). Legacy
-# moonshot-v1-* models accept them.
+# Sampling parameters that Kimi models reject: the API pins each to a fixed
+# value and 400s on any other value (e.g. "invalid temperature: only 1 is
+# allowed for this model"). The pin applies whether thinking is enabled or
+# disabled — only the pinned temperature depends on the thinking mode
+# (1 enabled, 0.6 disabled). Legacy moonshot-v1-* models accept them.
 # https://platform.kimi.ai/docs/guide/use-thinking-effort
 KIMI_FIXED_SAMPLING_PARAMS = (
     "temperature",
@@ -32,7 +33,7 @@ KIMI_FIXED_SAMPLING_PARAMS = (
 
 KIMI_FIXED_SAMPLING_WARNING = (
     "The {parameter} parameter is not supported by {model} (Kimi models use "
-    "fixed sampling while thinking is enabled) and will be ignored."
+    "fixed sampling) and will be ignored."
 )
 
 KIMI_TOOL_CHOICE_WARNING = (
@@ -74,8 +75,8 @@ class MoonshotAPI(OpenAICompatibleAPI):
         """Whether the request explicitly disables Kimi thinking.
 
         Kimi models think by default; passing `thinking: {"type": "disabled"}`
-        via extra_body turns it off, which also lifts the fixed-sampling and
-        named-tool_choice restrictions.
+        via extra_body turns it off, which also lifts the named-tool_choice
+        restriction (fixed sampling stays pinned in both modes).
         """
         thinking = (config.extra_body or {}).get("thinking")
         return isinstance(thinking, dict) and thinking.get("type") == "disabled"
@@ -141,7 +142,7 @@ class MoonshotAPI(OpenAICompatibleAPI):
     @override
     def completion_params(self, config: GenerateConfig, tools: bool) -> dict[str, Any]:
         params = super().completion_params(config, tools)
-        if self.is_kimi() and not self.thinking_disabled(config):
+        if self.is_kimi():
             for param in KIMI_FIXED_SAMPLING_PARAMS:
                 if param in params:
                     del params[param]
