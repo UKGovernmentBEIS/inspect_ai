@@ -105,7 +105,7 @@ def parse_answers(state: TaskState, multiple_correct: bool) -> set[str]:
     # version for backward compatibility
     if not matches:
         matches = re.findall(
-            r"(?i)ANSWER\s*:\s*[^\w\s]*([A-Za-z\d ,]+?)[^\w\s]*(?:[^\w]|\n|$|\.)",
+            r"(?i)ANSWER\s*:\s*[*_`$~]*([A-Za-z\d ,]+)[*_`$~]*(?:[^\w]|\n|$|\.)",
             state.output.completion,
         )
 

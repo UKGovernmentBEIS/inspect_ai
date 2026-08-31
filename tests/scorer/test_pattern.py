@@ -14,7 +14,16 @@ async def test_single_match_success():
 
 
 @pytest.mark.anyio
-@pytest.mark.parametrize("completion", ["ANSWER: **A**", "ANSWER: $A$"])
+@pytest.mark.parametrize(
+    "completion",
+    [
+        "ANSWER: **A**",
+        "ANSWER: $A$",
+        "ANSWER: A because it is red",
+        "ANSWER: A, final",
+        "ANSWER: A ",
+    ],
+)
 async def test_answer_pattern_accepts_wrapped_letter(completion: str):
     from inspect_ai.scorer._answer import AnswerPattern, answer
 
