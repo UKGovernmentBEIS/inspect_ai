@@ -216,7 +216,7 @@ def model_graded_qa(
 
     # explicit model(s): a list grades by majority vote
     if isinstance(model, list):
-        return multi_scorer([get_scorer(m) for m in model], "mode")
+        return multi_scorer([get_scorer(m) for m in model], reducer)
     if model is not None:
         return get_scorer(model)
 

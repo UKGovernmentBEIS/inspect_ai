@@ -478,7 +478,7 @@ def test_model_graded_panel_unscored_when_no_majority():
     assert panel["size"] == 3
     # the failing grader's own output survives into the combined score
     assert panel["failures"][0]["index"] == 1
-    assert panel["failures"][0]["reason"] == "grade_parse_failure"
+    assert panel["failures"][0]["reason"] == "grader_failed"
     assert UNPARSEABLE in panel["failures"][0]["explanation"]
 
 
