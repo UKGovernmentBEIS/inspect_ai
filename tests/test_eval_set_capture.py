@@ -291,7 +291,40 @@ _EXPECTED_CAPTURE_TASK_FIELDS: dict[int, set[str]] = {
         "identifier",
         "samples",
         "epochs",
-    }
+    },
+    # v2 changed the manifest and not the task entry: `overrides` records the
+    # operational overrides in force, because `options` is now unambiguously a
+    # record of the *definition* and a run with an `epochs` or `limit` override
+    # has per-task `samples` the definition's options cannot account for.
+    2: {
+        "name",
+        "display_name",
+        "registry_name",
+        "file",
+        "args",
+        "args_full",
+        "args_hash",
+        "solver",
+        "model",
+        "model_args",
+        "model_roles",
+        "sequence",
+        "identifier",
+        "samples",
+        "epochs",
+    },
+}
+
+_EXPECTED_CAPTURE_FIELDS: dict[int, set[str]] = {
+    1: {"version", "identifier_version", "eval_set_id", "options", "tasks"},
+    2: {
+        "version",
+        "identifier_version",
+        "eval_set_id",
+        "options",
+        "overrides",
+        "tasks",
+    },
 }
 
 
@@ -300,6 +333,10 @@ def test_eval_set_capture_schema_stability() -> None:
     assert (
         set(EvalSetCaptureTask.model_fields.keys())
         == _EXPECTED_CAPTURE_TASK_FIELDS[EVAL_SET_CAPTURE_VERSION]
+    )
+    assert (
+        set(EvalSetCapture.model_fields.keys())
+        == _EXPECTED_CAPTURE_FIELDS[EVAL_SET_CAPTURE_VERSION]
     )
     # empty task args hash (also pinned in test_task_identifier_version.py)
     assert (

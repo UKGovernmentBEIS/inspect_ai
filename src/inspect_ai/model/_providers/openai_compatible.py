@@ -265,6 +265,7 @@ class OpenAICompatibleAPI(ModelAPI):
                 if have_tools
                 else NOT_GIVEN,
                 extra_headers={HttpxHooks.REQUEST_ID_HEADER: request_id}
+                | self.request_headers(config)
                 | (config.extra_headers or {}),
                 **completion_params,
             )
@@ -425,6 +426,14 @@ class OpenAICompatibleAPI(ModelAPI):
             params["max_completion_tokens"] = params.pop("max_tokens")
 
         return params
+
+    def request_headers(self, config: GenerateConfig) -> dict[str, str]:
+        """Provider-specific headers to send with this request.
+
+        Merged beneath `config.extra_headers`, so a caller-supplied value for
+        the same header wins.
+        """
+        return {}
 
     def on_response(self, response: dict[str, Any]) -> None:
         """Hook for subclasses to do custom response handling."""

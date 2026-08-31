@@ -104,6 +104,40 @@ is worse than disclosing none. Example:
 
 - **Respect existing patterns**: Respect existing code patterns when modifying files. Run linting before committing changes.
 
+## Suppression gate
+
+- Do NOT suppress lint or type errors (`# noqa`, `# type: ignore`,
+  `# pyright: ignore`, or the file-wide `# ruff: noqa` /
+  `# mypy: ignore-errors`). Fix the code. A deterministic gate enforces
+  this (`make suppressions-check` against `suppressions.json`); maintainers
+  reject suppressions that just make an error go away.
+- In the rare case a suppression is correct, it requires both: a reason in
+  a trailing hash comment segment on the same line, the only style mypy
+  accepts (e.g. `x = f()  # type: ignore[assignment]  # stub is wrong
+  upstream`), and `make suppressions-update` to record it in
+  `suppressions.json`. Always suppress the specific code
+  (`# noqa: E501`, `# type: ignore[assignment]`), never the bare code-less
+  form.
+- Every new suppression requires human maintainer approval; when it changes
+  aggregate counts, that approval includes the `suppressions.json` diff.
+  Expect the PR to be blocked until then, and say in the PR description why
+  no fix is possible.
+- The ledger tracks aggregate counts by file and rule, not individual source
+  locations. Moving or replacing the same rule within one file does not alter
+  the ledger, so reviewers must still inspect suppression changes in the
+  source diff.
+- If the `suppressions` CI check fails, never hand-edit the ledger to make
+  it pass. Run `make suppressions-update` so the change shows in the
+  ledger diff. `--update` refuses to grow any rule's repo-wide reason-less
+  total (the ratchet): new suppressions must carry a reason, and the
+  baselined reason-less ones burn down over time.
+- Merges from upstream are the one sanctioned ratchet exception: when a
+  sync brings in new reason-less suppressions, do not edit the
+  upstream-owned lines to add reasons (that creates permanent merge
+  drift). Instead run `python3 .github/scripts/check_suppressions.py
+  --update --allow-growth` to record them; it prints each rule that grew,
+  and the growth still shows in the ledger diff for maintainer review.
+
 ## Testing Async Code
 
 All async test functions automatically run under both asyncio and trio backends via anyio (applied by the `pytest_pycollect_makeitem` hook in `tests/conftest.py`). Trio variants are skipped by default; use `--runtrio` to enable them.
