@@ -144,7 +144,7 @@ def _scan_dir(log_dir: Path) -> Path:
 
 
 def _buffer_stems(scan_dir: Path, scanner_name: str) -> set[str]:
-    sdir = Path(RecorderBuffer.buffer_dir(str(scan_dir))) / f"scanner={scanner_name}"
+    sdir = RecorderBuffer.buffer_dir(str(scan_dir)) / f"scanner={scanner_name}"
     if not sdir.exists():
         return set()
     return {p.stem for p in sdir.glob("*.parquet")}
@@ -265,9 +265,7 @@ def test_selection_scanning_is_record_only_and_the_runner_brackets(
 
     # the runner's finalize: no scanner objects, names from _scan.json.
     # A's rows survive, B's orphans are pruned, the scan reads complete.
-    asyncio.run(
-        scan_finalize(scan_id=EVAL_SET_ID, log_dir=str(log_dir), scanner=None)
-    )
+    asyncio.run(scan_finalize(scan_id=EVAL_SET_ID, log_dir=str(log_dir), scanner=None))
     assert _parquet_transcript_ids(scan_dir, "sel_echo_scanner") == a_uuids
     assert _complete_flag(scan_dir)
     assert _buffer_stems(scan_dir, "sel_echo_scanner") == set()
@@ -333,9 +331,7 @@ def test_injected_scanners_run_in_a_definition_that_declares_none(
     success, logs = _run_worker(
         monkeypatch,
         tmp_path,
-        _selection(
-            _identifier(capture, "scan_selection_task_two"), scanners=injected
-        ),
+        _selection(_identifier(capture, "scan_selection_task_two"), scanners=injected),
         log_dir,
         name="worker",
     )
@@ -350,8 +346,10 @@ def test_injected_scanner_name_collision_is_refused(
         monkeypatch, tmp_path, scanner={"sel_echo_scanner": sel_echo_scanner()}
     )
     injected = {
-        "sel_echo_scanner": spec.model_dump(mode="json", exclude_none=True)
-        for spec in _spec_scanners({"sel_echo_scanner": sel_echo_scanner()}).values()
+        name: spec.model_dump(mode="json", exclude_none=True)
+        for name, spec in _spec_scanners(
+            {"sel_echo_scanner": sel_echo_scanner()}
+        ).items()
     }
     with pytest.raises(PrerequisiteError, match="collide"):
         _run_worker(
