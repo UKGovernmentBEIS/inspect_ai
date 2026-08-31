@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Multiple Choice: A model answering '0' is no longer credited as option Z on tasks with 26+ options (and scores incorrect rather than erroring). (#5159)
 - Checkpointing: Resuming from a checkpoint now rejects a host-context snapshot containing symlinks or other non-regular files instead of following them into host files.
 - Checkpointing: Resuming into a context directory left by an interrupted attempt no longer keeps files newer than the committed checkpoint alongside the restored ones.
 - Groq: An over-capacity, server, or rate-limit error delivered inside a streamed response is now retried instead of failing the sample, and a streamed context-length rejection yields `model_length` output.
@@ -34,7 +35,6 @@
 - Scorer (breaking): Model-graded scorers with a panel of graders now require a strict majority: samples with no majority grade (even-split ties, three-way splits, or ties after a grader returns no parseable grade) come back unscored and leave the metric denominator, rather than the most common grade winning with ties broken by grader order. Pass `reducer="mode"` to `model_graded_qa()`/`model_graded_fact()` to restore the previous behavior. (#4721)
 - Scorer: `pattern()` now falls back to the full regex match when the pattern contains no explicit capture groups (previously such patterns always scored INCORRECT). (#4828)
 - Bugfix: Bump the `fsspec` upper bound from `<=2025.9.0` to `<=2026.6.0` to align with the current `huggingface/datasets` cap. (#4761)
-- Concurrency: `max_sandboxes` and `max_subprocesses` now default off the processors the eval may actually use, so an eval in a CPU-limited container no longer oversubscribes its quota.
 - Tools: The `grep` tool now supports extended regex via a new `extended_regexp` option (patterns remain basic regex by default).
 - Tools: Tool call arguments nested deeper than 100 levels are now rejected with a parse error echoed back to the model (previously depths up to ~254 executed and deeper crashed eval logging, aborting the whole run).
 - Agent Bridge: Bridged Anthropic requests now preserve `system` block boundaries, so instruction blocks are no longer silently discarded by the API.
