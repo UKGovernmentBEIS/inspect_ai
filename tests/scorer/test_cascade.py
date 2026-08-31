@@ -142,6 +142,16 @@ def test_existing_metadata_is_preserved():
     assert result.metadata["decided_by"] == "a"
 
 
+def test_sub_scorer_score_not_mutated():
+    # cascade must not write decided_by into the sub-scorer's own Score, or a
+    # Score reused across samples would leak metadata between them.
+    calls: list[str] = []
+    original = Score(value=CORRECT)
+    result = _run(cascade(a=_stage("a", original, calls)))
+    assert result.metadata["decided_by"] == "a"
+    assert "decided_by" not in (original.metadata or {})
+
+
 @scorer(metrics=[accuracy(), stderr()])
 def _fixed(value):
     async def score(state: TaskState, target: Target) -> Score:

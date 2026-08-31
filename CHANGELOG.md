@@ -1,13 +1,19 @@
 ## Unreleased
+- Scoring: `model_graded_qa`/`model_graded_fact` no longer score a malformed multi-character verdict such as `GRADE: CI` as correct; such verdicts now leave the sample unscored with `grade_parse_failure` recorded.
 
+- Eval Log: `local_path()` now percent-decodes `file://` URLs, restoring the `to_uri()` round trip for paths with spaces or other encoded characters (affects every consumer of file URLs: log recorders, control-channel state, checkpoint restore, approval policy files). (#5025)
+- Bugfix: Sample `files` values that are empty strings now create empty files in the sandbox rather than recursively copying the runner's working directory (or the dataset's directory) into it.
+- Scoring: Support tuples and non-list sequences in Target. (#5039)
 - Analysis: Fixed `task_info()` and `log_viewer()` raising `ValueError` when applied to an empty DataFrame. (#4826)
 - Eval Set: `eval_set()` now defaults `log_dir` to `INSPECT_LOG_DIR` or `./logs`, as `eval()` does, rather than requiring it.
 - Eval Set: An external runner driving `eval_set()` can now override any argument that does not change task identity, rather than only five.
 - Eval Set: An eval set driven by an external runner now honors the `INSPECT_EVAL_*` environment variables with the same meanings `inspect eval-set` gives them.
 - Control Channel: `inspect ctl config --max-samples` now works for tasks using adaptive connections — an integer pins sample concurrency, and `clear` resumes adaptive tracking.
 - Eval logs: Header-only `.eval` log uploads to S3 now appear in `inspect trace` output.
+- Eval Log: Resolving a log's attachments no longer discards model call payloads, which previously became unreadable when attachments were resolved.
 - Eval Log: Fixed trio evals crashing with `ValueError: seek of closed file` when writing a `.eval` log smaller than 8MB to S3.
 - Inspect CTL: New `inspect ctl sample score` interim-scores a single running sample's work-so-far on demand (briefly held while scored; the sample keeps running).
+- Score: `inspect score` now reports samples that errored or were stopped early, so a re-scored partial run is no longer displayed as if it were complete.
 - Scorers: New `cascade()` scorer runs scorers in order and reports the first that settles a sample, so an expensive grader only runs on samples cheaper scorers left unsettled.
 
 ## 0.3.261 (30 August 2026)
@@ -120,6 +126,7 @@
 - Mistral: Provider-generated images remain available when replayed in subsequent conversation turns.
 - Eval Log: A retry attempt killed before it finishes reusing the prior log's completed samples no longer causes the next retry to re-run (and eventually lose) those samples.
 - Docs: Clarify that the sandbox `exec()` output limit is enforced by front-truncating the output streams rather than by raising `OutputLimitExceededError` (which remains the behaviour for `read_file()`). (#4778)
+- Agent Bridge: A bridged client that sends the eval model's concrete id instead of `inspect` (claude_code sends e.g. `claude-fable-5`) now resolves to the eval's own `Model` instance rather than a second one built by `get_model()`, whose memoization key includes the config. Previously such a client got a distinct instance, and since the eval's `GenerateConfig` is only applied to the active model, eval-level options such as `fallback_models` were silently dropped before the provider request. Aliases, model roles, and any other model the client names are unaffected.
 
 ## 0.3.259 (16 August 2026)
 

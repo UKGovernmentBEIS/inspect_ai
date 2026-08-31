@@ -29,10 +29,12 @@ def cascade(threshold: float = 1.0, **scorers: Scorer) -> Scorer:
     `threshold` (default `1.0`, i.e. a `CORRECT` verdict). A stage that
     declines (returns `None`) or is unscored (`nan`) is skipped and the cascade
     continues. If no stage settles, the last stage that produced a real score
-    is returned; if every stage declined, the cascade returns
-    `Score.unscored()`. The returned score carries `decided_by` in its
-    metadata, naming the stage whose verdict is returned (the settling stage,
-    or the last scored stage on fall-through).
+    is returned; if no stage produced a real score (every stage declined or was
+    unscored), the cascade returns `Score.unscored(reason="scoring_failed")`.
+    The returned score is a copy of the settling stage's score with `decided_by`
+    added to its metadata, naming the stage whose verdict is returned (the
+    settling stage, or the last scored stage on fall-through); the sub-scorer's
+    own `Score` object is not mutated.
 
     The cascade assumes earlier (cheaper) scorers do not produce false
     positives, so a `CORRECT` from exact match or symbolic equivalence can be
@@ -68,7 +70,8 @@ def cascade(threshold: float = 1.0, **scorers: Scorer) -> Scorer:
             return Score.unscored(reason="scoring_failed")
 
         decided_by, result = last_scored
-        result.metadata = (result.metadata or {}) | {"decided_by": decided_by}
-        return result
+        return result.model_copy(
+            update={"metadata": (result.metadata or {}) | {"decided_by": decided_by}}
+        )
 
     return score
