@@ -43,12 +43,11 @@ if sys.version_info < (3, 11):
 from shortuuid import uuid
 from typing_extensions import Unpack
 
-from inspect_ai._cli.util import parse_cli_args
 from inspect_ai._display.core.active import active_display as active_task_display
 from inspect_ai._display.core.active import display as task_display
 from inspect_ai._eval.task.scan import Scanners, scan_context
 from inspect_ai._util.asyncfiles import with_async_fs
-from inspect_ai._util.config import resolve_args
+from inspect_ai._util.config import parse_cli_args, resolve_args
 from inspect_ai._util.constants import (
     DEFAULT_EPOCHS,
     DEFAULT_LOG_FORMAT,
