@@ -7,6 +7,7 @@
 - Control Channel: `inspect ctl config --max-samples` now works for tasks using adaptive connections — an integer pins sample concurrency, and `clear` resumes adaptive tracking.
 - Eval logs: Header-only `.eval` log uploads to S3 now appear in `inspect trace` output.
 - Eval Log: Fixed trio evals crashing with `ValueError: seek of closed file` when writing a `.eval` log smaller than 8MB to S3.
+- Inspect CTL: New `inspect ctl sample score` interim-scores a single running sample's work-so-far on demand (briefly held while scored; the sample keeps running).
 
 ## 0.3.261 (30 August 2026)
 
@@ -48,7 +49,6 @@
 - Scoring: `value_to_float()` now maps numeric custom `correct`/`incorrect`/`partial`/`noanswer` values to 1/0/0.5/0 as documented, instead of silently passing them through (e.g. a custom `incorrect=-1` no longer produces negative accuracy). Default string sentinels and non-finite values are unaffected. (#4928)
 - Scoring: `value_to_float()` matches sentinels with `==`, so custom numeric sentinels also map equal bools (`True == 1.0`) and equal elements of list/dict values in score reducers — the same reach the default string sentinels already had; this is now documented. Mapped values are also always returned as floats (the `incorrect`/`noanswer` branch previously returned an `int`). (#4928)
 - Inspect CTL: New `inspect ctl task score` scores a running eval's in-flight samples (each briefly held while scored) and reports interim metrics that fold in completed samples' final scores, without ending any sample.
-- Inspect CTL: New `inspect ctl sample score` interim-scores a single running sample's work-so-far on demand (briefly held while scored; the sample keeps running).
 - Eval Log: Reading a sample from a `.json` log now reports the requested uuid when the sample is missing, and raises a clear error when neither id nor uuid is provided.
 - vLLM: The server's `max_model_len` is now registered as the model's context window, so compaction and context-length handling reflect the served configuration (including LoRA adapters via their parent model). (#4215)
 - Eval Set: Protocol for running a selection of an eval set's tasks (`INSPECT_EVAL_SET_SELECTION`), so an external runner can execute one task per process into a shared log directory while owning the eval-set metadata itself.
