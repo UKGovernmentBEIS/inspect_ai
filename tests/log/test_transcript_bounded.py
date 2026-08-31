@@ -2,6 +2,7 @@ import contextvars
 from typing import NoReturn, Sequence
 from unittest.mock import patch
 
+import numpy as np
 import pytest
 from test_helpers.transcript import FakeTranscriptHistoryProvider, make_model_event
 
@@ -1017,6 +1018,38 @@ def test_message_refs_cache_does_not_grow_for_equal_clones() -> None:
 
     assert original.id is not None
     assert len(tr._message_refs_cache[original.id]) == 1
+
+
+class _NonBoolEq:
+    """Metadata value whose `__eq__` result isn't bool-coercible.
+
+    Covers the non-ValueError half of the family (torch raises RuntimeError
+    where numpy and pandas raise ValueError), so the guard can't be narrowed
+    to `except ValueError` without this failing.
+    """
+
+    def __eq__(self, other: object) -> "_NonBoolEq":  # type: ignore[override]
+        return self
+
+    def __bool__(self) -> bool:
+        raise RuntimeError("truth value is ambiguous")
+
+    def __hash__(self) -> int:
+        return 0
+
+
+@pytest.mark.parametrize("value", [np.array([1, 2, 3]), _NonBoolEq()])
+def test_message_refs_memo_tolerates_incomparable_metadata(value: object) -> None:
+    # a deep-copying solver/agent yields a clone sharing the id but not the
+    # metadata objects, so the memo's == arm actually runs
+    tr = Transcript(bounded=True, resident_tail=10, log_model_api=True)
+    msg = ChatMessageUser(content="attachment://deadbeef", metadata={"v": value})
+    tr._event(make_model_event([msg], uuid="event-1"))
+    tr._event(make_model_event([msg.model_copy(deep=True)], uuid="event-2"))
+
+    # both events' refs counted (the crash aborted _set_attachment_refs after
+    # _events.append, leaving the second event's refs uncounted)
+    assert tr._attachment_refs_counter.counts["deadbeef"] == 2
 
 
 def test_message_refs_cache_bucket_is_bounded() -> None:

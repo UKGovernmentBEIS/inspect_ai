@@ -781,10 +781,20 @@ class Transcript:
                 # identity miss: an ==-equal clone reuses the entry WITHOUT
                 # being inserted (per-event model_copy clones would otherwise
                 # grow the bucket unboundedly). == is cheap here: clones share
-                # field objects, so comparisons short-circuit on identity.
-                for cached_msg, cached_refs in bucket:
-                    if cached_msg == msg:
-                        return cached_refs
+                # field objects, so comparisons short-circuit on identity. A
+                # metadata value whose __eq__ returns a non-bool (numpy array,
+                # pandas Series, torch tensor) makes the enclosing pydantic
+                # comparison raise instead of returning False — ValueError for
+                # numpy/pandas, RuntimeError for torch, anything for a custom
+                # type, hence the broad catch. This runs on the unswallowed
+                # Transcript._event path, so a raise would error the task; a
+                # miss just costs the rescan below, which is what main did.
+                try:
+                    for cached_msg, cached_refs in bucket:
+                        if cached_msg == msg:
+                            return cached_refs
+                except Exception:
+                    pass
             refs = frozenset(attachment_refs_from_object(msg))
             if bucket is not None:
                 if len(bucket) >= _MESSAGE_REFS_BUCKET_LIMIT:
