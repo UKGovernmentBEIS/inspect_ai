@@ -1053,14 +1053,21 @@ def _normalize_metadata(scanner: "Scanners | None") -> "dict[str, Any] | None":
 def _install_scan_model_context(scanner: "Scanners | None") -> None:
     """Install scout's scan-time model context for this sample.
 
-    Always invokes scout's `init_scan_model_context` so the scanner's
-    `get_model()` is detached from the eval's active model. Scout's
-    resolution chain is: kwargs > `SCOUT_SCAN_MODEL` env var > `NoModel`
-    sentinel (which raises `PrerequisiteError` on use). Forcing this
-    detachment is intentional: scanners often need a different model
-    from the eval, and silently inheriting the eval's model has caused
-    expensive surprises. Scanners that never call `get_model()` are
-    unaffected.
+    Always invokes scout's `init_scan_model_context` so scanner model
+    usage is accounted separately from the eval's. Scout's resolution
+    chain is kwargs > `SCOUT_SCAN_MODEL` env var > `NoModel` sentinel
+    (which raises `PrerequisiteError` on use) — and here, where the
+    sample's own context is still live around the call, ambient defaults
+    slot in ahead of the sentinel: a scanner that names no model of its
+    own scans with the model under evaluation, or (for a "none"-model
+    eval) the first model role. Only an eval with neither leaves
+    `NoModel` to raise, which is the signal that a scan-side model must
+    be configured explicitly.
+
+    The eval's model roles pass through ambiently for the same reason
+    (`init_model_context` would otherwise clear them): `get_model(role=...)`
+    in a scanner resolves the sample's own roles unless
+    `ScannerConfig.model_roles` replaces them.
 
     The override lives on the per-sample async context — each sample
     inherits a fresh copy of the task's context, so setting it here
@@ -1068,7 +1075,12 @@ def _install_scan_model_context(scanner: "Scanners | None") -> None:
     (The eval's `model_usage` for this sample is already snapshotted
     into `EvalSample` before `scan_eval_sample` is called.)
     """
+    import os
+
     from inspect_scout._scan import init_scan_model_context
+
+    from inspect_ai._util.constants import MODEL_NONE
+    from inspect_ai.model._model import active_model, model_roles
 
     kwargs: dict[str, Any] = {}
     if isinstance(scanner, ScannerConfig):
@@ -1083,6 +1095,17 @@ def _install_scan_model_context(scanner: "Scanners | None") -> None:
         if scanner.model_roles is not None:
             kwargs["model_roles"] = scanner.model_roles
 
+    ambient_roles = model_roles()
+    if "model" not in kwargs and not os.environ.get("SCOUT_SCAN_MODEL"):
+        ambient = active_model()
+        if ambient is not None and str(ambient) != MODEL_NONE:
+            kwargs["model"] = ambient
+        elif ambient_roles:
+            first = next(iter(ambient_roles.values()))
+            kwargs["model"] = first[0] if isinstance(first, list) else first
+    if "model_roles" not in kwargs and ambient_roles:
+        kwargs["model_roles"] = ambient_roles
+
     init_scan_model_context(**kwargs)
 
 
@@ -1094,15 +1117,22 @@ def _rewrap_no_model_error(scanner_name: str, error: Exception) -> Exception:
     the *scan-side* model. Surface a clearer message pointing at the
     knobs they can set; for any other `PrerequisiteError`, return it
     unchanged so the caller re-raises as-is.
+
+    With the ambient defaults `_install_scan_model_context` installs,
+    reaching this at all means the eval had no model under evaluation
+    and no model roles to inherit — so the message says that a model
+    must be configured explicitly.
     """
     from inspect_ai._util.error import PrerequisiteError
 
     if "No model specified" in str(error):
         return PrerequisiteError(
-            f"Scanner '{scanner_name}' tried to use a model but no "
-            "scan-side model is configured. Set one via "
-            "`ScannerConfig(model=...)`, the CLI flag `--scan-model`, "
-            "or the `SCOUT_SCAN_MODEL` environment variable."
+            f"Scanner '{scanner_name}' tried to use a model, but this "
+            "eval has no model or model roles to inherit and no "
+            "scan-side model is configured — one must be set "
+            "explicitly, via `ScannerConfig(model=...)`, the CLI flag "
+            "`--scan-model`, or the `SCOUT_SCAN_MODEL` environment "
+            "variable."
         )
     return error
 
