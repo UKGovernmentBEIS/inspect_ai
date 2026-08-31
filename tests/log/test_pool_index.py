@@ -372,6 +372,39 @@ def test_call_pool_index_forked_streams_keep_separate_lineages() -> None:
     assert index.match_prefix(b2) == [0, 1, 3]
 
 
+def test_call_pool_index_repeated_prefix_request_reuses_its_slot() -> None:
+    """A repeated strict-prefix request must reuse its own slot, not fork one.
+
+    It ties the longer lineages at its own full length; without a tie-break
+    toward the lineage it fully consumes, every repeat appends an identical
+    sibling until the cap, evicting the lineages live streams need.
+    """
+    index = CallPoolIndex()
+
+    def condense(msgs: list[JsonValue], indices: list[int]) -> list[int]:
+        prefix = index.match_prefix(msgs)
+        index.set_prev(msgs, indices, prefix_len=len(prefix))
+        return prefix
+
+    m: list[JsonValue] = [{"content": f"m{i}"} for i in range(4)]
+    long_a: list[JsonValue] = [m[0], m[1], m[2], m[3]]
+    short: list[JsonValue] = [m[0], m[1]]
+    long_b: list[JsonValue] = [m[0], m[1], m[2], {"content": "b"}]
+    condense(long_a, [0, 1, 2, 3])
+    condense(short, [0, 1])  # partial (2 of 4): sibling slot
+    condense(long_b, [0, 1, 2, 4])  # partial (3 of 4): sibling slot
+    assert len(index._prevs) == 3
+
+    for _ in range(10):  # the short stream re-sends its unchanged state
+        assert condense(short, [0, 1]) == [0, 1]
+
+    # no growth, and both long lineages survive: sibling appends would evict
+    # them and force the full re-walk this index exists to remove
+    assert len(index._prevs) == 3
+    assert index.match_prefix(long_a) == [0, 1, 2, 3]
+    assert index.match_prefix(long_b) == [0, 1, 2, 4]
+
+
 # ---------------------------------------------------------------------------
 # condense_model_event_with_indices tests
 # ---------------------------------------------------------------------------

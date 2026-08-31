@@ -320,6 +320,11 @@ class CallPoolIndex:
         returns the best match; comparison stops at the first differing
         element. Records the matched slot for the paired ``set_prev`` call.
 
+        Ties in match length break toward a lineage the request fully
+        consumes, so a request repeating a strict prefix of a longer lineage
+        replaces the slot it created last time instead of appending an
+        identical sibling on every repeat.
+
         Args:
             msgs: New request's message list (pre-walk wire format).
 
@@ -329,11 +334,17 @@ class CallPoolIndex:
         """
         best: list[int] = []
         best_slot = -1
+        best_full = False
         for slot_index, prev in enumerate(self._prevs):
             prefix_len = min(_strict_eq_prefix_len(msgs, prev.msgs), len(prev.indices))
-            if prefix_len > len(best):
+            # the predicate mirrors set_prev's replacement test
+            full = prefix_len == len(prev.msgs)
+            if (prefix_len, full) > (len(best), best_full):
                 best = prev.indices[:prefix_len]
                 best_slot = slot_index
+                best_full = full
+        # ties break toward a fully consumed lineage (see docstring); a plain
+        # `>=` would prefer the *last* tie, which can be a partial match
         self._matched_slot = best_slot
         return best
 

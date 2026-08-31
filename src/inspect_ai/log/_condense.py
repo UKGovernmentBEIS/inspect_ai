@@ -507,6 +507,10 @@ class CallWalkCache:
     replacing would merge the two, and they would then alternately destroy
     each other's cached tails, re-walking the divergent tail on every call.
     An unmatched request is appended, evicting a random lineage at capacity.
+
+    Ties in match length break toward a fully consumed lineage, so a request
+    repeating a strict prefix of a longer lineage replaces the slot it created
+    last time instead of appending an identical sibling on every repeat.
     """
 
     def __init__(self) -> None:
@@ -547,12 +551,17 @@ class CallWalkCache:
 
         best_slot: _CallWalkSlot | None = None
         best_len = 0
+        best_full = False
         for slot in self._slots:
             if slot.key != msg_key:
                 continue
             n = _strict_eq_prefix_len(msgs, (m.pre_walk for m in slot.messages))
-            if n > best_len:
+            full = n == len(slot.messages)
+            # ties break toward a fully consumed lineage (see class docstring);
+            # a plain `>=` would prefer the *last* tie, which can be partial
+            if (n, full) > (best_len, best_full):
                 best_len = n
+                best_full = full
                 best_slot = slot
 
         walked_msgs: list[JsonValue] = []
@@ -587,7 +596,7 @@ class CallWalkCache:
 
         # see class docstring: replace only on full consumption, else append
         # as a sibling lineage
-        if best_slot is not None and best_len == len(best_slot.messages):
+        if best_slot is not None and best_full:
             self._slots.remove(best_slot)
         elif len(self._slots) >= _CALL_WALK_SLOTS:
             # random, not LRU (see _CALL_WALK_SLOTS)

@@ -1165,6 +1165,33 @@ def test_condense_model_call_empty_messages_does_not_poison_cache() -> None:
     assert len(tr._call_walk_cache._slots) == 1
 
 
+def test_condense_model_call_repeated_prefix_request_reuses_its_slot() -> None:
+    """CallWalkCache copy of the CallPoolIndex tie-break regression."""
+    tr = Transcript(bounded=True, resident_tail=10, log_model_api=True)
+
+    def call(ids: list[int]) -> ModelCall:
+        return ModelCall.create(
+            {
+                "model": "m",
+                "messages": [
+                    {"role": "user", "content": f"{ATTACHABLE} {i}"} for i in ids
+                ],
+            },
+            None,
+        )
+
+    long_a, short, long_b = [0, 1, 2, 3], [0, 1], [0, 1, 2, 9]
+    tr._condense_model_call(call(long_a))
+    tr._condense_model_call(call(short))  # partial: sibling slot
+    tr._condense_model_call(call(long_b))  # partial: sibling slot
+    for _ in range(10):
+        tr._condense_model_call(call(short))
+
+    # the short stream keeps one slot; both long lineages survive
+    slots = tr._call_walk_cache._slots
+    assert sorted(len(s.messages) for s in slots) == [2, 4, 4]
+
+
 def test_condense_model_call_matches_fresh_walk() -> None:
     """Differential oracle across a multi-lineage sequence.
 
