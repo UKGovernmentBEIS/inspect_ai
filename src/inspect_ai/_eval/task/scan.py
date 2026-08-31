@@ -901,7 +901,7 @@ def merged_selection_scanner(
 def verify_selection_scan_dir(
     scanner: "Scanners | None", *, scan_id: str, log_dir: str
 ) -> None:
-    """Refuse selection-mode scanning when the scan directory is absent.
+    """Refuse selection-mode scanning on an absent or disagreeing scan directory.
 
     In selection (worker) mode scanning is record-only: the runner owns the
     scan directory's lifecycle and must have laid it down (`scan_init`, or
@@ -911,6 +911,21 @@ def verify_selection_scan_dir(
     where init is always about to run, and exactly the wrong one for a
     worker whose runner claims to own scanning: it would silently not scan.
     Checked once, at worker startup, rather than surfacing per sample.
+
+    The directory's `_scan.json` is then compared against the live merged
+    configuration. The runner verified the configuration it *captured*, but
+    a worker executes the definition file as it stands at spawn time — which
+    may have changed since. A worker recording under a drifted configuration
+    would write rows whose recorded meaning (the on-disk spec) is not what
+    produced them, so a drifted worker refuses at startup instead: the
+    scanner sets must match, matching scanners must have equal specs
+    (`package_version` excluded — under a development install it moves with
+    every commit while the scanner remains the same scanner), and the
+    eval-set-level config hash must match when the spec carries one (a
+    runner-synthesized spec for a definition that declared no scanners
+    carries none). Inline scanners serialize their defining `file` relative
+    to the working directory, so the runner is expected to spawn workers
+    with the working directory its capture ran in.
     """
     if scanner is None:
         return
@@ -919,13 +934,66 @@ def verify_selection_scan_dir(
     from inspect_ai._util.error import PrerequisiteError
 
     scan_dir = _scan_dir(log_dir, scan_id, scanner)
-    if not exists(scan_dir):
+    scan_json = f"{scan_dir}/_scan.json"
+    if not exists(scan_json):
         raise PrerequisiteError(
             f"Scanning is configured but the scan directory '{scan_dir}' "
-            "does not exist. In selection (worker) mode the external runner "
-            "owns the scan directory's lifecycle and must initialize it "
-            "before workers start; a worker that scanned without it would "
-            "silently record nothing."
+            "has not been initialized. In selection (worker) mode the "
+            "external runner owns the scan directory's lifecycle and must "
+            "initialize it before workers start; a worker that scanned "
+            "without it would silently record nothing."
+        )
+
+    from inspect_scout._scancontext import _spec_scanners
+    from inspect_scout._scanspec import ScannerSpec, ScanSpec
+
+    from inspect_ai._util.file import file
+
+    with file(scan_json, "r") as f:
+        prior = ScanSpec.model_validate_json(f.read())
+
+    def identity(spec: ScannerSpec) -> dict[str, Any]:
+        return spec.model_dump(
+            mode="json", exclude={"package_version"}, exclude_none=True
+        )
+
+    live = _spec_scanners(_normalize_scanners(scanner))
+    if set(live) != set(prior.scanners):
+        raise PrerequisiteError(
+            "Scanner set differs from the scan directory's spec "
+            f"('{scan_json}').\n"
+            f"  Spec: {sorted(prior.scanners)}\n"
+            f"  Live: {sorted(live)}\n"
+            "The runner initialized the scan from the configuration it "
+            "captured, and this worker's definition has changed since. "
+            "Re-launch so the runner can verify the change, or revert it."
+        )
+
+    changed = sorted(
+        name
+        for name, spec in live.items()
+        if identity(spec) != identity(prior.scanners[name])
+    )
+    if changed:
+        raise PrerequisiteError(
+            f"Scanner(s) {', '.join(changed)} differ from the scan "
+            f"directory's spec ('{scan_json}'). The runner initialized the "
+            "scan from the configuration it captured, and this worker's "
+            "definition has changed since — rows recorded under the changed "
+            "configuration would carry the spec's meaning without being "
+            "produced by it. Re-launch so the runner can verify the change, "
+            "or revert it."
+        )
+
+    prior_hash = (prior.metadata or {}).get(_INSPECT_CONFIG_HASH_KEY)
+    if prior_hash is not None and prior_hash != _scan_config_hash(scanner):
+        raise PrerequisiteError(
+            "Eval-set-level scanner config (filter, model, model_args, "
+            "generate_config, model_roles, model_base_url) differs from the "
+            f"scan directory's spec ('{scan_json}'). The runner initialized "
+            "the scan from the configuration it captured, and this worker's "
+            "definition has changed since. Re-launch so the runner can "
+            "verify the change, or revert it."
         )
 
 
