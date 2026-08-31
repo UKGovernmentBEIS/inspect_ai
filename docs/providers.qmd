@@ -490,6 +490,10 @@ inspect eval arc.py --model mistral/mistral-large-latest -M conversation_api=fal
 
 Additional custom model args (`-M`) are forwarded to the constructor of the `Mistral` class.
 
+### Prompt Caching {#mistral-prompt-caching}
+
+When using the completions API (`-M conversation_api=false`, and the default for Voxtral models), Inspect sends Mistral's [`prompt_cache_key`](https://docs.mistral.ai/studio-api/conversations/advanced/prompt-caching) set to the running sample's unique id. Mistral uses it as a routing hint so a sample's later turns reach the replica that cached its earlier ones. The Conversation API does not accept this parameter, so samples using it (the default) do not get the hint.
+
 ### Mistral on Azure AI {#mistral-on-azure-ai}
 
 The `mistral` provider supports Mistral models deployed on the [Azure AI Foundry](https://ai.azure.com/). To use Mistral models on Azure AI, specify the following environment variables:
@@ -832,6 +836,14 @@ inspect eval arc.py --model fireworks/accounts/fireworks/models/kimi-k3
 
 For the `fireworks` provider, you can enable [Tool Emulation](#tool-emulation-openai) using the `emulate_tools` custom model arg (`-M`). Other custom model args are forwarded to the constructor of the `AsyncOpenAI` class.
 
+### Prompt Caching {#fireworks-prompt-caching}
+
+Fireworks caches prompt prefixes automatically, but a cache lives on a single replica and requests are otherwise load balanced across replicas, so a turn can land on a replica that has never seen its prefix. Inspect therefore sends Fireworks' [`x-session-affinity`](https://docs.fireworks.ai/guides/prompt-caching) header, set to the running sample's unique id, which pins all of that sample's requests to a single replica. Multi-turn agents benefit the most: each turn re-sends the whole conversation so far, and that prefix is already cached on the replica the previous turn landed on.
+
+Cached tokens are billed at a lower rate and are reported in the eval log as `input_tokens_cache_read`.
+
+This requires no configuration, though you can override the header by setting your own value in `GenerateConfig(extra_headers={"x-session-affinity": ...})`. Note that the header is not sent when the model is used outside of a running sample (where there is no conversation to pin).
+
 The following environment variables are supported by the Together AI provider
 
 | Variable | Description |
@@ -871,6 +883,12 @@ inspect eval arc.py --model cloudflare/@cf/meta/llama-3.1-70b-instruct
 Specify the model id exactly as it appears in Cloudflare's [model catalog](https://developers.cloudflare.com/workers-ai/models/): Workers AI model ids start with `@cf/`, while gateway-hosted models have plain ids (e.g. `cloudflare/moonshotai/kimi-k3`).
 
 For the `cloudflare` provider, custom model args (`-M`) are included as fields in the post body of the chat request.
+
+### Prompt Caching {#cloudflare-prompt-caching}
+
+Cloudflare reuses computed prefixes across requests, but only on the model instance that computed them. Inspect therefore sends Cloudflare's [`x-session-affinity`](https://developers.cloudflare.com/workers-ai/features/prompt-caching/) header, set to the running sample's unique id, which routes all of that sample's requests to the same instance. This requires no configuration; override it by setting your own value in `GenerateConfig(extra_headers={"x-session-affinity": ...})`.
+
+Note that Cloudflare's OpenAI-compatible endpoint does not report cached token counts, so cache hits do not appear in the eval log.
 
 The following environment variables are supported by the Cloudflare provider:
 
@@ -1579,7 +1597,7 @@ In addition, [Tool Emulation](#tool-emulation-openai) is available for models th
 
 For `openrouter/anthropic/*` models, Anthropic [prompt caching](https://docs.claude.com/en/docs/build-with-claude/prompt-caching) is enabled by default: per-block `cache_control` markers are inserted on the last system block, the last tool definition, and a rolling pair of message-level breakpoints (mirroring the placement used by the direct `anthropic` provider). The markers are accepted by OpenRouter across Anthropic-direct, Bedrock, and Vertex routing. Cache writes returned upstream are surfaced as `ModelUsage.input_tokens_cache_write`. Pass `--cache-prompt=false` (or set `cache_prompt=False` in `GenerateConfig`) to disable. Single-turn evaluations that never re-issue the same prefix pay a small premium (Anthropic charges ~1.25× for cache writes) with no offsetting cache reads — disable caching for those workloads.
 
-Note that OpenRouter may distribute consecutive requests for the same model across multiple Anthropic-compatible backends (Anthropic-direct, Bedrock, Vertex), and each backend maintains its own prompt cache. To maximise the cache hit rate across a multi-turn run, pin routing to a single backend via the `provider` model-arg, for example `-M provider='{"order":["anthropic"],"allow_fallbacks":false}'`.
+Note that OpenRouter may distribute consecutive requests for the same model across multiple backends (for Anthropic models: Anthropic-direct, Bedrock, Vertex), and each backend maintains its own prompt cache. To keep a sample on one backend, Inspect sends OpenRouter's [`x-session-id`](https://openrouter.ai/docs/guides/best-practices/prompt-caching) header set to the running sample's unique id: OpenRouter uses it as the sticky routing key, so every turn of a sample returns to the backend holding its warm cache, from the first request rather than only after a cache hit is observed. Override it by setting your own value in `GenerateConfig(extra_headers={"x-session-id": ...})`. For stricter control you can still pin routing to a single backend via the `provider` model-arg, for example `-M provider='{"order":["anthropic"],"allow_fallbacks":false}'`.
 
 The `cache_control` markers are injected just before the request reaches OpenRouter and so will not appear in the request snapshot recorded in `.eval` log files. Verify caching is active by inspecting the usage line (cache reads/writes) on returned `ModelOutput`s.
 

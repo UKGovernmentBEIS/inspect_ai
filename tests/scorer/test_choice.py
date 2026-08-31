@@ -121,6 +121,30 @@ async def test_score_target_beyond_choices_raises():
         await scorer(state, Target("10"))
 
 
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "target",
+    [
+        "No",  # alphanumeric, parseable as answer labels
+        "The answer is 42.",  # free text, unparseable as answer labels
+        "",  # empty
+    ],
+)
+async def test_score_no_choices_does_not_raise(target: str):
+    # the choice scorer applied to a sample with no choices (e.g. re-scoring a
+    # non-multiple-choice log) should score incorrect, not abort the run --
+    # whatever the target looks like
+    scorer = choice()
+    state = simple_task_state(model_output="No", choices=[])
+
+    result = await scorer(state, Target(target))
+
+    assert result is not None
+    assert result.text == INCORRECT
+    assert result.answer == ""
+    assert result.explanation == "No"
+
+
 def test_answer_index_rejects_separators():
     # answer_index() should never silently return garbage indices for
     # separator characters -- it should raise so callers know to filter.
@@ -225,3 +249,28 @@ async def test_correct_multiple_answers_all_incorrect():
     assert result.text == CORRECT
     assert result.answer == ""
     assert result.explanation == "ANSWERS: "
+
+
+def test_target_sequences():
+    t_str = Target("A")
+    assert len(t_str) == 1
+    assert t_str[0] == "A"
+    assert t_str.text == "A"
+
+    t_list = Target(["A", "B"])
+    assert len(t_list) == 2
+    assert t_list[0] == "A"
+    assert t_list[1] == "B"
+    assert t_list.text == "AB"
+
+    t_tuple = Target(("A", "B"))
+    assert len(t_tuple) == 2
+    assert t_tuple[0] == "A"
+    assert t_tuple[1] == "B"
+    assert t_tuple.text == "AB"
+
+    t_target = Target(t_tuple)
+    assert len(t_target) == 2
+    assert t_target[0] == "A"
+    assert t_target[1] == "B"
+    assert t_target.text == "AB"

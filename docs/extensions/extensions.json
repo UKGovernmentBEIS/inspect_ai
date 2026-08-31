@@ -187,6 +187,28 @@
     ]
   },
   {
+    "id": "grader-variance",
+    "name": "Grader Variance",
+    "url": "https://github.com/joanna-ciesielski/grader-variance",
+    "desc": "Grader-variance decomposition \u2014 repeatedly re-scores hash-verified frozen completions with one judge, separating grader noise from question and model-sampling variance and reporting the repeats a target dependability needs.",
+    "author": "Joanna Ciesielski",
+    "author_url": "https://github.com/joanna-ciesielski",
+    "categories": [
+      "Analysis"
+    ]
+  },
+  {
+    "id": "inspect-refusal-fidelity",
+    "name": "Inspect Refusal Fidelity",
+    "url": "https://github.com/IvanSFlowGit/inspect-refusal-fidelity",
+    "desc": "Scores whether a system refuses when it cannot honestly answer, reporting over-refusal and false confidence as separate metrics.",
+    "author": "Ivan Skachek",
+    "author_url": "https://github.com/IvanSFlowGit",
+    "categories": [
+      "Analysis"
+    ]
+  },
+  {
     "id": "inspect-swe",
     "name": "Inspect SWE",
     "url": "https://meridianlabs-ai.github.io/inspect_swe/",

@@ -207,8 +207,9 @@ class ResizableLimiter:
 
     @limit.setter
     def limit(self, value: int) -> None:
-        # CapacityLimiter requires total_tokens >= 1; callers validate, but
-        # guard here too so a stray 0/negative can't wedge the limiter.
+        # anyio's CapacityLimiter accepts total_tokens == 0 (silently blocking
+        # all acquires); callers validate, but guard here too so a stray
+        # 0/negative can't wedge the limiter.
         if value < 1:
             raise ValueError(f"ResizableLimiter limit must be >= 1 (got {value})")
         self._limiter.total_tokens = value
@@ -1111,6 +1112,15 @@ class DynamicSampleLimiter:
     on key, so at most one controller ever matches; a ``key`` that never
     matches (no such model in this process) leaves the limiter at its initial
     ``start + BUFFER``.
+
+    The control channel can **pin** sample concurrency at an exact setpoint
+    via :meth:`set_override` (a mid-run ``ctl config --max-samples N``): the
+    limiter stops following the controller — scale events are ignored while
+    pinned — and its capacity is exactly the pinned value (no BUFFER, like a
+    launch-time explicit ``max_samples``). Clearing the pin
+    (``set_override(None)``) resumes tracking, catching up to the
+    controller's current limit (or the initial value when none has been
+    adopted). See ``design/ctl/max-samples-adaptive.md``.
     """
 
     BUFFER = 5
@@ -1118,8 +1128,10 @@ class DynamicSampleLimiter:
     def __init__(self, adaptive: AdaptiveConcurrency, key: str) -> None:
         self._key = key
         self._ctrl: AdaptiveConcurrencyController | None = None
-        initial = min(adaptive.start, adaptive.max) + self.BUFFER
-        self._limiter = anyio.CapacityLimiter(initial)
+        self._override: int | None = None
+        # kept so a pin cleared before any controller adoption can restore it
+        self._initial = min(adaptive.start, adaptive.max) + self.BUFFER
+        self._limiter = anyio.CapacityLimiter(self._initial)
         # adopt the controller if it already exists (e.g. registry reused
         # across tasks within an eval set)...
         existing = next((c for c in adaptive_controllers() if c.key == key), None)
@@ -1147,7 +1159,11 @@ class DynamicSampleLimiter:
             self._adopt(ctrl)
 
     def _on_controller_change(self) -> None:
-        if self._ctrl is None:
+        # a pinned limiter ignores controller scale events (and the catch-up
+        # call `_adopt` makes): the pin is an exact user setpoint. Clearing
+        # the pin re-invokes this, so no scale event is ever lost — the
+        # limiter lands wherever the controller currently is.
+        if self._ctrl is None or self._override is not None:
             return
         # Track the controller's current limit plus a little slack. Reading the
         # live controller (rather than a snapshot of its config) means a
@@ -1157,6 +1173,52 @@ class DynamicSampleLimiter:
         target = self._ctrl.concurrency + self.BUFFER
         if target != self._limiter.total_tokens:
             self._limiter.total_tokens = target
+
+    @property
+    def override(self) -> int | None:
+        """The pinned sample-concurrency setpoint, or ``None`` when tracking."""
+        return self._override
+
+    def set_override(self, value: int | None) -> None:
+        """Pin sample concurrency at ``value``, or resume tracking with ``None``.
+
+        An ``int`` pins capacity at exactly that value (``< 1`` raises
+        ``ValueError`` without committing the pin); lowering below the
+        in-flight count blocks new acquires until holders drain, never
+        preempting. ``None`` removes the pin and re-syncs: to the adopted
+        controller's current ``concurrency + BUFFER``, or to the initial
+        capacity when no controller has been adopted.
+        """
+        if value is not None:
+            # validate before committing the pin: anyio's CapacityLimiter
+            # accepts 0 (silently blocking all acquires), and a rejected
+            # value must not leave the limiter reporting pinned
+            if value < 1:
+                raise ValueError(f"max_samples override must be >= 1 (got {value})")
+            self._limiter.total_tokens = value
+            self._override = value
+        else:
+            # clear before re-syncing — _on_controller_change ignores events
+            # while pinned
+            self._override = None
+            if self._ctrl is not None:
+                self._on_controller_change()
+            else:
+                self._limiter.total_tokens = self._initial
+
+    @property
+    def limit(self) -> int:
+        """Current capacity.
+
+        Named to match ``ResizableLimiter.limit`` so the limits directive's
+        view reads both limiter shapes uniformly.
+        """
+        return int(self._limiter.total_tokens)
+
+    @property
+    def in_use(self) -> int:
+        """Holders currently inside the limiter (borrowed tokens)."""
+        return int(self._limiter.borrowed_tokens)
 
     @property
     def controller(self) -> "AdaptiveConcurrencyController | None":
