@@ -501,6 +501,10 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
         - S3: native upload_fileobj with TransferConfig for multipart chunking
         - Local/other: chunked copy via fsspec with explicit block_size
 
+        The source stream is never closed — the caller owns its lifecycle and
+        may keep writing to / re-uploading it (e.g. ``EvalRecorder.flush()``
+        reuses its temp file across flushes).
+
         Args:
             filename: Destination file path or URL.
             source: A readable binary file-like object.
@@ -923,11 +927,49 @@ def s3_write_file(s3: Any, bucket: str, key: str, content: bytes) -> str | None:
     return _s3_upload_fileobj_sync(s3, io.BytesIO(content), bucket, key)
 
 
+class _CloseShieldedReader:
+    """File-like proxy that turns ``close()`` into a no-op.
+
+    s3transfer's non-multipart PUT path (uploads below ``multipart_threshold``)
+    closes the source fileobj when the request body is closed. Callers of the
+    sync streaming write own the stream's lifecycle and reuse it after the
+    upload — ``EvalRecorder.flush()`` reopens its temp-file zip after every
+    flush — so the upload must not close it. (The multipart path reads parts
+    into memory and never closes the source; the async path uses aioboto3's
+    own ``upload_fileobj``, which doesn't close either.)
+
+    Everything except ``close`` is delegated via ``__getattr__`` so the proxy
+    presents exactly the source's interface — s3transfer routes uploads by
+    probing capabilities with ``hasattr`` fallbacks, and proxying only an
+    enumerated subset would change how duck-typed sources are handled.
+    """
+
+    def __init__(self, fileobj: BinaryIO) -> None:
+        self._fileobj = fileobj
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._fileobj, name)
+
+    def close(self) -> None:
+        pass
+
+
 def s3_write_file_streaming(
     s3: Any, bucket: str, key: str, source: BinaryIO
 ) -> str | None:
-    """Upload a file-like stream to S3 using multipart upload."""
-    return _s3_upload_fileobj_sync(s3, source, bucket, key, _s3_transfer_config())
+    """Upload a file-like stream to S3 via boto3 managed transfer.
+
+    Multipart above the transfer-config threshold, a single PUT below it.
+    The source stream is left open either way (see ``_CloseShieldedReader``);
+    returns the completed upload's ETag when available.
+    """
+    return _s3_upload_fileobj_sync(
+        s3,
+        cast(BinaryIO, _CloseShieldedReader(source)),
+        bucket,
+        key,
+        _s3_transfer_config(),
+    )
 
 
 def _is_stale_signature_error(ex: BaseException) -> bool:
