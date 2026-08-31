@@ -791,7 +791,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>   model<span class="op">=</span>[<span class="st">"openai/gpt-4o"</span>, <span class="st">"anthropic/claude-3-5-sonnet-20240620"</span>],</span>
 <span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>   log_dir<span class="op">=</span><span class="st">"logs-run-42"</span>      </span>
 <span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>Note that in both cases we specified a custom log directory—this is actually a requirement for eval sets, as it provides a scope where completed work can be tracked.</p>
+<p>Note that in both cases we specified a custom log directory. The log directory is the scope in which an eval set’s completed work is tracked, so each eval set wants one of its own. It defaults to <code>INSPECT_LOG_DIR</code> or <code>./logs</code>, which is fine when you run a single eval set within a parent directory.</p>
 <p>To give each model its own generation config, model args, or base url, use one <code>--model-spec</code> option per model instead of <code>--model</code>. This also lets an eval set run the same model more than once with different options. See <a href="./models.html#multiple-models">Multiple Models</a>.</p>
 <p>Eval sets often run for a long time: to run one in the background, detached from your terminal, launch it with <code>--detach</code> and monitor it with <code>inspect ctl</code> (see <a href="./control-channel.html#detached-launch">Detached Launch</a>).</p>
 <p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval_set">eval_set()</a></span> function returns a tuple of bool (whether all tasks completed successfully) and a list of <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#evallog">EvalLog</a></span> headers (i.e.&nbsp;raw sample data is not included in the logs returned).</p>
@@ -930,7 +930,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="logging-context" class="level2">
 <h2 class="anchored" data-anchor-id="logging-context">Logging Context</h2>
-<p>We mentioned above that you need to specify a dedicated log directory for each eval set that you run. This requirement exists for a couple of reasons:</p>
+<p>We mentioned above that each eval set you run wants a dedicated log directory. That matters for a couple of reasons:</p>
 <ol type="1">
 <li><p>The log directory provides a durable record of which tasks are completed so that you can run the eval set as many times as is required to finish all of the work. For example, you might get halfway through a run and then encounter provider rate limit errors. You’ll want to be able to restart the eval set later (potentially even many hours later) and the dedicated log directory enables you to do this.</p></li>
 <li><p>This enables you to enumerate and analyse all of the eval logs in the suite as a cohesive whole (rather than having them intermixed with the results of other runs).</p></li>
