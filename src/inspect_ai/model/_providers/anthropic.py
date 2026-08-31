@@ -2785,10 +2785,20 @@ async def assistant_message_block_params(
     # no recorded position (str content, an older log, or another system's
     # message) default to last, preserving the historical append-last behavior.
     content_len = len(segments)
+    # Positions are recorded against a single message's content list. A
+    # collapsed message (combine_messages concatenates content and tool_calls,
+    # stamping metadata["combined_from"]) invalidates those offsets -- a
+    # position from the second message would splice into the first message's
+    # items -- so collapsed messages use the historical append-last placement.
+    combined = bool(message.metadata and "combined_from" in message.metadata)
     tools_by_position: dict[int, list[MessageBlockParam]] = {}
     for tool_call in message.tool_calls or []:
-        position = assistant_internal().client_tool_call_positions.get(
-            tool_call.id, content_len
+        position = (
+            content_len
+            if combined
+            else assistant_internal().client_tool_call_positions.get(
+                tool_call.id, content_len
+            )
         )
         position = min(max(position, 0), content_len)
         internal_name = _internal_name_from_tool_call(tool_call)

@@ -2167,7 +2167,7 @@ async def test_anthropic_interleaved_thinking_tool_calls_preserved() -> None:
     This is a pure structural test (constructed blocks, placeholder signatures, no
     network): the check is on block ORDER, so signature validity is irrelevant.
     """
-    from anthropic.types import ThinkingBlock, ToolUseBlock
+    from anthropic.types import ContentBlock, ThinkingBlock, ToolUseBlock
 
     from inspect_ai.model._providers.anthropic import (
         assistant_message_block_params,
@@ -2200,7 +2200,9 @@ async def test_anthropic_interleaved_thinking_tool_calls_preserved() -> None:
     message = ChatMessageAssistant(
         content=content, tool_calls=tool_calls, model="claude-opus-4-8"
     )
-    order: list[str] = [p["type"] for p in await assistant_message_block_params(message)]
+    order: list[str] = [
+        p["type"] for p in await assistant_message_block_params(message)
+    ]
     assert order == ["thinking", "tool_use", "thinking", "tool_use"], order
     assert not thinking_blocks_adjacent(order)
 
@@ -2224,7 +2226,7 @@ async def test_anthropic_interleaved_thinking_last_gets_no_content() -> None:
     the final block (`[thinking, tool_use, thinking]`). The API rejects a message
     whose last block is thinking, so a placeholder text block must be appended.
     """
-    from anthropic.types import ThinkingBlock, ToolUseBlock
+    from anthropic.types import ContentBlock, ThinkingBlock, ToolUseBlock
 
     from inspect_ai.model._providers.anthropic import (
         assistant_message_block_params,
@@ -2247,13 +2249,15 @@ async def test_anthropic_interleaved_thinking_last_gets_no_content() -> None:
     message = ChatMessageAssistant(
         content=content, tool_calls=tool_calls, model="claude-opus-4-8"
     )
-    order: list[str] = [p["type"] for p in await assistant_message_block_params(message)]
+    order: list[str] = [
+        p["type"] for p in await assistant_message_block_params(message)
+    ]
     assert order == ["thinking", "tool_use", "thinking", "text"], order
 
 
 async def test_anthropic_interleaved_parallel_tool_calls_grouped() -> None:
     """Parallel client tool calls at one interleaved position stay grouped in order."""
-    from anthropic.types import ThinkingBlock, ToolUseBlock
+    from anthropic.types import ContentBlock, ThinkingBlock, ToolUseBlock
 
     from inspect_ai.model._providers.anthropic import (
         assistant_message_block_params,
@@ -2313,5 +2317,56 @@ async def test_anthropic_unrecorded_tool_call_appended_last() -> None:
         tool_calls=[ToolCall(id="z", function="tool_a", arguments={"x": "1"})],
         model="claude-opus-4-8",
     )
-    order: list[str] = [p["type"] for p in await assistant_message_block_params(message)]
+    order: list[str] = [
+        p["type"] for p in await assistant_message_block_params(message)
+    ]
     assert order == ["thinking", "tool_use"], order
+
+
+async def test_anthropic_collapsed_message_ignores_recorded_positions() -> None:
+    """A collapsed assistant message falls back to append-last tool placement.
+
+    `combine_messages` concatenates two messages' content and tool_calls, so a
+    position recorded against the second message's content would splice its
+    tool_use into the first message's items. Positions are only meaningful
+    within the message they were recorded against: a message carrying
+    `combined_from` metadata must use the historical append-last placement.
+    """
+    from anthropic.types import ContentBlock, ThinkingBlock, ToolUseBlock
+
+    from inspect_ai.model._model import combine_messages
+    from inspect_ai.model._providers.anthropic import (
+        assistant_message_block_params,
+        content_and_tool_calls_from_assistant_content_blocks,
+        init_sample_anthropic_assistant_internal,
+    )
+    from inspect_ai.tool._tool_params import ToolParam, ToolParams
+
+    arg = ToolParams(properties={"x": ToolParam(type="string")}, required=["x"])
+    tools = [ToolInfo(name="tool_a", description="Tool A.", parameters=arg)]
+    wire: list[ContentBlock] = [
+        ThinkingBlock(type="thinking", thinking="t1", signature="sig1"),
+        ToolUseBlock(type="tool_use", id="a", name="tool_a", input={"x": "1"}),
+        ThinkingBlock(type="thinking", thinking="t2", signature="sig2"),
+    ]
+
+    init_sample_anthropic_assistant_internal()
+    content, tool_calls = content_and_tool_calls_from_assistant_content_blocks(
+        wire, tools
+    )
+    injected = ChatMessageAssistant(content="I'll check.", model="claude-opus-4-8")
+    parsed = ChatMessageAssistant(
+        content=content, tool_calls=tool_calls, model="claude-opus-4-8"
+    )
+    combined = combine_messages(injected, parsed, ChatMessageAssistant)
+    assert combined.metadata and "combined_from" in combined.metadata
+
+    order: list[str] = [
+        p["type"] for p in await assistant_message_block_params(combined)
+    ]
+    # recorded position 1 is relative to the parsed message alone; in the
+    # combined message it would land the tool_use inside the injected text.
+    # Appended last (with thinking blocks front-loaded by the fallback) is the
+    # historical, deterministic behavior.
+    assert order[-1] == "tool_use", order
+    assert order[0] == "text", order
