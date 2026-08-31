@@ -1167,20 +1167,20 @@ def test_condense_model_call_empty_messages_does_not_poison_cache() -> None:
     assert len(tr._call_walk_cache._slots) == 1
 
 
+def _call_with_message_ids(ids: list[int]) -> ModelCall:
+    return ModelCall.create(
+        {
+            "model": "m",
+            "messages": [{"role": "user", "content": f"{ATTACHABLE} {i}"} for i in ids],
+        },
+        None,
+    )
+
+
 def test_condense_model_call_repeated_prefix_request_reuses_its_slot() -> None:
     """CallWalkCache copy of the CallPoolIndex tie-break regression."""
     tr = Transcript(bounded=True, resident_tail=10, log_model_api=True)
-
-    def call(ids: list[int]) -> ModelCall:
-        return ModelCall.create(
-            {
-                "model": "m",
-                "messages": [
-                    {"role": "user", "content": f"{ATTACHABLE} {i}"} for i in ids
-                ],
-            },
-            None,
-        )
+    call = _call_with_message_ids
 
     long_a, short, long_b = [0, 1, 2, 3], [0, 1], [0, 1, 2, 9]
     tr._condense_model_call(call(long_a))
@@ -1192,6 +1192,27 @@ def test_condense_model_call_repeated_prefix_request_reuses_its_slot() -> None:
     # the short stream keeps one slot; both long lineages survive
     slots = tr._call_walk_cache._slots
     assert sorted(len(s.messages) for s in slots) == [2, 4, 4]
+
+
+def test_condense_model_call_extending_request_replaces_the_lineage_it_consumes() -> (
+    None
+):
+    """CallWalkCache copy of the same tie under newest-first scanning.
+
+    The repeat above exits early on an exact match, so it no longer
+    distinguishes ``>=`` from the fully-consumed tie-break. A request that
+    extends past every candidate reaches no early exit, and ``>=`` then
+    takes the older partial lineage and forks a sibling.
+    """
+    tr = Transcript(bounded=True, resident_tail=10, log_model_api=True)
+    call = _call_with_message_ids
+
+    tr._condense_model_call(call([0, 1, 2, 3]))  # older, longer: partial match
+    tr._condense_model_call(call([0, 1]))  # newer: consumed fully below
+    tr._condense_model_call(call([0, 1, 9]))
+
+    slots = tr._call_walk_cache._slots
+    assert sorted(len(s.messages) for s in slots) == [3, 4]
 
 
 def test_condense_model_call_matches_fresh_walk() -> None:

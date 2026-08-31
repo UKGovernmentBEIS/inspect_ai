@@ -420,6 +420,26 @@ def test_call_pool_index_repeated_prefix_request_reuses_its_slot() -> None:
     assert _prefix(index, long_b) == [0, 1, 2, 4]
 
 
+def test_call_pool_index_extending_request_replaces_the_lineage_it_consumes() -> None:
+    """Tie between a fully consumed lineage and a longer partial one.
+
+    The scan runs newest-first, so a ``>=`` tie-break takes the older
+    partial lineage and forks a sibling instead of replacing the lineage
+    the request grew out of. The early exit does not cover this: the
+    request extends past every candidate, so none matches all of it.
+    """
+    index = CallPoolIndex()
+    m: list[JsonValue] = [{"content": f"m{i}"} for i in range(4)]
+    index.set_prev(m, [0, 1, 2, 3])  # older, longer: partial match
+    index.set_prev(m[:2], [0, 1])  # newer: the request consumes it fully
+
+    request: list[JsonValue] = m[:2] + [{"content": "x"}]
+    match = index.match_prefix(request)
+    assert match.indices == (0, 1)
+    index.set_prev(request, [0, 1, 4], match=match)
+    assert sorted(len(prev.msgs) for prev in index._prevs) == [3, 4]
+
+
 # ---------------------------------------------------------------------------
 # condense_model_event_with_indices tests
 # ---------------------------------------------------------------------------

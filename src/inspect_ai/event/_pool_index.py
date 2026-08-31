@@ -346,7 +346,9 @@ class CallPoolIndex:
         """
         best = PrefixMatch(indices=())
         best_full = False
-        for prev in self._prevs:
+        # newest lineage first: a request usually extends the one it condensed
+        # last, so the best match is normally the first candidate
+        for prev in reversed(self._prevs):
             prefix_len = min(_strict_eq_prefix_len(msgs, prev.msgs), len(prev.indices))
             # the predicate mirrors set_prev's replacement test
             full = prefix_len == len(prev.msgs)
@@ -355,6 +357,12 @@ class CallPoolIndex:
             if (prefix_len, full) > (len(best.indices), best_full):
                 best = PrefixMatch(indices=tuple(prev.indices[:prefix_len]), slot=prev)
                 best_full = full
+                # consuming both sides fully is the maximum of that ordering,
+                # so no remaining lineage can win. Exiting on a full match of
+                # `msgs` alone would take a partial match over a later exact
+                # one and fork a duplicate slot.
+                if full and prefix_len == len(msgs):
+                    break
         return best
 
     def get_by_hash(self, hash_value: str) -> int | None:
