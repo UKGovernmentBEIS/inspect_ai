@@ -3391,15 +3391,22 @@ async def model_output_from_message(
         span_recorder=span_recorder,
     )
 
-    # count reasoning tokens (skip empty thinking text -- omitted summaries
-    # come back as "" and count_tokens rejects empty content with a 400)
-    reasoning_tokens = 0
-    if client and model:
-        for content_block in message.content:
-            if isinstance(content_block, ThinkingBlock) and content_block.thinking:
-                reasoning_tokens += await count_tokens(
-                    client, model, content_block.thinking
-                )
+    # reasoning tokens: prefer the count the API reports. Falling back to
+    # counting the thinking text costs an extra count_tokens round trip per
+    # thinking block, and undercounts -- it prices the summary rather than the
+    # reasoning it stands in for. (Skip empty thinking text: omitted summaries
+    # come back as "" and count_tokens rejects empty content with a 400.)
+    reported_details = message.usage.output_tokens_details
+    if reported_details is not None:
+        reasoning_tokens = reported_details.thinking_tokens
+    else:
+        reasoning_tokens = 0
+        if client and model:
+            for content_block in message.content:
+                if isinstance(content_block, ThinkingBlock) and content_block.thinking:
+                    reasoning_tokens += await count_tokens(
+                        client, model, content_block.thinking
+                    )
 
     # cache-diagnostics: tag the assistant message with the upstream id so a
     # subsequent turn can pass it as `diagnostics.previous_message_id`.

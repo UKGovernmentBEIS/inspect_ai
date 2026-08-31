@@ -16,6 +16,7 @@
 - Eval Log: Fixed trio evals crashing with `ValueError: seek of closed file` when writing a `.eval` log smaller than 8MB to S3.
 - Inspect CTL: New `inspect ctl sample score` interim-scores a single running sample's work-so-far on demand (briefly held while scored; the sample keeps running).
 - Score: `inspect score` now reports samples that errored or were stopped early, so a re-scored partial run is no longer displayed as if it were complete.
+- Agent bridge: Anthropic responses now report thinking tokens in `usage.output_tokens_details`, so bridged clients can distinguish a reasoning response from a plain one.
 
 ## 0.3.261 (30 August 2026)
 
