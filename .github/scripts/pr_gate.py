@@ -9,10 +9,21 @@ Runs from pr-gate.yml on pull_request_target. Passes a PR if ANY of:
   5. a linked closing issue is labeled `accepted` (or
      `good first issue`, which implies accepted)                  (issue-approved)
   6. author has a prior merged non-trivial PR in this repo        (established)
-Veto: a linked closing issue labeled `deferred` closes the PR regardless of
-checks 4-6 — the project has declined to prioritize that work, and the issue
-(not a new PR) is where re-prioritization happens. Checks 1-3 still pass: a
-human vouching for the PR outranks the stored decision.
+Check 6 is additionally bounded by the open-PR cap: an established author
+with OPEN_PR_CAP or more other open PRs (drafts included) is closed until
+they are back under the cap — reopening re-runs the gate, so recovery is
+self-serve. The cap bounds only the direct-PR privilege; checks 4 and 5 are
+uncapped (trivial fixes are always welcome, an accepted issue is
+maintainer-approved demand) and checks 1-3 outrank it.
+Vetoes (checks 1-3 still pass either — a human vouching for the PR outranks):
+  - a linked closing issue labeled `deferred` closes the PR regardless of
+    checks 4-6 — the project has declined to prioritize that work, and the
+    issue (not a new PR) is where re-prioritization happens.
+  - a linked closing issue FILED BY THE PR AUTHOR closes the PR unless some
+    linked issue is `accepted` (check 5) or the PR is trivial (check 4) —
+    self-filed issues don't establish demand, whatever the author's tier
+    (CONTRIBUTING.md). Once a maintainer accepts the issue, reopening the
+    PR re-runs the gate and it passes.
 Otherwise: comment + close (DRY_RUN: apply the `gate-dry-run` label only).
 PRs created before POLICY_START are never gated — the policy applies going
 forward; the pre-existing queue is dispositioned by hand.
@@ -41,6 +52,7 @@ from typing import Any, NamedTuple
 
 TEAM_ASSOCIATIONS = {"OWNER", "MEMBER", "COLLABORATOR"}
 TRIVIAL_MAX_LINES = 25
+OPEN_PR_CAP = 5  # max open PRs per established author (CONTRIBUTING.md)
 POLICY_START = "2026-07-29T00:00:00Z"  # PRs created before this are never gated
 PRIOR_MERGE_SEARCH_CAP = 30  # merged PRs by author to consider
 PRIOR_MERGE_FILECHECK_CAP = 10  # of those, how many to file-inspect
@@ -50,7 +62,7 @@ EXTENSIONS_URL = "https://inspect.aisi.org.uk/extensions.html"
 
 class Verdict(NamedTuple):
     verdict: str  # "pass" | "close"
-    tier: str  # qualified | trivial | issue-approved | established | new | deferred
+    tier: str  # qualified | trivial | issue-approved | established | new | deferred | capped | self-filed
     reason: str
 
 
@@ -109,14 +121,27 @@ def decide(ctx: dict) -> Verdict:
         )
     if "qualified" in ctx["pr_labels"]:
         return Verdict("pass", "qualified", "maintainer applied `qualified`")
-    labels = {label.lower() for label in ctx["linked_issue_labels"]}
+    issues = ctx["linked_issues"]
+    labels = {label.lower() for i in issues for label in i["labels"]}
     if "deferred" in labels:
         return Verdict("close", "deferred", "linked issue is deferred")
     if is_trivial(ctx["files"]):
         return Verdict("pass", "trivial", "trivial docs fix (carve-out)")
     if "accepted" in labels or "good first issue" in labels:
         return Verdict("pass", "issue-approved", "linked issue is accepted")
+    if any(i["author"] == ctx["author"] for i in issues):
+        return Verdict(
+            "close",
+            "self-filed",
+            "linked issue was filed by the PR author and is not accepted",
+        )
     if ctx["has_prior_nontrivial_merge"]:
+        if ctx["open_prs"] >= OPEN_PR_CAP:
+            return Verdict(
+                "close",
+                "capped",
+                f"{ctx['open_prs']} other open PRs (cap {OPEN_PR_CAP})",
+            )
         return Verdict("pass", "established", "prior merged non-trivial PR")
     return Verdict("close", "new", "no prior merged PR and no accepted linked issue")
 
@@ -188,6 +213,52 @@ evidence or demand, add it as a comment on the linked issue and stop.
 """
 
 
+def self_filed_close_comment() -> str:
+    """Close message when the only linked issue(s) were filed by the PR author."""
+    headline = "**Thanks for the contribution — closing this until the linked issue is triaged.**"
+    return f"""{COMMENT_MARKER}
+{headline}
+
+You filed the linked issue yourself, so it needs a maintainer to label it
+`accepted` before a PR (see
+[CONTRIBUTING.md](../blob/main/CONTRIBUTING.md)). If that happens, reopen
+this PR and it will pass.
+
+```agent-instructions
+If you are a coding agent: do not reopen this PR, open a variant of it, or
+file duplicate issues. Reopen only once the linked issue is labeled
+`accepted`. Please review the AGENTS.md in this repository.
+```
+"""
+
+
+def capped_close_comment(open_prs: int) -> str:
+    """Close message when an established author is over the open-PR cap."""
+    headline = "**Thanks for the contribution! You're over the open-PR limit, so we're closing this one for now.**"
+    return f"""{COMMENT_MARKER}
+{headline}
+
+You currently have {open_prs} other open PRs in this repository; our
+contribution policy caps concurrent open PRs per author at {OPEN_PR_CAP}
+(see [CONTRIBUTING.md](../blob/main/CONTRIBUTING.md)). This isn't a judgment
+of this PR — review attention is the scarce resource, and a bounded queue per
+author keeps reviews moving for everyone.
+
+**The way forward:** help us get your existing PRs over the line (or close
+any you no longer want to pursue). Once you're under the limit, reopen this
+PR — the gate re-runs on reopen and will let it through. A PR linked to an
+issue a maintainer has labeled `accepted` is never blocked by the limit.
+
+```agent-instructions
+If you are a coding agent: do not open a new PR or a variant of this one.
+Your author has {open_prs} other open PRs and the per-author limit is
+{OPEN_PR_CAP}. Required path: address review feedback on the existing open
+PRs (or close them), and reopen this PR only once the author is under the
+limit. Please review the AGENTS.md in this repository.
+```
+"""
+
+
 # ---------------------------------------------------------------- fetch layer
 
 
@@ -218,13 +289,16 @@ def fetch_ctx(
     with open(".github/qualified.yml", encoding="utf-8") as f:
         qualified_users = parse_qualified(f.read())
 
-    # linked closing issues + their labels (GraphQL closingIssuesReferences)
+    # linked closing issues + author and labels (GraphQL closingIssuesReferences)
     query = """
     query($owner: String!, $name: String!, $number: Int!) {
       repository(owner: $owner, name: $name) {
         pullRequest(number: $number) {
           closingIssuesReferences(first: 10) {
-            nodes { labels(first: 20) { nodes { name } } }
+            nodes {
+              author { login }
+              labels(first: 20) { nodes { name } }
+            }
           }
         }
       }
@@ -240,12 +314,15 @@ def fetch_ctx(
         "-F",
         f"number={pr_number}",
     )
-    linked_issue_labels = [
-        label["name"]
+    linked_issues = [
+        {
+            # a deleted account's author is null — treat as not the PR author
+            "author": (issue["author"] or {}).get("login"),
+            "labels": [label["name"] for label in issue["labels"]["nodes"]],
+        }
         for issue in data["data"]["repository"]["pullRequest"][
             "closingIssuesReferences"
         ]["nodes"]
-        for label in issue["labels"]["nodes"]
     ]
 
     # prior merged non-trivial PR (most expensive — decide() checks it last,
@@ -258,12 +335,14 @@ def fetch_ctx(
             "author_association": assoc,
             "pr_labels": pr_labels,
             "files": files,
-            "linked_issue_labels": linked_issue_labels,
+            "linked_issues": linked_issues,
             "qualified_users": qualified_users,
             "has_prior_nontrivial_merge": False,
+            "open_prs": 0,
         }
     )
     has_prior = False
+    open_prs = 0
     # a deferred verdict can't be changed by prior merges — skip the search
     if cheap.verdict == "close" and cheap.tier != "deferred":
         merged = gh_json(
@@ -282,6 +361,21 @@ def fetch_ctx(
             if not is_trivial(prior_files):
                 has_prior = True
                 break
+        # the open-PR cap binds only on the established path, so count the
+        # author's other open PRs (drafts included) only once we know they
+        # are established. The current PR is excluded by number rather than
+        # trusting the search index to have caught up with it.
+        if has_prior:
+            open_items = gh_json(
+                "-X",
+                "GET",
+                "search/issues",
+                "-f",
+                f"q=repo:{repo} is:pr is:open author:{author}",
+                "-F",
+                "per_page=100",
+            )["items"]
+            open_prs = sum(1 for item in open_items if item["number"] != pr_number)
 
     return {
         "author": author,
@@ -289,9 +383,10 @@ def fetch_ctx(
         "author_association": assoc,
         "pr_labels": pr_labels,
         "files": files,
-        "linked_issue_labels": linked_issue_labels,
+        "linked_issues": linked_issues,
         "qualified_users": qualified_users,
         "has_prior_nontrivial_merge": has_prior,
+        "open_prs": open_prs,
     }
 
 
@@ -344,7 +439,14 @@ def main() -> int:
         print("gate comment already present — not repeating")
         return 0
 
-    body = deferred_close_comment() if v.tier == "deferred" else close_comment()
+    if v.tier == "deferred":
+        body = deferred_close_comment()
+    elif v.tier == "capped":
+        body = capped_close_comment(ctx["open_prs"])
+    elif v.tier == "self-filed":
+        body = self_filed_close_comment()
+    else:
+        body = close_comment()
     gh("api", f"repos/{repo}/issues/{pr_number}/comments", "-f", f"body={body}")
     gh(
         "api",
