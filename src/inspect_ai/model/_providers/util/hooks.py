@@ -124,7 +124,9 @@ class HttpHooks:
             return
         # Convert the relative Retry-After to an absolute monotonic deadline
         # so any SDK-side backoff between now and the next retry is accounted
-        # for when we report remaining seconds to the controller.
+        # for when we report remaining seconds to the controller. The
+        # controller ignores the value today — it's carried for a future
+        # request-backoff consumer; see AdaptiveConcurrencyController.notify_retry.
         deadline: float | None = None
         if headers is not None:
             try:

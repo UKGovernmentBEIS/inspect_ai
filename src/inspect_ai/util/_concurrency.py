@@ -964,8 +964,23 @@ class AdaptiveConcurrencyController:
         high throughput the controller could climb to a scale-up
         immediately after a suppressed retry.
 
-        `retry_after` is accepted for call-site compatibility but does not
-        affect the cooldown.
+        `retry_after` is accepted but does not affect the cooldown (see the
+        comment below). The parameter and the provider-side plumbing that
+        feeds it (`parse_retry_after` in each classifier, the absolute-deadline
+        decay in `_providers/util/hooks.py`) are kept deliberately: a
+        server-suggested wait is the right input for *request backoff* — i.e.
+        `ModelAPI.retry_wait()` — which is where it is expected to be consumed.
+        Until then it is carried but unused here; don't wire it into the
+        cooldown.
+
+        Whoever does wire it into backoff must watch for double waits: some
+        provider SDKs already honor `Retry-After` internally (the OpenAI
+        client retries `max_retries` times by default, sleeping the header's
+        wait before the exception ever reaches our retry loop), so sleeping it
+        again on top would compound the delay. `hooks.py` stores an absolute
+        deadline rather than the raw header value for exactly this reason —
+        the remaining time it reports has already had any SDK-side sleep
+        deducted.
         """
         # always reset success accounting on any retry signal (even debounced).
         # Also reset the saturation high-water mark — peak in-flight observed
