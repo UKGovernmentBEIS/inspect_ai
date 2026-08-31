@@ -1,6 +1,9 @@
+import hashlib
+import json
 import math
 import re
 from dataclasses import dataclass
+from typing import NamedTuple
 
 from textual.app import ComposeResult
 from textual.containers import Center, Grid, Horizontal
@@ -15,6 +18,21 @@ from inspect_ai._display.core.display import TaskDisplayMetric
 class TaskMetric:
     name: str
     value: float | int | None
+
+
+class ScorerGroup(NamedTuple):
+    """Identity of one metrics table in the expanded detail."""
+
+    score: str
+    """`TaskDisplayMetric.scorer` — the score, and the label shown."""
+
+    scorer: str | None
+    """`TaskDisplayMetric.scorer_name`. Two dict-valued scorers can emit the
+    same score, so the score alone would merge them into one table."""
+
+
+def scorer_group(metric: TaskDisplayMetric) -> ScorerGroup:
+    return ScorerGroup(score=metric.scorer, scorer=metric.scorer_name)
 
 
 class TaskDetail(Widget):
@@ -46,7 +64,7 @@ class TaskDetail(Widget):
         self.hidden = hidden
         self.existing_metrics: dict[str, TaskMetrics] = {}
         self.grid = Grid()
-        self.by_reducer: dict[str | None, dict[str, list[TaskMetric]]] = {}
+        self.by_reducer: dict[str | None, dict[ScorerGroup, list[TaskMetric]]] = {}
         self.metrics: list[TaskDisplayMetric] = []
 
     def watch_hidden(self, hidden: bool) -> None:
@@ -75,11 +93,10 @@ class TaskDetail(Widget):
                 else {}
             )
 
-            by_scorer_metrics = (
-                reducer_group[metric.scorer] if metric.scorer in reducer_group else []
-            )
+            group = scorer_group(metric)
+            by_scorer_metrics = reducer_group[group] if group in reducer_group else []
             by_scorer_metrics.append(TaskMetric(name=metric.name, value=metric.value))
-            reducer_group[metric.scorer] = by_scorer_metrics
+            reducer_group[group] = by_scorer_metrics
             self.by_reducer[metric.reducer] = reducer_group
 
         self.refresh_grid()
@@ -97,13 +114,17 @@ class TaskDetail(Widget):
         # In order to reduce flashing the below tracks use of widgets
         # and updates them when possible (removing and adding them as needed)
         # Makes keys for tracking Task Metric widgets
-        def metric_key(reducer: str | None, scorer: str) -> str:
-            reducer = reducer or "none"
-            return valid_id(f"task-{reducer}-{scorer}-tbl")
+        def metric_key(reducer: str | None, group: ScorerGroup) -> str:
+            # hashed rather than joined: scorer and score are arbitrary strings,
+            # and both a separator and `valid_id`'s character folding can make
+            # two distinct groups collide on one widget id
+            identity = json.dumps([reducer, group.scorer, group.score])
+            digest = hashlib.sha256(identity.encode()).hexdigest()[:16]
+            return valid_id(f"task-{digest}-tbl")
 
         # Remove keys that are no longer present
         existing_keys = set(self.existing_metrics.keys())
-        new_keys = set(metric_key(m.reducer, m.scorer) for m in self.metrics)
+        new_keys = set(metric_key(m.reducer, scorer_group(m)) for m in self.metrics)
         to_remove = existing_keys - new_keys
         for remove in to_remove:
             task_metric = self.existing_metrics[remove]
@@ -112,14 +133,14 @@ class TaskDetail(Widget):
 
         # add or update widgets with metrics
         for reducer, scorers in self.by_reducer.items():
-            for scorer, scores in scorers.items():
-                key = metric_key(reducer=reducer, scorer=scorer)
+            for group, scores in scorers.items():
+                key = metric_key(reducer=reducer, group=group)
                 if key in self.existing_metrics:
                     task_metrics = self.existing_metrics[key]
                     task_metrics.update(scores)
                 else:
                     task_metrics = TaskMetrics(
-                        id=key, scorer=scorer, reducer=reducer, metrics=scores
+                        id=key, scorer=group.score, reducer=reducer, metrics=scores
                     )
                     self.grid.mount(task_metrics)
                     self.existing_metrics[key] = task_metrics

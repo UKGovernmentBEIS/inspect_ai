@@ -2735,6 +2735,43 @@ def test_scanner_unchanged_config_accepted() -> None:
         assert success_2
 
 
+def test_scan_config_hash_stable_for_list_model_role() -> None:
+    """A role bound to a list of Model instances hashes stably across runs.
+
+    `Model` has no `__repr__`, so `str()` of a *list* of models embeds
+    memory addresses; the hash must coerce list elements individually or
+    a no-op reattach with a list-valued role would always rescan.
+    Exercises the CLI path that produces such lists (a YAML list of
+    model specs in `--scan-model-role`).
+    """
+    from inspect_ai import ScannerConfig
+    from inspect_ai._cli.util import parse_model_role_cli_args
+    from inspect_ai._eval.task.scan import _scan_config_hash
+
+    def make_config() -> ScannerConfig:
+        return ScannerConfig(
+            scanners=[echo_scanner()],
+            model_roles=dict(
+                parse_model_role_cli_args(
+                    ("grader=[{model: mockllm/model}, {model: mockllm/model_b}]",)
+                )
+            ),
+        )
+
+    assert _scan_config_hash(make_config()) == _scan_config_hash(make_config())
+
+    # different list contents still produce a different hash
+    different = ScannerConfig(
+        scanners=[echo_scanner()],
+        model_roles=dict(
+            parse_model_role_cli_args(
+                ("grader=[{model: mockllm/model}, {model: mockllm/model_c}]",)
+            )
+        ),
+    )
+    assert _scan_config_hash(make_config()) != _scan_config_hash(different)
+
+
 def test_scanner_partial_errors_recorded() -> None:
     """A scanner that errors on some samples records those failures.
 

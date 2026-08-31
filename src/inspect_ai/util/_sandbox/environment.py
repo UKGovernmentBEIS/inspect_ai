@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import abc
 import logging
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from typing import (
     Annotated,
@@ -32,7 +33,41 @@ from .exec_remote import (
 
 logger = logging.getLogger(__name__)
 
+
+class SandboxUnavailableError(RuntimeError):
+    """Raised when a provider cannot initiate a sandbox exec request.
+
+    This indicates that the sandbox is not running or provider-required
+    execution machinery is unavailable. It is distinct from failure to find
+    a caller-specified executable, which is reported through `ExecResult`.
+    Callers that surface `ExecResult` output to a model must not present the
+    provider's own failure as the command's output.
+
+    Tool calls turn this into a tool error of type `sandbox_unavailable`,
+    leaving the sample running. Other callers (scorers, solvers, setup code)
+    receive it as an ordinary exception.
+    """
+
+
 ST = TypeVar("ST", bound="SandboxEnvironment")
+
+_sandbox_prebuilt: ContextVar[bool] = ContextVar("sandbox_prebuilt", default=False)
+
+
+def sandbox_prebuilt() -> bool:
+    """Whether sandbox images should be treated as prebuilt.
+
+    When `True`, the built-in Docker provider verifies that images exist
+    instead of building them, raising `PrerequisiteError` for images that
+    don't. Currently internal to the Docker provider (not exported from
+    `inspect_ai.util`).
+    """
+    return _sandbox_prebuilt.get()
+
+
+def set_sandbox_prebuilt(prebuilt: bool) -> None:
+    _sandbox_prebuilt.set(prebuilt)
+
 
 TaskInit = Callable[[str, Union["SandboxEnvironmentConfigType", None]], Awaitable[None]]
 TaskInitEnvironment = Callable[
@@ -145,6 +180,10 @@ class SandboxEnvironment(abc.ABC):
           Execution result (status code, stderr/stdout, etc.)
 
         Raises:
+          SandboxUnavailableError: If the provider cannot initiate the exec
+            request because the sandbox is not running or provider-injected
+            execution machinery is unavailable. A missing caller-specified
+            executable is returned as an ordinary failed `ExecResult`.
           TimeoutError: If the specified `timeout` expires
             (and `timeout_retry` attempts also timeout).
           UnicodeDecodeError: May be raised if the sandbox provider

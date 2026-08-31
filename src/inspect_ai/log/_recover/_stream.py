@@ -32,7 +32,6 @@ from inspect_ai.log._condense import (
     walk_input,
 )
 from inspect_ai.log._log import (
-    EvalSampleLimit,
     EvalSampleSummary,
     EvalSpec,
     EventsData,
@@ -46,6 +45,7 @@ from ._reconstruct import (
     EventVersionCollapser,
     MessageAccumulator,
     _summary_with_uuid_fallback,
+    recovered_sample_limit,
 )
 
 logger = getLogger(__name__)
@@ -127,6 +127,7 @@ def _write_sample_streaming(
     # Per-sample reconstruction state captured from raw events
     sample_init: SampleInitEvent | None = None
     sample_limit_event: SampleLimitEvent | None = None
+    sample_limit_event_matching: SampleLimitEvent | None = None
     sample_metadata = buffer.read_sample_metadata(summary.id, summary.epoch, manifest)
 
     # Build the error field
@@ -235,6 +236,13 @@ def _write_sample_streaming(
                     sample_init = ev
                 if isinstance(ev, SampleLimitEvent):
                     sample_limit_event = ev  # keep the last
+                    # ...but a transcript can hold several, and the last one
+                    # isn't necessarily the one that halted the sample: an
+                    # operator interrupt during the scoring phase appends a
+                    # second event after whatever ended the run phase. Where the
+                    # terminal summary names the limit, it decides.
+                    if summary.limit is not None and ev.type == summary.limit:
+                        sample_limit_event_matching = ev
 
             # Feed resolved (uncondensed) events to the message accumulator;
             # the events written to the recovered log stay condensed below.
@@ -283,12 +291,11 @@ def _write_sample_streaming(
             if sample_init is not None and sample_init.sample.files:
                 files_value = list(sample_init.sample.files.keys())
             setup_value = sample_init.sample.setup if sample_init is not None else None
-            limit_value: EvalSampleLimit | None = None
-            if sample_limit_event is not None and sample_limit_event.limit is not None:
-                limit_value = EvalSampleLimit(
-                    type=sample_limit_event.type,
-                    limit=sample_limit_event.limit,
-                )
+            # the incremental equivalent of `select_limit_event`: prefer the last
+            # event matching the summary's limit type, else the last seen
+            limit_value = recovered_sample_limit(
+                summary, sample_limit_event_matching or sample_limit_event
+            )
 
             # Get messages and output from accumulator
             messages, output = accumulator.result()
@@ -332,6 +339,10 @@ def _write_sample_streaming(
             _write_json_field(
                 stream, "token_limit_usage", summary.token_limit_usage, comma=True
             )
+            _write_json_field(
+                stream, "message_limit", summary.message_limit, comma=True
+            )
+            _write_json_field(stream, "time_limit", summary.time_limit, comma=True)
             _write_json_field(stream, "started_at", summary.started_at, comma=True)
             _write_json_field(stream, "completed_at", summary.completed_at, comma=True)
             _write_json_field(stream, "total_time", summary.total_time, comma=True)
@@ -362,5 +373,15 @@ def _write_sample_streaming(
         attachments.close()
 
     summary.completed = True
+
+    # Deliberately NOT back-filling `summary.limit` from `limit_value` for an
+    # in-progress sample. Its buffered summary is the start-of-sample one, so it
+    # never names a limit -- but the reconstructed value is only a guess: a
+    # scoped limit caught by `apply_limits(catch_errors=True)` leaves a
+    # SampleLimitEvent behind on a sample that kept running, and nothing in the
+    # transcript distinguishes that from the limit that halted it. The summary is
+    # the cheap authoritative index consumers classify from, so leaving it unset
+    # ("we don't know") beats seeding it with a guess. The body keeps the
+    # best-effort reconstruction.
 
     return summary, sample_metadata

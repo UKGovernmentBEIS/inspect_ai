@@ -37,6 +37,7 @@ inspect_ai = ["_view/ts-mono*"]
 inspect_ai = [
     "binaries/*",
     "tool/_sandbox_tools_utils/sandbox_tools_version.txt",
+    "tool/_sandbox_tools_utils/SHA256SUMS",
     "util/_restic/version.txt",
     "util/_restic/SHA256SUMS",
     "**/*.tcss",
@@ -96,7 +97,14 @@ convention = "google"
 
 [tool.pytest.ini_options]
 minversion = "7.0"
-addopts = "-rA --doctest-modules --color=yes"
+# --dist worksteal, not xdist's default load: load hands each worker a large
+# contiguous slice of the collection up front, and collection is file-ordered,
+# so cost clusters travel as a unit and one worker can end up holding the
+# eval-set and _control integration files while its peers go idle. Measured on
+# a 4-worker CI runner: 4 of 10 legs stranded 76-80s on a single worker.
+# worksteal lets an idle worker take pending tests back off a straggler.
+# No effect unless the run is distributed (-n); see design/ci-perf/report.md.
+addopts = "-ra --doctest-modules --color=yes --dist worksteal"
 testpaths = ["tests"]
 doctest_optionflags = ["NORMALIZE_WHITESPACE", "IGNORE_EXCEPTION_DETAIL"]
 norecursedirs = [

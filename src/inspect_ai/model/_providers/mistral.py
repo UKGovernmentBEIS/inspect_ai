@@ -1,4 +1,5 @@
 import functools
+import inspect
 import json
 import os
 from typing import Any, Literal
@@ -58,6 +59,7 @@ from inspect_ai.model._reasoning import parse_content_with_reasoning
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 from inspect_ai.util._json import json_schema_dump
 
+from ..._util.http_defaults import default_async_client
 from ..._util.httpx import httpx_classify_retry
 from .._call_tools import parse_tool_call
 from .._chat_message import (
@@ -82,6 +84,7 @@ from .util import (
     model_base_url,
     require_azure_base_url,
     resolve_api_key,
+    sample_cache_affinity_key,
 )
 from .util.hooks import HttpxHooks
 
@@ -91,6 +94,18 @@ MISTRAL_API_KEY = "MISTRAL_API_KEY"
 
 
 AZURE_MISTRAL_BASE_URL_VARS = ["AZUREAI_MISTRAL_BASE_URL", "AZURE_MISTRAL_BASE_URL"]
+
+
+@functools.cache
+def _sdk_supports_prompt_cache_key() -> bool:
+    """Whether the installed mistralai SDK accepts `prompt_cache_key`.
+
+    The parameter postdates our minimum supported version (2.0.1) and
+    `complete_async` rejects unknown kwargs, so probe rather than pass blind.
+    """
+    from mistralai.client.chat import Chat
+
+    return "prompt_cache_key" in inspect.signature(Chat.complete_async).parameters
 
 
 class MistralAPI(ModelAPI):
@@ -160,6 +175,17 @@ class MistralAPI(ModelAPI):
     def is_azure(self) -> bool:
         return self.service == "azure"
 
+    def _http_default_args(self) -> dict[str, Any]:
+        """Model args with the shared HTTP defaults filled in.
+
+        The SDK's own client applies a flat 5s to every phase, which is both a
+        connect deadline a blocked loop outlasts and a request budget far too
+        short for a generation.
+        """
+        model_args = dict(self.model_args)
+        model_args.setdefault("async_client", default_async_client())
+        return model_args
+
     async def generate(
         self,
         input: list[ChatMessage],
@@ -168,9 +194,9 @@ class MistralAPI(ModelAPI):
         config: GenerateConfig,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
         # create client
-        with Mistral(api_key=self.api_key, **self.model_args) as client:
+        with Mistral(api_key=self.api_key, **self._http_default_args()) as client:
             # create time tracker
-            http_hooks = HttpxHooks(client.sdk_configuration.async_client)
+            http_hooks = HttpxHooks(client.sdk_configuration.async_client, api=self)
 
             # use the conversation api if requested
             if self.conversation_api:
@@ -197,6 +223,9 @@ class MistralAPI(ModelAPI):
                 http_headers={HttpxHooks.REQUEST_ID_HEADER: request_id}
                 | (config.extra_headers or {}),
             )
+            prompt_cache_key = sample_cache_affinity_key()
+            if prompt_cache_key is not None and _sdk_supports_prompt_cache_key():
+                request["prompt_cache_key"] = prompt_cache_key
             if config.reasoning_effort is not None:
                 request["reasoning_effort"] = mistral_reasoning_effort(
                     config.reasoning_effort

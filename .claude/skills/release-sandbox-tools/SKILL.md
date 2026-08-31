@@ -1,88 +1,78 @@
 ---
 name: release-sandbox-tools
-description: Build, validate, and publish a new version of the inspect-sandbox-tools injectable executables. Use when code under src/inspect_sandbox_tools/ changed and a new injectable version must ship, or when asked to build/validate/upload sandbox tools binaries.
+description: Land a PR that requires new inspect-sandbox-tools injectable binaries to be built and published. Use when asked to land/merge a PR that changed code under src/inspect_sandbox_tools/ (typically its slow-tool-tests-release check fails on missing published binaries), or when asked to build/validate/upload sandbox tools binaries.
 ---
 
-# Releasing sandbox tools injectables
+# Landing a PR that ships new sandbox tools injectables
 
-Builds the four injectable artifacts (amd64/arm64 × glibc/musl), validates them
-across Linux distros, and publishes them to S3. Background:
-`src/inspect_sandbox_tools/design/RELEASING.md`.
+Unblocks landing a PR that changed code under `src/inspect_sandbox_tools/` and
+bumped the injectable version: builds the four artifacts (amd64/arm64 ×
+glibc/musl) from the PR branch, validates them across Linux distros, publishes
+them to S3, and commits the pinned digests back to the PR branch.
 
-All commands run from the repo root using the repo venv (`.venv/bin/python` —
-do not use `uv run` or system python).
-
-## 1. Preconditions
-
-- Docker must be running with multi-arch (buildx) support: `docker info` succeeds.
-- The version must be bumped. It's a plain integer in
-  `src/inspect_ai/tool/_sandbox_tools_utils/sandbox_tools_version.txt` and must be
-  greater than main's:
-
-  ```sh
-  git show origin/main:src/inspect_ai/tool/_sandbox_tools_utils/sandbox_tools_version.txt
-  ```
-
-  If not yet bumped, increment it by 1 (this is a committed source change — it
-  rides in the same PR as the sandbox tools code change).
-
-Call the bumped value `{V}` below.
-
-## 2. Build
+The whole procedure is scripted as an interactive wizard:
 
 ```sh
-.venv/bin/python src/inspect_ai/tool/_sandbox_tools_utils/build_within_container.py --all --dev=false
+scripts/release-sandbox-tools.sh [--dry-run] [--auto]
 ```
 
-Slow (Docker builds for 4 variants; can exceed 10 minutes) — run it in the
-background and monitor. On success, verify all four artifacts exist in
-`src/inspect_ai/binaries/`:
+**Agents: run it with `--auto`.** In auto mode every confirmation resolves to
+a safe default, and anything that needs a human mid-run (starting Docker,
+`aws sso login`) aborts with instructions instead of waiting. Without
+`--auto` the prompts need a terminal, so a run from your shell exits
+immediately. Before starting, check `aws sts get-caller-identity`; if
+credentials are stale, ask the user to run `aws sso login` first — the upload
+uses their ambient AWS session. Run the wizard in the background and monitor
+it: build plus validation can exceed 20 minutes.
 
-- `inspect-sandbox-tools-amd64-v{V}`
-- `inspect-sandbox-tools-arm64-v{V}`
-- `inspect-sandbox-tools-amd64-musl-v{V}`
-- `inspect-sandbox-tools-arm64-musl-v{V}`
+Typically run by a maintainer. The PR is often a contributor's — they can write
+the code and bump the version, but they don't have credentials to upload the
+binaries to S3, so a maintainer performs this final step.
 
-(These are gitignored — never commit them.)
+**When to run:** once the PR is approved and the only failing CI check is
+`slow-tool-tests-release` — it fails at the "Fetch and verify published
+non-dev sandbox-tools binaries" step, either on the `SHA256SUMS` lockstep
+check or with a message naming the missing S3 object, because the bumped
+version's artifacts aren't published (and their digests committed) yet.
+Running earlier wastes builds if review rounds change the injectable source.
 
-## 3. Validate across distros
+## What you do
 
-```sh
-.venv/bin/python -m inspect_ai.tool._sandbox_tools_utils.validate_distros
-```
+1. **Confirm the trigger.** The PR is approved and `slow-tool-tests-release`
+   is the failing check (per "When to run" above). If `check-version-bump` is
+   the failing check instead, the fix is a committed version bump in
+   `src/inspect_ai/tool/_sandbox_tools_utils/sandbox_tools_version.txt`
+   (exactly one greater than origin/main's) — the wizard requires it and
+   won't write it.
+2. **Get a checkout of the PR's head branch** (a git worktree is ideal) and
+   make sure it's up to date — the binaries must be built from the exact code
+   being merged. Offer to set this up.
+3. **Run the wizard** from that checkout's repo root:
+   `scripts/release-sandbox-tools.sh --auto` (add `--dry-run` to build and
+   validate without publishing anything). The wizard itself checks
+   preconditions (branch, PR approval, version bump, Docker), builds,
+   validates across distros, uploads to S3, commits and pushes the rewritten
+   `SHA256SUMS`, and verifies the published bytes — don't redo those steps
+   around it. It also resumes: re-runs skip the slow build/validation stages
+   when a recorded fingerprint proves they already ran against the current
+   source, so stopping and re-running (or dry-run then real run) is cheap.
+4. **Confirm CI goes green.** The digest push triggers a fresh run; watch
+   `slow-tool-tests-release` pass. If the wizard ended without pushing the
+   digests (its closing summary lists the commit as still to do), commit the
+   rewritten `SHA256SUMS` to the PR branch and push it yourself — CI stays
+   red until it lands. Do not merge the PR — that happens through
+   the normal review process. PyPI bundling is also not part of this process:
+   the release script pulls the glibc binaries from S3 automatically.
 
-Must be run with `-m` (module mode) for imports to work. It runs each artifact's
-healthcheck in Docker containers: glibc variants on Ubuntu 16.04–24.04, Debian
-11/12, Kali; musl variants on Alpine 3.16/3.18/latest. Also slow — background it.
-Every distro must pass; any failure blocks the release.
+## If the wizard fails or can't be used
 
-## 4. Upload to S3 (user runs this — not the agent)
+The underlying commands and mechanism are documented in
+`src/inspect_sandbox_tools/design/RELEASING.md`. Two rules survive any manual
+fallback:
 
-The upload needs the user's AWS credentials (SSO session). **Do not run it
-yourself**; instead ask the user to run it in-session so the output lands in the
-conversation:
-
-> Uploading needs your AWS credentials. If your SSO session is stale, run
-> `aws sso login` in a terminal first. Then type this in the prompt:
->
-> `! .venv/bin/python src/inspect_ai/tool/_sandbox_tools_utils/upload_to_s3.py {V}`
-
-The `!` prefix runs the command inside the session. It uploads all four
-artifacts to `s3://inspect-sandbox-tools/` (us-east-2) with `--acl public-read`.
-
-## 5. Verify the upload (no credentials needed)
-
-Objects are public-read, so confirm each returns HTTP 200:
-
-```sh
-for f in amd64 arm64 amd64-musl arm64-musl; do
-  curl -sI -o /dev/null -w "%{http_code} inspect-sandbox-tools-$f-v{V}\n" \
-    "https://inspect-sandbox-tools.s3.us-east-2.amazonaws.com/inspect-sandbox-tools-$f-v{V}"
-done
-```
-
-## 6. Nothing else to do here
-
-PyPI bundling is not part of this process — the `inspect_ai` release script
-(`scripts/pypi-release.py`) pulls the glibc binaries from S3 automatically at
-release time. Merging the PR with the version bump completes the release.
+- **Published versions are immutable.** If an object for the version already
+  exists on S3 with different bytes (the upload script's guard aborts on
+  this), never force over it — bump the version and publish fresh artifacts.
+- **Binaries must come from the exact PR code.** Artifact filenames only
+  encode the version, so files lying around from an earlier review round look
+  identical; when in doubt, rebuild.

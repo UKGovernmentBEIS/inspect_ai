@@ -2,6 +2,7 @@ import gzip
 import os
 import subprocess
 import sys
+import tempfile
 import warnings
 from contextlib import asynccontextmanager
 from importlib import resources
@@ -10,10 +11,12 @@ from pathlib import Path
 from typing import AsyncIterator, BinaryIO, Literal, get_args
 from urllib.parse import unquote, urlparse
 
+import anyio
 import httpx
 from rich.prompt import Prompt
 
 import inspect_ai
+from inspect_ai._util.download import download
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.package import get_package_direct_url
@@ -33,6 +36,7 @@ from ._build_config import (
     SandboxToolsBuildConfig,
     config_to_filename,
 )
+from ._digests import lookup_digest
 
 _BUCKET_BASE_URL = "https://inspect-sandbox-tools.s3.us-east-2.amazonaws.com"
 
@@ -206,7 +210,7 @@ def _uncompressed_tar_bytes(name: str, gz_bytes: bytes) -> bytes:
     best-effort: if the binaries dir isn't writable (e.g. a locked-down install) we
     just return the decompressed bytes rather than failing injection.
     """
-    binaries_path = Path(inspect_ai.__file__).parent / "binaries"
+    binaries_path = _binaries_dir()
     cache_path = binaries_path / f"{name}.tar"
     if cache_path.exists():
         return cache_path.read_bytes()
@@ -344,34 +348,137 @@ def _get_executable_name(arch: Architecture, dev: bool, musl: bool) -> str:
     )
 
 
+def _binaries_dir() -> Path:
+    return Path(inspect_ai.__file__).parent / "binaries"
+
+
+# Soft launch of digest verification: failures warn by default and are fatal
+# only when this env var is set (any value other than "", "0", "false"). A
+# follow-on release makes them fatal unconditionally and removes the var.
+STRICT_DIGESTS_VAR = "INSPECT_SANDBOX_TOOLS_STRICT_DIGESTS"
+
+
+def _strict_digests() -> bool:
+    return os.environ.get(STRICT_DIGESTS_VAR, "").lower() not in ("", "0", "false")
+
+
 async def _download_from_s3(filename: str) -> bool:
-    """Download executable from S3. Returns True if successful, False otherwise.
+    """Download executable from S3, verified against the vendored SHA256SUMS.
 
-    Handles expected failures (404 - not yet promoted) silently.
-    Logs unexpected failures but doesn't raise exceptions.
+    Returns True on a download, False when the object is missing from S3
+    (403/404 — not yet published; the caller falls through to the local-build
+    tier). A digest mismatch or a missing sums entry must never be conflated
+    with "missing" — they are the tampering/corruption signals this
+    verification exists to surface. With ``STRICT_DIGESTS_VAR`` set they raise
+    (reaching the user wrapped in SandboxInjectionError); by default they log
+    a warning and the unverified bytes are used anyway.
     """
+    expected_sha256: str | None
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            # Download the executable
-            response = await client.get(f"{_BUCKET_BASE_URL}/{filename}")
-            response.raise_for_status()
+        # Raises if the sums file is unreadable or has no entry for this name —
+        # deliberately before any network I/O.
+        expected_sha256 = lookup_digest(filename)
+    except RuntimeError as e:
+        if _strict_digests():
+            raise
+        warn_once(
+            logger,
+            f"Sandbox tools digest lookup failed ({e}); downloading without "
+            f"verification. This will become a fatal error in a future "
+            f"release; set {STRICT_DIGESTS_VAR}=1 to make it fatal now.",
+        )
+        expected_sha256 = None
 
-            # Save to binaries directory
-            binaries_path = Path(inspect_ai.__file__).parent / "binaries"
-            binaries_path.mkdir(exist_ok=True)
+    binaries_path = _binaries_dir()
+    binaries_path.mkdir(exist_ok=True)
+    executable_path = binaries_path / filename
+    url = f"{_BUCKET_BASE_URL}/{filename}"
 
-            # Save with versioned name to match what we're looking for
-            executable_path = binaries_path / filename
-            executable_path.write_bytes(response.content)
-            executable_path.chmod(0o755)
-
-            return True
-
+    try:
+        if expected_sha256 is not None:
+            try:
+                await anyio.to_thread.run_sync(
+                    _download_and_verify_blocking,
+                    url,
+                    expected_sha256,
+                    executable_path,
+                )
+                return True
+            except ValueError as e:
+                message = (
+                    f"Digest verification failed for {filename} downloaded from "
+                    f"S3: {e}. The published artifact does not match the digest "
+                    f"pinned in this inspect_ai release, which may indicate a "
+                    f"compromised or corrupted artifact — please report this to "
+                    f"the inspect_ai maintainers rather than retrying."
+                )
+                if _strict_digests():
+                    raise PrerequisiteError(message) from e
+                warn_once(
+                    logger,
+                    f"{message} Proceeding with the unverified artifact. This "
+                    f"will become a fatal error in a future release; set "
+                    f"{STRICT_DIGESTS_VAR}=1 to make it fatal now.",
+                )
+        # Unverified download — no pinned digest, or verification failed and
+        # strict mode is off (download() discarded the mismatching bytes, so
+        # fetch again without verification).
+        await anyio.to_thread.run_sync(
+            _download_unverified_blocking, url, executable_path
+        )
+        return True
     except httpx.HTTPStatusError as e:
         if e.response.status_code in (403, 404):
             print(f"Executable '{filename}' not found on S3")
             return False
         raise
+
+
+def _download_and_verify_blocking(url: str, sha256: str, dest: Path) -> None:
+    """Download ``url`` to ``dest``, verified against ``sha256`` (blocking).
+
+    ``download()`` streams to a *fixed* sibling tempfile, so two processes
+    fetching the same ``dest`` (e.g. parallel evals on a fresh install racing
+    for the musl artifact — the in-process ``concurrency()`` guard doesn't
+    cover that) could interleave writes and rename unverified bytes into
+    place. Mirror ``_restic/resolver.py``: give ``download()`` a unique
+    mkstemp destination and do our own final ``os.replace``.
+
+    Raises ``ValueError`` on digest mismatch and ``httpx.HTTPStatusError`` on
+    non-retryable HTTP errors (both from ``download()``).
+    """
+    fd, tmp_path = tempfile.mkstemp(prefix=f"{dest.name}.", dir=dest.parent)
+    os.close(fd)
+    tmp = Path(tmp_path)
+    try:
+        download(url, sha256, tmp, timeout=60)
+        tmp.chmod(0o755)
+        os.replace(tmp, dest)
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
+def _download_unverified_blocking(url: str, dest: Path) -> None:
+    """Download ``url`` to ``dest`` with no digest check (blocking).
+
+    Soft-launch fallback only (see ``_download_from_s3``). Same unique-tempfile
+    + ``os.replace`` discipline as ``_download_and_verify_blocking``.
+
+    Raises ``httpx.HTTPStatusError`` on HTTP errors (no transient retries).
+    """
+    fd, tmp_path = tempfile.mkstemp(prefix=f"{dest.name}.", dir=dest.parent)
+    os.close(fd)
+    tmp = Path(tmp_path)
+    try:
+        with httpx.stream("GET", url, timeout=60, follow_redirects=True) as response:
+            response.raise_for_status()
+            with open(tmp, "wb") as f:
+                for chunk in response.iter_bytes():
+                    f.write(chunk)
+        tmp.chmod(0o755)
+        os.replace(tmp, dest)
+    finally:
+        tmp.unlink(missing_ok=True)
 
 
 async def _build_it(arch: Architecture, musl: bool, dev_executable_name: str) -> None:
@@ -520,21 +627,39 @@ def _check_main_divergence(url: str) -> Literal["clean", "edited"]:
                 )
                 return "edited"
 
-            # Check for committed changes relative to main
+        main_ref = _resolve_main_ref(git_root)
+        if main_ref is None:
+            trace_message(
+                logger,
+                TRACE_SANDBOX_TOOLS,
+                "_check_for_changes: no main branch ref resolved",
+            )
+            return "clean"
+
+        for pathspecs in pathspecs_to_check:
+            # Check for committed changes relative to the freshest main ref
+            # available in common checkouts.
             result = subprocess.run(
-                ["git", "diff", "main", "--quiet", "--", *pathspecs],
+                ["git", "diff", main_ref, "--quiet", "--", *pathspecs],
                 capture_output=True,
                 text=True,
                 check=False,
                 cwd=git_root,
             )
-            if result.returncode != 0:
+            if result.returncode == 1:
                 trace_message(
                     logger,
                     TRACE_SANDBOX_TOOLS,
-                    f"_check_for_changes: diff's from main detected for {pathspecs[0]}",
+                    f"_check_for_changes: diff's from {main_ref} detected for {pathspecs[0]}",
                 )
                 return "edited"
+            elif result.returncode != 0:
+                trace_message(
+                    logger,
+                    TRACE_SANDBOX_TOOLS,
+                    f"_check_for_changes: git diff failed for {pathspecs[0]}: {result}",
+                )
+                return "clean"
 
         trace_message(
             logger, TRACE_SANDBOX_TOOLS, "_check_for_changes: do changes detected"
@@ -547,3 +672,17 @@ def _check_main_divergence(url: str) -> Literal["clean", "edited"]:
             logger, TRACE_SANDBOX_TOOLS, f"_check_for_changes: caught exception {ex}"
         )
         return "clean"
+
+
+def _resolve_main_ref(git_root: Path) -> str | None:
+    for ref in ("origin/main", "main"):
+        result = subprocess.run(
+            ["git", "rev-parse", "--verify", ref],
+            capture_output=True,
+            text=True,
+            check=False,
+            cwd=git_root,
+        )
+        if result.returncode == 0:
+            return ref
+    return None

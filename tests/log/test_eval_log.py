@@ -701,6 +701,73 @@ async def test_zip_log_file_flush_cycles() -> None:
         assert read_ids == all_sample_ids
 
 
+def test_zip_log_file_flush_cycles_s3_trio(mock_s3: None) -> None:
+    """A trio eval flushing a sub-8MB .eval log to S3 keeps its temp file open.
+
+    Regression test: the trio backend uploads via sync boto3, and s3transfer's
+    non-multipart PUT (below the 8MB threshold) closed the source fileobj, so
+    the reopen after flush crashed with "ValueError: seek of closed file".
+    Uses anyio.run(backend="trio") directly for the reason in the NOTE above.
+    """
+    import anyio
+
+    from inspect_ai._util.constants import LOG_SCHEMA_VERSION
+    from inspect_ai.log._log import (
+        EvalConfig,
+        EvalDataset,
+        EvalPlan,
+        EvalSpec,
+    )
+    from inspect_ai.log._recorders.eval import LogStart, ZipLogFile
+
+    eval_path = "s3://test-bucket/flush_cycles_trio/test.eval"
+
+    eval_spec = EvalSpec(
+        created=datetime.now(timezone.utc).isoformat(),
+        task="test_task",
+        model="mockllm/model",
+        dataset=EvalDataset(name="test", samples=4),
+        config=EvalConfig(),
+    )
+    log_start = LogStart(version=LOG_SCHEMA_VERSION, eval=eval_spec, plan=EvalPlan())
+
+    async def main() -> None:
+        zip_log = ZipLogFile(eval_path)
+        await zip_log.init(log_start=None, summary_counter=0, summaries=[])
+        await zip_log.start(log_start)
+
+        # write samples in 2 batches with a flush between: the second batch's
+        # writes (and second flush) require the temp file the first flush
+        # uploaded to still be open
+        for batch in range(2):
+            for i in range(2):
+                sample_id = batch * 2 + i + 1
+                sample = EvalSample(
+                    id=sample_id,
+                    epoch=1,
+                    input=f"input {sample_id}",
+                    target=f"target {sample_id}",
+                    output=ModelOutput.from_content(
+                        model="mockllm/model",
+                        content=f"output {sample_id}",
+                    ),
+                    messages=[],
+                )
+                await zip_log.buffer_sample(sample)
+            await zip_log.write_buffered_samples()
+            await zip_log.flush()
+
+        await zip_log.close(header_only=False)
+
+    anyio.run(main, backend="trio")
+
+    # read back and verify (outside the trio context)
+    log = read_eval_log(eval_path)
+    assert log.eval.task == "test_task"
+    assert log.samples is not None
+    assert sorted([s.id for s in log.samples]) == [1, 2, 3, 4]
+
+
 async def test_zip_log_write_buffered_samples_yields_between_samples() -> None:
     """Regression test for the checkpoint in ``write_buffered_samples``.
 
@@ -1534,3 +1601,51 @@ async def test_eval_recorder_log_sample_write_through(tmp_path) -> None:
     summaries = await recorder.sample_summaries(spec)
     assert summaries is not None
     assert [(s.id, s.epoch) for s in summaries] == [(1, 1)]
+
+
+@pytest.mark.anyio
+async def test_file_recorder_read_log_sample_uuid_and_missing_args() -> None:
+    from unittest.mock import patch
+
+    from inspect_ai.log._log import EvalConfig, EvalDataset, EvalSpec
+    from inspect_ai.log._recorders.file import FileRecorder
+
+    fake_log = EvalLog(
+        eval=EvalSpec(
+            task="t",
+            task_id="1",
+            run_id="1",
+            created="2026-01-01T00:00:00Z",
+            model="m",
+            dataset=EvalDataset(name="d", samples=1),
+            config=EvalConfig(),
+        ),
+        samples=[
+            EvalSample(
+                id=1,
+                epoch=1,
+                uuid="real-uuid",
+                input="test input",
+                target="test target",
+            )
+        ],
+    )
+
+    with patch.object(FileRecorder, "_log_file_maybe_cached", return_value=fake_log):
+        # Missing both id and uuid
+        with pytest.raises(
+            ValueError, match=r"You must specify an 'id' or 'uuid' to read"
+        ):
+            await FileRecorder.read_log_sample("dummy.eval")
+
+        # Nonexistent uuid
+        with pytest.raises(
+            IndexError,
+            match=r"Sample with uuid 'missing-uuid' not found in log dummy\.eval",
+        ):
+            await FileRecorder.read_log_sample("dummy.eval", uuid="missing-uuid")
+
+        # Existing uuid
+        sample = await FileRecorder.read_log_sample("dummy.eval", uuid="real-uuid")
+        assert sample.id == 1
+        assert sample.uuid == "real-uuid"

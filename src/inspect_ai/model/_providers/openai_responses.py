@@ -5,6 +5,7 @@ from typing import Any
 
 import anyio
 from openai import (
+    APIError,
     APIStatusError,
     AsyncAzureOpenAI,
     AsyncOpenAI,
@@ -14,7 +15,17 @@ from openai import (
 from openai._types import NOT_GIVEN
 from openai.types.responses import (
     Response,
+    ResponseCompletedEvent,
+    ResponseErrorEvent,
+    ResponseFailedEvent,
     ResponseFormatTextJSONSchemaConfigParam,
+    ResponseFunctionCallArgumentsDeltaEvent,
+    ResponseFunctionToolCall,
+    ResponseIncompleteEvent,
+    ResponseOutputItemAddedEvent,
+    ResponseReasoningSummaryTextDeltaEvent,
+    ResponseReasoningTextDeltaEvent,
+    ResponseTextDeltaEvent,
     ToolParam,
 )
 from tenacity import (
@@ -41,10 +52,12 @@ from .._model_output import ModelOutput, ModelUsage
 from .._openai import (
     OpenAIResponseError,
     openai_handle_bad_request,
+    openai_handle_stream_error,
     openai_media_filter,
 )
 from .._openai_responses import (
     ResponsesModelInfo,
+    model_usage_from_response_usage,
     openai_responses_chat_choices,
     openai_responses_inputs,
     openai_responses_tool_choice,
@@ -52,6 +65,15 @@ from .._openai_responses import (
     responses_extra_body_fields,
     should_swap_todo_write,
     substitute_update_plan_tools,
+)
+from .._stream import (
+    StreamReasoningEvent,
+    StreamTextEvent,
+    StreamToolCallEvent,
+    model_stream_requested,
+    report_model_stream_delta,
+    report_model_stream_progress,
+    report_model_stream_start,
 )
 from .util.hooks import HttpxHooks
 
@@ -95,6 +117,7 @@ async def generate_responses(
     handle_bad_request: Callable[[APIStatusError], ModelOutput | Exception]
     | None = None,
     model_family: str | None = None,
+    streaming: bool = False,
 ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
     # background in extra_body should be applied
     if background is None and config.extra_body:
@@ -160,6 +183,11 @@ async def generate_responses(
     if isinstance(background, bool):
         request["background"] = background
 
+    # stream goes into the request pre-snapshot so the logged ModelCall
+    # matches the wire request (batched and background requests can't stream)
+    if streaming and not background and batcher is None:
+        request["stream"] = True
+
     model_call = set_active_model_event_call(
         request=request,
         filter=openai_media_filter,
@@ -167,11 +195,13 @@ async def generate_responses(
 
     try:
         # generate response
-        model_response: Response = await (
-            batcher.generate_for_request(request)
-            if batcher
-            else client.responses.create(**request)
-        )
+        model_response: Response
+        if batcher:
+            model_response = await batcher.generate_for_request(request)
+        elif request.get("stream"):
+            model_response = await _generate_responses_stream(client, request)
+        else:
+            model_response = await client.responses.create(**request)
         # model_response is `Response | Any`. The lazy type inference engine
         # threw up its hands because of the `**request`.
         assert isinstance(model_response, Response)
@@ -180,23 +210,12 @@ async def generate_responses(
         if background:
             model_response = await wait_for_background_response(client, model_response)
 
-        # check for error
+        # check for error (recognized block codes, including invalid_prompt,
+        # convert to model output in the handler below)
         if model_response.error is not None:
-            # check for content filter
-            if model_response.error.code == "invalid_prompt":
-                model_call.set_error(
-                    as_error_response(model_response.error),
-                    http_hooks.end_request(request_id),
-                )
-                return ModelOutput.from_content(
-                    model=model_name,
-                    content=model_response.error.message,
-                    stop_reason="content_filter",
-                ), model_call
-            else:
-                raise OpenAIResponseError(
-                    code=model_response.error.code, message=model_response.error.message
-                )
+            raise OpenAIResponseError(
+                code=model_response.error.code, message=model_response.error.message
+            )
 
         # save response for model_call
         _fix_function_tool_parameters(model_response)
@@ -231,26 +250,105 @@ async def generate_responses(
             return handle_bad_request(e), model_call
         else:
             return openai_handle_bad_request(model_name, e), model_call
+    except (APIError, OpenAIResponseError) as e:
+        # intentionally also catches the terminal `model_response.error` raise
+        # above, so recognized block codes convert on every path (streaming,
+        # non-streaming, background, batch); unrecognized codes return None
+        # and re-raise with their retry classification intact
+        output = openai_handle_stream_error(model_name, e)
+        if output is None:
+            raise
+        error_body = (
+            e.body if isinstance(e, APIError) else dict(code=e.code, message=e.message)
+        )
+        model_call.set_error(
+            as_error_response(error_body), http_hooks.end_request(request_id)
+        )
+        return output, model_call
+
+
+async def _generate_responses_stream(
+    client: AsyncAzureOpenAI | AsyncOpenAI, request: dict[str, Any]
+) -> Response:
+    """Stream a Responses API request, reporting chunks to the stream observer.
+
+    `request` must already carry `stream=True` (injected before the ModelCall
+    snapshot so the logged request matches the wire request). Content deltas
+    are reported by kind (text / reasoning / tool-call argument fragments,
+    attributed to their call via the announcing output_item event) and only
+    when an on_stream consumer is present (bare heartbeats otherwise); usage
+    arrives only on the terminal event, so intermediate chunks report bare
+    heartbeats. Returns the complete `Response` carried by the terminal
+    event, so downstream response handling matches the non-streaming path.
+    """
+    report_model_stream_start()
+    # function_call items by item id, so argument fragments can be attributed
+    # to their call id / function when reported as stream deltas
+    tool_items: dict[str, ResponseFunctionToolCall] = {}
+    model_response: Response | None = None
+    stream = await client.responses.create(**request)
+    # async with so the connection closes on non-exhaustion exits too
+    # (error events raise below; cancellation can land mid-iteration)
+    async with stream:
+        async for event in stream:
+            if isinstance(
+                event,
+                (ResponseCompletedEvent, ResponseIncompleteEvent, ResponseFailedEvent),
+            ):
+                # failed/incomplete responses flow through the same error
+                # handling as their non-streaming equivalents
+                # (model_response.error checks)
+                model_response = event.response
+                report_model_stream_progress(
+                    event.response.usage.output_tokens
+                    if event.response.usage is not None
+                    else None
+                )
+            elif isinstance(event, ResponseErrorEvent):
+                raise OpenAIResponseError(
+                    code=event.code or "server_error", message=event.message
+                )
+            elif not model_stream_requested():
+                # content deltas are gated on an on_stream consumer (see
+                # report_model_stream_delta); heartbeat only
+                report_model_stream_progress()
+            elif isinstance(event, ResponseTextDeltaEvent):
+                await report_model_stream_delta(StreamTextEvent(text=event.delta))
+            elif isinstance(
+                event,
+                (
+                    ResponseReasoningTextDeltaEvent,
+                    ResponseReasoningSummaryTextDeltaEvent,
+                ),
+            ):
+                await report_model_stream_delta(
+                    StreamReasoningEvent(reasoning=event.delta)
+                )
+            elif isinstance(event, ResponseOutputItemAddedEvent):
+                if isinstance(event.item, ResponseFunctionToolCall) and event.item.id:
+                    tool_items[event.item.id] = event.item
+                report_model_stream_progress()
+            elif isinstance(event, ResponseFunctionCallArgumentsDeltaEvent):
+                item = tool_items.get(event.item_id)
+                await report_model_stream_delta(
+                    StreamToolCallEvent(
+                        id=item.call_id if item is not None else None,
+                        function=item.name if item is not None else None,
+                        arguments=event.delta,
+                    )
+                )
+            else:
+                report_model_stream_progress()
+    if model_response is None:
+        raise OpenAIResponseError(
+            code="server_error",
+            message="Streaming response ended without a terminal response event.",
+        )
+    return model_response
 
 
 def model_usage_from_response(model_response: Response) -> ModelUsage | None:
-    if model_response.usage is None:
-        return None
-    cached_tokens = (
-        model_response.usage.input_tokens_details.cached_tokens
-        if model_response.usage.input_tokens_details is not None
-        and model_response.usage.input_tokens_details.cached_tokens is not None
-        else 0
-    )
-    return ModelUsage(
-        input_tokens=model_response.usage.input_tokens - cached_tokens,
-        output_tokens=model_response.usage.output_tokens,
-        input_tokens_cache_read=cached_tokens if cached_tokens > 0 else None,
-        reasoning_tokens=model_response.usage.output_tokens_details.reasoning_tokens
-        if model_response.usage.output_tokens_details is not None
-        else None,
-        total_tokens=model_response.usage.total_tokens,
-    )
+    return model_usage_from_response_usage(model_response.usage)
 
 
 async def wait_for_background_response(
