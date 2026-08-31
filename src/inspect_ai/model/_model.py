@@ -123,7 +123,12 @@ from ._generate_config import (
 from ._model_call import ModelCall, as_error_response
 from ._model_data.model_data import ModelCost
 from ._model_output import ModelFallback, ModelOutput, ModelUsage
-from ._stream import ModelStreamObserver, StreamHandler, model_stream_observer
+from ._stream import (
+    ModelStreamObserver,
+    NoStreamDataError,
+    StreamHandler,
+    model_stream_observer,
+)
 from ._throughput import record_generate, throughput_view
 from ._tokens import count_media_tokens, count_text_tokens, count_tokens
 
@@ -1731,6 +1736,13 @@ class Model:
             # count toward adaptive scale-up, but the controller doesn't
             # scale down for what's essentially infra noise.
             if isinstance(ex, AttemptTimeoutError):
+                report_http_retry(model=model)
+                return True
+
+            # a 200 stream that ended with zero chunks (see NoStreamDataError)
+            # is retried for any provider: there is no error payload to
+            # classify from, and a retry against a healthy server succeeds
+            if isinstance(ex, NoStreamDataError):
                 report_http_retry(model=model)
                 return True
 

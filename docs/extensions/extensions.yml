@@ -88,6 +88,18 @@
   author: "[Eirik Botten Nicolaysen](https://github.com/avalyset)"
   categories: ["Analysis"]
 
+- name: "[Grader Variance](https://github.com/joanna-ciesielski/grader-variance)"
+  description: |
+    Grader-variance decomposition — repeatedly re-scores hash-verified frozen completions with one judge, separating grader noise from question and model-sampling variance and reporting the repeats a target dependability needs.
+  author: "[Joanna Ciesielski](https://github.com/joanna-ciesielski)"
+  categories: ["Analysis"]
+
+- name: "[Inspect Refusal Fidelity](https://github.com/IvanSFlowGit/inspect-refusal-fidelity)"
+  description: |
+    Scores whether a system refuses when it cannot honestly answer, reporting over-refusal and false confidence as separate metrics.
+  author: "[Ivan Skachek](https://github.com/IvanSFlowGit)"
+  categories: ["Analysis"]
+
 - name: "[Inspect Flow](https://meridianlabs-ai.github.io/inspect_flow/)"
   description: |
     Workflow orchestration for reproducibly running evals at scale.

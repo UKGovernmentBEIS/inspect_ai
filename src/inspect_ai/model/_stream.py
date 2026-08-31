@@ -118,6 +118,19 @@ StreamContentEvent: TypeAlias = Union[
 """Content delta reported by a provider streaming loop (internal)."""
 
 
+class NoStreamDataError(RuntimeError):
+    """A streaming response completed (HTTP 200) without delivering any data.
+
+    Raised by provider streaming loops when a misbehaving server ends the
+    stream with zero chunks. Always retried by the model layer's retry
+    classifier (`Model.should_retry`) regardless of provider — an empty
+    stream carries no signal to classify from, and failing the sample would
+    score a server hiccup as an empty (wrong) completion. Subclass of
+    `RuntimeError` so pre-existing `except RuntimeError` handling still
+    applies.
+    """
+
+
 PARTIAL_OUTPUT_FLUSH_INTERVAL = 1.0
 """Minimum seconds between partial-output snapshot notifications.
 
