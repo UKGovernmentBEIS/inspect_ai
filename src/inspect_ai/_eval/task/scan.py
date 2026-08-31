@@ -402,6 +402,7 @@ async def scan_finalize(
     scan_id: str,
     log_dir: str,
     scanner: "Scanners | None" = None,
+    scans: str | None = None,
 ) -> None:
     """Compact buffer parquets and snapshot the recorded transcripts.
 
@@ -424,11 +425,21 @@ async def scan_finalize(
     `complete` is True only when no scanner errors are present; with
     errors we leave the scan resumable so scout's `scan_resume` can
     re-run just the failed scans.
+
+    An external runner finalizing a record-only scan has no live scanner
+    objects; with `scanner=None` the scanner names are read from the
+    on-disk `_scan.json` instead (they are the only thing the objects
+    were used for), and `scans` supplies the output-location override
+    the objects would otherwise carry.
     """
     from inspect_scout._recorder.file import FileRecorder
     from upath import UPath
 
-    scan_dir = _scan_dir(log_dir, scan_id, scanner)
+    scan_dir = (
+        f"{scans.rstrip('/')}/scan_id={scan_id}"
+        if scans is not None
+        else _scan_dir(log_dir, scan_id, scanner)
+    )
     if not exists(scan_dir):
         return
 
@@ -441,8 +452,12 @@ async def scan_finalize(
 
     await FileRecorder.sync(scan_dir, complete=complete)
 
-    if scanner is not None:
-        await _cleanup_orphan_scan_rows(scan_dir, log_dir, scanner)
+    scanner_names = (
+        sorted(_normalize_scanners(scanner))
+        if scanner is not None
+        else sorted(pre_sync_status.spec.scanners)
+    )
+    await _cleanup_orphan_scan_rows(scan_dir, log_dir, scanner_names)
 
     snapshot = _snapshot_from_compacted(UPath(scan_dir), log_dir=log_dir)
     if snapshot is not None:
@@ -555,7 +570,7 @@ def scanned_transcripts_for_resume(
 
 
 async def _cleanup_orphan_scan_rows(
-    scan_dir: str, log_dir: str, scanner: "Scanners"
+    scan_dir: str, log_dir: str, scanner_names: Sequence[str]
 ) -> None:
     """Drop scan rows whose transcript_id has no corresponding sample.
 
@@ -589,7 +604,7 @@ async def _cleanup_orphan_scan_rows(
     live_array = pa.array(sorted(live_tids), type=pa.string())
     buffer_dir = RecorderBuffer.buffer_dir(scan_dir)
 
-    for name in _normalize_scanners(scanner):
+    for name in scanner_names:
         # filter the compacted parquet — read per-row-group to avoid
         # cross-row-group schema merging (scout's writer can produce
         # row groups with differing dictionary states)
@@ -612,7 +627,20 @@ async def _cleanup_orphan_scan_rows(
                     writer.write_table(filtered)
             writer.close()
             if removed:
-                UPath(parquet_path).write_bytes(out_buf.getvalue().to_pybytes())
+                # same atomicity discipline as FileRecorder.sync: remote
+                # object stores expose a PUT atomically, while a local
+                # filesystem exposes partial writes -- so write a sibling
+                # .tmp and rename, keeping the file always-complete for a
+                # concurrent reader (scan_results_df takes no lock).
+                data = out_buf.getvalue().to_pybytes()
+                if parquet_path.protocol not in ("", "file"):
+                    parquet_path.write_bytes(data)
+                else:
+                    import os
+
+                    tmp_path = UPath(f"{parquet_path}.tmp")
+                    tmp_path.write_bytes(data)
+                    os.replace(str(tmp_path), str(parquet_path))
 
         # clean orphaned buffer files (relevant when complete=False
         # left the buffer in place; complete=True already cleaned it)
@@ -812,6 +840,186 @@ def _normalize_scanners(
     if isinstance(scanner, ScannerConfig):
         return ScanJob(scanners=scanner.scanners)._scanners
     return ScanJob(scanners=scanner)._scanners
+
+
+def merged_selection_scanner(
+    scanner: "Scanners | None",
+    injected: dict[str, dict[str, Any]] | None,
+) -> "Scanners | None":
+    """Merge runner-injected scanner specs with the definition's own scanners.
+
+    A selection document may carry scanners of the runner's choosing, as
+    scout `ScannerSpec` dicts keyed by name (see `eval_set_selection.py`).
+    They are realized here and merged with whatever the definition passed —
+    which may be nothing, so a worker can scan through injection alone.
+
+    A name collision is refused rather than resolved: either resolution
+    silently changes what one of the two parties records, and the runner
+    is expected to have refused the collision before any worker started.
+
+    When the definition's `scanner` is a `ScannerConfig`, the merge
+    preserves the config wrapper (its filter, scan-side model, and `scans`
+    location apply to the injected scanners too), replacing only the
+    scanner mapping inside it.
+    """
+    if not injected:
+        return scanner
+    verify_scout_prerequisites()
+
+    from inspect_scout._scancontext import scanners_from_spec_dict
+    from inspect_scout._scanspec import ScannerSpec
+    from pydantic import ValidationError
+
+    from inspect_ai._util.error import PrerequisiteError
+
+    specs: dict[str, ScannerSpec] = {}
+    for name, entry in injected.items():
+        try:
+            specs[name] = ScannerSpec.model_validate(entry)
+        except ValidationError as ex:
+            raise PrerequisiteError(
+                f"Runner-injected scanner '{name}' is not a valid ScannerSpec:\n{ex}"
+            ) from ex
+    realized = scanners_from_spec_dict(specs)
+
+    definition = _normalize_scanners(scanner)
+    collisions = sorted(set(definition) & set(realized))
+    if collisions:
+        raise PrerequisiteError(
+            "Runner-injected scanner name(s) collide with the definition's "
+            f"own scanners: {', '.join(collisions)}. Rename the injected "
+            "scanner(s) -- a collision cannot be resolved without silently "
+            "changing what one of the two records."
+        )
+
+    merged = {**definition, **realized}
+    if isinstance(scanner, ScannerConfig):
+        return scanner.model_copy(update={"scanners": merged})
+    return merged
+
+
+def verify_selection_scan_dir(
+    scanner: "Scanners | None", *, scan_id: str, log_dir: str
+) -> None:
+    """Refuse selection-mode scanning when the scan directory is absent.
+
+    In selection (worker) mode scanning is record-only: the runner owns the
+    scan directory's lifecycle and must have laid it down (`scan_init`, or
+    an equivalent from a serialized spec) before any worker starts. The
+    per-sample dispatch (`scan_eval_sample`) silently skips when the
+    directory does not exist — the right behavior for the eval-set path,
+    where init is always about to run, and exactly the wrong one for a
+    worker whose runner claims to own scanning: it would silently not scan.
+    Checked once, at worker startup, rather than surfacing per sample.
+    """
+    if scanner is None:
+        return
+    verify_scout_prerequisites()
+
+    from inspect_ai._util.error import PrerequisiteError
+
+    scan_dir = _scan_dir(log_dir, scan_id, scanner)
+    if not exists(scan_dir):
+        raise PrerequisiteError(
+            f"Scanning is configured but the scan directory '{scan_dir}' "
+            "does not exist. In selection (worker) mode the external runner "
+            "owns the scan directory's lifecycle and must initialize it "
+            "before workers start; a worker that scanned without it would "
+            "silently record nothing."
+        )
+
+
+def serialized_scan(
+    scanner: "Scanners | None", *, scan_id: str | None
+) -> tuple[dict[str, Any], str | None] | None:
+    """Serialize the definition's scanner configuration for a capture manifest.
+
+    Returns `(spec, scans)`, where `spec` is the `ScanSpec` dump a fresh
+    `scan_init` would write for this configuration — the material an
+    external runner needs to lay the scan directory down *without executing
+    the definition* — and `scans` is the definition's output-location
+    override (`None` to default under the runner's resolved log directory,
+    which capture cannot compute since a definition may name no `log_dir`).
+    Returns `None` when the definition declares no scanners.
+
+    `scan_id` may be unknown at capture (`eval_set_id` is optional); it is
+    recorded as the empty string then. The runner stamps the authoritative
+    id at init time either way, so the field here is informational.
+    """
+    if scanner is None:
+        return None
+    verify_scout_prerequisites()
+
+    from inspect_scout._scancontext import _spec_scanners
+    from inspect_scout._scanspec import ScanOptions, ScanSpec
+
+    metadata = dict(_normalize_metadata(scanner) or {})
+    metadata[_INSPECT_CONFIG_HASH_KEY] = _scan_config_hash(scanner)
+    spec = ScanSpec(
+        scan_id=scan_id or "",
+        scan_name=_normalize_scan_name(scanner),
+        scanners=_spec_scanners(_normalize_scanners(scanner)),
+        options=ScanOptions(),
+        tags=_normalize_tags(scanner),
+        metadata=metadata,
+    )
+    return (
+        spec.model_dump(mode="json", exclude_none=True),
+        _normalize_scans(scanner),
+    )
+
+
+async def scan_init_from_spec(
+    spec: dict[str, Any],
+    *,
+    scan_id: str,
+    log_dir: str,
+    scans: str | None = None,
+) -> str:
+    """Lay down (or re-attach to) a scan directory from a serialized spec.
+
+    The external runner's half of record-only scanning: `spec` is the
+    `ScanSpec` dump a capture manifest carries (see `serialized_scan`),
+    possibly with runner-injected scanners merged into its `scanners`
+    mapping. `scan_id` is stamped over whatever the dump recorded, since
+    the runner resolves the authoritative id; `scans` is the definition's
+    output-location override (`None` for `<log_dir>/scans`).
+
+    When the directory already exists this attaches rather than resets:
+    the finalized flag is invalidated (a new run is starting) and the
+    on-disk spec is replaced with the requested one, preserving the prior
+    spec's `transcripts` snapshot. No compatibility check happens here —
+    the runner is expected to have verified the requested spec against the
+    on-disk one (refusing changed scanners, admitting added ones) before
+    calling, at a moment a human can act on the refusal.
+
+    Returns the scan directory.
+    """
+    verify_scout_prerequisites()
+
+    from inspect_scout._recorder.file import FileRecorder
+    from inspect_scout._scanspec import ScanSpec
+    from upath import UPath
+
+    from inspect_ai._util.file import file
+    from inspect_ai._util.json import to_json_str_safe
+
+    requested = ScanSpec.model_validate({**spec, "scan_id": scan_id})
+    scans_location = (scans or f"{log_dir.rstrip('/')}/scans").rstrip("/")
+    scan_dir = f"{scans_location}/scan_id={scan_id}"
+
+    if exists(scan_dir):
+        scan_json = UPath(scan_dir) / "_scan.json"
+        with file(scan_json.as_posix(), "r") as f:
+            prior = ScanSpec.model_validate_json(f.read())
+        requested = requested.model_copy(update={"transcripts": prior.transcripts})
+        with file(scan_json.as_posix(), "w") as f:
+            f.write(to_json_str_safe(requested))
+        _invalidate_finalized_flag(scan_dir)
+        return scan_dir
+
+    await FileRecorder().init(requested, scans_location)
+    return scan_dir
 
 
 def _normalize_scans(scanner: "Scanners | None") -> str | None:
