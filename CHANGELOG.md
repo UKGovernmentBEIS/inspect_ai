@@ -1,6 +1,7 @@
 ## Unreleased
 - Scoring: `model_graded_qa`/`model_graded_fact` no longer score a malformed multi-character verdict such as `GRADE: CI` as correct; such verdicts now leave the sample unscored with `grade_parse_failure` recorded.
 
+- Bugfix: Sample `files` values that are empty strings now create empty files in the sandbox rather than recursively copying the runner's working directory (or the dataset's directory) into it.
 - Scoring: Support tuples and non-list sequences in Target. (#5039)
 - Analysis: Fixed `task_info()` and `log_viewer()` raising `ValueError` when applied to an empty DataFrame. (#4826)
 - Eval Set: `eval_set()` now defaults `log_dir` to `INSPECT_LOG_DIR` or `./logs`, as `eval()` does, rather than requiring it.
