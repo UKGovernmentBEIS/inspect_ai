@@ -80,25 +80,36 @@ def _print_config(config: dict[str, Any], *, changed: bool) -> None:
         _echo(_knob_label("max samples", "max_samples") + _PER_TASK_PLACEHOLDER)
     else:
         max_samples = knobs.get("max_samples") or {}
-        if max_samples.get("adjustable"):
+        label = _knob_label("max samples", "max_samples")
+        # branch on tracks_adaptive before adjustable: the adaptive arms also
+        # carry adjustable=true, so an adjustable-first chain would render
+        # adaptive tasks with the static arm
+        if max_samples.get("tracks_adaptive"):
+            if max_samples.get("adjustable"):
+                limit = _target(max_samples.get("limit"), "max_samples")
+                in_use = max_samples.get("in_use")
+                if max_samples.get("override") is not None:
+                    _echo(
+                        f"{label}{limit} ({in_use} in use, pinned — 'clear' "
+                        "resumes adaptive tracking)"
+                    )
+                else:
+                    _echo(
+                        f"{label}{limit} ({in_use} in use, tracking adaptive "
+                        "connections — set to pin)"
+                    )
+            else:
+                # an older server's adaptive view: not adjustable, no numbers
+                # — point at where the numbers are
+                _echo(label + "tracks adaptive connections (see below)")
+        elif max_samples.get("adjustable"):
             limit = _target(max_samples.get("limit"), "max_samples")
             in_use = max_samples.get("in_use")
-            label = _knob_label("max samples", "max_samples")
             _echo(f"{label}{limit} ({in_use} in use)")
-        elif max_samples.get("tracks_adaptive"):
-            # sample concurrency tracks this task's adaptive controller, so
-            # there's no user setpoint to show — point at where the numbers are
-            _echo(
-                _knob_label("max samples", "max_samples")
-                + "tracks adaptive connections (see below)"
-            )
         else:
             # no live sample limiter for this task (e.g. a reused log) — the
             # adaptive block below, if any, belongs to other tasks' models
-            _echo(
-                _knob_label("max samples", "max_samples")
-                + "not adjustable (no live sample limiter)"
-            )
+            _echo(label + "not adjustable (no live sample limiter)")
 
     # max_tasks — the task dispatchers' live override (absent from an older
     # server's view). With no live dispatcher (during batch startup / between
@@ -1198,9 +1209,10 @@ def _format_activity(activity: dict[str, Any] | None, now: float) -> str:
 
     ``generating 7:12`` (with ``(N retries)`` for in-call provider retries
     and ``· 1.2k tok`` when streamed progress is reported), ``bash 0:41`` /
-    ``2 tools 1:10`` for pending tool calls, and ``retrying in 0:45`` for a
+    ``2 tools 1:10`` for pending tool calls, ``retrying in 0:45`` for a
     generate retry backoff (time until the next attempt; bare ``retrying``
-    once the deadline passes). Elapsed is client-computed from
+    once the deadline passes), and ``approval: bash 6:12`` / ``question
+    2:03`` for a sample parked on a person. Elapsed is client-computed from
     ``started_at``, matching the idle column's convention. Empty for a
     null/absent activity; an unknown type from a newer server renders as
     its name rather than blank.
@@ -1212,6 +1224,15 @@ def _format_activity(activity: dict[str, Any] | None, now: float) -> str:
         _format_duration(now - started) if isinstance(started, (int, float)) else ""
     )
     activity_type = activity.get("type")
+    if activity_type in ("approval", "question"):
+        count = int(activity.get("count") or 1)
+        if count > 1:
+            cell = f"{count} {activity_type}s"
+        elif activity_type == "approval" and activity.get("detail"):
+            cell = f"approval: {activity.get('detail')}"
+        else:
+            cell = str(activity_type)
+        return cell + (f" {elapsed}" if elapsed else "")
     if activity_type == "model":
         cell = "generating" + (f" {elapsed}" if elapsed else "")
         retries = activity.get("retries")

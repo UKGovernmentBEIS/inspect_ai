@@ -37,6 +37,7 @@ from .._model_call import ModelCall
 from .._model_output import ModelOutput
 from .._reasoning import clamp_reasoning_effort_to_low_medium_high
 from .._stream import (
+    NoStreamDataError,
     StreamContentEvent,
     StreamReasoningEvent,
     StreamTextEvent,
@@ -67,6 +68,17 @@ SAGEMAKER_RETRY_ERROR_CODES = {
     # 507, # Insufficient storage
 }
 
+# In-band stream errors (delivered after HTTP 200). Both are transient:
+# InternalStreamFailure by definition (AWS: "unknown error ... Try your
+# request again") and ModelStreamError because its documented ErrorCodes —
+# ModelInvocationTimeExceeded and StreamBroken, the full documented set —
+# are infrastructure/timeout conditions whose non-streaming analogues
+# (container timeout, connection reset) are retried above.
+SAGEMAKER_RETRY_STREAM_ERROR_CODES = {
+    "ModelStreamError",
+    "InternalStreamFailure",
+}
+
 # botocore transport-layer exceptions raised before a response is received —
 # the connection could not be established, was dropped mid-flight, or timed
 # out. These are transient (a redialed request typically succeeds) and are not
@@ -87,6 +99,20 @@ SAGEMAKER_RETRY_TRANSPORT_ERRORS = (
 # container only exposes chat/completion inference fields. Users of
 # target_perplexity() must provide num_target_tokens in sample metadata
 # rather than relying on auto-tokenization.
+
+
+class SageMakerStreamError(RuntimeError):
+    """In-band ModelStreamError/InternalStreamFailure from a response stream.
+
+    Both event shapes are marked `exception` in the AWS service model, so
+    botocore normally surfaces them as `EventStreamError` (a `ClientError`
+    with the exception type as `Error.Code`) raised from the stream
+    iterator — `should_retry` classifies that path directly. This typed
+    exception backstops the defensive in-band checks in the stream loop so
+    that if either shape ever does arrive as a yielded event, it still
+    classifies as transient rather than failing the sample (see
+    `SAGEMAKER_RETRY_STREAM_ERROR_CODES` for why both are transient).
+    """
 
 
 class SagemakerAPI(ModelAPI):
@@ -179,10 +205,18 @@ class SagemakerAPI(ModelAPI):
                 and status_code in SAGEMAKER_RETRY_ERROR_CODES
             ):
                 return RetryDecision.transient()
+            # In-band stream errors (delivered after HTTP 200) surface as
+            # EventStreamError — a ClientError raised from the response
+            # stream iterator with the exception type as the code
+            if error_code in SAGEMAKER_RETRY_STREAM_ERROR_CODES:
+                return RetryDecision.transient()
         # Transport-layer failures (connection could not be established/was
         # dropped/timed out) are transient — the request never reached the
         # model, so a redial typically succeeds.
         elif isinstance(ex, SAGEMAKER_RETRY_TRANSPORT_ERRORS):
+            return RetryDecision.transient()
+        # backstop for in-band stream error events (see the class docstring)
+        elif isinstance(ex, SageMakerStreamError):
             return RetryDecision.transient()
         return RetryDecision.no()
 
@@ -605,15 +639,21 @@ class SagemakerAPI(ModelAPI):
             choice = choices[0]
             delta = choice.get("delta") or {}
 
+            # queue stream deltas only when an on_stream consumer is present
+            # (see report_model_stream_delta)
+            deltas_requested = model_stream_requested()
+
             content = delta.get("content")
             if content:
                 accumulated_text += content
-                pending_deltas.append(StreamTextEvent(text=content))
+                if deltas_requested:
+                    pending_deltas.append(StreamTextEvent(text=content))
 
             reasoning = delta.get("reasoning_content") or delta.get("reasoning")
             if reasoning:
                 accumulated_reasoning += reasoning
-                pending_deltas.append(StreamReasoningEvent(reasoning=reasoning))
+                if deltas_requested:
+                    pending_deltas.append(StreamReasoningEvent(reasoning=reasoning))
 
             for tc in delta.get("tool_calls") or []:
                 idx = tc.get("index", 0)
@@ -637,13 +677,14 @@ class SagemakerAPI(ModelAPI):
                 # report id/function from the accumulated slot — the server
                 # sends them only on a call's first fragment, but reported
                 # deltas attribute every fragment
-                pending_deltas.append(
-                    StreamToolCallEvent(
-                        id=slot["id"],
-                        function=slot["function"]["name"],
-                        arguments=fn.get("arguments") or "",
+                if deltas_requested:
+                    pending_deltas.append(
+                        StreamToolCallEvent(
+                            id=slot["id"],
+                            function=slot["function"]["name"],
+                            arguments=fn.get("arguments") or "",
+                        )
                     )
-                )
 
             # Track finish_reason across all chunks — only the dedicated stop
             # chunk has a non-null value, and it may arrive before the usage
@@ -675,20 +716,26 @@ class SagemakerAPI(ModelAPI):
         report_model_stream_start()
 
         async for event in event_stream:
-            # Check for error events first
+            # Defensive checks for in-band error events. botocore normally
+            # raises these two shapes as EventStreamError from the iterator
+            # (classified in should_retry) rather than yielding them, but if
+            # one arrives as an event it must raise something the retry
+            # classifier recognizes.
             if "ModelStreamError" in event:
                 error_info = event["ModelStreamError"]
                 error_code = error_info.get("ErrorCode", "Unknown")
                 error_message = error_info.get("Message", "Model stream error occurred")
                 logger.error(f"ModelStreamError: {error_code} - {error_message}")
-                raise RuntimeError(f"ModelStreamError [{error_code}]: {error_message}")
+                raise SageMakerStreamError(
+                    f"ModelStreamError [{error_code}]: {error_message}"
+                )
 
             if "InternalStreamFailure" in event:
                 error_message = event["InternalStreamFailure"].get(
                     "Message", "Internal stream failure occurred"
                 )
                 logger.error(f"InternalStreamFailure: {error_message}")
-                raise RuntimeError(f"InternalStreamFailure: {error_message}")
+                raise SageMakerStreamError(f"InternalStreamFailure: {error_message}")
 
             # Process payload chunks
             if "PayloadPart" in event:
@@ -709,10 +756,9 @@ class SagemakerAPI(ModelAPI):
         )
 
         if n_chunks == 0:
-            # No data chunks at all — surface as an error so the request can be
-            # retried / counted as a failure rather than silently scored as an
-            # empty (wrong) completion.
-            raise RuntimeError(
+            # No data chunks at all — surface as a retryable error rather than
+            # silently scoring an empty (wrong) completion.
+            raise NoStreamDataError(
                 "No data chunks received from streaming SageMaker endpoint "
                 f"'{self.endpoint_name}'."
             )
