@@ -195,6 +195,23 @@ with get_model("hf/Qwen/Qwen2.5-72B") as model:
 
 Note though that this *won't work* with model providers that require an async close operation (OpenAI, Anthropic, Grok, Together, Groq, Ollama, llama-cpp-python, and CloudFlare).
 
+### Streaming Events
+
+`generate()` accepts an optional `on_stream` async callback which receives incremental `StreamEvent`s while the response streams. This is a side-channel for UI display — the final result is still the returned `ModelOutput`:
+
+``` python
+from inspect_ai.model import StreamEvent, get_model
+
+async def show(event: StreamEvent) -> None:
+    if event.type == "text":
+        print(event.text, end="", flush=True)
+
+model = get_model()
+response = await model.generate("Say hello", on_stream=show)
+```
+
+Events include text deltas (`type="text"`), reasoning deltas (`type="reasoning"`), tool-call argument deltas (`type="tool_call"`), and retry boundaries (`type="retry"`). A retry boundary signals that the call is being retried after a failed attempt: deltas received so far belong to that failed attempt and should be discarded, since the final `ModelOutput` comes entirely from the attempt that succeeds.
+
 ## Model Roles
 
 Model roles enable you to create aliases for the various models used in your tasks, and then dynamically vary those roles when running an evaluation. For example, you might have a "critic" or "monitor" role, or perhaps "red_team" and "blue_team" roles. Roles are included in the log and displayed in model events within the transcript.
@@ -268,6 +285,32 @@ inspect eval math.py \
 
 Note that the built-in [model-graded scorers](model-graded.qmd) (e.g. `model_graded_qa()`, `model_graded_fact()`) look for the `grader` role by default.
 
+### Multiple Models per Role
+
+A role can also be bound to a *list* of models:
+
+``` python
+eval(
+    "math.py",
+    model_roles={
+        "grader": [
+            "openai/gpt-4o",
+            "google/gemini-2.0-flash",
+            "anthropic/claude-sonnet-4-0"
+        ]
+    }
+)
+```
+
+Or equivalently on the CLI with comma-separated model names:
+
+``` bash
+inspect eval math.py \
+    --model-role grader=openai/gpt-4o,google/gemini-2.0-flash,anthropic/claude-sonnet-4-0
+```
+
+When a list is bound to the role used by a [model-graded scorer](model-graded.qmd), each model grades independently and the final grade is chosen by majority vote (the same behaviour as passing a list of models to the scorer's `model` parameter). Prefer an odd number of graders: with an even-sized ensemble, a tied vote is resolved in favour of the earliest-listed model. Elsewhere, `get_model(role="...")` resolves to the first model in the list---use `model_roles()` (from `inspect_ai.model`) to access all of the models bound to a role. Note that a single-element list is equivalent to binding the single model directly.
+
 Model roles can also be specified in a `--run-config` file alongside the full eval configuration. See [Run Config File](tasks.qmd#run-config).
 
 For how model roles fit into the broader override and precedence model, see [Configuration](tasks.qmd#model-roles).
@@ -326,8 +369,8 @@ tasks = [
     task_with(blues_clues(), model_roles = {
         "red_team": "openai/gpt-4o",
         "blue_team": "google/gemini-2.0-flash"
-    }),()
-    task_with(blues_clues, model_roles = {
+    }),
+    task_with(blues_clues(), model_roles = {
         "red_team": "google/gemini-2.0-flash",
         "blue_team": "openai/gpt-4o"
     })

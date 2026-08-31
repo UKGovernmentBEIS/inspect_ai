@@ -38,7 +38,6 @@ from inspect_ai.log._log import EvalLog
 from inspect_ai.log._recorders.buffer.buffer import sample_buffer
 from inspect_ai.log._recorders.buffer.filestore import SampleBufferFilestore
 from inspect_ai.log._recorders.buffer.types import PendingSampleUrls, SegmentRef
-from inspect_ai.log._recorders.eval import s3_head_etag
 
 logger = getLogger(__name__)
 
@@ -284,17 +283,10 @@ async def apply_log_edits(
             "Wait for the eval to finish (status != 'started'), then try again."
         )
     log = edit_eval_log(log, update.edits, update.provenance)
-    await write_eval_log_async(
+    write_result = await write_eval_log_async(
         log, location=file, if_match_etag=if_match_etag, header_only=True
     )
-    # Capture the post-write ETag on S3 via a HEAD — far cheaper than
-    # re-parsing the zip header, since we only need the ETag header on
-    # the response, not the body. Skipped on local filesystems where
-    # there's no ETag concept.
-    new_etag: str | None = None
-    if filesystem(file).is_s3():
-        new_etag = await s3_head_etag(file)
-    return LogPayload(contents=eval_log_json(log), etag=new_etag)
+    return LogPayload(contents=eval_log_json(log), etag=write_result.etag)
 
 
 async def get_log_size(log_file: str) -> int:
