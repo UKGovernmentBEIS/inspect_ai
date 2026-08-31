@@ -1,4 +1,5 @@
 import functools
+import inspect
 import json
 import os
 from typing import Any, Literal
@@ -52,12 +53,13 @@ from inspect_ai._util.content import (
     ContentText,
 )
 from inspect_ai._util.http import is_retryable_http_status
-from inspect_ai._util.images import file_as_data_uri
+from inspect_ai._util.images import inline_media_data_uri, provider_image_data_uri
 from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.model._reasoning import parse_content_with_reasoning
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 from inspect_ai.util._json import json_schema_dump
 
+from ..._util.http_defaults import default_async_client
 from ..._util.httpx import httpx_classify_retry
 from .._call_tools import parse_tool_call
 from .._chat_message import (
@@ -82,6 +84,7 @@ from .util import (
     model_base_url,
     require_azure_base_url,
     resolve_api_key,
+    sample_cache_affinity_key,
 )
 from .util.hooks import HttpxHooks
 
@@ -91,6 +94,18 @@ MISTRAL_API_KEY = "MISTRAL_API_KEY"
 
 
 AZURE_MISTRAL_BASE_URL_VARS = ["AZUREAI_MISTRAL_BASE_URL", "AZURE_MISTRAL_BASE_URL"]
+
+
+@functools.cache
+def _sdk_supports_prompt_cache_key() -> bool:
+    """Whether the installed mistralai SDK accepts `prompt_cache_key`.
+
+    The parameter postdates our minimum supported version (2.0.1) and
+    `complete_async` rejects unknown kwargs, so probe rather than pass blind.
+    """
+    from mistralai.client.chat import Chat
+
+    return "prompt_cache_key" in inspect.signature(Chat.complete_async).parameters
 
 
 class MistralAPI(ModelAPI):
@@ -160,6 +175,17 @@ class MistralAPI(ModelAPI):
     def is_azure(self) -> bool:
         return self.service == "azure"
 
+    def _http_default_args(self) -> dict[str, Any]:
+        """Model args with the shared HTTP defaults filled in.
+
+        The SDK's own client applies a flat 5s to every phase, which is both a
+        connect deadline a blocked loop outlasts and a request budget far too
+        short for a generation.
+        """
+        model_args = dict(self.model_args)
+        model_args.setdefault("async_client", default_async_client())
+        return model_args
+
     async def generate(
         self,
         input: list[ChatMessage],
@@ -168,9 +194,9 @@ class MistralAPI(ModelAPI):
         config: GenerateConfig,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
         # create client
-        with Mistral(api_key=self.api_key, **self.model_args) as client:
+        with Mistral(api_key=self.api_key, **self._http_default_args()) as client:
             # create time tracker
-            http_hooks = HttpxHooks(client.sdk_configuration.async_client)
+            http_hooks = HttpxHooks(client.sdk_configuration.async_client, api=self)
 
             # use the conversation api if requested
             if self.conversation_api:
@@ -197,6 +223,9 @@ class MistralAPI(ModelAPI):
                 http_headers={HttpxHooks.REQUEST_ID_HEADER: request_id}
                 | (config.extra_headers or {}),
             )
+            prompt_cache_key = sample_cache_affinity_key()
+            if prompt_cache_key is not None and _sdk_supports_prompt_cache_key():
+                request["prompt_cache_key"] = prompt_cache_key
             if config.reasoning_effort is not None:
                 request["reasoning_effort"] = mistral_reasoning_effort(
                     config.reasoning_effort
@@ -252,7 +281,7 @@ class MistralAPI(ModelAPI):
                 )
 
             # return model output (w/ tool calls if they exist)
-            choices = completion_choices_from_response(completion, tools)
+            choices = await completion_choices_from_response(completion, tools)
             return ModelOutput(
                 model=completion.model,
                 choices=choices,
@@ -481,8 +510,7 @@ async def mistral_content_chunk(content: Content) -> ContentChunk:
     if isinstance(content, ContentText):
         return TextChunk(text=content.text or NO_CONTENT)
     elif isinstance(content, ContentImage):
-        # resolve image to url
-        image_url = await file_as_data_uri(content.image)
+        image_url = inline_media_data_uri(content.image, "image")
 
         # return chunk
         return ImageURLChunk(
@@ -527,12 +555,12 @@ def chat_tool_call(tool_call: MistralToolCall, tools: list[ToolInfo]) -> ToolCal
         return ToolCall(id, tool_call.function.name, tool_call.function.arguments)
 
 
-def completion_choice(
+async def completion_choice(
     model: str, choice: MistralChatCompletionChoice, tools: list[ToolInfo]
 ) -> ChatCompletionChoice:
     message = choice.message
     if message:
-        completion = completion_content(message.content or "")
+        completion = await completion_content(message.content or "")
         return ChatCompletionChoice(
             message=ChatMessageAssistant(
                 content=completion,
@@ -554,14 +582,19 @@ def completion_choice(
         )
 
 
-def completion_content(content: str | list[ContentChunk]) -> str | list[Content]:
+async def completion_content(
+    content: str | list[ContentChunk],
+) -> str | list[Content]:
     if isinstance(content, str):
         return content
     else:
-        return [item for c in content for item in completion_content_chunks(c)]
+        completion: list[Content] = []
+        for chunk in content:
+            completion.extend(await completion_content_chunks(chunk))
+        return completion
 
 
-def completion_content_chunks(content: ContentChunk) -> list[Content]:
+async def completion_content_chunks(content: ContentChunk) -> list[Content]:
     if isinstance(content, ReferenceChunk):
         raise TypeError("ReferenceChunk content is not supported by Inspect.")
     elif isinstance(content, TextChunk):
@@ -579,7 +612,9 @@ def completion_content_chunks(content: ContentChunk) -> list[Content]:
         return [ContentText(text=f"file: {content.file_id}")]
     elif isinstance(content, ImageURLChunk):
         if isinstance(content.image_url, str):
-            return [ContentImage(image=content.image_url)]
+            return [
+                ContentImage(image=await provider_image_data_uri(content.image_url))
+            ]
         else:
             detail: Literal["auto", "low", "high"]
             match content.image_url.detail:
@@ -589,7 +624,12 @@ def completion_content_chunks(content: ContentChunk) -> list[Content]:
                     detail = "high"
                 case _:
                     detail = "auto"
-            return [ContentImage(image=content.image_url.url, detail=detail)]
+            return [
+                ContentImage(
+                    image=await provider_image_data_uri(content.image_url.url),
+                    detail=detail,
+                )
+            ]
     elif isinstance(content, ThinkChunk):
         return [
             ContentReasoning(
@@ -602,16 +642,16 @@ def completion_content_chunks(content: ContentChunk) -> list[Content]:
         raise TypeError(f"{type(content)} content is not supported by Inspect.")
 
 
-def completion_choices_from_response(
+async def completion_choices_from_response(
     response: MistralChatCompletionResponse, tools: list[ToolInfo]
 ) -> list[ChatCompletionChoice]:
     if response.choices is None:
         return []
     else:
-        return [
-            completion_choice(response.model, choice, tools)
-            for choice in response.choices
-        ]
+        choices: list[ChatCompletionChoice] = []
+        for choice in response.choices:
+            choices.append(await completion_choice(response.model, choice, tools))
+        return choices
 
 
 # Note: Mistral chat completions carry no response-level refusal category or

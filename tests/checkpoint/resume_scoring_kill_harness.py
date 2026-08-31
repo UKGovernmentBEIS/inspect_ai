@@ -55,6 +55,7 @@ from inspect_ai.scorer import (
 from inspect_ai.solver import TaskState
 from inspect_ai.tool import Tool, ToolChoice, ToolInfo, bash, tool
 from inspect_ai.util import CheckpointConfig, TurnInterval, store
+from inspect_ai.util._limit import _TimeLimit, _tree_root, time_limit_tree
 
 ANSWER = "decoded-answer"
 STORE_KEY = "answer"
@@ -73,6 +74,14 @@ WRITE_CMD = (
 CANCEL_FILE_ENV = "INSPECT_TEST_SCORING_RESUME_CANCEL_FILE"
 TARGET_ENV = "INSPECT_TEST_SCORING_RESUME_TARGET_CANCELS"
 
+# Sample time + working budget in seconds, when the test sets one. The
+# over-budget-at-fire e2e needs both limits live so the scoring resume has
+# something to (wrongly) enforce against.
+BUDGET_ENV = "INSPECT_TEST_SCORING_RESUME_BUDGET"
+
+# Seconds to backdate the time-limit origin by at fire, when the test sets it.
+SPEND_ENV = "INSPECT_TEST_SCORING_RESUME_SPEND"
+
 
 def cancels_done() -> int:
     f = os.environ.get(CANCEL_FILE_ENV)
@@ -89,6 +98,32 @@ def bump_cancels() -> int:
 
 def target_cancels() -> int:
     return int(os.environ.get(TARGET_ENV, "1"))
+
+
+def budget() -> int | None:
+    value = os.environ.get(BUDGET_ENV)
+    return int(value) if value else None
+
+
+async def spend_time_budget(state: TaskState) -> None:
+    """Make the checkpoint about to be written report a spent time budget.
+
+    Backdates the sample-root time-limit origin, which ``dump_sample_runtime``
+    reads for ``time_elapsed``. Spending the budget for real is not an option:
+    it would cancel the agent long before it reached the ``agent_complete``
+    checkpoint this resume path needs. The live cancel scope's deadline was
+    derived at ``__enter__`` and does not move with the origin, so this attempt
+    runs on undisturbed.
+
+    Only the attempt that has yet to crash does this — the resume needs the
+    spent budget on disk, not in memory.
+    """
+    spend = os.environ.get(SPEND_ENV)
+    if not spend or cancels_done() > 0:
+        return
+    root = _tree_root(time_limit_tree)
+    if isinstance(root, _TimeLimit) and root._start_time is not None:
+        root._start_time -= float(spend)
 
 
 class _ResumeState:
@@ -197,6 +232,7 @@ def resume_scoring_task() -> Task:
             trigger=TurnInterval(every=1),
             retention="retain",
         ),
+        on_checkpoint=spend_time_budget,
     )
 
 
@@ -207,8 +243,15 @@ def run_eval(log_dir: str, retry_from: str | None = None) -> None:
     ``SIGKILL``s the process.
     """
     if retry_from is None:
-        eval(resume_scoring_task(), model=SCRIPTED_MODEL, log_dir=log_dir)
+        eval(
+            resume_scoring_task(),
+            model=SCRIPTED_MODEL,
+            log_dir=log_dir,
+            time_limit=budget(),
+            working_limit=budget(),
+        )
     else:
+        # limits ride along in the log's eval config
         eval_retry(read_eval_log(retry_from), log_dir=log_dir)
 
 

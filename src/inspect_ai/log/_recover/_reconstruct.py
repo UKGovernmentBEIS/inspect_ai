@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from logging import getLogger
-from typing import Any
+from typing import Any, cast, get_args
 
 from pydantic import JsonValue, TypeAdapter
 from shortuuid import uuid as _shortuuid
@@ -19,8 +19,14 @@ from inspect_ai.event._pool import (
     resolve_model_event_inputs,
 )
 from inspect_ai.event._sample_init import SampleInitEvent
+from inspect_ai.event._sample_limit import SampleLimitEvent
 from inspect_ai.event._validate import validate_events
-from inspect_ai.log._log import EvalSample, EvalSampleSummary
+from inspect_ai.log._log import (
+    EvalSample,
+    EvalSampleLimit,
+    EvalSampleLimitType,
+    EvalSampleSummary,
+)
 from inspect_ai.log._recorders.buffer.types import (
     CallPoolData,
     EventData,
@@ -52,6 +58,82 @@ def _summary_with_uuid_fallback(summary: EvalSampleSummary) -> EvalSampleSummary
         summary.epoch,
     )
     return summary.model_copy(update={"uuid": fallback})
+
+
+def select_limit_event(
+    summary: EvalSampleSummary, events: list[Event]
+) -> SampleLimitEvent | None:
+    """The limit event that best explains how the sample ended.
+
+    The last event isn't necessarily the one that halted the sample: an operator
+    interrupt during the scoring phase appends a second event after whatever
+    ended the run phase. Where the terminal summary names a limit type, it
+    decides; otherwise fall back to the last event seen.
+    """
+    # limits fire at the end of a sample, so search backwards and stop as soon
+    # as the answer can't change
+    fallback: SampleLimitEvent | None = None
+    for event in reversed(events):
+        if not isinstance(event, SampleLimitEvent):
+            continue
+        if summary.limit is None:
+            return event  # nothing to match on; the last event is the answer
+        if event.type == summary.limit:
+            return event
+        if fallback is None:
+            fallback = event  # the last event overall, should nothing match
+    return fallback
+
+
+def recovered_sample_limit(
+    summary: EvalSampleSummary, limit_event: SampleLimitEvent | None
+) -> EvalSampleLimit | None:
+    """Rebuild a sample's `EvalSampleLimit` during recovery.
+
+    Shared by both recovery paths (streaming filestore and buffer DB) so a
+    recovered log's limit doesn't depend on which one ran. The event supplies
+    the numeric value; a terminal summary that names a limit no event recorded
+    (a user-raised `LimitExceededError` emits none) still round-trips, with the
+    same `-1` sentinel the live path writes for an unknown value.
+    """
+    if limit_event is None:
+        return _limit_from_summary(summary)
+    if limit_event.limit is not None:
+        return EvalSampleLimit(
+            type=limit_event.type,
+            limit=limit_event.limit,
+            reason=limit_event.message,
+        )
+    if limit_event.type == "operator" and summary.limit == "operator":
+        # the operator interrupt event carries no numeric limit, so the branch
+        # above can't rebuild it. Only `interrupt_action == "score"` records an
+        # operator limit -- "error"/"cancel" and a scoring-phase interrupt emit
+        # the same event but record an error instead -- so trust the terminal
+        # summary rather than the event, and use the sentinel the live path
+        # writes. The summary's own reason wins for the same reason: a later
+        # scoring-phase interrupt leaves a second operator event whose message
+        # describes the scoring failure, not what halted the sample.
+        return EvalSampleLimit(
+            type="operator",
+            limit=1,
+            reason=(
+                summary.limit_reason
+                if summary.limit_reason is not None
+                else limit_event.message
+            ),
+        )
+    return _limit_from_summary(summary)
+
+
+def _limit_from_summary(summary: EvalSampleSummary) -> EvalSampleLimit | None:
+    """The summary's own limit, with no numeric value to recover."""
+    if summary.limit is None or summary.limit not in get_args(EvalSampleLimitType):
+        return None
+    return EvalSampleLimit(
+        type=cast(EvalSampleLimitType, summary.limit),
+        limit=-1,
+        reason=summary.limit_reason,
+    )
 
 
 def reconstruct_eval_sample(
@@ -143,12 +225,19 @@ def reconstruct_eval_sample(
         token_limit=summary.token_limit,
         token_limit_type=summary.token_limit_type,
         token_limit_usage=summary.token_limit_usage,
+        message_limit=summary.message_limit,
+        time_limit=summary.time_limit,
         started_at=summary.started_at,
         completed_at=summary.completed_at,
         total_time=summary.total_time,
         working_time=summary.working_time,
         uuid=summary.uuid,
         error=error,
+        # the write path recomputes the summary from this sample
+        # (`buffer_sample` -> `sample.summary()`), so omitting the limit here
+        # doesn't merely leave it incomplete -- it erases the limit and reason
+        # the buffered summary already knew
+        limit=recovered_sample_limit(summary, select_limit_event(summary, events)),
     )
 
 

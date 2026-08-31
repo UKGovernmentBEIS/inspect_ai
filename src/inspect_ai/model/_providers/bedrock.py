@@ -15,7 +15,7 @@ from inspect_ai._util.content import (
     ContentText,
 )
 from inspect_ai._util.error import PrerequisiteError, pip_dependency_error
-from inspect_ai._util.images import file_as_data
+from inspect_ai._util.images import inline_media_data
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.version import verify_required_version
 from inspect_ai.log._samples import set_active_model_event_call
@@ -141,6 +141,10 @@ class ConverseReasoningContent(BaseModel):
     reasoningText: ConverseReasoningText
 
 
+class ConverseCachePoint(BaseModel):
+    type: Literal["default"] = "default"
+
+
 class ConverseMessageContent(BaseModel):
     text: str | None = None
     image: ConverseImage | None = None
@@ -149,6 +153,7 @@ class ConverseMessageContent(BaseModel):
     toolResult: ConverseToolResult | None = None
     guardContent: ConverseGuardContent | None = None
     reasoningContent: ConverseReasoningContent | None = None
+    cachePoint: ConverseCachePoint | None = None
 
 
 class ConverseMessage(BaseModel):
@@ -164,6 +169,10 @@ class ConverseUsage(BaseModel):
     inputTokens: int
     outputTokens: int
     totalTokens: int
+    # absent entirely on some models (e.g. claude-haiku-4-5) when nothing was
+    # cached, and reported as 0 on others (e.g. claude-sonnet-4-6)
+    cacheReadInputTokens: int | None = None
+    cacheWriteInputTokens: int | None = None
 
 
 class ConverseMetrics(BaseModel):
@@ -208,6 +217,7 @@ class ConverseContent(BaseModel):
 class ConverseSystemContent(BaseModel):
     text: str | None = None
     guardContent: ConverseGuardContent | None = None
+    cachePoint: ConverseCachePoint | None = None
 
 
 class ConverseInferenceConfig(BaseModel):
@@ -229,6 +239,20 @@ class ConverseTool(BaseModel):
     toolSpec: ConverseToolSpec
 
 
+class ConverseToolCachePoint(BaseModel):
+    """A `cachePoint` entry in `toolConfig.tools`.
+
+    Modelled separately from `ConverseTool` rather than making `toolSpec`
+    optional, so an ordinary tool entry is still statically guaranteed to
+    carry a spec.
+    """
+
+    cachePoint: ConverseCachePoint
+
+
+ConverseToolsEntry = Union[ConverseTool, ConverseToolCachePoint]
+
+
 class ConverseToolChoice(BaseModel):
     auto: dict[str, Any] | None = None
     any: dict[str, Any] | None = None
@@ -236,7 +260,7 @@ class ConverseToolChoice(BaseModel):
 
 
 class ConverseToolConfig(BaseModel):
-    tools: list[ConverseTool] | None = None
+    tools: list[ConverseToolsEntry] | None = None
     toolChoice: ConverseToolChoice | None = None
 
 
@@ -284,6 +308,23 @@ def _lock_object_additional_properties(schema: JSONSchema) -> None:
     if schema.anyOf:
         for any_schema in schema.anyOf:
             _lock_object_additional_properties(any_schema)
+
+
+# Claude families AWS documents as not supporting Converse prompt caching.
+# Everything else is treated as supported — see `supports_prompt_cache()` for
+# why the gate is an exclusion list rather than an inclusion list.
+CACHE_UNSUPPORTED_CLAUDE = (
+    # Bedrock spells Claude 2 `claude-v2` / `claude-v2:1`; the native anthropic
+    # provider's list uses the `claude-2` form, so match both.
+    "claude-2",
+    "claude-v2",
+    "claude-instant",
+    "claude-3-sonnet",
+    "claude-3-haiku",
+    "claude-3-opus",
+    # only the 20241022 (v2) 3.5 sonnet supports caching, not the 20240620 v1
+    "claude-3-5-sonnet-20240620",
+)
 
 
 class BedrockAPI(ModelAPI):
@@ -337,7 +378,7 @@ class BedrockAPI(ModelAPI):
             self.session = aioboto3.Session()
 
             # create time tracker
-            self._http_hooks = ConverseHooks(self.session)
+            self._http_hooks = ConverseHooks(self.session, api=self)
 
         except ImportError:
             raise pip_dependency_error("Bedrock API", ["aioboto3"])
@@ -460,6 +501,29 @@ class BedrockAPI(ModelAPI):
 
     def is_nova(self) -> bool:
         return "nova" in self.model_family().lower()
+
+    def supports_prompt_cache(self) -> bool:
+        """Whether this model accepts Converse `cachePoint` blocks.
+
+        Exclusion-based, mirroring the model gating in the native anthropic
+        provider: any Claude that isn't on the deny list is assumed to
+        support caching, so a new family (claude 5, and whatever follows)
+        keeps working without a code change here. An inclusion list would
+        silently drop caching every time Anthropic changes the id scheme.
+        """
+        if self.is_nova():
+            return True
+        if not self.is_claude():
+            return False
+        family = self.model_family().lower()
+        return not any(name in family for name in CACHE_UNSUPPORTED_CLAUDE)
+
+    def cache_prompt_enabled(self, config: GenerateConfig) -> bool:
+        # "auto" and None both mean enabled, matching anthropic.py
+        cache_prompt = (
+            config.cache_prompt if isinstance(config.cache_prompt, bool) else True
+        )
+        return cache_prompt and self.supports_prompt_cache()
 
     def _is_claude_4_x(self, x: int) -> bool:
         # bedrock model ids look like
@@ -614,6 +678,14 @@ class BedrockAPI(ModelAPI):
             system, messages = await converse_messages(
                 input, emulate_reasoning=self.is_claude()
             )
+
+            if self.cache_prompt_enabled(config):
+                add_cache_points(
+                    system,
+                    messages,
+                    tool_config,
+                    tools_supported=self.is_claude(),
+                )
 
             # Claude 4.7+ runs adaptive-thinking-only and rejects sampling
             # parameters; other thinking-enabled Claude models also reject
@@ -881,6 +953,54 @@ async def converse_messages(
     return system if len(system) > 0 else None, non_system
 
 
+def add_cache_points(
+    system: list[ConverseSystemContent] | None,
+    messages: list[ConverseMessage],
+    tool_config: ConverseToolConfig | None,
+    *,
+    tools_supported: bool,
+) -> None:
+    """Mark the cacheable prefixes of a Converse request.
+
+    Emits up to three `cachePoint` blocks, against Bedrock's limit of four for
+    Claude (a fifth is a hard ValidationException):
+
+    1. End of `system` — the static prefix. Converse renders
+       `tools` -> `system` -> `messages`, so this covers the tool definitions
+       too; tools only need their own point when there is no system prompt.
+    2. End of the penultimate message — a lookback point that still hits when
+       the final message differs between otherwise-identical requests (RAG,
+       scorers, approvers, branching evals). Mirrors
+       `add_lookback_cache_control` in the native anthropic provider.
+    3. End of the final message — so the next turn of an agent loop reads the
+       whole history instead of re-paying for this turn. The native provider
+       gets this from top-level automatic caching, which Bedrock doesn't
+       support; on Converse we can place it explicitly.
+
+    Points go at message boundaries, never between content blocks, so a
+    parallel tool-call turn's `toolResult` group is never split.
+    """
+
+    def cache_point() -> ConverseMessageContent:
+        return ConverseMessageContent(cachePoint=ConverseCachePoint())
+
+    if system:
+        system.append(ConverseSystemContent(cachePoint=ConverseCachePoint()))
+    elif tools_supported and tool_config is not None and tool_config.tools:
+        # Nova rejects a cachePoint inside toolConfig.tools outright
+        # ("Malformed input request: #/toolConfig/tools/0"), hence the gate.
+        tool_config.tools.append(
+            ConverseToolCachePoint(cachePoint=ConverseCachePoint())
+        )
+
+    # With a single message there is no earlier request whose cache this could
+    # serve, and that message is the volatile part (a per-sample question or
+    # document), so caching it would pay a write premium that is never read.
+    if len(messages) >= 2:
+        messages[-2].content.append(cache_point())
+        messages[-1].content.append(cache_point())
+
+
 def model_output_from_response(
     model: str, response: ConverseResponse, tools: list[ToolInfo]
 ) -> ModelOutput:
@@ -923,10 +1043,19 @@ def model_output_from_response(
         ),
     )
 
-    # Compute usage
+    # Compute usage. Converse reports cache reads/writes separately from
+    # inputTokens, matching ModelUsage's convention that input_tokens excludes
+    # both and total_tokens sums all four.
     input_tokens = response.usage.inputTokens
+    cache_read_tokens = response.usage.cacheReadInputTokens
+    cache_write_tokens = response.usage.cacheWriteInputTokens
     output_tokens = response.usage.outputTokens
-    total_tokens = input_tokens + output_tokens
+    total_tokens = (
+        input_tokens
+        + (cache_read_tokens or 0)
+        + (cache_write_tokens or 0)
+        + output_tokens
+    )
 
     # return ModelOutput
     return ModelOutput(
@@ -934,6 +1063,8 @@ def model_output_from_response(
         choices=[choice],
         usage=ModelUsage(
             input_tokens=input_tokens,
+            input_tokens_cache_read=cache_read_tokens,
+            input_tokens_cache_write=cache_write_tokens,
             output_tokens=output_tokens,
             total_tokens=total_tokens,
         ),
@@ -1120,7 +1251,7 @@ async def converse_chat_message(
                 if c.type == "text":
                     tool_result_content.append(ConverseToolResultContent(text=c.text))
                 elif c.type == "image":
-                    image_data, image_type = await file_as_data(c.image)
+                    image_data, image_type = inline_media_data(c.image, "image")
                     tool_result_content.append(
                         ConverseToolResultContent(
                             image=ConverseImage(
@@ -1159,7 +1290,7 @@ async def converse_contents(
         result: list[ConverseMessageContent] = []
         for c in content:
             if c.type == "image":
-                image_data, image_type = await file_as_data(c.image)
+                image_data, image_type = inline_media_data(c.image, "image")
                 result.append(
                     ConverseMessageContent(
                         image=ConverseImage(
@@ -1251,11 +1382,11 @@ def converse_image_type(type: str) -> ConverseImageFormat:
             )
 
 
-def converse_tools(tools: list[ToolInfo]) -> list[ConverseTool] | None:
+def converse_tools(tools: list[ToolInfo]) -> list[ConverseToolsEntry] | None:
     if len(tools) == 0:
         return None
 
-    result = []
+    result: list[ConverseToolsEntry] = []
     for tool in tools:
         tool_spec = ConverseToolSpec(
             name=tool.name,

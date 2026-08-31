@@ -1,13 +1,14 @@
 import os
 from logging import getLogger
-from typing import Any, cast
+from typing import Any, Literal, cast
 
-import httpx
+import httpx2
 from openai import (
+    APIError,
     APIStatusError,
     AsyncOpenAI,
     BadRequestError,
-    LengthFinishReasonError,
+    DefaultAsyncHttpxClient,
     PermissionDeniedError,
     UnprocessableEntityError,
 )
@@ -21,7 +22,11 @@ from typing_extensions import override
 
 from inspect_ai._util.logger import warn_once
 from inspect_ai.log._samples import set_active_model_event_call
-from inspect_ai.model._openai import chat_choices_from_openai, openai_classify_retry
+from inspect_ai.model._openai import (
+    chat_choices_from_openai,
+    openai_chat_completion_stream_final,
+    openai_classify_retry,
+)
 from inspect_ai.model._openai_responses import ResponsesModelInfo
 from inspect_ai.model._providers.openai_responses import generate_responses
 from inspect_ai.model._providers.util.chatapi import (
@@ -34,13 +39,13 @@ from inspect_ai.model._providers.util.llama31 import Llama31Handler
 from inspect_ai.tool import ToolChoice, ToolInfo
 from inspect_ai.util._json import JSON_SCHEMA_EXTENDED_FIELDS
 
+from ..._util.http_defaults_httpx2 import connect_timeout, default_client_kwargs
 from .._chat_message import ChatMessage, ChatMessageTool
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI, RetryDecision
 from .._model_call import ModelCall, as_error_response
 from .._model_output import ChatCompletionChoice, ModelOutput
 from .._openai import (
-    OpenAIAsyncHttpxClient,
     OpenAIResponseError,
     is_gpt_5_model,
     is_o_series_model,
@@ -51,10 +56,16 @@ from .._openai import (
     openai_chat_tools,
     openai_completion_params,
     openai_handle_bad_request,
+    openai_handle_stream_error,
     openai_media_filter,
     supports_native_max_reasoning_effort,
 )
-from .util import environment_prerequisite_error, model_base_url
+from .._stream import model_stream_requested
+from .util import (
+    environment_prerequisite_error,
+    model_base_url,
+    normalize_stream_arg,
+)
 
 logger = getLogger(__name__)
 
@@ -72,7 +83,7 @@ class OpenAICompatibleAPI(ModelAPI):
         emulate_tools: bool = False,
         responses_api: bool | None = None,
         responses_store: bool | None = None,
-        stream: bool | None = None,
+        stream: bool | Literal["auto"] | None = None,
         strict_tools: bool = True,
         client_timeout: float | None = None,
         **model_args: Any,
@@ -134,7 +145,10 @@ class OpenAICompatibleAPI(ModelAPI):
             raise ValueError(
                 "emulate_tools is not compatible with using the responses_api"
             )
-        self.stream = False if stream is None else stream
+        # record streaming preference (None/"auto" is auto: stream when the
+        # subclass calls for it or the caller passes on_stream to generate;
+        # an explicit True/False overrides — see resolve_stream)
+        self.stream: bool | None = normalize_stream_arg(stream)
         self.strict_tools = strict_tools
 
         # store client_timeout for http client creation
@@ -147,12 +161,24 @@ class OpenAICompatibleAPI(ModelAPI):
         # create client
         self.initialize()
 
-    def _create_http_client(self) -> OpenAIAsyncHttpxClient:
+    def _create_http_client(self) -> DefaultAsyncHttpxClient:
+        # DefaultAsyncHttpxClient is the SDK's own httpx2.AsyncClient with
+        # OpenAI's recommended defaults. Source the client from the SDK rather
+        # than hand-building one: a client and its config objects must be the
+        # same httpx flavor — a mismatch silently corrupts the timeout config
+        # (#4837). Our kwargs win over its setdefaults.
         if self.client_timeout is not None:
-            return OpenAIAsyncHttpxClient(
-                timeout=httpx.Timeout(timeout=self.client_timeout, connect=5.0)
+            # client_timeout is the overall budget and must not shorten the
+            # connect deadline.
+            return DefaultAsyncHttpxClient(
+                **default_client_kwargs(
+                    timeout=httpx2.Timeout(
+                        timeout=self.client_timeout,
+                        connect=max(self.client_timeout, connect_timeout()),
+                    )
+                )
             )
-        return OpenAIAsyncHttpxClient()
+        return DefaultAsyncHttpxClient(**default_client_kwargs())
 
     def _create_client(self) -> AsyncOpenAI:
         return AsyncOpenAI(
@@ -170,7 +196,7 @@ class OpenAICompatibleAPI(ModelAPI):
         if self.http_client.is_closed:
             self.http_client = self._create_http_client()
         self.client = self._create_client()
-        self._http_hooks = HttpxHooks(self.client._client)
+        self._http_hooks = HttpxHooks(self.client._client, api=self)
 
     @override
     async def aclose(self) -> None:
@@ -205,6 +231,7 @@ class OpenAICompatibleAPI(ModelAPI):
                 model_info=ModelInfo(self.model_family()),
                 batcher=None,
                 handle_bad_request=self.handle_bad_request,
+                streaming=self.resolve_stream(config),
             )
 
         else:
@@ -238,9 +265,20 @@ class OpenAICompatibleAPI(ModelAPI):
                 if have_tools
                 else NOT_GIVEN,
                 extra_headers={HttpxHooks.REQUEST_ID_HEADER: request_id}
+                | self.request_headers(config)
                 | (config.extra_headers or {}),
                 **completion_params,
             )
+
+            # resolve streaming and mutate the request accordingly before the
+            # ModelCall snapshot below, so the logged request matches the wire
+            # request
+            if self.resolve_stream(config):
+                # ask the server for cumulative usage on the final chunk so the
+                # streamed completion carries the same usage as a non-streamed
+                # one
+                request["stream"] = True
+                request.setdefault("stream_options", {"include_usage": True})
 
             model_call = set_active_model_event_call(request, openai_media_filter)
 
@@ -297,6 +335,14 @@ class OpenAICompatibleAPI(ModelAPI):
                     )
                     return self.handle_bad_request(ex), model_call
                 raise
+            except APIError as ex:
+                output = openai_handle_stream_error(self.service_model_name(), ex)
+                if output is None:
+                    raise
+                model_call.set_error(
+                    as_error_response(ex.body), self._http_hooks.end_request(request_id)
+                )
+                return output, model_call
 
     def resolve_tools(
         self, tools: list[ToolInfo], tool_choice: ToolChoice, config: GenerateConfig
@@ -307,7 +353,7 @@ class OpenAICompatibleAPI(ModelAPI):
     async def _generate_completion(
         self, request: dict[str, Any], config: GenerateConfig
     ) -> ChatCompletion:
-        if self.stream or self.should_stream(config):
+        if self.resolve_stream(config):
             if config.prompt_logprobs is not None:
                 warn_once(
                     logger,
@@ -315,11 +361,8 @@ class OpenAICompatibleAPI(ModelAPI):
                     "be ignored. Disable streaming to receive prompt log "
                     "probabilities.",
                 )
-            async with self.client.chat.completions.stream(**request) as stream:
-                try:
-                    return await stream.get_final_completion()
-                except LengthFinishReasonError as ex:
-                    return ex.completion
+            async with await self.client.chat.completions.create(**request) as stream:
+                return await openai_chat_completion_stream_final(stream)
         else:
             return cast(
                 ChatCompletion, await self.client.chat.completions.create(**request)
@@ -384,12 +427,55 @@ class OpenAICompatibleAPI(ModelAPI):
 
         return params
 
+    def request_headers(self, config: GenerateConfig) -> dict[str, str]:
+        """Provider-specific headers to send with this request.
+
+        Merged beneath `config.extra_headers`, so a caller-supplied value for
+        the same header wins.
+        """
+        return {}
+
     def on_response(self, response: dict[str, Any]) -> None:
         """Hook for subclasses to do custom response handling."""
         pass
 
     def should_stream(self, config: GenerateConfig) -> bool:
         return False
+
+    def resolve_stream(self, config: GenerateConfig) -> bool:
+        """Whether to use the streaming API for this generate call.
+
+        An explicit `stream` model arg wins; when unset, stream if the
+        subclass calls for it (`should_stream`) or the caller passed
+        `on_stream` to `Model.generate()` (`model_stream_requested`) and
+        the request is `auto_streamable`.
+
+        Unlike the native OpenAI provider, there is no non-streamed retry
+        when the server rejects an auto-streamed request: OpenAI's rejection
+        shape (a 400 with `param="stream"`) is documented and detectable,
+        while compat servers' error bodies vary too much for a reliable
+        detector (a fuzzy match could misfire or miss). A compat server
+        that rejects streaming fails loudly; `-M stream=false` opts out.
+        """
+        if self.stream is not None:
+            return self.stream
+        if self.should_stream(config):
+            return True
+        return model_stream_requested() and self.auto_streamable(config)
+
+    def auto_streamable(self, config: GenerateConfig) -> bool:
+        """Whether an `on_stream` callback alone may turn on streaming.
+
+        A display-only stream request must not degrade results, so auto
+        mode declines to stream requests the streaming path is lossy for
+        (an explicit `stream=true` opt-in still streams, with a warning
+        where one applies). The base path is lossy only for
+        `prompt_logprobs`. Subclasses whose completions carry fields the
+        SDK stream accumulator drops (anything outside spec-shaped
+        `choices`/`usage`) should override to decline the affected
+        requests.
+        """
+        return config.prompt_logprobs is None
 
     def tools_to_openai(self, tools: list[ToolInfo]) -> list[ChatCompletionToolParam]:
         # some inference platforms (e.g. hf-inference) require strict=True

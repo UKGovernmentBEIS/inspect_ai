@@ -1,11 +1,13 @@
-from typing import Any, Callable
+from typing import Any, Callable, cast
 
 import click
 import yaml
 from pydantic import ValidationError
 
-from inspect_ai._util.config import resolve_args
-from inspect_ai.model import GenerateConfig, Model, get_model
+from inspect_ai._util.config import parse_cli_args, resolve_args
+from inspect_ai._util.error import PrerequisiteError
+from inspect_ai._util.flag_values import int_bool_or_str_value, int_or_bool_value
+from inspect_ai.model import GenerateConfig, Model, ModelRoles, get_model
 from inspect_ai.util._limit import TokenLimit, parse_token_limit
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 
@@ -21,36 +23,22 @@ def int_or_bool_flag_callback(
         - Specified with no value -> true_value
         - Specified with "true"/"false" -> true_value or false_value respectively
         - Specified with an integer -> that integer
+
+        The last three are `int_or_bool_value`, so that reading this option from
+        the environment variable it is bound to reaches the same value. Only the
+        first is a question the command line alone can answer.
         """
-        # 1. If this parameter was never given on the command line,
-        #    then we return 0.
         source = ctx.get_parameter_source(param.name) if param.name else ""
         if source == click.core.ParameterSource.DEFAULT:
             # Means the user did NOT specify the flag at all
             return false_value
 
-        # 2. The user did specify the flag. If value is None,
-        #    that means they used the flag with no argument, e.g. --my-flag
-        if value is None:
-            return true_value
-
-        # 3. If there is a value, try to parse booleans or an integer.
-        lower_val = value.lower()
-        true_vals = {"true", "yes"}
-        if is_one_true:
-            true_vals.add("1")
-        if lower_val in true_vals:
-            return true_value
-        elif lower_val in ("false", "no", "0"):
-            return false_value
-        else:
-            # 4. Otherwise, assume it is an integer
-            try:
-                return int(value)
-            except ValueError:
-                raise click.BadParameter(
-                    f"Expected 'true', 'false', or an integer for --{param.name}. Got: {value}"
-                )
+        try:
+            return int_or_bool_value(value, true_value, false_value, is_one_true)
+        except ValueError:
+            raise click.BadParameter(
+                f"Expected 'true', 'false', or an integer for --{param.name}. Got: {value}"
+            ) from None
 
     return callback
 
@@ -167,31 +155,16 @@ def int_bool_or_str_flag_callback(
         - Specified with "true"/"false" -> true_value or false_value respectively
         - Specified with an integer -> that integer
         - Specified with any other string -> that string
+
+        All but the first are `int_bool_or_str_value`, shared with the reader
+        that takes these options from their environment variables.
         """
-        # 1. If this parameter was never given on the command line,
-        #    then we return false_value.
         source = ctx.get_parameter_source(param.name) if param.name else ""
         if source == click.core.ParameterSource.DEFAULT:
             # Means the user did NOT specify the flag at all
             return false_value
 
-        # 2. The user did specify the flag. If value is None,
-        #    that means they used the flag with no argument, e.g. --my-flag
-        if value is None:
-            return true_value
-
-        # 3. If there is a value, try to parse booleans first.
-        lower_val = value.lower()
-        if lower_val in ("true", "yes", "1"):
-            return true_value
-        elif lower_val in ("false", "no", "0"):
-            return false_value
-        else:
-            # 4. Try to parse as an integer
-            try:
-                return int(value)
-            except ValueError:
-                return str(value)
+        return int_bool_or_str_value(value, true_value, false_value)
 
     return callback
 
@@ -210,36 +183,21 @@ def parse_cli_config(
     return cli_config
 
 
-def parse_cli_args(
-    args: tuple[str, ...] | list[str] | None, force_str: bool = False
-) -> dict[str, Any]:
-    params: dict[str, Any] = dict()
-    if args:
-        for arg in list(args):
-            parts = arg.split("=")
-            if len(parts) > 1:
-                key = parts[0].replace("-", "_")
-                value = yaml.safe_load("=".join(parts[1:]))
-                if isinstance(value, str):
-                    value = value.split(",")
-                    value = value if len(value) > 1 else value[0]
-                params[key] = str(value) if force_str else value
-    return params
-
-
 def parse_model_role_cli_args(
     model_roles: tuple[str, ...] | None,
-) -> dict[str, str | Model]:
+) -> ModelRoles:
     """Parse model roles from CLI args. Supports key-value, YAML, and JSON formats.
 
     Args:
         model_roles: Tuple of strings to parse as model roles.
 
     Returns:
-        Dictionary of role names to model names or model instances.
+        Dictionary of role names to model names or model instances (or lists
+        thereof for roles with multiple models).
 
     Examples:
         ("grader=mockllm/model",) -> {'grader': 'mockllm/model'}
+        ("grader=mockllm/model_a,mockllm/model_b",) -> {'grader': ['mockllm/model_a', 'mockllm/model_b']}
         ("grader={model: mockllm/model, temperature: 0.5}",) -> {'grader': <Model>}
         ('grader={"model": "mockllm/model", "temperature": 0.5}',) -> {'grader': <Model>}
     """
@@ -249,7 +207,8 @@ def parse_model_role_cli_args(
         raise ValueError(
             "Could not parse model role arguments. Should be key-value pairs or valid YAML/JSON."
         ) from e
-    for role_name, params in parsed_args.items():
+
+    def resolve_role_value(role_name: str, params: Any) -> str | Model:
         # if value is a dict, create a model instance
         if isinstance(params, dict):
             model_name = params.pop("model", None)
@@ -266,11 +225,130 @@ def parse_model_role_cli_args(
             # otherwise roles sharing the same model/config/args collapse onto one
             # cached object and per-role usage is misattributed (see #4450). This
             # mirrors the string-role path in resolve_model_roles().
-            parsed_args[role_name] = get_model(
-                model_name, config=config, memoize=False, **model_args
-            )
+            return get_model(model_name, config=config, memoize=False, **model_args)
         # else assume it is just a model name and leave it as a string
-    return parsed_args
+        return cast(str, params)
+
+    # concrete dict type (ModelRoles is a read-only Mapping alias)
+    resolved_args: dict[str, str | Model | list[str | Model]] = {}
+    for role_name, params in parsed_args.items():
+        # comma-separated model names (or a YAML list) yield a list of models
+        if isinstance(params, list):
+            # strip whitespace and drop empty tokens (e.g. a trailing comma),
+            # mirroring how --model treats comma-separated names
+            items = [p.strip() if isinstance(p, str) else p for p in params]
+            resolved_args[role_name] = [
+                resolve_role_value(role_name, param) for param in items if param != ""
+            ]
+        else:
+            resolved_args[role_name] = resolve_role_value(role_name, params)
+    return resolved_args
+
+
+def parse_model_spec_cli_args(
+    model_spec: tuple[str, ...] | None,
+) -> list[Model] | None:
+    """Parse model specs from CLI args. Each spec is one YAML or JSON mapping.
+
+    A spec holds `model` (required), `base_url`, `model_args` (native provider
+    arguments), and any generate config field at the top level. This is the
+    shape `--model-role` takes, plus `base_url`. One spec sets the parameters of
+    one model, so an eval can run the same model twice under a different
+    generate config. `--model` cannot do this, because it applies one shared
+    parameter set to every model it names.
+
+    Args:
+        model_spec: Tuple of strings to parse as model specs.
+
+    Returns:
+        One model per spec, in the order given. None if there are no specs.
+
+    Raises:
+        PrerequisiteError: A spec is not a mapping, does not name a model, or
+            holds a field that is neither a model field nor a generate config
+            field. The message names the spec by its position, because a spec
+            can hold a credential.
+
+    Examples:
+        ("{model: openai/gpt-4o}",) -> [<Model>]
+        ("{model: openai/gpt-4o, temperature: 0}",) -> [<Model>]
+        ('{"model": "openai/gpt-4o", "temperature": 0}',) -> [<Model>]
+        ("{model: google/gemini-2.5-pro, model_args: {location: us-east5}}",) -> [<Model>]
+        ("{model: openai/gpt-4o, base_url: http://localhost:8000/v1}",) -> [<Model>]
+        ("{model: openai/gpt-4o, temperature: 0}",
+         "{model: openai/gpt-4o, temperature: 1}") -> [<Model>, <Model>]
+    """
+    if not model_spec:
+        return None
+
+    models: list[Model] = []
+    for index, spec in enumerate(model_spec, start=1):
+        # Name a spec by its position and never by its content. The model args
+        # of a spec can hold an api key, and its extra_headers can hold a token.
+        # An error message reaches a terminal, a CI log, or a bug report.
+        # (model_args_for_log() redacts api keys from model args before a log
+        # records them; extra_headers is recorded verbatim.)
+        label = f"--model-spec #{index}"
+
+        try:
+            params = yaml.safe_load(spec)
+        except yaml.YAMLError:
+            params = None
+        # a field name that YAML did not read as text also breaks the keyword
+        # expansion below
+        if not isinstance(params, dict) or any(
+            not isinstance(field, str) for field in params
+        ):
+            raise PrerequisiteError(
+                f"Invalid {label}: expected a YAML or JSON mapping with text "
+                "field names, e.g. '{model: openai/gpt-4o, temperature: 0}'."
+            )
+
+        model_name = params.pop("model", None)
+        base_url = params.pop("base_url", None)
+        if base_url is not None and not isinstance(base_url, str):
+            raise PrerequisiteError(f"Invalid {label}: base_url must be a string.")
+        model_args = params.pop("model_args", {})
+        if not isinstance(model_args, dict):
+            raise PrerequisiteError(f"Invalid {label}: model_args must be a mapping.")
+
+        # Whatever is left is generate config, which rejects a name it does not
+        # define, so a misspelled option fails instead of running at its
+        # default. Check it before the model name: that way a misspelled 'model'
+        # key reports the name it read rather than a missing model.
+        try:
+            config = GenerateConfig(**params)
+        except ValidationError as e:
+            # keep the field and the reason; the rendered message of pydantic
+            # quotes the offending input beside them
+            detail = "; ".join(
+                ": ".join(
+                    filter(None, [".".join(map(str, error["loc"])), error["msg"]])
+                )
+                for error in e.errors()
+            )
+            raise PrerequisiteError(f"Invalid {label}: {detail}") from e
+
+        # A model role may omit its model to inherit the ambient one, but a spec
+        # exists to state a model. Without a name, get_model() below resolves
+        # INSPECT_EVAL_MODEL, or raises a bare ValueError when that is unset too.
+        if not isinstance(model_name, str):
+            raise PrerequisiteError(f"Invalid {label}: needs a 'model' name.")
+
+        # memoize=False so each spec gets a distinct Model instance; two specs
+        # for one model at the same config would otherwise collapse onto one
+        # cached object (see parse_model_role_cli_args)
+        models.append(
+            get_model(
+                model_name,
+                config=config,
+                base_url=base_url,
+                memoize=False,
+                **model_args,
+            )
+        )
+
+    return models
 
 
 class SectionedCommand(click.Command):

@@ -5,7 +5,9 @@ from functools import partial
 from logging import getLogger
 from typing import Any, Dict, Iterable, List, Optional
 
-import httpx
+from groq import (
+    DEFAULT_TIMEOUT as GROQ_DEFAULT_TIMEOUT,
+)
 from groq import (
     APIStatusError,
     APITimeoutError,
@@ -35,8 +37,13 @@ from inspect_ai._util.http import (
     is_retryable_http_status,
     parse_retry_after_from_exception,
 )
-from inspect_ai._util.images import file_as_data_uri
-from inspect_ai._util.url import is_http_url
+from inspect_ai._util.http_defaults import (
+    DEFAULT_REQUEST_TIMEOUT,
+    default_async_client,
+    default_limits,
+    default_timeout,
+)
+from inspect_ai._util.images import inline_media_data_uri
 from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.model._reasoning import (
     clamp_reasoning_effort_to_low_medium_high,
@@ -101,17 +108,29 @@ class GroqAPI(ModelAPI):
         self.initialize()
 
     def _create_client(self) -> AsyncGroq:
+        model_args = dict(self.model_args)
+        if "http_client" not in model_args:
+            # Raise the connect deadline but keep the SDK's tighter request
+            # budget and this provider's uncapped pool, unless an operator
+            # overrides them. The SDK's read, write and pool deadlines are one
+            # shared value.
+            timeout = default_timeout(
+                request_timeout=GROQ_DEFAULT_TIMEOUT.read or DEFAULT_REQUEST_TIMEOUT
+            )
+            model_args.setdefault("timeout", timeout)
+            model_args["http_client"] = default_async_client(
+                timeout=timeout, limits=default_limits(max_connections=None)
+            )
         return AsyncGroq(
             api_key=self.api_key,
             base_url=model_base_url(self.base_url, "GROQ_BASE_URL"),
-            **self.model_args,
-            http_client=httpx.AsyncClient(limits=httpx.Limits(max_connections=None)),
+            **model_args,
         )
 
     def initialize(self) -> None:
         super().initialize()
         self.client = self._create_client()
-        self._http_hooks = HttpxHooks(self.client._client)
+        self._http_hooks = HttpxHooks(self.client._client, api=self)
 
     @override
     async def aclose(self) -> None:
@@ -391,12 +410,8 @@ async def as_chat_completion_part(
     if content.type == "text":
         return ChatCompletionContentPartTextParam(type="text", text=content.text)
     elif content.type == "image":
-        # API takes URL or base64 encoded file. If it's a remote file or data URL leave it alone, otherwise encode it
-        image_url = content.image
+        image_url = inline_media_data_uri(content.image, "image")
         detail = content.detail
-
-        if not is_http_url(image_url):
-            image_url = await file_as_data_uri(image_url)
 
         return ChatCompletionContentPartImageParam(
             type="image_url",

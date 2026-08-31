@@ -11,3 +11,4 @@ class TaskLoggerShim(TaskLogger):
         self.flush_quiet_retry = False
         self._init_stale_flush_state()
         self._finished = False
+        self._destination_hold = False

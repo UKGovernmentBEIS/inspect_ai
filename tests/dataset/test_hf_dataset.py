@@ -223,6 +223,25 @@ class _FakeHFDataset:
         self._records = list(records)
         self.saved_to: str | None = None
 
+    def __len__(self):
+        return len(self._records)
+
+    def __getitem__(self, column):
+        return [record[column] for record in self._records]
+
+    @staticmethod
+    def from_dict(mapping):
+        columns = list(mapping)
+        length = len(mapping[columns[0]])
+        return _FakeHFDataset(
+            [{column: mapping[column][i] for column in columns} for i in range(length)]
+        )
+
+    def add_column(self, name, values):
+        return _FakeHFDataset(
+            [{**record, name: value} for record, value in zip(self._records, values)]
+        )
+
     def shuffle(self, seed=None):
         import random
 
@@ -251,6 +270,10 @@ def _install_fake_datasets_full(monkeypatch, tmp_path, load_dataset, load_from_d
     fake = types.ModuleType("datasets")
     fake.load_dataset = load_dataset
     fake.load_from_disk = load_from_disk
+    # Dataset.from_dict is used to replay the shuffle permutation for custom
+    # RecordToSample mappings; like the real datasets library, the fake's
+    # shuffle depends only on dataset length and seed.
+    fake.Dataset = _FakeHFDataset
     monkeypatch.setitem(sys.modules, "datasets", fake)
     monkeypatch.setattr(
         "inspect_ai.dataset._sources.hf.verify_required_version",
@@ -301,6 +324,186 @@ def test_hf_dataset_shuffle_sets_shuffled_flag(tmp_path, monkeypatch):
 
     ds_unshuffled = hf_dataset(path="org/ds", split="test", shuffle=False, cached=False)
     assert ds_unshuffled.shuffled is False
+
+
+def test_hf_dataset_auto_id_stable_across_shuffle_seeds(tmp_path, monkeypatch):
+    # Regression (#4459): with auto_id + shuffle the id must attach to the
+    # record, not the shuffled position, so a given record keeps the same
+    # sample.id across seeds (as csv/json already do). Previously the HF path
+    # shuffled before assigning ids, so the same record got a different id per
+    # seed.
+    records = [{"input": f"Q{i}", "target": f"A{i}"} for i in range(6)]
+
+    def fake_load_dataset(*_a, **_k):
+        return _FakeHFDataset(records)
+
+    _install_fake_datasets_full(
+        monkeypatch, tmp_path, fake_load_dataset, lambda *_a, **_k: None
+    )
+
+    from inspect_ai.dataset import hf_dataset
+
+    def ids_by_input(seed):
+        ds = hf_dataset(
+            path="org/ds",
+            split="test",
+            auto_id=True,
+            shuffle=True,
+            seed=seed,
+            cached=False,
+        )
+        return {s.input: s.id for s in ds}
+
+    seed1, seed2 = ids_by_input(1), ids_by_input(2)
+    assert seed1 == seed2
+    # ids are the 1..N assigned to the original (unshuffled) record order
+    assert seed1 == {f"Q{i}": i + 1 for i in range(6)}
+
+
+def test_hf_dataset_auto_id_limit_uses_unshuffled_ids(tmp_path, monkeypatch):
+    # Regression (#4459): a shuffled+limited slice keeps original-order ids so
+    # they stay stable across seeds instead of being renumbered 1..limit.
+    records = [{"input": f"Q{i}", "target": f"A{i}"} for i in range(6)]
+
+    def fake_load_dataset(*_a, **_k):
+        return _FakeHFDataset(records)
+
+    _install_fake_datasets_full(
+        monkeypatch, tmp_path, fake_load_dataset, lambda *_a, **_k: None
+    )
+
+    from inspect_ai.dataset import hf_dataset
+
+    ds = hf_dataset(
+        path="org/ds",
+        split="test",
+        auto_id=True,
+        shuffle=True,
+        seed=1,
+        limit=3,
+        cached=False,
+    )
+    assert len(ds) == 3
+    # every id is the record's original-order id (Q{i} -> i + 1), never a
+    # post-limit 1..3 renumbering
+    assert all(s.id == int(s.input[1:]) + 1 for s in ds)
+
+
+def test_hf_dataset_auto_id_shuffle_does_not_leak_index_column(tmp_path, monkeypatch):
+    # The index tag used to recover stable ids across a shuffle must be popped
+    # from each record so it never surfaces in sample metadata.
+    records = [{"input": f"Q{i}", "target": f"A{i}"} for i in range(6)]
+
+    def fake_load_dataset(*_a, **_k):
+        return _FakeHFDataset(records)
+
+    _install_fake_datasets_full(
+        monkeypatch, tmp_path, fake_load_dataset, lambda *_a, **_k: None
+    )
+
+    from inspect_ai.dataset import hf_dataset
+
+    ds = hf_dataset(
+        path="org/ds",
+        split="test",
+        auto_id=True,
+        shuffle=True,
+        seed=1,
+        cached=False,
+    )
+    assert all("__inspect_auto_id_index__" not in (s.metadata or {}) for s in ds)
+
+
+def test_hf_dataset_auto_id_custom_mapping_stable_ids_and_order(tmp_path, monkeypatch):
+    # Regression (#4459): the custom-RecordToSample fallback materializes the
+    # split to assign ids over the unshuffled order, then reorders record
+    # groups by replaying the shuffle permutation (which depends only on
+    # dataset length and seed — approach from #4777). Ids must be stable
+    # across seeds AND row order for a given seed must match the lazy
+    # FieldSpec path, so switching to a custom mapping never changes which
+    # records a seed samples.
+    from inspect_ai.dataset import Sample, hf_dataset
+
+    records = [{"input": f"Q{i}", "target": f"A{i}"} for i in range(6)]
+
+    def fake_load_dataset(*_a, **_k):
+        return _FakeHFDataset(records)
+
+    _install_fake_datasets_full(
+        monkeypatch, tmp_path, fake_load_dataset, lambda *_a, **_k: None
+    )
+
+    def to_sample(record):
+        return Sample(input=record["input"], target=record["target"])
+
+    def load(seed, sample_fields):
+        return hf_dataset(
+            path="org/ds",
+            split="test",
+            sample_fields=sample_fields,
+            auto_id=True,
+            shuffle=True,
+            seed=seed,
+            cached=False,
+        )
+
+    custom = load(1, to_sample)
+    # ids attach to records (original-order numbering), stable across seeds
+    assert {s.input: s.id for s in custom} == {f"Q{i}": i + 1 for i in range(6)}
+    assert {s.input: s.id for s in load(2, to_sample)} == {
+        f"Q{i}": i + 1 for i in range(6)
+    }
+    # row order for a given seed matches the lazy FieldSpec path
+    assert [s.input for s in custom] == [s.input for s in load(1, None)]
+
+
+def test_hf_dataset_auto_id_multi_sample_mapping_ids_and_limit(tmp_path, monkeypatch):
+    # A RecordToSample emitting several samples per record assigns ids in
+    # unshuffled global order (each id depends on every preceding record's
+    # sample count), and `limit` selects records (groups), not samples —
+    # matching what shuffle(seed).select(range(limit)) has always done.
+    from inspect_ai.dataset import Sample, hf_dataset
+
+    records = [{"input": f"Q{i}", "target": f"A{i}"} for i in range(4)]
+
+    def to_samples(record):
+        n = int(record["input"][1:])
+        return [
+            Sample(input=f"{record['input']}.{part}", target=record["target"])
+            for part in range(n % 2 + 1)  # Q0/Q2 -> 1 sample, Q1/Q3 -> 2
+        ]
+
+    def fake_load_dataset(*_a, **_k):
+        return _FakeHFDataset(records)
+
+    _install_fake_datasets_full(
+        monkeypatch, tmp_path, fake_load_dataset, lambda *_a, **_k: None
+    )
+
+    def load(seed, limit=None):
+        return hf_dataset(
+            path="org/ds",
+            split="test",
+            sample_fields=to_samples,
+            auto_id=True,
+            shuffle=True,
+            seed=seed,
+            limit=limit,
+            cached=False,
+        )
+
+    # unshuffled global order is Q0.0=1, Q1.0=2, Q1.1=3, Q2.0=4, Q3.0=5, Q3.1=6
+    expected_ids = {"Q0.0": 1, "Q1.0": 2, "Q1.1": 3, "Q2.0": 4, "Q3.0": 5, "Q3.1": 6}
+    assert {s.input: s.id for s in load(1)} == expected_ids
+    assert {s.input: s.id for s in load(2)} == expected_ids
+
+    # limit=2 keeps the first two shuffled *records* with their sample groups
+    # intact and their stable ids
+    limited = load(1, limit=2)
+    full = load(1)
+    limited_records = [s.input.split(".")[0] for s in limited]
+    assert limited_records == [s.input.split(".")[0] for s in full[0 : len(limited)]]
+    assert all(s.id == expected_ids[s.input] for s in limited)
 
 
 def test_hf_dataset_cache_key_includes_revision(tmp_path, monkeypatch) -> None:

@@ -25,6 +25,7 @@ from openai.types.responses.response_computer_tool_call_param import (
 from openai.types.responses.response_input_item_param import ComputerCallOutput
 
 from inspect_ai._util.content import Content, ContentImage
+from inspect_ai._util.images import inline_media_data_uri
 from inspect_ai.model._chat_message import ChatMessageTool
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_info import ToolInfo
@@ -110,7 +111,8 @@ def computer_call_output(
     # a screenshot.  When a tool call fails (e.g. bad key name), the error message
     # cannot be communicated back to the model.  We still must return a screenshot,
     # so use a 1x1 transparent PNG placeholder when the tool response has no image.
-    image_url = _content_image(message.content) or _PLACEHOLDER_IMAGE
+    image = _content_image(message.content)
+    image_url = inline_media_data_uri(image, "image") if image else _PLACEHOLDER_IMAGE
     return ComputerCallOutput(
         call_id=computer_call_id,
         type="computer_call_output",

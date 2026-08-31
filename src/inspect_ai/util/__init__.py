@@ -1,5 +1,11 @@
 from inspect_ai._util.download import download, gdrive_download
-from inspect_ai._util.images import MediaResolverFunc, media_resolver
+from inspect_ai._util.images import (
+    MediaKind,
+    MediaResolverFunc,
+    UnresolvedMediaError,
+    materialize_media,
+    media_resolver,
+)
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.registry import (
     RegistryInfo,
@@ -29,12 +35,16 @@ from inspect_ai.util._limit import (
 
 from ._background import background
 from ._checkpoint import (
+    ArchiveSnapshots,
     CheckpointConfig,
     Checkpointer,
     CheckpointSampleConfig,
     CheckpointTrigger,
     Manual,
+    ResticSnapshots,
     ResumeReport,
+    SandboxSnapshotConfig,
+    SnapshotStrategyConfig,
     TimeInterval,
     TokenInterval,
     TurnInterval,
@@ -75,6 +85,7 @@ from ._sandbox import (
     SandboxEnvironments,
     SandboxEnvironmentSpec,
     SandboxEnvironmentType,
+    SandboxUnavailableError,
     is_compose_yaml,
     is_dockerfile,
     override_sandbox_output_limit,
@@ -97,7 +108,10 @@ from ._throttle import throttle
 
 __all__ = [
     "media_resolver",
+    "materialize_media",
+    "MediaKind",
     "MediaResolverFunc",
+    "UnresolvedMediaError",
     "apply_limits",
     "sample_limits",
     "SampleLimits",
@@ -141,6 +155,7 @@ __all__ = [
     "SandboxEnvironments",
     "SandboxEnvironmentSpec",
     "SandboxEnvironmentType",
+    "SandboxUnavailableError",
     "SandboxConnection",
     "sandboxenv",
     "sandbox",
@@ -190,12 +205,16 @@ __all__ = [
     "ExecStdout",
     "checkpointer",
     "current_checkpointer",
+    "ArchiveSnapshots",
     "Checkpointer",
     "CheckpointConfig",
     "CheckpointSampleConfig",
     "CheckpointTrigger",
     "Manual",
+    "ResticSnapshots",
     "ResumeReport",
+    "SandboxSnapshotConfig",
+    "SnapshotStrategyConfig",
     "TimeInterval",
     "TokenInterval",
     "TurnInterval",

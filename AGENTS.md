@@ -12,13 +12,26 @@ Devin, and similar) preparing contributions. Human contributors: see
    merged non-trivial PR in this repository (trivial documentation fixes do
    not count)? If not, a PR requires a linked issue labeled `accepted`.
    Without one, your PR will be closed automatically. Do not open it.
-2. **Deferred check.** Is the issue you are addressing labeled `deferred`?
+2. **Self-filed issues need acceptance.** An issue filed by the same account
+   the PR comes from does not by itself establish demand. Unless the account
+   is a qualified contributor (recorded in `.github/qualified.yml`), a
+   non-trivial PR addressing a self-filed issue requires that issue to be
+   labeled `accepted` by a maintainer first — whatever the account's tier.
+   If it isn't labeled yet: file your evidence on the issue and stop; open
+   the PR only after a maintainer accepts it.
+3. **Deferred check.** Is the issue you are addressing labeled `deferred`?
    The project has decided not to prioritize it. Do not open a PR against it
    (it will be closed automatically, whatever your account's tier). If you
    have new evidence or demand, comment on the issue and stop.
-3. **Trivial-fix exception.** Documentation-only fixes (typo, broken link;
+4. **Duplicate check.** Search open PRs (and the linked issue's existing
+   PRs) for work addressing the same problem. If a PR already exists, do not
+   open a competing one — review it or comment there instead. If you believe
+   your approach is materially better, make that case in a comment on the
+   existing PR and wait for a maintainer's direction; if invited to proceed,
+   link the two PRs in your description.
+5. **Trivial-fix exception.** Documentation-only fixes (typo, broken link;
    docs files only, under 25 changed lines) may be opened directly by anyone.
-4. **New functionality defaults to an extension, not core.** Do not open
+6. **New functionality defaults to an extension, not core.** Do not open
    unrequested PRs adding functionality — providers, tools, scorers, metrics,
    solvers, storage backends, example evals. Some of these do belong in core,
    but that is a maintainer decision made in an issue: if an accepted issue
@@ -26,7 +39,7 @@ Devin, and similar) preparing contributions. Human contributors: see
    extension package (see https://inspect.aisi.org.uk/extensions.html),
    optionally with a one-line PR adding it to the extensions listing.
    Unrequested additions to core are closed without detailed review.
-5. **Value re-evaluation.** Before opening any PR, objectively re-assess it:
+7. **Value re-evaluation.** Before opening any PR, objectively re-assess it:
    does it fix a demonstrated problem, with evidence (a reproduction or a
    failing test)? If the need is speculative or the fix unverified, do not
    proceed. File an issue with your evidence instead.
@@ -43,7 +56,11 @@ used a different model from the author, how many passes, and the findings
 — issues found, which
 were fixed, and which were dismissed with a one-line reason each. Multiple
 passes, each in a fresh context, often catch issues a single pass misses —
-prefer that for non-trivial changes. If no
+prefer that for non-trivial changes. We'd also prefer review passes run on
+a strong (frontier-class) model: in our experience, reviews from small
+fast-tier models rarely surface real issues, and maintainers weight the
+disclosed reviewer model and pass count when deciding how much independent
+review a PR still needs. If no
 review pass was run, say so explicitly. Never report a review that didn't
 happen — a fabricated or content-free review claim ("reviewed, looks good")
 is worse than disclosing none. Example:
@@ -72,6 +89,9 @@ is worse than disclosing none. Example:
 - **Comments at call sites**: Don't describe what a function does at the call site — the function's name and docstring already document that, and the comment will drift if the function evolves. Document rationale in the function's docstring instead. A call-site comment is appropriate only when the *reason this caller specifically invokes it* isn't obvious from surrounding context (eg. an unusual ordering constraint, a workaround for a known bug in this code path). When in doubt, write the docstring and leave the call site uncommented.
 - **Comment length**: Sometimes comments in the code are useful to explain the rationale or context of a particular set of code. When this is necessary, be concise. Preserve the important concept and information but don't be pedantic or overly verbose. Especially avoid just replaying a commit description, PR description, or text used elsewhere into a comment.
 - **Error Handling**: Use appropriate exception types; include context in error messages
+- **Structured error contracts**: When a command supports machine-readable output (e.g. a `--json` flag with a documented error envelope), every terminal failure path must emit the structured error shape — route new error sites through the subsystem's failure helper (e.g. `_fail` in `src/inspect_ai/_cli/ctl/_failure.py`) rather than exiting directly (a bare `click.exceptions.Exit` bypasses the envelope, leaving `--json` consumers stderr prose and an empty stdout). When adding such a contract, add a mechanical guard that catches bypasses (see `test_no_bare_click_exit_in_ctl_error_sites`).
+- **Public contracts**: Before changing a public event, log record, result type, or serialized model, describe the semantics you're changing and name every producer and consumer it touches — transcript/log readers, dataframes, hooks, replay code, sibling packages. Add compatibility or round-trip coverage for persisted data and replay paths the change affects.
+- **Invalid state**: Don't silently coerce invalid input, an error, or incompatible persisted state into a different result — a permissive default, a swallowed parse failure, a masked provider error. Define the externally observable error or unsupported-state behavior explicitly, and cover it with a test.
 - **Testing**: Write tests with pytest; maintain high coverage. See "Testing Async Code" below for async test conventions. Prefer adding tests to an existing test file covering the same area (e.g. eval-level behavior → `tests/test_eval.py`) rather than creating a new file; only add a new file when no existing one is a reasonable fit.
 
 - **Async Concurrency**: Use `inspect_ai._util._async.tg_collect()` instead of `asyncio.gather()` for running concurrent async tasks. Use `inspect_ai.util.collect()` only inside sample subtasks (it adds transcript span grouping).
@@ -84,6 +104,40 @@ is worse than disclosing none. Example:
 
 - **Respect existing patterns**: Respect existing code patterns when modifying files. Run linting before committing changes.
 
+## Suppression gate
+
+- Do NOT suppress lint or type errors (`# noqa`, `# type: ignore`,
+  `# pyright: ignore`, or the file-wide `# ruff: noqa` /
+  `# mypy: ignore-errors`). Fix the code. A deterministic gate enforces
+  this (`make suppressions-check` against `suppressions.json`); maintainers
+  reject suppressions that just make an error go away.
+- In the rare case a suppression is correct, it requires both: a reason in
+  a trailing hash comment segment on the same line, the only style mypy
+  accepts (e.g. `x = f()  # type: ignore[assignment]  # stub is wrong
+  upstream`), and `make suppressions-update` to record it in
+  `suppressions.json`. Always suppress the specific code
+  (`# noqa: E501`, `# type: ignore[assignment]`), never the bare code-less
+  form.
+- Every new suppression requires human maintainer approval; when it changes
+  aggregate counts, that approval includes the `suppressions.json` diff.
+  Expect the PR to be blocked until then, and say in the PR description why
+  no fix is possible.
+- The ledger tracks aggregate counts by file and rule, not individual source
+  locations. Moving or replacing the same rule within one file does not alter
+  the ledger, so reviewers must still inspect suppression changes in the
+  source diff.
+- If the `suppressions` CI check fails, never hand-edit the ledger to make
+  it pass. Run `make suppressions-update` so the change shows in the
+  ledger diff. `--update` refuses to grow any rule's repo-wide reason-less
+  total (the ratchet): new suppressions must carry a reason, and the
+  baselined reason-less ones burn down over time.
+- Merges from upstream are the one sanctioned ratchet exception: when a
+  sync brings in new reason-less suppressions, do not edit the
+  upstream-owned lines to add reasons (that creates permanent merge
+  drift). Instead run `python3 .github/scripts/check_suppressions.py
+  --update --allow-growth` to record them; it prints each rule that grew,
+  and the growth still shows in the ledger diff for maintainer review.
+
 ## Testing Async Code
 
 All async test functions automatically run under both asyncio and trio backends via anyio (applied by the `pytest_pycollect_makeitem` hook in `tests/conftest.py`). Trio variants are skipped by default; use `--runtrio` to enable them.
@@ -92,6 +146,13 @@ All async test functions automatically run under both asyncio and trio backends 
 - **Use `anyio.sleep()` not `asyncio.sleep()`** in tests; `anyio.Event()` not `asyncio.Event()`; `tg_collect()` not `asyncio.gather()`.
 - **Use `@skip_if_trio`** (from `test_helpers.utils`) for tests that cannot run under trio (e.g. they test asyncio-specific fallback paths).
 - **`@pytest.mark.anyio`** is not required but harmless — use it to signal intentional dual-backend coverage.
+- **Cancellation and ownership**: for an async change, run the affected
+  tests with `--runtrio` before opening a PR rather than relying on the
+  asyncio-only default. Add a focused test that cancels or fails mid-await,
+  not just the success path, and assert that cleanup still runs. A resource
+  that crosses an async boundary (a bridge, a spawned process, a background
+  task) is owned by whichever component created it — cleanup belongs there,
+  not in a caller or bridge that merely passes it through.
 
 ## Subsystem Documentation
 
