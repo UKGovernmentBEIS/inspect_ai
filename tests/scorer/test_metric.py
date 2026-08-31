@@ -1206,13 +1206,13 @@ def test_author_reason_metadata_not_lifted() -> None:
 
 
 def test_grouped_metric_empty_scores() -> None:
-    # grouped() metric with all="groups" or all="samples" must return 0.0
-    # aggregate for empty scores without numpy empty-slice warnings.
+    # #5150: the degenerate shape for empty scores is the aggregate key with a
+    # NaN value (no data), never a fabricated 0.0 that reads as a measured zero.
     metric_samples = grouped(mean(), group_key="group", all="samples")
-    assert metric_samples([]) == {"all": 0.0}
+    assert math.isnan(metric_samples([])["all"])
 
     metric_groups = grouped(mean(), group_key="group", all="groups")
-    assert metric_groups([]) == {"all": 0.0}
+    assert math.isnan(metric_groups([])["all"])
 
 
 # --- ci() confidence-interval metric ----------------------------------------
@@ -1404,3 +1404,16 @@ def test_ci_metric_end_to_end():
     half_width = _t_inv_cdf(0.975, 3) * se
     assert metrics["lower"].value == pytest.approx(0.5 - half_width, rel=1e-9)
     assert metrics["upper"].value == pytest.approx(0.5 + half_width, rel=1e-9)
+
+
+def test_grouped_empty_scores_returns_degenerate_shape():
+    # #5150: the metric owns its empty case, reporting the aggregate key
+    # instead of degrading to a bare NaN synthesized upstream.
+    result = grouped(mean(), group_key="group")([])
+    assert list(result.keys()) == ["all"]
+    assert math.isnan(result["all"])
+
+
+def test_grouped_empty_scores_with_all_false_returns_empty_dict():
+    result = grouped(mean(), group_key="group", all=False)([])
+    assert result == {}

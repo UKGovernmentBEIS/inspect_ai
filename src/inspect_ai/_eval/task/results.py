@@ -550,7 +550,20 @@ def scorers_from_metric_dict(
             if len(key_scores) > 0:
                 value = call_metric(target_metric, key_scores)
             else:
-                value = float("Nan")
+                # Zero scored samples: give the metric its own empty case first
+                # (#5150). A metric that owns a degenerate shape (e.g. grouped
+                # returning its aggregate key) reports it here; anything that
+                # raises on empty input, or returns a non-Mapping scalar, falls
+                # back to the legacy synthesized NaN.
+                try:
+                    empty_value = call_metric(target_metric, [])
+                    value = (
+                        empty_value
+                        if isinstance(empty_value, Mapping)
+                        else float("Nan")
+                    )
+                except Exception:
+                    value = float("Nan")
 
             # convert the value to a float (either by expanding the dict or array)
             # or by casting to a float
