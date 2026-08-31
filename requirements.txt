@@ -9,7 +9,7 @@ docstring-parser>=0.16
 exceptiongroup>=1.0.2; python_version < '3.11'
 fastapi>=0.119.0
 fsspec>=2023.1.0,<=2026.6.0 # align with hf datasets to prevent pip errors
-httpx
+httpx[brotli] # bridged clients advertise brotli in Accept-Encoding; forwarding it (feat/sandbox-bridge-client-headers) means Anthropic responds br-encoded, so httpx needs the decoder to read it
 ijson>=3.2.0
 jsonlines>=3.0.0
 jsonpatch>=1.32

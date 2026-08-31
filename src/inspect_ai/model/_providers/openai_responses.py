@@ -449,6 +449,7 @@ def completion_params_responses(
     if config.seed is not None:
         unsupported_warning("seed")
 
+
     # models with reasoning enabled don't do sampling params (gpt-6+ always
     # reasons: `none` effort is rejected, so sampling params never apply)
     reasoning_enabled = (
@@ -506,19 +507,28 @@ def completion_params_responses(
     ):
         params["parallel_tool_calls"] = config.parallel_tool_calls
 
-    reasoning: dict[str, str] = {}
-    if config.reasoning_effort is not None:
-        # models that predate `max` effort top out at `xhigh`; map `max` to it
-        # so the request isn't rejected. Mirrors the mapping in
-        # `OpenAIAPI._get_reasoning_params_for_config`.
-        reasoning["effort"] = (
-            "xhigh"
-            if (
-                config.reasoning_effort == "max"
-                and not model_info.supports_max_reasoning_effort()
+    reasoning: dict[str, Any] = {}
+    # Reasoning may have been specified in config.extra_body (e.g. by a client
+    # talking to us through the agent bridge). Use it verbatim so fields with no
+    # GenerateConfig representation (e.g. `context`) survive intact.
+    client_reasoning = (
+        config.extra_body.get("reasoning") if config.extra_body is not None else None
+    )
+    if isinstance(client_reasoning, dict):
+        reasoning = client_reasoning
+    else:
+        if config.reasoning_effort is not None:
+            # models that predate `max` effort top out at `xhigh`; map `max` to it
+            # so the request isn't rejected. Mirrors the mapping in
+            # `OpenAIAPI._get_reasoning_params_for_config`.
+            reasoning["effort"] = (
+                "xhigh"
+                if (
+                    config.reasoning_effort == "max"
+                    and not model_info.supports_max_reasoning_effort()
+                )
+                else config.reasoning_effort
             )
-            else config.reasoning_effort
-        )
     if config.reasoning_mode is not None:
         # passed through for all models: the API accepts "pro" wherever it can
         # be honored (gpt-5.6 and legacy -pro models; gpt-6 rejects it) and

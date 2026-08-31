@@ -296,7 +296,9 @@ async def inspect_responses_api_request_impl(
     debug_log("INSPECT MESSAGES", messages)
 
     # extract generate config (hoist instructions into system_message)
-    config = generate_config_from_openai_responses(json_data)
+    config = generate_config_from_openai_responses(
+        json_data, forward_reasoning=bridge.forward_generation_config
+    )
     if not bridge.forward_generation_config:
         clear_generation_params(config)
     validate_client_config(config)
@@ -648,7 +650,9 @@ def responses_tool_params_to_tools(tool_params: list[ToolParam]) -> list[Respons
     return tool_list_adapter.validate_python(tool_params)
 
 
-def generate_config_from_openai_responses(json_data: dict[str, Any]) -> GenerateConfig:
+def generate_config_from_openai_responses(
+    json_data: dict[str, Any], *, forward_reasoning: bool = False
+) -> GenerateConfig:
     # warn for unsupported params
     def warn_unsupported(param: str) -> None:
         if param in json_data:
@@ -668,7 +672,7 @@ def generate_config_from_openai_responses(json_data: dict[str, Any]) -> Generate
     config.top_logprobs = json_data.get("top_logprobs", None)
     config.parallel_tool_calls = json_data.get("parallel_tool_calls", None)
     reasoning = json_data.get("reasoning", None)
-    if reasoning:
+    if reasoning and not forward_reasoning:
         if "effort" in reasoning:
             config.reasoning_effort = reasoning["effort"]
         if "summary" in reasoning:
@@ -705,6 +709,8 @@ def generate_config_from_openai_responses(json_data: dict[str, Any]) -> Generate
     for field in responses_extra_body_fields():
         if field in json_data:
             extra_body[field] = json_data[field]
+    if forward_reasoning and reasoning is not None:
+        extra_body["reasoning"] = reasoning
     if len(extra_body) > 0:
         config.extra_body = extra_body
 

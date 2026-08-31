@@ -54,44 +54,43 @@ if TYPE_CHECKING:
     # initializing. Same reason `model/_call_tools.py` defers it.
     from inspect_ai.approval._policy import ApprovalPolicy
 
-# Headers blocked from bridge clients (exact match, case-insensitive)
-_BLOCKED_BRIDGE_HEADERS = frozenset(
+# Headers forwarded from bridge clients (exact match, case-insensitive).
+#
+# This is an explicit allowlist, not a blocklist: a bridge client runs as
+# untrusted sandbox code, so a header that reaches the host's provider
+# request could otherwise re-route billing/tenant scope on the host's API
+# key (e.g. OpenAI's `OpenAI-Organization`/`OpenAI-Project`, Google's
+# `x-goog-user-project`) or leak other sensitive/internal state. Only
+# headers with a demonstrated need for client-request fidelity are listed
+# here; everything else is dropped.
+_ALLOWED_BRIDGE_HEADERS = frozenset(
     [
-        # Inspect internal tracking
-        "x-irid",
-        # Authentication
-        "authorization",
-        "x-api-key",
-        # Protocol headers
-        "content-type",
-        "content-length",
-        "transfer-encoding",
-        "host",
-        "connection",
-        # SDK internal headers
-        "anthropic-version",
-        # User-Agent would be misleading since Inspect transforms the request
-        "user-agent",
+        # The bridged client's supported response encodings. Forwarding
+        # this is load-bearing end to end: once forwarded, Anthropic
+        # actually responds brotli-encoded, which is why httpx[brotli] is
+        # a dependency (see the response-side decoder this depends on).
+        "accept-encoding",
+        # Claude Code and Codex set this to opt into API features. Without
+        # it the bridged agent runs against a different feature surface
+        # than the identical agent outside Inspect.
+        "anthropic-beta",
     ]
 )
 
-# Header prefixes blocked from bridge clients
-_BLOCKED_BRIDGE_HEADER_PREFIXES = ("x-stainless-",)
-
 
 def filter_bridge_headers(headers: dict[str, str] | None) -> dict[str, str] | None:
-    """Filter headers from bridge clients, removing sensitive/internal headers.
+    """Filter headers from bridge clients to an explicit allowlist.
 
-    Note: `anthropic-beta` is intentionally NOT blocked - it's used for
-    legitimate feature flags (e.g., `code-execution-2025-08-25`).
+    Only headers in `_ALLOWED_BRIDGE_HEADERS` are forwarded to the host's
+    provider request; every other header supplied by the sandboxed client
+    is dropped, including provider tenant/billing headers such as
+    `OpenAI-Organization`, `OpenAI-Project`, or Google's
+    `x-goog-user-project`.
     """
     if headers is None:
         return None
     filtered = {
-        k: v
-        for k, v in headers.items()
-        if k.lower() not in _BLOCKED_BRIDGE_HEADERS
-        and not k.lower().startswith(_BLOCKED_BRIDGE_HEADER_PREFIXES)
+        k: v for k, v in headers.items() if k.lower() in _ALLOWED_BRIDGE_HEADERS
     }
     return filtered if filtered else None
 

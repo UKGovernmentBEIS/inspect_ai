@@ -1516,6 +1516,11 @@
       "undescribed": 4
     }
   },
+  "tests/agent/test_bridge_headers.py": {
+    "type: ignore[import-untyped]": {
+      "count": 1
+    }
+  },
   "tests/agent/test_bridge_raw_response.py": {
     "type: ignore[arg-type]": {
       "count": 4,
