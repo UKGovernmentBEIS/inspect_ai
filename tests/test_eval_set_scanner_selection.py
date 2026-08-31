@@ -86,6 +86,14 @@ def sel_injected_scanner():
     return scan
 
 
+@scanner(messages="all", name="sel_param_scanner")
+def sel_param_scanner(threshold: int = 1):
+    async def scan(transcript: Transcript) -> Result:
+        return Result(value=threshold)
+
+    return scan
+
+
 def _capture(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, **kwargs: Any
 ) -> EvalSetCapture:
@@ -340,6 +348,138 @@ def test_injected_scanners_run_in_a_definition_that_declares_none(
     )
     assert success
     assert len(_buffer_stems(scan_dir, "sel_injected_scanner")) == 1
+
+
+def _init_from(capture: EvalSetCapture, log_dir: Path) -> Path:
+    assert capture.scan is not None
+    return Path(
+        asyncio.run(
+            scan_init_from_spec(
+                capture.scan.spec,
+                scan_id=EVAL_SET_ID,
+                log_dir=str(log_dir),
+                scans=capture.scan.scans,
+            )
+        )
+    )
+
+
+def test_a_drifted_scanner_refuses_at_worker_startup(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A changed scanner refuses at worker startup.
+
+    The runner verified the configuration it captured, but a worker executes
+    the definition file as it stands at spawn time — a scanner changed between
+    the two must refuse rather than record rows the on-disk spec misdescribes.
+    """
+    capture = _capture(
+        monkeypatch,
+        tmp_path,
+        scanner={"sel_param_scanner": sel_param_scanner(threshold=1)},
+    )
+    log_dir = tmp_path / "logs"
+    log_dir.mkdir()
+    _init_from(capture, log_dir)
+    with pytest.raises(PrerequisiteError, match="sel_param_scanner"):
+        _run_worker(
+            monkeypatch,
+            tmp_path,
+            _selection(_identifier(capture, "scan_selection_task_one")),
+            log_dir,
+            name="worker",
+            scanner={"sel_param_scanner": sel_param_scanner(threshold=2)},
+        )
+
+
+def test_a_drifted_scanner_set_refuses_at_worker_startup(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A changed scanner set refuses at worker startup.
+
+    A worker cannot admit a scanner the runner never wrote into the spec —
+    recording for it would leave rows the scan disowns.
+    """
+    capture = _capture(
+        monkeypatch, tmp_path, scanner={"sel_echo_scanner": sel_echo_scanner()}
+    )
+    log_dir = tmp_path / "logs"
+    log_dir.mkdir()
+    _init_from(capture, log_dir)
+    with pytest.raises(PrerequisiteError, match="Scanner set"):
+        _run_worker(
+            monkeypatch,
+            tmp_path,
+            _selection(_identifier(capture, "scan_selection_task_one")),
+            log_dir,
+            name="worker",
+            scanner={
+                "sel_echo_scanner": sel_echo_scanner(),
+                "sel_param_scanner": sel_param_scanner(),
+            },
+        )
+
+
+def test_a_drifted_scanner_config_refuses_at_worker_startup(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A changed eval-set-level config refuses at worker startup.
+
+    The config wrapper (filter, scan-side model, ...) lives in no
+    `ScannerSpec` — the hash the spec's metadata carries is what catches it.
+    """
+    from inspect_ai import ScannerConfig
+
+    capture = _capture(
+        monkeypatch, tmp_path, scanner={"sel_echo_scanner": sel_echo_scanner()}
+    )
+    log_dir = tmp_path / "logs"
+    log_dir.mkdir()
+    _init_from(capture, log_dir)
+    with pytest.raises(PrerequisiteError, match="config"):
+        _run_worker(
+            monkeypatch,
+            tmp_path,
+            _selection(_identifier(capture, "scan_selection_task_one")),
+            log_dir,
+            name="worker",
+            scanner=ScannerConfig(
+                scanners={"sel_echo_scanner": sel_echo_scanner()},
+                filter="1 = 1",
+            ),
+        )
+
+
+def test_package_version_drift_is_tolerated_at_worker_startup(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """`package_version` drift alone does not refuse.
+
+    It is provenance rather than identity: under a development install it
+    moves with every commit while the scanner remains the same scanner, and
+    a worker spawned after a reinstall must still start.
+    """
+    capture = _capture(
+        monkeypatch, tmp_path, scanner={"sel_echo_scanner": sel_echo_scanner()}
+    )
+    log_dir = tmp_path / "logs"
+    log_dir.mkdir()
+    scan_dir = _init_from(capture, log_dir)
+
+    scan_json = scan_dir / "_scan.json"
+    spec = json.loads(scan_json.read_text())
+    spec["scanners"]["sel_echo_scanner"]["package_version"] = "0.0.0"
+    scan_json.write_text(json.dumps(spec))
+
+    success, _ = _run_worker(
+        monkeypatch,
+        tmp_path,
+        _selection(_identifier(capture, "scan_selection_task_one")),
+        log_dir,
+        name="worker",
+        scanner={"sel_echo_scanner": sel_echo_scanner()},
+    )
+    assert success
 
 
 def test_injected_scanner_name_collision_is_refused(
