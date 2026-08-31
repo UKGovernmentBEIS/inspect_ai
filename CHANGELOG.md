@@ -1,5 +1,4 @@
 ## Unreleased
-
 - Scoring: `model_graded_qa`/`model_graded_fact` no longer score a malformed multi-character verdict such as `GRADE: CI` as correct; such verdicts now leave the sample unscored with `grade_parse_failure` recorded.
 - OpenAI: Fixed background responses failing on transient connection and timeout errors.
 - Eval Log: `local_path()` now percent-decodes `file://` URLs, restoring the `to_uri()` round trip for paths with spaces or other encoded characters (affects every consumer of file URLs: log recorders, control-channel state, checkpoint restore, approval policy files). (#5025)
