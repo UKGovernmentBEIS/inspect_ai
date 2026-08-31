@@ -14,6 +14,7 @@ from anthropic.types import (
     ImageBlockParam,
     Message,
     MessageParam,
+    OutputTokensDetails,
     SearchResultBlockParam,
     TextBlockParam,
     ToolChoiceParam,
@@ -25,6 +26,7 @@ from anthropic.types import (
 from anthropic.types import StopReason as AnthropicStopReason
 from anthropic.types.beta import (
     BetaMessage,
+    BetaOutputTokensDetails,
     BetaRequestMCPServerToolConfigurationParam,
     BetaRequestMCPServerURLDefinitionParam,
     BetaUsage,
@@ -612,10 +614,26 @@ def anthropic_usage(usage: ModelUsage, beta: bool = False) -> Usage | BetaUsage:
     Beta requests must carry `BetaUsage`: clients reading beta-only fields
     (e.g. pydantic-ai reads `usage.iterations`) fail on a plain `Usage`.
     """
-    usage_class = BetaUsage if beta else Usage
-    return usage_class(
-        input_tokens=usage.input_tokens,
-        output_tokens=usage.output_tokens,
-        cache_creation_input_tokens=usage.input_tokens_cache_write,
-        cache_read_input_tokens=usage.input_tokens_cache_read,
-    )
+    reasoning_tokens = usage.reasoning_tokens
+    if beta:
+        return BetaUsage(
+            input_tokens=usage.input_tokens,
+            output_tokens=usage.output_tokens,
+            cache_creation_input_tokens=usage.input_tokens_cache_write,
+            cache_read_input_tokens=usage.input_tokens_cache_read,
+            output_tokens_details=BetaOutputTokensDetails(
+                thinking_tokens=reasoning_tokens
+            )
+            if reasoning_tokens is not None
+            else None,
+        )
+    else:
+        return Usage(
+            input_tokens=usage.input_tokens,
+            output_tokens=usage.output_tokens,
+            cache_creation_input_tokens=usage.input_tokens_cache_write,
+            cache_read_input_tokens=usage.input_tokens_cache_read,
+            output_tokens_details=OutputTokensDetails(thinking_tokens=reasoning_tokens)
+            if reasoning_tokens is not None
+            else None,
+        )
