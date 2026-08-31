@@ -77,6 +77,15 @@ def test_noqa_invalid_code_list_is_inert() -> None:
     assert scan("import os  # noqa:\n") == []
 
 
+def test_noqa_spaced_colon_is_blanket() -> None:
+    # ruff opens the code list only when the colon is attached to noqa;
+    # with whitespace before it the colon and everything after are
+    # trailing text on a BLANKET noqa (verified: "noqa :" and
+    # "noqa : F401" both suppress every rule on the line).
+    assert scan("import os  # noqa : F401\n") == [("noqa", True)]
+    assert scan("import os  # noqa :F401\n") == [("noqa", True)]
+
+
 def test_noqa_trailing_junk_after_valid_codes_counts_parsed_codes() -> None:
     # ruff honors the parsed codes and treats the rest as trailing text
     # (verified: "noqa: F401, e501" suppresses F401, not E501).
@@ -88,6 +97,16 @@ def test_file_wide_noqa_invalid_code_list_is_inert() -> None:
     # "ruff: noqa: f401" warns and suppresses nothing).
     assert scan("# ruff: noqa: f401\nimport os\n") == []
     assert scan("# flake8: noqa:\nimport os\n") == []
+
+
+def test_file_wide_noqa_spaced_second_colon_parses_codes() -> None:
+    # Unlike line-level noqa, the file form tolerates whitespace around
+    # its second colon and still parses the code list (verified: coded,
+    # not blanket — other rules elsewhere in the file still fire).
+    assert scan("# ruff: noqa : F401\nimport os\n") == [
+        ("noqa:F401 (file-wide)", False)
+    ]
+    assert scan("# ruff: noqa :\nimport os\n") == []
 
 
 def test_file_wide_ruff_noqa() -> None:
@@ -524,10 +543,24 @@ def test_delta_load_rejects_malformed_and_wrong_shape(
         '{"a.py": {"r": {}}}',
         '{"a.py": {"r": {"count": "9"}}}',
         '{"a.py": {"r": {"count": 1, "undescribed": "x"}}}',
+        '{"a.py": {"r": {"count": true}}}',
+        '{"a.py": {"r": {"undescribed": 1}}}',
     ):
         path = tmp_path / "ledger.json"
         path.write_text(content)
         assert delta._load(str(path)) is None, content
+
+
+def test_delta_load_survives_non_utf8_and_deep_nesting(
+    tmp_path: pathlib.Path,
+) -> None:
+    # Both raise outside json.JSONDecodeError (UnicodeDecodeError and
+    # RecursionError) and must load as None, not crash the comment job.
+    path = tmp_path / "ledger.json"
+    path.write_bytes(b"\xff\xfe{")
+    assert delta._load(str(path)) is None
+    path.write_text("[" * 100_000 + "]" * 100_000)
+    assert delta._load(str(path)) is None
 
 
 def test_delta_load_accepts_valid_ledgers(tmp_path: pathlib.Path) -> None:
@@ -546,10 +579,15 @@ def test_delta_body_reports_malformed_ledger_instead_of_diffing() -> None:
     body = delta.body_for({}, None)
     assert body is not None
     assert body.startswith(delta.MARKER)
-    assert "PR's `suppressions.json`" in body
+    assert "This PR's `suppressions.json`" in body
     base_side = delta.body_for(None, {})
     assert base_side is not None
-    assert "base branch's `suppressions.json`" in base_side
+    assert "The base `suppressions.json`" in base_side
+    # Both malformed: the PR-side message wins — its remedy is the one the
+    # author can act on.
+    both = delta.body_for(None, None)
+    assert both is not None
+    assert "This PR's `suppressions.json`" in both
 
 
 # --- CLI: bootstrap, ratchet refusal, and --allow-growth (throwaway git repo) ---

@@ -10,6 +10,7 @@ import html
 import json
 import sys
 from pathlib import Path
+from typing import TypeGuard
 
 # Sibling-script import: resolves because sys.path[0] is this script's
 # directory when invoked by path (as the workflow does); the test suite
@@ -19,14 +20,18 @@ from check_suppressions import Delta, Ledger, diff_ledgers, totals
 MARKER = "<!-- suppressions-delta -->"
 
 
-def _is_ledger(data: object) -> bool:
-    """Whether data has the shape flatten/totals rely on (see Ledger)."""
+def _is_ledger(data: object) -> TypeGuard[Ledger]:
+    """Whether data has the shape flatten/totals rely on (see Ledger).
+
+    `type(...) is int`, not isinstance: bool subclasses int, and a JSON
+    boolean is not a count.
+    """
     return isinstance(data, dict) and all(
         isinstance(rules, dict)
         and all(
             isinstance(tally, dict)
-            and isinstance(tally.get("count"), int)
-            and isinstance(tally.get("undescribed", 0), int)
+            and "count" in tally
+            and all(type(value) is int for value in tally.values())
             for tally in rules.values()
         )
         for rules in data.values()
@@ -37,16 +42,15 @@ def _load(path: str) -> Ledger | None:
     """The ledger at path, or None when unreadable or not ledger-shaped.
 
     The PR side is author-controlled data, so a broken ledger must degrade
-    into a reportable value rather than crash the comment job.
+    into a reportable value rather than crash the comment job. ValueError
+    covers json.JSONDecodeError and the UnicodeDecodeError of a non-UTF-8
+    file; RecursionError is json.loads on pathologically deep nesting.
     """
     try:
         data = json.loads(Path(path).read_text())
-    except (OSError, json.JSONDecodeError):
+    except (OSError, ValueError, RecursionError):
         return None
-    if not _is_ledger(data):
-        return None
-    ledger: Ledger = data
-    return ledger
+    return data if _is_ledger(data) else None
 
 
 def _cell(value: str) -> str:
@@ -129,12 +133,17 @@ def body_for(base: Ledger | None, head: Ledger | None) -> str | None:
     empty-ledger stand-in would render a false "all suppressions removed"
     delta for the reviewer to approve.
     """
-    if base is None or head is None:
-        which = "base branch's" if base is None else "PR's"
+    if head is None:
         return (
-            f"{MARKER}\n⚠️ The {which} `suppressions.json` is not a valid "
+            f"{MARKER}\n⚠️ This PR's `suppressions.json` is not a valid "
             "suppression ledger, so the delta cannot be computed. "
             "Regenerate it with `make suppressions-update`."
+        )
+    if base is None:
+        return (
+            f"{MARKER}\n⚠️ The base `suppressions.json` (at the merge-base) "
+            "is not a valid suppression ledger, so the delta cannot be "
+            "computed. Update the branch once the base ledger is fixed."
         )
     return render(base, head)
 

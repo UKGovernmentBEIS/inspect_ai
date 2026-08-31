@@ -57,7 +57,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           PR: ${{ github.event.pull_request.number }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: |
           # The PR's ledger is fetched and read as DATA: `git show` reads
           # a blob and executes nothing. The PR head is never checked out.
@@ -68,8 +68,11 @@ jobs:
           # ledger changes that landed on the base after the PR forked are
           # not this PR's delta. The checkout is shallow, so ask the API
           # for the merge-base and fetch that one commit — base-repo
-          # history, still trusted data read via `git show`.
-          merge_base=$(gh api "repos/$GH_REPO/compare/$BASE_SHA...$(git rev-parse FETCH_HEAD)" \
+          # history, still trusted data read via `git show`. Compare
+          # against the branch name, not the event's base.sha: that sha
+          # is not refreshed on synchronize, and the current tip gives
+          # the true fork point even after the author merges in the base.
+          merge_base=$(gh api "repos/$GH_REPO/compare/$BASE_REF...$(git rev-parse FETCH_HEAD)" \
             -q '.merge_base_commit.sha')
           git fetch --depth=1 origin "$merge_base"
           git show "$merge_base:suppressions.json" > /tmp/base-suppressions.json 2>/dev/null \

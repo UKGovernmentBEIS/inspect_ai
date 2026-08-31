@@ -59,10 +59,19 @@ _BRACKET = r"\[\s*(?P<{name}>[\w-]+(?:\s*,\s*[\w-]+)*)\s*\]"
 # whitespace tolerated around the colons ("ruff : NOQA" suppresses
 # file-wide). The ruff/flake8 prefix itself stays case-sensitive — ruff
 # ignores "RUFF: NOQA" (verified).
+#
+# The colon-and-codes tails mirror ruff's parse (all verified): a colon
+# with no parseable code list — codes are case-sensitive uppercase, so
+# "noqa:" or "noqa: e501" — invalidates the whole directive (ruff warns
+# and suppresses nothing); _rules maps that to no records. A line-level
+# code list opens only when the colon is attached ("noqa : F401" is a
+# BLANKET noqa with trailing junk), hence no \s* before noqa_colon; the
+# file-level form tolerates whitespace around its second colon, hence
+# the \s* before file_noqa_colon.
 DIRECTIVE_RE = re.compile(
     r"""\#+\s*(?:
         (?:ruff|flake8)\s*:\s*(?P<file_noqa>(?i:noqa))(?:\s*(?P<file_noqa_colon>:)\s*(?P<file_noqa_codes>{noqa_codes})?)?
-      | (?P<noqa>(?i:noqa))(?![\w])(?:\s*(?P<noqa_colon>:)\s*(?P<noqa_codes>{noqa_codes})?)?
+      | (?P<noqa>(?i:noqa))(?![\w])(?:(?P<noqa_colon>:)\s*(?P<noqa_codes>{noqa_codes})?)?
       | type:\s*(?P<type_ignore>ignore)(?![\w])(?:\s*{type_codes})?
       | pyright:\s*(?P<pyright>ignore)(?![\w])(?:\s*{pyright_codes})?
       | mypy:\s*(?:
@@ -102,10 +111,10 @@ def _split_codes(codes: str) -> list[str]:
 def _rules(m: re.Match[str]) -> list[str]:
     """Ledger rule keys for one directive match (one per code).
 
-    A noqa colon with no parseable code list (codes are case-sensitive
-    uppercase, so `# noqa: e501` or a bare `# noqa:`) yields no rules:
-    ruff rejects the whole directive as invalid and suppresses nothing
-    (verified against the pinned ruff, line-level and file-level alike).
+    A matched noqa colon with no parseable code list yields no rules: ruff
+    rejects the whole directive as invalid and suppresses nothing (verified
+    against the pinned ruff, line-level and file-level alike) — see the
+    DIRECTIVE_RE comment for which colons match.
     """
     if m.group("file_noqa"):
         codes = m.group("file_noqa_codes")
