@@ -92,23 +92,13 @@ class WalkContext(TypedDict):
 
 
 def attachment_refs_from_value(value: JsonValue) -> set[str]:
-    refs: set[str] = set()
+    """Collect ``attachment://`` refs from a parsed-JSON (or dumped) value.
 
-    # ``object``, not ``JsonValue``: tuple/set are defensive (the test helper
-    # feeds ``model_dump(mode="python")`` output, which is not strictly JSON)
-    def collect(value: object) -> None:
-        if isinstance(value, str):
-            if value.startswith(ATTACHMENT_PROTOCOL):
-                refs.add(value.removeprefix(ATTACHMENT_PROTOCOL))
-        elif isinstance(value, dict):
-            for item in value.values():
-                collect(item)
-        elif isinstance(value, (list, tuple, set)):
-            for item in value:
-                collect(item)
-
-    collect(value)
-    return refs
+    JSON containers are a subset of the object graphs
+    :func:`attachment_refs_from_object` walks, so this is that walk under a
+    narrower parameter type — one traversal to keep in sync, not two.
+    """
+    return attachment_refs_from_object(value)
 
 
 def attachment_refs_from_object(

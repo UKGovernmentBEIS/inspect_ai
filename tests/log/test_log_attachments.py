@@ -170,9 +170,9 @@ def test_attachment_refs_from_object_parity(
 
 
 def test_attachment_refs_from_object_terminates_on_cycle() -> None:
-    # today attachment_refs_from_value(model_dump(...)) raises RecursionError
-    # on a cyclic metadata value (pydantic embeds the original cyclic object
-    # in the dump); the object scanner must terminate and collect the ref
+    # the recursive scan this walker replaced raised RecursionError on a
+    # cyclic metadata value (pydantic embeds the original cyclic object in
+    # the dump); the object scanner must terminate and collect the ref
     cyc: dict[str, object] = {"ref": "attachment://cyc-ref"}
     cyc["self"] = cyc
     event = InfoEvent(data="ok")
