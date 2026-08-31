@@ -15,6 +15,7 @@ from inspect_ai.log._condense import (
 from inspect_ai.log._file import read_eval_log
 from inspect_ai.model._chat_message import ChatMessageUser
 from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._model_output import ModelOutput
 
 
@@ -382,6 +383,54 @@ def test_condense_event_function() -> None:
     attachment_hash = condensed_content.replace(ATTACHMENT_PROTOCOL, "")
     assert attachment_hash in attachments
     assert attachments[attachment_hash] == long_text
+
+
+def _sample_with_model_call_payload(payload: str) -> EvalSample:
+    event = ModelEvent(
+        model="test-model",
+        input=[ChatMessageUser(content="hello")],
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(),
+        output=ModelOutput.from_content("test-model", "response"),
+        call=ModelCall(request={"system": payload}, response={"ok": True}),
+    )
+    return EvalSample(
+        id="sample",
+        epoch=1,
+        input="input",
+        target="target",
+        messages=[ChatMessageUser(content="hello")],
+        events=[event],
+    )
+
+
+def test_resolve_core_retains_attachments_still_referenced_by_model_call() -> None:
+    payload = "model-call-payload-" + ("q" * 200)
+    condensed = condense_sample(_sample_with_model_call_payload(payload))
+    assert payload in condensed.attachments.values()
+
+    resolved = resolve_sample_attachments(condensed, "core")
+
+    # "core" leaves ModelEvent.call condensed, so its refs survive. Every
+    # surviving ref must still resolve against the retained attachments.
+    refs = attachment_refs_from_value(
+        resolved.model_dump(mode="python", exclude={"attachments"})
+    )
+    assert refs
+    assert refs <= set(resolved.attachments)
+    assert payload in resolved.attachments.values()
+
+
+def test_resolve_full_clears_attachments() -> None:
+    payload = "model-call-payload-" + ("q" * 200)
+    condensed = condense_sample(_sample_with_model_call_payload(payload))
+
+    resolved = resolve_sample_attachments(condensed, "full")
+
+    # "full" resolves every reference inline, so nothing points at the map.
+    assert len(resolved.attachments) == 0
+    assert ATTACHMENT_PROTOCOL not in resolved.model_dump_json()
 
 
 def log_path(log: str) -> str:
