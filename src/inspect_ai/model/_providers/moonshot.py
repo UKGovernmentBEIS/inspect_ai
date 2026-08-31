@@ -77,6 +77,11 @@ class MoonshotAPI(OpenAICompatibleAPI):
         Kimi models think by default; passing `thinking: {"type": "disabled"}`
         via extra_body turns it off, which also lifts the named-tool_choice
         restriction (fixed sampling stays pinned in both modes).
+
+        The k2.7-code models have no disabled mode and reject the field
+        outright ("invalid thinking: only type=enabled is allowed for this
+        model"), so a request that sets it 400s whatever else it carries.
+        extra_body is forwarded verbatim and that error surfaces as-is.
         """
         thinking = (config.extra_body or {}).get("thinking")
         return isinstance(thinking, dict) and thinking.get("type") == "disabled"
