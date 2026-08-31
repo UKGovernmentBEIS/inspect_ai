@@ -1,4 +1,3 @@
-from types import SimpleNamespace
 from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock
 
@@ -65,8 +64,9 @@ def _stub_fireworks(
     """A Fireworks API with a stubbed client and a stubbed active sample."""
     import inspect_ai.model._providers.fireworks as fireworks_module
 
-    active = SimpleNamespace(sample_uuid=sample_uuid) if sample_uuid else None
-    monkeypatch.setattr(fireworks_module, "sample_active", lambda: active)
+    monkeypatch.setattr(
+        fireworks_module, "sample_cache_affinity_key", lambda: sample_uuid
+    )
 
     api = fireworks_module.FireworksAIAPI(
         model_name="accounts/fireworks/models/kimi-k3", api_key="test-key"
