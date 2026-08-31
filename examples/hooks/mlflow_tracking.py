@@ -99,6 +99,11 @@ class MlflowTrackingHooks(Hooks):
     def enabled(self) -> bool:
         return os.getenv("MLFLOW_TRACKING_URI") is not None
 
+    # on_sample_end reads only summary fields (scores, timing), so the
+    # framework may skip rebuilding full sample events/attachments/timelines
+    def needs_full_sample(self) -> bool:
+        return False
+
     async def on_run_start(self, data: RunStart) -> None:
         experiment_name = os.getenv("MLFLOW_EXPERIMENT_NAME", "inspect_ai")
         mlflow.set_experiment(experiment_name)
