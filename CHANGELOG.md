@@ -5,6 +5,7 @@
 - Eval Set: An eval set driven by an external runner now honors the `INSPECT_EVAL_*` environment variables with the same meanings `inspect eval-set` gives them.
 - Control Channel: `inspect ctl config --max-samples` now works for tasks using adaptive connections — an integer pins sample concurrency, and `clear` resumes adaptive tracking.
 - Eval logs: Header-only `.eval` log uploads to S3 now appear in `inspect trace` output.
+- Logging: Reduced memory usage and event-loop stalls when finalizing long samples with realtime logging; summary-only hooks can opt out of full-sample materialization via `Hooks.needs_full_sample`.
 
 ## 0.3.261 (30 August 2026)
 

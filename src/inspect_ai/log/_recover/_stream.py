@@ -6,7 +6,7 @@ import json as json_module
 import re
 import tempfile
 from logging import getLogger
-from typing import IO, Any
+from typing import Any
 
 from pydantic import JsonValue
 
@@ -38,6 +38,7 @@ from inspect_ai.log._log import (
 )
 from inspect_ai.log._recorders.buffer.filestore import Manifest, SampleBufferFilestore
 from inspect_ai.log._recorders.eval import ZipLogFile, _sample_filename
+from inspect_ai.log._recorders.json_write import write_json_field
 from inspect_ai.model._chat_message import ChatMessage
 
 from ._attachments import StreamingAttachmentStore, write_attachments_field
@@ -49,24 +50,6 @@ from ._reconstruct import (
 )
 
 logger = getLogger(__name__)
-
-
-def _write_json_field(
-    stream: IO[bytes], name: str, value: object, comma: bool = False
-) -> None:
-    """Write a single JSON field (``"name": value``) to a binary stream.
-
-    Args:
-        stream: Writable binary stream.
-        name: JSON key.
-        value: Value to serialize via ``to_json_safe``.
-        comma: If True, prepend a comma separator.
-    """
-    if comma:
-        stream.write(b",")
-    stream.write(json_module.dumps(name).encode("utf-8"))
-    stream.write(b":")
-    stream.write(to_json_safe(value, indent=None))
 
 
 def _write_sample_streaming(
@@ -156,10 +139,10 @@ def _write_sample_streaming(
             stream.write(b"{")
 
             # Write scalar fields from summary (input written later after walking)
-            _write_json_field(stream, "id", summary.id)
-            _write_json_field(stream, "epoch", summary.epoch, comma=True)
-            _write_json_field(stream, "choices", summary.choices, comma=True)
-            _write_json_field(stream, "target", summary.target, comma=True)
+            write_json_field(stream, "id", summary.id)
+            write_json_field(stream, "epoch", summary.epoch, comma=True)
+            write_json_field(stream, "choices", summary.choices, comma=True)
+            write_json_field(stream, "target", summary.target, comma=True)
 
             collapser = EventVersionCollapser()
             read_count = 0
@@ -308,9 +291,9 @@ def _write_sample_streaming(
             )
 
             # Sample init-derived fields
-            _write_json_field(stream, "sandbox", sandbox_value, comma=True)
-            _write_json_field(stream, "files", files_value, comma=True)
-            _write_json_field(stream, "setup", setup_value, comma=True)
+            write_json_field(stream, "sandbox", sandbox_value, comma=True)
+            write_json_field(stream, "files", files_value, comma=True)
+            write_json_field(stream, "setup", setup_value, comma=True)
 
             # Summary-derived scalars
             if sample_metadata is None:
@@ -320,53 +303,51 @@ def _write_sample_streaming(
                     and sample_init.sample.metadata is not None
                     else summary.metadata
                 )
-            _write_json_field(stream, "metadata", sample_metadata, comma=True)
-            _write_json_field(stream, "scores", summary.scores, comma=True)
+            write_json_field(stream, "metadata", sample_metadata, comma=True)
+            write_json_field(stream, "scores", summary.scores, comma=True)
 
             # Store: parity with DB recovery path (defaults to {}).
-            _write_json_field(stream, "store", {}, comma=True)
+            write_json_field(stream, "store", {}, comma=True)
 
-            _write_json_field(stream, "model_usage", summary.model_usage, comma=True)
-            _write_json_field(stream, "role_usage", summary.role_usage, comma=True)
-            _write_json_field(
+            write_json_field(stream, "model_usage", summary.model_usage, comma=True)
+            write_json_field(stream, "role_usage", summary.role_usage, comma=True)
+            write_json_field(
                 stream, "model_fallbacks", summary.model_fallbacks, comma=True
             )
-            _write_json_field(stream, "turn_count", summary.turn_count, comma=True)
-            _write_json_field(stream, "token_limit", summary.token_limit, comma=True)
-            _write_json_field(
+            write_json_field(stream, "turn_count", summary.turn_count, comma=True)
+            write_json_field(stream, "token_limit", summary.token_limit, comma=True)
+            write_json_field(
                 stream, "token_limit_type", summary.token_limit_type, comma=True
             )
-            _write_json_field(
+            write_json_field(
                 stream, "token_limit_usage", summary.token_limit_usage, comma=True
             )
-            _write_json_field(
-                stream, "message_limit", summary.message_limit, comma=True
-            )
-            _write_json_field(stream, "time_limit", summary.time_limit, comma=True)
-            _write_json_field(stream, "started_at", summary.started_at, comma=True)
-            _write_json_field(stream, "completed_at", summary.completed_at, comma=True)
-            _write_json_field(stream, "total_time", summary.total_time, comma=True)
-            _write_json_field(stream, "working_time", summary.working_time, comma=True)
-            _write_json_field(stream, "uuid", summary.uuid, comma=True)
+            write_json_field(stream, "message_limit", summary.message_limit, comma=True)
+            write_json_field(stream, "time_limit", summary.time_limit, comma=True)
+            write_json_field(stream, "started_at", summary.started_at, comma=True)
+            write_json_field(stream, "completed_at", summary.completed_at, comma=True)
+            write_json_field(stream, "total_time", summary.total_time, comma=True)
+            write_json_field(stream, "working_time", summary.working_time, comma=True)
+            write_json_field(stream, "uuid", summary.uuid, comma=True)
 
             # Not reconstructable from buffer -- emit nulls.
-            _write_json_field(stream, "timelines", None, comma=True)
-            _write_json_field(stream, "invalidation", None, comma=True)
+            write_json_field(stream, "timelines", None, comma=True)
+            write_json_field(stream, "invalidation", None, comma=True)
 
-            _write_json_field(stream, "error", error, comma=True)
-            _write_json_field(stream, "error_retries", None, comma=True)
-            _write_json_field(stream, "limit", limit_value, comma=True)
+            write_json_field(stream, "error", error, comma=True)
+            write_json_field(stream, "error_retries", None, comma=True)
+            write_json_field(stream, "limit", limit_value, comma=True)
 
-            _write_json_field(stream, "input", walked_input, comma=True)
-            _write_json_field(stream, "messages", walked_messages, comma=True)
-            _write_json_field(stream, "output", output, comma=True)
+            write_json_field(stream, "input", walked_input, comma=True)
+            write_json_field(stream, "messages", walked_messages, comma=True)
+            write_json_field(stream, "output", output, comma=True)
             write_attachments_field(stream, attachments, comma=True)
 
             # Always emit events_data (null when pools empty / no events).
             events_data: EventsData | None = None
             if include_events and (message_pool or call_pool):
                 events_data = EventsData(messages=message_pool, calls=call_pool)
-            _write_json_field(stream, "events_data", events_data, comma=True)
+            write_json_field(stream, "events_data", events_data, comma=True)
 
             stream.write(b"}")
     finally:
