@@ -43,12 +43,11 @@ if sys.version_info < (3, 11):
 from shortuuid import uuid
 from typing_extensions import Unpack
 
-from inspect_ai._cli.util import parse_cli_args
 from inspect_ai._display.core.active import active_display as active_task_display
 from inspect_ai._display.core.active import display as task_display
 from inspect_ai._eval.task.scan import Scanners, scan_context
 from inspect_ai._util.asyncfiles import with_async_fs
-from inspect_ai._util.config import resolve_args
+from inspect_ai._util.config import parse_cli_args, resolve_args
 from inspect_ai._util.constants import (
     DEFAULT_EPOCHS,
     DEFAULT_LOG_FORMAT,
@@ -208,7 +207,7 @@ def eval(
             `Task(checkpoint=False)`, which overrides this enable for that
             task only.
         acp_server: Expose this eval over an Agent Client Protocol server.
-            `True` enables a default AF_UNIX socket at `<inspect_data_dir>/acp/<run_id>.sock`;
+            `True` enables a default AF_UNIX socket at `<inspect_data_dir>/acp/<pid>.sock`;
             an integer binds a TCP loopback port; a string is taken as a custom
             UNIX socket path; `None` (default) does not start an ACP server.
         ctl_server: Control-channel server for this eval process.
@@ -488,7 +487,7 @@ async def eval_async(
         sandbox_prebuilt: Treat sandbox images as prebuilt, skipping builds and failing at task startup when an image is missing (defaults to False)
         checkpoint: Checkpoint configuration for this eval, or `True` to enable checkpointing with the default trigger (every 500k tokens), equivalent to the bare `--checkpoint` CLI flag. Overrides any task- or sample-level `checkpoint` when set.
         acp_server: Expose this eval over an Agent Client Protocol server.
-            `True` enables a default AF_UNIX socket at `<inspect_data_dir>/acp/<run_id>.sock`;
+            `True` enables a default AF_UNIX socket at `<inspect_data_dir>/acp/<pid>.sock`;
             an integer binds a TCP loopback port; a string is taken as a custom
             UNIX socket path; `None` (default) does not start an ACP server.
         ctl_server: Control-channel server for this eval process.

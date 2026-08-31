@@ -1019,6 +1019,28 @@ async def test_report_stream_part_delta_other_parts_report_nothing() -> None:
     assert await _collect_part_deltas(Part(text="", thought=True)) == []
 
 
+async def test_report_stream_part_delta_gated_without_on_stream(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Without an on_stream consumer no delta is constructed or reported.
+
+    Explicit streaming=true callers stream without asking for stream events,
+    so delta construction (on_stream support code) must not run for them.
+    """
+    import inspect_ai.model._providers.google as google_module
+
+    async def fail(delta: object) -> None:
+        raise AssertionError("delta reported without an on_stream consumer")
+
+    monkeypatch.setattr(google_module, "report_model_stream_delta", fail)
+    observer = ModelStreamObserver(model="google/test", on_stream=None)
+    with model_stream_observer(observer):
+        await _report_stream_part_delta(Part(text="hello"))
+        await _report_stream_part_delta(
+            Part(function_call=FunctionCall(id="c1", name="add", args={"x": 1}))
+        )
+
+
 @skip_if_no_google
 def test_google_streaming_basic():
     """Test basic streaming with simple prompt."""
