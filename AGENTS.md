@@ -49,8 +49,9 @@ If you do open a PR: reference the accepted issue (`Fixes #NNN`); run
 changes, run at least one code review pass in a fresh context on a strong
 (frontier-class) model (see "Authoring pull requests" below); disclose
 agent involvement in the PR description; one issue per PR — no bundled
-drive-by changes; respect the open-PR limit (4 per account without write
-access).
+drive-by changes; respect the open-PR limit (5 per account without write
+access, drafts included — enforced automatically; a PR over the limit is
+closed and can be reopened once the account is back under it).
 
 As part of disclosing agent involvement, include an `### Agent review`
 section in the PR description. What to disclose, and how it's read:
