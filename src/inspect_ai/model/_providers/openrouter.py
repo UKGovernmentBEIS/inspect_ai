@@ -31,8 +31,16 @@ from inspect_ai.tool._tool_info import ToolInfo
 
 from .._generate_config import GenerateConfig
 from .openai_compatible import OpenAICompatibleAPI
+from .util import sample_cache_affinity_key
 
 OPENROUTER_API_KEY = "OPENROUTER_API_KEY"
+
+# OpenRouter routes a session back to the provider that served it, keeping that
+# provider's prompt cache warm. Without an id it derives the sticky key by
+# hashing the opening messages; supplying one also makes routing sticky from the
+# first request rather than from the first observed cache hit.
+# https://openrouter.ai/docs/guides/best-practices/prompt-caching
+SESSION_ID_HEADER = "x-session-id"
 
 logger = getLogger(__name__)
 
@@ -361,6 +369,11 @@ class OpenRouterAPI(OpenAICompatibleAPI):
             or ":thinking" in self.model_name
         )
         return super().auto_streamable(config) and not reasoning_requested
+
+    @override
+    def request_headers(self, config: GenerateConfig) -> dict[str, str]:
+        session_id = sample_cache_affinity_key()
+        return {SESSION_ID_HEADER: session_id} if session_id else {}
 
     @override
     def completion_params(self, config: GenerateConfig, tools: bool) -> dict[str, Any]:

@@ -144,3 +144,76 @@ def test_base_64_data_error_includes_value() -> None:
         base_64_data(Path("/tmp/image.png"))
     assert "/tmp/image.png" in str(exc_info.value)
     assert "{data}" not in str(exc_info.value)
+
+
+def test_anthropic_usage_forwards_thinking_tokens() -> None:
+    """Bridge clients read thinking tokens from usage.output_tokens_details.
+
+    Extended-thinking clients size and meter reasoning off this field, so
+    dropping it makes a thinking response indistinguishable from a plain one.
+    """
+    from inspect_ai.agent._bridge.anthropic_api_impl import anthropic_usage
+    from inspect_ai.model._model_output import ModelUsage
+
+    usage = anthropic_usage(
+        ModelUsage(
+            input_tokens=100,
+            output_tokens=500,
+            total_tokens=600,
+            reasoning_tokens=412,
+        )
+    )
+
+    assert usage.output_tokens_details is not None
+    assert usage.output_tokens_details.thinking_tokens == 412
+    # breakout of output_tokens, not added on top
+    assert usage.output_tokens == 500
+
+
+def test_anthropic_usage_omits_thinking_tokens_when_absent() -> None:
+    """No reasoning means no thinking-token detail rather than a bogus zero."""
+    from inspect_ai.agent._bridge.anthropic_api_impl import anthropic_usage
+    from inspect_ai.model._model_output import ModelUsage
+
+    usage = anthropic_usage(ModelUsage(input_tokens=10, output_tokens=20))
+
+    assert usage.output_tokens_details is None
+
+
+def test_anthropic_usage_forwards_thinking_tokens_beta() -> None:
+    """Beta bridge clients also read thinking tokens from output_tokens_details.
+
+    Mirrors test_anthropic_usage_forwards_thinking_tokens for the beta=True
+    path, which must return BetaUsage carrying a BetaOutputTokensDetails.
+    """
+    from anthropic.types.beta import BetaOutputTokensDetails, BetaUsage
+
+    from inspect_ai.agent._bridge.anthropic_api_impl import anthropic_usage
+    from inspect_ai.model._model_output import ModelUsage
+
+    usage = anthropic_usage(
+        ModelUsage(
+            input_tokens=100,
+            output_tokens=500,
+            total_tokens=600,
+            reasoning_tokens=412,
+        ),
+        beta=True,
+    )
+
+    assert isinstance(usage, BetaUsage)
+    assert usage.output_tokens_details is not None
+    assert isinstance(usage.output_tokens_details, BetaOutputTokensDetails)
+    assert usage.output_tokens_details.thinking_tokens == 412
+    # breakout of output_tokens, not added on top
+    assert usage.output_tokens == 500
+
+
+def test_anthropic_usage_omits_thinking_tokens_when_absent_beta() -> None:
+    """No reasoning means no thinking-token detail rather than a bogus zero."""
+    from inspect_ai.agent._bridge.anthropic_api_impl import anthropic_usage
+    from inspect_ai.model._model_output import ModelUsage
+
+    usage = anthropic_usage(ModelUsage(input_tokens=10, output_tokens=20), beta=True)
+
+    assert usage.output_tokens_details is None
