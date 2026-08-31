@@ -1071,18 +1071,30 @@ def test_message_refs_cache_bucket_is_bounded() -> None:
 def test_message_refs_cache_staleness_on_in_place_mutation_is_accepted() -> None:
     """In-place content mutation without an id refresh returns stale refs.
 
-    By design (identity hit), and safe by direction rather than id
-    discipline: refs are minted only inside walk_chat_message, which copies,
-    so a live message never gains one. The reachable case is a ref the
-    mutation dropped staying counted — over-retention, never loss.
+    By design (identity hit). Both directions are pinned, but only the first
+    is reachable: a mutation that *drops* a ref leaves it counted
+    (over-retention). A mutation that *adds* one would go uncounted and lose
+    the content, but no first-party mutator can produce it — refs are minted
+    only inside walk_chat_message, which copies, and the one in-place
+    rewrite that could introduce arbitrary content (``model_input``
+    handlers) refreshes the id.
     """
     tr = Transcript(bounded=True, resident_tail=10, log_model_api=True)
-    msg = ChatMessageUser(content="original content " * 10)
+    dropped = ChatMessageUser(content="attachment://stale")
     event = _model_event_with_call_payload("event-1", ATTACHABLE)
-    event.input = [msg]
+    event.input = [dropped]
     tr._event(event)
-    msg.content = "attachment://ghost"  # in-place, id unchanged
+    assert "stale" in tr._attachment_refs_counter.counts
+    dropped.content = "no refs any more"  # in-place, id unchanged
     tr._event_updated(event)
+    assert "stale" in tr._attachment_refs_counter.counts  # over-retained
+
+    added = ChatMessageUser(content="original content " * 10)
+    other = _model_event_with_call_payload("event-2", ATTACHABLE)
+    other.input = [added]
+    tr._event(other)
+    added.content = "attachment://ghost"  # no first-party mutator does this
+    tr._event_updated(other)
     assert (
         "ghost" not in tr._attachment_refs_counter.counts
     )  # stale memo: ref not counted
