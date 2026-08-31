@@ -4,6 +4,7 @@
 - Eval Set: An external runner driving `eval_set()` can now override any argument that does not change task identity, rather than only five.
 - Eval Set: An eval set driven by an external runner now honors the `INSPECT_EVAL_*` environment variables with the same meanings `inspect eval-set` gives them.
 - Control Channel: `inspect ctl config --max-samples` now works for tasks using adaptive connections — an integer pins sample concurrency, and `clear` resumes adaptive tracking.
+- Eval logs: Header-only `.eval` log uploads to S3 now appear in `inspect trace` output.
 
 ## 0.3.261 (30 August 2026)
 
@@ -20,7 +21,6 @@
 - Tools: Tools can declare their own output limit with `@tool(max_output=...)`, overriding `max_tool_output` (`0` disables truncation for that tool).
 - Model streaming: stream-event handling — including live partial-output snapshots in inspect view — now runs only when `on_stream` is passed, so it can no longer fail model calls that stream without a callback.
 - Eval logs: Users can chain conditional S3 writes using the ETag returned by `write_eval_log()` and `write_eval_log_async()`.
-- Eval logs: Header-only `.eval` log uploads to S3 now appear in `inspect trace` output.
 - Breaking (tests only) Sandboxes: `inspect_ai.util._sandbox.self_check` is now a collection of plain pytest tests. See docstring for migration instructions.
 - Eval Set: A worker running a selection now binds an ACP server, so a human approval or `ask_user()` in a detached worker parks for someone to attach (`inspect acp --server <socket>`) rather than erroring on a console that isn't there.
 - Control Channel: A sample waiting on a person now reports an `activity` of `approval` (naming the tool being decided) or `question`, where it previously showed nothing at all — an approval is awaited before its tool call is recorded, so the wait left no trace and the sample read as idle.
