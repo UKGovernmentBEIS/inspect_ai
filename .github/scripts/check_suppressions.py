@@ -108,25 +108,24 @@ def _split_codes(codes: str) -> list[str]:
     return [c for c in re.split(r"[,\s]+", codes) if c]
 
 
-def _rules(m: re.Match[str]) -> list[str]:
-    """Ledger rule keys for one directive match (one per code).
+def _noqa_rules(colon: str | None, codes: str | None) -> list[str]:
+    """Rule keys for one noqa directive.
 
-    A matched noqa colon with no parseable code list yields no rules: ruff
-    rejects the whole directive as invalid and suppresses nothing (verified
-    against the pinned ruff, line-level and file-level alike) — see the
-    DIRECTIVE_RE comment for which colons match.
+    None for a colon with no parseable code list — an invalid directive,
+    see the DIRECTIVE_RE comment.
     """
+    if colon and not codes:
+        return []
+    return [f"noqa:{c}" for c in _split_codes(codes)] if codes else ["noqa"]
+
+
+def _rules(m: re.Match[str]) -> list[str]:
+    """Ledger rule keys for one directive match (one per code)."""
     if m.group("file_noqa"):
-        codes = m.group("file_noqa_codes")
-        if m.group("file_noqa_colon") and not codes:
-            return []
-        prefixed = [f"noqa:{c}" for c in _split_codes(codes)] if codes else ["noqa"]
-        return [rule + FILE_WIDE for rule in prefixed]
+        rules = _noqa_rules(m.group("file_noqa_colon"), m.group("file_noqa_codes"))
+        return [rule + FILE_WIDE for rule in rules]
     if m.group("noqa"):
-        codes = m.group("noqa_codes")
-        if m.group("noqa_colon") and not codes:
-            return []
-        return [f"noqa:{c}" for c in _split_codes(codes)] if codes else ["noqa"]
+        return _noqa_rules(m.group("noqa_colon"), m.group("noqa_codes"))
     if m.group("type_ignore"):
         codes = m.group("type_codes")
         if codes:

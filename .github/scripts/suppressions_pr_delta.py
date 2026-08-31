@@ -47,7 +47,7 @@ def _load(path: str) -> Ledger | None:
     file; RecursionError is json.loads on pathologically deep nesting.
     """
     try:
-        data = json.loads(Path(path).read_text())
+        data = json.loads(Path(path).read_text(encoding="utf-8"))
     except (OSError, ValueError, RecursionError):
         return None
     return data if _is_ledger(data) else None
