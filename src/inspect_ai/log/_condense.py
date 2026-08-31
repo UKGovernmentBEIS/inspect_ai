@@ -84,16 +84,15 @@ class WalkContext(TypedDict):
 
     The entry holds the live pre-walk object, so a message mutated in
     place after being walked identity-hits and resolves to its stale
-    first-walked form (consistent with ``event/_pool_index.py``). What
-    keeps that unreachable is that a context only ever sees messages its
-    own walk owns: ``condense_sample`` / ``resolve_*_attachments`` / the
-    chunked converter / ``_transcript_store`` build a context, walk, and
-    drop it with nothing else running in between, and log recovery holds
-    its contexts across an async segment loop but walks only messages it
-    deserialized itself. ``Transcript`` holds one context for a whole
-    sample, but it reaches ``CallWalkCache.condense`` only, which walks
-    the JSON call payload — never a ``ChatMessage`` — so that cache stays
-    empty.
+    first-walked form (consistent with ``event/_pool_index.py``).
+    Staleness needs a mutation to land between two walks sharing one
+    context, so the rule for callers is that a context must not outlive
+    the walk that built it: build it, walk, drop it, with nothing else
+    running in between. The two contexts that do outlive a single walk
+    are safe for their own reasons — log recovery walks only messages it
+    deserialized itself, and ``Transcript``'s per-sample context reaches
+    ``CallWalkCache.condense`` only, which walks the JSON call payload
+    and never a ``ChatMessage``, so its message cache stays empty.
 
     Entries are only valid for one content function — never share a
     context across walks with different content functions.
