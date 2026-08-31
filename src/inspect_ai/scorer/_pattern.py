@@ -56,12 +56,11 @@ def match_all_groups(
 def pattern(pattern: str, ignore_case: bool = True, match_all: bool = False) -> Scorer:
     """Scorer which extracts the model answer using a regex.
 
-    Note that at least one regex group is required to match
-    against the target.
-
     The regex can have a single capture group or multiple groups.
     In the case of multiple groups, the scorer can be configured
-    to match either one or all of the extracted groups
+    to match either one or all of the extracted groups. If the
+    pattern contains no capture groups, the full match is compared
+    against the target.
 
     Args:
        pattern: Regular expression for extracting the
@@ -79,7 +78,7 @@ def pattern(pattern: str, ignore_case: bool = True, match_all: bool = False) -> 
         )
 
         if match:
-            groups = match.groups()
+            groups = match.groups() or (match.group(0),)
             if match_all:
                 found_match = match_all_groups(
                     matches=groups, target=target, ignore_case=ignore_case
