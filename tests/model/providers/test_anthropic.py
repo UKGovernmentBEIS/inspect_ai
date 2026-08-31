@@ -2192,6 +2192,9 @@ async def test_reasoning_tokens_use_reported_thinking_tokens() -> None:
 
     assert output.usage is not None
     assert output.usage.reasoning_tokens == 412
+    # subset, not additive: output already includes thinking; total = in + out
+    assert output.usage.output_tokens == 500
+    assert output.usage.total_tokens == 510
 
 
 @pytest.mark.anyio

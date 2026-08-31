@@ -166,6 +166,8 @@ def test_anthropic_usage_forwards_thinking_tokens() -> None:
 
     assert usage.output_tokens_details is not None
     assert usage.output_tokens_details.thinking_tokens == 412
+    # breakout of output_tokens, not added on top
+    assert usage.output_tokens == 500
 
 
 def test_anthropic_usage_omits_thinking_tokens_when_absent() -> None:
@@ -203,6 +205,8 @@ def test_anthropic_usage_forwards_thinking_tokens_beta() -> None:
     assert usage.output_tokens_details is not None
     assert isinstance(usage.output_tokens_details, BetaOutputTokensDetails)
     assert usage.output_tokens_details.thinking_tokens == 412
+    # breakout of output_tokens, not added on top
+    assert usage.output_tokens == 500
 
 
 def test_anthropic_usage_omits_thinking_tokens_when_absent_beta() -> None:
