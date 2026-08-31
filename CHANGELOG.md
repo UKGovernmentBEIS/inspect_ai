@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Analysis: Fixed `task_info()` and `log_viewer()` raising `ValueError` when applied to an empty DataFrame. (#4826)
 - Eval Set: `eval_set()` now defaults `log_dir` to `INSPECT_LOG_DIR` or `./logs`, as `eval()` does, rather than requiring it.
 - Eval Set: An external runner driving `eval_set()` can now override any argument that does not change task identity, rather than only five.
 - Eval Set: An eval set driven by an external runner now honors the `INSPECT_EVAL_*` environment variables with the same meanings `inspect eval-set` gives them.
@@ -104,6 +105,7 @@
 - Eval Log: Flushing buffered samples to an `.eval` log now yields between samples, so a large flush no longer stalls in-flight samples and control-channel requests for the whole batch.
 - ACP: Emit an `inspect/turn_state` extension notification (`started` / `ended` / `cancelled`) from the agent turn boundary so ACP clients have an exact "agent working" signal.
 - Inspect CTL: Terminal escape sequences and control characters in agent-generated text are now sanitized in `inspect ctl` human-readable output, preventing spoofing of the operator's terminal.
+- DeepSeek: structured output (`response_schema`) no longer fails with a 400 — it now uses DeepSeek's JSON mode, warning that the schema must be described in the prompt.
 - Control Channel: New `--now` flag on `inspect ctl task|model|process pause` additionally holds in-flight samples at their next model call until resume, with held-sample counts reported in `inspect ctl task list`.
 - Control Channel: `inspect ctl config` no longer version-gates individual knobs — current eval processes reject unsupported knobs atomically server-side, and only processes predating strict config validation are refused as a whole.
 - Fixed sandbox tools (`text_editor`, `bash_session`) failing to install in non-root sandboxes (e.g. Kubernetes pods with `runAsNonRoot`).
