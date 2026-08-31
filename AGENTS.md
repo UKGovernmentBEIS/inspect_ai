@@ -8,30 +8,28 @@ These rules are mandatory for AI coding agents (Claude Code, Codex, Cursor,
 Devin, and similar) preparing contributions. Human contributors: see
 [CONTRIBUTING.md](CONTRIBUTING.md). A deterministic gate enforces them.
 
-1. **Tier check.** Does the account you are operating for have at least one
-   merged non-trivial PR in this repository (trivial documentation fixes do
-   not count)? If not, a PR requires a linked issue labeled `accepted`.
-   Without one, your PR will be closed automatically. Do not open it.
-2. **Self-filed issues need acceptance.** An issue filed by the same account
-   the PR comes from does not by itself establish demand. Unless the account
-   is a qualified contributor (recorded in `.github/qualified.yml`), a
-   non-trivial PR addressing a self-filed issue requires that issue to be
-   labeled `accepted` by a maintainer first — whatever the account's tier.
-   If it isn't labeled yet: file your evidence on the issue and stop; open
-   the PR only after a maintainer accepts it.
-3. **Deferred check.** Is the issue you are addressing labeled `deferred`?
+1. **Accepted-issue check.** Is the account you are operating for on the
+   qualified roster (recorded by account id in `.github/qualified.yml`)? If
+   not, every non-trivial PR requires a linked issue labeled `accepted` by a
+   maintainer. This applies regardless of the account's merged-PR history and
+   regardless of who filed the issue — an issue filed by the same account the
+   PR comes from is fine once a maintainer accepts it, and an issue filed by
+   anyone else still needs the label. Without an accepted linked issue, your
+   PR will be closed automatically. Do not open it: file your evidence on an
+   issue and stop; open the PR only after a maintainer accepts the issue.
+2. **Deferred check.** Is the issue you are addressing labeled `deferred`?
    The project has decided not to prioritize it. Do not open a PR against it
-   (it will be closed automatically, whatever your account's tier). If you
-   have new evidence or demand, comment on the issue and stop.
-4. **Duplicate check.** Search open PRs (and the linked issue's existing
+   (it will be closed automatically). If you have new evidence or demand,
+   comment on the issue and stop.
+3. **Duplicate check.** Search open PRs (and the linked issue's existing
    PRs) for work addressing the same problem. If a PR already exists, do not
    open a competing one — review it or comment there instead. If you believe
    your approach is materially better, make that case in a comment on the
    existing PR and wait for a maintainer's direction; if invited to proceed,
    link the two PRs in your description.
-5. **Trivial-fix exception.** Documentation-only fixes (typo, broken link;
+4. **Trivial-fix exception.** Documentation-only fixes (typo, broken link;
    docs files only, under 25 changed lines) may be opened directly by anyone.
-6. **New functionality defaults to an extension, not core.** Do not open
+5. **New functionality defaults to an extension, not core.** Do not open
    unrequested PRs adding functionality — providers, tools, scorers, metrics,
    solvers, storage backends, example evals. Some of these do belong in core,
    but that is a maintainer decision made in an issue: if an accepted issue
@@ -39,7 +37,7 @@ Devin, and similar) preparing contributions. Human contributors: see
    extension package (see https://inspect.aisi.org.uk/extensions.html),
    optionally with a one-line PR adding it to the extensions listing.
    Unrequested additions to core are closed without detailed review.
-7. **Value re-evaluation.** Before opening any PR, objectively re-assess it:
+6. **Value re-evaluation.** Before opening any PR, objectively re-assess it:
    does it fix a demonstrated problem, with evidence (a reproduction or a
    failing test)? If the need is speculative or the fix unverified, do not
    proceed. File an issue with your evidence instead.
@@ -49,9 +47,7 @@ If you do open a PR: reference the accepted issue (`Fixes #NNN`); run
 changes, run at least one code review pass in a fresh context on a strong
 (frontier-class) model (see "Authoring pull requests" below); disclose
 agent involvement in the PR description; one issue per PR — no bundled
-drive-by changes; respect the open-PR limit (5 per account without write
-access, drafts included — enforced automatically; a PR over the limit is
-closed and can be reopened once the account is back under it).
+drive-by changes.
 
 As part of disclosing agent involvement, include an `### Agent review`
 section in the PR description. What to disclose, and how it's read:
