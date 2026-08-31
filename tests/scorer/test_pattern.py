@@ -162,3 +162,27 @@ async def test_pattern_no_capture_groups():
 
     assert result.text == CORRECT
     assert result.answer == "42"
+
+
+@pytest.mark.anyio
+async def test_pattern_no_capture_groups_non_matching_target():
+    # No-groups fallback with a non-matching target: INCORRECT, with the
+    # extracted full match reported as the answer.
+    scorer = pattern(r"\d+")
+    state = simple_task_state(model_output="The answer is 42")
+    result = await scorer(state, Target(["43"]))
+
+    assert result.text == INCORRECT
+    assert result.answer == "42"
+
+
+@pytest.mark.anyio
+async def test_pattern_no_capture_groups_match_all():
+    # match_all=True with a no-groups pattern reduces to the single
+    # full-match comparison.
+    scorer = pattern(r"\d+", match_all=True)
+    state = simple_task_state(model_output="The answer is 42")
+    result = await scorer(state, Target(["42"]))
+
+    assert result.text == CORRECT
+    assert result.answer == "42"
