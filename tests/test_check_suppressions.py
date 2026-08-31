@@ -7,6 +7,7 @@ so this file adds nothing to the ledger.
 """
 
 import importlib.util
+import json
 import pathlib
 import subprocess
 import sys
@@ -66,6 +67,27 @@ def test_noqa_case_insensitive() -> None:
 
 def test_noqa_prefix_of_word_ignored() -> None:
     assert scan("x = 1  # noqable\n") == []
+
+
+def test_noqa_invalid_code_list_is_inert() -> None:
+    # A colon with no parseable code list (codes are uppercase) makes the
+    # whole directive invalid: ruff warns and suppresses nothing (verified
+    # against the pinned ruff), so it must not count as a blanket noqa.
+    assert scan("import os  # noqa: f401\n") == []
+    assert scan("import os  # noqa:\n") == []
+
+
+def test_noqa_trailing_junk_after_valid_codes_counts_parsed_codes() -> None:
+    # ruff honors the parsed codes and treats the rest as trailing text
+    # (verified: "noqa: F401, e501" suppresses F401, not E501).
+    assert scan("import os  # noqa: F401, e501\n") == [("noqa:F401", True)]
+
+
+def test_file_wide_noqa_invalid_code_list_is_inert() -> None:
+    # Same invalid-directive rule for the file-level form (verified:
+    # "ruff: noqa: f401" warns and suppresses nothing).
+    assert scan("# ruff: noqa: f401\nimport os\n") == []
+    assert scan("# flake8: noqa:\nimport os\n") == []
 
 
 def test_file_wide_ruff_noqa() -> None:
@@ -486,6 +508,48 @@ def test_delta_escapes_untrusted_table_cell_text() -> None:
     assert body is not None
     assert "<code>a` @team&#124;.py</code>" in body
     assert "<code>r` @team&#124;</code>" in body
+
+
+def test_delta_load_rejects_malformed_and_wrong_shape(
+    tmp_path: pathlib.Path,
+) -> None:
+    # The PR side is author-controlled: anything that isn't ledger-shaped
+    # must load as None (reported), never crash render downstream.
+    for content in (
+        "not json",
+        "[]",
+        '"x"',
+        '{"a.py": "r"}',
+        '{"a.py": {"r": []}}',
+        '{"a.py": {"r": {}}}',
+        '{"a.py": {"r": {"count": "9"}}}',
+        '{"a.py": {"r": {"count": 1, "undescribed": "x"}}}',
+    ):
+        path = tmp_path / "ledger.json"
+        path.write_text(content)
+        assert delta._load(str(path)) is None, content
+
+
+def test_delta_load_accepts_valid_ledgers(tmp_path: pathlib.Path) -> None:
+    for content in (
+        "{}",
+        '{"a.py": {}}',
+        '{"a.py": {"r": {"count": 1}}}',
+        '{"a.py": {"r": {"count": 2, "undescribed": 1}}}',
+    ):
+        path = tmp_path / "ledger.json"
+        path.write_text(content)
+        assert delta._load(str(path)) == json.loads(content), content
+
+
+def test_delta_body_reports_malformed_ledger_instead_of_diffing() -> None:
+    body = delta.body_for({}, None)
+    assert body is not None
+    assert body.startswith(delta.MARKER)
+    assert "PR's `suppressions.json`" in body
+    base_side = delta.body_for(None, {})
+    assert base_side is not None
+    assert "base branch's `suppressions.json`" in base_side
 
 
 # --- CLI: bootstrap, ratchet refusal, and --allow-growth (throwaway git repo) ---

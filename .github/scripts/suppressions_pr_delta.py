@@ -19,12 +19,34 @@ from check_suppressions import Delta, Ledger, diff_ledgers, totals
 MARKER = "<!-- suppressions-delta -->"
 
 
-def _load(path: str) -> Ledger:
+def _is_ledger(data: object) -> bool:
+    """Whether data has the shape flatten/totals rely on (see Ledger)."""
+    return isinstance(data, dict) and all(
+        isinstance(rules, dict)
+        and all(
+            isinstance(tally, dict)
+            and isinstance(tally.get("count"), int)
+            and isinstance(tally.get("undescribed", 0), int)
+            for tally in rules.values()
+        )
+        for rules in data.values()
+    )
+
+
+def _load(path: str) -> Ledger | None:
+    """The ledger at path, or None when unreadable or not ledger-shaped.
+
+    The PR side is author-controlled data, so a broken ledger must degrade
+    into a reportable value rather than crash the comment job.
+    """
     try:
-        ledger: Ledger = json.loads(Path(path).read_text())
-        return ledger
+        data = json.loads(Path(path).read_text())
     except (OSError, json.JSONDecodeError):
-        return {}
+        return None
+    if not _is_ledger(data):
+        return None
+    ledger: Ledger = data
+    return ledger
 
 
 def _cell(value: str) -> str:
@@ -100,9 +122,26 @@ def render(base: Ledger, head: Ledger) -> str | None:
     )
 
 
+def body_for(base: Ledger | None, head: Ledger | None) -> str | None:
+    """The comment body for the two loaded ledgers (None = malformed).
+
+    A malformed ledger is reported rather than treated as empty: an
+    empty-ledger stand-in would render a false "all suppressions removed"
+    delta for the reviewer to approve.
+    """
+    if base is None or head is None:
+        which = "base branch's" if base is None else "PR's"
+        return (
+            f"{MARKER}\n⚠️ The {which} `suppressions.json` is not a valid "
+            "suppression ledger, so the delta cannot be computed. "
+            "Regenerate it with `make suppressions-update`."
+        )
+    return render(base, head)
+
+
 def main() -> int:
     base_path, head_path = sys.argv[1:3]
-    body = render(_load(base_path), _load(head_path))
+    body = body_for(_load(base_path), _load(head_path))
     if body is not None:
         print(body)
     return 0
