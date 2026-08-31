@@ -2834,6 +2834,21 @@ async def _task_run_sample_attempt(
                                 logger.buffer_db is None
                                 or not sample_transcript.history.resident_events_truncated
                             )
+                            # the log_from_memory disjunct is inert for
+                            # behavior (log_sample never reads
+                            # materialize_full_sample on the from-memory
+                            # path) but upholds the documented invariant
+                            # that from_memory=True is always paired with
+                            # materialize_full_sample=True
+                            materialize_full_sample = (
+                                log_from_memory
+                                or _finalization_consumes_events(
+                                    scanning=scanner is not None
+                                    and scan_id is not None,
+                                    sample_feed=sample_feed,
+                                    task_source=task_source,
+                                )
+                            )
                             eval_sample = await log_sample(
                                 eval_sample=make_eval_sample(
                                     include_events=log_from_memory
@@ -2841,6 +2856,7 @@ async def _task_run_sample_attempt(
                                 logger=logger,
                                 log_images=log_images,
                                 from_memory=log_from_memory,
+                                materialize_full_sample=materialize_full_sample,
                             )
                         else:
                             eval_sample = make_eval_sample()
@@ -3041,18 +3057,67 @@ def create_eval_sample(
     )
 
 
+def _finalization_consumes_events(
+    *,
+    scanning: bool,
+    sample_feed: SampleSource | None,
+    task_source: TaskSource | None,
+) -> bool:
+    """Whether any finalization consumer reads the sample's event history.
+
+    On the bounded-evicted path the full event history is re-materialized
+    from the buffer only if some consumer actually reads it. Consumers are
+    the scanner, a sample-feed / task-source completion callback, and any
+    enabled hook that hasn't opted out via ``Hooks.needs_full_sample()``.
+    Hooks are snapshotted here, at finalization start, not at the later
+    ``on_sample_end`` dispatch: a hook that enables itself in that window
+    would still receive the reduced sample. Accepted — hook
+    registration/enablement is a startup-time activity, not something
+    toggled mid-finalization.
+    """
+    from inspect_ai.hooks._hooks import any_hook_needs_full_sample
+
+    return (
+        scanning
+        or sample_feed is not None
+        or task_source is not None
+        or any_hook_needs_full_sample()
+    )
+
+
 async def log_sample(
     eval_sample: EvalSample,
     logger: TaskLogger,
     log_images: bool,
     *,
     from_memory: bool,
+    materialize_full_sample: bool,
 ) -> EvalSample:
-    # No realtime buffer DB, or the full history is still resident in memory:
-    # log directly from the in-memory sample (which carries its events). This
-    # avoids the open_sample_history -> materialize_streaming_sample round-trip
-    # (read every event back out of SQLite + re-validate). `complete_sample`
-    # still finalizes the buffer DB via `_finalize_sample`, so when a realtime
+    """Log a completed sample, returning the sample finalization consumers see.
+
+    Args:
+        eval_sample: The completed sample. Carries its full event history
+            when ``from_memory`` is True, empty events otherwise.
+        logger: Task logger to record the sample with.
+        log_images: Whether to retain base64 images in the log.
+        from_memory: True when the full event history is resident in memory
+            (no realtime buffer DB, or the transcript was never
+            bounded-evicted), so the sample is logged directly rather than
+            streamed back from the buffer.
+        materialize_full_sample: On the buffer read-back path, whether some
+            finalization consumer reads the returned sample's event history;
+            when False the returned sample is reduced (empty events and
+            attachments, timelines ``None``) instead of re-materialized.
+            ``from_memory=True``
+            with ``materialize_full_sample=False`` is a meaningless
+            combination — the from-memory path returns before
+            ``materialize_full_sample`` is read — so callers must pair
+            ``from_memory=True`` with ``materialize_full_sample=True``.
+    """
+    # Logging directly from the in-memory sample avoids the
+    # open_sample_history -> materialize_streaming_sample round-trip (read
+    # every event back out of SQLite + re-validate). `complete_sample` still
+    # finalizes the buffer DB via `_finalize_sample`, so when a realtime
     # buffer exists it stays consistent for live viewing.
     if logger.buffer_db is None or from_memory:
         await logger.complete_sample(
@@ -3070,7 +3135,24 @@ async def log_sample(
     with logger.buffer_db.open_sample_history(
         eval_sample.id, eval_sample.epoch
     ) as sample_history:
-        materialized_sample = materialize_streaming_sample(eval_sample, sample_history)
+        # eval_sample carries full attachments even though its events are
+        # empty on this path: checkpoint-restored attachment content can
+        # live only in the transcript dict, not the buffer history, so it
+        # must seed both the written log and materialize_streaming_sample's
+        # merge. The materialize_full_sample=False branch empties
+        # attachments and timelines too (TimelineEvent holds real Event
+        # refs, which would otherwise hand back the event tree the
+        # reduction withholds), so an opted-out consumer
+        # (Hooks.needs_full_sample()) gets the fully reduced sample;
+        # consumers that read them force materialize_full_sample=True at
+        # the call site, so nothing that reads them can observe the
+        # reduced sample. logging_sample was derived above, before this
+        # branch, so the written log keeps its timelines either way.
+        materialized_sample = (
+            materialize_streaming_sample(eval_sample, sample_history)
+            if materialize_full_sample
+            else eval_sample.model_copy(update={"attachments": {}, "timelines": None})
+        )
         await logger.complete_sample_streaming(
             logging_sample, sample_history, flush=True
         )

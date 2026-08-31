@@ -1,8 +1,11 @@
-from typing import Generator, Type, TypeVar
+from contextlib import contextmanager
+from pathlib import Path
+from typing import Any, Generator, Type, TypeVar
 from unittest.mock import patch
 
 import pytest
 
+import inspect_ai.hooks._hooks as hooks_module
 import inspect_ai.hooks._startup as hooks_startup_module
 from inspect_ai import eval
 from inspect_ai._eval.task.task import Task
@@ -10,6 +13,7 @@ from inspect_ai._util.environ import environ_var
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.registry import _registry, registry_info, registry_lookup
 from inspect_ai.dataset._dataset import Sample
+from inspect_ai.event import TimelineEvent, timeline_build
 from inspect_ai.hooks._hooks import (
     ApiKeyOverride,
     BeforeModelGenerate,
@@ -26,11 +30,16 @@ from inspect_ai.hooks._hooks import (
     SampleStart,
     TaskEnd,
     TaskStart,
+    any_hook_needs_full_sample,
     has_api_key_override,
     hooks,
     override_api_key,
 )
 from inspect_ai.hooks._startup import init_hooks
+from inspect_ai.log._file import read_eval_log
+from inspect_ai.log._log import EvalSample
+from inspect_ai.log._transcript import transcript
+from inspect_ai.model import ModelOutput, get_model
 from inspect_ai.solver._solver import Generate, Solver, solver
 from inspect_ai.solver._task_state import TaskState
 
@@ -587,9 +596,14 @@ def test_hooks_decorator_returns_class() -> None:
     class TestHooksClass(Hooks):
         pass
 
-    assert isinstance(TestHooksClass, type)
-    instance = TestHooksClass()
-    assert isinstance(instance, Hooks)
+    try:
+        assert isinstance(TestHooksClass, type)
+        instance = TestHooksClass()
+        assert isinstance(instance, Hooks)
+    finally:
+        # Registration is a side effect of the decorator, not under test here;
+        # clean it up so it doesn't leak into other tests via get_all_hooks().
+        del _registry["hooks:test_hooks_class"]
 
 
 def test_required_hooks_when_all_installed(
@@ -694,6 +708,303 @@ def _create_mock_hooks(name: str, hooks_class: Type[T]) -> Generator[T, None, No
     finally:
         # Remove the hook from the registry to avoid conflicts in other tests.
         del _registry[f"hooks:{name}"]
+
+
+@contextmanager
+def _hook_context(name: str, hooks_class: Type[T]) -> Generator[T, None, None]:
+    """`_create_mock_hooks` adapted for use as a `with` block in a test body."""
+    yield from _create_mock_hooks(name, hooks_class)
+
+
+@solver
+def _emitting_solver(n: int = 4) -> Solver:
+    """Emits enough transcript events to exceed a resident_tail of 1."""
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        for i in range(n):
+            transcript().info({"i": i})
+        return state
+
+    return solve
+
+
+@solver
+def _emitting_solver_with_model_response(n: int = 100) -> Solver:
+    """Emits filler events, then a real generate() call.
+
+    With a small resident tail, the filler events are evicted while the
+    trailing model-call events stay resident — the shape needed to exercise
+    a hook opt-out against a model response that's still in memory.
+    """
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        for i in range(n):
+            transcript().info({"i": i})
+        return await generate(state)
+
+    return solve
+
+
+@solver
+def _timeline_adding_solver(n: int = 4) -> Solver:
+    """Emits enough events to exceed a resident_tail of 1, then adds a timeline.
+
+    The timeline wraps the still-resident transcript events, giving the
+    reduced path a `timelines` field whose leaves are real Event objects.
+    """
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        for i in range(n):
+            transcript().info({"i": i})
+        transcript().add_timeline(
+            timeline_build(list(transcript().events), name="test-timeline")
+        )
+        return state
+
+    return solve
+
+
+class _RecordingHook(Hooks):
+    """Needs the full sample (the default) and records each on_sample_end."""
+
+    def __init__(self) -> None:
+        self.samples: list[EvalSample] = []
+
+    async def on_sample_end(self, data: SampleEnd) -> None:
+        self.samples.append(data.sample)
+
+
+class _SummaryOnlyRecordingHook(_RecordingHook):
+    """Opted out of full-sample materialization via needs_full_sample()."""
+
+    def needs_full_sample(self) -> bool:
+        return False
+
+
+def _run_evicted_sample_eval(
+    monkeypatch: pytest.MonkeyPatch, log_dir: str, solve: Solver | None = None
+) -> None:
+    """Run a one-sample eval whose transcript is bounded-evicted.
+
+    Asserts the eviction precondition (the sample was NOT logged from
+    memory): callers assert full-sample materialization, which holds
+    trivially on the resident path, so a silently broken eviction setup
+    (e.g. a renamed INSPECT_TRANSCRIPT_BOUNDED) would otherwise make those
+    tests pass vacuously.
+    """
+    import inspect_ai._eval.task.run as run_module
+
+    monkeypatch.setattr(run_module, "DEFAULT_RESIDENT_TAIL", 1)
+    monkeypatch.setenv("INSPECT_TRANSCRIPT_BOUNDED", "true")
+
+    from_memory_calls: list[bool] = []
+    original_log_sample = run_module.log_sample
+
+    async def spying_log_sample(*args: Any, **kwargs: Any) -> EvalSample:
+        # from_memory is keyword-only, so it is always present in kwargs
+        from_memory_calls.append(kwargs["from_memory"])
+        return await original_log_sample(*args, **kwargs)
+
+    monkeypatch.setattr(run_module, "log_sample", spying_log_sample)
+    eval(
+        Task(dataset=[Sample("sample_1")], solver=[solve or _emitting_solver()]),
+        model="mockllm/model",
+        log_dir=log_dir,
+        display="none",
+    )
+    assert from_memory_calls == [False], (
+        "eviction precondition not met: the sample was logged from memory"
+    )
+
+
+def test_opted_out_hook_receives_event_less_sample_when_evicted(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    isolated_hooks_registry,
+) -> None:
+    """The opted-out hook's sample carries neither raw events nor attachments.
+
+    A >100-char model response inside the resident tail is the shape that
+    catches attachments leaking independently of events: attachments are
+    populated by the (still-resident) model event's condensing, not by the
+    evicted-vs-resident events list itself, so a scenario with no long
+    content can pass `attachments == {}` vacuously.
+
+    `isolated_hooks_registry` keeps the reduction assertion deterministic: an
+    installed extension's entry-point hook (whose `needs_full_sample()`
+    defaults to `True`) would otherwise force full materialization for
+    every hook, this one included.
+    """
+    import inspect_ai._eval.task.run as run_module
+
+    monkeypatch.setattr(run_module, "DEFAULT_RESIDENT_TAIL", 20)
+    monkeypatch.setenv("INSPECT_TRANSCRIPT_BOUNDED", "true")
+    # >100 chars: exceeds the condense threshold, so the response is pooled
+    # as an attachment rather than kept inline
+    long_response = "x" * 150
+
+    with _hook_context("summary_only_hook", _SummaryOnlyRecordingHook) as hook:
+        eval(
+            Task(
+                dataset=[Sample("sample_1")],
+                solver=[_emitting_solver_with_model_response()],
+            ),
+            model=get_model(
+                "mockllm/model",
+                custom_outputs=[
+                    ModelOutput.from_content("mockllm/model", long_response)
+                ],
+            ),
+            log_dir=str(tmp_path),
+            display="none",
+        )
+
+    assert len(hook.samples) == 1
+    sample = hook.samples[0]
+    assert sample.events == [] and sample.attachments == {}
+    # the fields a summary-only consumer actually reads remain intact
+    assert sample.output.completion == long_response
+    assert sample.messages
+    assert sample.total_time is not None
+
+
+def test_opted_out_hook_receives_timeline_less_sample_when_evicted(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    isolated_hooks_registry,
+) -> None:
+    """The opted-out hook's sample carries no timelines, but the log keeps them.
+
+    `TimelineEvent.event` holds real Event objects (shared refs, not
+    copies), so timelines riding through the reduction would hand the hook
+    the full event tree that emptying `events` was meant to withhold — and
+    retaining the sample would pin that memory. The written log must be
+    unaffected: it draws timelines from the same `EvalSample` before the
+    reduction branch, so clearing them any earlier (e.g. in
+    `create_eval_sample`) would silently drop them from the log.
+    """
+    with _hook_context("timeline_summary_only_hook", _SummaryOnlyRecordingHook) as hook:
+        _run_evicted_sample_eval(
+            monkeypatch, str(tmp_path), solve=_timeline_adding_solver()
+        )
+
+    assert len(hook.samples) == 1
+    sample = hook.samples[0]
+    assert sample.events == []
+    assert sample.timelines is None
+
+    log = read_eval_log(str(next(tmp_path.glob("*.eval"))))
+    assert log.samples is not None
+    logged = log.samples[0]
+    assert logged.timelines is not None
+    assert logged.timelines[0].name == "test-timeline"
+    # the timeline's UUID refs rebind to the logged events on read-back
+    logged_event_ids = {event.uuid for event in logged.events}
+    timeline_event_ids = {
+        item.event.uuid
+        for item in logged.timelines[0].root.content
+        if isinstance(item, TimelineEvent)
+    }
+    assert timeline_event_ids and timeline_event_ids <= logged_event_ids
+
+
+def test_default_hook_still_receives_full_sample_when_evicted(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    with _hook_context("full_sample_hook", _RecordingHook) as hook:
+        _run_evicted_sample_eval(monkeypatch, str(tmp_path))
+
+    assert len(hook.samples) == 1
+    assert len(hook.samples[0].events) > 0
+
+
+def test_mixed_hooks_both_receive_full_sample_when_one_needs_it(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """One opted-out + one default hook: needs_full_sample() is a floor, not per-hook.
+
+    `materialize_full_sample` is computed once for the sample from all enabled hooks
+    combined (`any_hook_needs_full_sample()`), and every
+    hook is dispatched the same `SampleEnd.sample` object. So a single
+    full-sample hook forces materialization for everyone on the sample,
+    including hooks that opted out.
+    """
+    with (
+        _hook_context(
+            "mixed_summary_only_hook", _SummaryOnlyRecordingHook
+        ) as summary_hook,
+        _hook_context("mixed_full_sample_hook", _RecordingHook) as full_hook,
+    ):
+        _run_evicted_sample_eval(monkeypatch, str(tmp_path))
+
+    assert len(summary_hook.samples) == 1
+    assert len(full_hook.samples) == 1
+    assert len(summary_hook.samples[0].events) > 0
+    assert summary_hook.samples[0] is full_hook.samples[0]
+
+
+def test_any_hook_needs_full_sample_predicate(isolated_hooks_registry) -> None:
+    """Only hooks that are enabled and haven't opted out count."""
+
+    class OptedOutHook(Hooks):
+        def needs_full_sample(self) -> bool:
+            return False
+
+    class DisabledHook(Hooks):
+        def enabled(self) -> bool:
+            return False
+
+    class FullSampleHook(Hooks):
+        pass
+
+    assert not any_hook_needs_full_sample()
+    with _hook_context("predicate_opted_out_hook", OptedOutHook):
+        assert not any_hook_needs_full_sample()
+        with _hook_context("predicate_disabled_hook", DisabledHook):
+            assert not any_hook_needs_full_sample()
+            with _hook_context("predicate_full_sample_hook", FullSampleHook):
+                assert any_hook_needs_full_sample()
+
+
+class _RaisingEnabledHook(Hooks):
+    def enabled(self) -> bool:
+        raise RuntimeError("enabled() failed")
+
+
+class _RaisingNeedsFullSampleHook(Hooks):
+    def needs_full_sample(self) -> bool:
+        raise RuntimeError("needs_full_sample() failed")
+
+
+@pytest.mark.parametrize(
+    "hook_class",
+    [_RaisingEnabledHook, _RaisingNeedsFullSampleHook],
+    ids=["enabled", "needs_full_sample"],
+)
+def test_any_hook_needs_full_sample_guards_raising_hook(
+    isolated_hooks_registry, hook_class: type[Hooks]
+) -> None:
+    """A raising predicate method is logged and counted as needing the full sample."""
+    with _hook_context("predicate_raising_hook", hook_class):
+        with patch.object(hooks_module.logger, "warning") as warning:
+            assert any_hook_needs_full_sample()
+    assert hook_class.__name__ in str(warning.call_args)
+
+
+def test_opted_out_hook_unaffected_on_non_evicted_path(tmp_path: Path) -> None:
+    with _hook_context(
+        "summary_only_hook_non_evicted", _SummaryOnlyRecordingHook
+    ) as hook:
+        eval(
+            Task(dataset=[Sample("sample_1")]),
+            model="mockllm/model",
+            log_dir=str(tmp_path),
+        )
+
+    assert len(hook.samples) == 1
+    assert len(hook.samples[0].events) > 0
 
 
 @solver
