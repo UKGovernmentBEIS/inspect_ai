@@ -140,7 +140,7 @@ class TaskScoring:
     model: "Model"
     """The task's primary model (the scoring context's active model)."""
 
-    model_roles: "dict[str, Model] | None"
+    model_roles: "dict[str, Model | list[Model]] | None"
     """The task's model roles (grader roles resolve through these)."""
 
     generate_config: "GenerateConfig"

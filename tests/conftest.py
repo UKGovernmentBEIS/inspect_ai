@@ -682,11 +682,13 @@ def pytest_collection_modifyitems(config, items):
     # Auto-apply a 5-minute per-attempt timeout to every async test, then
     # flaky_retry(max_retries=3) for tests that hit external services (model
     # providers or Docker). The timeout is wrapped first so it sits inside the
-    # retry — each attempt gets its own fresh budget.
+    # retry — each attempt gets its own fresh budget. The item is passed so the
+    # retry can honor xfail markers, including ones added during fixture setup
+    # (as the sandbox self-check suite does): expected failures run once, and a
+    # flaky pass on a retry can't turn into a hard XPASS(strict) failure.
     from test_helpers.utils import flaky_retry, with_timeout
 
     _timeout = with_timeout(300)
-    _retry = flaky_retry(max_retries=3)
     for item in items:
         fn = item.obj
         if inspect.iscoroutinefunction(fn) and not getattr(
@@ -696,7 +698,7 @@ def pytest_collection_modifyitems(config, items):
         if getattr(fn, "_needs_flaky_retry", False) and not getattr(
             fn, "_flaky_retry", False
         ):
-            fn = _retry(fn)
+            fn = flaky_retry(max_retries=3, item=item)(fn)
         item.obj = fn
 
 

@@ -1365,6 +1365,11 @@ class _TimeLimit(Limit, _Node):
         self._active_limit: float | None = None
         self._start_time: float | None = None
         self._end_time: float | None = None
+        # elapsed time carried from a prior attempt that counts toward
+        # reported usage but never the cancel-scope deadline — set by a
+        # scoring-only checkpoint resume (a normal resume backdates
+        # _start_time instead, so the deadline charges the prior attempt too)
+        self._prior_elapsed: float = 0.0
 
     def __enter__(self) -> Limit:
         super()._check_reuse()
@@ -1459,8 +1464,8 @@ class _TimeLimit(Limit, _Node):
         if self._start_time is None:
             return 0.0
         if self._end_time is None:
-            return anyio.current_time() - self._start_time
-        return self._end_time - self._start_time
+            return anyio.current_time() - self._start_time + self._prior_elapsed
+        return self._end_time - self._start_time + self._prior_elapsed
 
 
 class _WorkingLimit(Limit, _Node):

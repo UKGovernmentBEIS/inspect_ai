@@ -1091,6 +1091,28 @@ def test_aggregate_nan_skipped_under_zero():
     assert result == 2.0
 
 
+def test_aggregate_skips_unscored_samples():
+    # Score.unscored() (NaN-at-root sentinel) is skipped regardless of on_missing
+    result = aggregate("x", agg=mean())(
+        [
+            SampleScore(score=Score(value={"x": 1}), sample_id=1),
+            SampleScore(score=Score.unscored(), sample_id=2),
+            SampleScore(score=Score(value={"x": 3}), sample_id=3),
+        ]
+    )
+    assert result == 2.0
+
+
+def test_aggregate_all_unscored_returns_nan():
+    result = aggregate("x", agg=mean())(
+        [
+            SampleScore(score=Score.unscored(), sample_id=1),
+            SampleScore(score=Score.unscored(), sample_id=2),
+        ]
+    )
+    assert isinstance(result, float) and math.isnan(result)
+
+
 def test_aggregate_invalid_on_missing_raises():
     # Invalid on_missing must fail at construction, not silently behave like
     # "zero" only when a key happens to be missing.

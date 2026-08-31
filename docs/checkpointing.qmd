@@ -126,7 +126,7 @@ Note that time and token intervals effectively checkpoint at `≥ N` because fir
 | Field | Description |
 |------------------------------------|------------------------------------|
 | `trigger` | The trigger that decides when to fire (defaults to 500K tokens). |
-| `sandbox_paths` | Per-sandbox-name map of absolute paths inside the sandbox to capture. Defaults to sandbox user's home directory. |
+| `sandbox_paths` | Per-sandbox-name capture configuration: a list of absolute paths inside the sandbox to capture, or a `SandboxSnapshotConfig` that also selects the [snapshot strategy](#snapshot-strategies). Defaults to the sandbox user's home directory, captured with the default strategy (incremental restic) — a bare path list carries no strategy selection of its own. |
 | `checkpoints_location` | Override the parent directory under which the per-eval checkpoint directory lands (defaults to a sibling of the eval log file). |
 | `max_consecutive_failures` | If set, fail the sample after N consecutive failed checkpoint attempts. Defaults to `None` (unlimited tolerance). Specify `0` to make any single failure fatal. |
 | `retention` | `"delete"` or `"retain"`. `"delete"` (default) removes the checkpoint directory on successful eval completion; `"retain"` keeps it. |
@@ -204,15 +204,73 @@ Sample(
 eval("ctf.py", model="openai/gpt-5", checkpoint=True)
 ```
 
+Sample-level configuration covers capture: *what* to capture per sandbox and, via [snapshot strategies](#snapshot-strategies), *how* — a sample whose workload rewrites large amounts of data can select the `archive` strategy while the rest of the dataset uses the restic default. The eval-wide storage policy (`checkpoints_location`, `retention`) can only be set by the task or eval layer.
+
 ### Configuration Layers {#configuration-layers}
 
 When more than one of the sample / task / eval layers supplies a configuration, Inspect merges them **per-field** at sample-run time. Each layer's fields default to `None`; the highest-priority layer with a non-`None` value wins per field. Precedence is **eval \> sample \> task**. Sample beats task because the task defines an agent's standard policy for *all* of its samples and an individual sample specializes it. Eval/CLI is always highest because it's the operator's run-time override.
 
 ### Sandbox Paths
 
-`sandbox_paths` is a map of container name to paths that should be captured for that container. Sandboxes that use only a single container can use the `"default"` key to refer to that container. Note that `sandbox_paths` is treated as a single whole-dict value, not key-wise merged. To add a path to one sandbox while inheriting others, the higher-priority layer must redeclare the full map. Also, while sandbox home directories are included by default, if you specify `sandbox_paths` explicitly you must explicitly include the home directory if you want it checkpointed. An explicit empty list (e.g. `sandbox_paths={"tools": []}`) opts that sandbox out of checkpointing entirely.
+`sandbox_paths` is a map of container name to paths that should be captured for that container. Sandboxes that use only a single container can use the `"default"` key to refer to that container. Note that `sandbox_paths` is treated as a single whole-dict value, not key-wise merged. To add a path to one sandbox while inheriting others, the higher-priority layer must redeclare the full map. The exception is [snapshot-strategy](#snapshot-strategies) selection: `strategy` values merge per-sandbox across all layers (eval \> sample \> task) regardless of which layer's paths dict won, so a paths-only override never silently resets a selected strategy. Also, while sandbox home directories are included by default, if you specify `sandbox_paths` explicitly you must explicitly include the home directory if you want it checkpointed. An explicit empty list (e.g. `sandbox_paths={"tools": []}`) opts that sandbox out of checkpointing entirely.
 
 Cache directories are never backed up: any `.cache` directory at any depth (`**/.cache`, including the user's XDG cache dir) is always excluded from sandbox backups — even when you specify `sandbox_paths` explicitly. Agents should not keep state they need across a resume under a `.cache` directory.
+
+### Snapshot Strategies {#snapshot-strategies}
+
+By default, sandbox filesystem state is captured with an incremental [restic](https://restic.net) backup: each checkpoint stores only the data that changed since the previous one. Restic requires injecting a restic binary into the sandbox, and its incremental model pays off when most files are stable across checkpoints. The alternative `archive` strategy captures with tools already present in effectively every image (tar plus zstd or gzip) — nothing is injected — and writes one self-contained archive per checkpoint.
+
+To select a snapshot strategy for a sandbox, use a `SandboxSnapshotConfig` as its `sandbox_paths` value in place of a bare path list:
+
+| Strategy | Description |
+|------------------------------|------------------------------------------|
+| `ResticSnapshots` | Incremental restic backup (the default). Cheapest when most files are stable across checkpoints; requires injecting a restic binary into the sandbox. |
+| `ArchiveSnapshots` | One complete compressed tar archive per checkpoint (zstd when available in the sandbox image, gzip otherwise). Uses only tools already present in the image — nothing is injected — and each checkpoint restores from a single self-contained file. Archives are written **unencrypted** (restic encrypts its repository with a per-sample password), so captured sandbox data lands in the checkpoint storage location as plaintext. |
+
+: {tbl-colwidths=\[30,70\]}
+
+For example, capturing a directory of large rewritten files as archives:
+
+``` python
+from inspect_ai import eval
+from inspect_ai.util import (
+    ArchiveSnapshots, CheckpointConfig, SandboxSnapshotConfig,
+)
+
+eval(
+    "training.py", model="openai/gpt-5",
+    checkpoint=CheckpointConfig(
+        sandbox_paths={
+            "default": SandboxSnapshotConfig(
+                paths=["/home/user", "/data"],
+                strategy=ArchiveSnapshots(),
+            )
+        }
+    ),
+)
+```
+
+The equivalent YAML for use with `--checkpoint=checkpoint.yaml` on the CLI:
+
+``` yaml
+trigger:
+  type: token
+  every: 500k
+sandbox_paths:
+  default:
+    paths: ["/home/user", "/data"]
+    strategy: archive
+```
+
+Notes on semantics:
+
+-   `paths` carries the same meaning as a bare path-list value (omitted = the sandbox user's home directory; an empty list opts the sandbox out), and the two value forms can be mixed in one `sandbox_paths` map. Sandboxes without an entry get the defaults (home directory, restic).
+
+-   Strategy selection is available at every layer: `SandboxSnapshotConfig` values are accepted in `CheckpointConfig.sandbox_paths` (task/eval, and the YAML equivalent) and in per-sample `CheckpointSampleConfig.sandbox_paths`. The strategy suits the workload's data, and the workload is often sample-specific — one sample training a large model wants `archive`, another doing a coding exercise is best served by the restic default.
+
+-   Strategy selection merges independently of the capture paths. While `sandbox_paths` itself merges as a whole-dict value (highest layer wins), the `strategy` values resolve per-sandbox across all layers (eval \> sample \> task). A bare path list — or a `SandboxSnapshotConfig` (YAML mapping) without a `strategy` — expresses no opinion, so a higher layer that overrides paths never silently resets a lower-selected strategy back to the default; to change a strategy, a higher layer sets one explicitly (e.g. `strategy=ResticSnapshots()`). A sandbox with a selected strategy that is absent from the winning paths dict is still captured (with the default home-directory paths) under that strategy.
+
+-   **The strategy is pinned per sample.** The strategy that takes a sample's first checkpoint is recorded (in each checkpoint record and in a per-sample pin file) and is the strategy for that sample's lifetime. If a retry runs with a different strategy configured, resume fails with a clear error naming the sandbox and both strategies — restore the original configuration and resume, or start a fresh eval. Checkpoint directories written before strategy selection existed resume unchanged (they are treated as restic).
 
 ## Checkpoint Flow
 
@@ -220,7 +278,7 @@ When checkpointing is enabled, each sample proceeds as follows:
 
 1.  **Tick**: At each agent turn boundary, the agent calls `cp.tick()`. The trigger decides whether this tick is a checkpoint moment.
 
-2.  **Capture**: When the trigger fires, Inspect writes the host-side context files (agent-tracked state, events, and store) and runs a [restic backup](https://restic.net) on the agent scaffold host and each configured sandbox path.
+2.  **Capture**: When the trigger fires, Inspect writes the host-side context files (agent-tracked state, events, and store), runs a [restic backup](https://restic.net) on the agent scaffold host, and captures each configured sandbox's paths via its [snapshot strategy](#snapshot-strategies) (incremental restic backup by default).
 
 3.  **Record**: Inspect writes a `ckpt-NNNNN.json` checkpoint file at the per-sample root. A checkpoint is available for resumption only once this file is in place.
 
@@ -304,6 +362,10 @@ It returns `None` when called outside an active sample, or before the owning age
 Checkpointing enables restoration of the most important agent context after a crash, but has some limitations you should bear in mind when using it:
 
 - Turn-boundary granularity only — A long-running tool call (e.g. a 10-minute subprocess) blocks the next checkpoint until the call returns.
+
+- Nested limit scopes are not restored — Sample-root token, cost, turn, time, and working usage is snapshotted at fire time and reseeded on resume (downtime between fire and resume is not charged against `time_limit`). Nested `apply_limits` scopes are not. Checkpoints written by older Inspect versions still resume with usage reset to zero.
+
+- Scoring-only resume does not enforce the budget — When the agent finished and only scoring needs to re-run, the restored usage is reported but the time and working limits are not re-armed, so a sample that spent its budget can still be scored.
 
 - Filesystem state only — Anything outside `sandbox_paths` is not captured. In-memory process state inside the sandbox (running daemons, open sockets, RAM) is lost on resume. The agent is responsible for tolerating this.
 
