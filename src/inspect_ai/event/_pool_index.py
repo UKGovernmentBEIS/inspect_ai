@@ -77,7 +77,8 @@ from ._pool import (
 )
 
 _BUCKET_CONTENT_LIMIT = 256 * 1024
-"""Max single content-string length (bytes) for a message to be bucketed.
+"""Max single content-string length (characters, not bytes: the payload class
+this gate targets is base64, so the two coincide) for a message to be bucketed.
 
 Set to include the largest observed text/tool content: typical agentic
 evals sit at p99 ≈ 8.5KB, while long-conversation chat evals (e.g. the
