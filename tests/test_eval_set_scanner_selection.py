@@ -39,11 +39,14 @@ from inspect_ai.scorer import exact
 from inspect_ai.solver import generate
 
 # inspect_scout is an optional runtime dep; skip these tests if unavailable.
-inspect_scout = pytest.importorskip("inspect_scout")
-
-from inspect_scout import Result, Transcript, scanner  # noqa: E402
-from inspect_scout._recorder.buffer import RecorderBuffer  # noqa: E402
-from inspect_scout._scancontext import _spec_scanners  # noqa: E402
+# Guarding the imports rather than calling importorskip() first keeps them in
+# the import block, where they don't read as out-of-order (E402).
+try:
+    from inspect_scout import Result, Transcript, scanner
+    from inspect_scout._recorder.buffer import RecorderBuffer
+    from inspect_scout._scancontext import _spec_scanners
+except ImportError:
+    pytest.skip("inspect_scout is not installed", allow_module_level=True)
 
 MODEL = "mockllm/model"
 EVAL_SET_ID = "scan-selection-test"
