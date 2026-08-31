@@ -261,7 +261,11 @@ class SampleBufferDatabase(SampleBuffer):
         # _insert_unseen_attachments and _staged_attachment_marks). str(id):
         # SQLite TEXT affinity collides 5/'5' in the UNIQUE constraint, so the
         # in-memory key must too. No lock: all writers run on the event-loop
-        # thread (see the _get_connection invariants above).
+        # thread (see the _get_connection invariants above). Skipping a shipped
+        # hash is sound only because a live sample's attachment rows outlive
+        # its marks: nothing deletes them short of _remove_samples_now, which
+        # drops this entry with them (and complete_sample drops the entry
+        # alone, which only re-ships).
         self._inserted_attachment_hashes: dict[SampleKey, set[str]] = {}
         self._pending_seen_hashes: list[tuple[SampleKey, str]] | None = None
 
