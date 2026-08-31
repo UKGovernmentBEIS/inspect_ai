@@ -1,4 +1,5 @@
 ## Unreleased
+- Scoring: `model_graded_qa`/`model_graded_fact` no longer score a malformed multi-character verdict such as `GRADE: CI` as correct; such verdicts now leave the sample unscored with `grade_parse_failure` recorded.
 
 - Scoring: Support tuples and non-list sequences in Target. (#5039)
 - Analysis: Fixed `task_info()` and `log_viewer()` raising `ValueError` when applied to an empty DataFrame. (#4826)
