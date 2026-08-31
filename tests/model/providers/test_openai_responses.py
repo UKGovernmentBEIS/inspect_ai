@@ -533,6 +533,70 @@ async def test_responses_api_no_background_by_default() -> None:
     assert "background" not in request
 
 
+async def test_background_response_retries_openai_connection_error() -> None:
+    from unittest.mock import AsyncMock, MagicMock, patch
+
+    import httpx2
+    from openai import APIConnectionError
+
+    from inspect_ai.model._providers.openai_responses import (
+        wait_for_background_response,
+    )
+
+    completed_response = _completed_mock_response()
+    pending_response = completed_response.model_copy(update={"status": "in_progress"})
+
+    client = MagicMock()
+    client.responses.retrieve = AsyncMock(
+        side_effect=[
+            APIConnectionError(request=httpx2.Request("GET", "https://example.com")),
+            completed_response,
+        ]
+    )
+
+    with patch(
+        "inspect_ai.model._providers.openai_responses.anyio.sleep",
+        new=AsyncMock(),
+    ):
+        response = await wait_for_background_response(client, pending_response)
+
+    assert response is completed_response
+    assert client.responses.retrieve.await_count == 2
+
+
+async def test_background_response_reraises_connection_error_on_exhaustion() -> None:
+    from unittest.mock import AsyncMock, MagicMock, patch
+
+    import httpx2
+    import pytest
+    from openai import APIConnectionError
+
+    from inspect_ai.model._providers.openai_responses import (
+        wait_for_background_response,
+    )
+
+    pending_response = _completed_mock_response().model_copy(
+        update={"status": "in_progress"}
+    )
+    connection_error = APIConnectionError(
+        request=httpx2.Request("GET", "https://example.com")
+    )
+    client = MagicMock()
+    client.responses.retrieve = AsyncMock(side_effect=connection_error)
+
+    with (
+        patch(
+            "inspect_ai.model._providers.openai_responses.anyio.sleep",
+            new=AsyncMock(),
+        ),
+        pytest.raises(APIConnectionError) as exc_info,
+    ):
+        await wait_for_background_response(client, pending_response)
+
+    assert exc_info.value is connection_error
+    assert client.responses.retrieve.await_count == 5
+
+
 def test_fix_function_tool_parameters_string_to_dict():
     """Test that string parameters in FunctionTool are parsed to dicts."""
     from openai.types.responses import FunctionTool, Response
