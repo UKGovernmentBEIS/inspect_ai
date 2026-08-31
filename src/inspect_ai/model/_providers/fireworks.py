@@ -2,9 +2,17 @@ from typing import Any
 
 from typing_extensions import override
 
+from inspect_ai.log._samples import sample_active
+
 from .._generate_config import GenerateConfig
 from .._reasoning import clamp_reasoning_effort_to_low_medium_high
 from .openai_compatible import OpenAICompatibleAPI
+
+# Fireworks' prompt cache lives on a single replica, and requests are otherwise
+# load balanced across replicas. This header pins a conversation to one replica
+# so its turns hit the cache the earlier turns populated.
+# https://docs.fireworks.ai/guides/prompt-caching
+SESSION_AFFINITY_HEADER = "x-session-affinity"
 
 
 class FireworksAIAPI(OpenAICompatibleAPI):
@@ -92,6 +100,20 @@ class FireworksAIAPI(OpenAICompatibleAPI):
                 params["reasoning_effort"] = "low"
 
         return params
+
+    @override
+    def request_headers(self, config: GenerateConfig) -> dict[str, str]:
+        """Session id for Fireworks' cache replica-affinity header.
+
+        A sample is Inspect's unit of conversation: every turn of its agent
+        loop shares a growing prefix, so pinning them to one replica is what
+        makes the cache hit. Outside a sample there is no conversation to key
+        on, so the header is omitted and requests are load balanced as before.
+        """
+        active = sample_active()
+        return (
+            {SESSION_AFFINITY_HEADER: active.sample_uuid} if active is not None else {}
+        )
 
     @override
     def should_stream(self, config: GenerateConfig) -> bool:
