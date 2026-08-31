@@ -581,6 +581,29 @@ def _run_task_score(
     target_label = scope.task or scope.task_id
     targeted = result.get("targeted") or {}
 
+    # a running *sample-scoped* pass must not be joined and rendered as the
+    # task's: its rows cover one sample and it computes no interim metrics,
+    # so polling it would report a one-sample "task" result. Report the
+    # conflict (the server's reason names the sample) and stop.
+    if not result.get("changed") and result.get("scope") == "sample":
+        reason = _sanitize_line(
+            str(result.get("reason") or "a sample-scoped scoring pass is running")
+        )
+        if as_json:
+            _echo_raw(
+                json_lib.dumps(
+                    _mutation_envelope(target, result, dry_run=dry_run), indent=2
+                )
+            )
+            return
+        if not terse_mode:
+            _echo(scope.header)
+            _echo()
+            _echo(f"Nothing to do: {reason}. Retry once it finishes.")
+        else:
+            _echo(_terse_line("score", target_label, f"no-op — {reason}"))
+        return
+
     if dry_run or no_wait:
         if as_json:
             _echo_raw(
@@ -679,10 +702,13 @@ def _run_task_score_status(
         return
     if result.get("running"):
         body = f"running — {_score_progress_summary(result.get('progress') or {})}"
+        note = _sample_scope_note(result)
+        if note:
+            body += f" ({note})"
         if terse_mode:
-            _echo(_terse_line("score", target_label, body))
+            _echo(_terse_line("score", target_label, _sanitize_line(body)))
         else:
-            _echo(f"Scoring pass {body}.")
+            _echo(_sanitize_line(f"Scoring pass {body}."))
         return
     _render_score_result(result, terse_mode=terse_mode, target_label=target_label)
 
@@ -745,6 +771,22 @@ def _poll_score_pass(scope: _DirectiveScope, *, echo_progress: bool) -> dict[str
         time.sleep(_SCORE_POLL_INTERVAL)
 
 
+def _sample_scope_note(status: dict[str, Any]) -> str | None:
+    """A caveat for a sample-scoped pass surfacing through the task verbs.
+
+    ``task score --status`` reports whatever pass most recently ran, which
+    can be a ``ctl sample score`` pass — its rows cover one sample and it
+    has no interim metrics, so it must not read as a task-wide result.
+    """
+    if status.get("scope") != "sample":
+        return None
+    return (
+        f"a sample-scoped pass — sample {status.get('sample_id')}, epoch "
+        f"{status.get('epoch')}; its rows cover only that sample and it "
+        "computes no interim metrics"
+    )
+
+
 def _render_score_result(
     status: dict[str, Any], *, terse_mode: bool, target_label: str
 ) -> None:
@@ -752,15 +794,18 @@ def _render_score_result(
     result = status.get("result") or {}
     counts = result.get("counts") or {}
     summary = f"{_score_progress_summary(progress)} targeted"
+    scope_note = _sample_scope_note(status)
     if terse_mode:
-        suffix = ""
+        suffix = f"; {_sanitize_line(scope_note)}" if scope_note else ""
         if status.get("interrupted"):
-            suffix = f"; interrupted — {_sanitize_line(str(status['interrupted']))}"
+            suffix += f"; interrupted — {_sanitize_line(str(status['interrupted']))}"
         elif status.get("error"):
-            suffix = f"; error — {_sanitize_line(str(status['error']))}"
+            suffix += f"; error — {_sanitize_line(str(status['error']))}"
         _echo(_terse_line("score", target_label, f"complete — {summary}{suffix}"))
         return
     _echo(f"Interim scoring pass complete — {summary}.")
+    if scope_note:
+        _echo(_sanitize_line(f"Note: {scope_note}."))
     if counts:
         _echo(f"Dispositions: {_score_targeted_summary(counts)}.")
     metrics = result.get("metrics") or []
