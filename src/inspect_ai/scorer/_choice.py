@@ -79,6 +79,14 @@ def choice() -> Scorer:
     async def score(state: TaskState, target: Target) -> Score:
         choices = state.choices
 
+        # a sample with no choices isn't a multiple choice sample at all (e.g.
+        # re-scoring a non-multiple-choice log): score it incorrect without
+        # parsing the target, which is likely free text rather than answer labels
+        if not choices:
+            return Score(
+                value=INCORRECT, answer="", explanation=state.output.completion
+            )
+
         if _choices_are_shuffled(choices):
             explanation = _shuffled_explanation(choices)
             # Unshuffle the choices so that we can score them correctly against

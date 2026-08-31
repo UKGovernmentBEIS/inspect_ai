@@ -121,6 +121,11 @@ samples than the model can serve:
   (subscribing to the matching controller whether it already exists or is
   created later, via the module-level controller-created hook — the controller
   usually appears on the model's first generate, after the limiter is built).
+  A mid-run `ctl config --max-samples N` **pins** the limiter at exactly `N`
+  (it stops following the controller — scale events are ignored while
+  pinned — mirroring the launch rule "explicit `max_samples` wins silently
+  over adaptive"); `--max-samples clear` unpins and catches back up to the
+  controller's current limit. See `design/ctl/max-samples-adaptive.md`.
 - otherwise → static `ResizableLimiter` sized from `max_connections` /
   provider default.
 
@@ -155,7 +160,9 @@ the max concurrency of *this task's* controllers when its primary-key
 controller stays idle — restoring pre-scoping throughput for roles/bridge
 tasks without re-admitting the cross-task inflation the key scoping fixed.
 Deferred until the configuration shows up in practice; revisit alongside the
-pin/freeze controller mode.
+pin/freeze controller mode. In the meantime the operator remedy is the
+`max_samples` pin above: `ctl config <task> --max-samples N` unparks sample
+concurrency immediately, in every variant of this case.
 
 Sample semaphores (all three paths) are **task-scoped, not attempt-scoped**:
 `create_sample_semaphore` keeps a task_id-keyed registry

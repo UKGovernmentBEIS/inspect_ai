@@ -13,7 +13,6 @@ from typing_extensions import Unpack
 
 from inspect_ai._cli.util import (
     int_or_bool_flag_callback,
-    parse_cli_args,
     parse_cli_config,
     parse_model_role_cli_args,
 )
@@ -28,6 +27,7 @@ from inspect_ai._eval.score import (
     score_async,
 )
 from inspect_ai._util._async import configured_async_backend
+from inspect_ai._util.config import parse_cli_args
 from inspect_ai._util.file import filesystem
 from inspect_ai._util.platform import platform_init
 from inspect_ai.log._log import EvalLog, EvalResults, EvalSample
