@@ -6,7 +6,6 @@ from anthropic.types import ThinkingBlockParam
 
 from inspect_ai._util.content import ContentDocument
 from inspect_ai.agent._bridge.anthropic_api_impl import (
-    anthropic_system_to_text,
     anthropic_system_to_texts,
     base_64_data,
     content_block_to_content,
@@ -55,6 +54,31 @@ async def test_inline_system_role_block_content() -> None:
     )
     assert isinstance(messages[1], ChatMessageSystem)
     assert messages[1].text == "reminder"
+
+
+@pytest.mark.anyio
+async def test_inline_system_role_multi_block_content() -> None:
+    """A role="system" turn with multiple blocks keeps one message per block."""
+    messages = await messages_from_anthropic_input(
+        [
+            {"role": "user", "content": "hello"},
+            {
+                "role": "system",
+                "content": [
+                    {"type": "text", "text": "x-anthropic-billing-header: abc"},
+                    {"type": "text", "text": "instructions"},
+                ],
+            },
+        ],
+        tools=[],
+    )
+    assert [type(m) for m in messages] == [
+        ChatMessageUser,
+        ChatMessageSystem,
+        ChatMessageSystem,
+    ]
+    assert messages[1].text == "x-anthropic-billing-header: abc"
+    assert messages[2].text == "instructions"
 
 
 @pytest.mark.anyio
@@ -110,16 +134,6 @@ def test_browser_state_block_raises() -> None:
         RuntimeError, match="Unsupported content block type: browser_state"
     ):
         content_block_to_content(cast(Any, {"type": "browser_state"}))
-
-
-def test_anthropic_system_to_text() -> None:
-    assert anthropic_system_to_text("plain") == "plain"
-    assert (
-        anthropic_system_to_text(
-            [{"type": "text", "text": "a"}, {"type": "text", "text": "b"}]
-        )
-        == "a\n\nb"
-    )
 
 
 def test_anthropic_system_to_texts_preserves_block_boundaries() -> None:

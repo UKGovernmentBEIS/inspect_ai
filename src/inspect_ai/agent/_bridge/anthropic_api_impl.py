@@ -158,7 +158,6 @@ async def inspect_anthropic_api_request_impl(
     system_texts = anthropic_system_to_texts(json_data.get("system"))
     for offset, system_text in enumerate(system_texts):
         messages.insert(offset, ChatMessageSystem(content=system_text))
-    config.system_message = None
 
     # try to maintain id stability
     apply_message_ids(bridge, messages)
@@ -202,11 +201,6 @@ def debug_log(caption: str, o: Any) -> None:
     pass
 
 
-def anthropic_system_to_text(value: Any) -> str:
-    """Flatten an Anthropic ``system`` value (``str`` or ``list[TextBlockParam]``) to text."""
-    return "\n\n".join(anthropic_system_to_texts(value))
-
-
 def anthropic_system_to_texts(value: Any) -> list[str]:
     """Split an Anthropic ``system`` value into one text per block.
 
@@ -238,8 +232,6 @@ def generate_config_from_anthropic(json_data: dict[str, Any]) -> GenerateConfig:
     config = GenerateConfig()
     config.max_tokens = json_data.get("max_tokens", None)
     config.stop_seqs = json_data.get("stop_sequences", None) or None
-    if (system := json_data.get("system")) is not None:
-        config.system_message = anthropic_system_to_text(system)
     config.temperature = json_data.get("temperature", None)
     config.top_k = json_data.get("top_k", None)
     config.top_p = json_data.get("top_p", None)
@@ -515,8 +507,9 @@ async def messages_from_anthropic_input(
                 flush_pending_user_content()
 
         elif param["role"] == "system":
-            messages.append(
-                ChatMessageSystem(content=anthropic_system_to_text(param["content"]))
+            messages.extend(
+                ChatMessageSystem(content=text)
+                for text in anthropic_system_to_texts(param["content"])
             )
 
         else:
