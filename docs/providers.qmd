@@ -832,6 +832,14 @@ inspect eval arc.py --model fireworks/accounts/fireworks/models/kimi-k3
 
 For the `fireworks` provider, you can enable [Tool Emulation](#tool-emulation-openai) using the `emulate_tools` custom model arg (`-M`). Other custom model args are forwarded to the constructor of the `AsyncOpenAI` class.
 
+### Prompt Caching {#fireworks-prompt-caching}
+
+Fireworks caches prompt prefixes automatically, but a cache lives on a single replica and requests are otherwise load balanced across replicas, so a turn can land on a replica that has never seen its prefix. Inspect therefore sends Fireworks' [`x-session-affinity`](https://docs.fireworks.ai/guides/prompt-caching) header, set to the running sample's unique id, which pins all of that sample's requests to a single replica. Multi-turn agents benefit the most: each turn re-sends the whole conversation so far, and that prefix is already cached on the replica the previous turn landed on.
+
+Cached tokens are billed at a lower rate and are reported in the eval log as `input_tokens_cache_read`.
+
+This requires no configuration, though you can override the header by setting your own value in `GenerateConfig(extra_headers={"x-session-affinity": ...})`. Note that the header is not sent when the model is used outside of a running sample (where there is no conversation to pin).
+
 The following environment variables are supported by the Together AI provider
 
 | Variable | Description |
