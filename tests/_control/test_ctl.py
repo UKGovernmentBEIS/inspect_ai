@@ -3469,6 +3469,68 @@ def test_config_set_buffer_error_does_not_claim_unapplied_knobs(
     assert "! log_buffer" not in result.stderr
 
 
+def test_config_buffer_error_static_clear_not_claimed_applied(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A 'clear' the server only warned about is not claimed as applied.
+
+    A static-limiter task reports max_samples adjustable, but a 'clear'
+    against it warns without applying (nothing is pinned) — the no-live-buffer
+    error's "still applied" tail must not name it. A clear against an
+    adaptive (tracks_adaptive) view did land, and is named.
+    """
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+
+    def stub_view(max_samples_view: Any, warnings: list[str]) -> None:
+        monkeypatch.setattr(
+            "inspect_ai._cli.ctl._config._exec_limits",
+            lambda *a, **k: _ConfigResult(
+                view={
+                    "max_samples": max_samples_view,
+                    "max_sandboxes": [],
+                    "adaptive": [],
+                    "buffer": None,
+                    "requested": {"max_samples": "clear", "log_buffer": 2},
+                    "warnings": warnings,
+                    "dry_run": False,
+                },
+                mutated=True,
+            ),
+        )
+
+    stub_view(
+        {"limit": 20, "in_use": 0, "adjustable": True},
+        [
+            "max_samples is a fixed setpoint for this task (pass an integer "
+            "to change it; 'clear' only unpins a task using adaptive "
+            "connections)."
+        ],
+    )
+    result = cli_runner().invoke(
+        ctl_command, ["config", "--log-buffer", "2", "--max-samples", "clear"]
+    )
+    assert result.exit_code == 1
+    assert "has no sample buffer" in result.stderr
+    assert "still applied" not in result.stderr
+    assert "! max_samples is a fixed setpoint" in result.stderr
+
+    stub_view(
+        {
+            "limit": 15,
+            "in_use": 0,
+            "adjustable": True,
+            "tracks_adaptive": True,
+            "override": None,
+        },
+        [],
+    )
+    result = cli_runner().invoke(
+        ctl_command, ["config", "--log-buffer", "2", "--max-samples", "clear"]
+    )
+    assert result.exit_code == 1
+    assert "(--max-samples) were still applied" in result.stderr
+
+
 def test_config_key_retune_sent_and_rendered(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -4137,6 +4199,8 @@ def test_config_retry_overrides_accept_clear_keyword(
     result = cli_runner().invoke(ctl_command, ["config", "--timeout=-5"])
     assert result.exit_code == 2
     assert "negative" in result.stderr
+    # override knobs: 'clear' really does restore launch config
+    assert "restore launch config" in result.stderr
 
     # over the shared value bound -> click usage error, no request made
     from inspect_ai.model._generate_overrides import MAX_GENERATE_CONFIG_OVERRIDE
@@ -4147,6 +4211,54 @@ def test_config_retry_overrides_accept_clear_keyword(
     )
     assert result.exit_code == 2
     assert "maximum override value" in result.stderr
+
+
+def test_config_max_samples_accepts_clear_and_rejects_zero(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """--max-samples is int-or-'clear' with a min of 1 and no upper bound."""
+    from inspect_ai._control import CONTROL_API_VERSION
+
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        servers=[_DiscServer(7, api_version=CONTROL_API_VERSION)],
+    )
+    _stub_limits(
+        monkeypatch, buffer={"log_buffer": 10, "pending": 0, "log_shared": None}
+    )
+    # 'clear' parses and is a mutation (the adaptive unpin)
+    result = cli_runner().invoke(
+        ctl_command, ["config", "--max-samples", "clear", "--json"]
+    )
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.stdout)["applied"] is True
+
+    # 0 keeps failing client-side, as the IntRange(min=1) it replaced did
+    result = cli_runner().invoke(ctl_command, ["config", "--max-samples", "0"])
+    assert result.exit_code == 2
+    assert "less than 1" in result.stderr
+
+    result = cli_runner().invoke(ctl_command, ["config", "--max-samples=-5"])
+    assert result.exit_code == 2
+    assert "negative" in result.stderr
+    # not the override knobs' "restore launch config": for this knob 'clear'
+    # only unpins an adaptive task (a static task rejects it outright)
+    assert "resume adaptive tracking" in result.stderr
+
+    result = cli_runner().invoke(ctl_command, ["config", "--max-samples", "lots"])
+    assert result.exit_code == 2
+    assert "is not an integer or 'clear'" in result.stderr
+
+    # no upper bound: the override knobs' shared ceiling does not apply
+    from inspect_ai.model._generate_overrides import MAX_GENERATE_CONFIG_OVERRIDE
+
+    result = cli_runner().invoke(
+        ctl_command,
+        ["config", "--max-samples", str(MAX_GENERATE_CONFIG_OVERRIDE + 1), "--json"],
+    )
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.stdout)["applied"] is True
 
 
 def test_config_max_tasks_wiring_and_floor(monkeypatch: pytest.MonkeyPatch) -> None:

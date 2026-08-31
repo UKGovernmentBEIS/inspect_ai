@@ -92,7 +92,7 @@ from .task.sandbox import (
 )
 from .task.task import Task
 from .task.task_source import TaskSource
-from .task.util import slice_dataset, task_run_dir
+from .task.util import resolve_task_sample_ids, slice_dataset, task_run_dir
 
 log = logging.getLogger(__name__)
 
@@ -895,42 +895,6 @@ async def run_task_retry_attempts(
 
     # sort results by index and return just the values
     return [v for _, v in sorted(results.items())]
-
-
-def resolve_task_sample_ids(
-    task: str, sample_id: str | int | list[str] | list[int] | list[str | int] | None
-) -> str | int | list[str] | list[int] | list[str | int] | None:
-    def collect_for_task(sample: str | int) -> str | int | None:
-        if isinstance(sample, str):
-            scoped = sample.split(":", maxsplit=1)
-            if len(scoped) > 1:
-                if scoped[0].lower() == task.lower():
-                    return scoped[1]
-                else:
-                    return None
-            else:
-                return sample
-        else:
-            return sample
-
-    if sample_id is not None:
-        if isinstance(sample_id, list):
-            ids: list[int | str] = []
-            for id in sample_id:
-                collect = collect_for_task(id)
-                if collect is not None:
-                    ids.append(collect)
-            return ids
-
-        else:
-            collect = collect_for_task(sample_id)
-            if collect is not None:
-                return collect
-            else:
-                return []
-
-    else:
-        return sample_id
 
 
 class SandboxManager:
