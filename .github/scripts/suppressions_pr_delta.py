@@ -6,6 +6,7 @@ Prints nothing when the ledger is unchanged.
 Usage: python3 suppressions_pr_delta.py <base.json> <head.json>
 """
 
+import html
 import json
 import sys
 from pathlib import Path
@@ -26,6 +27,12 @@ def _load(path: str) -> Ledger:
         return {}
 
 
+def _cell(value: str) -> str:
+    """Render untrusted ledger text safely inside a Markdown table cell."""
+    value = value.replace("\r", " ").replace("\n", " ")
+    return f"<code>{html.escape(value).replace('|', '&#124;')}</code>"
+
+
 def render(base: Ledger, head: Ledger) -> str | None:
     """The comment body for a base -> head ledger change, or None if none.
 
@@ -41,12 +48,23 @@ def render(base: Ledger, head: Ledger) -> str | None:
     total_before, undescribed_before = totals(base)
     total_after, undescribed_after = totals(head)
     delta = total_after - total_before
-    heading = (
-        f"⚠️ Suppression ledger grew: {total_before} → {total_after} (+{delta})"
-        if delta > 0
-        else f"Suppression ledger changed: {total_before} → {total_after} "
-        f"({'±0' if delta == 0 else delta})"
-    )
+    undescribed_delta = undescribed_after - undescribed_before
+    needs_attention = delta > 0 or undescribed_delta > 0
+    if undescribed_delta > 0 and delta <= 0:
+        heading = (
+            f"⚠️ Reason-less suppressions grew: {undescribed_before} → "
+            f"{undescribed_after} (+{undescribed_delta}); total "
+            f"{total_before} → {total_after} ({'±0' if delta == 0 else delta})"
+        )
+    elif delta > 0:
+        heading = (
+            f"⚠️ Suppression ledger grew: {total_before} → {total_after} (+{delta})"
+        )
+    else:
+        heading = (
+            f"Suppression ledger changed: {total_before} → {total_after} "
+            f"({'±0' if delta == 0 else delta})"
+        )
 
     def render_row(row: Delta) -> str:
         file, rule = row.key
@@ -57,7 +75,7 @@ def render(base: Ledger, head: Ledger) -> str | None:
             if row.before.undescribed == row.after.undescribed
             else f" (reason-less {row.before.undescribed} → {row.after.undescribed})"
         )
-        return f"| `{file}` | `{rule}` | {change_cell}{reason_note} |"
+        return f"| {_cell(file)} | {_cell(rule)} | {change_cell}{reason_note} |"
 
     table = "\n".join(render_row(row) for row in rows)
 
@@ -72,7 +90,7 @@ def render(base: Ledger, head: Ledger) -> str | None:
         "\nEvery new suppression needs a trailing `# reason` comment and "
         "maintainer sign-off of this ledger diff — see the Suppression gate "
         "section in AGENTS.md."
-        if delta > 0
+        if needs_attention
         else ""
     )
 

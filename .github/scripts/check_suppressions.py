@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Gate for lint/type-check suppression comments.
 
-suppressions.json (the ledger) must exactly match the suppression comments
-in the code — any add, remove, or move fails CI until the ledger is
-regenerated, so every change shows up as a reviewable ledger diff in the PR.
+suppressions.json (the ledger) must exactly match the per-file, per-rule
+suppression counts in the code. Count and reason-status changes fail CI until
+the ledger is regenerated, so they show up as a reviewable ledger diff in the
+PR. Moving or replacing an occurrence within the same file under the same rule
+does not change these aggregate counts and is reviewed in the source diff.
 
 The `undescribed` count (suppressions lacking a reason — a trailing hash
 comment segment on the same line, the only style mypy accepts after
@@ -333,12 +335,25 @@ def _list_files() -> list[str]:
     out = subprocess.run(
         # *.pyi too: mypy type-checks stubs, so a `type: ignore` there is a
         # real suppression (tokenize handles stub syntax fine).
-        ["git", "ls-files", "-z", "--", "*.py", "*.pyi"],
+        [
+            "git",
+            "ls-files",
+            "-z",
+            "--cached",
+            "--others",
+            "--exclude-standard",
+            "--",
+            "*.py",
+            "*.pyi",
+        ],
         capture_output=True,
         text=True,
         check=True,
     ).stdout
-    return [f for f in out.split("\0") if f]
+    # Include untracked, non-ignored files so an update run before `git add`
+    # sees newly authored code; omit unstaged deletions still present in the
+    # index so ordinary edit-then-update workflows do not fail opening them.
+    return [f for f in out.split("\0") if f and Path(f).is_file()]
 
 
 def _scan_repo() -> Ledger:

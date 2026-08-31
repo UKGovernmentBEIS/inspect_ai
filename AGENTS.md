@@ -116,9 +116,14 @@ is worse than disclosing none. Example:
   `suppressions.json`. Always suppress the specific code
   (`# noqa: E501`, `# type: ignore[assignment]`), never the bare code-less
   form.
-- Every new suppression requires human maintainer approval of the
-  `suppressions.json` diff; expect the PR to be blocked until then, and
-  say in the PR description why no fix is possible.
+- Every new suppression requires human maintainer approval; when it changes
+  aggregate counts, that approval includes the `suppressions.json` diff.
+  Expect the PR to be blocked until then, and say in the PR description why
+  no fix is possible.
+- The ledger tracks aggregate counts by file and rule, not individual source
+  locations. Moving or replacing the same rule within one file does not alter
+  the ledger, so reviewers must still inspect suppression changes in the
+  source diff.
 - If the `suppressions` CI check fails, never hand-edit the ledger to make
   it pass. Run `make suppressions-update` so the change shows in the
   ledger diff. `--update` refuses to grow any rule's repo-wide reason-less

@@ -447,7 +447,7 @@ def test_delta_growth_renders_marker_warning_row_and_footer() -> None:
     assert body is not None
     assert body.startswith(delta.MARKER)
     assert "⚠️ Suppression ledger grew: 0 → 1 (+1)" in body
-    assert "| `a.py` | `r` | +1 |" in body
+    assert "| <code>a.py</code> | <code>r</code> | +1 |" in body
     assert "maintainer sign-off" in body
 
 
@@ -467,8 +467,25 @@ def test_delta_undescribed_only_change_still_renders() -> None:
         {"a.py": {"r": {"count": 1}}},
     )
     assert body is not None
-    assert "| `a.py` | `r` | ±0 (reason-less 1 → 0) |" in body
+    assert "| <code>a.py</code> | <code>r</code> | ±0 (reason-less 1 → 0) |" in body
     assert "Reason-less (baselined) suppressions: 1 → 0" in body
+
+
+def test_delta_warns_when_reasonless_count_grows_without_total_growth() -> None:
+    body = render(
+        {"a.py": {"r": {"count": 1}}},
+        {"a.py": {"r": {"count": 1, "undescribed": 1}}},
+    )
+    assert body is not None
+    assert "⚠️ Reason-less suppressions grew: 0 → 1 (+1)" in body
+    assert "maintainer sign-off" in body
+
+
+def test_delta_escapes_untrusted_table_cell_text() -> None:
+    body = render({}, {"a`\n@team|.py": {"r`\n@team|": {"count": 1}}})
+    assert body is not None
+    assert "<code>a` @team&#124;.py</code>" in body
+    assert "<code>r` @team&#124;</code>" in body
 
 
 # --- CLI: bootstrap, ratchet refusal, and --allow-growth (throwaway git repo) ---
@@ -537,3 +554,21 @@ def test_pyi_stubs_are_scanned(tmp_path: pathlib.Path) -> None:
     result = _run_gate(repo, "--update")
     assert result.returncode == 0
     assert '"a.pyi"' in (repo / "suppressions.json").read_text()
+
+
+def test_update_scans_untracked_files_and_omits_unstaged_deletions(
+    tmp_path: pathlib.Path,
+) -> None:
+    repo = _init_repo(
+        tmp_path,
+        {"deleted.py": "x = 1  # noqa: E501\n"},
+    )
+    (repo / "deleted.py").unlink()
+    (repo / "untracked.py").write_text("x = 1  # noqa: E501\n")
+
+    result = _run_gate(repo, "--update")
+
+    assert result.returncode == 0
+    ledger = (repo / "suppressions.json").read_text()
+    assert '"untracked.py"' in ledger
+    assert '"deleted.py"' not in ledger
