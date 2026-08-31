@@ -53,6 +53,7 @@ def recompute_metrics(log: EvalLog) -> None:
         # recompute it rather than letting eval_results() fall back to
         # len(scores) (which is scorer-order dependent)
         completed_samples=sum(1 for s in log.samples if s.error is None),
+        headline_metric=log.eval.headline_metric,
     )
 
     # Update the log's results and reductions

@@ -1,6 +1,6 @@
 import os
 from logging import getLogger
-from typing import Any
+from typing import Any, Literal
 
 import anyio
 from openai import (
@@ -8,6 +8,7 @@ from openai import (
     AsyncAzureOpenAI,
     AsyncBedrockOpenAI,
     AsyncOpenAI,
+    BadRequestError,
     DefaultAsyncHttpxClient,
     NotFoundError,
     NotGiven,
@@ -20,6 +21,7 @@ from openai.types.responses import Response
 from openai.types.shared_params.reasoning import Reasoning
 from typing_extensions import override
 
+from inspect_ai._util.http_defaults_httpx2 import default_client_kwargs
 from inspect_ai._util.logger import warn_once
 from inspect_ai.model._generate_config import has_image_output, normalized_batch_config
 from inspect_ai.model._providers.openai_completions import (
@@ -50,11 +52,13 @@ from .._openai_responses import (
     openai_responses_inputs,
     pad_tool_messages_for_token_counting,
 )
+from .._stream import model_stream_requested
 from ._openai_batch import OpenAIBatcher
 from .util import (
     check_azure_deployment_mismatch,
     environment_prerequisite_error,
     model_base_url,
+    normalize_stream_arg,
     require_azure_base_url,
     resolve_api_key,
     resolve_azure_token_provider,
@@ -93,6 +97,21 @@ BEDROCK_OPENAI_BASE_URL_VARS = [
 # NOTE: If you are creating a new provider that is OpenAI compatible you should inherit from OpenAICompatibleAPI rather than OpenAIAPI.
 
 
+def _is_stream_rejected_error(
+    response: ModelOutput | tuple[ModelOutput | Exception, ModelCall],
+) -> bool:
+    """Whether *response* is a 400 that names `stream` as the offending param.
+
+    This is how the API rejects streaming per se (rather than something else
+    about the request) — e.g. streaming a reasoning model from an
+    organization that hasn't completed verification.
+    """
+    if not isinstance(response, tuple):
+        return False
+    error = response[0]
+    return isinstance(error, BadRequestError) and error.param == "stream"
+
+
 class OpenAIAPI(ModelAPI):
     def __init__(
         self,
@@ -105,8 +124,12 @@ class OpenAIAPI(ModelAPI):
         service_tier: str | None = None,
         client_timeout: float | None = None,
         background: bool | None = None,
+        streaming: bool | Literal["auto"] = "auto",
         **model_args: Any,
     ) -> None:
+        # record streaming preference (unset/"auto" streams when the caller
+        # passes on_stream to generate; an explicit True/False overrides)
+        self.streaming: bool | None = normalize_stream_arg(streaming, "streaming")
         # extract azure service prefix from model name (other providers
         # that subclass from us like together expect to have the qualifier
         # in the model name e.g. google/gemma-2b-it)
@@ -239,8 +262,8 @@ class OpenAIAPI(ModelAPI):
                 )
 
         # extract http_client and api_version before storing model_args
-        self.http_client = (
-            model_args.pop("http_client", None) or DefaultAsyncHttpxClient()
+        self.http_client = model_args.pop("http_client", None) or (
+            DefaultAsyncHttpxClient(**default_client_kwargs())
         )
         if self.is_azure():
             # resolve version
@@ -316,7 +339,7 @@ class OpenAIAPI(ModelAPI):
         super().initialize()
 
         if self.http_client.is_closed:
-            self.http_client = DefaultAsyncHttpxClient()
+            self.http_client = DefaultAsyncHttpxClient(**default_client_kwargs())
 
         self.client = self._create_client()
 
@@ -328,7 +351,7 @@ class OpenAIAPI(ModelAPI):
         # side step that complexity and just use two different batchers.
         self._completions_batcher: OpenAIBatcher[ChatCompletion] | None = None
         self._responses_batcher: OpenAIBatcher[Response] | None = None
-        self._http_hooks = HttpxHooks(self.client._client)
+        self._http_hooks = HttpxHooks(self.client._client, api=self)
 
     @override
     async def count_text_tokens(self, text: str) -> int:
@@ -519,42 +542,92 @@ class OpenAIAPI(ModelAPI):
             if not await self.reasoning_summaries():
                 config = config.model_copy(update={"reasoning_summary": "none"})
 
-        return await (
-            generate_responses(
-                client=self.client,
-                http_hooks=self._http_hooks,
-                model_name=self.api_model_name(),
-                model_family=self.model_family(),
-                input=input,
-                tools=tools,
-                tool_choice=tool_choice,
-                config=config,
-                background=self.background,
-                service_tier=self.service_tier,
-                prompt_cache_key=self.prompt_cache_key,
-                prompt_cache_retention=self.prompt_cache_retention,
-                safety_identifier=self.safety_identifier,
-                responses_store=self.responses_store,
-                synthesize_phase=self.responses_phase,
-                model_info=self,
-                batcher=self._responses_batcher,
+        streaming = self._resolve_streaming(use_responses)
+
+        async def generate_once(
+            streaming: bool,
+        ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
+            return await (
+                generate_responses(
+                    client=self.client,
+                    http_hooks=self._http_hooks,
+                    model_name=self.api_model_name(),
+                    model_family=self.model_family(),
+                    input=input,
+                    tools=tools,
+                    tool_choice=tool_choice,
+                    config=config,
+                    background=self.background,
+                    service_tier=self.service_tier,
+                    prompt_cache_key=self.prompt_cache_key,
+                    prompt_cache_retention=self.prompt_cache_retention,
+                    safety_identifier=self.safety_identifier,
+                    responses_store=self.responses_store,
+                    synthesize_phase=self.responses_phase,
+                    model_info=self,
+                    batcher=self._responses_batcher,
+                    streaming=streaming,
+                )
+                if use_responses
+                else generate_completions(
+                    client=self.client,
+                    http_hooks=self._http_hooks,
+                    model_name=self.api_model_name(),
+                    input=input,
+                    tools=tools,
+                    tool_choice=tool_choice,
+                    config=config,
+                    prompt_cache_key=self.prompt_cache_key,
+                    prompt_cache_retention=self.prompt_cache_retention,
+                    safety_identifier=self.safety_identifier,
+                    openai_api=self,
+                    batcher=self._completions_batcher,
+                    streaming=streaming,
+                )
             )
-            if use_responses
-            else generate_completions(
-                client=self.client,
-                http_hooks=self._http_hooks,
-                model_name=self.api_model_name(),
-                input=input,
-                tools=tools,
-                tool_choice=tool_choice,
-                config=config,
-                prompt_cache_key=self.prompt_cache_key,
-                prompt_cache_retention=self.prompt_cache_retention,
-                safety_identifier=self.safety_identifier,
-                openai_api=self,
-                batcher=self._completions_batcher,
+
+        response = await generate_once(streaming)
+
+        # a display-only on_stream request must not degrade results: some
+        # models/deployments reject streaming outright (e.g. reasoning models
+        # on unverified organizations 400 with param="stream"), so when
+        # streaming was enabled by on_stream alone, retry non-streamed rather
+        # than failing a generate that succeeds without streaming (an
+        # explicit streaming=true opt-in still fails loudly)
+        if (
+            streaming
+            and not isinstance(self.streaming, bool)
+            and _is_stream_rejected_error(response)
+        ):
+            warn_once(
+                logger,
+                f"{self.model_name}: server rejected the streaming request; "
+                "retrying without streaming (on_stream events will not be "
+                "delivered)",
             )
-        )
+            response = await generate_once(False)
+
+        return response
+
+    def _resolve_streaming(self, use_responses: bool) -> bool:
+        """Whether to stream this generate call.
+
+        An explicit `streaming` model arg wins; "auto" streams when the
+        caller passed `on_stream` to `Model.generate()` — except for Azure
+        chat completions: Azure annotates every streamed choice chunk with
+        `content_filter_results`, but the SDK stream accumulator keeps
+        choice-level extras only from the chunk that first creates a choice
+        snapshot, so an accumulated completion would report stale (or lose)
+        content-filter stop details. A display-only stream request must not
+        degrade results, so auto mode declines to stream there (explicit
+        `streaming=true` still streams; the responses path returns the
+        terminal event's complete Response and is unaffected).
+        """
+        if isinstance(self.streaming, bool):
+            return self.streaming
+        if self.is_azure() and not use_responses:
+            return False
+        return model_stream_requested()
 
     def service_model_name(self) -> str:
         """Model name without any service prefix."""
@@ -667,7 +740,12 @@ class OpenAIAPI(ModelAPI):
 
     def _resolve_batcher(self, config: GenerateConfig, for_responses_api: bool) -> None:
         def _resolve_retry_config() -> ModelRetryConfig:
-            return batch_admin_retry_config(self.model_name, config, self.should_retry)
+            return batch_admin_retry_config(
+                self.model_name,
+                config,
+                self.should_retry,
+                qualified_model_name=self.qualified_model_name,
+            )
 
         # TODO: Bogus that we have to do this on each call. Ideally, it would be
         # done only once and ideally by non-provider specific code.

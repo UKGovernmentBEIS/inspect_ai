@@ -8,6 +8,7 @@ sandbox-limiter registry), the server routes that wrap it, and the CLI rendering
 import asyncio
 from typing import Any, cast
 
+import anyio
 import httpx
 import pytest
 from test_helpers.utils import register_adaptive_controller as _register_controller
@@ -35,19 +36,42 @@ from inspect_ai.util._concurrency import (
 )
 
 
-@pytest.fixture(autouse=True)
-def _clear_states():
+def _reset_all_states() -> None:
+    """Reset every global store the control server mutates.
+
+    The single reset choke point: the ``_clear_states`` fixture (setup and
+    teardown) and any test needing a mid-test reset must all call this, so a
+    future global store added here covers every reset site at once.
+    """
     from inspect_ai._control.config_record import reset_process_config_updates
+    from inspect_ai._control.max_tasks import reset_max_tasks_override
+    from inspect_ai.util._limit_overrides import reset_sample_limit_overrides
 
     clear_all_eval_states()
     init_concurrency()  # resets the sandbox and subprocess limiter registries
     reset_generate_config_overrides()
+    reset_max_tasks_override()
+    reset_sample_limit_overrides()
     reset_process_config_updates()
+
+
+@pytest.fixture(autouse=True)
+def _clear_states():
+    _reset_all_states()
     yield
-    clear_all_eval_states()
-    init_concurrency()
-    reset_generate_config_overrides()
-    reset_process_config_updates()
+    _reset_all_states()
+
+
+def approx_deadline(expected: float) -> Any:
+    """Deadline comparison with absolute tolerance for clock-read jitter.
+
+    TimeLimit.__enter__ derives the deadline and _start_time from two
+    separate clock reads, so approx's default relative tolerance leaves
+    sub-millisecond slack that CI scheduling jitter can exceed. The
+    _refresh_deadline path is exact (_start_time + limit); it uses the
+    same tolerance for consistency.
+    """
+    return pytest.approx(expected, abs=0.1)
 
 
 # ---------------------------------------------------------------------------
@@ -75,7 +99,7 @@ async def test_limits_set_max_samples() -> None:
 
     result = await task_limits("t1", max_samples=30)
     assert result is not None
-    assert result["max_samples"]["limit"] == 30
+    assert result["max_samples"] == {"limit": 30, "in_use": 0, "adjustable": True}
     assert result["requested"] == {"max_samples": 30}
     # the underlying limiter was actually retuned
     assert limiter.limit == 30
@@ -91,7 +115,7 @@ async def test_limits_dry_run_does_not_apply() -> None:
     assert result["dry_run"] is True
     assert result["requested"] == {"max_samples": 30}
     # view reflects the current (unchanged) value, and nothing was applied
-    assert result["max_samples"]["limit"] == 20
+    assert result["max_samples"] == {"limit": 20, "in_use": 0, "adjustable": True}
     assert limiter.limit == 20
 
 
@@ -105,21 +129,122 @@ async def test_limits_max_samples_not_adjustable_warns() -> None:
     assert any("max_samples is not adjustable" in w for w in result["warnings"])
 
 
-async def test_limits_adaptive_semaphore_not_adjustable() -> None:
-    """A DynamicSampleLimiter registry entry (adaptive path) is not a setpoint."""
+def _adaptive_limiter(key: str = "k") -> Any:
     from inspect_ai.util._concurrency import AdaptiveConcurrency, DynamicSampleLimiter
 
+    return DynamicSampleLimiter(AdaptiveConcurrency(min=1, max=100, start=10), key)
+
+
+async def test_limits_adaptive_limiter_tracking_view() -> None:
+    """An unpinned DynamicSampleLimiter reports the tracking view."""
     register_eval("e1", 5, task_id="t1")
-    register_task_sample_semaphore(
-        "t1", DynamicSampleLimiter(AdaptiveConcurrency(min=1, max=100, start=10), "k")
-    )
+    register_task_sample_semaphore("t1", _adaptive_limiter())
+
+    result = await task_limits("t1")
+    assert result is not None
+    assert result["max_samples"] == {
+        "limit": 15,  # start 10 + BUFFER 5
+        "in_use": 0,
+        "adjustable": True,
+        "tracks_adaptive": True,
+        "override": None,
+    }
+    # the never-matching "k" key surfaces the no-controller warning on a read
+    assert any("no matching connection controller" in w for w in result["warnings"])
+
+
+async def test_limits_adaptive_set_pins() -> None:
+    """An integer set pins sample concurrency at exactly that value."""
+    limiter = _adaptive_limiter()
+    register_eval("e1", 5, task_id="t1")
+    register_task_sample_semaphore("t1", limiter)
 
     result = await task_limits("t1", max_samples=30)
     assert result is not None
-    assert result["max_samples"] == {"adjustable": False, "tracks_adaptive": True}
-    assert any("max_samples is not adjustable" in w for w in result["warnings"])
-    # the never-matching "k" key also surfaces the no-controller warning
-    assert any("no matching connection controller" in w for w in result["warnings"])
+    assert result["max_samples"] == {
+        "limit": 30,  # exact setpoint, no BUFFER
+        "in_use": 0,
+        "adjustable": True,
+        "tracks_adaptive": True,
+        "override": 30,
+    }
+    assert result["requested"] == {"max_samples": 30}
+    assert result["warnings"] == []
+    assert limiter.override == 30
+    assert limiter.total_tokens == 30
+    # the pin is the operator remedy for the stuck case — the
+    # no-matching-controller warning is suppressed while pinned
+    result = await task_limits("t1")
+    assert result is not None
+    assert result["warnings"] == []
+
+
+async def test_limits_adaptive_clear_unpins() -> None:
+    limiter = _adaptive_limiter()
+    register_eval("e1", 5, task_id="t1")
+    register_task_sample_semaphore("t1", limiter)
+    limiter.set_override(30)
+
+    result = await task_limits("t1", max_samples="clear")
+    assert result is not None
+    assert result["requested"] == {"max_samples": "clear"}
+    assert limiter.override is None
+    assert limiter.total_tokens == 15  # back to tracking (initial: no controller)
+    view = result["max_samples"]
+    assert view == {
+        "limit": 15,
+        "in_use": 0,
+        "adjustable": True,
+        "tracks_adaptive": True,
+        "override": None,
+    }
+
+
+async def test_limits_adaptive_dry_run_does_not_apply() -> None:
+    limiter = _adaptive_limiter()
+    register_eval("e1", 5, task_id="t1")
+    register_task_sample_semaphore("t1", limiter)
+
+    result = await task_limits("t1", max_samples=30, dry_run=True)
+    assert result is not None
+    assert result["dry_run"] is True
+    assert result["requested"] == {"max_samples": 30}
+    assert limiter.override is None
+    assert limiter.total_tokens == 15
+
+
+async def test_limits_static_clear_warns_and_applies_others() -> None:
+    """'clear' against a static setpoint warns; other knobs still apply."""
+    limiter = ResizableLimiter(20)
+    docker = ResizableSemaphore("docker", 4, True)
+    register_sandbox_limiter("docker", docker)
+    register_eval("e1", 5, task_id="t1")
+    register_task_sample_semaphore("t1", limiter)
+
+    result = await task_limits("t1", max_samples="clear", max_sandboxes=8)
+    assert result is not None
+    assert any("max_samples is a fixed setpoint" in w for w in result["warnings"])
+    assert limiter.limit == 20  # untouched
+    assert docker.concurrency == 8  # the co-requested knob still landed
+    # the static view stays bare (no tracks_adaptive key)
+    assert result["max_samples"] == {"limit": 20, "in_use": 0, "adjustable": True}
+
+
+async def test_limits_adaptive_pin_survives_retry_registry_reuse() -> None:
+    """The pin lives on the task-scoped semaphore, shared across attempts."""
+    from inspect_ai.util._concurrency import task_sample_semaphore
+
+    limiter = _adaptive_limiter()
+    register_eval("e1", 5, task_id="t1")
+    register_task_sample_semaphore("t1", limiter)
+    await task_limits("t1", max_samples=8)
+
+    # an in-process retry re-registers the attempt but reuses the semaphore
+    register_eval("e2", 5, task_id="t1")
+    assert task_sample_semaphore("t1") is limiter
+    result = await task_limits("t1")
+    assert result is not None
+    assert result["max_samples"]["override"] == 8  # type: ignore[typeddict-item]
 
 
 async def test_limits_set_max_sandboxes() -> None:
@@ -266,7 +391,7 @@ async def test_limits_unaffected_by_retry_supersede() -> None:
 
     result = await task_limits("t1", max_samples=2)
     assert result is not None
-    assert result["max_samples"]["limit"] == 2
+    assert result["max_samples"] == {"limit": 2, "in_use": 0, "adjustable": True}
     assert limiter.limit == 2  # the task's (shared) limiter was retuned
 
 
@@ -615,6 +740,724 @@ def test_set_generate_config_override_rejects_out_of_range() -> None:
 
 
 # ---------------------------------------------------------------------------
+# max_tasks (the task dispatchers' live concurrency override)
+# ---------------------------------------------------------------------------
+
+
+async def test_max_tasks_view_without_dispatcher() -> None:
+    """With no live dispatcher the counters are null but the knob stays adjustable."""
+    from inspect_ai._control.limits import process_limits
+
+    result = await process_limits()
+    assert result["max_tasks"] == {
+        "limit": None,
+        "launch": None,
+        "override": None,
+        "in_flight": None,
+        "pending": None,
+        "adjustable": True,
+    }
+
+
+async def test_max_tasks_set_and_clear() -> None:
+    from inspect_ai._control.limits import process_limits
+    from inspect_ai._control.max_tasks import max_tasks_override
+
+    result = await process_limits(max_tasks=5)
+    assert result["requested"] == {"max_tasks": 5}
+    # always adjustable — the override layer exists regardless of launch config
+    assert result["warnings"] == []
+    assert result["max_tasks"]["override"] == 5
+    assert result["max_tasks"]["limit"] == 5
+    assert max_tasks_override() == 5
+
+    result = await process_limits(max_tasks="clear")
+    assert result["requested"] == {"max_tasks": "clear"}
+    assert result["max_tasks"]["override"] is None
+    assert result["max_tasks"]["limit"] is None  # no dispatcher, no override
+    assert max_tasks_override() is None
+
+
+async def test_max_tasks_dry_run_does_not_apply() -> None:
+    from inspect_ai._control.limits import process_limits
+    from inspect_ai._control.max_tasks import max_tasks_override
+
+    result = await process_limits(max_tasks=9, dry_run=True)
+    assert result["dry_run"] is True
+    assert result["requested"] == {"max_tasks": 9}
+    assert result["max_tasks"]["override"] is None
+    assert max_tasks_override() is None
+
+
+async def test_max_tasks_via_task_limits() -> None:
+    from inspect_ai._control.max_tasks import max_tasks_override
+
+    register_eval("e1", 5, task_id="t1")
+    result = await task_limits("t1", max_tasks=7)
+    assert result is not None
+    assert result["requested"] == {"max_tasks": 7}
+    assert result["max_tasks"]["override"] == 7
+    assert max_tasks_override() == 7
+
+
+async def test_max_tasks_view_and_record_with_live_dispatcher() -> None:
+    """The view reads the live dispatcher's counters.
+
+    The record's `previous` is the pre-change effective limit (the launch
+    value on a first retune).
+    """
+    from inspect_ai._control.config_record import inherited_config_updates
+    from inspect_ai._control.limits import process_limits
+    from inspect_ai._control.max_tasks import (
+        TaskDispatcherStats,
+        register_task_dispatcher,
+        remove_task_dispatcher,
+    )
+
+    def stats() -> TaskDispatcherStats:
+        return TaskDispatcherStats(launch=10, in_flight=4, pending=6)
+
+    register_task_dispatcher(stats)
+    try:
+        result = await process_limits()
+        assert result["max_tasks"] == {
+            "limit": 10,
+            "launch": 10,
+            "override": None,
+            "in_flight": 4,
+            "pending": 6,
+            "adjustable": True,
+        }
+
+        result = await process_limits(max_tasks=25)
+        assert result["max_tasks"] == {
+            "limit": 25,
+            "launch": 10,
+            "override": 25,
+            "in_flight": 4,
+            "pending": 6,
+            "adjustable": True,
+        }
+        updates = inherited_config_updates()
+        assert len(updates) == 1
+        (change,) = updates[0].changes
+        assert change.config == "eval" and change.name == "max_tasks"
+        assert change.value == 25 and change.previous == 10
+        assert change.cleared is False
+
+        result = await process_limits(max_tasks="clear")
+        assert result["max_tasks"]["limit"] == 10  # back to launch
+        assert result["max_tasks"]["override"] is None
+        (change,) = inherited_config_updates()[1].changes
+        assert change.cleared is True and change.previous == 25
+    finally:
+        remove_task_dispatcher(stats)
+
+
+async def test_max_tasks_noop_resend_records_nothing() -> None:
+    from inspect_ai._control.config_record import process_config_update_count
+    from inspect_ai._control.limits import process_limits
+    from inspect_ai._control.max_tasks import (
+        TaskDispatcherStats,
+        max_tasks_override,
+        register_task_dispatcher,
+        remove_task_dispatcher,
+    )
+
+    # a clear with no override in effect records nothing
+    result = await process_limits(max_tasks="clear")
+    assert result["persisted"] is None
+    assert process_config_update_count() == 0
+
+    # a re-send of the current override records nothing (but still applies)
+    await process_limits(max_tasks=5)
+    assert process_config_update_count() == 1
+    result = await process_limits(max_tasks=5)
+    assert result["persisted"] is None
+    assert process_config_update_count() == 1
+    assert max_tasks_override() == 5
+
+    # setting the launch value with no override changes nothing effective —
+    # the override still lands (pinning the value) but no record is written
+    await process_limits(max_tasks="clear")
+
+    def stats() -> TaskDispatcherStats:
+        return TaskDispatcherStats(launch=8, in_flight=0, pending=0)
+
+    register_task_dispatcher(stats)
+    try:
+        count = process_config_update_count()
+        result = await process_limits(max_tasks=8)
+        assert result["persisted"] is None
+        assert process_config_update_count() == count
+        assert max_tasks_override() == 8
+    finally:
+        remove_task_dispatcher(stats)
+
+
+async def test_max_tasks_first_record_without_dispatcher_has_null_previous() -> None:
+    """No live dispatcher → `previous` is None.
+
+    The recording layer then fills it from each log's launch config (see
+    fill_previous_from_launch).
+    """
+    from inspect_ai._control.config_record import inherited_config_updates
+    from inspect_ai._control.limits import process_limits
+
+    await process_limits(max_tasks=12)
+    (change,) = inherited_config_updates()[0].changes
+    assert change.value == 12 and change.previous is None
+
+
+def test_set_max_tasks_override_rejects_out_of_range() -> None:
+    """The store enforces both bounds for programmatic callers.
+
+    max_tasks 0 would be a disguised pause and a magnitude bug an unbounded
+    dispatch limit; the wire layers reject both first.
+    """
+    from inspect_ai._control.max_tasks import (
+        max_tasks_override,
+        set_max_tasks_override,
+    )
+
+    with pytest.raises(ValueError, match="max_tasks"):
+        set_max_tasks_override(0)
+    with pytest.raises(ValueError, match="max_tasks"):
+        set_max_tasks_override(MAX_GENERATE_CONFIG_OVERRIDE + 1)
+    assert max_tasks_override() is None
+    # the bound itself is a legal value
+    set_max_tasks_override(MAX_GENERATE_CONFIG_OVERRIDE)
+    assert max_tasks_override() == MAX_GENERATE_CONFIG_OVERRIDE
+
+
+def test_set_max_tasks_override_fires_dispatch_wakers() -> None:
+    """A set wakes waiting dispatchers so a raise takes effect immediately."""
+    from inspect_ai._control.max_tasks import set_max_tasks_override
+    from inspect_ai._control.pause import add_dispatch_waker, remove_dispatch_waker
+
+    fired: list[bool] = []
+
+    def waker() -> None:
+        fired.append(True)
+
+    add_dispatch_waker(waker)
+    try:
+        set_max_tasks_override(3)
+        assert fired
+    finally:
+        remove_dispatch_waker(waker)
+
+
+def test_max_tasks_override_resets_at_run_boundary() -> None:
+    from inspect_ai._control.eval_state import reset_run_registries
+    from inspect_ai._control.max_tasks import (
+        max_tasks_override,
+        set_max_tasks_override,
+    )
+
+    set_max_tasks_override(4)
+    reset_run_registries()
+    assert max_tasks_override() is None
+
+
+def test_effective_max_tasks_prefers_override() -> None:
+    from inspect_ai._control.max_tasks import (
+        effective_max_tasks,
+        set_max_tasks_override,
+    )
+
+    assert effective_max_tasks(10) == 10
+    set_max_tasks_override(3)
+    assert effective_max_tasks(10) == 3
+    set_max_tasks_override(None)
+    assert effective_max_tasks(10) == 10
+
+
+# ---------------------------------------------------------------------------
+# Per-sample limit overrides (time_limit / token_limit / message_limit)
+# ---------------------------------------------------------------------------
+
+
+async def test_sample_limit_overrides_default_view() -> None:
+    register_eval("e1", 5, task_id="t1")
+
+    result = await task_limits("t1")
+    assert result is not None
+    assert result["limits"] == {
+        "time_limit": None,
+        "token_limit": None,
+        "message_limit": None,
+    }
+
+
+async def test_sample_limit_overrides_set_and_clear() -> None:
+    from inspect_ai.util._limit_overrides import sample_limit_override
+
+    register_eval("e1", 5, task_id="t1")
+
+    result = await task_limits(
+        "t1", time_limit=600, token_limit=50_000, message_limit=100
+    )
+    assert result is not None
+    assert result["requested"] == {
+        "time_limit": 600,
+        "token_limit": 50_000,
+        "message_limit": 100,
+    }
+    assert result["limits"] == {
+        "time_limit": 600,
+        "token_limit": 50_000,
+        "message_limit": 100,
+    }
+    # always adjustable — the override layer exists regardless of launch config
+    assert result["warnings"] == []
+    assert sample_limit_override("t1", "token_limit") == 50_000
+
+    # "clear" removes an override (restoring launch config); the others stand
+    result = await task_limits("t1", token_limit="clear")
+    assert result is not None
+    assert result["requested"] == {"token_limit": "clear"}
+    assert result["limits"] == {
+        "time_limit": 600,
+        "token_limit": None,
+        "message_limit": 100,
+    }
+    assert sample_limit_override("t1", "token_limit") is None
+
+    # 0 is a real value, not a clear
+    result = await task_limits("t1", message_limit=0)
+    assert result is not None
+    assert result["limits"]["message_limit"] == 0
+    assert sample_limit_override("t1", "message_limit") == 0
+
+
+async def test_sample_limit_overrides_dry_run_does_not_apply() -> None:
+    from inspect_ai.util._limit_overrides import sample_limit_override
+
+    register_eval("e1", 5, task_id="t1")
+
+    result = await task_limits("t1", token_limit=5000, dry_run=True)
+    assert result is not None
+    assert result["dry_run"] is True
+    assert result["requested"] == {"token_limit": 5000}
+    assert result["limits"]["token_limit"] is None
+    assert sample_limit_override("t1", "token_limit") is None
+
+
+async def test_sample_limit_overrides_scoped_by_task() -> None:
+    """The store is task-keyed — a retune of one task never leaks to another."""
+    from inspect_ai.util._limit_overrides import sample_limit_override
+
+    register_eval("e1", 5, task_id="t1")
+    register_eval("e2", 5, task_id="t2")
+
+    result = await task_limits("t1", token_limit=5000)
+    assert result is not None
+    assert sample_limit_override("t1", "token_limit") == 5000
+    assert sample_limit_override("t2", "token_limit") is None
+    other = await task_limits("t2")
+    assert other is not None
+    assert other["limits"]["token_limit"] is None
+
+
+def test_set_sample_limit_override_rejects_out_of_range() -> None:
+    """A programmatic sign or magnitude bug errors loudly, not becomes an override.
+
+    An unbounded time_limit would overflow the float conversion when a live
+    deadline is re-derived from it, so the store rejects it here (the wire
+    layers reject it earlier for CLI/API callers).
+    """
+    from inspect_ai.util._limit_overrides import (
+        MAX_SAMPLE_LIMIT_OVERRIDE,
+        sample_limit_override,
+        set_sample_limit_override,
+    )
+
+    with pytest.raises(ValueError, match="token_limit"):
+        set_sample_limit_override("t1", "token_limit", -1)
+    with pytest.raises(ValueError, match="time_limit"):
+        set_sample_limit_override("t1", "time_limit", MAX_SAMPLE_LIMIT_OVERRIDE + 1)
+    assert sample_limit_override("t1", "token_limit") is None
+    assert sample_limit_override("t1", "time_limit") is None
+    # the bound itself is a legal value
+    set_sample_limit_override("t1", "message_limit", MAX_SAMPLE_LIMIT_OVERRIDE)
+    assert sample_limit_override("t1", "message_limit") == MAX_SAMPLE_LIMIT_OVERRIDE
+
+
+def test_sample_limit_override_bound_matches_generate_config_bound() -> None:
+    """The two override bounds must stay equal.
+
+    The shared CLI param type (``_IntOrClearType``) validates all override
+    knobs against ``MAX_GENERATE_CONFIG_OVERRIDE`` only, so a divergence
+    would let the CLI accept values the server rejects (or vice versa).
+    The constants live in different layers (util vs model), so parity is
+    pinned here rather than by one importing the other.
+    """
+    from inspect_ai.util._limit_overrides import MAX_SAMPLE_LIMIT_OVERRIDE
+
+    assert MAX_SAMPLE_LIMIT_OVERRIDE == MAX_GENERATE_CONFIG_OVERRIDE
+
+
+def _sample_root_limits() -> "tuple[Any, Any, Any]":
+    """A sample's root limit nodes as the runner creates them (no ceilings)."""
+    from inspect_ai.util._limit import message_limit, time_limit, token_limit
+
+    return time_limit(None), token_limit(None), message_limit(None)
+
+
+def test_sample_limit_override_reaches_inflight_token_check() -> None:
+    """The root token node resolves the override at each check.
+
+    This is the mid-flight contract: a retune reaches samples already inside
+    their limit scopes (whose nodes were created before the override was
+    set), not just samples started afterwards.
+    """
+    from inspect_ai.model._model_output import ModelUsage
+    from inspect_ai.util._limit import (
+        LimitExceededError,
+        check_token_limit,
+        record_model_usage,
+    )
+    from inspect_ai.util._limit_overrides import (
+        sample_limit_override_scope,
+        set_sample_limit_override,
+    )
+
+    time_node, token_node, message_node = _sample_root_limits()
+    with sample_limit_override_scope(
+        "t1", time=time_node, token=token_node, message=message_node
+    ):
+        with token_node:
+            record_model_usage(ModelUsage(input_tokens=80, total_tokens=80))
+            check_token_limit()  # no ceiling configured — nothing to exceed
+
+            set_sample_limit_override("t1", "token_limit", 50)
+            with pytest.raises(LimitExceededError) as exc_info:
+                check_token_limit()
+            assert exc_info.value.type == "token"
+            assert exc_info.value.limit == 50
+            assert token_node.limit == 50
+
+            # clearing restores launch config (unlimited here)
+            set_sample_limit_override("t1", "token_limit", None)
+            check_token_limit()
+            assert token_node.limit is None
+
+
+def test_sample_limit_override_reaches_inflight_message_check() -> None:
+    from inspect_ai.util._limit import LimitExceededError, check_message_limit
+    from inspect_ai.util._limit_overrides import (
+        sample_limit_override_scope,
+        set_sample_limit_override,
+    )
+
+    time_node, token_node, message_node = _sample_root_limits()
+    with sample_limit_override_scope(
+        "t1", time=time_node, token=token_node, message=message_node
+    ):
+        with message_node:
+            check_message_limit(80, raise_for_equal=False)
+
+            set_sample_limit_override("t1", "message_limit", 50)
+            with pytest.raises(LimitExceededError) as exc_info:
+                check_message_limit(80, raise_for_equal=False)
+            assert exc_info.value.type == "message"
+            assert exc_info.value.limit == 50
+
+            set_sample_limit_override("t1", "message_limit", None)
+            check_message_limit(80, raise_for_equal=False)
+
+
+def test_sample_limit_override_does_not_reach_nested_limits() -> None:
+    """Only the sample root resolves the override — agent-opened limits keep theirs."""
+    from inspect_ai.model._model_output import ModelUsage
+    from inspect_ai.util._limit import token_limit
+    from inspect_ai.util._limit_overrides import (
+        sample_limit_override_scope,
+        set_sample_limit_override,
+    )
+
+    time_node, token_node, message_node = _sample_root_limits()
+    with sample_limit_override_scope(
+        "t1", time=time_node, token=token_node, message=message_node
+    ):
+        with token_node:
+            nested = token_limit(1000)
+            with nested:
+                set_sample_limit_override("t1", "token_limit", 50)
+                assert token_node.limit == 50
+                assert nested.limit == 1000
+                nested.record(ModelUsage(input_tokens=60, total_tokens=60))
+                # the nested node's own check is against its own ceiling
+                nested._check_self()
+
+
+async def test_sample_limit_override_retunes_inflight_time_deadline() -> None:
+    """A time retune re-derives the live cancel-scope deadline (set and clear)."""
+    import math
+
+    from inspect_ai.util._limit_overrides import (
+        sample_limit_override_scope,
+        set_sample_limit_override,
+    )
+
+    time_node, token_node, message_node = _sample_root_limits()
+    with sample_limit_override_scope(
+        "t1", time=time_node, token=token_node, message=message_node
+    ):
+        with time_node:
+            assert time_node._cancel_scope.deadline == math.inf
+
+            set_sample_limit_override("t1", "time_limit", 500)
+            assert time_node._cancel_scope.deadline == approx_deadline(
+                time_node._start_time + 500
+            )
+
+            set_sample_limit_override("t1", "time_limit", None)
+            assert time_node._cancel_scope.deadline == math.inf
+
+
+async def test_sample_limit_override_cancels_sample_past_new_deadline() -> None:
+    """Lowering the time limit below the elapsed time cancels the sample now."""
+    from inspect_ai.util._limit import LimitExceededError
+    from inspect_ai.util._limit_overrides import (
+        sample_limit_override_scope,
+        set_sample_limit_override,
+    )
+
+    time_node, token_node, message_node = _sample_root_limits()
+    with pytest.raises(LimitExceededError) as exc_info:
+        with sample_limit_override_scope(
+            "t1", time=time_node, token=token_node, message=message_node
+        ):
+            with time_node:
+                set_sample_limit_override("t1", "time_limit", 0)
+                await anyio.sleep(60)
+                pytest.fail("the retuned deadline should have cancelled the sleep")
+    assert exc_info.value.type == "time"
+    assert exc_info.value.limit == 0
+
+
+async def test_sample_limit_override_after_deadline_fired_keeps_honest_limit() -> None:
+    """A retune landing after the deadline fired must not falsify the outcome.
+
+    A fired cancellation is never rescinded, so the exceeded error must
+    report the limit that actually governed it — and a clear back to an
+    unlimited launch config must not swallow the delivered cancellation
+    (which would let a raw CancelledError escape the limit scope).
+    """
+    from inspect_ai.util._limit import LimitExceededError
+    from inspect_ai.util._limit_overrides import (
+        sample_limit_override_scope,
+        set_sample_limit_override,
+    )
+
+    time_node, token_node, message_node = _sample_root_limits()
+    with pytest.raises(LimitExceededError) as exc_info:
+        with sample_limit_override_scope(
+            "t1", time=time_node, token=token_node, message=message_node
+        ):
+            with time_node:
+                set_sample_limit_override("t1", "time_limit", 0)
+                try:
+                    await anyio.sleep(60)
+                finally:
+                    # the cancellation is unwinding; the operator clears the
+                    # override before __exit__ observes it
+                    set_sample_limit_override("t1", "time_limit", None)
+    assert exc_info.value.type == "time"
+    assert exc_info.value.limit == 0
+
+
+async def test_sample_limit_override_applies_to_new_time_scope() -> None:
+    """A sample started after the retune opens its scope with the override."""
+    from inspect_ai.util._limit_overrides import (
+        sample_limit_override_scope,
+        set_sample_limit_override,
+    )
+
+    set_sample_limit_override("t1", "time_limit", 500)
+    time_node, token_node, message_node = _sample_root_limits()
+    with sample_limit_override_scope(
+        "t1", time=time_node, token=token_node, message=message_node
+    ):
+        with time_node:
+            assert time_node._cancel_scope.deadline == approx_deadline(
+                time_node._start_time + 500
+            )
+
+
+def test_sample_list_token_ceiling_reflects_override() -> None:
+    """`sample list` resolves a retuned token ceiling at read time.
+
+    The override store is keyed by the stable task id while a live sample
+    row carries the per-attempt eval id — the view translates through the
+    eval registry.
+    """
+    from inspect_ai._control.state import _active_sample_summary
+    from inspect_ai.util._limit_overrides import set_sample_limit_override
+
+    class _FakeHistory:
+        last_event = None
+        event_count = 0
+
+    class _FakeTranscript:
+        history = _FakeHistory()
+        pending_events: list[Any] = []
+
+    class _FakeSample:
+        id = "s1"
+
+    class _FakeActive:
+        eval_id = "e1"
+        sample = _FakeSample()
+        epoch = 1
+        started = 1.0
+        completed = 2.0
+        running_time = 1.0
+        total_tokens = 800
+        total_messages = 3
+        total_turns = 1
+        token_limit_usage = 800
+        token_limit = 10_000
+        token_limit_type = "all"
+        retries = None
+        transcript = _FakeTranscript()
+
+    register_eval("e1", 5, task_id="t1")
+    fake = cast(Any, _FakeActive())
+    assert _active_sample_summary(fake)["token_limit_total"] == 10_000
+    # keyed by the stable task id (as the directive writes it), read off a
+    # row that carries only the per-attempt eval id
+    set_sample_limit_override("t1", "token_limit", 5000)
+    assert _active_sample_summary(fake)["token_limit_total"] == 5000
+    # a different task's samples are untouched
+    register_eval("e2", 5, task_id="t2")
+    fake.eval_id = "e2"
+    assert _active_sample_summary(fake)["token_limit_total"] == 10_000
+
+
+@pytest.mark.parametrize("log_samples", [True, False])
+def test_sample_limit_overrides_wired_into_sample_runner(log_samples: bool) -> None:
+    """The runner attaches the override sources to each sample's root limits.
+
+    End-to-end through the real directive: a `task_limits` retune issued
+    while a real sample runs (keyed by the *stable* task id, as an operator
+    PATCH is — NOT the per-attempt eval id the sample runner sees) is
+    visible through the sample's root limit nodes (`sample_limits()`), and
+    the time node's live cancel-scope deadline tracks it. Runs with and
+    without per-sample logging — under --no-log-samples the runner has no
+    per-sample logger, but the control channel is just as targetable.
+    """
+    from inspect_ai import Task
+    from inspect_ai import eval as inspect_eval
+    from inspect_ai.dataset import Sample
+    from inspect_ai.solver import Generate, Solver, TaskState, solver
+
+    observed: dict[str, Any] = {}
+
+    @solver
+    def probe() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            from inspect_ai._control.eval_state import get_eval_state
+            from inspect_ai.log._samples import sample_active
+            from inspect_ai.util._limit import sample_limits
+
+            active = sample_active()
+            assert active is not None
+            eval_state = get_eval_state(active.eval_id)
+            assert eval_state is not None
+            # the stable task id differs from the per-attempt eval id — the
+            # regression this test pins is the runner keying its override
+            # scope by the wrong one
+            observed["distinct_ids"] = eval_state.task_id != active.eval_id
+            result = await task_limits(
+                eval_state.task_id, token_limit=1234, time_limit=600
+            )
+            assert result is not None
+            observed["view"] = result["limits"]
+            limits = sample_limits()
+            observed["token"] = limits.token.limit
+            observed["time"] = limits.time.limit
+            time_node = cast(Any, limits.time)
+            observed["deadline_tracks_override"] = time_node._cancel_scope.deadline == (
+                approx_deadline(time_node._start_time + 600)
+            )
+            return state
+
+        return solve
+
+    log = inspect_eval(
+        Task(dataset=[Sample(input="hi")], solver=probe()),
+        model="mockllm/model",
+        display="none",
+        log_samples=log_samples,
+    )[0]
+    assert log.status == "success"
+    assert observed == {
+        "distinct_ids": True,
+        "view": {"time_limit": 600, "token_limit": 1234, "message_limit": None},
+        "token": 1234,
+        "time": 600,
+        "deadline_tracks_override": True,
+    }
+
+
+def test_sample_limit_retune_stamped_on_logged_sample() -> None:
+    """A mid-run limits retune is stamped onto the logged sample record.
+
+    The logged ``EvalSample`` carries the *effective* per-sample limits — a
+    ``task_limits`` retune issued while the sample runs supersedes the launch
+    values in the stamped ``message_limit`` / ``token_limit`` / ``time_limit``
+    fields, so a log consumer never has to fold ``EvalLog.config_updates``
+    timestamps to answer "what limits did this sample run under?".
+    """
+    from inspect_ai import Task
+    from inspect_ai import eval as inspect_eval
+    from inspect_ai.dataset import Sample
+    from inspect_ai.solver import Generate, Solver, TaskState, solver
+
+    @solver
+    def retune() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            from inspect_ai._control.eval_state import get_eval_state
+            from inspect_ai.log._samples import sample_active
+
+            active = sample_active()
+            assert active is not None
+            eval_state = get_eval_state(active.eval_id)
+            assert eval_state is not None
+            result = await task_limits(
+                eval_state.task_id,
+                time_limit=600,
+                token_limit=1234,
+                message_limit=55,
+            )
+            assert result is not None
+            return state
+
+        return solve
+
+    log = inspect_eval(
+        Task(
+            dataset=[Sample(input="hi")],
+            solver=retune(),
+            message_limit=10,
+            token_limit=100,
+            time_limit=100,
+        ),
+        model="mockllm/model",
+        display="none",
+    )[0]
+    assert log.status == "success"
+    assert log.samples is not None
+    sample = log.samples[0]
+    assert sample.message_limit == 55
+    assert sample.token_limit == 1234
+    assert sample.time_limit == 600
+
+
+# ---------------------------------------------------------------------------
 # Named concurrency keys (--key)
 # ---------------------------------------------------------------------------
 
@@ -800,6 +1643,100 @@ async def test_limits_route_rejects_below_one() -> None:
         bad = await client.patch("/tasks/t1/config", params={"max_samples": 0})
         assert bad.status_code == 400
         assert "max_samples" in bad.json()["error"]
+
+
+async def test_limits_route_max_samples_pin_and_clear() -> None:
+    """The route parses max_samples as int-or-'clear' (the adaptive pin)."""
+    limiter = _adaptive_limiter()
+    register_eval("e1", 5, task_id="t1")
+    register_task_sample_semaphore("t1", limiter)
+
+    transport = httpx.ASGITransport(app=_app())
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://localhost"
+    ) as client:
+        pinned = await client.patch("/tasks/t1/config", params={"max_samples": 8})
+        assert pinned.status_code == 200, pinned.text
+        assert pinned.json()["max_samples"]["override"] == 8
+        assert limiter.total_tokens == 8
+
+        cleared = await client.patch(
+            "/tasks/t1/config", params={"max_samples": "clear"}
+        )
+        assert cleared.status_code == 200, cleared.text
+        assert cleared.json()["max_samples"]["override"] is None
+        assert limiter.total_tokens == 15  # resumed tracking (initial)
+
+        # garbage 400s at the wire with the friendly error-keyed body
+        bad = await client.patch("/tasks/t1/config", params={"max_samples": "lots"})
+        assert bad.status_code == 400
+        assert "max_samples" in bad.json()["error"]
+        assert "'clear'" in bad.json()["error"]
+
+        # 0 400s at the wire too (not a 500 from the apply layer), and the
+        # negative-value rejection advertises the same >= 1 floor
+        for below_floor in (0, -1):
+            bad = await client.patch(
+                "/tasks/t1/config", params={"max_samples": below_floor}
+            )
+            assert bad.status_code == 400
+            assert "max_samples must be an integer >= 1" in bad.json()["error"]
+
+
+async def test_max_tasks_route_set_clear_and_floor() -> None:
+    """max_tasks rides both PATCH routes, string-typed to admit `clear`.
+
+    The floor of 1 is server-enforced (0 must not become a bogus dispatch
+    limit).
+    """
+    from inspect_ai._control.max_tasks import max_tasks_override
+
+    register_eval("e1", 5, task_id="t1")
+
+    transport = httpx.ASGITransport(app=_app())
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://localhost"
+    ) as client:
+        got = await client.get("/config")
+        assert got.status_code == 200, got.text
+        assert got.json()["max_tasks"]["override"] is None
+
+        patched = await client.patch("/config", params={"max_tasks": "25"})
+        assert patched.status_code == 200, patched.text
+        assert patched.json()["max_tasks"]["override"] == 25
+        assert max_tasks_override() == 25
+
+        # the floor rides _limits_below_one post-parse, so the error shape
+        # matches the int-typed knobs — and nothing was applied
+        zero = await client.patch("/config", params={"max_tasks": "0"})
+        assert zero.status_code == 400
+        assert zero.json()["error"] == "max_tasks must be >= 1 (got 0)"
+        assert max_tasks_override() == 25
+
+        # the parse error advertises the knob's real floor (1, not the retry
+        # knobs' 0)
+        junk = await client.patch("/config", params={"max_tasks": "lots"})
+        assert junk.status_code == 400
+        assert "max_tasks must be an integer between 1 and" in junk.json()["error"]
+        negative = await client.patch("/config", params={"max_tasks": "-5"})
+        assert negative.status_code == 400
+        assert "between 1 and" in negative.json()["error"]
+
+        # the task-keyed route carries the knob too (it's process-scoped)
+        task_patched = await client.patch(
+            "/tasks/t1/config", params={"max_tasks": "30"}
+        )
+        assert task_patched.status_code == 200, task_patched.text
+        assert task_patched.json()["max_tasks"]["override"] == 30
+        task_zero = await client.patch("/tasks/t1/config", params={"max_tasks": "0"})
+        assert task_zero.status_code == 400
+        task_got = await client.get("/tasks/t1/config")
+        assert task_got.json()["max_tasks"]["override"] == 30
+
+        cleared = await client.patch("/config", params={"max_tasks": "clear"})
+        assert cleared.status_code == 200, cleared.text
+        assert cleared.json()["max_tasks"]["override"] is None
+        assert max_tasks_override() is None
 
 
 async def test_limits_route_rejects_unknown_param_atomically() -> None:
@@ -1061,6 +1998,66 @@ async def test_retry_overrides_route_patch_and_clear() -> None:
         assert got.json()["retry"]["max_retries"] == 4
 
 
+async def test_sample_limit_overrides_route_patch_and_clear() -> None:
+    from inspect_ai.util._limit_overrides import (
+        MAX_SAMPLE_LIMIT_OVERRIDE,
+        sample_limit_override,
+    )
+
+    register_eval("e1", 5, task_id="t1")
+
+    transport = httpx.ASGITransport(app=_app())
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://localhost"
+    ) as client:
+        patched = await client.patch(
+            "/tasks/t1/config",
+            params={"time_limit": 600, "token_limit": 50000, "message_limit": 100},
+        )
+        assert patched.status_code == 200, patched.text
+        assert patched.json()["limits"] == {
+            "time_limit": 600,
+            "token_limit": 50000,
+            "message_limit": 100,
+        }
+        assert sample_limit_override("t1", "token_limit") == 50000
+
+        # "clear" removes an override; 0 is a real value
+        cleared = await client.patch(
+            "/tasks/t1/config", params={"token_limit": "clear"}
+        )
+        assert cleared.status_code == 200, cleared.text
+        assert cleared.json()["limits"]["token_limit"] is None
+        zeroed = await client.patch("/tasks/t1/config", params={"message_limit": 0})
+        assert zeroed.status_code == 200, zeroed.text
+        assert zeroed.json()["limits"]["message_limit"] == 0
+
+        # negative, non-integer and over-bound values are rejected (an
+        # over-bound time_limit would otherwise overflow the deadline
+        # re-derivation for every live sample)
+        for bad_value in ("-1", "unset", str(MAX_SAMPLE_LIMIT_OVERRIDE + 1)):
+            bad = await client.patch(
+                "/tasks/t1/config", params={"time_limit": bad_value}
+            )
+            assert bad.status_code == 400
+            assert "time_limit" in bad.json()["error"]
+
+        # GET reports the active overrides too
+        got = await client.get("/tasks/t1/config")
+        assert got.status_code == 200, got.text
+        assert got.json()["limits"] == {
+            "time_limit": 600,
+            "token_limit": None,
+            "message_limit": 0,
+        }
+
+        # task-scoped: the process route doesn't carry these knobs (400,
+        # fail closed — a strict-server contract, not a silent drop)
+        rejected = await client.patch("/config", params={"token_limit": 1000})
+        assert rejected.status_code == 400
+        assert "token_limit" in rejected.json()["error"]
+
+
 async def test_limits_route_dry_run() -> None:
     limiter = ResizableLimiter(20)
     register_eval("e1", 5, task_id="t1")
@@ -1254,6 +2251,51 @@ async def test_config_update_unadjustable_knob_records_nothing() -> None:
     assert live.updates == []
 
 
+async def test_config_update_recorded_for_adaptive_pin_and_clear() -> None:
+    live = _RecordingLive()
+    _register_with_live("e1", "t1", live)
+    limiter = _adaptive_limiter()
+    register_task_sample_semaphore("t1", limiter)
+
+    # pin: recorded with previous=None ("no prior pin" — the recording layer
+    # falls back to the log's launch value, None for an adaptive task)
+    result = await task_limits("t1", max_samples=30)
+    assert result is not None
+    assert result["persisted"] == {"max_samples": True}
+    change = live.updates[0].changes[0]
+    assert (change.config, change.name) == ("eval", "max_samples")
+    assert (change.value, change.previous, change.cleared) == (30, None, False)
+
+    # re-send of the same value records nothing
+    live.updates.clear()
+    result = await task_limits("t1", max_samples=30)
+    assert result is not None
+    assert result["persisted"] is None
+    assert live.updates == []
+
+    # a repin records the honest previous
+    result = await task_limits("t1", max_samples=12)
+    assert result is not None
+    change = live.updates[0].changes[0]
+    assert (change.value, change.previous, change.cleared) == (12, 30, False)
+
+    # clear: cleared=True with the released pin as previous
+    live.updates.clear()
+    result = await task_limits("t1", max_samples="clear")
+    assert result is not None
+    assert result["persisted"] == {"max_samples": True}
+    change = live.updates[0].changes[0]
+    assert (change.value, change.previous, change.cleared) == (None, 12, True)
+
+    # no-op clear (nothing pinned) records nothing
+    live.updates.clear()
+    result = await task_limits("t1", max_samples="clear")
+    assert result is not None
+    assert result["persisted"] is None
+    assert live.updates == []
+    assert limiter.override is None
+
+
 async def test_config_update_process_scope_fans_out_to_all_live_logs() -> None:
     from inspect_ai._control.limits import process_limits
 
@@ -1377,6 +2419,61 @@ async def test_config_update_clear_records_cleared_change() -> None:
     assert result["persisted"] == {"timeout": True}
     change = live.updates[0].changes[0]
     assert (change.cleared, change.value, change.previous) == (True, None, 120)
+
+
+async def test_config_update_recorded_for_sample_limit_override() -> None:
+    live = _RecordingLive()
+    _register_with_live("e1", "t1", live)
+
+    result = await task_limits("t1", token_limit=5000, author="alice", reason="runaway")
+    assert result is not None
+    assert result["persisted"] == {"token_limit": True}
+    update = live.updates[0]
+    assert update.scope == "task"
+    assert update.provenance.author == "alice"
+    assert update.provenance.reason == "runaway"
+    change = update.changes[0]
+    assert (change.config, change.name) == ("eval", "token_limit")
+    # `previous` None = no prior override (the recording layer falls back to
+    # the log's launch value)
+    assert (change.value, change.previous, change.cleared) == (5000, None, False)
+
+    # an idempotent re-send records nothing
+    live.updates.clear()
+    result = await task_limits("t1", token_limit=5000)
+    assert result is not None
+    assert result["persisted"] is None
+    assert live.updates == []
+
+    # a re-tune records the prior override as `previous`
+    result = await task_limits("t1", token_limit=8000)
+    assert result is not None
+    change = live.updates[0].changes[0]
+    assert (change.value, change.previous) == (8000, 5000)
+
+
+async def test_config_update_sample_limit_clear_records_cleared_change() -> None:
+    from inspect_ai.util._limit_overrides import set_sample_limit_override
+
+    live = _RecordingLive()
+    _register_with_live("e1", "t1", live)
+    set_sample_limit_override("t1", "time_limit", 600)
+
+    result = await task_limits("t1", time_limit="clear")
+    assert result is not None
+    assert result["persisted"] == {"time_limit": True}
+    update = live.updates[0]
+    assert update.scope == "task"
+    change = update.changes[0]
+    assert (change.config, change.name) == ("eval", "time_limit")
+    assert (change.cleared, change.value, change.previous) == (True, None, 600)
+
+    # a clear with no active override records nothing
+    live.updates.clear()
+    result = await task_limits("t1", message_limit="clear")
+    assert result is not None
+    assert result["persisted"] is None
+    assert live.updates == []
 
 
 async def test_config_update_recording_failure_degrades_to_persisted_false() -> None:
@@ -1592,13 +2689,169 @@ async def test_config_update_route_carries_provenance_params() -> None:
         assert patched.json()["persisted"] == {"max_retries": True}
 
 
+def test_config_update_programmatic_patch_records_identically_to_cli(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A non-ctl mutation produces the same config_updates records as the CLI.
+
+    Open question 3 of design/ctl/config-log-persistence.md. The property
+    this pins: record construction is entirely server-side, at the PATCH
+    config handler / applier choke point — the ctl CLI contributes nothing to
+    the record beyond assembling query params. That is what makes recording
+    hold for *every* HTTP client: a Python ``ControlClient`` (or curl)
+    speaking the same routes gets correct records for free, with no client
+    cooperation. If any part of the behavior migrated into the CLI (say,
+    provenance assembly the server merely stores), the raw-PATCH leg or the
+    equality assertion below would break.
+
+    Pinned by driving one retune (a task-scoped ``max_samples`` plus a
+    process-scoped ``timeout``) through a raw PATCH and through the real
+    ``inspect ctl config`` command against the same server app, then
+    comparing the recorded updates field-for-field (timestamps aside).
+    Author/reason are passed explicitly on both legs: author *defaulting*
+    (git identity) is deliberately client-side — the server records whatever
+    ``author`` param arrives — so defaulting stays out of the comparison.
+    """
+    from _control.conftest import cli_runner
+    from inspect_ai._cli.ctl import ctl_command
+    from inspect_ai._cli.ctl._fetch import _FetchedSummaries
+    from inspect_ai._control import CONTROL_API_VERSION
+
+    def fresh_target() -> tuple[_RecordingLive, ResizableLimiter]:
+        """Identical launch state for each leg."""
+        _reset_all_states()
+        live = _RecordingLive()
+        _register_with_live("e1", "t1", live)
+        limiter = ResizableLimiter(20)
+        register_task_sample_semaphore("t1", limiter)
+        return live, limiter
+
+    async def asgi_patch(params: dict[str, Any]) -> dict[str, Any]:
+        transport = httpx.ASGITransport(app=_app())
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://localhost"
+        ) as client:
+            response = await client.patch("/tasks/t1/config", params=params)
+        assert response.status_code == 200, response.text
+        return cast(dict[str, Any], response.json())
+
+    # --- programmatic path: a raw PATCH, exactly what a ControlClient sends
+    live, limiter = fresh_target()
+    view = anyio.run(
+        asgi_patch,
+        {
+            "max_samples": 30,
+            "timeout": 120,
+            "author": "alice",
+            "reason": "provider incident",
+        },
+    )
+    assert view["persisted"] == {"max_samples": True, "timeout": True}
+    assert limiter.limit == 30
+    programmatic = [update.model_dump() for update in live.updates]
+
+    # the record is written, with full shape and provenance (not just present)
+    assert [update["scope"] for update in programmatic] == ["task", "process"]
+    task_change = programmatic[0]["changes"][0]
+    assert (task_change["config"], task_change["name"]) == ("eval", "max_samples")
+    assert (task_change["value"], task_change["previous"]) == (30, 20)
+    process_change = programmatic[1]["changes"][0]
+    assert (process_change["config"], process_change["name"]) == (
+        "generate",
+        "timeout",
+    )
+    # a first override has no prior value; the recording layer leaves previous
+    # None for TaskLogger to fill from launch config (see the fan-out tests)
+    assert (process_change["value"], process_change["previous"]) == (120, None)
+    for update in programmatic:
+        assert update["provenance"]["author"] == "alice"
+        assert update["provenance"]["reason"] == "provider incident"
+
+    # --- CLI path: the real `inspect ctl config` command against the same
+    # server app (only the UDS transport is bridged to ASGI — the CLI's knob
+    # → param assembly and the server's handler → applier → record run real)
+    class _Server:
+        pid = 7
+        socket_path = "/tmp/7.sock"
+        started_at = 100.0
+        api_version = CONTROL_API_VERSION
+
+    summary = {
+        "task_id": "t1",
+        "task": "task_one",
+        "eval_id": "e1",
+        "socket_path": "/tmp/7.sock",
+        "pid": 7,
+        "status": "running",
+        "samples": {},
+        "started_at": 100.0,
+        "keep_alive": False,
+    }
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl._http.list_discovered_servers", lambda: [_Server()]
+    )
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl._fetch._fetch_summaries",
+        lambda servers, **kwargs: _FetchedSummaries([summary], []),
+    )
+
+    def asgi_request_json(
+        socket_path: str,
+        path: str,
+        *,
+        params: dict[str, Any] | None = None,
+        mutate: str | None = None,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        assert socket_path == "/tmp/7.sock"
+        assert path == "/tasks/t1/config" and mutate == "patch"
+        return anyio.run(asgi_patch, params or {})
+
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", asgi_request_json)
+
+    live, limiter = fresh_target()
+    result = cli_runner().invoke(
+        ctl_command,
+        [
+            "config",
+            "--max-samples",
+            "30",
+            "--timeout",
+            "120",
+            "--author",
+            "alice",
+            "--reason",
+            "provider incident",
+        ],
+    )
+    assert result.exit_code == 0, (result.output, result.exception)
+    assert limiter.limit == 30
+    cli = [update.model_dump() for update in live.updates]
+
+    # both paths wrote records — identical field-for-field modulo timestamp
+    def sans_timestamp(dumps: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        return [
+            {
+                **dump,
+                "provenance": {
+                    key: value
+                    for key, value in dump["provenance"].items()
+                    if key != "timestamp"
+                },
+            }
+            for dump in dumps
+        ]
+
+    assert sans_timestamp(cli) == sans_timestamp(programmatic)
+
+
 # ---------------------------------------------------------------------------
 # CLI rendering
 # ---------------------------------------------------------------------------
 
 
 def test_print_config(capsys: pytest.CaptureFixture[str]) -> None:
-    from inspect_ai._cli.ctl import _print_config
+    from inspect_ai._cli.ctl._render import _print_config
 
     _print_config(
         {
@@ -1631,7 +2884,7 @@ def test_print_config(capsys: pytest.CaptureFixture[str]) -> None:
 
 def test_print_config_max_subprocesses(capsys: pytest.CaptureFixture[str]) -> None:
     """An active subprocess limiter renders its limit; a dry-run set an arrow."""
-    from inspect_ai._cli.ctl import _print_config
+    from inspect_ai._cli.ctl._render import _print_config
 
     _print_config(
         {
@@ -1655,7 +2908,7 @@ def test_print_config_max_subprocesses_inactive(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """A run with no subprocess limiter yet renders the knob as inactive."""
-    from inspect_ai._cli.ctl import _print_config
+    from inspect_ai._cli.ctl._render import _print_config
 
     _print_config(
         {
@@ -1681,7 +2934,7 @@ def test_print_config_max_subprocesses_inactive(
 def test_print_config_updated_with_warning(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    from inspect_ai._cli.ctl import _print_config
+    from inspect_ai._cli.ctl._render import _print_config
 
     _print_config(
         {
@@ -1705,7 +2958,7 @@ def test_print_config_updated_with_warning(
 
 
 def test_print_config_dry_run_header(capsys: pytest.CaptureFixture[str]) -> None:
-    from inspect_ai._cli.ctl import _print_config
+    from inspect_ai._cli.ctl._render import _print_config
 
     _print_config(
         {
@@ -1740,7 +2993,7 @@ def test_print_config_dry_run_unchanged_knob_has_no_arrow(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """A dry-run knob whose requested value equals the current one shows no arrow."""
-    from inspect_ai._cli.ctl import _print_config
+    from inspect_ai._cli.ctl._render import _print_config
 
     _print_config(
         {
@@ -1773,8 +3026,13 @@ def test_print_config_dry_run_unchanged_knob_has_no_arrow(
 
 
 def test_print_config_adaptive_section(capsys: pytest.CaptureFixture[str]) -> None:
-    """The adaptive path renders live controller state instead of a bare label."""
-    from inspect_ai._cli.ctl import _print_config
+    """The adaptive path renders live controller state instead of a bare label.
+
+    The max_samples view here is the *older server's* adaptive shape
+    (adjustable=False, no numbers) — current servers send the adjustable
+    tracking/pinned shape covered by the tests below.
+    """
+    from inspect_ai._cli.ctl._render import _print_config
 
     _print_config(
         {
@@ -1820,11 +3078,76 @@ def test_print_config_adaptive_section(capsys: pytest.CaptureFixture[str]) -> No
     assert "last: 50→45 rate_limit" in out
 
 
+def _adaptive_max_samples_config(view: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "dry_run": False,
+        "knobs": {
+            "max_samples": {"scope": "task", **view},
+            "max_sandboxes": {"scope": "process", "providers": []},
+            "max_connections": {"scope": "process", "adaptive": []},
+        },
+        "requested": None,
+        "warnings": [],
+        "notes": [],
+    }
+
+
+def test_print_config_adaptive_tracking_arm(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """An unpinned adaptive limiter renders numbers + the tracking hint.
+
+    Guards the arm discriminator: the tracking view carries adjustable=True,
+    so an adjustable-first chain would misrender it with the static arm.
+    """
+    from inspect_ai._cli.ctl._render import _print_config
+
+    _print_config(
+        _adaptive_max_samples_config(
+            {
+                "limit": 25,
+                "in_use": 18,
+                "adjustable": True,
+                "tracks_adaptive": True,
+                "override": None,
+            }
+        ),
+        changed=False,
+    )
+    out = capsys.readouterr().out
+    assert (
+        "max samples [task]:         25 (18 in use, tracking adaptive "
+        "connections — set to pin)" in out
+    )
+
+
+def test_print_config_adaptive_pinned_arm(capsys: pytest.CaptureFixture[str]) -> None:
+    from inspect_ai._cli.ctl._render import _print_config
+
+    _print_config(
+        _adaptive_max_samples_config(
+            {
+                "limit": 8,
+                "in_use": 8,
+                "adjustable": True,
+                "tracks_adaptive": True,
+                "override": 8,
+            }
+        ),
+        changed=False,
+    )
+    out = capsys.readouterr().out
+    assert (
+        "max samples [task]:         8 (8 in use, pinned — 'clear' resumes "
+        "adaptive tracking)" in out
+    )
+
+
 def test_print_config_adaptive_dry_run_shows_ceiling_arrow(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """A dry-run max_connections renders the ceiling as `max → requested`."""
-    from inspect_ai._cli.ctl import _print_config
+    from inspect_ai._cli.ctl._render import _print_config
 
     _print_config(
         {
@@ -1858,7 +3181,7 @@ def test_print_config_adaptive_dry_run_shows_ceiling_arrow(
 
 def test_print_config_process_scope(capsys: pytest.CaptureFixture[str]) -> None:
     """The process-level view (no max_samples knob) shows max samples as per-task."""
-    from inspect_ai._cli.ctl import _print_config
+    from inspect_ai._cli.ctl._render import _print_config
 
     _print_config(
         {
@@ -1899,7 +3222,7 @@ def test_print_config_buffer_knobs_and_notes(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """The absorbed buffer knobs render with their task scope; notes print last."""
-    from inspect_ai._cli.ctl import _print_config
+    from inspect_ai._cli.ctl._render import _print_config
 
     _print_config(
         {
@@ -1924,7 +3247,7 @@ def test_print_config_buffer_knobs_and_notes(
 
 def test_print_config_retry_overrides(capsys: pytest.CaptureFixture[str]) -> None:
     """Retry knobs render the live override, or 'launch config' when unset."""
-    from inspect_ai._cli.ctl import _print_config
+    from inspect_ai._cli.ctl._render import _print_config
 
     _print_config(
         {
@@ -1952,7 +3275,7 @@ def test_print_config_retry_overrides_dry_run_arrows(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """A dry-run renders `current → requested`, with `clear` shown as its meaning."""
-    from inspect_ai._cli.ctl import _print_config
+    from inspect_ai._cli.ctl._render import _print_config
 
     _print_config(
         {
@@ -1981,7 +3304,7 @@ def test_print_config_omits_retry_knobs_for_older_server(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """An older server's view has no retry knobs — no line, no value claim."""
-    from inspect_ai._cli.ctl import _print_config
+    from inspect_ai._cli.ctl._render import _print_config
 
     _print_config(
         {
@@ -2001,11 +3324,138 @@ def test_print_config_omits_retry_knobs_for_older_server(
     assert "max retries" not in out
 
 
+def test_print_config_sample_limit_overrides(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Sample-limit knobs render the live override, or 'launch config' when unset."""
+    from inspect_ai._cli.ctl._render import _print_config
+
+    _print_config(
+        {
+            "target": {"scope": "task", "task_id": "t1", "task": "demo"},
+            "dry_run": False,
+            "knobs": {
+                "max_sandboxes": {"scope": "process", "providers": []},
+                "max_connections": {"scope": "process", "adaptive": []},
+                "time_limit": {"scope": "task", "override": 600},
+                "token_limit": {"scope": "task", "override": None},
+                "message_limit": {"scope": "task", "override": None},
+            },
+            "requested": None,
+            "warnings": [],
+            "notes": [],
+        },
+        changed=False,
+    )
+    out = capsys.readouterr().out
+    assert "  time limit [task]:          600s (override)" in out
+    assert "  token limit [task]:         launch config" in out
+    assert "  message limit [task]:       launch config" in out
+
+
+def test_print_config_sample_limit_overrides_dry_run_arrows(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A dry-run renders `current → requested`, with `clear` shown as its meaning."""
+    from inspect_ai._cli.ctl._render import _print_config
+
+    _print_config(
+        {
+            "target": {"scope": "task", "task_id": "t1", "task": "demo"},
+            "dry_run": True,
+            "knobs": {
+                "max_sandboxes": {"scope": "process", "providers": []},
+                "max_connections": {"scope": "process", "adaptive": []},
+                "time_limit": {"scope": "task", "override": 600},
+                "token_limit": {"scope": "task", "override": None},
+                "message_limit": {"scope": "task", "override": None},
+            },
+            "requested": {
+                "time_limit": "clear",
+                "token_limit": 50000,
+                "message_limit": 0,
+            },
+            "warnings": [],
+            "notes": [],
+        },
+        changed=True,
+    )
+    out = capsys.readouterr().out
+    assert "600s (override) → launch config" in out
+    assert "launch config → 50000" in out
+    # 0 is a real requested value, not a clear
+    assert "  message limit [task]:       launch config → 0\n" in out
+
+
+def test_print_config_sample_limits_process_placeholder(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The process view can't show the task-scoped limit knobs — placeholder."""
+    from inspect_ai._cli.ctl._render import _print_config
+
+    _print_config(
+        {
+            "target": {"scope": "process", "task_id": None, "task": None},
+            "dry_run": False,
+            "knobs": {
+                "max_sandboxes": {"scope": "process", "providers": []},
+                "max_connections": {"scope": "process", "adaptive": []},
+            },
+            "requested": None,
+            "warnings": [],
+            "notes": [],
+        },
+        changed=False,
+    )
+    out = capsys.readouterr().out
+    assert "  time limit [task]:          per task (pass a task to view/set)" in out
+    assert "  token limit [task]:         per task (pass a task to view/set)" in out
+    assert "  message limit [task]:       per task (pass a task to view/set)" in out
+
+
+def test_compose_config_sample_limit_overrides() -> None:
+    """The composed view carries the limit knobs with their task scope."""
+    from inspect_ai._cli.ctl._config import _compose_config
+    from inspect_ai._cli.ctl._mutate import _DirectiveScope
+    from inspect_ai._control.views import TaskConfigView
+
+    scope = _DirectiveScope(
+        socket_path="/tmp/sock",
+        pid=123,
+        task_id="t1",
+        task="demo",
+        header="demo (t1)",
+        siblings=0,
+    )
+    limits_view: TaskConfigView = {
+        # a task envelope always carries max_samples — it is the
+        # task/process discriminator (_as_task_view)
+        "max_samples": {"limit": 4, "in_use": 0, "adjustable": True},
+        "limits": {"time_limit": None, "token_limit": 5000, "message_limit": None},
+        "max_sandboxes": [],
+        "adaptive": [],
+        "buffer": None,
+        "requested": None,
+        "warnings": [],
+        "dry_run": False,
+    }
+    config = _compose_config(
+        scope,
+        limits_view,
+        dry_run=False,
+        set_values=True,
+        notes=[],
+    )
+    assert config["knobs"]["token_limit"] == {"scope": "task", "override": 5000}
+    assert config["knobs"]["time_limit"] == {"scope": "task", "override": None}
+    assert config["knobs"]["message_limit"] == {"scope": "task", "override": None}
+
+
 def test_print_config_concurrency_keys_section(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """The named-key section lists registry entries with their scope label."""
-    from inspect_ai._cli.ctl import _print_config
+    from inspect_ai._cli.ctl._render import _print_config
 
     _print_config(
         {
@@ -2054,7 +3504,7 @@ def test_print_config_concurrency_keys_empty_states(
     discoverable and tells that state apart from a server whose view predates
     the section (`keys` is None).
     """
-    from inspect_ai._cli.ctl import _print_config
+    from inspect_ai._cli.ctl._render import _print_config
 
     def view(keys: list[dict[str, Any]] | None) -> dict[str, Any]:
         return {
@@ -2086,7 +3536,7 @@ def test_print_config_concurrency_keys_dry_run_arrow(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """A dry-run key set renders the targeted key as `current → requested`."""
-    from inspect_ai._cli.ctl import _print_config
+    from inspect_ai._cli.ctl._render import _print_config
 
     _print_config(
         {
@@ -2119,7 +3569,7 @@ def test_print_config_concurrency_keys_dry_run_arrow(
 
 def test_process_scope_note() -> None:
     """The process-wide scope note fires only for a global knob in a multi-eval process."""
-    from inspect_ai._cli.ctl import _process_scope_note
+    from inspect_ai._cli.ctl._config import _process_scope_note
 
     # nothing set → no note
     assert _process_scope_note([], 3) is None

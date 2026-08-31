@@ -13,6 +13,17 @@ The version is a simple integer in `src/inspect_ai/tool/_sandbox_tools_utils/san
 
 ## Release Steps
 
+Steps 3–6 are scripted as an interactive wizard — run it from a checkout of
+the PR's head branch (`--dry-run` builds and validates without publishing;
+`--auto` answers every prompt with its safe default, for agents/unattended
+runs):
+
+```sh
+scripts/release-sandbox-tools.sh [--dry-run] [--auto]
+```
+
+The sections below document the underlying commands.
+
 ### 1. Make code changes
 
 Edit source code under `src/inspect_sandbox_tools/`.
@@ -58,13 +69,21 @@ python src/inspect_ai/tool/_sandbox_tools_utils/upload_to_s3.py {VERSION}
 
 Uploads all four artifacts (amd64/arm64 × glibc/musl) to the `inspect-sandbox-tools` bucket (us-east-2) with public-read ACL so runtime S3 downloads work without credentials.
 
+The script refuses to run unless `{VERSION}` matches the committed `sandbox_tools_version.txt`, refuses to overwrite a published version with different bytes (published S3 objects are immutable — if a published object is wrong, bump the version and publish fresh artifacts; never fix a problem by re-uploading), rewrites `src/inspect_ai/tool/_sandbox_tools_utils/SHA256SUMS` with the digests of the four local artifacts before uploading, and round-trip verifies each uploaded object.
+
 **URL pattern:** `https://inspect-sandbox-tools.s3.us-east-2.amazonaws.com/inspect-sandbox-tools-{arch}[-musl]-v{version}`
 
-### 6. Merge the PR
+### 6. Commit the digest file
 
-The GitHub Actions workflow (`.github/workflows/build_sandbox_tools.yml`) can build executables on PR, but is currently manual-trigger only (`workflow_dispatch`).
+Commit the rewritten `SHA256SUMS` to the release PR branch (the upload script prints the exact commands). The digests must land in the same PR as the version bump: every consumer (runtime S3 download, `pypi-release.py`, the `slow-tool-tests-release` CI gate) verifies fetched bytes against them, and the release gate stays red until both the upload completes and the sums are pushed.
 
-### 7. PyPI release (when releasing inspect_ai)
+Fail-closed window: while a version bump is merged (or installed non-editably from the PR branch) with the sums not yet rewritten, clean/pypi runtime downloads treat the missing sums entry as an integrity failure (fatal with `INSPECT_SANDBOX_TOOLS_STRICT_DIGESTS` set, a warning by default during the digest soft launch). Once the rewritten sums are committed but before the S3 objects land, downloads 404 and fall back to the local-build prompt; the upload-before-commit ordering makes that window hard to reach. After upload, a digest mismatch anywhere is a stop-the-line signal — investigate; never re-upload over a published object.
+
+### 7. Merge the PR
+
+Once `slow-tool-tests-release` is green, merge through the normal review process.
+
+### 8. PyPI release (when releasing inspect_ai)
 
 The `inspect_ai` release script automatically pulls sandbox tools from S3:
 
@@ -82,7 +101,7 @@ musl sandboxes). `src/inspect_ai/tool/_sandbox_tools_utils/sandbox.py` then uses
 three-tier fallback:
 
 1. **Local** — looks for the executable in `inspect_ai/binaries/` (only the glibc variants are bundled into the wheel)
-2. **S3 download** — if the install is "clean" (no local edits to sandbox tools), downloads from S3 (this is the normal path for the musl variants)
+2. **S3 download** — if the install is "clean" (no local edits to sandbox tools), downloads from S3, verified against the vendored `SHA256SUMS` (this is the normal path for the musl variants)
 3. **Local build** — prompts the user to build locally via Docker (`--musl` for the musl variant)
 
 The install state detection (`_get_install_state`) determines which tiers are attempted:
@@ -96,9 +115,9 @@ The install state detection (`_get_install_state`) determines which tiers are at
 | File | Purpose |
 |------|---------|
 | `src/inspect_ai/tool/_sandbox_tools_utils/sandbox_tools_version.txt` | Version (simple integer) |
+| `src/inspect_ai/tool/_sandbox_tools_utils/SHA256SUMS` | Pinned digests for the four published artifacts (written by `upload_to_s3.py`; see `BINARY_INTEGRITY.md`) |
 | `src/inspect_ai/tool/_sandbox_tools_utils/build_within_container.py` | Build orchestrator |
 | `src/inspect_ai/tool/_sandbox_tools_utils/build_executable.py` | Runs inside Docker container |
 | `src/inspect_ai/tool/_sandbox_tools_utils/validate_distros.py` | Cross-distro validation |
 | `src/inspect_ai/tool/_sandbox_tools_utils/sandbox.py` | Runtime resolution and injection |
-| `.github/workflows/build_sandbox_tools.yml` | CI build workflow |
 | `scripts/pypi-release.py` | PyPI release script (downloads from S3) |

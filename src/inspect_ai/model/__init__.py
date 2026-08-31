@@ -65,6 +65,7 @@ from ._model import (
     Model,
     ModelAPI,
     ModelName,
+    ModelRoles,
     RetryDecision,
     get_model,
     model_roles,
@@ -90,12 +91,21 @@ from ._openai_convert import (
     messages_from_openai,
     messages_from_openai_responses,
     messages_to_openai,
+    messages_to_openai_responses,
     model_output_from_openai,
     model_output_from_openai_responses,
 )
 from ._prompt import user_prompt
 from ._providers.providers import *
 from ._registry import modelapi
+from ._stream import (
+    StreamEvent,
+    StreamHandler,
+    StreamReasoningEvent,
+    StreamRetryEvent,
+    StreamTextEvent,
+    StreamToolCallEvent,
+)
 from ._trim import trim_messages
 
 __all__ = [
@@ -127,6 +137,7 @@ __all__ = [
     "ChatCompletionChoice",
     "messages_from_openai",
     "messages_from_openai_responses",
+    "messages_to_openai_responses",
     "messages_from_anthropic",
     "messages_from_google",
     "model_output_from_openai",
@@ -154,6 +165,7 @@ __all__ = [
     "ModelAPI",
     "ModelName",
     "ModelRole",
+    "ModelRoles",
     "RetryDecision",
     "ModelConfig",
     "ModelFallback",
@@ -161,6 +173,12 @@ __all__ = [
     "StopCategory",
     "StopDetails",
     "StopReason",
+    "StreamEvent",
+    "StreamHandler",
+    "StreamReasoningEvent",
+    "StreamRetryEvent",
+    "StreamTextEvent",
+    "StreamToolCallEvent",
     "call_tools",
     "execute_tools",
     "ExecuteToolsResult",

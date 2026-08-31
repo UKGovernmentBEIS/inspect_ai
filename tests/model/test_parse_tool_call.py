@@ -1,3 +1,6 @@
+import logging
+
+from inspect_ai._util.constants import PKG_NAME
 from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.tool import ToolInfo, ToolParam, ToolParams
 
@@ -64,6 +67,75 @@ def test_parse_single_quotes_in_string_tool_call_without_a_dict():
 
     assert "param1" in tool_call.arguments
     assert tool_call.arguments["param1"] == "'"
+
+
+def test_parse_empty_arguments_with_trailing_quotes():
+    # models calling a tool with an empty or all-optional schema sometimes emit
+    # the empty body plus loose quotes; the object is complete, so recover it
+    tool_call = parse_tool_call("id", "testing_tool", '{}""', [testing_tool])
+
+    assert tool_call.arguments == {}
+    assert tool_call.parse_error is None
+
+
+def test_parse_arguments_with_trailing_quotes():
+    tool_call = parse_tool_call(
+        "id", "testing_tool", '{"param1": "value"}"', [testing_tool]
+    )
+
+    assert tool_call.arguments == {"param1": "value"}
+    assert tool_call.parse_error is None
+
+
+def test_parse_recovered_arguments_logs_arguments(caplog):
+    # init_logger() sets propagate=False on the inspect_ai logger once any
+    # earlier test triggers it, which would otherwise make caplog's root
+    # handler miss this record
+    logger = logging.getLogger(PKG_NAME)
+    prev_propagate = logger.propagate
+    logger.propagate = True
+    try:
+        with caplog.at_level("INFO"):
+            parse_tool_call(
+                "id", "testing_tool", '{"param1": "value"}""', [testing_tool]
+            )
+        assert '{"param1": "value"}""' in caplog.text
+    finally:
+        logger.propagate = prev_propagate
+
+
+def test_parse_arguments_with_trailing_quotes_and_whitespace():
+    tool_call = parse_tool_call("id", "testing_tool", '{}"\n"', [testing_tool])
+
+    assert tool_call.arguments == {}
+    assert tool_call.parse_error is None
+
+
+def test_parse_error_on_trailing_single_quote():
+    # only double quotes are the observed artifact; a trailing single quote
+    # still surfaces as a parse error rather than being recovered
+    tool_call = parse_tool_call("id", "testing_tool", "{}'", [testing_tool])
+
+    assert tool_call.arguments == {}
+    assert tool_call.parse_error is not None
+
+
+def test_parse_error_on_duplicated_object():
+    # trailing content that isn't just quotes may be the call the model meant,
+    # so it stays an error rather than silently taking the first object
+    malformed = '{"param1": "first"}{"param1": "second"}'
+    tool_call = parse_tool_call("id", "testing_tool", malformed, [testing_tool])
+
+    assert tool_call.arguments == {}
+    assert tool_call.parse_error is not None
+
+
+def test_parse_error_on_truncated_object():
+    malformed = '{"param1": "value"'
+    tool_call = parse_tool_call("id", "testing_tool", malformed, [testing_tool])
+
+    assert tool_call.arguments == {}
+    assert tool_call.parse_error is not None
 
 
 def test_parse_error_preserves_small_arguments():

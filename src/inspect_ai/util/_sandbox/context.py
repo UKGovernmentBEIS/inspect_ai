@@ -16,6 +16,7 @@ from .environment import (
     SandboxConnection,
     SandboxEnvironment,
     SandboxEnvironmentConfigType,
+    SandboxUnavailableError,
 )
 from .registry import registry_find_sandboxenv
 
@@ -157,7 +158,13 @@ def sandbox_file_detector(file: str, on_path: bool = False) -> Detector:
     """
 
     async def detect_on_path(sandbox: SandboxEnvironment) -> bool:
-        return (await sandbox.exec(["which", file])).success
+        try:
+            return (await sandbox.exec(["which", file])).success
+        except SandboxUnavailableError:
+            # Treat an unavailable sandbox as no match so discovery can continue
+            # with the remaining sandboxes. Suppress only SandboxUnavailableError;
+            # other exceptions retain their previous behavior.
+            return False
 
     async def detect_file(sandbox: SandboxEnvironment) -> bool:
         return await _is_file_readable(sandbox, file)
@@ -217,8 +224,11 @@ async def sandbox_with_injection(
     return target_sandbox
 
 
-async def sandbox_connections() -> dict[str, SandboxConnection]:
-    environments = sandbox_environments_context_var.get(None)
+async def sandbox_connections(
+    environments: dict[str, SandboxEnvironment] | None = None,
+) -> dict[str, SandboxConnection]:
+    if environments is None:
+        environments = sandbox_environments_context_var.get(None)
     if environments:
         connections: dict[str, SandboxConnection] = {}
         for name, environment in environments.items():
