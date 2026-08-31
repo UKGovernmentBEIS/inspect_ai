@@ -208,10 +208,11 @@ async def read_sandboxenv_file(contents: str) -> bytes:
         file_bytes = await _retrying_httpx_get(contents)
     else:
         # try to read as a file (if it doesn't exist or has a path not cool w/
-        # the filesystem then we fall back to contents)
+        # the filesystem then we fall back to contents). an empty string is
+        # always contents (fsspec resolves "" to the cwd)
         try:
             fs = filesystem(contents)
-            if fs.exists(contents):
+            if contents != "" and fs.exists(contents):
                 with file(contents, "rb") as f:
                     file_bytes = f.read()
             else:
@@ -223,7 +224,12 @@ async def read_sandboxenv_file(contents: str) -> bytes:
 
 
 def filesystem_for_file(contents: str) -> FileSystem | None:
-    if is_data_uri(contents):
+    # an empty string is literal file contents, never a path (fsspec
+    # resolves "" to the cwd, so treating it as a path would copy the
+    # entire working directory into the sandbox)
+    if contents == "":
+        return None
+    elif is_data_uri(contents):
         return None
     elif is_http_url(contents):
         return None

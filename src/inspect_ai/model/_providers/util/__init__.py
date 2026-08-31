@@ -31,6 +31,7 @@ from .util import (
     model_base_url,
     normalize_stream_arg,
     resolve_api_key,
+    sample_cache_affinity_key,
 )
 
 __all__ = [
@@ -49,6 +50,7 @@ __all__ = [
     "parse_tool_call",
     "require_azure_base_url",
     "resolve_api_key",
+    "sample_cache_affinity_key",
     "resolve_azure_token_provider",
     "resolve_bedrock_base_url",
     "resolve_bedrock_region",
