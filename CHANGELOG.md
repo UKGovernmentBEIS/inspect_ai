@@ -3,6 +3,7 @@
 - Eval Set: `eval_set()` now defaults `log_dir` to `INSPECT_LOG_DIR` or `./logs`, as `eval()` does, rather than requiring it.
 - Eval Set: An external runner driving `eval_set()` can now override any argument that does not change task identity, rather than only five.
 - Eval Set: An eval set driven by an external runner now honors the `INSPECT_EVAL_*` environment variables with the same meanings `inspect eval-set` gives them.
+- Control Channel: `inspect ctl config --max-samples` now works for tasks using adaptive connections — an integer pins sample concurrency, and `clear` resumes adaptive tracking.
 
 ## 0.3.261 (30 August 2026)
 
@@ -52,7 +53,6 @@
 - Docker Sandbox: `x-local: false` on a compose service is now treated the same as omitting `x-local` (the image is pulled) rather than marking the image as local.
 - Control Channel: New `inspect ctl sample store` command reads a running or just-finished sample's current store directly (with server-side `--key` exact/prefix filtering).
 - Control Channel: New `inspect ctl sample cancel-tool-call` cancels one hung tool call (the model sees an ordinary tool timeout and the sample continues), with pending tool calls now visible in `inspect ctl sample list --json`.
-- Control Channel: `inspect ctl config --max-samples` now works for tasks using adaptive connections — an integer pins sample concurrency, and `clear` resumes adaptive tracking.
 - Metrics: Tasks can now declare a `headline_metric` naming which scorer and metric summarise the eval, honored by the log listing, the progress display, and `evals_df()`.
 - Models: `Model.generate()` and `Model.generate_loop()` accept an optional `on_stream` callback that by itself enables provider streaming and receives incremental events (text/reasoning/tool-call deltas and retry boundaries), with streamed progress now also visible on `inspect ctl sample list`.
 - Models: `on_stream` now delivers stream events from the OpenAI, OpenAI-compatible (Together, Fireworks, etc.), Grok, and SageMaker providers, in addition to Anthropic and Google.
