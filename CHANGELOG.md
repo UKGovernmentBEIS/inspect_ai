@@ -1,5 +1,5 @@
 ## Unreleased
-
+- Bugfix: Bump the `fsspec` upper bound from `<=2025.9.0` to `<=2026.6.0` to align with the current `huggingface/datasets` cap. (#4761)
 - Tools: The `grep` tool now supports extended regex via a new `extended_regexp` option (patterns remain basic regex by default).
 - Agent Bridge: Bridged Anthropic requests now preserve `system` block boundaries, so instruction blocks are no longer silently discarded by the API.
 - Anthropic: A single assistant turn that interleaves thinking with client tool calls now replays in its original order, so subsequent requests no longer fail with "thinking ... blocks in the latest assistant message cannot be modified".
