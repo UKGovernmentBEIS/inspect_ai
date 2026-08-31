@@ -84,6 +84,15 @@ definition author's control. The values the definition asked for are recorded
 in the capture manifest's `options`, so a runner can see what it is honouring
 and what is being overridden.
 
+Scanning in selection mode is **record-only**: a worker dispatches scanners
+per settled sample and writes scout's per-transcript buffer, but never touches
+the scan directory's lifecycle — no init, no finalize, no orphan cleanup. The
+bracket belongs to the runner, which lays the scan directory down before any
+worker starts (a worker finding it absent refuses rather than silently not
+scanning) and compacts/finalizes it as the single writer. A selection may also
+carry `scanners` — runner-injected scanner specs merged with the definition's
+own before dispatch (introduced in version 7).
+
 This module is deliberately not part of the public API: the models here are a
 versioned wire format (see `EVAL_SET_SELECTION_VERSION`) written by external
 runners (currently inspect_steward, which imports them from this module).
@@ -94,6 +103,7 @@ Schema changes require a version bump and corresponding golden-test updates
 import json
 import os
 from collections import Counter
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, ValidationError
 
@@ -104,7 +114,7 @@ from .eval_set_overrides import EvalSetOverrides, validate_eval_set_overrides
 
 INSPECT_EVAL_SET_SELECTION = "INSPECT_EVAL_SET_SELECTION"
 
-EVAL_SET_SELECTION_VERSION = 6
+EVAL_SET_SELECTION_VERSION = 7
 
 
 def eval_set_selection_requested() -> str | None:
@@ -177,6 +187,17 @@ class EvalSetSelection(BaseModel):
     overrides: EvalSetOverrides | None = None
     """How to operate this worker, overriding both the definition and the run-wide overrides document, or `None` to take those as they come."""
 
+    # a dict of plain dicts rather than of scout's `ScannerSpec`, deliberately:
+    # inspect_scout is an optional dependency, and a model field typed on it
+    # would make importing this module require it. The entries are validated as
+    # `ScannerSpec`s at the moment they are realized, which is also the first
+    # moment scout is needed.
+    scanners: dict[str, dict[str, Any]] | None = None
+    """Runner-injected scanners, as scout `ScannerSpec` dicts keyed by scanner name.
+
+    These are *merged with* the definition's own `scanner` argument before per-sample dispatch — a name collision with a definition scanner is refused rather than resolved, since either resolution silently changes what one of the two records. A worker may scan through this field alone, with a definition that declares no scanners of its own. The scan directory's lifecycle (init/finalize) belongs to the runner in selection mode, so the merged set here must match the spec the runner wrote into the scan directory.
+    """
+
 
 # The version each optional field was introduced in. A document may not use a
 # field newer than the version it declares: the declaration is what an older
@@ -188,7 +209,7 @@ class EvalSetSelection(BaseModel):
 # The gate is not ceremony, and `limit` is what shows why: an unknown field an
 # older inspect ignores usually costs nothing, but an ignored `limit` means a
 # worker asked for two samples runs five thousand.
-_FIELD_MIN_VERSION: dict[str, int] = {"overrides": 3}
+_FIELD_MIN_VERSION: dict[str, int] = {"overrides": 3, "scanners": 7}
 
 # the same rule for fields of a *task* entry. It needs its own dict rather than
 # a dotted key because the check has to look at every entry: a facet set on one
@@ -349,5 +370,14 @@ def read_eval_set_selection(selection_path: str) -> EvalSetSelection:
     # path, a semaphore that admits nothing, or an empty dataset.
     if selection.overrides is not None:
         validate_eval_set_overrides(selection.overrides, selection_path)
+
+    # an explicitly empty scanners dict is the same kind of runner bug: it says
+    # "inject scanners" and names none, which downstream would silently read as
+    # no injection at all.
+    if selection.scanners is not None and not selection.scanners:
+        raise PrerequisiteError(
+            f"The eval set selection at '{selection_path}' sets `scanners` to "
+            "an empty mapping. Omit the field to inject no scanners."
+        )
 
     return selection

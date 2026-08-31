@@ -34,6 +34,7 @@ from inspect_ai.model._model import (
     GenerateInput,
     Model,
     ModelGenerateFilter,
+    ModelName,
     active_model,
     get_model,
     model_roles,
@@ -359,7 +360,7 @@ def resolve_generate_config(
     config = bridge_config.merge(model.config)
 
     # apply active model config if appropriate
-    is_active_model = model == active_model()
+    is_active_model = model is active_model()
     if is_active_model:
         config = config.merge(active_generate_config())
 
@@ -384,6 +385,23 @@ def resolve_inspect_model(
     model_name = model_name.removeprefix("inspect/")
     if model_name in model_roles():
         return get_model(role=model_name)
+
+    # Prefer the eval's own Model instance when the client names it.
+    #
+    # A bridged client may send the concrete model id instead of asking for
+    # "inspect" (claude_code sends e.g. "claude-fable-5"). get_model() memoizes on a
+    # key that includes the config JSON, so resolving by name alone handed back a
+    # DIFFERENT instance than the eval's active model -- and resolve_generate_config
+    # only applies the eval's GenerateConfig to the active model, so eval-level
+    # options were silently dropped before the provider request. Returning the active
+    # instance also avoids a second Model (and its connection pool) for one model.
+    #
+    # Deliberately placed last: aliases, an explicit "inspect", and model roles all
+    # return above, so this cannot redirect a role or alias to the eval's model.
+    active = active_model()
+    if active is not None and model_name in (str(active), ModelName(active).name):
+        return active
+
     return get_model(model_name)
 
 

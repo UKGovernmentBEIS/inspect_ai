@@ -26,6 +26,10 @@ def resolve_sample_files(dataset: Dataset) -> None:
 
     # resolve file locations
     def resolve_file(file: str) -> str:
+        # an empty string is literal file contents, never a path (resolving
+        # it would yield the dataset's parent directory, which exists)
+        if file == "":
+            return file
         # try/except (and ignore) to tolerate 'paths' that are actually
         # file contents (so will trip OS name too long constraints)
         try:

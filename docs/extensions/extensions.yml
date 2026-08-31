@@ -193,3 +193,16 @@
     Open standard for portable LLM evaluation datasets. Convert between Inspect AI and other eval frameworks (DeepEval, Promptfoo, LangSmith, etc.) using a portable JSON format.
   author: "[Sahi Katukojula](https://github.com/adhabnr-ux)"
   categories: ["Frameworks"]
+
+- name: "[proofbundle](https://github.com/b7n0de/proofbundle)"
+  description: |
+    Signed, offline-verifiable receipts for eval runs — Ed25519 over an RFC 6962 Merkle root. Binds what a run claimed and when; it does not attest that the evaluation itself was honest.
+  author: "[b7n0de](https://b7n0de.com)"
+  categories: ["Analysis"]
+
+- name: "[Inspect LogitTilt](https://adrskapars.github.io/inspect_logittilt/)"
+  description: |
+    Steers a model's sampling towards any target behaviour, surfacing on-policy
+    examples in fewer samples, accessing only the model's logits.
+  author: "[Adrians Skapars](https://scholar.google.com/citations?user=9Vf0mWkAAAAJ&hl=en)"
+  categories: ["Tooling"]

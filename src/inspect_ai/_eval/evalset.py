@@ -45,7 +45,13 @@ from inspect_ai._eval.handoff import (
 )
 from inspect_ai._eval.task.log import plan_to_eval_plan
 from inspect_ai._eval.task.run import eval_plan_agent_name, resolve_plan
-from inspect_ai._eval.task.scan import Scanners, scan_already_clean
+from inspect_ai._eval.task.scan import (
+    Scanners,
+    merged_selection_scanner,
+    scan_already_clean,
+    serialized_scan,
+    verify_selection_scan_dir,
+)
 from inspect_ai._util._async import run_coroutine
 from inspect_ai._util.azure import call_with_azure_auth_fallback
 from inspect_ai._util.error import PrerequisiteError
@@ -102,6 +108,7 @@ from inspect_ai.util._limit import (
 from .eval import eval, eval_init, eval_resolve_tasks
 from .eval_set_manifest import (
     INSPECT_EVAL_SET_CAPTURE,
+    EvalSetCaptureScan,
     build_eval_set_capture,
     eval_set_capture_requested,
     samples_selected,
@@ -619,9 +626,10 @@ def eval_set(
         fail_on_error=fail_on_error,
         continue_on_fail=continue_on_fail,
         retry_on_error=retry_on_error,
-        # whether the definition scans. selection mode rejects scanners, so a
-        # runner needs to learn this at enumeration time rather than when every
-        # one of its workers fails.
+        # whether the definition scans. workers scan record-only, so a runner
+        # needs to learn this at enumeration time to lay the scan directory
+        # down before its first worker starts (the serialized spec it does
+        # that with is the capture's top-level `scan` field, not this bool).
         scanners=scanner is not None,
     )
 
@@ -742,6 +750,15 @@ def eval_set(
             raise PrerequisiteError(
                 "Error: No inspect tasks were found at the specified paths."
             )
+        # the definition's scanner configuration, serialized so a runner can
+        # own the scan directory's lifecycle without executing the definition
+        # (workers scan record-only in selection mode).
+        captured = serialized_scan(scanner, scan_id=eval_set_id)
+        capture_scan = (
+            EvalSetCaptureScan(spec=captured[0], scans=captured[1])
+            if captured is not None
+            else None
+        )
         capture = build_eval_set_capture(
             capture_tasks,
             EvalSetArgsInTaskIdentifier(
@@ -760,6 +777,7 @@ def eval_set(
             eval_set_id=eval_set_id,
             options=definition_options,
             overrides=overrides,
+            scan=capture_scan,
         )
         with file(capture_path, mode="wb") as f:
             f.write(to_json_safe(capture))
@@ -790,18 +808,19 @@ def eval_set(
                 "Dynamic task sources (TaskSource) cannot be used with "
                 "eval-set selection."
             )
-        if scanner is not None:
-            raise PrerequisiteError(
-                "Scanners are not supported with eval-set selection. One scan "
-                "directory is shared by a whole eval set, and its bookkeeping "
-                "assumes a single writer: concurrent workers would race to "
-                "create it, and each worker's finalize prunes scan rows whose "
-                "transcripts it cannot see in the log directory yet -- "
-                "deleting the rows of workers still running. Scanning is an "
-                "eval-set level operation, so the runner should perform it "
-                "over the log directory rather than each worker scanning "
-                "its own share."
-            )
+        # scanning in selection mode is record-only: workers dispatch scanners
+        # per settled sample and write scout's per-transcript buffer, and the
+        # runner owns the scan directory's lifecycle (init/finalize) as its
+        # single writer. The inner eval() runs with eval_set_id set, so it
+        # never enters scan_context -- record-only needs no bracket to skip,
+        # only the two guarantees below: the merged scanner set matches what
+        # the runner wrote into the scan directory (a collision refuses), and
+        # a missing scan directory refuses loudly rather than letting
+        # scan_eval_sample's exists() check silently not-scan.
+        scanner = merged_selection_scanner(scanner, selection.scanners)
+        verify_selection_scan_dir(
+            scanner, scan_id=selection.eval_set_id, log_dir=log_dir
+        )
         selection_config = GenerateConfig(**kwargs)
 
         def resolve_selection_tasks(selection_input: Tasks) -> list[ResolvedTask]:
