@@ -1,5 +1,6 @@
 ## Unreleased
 - Scorer: `pattern()` now falls back to the full regex match when the pattern contains no explicit capture groups (previously such patterns always scored INCORRECT). (#4828)
+- Tools: The `grep` tool now supports extended regex via a new `extended_regexp` option (patterns remain basic regex by default).
 - Agent Bridge: Bridged Anthropic requests now preserve `system` block boundaries, so instruction blocks are no longer silently discarded by the API.
 - Anthropic: A single assistant turn that interleaves thinking with client tool calls now replays in its original order, so subsequent requests no longer fail with "thinking ... blocks in the latest assistant message cannot be modified".
 - OpenAI: Chat Completions usage now preserves prompt-cache read and write tokens for accurate cache-aware costing.
