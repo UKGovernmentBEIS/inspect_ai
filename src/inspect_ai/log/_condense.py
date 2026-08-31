@@ -542,7 +542,9 @@ class CallWalkCache:
         best_slot: _CallWalkSlot | None = None
         best_len = 0
         best_full = False
-        for slot in self._slots:
+        # newest lineage first: a request usually extends the one it notified
+        # last, so the best match is normally the first candidate
+        for slot in reversed(self._slots):
             if slot.key != msg_key:
                 continue
             n = _strict_eq_prefix_len(msgs, (m.pre_walk for m in slot.messages))
@@ -553,6 +555,12 @@ class CallWalkCache:
                 best_len = n
                 best_full = full
                 best_slot = slot
+                # consuming both sides fully is the maximum of that ordering,
+                # so no remaining lineage can win. Exiting on a full match of
+                # `msgs` alone would take a partial match over a later exact
+                # one and fork a duplicate slot.
+                if full and n == len(msgs):
+                    break
 
         walked_msgs: list[JsonValue] = []
         slot_messages: list[_WalkedCallMessage] = []
