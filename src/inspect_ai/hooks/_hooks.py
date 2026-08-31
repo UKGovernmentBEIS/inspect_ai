@@ -191,7 +191,12 @@ class SampleEnd:
     sample_id: str
     """The globally unique identifier for the sample execution."""
     sample: EvalSample
-    """The sample that has run."""
+    """The sample that has run.
+
+    ``events`` and ``attachments`` may be empty and ``timelines`` ``None``
+    when the receiving hook overrides ``needs_full_sample()`` to return
+    ``False`` (see ``Hooks.needs_full_sample``).
+    """
 
 
 @dataclass(frozen=True)
@@ -405,7 +410,25 @@ class Hooks:
         variable or a configuration setting.
 
         Will be called frequently, so consider caching the result if the computation is
-        expensive.
+        expensive. Implementations should return a stable value for the duration of a
+        sample: enablement is consulted both when sample finalization begins and again
+        at each hook dispatch, and a value that flips in between can deliver a reduced
+        ``SampleEnd.sample`` to a hook that did not opt out.
+        """
+        return True
+
+    def needs_full_sample(self) -> bool:
+        """Whether ``on_sample_end`` requires the fully materialized sample.
+
+        Default implementation returns True, preserving the fully populated
+        sample for hooks enabled when sample finalization begins.
+
+        Hooks that read only summary-level fields (id, scores, error, ...) may
+        override this to return ``False``, permitting delivery of
+        ``SampleEnd.sample`` with empty ``events`` and ``attachments`` and
+        ``timelines`` set to ``None``. A permission, not a guarantee: the
+        fully populated sample is still delivered whenever anything else in
+        the eval needs it, so an opted-out hook must tolerate both forms.
         """
         return True
 
@@ -1089,6 +1112,35 @@ def get_all_hooks() -> list[Hooks]:
         )
         _hooks_cache_state = state
     return _hooks_cache
+
+
+def any_hook_needs_full_sample() -> bool:
+    """Whether any enabled hook requires the fully materialized sample.
+
+    Read at sample-finalization start to decide whether a bounded-evicted
+    event history must be re-materialized for ``on_sample_end``: an
+    opted-out hook (``needs_full_sample()`` returning ``False``) permits
+    skipping that re-materialization, but any other registered consumer —
+    another hook, a scanner, a sample/task source — still forces it for
+    every hook (see ``_finalization_consumes_events`` in
+    ``_eval/task/run.py``). The ``enabled()`` gate is load-bearing:
+    always-registered module-level hooks (e.g. in ``tests/_control/``) rely
+    on it to not defeat the optimization. A hook whose ``enabled()`` or
+    ``needs_full_sample()`` raises is logged and counted as needing the
+    full sample: fail toward materialization, never toward silently
+    reducing a sample a broken hook might need.
+    """
+    for hook in get_all_hooks():
+        try:
+            if hook.enabled() and hook.needs_full_sample():
+                return True
+        except Exception as ex:
+            logger.warning(
+                f"Exception consulting enabled()/needs_full_sample() on hook "
+                f"'{hook.__class__.__name__}': {ex}"
+            )
+            return True
+    return False
 
 
 async def _emit_to_all(callable: Callable[[Hooks], Awaitable[None]]) -> None:

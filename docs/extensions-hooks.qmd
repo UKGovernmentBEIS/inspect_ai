@@ -74,7 +74,7 @@ These events track the lifecycle of individual samples. Note the distinction bet
 | `on_sample_attempt_end` | `SampleAttemptEnd` | At the end of every attempt — `data.error` and `data.will_retry` describe the outcome. |
 | `on_sample_event` | `SampleEvent` | Each time a sample event (e.g. a `ModelEvent` or `ToolEvent`) is logged. Fires many times per sample. |
 | `on_sample_scoring` | `SampleScoring` | After the solver completes and before scoring begins. |
-| `on_sample_end` | `SampleEnd` | When a sample completes (or errors with no retries remaining). Once per epoch; `data.sample` is the full `EvalSample`. |
+| `on_sample_end` | `SampleEnd` | When a sample completes (or errors with no retries remaining). Once per epoch; `data.sample` is the full `EvalSample` (unless every hook [opts out](#skipping-full-sample-materialization)). |
 
 ### Model
 
@@ -92,7 +92,7 @@ Event data is owned by the framework. In particular, objects reachable from `Sam
 
 Hooks run within the evaluation, so keep them fast and resilient. Events from different samples and tasks may fire concurrently, and any exception raised by a hook is caught and logged as a warning (it does not fail the run) — with the exception of `LimitExceededError`, which is allowed to propagate so that hooks can enforce limits.
 
-In addition to these lifecycle events, two non-event methods let you control hook behaviour: [`enabled()`](#disabling-hooks) gates whether a hook is active, and [`override_api_key()`](#api-key-override) can rewrite model API keys. Both are covered below.
+In addition to these lifecycle events, three non-event controls let you tune hook behaviour: the [`enabled()`](#disabling-hooks) method gates whether a hook is active, the [`needs_full_sample()`](#skipping-full-sample-materialization) method lets summary-only hooks skip full-sample materialization, and the [`override_api_key()`](#api-key-override) method can rewrite model API keys. All are covered below.
 
 ## Hook Object Lifecycle
 
@@ -159,6 +159,22 @@ class WBHooks(Hooks):
 ```
 
 Because `enabled()` is consulted before every hook invocation (potentially many times per sample), keep its implementation cheap or cache the result.
+
+## Skipping Full Sample Materialization
+
+By default, `SampleEnd.sample` is the fully materialized `EvalSample`, complete `events` and `attachments` included. For long samples this can be expensive to reconstruct, so hooks whose `on_sample_end` reads only summary-level fields (scores, error, timings, etc.) can opt out by overriding the `needs_full_sample()` method to return `False`:
+
+``` python
+@hooks(name="score_tracker", description="Tracks sample scores")
+class ScoreTracker(Hooks):
+    def needs_full_sample(self) -> bool:
+        return False
+
+    async def on_sample_end(self, data: SampleEnd) -> None:
+        record(data.sample_id, data.sample.scores)
+```
+
+This is a permission: it allows the framework to deliver a sample with empty `events` and `attachments` and `timelines` set to `None`, but the reduction only happens when *every* enabled hook has opted out and nothing else in the eval needs the full sample. If you override `needs_full_sample()` to return `False` you must tolerate both forms.
 
 ## Requiring Hooks
 
