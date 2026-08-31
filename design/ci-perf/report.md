@@ -169,11 +169,30 @@ derived from the DB alone and was already never rebuilt on registration, and no
 test patches `read_model_info` or the data files, so nothing depends on the
 re-read.
 
-Prediction to verify next run: **−18s of worker time on the 3.11 leg and −25s on
-the 3.10 leg** (the model-info file is twice as expensive there), i.e. ~4–7s of
-leg wall at 4 workers. That is *below* the ±15s per-leg noise band this series
-measured on 2026-08-27, so the check must be a per-file diff of the report-log
-artifacts, not a wall-clock comparison.
+Prediction was **−18s of worker time on the 3.11 leg and −25s on the 3.10 leg**
+(the model-info file is twice as expensive there). Because that sits *below* the
+±15s per-leg noise band this series measured on 2026-08-27, the check has to be a
+per-file diff of the report-log artifacts rather than a wall-clock comparison —
+and this run's own PR provided one within the hour, since the fix touches `src/`
+and therefore actually runs the test legs:
+
+| file | tests | 3.10 before → after | 3.11 before → after |
+|---|---:|---|---|
+| `tests/test_sample_limits.py` | 34 | 37.5 → 27.9s (−9.6) | 33.9 → 27.1s (−6.8) |
+| `tests/model/test_model_info.py` | 47 | 23.6 → **0.7s** (−22.9) | 11.8 → **1.3s** (−10.5) |
+| `tests/model/providers/test_model_family.py` | 26 | 7.4 → **0.2s** (−7.2) | 6.0 → **0.1s** (−5.9) |
+| `tests/model/test_canonical_names.py` | 84 | 5.1 → **0.5s** (−4.6) | 3.8 → **0.3s** (−3.5) |
+| **total** | **191** | **73.5 → 29.2s (−44.3)** | **55.5 → 28.9s (−26.6)** |
+
+**Prediction beaten, by 1.8x on 3.10 and 1.5x on 3.11** — the local single-process
+measurement understated the reload, which costs more on a CI runner than on this
+sandbox. Three of the four files collapse to under 1.5s, which is the signature
+of the fixture rather than of anything else moving. Whole-leg worker time went
+892.2 → 839.1s (3.10) and 903.0 → 843.4s (3.11); the residual beyond the affected
+files (−8.8s and −33.0s) is well inside the ±60s-of-worker-time noise band and
+nothing should be read into it. Comparison is upstream run 33343746910 against
+fork run 33379153161, 14,952 → 14,950 collected items (2 test IDs removed by
+`main` in between, both sub-millisecond).
 
 ## Where the pytest step actually goes
 
@@ -355,6 +374,11 @@ Red checks a contributor actually sees, for context:
 
 ## Impact verification (previous runs' changes)
 
+- **This run's own fix — verified same-day, prediction beaten.** −44.3s (3.10) /
+  −26.6s (3.11) of worker time on the four affected files against a predicted
+  −25s / −18s; per-file table above. First time in this series a fix has been
+  measured inside the run that shipped it, which is only possible because it
+  touches `src/` and so the PR's own test legs execute.
 - **#4935 (`blob:none` checkouts) — final leg closed, ten windows later.**
   `slow-tool-tests-release` had never executed in any snapshot, leaving one
   predicted checkout unverified indefinitely. It ran 6 times this window:
