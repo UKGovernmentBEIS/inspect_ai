@@ -244,6 +244,30 @@ def test_dataset_image_paths_file_uri() -> None:
     assert exists(content.image)
 
 
+def test_dataset_empty_string_files_not_resolved(tmp_path: Path) -> None:
+    # empty-string files/setup values are literal contents, and must not be
+    # resolved against the dataset's parent directory (which exists, so would
+    # replace the value with a directory path and later copy that whole
+    # directory into the sandbox)
+    dataset_file = tmp_path / "dataset.jsonl"
+    dataset_file.write_text(
+        json_module.dumps(
+            {
+                "input": "Say hello",
+                "target": "hello",
+                "files": {"submission/report.md": ""},
+                "setup": "",
+                "sandbox": ["docker", ""],
+            }
+        )
+        + "\n"
+    )
+    sample = json_dataset(dataset_file.as_posix())[0]
+    assert sample.files == {"submission/report.md": ""}
+    assert sample.setup == ""
+    assert sample.sandbox is not None and sample.sandbox.config == ""
+
+
 def test_dataset_auto_id() -> None:
     dataset = json_dataset(dataset_path("dataset.jsonl"))
     assert all(sample.id is None for sample in dataset)
