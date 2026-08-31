@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import json as json_lib
-from typing import Any, Literal, NamedTuple
+from typing import Any, Literal, NamedTuple, cast
 
 import click
 
 from inspect_ai._control.discovery import DiscoveredControlServer
+from inspect_ai._control.views import ProcessConfigView, TaskConfigView
 
 # Patch seam: tests monkeypatch functions on their defining module
 # (e.g. `inspect_ai._cli.ctl._http._request_json`), so cross-module
@@ -17,7 +18,9 @@ from inspect_ai._control.discovery import DiscoveredControlServer
 from . import _fetch, _http
 from ._failure import _CtlFailure, _envelope_failures, _fail
 from ._group import (
+    _INT_MIN_ONE_OR_CLEAR,
     _INT_OR_CLEAR,
+    _MAX_SAMPLES_INT_OR_CLEAR,
     _echo_no_running_evals,
     _json_option,
     _terse_line,
@@ -34,12 +37,25 @@ from ._render import _echo, _echo_raw, _print_config
 @click.argument("task", required=False)
 @click.option(
     "--max-samples",
-    type=click.IntRange(min=1),
+    type=_MAX_SAMPLES_INT_OR_CLEAR,
     metavar="INTEGER",
     default=None,
     help=(
-        f"[{_KNOB_SCOPE['max_samples']}] Max samples to run concurrently (under "
-        "adaptive connections, sample concurrency tracks the controller instead)."
+        f"[{_KNOB_SCOPE['max_samples']}] Max samples to run concurrently — "
+        "under adaptive connections this pins sample concurrency ('clear' "
+        "resumes tracking the controller)."
+    ),
+)
+@click.option(
+    "--max-tasks",
+    type=_INT_MIN_ONE_OR_CLEAR,
+    metavar="INTEGER",
+    default=None,
+    help=(
+        f"[{_KNOB_SCOPE['max_tasks']}] Override the max concurrently running "
+        "tasks ('clear' restores launch config). Raising it starts pending "
+        "tasks immediately; more tasks can mean more concurrent sandbox "
+        "startups (see --max-sandboxes)."
     ),
 )
 @click.option(
@@ -199,7 +215,8 @@ from ._render import _echo, _echo_raw, _print_config
 @_terse_option(note="Applies when setting a knob; a pure view always renders in full.")
 def config_command(
     task: str | None,
-    max_samples: int | None,
+    max_samples: int | Literal["clear"] | None,
+    max_tasks: int | Literal["clear"] | None,
     max_sandboxes: int | None,
     max_subprocesses: int | None,
     max_connections: int | None,
@@ -239,11 +256,19 @@ def config_command(
     `--max-retries` set live overrides read by the model retry loop, so a
     change reaches even generate calls already retrying (in-flight API
     requests still drain first); pass `clear` to remove an override.
+    `--max-tasks` likewise sets a live override, read by the task dispatcher
+    at each dispatch decision: raising it starts pending tasks immediately,
+    lowering never interrupts running tasks (new ones wait until in-flight
+    drains below the limit).
     `--time-limit` / `--token-limit` / `--message-limit` likewise set live
     overrides on the task's per-sample limits, read where each sample's
     limits are checked — so a retune reaches in-flight samples (a lowered
     time limit cancels a sample already past it) as well as ones not yet
-    started; pass `clear` to restore launch config. Applied
+    started; pass `clear` to restore launch config. Under adaptive
+    connections `--max-samples N` pins sample concurrency at exactly N
+    (decoupling it from the connection controller, which `--max-connections`
+    still retunes independently); pass `clear` to unpin and resume tracking
+    the controller. Applied
     changes are recorded in each affected eval log (who / when / old → new);
     `--reason` annotates the record with why. TASK
     is required only for setting a task-scoped knob when several tasks run.
@@ -253,6 +278,7 @@ def config_command(
     _run_config(
         task,
         max_samples=max_samples,
+        max_tasks=max_tasks,
         max_sandboxes=max_sandboxes,
         max_subprocesses=max_subprocesses,
         max_connections=max_connections,
@@ -274,10 +300,25 @@ def config_command(
     )
 
 
+def _as_task_view(
+    limits_view: TaskConfigView | ProcessConfigView,
+) -> TaskConfigView | None:
+    """The config view as the task envelope, or ``None`` for a process one.
+
+    Discriminates on ``max_samples``, which rides every task envelope on
+    every server version. The cast is needed because mypy won't narrow the
+    union from an ``in`` check (structurally, a process envelope could carry
+    extra keys). Callers read ``buffer`` with ``.get()``: task envelopes
+    from pre-release version-0 builds lacked that key.
+    """
+    return cast(TaskConfigView, limits_view) if "max_samples" in limits_view else None
+
+
 def _applied_knob_names(
-    limits_view: dict[str, Any],
+    limits_view: TaskConfigView | ProcessConfigView,
     *,
-    max_samples: int | None,
+    max_samples: int | Literal["clear"] | None,
+    max_tasks: int | Literal["clear"] | None = None,
     max_sandboxes: int | None,
     max_subprocesses: int | None,
     max_connections: int | None,
@@ -302,13 +343,24 @@ def _applied_knob_names(
     server is refused by `_gate_strict_floor` before the PATCH is sent, so
     neither reaches this path).
     """
+    task_view = _as_task_view(limits_view)
+    max_samples_view = task_view["max_samples"] if task_view is not None else None
+    # `adjustable` alone no longer implies a max_samples request landed: a
+    # `clear` against a static-limiter task warns without applying, yet the
+    # static view still reports adjustable — count a clear as applied only
+    # when the view also shows tracks_adaptive (there is a pin to release).
+    max_samples_adjustable = bool(max_samples_view and max_samples_view["adjustable"])
+    if max_samples == "clear":
+        max_samples_adjustable = max_samples_adjustable and bool(
+            max_samples_view and dict(max_samples_view).get("tracks_adaptive")
+        )
     return [
         name
         for name, value, adjustable in (
             (
                 "--max-samples",
                 max_samples,
-                bool((limits_view.get("max_samples") or {}).get("adjustable")),
+                max_samples_adjustable,
             ),
             (
                 "--max-sandboxes",
@@ -330,10 +382,13 @@ def _applied_knob_names(
                 key,
                 key is not None
                 and any(
-                    row.get("name") == key[0] and row.get("adjustable")
+                    row["name"] == key[0] and row["adjustable"]
                     for row in limits_view.get("concurrency") or []
                 ),
             ),
+            # like the retry overrides, max_tasks is always adjustable (the
+            # override layer exists regardless of launch config)
+            ("--max-tasks", max_tasks, True),
             ("--timeout", timeout, True),
             ("--attempt-timeout", attempt_timeout, True),
             ("--max-retries", max_retries, True),
@@ -349,7 +404,8 @@ def _applied_knob_names(
 def _run_config(
     task: str | None,
     *,
-    max_samples: int | None,
+    max_samples: int | Literal["clear"] | None,
+    max_tasks: int | Literal["clear"] | None = None,
     max_sandboxes: int | None,
     max_subprocesses: int | None,
     max_connections: int | None,
@@ -411,6 +467,7 @@ def _run_config(
 
     knob_values: dict[str, int | Literal["clear"] | None] = {
         "max_samples": max_samples,
+        "max_tasks": max_tasks,
         "max_sandboxes": max_sandboxes,
         "max_subprocesses": max_subprocesses,
         "max_connections": max_connections,
@@ -457,6 +514,7 @@ def _run_config(
         scope.socket_path,
         scope.task_id,
         max_samples=max_samples,
+        max_tasks=max_tasks,
         max_sandboxes=max_sandboxes,
         max_subprocesses=max_subprocesses,
         max_connections=max_connections,
@@ -486,11 +544,14 @@ def _run_config(
     # the server reported as not adjustable did NOT), and surface the
     # server's warnings that this exit would otherwise swallow.
     buffer_warnings: list[str] = []
-    if scope.task_id is not None and limits_view.get("buffer") is None:
+    task_view = _as_task_view(limits_view)
+    buffer_view = task_view.get("buffer") if task_view is not None else None
+    if scope.task_id is not None and buffer_view is None:
         if set_buffer:
             applied_names = _applied_knob_names(
                 limits_view,
                 max_samples=max_samples,
+                max_tasks=max_tasks,
                 max_sandboxes=max_sandboxes,
                 max_subprocesses=max_subprocesses,
                 max_connections=max_connections,
@@ -594,7 +655,7 @@ def _run_config(
 
 def _compose_config(
     scope: _DirectiveScope,
-    limits_view: dict[str, Any],
+    limits_view: TaskConfigView | ProcessConfigView,
     *,
     dry_run: bool,
     set_values: bool,
@@ -607,11 +668,20 @@ def _compose_config(
     of the knob, not of the command path, so the output (not the spelling)
     is where an agent reads a knob's blast radius.
     """
+    task_view = _as_task_view(limits_view)
     knobs: dict[str, Any] = {}
-    if "max_samples" in limits_view:
+    if task_view is not None:
         knobs["max_samples"] = {
             "scope": _KNOB_SCOPE["max_samples"],
-            **limits_view["max_samples"],
+            **task_view["max_samples"],
+        }
+    # max_tasks (absent from an older server's view — skipped then, like the
+    # retry knobs, rather than shown as a value claim)
+    max_tasks_view = limits_view.get("max_tasks")
+    if max_tasks_view is not None:
+        knobs["max_tasks"] = {
+            "scope": _KNOB_SCOPE["max_tasks"],
+            **max_tasks_view,
         }
     knobs["max_sandboxes"] = {
         "scope": _KNOB_SCOPE["max_sandboxes"],
@@ -643,7 +713,7 @@ def _compose_config(
     # The per-sample limit overrides (task views only — the knobs are
     # task-scoped; also absent from an older server's view). `override` is
     # the live task-wide override, None = launch config applies per sample.
-    limits_view_overrides = limits_view.get("limits")
+    limits_view_overrides = task_view.get("limits") if task_view is not None else None
     if limits_view_overrides is not None:
         from inspect_ai.util._limit_overrides import SAMPLE_LIMIT_OVERRIDE_FIELDS
 
@@ -658,7 +728,7 @@ def _compose_config(
         "scope": _KNOB_SCOPE["key"],
         "keys": limits_view.get("concurrency"),
     }
-    buffer_view = limits_view.get("buffer")
+    buffer_view = task_view.get("buffer") if task_view is not None else None
     if buffer_view is not None:
         knobs["log_buffer"] = {
             "scope": _KNOB_SCOPE["log_buffer"],
@@ -758,13 +828,12 @@ def _gate_strict_floor(
         return
     flags = ", ".join("--" + knob.replace("_", "-") for knob in requested_knobs)
     target = f"pid {server.pid}" if server is not None else "the target process"
-    _echo(
+    _fail(
+        "invalid_request",
         f"Cannot set {flags} — {target} is running an older inspect that "
         "may silently ignore unrecognized config settings; restart the eval "
         "to pick up the current version. No changes were applied.",
-        err=True,
     )
-    raise click.exceptions.Exit(code=1)
 
 
 def _default_provenance_author() -> str:
@@ -831,13 +900,12 @@ def _gate_provenance_support(
             if value is not None
         )
         target = f"pid {server.pid}" if server is not None else "the target process"
-        _echo(
+        _fail(
+            "invalid_request",
             f"{flags} not supported — {target} is running an older inspect; "
             "restart the eval to pick up the current version. No changes "
             "were applied.",
-            err=True,
         )
-        raise click.exceptions.Exit(code=1)
     return (None, None)
 
 
@@ -845,7 +913,8 @@ def _exec_limits(
     socket_path: str,
     task_id: str | None,
     *,
-    max_samples: int | None,
+    max_samples: int | Literal["clear"] | None,
+    max_tasks: int | Literal["clear"] | None = None,
     max_sandboxes: int | None,
     max_subprocesses: int | None = None,
     max_connections: int | None,
@@ -878,7 +947,9 @@ def _exec_limits(
     ``attempt_timeout`` / ``max_retries``) and the per-sample limit
     overrides (``time_limit`` / ``token_limit`` / ``message_limit``,
     task-scoped) accept the keyword ``clear`` to
-    remove an override (``0`` is a real value for them). Any settable knob
+    remove an override (``0`` is a real value for them); ``max_samples``
+    accepts it too — under adaptive connections an integer pins sample
+    concurrency and ``clear`` unpins it. Any settable knob
     that is not ``None`` makes this a mutation: a single-shot PATCH given the
     full mutation budget (see :data:`_MUTATION_TIMEOUT`) — derived here, not
     caller-supplied, so a knob can never ride a GET as an ignored query
@@ -888,6 +959,7 @@ def _exec_limits(
     """
     knob_values: dict[str, int | Literal["clear"] | None] = {
         "max_samples": max_samples,
+        "max_tasks": max_tasks,
         "max_sandboxes": max_sandboxes,
         "max_subprocesses": max_subprocesses,
         "max_connections": max_connections,
@@ -941,7 +1013,7 @@ def _exec_limits(
             "inspect version?)."
         )
     scope = f"task {task_id}" if task_id is not None else "process"
-    view = _http._request_json(
+    raw_view = _http._request_json(
         socket_path,
         f"/tasks/{task_id}/config" if task_id is not None else "/config",
         what=f"config for {scope}",
@@ -949,6 +1021,14 @@ def _exec_limits(
         params=params,
         mutate="patch" if set_values else None,
         pid=pid,
+    )
+    # the one cast at the JSON-parse boundary — shape documentation for
+    # downstream field access, never validation (see "Wire envelopes" in
+    # design/ctl/control-channel.md)
+    view: TaskConfigView | ProcessConfigView = (
+        cast(TaskConfigView, raw_view)
+        if task_id is not None
+        else cast(ProcessConfigView, raw_view)
     )
     return _ConfigResult(view=view, mutated=set_values)
 
@@ -961,5 +1041,5 @@ class _ConfigResult(NamedTuple):
     their own knob lists, which would skew for a future knob.
     """
 
-    view: dict[str, Any]
+    view: TaskConfigView | ProcessConfigView
     mutated: bool

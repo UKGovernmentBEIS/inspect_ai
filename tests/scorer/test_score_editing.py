@@ -671,5 +671,110 @@ async def test_recompute_preserves_results_metadata():
         recompute_metrics=False,
     )
     recompute_metrics(log)
-
     assert log.results.metadata == {"training_step": 1234, "run_tag": "exp-42"}
+
+
+@pytest.mark.anyio
+async def test_edit_preserves_reason_by_default():
+    """An edit that doesn't mention reason leaves it unchanged (UNCHANGED default)."""
+    logs = await eval_async(single_metric_task())
+    log = logs[0]
+    sample = log.samples[0]
+    sample.scores["single_metric_scorer"].reason = "invalid_response_format"
+
+    edit_score(
+        log,
+        sample.id,
+        "single_metric_scorer",
+        ScoreEdit(value=0),
+        recompute_metrics=False,
+    )
+
+    assert sample.scores["single_metric_scorer"].reason == "invalid_response_format"
+
+
+@pytest.mark.anyio
+async def test_edit_sets_and_clears_reason():
+    """An edit can set reason to a new value or clear it with explicit None."""
+    logs = await eval_async(single_metric_task())
+    log = logs[0]
+    sample = log.samples[0]
+    sample.scores["single_metric_scorer"].reason = "invalid_response_format"
+
+    edit_score(
+        log,
+        sample.id,
+        "single_metric_scorer",
+        ScoreEdit(value=0, reason=None),
+        recompute_metrics=False,
+    )
+    assert sample.scores["single_metric_scorer"].reason is None
+
+    edit_score(
+        log,
+        sample.id,
+        "single_metric_scorer",
+        ScoreEdit(reason="refusal"),
+        recompute_metrics=False,
+    )
+    assert sample.scores["single_metric_scorer"].reason == "refusal"
+
+
+@pytest.mark.anyio
+async def test_edit_history_captures_original_reason():
+    """The synthesized original-state history entry records the pre-edit reason."""
+    logs = await eval_async(single_metric_task())
+    log = logs[0]
+    sample = log.samples[0]
+    sample.scores["single_metric_scorer"].reason = "grader_failed"
+
+    edit_score(
+        log,
+        sample.id,
+        "single_metric_scorer",
+        ScoreEdit(value=0, reason=None),
+        recompute_metrics=False,
+    )
+
+    original = sample.scores["single_metric_scorer"].history[0]
+    assert original.reason == "grader_failed"
+
+
+@pytest.mark.anyio
+async def test_edit_clearing_reason_drops_legacy_unscored_reason_metadata():
+    """Explicitly clearing `reason` must also drop legacy `metadata["unscored_reason"]`.
+
+    Logs written before `reason` existed (#4048) record the grade-parse
+    failure mode in `metadata["unscored_reason"]`; `Score`'s before-validator
+    lifts that into `reason` for scores that don't already set it. If a user
+    then edits such a score to explicitly clear `reason`, the persisted JSON
+    (written with `exclude_none=True`) omits the `reason` key entirely -
+    indistinguishable from "never set". Without also dropping the legacy
+    metadata key, re-validating that JSON (as happens on log read) would
+    resurrect the cleared reason.
+    """
+    logs = await eval_async(single_metric_task())
+    log = logs[0]
+    sample = log.samples[0]
+
+    legacy_score = Score(value=0, metadata={"unscored_reason": "grade_parse_failure"})
+    assert legacy_score.reason == "grade_parse_failure"
+    sample.scores["single_metric_scorer"] = legacy_score
+
+    edit_score(
+        log,
+        sample.id,
+        "single_metric_scorer",
+        ScoreEdit(reason=None),
+        recompute_metrics=False,
+    )
+
+    edited_score = sample.scores["single_metric_scorer"]
+    assert edited_score.reason is None
+    assert edited_score.metadata is not None
+    assert "unscored_reason" not in edited_score.metadata
+
+    # Simulate a log write (exclude_none=True) followed by a read
+    # (Score.model_validate) - the cleared reason must not be resurrected.
+    round_tripped = Score.model_validate(edited_score.model_dump(exclude_none=True))
+    assert round_tripped.reason is None

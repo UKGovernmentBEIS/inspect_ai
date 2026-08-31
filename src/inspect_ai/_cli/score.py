@@ -13,7 +13,6 @@ from typing_extensions import Unpack
 
 from inspect_ai._cli.util import (
     int_or_bool_flag_callback,
-    parse_cli_args,
     parse_cli_config,
     parse_model_role_cli_args,
 )
@@ -28,6 +27,7 @@ from inspect_ai._eval.score import (
     score_async,
 )
 from inspect_ai._util._async import configured_async_backend
+from inspect_ai._util.config import parse_cli_args
 from inspect_ai._util.file import filesystem
 from inspect_ai._util.platform import platform_init
 from inspect_ai.log._log import EvalLog, EvalSample
@@ -63,7 +63,7 @@ from .common import CommonOptions, common_options, process_common_options
     multiple=True,
     type=str,
     envvar="INSPECT_SCORE_MODEL_ROLE",
-    help='Named model role with model name or YAML/JSON config, e.g. --model-role critic=openai/gpt-4o or --model-role grader="{model: mockllm/model, temperature: 0.5}". Merged over the model roles recorded in the log.',
+    help='Named model role with model name or YAML/JSON config, e.g. --model-role critic=openai/gpt-4o or --model-role grader="{model: mockllm/model, temperature: 0.5}". Bind multiple models to a role with a comma-separated list of names or a YAML/JSON list of configs. Merged over the model roles recorded in the log.',
 )
 @click.option(
     "--scorer",
