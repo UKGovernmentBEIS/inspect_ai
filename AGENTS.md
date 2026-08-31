@@ -45,25 +45,30 @@ Devin, and similar) preparing contributions. Human contributors: see
    proceed. File an issue with your evidence instead.
 
 If you do open a PR: reference the accepted issue (`Fixes #NNN`); run
-`make check` and `make test` and report results honestly; disclose agent
-involvement in the PR description; one issue per PR — no bundled drive-by
-changes; respect the open-PR limit (4 per account without write access).
+`make check` and `make test` and report results honestly; for non-trivial
+changes, run at least one code review pass in a fresh context on a strong
+(frontier-class) model (see "Authoring pull requests" below); disclose
+agent involvement in the PR description; one issue per PR — no bundled
+drive-by changes; respect the open-PR limit (4 per account without write
+access).
 
 As part of disclosing agent involvement, include an `### Agent review`
-section in the PR description summarizing pre-PR review passes: what
-model/tool reviewed and whether the review ran in a fresh context and/or
-used a different model from the author, how many passes, and the findings
-— issues found, which
-were fixed, and which were dismissed with a one-line reason each. Multiple
-passes, each in a fresh context, often catch issues a single pass misses —
-prefer that for non-trivial changes. We'd also prefer review passes run on
-a strong (frontier-class) model: in our experience, reviews from small
-fast-tier models rarely surface real issues, and maintainers weight the
-disclosed reviewer model and pass count when deciding how much independent
-review a PR still needs. If no
-review pass was run, say so explicitly. Never report a review that didn't
-happen — a fabricated or content-free review claim ("reviewed, looks good")
-is worse than disclosing none. Example:
+section in the PR description. What to disclose, and how it's read:
+
+- **Disclose**: what model/tool reviewed, whether the review ran in a fresh
+  context and/or on a different model from the author, how many passes, and
+  the findings — issues found, which were fixed, and which were dismissed
+  with a one-line reason each.
+- **How it's read**: maintainers weight the disclosed reviewer model and
+  pass count when deciding how much independent review a PR still needs.
+  Multiple passes, each in a fresh context, often catch issues a single
+  pass misses — prefer that for non-trivial changes.
+- **Honesty**: if no review pass was run, say so explicitly (disclosure is
+  not a substitute for running one where required above). Never report a
+  review that didn't happen — a fabricated or content-free review claim
+  ("reviewed, looks good") is worse than disclosing none.
+
+Example:
 
 ```
 ### Agent review
@@ -78,6 +83,7 @@ is worse than disclosing none. Example:
 - Format code: `ruff format`
 - Lint code: `ruff check --fix`
 - Type check: `mypy --exclude tests/test_package src tests`
+- If a lint or type check fails on lines your diff didn't touch, check whether `main` has the same failure before debugging your change (run the same check on a clean `main` checkout, or look at the latest CI run on `main`) — a new toolchain release (e.g. a mypy major) can turn `main` red with no code change. If `main` is also failing, don't bundle an unrelated fix into your PR; flag it (in the PR description or an issue) and let it be fixed separately.
 
 ## Code Style Guidelines
 - **Formatting**: Follow Google style convention. Use ruff for formatting
@@ -90,6 +96,8 @@ is worse than disclosing none. Example:
 - **Comment length**: Sometimes comments in the code are useful to explain the rationale or context of a particular set of code. When this is necessary, be concise. Preserve the important concept and information but don't be pedantic or overly verbose. Especially avoid just replaying a commit description, PR description, or text used elsewhere into a comment.
 - **Error Handling**: Use appropriate exception types; include context in error messages
 - **Structured error contracts**: When a command supports machine-readable output (e.g. a `--json` flag with a documented error envelope), every terminal failure path must emit the structured error shape — route new error sites through the subsystem's failure helper (e.g. `_fail` in `src/inspect_ai/_cli/ctl/_failure.py`) rather than exiting directly (a bare `click.exceptions.Exit` bypasses the envelope, leaving `--json` consumers stderr prose and an empty stdout). When adding such a contract, add a mechanical guard that catches bypasses (see `test_no_bare_click_exit_in_ctl_error_sites`).
+- **Public contracts**: Before changing a public event, log record, result type, or serialized model, describe the semantics you're changing and name every producer and consumer it touches — transcript/log readers, dataframes, hooks, replay code, sibling packages. Add compatibility or round-trip coverage for persisted data and replay paths the change affects.
+- **Invalid state**: Don't silently coerce invalid input, an error, or incompatible persisted state into a different result — a permissive default, a swallowed parse failure, a masked provider error. Define the externally observable error or unsupported-state behavior explicitly, and cover it with a test.
 - **Testing**: Write tests with pytest; maintain high coverage. See "Testing Async Code" below for async test conventions. Prefer adding tests to an existing test file covering the same area (e.g. eval-level behavior → `tests/test_eval.py`) rather than creating a new file; only add a new file when no existing one is a reasonable fit.
 
 - **Async Concurrency**: Use `inspect_ai._util._async.tg_collect()` instead of `asyncio.gather()` for running concurrent async tasks. Use `inspect_ai.util.collect()` only inside sample subtasks (it adds transcript span grouping).
@@ -102,6 +110,40 @@ is worse than disclosing none. Example:
 
 - **Respect existing patterns**: Respect existing code patterns when modifying files. Run linting before committing changes.
 
+## Suppression gate
+
+- Do NOT suppress lint or type errors (`# noqa`, `# type: ignore`,
+  `# pyright: ignore`, or the file-wide `# ruff: noqa` /
+  `# mypy: ignore-errors`). Fix the code. A deterministic gate enforces
+  this (`make suppressions-check` against `suppressions.json`); maintainers
+  reject suppressions that just make an error go away.
+- In the rare case a suppression is correct, it requires both: a reason in
+  a trailing hash comment segment on the same line, the only style mypy
+  accepts (e.g. `x = f()  # type: ignore[assignment]  # stub is wrong
+  upstream`), and `make suppressions-update` to record it in
+  `suppressions.json`. Always suppress the specific code
+  (`# noqa: E501`, `# type: ignore[assignment]`), never the bare code-less
+  form.
+- Every new suppression requires human maintainer approval; when it changes
+  aggregate counts, that approval includes the `suppressions.json` diff.
+  Expect the PR to be blocked until then, and say in the PR description why
+  no fix is possible.
+- The ledger tracks aggregate counts by file and rule, not individual source
+  locations. Moving or replacing the same rule within one file does not alter
+  the ledger, so reviewers must still inspect suppression changes in the
+  source diff.
+- If the `suppressions` CI check fails, never hand-edit the ledger to make
+  it pass. Run `make suppressions-update` so the change shows in the
+  ledger diff. `--update` refuses to grow any rule's repo-wide reason-less
+  total (the ratchet): new suppressions must carry a reason, and the
+  baselined reason-less ones burn down over time.
+- Merges from upstream are the one sanctioned ratchet exception: when a
+  sync brings in new reason-less suppressions, do not edit the
+  upstream-owned lines to add reasons (that creates permanent merge
+  drift). Instead run `python3 .github/scripts/check_suppressions.py
+  --update --allow-growth` to record them; it prints each rule that grew,
+  and the growth still shows in the ledger diff for maintainer review.
+
 ## Testing Async Code
 
 All async test functions automatically run under both asyncio and trio backends via anyio (applied by the `pytest_pycollect_makeitem` hook in `tests/conftest.py`). Trio variants are skipped by default; use `--runtrio` to enable them.
@@ -110,6 +152,13 @@ All async test functions automatically run under both asyncio and trio backends 
 - **Use `anyio.sleep()` not `asyncio.sleep()`** in tests; `anyio.Event()` not `asyncio.Event()`; `tg_collect()` not `asyncio.gather()`.
 - **Use `@skip_if_trio`** (from `test_helpers.utils`) for tests that cannot run under trio (e.g. they test asyncio-specific fallback paths).
 - **`@pytest.mark.anyio`** is not required but harmless — use it to signal intentional dual-backend coverage.
+- **Cancellation and ownership**: for an async change, run the affected
+  tests with `--runtrio` before opening a PR rather than relying on the
+  asyncio-only default. Add a focused test that cancels or fails mid-await,
+  not just the success path, and assert that cleanup still runs. A resource
+  that crosses an async boundary (a bridge, a spawned process, a background
+  task) is owned by whichever component created it — cleanup belongs there,
+  not in a caller or bridge that merely passes it through.
 
 ## Subsystem Documentation
 
@@ -121,11 +170,15 @@ Additional files provide context when working in specific areas:
 
 `design/` contains architecture notes, subsystem internals, and documentation of repo/CI/development processes and workflows. Browse it before diving into an unfamiliar area.
 
-## Pull requests
+## Authoring pull requests
+
+These conventions apply to every PR, whoever authors it. External contributions must also satisfy the contribution policy above.
 
 Write the PR description using the template at `.github/pull_request_template.md` (fill in its sections — the "This PR contains" checklist, current vs. new behavior, breaking changes, other info). Include the `### Agent review` section described in the contribution policy above (put it under "Other information"). Please include a sufficiently detailed description of the PR, including briefly noting the user facing experience that triggered the fix or change.
 
 Title the PR with the user-facing outcome — the bug a user hit or the capability they gain — not the mechanism of the fix: "Fix eval hang when resuming with S3 logs", not "Add AsyncFilesystem to log recorder". A good test: would a user scanning titles recognize their problem or their feature request? PRs with no user-facing outcome (refactoring, dev tooling, docs) describe the change itself instead. CHANGELOG entries follow the same outcome-not-mechanism rule; only product-functionality changes get one (see below), so the carve-out doesn't arise there.
+
+Before opening a non-trivial PR, run at least one code review pass in a fresh context — a reviewer that hasn't seen the authoring conversation (e.g. `/code-review` or a subagent) — using a strong (frontier-class) model; in our experience reviews from small fast-tier models rarely surface real issues. Fix or explicitly dismiss each finding before opening, and disclose the pass in the `### Agent review` section.
 
 When asked to open a PR, don't stop at creation — monitor it afterward: watch its CI checks (e.g. `gh pr checks <number> --repo <owner>/<repo> --watch`) until they complete, report the outcome, and investigate/fix any failures. If the branch has fallen behind its base (out of date), update it — merge or rebase the base branch in and push — so CI runs against current code.
 

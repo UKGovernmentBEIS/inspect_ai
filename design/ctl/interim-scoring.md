@@ -105,12 +105,37 @@ never dangles across a retry):
 | Start a scoring pass | `POST /tasks/<task-id>/score?dry_run=<bool>&completed_only=<bool>` |
 | Read pass status / result | `GET /tasks/<task-id>/score` |
 
-A per-sample variant (`ctl sample score TASK SID [EPOCH]`, `POST
-/evals/<id>/sample/score?...`) is a natural later slice — same machinery,
-sample-scoped — and is deliberately deferred (the task-wide pass is the
-motivating ask, and one sample's interim score is obtainable today by reading
-its events after a task-wide pass). Tracked as a follow-up in
-meridianlabs-ai/inspect_ai#102.
+A per-sample variant (`ctl sample score TASK SID [EPOCH]`, `POST`/`GET
+/evals/<id>/sample/score?sample_id=<sid>&epoch=<n>`) was deferred from the
+initial build and has since **shipped** (meridianlabs-ai/inspect_ai#102) —
+same machinery, sample-scoped: the one `(sample_id, epoch)` target resolves
+to its disposition and, when in-flight, is held and scored exactly as a
+task-wide pass would score it. It follows the sample mutations' selector
+conventions (`sample_id` a query param, EPOCH required whenever the task
+runs several epochs — on the poll GET too, since a defaulted epoch there
+wouldn't return harmless epoch-1 data but a false claim about a different
+attempt) and shares the one-pass-per-task registry — one pass per task at
+a time whatever its scope, so holds never stack; a start while any pass
+runs is the idempotent no-op naming the running pass (the envelope carries
+`scope`/`sample_id`/`epoch`, and each CLI joins only a pass of its own
+scope: `sample score` joins only that same sample's running pass, and
+`task score` refuses to join a sample-scoped pass — it would render one
+sample's rows, with no metrics, as the task's result — so both report a
+foreign-scope pass as a conflict to retry after). The target resolves
+*before* the one-pass guard, so an unknown sample is a deterministic 404
+whether or not a pass happens to be running, and a superseded attempt's
+eval id is rejected on both the start and the poll — a 409 on both routes,
+so the CLI surfaces the specific superseded-by-a-retry message rather than
+its static not-found text (eval-keyed directives can arrive with a stale
+attempt's id; the task-keyed registry would otherwise serve the current
+attempt's pass under it). Because the registry
+keeps one pass per task, a later pass (task-wide or another sample's)
+evicts a sample pass's result from the poll — the accepted cost of the
+shared slot (the recorded `ScoreEvent(intermediate=True)` persists on the
+sample's transcript regardless; the poll's not-found message points there).
+A sample-scoped pass computes no interim metrics — metrics over a single
+sample would restate its scores while presenting as task-level numbers; the
+row's scores are the payload.
 
 ## Which samples
 
@@ -537,7 +562,8 @@ Phases 1 and 2 together are the initial implementation (shipped):
    no-hold snapshot mode for recurring polling (spawn point, snapshot copy,
    cancel-on-completion, budget isolation — `suspend_token_limit()` /
    `suspend_turn_limit()` prior art, cost-limit equivalent to be added);
-   `ctl sample score` (per-sample variant); surfacing the latest
+   `ctl sample score` (the per-sample variant — since shipped, see
+   "Command surface"); surfacing the latest
    interim score in `ctl sample list` rows; scheduled/periodic passes
    (`--every`, or shell composition with a watchdog loop).
 

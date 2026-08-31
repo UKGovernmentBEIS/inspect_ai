@@ -89,7 +89,10 @@
     "samples": 225,
     "featured": false,
     "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/aider_polyglot.html",
-    "model_cards": []
+    "model_cards": [
+      "chatgpt",
+      "claude"
+    ]
   },
   {
     "id": "ale_rsi_post_training",
@@ -469,7 +472,9 @@
     "samples": 113,
     "featured": false,
     "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/datacurve_deep_swe_1_1.html",
-    "model_cards": []
+    "model_cards": [
+      "chatgpt"
+    ]
   },
   {
     "id": "deveval",
@@ -966,7 +971,9 @@
     "samples": 100,
     "featured": false,
     "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/livecodebench.html",
-    "model_cards": []
+    "model_cards": [
+      "gemini"
+    ]
   },
   {
     "id": "livecodebench_pro",
@@ -1060,7 +1067,9 @@
     "samples": 1,
     "featured": false,
     "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/mle_bench/",
-    "model_cards": []
+    "model_cards": [
+      "chatgpt"
+    ]
   },
   {
     "id": "meta_mlgym_bench",
@@ -1271,7 +1280,9 @@
     "samples": 200,
     "featured": false,
     "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/bencalvert04_programbench.html",
-    "model_cards": []
+    "model_cards": [
+      "claude"
+    ]
   },
   {
     "id": "quixbugs",
@@ -1513,7 +1524,11 @@
     "samples": 731,
     "featured": false,
     "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/scale_ai_swe_bench_pro.html",
-    "model_cards": []
+    "model_cards": [
+      "chatgpt",
+      "claude",
+      "gemini"
+    ]
   },
   {
     "id": "swe_bench",
@@ -1790,7 +1805,9 @@
     "samples": 198,
     "featured": false,
     "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/openai_swe_lancer_diamond_ic.html",
-    "model_cards": []
+    "model_cards": [
+      "chatgpt"
+    ]
   },
   {
     "id": "openai_swe_lancer_diamond_manager",
@@ -2036,7 +2053,11 @@
     "samples": 89,
     "featured": false,
     "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/terminal_bench_2.html",
-    "model_cards": []
+    "model_cards": [
+      "chatgpt",
+      "claude",
+      "gemini"
+    ]
   },
   {
     "id": "terminal_bench_2_1",
@@ -2059,7 +2080,10 @@
     "samples": 89,
     "featured": false,
     "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/terminal_bench_2_1.html",
-    "model_cards": []
+    "model_cards": [
+      "chatgpt",
+      "claude"
+    ]
   },
   {
     "id": "grandsmile_unicode",
@@ -2847,7 +2871,11 @@
     "samples": 167,
     "featured": true,
     "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/arcprize_arc_agi_2.html",
-    "model_cards": []
+    "model_cards": [
+      "chatgpt",
+      "claude",
+      "gemini"
+    ]
   },
   {
     "id": "bbh",
@@ -3614,7 +3642,9 @@
     "samples": 900,
     "featured": false,
     "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/kgmon_deepsearchqa.html",
-    "model_cards": []
+    "model_cards": [
+      "claude"
+    ]
   },
   {
     "id": "hle",
@@ -3757,7 +3787,11 @@
     "samples": 150,
     "featured": false,
     "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/openai_mmmlu.html",
-    "model_cards": []
+    "model_cards": [
+      "chatgpt",
+      "claude",
+      "gemini"
+    ]
   },
   {
     "id": "onet",
@@ -4014,7 +4048,9 @@
     "samples": 40,
     "featured": false,
     "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/cve_bench/",
-    "model_cards": []
+    "model_cards": [
+      "chatgpt"
+    ]
   },
   {
     "id": "cybench",
@@ -4075,6 +4111,7 @@
     "featured": false,
     "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/cybergym/",
     "model_cards": [
+      "chatgpt",
       "claude"
     ]
   },
@@ -5797,7 +5834,8 @@
     "featured": false,
     "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/healthbench/",
     "model_cards": [
-      "chatgpt"
+      "chatgpt",
+      "claude"
     ]
   },
   {
@@ -5970,7 +6008,10 @@
     "samples": 50,
     "featured": false,
     "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/vals_financeagent.html",
-    "model_cards": []
+    "model_cards": [
+      "chatgpt",
+      "claude"
+    ]
   },
   {
     "id": "actava_ai_chi_bench",
@@ -6016,7 +6057,9 @@
     "samples": 1251,
     "featured": false,
     "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/harveyai_lab.html",
-    "model_cards": []
+    "model_cards": [
+      "claude"
+    ]
   },
   {
     "id": "docvqa",
