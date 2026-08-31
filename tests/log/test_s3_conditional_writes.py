@@ -97,6 +97,27 @@ def test_unconditional_s3_json_write_is_traced(
     assert actions == [("Log Write", log_path)]
 
 
+def test_s3_eval_header_only_write_is_traced(
+    sample_log, s3_eval_log_for_header_edit, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Unconditional header-only .eval S3 uploads emit a Log Write trace."""
+    from inspect_ai.log._recorders import eval as eval_recorder
+
+    actions: list[tuple[str, str]] = []
+
+    @contextmanager
+    def record_trace(logger, action: str, detail: str) -> Iterator[None]:
+        actions.append((action, detail))
+        yield
+
+    monkeypatch.setattr(eval_recorder, "trace_action", record_trace)
+
+    result = write_eval_log(sample_log, s3_eval_log_for_header_edit, header_only=True)
+
+    assert result.etag is not None
+    assert actions == [("Log Write", s3_eval_log_for_header_edit)]
+
+
 def test_s3_eval_header_only_missing_object_raises_file_not_found(
     sample_log, mock_s3
 ) -> None:

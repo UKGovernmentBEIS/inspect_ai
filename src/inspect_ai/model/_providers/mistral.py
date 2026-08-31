@@ -1,4 +1,5 @@
 import functools
+import inspect
 import json
 import os
 from typing import Any, Literal
@@ -83,6 +84,7 @@ from .util import (
     model_base_url,
     require_azure_base_url,
     resolve_api_key,
+    sample_cache_affinity_key,
 )
 from .util.hooks import HttpxHooks
 
@@ -92,6 +94,18 @@ MISTRAL_API_KEY = "MISTRAL_API_KEY"
 
 
 AZURE_MISTRAL_BASE_URL_VARS = ["AZUREAI_MISTRAL_BASE_URL", "AZURE_MISTRAL_BASE_URL"]
+
+
+@functools.cache
+def _sdk_supports_prompt_cache_key() -> bool:
+    """Whether the installed mistralai SDK accepts `prompt_cache_key`.
+
+    The parameter postdates our minimum supported version (2.0.1) and
+    `complete_async` rejects unknown kwargs, so probe rather than pass blind.
+    """
+    from mistralai.client.chat import Chat
+
+    return "prompt_cache_key" in inspect.signature(Chat.complete_async).parameters
 
 
 class MistralAPI(ModelAPI):
@@ -209,6 +223,9 @@ class MistralAPI(ModelAPI):
                 http_headers={HttpxHooks.REQUEST_ID_HEADER: request_id}
                 | (config.extra_headers or {}),
             )
+            prompt_cache_key = sample_cache_affinity_key()
+            if prompt_cache_key is not None and _sdk_supports_prompt_cache_key():
+                request["prompt_cache_key"] = prompt_cache_key
             if config.reasoning_effort is not None:
                 request["reasoning_effort"] = mistral_reasoning_effort(
                     config.reasoning_effort
