@@ -1,5 +1,6 @@
 ## Unreleased
 - Scorer: `pattern()` now falls back to the full regex match when the pattern contains no explicit capture groups (previously such patterns always scored INCORRECT). (#4828)
+- Bugfix: Bump the `fsspec` upper bound from `<=2025.9.0` to `<=2026.6.0` to align with the current `huggingface/datasets` cap. (#4761)
 - Tools: The `grep` tool now supports extended regex via a new `extended_regexp` option (patterns remain basic regex by default).
 - Agent Bridge: Bridged Anthropic requests now preserve `system` block boundaries, so instruction blocks are no longer silently discarded by the API.
 - Anthropic: A single assistant turn that interleaves thinking with client tool calls now replays in its original order, so subsequent requests no longer fail with "thinking ... blocks in the latest assistant message cannot be modified".
@@ -16,11 +17,14 @@
 - Eval Set: Eval set selections now support specifying scanners.
 - Control Channel: `inspect ctl config --max-samples` now works for tasks using adaptive connections — an integer pins sample concurrency, and `clear` resumes adaptive tracking.
 - Eval logs: Header-only `.eval` log uploads to S3 now appear in `inspect trace` output.
+- Bugfix: Sustained rate limiting no longer pins the adaptive connection limit after a single reduction; it keeps adapting up and down as conditions change.
 - Eval Log: Resolving a log's attachments no longer discards model call payloads, which previously became unreadable when attachments were resolved.
 - Eval Log: Fixed trio evals crashing with `ValueError: seek of closed file` when writing a `.eval` log smaller than 8MB to S3.
 - Inspect CTL: New `inspect ctl sample score` interim-scores a single running sample's work-so-far on demand (briefly held while scored; the sample keeps running).
 - Score: `inspect score` now reports samples that errored or were stopped early, so a re-scored partial run is no longer displayed as if it were complete.
 - Agent bridge: Anthropic responses now report thinking tokens in `usage.output_tokens_details`, so bridged clients can distinguish a reasoning response from a plain one.
+- Eval Log: Buffer manifest segment entries are now `TypedDict`s rather than pydantic models, cutting manifest parse time and GC pressure on the sync thread for runs with many segments.
+- Eval Log: Buffer manifests are no longer written with indentation, which accounted for ~41% of their bytes on every `log_shared` sync.
 
 ## 0.3.261 (30 August 2026)
 
