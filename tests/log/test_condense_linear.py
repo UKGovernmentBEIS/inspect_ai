@@ -808,9 +808,13 @@ def test_buffer_condense_linear_across_slot_cap(
 
     Beyond cap: LRU thrashes 2 lineages' worth of full history re-hashing
     every turn; random eviction spreads the excess across lineages instead.
-    LRU thrash measures ~26 call-hashes/turn at this shape; random eviction
-    measured ~11. The beyond-cap budget (18/turn) rejects the cliff while
-    tolerating eviction-order variance.
+    Measured at this exact shape (5 streams, 25 rounds): 26.0 call-hashes
+    per turn under LRU vs 11.2 under seeded-random. The LRU figure is
+    ``rounds`` + 1 (two lineages x mean history depth), so it moves with
+    the ``rounds`` constant below; the 18/turn budget sits between the two,
+    rejecting the cliff while tolerating eviction-order variance.
+    (``n_streams`` derives from ``_CALL_WALK_SLOTS``; the call-hash figure
+    is governed by ``CallPoolIndex._CALL_PREV_SLOTS`` -- also 8.)
     """
     from inspect_ai.log._condense import _CALL_WALK_SLOTS
 

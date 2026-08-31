@@ -283,9 +283,13 @@ class CallPoolIndex:
 
     Eviction beyond ``_CALL_PREV_SLOTS`` is random, not LRU: N interleaved
     streams accessed round-robin make LRU evict exactly the lineage each
-    stream needs next, collapsing every stream's prefix-hit rate at cap+1
-    lineages (measured 2 -> 51 pool-hashes/turn at 5 streams). Random
-    eviction keeps the degradation proportional to the excess instead.
+    stream needs next, so at cap+1 lineages every lineage misses and
+    re-hashes its whole history every turn. That cliff's size scales with
+    conversation depth, so there is no single figure for it; random
+    eviction keeps misses proportional to the excess instead. Guarded by
+    ``test_buffer_condense_linear_across_slot_cap`` in
+    ``tests/log/test_condense_linear.py``: its beyond-cap budget passes
+    under this random eviction and fails if this index is made LRU.
 
     Supports ``mark()``/``restore()`` to unwind state when a surrounding
     database transaction rolls back.
