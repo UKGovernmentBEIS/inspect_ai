@@ -83,7 +83,7 @@ class WalkContext(TypedDict):
     equal to an incoming un-walked message. A message mutated in place
     after first being walked identity-hits and resolves to its
     first-walked form (consistent with ``event/_pool_index.py``;
-    first-party code refreshes ``message.id`` on mutation). Entries are
+    contexts are per-pass, so no mutation interleaves). Entries are
     only valid for one content function — never share a context across
     walks with different content functions.
     """

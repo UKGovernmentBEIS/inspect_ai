@@ -1071,8 +1071,10 @@ def test_message_refs_cache_bucket_is_bounded() -> None:
 def test_message_refs_cache_staleness_on_in_place_mutation_is_accepted() -> None:
     """In-place content mutation without an id refresh returns stale refs.
 
-    This is by design (identity hit); first-party mutators mint new ids.
-    Pins the documented convention so a change to it is deliberate.
+    By design (identity hit), and safe by direction rather than id
+    discipline: refs are minted only inside walk_chat_message, which copies,
+    so a live message never gains one. The reachable case is a ref the
+    mutation dropped staying counted — over-retention, never loss.
     """
     tr = Transcript(bounded=True, resident_tail=10, log_model_api=True)
     msg = ChatMessageUser(content="original content " * 10)

@@ -765,10 +765,12 @@ class Transcript:
         message_ids: set[str] = set()
 
         def message_refs(msg: ChatMessageBase) -> frozenset[str] | None:
-            # In-place mutation of a message's content without an id refresh
-            # returns stale refs (identity/equality hit on the pre-mutation
-            # entry) — the same accepted convention as WalkContext.message_cache
-            # and MessagePoolIndex; first-party mutators mint new ids.
+            # Identity-first, like WalkContext.message_cache and
+            # MessagePoolIndex: in-place mutation without an id refresh hits
+            # the pre-mutation entry. Safe by direction, not id discipline
+            # (react/multiple_choice mutate and keep the id): refs are minted
+            # only inside walk_chat_message, which copies, so a live message
+            # never gains one — a stale hit over-retains, never loses content.
             msg_id = msg.id
             if msg_id is None:
                 return None
