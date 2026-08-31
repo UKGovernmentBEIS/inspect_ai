@@ -156,6 +156,37 @@ class ComposeBuild(ComposeModel):
     dockerfile: str | None = Field(default=None)
     """Path to the Dockerfile, relative to context."""
 
+    no_cache: bool | None = Field(default=None)
+    """Disable image builder cache for this service's build."""
+
+
+class ComposeVolumeMount(ComposeModel):
+    """Long syntax volume mount for a compose service."""
+
+    type: str | None = Field(default=None)
+    """Mount type (e.g. ``bind``, ``volume``, ``tmpfs``)."""
+
+    source: str | None = Field(default=None)
+    """Mount source (host path, or volume name)."""
+
+    target: str | None = Field(default=None)
+    """Path in the container where the mount is available."""
+
+    read_only: bool | None = Field(default=None)
+    """Mount read-only."""
+
+    consistency: str | None = Field(default=None)
+    """Consistency requirements of the mount (platform-dependent)."""
+
+    bind: dict[str, Any] | None = Field(default=None)
+    """Additional bind options (e.g. ``propagation``, ``create_host_path``)."""
+
+    volume: dict[str, Any] | None = Field(default=None)
+    """Additional volume options (e.g. ``nocopy``, ``subpath``)."""
+
+    tmpfs: dict[str, Any] | None = Field(default=None)
+    """Additional tmpfs options (e.g. ``size``, ``mode``)."""
+
 
 class ComposeResources(ComposeModel):
     """Resource limits/reservations for a compose service."""
@@ -252,8 +283,8 @@ class ComposeService(ComposeModel):
     expose: list[str | int] | None = Field(default=None)
     """Ports to expose without publishing to the host."""
 
-    volumes: list[str] | None = Field(default=None)
-    """Volume mounts."""
+    volumes: list[str | ComposeVolumeMount] | None = Field(default=None)
+    """Volume mounts. Short (string) or long (mapping) syntax per Compose spec."""
 
     devices: list[str] | None = Field(default=None)
     """Device mappings (e.g. ``["/dev/kvm"]`` or ``["/dev/snd:/dev/snd"]``)."""
@@ -276,11 +307,17 @@ class ComposeService(ComposeModel):
     privileged: bool | None = Field(default=None)
     """Run the container in privileged mode."""
 
+    read_only: bool | None = Field(default=None)
+    """Mount the container's root filesystem read-only."""
+
     shm_size: str | int | None = Field(default=None)
     """Size of ``/dev/shm`` (e.g. ``1g``, ``256m``, or bytes as int)."""
 
     ulimits: dict[str, int | dict[str, int]] | None = Field(default=None)
     """Per-container ulimits (e.g. ``nofile: {soft: 20000, hard: 40000}``)."""
+
+    pids_limit: int | None = Field(default=None)
+    """Maximum number of processes the container may spawn (``-1`` for unlimited)."""
 
     depends_on: list[str] | dict[str, Any] | None = Field(default=None)
     """Service startup dependencies. Short (list) or long (dict) form per Compose spec."""
