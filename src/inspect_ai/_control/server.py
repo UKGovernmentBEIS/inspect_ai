@@ -17,8 +17,10 @@ Current scope is the phase 1-2 read surface — ``GET /tasks`` (per-task
 summaries), ``GET /evals/{id}/samples`` (capped sample listing with a
 status histogram and an ``active_since`` recency delta), ``GET
 /evals/{id}/sample`` (summary + error detail), ``GET
-/evals/{id}/sample/events`` (cursored transcript pull), and
-``GET /evals/{id}/sample/messages`` (conversation snapshot) —
+/evals/{id}/sample/events`` (cursored transcript pull),
+``GET /evals/{id}/sample/messages`` (conversation snapshot),
+``GET /evals/{id}/sample/store`` (store snapshot), and
+``GET /models/throughput`` (per-model run throughput) —
 plus ``POST /release`` / ``POST /keep`` for keep-alive control
 and the first phase-3 directives: the config/log-flush mutations,
 ``POST /tasks/{id}/cancel`` / ``POST /evals/{id}/sample/cancel``,
@@ -86,6 +88,7 @@ from inspect_ai._control.state import (
     parse_status_filter,
     sample_error_detail,
 )
+from inspect_ai._control.store import sample_store
 from inspect_ai._util.discovery import (
     prepare_discovery_dir,
     write_discovery_file,
@@ -421,7 +424,7 @@ class ControlServer:
         Imported lazily so module import doesn't pay the FastAPI cost
         when control is disabled.
         """
-        from fastapi import Depends, FastAPI, Request
+        from fastapi import Depends, FastAPI, Query, Request
         from fastapi.responses import JSONResponse
 
         from inspect_ai._control.disconnect import (
@@ -502,17 +505,23 @@ class ControlServer:
             return None
 
         def _parse_override_knobs(
-            maximum: int, *knobs: tuple[str, str | None]
+            maximum: int | None,
+            *knobs: tuple[str, str | None],
+            minimum: int = 0,
         ) -> _ParsedOverrideKnobs:
-            """Parse override knobs' raw query values (retry + sample limits).
+            """Parse override knobs' raw values (retry/sample limits, max_samples).
 
             Unlike the limits knobs these are declared ``str`` on the route:
-            every integer >= 0 is a real value (0 = fail after the first
-            attempt / a zero budget), so clearing an override is spelled with
-            the keyword ``clear`` rather than a sentinel integer. Values above
+            every integer >= ``minimum`` is a real value, so clearing an
+            override is spelled with the keyword ``clear`` rather than a
+            sentinel integer. The default floor is 0 (0 = fail after the
+            first attempt / a zero budget for the retry/limit knobs);
+            ``max_samples`` passes ``minimum=1`` (its apply layer raises on
+            0), so both its rejections carry the same bound. Values above
             ``maximum`` (the store's own bound —
             :data:`MAX_GENERATE_CONFIG_OVERRIDE` /
-            :data:`MAX_SAMPLE_LIMIT_OVERRIDE`) are rejected here too: the
+            :data:`MAX_SAMPLE_LIMIT_OVERRIDE`; ``None`` for a knob with no
+            upper bound, like ``max_samples``) are rejected here too: the
             store enforces the same bound, but a 400 at the wire beats a 500.
             Returns the parsed values plus a 400 for the first invalid one
             (a ``None`` passes through as "not requested").
@@ -527,16 +536,20 @@ class ControlServer:
                     try:
                         value = int(raw)
                     except ValueError:
-                        value = -1
-                    if value < 0 or value > maximum:
+                        value = minimum - 1
+                    if value < minimum or (maximum is not None and value > maximum):
+                        bounds = (
+                            f"between {minimum} and {maximum}"
+                            if maximum is not None
+                            else f">= {minimum}"
+                        )
                         return _ParsedOverrideKnobs(
                             values=parsed,
                             error=JSONResponse(
                                 status_code=400,
                                 content={
                                     "error": f"{label} must be an integer "
-                                    f"between 0 and "
-                                    f"{maximum} or "
+                                    f"{bounds} or "
                                     f"'clear' (got {raw!r})"
                                 },
                             ),
@@ -786,6 +799,34 @@ class ControlServer:
                 )
             return page
 
+        # Per-sample store snapshot (the sample's `Store` — solver/agent
+        # shared state). Like the other per-sample routes, `sample_id` is a
+        # query param (ids may carry URL-reserved characters). Deliberately
+        # not cursored — the store is rewritable, so each call returns the
+        # current snapshot, enveloped with `as_of` / `status` / `count`.
+        # `key` (repeatable) selects keys server-side — exact names plus
+        # trailing-`*` prefixes; `content` opts into truncated value previews
+        # (metadata only by default — values are agent-controlled; see
+        # store._project); `full` returns raw jsonable values.
+        @app.get("/evals/{eval_id}/sample/store")
+        async def get_sample_store(
+            eval_id: str,
+            sample_id: str,
+            epoch: int = 1,
+            key: list[str] | None = Query(default=None),
+            content: bool = False,
+            full: bool = False,
+        ) -> Any:
+            page = await sample_store(
+                eval_id, sample_id, epoch, keys=key, content=content, full=full
+            )
+            if page is None:
+                return JSONResponse(
+                    status_code=404,
+                    content={"error": f"sample {sample_id} (epoch {epoch}) not found"},
+                )
+            return page
+
         # Flush the task's buffered completed samples to the (possibly remote,
         # eg. S3) log now, so they're readable without waiting for the flush
         # buffer to fill. Keyed by task_id (resolved to the latest attempt),
@@ -869,6 +910,50 @@ class ControlServer:
                     status_code=404,
                     content={"error": f"task {task_id} not found"},
                 )
+            return result
+
+        # Interim scoring pass (design/ctl/interim-scoring.md): run the task's
+        # scorers over its completed and in-flight samples (each in-flight
+        # sample is briefly held at its next model call while scored) and
+        # compute interim metrics. Task-keyed like `config` / `cancel` /
+        # `pause`. Start + poll: the POST starts a pass and returns
+        # immediately (one pass per task at a time — a start while one runs
+        # is the idempotent no-op with the running pass's id); the GET
+        # reports the current (or most recent) pass, with per-sample rows and
+        # interim metrics once complete. `dry_run=true` reports the targeted
+        # counts by disposition without scoring; `completed_only=true` skips
+        # the in-flight rows entirely (no holds) — the hold-free spelling for
+        # recurring polling. A task with no scorers is a 409.
+        @app.post("/tasks/{task_id}/score")
+        async def task_score(
+            task_id: str, dry_run: bool = False, completed_only: bool = False
+        ) -> Any:
+            from inspect_ai._control.scoring import start_score_pass
+
+            result = await start_score_pass(
+                task_id, dry_run=dry_run, completed_only=completed_only
+            )
+            if result is None:
+                return JSONResponse(
+                    status_code=404,
+                    content={"error": f"task {task_id} not found"},
+                )
+            if result.get("ok") is False:
+                return JSONResponse(status_code=409, content={"error": result["error"]})
+            return result
+
+        @app.get("/tasks/{task_id}/score")
+        async def task_score_status(task_id: str) -> Any:
+            from inspect_ai._control.scoring import get_score_pass
+
+            result = await get_score_pass(task_id)
+            if result is None:
+                return JSONResponse(
+                    status_code=404,
+                    content={"error": f"task {task_id} not found"},
+                )
+            if result.get("ok") is False:
+                return JSONResponse(status_code=404, content={"error": result["error"]})
             return result
 
         # Cancel one running sample (phase 3). `sample_id` is a query param
@@ -1145,7 +1230,7 @@ class ControlServer:
         @app.patch("/tasks/{task_id}/config")
         async def patch_limits(
             task_id: str,
-            max_samples: int | None = None,
+            max_samples: str | None = None,
             max_tasks: str | None = None,
             max_sandboxes: int | None = None,
             max_subprocesses: int | None = None,
@@ -1165,8 +1250,19 @@ class ControlServer:
             reason: str | None = None,
             dry_run: bool = False,
         ) -> Any:
+            # max_samples is declared str (it accepts the keyword `clear` —
+            # under adaptive connections an integer pins sample concurrency
+            # and `clear` unpins): minimum=1 because the apply layer raises
+            # on 0 (0 must 400 at the wire, not 500), and maximum=None
+            # because the knob has no upper bound, matching the static
+            # setpoint.
+            max_samples_knob, max_samples_error = _parse_override_knobs(
+                None, ("max_samples", max_samples), minimum=1
+            )
+            if max_samples_error is not None:
+                return max_samples_error
+            parsed_max_samples = max_samples_knob["max_samples"]
             if error := _limits_below_one(
-                ("max_samples", max_samples),
                 ("max_sandboxes", max_sandboxes),
                 ("max_subprocesses", max_subprocesses),
                 ("max_connections", max_connections),
@@ -1204,7 +1300,7 @@ class ControlServer:
             try:
                 result = await task_limits(
                     task_id,
-                    max_samples=max_samples,
+                    max_samples=parsed_max_samples,
                     max_tasks=max_tasks_value,
                     max_sandboxes=max_sandboxes,
                     max_subprocesses=max_subprocesses,
@@ -1278,6 +1374,23 @@ class ControlServer:
         @app.post("/resume")
         async def process_resume(dry_run: bool = False) -> Any:
             return await resume_process(dry_run=dry_run)
+
+        # Per-model throughput across the whole run (process scope — it sits
+        # beside the model pause latch): recent output tok/s, requests/min,
+        # retries/min, backoff ratio, and active retry waits per model, plus
+        # cumulative totals (see design/model-throughput.md). Cheap shoveling:
+        # everything is materialized at write time in the throughput registry;
+        # the read sums a bounded ring per model plus one bounded pass over
+        # active samples. `window` (seconds) is type-validated by FastAPI
+        # (malformed → 422) and clamped server-side to the bucket horizon;
+        # unknown params are tolerated (GETs stay tolerant, per
+        # design/ctl/control-channel.md). Never 404s — an empty registry
+        # reports an empty model list.
+        @app.get("/models/throughput")
+        async def models_throughput(window: int = 60) -> Any:
+            from inspect_ai.model._throughput import throughput_report
+
+            return throughput_report(window=window)
 
         # Pause / resume dispatch for one model (the third latch — see
         # design/ctl/pause-resume.md "Model-scoped latch"): samples, queued

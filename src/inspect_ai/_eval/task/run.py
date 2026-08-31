@@ -21,6 +21,7 @@ from inspect_ai._control.eval_state import (
     record_samples_added,
     register_eval,
     set_sample_requeue,
+    set_task_scoring,
     stable_task_id_for_eval,
 )
 from inspect_ai._control.pause import PauseGatedSemaphore, dispatch_model_name
@@ -74,7 +75,9 @@ from inspect_ai.log import (
     EvalLog,
     EvalResults,
     EvalSample,
+    EvalScore,
     EvalStats,
+    HeadlineMetric,
 )
 from inspect_ai.log._condense import condense_sample, resolve_events_attachments
 from inspect_ai.log._file import (
@@ -158,6 +161,7 @@ from inspect_ai.util._early_stopping import (
     EarlyStoppingSummary,
 )
 from inspect_ai.util._limit import (
+    Limit,
     LimitExceededError,
     monitor_working_limit,
     record_sample_limit_data,
@@ -170,7 +174,10 @@ from inspect_ai.util._limit import turn_limit as create_turn_limit
 from inspect_ai.util._limit import working_limit as create_working_limit
 from inspect_ai.util._limit_overrides import sample_limit_override_scope
 from inspect_ai.util._sandbox import SandboxTimeoutError
-from inspect_ai.util._sandbox.context import sandbox_connections
+from inspect_ai.util._sandbox.context import (
+    sandbox_connections,
+    sandbox_environments_context_var,
+)
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 from inspect_ai.util._sandbox.limits import reset_sandbox_limits, set_sandbox_limits
 from inspect_ai.util._span import span
@@ -593,7 +600,7 @@ def _sample_transcript_config(
 class TaskRunOptions:
     task: Task
     model: Model
-    model_roles: dict[str, Model] | None
+    model_roles: dict[str, Model | list[Model]] | None
     sandbox: SandboxEnvironmentSpec | None
     checkpoint: CheckpointConfig | None
     """Task-level checkpoint config (raw `task.checkpoint`)."""
@@ -1018,6 +1025,27 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                 dynamic=sample_feed is not None,
             )
 
+            # publish the interim-scoring capability (the task's scorers and
+            # scoring inputs as resolved at eval start) for the control
+            # channel's `task score` directive — see
+            # design/ctl/interim-scoring.md. Local import: _control.scoring
+            # pulls scorer/metrics machinery that must not load at bootstrap.
+            from inspect_ai._control.scoring import TaskScoring
+
+            set_task_scoring(
+                logger.eval.eval_id,
+                TaskScoring(
+                    scorers=scorers or [],
+                    scorer_names=scorer_names or [],
+                    model=model,
+                    model_roles=model_roles,
+                    generate_config=generate_config,
+                    epochs_reducer=task.epochs_reducer,
+                    metrics=task.metrics,
+                    score_on_error=config.score_on_error or False,
+                ),
+            )
+
             # call early stopping if we have it
             stopping_manager: str = ""
             if options.task.early_stopping is not None:
@@ -1062,6 +1090,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                 update_metrics_display = update_metrics_display_fn(
                     update_metrics,
                     display_metrics=profile.eval_config.score_display is not False,
+                    headline_metric=task.headline_metric,
                 )
 
                 async def sample_complete(
@@ -1608,6 +1637,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                     completed_samples=(
                         logger.samples_completed if log_samples else None
                     ),
+                    headline_metric=task.headline_metric,
                 )
 
             # collect eval data
@@ -1660,6 +1690,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         completed_samples=(
                             logger.samples_completed if log_samples else None
                         ),
+                        headline_metric=task.headline_metric,
                     )
 
                 if task_cancel and task_cancel.cancel_type in ("abort", "retry"):
@@ -1772,6 +1803,7 @@ def update_metrics_display_fn(
     initial_interval: float = 0,
     min_interval: float = 0.9,
     display_metrics: bool = True,
+    headline_metric: HeadlineMetric | None = None,
 ) -> Callable[
     [
         int,
@@ -1810,22 +1842,40 @@ def update_metrics_display_fn(
                 scorers=scorers,
                 metrics=metrics,
                 scorer_names=scorer_names,
+                headline_metric=headline_metric,
             )
 
             # Name, reducer, value
             task_metrics: list[TaskDisplayMetric] = []
             if len(results.scores) > 0:
+                # the progress line renders metrics[0], so lead with the
+                # headline. Marked here, while the originating EvalScore is
+                # still in hand and its full identity is available.
+                headline_index = -1
                 for score in results.scores:
                     for key, metric in score.metrics.items():
+                        # first match only: a scorer declaring both plain and
+                        # per-key metrics can emit two scores alike in every
+                        # field a reference names, and the resolver took the
+                        # first of those
+                        is_headline = headline_index < 0 and _is_headline(
+                            score, key, results.headline
+                        )
+                        if is_headline:
+                            headline_index = len(task_metrics)
                         task_metrics.append(
                             TaskDisplayMetric(
                                 scorer=score.name,
+                                scorer_name=score.scorer,
                                 name=key,
                                 value=metric.value,
                                 reducer=score.reducer,
                                 params=metric.params,
+                                headline=is_headline,
                             )
                         )
+                if headline_index > 0:
+                    task_metrics.insert(0, task_metrics.pop(headline_index))
                 update_fn(task_metrics)
 
             # determine how long to wait before recomputing metrics
@@ -1835,6 +1885,18 @@ def update_metrics_display_fn(
             next_compute_time = time_end + wait
 
     return compute
+
+
+def _is_headline(
+    score: EvalScore, metric_key: str, headline: HeadlineMetric | None
+) -> bool:
+    return (
+        headline is not None
+        and score.scorer == headline.scorer
+        and score.name == headline.score
+        and score.reducer == headline.reducer
+        and metric_key == headline.metric
+    )
 
 
 def _sample_usage(state: TaskState) -> "_SampleUsage":
@@ -2184,6 +2246,7 @@ async def _task_run_sample_attempt(
             sample_summary: EvalSampleSummary | None = None
             attempt_started = False
             sample_row_started = False
+            sample_time_limit: Limit | None = None
 
             def make_sample_summary() -> EvalSampleSummary:
                 return EvalSampleSummary(
@@ -2277,7 +2340,17 @@ async def _task_run_sample_attempt(
                         # update active sample wth sandboxes now that we are initialised
                         # (ensure that we still exit init context in presence of sandbox error)
                         try:
-                            active.sandboxes = await sandbox_connections()
+                            # publish the environments (the interim-scoring
+                            # pass binds them into its scoring context —
+                            # design/ctl/interim-scoring.md) and derive the
+                            # VS Code connection info from that same
+                            # publication so the two fields can't drift
+                            active.sandbox_environments = (
+                                sandbox_environments_context_var.get({}) or {}
+                            )
+                            active.sandboxes = await sandbox_connections(
+                                active.sandbox_environments
+                            )
                         finally:
                             await init_span.__aexit__(None, None, None)
                             cleanup_span = None
@@ -2294,11 +2367,12 @@ async def _task_run_sample_attempt(
                         # --no-log-samples while the control channel stays
                         # fully targetable.
                         override_task_id = stable_task_id_for_eval(task_id)
-                        sample_time_limit = create_time_limit(time_limit)
+                        time_limit_node = create_time_limit(time_limit)
+                        sample_time_limit = time_limit_node
                         with (
                             sample_limit_override_scope(
                                 override_task_id,
-                                time=sample_time_limit,
+                                time=time_limit_node,
                                 token=state._token_limit,
                                 message=state._message_limit,
                             ),
@@ -2306,7 +2380,7 @@ async def _task_run_sample_attempt(
                             state._cost_limit,
                             state._message_limit,
                             create_turn_limit(turn_limit),
-                            sample_time_limit,
+                            time_limit_node,
                             create_working_limit(working_limit),
                         ):
 
@@ -2712,6 +2786,20 @@ async def _task_run_sample_attempt(
 
                     # emit/log sample end
                     def make_eval_sample(include_events: bool = True) -> EvalSample:
+                        # the effective time limit, read off the sample's root
+                        # time node so it resolves a live retune exactly as the
+                        # message/token ceilings do through the state's limit
+                        # nodes; a sample that failed before its limit scopes
+                        # were created stamps the launch value (as the other
+                        # ceilings do)
+                        if sample_time_limit is not None:
+                            effective_time_limit = (
+                                round(sample_time_limit.limit)
+                                if sample_time_limit.limit is not None
+                                else None
+                            )
+                        else:
+                            effective_time_limit = time_limit
                         return create_eval_sample(
                             start_time=start_time,
                             sample=sample,
@@ -2724,6 +2812,7 @@ async def _task_run_sample_attempt(
                             # sample-level retries
                             error_retries=previous_attempt_errors
                             + list(attempt.errors),
+                            time_limit=effective_time_limit,
                             started_at=sample_start_datetime(),
                             include_events=include_events,
                         )
@@ -2895,6 +2984,7 @@ def create_eval_sample(
     error: EvalError | None,
     limit: EvalSampleLimit | None,
     error_retries: list[EvalRetryError],
+    time_limit: int | None,
     started_at: datetime | None = None,
     include_events: bool = True,
 ) -> EvalSample:
@@ -2937,6 +3027,8 @@ def create_eval_sample(
         if state.token_limit is not None
         else None,
         token_limit_usage=token_limit_usage(),
+        message_limit=state.message_limit,
+        time_limit=time_limit,
         started_at=started_at.isoformat() if started_at is not None else None,
         completed_at=datetime.now(timezone.utc).isoformat(),
         total_time=round(total_time, 3) if total_time is not None else None,

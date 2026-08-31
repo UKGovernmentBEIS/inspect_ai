@@ -43,12 +43,11 @@ if sys.version_info < (3, 11):
 from shortuuid import uuid
 from typing_extensions import Unpack
 
-from inspect_ai._cli.util import parse_cli_args
 from inspect_ai._display.core.active import active_display as active_task_display
 from inspect_ai._display.core.active import display as task_display
 from inspect_ai._eval.task.scan import Scanners, scan_context
 from inspect_ai._util.asyncfiles import with_async_fs
-from inspect_ai._util.config import resolve_args
+from inspect_ai._util.config import parse_cli_args, resolve_args
 from inspect_ai._util.constants import (
     DEFAULT_EPOCHS,
     DEFAULT_LOG_FORMAT,
@@ -76,6 +75,7 @@ from inspect_ai.model import (
     GenerateConfig,
     GenerateConfigArgs,
     Model,
+    ModelRoles,
 )
 from inspect_ai.model._model import (
     get_model,
@@ -120,7 +120,7 @@ def eval(
     model: str | Model | list[str] | list[Model] | None | NotGiven = NOT_GIVEN,
     model_base_url: str | None = None,
     model_args: dict[str, Any] | str = dict(),
-    model_roles: dict[str, str | Model] | None = None,
+    model_roles: ModelRoles | None = None,
     task_args: dict[str, Any] | str = dict(),
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
@@ -189,7 +189,7 @@ def eval(
             with the model API.
         model_args: Model creation args
             (as a dictionary or as a path to a JSON or YAML config file)
-        model_roles: Named roles for use in `get_model()`.
+        model_roles: Named roles for use in `get_model()` (a role can also map to a list of models).
         task_args: Task creation arguments
             (as a dictionary or as a path to a JSON or YAML config file)
         sandbox: Sandbox environment type
@@ -207,7 +207,7 @@ def eval(
             `Task(checkpoint=False)`, which overrides this enable for that
             task only.
         acp_server: Expose this eval over an Agent Client Protocol server.
-            `True` enables a default AF_UNIX socket at `<inspect_data_dir>/acp/<run_id>.sock`;
+            `True` enables a default AF_UNIX socket at `<inspect_data_dir>/acp/<pid>.sock`;
             an integer binds a TCP loopback port; a string is taken as a custom
             UNIX socket path; `None` (default) does not start an ACP server.
         ctl_server: Control-channel server for this eval process.
@@ -415,7 +415,7 @@ async def eval_async(
     model: str | Model | list[str] | list[Model] | None | NotGiven = NOT_GIVEN,
     model_base_url: str | None = None,
     model_args: dict[str, Any] | str = dict(),
-    model_roles: dict[str, str | Model] | None = None,
+    model_roles: ModelRoles | None = None,
     task_args: dict[str, Any] | str = dict(),
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
@@ -480,14 +480,14 @@ async def eval_async(
             leave model usage entirely up to tasks.
         model_base_url: Base URL for communicating with the model API.
         model_args: Model creation args (as a dictionary or as a path to a JSON or YAML config file
-        model_roles: Named roles for use in `get_model()`.
+        model_roles: Named roles for use in `get_model()` (a role can also map to a list of models).
         task_args: Task creation arguments (as a dictionary or as a path to a JSON or YAML config file)
         sandbox: Sandbox environment type (or optionally a str or tuple with a shorthand spec)
         sandbox_cleanup: Cleanup sandbox environments after task completes (defaults to True)
         sandbox_prebuilt: Treat sandbox images as prebuilt, skipping builds and failing at task startup when an image is missing (defaults to False)
         checkpoint: Checkpoint configuration for this eval, or `True` to enable checkpointing with the default trigger (every 500k tokens), equivalent to the bare `--checkpoint` CLI flag. Overrides any task- or sample-level `checkpoint` when set.
         acp_server: Expose this eval over an Agent Client Protocol server.
-            `True` enables a default AF_UNIX socket at `<inspect_data_dir>/acp/<run_id>.sock`;
+            `True` enables a default AF_UNIX socket at `<inspect_data_dir>/acp/<pid>.sock`;
             an integer binds a TCP loopback port; a string is taken as a custom
             UNIX socket path; `None` (default) does not start an ACP server.
         ctl_server: Control-channel server for this eval process.
@@ -684,7 +684,7 @@ async def _eval_async_inner(
     model: str | Model | list[str] | list[Model] | None | NotGiven = NOT_GIVEN,
     model_base_url: str | None = None,
     model_args: dict[str, Any] | str = dict(),
-    model_roles: dict[str, str | Model] | None = None,
+    model_roles: ModelRoles | None = None,
     task_args: dict[str, Any] | str = dict(),
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
@@ -1207,7 +1207,7 @@ def _resolve_enqueued_tasks(
     tasks: Tasks,
     *,
     models: list[Model],
-    model_roles: dict[str, str | Model] | None,
+    model_roles: ModelRoles | None,
     config: GenerateConfig,
     sandbox: SandboxEnvironmentType | None,
     sample_shuffle: bool | int | None,
@@ -1804,7 +1804,7 @@ async def eval_retry_async(
                     log_info=None,
                 ),
                 model=model,
-                model_roles=cast(dict[str, str | Model], model_roles),
+                model_roles=model_roles,
                 task_args=task_args,
                 sandbox=eval_log.eval.sandbox,
                 sandbox_cleanup=sandbox_cleanup,
@@ -1906,7 +1906,7 @@ def eval_resolve_tasks(
     tasks: Tasks,
     task_args: dict[str, Any] | str,
     models: list[Model],
-    model_roles: dict[str, str | Model] | None,
+    model_roles: ModelRoles | None,
     config: GenerateConfig,
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None,
     sandbox: SandboxEnvironmentType | None,

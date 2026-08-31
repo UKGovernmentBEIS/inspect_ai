@@ -13,7 +13,6 @@ from typing import Any, Literal, NamedTuple, cast
 # SDK Docs: https://googleapis.github.io/python-genai/
 import aiohttp
 import anyio
-import httpx
 from google.genai import Client
 from google.genai.errors import APIError, ClientError
 from google.genai.types import (
@@ -74,6 +73,7 @@ from inspect_ai._util.http import (
     is_retryable_http_status,
     parse_retry_after_from_exception,
 )
+from inspect_ai._util.http_defaults import default_async_client
 from inspect_ai._util.images import inline_media_data
 from inspect_ai._util.kvstore import inspect_kvstore
 from inspect_ai._util.logger import warn_once
@@ -120,6 +120,7 @@ from inspect_ai.model._reasoning import (
 )
 from inspect_ai.model._retry import batch_admin_retry_config
 from inspect_ai.model._stream import (
+    NoStreamDataError,
     StreamReasoningEvent,
     StreamTextEvent,
     StreamToolCallEvent,
@@ -141,6 +142,7 @@ from .util import (
     OAUTH_PLACEHOLDER_API_KEY,
     GoogleOAuthCredentials,
     model_base_url,
+    normalize_stream_arg,
     resolve_google_credentials,
 )
 from .util.hooks import HttpHooks, HttpxHooks
@@ -247,11 +249,10 @@ class GoogleGenAIAPI(ModelAPI):
         # record api version
         self.api_version = api_version
 
-        # record streaming preference ("auto" streams when the caller passes
-        # on_stream to generate; an explicit True/False overrides)
-        streaming = model_args.pop("streaming", "auto")
-        self.streaming: bool | Literal["auto"] = (
-            "auto" if streaming == "auto" else bool(streaming)
+        # record streaming preference (unset/"auto" streams when the caller
+        # passes on_stream to generate; an explicit True/False overrides)
+        self.streaming: bool | None = normalize_stream_arg(
+            model_args.pop("streaming", None), "streaming"
         )
 
         # pick out user-provided safety settings and merge against default
@@ -438,9 +439,9 @@ class GoogleGenAIAPI(ModelAPI):
             # create hooks and allocate request
             async_httpx_client = client._api_client._async_httpx_client
             if async_httpx_client is not None:
-                http_hooks: HttpHooks = HttpxHooks(async_httpx_client)
+                http_hooks: HttpHooks = HttpxHooks(async_httpx_client, api=self)
             else:
-                http_hooks = HttpHooks()
+                http_hooks = HttpHooks(api=self)
             request_id = http_hooks.start_request()
 
             # Create google-genai types.
@@ -518,7 +519,7 @@ class GoogleGenAIAPI(ModelAPI):
                             batch_request_dict(parameters, gemini_contents)
                         )
                     elif self.streaming is True or (
-                        self.streaming == "auto" and model_stream_requested()
+                        self.streaming is None and model_stream_requested()
                     ):
                         response = await self._stream_generate_content(
                             client=client,
@@ -647,7 +648,7 @@ class GoogleGenAIAPI(ModelAPI):
                                 await _report_stream_part_delta(part)
 
         if last_chunk is None:
-            raise RuntimeError(
+            raise NoStreamDataError(
                 f"No response chunks received from streaming API for model {model}"
             )
 
@@ -959,12 +960,14 @@ class GoogleGenAIAPI(ModelAPI):
             base_url=self.base_url,
             api_version=self.api_version,
         )
-        # aiohttp requires asyncio; use httpx under trio for compatibility
+        # aiohttp requires asyncio; use httpx under trio for compatibility.
+        # Only this path gets the shared HTTP defaults: the aiohttp path sets no
+        # connect deadline at all, so there is none there to be outlasted.
         if (
             current_async_backend() == "trio"
             and http_options.httpx_async_client is None
         ):
-            http_options.httpx_async_client = httpx.AsyncClient()
+            http_options.httpx_async_client = default_async_client()
         api_key = self.api_key
         if self._oauth and self._credentials is not None:
             # The dev-endpoint client requires a non-empty api_key; pass a
@@ -1223,7 +1226,12 @@ class GoogleGenAIAPI(ModelAPI):
         self._batcher = GoogleBatcher(
             client,
             batch_config,
-            batch_admin_retry_config(self.model_name, config, self.should_retry),
+            batch_admin_retry_config(
+                self.model_name,
+                config,
+                self.should_retry,
+                qualified_model_name=self.qualified_model_name,
+            ),
             self.service_model_name(),
         )
 
@@ -2149,8 +2157,11 @@ async def _report_stream_part_delta(part: Part) -> None:
     Text and thought parts stream as fragments; a function call arrives whole
     in a single part, so it is reported as one tool-call delta with complete
     arguments. Parts carrying neither (executable code, inline data, ...)
-    already produced a heartbeat via the per-chunk progress report.
+    already produced a heartbeat via the per-chunk progress report. No-op
+    without an on_stream consumer (see `report_model_stream_delta`).
     """
+    if not model_stream_requested():
+        return
     if part.thought is True and part.text:
         await report_model_stream_delta(StreamReasoningEvent(reasoning=part.text))
     elif part.text:

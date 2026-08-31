@@ -92,7 +92,7 @@ from .task.sandbox import (
 )
 from .task.task import Task
 from .task.task_source import TaskSource
-from .task.util import slice_dataset, task_run_dir
+from .task.util import resolve_task_sample_ids, slice_dataset, task_run_dir
 
 log = logging.getLogger(__name__)
 
@@ -359,6 +359,7 @@ async def eval_run(
                     dataset=task.dataset,
                     scorer=eval_scorer_specs,
                     metrics=eval_metrics,
+                    headline_metric=task.headline_metric,
                     sandbox=resolved_task.sandbox,
                     task_attribs=task.attribs,
                     task_args=getattr(
@@ -708,6 +709,30 @@ async def run_task_retry_attempts(
             add_dispatch_waker(wake.set)
             register_task_dispatcher(dispatcher_stats)
             async with anyio.create_task_group() as tg:
+                # Run-scoped periodic [Throughput] trace reporter (see
+                # design/model-throughput.md §4). Its own cancel scope: the
+                # dispatch loop below exits by `break` while the task group
+                # waits for children, so the reporter must be cancelled
+                # explicitly then (exceptions/cancellation tear down the
+                # whole group, reporter included).
+                reporter_scope = anyio.CancelScope()
+
+                async def throughput_reporter() -> None:
+                    from inspect_ai.model._throughput import (
+                        report_throughput_periodically,
+                    )
+
+                    with reporter_scope:
+                        # the reporter is observability only — a bug in it
+                        # must never propagate into the task group and take
+                        # down the run (cancellation passes through: it's a
+                        # BaseException, not Exception)
+                        try:
+                            await report_throughput_periodically()
+                        except Exception as ex:
+                            log.warning(f"Throughput reporter failed: {ex}")
+
+                tg.start_soon(throughput_reporter)
 
                 async def run_one(item: PendingTask) -> None:
                     nonlocal in_flight, cancelled
@@ -851,6 +876,10 @@ async def run_task_retry_attempts(
                         source_done = True
                     else:
                         add(more)
+
+                # dispatch complete (only the `break` paths reach here) —
+                # stop the reporter so the task group can exit
+                reporter_scope.cancel()
         # exceptions can escape when debug_errors is True and that's okay
         except ExceptionGroup as ex:
             if debug_errors:
@@ -866,42 +895,6 @@ async def run_task_retry_attempts(
 
     # sort results by index and return just the values
     return [v for _, v in sorted(results.items())]
-
-
-def resolve_task_sample_ids(
-    task: str, sample_id: str | int | list[str] | list[int] | list[str | int] | None
-) -> str | int | list[str] | list[int] | list[str | int] | None:
-    def collect_for_task(sample: str | int) -> str | int | None:
-        if isinstance(sample, str):
-            scoped = sample.split(":", maxsplit=1)
-            if len(scoped) > 1:
-                if scoped[0].lower() == task.lower():
-                    return scoped[1]
-                else:
-                    return None
-            else:
-                return sample
-        else:
-            return sample
-
-    if sample_id is not None:
-        if isinstance(sample_id, list):
-            ids: list[int | str] = []
-            for id in sample_id:
-                collect = collect_for_task(id)
-                if collect is not None:
-                    ids.append(collect)
-            return ids
-
-        else:
-            collect = collect_for_task(sample_id)
-            if collect is not None:
-                return collect
-            else:
-                return []
-
-    else:
-        return sample_id
 
 
 class SandboxManager:

@@ -131,6 +131,16 @@ class TaskScreen(contextlib.AbstractContextManager["TaskScreen"]):
 
 class TaskDisplayMetric(BaseModel):
     scorer: str
+    """`EvalScore.name` — for a dict-valued scorer this is one of its value
+    keys rather than the scorer's own name."""
+
+    scorer_name: str | None = Field(default=None)
+    """`EvalScore.scorer` — tells apart two dict-valued scorers sharing a key."""
+
+    headline: bool = Field(default=False)
+    """Whether this is the eval's headline metric. Marked here because the
+    display shape drops the identity a headline reference matches on."""
+
     name: str
     value: float | int | None = Field(default=None)
     reducer: str | None = Field(default=None)

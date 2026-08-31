@@ -17,7 +17,10 @@ pytest.importorskip("botocore")
 
 from botocore.awsrequest import AWSRequest  # noqa: E402
 
-from inspect_ai.model._providers.util.hooks import ConverseHooks  # noqa: E402
+from inspect_ai.model._providers.util.hooks import (  # noqa: E402
+    ConverseHooks,
+    HttpHooks,
+)
 
 
 def _make_hooks() -> ConverseHooks:
@@ -25,8 +28,9 @@ def _make_hooks() -> ConverseHooks:
     # The constructor expects a session-like object with `_session.register`,
     # but we bypass it for unit testing.
     hooks = ConverseHooks.__new__(ConverseHooks)
-    # call HttpHooks.__init__ to set up self._requests
-    hooks._requests = {}
+    # run the base initializer (rather than ConverseHooks.__init__, which
+    # registers with a botocore session) so all base state is set up
+    HttpHooks.__init__(hooks)
     return hooks
 
 
