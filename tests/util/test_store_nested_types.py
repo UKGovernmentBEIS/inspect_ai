@@ -3,10 +3,12 @@
 from dataclasses import dataclass
 from typing import Any, Dict, List, Literal, Optional, Tuple, Union, cast
 
+import pytest
 from pydantic import BaseModel, Field
 from typing_extensions import TypedDict
 
-from inspect_ai.util import Store, StoreModel
+from inspect_ai.util import Store, StoreModel, store_as
+from inspect_ai.util._store import init_subtask_store, store
 
 
 # Test models and types
@@ -372,6 +374,135 @@ def test_invalid_data_returns_raw() -> None:
     person = model.person
     assert isinstance(person, dict)
     assert person == {"invalid": "data"}
+
+
+class StrictPersonStore(StoreModel):
+    person: Person = Field(default_factory=lambda: Person(name="", age=0))
+    count: int = 0
+
+
+def test_store_as_strict_raises_on_invalid_data() -> None:
+    """Test that store_as(strict=True) raises an informative error instead of returning raw."""
+    init_subtask_store(Store())
+    store().set("StrictPersonStore:person", {"invalid": "data"})
+
+    with pytest.raises(ValueError) as excinfo:
+        store_as(StrictPersonStore, strict=True)
+
+    message = str(excinfo.value)
+    assert "StrictPersonStore:person" in message
+    assert "Person" in message
+    assert "dict" in message
+
+
+def test_store_as_strict_validates_scalar_values() -> None:
+    """Test that store_as(strict=True) validates scalar stored values against the field type."""
+    init_subtask_store(Store())
+    # a scalar stored where a model is declared skips coercion entirely in
+    # lenient mode; strict mode must catch it
+    store().set("StrictPersonStore:person", "not a person")
+
+    with pytest.raises(ValueError, match="StrictPersonStore:person"):
+        store_as(StrictPersonStore, strict=True)
+
+
+def test_store_as_strict_raises_on_reads_after_creation() -> None:
+    """Test that a strict instance validates values written after store_as()."""
+    init_subtask_store(Store())
+    model = store_as(StrictPersonStore, strict=True)
+
+    # corrupt the shared store behind the model's back
+    store().set("StrictPersonStore:person", {"invalid": "data"})
+
+    with pytest.raises(ValueError, match="StrictPersonStore:person"):
+        _ = model.person
+
+
+def test_store_as_strictness_is_per_instance() -> None:
+    """Test that strictness binds to the returned instance, not the model class."""
+    init_subtask_store(Store())
+    store().set("StrictPersonStore:person", {"invalid": "data"})
+
+    # a lenient view of the same store still returns the raw value
+    lenient = store_as(StrictPersonStore)
+    assert lenient.person == {"invalid": "data"}  # type: ignore[comparison-overlap]
+
+    with pytest.raises(ValueError, match="StrictPersonStore:person"):
+        store_as(StrictPersonStore, strict=True)
+
+    # and the lenient view is unaffected by the strict one having existed
+    assert lenient.person == {"invalid": "data"}  # type: ignore[comparison-overlap]
+
+
+def test_store_as_strict_valid_data_round_trip() -> None:
+    """Test that strict reads leave valid data behavior unchanged."""
+    init_subtask_store(Store())
+    store().set(
+        "StrictPersonStore:person", {"name": "Alice", "age": 30, "address": None}
+    )
+
+    model = store_as(StrictPersonStore, strict=True)
+    assert isinstance(model.person, Person)
+    assert model.person.name == "Alice"
+
+    model.person = Person(name="Bob", age=25)
+    assert model.person.name == "Bob"
+    assert model.count == 0
+    model.count = 3
+    assert model.count == 3
+    assert store().get("StrictPersonStore:count") == 3
+
+
+def test_store_as_strict_dump_skips_missing_keys() -> None:
+    """Test that strict model_dump tolerates fields deleted from the store."""
+    init_subtask_store(Store())
+    model = store_as(StrictPersonStore, strict=True)
+    store().delete("StrictPersonStore:count")
+
+    dumped = model.model_dump()
+    assert dumped["person"] == Person(name="", age=0).model_dump()
+
+
+def test_store_as_strict_arbitrary_types_returned_as_is() -> None:
+    """Test that strict reads leave fields of non-validatable types alone."""
+
+    class Opaque:
+        pass
+
+    class ArbitraryStore(StoreModel):
+        obj: Opaque | None = None
+
+    init_subtask_store(Store())
+    opaque = Opaque()
+    store().set("ArbitraryStore:obj", opaque)
+
+    model = store_as(ArbitraryStore, strict=True)
+    assert model.obj is opaque
+
+
+def test_eval_sample_store_as_strict() -> None:
+    """Test the strict parameter on EvalSample.store_as."""
+    from inspect_ai.log._log import EvalSample
+
+    sample = EvalSample(
+        id=1,
+        epoch=1,
+        input="input",
+        target="target",
+        store={"StrictPersonStore:person": {"name": "Alice", "age": 30}},
+    )
+
+    # default is lenient for post-construction reads
+    lenient = sample.store_as(StrictPersonStore)
+    lenient.store.set("StrictPersonStore:person", {"invalid": "data"})
+    assert lenient.person == {"invalid": "data"}  # type: ignore[comparison-overlap]
+
+    # strict instances validate post-construction reads
+    strict = sample.store_as(StrictPersonStore, strict=True)
+    assert strict.person.name == "Alice"
+    strict.store.set("StrictPersonStore:person", {"invalid": "data"})
+    with pytest.raises(ValueError, match="StrictPersonStore:person"):
+        _ = strict.person
 
 
 def test_multiple_instances_with_nested_types():
