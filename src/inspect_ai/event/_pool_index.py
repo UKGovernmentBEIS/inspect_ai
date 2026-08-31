@@ -256,11 +256,23 @@ lineage.
 """
 
 
-class _PrevRequest(NamedTuple):
+# identity comparison: lineages are unique objects, never compared by value
+@dataclasses.dataclass(eq=False)
+class _PrevRequest:
     """One retained request lineage: pre-walk snapshots and their pool indices."""
 
     msgs: list[JsonValue]
     indices: list[int]
+
+
+class PrefixMatch(NamedTuple):
+    """A ``match_prefix`` result, consumed by the following ``set_prev``."""
+
+    indices: tuple[int, ...]
+    """Pool indices of the matched prefix (empty if nothing matched)."""
+
+    slot: _PrevRequest | None = None
+    """Lineage the prefix came from, if any."""
 
 
 class CallPoolIndex:
@@ -299,14 +311,8 @@ class CallPoolIndex:
     def __init__(self) -> None:
         # walked-form content hash -> pool index
         self._hash_index: dict[str, int] = {}
-        # Retained previous-request lineages. match_prefix records which slot
-        # matched in _matched_slot; the IMMEDIATELY FOLLOWING set_prev consumes
-        # it for carry-forward and replacement. This pairing is a contract with
-        # the single caller (condense_model_event_with_indices); interleaving
-        # other match_prefix calls between an event's match and set would
-        # mis-pair the carry.
+        # retained previous-request lineages
         self._prevs: list[_PrevRequest] = []
-        self._matched_slot: int = -1
         # undo log of hashes added (for mark/restore)
         self._added_hashes: list[str] = []
         # Seeded for reproducibility; eviction choice affects performance
@@ -318,12 +324,12 @@ class CallPoolIndex:
         """Number of distinct pool entries indexed."""
         return len(self._hash_index)
 
-    def match_prefix(self, msgs: Sequence[JsonValue]) -> list[int]:
+    def match_prefix(self, msgs: Sequence[JsonValue]) -> PrefixMatch:
         """Pool indices for the longest shared prefix with a retained request.
 
         Compares against each retained lineage (see ``_CALL_PREV_SLOTS``) and
         returns the best match; comparison stops at the first differing
-        element. Records the matched slot for the paired ``set_prev`` call.
+        element.
 
         Ties in match length break toward a lineage the request fully
         consumes, so a request repeating a strict prefix of a longer lineage
@@ -334,23 +340,21 @@ class CallPoolIndex:
             msgs: New request's message list (pre-walk wire format).
 
         Returns:
-            List of pool indices for the matched prefix. Empty if no lineage
-            matches or none has been recorded.
+            The matched prefix's pool indices and the lineage they came from
+            (empty indices and no lineage if nothing matched). Hand the whole
+            result to the following ``set_prev`` for the same ``msgs``.
         """
-        best: list[int] = []
-        best_slot = -1
+        best = PrefixMatch(indices=())
         best_full = False
-        for slot_index, prev in enumerate(self._prevs):
+        for prev in self._prevs:
             prefix_len = min(_strict_eq_prefix_len(msgs, prev.msgs), len(prev.indices))
             # the predicate mirrors set_prev's replacement test
             full = prefix_len == len(prev.msgs)
-            if (prefix_len, full) > (len(best), best_full):
-                best = prev.indices[:prefix_len]
-                best_slot = slot_index
+            # ties break toward a fully consumed lineage (see docstring); a
+            # plain `>=` would prefer the *last* tie, which can be partial
+            if (prefix_len, full) > (len(best.indices), best_full):
+                best = PrefixMatch(indices=tuple(prev.indices[:prefix_len]), slot=prev)
                 best_full = full
-        # ties break toward a fully consumed lineage (see docstring); a plain
-        # `>=` would prefer the *last* tie, which can be a partial match
-        self._matched_slot = best_slot
         return best
 
     def get_by_hash(self, hash_value: str) -> int | None:
@@ -378,47 +382,49 @@ class CallPoolIndex:
             self._added_hashes.append(hash_value)
 
     def set_prev(
-        self, msgs: Sequence[JsonValue], indices: Sequence[int], prefix_len: int = 0
+        self,
+        msgs: Sequence[JsonValue],
+        indices: Sequence[int],
+        match: PrefixMatch | None = None,
     ) -> None:
         """Record the request just condensed for prefix-matching later ones.
 
         Retains a deep copy of each message *value* (see class notes on
-        in-place mutation). Only the divergent tail (``msgs[prefix_len:]``)
-        is copied; the ``prefix_len`` leading snapshots are carried over from
-        the slot the preceding ``match_prefix`` matched — carrying from any
-        other slot would retain snapshots claiming pool indices for content
-        never pooled at those positions. The matched slot is replaced only
-        when ``prefix_len`` fully consumes it (the request extends that
-        lineage); a partial match keeps the matched slot and appends the new
-        entry as a sibling lineage instead, since a partial match means the
-        two lineages diverged from a shared prefix and replacing would merge
-        them. With no match the entry is appended. An append at cap first
-        evicts a random existing lineage (see class docstring: LRU is
-        pathological here). ``prefix_len=0`` (copy everything) is always
-        safe for callers that do not track the matched prefix.
+        in-place mutation). Given a ``match``, only the divergent tail is
+        copied: the matched prefix's snapshots are carried over from the
+        lineage that produced them — carrying from any other lineage would
+        retain snapshots claiming pool indices for content never pooled at
+        those positions. That lineage is replaced only when the match
+        consumed it fully (the request extends it); a partial match keeps it
+        and appends the new entry as a sibling lineage instead, since a
+        partial match means the two lineages diverged from a shared prefix
+        and replacing would merge them. With no match the entry is appended.
+        An append at cap first evicts a random existing lineage (see class
+        docstring: LRU is pathological here).
 
         Args:
             msgs: Pre-walk wire-format message list.
             indices: Corresponding pool indices, parallel to ``msgs``.
-            prefix_len: Length of the leading run of ``msgs`` already known
-                (via ``match_prefix``) to equal the previously retained
-                messages; their snapshots are reused instead of re-copied.
+            match: The ``match_prefix`` result for these same ``msgs``. That
+                pairing is a precondition: a match taken for a *different*
+                message list carries snapshots that disagree with
+                ``indices``. Omitting it (copy everything) is always safe
+                for callers that do not prefix-match.
         """
-        matched = self._matched_slot
-        self._matched_slot = -1
-        prev_msgs = self._prevs[matched].msgs if matched >= 0 else []
-        if prefix_len > len(prev_msgs):
-            # mis-paired with match_prefix: nothing valid to carry
-            prefix_len, matched = 0, -1
-        carried = prev_msgs[:prefix_len]
+        prev = match.slot if match is not None else None
+        prefix_len = len(match.indices) if match is not None else 0
+        if prev is not None and prev not in self._prevs:
+            # dropped by restore() since the match: nothing valid to carry
+            prev, prefix_len = None, 0
+        carried = prev.msgs[:prefix_len] if prev is not None else []
         entry = _PrevRequest(
             msgs=carried + [copy.deepcopy(m) for m in msgs[prefix_len:]],
             indices=list(indices),
         )
         # see docstring: replace only when the match fully consumed the
         # lineage, else keep it and append a sibling
-        if matched >= 0 and prefix_len == len(prev_msgs):
-            del self._prevs[matched]
+        if prev is not None and prefix_len == len(prev.msgs):
+            self._prevs.remove(prev)
         elif len(self._prevs) >= _CALL_PREV_SLOTS:
             # random, not LRU (see class docstring)
             del self._prevs[self._evict_rng.randrange(len(self._prevs))]
@@ -450,9 +456,9 @@ class CallPoolIndex:
         while len(self._added_hashes) > mark:
             del self._hash_index[self._added_hashes.pop()]
         # drop ALL lineages, not just the newest: any slot's indices may
-        # reference pool rows the rolled-back transaction created
+        # reference pool rows the rolled-back transaction created (a match
+        # taken before this point names a dropped lineage; set_prev ignores it)
         self._prevs = []
-        self._matched_slot = -1
 
 
 def condense_model_event_with_indices(
@@ -538,9 +544,9 @@ def condense_model_event_with_indices(
         msg_key = next((k for k in _CALL_MESSAGE_KEYS if k in call.request), None)
         msgs = call.request.get(msg_key) if msg_key else None
         if msgs and isinstance(msgs, list):
-            call_indices = calls.match_prefix(msgs)
-            prefix_len = len(call_indices)
-            for msg_value in msgs[prefix_len:]:
+            match = calls.match_prefix(msgs)
+            call_indices = list(match.indices)
+            for msg_value in msgs[len(match.indices) :]:
                 walked_value = walk_call_message(msg_value)
                 call_hash = _pool._call_hash(walked_value)
                 call_index = calls.get_by_hash(call_hash)
@@ -548,7 +554,7 @@ def condense_model_event_with_indices(
                     call_index = add_call(call_hash, walked_value)
                 calls.add_hash(call_hash, call_index)
                 call_indices.append(call_index)
-            calls.set_prev(msgs, call_indices, prefix_len=prefix_len)
+            calls.set_prev(msgs, call_indices, match=match)
             new_request = {k: v for k, v in call.request.items() if k != msg_key}
             update["call"] = call.model_copy(
                 update={
