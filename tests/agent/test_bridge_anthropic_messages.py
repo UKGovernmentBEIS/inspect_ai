@@ -189,3 +189,94 @@ def test_base_64_data_error_includes_value() -> None:
         base_64_data(Path("/tmp/image.png"))
     assert "/tmp/image.png" in str(exc_info.value)
     assert "{data}" not in str(exc_info.value)
+
+
+# --- impl-level: request `system` becomes leading system messages ------------
+
+
+class _CapturedMessages(Exception):
+    """Sentinel carrying the messages the impl handed to generation."""
+
+    def __init__(self, messages: list[Any]) -> None:
+        self.messages = messages
+
+
+async def _request_impl_messages(
+    monkeypatch: pytest.MonkeyPatch, json_data: dict[str, Any]
+) -> list[Any]:
+    """Run inspect_anthropic_api_request_impl and capture its inspect messages."""
+    import inspect_ai.agent._bridge.anthropic_api_impl as impl
+    from inspect_ai.agent._agent import AgentState
+    from inspect_ai.agent._bridge.types import AgentBridge
+
+    async def capture(bridge: Any, model: Any, messages: Any, *args: Any) -> Any:
+        raise _CapturedMessages(messages)
+
+    monkeypatch.setattr(impl, "bridge_generate", capture)
+    bridge = AgentBridge(state=AgentState(messages=[]))
+    with pytest.raises(_CapturedMessages) as exc_info:
+        await impl.inspect_anthropic_api_request_impl(
+            {
+                "model": "mockllm/model",
+                "max_tokens": 1024,
+                "messages": [{"role": "user", "content": "hello"}],
+                **json_data,
+            },
+            headers=None,
+            web_search=None,
+            code_execution=None,
+            bridge=bridge,
+        )
+    return exc_info.value.messages
+
+
+@pytest.mark.anyio
+async def test_request_impl_no_system(monkeypatch: pytest.MonkeyPatch) -> None:
+    messages = await _request_impl_messages(monkeypatch, {})
+    assert [type(m) for m in messages] == [ChatMessageUser]
+
+
+@pytest.mark.anyio
+async def test_request_impl_string_system(monkeypatch: pytest.MonkeyPatch) -> None:
+    messages = await _request_impl_messages(monkeypatch, {"system": "be helpful"})
+    assert [type(m) for m in messages] == [ChatMessageSystem, ChatMessageUser]
+    assert messages[0].text == "be helpful"
+
+
+@pytest.mark.anyio
+async def test_request_impl_single_block_system(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    messages = await _request_impl_messages(
+        monkeypatch, {"system": [{"type": "text", "text": "be helpful"}]}
+    )
+    assert [type(m) for m in messages] == [ChatMessageSystem, ChatMessageUser]
+    assert messages[0].text == "be helpful"
+
+
+@pytest.mark.anyio
+async def test_request_impl_multi_block_system_preserves_boundaries(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """One leading system message per Anthropic system block, in order."""
+    messages = await _request_impl_messages(
+        monkeypatch,
+        {
+            "system": [
+                {"type": "text", "text": "x-anthropic-billing-header: abc"},
+                {"type": "text", "text": "you are a security classifier"},
+                {"type": "text", "text": "session context"},
+            ]
+        },
+    )
+    assert [type(m) for m in messages] == [
+        ChatMessageSystem,
+        ChatMessageSystem,
+        ChatMessageSystem,
+        ChatMessageUser,
+    ]
+    assert [m.text for m in messages[:3]] == [
+        "x-anthropic-billing-header: abc",
+        "you are a security classifier",
+        "session context",
+    ]
