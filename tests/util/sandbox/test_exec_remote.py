@@ -13,6 +13,7 @@ from unittest.mock import AsyncMock, patch
 
 import anyio
 import pytest
+from tenacity.wait import wait_none
 from test_helpers.utils import skip_if_no_docker
 
 from inspect_ai.tool._sandbox_tools_utils.sandbox import (
@@ -161,6 +162,33 @@ class TestSingleUseIterator:
 # ============================================================================
 # Kill behavior
 # ============================================================================
+
+
+class TestPollRetryExhaustion:
+    async def test_poll_retry_exhaustion_reraises_underlying_error(self) -> None:
+        sandbox = AsyncMock()
+        sandbox.default_polling_interval.return_value = 5
+        sandbox.no_events = _no_events_context
+        sandbox.exec = AsyncMock(
+            side_effect=RuntimeError("command terminated with exit code 137")
+        )
+        proc = ExecRemoteProcess(sandbox, ["cmd"], ExecRemoteCommonOptions(), 5)
+
+        # The retry backoff would take ~30s to exhaust; zero out the wait the
+        # same way conftest's fast_retry_waits does for model retries. Patching
+        # asyncio.sleep would be a no-op under the trio variant (tenacity routes
+        # through its portable sleep helper), and with real sleeps the attempt
+        # count assertion becomes timing-sensitive.
+        with patch(
+            "inspect_ai.util._sandbox.exec_remote.wait_exponential_jitter",
+            new=lambda *a, **k: wait_none(),
+        ):
+            with pytest.raises(RuntimeError, match="exit code 137"):
+                await proc._poll()
+
+        # stop_after_attempt(5) pins the attempt count; keep the assertion
+        # exact so a stop-config regression is caught
+        assert sandbox.exec.call_count == 5
 
 
 class TestKill:
@@ -649,9 +677,13 @@ async def docker_sandbox(request):
 
     # Smoke test: verify the injected binary accepts the current RPC schema.
     # Fails when the binary predates host-side schema changes (e.g. ack_seq).
+    # Only skip on ValueError (response-validation/schema mismatch). RuntimeError
+    # — including poll-retry exhaustion, which is now reraised — must propagate
+    # so a genuinely broken docker exec fails loudly instead of silently skipping
+    # this whole integration suite.
     try:
         await exec_remote_awaitable(proxy, ["true"], proxy.default_polling_interval())
-    except (ValueError, RuntimeError):
+    except ValueError:
         await cleanup()
         pytest.skip("Injected binary incompatible with current host-side RPC schema")
 

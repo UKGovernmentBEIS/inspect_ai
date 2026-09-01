@@ -4,6 +4,7 @@ from typing import Any, Literal, cast
 
 import httpx2
 from openai import (
+    APIError,
     APIStatusError,
     AsyncOpenAI,
     BadRequestError,
@@ -55,6 +56,7 @@ from .._openai import (
     openai_chat_tools,
     openai_completion_params,
     openai_handle_bad_request,
+    openai_handle_stream_error,
     openai_media_filter,
     supports_native_max_reasoning_effort,
 )
@@ -263,6 +265,7 @@ class OpenAICompatibleAPI(ModelAPI):
                 if have_tools
                 else NOT_GIVEN,
                 extra_headers={HttpxHooks.REQUEST_ID_HEADER: request_id}
+                | self.request_headers(config)
                 | (config.extra_headers or {}),
                 **completion_params,
             )
@@ -332,6 +335,14 @@ class OpenAICompatibleAPI(ModelAPI):
                     )
                     return self.handle_bad_request(ex), model_call
                 raise
+            except APIError as ex:
+                output = openai_handle_stream_error(self.service_model_name(), ex)
+                if output is None:
+                    raise
+                model_call.set_error(
+                    as_error_response(ex.body), self._http_hooks.end_request(request_id)
+                )
+                return output, model_call
 
     def resolve_tools(
         self, tools: list[ToolInfo], tool_choice: ToolChoice, config: GenerateConfig
@@ -415,6 +426,14 @@ class OpenAICompatibleAPI(ModelAPI):
             params["max_completion_tokens"] = params.pop("max_tokens")
 
         return params
+
+    def request_headers(self, config: GenerateConfig) -> dict[str, str]:
+        """Provider-specific headers to send with this request.
+
+        Merged beneath `config.extra_headers`, so a caller-supplied value for
+        the same header wins.
+        """
+        return {}
 
     def on_response(self, response: dict[str, Any]) -> None:
         """Hook for subclasses to do custom response handling."""

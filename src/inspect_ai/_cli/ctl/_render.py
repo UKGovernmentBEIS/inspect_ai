@@ -80,25 +80,36 @@ def _print_config(config: dict[str, Any], *, changed: bool) -> None:
         _echo(_knob_label("max samples", "max_samples") + _PER_TASK_PLACEHOLDER)
     else:
         max_samples = knobs.get("max_samples") or {}
-        if max_samples.get("adjustable"):
+        label = _knob_label("max samples", "max_samples")
+        # branch on tracks_adaptive before adjustable: the adaptive arms also
+        # carry adjustable=true, so an adjustable-first chain would render
+        # adaptive tasks with the static arm
+        if max_samples.get("tracks_adaptive"):
+            if max_samples.get("adjustable"):
+                limit = _target(max_samples.get("limit"), "max_samples")
+                in_use = max_samples.get("in_use")
+                if max_samples.get("override") is not None:
+                    _echo(
+                        f"{label}{limit} ({in_use} in use, pinned — 'clear' "
+                        "resumes adaptive tracking)"
+                    )
+                else:
+                    _echo(
+                        f"{label}{limit} ({in_use} in use, tracking adaptive "
+                        "connections — set to pin)"
+                    )
+            else:
+                # an older server's adaptive view: not adjustable, no numbers
+                # — point at where the numbers are
+                _echo(label + "tracks adaptive connections (see below)")
+        elif max_samples.get("adjustable"):
             limit = _target(max_samples.get("limit"), "max_samples")
             in_use = max_samples.get("in_use")
-            label = _knob_label("max samples", "max_samples")
             _echo(f"{label}{limit} ({in_use} in use)")
-        elif max_samples.get("tracks_adaptive"):
-            # sample concurrency tracks this task's adaptive controller, so
-            # there's no user setpoint to show — point at where the numbers are
-            _echo(
-                _knob_label("max samples", "max_samples")
-                + "tracks adaptive connections (see below)"
-            )
         else:
             # no live sample limiter for this task (e.g. a reused log) — the
             # adaptive block below, if any, belongs to other tasks' models
-            _echo(
-                _knob_label("max samples", "max_samples")
-                + "not adjustable (no live sample limiter)"
-            )
+            _echo(label + "not adjustable (no live sample limiter)")
 
     # max_tasks — the task dispatchers' live override (absent from an older
     # server's view). With no live dispatcher (during batch startup / between

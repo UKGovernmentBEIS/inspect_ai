@@ -17,7 +17,12 @@ from inspect_ai.agent._types import (
 )
 from inspect_ai.dataset import Sample
 from inspect_ai.log import EvalLog
-from inspect_ai.model import ChatMessageUser, ModelOutput, get_model
+from inspect_ai.model import (
+    ChatMessageUser,
+    GenerateConfig,
+    ModelOutput,
+    get_model,
+)
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -268,6 +273,80 @@ def check_custom_submit(log: EvalLog, name: str, description: str) -> None:
 
 def addition_dataset() -> list[Sample]:
     return [Sample(input="What is 1 + 1?", target=["2", "2.0", "Two"])]
+
+
+def test_react_agent_long_submission_not_truncated() -> None:
+    """A submitted answer larger than max_tool_output reaches the completion intact.
+
+    The submit result is the scored answer, not model-facing tool output, so
+    clipping it would score a truncation notice in place of what the model
+    actually wrote.
+    """
+    answer = "A" * 2000
+    log = eval(
+        Task(
+            dataset=addition_dataset(),
+            solver=react(),
+            config=GenerateConfig(max_tool_output=100),
+        ),
+        model=mockllm_model_with_submissions([answer]),
+    )[0]
+    assert log.status == "success"
+    assert log.samples
+    # answer_only is False by default, so the answer is appended to the
+    # content the model generated alongside the submit call
+    assert log.samples[0].output.completion.endswith(answer)
+
+
+@tool
+def custom_submit_tool():
+    async def execute(answer: str) -> str:
+        """The tool used to submit.
+
+        Args:
+            answer: The submitted answer.
+        """
+        return answer
+
+    return execute
+
+
+def _run_custom_submit(answer: str, submit_tool: ToolDef) -> EvalLog:
+    return eval(
+        Task(
+            dataset=addition_dataset(),
+            solver=react(submit=AgentSubmit(tool=submit_tool)),
+            config=GenerateConfig(max_tool_output=100),
+        ),
+        model=mockllm_model_with_submissions([answer]),
+    )[0]
+
+
+def test_react_agent_custom_submit_tool_long_submission_not_truncated() -> None:
+    """The exemption is defaulted onto a caller-supplied submit ToolDef too."""
+    answer = "B" * 2000
+    log = _run_custom_submit(answer, ToolDef(custom_submit_tool(), name="submit"))
+    assert log.status == "success"
+    assert log.samples
+    assert log.samples[0].output.completion.endswith(answer)
+
+
+def test_react_agent_custom_submit_tool_explicit_max_output_respected() -> None:
+    """React defaults the submit exemption but never overrides an explicit one.
+
+    Truncating a submission is normally a bug (the notice gets scored in place
+    of the answer), but a caller who asks for a cap on their own submit tool
+    gets it.
+    """
+    answer = "C" * 2000
+    log = _run_custom_submit(
+        answer, ToolDef(custom_submit_tool(), name="submit", max_output=500)
+    )
+    assert log.status == "success"
+    assert log.samples
+    completion = log.samples[0].output.completion
+    assert answer not in completion
+    assert len(completion) < len(answer)
 
 
 def test_react_agent_no_submit() -> None:

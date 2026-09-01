@@ -26,7 +26,7 @@ from test_helpers.utils import (
 
 from inspect_ai import Task, eval, task
 from inspect_ai._eval.evalset import (
-    _GENERATE_CONFIG_FIELDS_TO_EXCLUDE,
+    GENERATE_CONFIG_FIELDS_TO_EXCLUDE,
     EvalSetArgsInTaskIdentifier,
     _embed_viewer,
     epochs_changed,
@@ -997,7 +997,7 @@ def test_task_identifier_ignores_role_base_url():
 # GenerateConfig fields whose value can change model/tool outputs, and which
 # therefore form part of task identity (i.e. are hashed into task_identifier).
 # Every GenerateConfig field MUST appear either here or in
-# _GENERATE_CONFIG_FIELDS_TO_EXCLUDE — see test_generate_config_fields_classified.
+# GENERATE_CONFIG_FIELDS_TO_EXCLUDE — see test_generate_config_fields_classified.
 _GENERATE_CONFIG_IDENTITY_FIELDS = {
     "system_message",
     "max_tokens",
@@ -1036,13 +1036,13 @@ def test_generate_config_fields_classified():
     """Force every GenerateConfig field to be explicitly classified.
 
     eval_set resume matches live tasks to existing logs by hashing
-    GenerateConfig minus _GENERATE_CONFIG_FIELDS_TO_EXCLUDE. A new field that
+    GenerateConfig minus GENERATE_CONFIG_FIELDS_TO_EXCLUDE. A new field that
     isn't classified is hashed by default, so tuning it between runs silently
     breaks resume — which is exactly how `adaptive_connections` slipped
     through after it was added.
     """
     fields = set(GenerateConfig.model_fields)
-    excluded = _GENERATE_CONFIG_FIELDS_TO_EXCLUDE
+    excluded = GENERATE_CONFIG_FIELDS_TO_EXCLUDE
     identity = _GENERATE_CONFIG_IDENTITY_FIELDS
 
     unclassified = fields - excluded - identity
@@ -1051,7 +1051,7 @@ def test_generate_config_fields_classified():
         f"for task_identifier hashing.\n"
         f"  → If the field is a runtime/transport knob (concurrency, retries, "
         f"timeouts, caching, batching) that does NOT change model outputs: "
-        f"add it to _GENERATE_CONFIG_FIELDS_TO_EXCLUDE in "
+        f"add it to GENERATE_CONFIG_FIELDS_TO_EXCLUDE in "
         f"src/inspect_ai/_eval/evalset.py and bump TASK_IDENTIFIER_VERSION.\n"
         f"  → If the field CAN change model outputs (sampling params, "
         f"reasoning config, tool behaviour, etc.): add it to "
@@ -1062,14 +1062,14 @@ def test_generate_config_fields_classified():
     overlap = excluded & identity
     assert not overlap, (
         f"GenerateConfig field(s) {sorted(overlap)} appear in both "
-        f"_GENERATE_CONFIG_FIELDS_TO_EXCLUDE and "
+        f"GENERATE_CONFIG_FIELDS_TO_EXCLUDE and "
         f"_GENERATE_CONFIG_IDENTITY_FIELDS — pick one."
     )
 
     stale = (excluded | identity) - fields
     assert not stale, (
         f"GenerateConfig field(s) {sorted(stale)} no longer exist on "
-        f"GenerateConfig — remove from _GENERATE_CONFIG_FIELDS_TO_EXCLUDE "
+        f"GenerateConfig — remove from GENERATE_CONFIG_FIELDS_TO_EXCLUDE "
         f"(evalset.py) or _GENERATE_CONFIG_IDENTITY_FIELDS (this file)."
     )
 
