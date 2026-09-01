@@ -1,5 +1,5 @@
 import contextvars
-from typing import NoReturn, Sequence
+from typing import Any, NoReturn, Sequence
 from unittest.mock import patch
 
 import numpy as np
@@ -1028,7 +1028,7 @@ class _NonBoolEq:
     to `except ValueError` without this failing.
     """
 
-    def __eq__(self, other: object) -> "_NonBoolEq":  # type: ignore[override]
+    def __eq__(self, other: object) -> Any:
         return self
 
     def __bool__(self) -> bool:
