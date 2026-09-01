@@ -46,6 +46,7 @@
 - Agent Bridge: Image tool results now reach sandboxed agents as MCP image content instead of being flattened to text.
 - Scoring: `inspect_ai.scorer` now exports `Reference`, the model for the message/event references that scanner scores store in metadata (previously importable only from Inspect Scout).
 - Moonshot: Sampling parameters (`temperature`, `top_p`, penalties) set on Kimi models with thinking disabled are now warned about and ignored instead of causing a 400 error.
+- Model API: New `stream_idle_timeout` option (also retunable live via `inspect ctl config`) abandons and retries a model call whose streaming response stalls, instead of waiting out the whole-attempt timeout.
 
 ## 0.3.260 (21 August 2026)
 
