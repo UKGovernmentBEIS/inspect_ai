@@ -2940,6 +2940,7 @@ async def _task_run_sample_attempt(
                                 log_images=log_images,
                                 from_memory=log_from_memory,
                             )
+                            results = scores_as_logged(results, eval_sample)
                         else:
                             eval_sample = make_eval_sample()
                         await scan_eval_sample(
@@ -3216,11 +3217,19 @@ def sample_serialization_fallback(eval_sample: EvalSample, ex: Exception) -> Eva
     retained, and so are the scores whenever the stripped record still
     serializes with them: the headline results were already computed from
     them, so dropping them would leave the sample's record disagreeing with
-    `log.results`. The remaining content that may have defeated serialization
-    (messages, output, events, store, metadata) is removed. The removal is
-    always recorded in the sample's error — appended to the existing error's
-    message when the sample already has one — so a reader of the log can tell
-    why the record is empty.
+    `log.results`. When the scores are what defeats serialization, only their
+    `metadata` — the one score field of unbounded shape — is removed first, so
+    the values, answers and explanations survive; the scores are dropped
+    altogether only if the record still cannot be written. The remaining
+    content that may have defeated serialization (messages, output, events,
+    store, metadata) is removed. The removal is always recorded in the
+    sample's error — appended to the existing error's message when the sample
+    already has one — so a reader of the log can tell why the record is empty.
+
+    The caller must carry any change to the scores over to the sample's
+    results (see `scores_as_logged`): the same `Score` objects are written
+    again as reductions at log finish, where the removed content would fail
+    serialization a second time.
     """
     stripped = eval_sample.model_copy(
         update=dict(
@@ -3241,8 +3250,18 @@ def sample_serialization_fallback(eval_sample: EvalSample, ex: Exception) -> Eva
     )
     removed = ["messages", "output", "events", "store", "metadata"]
     if stripped.scores is not None and not is_log_serializable(stripped):
-        stripped = stripped.model_copy(update=dict(scores=None))
-        removed.append("scores")
+        stripped = stripped.model_copy(
+            update=dict(
+                scores={
+                    name: score.model_copy(update=dict(metadata=None))
+                    for name, score in stripped.scores.items()
+                }
+            )
+        )
+        removed.append("score metadata")
+        if not is_log_serializable(stripped):
+            stripped = stripped.model_copy(update=dict(scores=None))
+            removed.append("scores")
     note = (
         f"Sample content ({', '.join(removed)}) was removed from the eval log "
         f"because it could not be serialized: {ex}"
@@ -3256,6 +3275,33 @@ def sample_serialization_fallback(eval_sample: EvalSample, ex: Exception) -> Eva
             update=dict(message=note)
         )
     return stripped.model_copy(update=dict(error=error))
+
+
+def scores_as_logged(
+    results: ScoresByScorer, eval_sample: EvalSample
+) -> ScoresByScorer:
+    """`results` with each score replaced by the one logged in `eval_sample`.
+
+    The logged scores are normally the very `Score` objects in `results`, so
+    this is a no-op. They differ only when the sample was written through
+    `sample_serialization_fallback`, which may have removed score metadata or
+    the scores altogether because they could not be serialized. The results
+    feed the metrics, early stopping and the reductions written at log finish,
+    so they must follow the record: the reductions would otherwise fail on the
+    same content the sample record already refused (aborting the eval at
+    finish, after every sample was logged) and `log.results` would disagree
+    with the sample's own record.
+    """
+    logged = eval_sample.scores or {}
+    return {
+        name: (
+            sample_score
+            if sample_score.score is logged[name]
+            else sample_score.model_copy(update=dict(score=logged[name]))
+        )
+        for name, sample_score in results.items()
+        if name in logged
+    }
 
 
 async def _resume_if_checkpointed(

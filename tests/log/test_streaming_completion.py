@@ -506,16 +506,21 @@ async def test_log_sample_degrades_gracefully_when_serialization_fails(
 
 
 @pytest.mark.anyio
-async def test_log_sample_fallback_drops_unserializable_scores_and_records_it(
+async def test_log_sample_fallback_strips_unserializable_score_metadata(
     tmp_path,
 ) -> None:
-    # when the scores themselves defeat serialization they are stripped too,
-    # and a sample that already carries an error keeps it, with the content
-    # removal appended so the empty record is explained in the log itself
+    # when the scores themselves defeat serialization only their metadata (the
+    # one score field of unbounded shape) is removed, so the value survives in
+    # the record; a sample that already carries an error keeps it, with the
+    # content removal appended so the empty record is explained in the log
     sample = _sample().model_copy(
         update={
             "messages": [ChatMessageUser(content="hello")],
-            "scores": {"match": Score(value="C", metadata={"deep": _deep_dict(1000)})},
+            "scores": {
+                "match": Score(
+                    value="C", answer="C", metadata={"deep": _deep_dict(1000)}
+                )
+            },
             "error": EvalError(
                 message="solver failed", traceback="", traceback_ansi=""
             ),
@@ -527,16 +532,46 @@ async def test_log_sample_fallback_drops_unserializable_scores_and_records_it(
     logged = await log_sample(sample, logger, log_images=True, from_memory=True)
     await _finish_eval(recorder, spec)
 
-    assert logged.scores is None
+    assert logged.scores == {"match": Score(value="C", answer="C")}
     assert logged.error is not None
     assert logged.error.message.startswith("solver failed")
-    assert "metadata, scores) was removed" in logged.error.message
+    assert "metadata, score metadata) was removed" in logged.error.message
+
+    log = await read_eval_log_async(str(tmp_path / "streaming.eval"))
+    assert log.samples is not None and len(log.samples) == 1
+    assert log.samples[0].scores is not None
+    assert log.samples[0].scores["match"].value == "C"
+    assert log.samples[0].scores["match"].metadata is None
+    assert log.samples[0].error is not None
+    assert log.samples[0].error.message == logged.error.message
+
+
+@pytest.mark.anyio
+async def test_log_sample_fallback_drops_scores_as_last_resort(tmp_path) -> None:
+    # a score that cannot be written even without its metadata (only reachable
+    # by bypassing validation: every other Score field is of bounded shape) is
+    # dropped altogether, and the record says so
+    unwritable = Score.model_construct(value=_deep_dict(1000))
+    sample = _sample().model_copy(
+        update={
+            "messages": [ChatMessageUser(content="hello")],
+            "scores": {"match": unwritable},
+        }
+    )
+    recorder, spec = await _start_eval_recorder(tmp_path)
+    logger = _fallback_logger(recorder, spec)
+
+    logged = await log_sample(sample, logger, log_images=True, from_memory=True)
+    await _finish_eval(recorder, spec)
+
+    assert logged.scores is None
+    assert logged.error is not None
+    assert "score metadata, scores) was removed" in logged.error.message
 
     log = await read_eval_log_async(str(tmp_path / "streaming.eval"))
     assert log.samples is not None and len(log.samples) == 1
     assert log.samples[0].scores is None
     assert log.samples[0].error is not None
-    assert log.samples[0].error.message == logged.error.message
 
 
 def _deep_dict(depth: int) -> dict[str, object]:
