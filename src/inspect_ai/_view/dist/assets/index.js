@@ -28952,6 +28952,25 @@ var asArray$2 = (v) => isReadonlyArray(v) ? v : [v];
 	const programmaticLockRef = (0, import_react.useRef)(false);
 	const lockTimerRef = (0, import_react.useRef)(null);
 	const [hidden, setHidden] = (0, import_react.useState)(options?.initialHidden ?? false);
+	const releaseLock = (0, import_react.useCallback)(() => {
+		transitionLockedRef.current = false;
+		programmaticLockRef.current = false;
+		if (lockTimerRef.current !== null) {
+			clearTimeout(lockTimerRef.current);
+			lockTimerRef.current = null;
+		}
+	}, []);
+	const engageLock = (0, import_react.useCallback)((programmatic, onExpire) => {
+		transitionLockedRef.current = true;
+		programmaticLockRef.current = programmatic;
+		if (lockTimerRef.current !== null) clearTimeout(lockTimerRef.current);
+		lockTimerRef.current = setTimeout(() => {
+			transitionLockedRef.current = false;
+			programmaticLockRef.current = false;
+			lockTimerRef.current = null;
+			onExpire?.();
+		}, transitionLockMs);
+	}, [transitionLockMs]);
 	const refArray = (0, import_react.useMemo)(() => asArray$2(scrollRef), Array.isArray(scrollRef) ? scrollRef : [scrollRef]);
 	const primaryRef = refArray[0];
 	const [scrollEls, setScrollEls] = (0, import_react.useState)([]);
@@ -28981,8 +29000,7 @@ var asArray$2 = (v) => isReadonlyArray(v) ? v : [v];
 	(0, import_react.useEffect)(() => {
 		directionAnchorsRef.current = /* @__PURE__ */ new WeakMap();
 		lastDirectionsRef.current = /* @__PURE__ */ new WeakMap();
-		transitionLockedRef.current = false;
-		if (scrollEls.length === 0) return;
+		releaseLock();
 		let wasSuppressed = suppressRef?.current ?? false;
 		const makeHandler = (el) => () => {
 			const isSuppressed = suppressRef?.current ?? false;
@@ -29010,27 +29028,16 @@ var asArray$2 = (v) => isReadonlyArray(v) ? v : [v];
 			directionAnchorsRef.current.set(el, scrollTop);
 			if (directionChanged) lastDirectionsRef.current.set(el, direction);
 			if (transitionLockedRef.current) {
-				if (programmaticLockRef.current && lockTimerRef.current !== null) {
-					clearTimeout(lockTimerRef.current);
-					lockTimerRef.current = setTimeout(() => {
-						transitionLockedRef.current = false;
-						programmaticLockRef.current = false;
-						lockTimerRef.current = null;
-						directionAnchorsRef.current.set(el, el.scrollTop);
-					}, transitionLockMs);
-				}
+				if (programmaticLockRef.current && lockTimerRef.current !== null) engageLock(true, () => {
+					directionAnchorsRef.current.set(el, el.scrollTop);
+				});
 				return;
 			}
 			if (stayHiddenOnUpScroll && direction === "up") return;
 			const shouldHide = direction === "down" && scrollTop > 10;
 			setHidden((prev) => {
 				if (prev === shouldHide) return prev;
-				transitionLockedRef.current = true;
-				if (lockTimerRef.current !== null) clearTimeout(lockTimerRef.current);
-				lockTimerRef.current = setTimeout(() => {
-					transitionLockedRef.current = false;
-					lockTimerRef.current = null;
-				}, transitionLockMs);
+				engageLock(false);
 				return shouldHide;
 			});
 		};
@@ -29044,39 +29051,29 @@ var asArray$2 = (v) => isReadonlyArray(v) ? v : [v];
 		});
 		return () => {
 			for (const { el, handler } of handlers) el.removeEventListener("scroll", handler);
+			releaseLock();
 		};
 	}, [
 		scrollEls,
 		threshold,
-		transitionLockMs,
-		stayHiddenOnUpScroll
+		stayHiddenOnUpScroll,
+		engageLock,
+		releaseLock
 	]);
 	return {
 		hidden,
 		resetAnchor: (0, import_react.useCallback)((debounce) => {
 			const primary = primaryRef?.current ?? null;
 			if (primary) directionAnchorsRef.current.set(primary, primary.scrollTop);
-			transitionLockedRef.current = true;
-			programmaticLockRef.current = !!debounce;
-			if (lockTimerRef.current !== null) clearTimeout(lockTimerRef.current);
-			lockTimerRef.current = setTimeout(() => {
-				transitionLockedRef.current = false;
-				programmaticLockRef.current = false;
-				lockTimerRef.current = null;
-			}, transitionLockMs);
-		}, [primaryRef, transitionLockMs]),
+			engageLock(!!debounce);
+		}, [primaryRef, engageLock]),
 		setHidden: (0, import_react.useCallback)((next) => {
 			setHidden((prev) => {
 				if (prev === next) return prev;
-				transitionLockedRef.current = true;
-				if (lockTimerRef.current !== null) clearTimeout(lockTimerRef.current);
-				lockTimerRef.current = setTimeout(() => {
-					transitionLockedRef.current = false;
-					lockTimerRef.current = null;
-				}, transitionLockMs);
+				engageLock(false);
 				return next;
 			});
-		}, [transitionLockMs])
+		}, [engageLock])
 	};
 }
 //#endregion
@@ -37126,7 +37123,7 @@ var useCollapsibleIds = (key) => {
 //#region ../../packages/react/src/hooks/useStatefulScrollPosition.ts
 var log$5 = createLogger("scrolling");
 function useStatefulScrollPosition(elementRef, elementKey, t0, t1) {
-	const $ = (0, import_compiler_runtime.c)(19);
+	const $ = (0, import_compiler_runtime.c)(21);
 	const delay = t0 === void 0 ? 1e3 : t0;
 	const scrollable = t1 === void 0 ? true : t1;
 	const [scrollPosition, setScrollPosition] = useProperty("scrollPosition", elementKey);
@@ -37148,9 +37145,7 @@ function useStatefulScrollPosition(elementRef, elementKey, t0, t1) {
 	(0, import_react.useEffect)(t2, t3);
 	let t4;
 	if ($[3] !== elementKey || $[4] !== setScrollPosition) {
-		t4 = (e) => {
-			if (!(e.target instanceof Element)) return;
-			const position = e.target.scrollTop;
+		t4 = (position) => {
 			log$5.debug("Storing scroll position", elementKey, position);
 			setScrollPosition(position);
 		};
@@ -37158,18 +37153,27 @@ function useStatefulScrollPosition(elementRef, elementKey, t0, t1) {
 		$[4] = setScrollPosition;
 		$[5] = t4;
 	} else t4 = $[5];
-	const handleScrollInner = t4;
+	const storePosition = t4;
 	let t5;
-	if ($[6] !== delay || $[7] !== handleScrollInner) {
-		t5 = debounce$3(handleScrollInner, delay);
+	if ($[6] !== delay || $[7] !== storePosition) {
+		t5 = debounce$3(storePosition, delay);
 		$[6] = delay;
-		$[7] = handleScrollInner;
+		$[7] = storePosition;
 		$[8] = t5;
 	} else t5 = $[8];
-	const handleScroll = t5;
+	const debouncedStore = t5;
 	let t6;
-	if ($[9] !== elementRef) {
-		t6 = () => {
+	if ($[9] !== debouncedStore) {
+		t6 = (e) => {
+			if (e.target instanceof Element) debouncedStore(e.target.scrollTop);
+		};
+		$[9] = debouncedStore;
+		$[10] = t6;
+	} else t6 = $[10];
+	const handleScroll = t6;
+	let t7;
+	if ($[11] !== elementRef) {
+		t7 = () => {
 			const element = elementRef.current;
 			const savedPosition = scrollPositionRef.current;
 			if (element && savedPosition !== void 0) requestAnimationFrame(() => {
@@ -37179,14 +37183,14 @@ function useStatefulScrollPosition(elementRef, elementKey, t0, t1) {
 				});
 			});
 		};
-		$[9] = elementRef;
-		$[10] = t6;
-	} else t6 = $[10];
-	const restoreScrollPosition = t6;
-	let t7;
+		$[11] = elementRef;
+		$[12] = t7;
+	} else t7 = $[12];
+	const restoreScrollPosition = t7;
 	let t8;
-	if ($[11] !== elementKey || $[12] !== elementRef || $[13] !== handleScroll || $[14] !== scrollable) {
-		t7 = () => {
+	let t9;
+	if ($[13] !== elementKey || $[14] !== elementRef || $[15] !== handleScroll || $[16] !== scrollable) {
+		t8 = () => {
 			const element_0 = elementRef.current;
 			if (!element_0 || !scrollable) return;
 			log$5.debug("Restore Scroll Hook", elementKey);
@@ -37217,38 +37221,36 @@ function useStatefulScrollPosition(elementRef, elementKey, t0, t1) {
 					pollTimer = setTimeout(pollForRender, 100);
 				}
 			}
-			if (element_0.addEventListener) element_0.addEventListener("scroll", handleScroll);
-			else log$5.warn("Element has no way to add event listener", element_0);
+			element_0.addEventListener("scroll", handleScroll);
 			return () => {
-				if (pollTimer !== void 0) clearTimeout(pollTimer);
-				if (element_0.removeEventListener) element_0.removeEventListener("scroll", handleScroll);
-				else log$5.warn("Element has no way to remove event listener", element_0);
+				clearTimeout(pollTimer);
+				element_0.removeEventListener("scroll", handleScroll);
 			};
 		};
-		t8 = [
+		t9 = [
 			elementKey,
 			elementRef,
 			handleScroll,
 			scrollable
 		];
-		$[11] = elementKey;
-		$[12] = elementRef;
-		$[13] = handleScroll;
-		$[14] = scrollable;
-		$[15] = t7;
-		$[16] = t8;
-	} else {
-		t7 = $[15];
-		t8 = $[16];
-	}
-	(0, import_react.useEffect)(t7, t8);
-	let t9;
-	if ($[17] !== restoreScrollPosition) {
-		t9 = { restoreScrollPosition };
-		$[17] = restoreScrollPosition;
+		$[13] = elementKey;
+		$[14] = elementRef;
+		$[15] = handleScroll;
+		$[16] = scrollable;
+		$[17] = t8;
 		$[18] = t9;
-	} else t9 = $[18];
-	return t9;
+	} else {
+		t8 = $[17];
+		t9 = $[18];
+	}
+	(0, import_react.useEffect)(t8, t9);
+	let t10;
+	if ($[19] !== restoreScrollPosition) {
+		t10 = { restoreScrollPosition };
+		$[19] = restoreScrollPosition;
+		$[20] = t10;
+	} else t10 = $[20];
+	return t10;
 }
 //#endregion
 //#region ../../packages/react/src/hooks/useVisitId.ts
@@ -163027,19 +163029,15 @@ var TimelineChart = (t0) => {
 	const { window: timeWindow, running: t1, showActiveSamples, showTerminations, connectionModels, activeSeries, samplesGuide, terminationDots, lanes, retunes, markers, selectedMarker, onSelectMarker, hoveredRowKey, onHoverMarker, evalDescriptor, limitCrossReference, onOpenSample } = t0;
 	const running = t1 === void 0 ? false : t1;
 	const [width, setWidth] = (0, import_react.useState)(0);
-	const resizeObserver = (0, import_react.useRef)(null);
 	let t2;
 	if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
 		t2 = (element) => {
-			resizeObserver.current?.disconnect();
-			resizeObserver.current = null;
-			if (element) {
-				const observer = new ResizeObserver((entries) => {
-					if (entries[0]) setWidth(entries[0].contentRect.width);
-				});
-				observer.observe(element);
-				resizeObserver.current = observer;
-			}
+			if (!element) return;
+			const observer = new ResizeObserver((entries) => {
+				if (entries[0]) setWidth(entries[0].contentRect.width);
+			});
+			observer.observe(element);
+			return () => observer.disconnect();
 		};
 		$[0] = t2;
 	} else t2 = $[0];
