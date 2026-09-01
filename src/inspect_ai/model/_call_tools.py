@@ -294,7 +294,9 @@ async def _execute_tools_impl(
 
                 # truncate if necessary
                 truncated_output = truncate_tool_output(
-                    call.function, content, max_output
+                    call.function,
+                    content,
+                    _tool_max_output(tdefs, call.function, max_output),
                 )
                 if truncated_output:
                     content = truncated_output.output
@@ -910,6 +912,7 @@ async def prepare_tools(
                 parallel=fields.parallel,
                 viewer=fields.viewer,
                 model_input=fields.model_input,
+                max_output=fields.max_output,
                 options=fields.options,
             )
             tdefs.append(tdef)
@@ -1131,6 +1134,29 @@ def validate_tool_input(input: dict[str, Any], parameters: ToolParams) -> str | 
         return message
     else:
         return None
+
+
+def _tool_max_output(
+    tdefs: list[ToolDef], tool_name: str, max_output: int | None
+) -> int | None:
+    """Resolve the output limit for a tool call.
+
+    A tool that declares its own `max_output` is making a claim about its
+    result (e.g. `submit()`, whose result becomes the agent's completion, and
+    the deep agent's `agent()`, whose result is a subagent's report), so that
+    declaration wins over the caller/generate config value.
+
+    Args:
+        tdefs: Tool definitions in scope for this execution.
+        tool_name: Name of the called tool (unresolved names fall back to
+            `max_output`).
+        max_output: Limit passed to `execute_tools()` (None defers to the
+            active `GenerateConfig`).
+    """
+    tdef = next((tdef for tdef in tdefs if tdef.name == tool_name), None)
+    if tdef is not None and tdef.max_output is not None:
+        return tdef.max_output
+    return max_output
 
 
 class TruncatedToolOutput(NamedTuple):

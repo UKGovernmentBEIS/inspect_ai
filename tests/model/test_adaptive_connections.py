@@ -290,7 +290,7 @@ def test_parse_adaptive_connections_cli_value_forms() -> None:
 
     Verifies the four user-visible forms of `--adaptive-connections VALUE`.
     """
-    from inspect_ai._cli.eval import _parse_adaptive_connections_cli
+    from inspect_ai._util.generate_config_args import _parse_adaptive_connections_cli
 
     # absence
     assert _parse_adaptive_connections_cli(None) is None
@@ -329,7 +329,7 @@ def test_parse_adaptive_connections_cli_invalid_raises_click_error() -> None:
     """
     import click
 
-    from inspect_ai._cli.eval import _parse_adaptive_connections_cli
+    from inspect_ai._util.generate_config_args import _parse_adaptive_connections_cli
 
     with pytest.raises(click.BadParameter, match="not a valid value"):
         _parse_adaptive_connections_cli("nope")

@@ -1769,7 +1769,7 @@ def sync_to_filestore(
     # sample queries accordingly
     if len(manifest.segments) > 0:
         last_segment = manifest.segments[-1]
-        last_segment_id = last_segment.id
+        last_segment_id = last_segment["id"]
     else:
         last_segment_id = 0
 
@@ -1782,7 +1782,7 @@ def sync_to_filestore(
     last_message_pool_id = 0
     last_call_pool_id = 0
     segment_files: list[SegmentFile] = []
-    segment_by_id = {seg.id: seg for seg in manifest.segments}
+    segment_by_id = {seg["id"]: seg for seg in manifest.segments}
     for manifest_sample in manifest.samples:
         metadata_hash = db._get_sample_metadata_hash(
             manifest_sample.summary.id, manifest_sample.summary.epoch
@@ -1817,12 +1817,16 @@ def sync_to_filestore(
         for sample_segment in manifest_sample.segments:
             seg = sample_segment_cursor(sample_segment, segment_by_id)
             if seg is not None:
-                after_event_id = max(after_event_id, seg.last_event_id)
-                after_attachment_id = max(after_attachment_id, seg.last_attachment_id)
-                after_message_pool_id = max(
-                    after_message_pool_id, seg.last_message_pool_id
+                after_event_id = max(after_event_id, seg["last_event_id"])
+                after_attachment_id = max(
+                    after_attachment_id, seg["last_attachment_id"]
                 )
-                after_call_pool_id = max(after_call_pool_id, seg.last_call_pool_id)
+                after_message_pool_id = max(
+                    after_message_pool_id, seg.get("last_message_pool_id", 0)
+                )
+                after_call_pool_id = max(
+                    after_call_pool_id, seg.get("last_call_pool_id", 0)
+                )
 
         # get sample data
         sample_data = db.get_sample_data(
