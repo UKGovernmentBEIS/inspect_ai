@@ -315,6 +315,13 @@ _EXPECTED_CAPTURE_TASK_FIELDS: dict[int, set[str]] = {
     },
 }
 
+# v3 changed the manifest and not the task entry: `scan` serializes the
+# definition's scanner configuration (a scout `ScanSpec` dump plus the
+# output-location override) so a runner can own the scan directory's
+# lifecycle without executing the definition — workers scan record-only in
+# selection mode. `options["scanners"]` remains the quick boolean beside it.
+_EXPECTED_CAPTURE_TASK_FIELDS[3] = _EXPECTED_CAPTURE_TASK_FIELDS[2]
+
 _EXPECTED_CAPTURE_FIELDS: dict[int, set[str]] = {
     1: {"version", "identifier_version", "eval_set_id", "options", "tasks"},
     2: {
@@ -323,6 +330,15 @@ _EXPECTED_CAPTURE_FIELDS: dict[int, set[str]] = {
         "eval_set_id",
         "options",
         "overrides",
+        "tasks",
+    },
+    3: {
+        "version",
+        "identifier_version",
+        "eval_set_id",
+        "options",
+        "overrides",
+        "scan",
         "tasks",
     },
 }

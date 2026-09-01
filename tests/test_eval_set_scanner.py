@@ -158,6 +158,17 @@ def active_model_recording_scanner():
     return scan
 
 
+@scanner(messages="all")
+def role_recording_scanner():
+    """Records the default scan-side model and a role-resolved one, `|`-joined."""
+    from inspect_ai.model import get_model
+
+    async def scan(transcript: Transcript) -> Result:
+        return Result(value=f"{get_model()}|{get_model(role='grader')}")
+
+    return scan
+
+
 # --- helpers ----------------------------------------------------------------
 
 
@@ -2137,31 +2148,35 @@ def test_eval_and_scan_model_usage_are_partitioned() -> None:
     assert ss["tokens"] == scan_usage["total_tokens"]
 
 
-def test_llm_scanner_fails_eval_when_no_scanner_model_configured() -> None:
-    """`llm_scanner` brings down the eval when no scan-side model is set.
+def test_llm_scanner_fails_eval_when_no_model_anywhere() -> None:
+    """`llm_scanner` brings down the eval when no model exists to scan with.
 
-    Scout treats `PrerequisiteError` from a scanner as scan-fatal (see
-    `_scan_one`'s explicit re-raise), so `NoModel.generate()`'s
-    `PrerequisiteError` propagates out of `scan_eval_sample` into the
-    sample, errors the task, and `eval_set` returns `success=False`.
-    The task's model never leaks into the scan-side tracker — silent
-    inheritance is exactly the failure mode we want to prevent.
+    The ambient defaults `_install_scan_model_context` installs mean a
+    missing scan-side model is not fatal on its own — the scanner
+    inherits the model under evaluation, or a "none"-model eval's first
+    model role. Only an eval with neither leaves the `NoModel` sentinel
+    in place; scout treats the resulting `PrerequisiteError` as
+    scan-fatal (see `_scan_one`'s explicit re-raise), so it propagates
+    out of `scan_eval_sample` into the sample, errors the task, and
+    `eval_set` returns `success=False`.
     """
     from inspect_scout import llm_scanner
+    from test_helpers.utils import identity_solver
 
     scanner_fn = llm_scanner(question="Did anything notable happen?", answer="boolean")
 
     n = 2
     with tempfile.TemporaryDirectory() as log_dir:
-        # model on the Task; no `model=` on eval_set; no scan-side model
+        # no model on the Task, no `model=` on eval_set, no model roles,
+        # no scan-side model — nothing anywhere for the scanner to use
         task = Task(
             dataset=[Sample(input=f"q{i}", target=str(i)) for i in range(n)],
-            solver=generate(),
-            model="mockllm/model",
+            solver=identity_solver(),
         )
         success, logs = eval_set(
             tasks=task,
             log_dir=log_dir,
+            model=None,
             scanner=[scanner_fn],
             retry_attempts=0,
             display="none",
@@ -2174,22 +2189,19 @@ def test_llm_scanner_fails_eval_when_no_scanner_model_configured() -> None:
         assert logs[0].status == "error"
         assert logs[0].error is not None
         msg = logs[0].error.message
-        assert "no scan-side model is configured" in msg
+        assert "no model or model roles to inherit" in msg
         assert "--scan-model" in msg
         assert "SCOUT_SCAN_MODEL" in msg
 
 
-def test_scanner_does_not_inherit_per_task_model() -> None:
-    """Scanner never silently inherits the eval's per-task model.
+def test_scanner_uses_model_under_evaluation_by_default() -> None:
+    """A scanner that names no model scans with each sample's own model.
 
-    Without an `ScannerConfig.model`,
-    `_install_scan_model_context` is still invoked, so scout's
-    `init_scan_model_context` installs the `NoModel` sentinel when no
-    scan-side model is configured. The scanner's `get_model()` returns
-    `none/none` for every transcript regardless of which task produced
-    it, and any `.generate(...)` call would raise. Scanners that need
-    a model must declare one via `ScannerConfig.model` (or
-    `SCOUT_SCAN_MODEL` env var).
+    Without a `ScannerConfig.model` or `SCOUT_SCAN_MODEL`,
+    `_install_scan_model_context` defaults the scan-side model to the
+    ambient model under evaluation — per sample, so with two tasks on
+    two models each transcript is scanned by the model that produced
+    it, not by one model chosen for the whole set.
     """
     n = 2
     task_a = Task(
@@ -2222,13 +2234,52 @@ def test_scanner_does_not_inherit_per_task_model() -> None:
             .to_pandas()
         )
 
-        # both tasks produced their samples
-        assert set(df["transcript_model"]) == {"mockllm/model-a", "mockllm/model-b"}
+        # both tasks produced their samples, and each transcript was
+        # scanned by its own task's model
         assert len(df) == 2 * n
+        assert set(zip(df["transcript_model"], df["value"])) == {
+            ("mockllm/model-a", "mockllm/model-a"),
+            ("mockllm/model-b", "mockllm/model-b"),
+        }
 
-        # but on the scan side every row sees the NoModel sentinel —
-        # the per-task model is not silently inherited
-        assert set(df["value"]) == {"none/none"}
+
+def test_scanner_falls_back_to_first_model_role() -> None:
+    """A "none"-model eval's scanner scans with the first model role.
+
+    The eval itself runs no model (`model=None` with an identity
+    solver), so the ambient active model is the "none" sentinel and the
+    scan-side default falls to the first model role instead. The eval's
+    roles are also ambient inside the scanner — `get_model(role=...)`
+    resolves them because `_install_scan_model_context` passes them
+    through rather than letting `init_model_context` clear them.
+    """
+    from test_helpers.utils import identity_solver
+
+    n = 2
+    with tempfile.TemporaryDirectory() as log_dir:
+        task = Task(
+            dataset=[Sample(input=f"q{i}", target=str(i)) for i in range(n)],
+            solver=identity_solver(),
+        )
+        success, _ = eval_set(
+            tasks=task,
+            log_dir=log_dir,
+            model=None,
+            model_roles={"grader": "mockllm/grader-model"},
+            scanner=[role_recording_scanner()],
+            retry_attempts=0,
+            display="none",
+        )
+        assert success
+
+        scan_dir = _scan_dir(log_dir)
+        df = (
+            _read_parquet(scan_dir / "role_recording_scanner.parquet")
+            .read(columns=["value"])
+            .to_pandas()
+        )
+        assert len(df) == n
+        assert set(df["value"]) == {"mockllm/grader-model|mockllm/grader-model"}
 
 
 def test_scanner_uses_configured_scanner_model_for_all_tasks() -> None:
@@ -3515,8 +3566,8 @@ def test_max_connections_caps_eval_plus_scanner_when_model_is_shared() -> None:
                 tasks=_task(n_samples),
                 log_dir=log_dir,
                 # same model on both sides so they share the connection
-                # semaphore — scanner no longer inherits the eval model
-                # implicitly, must be passed explicitly
+                # semaphore — passed explicitly on the scanner side so
+                # its GenerateConfig (with the static cap) rides along
                 scanner=ScannerConfig(
                     scanners=[generate_calling_scanner()],
                     model="trackapi/test",

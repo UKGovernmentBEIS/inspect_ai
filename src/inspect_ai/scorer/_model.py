@@ -299,8 +299,17 @@ def _model_graded_qa_single(
         if value is not None and default_grade_pattern:
             # The permissive capture takes the whole word so that "GRADE:
             # Correct"/"GRADE: Incorrect"/"GRADE: Partial" keep resolving to
-            # their letter; only the first character is the verdict.
-            value = value[:1].upper()
+            # their letter. A multi-character verdict that is not one of the
+            # spelled-out grades (e.g. "GRADE: CI") is a protocol deviation,
+            # not evidence about the submission, so it is a parse failure
+            # rather than a silently laundered first letter.
+            normalized = value.strip().lower()
+            if normalized in _GRADE_WORD_VALUES:
+                value = _GRADE_WORD_VALUES[normalized]
+            elif len(value.strip()) == 1:
+                value = value.strip().upper()
+            else:
+                value = None
             if validate_offered_grades and value not in offered_grades:
                 # A verdict outside the grades the instructions offered is a
                 # protocol deviation, not evidence about the submission, so it
@@ -391,6 +400,17 @@ First, write out in a step by step manner your reasoning about the criterion to 
 # Whitespace plus zero-width / formatting marks that can appear around a
 # verdict separator in model output or pasted text.
 _GRADE_SPACING = r"[\s\u200b\u200c\u200d\u200e\u200f\u2060\u2063\ufeff]*"
+
+# Spelled-out verdicts the default instructions may elicit, mapped to their
+# single-letter grade. Anything else multi-character is a parse failure.
+_GRADE_WORD_VALUES = {
+    "c": "C",
+    "correct": "C",
+    "i": "I",
+    "incorrect": "I",
+    "p": "P",
+    "partial": "P",
+}
 
 DEFAULT_GRADE_PATTERN = (
     rf"(?is).*(?<!\w)GRADE(?!\w){_GRADE_SPACING}:{_GRADE_SPACING}([CPI])"

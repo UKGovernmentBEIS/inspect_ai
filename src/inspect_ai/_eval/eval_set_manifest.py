@@ -37,7 +37,7 @@ if TYPE_CHECKING:
 
 INSPECT_EVAL_SET_CAPTURE = "INSPECT_EVAL_SET_CAPTURE"
 
-EVAL_SET_CAPTURE_VERSION = 2
+EVAL_SET_CAPTURE_VERSION = 3
 
 
 def eval_set_capture_requested() -> str | None:
@@ -105,6 +105,19 @@ class EvalSetCaptureTask(BaseModel):
     """Effective number of epochs."""
 
 
+class EvalSetCaptureScan(BaseModel):
+    """The definition's scanner configuration, serialized for an external runner.
+
+    Added in version 3, present iff the definition passed `scanner`. Workers scan record-only in selection mode, so the runner owns the scan directory's lifecycle — and this is what lets it do that without executing the definition: `spec` is the material a fresh init writes, `scans` is where.
+    """
+
+    spec: dict[str, Any]
+    """Scout `ScanSpec` dump for a fresh scan of this eval set — scanner names and `ScannerSpec`s, tags, and metadata (including the inspect-side config hash). `scan_id` is informational here; the runner stamps the authoritative id at init time."""
+
+    scans: str | None = None
+    """The definition's scan output-location override, or `None` to default to `scans/` under the runner's resolved log directory (capture cannot compute that default, since a definition may name no `log_dir`)."""
+
+
 class EvalSetCapture(BaseModel):
     """Static enumeration of an eval set produced by capture mode."""
 
@@ -128,6 +141,9 @@ class EvalSetCapture(BaseModel):
 
     Added in version 2. Every field in it is one `task_identifier()` ignores, so no identifier here is affected by one — but `epochs` and `limit` change a task's sample count, so `tasks[].samples` reflects these and `options` does not. Recording them is what lets a reader account for the difference rather than infer it.
     """
+
+    scan: "EvalSetCaptureScan | None" = None
+    """Serialized scanner configuration, or `None` when the definition declares no scanners. Added in version 3; `options["scanners"]` remains the quick boolean beside it."""
 
     tasks: list[EvalSetCaptureTask]
     """Resolved tasks in the eval set."""
@@ -235,6 +251,7 @@ def build_eval_set_capture(
     eval_set_id: str | None,
     options: dict[str, Any],
     overrides: "EvalSetOverrides | None" = None,
+    scan: "EvalSetCaptureScan | None" = None,
 ) -> EvalSetCapture:
     """Build a capture manifest for a set of resolved tasks.
 
@@ -247,6 +264,7 @@ def build_eval_set_capture(
         eval_set_id: Eval set id as passed to `eval_set()`.
         options: Informational `eval_set()` options as the definition passed them.
         overrides: Operational overrides in force, or `None`.
+        scan: Serialized scanner configuration, or `None` when the definition declares no scanners.
 
     Returns:
         Capture manifest for the eval set.
@@ -306,5 +324,6 @@ def build_eval_set_capture(
         eval_set_id=eval_set_id,
         options=options,
         overrides=overrides,
+        scan=scan,
         tasks=capture_tasks,
     )
