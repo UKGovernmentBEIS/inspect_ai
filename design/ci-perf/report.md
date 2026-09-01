@@ -184,8 +184,12 @@ disabled as the only difference:
 | eval-heavy 7-path subset, baseline | 1,134 passed / 271 skipped | 137.9s | — |
 | eval-heavy 7-path subset, ctl off | 1,134 passed / 271 skipped | 76.1s | **−45%** |
 
-The band shift is the crispest way to see it — this is the same table as
-"Where the time sits" below, computed on the two local arms:
+(These are local numbers on a 4-core sandbox, and the tree carries this
+branch's model-info fix, so the absolute worker time is below CI's 852.9s. The
+ratio is the transferable part.)
+
+The band shift is the crispest way to see it — the "Where the time sits"
+banding below, recomputed on the two local arms:
 
 | band | baseline tests | baseline worker-s | ctl-off tests | ctl-off worker-s |
 |---|---:|---:|---:|---:|
