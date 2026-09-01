@@ -6,6 +6,7 @@ from inspect_ai.model import (
     ChatMessageAssistant,
     ChatMessageUser,
     GenerateConfig,
+    ResponseSchema,
     get_model,
 )
 
@@ -280,3 +281,31 @@ async def test_deepseek_tool_loop_replays_reasoning() -> None:
     messages.extend(result.messages)
     res = await model.generate(input=messages, tools=[addition()])
     assert "2" in res.completion
+
+
+def test_deepseek_response_schema_uses_json_object(
+    mock_deepseek_env, _warn_once_messages
+):
+    """DeepSeek 400s on response_format type "json_schema" — send JSON mode."""
+    from inspect_ai.model._providers.deepseek import DeepSeekAPI
+    from inspect_ai.util import json_schema
+
+    api = DeepSeekAPI(model_name="deepseek-v4-flash")
+    params = api.completion_params(
+        config=GenerateConfig(
+            response_schema=ResponseSchema(name="color", json_schema=json_schema(str))
+        ),
+        tools=False,
+    )
+    assert params["response_format"] == {"type": "json_object"}
+    assert len(_warn_once_messages) == 1
+    assert "deepseek-v4-flash" in _warn_once_messages[0]
+
+
+def test_deepseek_no_response_schema_omits_response_format(mock_deepseek_env):
+    """Without a response_schema nothing is sent and no warning is emitted."""
+    from inspect_ai.model._providers.deepseek import DeepSeekAPI
+
+    api = DeepSeekAPI(model_name="deepseek-v4-flash")
+    params = api.completion_params(config=GenerateConfig(max_tokens=100), tools=False)
+    assert "response_format" not in params

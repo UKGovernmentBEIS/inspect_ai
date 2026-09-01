@@ -59,6 +59,7 @@ from inspect_ai.model._providers.util.util import (
 )
 from inspect_ai.model._retry import batch_admin_retry_config
 from inspect_ai.model._stream import (
+    NoStreamDataError,
     StreamReasoningEvent,
     StreamTextEvent,
     StreamToolCallEvent,
@@ -376,7 +377,7 @@ class GrokAPI(ModelAPI):
                         async for streamed_response, chunk in chat.stream():
                             await _report_grok_stream_chunk(chunk)
                         if streamed_response is None:
-                            raise RuntimeError(
+                            raise NoStreamDataError(
                                 "No response chunks received from streaming "
                                 f"API for model {self.service_model_name()}"
                             )

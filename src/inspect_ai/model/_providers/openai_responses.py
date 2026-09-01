@@ -5,6 +5,8 @@ from typing import Any
 
 import anyio
 from openai import (
+    APIConnectionError,
+    APIError,
     APIStatusError,
     AsyncAzureOpenAI,
     AsyncOpenAI,
@@ -29,13 +31,13 @@ from openai.types.responses import (
 )
 from tenacity import (
     retry,
-    retry_if_exception,
+    retry_if_exception_type,
     stop_after_attempt,
     stop_after_delay,
     wait_exponential_jitter,
 )
 
-from inspect_ai._util.httpx import httpx_should_retry, log_httpx_retry_attempt
+from inspect_ai._util.httpx import log_httpx_retry_attempt
 from inspect_ai._util.logger import warn_once
 from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.model._generate_config import has_image_output
@@ -51,6 +53,7 @@ from .._model_output import ModelOutput, ModelUsage
 from .._openai import (
     OpenAIResponseError,
     openai_handle_bad_request,
+    openai_handle_stream_error,
     openai_media_filter,
 )
 from .._openai_responses import (
@@ -208,23 +211,12 @@ async def generate_responses(
         if background:
             model_response = await wait_for_background_response(client, model_response)
 
-        # check for error
+        # check for error (recognized block codes, including invalid_prompt,
+        # convert to model output in the handler below)
         if model_response.error is not None:
-            # check for content filter
-            if model_response.error.code == "invalid_prompt":
-                model_call.set_error(
-                    as_error_response(model_response.error),
-                    http_hooks.end_request(request_id),
-                )
-                return ModelOutput.from_content(
-                    model=model_name,
-                    content=model_response.error.message,
-                    stop_reason="content_filter",
-                ), model_call
-            else:
-                raise OpenAIResponseError(
-                    code=model_response.error.code, message=model_response.error.message
-                )
+            raise OpenAIResponseError(
+                code=model_response.error.code, message=model_response.error.message
+            )
 
         # save response for model_call
         _fix_function_tool_parameters(model_response)
@@ -259,6 +251,21 @@ async def generate_responses(
             return handle_bad_request(e), model_call
         else:
             return openai_handle_bad_request(model_name, e), model_call
+    except (APIError, OpenAIResponseError) as e:
+        # intentionally also catches the terminal `model_response.error` raise
+        # above, so recognized block codes convert on every path (streaming,
+        # non-streaming, background, batch); unrecognized codes return None
+        # and re-raise with their retry classification intact
+        output = openai_handle_stream_error(model_name, e)
+        if output is None:
+            raise
+        error_body = (
+            e.body if isinstance(e, APIError) else dict(code=e.code, message=e.message)
+        )
+        model_call.set_error(
+            as_error_response(error_body), http_hooks.end_request(request_id)
+        )
+        return output, model_call
 
 
 async def _generate_responses_stream(
@@ -353,7 +360,8 @@ async def wait_for_background_response(
     @retry(
         wait=wait_exponential_jitter(),
         stop=stop_after_attempt(5) | stop_after_delay(60),
-        retry=retry_if_exception(httpx_should_retry),
+        retry=retry_if_exception_type(APIConnectionError),
+        reraise=True,
         before_sleep=log_httpx_retry_attempt(
             f"background polling: {model_response.model}"
         ),

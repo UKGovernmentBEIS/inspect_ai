@@ -5,7 +5,7 @@ import os
 import threading
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Literal, NamedTuple, Set, cast
+from typing import TYPE_CHECKING, Any, Literal, NamedTuple, Set, TypeVar, cast
 
 import rich
 from pydantic import BaseModel
@@ -45,7 +45,13 @@ from inspect_ai._eval.handoff import (
 )
 from inspect_ai._eval.task.log import plan_to_eval_plan
 from inspect_ai._eval.task.run import eval_plan_agent_name, resolve_plan
-from inspect_ai._eval.task.scan import Scanners, scan_already_clean
+from inspect_ai._eval.task.scan import (
+    Scanners,
+    merged_selection_scanner,
+    scan_already_clean,
+    serialized_scan,
+    verify_selection_scan_dir,
+)
 from inspect_ai._util._async import run_coroutine
 from inspect_ai._util.azure import call_with_azure_auth_fallback
 from inspect_ai._util.error import PrerequisiteError
@@ -102,10 +108,18 @@ from inspect_ai.util._limit import (
 from .eval import eval, eval_init, eval_resolve_tasks
 from .eval_set_manifest import (
     INSPECT_EVAL_SET_CAPTURE,
+    EvalSetCaptureScan,
     build_eval_set_capture,
     eval_set_capture_requested,
-    samples_for_limit,
+    samples_selected,
     task_args_hash,
+)
+from .eval_set_overrides import (
+    EvalSetOverrides,
+    EvalSetOverridesEpochs,
+    eval_set_overrides_requested,
+    merge_eval_set_overrides,
+    read_eval_set_overrides,
 )
 from .eval_set_pruning import (
     disable_pruning,
@@ -133,6 +147,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+_T = TypeVar("_T")
+
 
 class Log(NamedTuple):
     info: EvalLogInfo
@@ -152,9 +168,64 @@ class EvalSetArgsInTaskIdentifier:
     cost_limit: float | None = None
 
 
+def _applied(value: _T, override: "_T | None") -> _T:
+    """One override applied, or the value the definition passed.
+
+    `None` on an override field means *keep what the definition chose*, which is what makes an omitted field and an absent document mean the same thing. Written as a function so that thirty-odd applications read as a list of names rather than as thirty-odd conditionals, and so that a mistyped pairing is a type error.
+    """
+    return value if override is None else override
+
+
+def _overridden_selection(
+    limit: "int | tuple[int, int] | None",
+    sample_id: "str | int | list[str] | list[int] | list[str | int] | None",
+    sample_shuffle: "bool | int | None",
+    overrides: EvalSetOverrides,
+) -> tuple[
+    "int | tuple[int, int] | None",
+    "str | int | list[str] | list[int] | list[str | int] | None",
+    "bool | int | None",
+]:
+    """Which samples run, applied as one choice rather than as three fields.
+
+    `eval()` forbids `sample_id` alongside either `limit` or `sample_shuffle`, so these three cannot be overridden the way the other thirty are. Applied independently, a definition that names `sample_id` and a runner that says `--limit 5` leave *both* set: capture counts by the ids and writes a manifest, and then every worker raises. A launch succeeds and the whole fleet fails, which is the worst available ordering.
+
+    **So naming either side clears the other.** That is the only reading that lets an override express what it means — with `None` meaning *keep the definition's*, there is otherwise no way to say *ignore the ids and take the first five*, and the runner is stuck with a combination it cannot dissolve. `limit` and `sample_shuffle` are one side because `eval()` permits them together; `sample_id` is the other because it permits nothing with it.
+
+    Silence still keeps everything: an overrides document that mentions none of the three is not a statement about selection at all.
+    """
+    # a document naming both sides is refused by `check_eval_set_overrides`
+    # before it reaches here, so these two branches cannot both apply
+    ids = overrides.sample_id
+    sliced = (
+        overrides.limit if overrides.limit is not None else overrides.sample_shuffle
+    )
+    if ids is not None:
+        return None, ids, None
+    if sliced is not None:
+        return (
+            _applied(limit, overrides.limit),
+            None,
+            _applied(sample_shuffle, overrides.sample_shuffle),
+        )
+    return limit, sample_id, sample_shuffle
+
+
+def _overridden_epochs(
+    epochs: int | EvalSetOverridesEpochs | None,
+) -> int | Epochs | None:
+    """An overrides document's epochs as `eval_set()` takes them.
+
+    A bare count stays a count — it means what `eval_set(epochs=4)` means, reducers included, which is that the definition's are dropped along with its count. The object form is the wire shape of `Epochs`, whose reducers travel as registry names because they resolve to callables.
+    """
+    if isinstance(epochs, EvalSetOverridesEpochs):
+        return Epochs(epochs.epochs, epochs.reducer)
+    return epochs
+
+
 def eval_set(
     tasks: Tasks,
-    log_dir: str,
+    log_dir: str | None = None,
     retry_attempts: int | None = None,
     retry_wait: float | None = None,
     retry_connections: float | None = None,
@@ -224,8 +295,9 @@ def eval_set(
     Args:
         tasks: Task(s) to evaluate. If None, attempt
             to evaluate a task in the current working directory
-        log_dir: Output path for logging results
-            (required to ensure that a unique storage scope is assigned for the set).
+        log_dir: Output path for logging results (defaults to INSPECT_LOG_DIR
+            or ./logs). The directory is the eval set's storage scope, so a set
+            that shares one with another set shares its results.
         retry_attempts: Maximum number of retry attempts before giving up
             (defaults to 10).
         retry_wait: Time to wait between attempts when `retry_immediate=False`,
@@ -509,6 +581,131 @@ def eval_set(
         # return results
         return results
 
+    # external runner modes (capture enumerates the eval set; selection runs
+    # one worker's share of it). they are two halves of the same protocol but
+    # are never active at once.
+    capture_path = eval_set_capture_requested()
+    selection_path = eval_set_selection_requested()
+    if capture_path is not None and selection_path is not None:
+        raise PrerequisiteError(
+            f"{INSPECT_EVAL_SET_CAPTURE} and {INSPECT_EVAL_SET_SELECTION} "
+            "cannot both be set (capture enumerates an eval set without "
+            "running it; selection runs tasks from an enumerated eval set)."
+        )
+
+    # what the definition itself asked for, read before any override replaces
+    # it. The capture manifest's `options` is a record of the *definition* --
+    # that is the whole of its use, since a runner already knows what it set
+    # and cannot otherwise learn what it is displacing -- so it is built above
+    # the application below rather than in the capture branch beneath it.
+    definition_epochs = resolve_epochs(epochs)
+    definition_options: dict[str, Any] = dict(
+        log_dir=log_dir,
+        retry_attempts=num_retry_attempts,
+        # *which* samples run, all three of them. `limit` was here alone, which
+        # left a runner unable to tell a definition that shuffles from one that
+        # does not -- and a runner comparing a finished log against this to
+        # decide whether it still answers the question then sees a shuffle in
+        # the log, nothing here, and calls a settled task stale forever.
+        limit=limit,
+        sample_id=sample_id,
+        sample_shuffle=sample_shuffle,
+        epochs=definition_epochs.epochs if definition_epochs else None,
+        tags=tags,
+        metadata=metadata,
+        # concurrency as the definition asked for it. a runner that sets any of
+        # them (all three are operational overrides) otherwise has no way to
+        # see what it is overriding, so a definition's explicit value is
+        # silently replaced by the runner's default.
+        max_samples=max_samples,
+        max_sandboxes=max_sandboxes,
+        max_tasks=max_tasks,
+        # error handling as the definition asked for it, so a runner can see
+        # what selection mode honours (retry_on_error) and what it overrides
+        # (fail_on_error) rather than guessing.
+        fail_on_error=fail_on_error,
+        continue_on_fail=continue_on_fail,
+        retry_on_error=retry_on_error,
+        # whether the definition scans. workers scan record-only, so a runner
+        # needs to learn this at enumeration time to lay the scan directory
+        # down before its first worker starts (the serialized spec it does
+        # that with is the capture's top-level `scan` field, not this bool).
+        scanners=scanner is not None,
+    )
+
+    # a runner may override how this run is operated, run-wide (read in capture
+    # mode too, so the manifest describes the run that actually happens) and
+    # per worker (which wins). Applied here, above the display and above
+    # eval_init, because several of the overridable arguments are arguments to
+    # those two -- and above the `run_eval` closure's *call* rather than its
+    # definition, which is what late binding makes sufficient.
+    selection = (
+        read_eval_set_selection(selection_path) if selection_path is not None else None
+    )
+    # The overrides document is runner protocol, not another source of
+    # defaults for ordinary Python API calls. Capture needs the run-wide values
+    # so its manifest describes what workers will run; selection needs them to
+    # operate a worker. Outside those two modes the environment variable is
+    # deliberately ignored.
+    driven = capture_path is not None or selection_path is not None
+    overrides_path = eval_set_overrides_requested() if driven else None
+    overrides = merge_eval_set_overrides(
+        read_eval_set_overrides(overrides_path) if overrides_path is not None else None,
+        selection.overrides if selection is not None else None,
+    )
+    if overrides is not None:
+        log_dir = _applied(log_dir, overrides.log_dir)
+        log_format = _applied(log_format, overrides.log_format)
+        log_samples = _applied(log_samples, overrides.log_samples)
+        log_realtime = _applied(log_realtime, overrides.log_realtime)
+        log_images = _applied(log_images, overrides.log_images)
+        log_model_api = _applied(log_model_api, overrides.log_model_api)
+        log_refusals = _applied(log_refusals, overrides.log_refusals)
+        log_buffer = _applied(log_buffer, overrides.log_buffer)
+        log_shared = _applied(log_shared, overrides.log_shared)
+        log_level = _applied(log_level, overrides.log_level)
+        log_level_transcript = _applied(
+            log_level_transcript, overrides.log_level_transcript
+        )
+        # one choice rather than three fields, because `eval()` forbids two of
+        # the combinations these could otherwise be left in
+        limit, sample_id, sample_shuffle = _overridden_selection(
+            limit, sample_id, sample_shuffle, overrides
+        )
+        epochs = _applied(epochs, _overridden_epochs(overrides.epochs))
+        max_samples = _applied(max_samples, overrides.max_samples)
+        max_tasks = _applied(max_tasks, overrides.max_tasks)
+        max_subprocesses = _applied(max_subprocesses, overrides.max_subprocesses)
+        max_sandboxes = _applied(max_sandboxes, overrides.max_sandboxes)
+        max_dataset_memory = _applied(max_dataset_memory, overrides.max_dataset_memory)
+        model_base_url = _applied(model_base_url, overrides.model_base_url)
+        model_cost_config = _applied(model_cost_config, overrides.model_cost_config)
+        sandbox = _applied(sandbox, overrides.sandbox)
+        sandbox_cleanup = _applied(sandbox_cleanup, overrides.sandbox_cleanup)
+        sandbox_prebuilt = _applied(sandbox_prebuilt, overrides.sandbox_prebuilt)
+        checkpoint = _applied(checkpoint, overrides.checkpoint)
+        approval = _applied(approval, overrides.approval)
+        retry_on_error = _applied(retry_on_error, overrides.retry_on_error)
+        score_on_error = _applied(score_on_error, overrides.score_on_error)
+        debug_errors = _applied(debug_errors, overrides.debug_errors)
+        score = _applied(score, overrides.score)
+        score_display = _applied(score_display, overrides.score_display)
+        tags = _applied(tags, overrides.tags)
+        metadata = _applied(metadata, overrides.metadata)
+        notification = _applied(notification, overrides.notification)
+        display = _applied(display, overrides.display)
+        trace = _applied(trace, overrides.trace)
+        if overrides.generate_config is not None:
+            kwargs = cast(
+                GenerateConfigArgs,
+                {
+                    **kwargs,
+                    **overrides.generate_config.model_dump(
+                        exclude_unset=True, exclude_none=True
+                    ),
+                },
+            )
+
     # initialise display (otherwise eval_init will set it to full)
     if not display_type_initialized():
         display = init_display_type(display)
@@ -526,18 +723,6 @@ def eval_set(
         log_refusals=log_refusals,
         **kwargs,
     )
-
-    # external runner modes (capture enumerates the eval set; selection runs
-    # one worker's share of it). they are two halves of the same protocol but
-    # are never active at once.
-    capture_path = eval_set_capture_requested()
-    selection_path = eval_set_selection_requested()
-    if capture_path is not None and selection_path is not None:
-        raise PrerequisiteError(
-            f"{INSPECT_EVAL_SET_CAPTURE} and {INSPECT_EVAL_SET_SELECTION} "
-            "cannot both be set (capture enumerates an eval set without "
-            "running it; selection runs tasks from an enumerated eval set)."
-        )
 
     # capture mode: resolve tasks, write the manifest, and exit the process
     # without running anything. deliberately placed before any log_dir side
@@ -565,7 +750,15 @@ def eval_set(
             raise PrerequisiteError(
                 "Error: No inspect tasks were found at the specified paths."
             )
-        capture_epochs = resolve_epochs(epochs)
+        # the definition's scanner configuration, serialized so a runner can
+        # own the scan directory's lifecycle without executing the definition
+        # (workers scan record-only in selection mode).
+        captured = serialized_scan(scanner, scan_id=eval_set_id)
+        capture_scan = (
+            EvalSetCaptureScan(spec=captured[0], scans=captured[1])
+            if captured is not None
+            else None
+        )
         capture = build_eval_set_capture(
             capture_tasks,
             EvalSetArgsInTaskIdentifier(
@@ -580,57 +773,25 @@ def eval_set(
             ),
             epochs=epochs,
             limit=limit,
+            sample_id=sample_id,
             eval_set_id=eval_set_id,
-            options=dict(
-                log_dir=log_dir,
-                retry_attempts=num_retry_attempts,
-                limit=limit,
-                epochs=capture_epochs.epochs if capture_epochs else None,
-                tags=tags,
-                metadata=metadata,
-                # concurrency as the definition asked for it. a runner that
-                # sets either per worker (both are operational overrides in the
-                # selection document) otherwise has no way to see what it is
-                # overriding, so a definition's explicit value is silently
-                # replaced by the runner's default.
-                max_samples=max_samples,
-                max_sandboxes=max_sandboxes,
-                max_tasks=max_tasks,
-                # error handling as the definition asked for it, so a runner
-                # can see what selection mode honours (retry_on_error) and
-                # what it overrides (fail_on_error) rather than guessing.
-                fail_on_error=fail_on_error,
-                continue_on_fail=continue_on_fail,
-                retry_on_error=retry_on_error,
-                # whether the definition scans. selection mode rejects
-                # scanners, so a runner needs to learn this at enumeration
-                # time rather than when every one of its workers fails.
-                scanners=scanner is not None,
-            ),
+            options=definition_options,
+            overrides=overrides,
+            scan=capture_scan,
         )
         with file(capture_path, mode="wb") as f:
             f.write(to_json_safe(capture))
         raise SystemExit(0)
 
-    # a selection may carry operational overrides for this worker. read it
-    # before log_dir is used for anything: `filesystem()` is derived from it,
-    # and `run_eval` closes over every one of these names -- closures are
-    # late-binding, so rebinding here is what the closure will see.
-    selection = (
-        read_eval_set_selection(selection_path) if selection_path is not None else None
-    )
-    if selection is not None and selection.overrides is not None:
-        overrides = selection.overrides
-        if overrides.log_dir is not None:
-            log_dir = overrides.log_dir
-        if overrides.max_samples is not None:
-            max_samples = overrides.max_samples
-        if overrides.limit is not None:
-            limit = overrides.limit
-        if overrides.max_sandboxes is not None:
-            max_sandboxes = overrides.max_sandboxes
-        if overrides.max_tasks is not None:
-            max_tasks = overrides.max_tasks
+    # resolve log_dir, matching eval(). deliberately below the capture branch,
+    # which exits before any log_dir side effect: a capture manifest records
+    # the options *the definition passed*, so a definition that named no
+    # directory must be reported as having named none rather than as having
+    # named this default. absolute_file_path() is likewise not applied -- eval()
+    # does it, but doing it here would change the recorded location of every
+    # relative log_dir an eval set already uses
+    if log_dir is None:
+        log_dir = os.environ.get("INSPECT_LOG_DIR", "./logs")
 
     # ensure log_dir
     fs = filesystem(log_dir)
@@ -647,18 +808,19 @@ def eval_set(
                 "Dynamic task sources (TaskSource) cannot be used with "
                 "eval-set selection."
             )
-        if scanner is not None:
-            raise PrerequisiteError(
-                "Scanners are not supported with eval-set selection. One scan "
-                "directory is shared by a whole eval set, and its bookkeeping "
-                "assumes a single writer: concurrent workers would race to "
-                "create it, and each worker's finalize prunes scan rows whose "
-                "transcripts it cannot see in the log directory yet -- "
-                "deleting the rows of workers still running. Scanning is an "
-                "eval-set level operation, so the runner should perform it "
-                "over the log directory rather than each worker scanning "
-                "its own share."
-            )
+        # scanning in selection mode is record-only: workers dispatch scanners
+        # per settled sample and write scout's per-transcript buffer, and the
+        # runner owns the scan directory's lifecycle (init/finalize) as its
+        # single writer. The inner eval() runs with eval_set_id set, so it
+        # never enters scan_context -- record-only needs no bracket to skip,
+        # only the two guarantees below: the merged scanner set matches what
+        # the runner wrote into the scan directory (a collision refuses), and
+        # a missing scan directory refuses loudly rather than letting
+        # scan_eval_sample's exists() check silently not-scan.
+        scanner = merged_selection_scanner(scanner, selection.scanners)
+        verify_selection_scan_dir(
+            scanner, scan_id=selection.eval_set_id, log_dir=log_dir
+        )
         selection_config = GenerateConfig(**kwargs)
 
         def resolve_selection_tasks(selection_input: Tasks) -> list[ResolvedTask]:
@@ -896,6 +1058,7 @@ def eval_set(
                 all_logs,
                 epochs=epochs,
                 limit=limit,
+                sample_id=sample_id,
                 cleanup_older=retry_cleanup,
             )
             if not failed_logs:
@@ -1515,6 +1678,7 @@ def list_latest_eval_logs(
     logs: list[Log],
     epochs: int | Epochs | None,
     limit: int | tuple[int, int] | None,
+    sample_id: str | int | list[str] | list[int] | list[str | int] | None,
     cleanup_older: bool,
 ) -> tuple[list[Log], list[Log]]:
     latest_logs = latest_completed_task_eval_logs(
@@ -1534,7 +1698,9 @@ def list_latest_eval_logs(
             incomplete_logs.append(log)
         elif log.header.invalidated:
             incomplete_logs.append(log)
-        elif not log_samples_complete(log, all_tasks, epochs=epochs, limit=limit):
+        elif not log_samples_complete(
+            log, all_tasks, epochs=epochs, limit=limit, sample_id=sample_id
+        ):
             incomplete_logs.append(log)
         else:
             complete_logs.append(log)
@@ -1547,6 +1713,7 @@ def log_samples_complete(
     all_tasks: list[tuple[str, ResolvedTask]],
     epochs: Epochs | None,
     limit: int | tuple[int, int] | None,
+    sample_id: str | int | list[str] | list[int] | list[str | int] | None = None,
 ) -> bool:
     if not log.header.results:
         return False
@@ -1562,7 +1729,7 @@ def log_samples_complete(
         return False
     epoch_count = epochs.epochs if epochs else 1
 
-    count = samples_for_limit(len(task.task.dataset), limit)
+    count = samples_selected(task.task.dataset, limit, sample_id, task.task.name)
 
     if log.header.results.total_samples < count * epoch_count:
         return False
@@ -1697,7 +1864,7 @@ def validate_eval_set_prerequisites(
 # Runtime/transport GenerateConfig knobs that don't affect model outputs and so
 # must not affect task identity. Adding a field to GenerateConfig? See
 # test_generate_config_fields_classified — it will fail until you classify it.
-_GENERATE_CONFIG_FIELDS_TO_EXCLUDE = {
+GENERATE_CONFIG_FIELDS_TO_EXCLUDE = {
     "max_retries",
     "timeout",
     "attempt_timeout",
@@ -1864,13 +2031,13 @@ def task_identifier(
     # hash for eval plan
     additional_hash_input = to_json_safe(
         eval_plan,
-        exclude={"config": _GENERATE_CONFIG_FIELDS_TO_EXCLUDE},
+        exclude={"config": GENERATE_CONFIG_FIELDS_TO_EXCLUDE},
     )
 
     # hash for model generate config
     additional_hash_input += to_json_safe(
         model_generate_config,
-        exclude=_GENERATE_CONFIG_FIELDS_TO_EXCLUDE,
+        exclude=GENERATE_CONFIG_FIELDS_TO_EXCLUDE,
     )
 
     # hash for model roles
@@ -1881,7 +2048,7 @@ def task_identifier(
         # environment-dependent.
         role_exclude: dict[str, Any] = {
             "base_url": True,
-            "config": _GENERATE_CONFIG_FIELDS_TO_EXCLUDE,
+            "config": GENERATE_CONFIG_FIELDS_TO_EXCLUDE,
         }
         additional_hash_input += to_json_safe(
             model_roles,
