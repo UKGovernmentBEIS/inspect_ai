@@ -130,13 +130,18 @@ def validate_client_config(config: GenerateConfig) -> None:
             f"generation parameter in bridged request is not serializable ({ex})"
         ) from ex
     except ValidationError as ex:
-        details = "; ".join(
-            f"{'.'.join(str(p) for p in err['loc'])}: {err['msg']}"
-            for err in ex.errors()
-        )
         raise BridgePolicyError(
-            f"invalid generation parameter in bridged request ({details})"
+            "invalid generation parameter in bridged request "
+            f"({_validation_error_details(ex)})"
         ) from ex
+
+
+def _validation_error_details(ex: ValidationError, prefix: str = "") -> str:
+    """Render a `ValidationError` as `loc: msg` pairs for a client-facing 400."""
+    return "; ".join(
+        f"{prefix}{'.'.join(str(p) for p in err['loc'])}: {err['msg']}"
+        for err in ex.errors()
+    )
 
 
 # schema-valued positions `JSONSchema` models, i.e. where a nested schema (or a
@@ -190,7 +195,9 @@ def _unmodelled_schema_keywords(schema: Any) -> set[str]:
     return dropped
 
 
-def client_json_schema(schema: dict[str, Any], dialect_field: str) -> JSONSchema:
+def client_json_schema(
+    schema: dict[str, Any], dialect_field: str, *, warn_dropped: bool = True
+) -> JSONSchema:
     """Parse a client-supplied JSON Schema, answering 400 rather than escaping.
 
     `JSONSchema.model_validate` raises `ValidationError`, and an uncaught one here
@@ -207,8 +214,13 @@ def client_json_schema(schema: dict[str, Any], dialect_field: str) -> JSONSchema
     so rejecting would be a regression against talking to it unbridged -- but the
     warning is what makes it diagnosable, since the client otherwise just sees a
     response that fails its own validation.
+
+    Pass `warn_dropped=False` when the input is not standard JSON Schema (e.g.
+    Gemini's OpenAPI-style `responseSchema`): its dialect-specific keywords were
+    never modelled, so a JSON Schema-phrased warning would misread routine
+    requests as degraded.
     """
-    if dropped := _unmodelled_schema_keywords(schema):
+    if warn_dropped and (dropped := _unmodelled_schema_keywords(schema)):
         warn_once(
             logger,
             f"The bridged request's {dialect_field} uses JSON Schema keywords "
@@ -220,12 +232,9 @@ def client_json_schema(schema: dict[str, Any], dialect_field: str) -> JSONSchema
     try:
         return JSONSchema.model_validate(schema)
     except ValidationError as ex:
-        details = "; ".join(
-            f"{'.'.join(str(p) for p in err['loc'])}: {err['msg']}"
-            for err in ex.errors()
-        )
         raise BridgePolicyError(
-            f"invalid response schema in bridged request ({dialect_field}: {details})"
+            "invalid response schema in bridged request "
+            f"({dialect_field}: {_validation_error_details(ex)})"
         ) from ex
 
 
@@ -250,13 +259,26 @@ def client_response_schema(
             name=name, json_schema=json_schema, description=description, strict=strict
         )
     except ValidationError as ex:
-        details = "; ".join(
-            f"{dialect_field}.{'.'.join(str(p) for p in err['loc'])}: {err['msg']}"
-            for err in ex.errors()
-        )
         raise BridgePolicyError(
-            f"invalid response schema in bridged request ({details})"
+            "invalid response schema in bridged request "
+            f"({_validation_error_details(ex, f'{dialect_field}.')})"
         ) from ex
+
+
+def client_request_object(value: Any, dialect_field: str) -> dict[str, Any] | None:
+    """Require a client request field to be a JSON object (or absent).
+
+    A non-dict container dereferenced with `.get` escapes as a raw
+    `AttributeError` -- the same status-less failure `client_json_schema`
+    prevents for the leaf values inside it -- so answer the 400 the real APIs
+    give for a mistyped container.
+    """
+    if value is None or isinstance(value, dict):
+        return value
+    raise BridgePolicyError(
+        f"invalid request field in bridged request ({dialect_field}: input "
+        f"should be an object, got {type(value).__name__})"
+    )
 
 
 _bridge_model_generate: ContextVar[bool] = ContextVar(

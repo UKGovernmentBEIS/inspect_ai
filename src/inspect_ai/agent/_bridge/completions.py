@@ -20,6 +20,7 @@ from .util import (
     bridge_generate,
     clear_generation_params,
     client_json_schema,
+    client_request_object,
     client_response_schema,
     resolve_generate_config,
     resolve_inspect_model,
@@ -165,9 +166,13 @@ def generate_config_from_openai_completions(
     config.reasoning_effort = json_data.get("reasoning_effort", None)
 
     # response format
-    response_format: dict[str, Any] | None = json_data.get("response_format", None)
+    response_format = client_request_object(
+        json_data.get("response_format", None), "response_format"
+    )
     if response_format is not None:
-        json_schema: dict[str, Any] | None = response_format.get("json_schema", None)
+        json_schema = client_request_object(
+            response_format.get("json_schema", None), "response_format.json_schema"
+        )
         if json_schema is not None:
             config.response_schema = client_response_schema(
                 name=json_schema.get("name", "schema"),

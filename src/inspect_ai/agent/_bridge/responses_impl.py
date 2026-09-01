@@ -174,6 +174,7 @@ from .util import (
     bridge_generate,
     clear_generation_params,
     client_json_schema,
+    client_request_object,
     client_response_schema,
     relax_tool_choice_for_withheld,
     resolve_generate_config,
@@ -676,9 +677,9 @@ def generate_config_from_openai_responses(json_data: dict[str, Any]) -> Generate
     config.top_p = json_data.get("top_p", None)
 
     # response format
-    text: dict[str, Any] | None = json_data.get("text", None)
+    text = client_request_object(json_data.get("text", None), "text")
     if text is not None:
-        format: dict[str, Any] | None = text.get("format", None)
+        format = client_request_object(text.get("format", None), "text.format")
         if format is not None:
             if format.get("type", None) == "json_schema":
                 config.response_schema = client_response_schema(

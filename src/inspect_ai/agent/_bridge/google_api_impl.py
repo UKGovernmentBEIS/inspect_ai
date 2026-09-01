@@ -182,20 +182,24 @@ def generate_config_from_google(generation_config: dict[str, Any]) -> GenerateCo
     config.top_logprobs = generation_config.get("logprobs")
 
     # structured output: responseJsonSchema is standard JSON Schema; responseSchema
-    # is Gemini's OpenAPI-style Schema (uppercase types) which we normalize.
-    schema = generation_config.get("responseJsonSchema") or generation_config.get(
-        "responseSchema"
-    )
-    if schema:
-        schema_field = (
-            "responseJsonSchema"
-            if generation_config.get("responseJsonSchema")
-            else "responseSchema"
-        )
+    # is Gemini's OpenAPI-style Schema (uppercase types) which we normalize. The
+    # dropped-keyword warning stays off for responseSchema: its dialect keywords
+    # (`nullable`, `propertyOrdering`, ...) were never modelled, so the JSON
+    # Schema-phrased warning would misread routine Gemini requests as degraded.
+    if json_schema := generation_config.get("responseJsonSchema"):
         config.response_schema = ResponseSchema(
             name="response",
             json_schema=client_json_schema(
-                _google_schema_to_json_schema(schema), schema_field
+                _google_schema_to_json_schema(json_schema), "responseJsonSchema"
+            ),
+        )
+    elif openapi_schema := generation_config.get("responseSchema"):
+        config.response_schema = ResponseSchema(
+            name="response",
+            json_schema=client_json_schema(
+                _google_schema_to_json_schema(openapi_schema),
+                "responseSchema",
+                warn_dropped=False,
             ),
         )
 

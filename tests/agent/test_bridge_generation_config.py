@@ -840,6 +840,88 @@ def test_google_invalid_response_schema_is_rejected_not_raised(
     assert provider_error_payload(ex.value)["status"] == 400
 
 
+@pytest.mark.parametrize(
+    "json_data,expected_field",
+    [
+        ({"model": "inspect", "response_format": "json_object"}, "response_format"),
+        (
+            {
+                "model": "inspect",
+                "response_format": {"type": "json_schema", "json_schema": "s"},
+            },
+            "response_format.json_schema",
+        ),
+    ],
+)
+def test_openai_completions_non_object_container_is_rejected_not_raised(
+    json_data: dict[str, Any], expected_field: str
+):
+    """A mistyped container must 400 too, not escape as `AttributeError`.
+
+    The leaf values now 400 via `client_json_schema`/`client_response_schema`,
+    but a non-dict `response_format` (or `json_schema`) hit `.get()` first and
+    escaped raw with `status: None` -- the same class one structural level up.
+    """
+    with pytest.raises(BridgePolicyError) as ex:
+        generate_config_from_openai_completions(json_data)
+    assert expected_field in str(ex.value)
+    assert provider_error_payload(ex.value)["status"] == 400
+
+
+@pytest.mark.parametrize(
+    "json_data,expected_field",
+    [
+        ({"model": "inspect", "text": "keep it short"}, "text"),
+        ({"model": "inspect", "text": {"format": "json_schema"}}, "text.format"),
+    ],
+)
+def test_openai_responses_non_object_container_is_rejected_not_raised(
+    json_data: dict[str, Any], expected_field: str
+):
+    with pytest.raises(BridgePolicyError) as ex:
+        generate_config_from_openai_responses(json_data)
+    assert expected_field in str(ex.value)
+    assert provider_error_payload(ex.value)["status"] == 400
+
+
+def test_google_openapi_schema_does_not_warn_on_gemini_keywords(_warn_once_messages):
+    """Gemini's own `responseSchema` keywords must not trigger the warning.
+
+    `nullable` and `propertyOrdering` are documented Gemini OpenAPI-style Schema
+    keywords -- the google-genai SDK emits them for any Optional pydantic field --
+    so warning that the request was weakened would misread routine requests.
+    (The keywords are still dropped; that predates the 400 routing.)
+    """
+    config = generate_config_from_google(
+        {
+            "responseSchema": {
+                "type": "OBJECT",
+                "properties": {"name": {"type": "STRING", "nullable": True}},
+                "propertyOrdering": ["name"],
+            }
+        }
+    )
+    assert config.response_schema is not None
+    assert config.response_schema.json_schema.type == "object"
+    assert _warn_once_messages == []
+
+
+def test_google_json_schema_still_warns_on_dropped_keywords(_warn_once_messages):
+    config = generate_config_from_google(
+        {
+            "responseJsonSchema": {
+                "type": "object",
+                "properties": {"a": {"$ref": "#/$defs/A"}},
+                "$defs": {"A": {"type": "string"}},
+            }
+        }
+    )
+    assert config.response_schema is not None
+    assert len(_warn_once_messages) == 1
+    assert "responseJsonSchema" in _warn_once_messages[0]
+    assert "$ref" in _warn_once_messages[0]
+
+
 def test_openai_completions_schema_warning_names_dialect_field(_warn_once_messages):
     """The dropped-keyword warning must name the OpenAI request field.
 
