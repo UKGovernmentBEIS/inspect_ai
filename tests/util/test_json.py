@@ -1,5 +1,7 @@
 import json
 
+from pydantic import BaseModel, ConfigDict
+
 from inspect_ai._util.json import (
     exceeds_max_depth,
     json_changes,
@@ -408,6 +410,26 @@ def test_exceeds_max_depth_traverses_frozensets():
 
     assert exceeds_max_depth(deep, 250)
     assert not exceeds_max_depth(frozenset([frozenset(["leaf"])]), 2)
+
+
+def test_exceeds_max_depth_traverses_pydantic_extra_fields():
+    # extra="allow" models keep extra values in __pydantic_extra__ rather than
+    # __dict__; pydantic-core serializes them recursively all the same, so
+    # they must count toward depth like declared fields do
+    class Declared(BaseModel):
+        value: object
+
+    class Extras(BaseModel):
+        model_config = ConfigDict(extra="allow")
+
+    deep: object = 1
+    for _ in range(50):
+        deep = {"a": deep}
+
+    assert exceeds_max_depth(Declared(value=deep), 10)
+    assert exceeds_max_depth(Extras(**{"extra_value": deep}), 10)
+    assert not exceeds_max_depth(Extras(**{"extra_value": {"a": 1}}), 3)
+    assert not exceeds_max_depth(Extras(), 1)
 
 
 def test_exceeds_max_depth_terminates_on_cycles():

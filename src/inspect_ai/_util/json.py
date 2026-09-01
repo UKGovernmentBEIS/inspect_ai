@@ -30,9 +30,10 @@ def exceeds_max_depth(value: object, max_depth: int) -> bool:
 
     Iterative traversal (explicit stack) so that measuring the depth of an
     adversarially deep value can't itself exhaust the interpreter stack.
-    `BaseModel` values are descended into via their fields (pydantic-core
-    serializes them recursively, so their nesting counts toward the depth a
-    serializer must tolerate).
+    `BaseModel` values are descended into via their fields, including the
+    extra fields of `extra="allow"` models (pydantic-core serializes both
+    recursively, so their nesting counts toward the depth a serializer must
+    tolerate).
 
     A container already expanded at an equal-or-greater depth is not expanded
     again (tracked by `id()`): everything below it was already measured from at
@@ -56,7 +57,13 @@ def exceeds_max_depth(value: object, max_depth: int) -> bool:
         elif isinstance(current, (list, tuple, set, frozenset)):
             children = current
         elif isinstance(current, BaseModel):
-            children = current.__dict__.values()
+            # extra="allow" values live in __pydantic_extra__, not __dict__
+            extra = current.__pydantic_extra__
+            children = (
+                current.__dict__.values()
+                if not extra
+                else [*current.__dict__.values(), *extra.values()]
+            )
         else:
             continue
         if depth > max_depth:

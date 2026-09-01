@@ -503,9 +503,7 @@ async def test_log_sample_degrades_gracefully_when_serialization_fails(
 
 
 @pytest.mark.anyio
-async def test_log_sample_reraises_recorder_write_errors(
-    tmp_path, monkeypatch
-) -> None:
+async def test_log_sample_reraises_recorder_write_errors(tmp_path, monkeypatch) -> None:
     # only a condensation/serialization failure may trigger the stripped-content
     # fallback: a transient recorder write failure (e.g. an S3 blip) on a
     # healthy sample must propagate unchanged — writing a stripped fallback

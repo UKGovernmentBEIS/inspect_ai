@@ -158,7 +158,7 @@ def test_walked_value_at_depth_cap_serializes_within_sample() -> None:
 
 
 def test_attachment_refs_from_value_handles_pathologically_deep_values() -> None:
-    deep: object = {"ref": f"{ATTACHMENT_PROTOCOL}abc123"}
+    deep: JsonValue = {"ref": f"{ATTACHMENT_PROTOCOL}abc123"}
     for _ in range(10_000):
         deep = {"a": [deep]}
 
