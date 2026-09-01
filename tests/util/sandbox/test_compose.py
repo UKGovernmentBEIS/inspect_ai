@@ -1,6 +1,6 @@
 import pytest
 
-from inspect_ai.util import parse_compose_yaml
+from inspect_ai.util import ComposeVolumeMount, parse_compose_yaml
 from inspect_ai.util._sandbox.compose import is_compose_yaml
 
 
@@ -302,6 +302,97 @@ services:
     config = parse_compose_yaml(str(compose_file))
     assert config.services["default"].stdin_open is True
     assert config.services["default"].tty is True
+
+
+def test_parse_compose_yaml_accepts_long_syntax_volumes(tmp_path):
+    compose_file = tmp_path / "compose.yaml"
+    compose_file.write_text("""
+services:
+  default:
+    image: ubuntu
+    volumes:
+      - ./data:/data:ro
+      - type: bind
+        source: ./assets
+        target: /assets
+        read_only: true
+        bind:
+          create_host_path: true
+      - type: tmpfs
+        target: /scratch
+        tmpfs:
+          size: 104857600
+      - type: image
+        source: my-image
+        target: /app
+        image:
+          subpath: dir
+""")
+    config = parse_compose_yaml(str(compose_file))
+    volumes = config.services["default"].volumes
+    assert volumes is not None
+    assert volumes[0] == "./data:/data:ro"
+    bind_mount = volumes[1]
+    assert isinstance(bind_mount, ComposeVolumeMount)
+    assert bind_mount.type == "bind"
+    assert bind_mount.source == "./assets"
+    assert bind_mount.target == "/assets"
+    assert bind_mount.read_only is True
+    assert bind_mount.bind is not None
+    assert bind_mount.bind.create_host_path is True
+    tmpfs_mount = volumes[2]
+    assert isinstance(tmpfs_mount, ComposeVolumeMount)
+    assert tmpfs_mount.type == "tmpfs"
+    assert tmpfs_mount.tmpfs is not None
+    assert tmpfs_mount.tmpfs.size == 104857600
+    image_mount = volumes[3]
+    assert isinstance(image_mount, ComposeVolumeMount)
+    assert image_mount.type == "image"
+    assert image_mount.image is not None
+    assert image_mount.image.subpath == "dir"
+
+
+def test_parse_compose_yaml_accepts_pids_limit_and_read_only(tmp_path):
+    compose_file = tmp_path / "compose.yaml"
+    compose_file.write_text("""
+services:
+  default:
+    image: ubuntu
+    pids_limit: 512
+    read_only: true
+""")
+    config = parse_compose_yaml(str(compose_file))
+    assert config.services["default"].pids_limit == 512
+    assert config.services["default"].read_only is True
+
+
+def test_parse_compose_yaml_accepts_interpolated_pids_limit(tmp_path):
+    # compose interpolation forms must survive parsing (resolution is the
+    # compose CLI's job, not the parser's)
+    compose_file = tmp_path / "compose.yaml"
+    compose_file.write_text("""
+services:
+  default:
+    image: ubuntu
+    pids_limit: ${PIDS_LIMIT}
+""")
+    config = parse_compose_yaml(str(compose_file))
+    assert config.services["default"].pids_limit == "${PIDS_LIMIT}"
+
+
+def test_parse_compose_yaml_accepts_build_no_cache(tmp_path):
+    compose_file = tmp_path / "compose.yaml"
+    compose_file.write_text("""
+services:
+  default:
+    build:
+      context: .
+      no_cache: true
+""")
+    config = parse_compose_yaml(str(compose_file))
+    build = config.services["default"].build
+    assert build is not None and not isinstance(build, str)
+    assert build.no_cache is True
 
 
 def test_parse_compose_yaml_rejects_unknown_field(tmp_path):
