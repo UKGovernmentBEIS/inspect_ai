@@ -290,10 +290,11 @@ def generate_config_from_anthropic(json_data: dict[str, Any]) -> GenerateConfig:
                     name=name,
                     # NOTE: Inspect's `JSONSchema` does not model every keyword
                     # Anthropic's structured outputs accept (`allOf`, `const`,
-                    # `$ref`/`$defs`, `minItems`), and unmodelled keywords are dropped
-                    # rather than rejected -- so a schema using them is forwarded
-                    # weaker than the client asked for. Raised on the PR for a
-                    # decision; not silently coerced without this note.
+                    # `$ref`/`$defs`, `minItems`), and unmodelled keywords are
+                    # dropped rather than rejected -- so a schema using them is
+                    # forwarded weaker than the client asked for.
+                    # `client_json_schema` warns when that happens; see its
+                    # docstring for why dropping beats a 400 here.
                     json_schema=client_json_schema(
                         schema, "output_config.format.schema"
                     ),

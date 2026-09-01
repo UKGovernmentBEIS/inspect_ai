@@ -135,6 +135,57 @@ def validate_client_config(config: GenerateConfig) -> None:
         ) from ex
 
 
+# schema-valued positions `JSONSchema` models, i.e. where a nested schema (or a
+# collection of them) lives rather than arbitrary client JSON. `default`, `enum`
+# and `examples` hold client values that can themselves be objects with
+# schema-looking keys, so they are deliberately not walked.
+_NESTED_SCHEMA_FIELDS = ("items", "additionalProperties")
+_NESTED_SCHEMA_COLLECTIONS = ("properties", "anyOf")
+
+# annotations rather than constraints: dropping them costs the request nothing,
+# and `title` in particular is on every field of a pydantic-generated schema, so
+# reporting it would fire the warning for schemas that lost nothing at all.
+_ANNOTATIVE_SCHEMA_KEYWORDS = frozenset(
+    {"title", "$schema", "$id", "$comment", "deprecated", "readOnly", "writeOnly"}
+)
+
+
+def _unmodelled_schema_keywords(schema: Any) -> set[str]:
+    """Collect keywords in a client schema that `JSONSchema` does not model.
+
+    `JSONSchema` is a pydantic model with the default `extra="ignore"`, so any
+    keyword it lacks a field for is dropped on validation rather than rejected.
+    Walks the nested schema positions `JSONSchema` itself models; keys under
+    `properties` are client-chosen property names rather than keywords, so only
+    their values are inspected. Purely annotative keywords are not reported --
+    only ones whose loss actually weakens what the model is asked for.
+    """
+    if not isinstance(schema, dict):
+        return set()
+
+    dropped = {
+        key
+        for key in schema
+        if key not in JSONSchema.model_fields and key not in _ANNOTATIVE_SCHEMA_KEYWORDS
+    }
+
+    for field in _NESTED_SCHEMA_FIELDS:
+        dropped |= _unmodelled_schema_keywords(schema.get(field))
+    for field in _NESTED_SCHEMA_COLLECTIONS:
+        nested = schema.get(field)
+        values = (
+            nested.values()
+            if isinstance(nested, dict)
+            else nested
+            if isinstance(nested, list)
+            else ()
+        )
+        for value in values:
+            dropped |= _unmodelled_schema_keywords(value)
+
+    return dropped
+
+
 def client_json_schema(schema: dict[str, Any], dialect_field: str) -> JSONSchema:
     """Parse a client-supplied JSON Schema, answering 400 rather than escaping.
 
@@ -143,7 +194,25 @@ def client_json_schema(schema: dict[str, Any], dialect_field: str) -> JSONSchema
     `status: None`, which the sandbox service treats as a translation failure --
     traceback in the log, no status for the client. That is the same unreadable
     outcome `validate_client_config` exists to prevent, so route it to the same 400.
+
+    Keywords `JSONSchema` does not model are dropped rather than rejected, so the
+    served model is constrained more weakly than the client asked. That is not an
+    edge case: pydantic emits `$defs`/`$ref` for any nested model or enum, and a
+    dropped `$ref` leaves the property an empty schema (`{}`) while it stays
+    `required`. Dropping beats a 400 here -- the real API accepts these keywords,
+    so rejecting would be a regression against talking to it unbridged -- but the
+    warning is what makes it diagnosable, since the client otherwise just sees a
+    response that fails its own validation.
     """
+    if dropped := _unmodelled_schema_keywords(schema):
+        warn_once(
+            logger,
+            f"The bridged request's {dialect_field} uses JSON Schema keywords "
+            f"Inspect does not model ({', '.join(sorted(dropped))}); they have "
+            "been dropped, so the model is constrained more weakly than the "
+            "request asked. A dropped '$ref' in particular leaves that property "
+            "unconstrained.",
+        )
     try:
         return JSONSchema.model_validate(schema)
     except ValidationError as ex:

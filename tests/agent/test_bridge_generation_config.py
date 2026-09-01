@@ -6,7 +6,10 @@ forward client generation parameters, the default). They are fast and require no
 provider SDKs or API keys.
 """
 
+from typing import Any
+
 import pytest
+from pydantic import BaseModel
 
 from inspect_ai.agent._bridge._errors import (
     BridgePolicyError,
@@ -22,7 +25,9 @@ from inspect_ai.agent._bridge.responses_impl import (
 )
 from inspect_ai.agent._bridge.util import (
     _GENERATION_PARAM_FIELDS,
+    _unmodelled_schema_keywords,
     clear_generation_params,
+    client_json_schema,
     validate_client_config,
 )
 
@@ -609,3 +614,130 @@ def test_google_usage_metadata_reports_thinking_tokens():
     assert "thoughtsTokenCount" not in without
     # nothing to subtract, so output_tokens passes straight through
     assert without["candidatesTokenCount"] == 40
+
+
+@pytest.fixture
+def _warn_once_messages() -> Any:
+    # warn_once dedupes via a module-level list; clear it and yield it so the
+    # test can assert on what was emitted. caplog isn't reliable here because
+    # init_logger sets propagate=False on the inspect_ai logger once any
+    # earlier test triggers it.
+    from inspect_ai._util import logger as _inspect_logger
+
+    _inspect_logger._warned.clear()
+    yield _inspect_logger._warned
+    _inspect_logger._warned.clear()
+
+
+def test_unmodelled_schema_keywords_reports_only_real_losses():
+    """Dropped keywords must be detected, without crying wolf.
+
+    `JSONSchema` is a pydantic model with the default `extra="ignore"`, so any
+    keyword it lacks a field for is silently dropped. The detection has to walk
+    nested schemas to be useful, and skip client-controlled values to be
+    trustworthy -- a warning that fires on every schema teaches people to ignore
+    it.
+    """
+
+    # pydantic emits `title` on every field, so a flat model loses nothing
+    class Flat(BaseModel):
+        name: str
+        age: int
+
+    assert _unmodelled_schema_keywords(Flat.model_json_schema()) == set()
+
+    # ...but any nested model or enum emits `$defs`/`$ref`, which does lose
+    # something: the `$ref` property collapses to an empty schema.
+    class Address(BaseModel):
+        street: str
+
+    class Person(BaseModel):
+        name: str
+        address: Address
+
+    assert _unmodelled_schema_keywords(Person.model_json_schema()) == {"$defs", "$ref"}
+
+    # nested schema positions are walked
+    assert _unmodelled_schema_keywords(
+        {
+            "type": "array",
+            "items": {"type": "object", "properties": {"a": {"minItems": 2}}},
+            "anyOf": [{"const": 3}],
+        }
+    ) == {"minItems", "const"}
+
+    # `properties` keys are client-chosen names, not keywords
+    assert (
+        _unmodelled_schema_keywords(
+            {
+                "type": "object",
+                "properties": {
+                    "$ref": {"type": "string"},
+                    "allOf": {"type": "integer"},
+                },
+            }
+        )
+        == set()
+    )
+
+    # `default`/`examples` hold client values that may themselves look like
+    # schemas; walking them would report keywords that were never dropped
+    assert (
+        _unmodelled_schema_keywords(
+            {
+                "type": "object",
+                "properties": {
+                    "x": {
+                        "type": "object",
+                        "default": {"const": 1, "$ref": "#/nope"},
+                        "examples": [{"allOf": []}],
+                    }
+                },
+            }
+        )
+        == set()
+    )
+
+
+def test_client_json_schema_warns_when_keywords_are_dropped(_warn_once_messages):
+    """A silently weakened schema must at least be diagnosable.
+
+    A dropped `$ref` leaves the property an unconstrained `{}` while it stays
+    `required`, so the model is free to return anything there and the client's own
+    validation fails on the response. Without the warning there is nothing tying
+    that failure back to the bridge.
+    """
+
+    class Address(BaseModel):
+        street: str
+
+    class Person(BaseModel):
+        name: str
+        address: Address
+
+    schema = client_json_schema(
+        Person.model_json_schema(), "output_config.format.schema"
+    )
+
+    assert len(_warn_once_messages) == 1
+    assert "output_config.format.schema" in _warn_once_messages[0]
+    assert "$ref" in _warn_once_messages[0]
+    assert "$defs" in _warn_once_messages[0]
+
+    # the dropped `$ref` is the loss the warning is about: `address` survives as
+    # an empty schema rather than the nested object the client asked for
+    assert schema.properties is not None
+    assert schema.properties["address"].model_dump(exclude_none=True) == {}
+    assert schema.required == ["name", "address"]
+
+
+def test_client_json_schema_silent_for_fully_modelled_schema(_warn_once_messages):
+    client_json_schema(
+        {
+            "type": "object",
+            "properties": {"a": {"type": "string", "pattern": "x"}},
+            "required": ["a"],
+        },
+        "output_config.format.schema",
+    )
+    assert _warn_once_messages == []
