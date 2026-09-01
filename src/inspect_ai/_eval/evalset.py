@@ -412,7 +412,7 @@ def eval_set(
         max_tasks: Maximum number of tasks to run in parallel
             (defaults to the greater of 10 and the number of models being evaluated)
         max_subprocesses: Maximum number of subprocesses to
-            run in parallel (default is os.cpu_count())
+            run in parallel (default is the number of processors available to the eval)
         max_sandboxes: Maximum number of sandboxes (per-provider)
             to run in parallel.
         log_samples: Log detailed samples and scores (defaults to True)

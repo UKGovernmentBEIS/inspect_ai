@@ -169,3 +169,13 @@ def test_the_docker_default_is_two_sandboxes_per_available_processor(
     (cgroup_at / "cpu.max").write_text("200000 100000\n")
 
     assert DockerSandboxEnvironment.default_concurrency() == 4
+
+
+def test_the_subprocess_default_is_one_per_available_processor(
+    cgroup_at: Path,
+) -> None:
+    from inspect_ai.util._subprocess import default_max_subprocesses
+
+    (cgroup_at / "cpu.max").write_text("300000 100000\n")
+
+    assert default_max_subprocesses() == 3

@@ -2,7 +2,7 @@
 
 - Scorer: `pattern()` now falls back to the full regex match when the pattern contains no explicit capture groups (previously such patterns always scored INCORRECT). (#4828)
 - Bugfix: Bump the `fsspec` upper bound from `<=2025.9.0` to `<=2026.6.0` to align with the current `huggingface/datasets` cap. (#4761)
-- Docker: Sandbox concurrency now defaults off the processors the eval may actually use rather than the host's, so an eval running in a CPU-limited container (`--cpus`, `--cpuset-cpus`, a Kubernetes `limits.cpu`) no longer oversubscribes its own quota. Applies to `max_sandboxes` and to the docker CLI concurrency limit.
+- Concurrency: `max_sandboxes` and `max_subprocesses` now default off the processors the eval may actually use rather than the host's, so an eval running in a CPU-limited container (`--cpus`, `--cpuset-cpus`, a Kubernetes `limits.cpu`) no longer oversubscribes its own quota. Also applies to the docker CLI concurrency limit.
 - Tools: The `grep` tool now supports extended regex via a new `extended_regexp` option (patterns remain basic regex by default).
 - Agent Bridge: Bridged Anthropic requests now preserve `system` block boundaries, so instruction blocks are no longer silently discarded by the API.
 - Anthropic: A single assistant turn that interleaves thinking with client tool calls now replays in its original order, so subsequent requests no longer fail with "thinking ... blocks in the latest assistant message cannot be modified".

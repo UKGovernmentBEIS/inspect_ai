@@ -12,7 +12,7 @@ Note that when `max_sandboxes` is applied this effectively creates a global `max
 
 ### Max Subprocesses
 
-The `max_subprocesses` option determines how many subprocess calls can run in parallel. By default, this is set to `os.cpu_count()`. Depending on the nature of execution done inside sandbox environments, you might benefit from increasing or decreasing `max_subprocesses`.
+The `max_subprocesses` option determines how many subprocess calls can run in parallel. By default, this is the number of processors available to the eval (under a container CPU limit, that limit rather than the host's processor count). Depending on the nature of execution done inside sandbox environments, you might benefit from increasing or decreasing `max_subprocesses`.
 
 ### Max Samples
 
