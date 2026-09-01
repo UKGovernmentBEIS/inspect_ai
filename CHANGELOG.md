@@ -35,6 +35,7 @@
 - Agent bridge: A bridged structured-output request whose JSON Schema uses keywords Inspect does not model (e.g. `$ref`) now warns, instead of silently constraining the model more weakly than asked.
 - Eval Log: Buffer manifest segment entries are now `TypedDict`s rather than pydantic models, cutting manifest parse time and GC pressure on the sync thread for runs with many segments.
 - Eval Log: Buffer manifests are no longer written with indentation, which accounted for ~41% of their bytes on every `log_shared` sync.
+- Bugfix: Approval policies set on a `Task` are now recorded in the eval log.
 - OpenAI: Responses API requests now omit the `id` key on synthesized message and reasoning items rather than sending an explicit null, which backends like vLLM reject.
 - Hooks: Fixed hooks published by extension packages silently not loading when another hook was already registered at startup.
 - Bugfix: Model calls no longer time out during long samples with realtime logging or bounded transcripts enabled.
@@ -42,6 +43,7 @@
 - Metrics: Add `ci_wilson()` metric reporting the Wilson score confidence interval for the mean of binary scores (as `{"lower", "upper"}`), with bounds always within [0, 1]; `cluster=` computes an effective-sample-size interval accounting for within-cluster correlation.
 - Agent Bridge: Image tool results now reach sandboxed agents as MCP image content instead of being flattened to text.
 - Scoring: `inspect_ai.scorer` now exports `Reference`, the model for the message/event references that scanner scores store in metadata (previously importable only from Inspect Scout).
+- Moonshot: Sampling parameters (`temperature`, `top_p`, penalties) set on Kimi models with thinking disabled are now warned about and ignored instead of causing a 400 error.
 
 ## 0.3.260 (21 August 2026)
 
