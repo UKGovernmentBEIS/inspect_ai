@@ -34,6 +34,7 @@
 - Agent bridge: A bridged structured-output request whose JSON Schema uses keywords Inspect does not model (e.g. `$ref`) now warns, instead of silently constraining the model more weakly than asked.
 - Eval Log: Buffer manifest segment entries are now `TypedDict`s rather than pydantic models, cutting manifest parse time and GC pressure on the sync thread for runs with many segments.
 - Eval Log: Buffer manifests are no longer written with indentation, which accounted for ~41% of their bytes on every `log_shared` sync.
+- Bugfix: Approval policies set on a `Task` are now recorded in the eval log.
 - OpenAI: Responses API requests now omit the `id` key on synthesized message and reasoning items rather than sending an explicit null, which backends like vLLM reject.
 - Hooks: Fixed hooks published by extension packages silently not loading when another hook was already registered at startup.
 - Bugfix: Model calls no longer time out during long samples with realtime logging or bounded transcripts enabled.
