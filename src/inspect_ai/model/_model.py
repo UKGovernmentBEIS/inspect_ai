@@ -224,8 +224,8 @@ class RetryDecision:
 
     `should_retry()` may return either a plain `bool` (legacy: any True
     is treated as a generic transient retry) or a `RetryDecision` to
-    additionally classify the retry kind and pass server-suggested wait
-    times to the adaptive concurrency controller.
+    additionally classify the retry kind for the adaptive concurrency
+    controller and separately record any server-suggested wait time.
 
     `RetryDecision` is truthy iff `retry` is True, so existing callers
     written against the `bool` return (`if api.should_retry(ex): ...`)
@@ -247,7 +247,11 @@ class RetryDecision:
     """
 
     retry_after: float | None = None
-    """Recommended seconds to wait before retrying, if the server provided one (e.g. via `Retry-After`)."""
+    """Recommended seconds to wait before retrying, if the server provided one (e.g. via `Retry-After`).
+
+    Exposed and reserved for future use: nothing currently consumes it — it
+    affects neither Inspect's retry backoff nor the adaptive concurrency cooldown.
+    """
 
     def __bool__(self) -> bool:
         return self.retry

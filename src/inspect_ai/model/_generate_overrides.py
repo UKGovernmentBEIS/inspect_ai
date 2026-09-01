@@ -6,7 +6,7 @@ generate call), ``attempt_timeout`` (the per-attempt timeout) and
 (or failing fast through) a provider incident without killing the run.
 
 These fields are safe to retune by construction: they are excluded from
-``task_identifier`` (see ``_GENERATE_CONFIG_FIELDS_TO_EXCLUDE`` in
+``task_identifier`` (see ``GENERATE_CONFIG_FIELDS_TO_EXCLUDE`` in
 ``inspect_ai._eval.evalset``) precisely because they don't affect model
 outputs, so a mid-flight change can't corrupt eval-set pairing or
 reproducibility.

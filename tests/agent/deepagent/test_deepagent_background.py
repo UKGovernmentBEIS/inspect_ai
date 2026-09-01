@@ -1205,6 +1205,43 @@ class TestAgentList:
         assert "AGENT-2" in body
         assert "AGENT-1" not in body
 
+    def test_list_omits_results_and_stays_brief(self) -> None:
+        """agent_list must not embed reports — it is the re-orientation tool.
+
+        Completed futures stay in the registry for the whole sample, so a
+        listing that embedded their reports would grow without bound as
+        dispatches accumulate. agent_status is the retrieval path.
+        """
+        report_a = "A" * 40_000
+        report_b = "B" * 40_000
+        result = _eval_deepagent(
+            agent_kwargs={
+                "subagents": [
+                    _build_submit_subagent("alpha", report_a),
+                    _build_submit_subagent("beta", report_b),
+                ]
+            },
+            outputs=[
+                _agent_call("alpha"),
+                _agent_call("beta"),
+                _tool_call("agent_wait", agent_ids=["AGENT-1", "AGENT-2"]),
+                _tool_call("agent_list"),
+                _tool_call("agent_status", agent_id="AGENT-1"),
+                _submit("done"),
+            ],
+        )
+
+        listing = str(_events_for(result, "agent_list")[0].result)
+        assert "AGENT-1" in listing and "AGENT-2" in listing
+        assert report_a not in listing and report_b not in listing
+        # brief means brief, whatever the reports weigh
+        assert len(listing) < 1000
+        assert "agent_status" in listing  # points at the retrieval path
+
+        # ...and the retrieval path still returns the report whole
+        status = str(_events_for(result, "agent_status")[0].result)
+        assert report_a in status
+
 
 class TestFormatStatusUnit:
     """Unit tests for _format_future_status / _peek_messages."""

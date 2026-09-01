@@ -49,7 +49,7 @@ from openai.types.chat import (
 from openai.types.chat.chat_completion import Choice, ChoiceLogprobs
 from openai.types.chat.chat_completion_content_part_param import File, FileFile
 from openai.types.chat.chat_completion_message_function_tool_call import Function
-from openai.types.completion_usage import CompletionUsage
+from openai.types.completion_usage import CompletionUsage, PromptTokensDetails
 from openai.types.shared_params.function_definition import FunctionDefinition
 from pydantic import JsonValue
 
@@ -483,9 +483,23 @@ def openai_chat_choices(choices: list[ChatCompletionChoice]) -> list[Choice]:
 
 
 def openai_completion_usage(usage: ModelUsage) -> CompletionUsage:
+    input_tokens_cache_read = usage.input_tokens_cache_read or 0
+    input_tokens_cache_write = usage.input_tokens_cache_write or 0
+    prompt_tokens_details = (
+        PromptTokensDetails(
+            cached_tokens=input_tokens_cache_read,
+            cache_write_tokens=input_tokens_cache_write,
+        )
+        if usage.input_tokens_cache_read is not None
+        or usage.input_tokens_cache_write is not None
+        else None
+    )
     return CompletionUsage(
         completion_tokens=usage.output_tokens,
-        prompt_tokens=usage.input_tokens,
+        prompt_tokens=(
+            usage.input_tokens + input_tokens_cache_read + input_tokens_cache_write
+        ),
+        prompt_tokens_details=prompt_tokens_details,
         total_tokens=usage.total_tokens,
     )
 
@@ -914,23 +928,38 @@ def model_output_from_openai(
     completion: ChatCompletion,
     choices: list[ChatCompletionChoice],
 ) -> ModelOutput:
+    cached_tokens = (
+        completion.usage.prompt_tokens_details.cached_tokens
+        if completion.usage
+        and completion.usage.prompt_tokens_details is not None
+        and completion.usage.prompt_tokens_details.cached_tokens is not None
+        else 0
+    )
+    cache_write_tokens = (
+        completion.usage.prompt_tokens_details.cache_write_tokens
+        if completion.usage
+        and completion.usage.prompt_tokens_details is not None
+        and completion.usage.prompt_tokens_details.cache_write_tokens is not None
+        else 0
+    )
     return ModelOutput(
         model=completion.model,
         choices=choices,
         usage=(
             ModelUsage(
-                input_tokens=completion.usage.prompt_tokens
-                - (
-                    completion.usage.prompt_tokens_details.cached_tokens
-                    if completion.usage.prompt_tokens_details is not None
-                    and completion.usage.prompt_tokens_details.cached_tokens is not None
-                    else 0
+                input_tokens=(
+                    completion.usage.prompt_tokens - cached_tokens - cache_write_tokens
                 ),
                 output_tokens=completion.usage.completion_tokens,
                 input_tokens_cache_read=(
                     completion.usage.prompt_tokens_details.cached_tokens
                     if completion.usage.prompt_tokens_details is not None
-                    else None  # openai only have cache read stats/pricing.
+                    else None
+                ),
+                input_tokens_cache_write=(
+                    completion.usage.prompt_tokens_details.cache_write_tokens
+                    if completion.usage.prompt_tokens_details is not None
+                    else None
                 ),
                 reasoning_tokens=(
                     completion.usage.completion_tokens_details.reasoning_tokens
@@ -1258,8 +1287,7 @@ def openai_classify_retry(ex: BaseException) -> "RetryDecision | None":
     """Classify an OpenAI SDK exception as rate_limit / transient / not retryable.
 
     Returns None when the exception isn't retryable. Reads `Retry-After` and
-    `x-ratelimit-reset-*` from the response headers when available so the
-    adaptive controller can honor server-suggested wait times.
+    `x-ratelimit-reset-*` from the response headers when available.
     """
     from inspect_ai.model._model import RetryDecision
 

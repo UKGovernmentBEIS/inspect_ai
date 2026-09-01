@@ -175,7 +175,10 @@ def test_anthropic_forward_then_clear():
     # reasoning_tokens and effort specifically must be among the cleared fields
     assert config.reasoning_tokens is None
     assert config.effort is None
-    assert config.system_message == "You are a dope model."
+    # `system` no longer flows through GenerateConfig: it is hoisted into
+    # leading ChatMessageSystem messages (one per block) by the request impl
+    # (see the impl-level tests in test_bridge_anthropic_messages.py)
+    assert config.system_message is None
     assert config.stop_seqs == ["foo"]
     assert config.parallel_tool_calls is False
 
