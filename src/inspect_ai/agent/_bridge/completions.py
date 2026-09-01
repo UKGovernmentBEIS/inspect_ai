@@ -26,6 +26,7 @@ from .util import (
     resolve_generate_config,
     resolve_inspect_model,
     validate_bridge_media,
+    validate_client_config,
 )
 
 if TYPE_CHECKING:
@@ -69,6 +70,7 @@ async def inspect_completions_api_request(
     config = generate_config_from_openai_completions(json_data)
     if not bridge.forward_generation_config:
         clear_generation_params(config)
+    validate_client_config(config)
     config.extra_headers = headers
     if config.system_message is not None:
         messages.insert(0, ChatMessageSystem(content=config.system_message))

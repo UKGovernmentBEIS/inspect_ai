@@ -7123,6 +7123,43 @@ def test_sample_requeue_noop_human_output(monkeypatch: pytest.MonkeyPatch) -> No
     )
 
 
+def test_sample_requeue_uncancel_reason_wins(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The un-cancel accept renders its reason, not the resume clause.
+
+    An un-cancelled sample never ran and its parked coroutine keeps its
+    place at the queue, so "re-run from the back of the sample queue" would
+    misdescribe it on both counts (design/ctl/queued-sample-cancel.md).
+    """
+    summary = _full_summary("aaa111", "t1")
+    summary["epochs"] = 1
+    _patch_surface(monkeypatch, [summary])
+    reason = "cancel-before-start withdrawn — the sample will run when it gets a slot"
+    spy = _RequestSpy(
+        {
+            "ok": True,
+            "sample_id": "s1",
+            "epoch": 1,
+            "changed": True,
+            "status": "pending",
+            "reason": reason,
+        }
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
+
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "requeue", "aaa111", "s1", "--no-terse"]
+    )
+    assert result.exit_code == 0, result.output
+    assert f"Requeue accepted for sample s1 (epoch 1) — {reason}." in result.stdout
+    assert "back of the sample queue" not in result.stdout
+
+    terse = cli_runner().invoke(ctl_command, ["sample", "requeue", "aaa111", "s1"])
+    assert terse.exit_code == 0, terse.output
+    assert terse.stdout == f"requeue t1/s1 (epoch 1): {reason}\n"
+
+
 def test_sample_requeue_multiple_pairs_bulk_envelope(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -7504,6 +7541,82 @@ def test_sample_cancel_noop_human_output(monkeypatch: pytest.MonkeyPatch) -> Non
     assert result.exit_code == 0, result.output
     assert "already finished" in result.stdout
     assert "status: completed" in result.stdout
+
+
+def test_sample_cancel_queued_reason_wins(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The queued cancel rows render their reason, not the generic outcome.
+
+    "It will be recorded as cancelled" would misdescribe a sample that never
+    runs (design/ctl/queued-sample-cancel.md), so the accept renders the
+    server's reason; the "already cancelled" repeat renders its reason too
+    (only the already-finished row gets the status-suffixed message).
+    """
+    summary = _full_summary("aaa111", "t1")
+    summary["epochs"] = 1
+    _patch_surface(monkeypatch, [summary])
+    reason = "cancelled before start — removed from the queue"
+    spy = _RequestSpy(
+        {
+            "ok": True,
+            "sample_id": "s1",
+            "epoch": 1,
+            "changed": True,
+            "status": "cancelled",
+            "reason": reason,
+        }
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
+
+    args = ["sample", "cancel", "aaa111", "s1", "--action", "cancel"]
+    result = cli_runner().invoke(ctl_command, args + ["--no-terse"])
+    assert result.exit_code == 0, result.output
+    assert f"Cancelled sample s1 (epoch 1) — {reason}." in result.stdout
+    assert "will be recorded as cancelled" not in result.stdout
+
+    terse = cli_runner().invoke(ctl_command, args)
+    assert terse.exit_code == 0, terse.output
+    assert terse.stdout == f"cancel t1/s1 (epoch 1): {reason}\n"
+
+    # under --dry-run the server sends a conditional-tense reason, so the
+    # "Would cancel …" line doesn't embed a past-tense mutation
+    dry_reason = (
+        "the sample would be cancelled before it starts and removed from the queue"
+    )
+    dry_spy = _RequestSpy(
+        {
+            "ok": True,
+            "sample_id": "s1",
+            "epoch": 1,
+            "dry_run": True,
+            "changed": True,
+            "status": "cancelled",
+            "reason": dry_reason,
+        }
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", dry_spy)
+    dry = cli_runner().invoke(ctl_command, args + ["--dry-run", "--no-terse"])
+    assert dry.exit_code == 0, dry.output
+    assert f"Would cancel sample s1 (epoch 1) — {dry_reason}." in dry.stdout
+
+    noop_spy = _RequestSpy(
+        {
+            "ok": True,
+            "sample_id": "s1",
+            "epoch": 1,
+            "changed": False,
+            "status": "cancelled",
+            "reason": "already cancelled",
+        }
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", noop_spy)
+    noop = cli_runner().invoke(ctl_command, args + ["--no-terse"])
+    assert noop.exit_code == 0, noop.output
+    assert "Nothing to do — sample s1 (epoch 1): already cancelled." in noop.stdout
+    assert "has already finished" not in noop.stdout
+
+    terse_noop = cli_runner().invoke(ctl_command, args)
+    assert terse_noop.exit_code == 0, terse_noop.output
+    assert terse_noop.stdout == "cancel t1/s1 (epoch 1): no-op — already cancelled\n"
 
 
 def test_sample_mutation_terse_default_and_flags(
