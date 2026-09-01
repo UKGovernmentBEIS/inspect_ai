@@ -285,6 +285,45 @@ def test_mixed_reasoning_blocks_filtering():
     assert ids == {"r1", "r2", "r3", "r4", "r5"}
 
 
+def test_items_without_real_ids_omit_id_key():
+    """Test that synthesized items omit 'id' rather than sending an explicit null."""
+    # No MESSAGE_ID internal and no reasoning signature -> no real ids available
+    message = ChatMessageAssistant(
+        content=[
+            ContentText(text="Synthesized text"),
+            ContentReasoning(reasoning="Some reasoning"),
+        ],
+        model="test",
+        source="generate",
+    )
+
+    items = _openai_input_items_from_chat_message_assistant(message)
+
+    message_items = [item for item in items if item.get("type") == "message"]
+    reasoning_items = [item for item in items if item.get("type") == "reasoning"]
+    assert len(message_items) == 1
+    assert len(reasoning_items) == 1
+    assert "id" not in message_items[0]
+    assert "id" not in reasoning_items[0]
+
+    # replayed items with real ids keep them
+    message = ChatMessageAssistant(
+        content=[
+            ContentText(text="Replayed text", internal={MESSAGE_ID: "msg_1"}),
+            ContentReasoning(reasoning="Some reasoning", signature="rs_1"),
+        ],
+        model="test",
+        source="generate",
+    )
+
+    items = _openai_input_items_from_chat_message_assistant(message)
+
+    message_items = [item for item in items if item.get("type") == "message"]
+    reasoning_items = [item for item in items if item.get("type") == "reasoning"]
+    assert message_items[0]["id"] == "msg_1"
+    assert reasoning_items[0]["id"] == "rs_1"
+
+
 async def test_responses_api_invalid_prompt_content_filter():
     """Test that invalid_prompt error in responses API returns content_filter."""
     from openai.types.responses import Response, ResponseError
@@ -531,6 +570,70 @@ async def test_responses_api_no_background_by_default() -> None:
         _completed_mock_response(), capture_request=request
     )
     assert "background" not in request
+
+
+async def test_background_response_retries_openai_connection_error() -> None:
+    from unittest.mock import AsyncMock, MagicMock, patch
+
+    import httpx2
+    from openai import APIConnectionError
+
+    from inspect_ai.model._providers.openai_responses import (
+        wait_for_background_response,
+    )
+
+    completed_response = _completed_mock_response()
+    pending_response = completed_response.model_copy(update={"status": "in_progress"})
+
+    client = MagicMock()
+    client.responses.retrieve = AsyncMock(
+        side_effect=[
+            APIConnectionError(request=httpx2.Request("GET", "https://example.com")),
+            completed_response,
+        ]
+    )
+
+    with patch(
+        "inspect_ai.model._providers.openai_responses.anyio.sleep",
+        new=AsyncMock(),
+    ):
+        response = await wait_for_background_response(client, pending_response)
+
+    assert response is completed_response
+    assert client.responses.retrieve.await_count == 2
+
+
+async def test_background_response_reraises_connection_error_on_exhaustion() -> None:
+    from unittest.mock import AsyncMock, MagicMock, patch
+
+    import httpx2
+    import pytest
+    from openai import APIConnectionError
+
+    from inspect_ai.model._providers.openai_responses import (
+        wait_for_background_response,
+    )
+
+    pending_response = _completed_mock_response().model_copy(
+        update={"status": "in_progress"}
+    )
+    connection_error = APIConnectionError(
+        request=httpx2.Request("GET", "https://example.com")
+    )
+    client = MagicMock()
+    client.responses.retrieve = AsyncMock(side_effect=connection_error)
+
+    with (
+        patch(
+            "inspect_ai.model._providers.openai_responses.anyio.sleep",
+            new=AsyncMock(),
+        ),
+        pytest.raises(APIConnectionError) as exc_info,
+    ):
+        await wait_for_background_response(client, pending_response)
+
+    assert exc_info.value is connection_error
+    assert client.responses.retrieve.await_count == 5
 
 
 def test_fix_function_tool_parameters_string_to_dict():

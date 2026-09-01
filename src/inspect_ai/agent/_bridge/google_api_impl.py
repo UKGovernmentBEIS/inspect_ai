@@ -57,6 +57,7 @@ from .util import (
     resolve_generate_config,
     resolve_inspect_model,
     validate_bridge_media,
+    validate_client_config,
     withheld_bridge_tool,
 )
 
@@ -117,6 +118,7 @@ async def inspect_google_api_request_impl(
     config = generate_config_from_google(generation_config)
     if not bridge.forward_generation_config:
         clear_generation_params(config)
+    validate_client_config(config)
 
     # try to maintain id stability
     apply_message_ids(bridge, messages)
@@ -161,6 +163,24 @@ def generate_config_from_google(generation_config: dict[str, Any]) -> GenerateCo
         "stopSequences", generation_config.get("stop_sequences")
     )
 
+    # The provider sends all of these, but nothing read them off the request,
+    # so a client setting any of them silently got the model default.
+    #
+    # `candidateCount` is deliberately NOT forwarded: `google_response_from_output`
+    # emits exactly one candidate, so forwarding it would make Gemini generate
+    # (and bill for) N candidates while the client still sees one. Forwarding it
+    # needs the response builder to surface `output.choices` first.
+    config.presence_penalty = generation_config.get(
+        "presencePenalty", generation_config.get("presence_penalty")
+    )
+    config.frequency_penalty = generation_config.get(
+        "frequencyPenalty", generation_config.get("frequency_penalty")
+    )
+    config.logprobs = generation_config.get(
+        "responseLogprobs", generation_config.get("response_logprobs")
+    )
+    config.top_logprobs = generation_config.get("logprobs")
+
     # structured output: responseJsonSchema is standard JSON Schema; responseSchema
     # is Gemini's OpenAPI-style Schema (uppercase types) which we normalize.
     schema = generation_config.get("responseJsonSchema") or generation_config.get(
@@ -173,6 +193,30 @@ def generate_config_from_google(generation_config: dict[str, Any]) -> GenerateCo
                 _google_schema_to_json_schema(schema)
             ),
         )
+
+    # thinkingConfig carries Gemini's reasoning budget. The provider already
+    # rebuilds a `ThinkingConfig` from `config.reasoning_tokens` (and sets
+    # include_thoughts), so the budget only needs mapping onto it -- without this
+    # the field has no extraction site at all and a client asking for a thinking
+    # budget silently gets the model default. Same defect the Anthropic path had
+    # for `output_config.effort`.
+    thinking_config = generation_config.get(
+        "thinkingConfig", generation_config.get("thinking_config")
+    )
+    if isinstance(thinking_config, dict):
+        budget = thinking_config.get(
+            "thinkingBudget", thinking_config.get("thinking_budget")
+        )
+        if budget is not None:
+            config.reasoning_tokens = budget
+        # KNOWN GAP: `includeThoughts` is not honoured. Forwarding the budget above
+        # makes the Google provider build a ThinkingConfig, and it hardcodes
+        # `include_thoughts=True` (see model/_providers/google.py), so a client
+        # sending `includeThoughts: false` alongside a budget still gets thought
+        # parts. Not a regression -- the whole `thinkingConfig` was ignored before
+        # this change -- and not closed here because `GenerateConfig` has no slot for
+        # it, so honouring it means adding a core config field rather than mapping an
+        # existing one, which is a separate change with its own justification.
 
     # NOTE: We deliberately do NOT set config.system_message from system_instruction here.
     # The system_instruction is already converted to ChatMessageSystem messages in
@@ -663,11 +707,27 @@ def gemini_usage_metadata(usage: ModelUsage | None) -> dict[str, int]:
             "candidatesTokenCount": 0,
             "totalTokenCount": 0,
         }
-    return {
+    # Gemini's `candidatesTokenCount` EXCLUDES thinking tokens, while Inspect's
+    # `ModelUsage.output_tokens` INCLUDES them and reports the subset separately in
+    # `reasoning_tokens` (see model/_providers/google.py). Mapping output_tokens
+    # straight across is therefore only correct while nothing reveals the subset --
+    # emitting `thoughtsTokenCount` below does reveal it, so subtract here or the
+    # two fields sum past `totalTokenCount` and a client reading Gemini's own
+    # arithmetic sees an impossible response.
+    reasoning = usage.reasoning_tokens or 0
+    metadata = {
         "promptTokenCount": usage.input_tokens,
-        "candidatesTokenCount": usage.output_tokens,
+        "candidatesTokenCount": max(usage.output_tokens - reasoning, 0),
         "totalTokenCount": usage.total_tokens,
     }
+    # The provider already parses Gemini's `thoughts_token_count` into
+    # `reasoning_tokens`; without emitting it here a bridged client cannot see
+    # thinking tokens at all, which is the metric reasoning-extraction work
+    # measures. Omitted rather than zeroed when absent, so "no thinking" and
+    # "not reported" stay distinguishable.
+    if usage.reasoning_tokens is not None:
+        metadata["thoughtsTokenCount"] = usage.reasoning_tokens
+    return metadata
 
 
 def _convert_google_enums(obj: Any) -> Any:
