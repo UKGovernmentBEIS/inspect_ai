@@ -1,7 +1,7 @@
 import pytest
 
-from inspect_ai.util import parse_compose_yaml
-from inspect_ai.util._sandbox.compose import ComposeVolumeMount, is_compose_yaml
+from inspect_ai.util import ComposeVolumeMount, parse_compose_yaml
+from inspect_ai.util._sandbox.compose import is_compose_yaml
 
 
 def test_parse_compose_yaml_valid(tmp_path):
@@ -322,6 +322,11 @@ services:
         target: /scratch
         tmpfs:
           size: 104857600
+      - type: image
+        source: my-image
+        target: /app
+        image:
+          subpath: dir
 """)
     config = parse_compose_yaml(str(compose_file))
     volumes = config.services["default"].volumes
@@ -333,11 +338,18 @@ services:
     assert bind_mount.source == "./assets"
     assert bind_mount.target == "/assets"
     assert bind_mount.read_only is True
-    assert bind_mount.bind == {"create_host_path": True}
+    assert bind_mount.bind is not None
+    assert bind_mount.bind.create_host_path is True
     tmpfs_mount = volumes[2]
     assert isinstance(tmpfs_mount, ComposeVolumeMount)
     assert tmpfs_mount.type == "tmpfs"
-    assert tmpfs_mount.tmpfs == {"size": 104857600}
+    assert tmpfs_mount.tmpfs is not None
+    assert tmpfs_mount.tmpfs.size == 104857600
+    image_mount = volumes[3]
+    assert isinstance(image_mount, ComposeVolumeMount)
+    assert image_mount.type == "image"
+    assert image_mount.image is not None
+    assert image_mount.image.subpath == "dir"
 
 
 def test_parse_compose_yaml_accepts_pids_limit_and_read_only(tmp_path):
@@ -352,6 +364,20 @@ services:
     config = parse_compose_yaml(str(compose_file))
     assert config.services["default"].pids_limit == 512
     assert config.services["default"].read_only is True
+
+
+def test_parse_compose_yaml_accepts_interpolated_pids_limit(tmp_path):
+    # compose interpolation forms must survive parsing (resolution is the
+    # compose CLI's job, not the parser's)
+    compose_file = tmp_path / "compose.yaml"
+    compose_file.write_text("""
+services:
+  default:
+    image: ubuntu
+    pids_limit: ${PIDS_LIMIT}
+""")
+    config = parse_compose_yaml(str(compose_file))
+    assert config.services["default"].pids_limit == "${PIDS_LIMIT}"
 
 
 def test_parse_compose_yaml_accepts_build_no_cache(tmp_path):

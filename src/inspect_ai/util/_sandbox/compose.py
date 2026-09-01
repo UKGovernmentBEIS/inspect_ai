@@ -160,14 +160,57 @@ class ComposeBuild(ComposeModel):
     """Disable image builder cache for this service's build."""
 
 
+class ComposeBindOptions(ComposeModel):
+    """Bind options for a long syntax volume mount."""
+
+    propagation: str | None = Field(default=None)
+    """Bind propagation mode (e.g. ``rprivate``, ``shared``)."""
+
+    create_host_path: bool | None = Field(default=None)
+    """Create the host path if it does not exist."""
+
+    recursive: str | None = Field(default=None)
+    """Recursive mount behavior (e.g. ``enabled``, ``readonly``)."""
+
+    selinux: str | None = Field(default=None)
+    """SELinux relabeling option (``z`` or ``Z``)."""
+
+
+class ComposeVolumeOptions(ComposeModel):
+    """Volume options for a long syntax volume mount."""
+
+    nocopy: bool | None = Field(default=None)
+    """Disable copying container path data into the volume."""
+
+    subpath: str | None = Field(default=None)
+    """Path inside the volume to mount instead of its root."""
+
+
+class ComposeTmpfsOptions(ComposeModel):
+    """Tmpfs options for a long syntax volume mount."""
+
+    size: str | int | None = Field(default=None)
+    """Size of the tmpfs (e.g. ``100mb``, or bytes as int)."""
+
+    mode: str | int | None = Field(default=None)
+    """File mode of the tmpfs (e.g. ``0770``)."""
+
+
+class ComposeImageOptions(ComposeModel):
+    """Image options for a long syntax volume mount."""
+
+    subpath: str | None = Field(default=None)
+    """Path inside the image to mount instead of its root."""
+
+
 class ComposeVolumeMount(ComposeModel):
     """Long syntax volume mount for a compose service."""
 
     type: str | None = Field(default=None)
-    """Mount type (e.g. ``bind``, ``volume``, ``tmpfs``)."""
+    """Mount type (e.g. ``bind``, ``volume``, ``tmpfs``, ``image``)."""
 
     source: str | None = Field(default=None)
-    """Mount source (host path, or volume name)."""
+    """Mount source (host path, volume name, or image)."""
 
     target: str | None = Field(default=None)
     """Path in the container where the mount is available."""
@@ -178,14 +221,17 @@ class ComposeVolumeMount(ComposeModel):
     consistency: str | None = Field(default=None)
     """Consistency requirements of the mount (platform-dependent)."""
 
-    bind: dict[str, Any] | None = Field(default=None)
+    bind: ComposeBindOptions | None = Field(default=None)
     """Additional bind options (e.g. ``propagation``, ``create_host_path``)."""
 
-    volume: dict[str, Any] | None = Field(default=None)
+    volume: ComposeVolumeOptions | None = Field(default=None)
     """Additional volume options (e.g. ``nocopy``, ``subpath``)."""
 
-    tmpfs: dict[str, Any] | None = Field(default=None)
+    tmpfs: ComposeTmpfsOptions | None = Field(default=None)
     """Additional tmpfs options (e.g. ``size``, ``mode``)."""
+
+    image: ComposeImageOptions | None = Field(default=None)
+    """Additional image options (e.g. ``subpath``)."""
 
 
 class ComposeResources(ComposeModel):
@@ -316,7 +362,7 @@ class ComposeService(ComposeModel):
     ulimits: dict[str, int | dict[str, int]] | None = Field(default=None)
     """Per-container ulimits (e.g. ``nofile: {soft: 20000, hard: 40000}``)."""
 
-    pids_limit: int | None = Field(default=None)
+    pids_limit: int | str | None = Field(default=None)
     """Maximum number of processes the container may spawn (``-1`` for unlimited)."""
 
     depends_on: list[str] | dict[str, Any] | None = Field(default=None)
