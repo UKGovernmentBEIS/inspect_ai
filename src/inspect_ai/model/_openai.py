@@ -11,6 +11,8 @@ if TYPE_CHECKING:
 
 from openai import (
     APIConnectionError,
+    APIError,
+    APIResponseValidationError,
     APIStatusError,
     APITimeoutError,
     AsyncStream,
@@ -47,7 +49,7 @@ from openai.types.chat import (
 from openai.types.chat.chat_completion import Choice, ChoiceLogprobs
 from openai.types.chat.chat_completion_content_part_param import File, FileFile
 from openai.types.chat.chat_completion_message_function_tool_call import Function
-from openai.types.completion_usage import CompletionUsage
+from openai.types.completion_usage import CompletionUsage, PromptTokensDetails
 from openai.types.shared_params.function_definition import FunctionDefinition
 from pydantic import JsonValue
 
@@ -104,9 +106,11 @@ from ._model_output import (
     collect_stop_details,
 )
 from ._stream import (
+    NoStreamDataError,
     StreamReasoningEvent,
     StreamTextEvent,
     StreamToolCallEvent,
+    model_stream_requested,
     report_model_stream_delta,
     report_model_stream_progress,
     report_model_stream_start,
@@ -479,9 +483,23 @@ def openai_chat_choices(choices: list[ChatCompletionChoice]) -> list[Choice]:
 
 
 def openai_completion_usage(usage: ModelUsage) -> CompletionUsage:
+    input_tokens_cache_read = usage.input_tokens_cache_read or 0
+    input_tokens_cache_write = usage.input_tokens_cache_write or 0
+    prompt_tokens_details = (
+        PromptTokensDetails(
+            cached_tokens=input_tokens_cache_read,
+            cache_write_tokens=input_tokens_cache_write,
+        )
+        if usage.input_tokens_cache_read is not None
+        or usage.input_tokens_cache_write is not None
+        else None
+    )
     return CompletionUsage(
         completion_tokens=usage.output_tokens,
-        prompt_tokens=usage.input_tokens,
+        prompt_tokens=(
+            usage.input_tokens + input_tokens_cache_read + input_tokens_cache_write
+        ),
+        prompt_tokens_details=prompt_tokens_details,
         total_tokens=usage.total_tokens,
     )
 
@@ -910,23 +928,38 @@ def model_output_from_openai(
     completion: ChatCompletion,
     choices: list[ChatCompletionChoice],
 ) -> ModelOutput:
+    cached_tokens = (
+        completion.usage.prompt_tokens_details.cached_tokens
+        if completion.usage
+        and completion.usage.prompt_tokens_details is not None
+        and completion.usage.prompt_tokens_details.cached_tokens is not None
+        else 0
+    )
+    cache_write_tokens = (
+        completion.usage.prompt_tokens_details.cache_write_tokens
+        if completion.usage
+        and completion.usage.prompt_tokens_details is not None
+        and completion.usage.prompt_tokens_details.cache_write_tokens is not None
+        else 0
+    )
     return ModelOutput(
         model=completion.model,
         choices=choices,
         usage=(
             ModelUsage(
-                input_tokens=completion.usage.prompt_tokens
-                - (
-                    completion.usage.prompt_tokens_details.cached_tokens
-                    if completion.usage.prompt_tokens_details is not None
-                    and completion.usage.prompt_tokens_details.cached_tokens is not None
-                    else 0
+                input_tokens=(
+                    completion.usage.prompt_tokens - cached_tokens - cache_write_tokens
                 ),
                 output_tokens=completion.usage.completion_tokens,
                 input_tokens_cache_read=(
                     completion.usage.prompt_tokens_details.cached_tokens
                     if completion.usage.prompt_tokens_details is not None
-                    else None  # openai only have cache read stats/pricing.
+                    else None
+                ),
+                input_tokens_cache_write=(
+                    completion.usage.prompt_tokens_details.cache_write_tokens
+                    if completion.usage.prompt_tokens_details is not None
+                    else None
                 ),
                 reasoning_tokens=(
                     completion.usage.completion_tokens_details.reasoning_tokens
@@ -974,8 +1007,11 @@ async def openai_chat_completion_stream_final(
         await _report_chat_completion_chunk(chunk, tool_calls)
     if not saw_chunk:
         # get_final_completion() would fail on a bare assert; raise a
-        # descriptive error instead (misbehaving server: 200 with empty body)
-        raise RuntimeError("Streaming response ended without delivering any chunks.")
+        # descriptive, retryable error instead (misbehaving server: 200 with
+        # empty body)
+        raise NoStreamDataError(
+            "Streaming response ended without delivering any chunks."
+        )
     try:
         return state.get_final_completion()
     except LengthFinishReasonError as ex:
@@ -1001,6 +1037,9 @@ async def _report_chat_completion_chunk(
     `tool_calls` remembers each call's id/function by index across chunks:
     OpenAI streams them only on a call's first fragment, but reported deltas
     attribute every fragment (matching the other providers' reporters).
+    Content deltas are gated on `model_stream_requested()` (see
+    `report_model_stream_delta`); the usage/heartbeat progress channel runs
+    regardless.
     """
     # cumulative usage arrives on the final chunk when the server reports it
     # (e.g. via stream_options.include_usage)
@@ -1012,7 +1051,7 @@ async def _report_chat_completion_chunk(
     # accumulating consumers (num_choices > 1)
     delta = next((c.delta for c in chunk.choices if c.index == 0), None)
     reported = False
-    if delta is not None:
+    if delta is not None and model_stream_requested():
         # openai-compatible servers surface chain-of-thought as a
         # reasoning_content/reasoning extra field on the delta
         reasoning = getattr(delta, "reasoning_content", None) or getattr(
@@ -1248,8 +1287,7 @@ def openai_classify_retry(ex: BaseException) -> "RetryDecision | None":
     """Classify an OpenAI SDK exception as rate_limit / transient / not retryable.
 
     Returns None when the exception isn't retryable. Reads `Retry-After` and
-    `x-ratelimit-reset-*` from the response headers when available so the
-    adaptive controller can honor server-suggested wait times.
+    `x-ratelimit-reset-*` from the response headers when available.
     """
     from inspect_ai.model._model import RetryDecision
 
@@ -1276,32 +1314,77 @@ def openai_classify_retry(ex: BaseException) -> "RetryDecision | None":
         return None
     if isinstance(ex, APIConnectionError | APITimeoutError):
         return RetryDecision.transient()
+    if isinstance(ex, APIError):
+        # A failure delivered mid-stream (after HTTP 200) is raised by the
+        # SDK as a bare APIError with no status code, carrying only the
+        # error body's `code`/`type`. OpenAI itself signals with
+        # `server_error` / `rate_limit_exceeded`; OpenAI-compatible servers
+        # use their own vocabulary — often a numeric HTTP status in `code`
+        # (vLLM/SGLang: {"type": "InternalServerError", "code": 500},
+        # OpenRouter: {"code": 502}), which classifies through the standard
+        # status rules. Anything unrecognized stays unretried.
+        code_status = _http_status_from_error_code(ex.code)
+        if code_status is not None:
+            if code_status == 429:
+                return RetryDecision.rate_limit()
+            if is_retryable_http_status(code_status):
+                return RetryDecision.transient()
+            return None
+        # normalize code/type spellings (rate_limit_error/RateLimitError/...)
+        names = {
+            v.lower().replace("_", "") for v in (ex.code, ex.type) if isinstance(v, str)
+        }
+        if names & {"ratelimitexceeded", "ratelimiterror"}:
+            return RetryDecision.rate_limit()
+        if names & {"servererror", "internalservererror", "internalerror"}:
+            return RetryDecision.transient()
+        return None
     return None
 
 
-def openai_handle_bad_request(
-    model_name: str, e: APIStatusError
-) -> ModelOutput | Exception:
-    # extract message
-    if isinstance(e.body, dict) and "message" in e.body.keys():
-        content = str(e.body.get("message"))
-    else:
-        content = e.message
+def _http_status_from_error_code(code: object) -> int | None:
+    """Coerce an error body `code` to an HTTP status when it is one.
+
+    OpenAI-compatible servers often put a numeric HTTP status in `code`
+    (as an int or a digit string). The SDK annotates `APIError.code` as
+    `Optional[str]` but passes body values through unconverted, so an int
+    arrives as an int at runtime.
+    """
+    if isinstance(code, int) or (isinstance(code, str) and code.isdecimal()):
+        status = int(code)
+        return status if 100 <= status <= 599 else None
+    return None
+
+
+def openai_refusal_model_output(
+    model_name: str,
+    code: str | None,
+    error_type: str | None,
+    message: str,
+    content: str | None = None,
+) -> ModelOutput | None:
+    """Map an OpenAI refusal/limit error to model output, or None if unrecognized.
+
+    `message` is the SDK error message (used for heuristic matching); `content`
+    is the text recorded as the model output when it differs (e.g. the error
+    body's message), defaulting to `message`.
+    """
+    content = content if content is not None else message
 
     # narrow stop_reason
     stop_reason: StopReason | None = None
     stop_details: StopDetails | None = None
-    if e.code == "context_length_exceeded":
+    if code == "context_length_exceeded":
         stop_reason = "model_length"
     elif (
-        e.code == "invalid_prompt"  # seems to happen for o1/o3
-        or e.code == "content_policy_violation"  # seems to happen for vision
-        or e.code == "content_filter"  # seems to happen on azure
-        or e.code == "cyber_policy"  # seems to happen for 5.4
-        or (e.type == "invalid_request_error" and "blocked" in e.message)
+        code == "invalid_prompt"  # seems to happen for o1/o3
+        or code == "content_policy_violation"  # seems to happen for vision
+        or code == "content_filter"  # seems to happen on azure
+        or code == "cyber_policy"  # seems to happen for 5.4
+        or (error_type == "invalid_request_error" and "blocked" in message)
     ):
         stop_reason = "content_filter"
-        if e.code == "cyber_policy":
+        if code == "cyber_policy":
             stop_details = StopDetails(
                 type="refusal",
                 category="cyber",
@@ -1319,7 +1402,49 @@ def openai_handle_bad_request(
             stop_details=stop_details,
         )
     else:
-        return e
+        return None
+
+
+def openai_handle_bad_request(model_name: str, e: APIError) -> ModelOutput | Exception:
+    """Convert a refusal/limit error into model output where possible.
+
+    Accepts the `APIError` base (not just `APIStatusError`): only `body`,
+    `message`, `code`, and `type` are read, and mid-stream errors (see
+    `openai_handle_stream_error`) carry those without a status code.
+    """
+    # extract message
+    if isinstance(e.body, dict) and "message" in e.body.keys():
+        content = str(e.body.get("message"))
+    else:
+        content = e.message
+
+    output = openai_refusal_model_output(model_name, e.code, e.type, e.message, content)
+    return output if output is not None else e
+
+
+def openai_handle_stream_error(
+    model_name: str, e: APIError | OpenAIResponseError
+) -> ModelOutput | None:
+    """Convert a mid-stream safeguard/content-filter block into model output.
+
+    With streaming enabled the server returns HTTP 200 and then delivers
+    safeguard blocks as an error event in the stream body, bypassing the
+    bad-request handling that converts blocks into `content_filter` output on
+    the non-streaming path. Depending on the error's shape the SDK raises it
+    from the stream iterator as a plain `APIError` (with no error status it
+    cannot infer a `BadRequestError`), or yields it as an error event that
+    inspect raises as `OpenAIResponseError` (responses API). Returns the
+    converted `ModelOutput` for recognized blocks, or None when the caller
+    should re-raise: either the error is a status/validation/connection error
+    (which must keep their existing retry semantics) or it isn't a recognized
+    refusal.
+    """
+    if isinstance(e, OpenAIResponseError):
+        return openai_refusal_model_output(model_name, e.code, None, e.message)
+    if isinstance(e, APIStatusError | APIResponseValidationError | APIConnectionError):
+        return None
+    handled = openai_handle_bad_request(model_name, e)
+    return handled if isinstance(handled, ModelOutput) else None
 
 
 def openai_media_filter(key: JsonValue | None, value: JsonValue) -> JsonValue:

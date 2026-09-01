@@ -123,7 +123,12 @@ from ._generate_config import (
 from ._model_call import ModelCall, as_error_response
 from ._model_data.model_data import ModelCost
 from ._model_output import ModelFallback, ModelOutput, ModelUsage
-from ._stream import ModelStreamObserver, StreamHandler, model_stream_observer
+from ._stream import (
+    ModelStreamObserver,
+    NoStreamDataError,
+    StreamHandler,
+    model_stream_observer,
+)
 from ._throughput import record_generate, throughput_view
 from ._tokens import count_media_tokens, count_text_tokens, count_tokens
 
@@ -219,8 +224,8 @@ class RetryDecision:
 
     `should_retry()` may return either a plain `bool` (legacy: any True
     is treated as a generic transient retry) or a `RetryDecision` to
-    additionally classify the retry kind and pass server-suggested wait
-    times to the adaptive concurrency controller.
+    additionally classify the retry kind for the adaptive concurrency
+    controller and separately record any server-suggested wait time.
 
     `RetryDecision` is truthy iff `retry` is True, so existing callers
     written against the `bool` return (`if api.should_retry(ex): ...`)
@@ -242,7 +247,11 @@ class RetryDecision:
     """
 
     retry_after: float | None = None
-    """Recommended seconds to wait before retrying, if the server provided one (e.g. via `Retry-After`)."""
+    """Recommended seconds to wait before retrying, if the server provided one (e.g. via `Retry-After`).
+
+    Exposed and reserved for future use: nothing currently consumes it — it
+    affects neither Inspect's retry backoff nor the adaptive concurrency cooldown.
+    """
 
     def __bool__(self) -> bool:
         return self.retry
@@ -1738,6 +1747,13 @@ class Model:
             # controller doesn't scale down for what's essentially infra
             # noise (a stalled connection included).
             if isinstance(ex, (AttemptTimeoutError, StreamIdleTimeoutError)):
+                report_http_retry(model=model)
+                return True
+
+            # a 200 stream that ended with zero chunks (see NoStreamDataError)
+            # is retried for any provider: there is no error payload to
+            # classify from, and a retry against a healthy server succeeds
+            if isinstance(ex, NoStreamDataError):
                 report_http_retry(model=model)
                 return True
 

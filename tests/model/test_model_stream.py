@@ -171,6 +171,28 @@ async def test_streaming_provider_works_without_on_stream() -> None:
     assert output.completion == "hi"
 
 
+async def test_deltas_without_on_stream_are_heartbeat_only() -> None:
+    """Deltas reported without `on_stream` feed only the progress heartbeat.
+
+    A reported delta is on_stream support code with no consumer: no
+    accumulation, no partial-output snapshot on the pending event.
+    """
+
+    async def attempt(api: ScriptedStreamAPI) -> ModelOutput:
+        event = _active_model_event.get()
+        assert isinstance(event, ModelEvent)
+        await report_model_stream_delta(StreamTextEvent(text="unconsumed"))
+        # heartbeat recorded, but no partial output was published
+        progress = model_event_progress(event)
+        assert progress is not None
+        assert progress.last_progress_at is not None
+        assert event.output.completion == ""
+        return api._output("done")
+
+    output = await _scripted_generate([attempt])
+    assert output.completion == "done"
+
+
 async def test_uninstrumented_provider_never_invokes_callback() -> None:
     async def attempt(api: ScriptedStreamAPI) -> ModelOutput:
         return api._output("quiet")
@@ -337,7 +359,8 @@ async def test_partial_output_snapshot_on_pending_event(
         snapshots.append((event.pending, list(content)))
         return api._output("hello")
 
-    output = await _scripted_generate([attempt])
+    # partial snapshots are delta-driven, so they require an on_stream consumer
+    output = await _scripted_generate([attempt], on_stream=Collector())
     assert output.completion == "hello"
     (pending, content) = snapshots[0]
     assert pending is True
@@ -386,7 +409,7 @@ async def test_partial_output_flushes_are_throttled(
         assert calls["n"] == before + 1
         return api._output("abc")
 
-    output = await _scripted_generate([attempt])
+    output = await _scripted_generate([attempt], on_stream=Collector())
     assert output.completion == "abc"
 
 
@@ -400,7 +423,7 @@ async def test_partial_output_discarded_when_attempt_fails() -> None:
         raise RuntimeError("boom")
 
     with pytest.raises(Exception):
-        await _scripted_generate([attempt])
+        await _scripted_generate([attempt], on_stream=Collector())
     event = ScriptedStreamAPI.events[0]
     assert event.pending is None
     assert event.error is not None
@@ -827,7 +850,7 @@ async def test_partial_output_discard_on_cancellation_notifies_transcript(
         raise FakeCancellation()
 
     with pytest.raises(FakeCancellation):
-        await _scripted_generate([attempt])
+        await _scripted_generate([attempt], on_stream=Collector())
     event = ScriptedStreamAPI.events[0]
     # finalization stays with the interrupt machinery — still pending
     assert event.pending is True

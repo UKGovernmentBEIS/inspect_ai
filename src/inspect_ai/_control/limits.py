@@ -18,9 +18,14 @@ across the process's evals rather than owned by one; ``max_subprocesses`` throug
 the process-global subprocess limiter (created lazily by the first
 concurrency-managed ``subprocess()`` call).
 
-On the adaptive-connections path ``max_samples`` isn't a user setpoint (sample
-concurrency tracks the model-API controller), so it's reported as not adjustable;
-``max_connections`` retunes the controllers' scaling ceiling (``max``) instead —
+On the adaptive-connections path sample concurrency tracks the model-API
+controller by default, and a ``max_samples`` set **pins** it at the requested
+value instead (the mid-run twin of the launch rule "explicit ``max_samples``
+wins silently over adaptive"): the ``DynamicSampleLimiter`` stops following
+the controller and holds the exact setpoint, while the controller keeps
+governing API concurrency untouched. The keyword ``clear`` unpins and resumes
+controller tracking (mirroring the override knobs' ``clear``). Independently,
+``max_connections`` retunes the controllers' scaling ceiling (``max``) —
 lowering it clamps live concurrency down at once (blocking new acquires until
 in-flight drains, never preempting), raising it lets the controllers climb higher
 on subsequent clean rounds. The view carries an ``adaptive`` section reporting
@@ -29,7 +34,7 @@ changes, so the path is observable rather than opaque.
 
 :func:`task_limits` returns ``None`` when the task isn't in this process — the
 endpoint turns that into a 404. When a requested knob has no adjustable limiter
-(the adaptive sample-concurrency path, or a run with no sandbox limit in
+(a task with no live sample limiter, or a run with no sandbox limit in
 effect), the value is applied to nothing and a warning is included rather than
 failing the whole request — so a caller adjusting several knobs still gets the
 ones that apply.
@@ -87,6 +92,7 @@ from typing import TYPE_CHECKING, Any, Callable, Literal, Mapping, NamedTuple, T
 
 from inspect_ai._control.views import (
     AdaptiveControllerView,
+    AdaptiveMaxSamplesView,
     ConcurrencyKeyView,
     MaxSamplesView,
     MaxTasksView,
@@ -236,7 +242,7 @@ async def process_limits(
 async def task_limits(
     task_id: str,
     *,
-    max_samples: int | None = None,
+    max_samples: int | Literal["clear"] | None = None,
     max_tasks: int | Literal["clear"] | None = None,
     max_sandboxes: int | None = None,
     max_subprocesses: int | None = None,
@@ -278,15 +284,20 @@ async def task_limits(
     mid-run.
 
     On the adaptive path the task's semaphore is a ``DynamicSampleLimiter``
-    (sample concurrency tracks the controller, not a user setpoint), so
-    ``max_samples`` is reported as not adjustable; ``max_connections`` retunes
-    the controllers' scaling ceiling instead — lowering it clamps live
-    concurrency down immediately, raising it lets the controller climb higher
-    on subsequent clean rounds.
+    (sample concurrency tracks the controller by default); a ``max_samples``
+    set **pins** it at the requested value — the limiter stops following the
+    controller, which keeps governing API concurrency untouched — and the
+    keyword ``clear`` unpins it, resuming controller tracking.
+    ``max_connections`` independently retunes the controllers' scaling
+    ceiling — lowering it clamps live concurrency down immediately, raising
+    it lets the controller climb higher on subsequent clean rounds.
 
     Args:
         task_id: The target task (stable across retry attempts).
-        max_samples: New sample-concurrency limit, or ``None`` to leave it.
+        max_samples: New sample-concurrency limit (``>= 1``), or ``None`` to
+            leave it. Under adaptive connections an integer pins sample
+            concurrency (decoupling it from the controller) and the keyword
+            ``clear`` unpins, resuming controller tracking.
         max_tasks: New task-dispatch concurrency cap — a live process-wide
             override read at each dispatch decision (the keyword ``clear``
             removes it, restoring the launch value), or ``None`` to leave it.
@@ -348,35 +359,73 @@ async def task_limits(
     # the per-task knobs below (not just before the process knobs) apply
     check_concurrency_key(key)
 
-    # max_samples — the task's sample semaphore. Only a ResizableLimiter is a
-    # user setpoint; a DynamicSampleLimiter (adaptive path) or a missing entry
-    # (reused-log task, or one that ran no samples here) isn't adjustable.
+    # max_samples — the task's sample semaphore. A ResizableLimiter (static
+    # path) is a user setpoint an integer retunes directly; a
+    # DynamicSampleLimiter (adaptive path) takes an integer as a pin and the
+    # keyword "clear" as an unpin; a missing entry (reused-log task, or one
+    # that ran no samples here) isn't adjustable.
     sample_requested: dict[str, int | str] = {}
     sample_warnings: list[str] = []
     task_applied: list[ConfigValueChange] = []
     semaphore = task_sample_semaphore(task_id)
     sample_limiter = semaphore if isinstance(semaphore, ResizableLimiter) else None
     if max_samples is not None:
-        sample_requested["max_samples"] = max_samples
-        if sample_limiter is None:
-            sample_warnings.append(
-                "max_samples is not adjustable for this task (it uses adaptive "
-                "connection concurrency, or ran no samples in this process)."
+        if isinstance(semaphore, DynamicSampleLimiter):
+            # pin/clear rides the shared override-knob semantics (no-op sets
+            # and clears record nothing; previous=None means "no prior pin",
+            # which the recording layer fills from the log's launch value —
+            # for an adaptive task launch max_samples=None, honestly). On a
+            # no-op clear the helper still calls set_override(None): for an
+            # unpinned tracking limiter that is a harmless re-sync.
+            dynamic_limiter = semaphore
+            _apply_override_knobs(
+                {"max_samples": max_samples},
+                get_override=lambda _field: dynamic_limiter.override,
+                set_override=lambda _field, value: dynamic_limiter.set_override(value),
+                config="eval",
+                dry_run=dry_run,
+                requested=sample_requested,
+                applied=task_applied,
             )
-        elif not dry_run:
-            previous_limit = [sample_limiter.limit]
-            sample_limiter.limit = max_samples
-            change = _record_retune(
-                previous_limit, max_samples, config="eval", name="max_samples"
-            )
-            if change is not None:
-                task_applied.append(change)
+        else:
+            sample_requested["max_samples"] = max_samples
+            if sample_limiter is None:
+                sample_warnings.append(
+                    "max_samples is not adjustable for this task (no live "
+                    "sample limiter — e.g. a reused log, or it ran no samples "
+                    "in this process)."
+                )
+            elif max_samples == "clear":
+                # the static path's launch value is a derivation (the
+                # max_connections fallback chain in create_sample_semaphore),
+                # not a stored override — there is nothing pinned to release.
+                # Warn (fail-soft): a combined PATCH still applies its other
+                # knobs.
+                sample_warnings.append(
+                    "max_samples is a fixed setpoint for this task (pass an "
+                    "integer to change it; 'clear' only unpins a task using "
+                    "adaptive connections)."
+                )
+            elif not dry_run:
+                previous_limit = [sample_limiter.limit]
+                sample_limiter.limit = max_samples
+                change = _record_retune(
+                    previous_limit, max_samples, config="eval", name="max_samples"
+                )
+                if change is not None:
+                    task_applied.append(change)
 
     # a DynamicSampleLimiter that never found its model's controller means
     # sample concurrency is stuck at its starting value — generates may be
     # flowing through a different model (roles / agent bridge), or the model's
     # connection key changed after creation. Surface it; nothing else does.
-    if isinstance(semaphore, DynamicSampleLimiter) and semaphore.controller is None:
+    # Suppressed while a pin is active: concurrency is then user-set, not
+    # stuck (and the pin is exactly the operator remedy for the stuck case).
+    if (
+        isinstance(semaphore, DynamicSampleLimiter)
+        and semaphore.controller is None
+        and semaphore.override is None
+    ):
         sample_warnings.append(
             "sample concurrency is adaptive but no matching connection "
             "controller exists — if generates flow through a different model "
@@ -519,9 +568,10 @@ async def task_limits(
     )
 
     # `tracks_adaptive` distinguishes the adaptive path (sample concurrency
-    # follows this task's controller) from a task with no live limiter at all
-    # (reused log / ran no samples here) — the renderer must not claim the
-    # latter tracks anything.
+    # follows this task's controller unless pinned — `override` is the pin)
+    # from the static setpoint, whose view stays bare — the absence of
+    # `tracks_adaptive` already means static. A task with no live limiter at
+    # all (reused log / ran no samples here) is the only unadjustable case.
     max_samples_view: MaxSamplesView
     if sample_limiter is not None:
         max_samples_view = {
@@ -529,10 +579,19 @@ async def task_limits(
             "in_use": sample_limiter.in_use,
             "adjustable": True,
         }
+    elif isinstance(semaphore, DynamicSampleLimiter):
+        adaptive_max_samples: AdaptiveMaxSamplesView = {
+            "limit": semaphore.limit,
+            "in_use": semaphore.in_use,
+            "adjustable": True,
+            "tracks_adaptive": True,
+            "override": semaphore.override,
+        }
+        max_samples_view = adaptive_max_samples
     else:
         max_samples_view = {
             "adjustable": False,
-            "tracks_adaptive": isinstance(semaphore, DynamicSampleLimiter),
+            "tracks_adaptive": False,
         }
 
     return {
@@ -634,7 +693,8 @@ def _apply_override_knobs(
     """Apply one family of live override knobs and record what changed.
 
     The apply/record semantics shared by the override-layer knob families
-    (the retry-loop overrides and the per-sample limit overrides) live here
+    (the retry-loop overrides, the per-sample limit overrides, and the
+    adaptive ``max_samples`` pin) live here
     so they cannot drift apart: a value sets the field's override, the
     keyword ``clear`` removes it, and only a change that actually landed is
     recorded — a set matching the active override and a clear with no

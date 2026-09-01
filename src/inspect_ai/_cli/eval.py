@@ -7,12 +7,10 @@ from collections.abc import Callable, Iterator
 from typing import Any, Literal, TextIO, cast
 
 import click
-import yaml
 from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
-    TypeAdapter,
     ValidationError,
     field_validator,
 )
@@ -25,7 +23,7 @@ from inspect_ai._eval.handoff import (
     set_ctl_pointer_armed,
     set_launch_handoff_listener,
 )
-from inspect_ai._util.config import resolve_args
+from inspect_ai._util.config import parse_cli_args, resolve_args
 from inspect_ai._util.constants import (
     ALL_LOG_LEVELS,
     DEFAULT_BATCH_SIZE,
@@ -38,24 +36,25 @@ from inspect_ai._util.constants import (
 )
 from inspect_ai._util.error import PrerequisiteError, SilentException
 from inspect_ai._util.file import filesystem
+
+# re-exported: a command's locals are still the common way in, and the
+# normalisation they go through is now shared with `eval_set_env`
+from inspect_ai._util.generate_config_args import (
+    _parse_adaptive_connections_cli,
+    config_from_locals,
+)
 from inspect_ai._util.samples import parse_sample_id, parse_samples_limit
 from inspect_ai.log._file import log_file_info
 from inspect_ai.log._log import EvalConfig, EvalLog
 from inspect_ai.model import GenerateConfig, GenerateConfigArgs, Model
-from inspect_ai.model._cache import CachePolicy
 from inspect_ai.model._generate_config import (  # noqa: F811
-    BatchConfig,
-    ImageOutput,
-    OutputModality,
     ResponseSchema,
 )
 from inspect_ai.model._model_config import ModelConfig, model_config_to_model
 from inspect_ai.scorer._reducer import create_reducers
 from inspect_ai.solver._solver import SolverSpec
-from inspect_ai.util import AdaptiveConcurrency
 from inspect_ai.util._checkpoint.parse_cli import parse_checkpoint
 from inspect_ai.util._limit import TokenLimit
-from inspect_ai.util._resource import resource
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 
 from .common import (
@@ -70,7 +69,6 @@ from .util import (
     int_bool_or_str_flag_callback,
     int_bool_or_str_retry_flag_callback,
     int_or_bool_flag_callback,
-    parse_cli_args,
     parse_cli_config,
     parse_model_role_cli_args,
     parse_model_spec_cli_args,
@@ -103,9 +101,7 @@ class EvalCommand(SectionedCommand):
 
 MAX_SAMPLES_HELP = "Maximum number of samples to run in parallel (default is running all samples in parallel)"
 MAX_TASKS_HELP = "Maximum number of tasks to run in parallel (default is 1 for eval and 10 for eval-set)"
-MAX_SUBPROCESSES_HELP = (
-    "Maximum number of subprocesses to run in parallel (default is os.cpu_count())"
-)
+MAX_SUBPROCESSES_HELP = "Maximum number of subprocesses to run in parallel (default is the number of processors available to the eval)"
 MAX_SANDBOXES_HELP = "Maximum number of sandboxes (per-provider) to run in parallel."
 NO_SANDBOX_CLEANUP_HELP = "Do not cleanup sandbox environments after task completes"
 SANDBOX_PREBUILT_HELP = "Treat sandbox images as prebuilt (skip builds and fail at startup when an image is missing)"
@@ -2293,158 +2289,6 @@ def _stdout_owned_for_json() -> Iterator[TextIO]:
                 yield saved_stdout
         finally:
             os.dup2(saved_stdout.fileno(), stdout_fd)
-
-
-def _parse_adaptive_connections_cli(
-    value: str | None,
-) -> bool | int | AdaptiveConcurrency | None:
-    """Parse a CLI string into an adaptive_connections value.
-
-    Accepts: None (passthrough), bool keywords ("true"/"yes" / "false"/"no",
-    case-insensitive), a bare integer N (shorthand for
-    `AdaptiveConcurrency(max=N)`), or a min-max / min-start-max shorthand
-    like "4-80" / "4-20-80" delegated to AdaptiveConcurrency's parser.
-    Raises `click.BadParameter` on invalid input so the CLI surfaces a
-    clean usage message instead of a raw pydantic ValidationError.
-
-    Note: `"1"`/`"0"` are treated as the integer-max shorthand, not as
-    bool aliases. Users who want explicit on/off should pass `true`/`false`.
-    """
-    if value is None:
-        return None
-    v = value.strip().lower()
-    if v in ("true", "yes"):
-        return True
-    if v in ("false", "no"):
-        return False
-    # Bare integer → max shorthand.
-    if v.isdigit():
-        return int(v)
-    try:
-        return AdaptiveConcurrency.model_validate(value)
-    except Exception as ex:
-        raise click.BadParameter(
-            f"{value!r} is not a valid value. Expected `true`, `false`, an "
-            f"integer max (e.g. `200`), or bounds shorthand like `4-80` "
-            f"or `4-20-80`.",
-            param_hint="--adaptive-connections",
-        ) from ex
-
-
-def config_from_locals(locals: dict[str, Any]) -> GenerateConfigArgs:
-    # start with config file if specified
-    adapter = TypeAdapter(GenerateConfigArgs)
-    run_config_file = locals.get("run_config")
-    generate_config_file = locals.pop("generate_config", None)
-    if run_config_file and generate_config_file:
-        raise PrerequisiteError("--run-config cannot be used with --generate-config.")
-    if generate_config_file:
-        # read file
-        generate_config = resolve_args(generate_config_file)
-
-        # validate all the fields are valid
-        extra_keys = generate_config.keys() - GenerateConfigArgs.__annotations__.keys()
-        if extra_keys:
-            raise PrerequisiteError(
-                f"Unexpected GenerateConfig fields in {generate_config_file}: {extra_keys}"
-            )
-
-        # create base config
-        base_config = adapter.validate_python(generate_config, strict=True)
-    else:
-        base_config = GenerateConfigArgs()
-
-    # build generate config
-    config_keys = list(GenerateConfigArgs.__mutable_keys__)  # type: ignore
-    config = GenerateConfigArgs(**base_config)
-    for key, value in locals.items():
-        if key in config_keys and value is not None:
-            if key == "stop_seqs":
-                value = value.split(",")
-            if key == "fallback_models":
-                value = [m.strip() for m in value.split(",")]
-            if key == "logprobs" and value is False:
-                value = None
-            if key == "logit_bias" and value is not None:
-                value = parse_logit_bias(value)
-            if key == "cache_prompt":
-                if value.lower() == "true":
-                    value = True
-                elif value.lower() == "false":
-                    value = False
-            if key == "parallel_tool_calls":
-                if value is not False:
-                    value = None
-            if key == "internal_tools":
-                if value is not False:
-                    value = None
-            if key == "response_schema":
-                if value is not None:
-                    value = ResponseSchema.model_validate_json(value)
-            if key == "cache":
-                match value:
-                    case str():
-                        policy = CachePolicy.from_string(value)
-                        if policy is not None:
-                            value = policy
-                        else:
-                            value = CachePolicy.model_validate(resolve_args(value))
-                    case int():
-                        value = CachePolicy(expiry=f"{value}D")
-
-            if key == "batch":
-                match value:
-                    case str():
-                        value = BatchConfig.model_validate(resolve_args(value))
-
-            if key == "adaptive_connections" and isinstance(value, str):
-                value = _parse_adaptive_connections_cli(value)
-
-            if key == "modalities":
-                value = parse_modalities(value)
-
-            config[key] = value  # type: ignore
-    return config
-
-
-def parse_modalities(value: str) -> list[Any]:
-    """Parse modalities from comma-separated names or YAML/JSON file."""
-    # Check if it's a file path
-    fs = filesystem(value)
-    if fs.exists(value):
-        content = resource(value, type="file")
-        is_json = content.strip().startswith("[") or content.strip().startswith("{")
-        config = json.loads(content) if is_json else yaml.safe_load(content)
-        if not isinstance(config, list):
-            raise PrerequisiteError(
-                f"Modalities config file must contain a list, got: {type(config).__name__}"
-            )
-        result: list[OutputModality] = []
-        for item in config:
-            if isinstance(item, str):
-                result.append(item)  # type: ignore[arg-type]
-            elif isinstance(item, dict):
-                result.append(ImageOutput.model_validate(item))
-            else:
-                raise PrerequisiteError(f"Invalid modality item: {item}")
-        return result
-    else:
-        # Check if it looks like a file path that doesn't exist
-        if "/" in value or "\\" in value or value.endswith((".json", ".yaml", ".yml")):
-            raise PrerequisiteError(f"Modalities file not found: {value}")
-        # Comma-separated literal names (e.g. "image" or "image,audio")
-        tokens = [m.strip() for m in value.split(",")]
-        return [t for t in tokens if t]  # type: ignore[misc]
-
-
-def parse_logit_bias(logit_bias: str | None) -> dict[int, float] | None:
-    logit_biases = parse_cli_args(logit_bias.split(",")) if logit_bias else None
-    if logit_biases:
-        return dict(
-            zip([int(key) for key in logit_biases.keys()], logit_biases.values())
-        )
-    else:
-        return None
 
 
 def parse_comma_separated(value: str | None) -> list[str] | None:
