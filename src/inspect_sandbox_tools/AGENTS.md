@@ -43,7 +43,9 @@ When a tool needs to run in a container, the system automatically injects the ap
    - Detects container architecture (amd64/arm64) and libc (glibc/musl)
    - Selects the matching pre-built artifact from local binaries, S3, or a local Docker build
    - Writes the gzipped onedir tar into the container and extracts it into `/var/tmp/.da7be258e003d428`
-   - Restricts the extracted tree to the tools user when root is available
+   - Restricts the extracted tree to root when Inspect can run commands as root. A
+     root-owned 0700 tree prevents access by other, non-root users in the sandbox;
+     it is not a boundary against a process running in the sandbox as root.
 
 The system includes fallback mechanisms to download executables from S3 or build them locally if needed.
 
