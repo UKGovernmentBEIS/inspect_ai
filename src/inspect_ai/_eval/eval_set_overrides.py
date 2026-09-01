@@ -429,7 +429,7 @@ NOT_OVERRIDABLE: dict[str, str] = {
     "working_limit": "part of task identity",
     "cost_limit": "part of task identity",
     "eval_set_id": "carried by the selection document itself",
-    "scanner": "refused outright in selection mode (one scan directory, one writer)",
+    "scanner": "carried by the selection document's own `scanners` field, with merge (not override) semantics",
     "fail_on_error": "forced to False for a worker, so the runner adjudicates",
     "continue_on_fail": "moot once fail_on_error is False",
     "acp_server": "forced on for a worker, which is detached and cannot prompt",

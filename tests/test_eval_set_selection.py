@@ -1222,19 +1222,6 @@ def test_eval_set_selection_task_source_error(
         )
 
 
-def test_eval_set_selection_scanner_error(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    with pytest.raises(PrerequisiteError, match="Scanners are not supported"):
-        run_selection(
-            monkeypatch,
-            tmp_path,
-            selection_for("anything"),
-            tmp_path / "logs",
-            scanner=[],
-        )
-
-
 def test_eval_set_selection_parks_for_keep_alive(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -1421,6 +1408,19 @@ _EXPECTED_SELECTION_FIELDS: dict[int, dict[str, set[str]]] = {
     },
 }
 
+# v7 added `scanners` to the selection itself: runner-injected scanner specs,
+# merged with the definition's own before per-sample dispatch. A selection
+# field rather than an override because the semantics are merge, not replace —
+# no definition value is displaced — and because it may make a worker scan in
+# a definition that declares no scanners at all. Arrived with record-only
+# scanning (workers dispatch and buffer; the runner owns the scan directory's
+# lifecycle), which is also when selection mode stopped rejecting `scanner`.
+_EXPECTED_SELECTION_FIELDS[7] = {
+    "selection": {"version", "eval_set_id", "tasks", "overrides", "scanners"},
+    "task": _EXPECTED_SELECTION_FIELDS[6]["task"],
+    "overrides": _EXPECTED_SELECTION_FIELDS[6]["overrides"],
+}
+
 
 def test_eval_set_selection_schema_stability() -> None:
     assert EVAL_SET_SELECTION_VERSION in _EXPECTED_SELECTION_FIELDS
@@ -1502,6 +1502,51 @@ def test_an_override_newer_than_the_declared_version_is_refused(
     else:
         with pytest.raises(PrerequisiteError, match="schema version"):
             read_eval_set_selection(str(path))
+
+
+@pytest.mark.parametrize(
+    ("version", "accepted"),
+    [(6, False), (7, True)],
+    ids=["scanners under version 6", "scanners under version 7"],
+)
+def test_selection_scanners_are_gated_at_version_7(
+    version: int, accepted: bool, tmp_path: Path
+) -> None:
+    """`scanners` is a selection field, so it gets the same on-the-writer's-machine gate the overrides container does."""
+    path = tmp_path / "selection.json"
+    path.write_text(
+        json.dumps(
+            {
+                "version": version,
+                "eval_set_id": "probe",
+                "tasks": [{"identifier": "a"}],
+                "scanners": {"probe_scanner": {"name": "probe_scanner"}},
+            }
+        )
+    )
+
+    if accepted:
+        assert read_eval_set_selection(str(path)) is not None
+    else:
+        with pytest.raises(PrerequisiteError, match="schema version"):
+            read_eval_set_selection(str(path))
+
+
+def test_selection_with_empty_scanners_mapping_is_refused(tmp_path: Path) -> None:
+    """An empty mapping says "inject scanners" and names none — a runner bug, reported rather than read as no injection."""
+    path = tmp_path / "selection.json"
+    path.write_text(
+        json.dumps(
+            {
+                "version": EVAL_SET_SELECTION_VERSION,
+                "eval_set_id": "probe",
+                "tasks": [{"identifier": "a"}],
+                "scanners": {},
+            }
+        )
+    )
+    with pytest.raises(PrerequisiteError, match="empty mapping"):
+        read_eval_set_selection(str(path))
 
 
 def test_a_whole_selection_survives_being_written_and_read_back(
