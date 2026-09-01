@@ -885,6 +885,52 @@ def test_openai_responses_non_object_container_is_rejected_not_raised(
     assert provider_error_payload(ex.value)["status"] == 400
 
 
+@pytest.mark.parametrize(
+    "json_data,expected_field",
+    [
+        ({"model": "inspect", "thinking": "enabled"}, "thinking"),
+        ({"model": "inspect", "output_config": "high"}, "output_config"),
+        (
+            {"model": "inspect", "output_config": {"format": "json"}},
+            "output_config.format",
+        ),
+        ({"model": "inspect", "tool_choice": "auto"}, "tool_choice"),
+    ],
+)
+def test_anthropic_non_object_container_is_rejected_not_raised(
+    json_data: dict[str, Any], expected_field: str
+):
+    with pytest.raises(BridgePolicyError) as ex:
+        generate_config_from_anthropic(json_data)
+    assert expected_field in str(ex.value)
+    assert provider_error_payload(ex.value)["status"] == 400
+
+
+def test_anthropic_null_containers_fall_back_to_defaults():
+    """Explicit nulls mean "not set", not a 400 (matching the real API)."""
+    config = generate_config_from_anthropic(
+        {
+            "model": "inspect",
+            "thinking": None,
+            "output_config": None,
+            "tool_choice": None,
+        }
+    )
+    assert config == GenerateConfig()
+
+
+def test_validation_error_400_omits_empty_field_path():
+    """No dangling separator for a top-level type failure.
+
+    A top-level type failure has an empty `loc`; the 400 message must not
+    render a double colon (`responseJsonSchema: : Input should be ...`).
+    """
+    with pytest.raises(BridgePolicyError) as ex:
+        generate_config_from_google({"responseJsonSchema": "x"})
+    assert ": :" not in str(ex.value)
+    assert "responseJsonSchema: Input should be" in str(ex.value)
+
+
 @pytest.mark.parametrize("generation_config", ["json", ["json"], 5])
 def test_google_non_object_generation_config_is_rejected_not_raised(
     generation_config: Any,

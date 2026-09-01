@@ -89,6 +89,7 @@ from .util import (
     bridge_generate,
     clear_generation_params,
     client_json_schema,
+    client_request_object,
     relax_tool_choice_for_withheld,
     resolve_generate_config,
     resolve_inspect_model,
@@ -245,7 +246,7 @@ def generate_config_from_anthropic(json_data: dict[str, Any]) -> GenerateConfig:
     config.top_k = json_data.get("top_k", None)
     config.top_p = json_data.get("top_p", None)
 
-    thinking = json_data.get("thinking", None)
+    thinking = client_request_object(json_data.get("thinking", None), "thinking")
     if thinking:
         if thinking.get("type", None) == "enabled":
             config.reasoning_tokens = thinking.get("budget_tokens", None)
@@ -254,7 +255,9 @@ def generate_config_from_anthropic(json_data: dict[str, Any]) -> GenerateConfig:
     # (Claude 4.6+ clients send `thinking: {"type": "adaptive"}` and convey the
     # depth here rather than via `budget_tokens`). Forward it so the served model
     # keeps the requested effort instead of silently dropping it.
-    output_config = json_data.get("output_config", None)
+    output_config = client_request_object(
+        json_data.get("output_config", None), "output_config"
+    )
     if output_config:
         effort = output_config.get("effort", None)
         if effort is not None:
@@ -268,11 +271,10 @@ def generate_config_from_anthropic(json_data: dict[str, Any]) -> GenerateConfig:
         # paths already do. Without it a client asking for JSON silently gets
         # prose, which fails a JSON-field extractor as "no candidate" rather
         # than as an error.
-        output_format = output_config.get("format", None)
-        if (
-            isinstance(output_format, dict)
-            and output_format.get("type") == "json_schema"
-        ):
+        output_format = client_request_object(
+            output_config.get("format", None), "output_config.format"
+        )
+        if output_format and output_format.get("type") == "json_schema":
             schema = output_format.get("schema", None)
             if schema is not None:
                 # `ResponseSchema` validates `name` on construction, so a
@@ -304,7 +306,9 @@ def generate_config_from_anthropic(json_data: dict[str, Any]) -> GenerateConfig:
                     ),
                 )
 
-    tool_choice = json_data.get("tool_choice", {})
+    tool_choice = (
+        client_request_object(json_data.get("tool_choice", None), "tool_choice") or {}
+    )
     if tool_choice.get("disable_parallel_tool_use", None) is True:
         config.parallel_tool_calls = False
 

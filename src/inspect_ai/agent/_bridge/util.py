@@ -137,11 +137,17 @@ def validate_client_config(config: GenerateConfig) -> None:
 
 
 def _validation_error_details(ex: ValidationError, prefix: str = "") -> str:
-    """Render a `ValidationError` as `loc: msg` pairs for a client-facing 400."""
-    return "; ".join(
-        f"{prefix}{'.'.join(str(p) for p in err['loc'])}: {err['msg']}"
-        for err in ex.errors()
-    )
+    """Render a `ValidationError` as `loc: msg` pairs for a client-facing 400.
+
+    A top-level type failure (e.g. validating a plain string against a model)
+    has an empty `loc`; the path segment (and the prefix's trailing joiner) is
+    omitted then, rather than rendered as a dangling `:` separator.
+    """
+    details: list[str] = []
+    for err in ex.errors():
+        path = (prefix + ".".join(str(p) for p in err["loc"])).rstrip(".")
+        details.append(f"{path}: {err['msg']}" if path else err["msg"])
+    return "; ".join(details)
 
 
 # schema-valued positions `JSONSchema` models, i.e. where a nested schema (or a
