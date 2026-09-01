@@ -26,6 +26,7 @@
 - Eval Log: Buffer manifest segment entries are now `TypedDict`s rather than pydantic models, cutting manifest parse time and GC pressure on the sync thread for runs with many segments.
 - Eval Log: Buffer manifests are no longer written with indentation, which accounted for ~41% of their bytes on every `log_shared` sync.
 - Bugfix: Approval policies set on a `Task` are now recorded in the eval log.
+- OpenAI: Responses API requests now omit the `id` key on synthesized message and reasoning items rather than sending an explicit null, which backends like vLLM reject.
 - Hooks: Fixed hooks published by extension packages silently not loading when another hook was already registered at startup.
 
 ## 0.3.261 (30 August 2026)
@@ -101,6 +102,7 @@
 - Mistral: Requests are no longer capped at the SDK's flat 5s timeout, which cut off generations that took longer.
 - Hugging Face: Chat templates that use dict methods (e.g. Gemma's `message.get(...)`) no longer fail with a Jinja `UndefinedError`.
 - Sandbox: When remote exec polling exhausts its retries, the error now names the sandbox's actual failure instead of an opaque tenacity RetryError.
+- Fixed a sandbox service (including the sandbox agent bridge) permanently ceasing to answer requests after one slow request, which previously required destroying the sandbox to recover.
 
 ## 0.3.260 (21 August 2026)
 
