@@ -48,6 +48,9 @@ def cascade(threshold: float = 1.0, **scorers: Scorer) -> Scorer:
         **scorers: Named scorers, run in the order given. A stage cannot be
             named `threshold`, which is a reserved parameter.
 
+    Metrics default to `accuracy()` and `stderr()`; pass `metrics` to the
+    `Task` to override.
+
     Returns:
         A Scorer that reports the settling stage's score.
     """
