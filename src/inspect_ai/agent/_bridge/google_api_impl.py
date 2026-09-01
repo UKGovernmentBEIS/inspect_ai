@@ -53,6 +53,7 @@ from .util import (
     bridge_generate,
     clear_generation_params,
     client_json_schema,
+    client_request_object,
     relax_tool_choice_for_withheld,
     resolve_generate_config,
     resolve_inspect_model,
@@ -83,7 +84,8 @@ async def inspect_google_api_request_impl(
     tool_config: dict[str, Any] | None = json_data.get(
         "toolConfig", json_data.get("tool_config")
     )
-    generation_config: dict[str, Any] = json_data.get(
+    # client-controlled; validated by generate_config_from_google below
+    generation_config: Any = json_data.get(
         "generationConfig", json_data.get("generation_config", {})
     )
 
@@ -153,7 +155,13 @@ def debug_log(caption: str, o: Any) -> None:
     pass
 
 
-def generate_config_from_google(generation_config: dict[str, Any]) -> GenerateConfig:
+def generate_config_from_google(generation_config: Any) -> GenerateConfig:
+    # guard here rather than at the extraction site so the sole consumer of the
+    # client-controlled container is self-defending (and `generationConfig: null`
+    # falls back to defaults instead of raising)
+    generation_config = (
+        client_request_object(generation_config, "generationConfig") or {}
+    )
     config = GenerateConfig()
     config.temperature = generation_config.get("temperature")
     config.max_tokens = generation_config.get("maxOutputTokens")

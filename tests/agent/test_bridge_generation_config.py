@@ -30,6 +30,7 @@ from inspect_ai.agent._bridge.util import (
     client_json_schema,
     validate_client_config,
 )
+from inspect_ai.model import GenerateConfig
 
 # generation-tuning fields that must be dropped when not forwarding.
 # Hard-coded (not derived from the implementation's list) so this test fails if
@@ -882,6 +883,26 @@ def test_openai_responses_non_object_container_is_rejected_not_raised(
         generate_config_from_openai_responses(json_data)
     assert expected_field in str(ex.value)
     assert provider_error_payload(ex.value)["status"] == 400
+
+
+@pytest.mark.parametrize("generation_config", ["json", ["json"], 5])
+def test_google_non_object_generation_config_is_rejected_not_raised(
+    generation_config: Any,
+):
+    with pytest.raises(BridgePolicyError) as ex:
+        generate_config_from_google(generation_config)
+    assert "generationConfig" in str(ex.value)
+    assert provider_error_payload(ex.value)["status"] == 400
+
+
+def test_google_null_generation_config_falls_back_to_defaults():
+    """An explicit `generationConfig: null` means "no config", not a 400.
+
+    `client_request_object` passes None through, so the extractor must treat
+    it like an absent config rather than dereferencing it.
+    """
+    config = generate_config_from_google(None)
+    assert config == GenerateConfig()
 
 
 def test_google_openapi_schema_does_not_warn_on_gemini_keywords(_warn_once_messages):
