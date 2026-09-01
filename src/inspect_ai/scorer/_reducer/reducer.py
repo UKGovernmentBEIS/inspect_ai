@@ -248,7 +248,9 @@ def max_score(value_to_float: ValueToFloat = value_to_float()) -> ScoreReducer:
                     list_result.append(max_value)
             return _reduced_score(list_result, scores)
         else:
-            scalar_scores = [s for s in scores if not _is_unscored(s.value)]
+            scalar_scores = _partition_scalar_scores(scores)
+            if len(scalar_scores) == 0:
+                return _nan_score(scores)
             max_score = max(
                 scalar_scores, key=lambda score: value_to_float(score.value)
             )
@@ -295,8 +297,9 @@ def _count_scalar(
         scores: a list of Scores.
         counter_fn: a function which returns a scalar value based upon the counter
     """
+    scalar_scores = _partition_scalar_scores(scores)
     score_values: list[str | int | float | bool] = []
-    for score in scores:
+    for score in scalar_scores:
         scalar_value = score._as_scalar()
         if _is_reducible(scalar_value):
             score_values.append(scalar_value)
@@ -452,10 +455,15 @@ def _compute_scalar_stat(
         value_to_float: function to convert the value to a float
         statistic: the statistic to apply
     """
+    scalar_scores = _partition_scalar_scores(scores)
+    if len(scalar_scores) == 0:
+        return _nan_score(scores)
+
     values = []
-    for score in scores:
-        if _is_reducible(value_to_float(score.value)):
-            values.append(value_to_float(score.value))
+    for score in scalar_scores:
+        val = value_to_float(score.value)
+        if _is_reducible(val):
+            values.append(val)
 
     # there are no reducible values
     if len(values) == 0:
@@ -476,6 +484,24 @@ def _first_scored(scores: list[Score]) -> Score | None:
         if not _is_unscored(score.value):
             return score
     return None
+
+
+def _partition_scalar_scores(scores: list[Score]) -> list[Score]:
+    r"""Return the subset of scores whose value is a scalar.
+
+    Skips scores with NaN-at-root (treated as unscored). Raises ValueError
+    if any score has a value that is neither a scalar nor a NaN scalar.
+    """
+    result: list[Score] = []
+    for score in scores:
+        if _is_unscored(score.value):
+            continue
+        if isinstance(score.value, (dict, list)):
+            raise ValueError(
+                "Attempting to reduce a scalar score for a non-scalar value"
+            )
+        result.append(score)
+    return result
 
 
 def _partition_dict_scores(scores: list[Score]) -> list[Score]:

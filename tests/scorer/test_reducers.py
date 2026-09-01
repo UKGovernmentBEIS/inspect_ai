@@ -879,5 +879,21 @@ def test_collect_preserve_metadata() -> None:
     assert reduced.metadata == {"foo": "bar"}
 
 
+def test_scalar_reducers_non_scalar_raises() -> None:
+    for non_scalar in (Score(value={"a": 1}), Score(value=[1, 2])):
+        scores = [Score(value=1), non_scalar]
+        for reducer in (
+            avg_reducer,
+            median_reducer,
+            mode_reducer,
+            max_reducer,
+            at_least_3_reducer,
+            pass_at_2_no_threshhold,
+            pass_k_2_no_threshold,
+        ):
+            with pytest.raises(ValueError):
+                reducer(scores)
+
+
 def _is_nan(x: Any) -> bool:
     return isinstance(x, float) and np.isnan(x)
