@@ -11,6 +11,7 @@ from inspect_ai._eval.task.util import slice_dataset
 from inspect_ai._util.background import run_in_background
 from inspect_ai._util.constants import PKG_NAME
 from inspect_ai._util.dateutil import iso_now
+from inspect_ai._util.error import is_cancellation_message
 from inspect_ai._util.git import git_context, redact_url_credentials
 from inspect_ai._util.package import (
     get_distribution_direct_url,
@@ -277,8 +278,11 @@ class TaskLogger:
         self.recorder = recorder
         self.header_only = header_only
 
-        # number of samples logged
+        # number of samples logged without error / distinct samples logged
+        # (cancellation-resolved ones tracked separately — see samples_logged)
         self._samples_completed = 0
+        self._logged_sample_keys: set[tuple[str | int, int]] = set()
+        self._cancelled_sample_keys: set[tuple[str | int, int]] = set()
 
         # size of flush buffer (how many samples we buffer before hitting storage)
         self.flush_buffer = eval_config.log_buffer or recorder.default_log_buffer(
@@ -366,6 +370,8 @@ class TaskLogger:
         await self._stop_stale_flush_timer()
         self.eval = self.eval.model_copy(update=dict(eval_id=uuid(), created=iso_now()))
         self._samples_completed = 0
+        self._logged_sample_keys = set()
+        self._cancelled_sample_keys = set()
         self.flush_pending = []
         self.flush_quiet = []
         self.flush_quiet_retry = False
@@ -422,6 +428,28 @@ class TaskLogger:
     @property
     def samples_completed(self) -> int:
         return self._samples_completed
+
+    @property
+    def samples_logged(self) -> int:
+        """Samples this attempt's log holds a genuine resolution for.
+
+        Unlike :attr:`samples_completed` this counts errored and retry-reused
+        samples too, as *distinct* ``(id, epoch)`` keys: a re-log of the same
+        sample (a requeued sample's re-run superseding its errored record)
+        replaces the log entry rather than adding one, so it must not
+        inflate the count. Cancellation-resolved samples (an operator
+        ``sample cancel``, or a drain landing while the sample was still
+        materializing) are *excluded* even though their transcripts are in
+        the log: a cancellation is not a resolution anywhere else in the
+        system (``eval-retry`` re-runs them, retry seeding skips them), and
+        counting them would let a drained log read complete while its
+        never-ran samples silently drop from a later ``inspect eval-set``
+        re-invocation. Consumed at finalize when a graceful cancel/drain
+        abandoned queued samples, so eval-set's run-vs-reuse completeness
+        check can see that the log holds fewer samples than planned (see
+        ``design/ctl/task-drain.md``).
+        """
+        return len(self._logged_sample_keys) - len(self._cancelled_sample_keys)
 
     @property
     def buffer_db(self) -> SampleBufferDatabase | None:
@@ -561,6 +589,15 @@ class TaskLogger:
             async with self._flush_pending_lock:
                 self.flush_quiet.append((sample.id, sample.epoch))
 
+        key = (sample.id, sample.epoch)
+        self._logged_sample_keys.add(key)
+        # same classifier the read/requeue/retry surfaces use to tell a
+        # cancelled sample from an errored one; discard on re-log so a
+        # requeued cancelled sample's re-run counts again
+        if sample.error is not None and is_cancellation_message(sample.error.message):
+            self._cancelled_sample_keys.add(key)
+        else:
+            self._cancelled_sample_keys.discard(key)
         if sample.error is None:
             self._samples_completed += 1
 
@@ -896,6 +933,34 @@ class TaskLogger:
         if self._buffer_db is not None:
             self._buffer_db.cleanup()
             self._buffer_db = None
+
+    async def discard(self) -> None:
+        """Discard this attempt's never-started log (an abandoned retry).
+
+        Beyond :meth:`cleanup` (stale-flush timer + realtime buffer db),
+        drops the recorder's in-memory entry for this eval — ``log_finish``
+        never runs for an abandoned attempt, so the entry would otherwise
+        live for the rest of the run — and removes a destination file the
+        attempt already flushed (``log_start`` flushes a header when no
+        destination hold is active, i.e. a zero-seed retry): a stray
+        ``started`` log would otherwise win the end-of-run retry-cleanup
+        sweep by mtime, deleting the errored attempt's log that must stand
+        as the task's final state.
+
+        Failures are contained (logged as a warning) rather than raised:
+        callers run inside the dispatcher task group, where an escaping
+        storage error (e.g. a transient remote-fs failure on the file
+        removal) would cancel every in-flight task in the run. Worst case a
+        failed removal leaves the same stray ``started`` log the crash
+        would have left anyway.
+        """
+        try:
+            await self.cleanup()
+            await self.recorder.log_discard(self.eval)
+        except Exception as ex:
+            logger.warning(
+                f"Error discarding abandoned log entry '{self.location}': {ex}"
+            )
 
     async def _clear_stale_flush_timer(
         self, cancel_scope: anyio.CancelScope, stopped: anyio.Event

@@ -25,6 +25,7 @@ from inspect_ai._control.eval_state import (
     invalidate_log_sample_summaries,
     register_completed_eval,
     reset_run_registries,
+    task_gracefully_resolved,
 )
 from inspect_ai._control.server import (
     control_server,
@@ -1730,8 +1731,28 @@ def log_samples_complete(
     epoch_count = epochs.epochs if epochs else 1
 
     count = samples_selected(task.task.dataset, limit, sample_id, task.task.name)
+    planned = count * epoch_count
 
-    if log.header.results.total_samples < count * epoch_count:
+    # a graceful cancel/drain abandons queued samples but still finishes with
+    # a success log whose total_samples records the *planned* count — such
+    # logs carry the count of samples actually resolved (stamped at finalize,
+    # cancellation-resolved samples excluded; see _finish_task_log in
+    # task/run.py), so prefer it when present. None on ordinary logs (and
+    # logs from older versions), which fall through to the planned-count
+    # comparison below.
+    logged_samples = log.header.results.logged_samples
+    if logged_samples is not None:
+        if logged_samples >= planned:
+            return True
+        # a resolution stamped in this process is honored for the life of
+        # the run: with `retry_immediate=False` the outer tenacity pass
+        # re-enters this classification after a sibling task fails, and
+        # without the registry it would re-dispatch the abandoned remainder
+        # in-process. A later invocation (fresh process, empty registry)
+        # sees the shortfall and re-runs the remainder as designed.
+        return task_gracefully_resolved(log.header.eval.task_id)
+
+    if log.header.results.total_samples < planned:
         return False
     return True
 
