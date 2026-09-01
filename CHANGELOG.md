@@ -42,6 +42,7 @@
 - Metrics: Add `ci_wilson()` metric reporting the Wilson score confidence interval for the mean of binary scores (as `{"lower", "upper"}`), with bounds always within [0, 1]; `cluster=` computes an effective-sample-size interval accounting for within-cluster correlation.
 - Agent Bridge: Image tool results now reach sandboxed agents as MCP image content instead of being flattened to text.
 - Scoring: `inspect_ai.scorer` now exports `Reference`, the model for the message/event references that scanner scores store in metadata (previously importable only from Inspect Scout).
+- Moonshot: Sampling parameters (`temperature`, `top_p`, penalties) set on Kimi models with thinking disabled are now warned about and ignored instead of causing a 400 error.
 
 ## 0.3.260 (21 August 2026)
 
