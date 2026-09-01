@@ -4,6 +4,7 @@
 - Bugfix: Bump the `fsspec` upper bound from `<=2025.9.0` to `<=2026.6.0` to align with the current `huggingface/datasets` cap. (#4761)
 - Concurrency: `max_sandboxes` and `max_subprocesses` now default off the processors the eval may actually use, so an eval in a CPU-limited container no longer oversubscribes its quota.
 - Tools: The `grep` tool now supports extended regex via a new `extended_regexp` option (patterns remain basic regex by default).
+- Tools: Tool call arguments nested deeper than 100 levels are now rejected with a parse error echoed back to the model (previously depths up to ~254 executed and deeper crashed eval logging, aborting the whole run).
 - Agent Bridge: Bridged Anthropic requests now preserve `system` block boundaries, so instruction blocks are no longer silently discarded by the API.
 - Anthropic: A single assistant turn that interleaves thinking with client tool calls now replays in its original order, so subsequent requests no longer fail with "thinking ... blocks in the latest assistant message cannot be modified".
 - Anthropic: Support for Claude Fable 5.1 and Claude Mythos 5.1 (released 2026-09-01), including model info, degrading forced tool choice to auto (these models reject it), and tolerating history edits when replaying their thinking blocks (with a warning when reasoning is dropped).
@@ -24,6 +25,8 @@
 - Bugfix: Sustained rate limiting no longer pins the adaptive connection limit after a single reduction; it keeps adapting up and down as conditions change.
 - Eval Log: Resolving a log's attachments no longer discards model call payloads, which previously became unreadable when attachments were resolved.
 - Eval Log: Fixed trio evals crashing with `ValueError: seek of closed file` when writing a `.eval` log smaller than 8MB to S3.
+- Eval Log: Writing a sample whose content cannot be serialized (e.g. score metadata nested beyond pydantic's depth limit) no longer aborts the eval at flush or finish; the sample is logged with the offending content removed and the removal recorded in its error.
+- Eval Log: JSON values in logged events nested deeper than 240 levels are now truncated with a placeholder marker (previously depths up to ~254 were preserved and deeper crashed the eval).
 - Inspect CTL: New `inspect ctl sample score` interim-scores a single running sample's work-so-far on demand (briefly held while scored; the sample keeps running).
 - Score: `inspect score` now reports samples that errored or were stopped early, so a re-scored partial run is no longer displayed as if it were complete.
 - Scorers: New `cascade()` scorer runs scorers in order and reports the first that settles a sample, so an expensive grader only runs on samples cheaper scorers left unsettled.
