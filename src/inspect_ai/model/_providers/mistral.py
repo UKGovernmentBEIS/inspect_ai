@@ -16,6 +16,7 @@ from mistralai.client.models import (
 from mistralai.client.models import (
     CompletionChunk,
     CompletionEvent,
+    CompletionResponseStreamChoiceFinishReason,
     ContentChunk,
     DocumentURLChunk,
     FileChunk,
@@ -419,7 +420,7 @@ class _StreamChoice:
     def __init__(self) -> None:
         self.content: list[str | ContentChunk] = []
         self.tool_calls: dict[int, _StreamToolCall] = {}
-        self.finish_reason: str | None = None
+        self.finish_reason: CompletionResponseStreamChoiceFinishReason | None = None
 
 
 async def mistral_completion_from_stream(
@@ -572,7 +573,7 @@ async def mistral_completion_from_stream(
                     ]
                     or None,
                 ),
-                finish_reason=choice.finish_reason or "stop",  # type: ignore[arg-type]
+                finish_reason=choice.finish_reason or "stop",
             )
             for index, choice in sorted(choices.items())
         ],

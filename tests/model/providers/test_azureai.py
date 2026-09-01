@@ -1,4 +1,4 @@
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 import pytest
 from azure.ai.inference.models import StreamingChatCompletionsUpdate
@@ -108,12 +108,14 @@ class _StreamCollector:
         self.events.append(event)
 
 
-def _azureai_api(streaming: bool | Literal["auto"] = "auto") -> AzureAIAPI:
+def _azureai_api(streaming: bool | str = "auto") -> AzureAIAPI:
+    # -M args arrive untyped, so the helper takes any string and casts at the
+    # boundary; tests below rely on that to exercise the runtime guard.
     return AzureAIAPI(
         model_name="test-model",
         base_url="https://example.com/models",
         api_key="test",
-        streaming=streaming,
+        streaming=cast(bool | Literal["auto"], streaming),
     )
 
 
@@ -137,7 +139,7 @@ def test_azureai_resolve_streaming_honors_on_stream() -> None:
     # raises rather than silently forcing streaming on or off
     assert _azureai_api(streaming="auto").streaming is None
     with pytest.raises(ValueError, match="streaming"):
-        _azureai_api(streaming="always")  # type: ignore[arg-type]
+        _azureai_api(streaming="always")
 
 
 def _update(payload: dict[str, Any]) -> StreamingChatCompletionsUpdate:

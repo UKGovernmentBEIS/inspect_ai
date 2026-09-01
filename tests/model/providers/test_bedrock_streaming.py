@@ -10,26 +10,26 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
+from test_helpers.utils import skip_if_no_bedrock
 
-pytest.importorskip("aiobotocore")
-pytest.importorskip("botocore")
-
-from botocore.exceptions import ClientError  # noqa: E402
-
-from inspect_ai.model._generate_config import GenerateConfig  # noqa: E402
-from inspect_ai.model._providers.bedrock import (  # noqa: E402
+from inspect_ai.model import ChatMessageUser, get_model
+from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.model._providers.bedrock import (
     BedrockAPI,
     converse_response_from_stream,
     model_output_from_response,
 )
-from inspect_ai.model._stream import (  # noqa: E402
+from inspect_ai.model._stream import (
     ModelStreamObserver,
     StreamReasoningEvent,
     StreamTextEvent,
     StreamToolCallEvent,
     model_stream_observer,
 )
-from inspect_ai.util._json import JSONSchema  # noqa: E402
+from inspect_ai.util._json import JSONSchema
+
+pytest.importorskip("aiobotocore")
+pytest.importorskip("botocore")
 
 
 class _StreamCollector:
@@ -215,6 +215,8 @@ async def test_bedrock_stream_gated_without_on_stream(
 
 async def test_bedrock_stream_error_event_raises_client_error() -> None:
     """Exception members of the event union raise classified ClientErrors."""
+    from botocore.exceptions import ClientError
+
     events: list[dict[str, Any]] = [
         {"messageStart": {"role": "assistant"}},
         {"throttlingException": {"message": "Too many requests"}},
@@ -259,11 +261,6 @@ async def test_bedrock_stream_without_usage_raises() -> None:
     ]
     with pytest.raises(RuntimeError, match="without delivering usage"):
         await converse_response_from_stream(_events(events))
-
-
-from test_helpers.utils import skip_if_no_bedrock  # noqa: E402
-
-from inspect_ai.model import ChatMessageUser, get_model  # noqa: E402
 
 
 @pytest.mark.anyio

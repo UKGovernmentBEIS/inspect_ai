@@ -1,4 +1,4 @@
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 import pytest
 from groq.types.chat import ChatCompletionChunk
@@ -94,8 +94,14 @@ class _StreamCollector:
         self.events.append(event)
 
 
-def _groq_api(streaming: bool | Literal["auto"] = "auto") -> GroqAPI:
-    return GroqAPI(model_name="llama-3.3-70b", api_key="test", streaming=streaming)
+def _groq_api(streaming: bool | str = "auto") -> GroqAPI:
+    # -M args arrive untyped, so the helper takes any string and casts at the
+    # boundary; tests below rely on that to exercise the runtime guard.
+    return GroqAPI(
+        model_name="llama-3.3-70b",
+        api_key="test",
+        streaming=cast(bool | Literal["auto"], streaming),
+    )
 
 
 def test_groq_resolve_streaming_honors_on_stream() -> None:
@@ -134,7 +140,7 @@ def test_groq_resolve_streaming_honors_on_stream() -> None:
     # raises rather than silently forcing streaming on or off
     assert _groq_api(streaming="auto").streaming is None
     with pytest.raises(ValueError, match="streaming"):
-        _groq_api(streaming="always")  # type: ignore[arg-type]
+        _groq_api(streaming="always")
 
 
 def _groq_chunk(payload: dict[str, Any]) -> ChatCompletionChunk:
