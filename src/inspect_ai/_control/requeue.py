@@ -25,6 +25,7 @@ from typing_extensions import TypedDict
 
 if TYPE_CHECKING:
     from inspect_ai._control.eval_state import EvalState
+    from inspect_ai._eval.task.scheduler import SampleQueueView, SampleRequeue
 
 # One string for both drained-fanout rejections (the fast path's handle
 # check and ``accept``'s authoritative ``closed`` outcome) so they can't
@@ -78,7 +79,27 @@ class RequeueAccepted(TypedDict):
     resume_from_checkpoint: bool
 
 
-RequeueResult = RequeueRejected | RequeueScheduled | RequeueAccepted
+class RequeueUncancelled(TypedDict):
+    """An accepted un-cancel of a cancelled-before-start sample.
+
+    The cancel-before-start is withdrawn while its coroutine is still parked
+    (``design/ctl/queued-sample-cancel.md``): the same parked coroutine
+    serves as the run, so ``status`` reports it ``pending`` — it runs when
+    it gets a slot, exactly as if never cancelled.
+    """
+
+    ok: Literal[True]
+    sample_id: str | int
+    epoch: int
+    dry_run: bool
+    changed: Literal[True]
+    status: Literal["pending"]
+    reason: str
+
+
+RequeueResult = (
+    RequeueRejected | RequeueScheduled | RequeueAccepted | RequeueUncancelled
+)
 
 
 async def requeue_sample(
@@ -143,7 +164,11 @@ async def requeue_sample(
             resolved_id, epoch, dry_run, status, f"sample is already {status}"
         )
 
-    if handle.is_pending(sample_id, epoch):
+    # one synchronous snapshot of the key's queue lifecycle
+    # (design/ctl/queued-sample-cancel.md): no await separates it from the
+    # un-cancel accept below, so the accept needs no re-check
+    view = handle.sample_view(sample_id, epoch)
+    if view.pending:
         return _scheduled(
             sample_id,
             epoch,
@@ -152,10 +177,35 @@ async def requeue_sample(
             "a requeue of this sample is already pending",
         )
 
+    cancelled_row = _resolve_cancelled_key(
+        state, handle, view, sample_id, epoch, dry_run
+    )
+    if cancelled_row is not None:
+        return cancelled_row
+
     # terminal read: the live recorder, then the on-disk log — the full
     # sample, since its events seed the re-run's retry history
     prior = await _full_sample(eval_id, sample_id, epoch)
     if prior is None:
+        # the await above can span a cancel-before-start accept (or another
+        # directive's requeue of a record this read pre-dated): re-snapshot
+        # so the parked un-cancel and the discarded 409 aren't answered
+        # "will run without help" by `_is_planned` below — the mirror of
+        # `cancel_sample`'s post-await re-resolve
+        view = handle.sample_view(sample_id, epoch)
+        if view.pending:
+            return _scheduled(
+                sample_id,
+                epoch,
+                dry_run,
+                "queued",
+                "a requeue of this sample is already pending",
+            )
+        cancelled_row = _resolve_cancelled_key(
+            state, handle, view, sample_id, epoch, dry_run
+        )
+        if cancelled_row is not None:
+            return cancelled_row
         # planned but never started will run without help; an unknown
         # (sample_id, epoch) is a 404
         if _is_planned(state, sample_id, epoch):
@@ -248,6 +298,64 @@ def _scheduled(
         "status": status,
         "reason": reason,
     }
+
+
+def _resolve_cancelled_key(
+    state: "EvalState",
+    handle: "SampleRequeue",
+    view: "SampleQueueView",
+    sample_id: str,
+    epoch: int,
+    dry_run: bool,
+) -> RequeueResult | None:
+    """Route a cancelled-before-start key; ``None`` when not cancelled.
+
+    ``_is_planned`` would answer "will run without help" — a lie for a
+    cancelled key. A parked key is un-cancelled (the same parked coroutine
+    serves as the run); a discarded one is gone, with no prior record to
+    seed a re-run from. ``view`` must be a fresh synchronous snapshot with
+    no await before this call: the parked branch's ``uncancel`` accept
+    relies on the snapshot still being current (there is no await in here
+    either, so the caller's snapshot-then-route block stays synchronous).
+    """
+    if view.cancelled == "discarded":
+        return _reject(
+            f"sample {sample_id} (epoch {epoch}) was cancelled before it "
+            "started and its run has been discarded — re-run it with "
+            "`inspect eval-retry` (or re-invoke `inspect eval-set`)"
+        )
+    if view.cancelled == "parked":
+        # Re-check the task-level gates synchronously before the un-cancel:
+        # the caller's top-of-resolver check may pre-date an await (the
+        # post-`_full_sample` reroute), and a gate closing during it must
+        # win — a cancel-before-start that counted the last outstanding
+        # sample stamps `completed_at`, and un-cancelling past that would
+        # revive a run inside a finished eval that no directive can reach.
+        # Mirrors the per-accepting-branch re-checks in cancel.py.
+        rejected = _task_level_reject(state)
+        if rejected is not None:
+            return rejected
+        # the reason is conditional-tense under dry_run so the CLI's "Would
+        # requeue …" rendering doesn't embed a past-tense mutation
+        uncancelled: RequeueUncancelled = {
+            "ok": True,
+            "sample_id": view.typed_id,
+            "epoch": epoch,
+            "dry_run": dry_run,
+            "changed": True,
+            "status": "pending",
+            "reason": (
+                "the cancel-before-start would be withdrawn — the sample "
+                "would run when it gets a slot"
+                if dry_run
+                else "cancel-before-start withdrawn — the sample will run "
+                "when it gets a slot"
+            ),
+        }
+        if not dry_run:
+            handle.uncancel(sample_id, epoch)
+        return uncancelled
+    return None
 
 
 def _task_level_reject(state: "EvalState") -> RequeueRejected | None:

@@ -249,3 +249,28 @@ async def test_correct_multiple_answers_all_incorrect():
     assert result.text == CORRECT
     assert result.answer == ""
     assert result.explanation == "ANSWERS: "
+
+
+def test_target_sequences():
+    t_str = Target("A")
+    assert len(t_str) == 1
+    assert t_str[0] == "A"
+    assert t_str.text == "A"
+
+    t_list = Target(["A", "B"])
+    assert len(t_list) == 2
+    assert t_list[0] == "A"
+    assert t_list[1] == "B"
+    assert t_list.text == "AB"
+
+    t_tuple = Target(("A", "B"))
+    assert len(t_tuple) == 2
+    assert t_tuple[0] == "A"
+    assert t_tuple[1] == "B"
+    assert t_tuple.text == "AB"
+
+    t_target = Target(t_tuple)
+    assert len(t_target) == 2
+    assert t_target[0] == "A"
+    assert t_target[1] == "B"
+    assert t_target.text == "AB"
