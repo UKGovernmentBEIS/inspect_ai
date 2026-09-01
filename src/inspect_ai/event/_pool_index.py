@@ -375,8 +375,8 @@ class CallPoolIndex:
         self._calls += 1
         best = PrefixMatch(indices=())
         best_full = False
-        # newest lineage first: a request usually extends the one it condensed
-        # last, so the best match is normally the first candidate
+        # newest lineage first: a request usually extends the most recently
+        # cached lineage, so the best match is normally the first candidate
         for prev in reversed(self._prevs):
             prefix_len = min(_strict_eq_prefix_len(msgs, prev.msgs), len(prev.indices))
             # the predicate mirrors set_prev's replacement test

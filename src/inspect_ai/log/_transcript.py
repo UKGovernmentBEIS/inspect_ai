@@ -790,7 +790,7 @@ class Transcript:
                 # numpy/pandas, RuntimeError for torch, anything for a custom
                 # type, hence the broad catch. This runs on the unswallowed
                 # Transcript._event path, so a raise would error the task; a
-                # miss just costs the rescan below, which is what main did.
+                # miss just costs the rescan below.
                 try:
                     for cached_msg, cached_refs in bucket:
                         if cached_msg == msg:

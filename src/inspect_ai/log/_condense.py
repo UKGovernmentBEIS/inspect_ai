@@ -580,8 +580,8 @@ class CallWalkCache:
         best_slot: _CallWalkSlot | None = None
         best_len = 0
         best_full = False
-        # newest lineage first: a request usually extends the one it notified
-        # last, so the best match is normally the first candidate
+        # newest lineage first: a request usually extends the most recently
+        # cached lineage, so the best match is normally the first candidate
         for slot in reversed(self._slots):
             if slot.key != msg_key:
                 continue

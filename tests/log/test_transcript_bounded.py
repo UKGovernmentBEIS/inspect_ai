@@ -1242,14 +1242,14 @@ def test_condense_model_call_abandoned_lineage_bytes_are_released() -> None:
     sentinel = "SENTINEL" + "x" * 200_000
     live = "LIVE" + "y" * 150
 
-    def call(payload: str) -> ModelCall:
+    def payload_call(payload: str) -> ModelCall:
         return ModelCall.create(
             {"model": "m", "messages": [{"role": "user", "content": payload}]}, None
         )
 
-    tr._condense_model_call(call(sentinel))  # abandoned after this call
+    tr._condense_model_call(payload_call(sentinel))  # abandoned after this call
     for _ in range(_CALL_WALK_MAX_IDLE + 2):
-        tr._condense_model_call(call(live))
+        tr._condense_model_call(payload_call(live))
 
     retained = json.dumps(
         [dataclasses.asdict(slot) for slot in tr._call_walk_cache._slots]
