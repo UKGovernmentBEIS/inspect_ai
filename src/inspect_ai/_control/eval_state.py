@@ -636,8 +636,24 @@ def record_sample_cancelled(
             _maybe_mark_finished(state)
 
 
+def _requeue_bucket(
+    prior_status: Literal["error", "cancelled"],
+) -> Literal["errored", "cancelled"]:
+    """The counter bucket a requeueable prior status bumped at its recording.
+
+    The single source for both directions — the requeue accept's decrement
+    (:func:`record_sample_requeued`) and the un-requeue's restore
+    (:func:`record_sample_unrequeued`) — so the mapping can't drift and
+    restore a different bucket than was decremented.
+    """
+    return "errored" if prior_status == "error" else "cancelled"
+
+
 def record_sample_requeued(
-    eval_id: str, prior_status: Literal["error", "cancelled"]
+    eval_id: str,
+    prior_status: Literal["error", "cancelled"],
+    *,
+    op: str = "requeue",
 ) -> None:
     """Re-open a terminal sample's slot when a requeue is accepted.
 
@@ -649,28 +665,52 @@ def record_sample_requeued(
     re-run torn down before recording). Cumulative usage
     (``total_tokens`` / ``total_messages``) is *not* rolled back — the
     prior attempt's spend was real. Called synchronously in the requeue
-    accept path (see ``design/ctl/sample-requeue.md``). Silently no-ops if
-    the eval isn't registered.
+    accept path (see ``design/ctl/sample-requeue.md``) and, with
+    ``op="un-cancel"``, in the requeue resolver's withdrawal of a
+    cancel-before-start (``design/ctl/queued-sample-cancel.md`` — the same
+    decrement, re-opening the ``cancelled`` slot). Silently no-ops if the
+    eval isn't registered.
 
     Guarded against decrementing a bucket below zero: that would mean the
-    caller's message-based classification of the prior record diverged from
-    the bucket its terminal recording actually bumped, so fail loudly (a
-    warning naming the divergence) rather than corrupting the counters.
+    caller's classification of the prior outcome diverged from the bucket
+    its recording actually bumped, so fail loudly (a warning naming the
+    diverging operation, ``op``) rather than corrupting the counters.
     """
     with _lock:
         state = _eval_states.get(eval_id)
         if state is not None:
-            bucket = "errored" if prior_status == "error" else "cancelled"
+            bucket = _requeue_bucket(prior_status)
             count = getattr(state, bucket)
             if count <= 0:
                 logger.warning(
-                    f"requeue accepted a prior with status '{prior_status}' "
+                    f"{op} accepted for a prior with status '{prior_status}' "
                     f"but the eval's {bucket} count is {count} (eval "
                     f"{eval_id}) — classification/bucket divergence; not "
                     "decremented"
                 )
             else:
                 setattr(state, bucket, count - 1)
+
+
+def record_sample_unrequeued(
+    eval_id: str, prior_status: Literal["error", "cancelled"]
+) -> None:
+    """Re-close a sample's slot when its accepted requeue is withdrawn.
+
+    The increment inverse of :func:`record_sample_requeued`: an un-requeue
+    (``design/ctl/queued-sample-cancel.md``) withdraws the pending re-run and
+    the prior terminal record stands again, so its bucket is restored —
+    including :func:`_maybe_mark_finished`, so an eval whose withdrawn re-run
+    was the last outstanding work finishes as the discarded run drains.
+    ``prior_status`` is remembered from the requeue accept, never
+    re-classified. Silently no-ops if the eval isn't registered.
+    """
+    with _lock:
+        state = _eval_states.get(eval_id)
+        if state is not None:
+            bucket = _requeue_bucket(prior_status)
+            setattr(state, bucket, getattr(state, bucket) + 1)
+            _maybe_mark_finished(state)
 
 
 def set_sample_requeue(eval_id: str, handle: "SampleRequeue | None") -> None:

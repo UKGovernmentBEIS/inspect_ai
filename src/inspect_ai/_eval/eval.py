@@ -284,7 +284,7 @@ def eval(
         max_tasks: Maximum number of tasks to run in parallel
             (defaults to number of models being evaluated)
         max_subprocesses: Maximum number of subprocesses to
-            run in parallel (default is os.cpu_count())
+            run in parallel (default is the number of processors available to the eval)
         max_sandboxes: Maximum number of sandboxes (per-provider)
             to run in parallel.
         log_samples: Log detailed samples and scores (defaults to True)
@@ -553,7 +553,7 @@ async def eval_async(
             file on disk (defaults to None, which keeps all samples in memory).
         max_tasks: Maximum number of tasks to run in parallel
             (defaults to number of models being evaluated)
-        max_subprocesses: Maximum number of subprocesses to run in parallel (default is os.cpu_count())
+        max_subprocesses: Maximum number of subprocesses to run in parallel (default is the number of processors available to the eval)
         max_sandboxes: Maximum number of sandboxes (per-provider) to run in parallel.
         log_samples: Log detailed samples and scores (defaults to True)
         log_realtime: Log events in realtime (enables live viewing of samples in inspect view). Defaults to True.
@@ -1314,7 +1314,7 @@ def eval_retry(
         max_tasks: Maximum number of tasks to run in parallel
             (defaults to number of models being evaluated)
         max_subprocesses: Maximum number of subprocesses to
-            run in parallel (default is os.cpu_count())
+            run in parallel (default is the number of processors available to the eval)
         max_sandboxes: Maximum number of sandboxes (per-provider)
             to run in parallel.
         sandbox_cleanup: Cleanup sandbox environments after task completes
@@ -1501,7 +1501,7 @@ async def eval_retry_async(
         max_samples: Maximum number of samples to run in parallel within each task
            (default is max_connections)
         max_tasks: Maximum number of tasks to run in parallel (default is 1)
-        max_subprocesses: Maximum number of subprocesses to run in parallel (default is os.cpu_count())
+        max_subprocesses: Maximum number of subprocesses to run in parallel (default is the number of processors available to the eval)
         max_sandboxes: Maximum number of sandboxes (per-provider) to run in parallel.
         sandbox_cleanup: Cleanup sandbox environments after task completes
            (defaults to True)

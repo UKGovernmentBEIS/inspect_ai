@@ -13,10 +13,11 @@ We choose /var/tmp as the injection location since:
   4) it is unlikely to be accidentally stumbled upon by an LLM solving a
      task that requires interacting with temp files
 
-We additionally choose a dot-prefixed random hash sub-directory to further
-attempt to prevent LLMs from stumbling on the injected tools. When root is
-available, the extracted tree is later chmod'ed to 0700 so only the tools user can
-access it.
+We additionally choose a dot-prefixed random hash sub-directory to reduce
+accidental discovery. When Inspect can run commands in the sandbox as root, it
+installs the tree as root and restricts it to 0700. A root-owned 0700 tree
+prevents access by other, non-root users, but not by a process running in the
+sandbox as root.
 """
 
 # Also defined in inspect_ai.tool._sandbox_tools_utils._build_config — keep in sync.

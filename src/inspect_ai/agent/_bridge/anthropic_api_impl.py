@@ -42,7 +42,10 @@ from inspect_ai.model._chat_message import (
     ChatMessageTool,
     ChatMessageUser,
 )
-from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.model._generate_config import (
+    GenerateConfig,
+    ResponseSchema,
+)
 from inspect_ai.model._internal import CONTENT_INTERNAL_TAG, parse_content_with_internal
 from inspect_ai.model._model import ModelName
 from inspect_ai.model._model_output import ModelUsage, StopReason
@@ -79,15 +82,18 @@ from inspect_ai.tool._tools._web_search._web_search import (
     web_search,
 )
 
+from ._errors import BridgePolicyError
 from .types import AgentBridge
 from .util import (
     apply_message_ids,
     bridge_generate,
     clear_generation_params,
+    client_json_schema,
     relax_tool_choice_for_withheld,
     resolve_generate_config,
     resolve_inspect_model,
     validate_bridge_media,
+    validate_client_config,
     withheld_bridge_tool,
 )
 
@@ -146,6 +152,7 @@ async def inspect_anthropic_api_request_impl(
     config = generate_config_from_anthropic(json_data)
     if not bridge.forward_generation_config:
         clear_generation_params(config)
+    validate_client_config(config)
     config.extra_headers = headers
     # Hoist the request's `system` value into leading system messages, ONE PER
     # ANTHROPIC BLOCK. Block boundaries are load-bearing: the API consumes a
@@ -252,6 +259,50 @@ def generate_config_from_anthropic(json_data: dict[str, Any]) -> GenerateConfig:
         effort = output_config.get("effort", None)
         if effort is not None:
             config.effort = effort
+
+        # `output_config.format` is Anthropic's native structured-output request.
+        # The provider already sends `config.response_schema` as the
+        # `output_format` extra_body field under the structured-outputs beta, so
+        # the schema only needs mapping onto it -- the same mapping the OpenAI
+        # (`response_format`/`text.format`) and Google (`responseJsonSchema`)
+        # paths already do. Without it a client asking for JSON silently gets
+        # prose, which fails a JSON-field extractor as "no candidate" rather
+        # than as an error.
+        output_format = output_config.get("format", None)
+        if (
+            isinstance(output_format, dict)
+            and output_format.get("type") == "json_schema"
+        ):
+            schema = output_format.get("schema", None)
+            if schema is not None:
+                # `ResponseSchema` validates `name` on construction, so a
+                # non-string one escapes as a raw `ValidationError` -- the
+                # status-less failure `client_json_schema` exists to prevent.
+                # Route it to the same 400 the real API answers.
+                # Type-check before applying the default so a falsy
+                # non-string (`0`, `false`) is rejected like any other
+                # non-string rather than silently becoming "response".
+                name = output_format.get("name", None)
+                if name is not None and not isinstance(name, str):
+                    raise BridgePolicyError(
+                        "invalid response schema in bridged request "
+                        "(output_config.format.name: input should be a valid "
+                        f"string, got {type(name).__name__})"
+                    )
+                name = name or "response"
+                config.response_schema = ResponseSchema(
+                    name=name,
+                    # NOTE: Inspect's `JSONSchema` does not model every keyword
+                    # Anthropic's structured outputs accept (`allOf`, `const`,
+                    # `$ref`/`$defs`, `minItems`), and unmodelled keywords are
+                    # dropped rather than rejected -- so a schema using them is
+                    # forwarded weaker than the client asked for.
+                    # `client_json_schema` warns when that happens; see its
+                    # docstring for why dropping beats a 400 here.
+                    json_schema=client_json_schema(
+                        schema, "output_config.format.schema"
+                    ),
+                )
 
     tool_choice = json_data.get("tool_choice", {})
     if tool_choice.get("disable_parallel_tool_use", None) is True:
