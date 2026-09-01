@@ -22,9 +22,11 @@ from inspect_ai.util._checkpoint._host_egress import (
     host_egress,
 )
 from inspect_ai.util._checkpoint._layout.schemas import Checkpoint, SnapshotDetails
+from inspect_ai.util._checkpoint._repo_ops import (
+    fs_copy_repo as _fs_copy_repo,
+)
 from inspect_ai.util._checkpoint.hydrate import (
     _fs_copy_cross_cutting,
-    _fs_copy_repo,
 )
 
 S3_BUCKET = "s3://test-bucket"

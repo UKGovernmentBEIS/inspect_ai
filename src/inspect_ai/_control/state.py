@@ -1150,25 +1150,35 @@ def _sample_activity(s: "ActiveSample") -> dict[str, Any] | None:
     Reads the transcript's ``pending_events`` sidecar — O(in-flight ops),
     never an event scan (the samples handler shares the eval's event loop;
     see the cost-audit note in design/ctl/generate-progress.md) — and
-    classifies as the TUI does (``SampleToolbar.sync_sample``): any pending
-    ``ToolEvent`` → tool activity (the earliest one leads, even when a
-    nested model call is also pending); else a pending ``ModelEvent`` →
-    model activity; else a generate retry backoff recorded on the sample
-    (no pending event exists during the wait) → ``retry_wait``.
+    classifies as the TUI does (``SampleToolbar.sync_sample``), with one
+    branch ahead of it: a pending human interaction
+    (:attr:`ActiveSample.pending_interactions`) → ``approval`` /
+    ``question``; else any pending ``ToolEvent`` → tool activity (the
+    earliest one leads, even when a nested model call is also pending); else
+    a pending ``ModelEvent`` → model activity; else a generate retry backoff
+    recorded on the sample (no pending event exists during the wait) →
+    ``retry_wait``.
+
+    The human interaction leads because nothing else reports it at all: an
+    approval is awaited *before* ``call_tool`` records the tool's event, so
+    without this branch a sample parked overnight has no pending event of any
+    kind and reads as silently idle.
 
     The shape is stable across types so ``jq`` consumers see every key:
     ``type`` / ``count`` / ``started_at`` / ``detail`` always carry values
     (``count`` is the concurrent pending ops of the type — for
     ``retry_wait``, the failed attempt number; ``detail`` the model name or
-    tool function); ``retries`` is the pending model call's in-call
+    tool function, and empty for a ``question``, which has no structural
+    subject); ``retries`` is the pending model call's in-call
     (provider-SDK) retries; ``deadline`` is when a ``retry_wait`` elapses;
     ``tokens`` / ``last_progress_at`` come from the pending model event's
     stream progress record (layer 2) — ``None`` for non-streamed calls and
-    providers not yet instrumented. ``tool`` activity additionally
-    carries ``calls`` — every pending tool call as ``{id, function,
-    started_at, cancel_requested}`` — so ``sample list --json`` alone yields
-    the id ``sample cancel-tool-call`` targets, and a delivered-but-unheeded
-    cancel (a wedged call no scope can stop) stays visible.
+    providers not yet instrumented. ``tool`` activity — and a human wait
+    sitting inside a running tool — additionally carries ``calls``, every
+    pending tool call as ``{id, function, started_at, cancel_requested}``, so
+    ``sample list --json`` alone yields the id ``sample cancel-tool-call``
+    targets, and a delivered-but-unheeded cancel (a wedged call no scope can
+    stop) stays visible.
     """
     from inspect_ai.event._model import ModelEvent, model_event_progress
     from inspect_ai.event._tool import ToolEvent
@@ -1183,6 +1193,30 @@ def _sample_activity(s: "ActiveSample") -> dict[str, Any] | None:
             model_count += 1
         elif isinstance(ev, ToolEvent):
             tool_events.append(ev)
+
+    # An approval is awaited *before* its tool's event is recorded, and an
+    # `InputEvent` is written only once the question is answered -- so nothing
+    # in the transcript marks either wait while it lasts, and the sample's
+    # own record of it is the only signal an external runner has for telling
+    # "working" from "stopped on you".
+    kind = s.pending_interaction
+    if kind is not None:
+        from inspect_ai._control.cancel import _pending_tool_call
+
+        waits = [p for p in s.pending_interactions if p.kind == kind]
+        # `detail` is the tool call being decided -- structural, and the one
+        # piece of an approval request that is safe to relay verbatim, since
+        # the arguments and an `ask_user` prompt are model-generated text. A
+        # question carries none for that reason. `calls` stays populated where
+        # a wait happens to sit inside a running tool (an `ask_user` from a
+        # tool does), so cancelling it is still targetable from this row.
+        return _activity(
+            kind,
+            len(waits),
+            min(wait.started_at for wait in waits),
+            next((wait.subject for wait in waits if wait.subject), ""),
+            calls=[_pending_tool_call(ev) for ev in tool_events] or None,
+        )
 
     if tool_events:
         from inspect_ai._control.cancel import _pending_tool_call

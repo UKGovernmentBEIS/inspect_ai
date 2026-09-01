@@ -539,6 +539,22 @@ def test_activity_cell_renders_retry_wait() -> None:
     assert _format_activity(overdue, now) == "retrying"
 
 
+def test_activity_cell_renders_pending_human_interaction() -> None:
+    import time
+
+    from inspect_ai._cli.ctl._render import _format_activity
+
+    # sample `now` after building so elapsed rounds to the intended value
+    approval = _activity("approval", 372, detail="bash")
+    two = _activity("approval", 372, detail="bash", count=2)
+    question = _activity("question", 123, detail="")
+    now = time.time()
+    # the gated tool call names the approval; a question has no subject
+    assert _format_activity(approval, now) == "approval: bash 6:12"
+    assert _format_activity(two, now) == "2 approvals 6:12"
+    assert _format_activity(question, now) == "question 2:03"
+
+
 def test_activity_cell_degrades_for_unknown_type_and_null() -> None:
     import time
 
@@ -3453,6 +3469,68 @@ def test_config_set_buffer_error_does_not_claim_unapplied_knobs(
     assert "! log_buffer" not in result.stderr
 
 
+def test_config_buffer_error_static_clear_not_claimed_applied(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A 'clear' the server only warned about is not claimed as applied.
+
+    A static-limiter task reports max_samples adjustable, but a 'clear'
+    against it warns without applying (nothing is pinned) — the no-live-buffer
+    error's "still applied" tail must not name it. A clear against an
+    adaptive (tracks_adaptive) view did land, and is named.
+    """
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+
+    def stub_view(max_samples_view: Any, warnings: list[str]) -> None:
+        monkeypatch.setattr(
+            "inspect_ai._cli.ctl._config._exec_limits",
+            lambda *a, **k: _ConfigResult(
+                view={
+                    "max_samples": max_samples_view,
+                    "max_sandboxes": [],
+                    "adaptive": [],
+                    "buffer": None,
+                    "requested": {"max_samples": "clear", "log_buffer": 2},
+                    "warnings": warnings,
+                    "dry_run": False,
+                },
+                mutated=True,
+            ),
+        )
+
+    stub_view(
+        {"limit": 20, "in_use": 0, "adjustable": True},
+        [
+            "max_samples is a fixed setpoint for this task (pass an integer "
+            "to change it; 'clear' only unpins a task using adaptive "
+            "connections)."
+        ],
+    )
+    result = cli_runner().invoke(
+        ctl_command, ["config", "--log-buffer", "2", "--max-samples", "clear"]
+    )
+    assert result.exit_code == 1
+    assert "has no sample buffer" in result.stderr
+    assert "still applied" not in result.stderr
+    assert "! max_samples is a fixed setpoint" in result.stderr
+
+    stub_view(
+        {
+            "limit": 15,
+            "in_use": 0,
+            "adjustable": True,
+            "tracks_adaptive": True,
+            "override": None,
+        },
+        [],
+    )
+    result = cli_runner().invoke(
+        ctl_command, ["config", "--log-buffer", "2", "--max-samples", "clear"]
+    )
+    assert result.exit_code == 1
+    assert "(--max-samples) were still applied" in result.stderr
+
+
 def test_config_key_retune_sent_and_rendered(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -4121,6 +4199,8 @@ def test_config_retry_overrides_accept_clear_keyword(
     result = cli_runner().invoke(ctl_command, ["config", "--timeout=-5"])
     assert result.exit_code == 2
     assert "negative" in result.stderr
+    # override knobs: 'clear' really does restore launch config
+    assert "restore launch config" in result.stderr
 
     # over the shared value bound -> click usage error, no request made
     from inspect_ai.model._generate_overrides import MAX_GENERATE_CONFIG_OVERRIDE
@@ -4131,6 +4211,54 @@ def test_config_retry_overrides_accept_clear_keyword(
     )
     assert result.exit_code == 2
     assert "maximum override value" in result.stderr
+
+
+def test_config_max_samples_accepts_clear_and_rejects_zero(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """--max-samples is int-or-'clear' with a min of 1 and no upper bound."""
+    from inspect_ai._control import CONTROL_API_VERSION
+
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        servers=[_DiscServer(7, api_version=CONTROL_API_VERSION)],
+    )
+    _stub_limits(
+        monkeypatch, buffer={"log_buffer": 10, "pending": 0, "log_shared": None}
+    )
+    # 'clear' parses and is a mutation (the adaptive unpin)
+    result = cli_runner().invoke(
+        ctl_command, ["config", "--max-samples", "clear", "--json"]
+    )
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.stdout)["applied"] is True
+
+    # 0 keeps failing client-side, as the IntRange(min=1) it replaced did
+    result = cli_runner().invoke(ctl_command, ["config", "--max-samples", "0"])
+    assert result.exit_code == 2
+    assert "less than 1" in result.stderr
+
+    result = cli_runner().invoke(ctl_command, ["config", "--max-samples=-5"])
+    assert result.exit_code == 2
+    assert "negative" in result.stderr
+    # not the override knobs' "restore launch config": for this knob 'clear'
+    # only unpins an adaptive task (a static task rejects it outright)
+    assert "resume adaptive tracking" in result.stderr
+
+    result = cli_runner().invoke(ctl_command, ["config", "--max-samples", "lots"])
+    assert result.exit_code == 2
+    assert "is not an integer or 'clear'" in result.stderr
+
+    # no upper bound: the override knobs' shared ceiling does not apply
+    from inspect_ai.model._generate_overrides import MAX_GENERATE_CONFIG_OVERRIDE
+
+    result = cli_runner().invoke(
+        ctl_command,
+        ["config", "--max-samples", str(MAX_GENERATE_CONFIG_OVERRIDE + 1), "--json"],
+    )
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.stdout)["applied"] is True
 
 
 def test_config_max_tasks_wiring_and_floor(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -6196,6 +6324,531 @@ def test_sample_cancel_error_flag_and_dry_run(
     ]
     payload = json.loads(result.stdout)
     assert payload["applied"] is False and payload["dry_run"] is True
+
+
+def _single_epoch_summary() -> dict[str, Any]:
+    summary = _full_summary("aaa111", "t1")
+    summary["epochs"] = 1
+    return summary
+
+
+def test_sample_score_dry_run_json_envelope(monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_surface(monkeypatch, [_single_epoch_summary()])
+    targeted = {
+        "in_flight": 1,
+        "completed_unscored": 0,
+        "completed_scored": 0,
+        "skipped": 0,
+    }
+    spy = _RequestSpy(
+        {
+            "ok": True,
+            "changed": True,
+            "dry_run": True,
+            "scope": "sample",
+            "sample_id": "s1",
+            "epoch": 1,
+            "targeted": targeted,
+        }
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "score", "aaa111", "s1", "--dry-run", "--json"]
+    )
+    assert result.exit_code == 0, result.output
+    assert spy.paths == ["/evals/eval_aaa111/sample/score"]
+    assert spy.params == [{"sample_id": "s1", "epoch": 1, "dry_run": True}]
+    payload = json.loads(result.stdout)
+    assert payload["target"]["sample_id"] == "s1"
+    assert payload["target"]["epoch"] == 1
+    assert payload["applied"] is False and payload["dry_run"] is True
+    assert payload["detail"]["targeted"] == targeted
+
+
+def test_sample_score_requires_epoch_when_multi_epoch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A defaulted epoch on a multi-epoch task resolves to a different sample."""
+    summary = _full_summary("aaa111", "t1")
+    summary["epochs"] = 3
+    _patch_surface(monkeypatch, [summary])
+    spy = _RequestSpy({"ok": True, "changed": True})
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
+    result = cli_runner().invoke(ctl_command, ["sample", "score", "aaa111", "s1"])
+    assert result.exit_code == 1
+    assert "pass EPOCH explicitly" in result.stderr
+    assert spy.paths == []  # nothing was sent
+
+
+def test_sample_score_polls_to_completion(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The default flow starts a sample pass and polls its GET until finished."""
+    _patch_surface(monkeypatch, [_single_epoch_summary()])
+    monkeypatch.setattr("inspect_ai._cli.ctl._sample._SAMPLE_SCORE_POLL_INTERVAL", 0)
+    running = {
+        "ok": True,
+        "pass_id": "p1",
+        "scope": "sample",
+        "sample_id": "s1",
+        "epoch": 1,
+        "running": True,
+        "progress": {"scored": 0, "failed": 0, "unscored": 0, "total": 1},
+    }
+    final = {
+        "ok": True,
+        "pass_id": "p1",
+        "scope": "sample",
+        "sample_id": "s1",
+        "epoch": 1,
+        "running": False,
+        "progress": {"scored": 1, "failed": 0, "unscored": 0, "total": 1},
+        "result": {
+            "counts": {
+                "in_flight": 1,
+                "completed_unscored": 0,
+                "completed_scored": 0,
+                "skipped": 0,
+            },
+            "samples": [
+                {
+                    "sample_id": "s1",
+                    "epoch": 1,
+                    "disposition": "in_flight",
+                    "outcome": "scored",
+                    "scores": {"match": 1.0},
+                    "held_seconds": 3.2,
+                }
+            ],
+            "metrics": None,
+            "interim": True,
+            "epochs": 1,
+        },
+    }
+    spy = _SequenceSpy(
+        [
+            {
+                "ok": True,
+                "changed": True,
+                "dry_run": False,
+                "pass_id": "p1",
+                "scope": "sample",
+                "sample_id": "s1",
+                "epoch": 1,
+            },
+            running,
+            final,
+        ]
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "score", "aaa111", "s1", "--json"]
+    )
+    assert result.exit_code == 0, result.output
+    assert spy.paths == ["/evals/eval_aaa111/sample/score"] * 3
+    assert spy.mutates == ["post", None, None]
+    assert spy.params[0] == {"sample_id": "s1", "epoch": 1}
+    assert spy.params[1] == {"sample_id": "s1", "epoch": 1}
+    payload = json.loads(result.stdout)
+    assert payload["target"]["sample_id"] == "s1"
+    assert payload["applied"] is True
+    (row,) = payload["detail"]["result"]["samples"]
+    assert row["outcome"] == "scored" and row["scores"] == {"match": 1.0}
+
+
+def test_sample_score_renders_scored_result(monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_surface(monkeypatch, [_single_epoch_summary()])
+    monkeypatch.setattr("inspect_ai._cli.ctl._sample._SAMPLE_SCORE_POLL_INTERVAL", 0)
+    spy = _SequenceSpy(
+        [
+            {
+                "ok": True,
+                "changed": True,
+                "dry_run": False,
+                "pass_id": "p1",
+                "scope": "sample",
+                "sample_id": "s1",
+                "epoch": 1,
+            },
+            {
+                "ok": True,
+                "pass_id": "p1",
+                "scope": "sample",
+                "sample_id": "s1",
+                "epoch": 1,
+                "running": False,
+                "progress": {"scored": 1, "failed": 0, "unscored": 0, "total": 1},
+                "result": {
+                    "counts": {},
+                    "samples": [
+                        {
+                            "sample_id": "s1",
+                            "epoch": 1,
+                            "disposition": "in_flight",
+                            "outcome": "scored",
+                            "scores": {"match": 1.0},
+                            "held_seconds": 3.2,
+                        }
+                    ],
+                    "metrics": None,
+                    "interim": True,
+                },
+            },
+        ]
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "score", "aaa111", "s1", "--no-terse"]
+    )
+    assert result.exit_code == 0, result.output
+    assert "Interim score recorded — match=1.0 (held 3.2s)" in result.output
+    assert "keeps running" in result.output
+
+
+def test_sample_score_no_wait_returns_start_envelope(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_surface(monkeypatch, [_single_epoch_summary()])
+    spy = _RequestSpy(
+        {
+            "ok": True,
+            "changed": True,
+            "dry_run": False,
+            "pass_id": "p1",
+            "scope": "sample",
+            "sample_id": "s1",
+            "epoch": 1,
+            "targeted": {
+                "in_flight": 1,
+                "completed_unscored": 0,
+                "completed_scored": 0,
+                "skipped": 0,
+            },
+        }
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "score", "aaa111", "s1", "--no-wait", "--json"]
+    )
+    assert result.exit_code == 0, result.output
+    # one POST, no polling
+    assert spy.paths == ["/evals/eval_aaa111/sample/score"]
+    payload = json.loads(result.stdout)
+    assert payload["applied"] is True
+    assert payload["detail"]["pass_id"] == "p1"
+
+
+def test_sample_score_status_polls_without_starting(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """--status is the poll-only follow-up: GETs only, never a POST."""
+    _patch_surface(monkeypatch, [_single_epoch_summary()])
+    monkeypatch.setattr("inspect_ai._cli.ctl._sample._SAMPLE_SCORE_POLL_INTERVAL", 0)
+    spy = _SequenceSpy(
+        [
+            {
+                "ok": True,
+                "pass_id": "p1",
+                "scope": "sample",
+                "sample_id": "s1",
+                "epoch": 1,
+                "running": True,
+                "progress": {"scored": 0, "failed": 0, "unscored": 0, "total": 1},
+            },
+            {
+                "ok": True,
+                "pass_id": "p1",
+                "scope": "sample",
+                "sample_id": "s1",
+                "epoch": 1,
+                "running": False,
+                "progress": {"scored": 0, "failed": 0, "unscored": 1, "total": 1},
+                "result": {
+                    "counts": {},
+                    "samples": [
+                        {
+                            "sample_id": "s1",
+                            "epoch": 1,
+                            "disposition": "in_flight",
+                            "outcome": "did_not_park",
+                            "scores": {},
+                            "reason": "sample did not park within the hold timeout",
+                        }
+                    ],
+                    "metrics": None,
+                    "interim": True,
+                },
+            },
+        ]
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "score", "aaa111", "s1", "--status", "--no-terse"]
+    )
+    assert result.exit_code == 0, result.output
+    assert spy.paths == ["/evals/eval_aaa111/sample/score"] * 2
+    assert spy.mutates == [None, None]
+    assert "Not scored (did_not_park)" in result.output
+    assert "hold timeout" in result.output
+
+
+def test_sample_score_status_no_wait_single_snapshot(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_surface(monkeypatch, [_single_epoch_summary()])
+    snapshot = {
+        "ok": True,
+        "pass_id": "p1",
+        "scope": "sample",
+        "sample_id": "s1",
+        "epoch": 1,
+        "running": True,
+        "progress": {"scored": 0, "failed": 0, "unscored": 0, "total": 1},
+    }
+    spy = _SequenceSpy([snapshot])
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
+    result = cli_runner().invoke(
+        ctl_command,
+        ["sample", "score", "aaa111", "s1", "--status", "--no-wait", "--json"],
+    )
+    assert result.exit_code == 0, result.output
+    assert spy.paths == ["/evals/eval_aaa111/sample/score"]
+    assert spy.mutates == [None]
+    assert json.loads(result.stdout) == snapshot
+
+
+def test_sample_score_status_renders_rowless_pass(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A pass interrupted before producing its row renders a single label.
+
+    With no row, the outcome falls back to "not scored" — the renderer must
+    not double it as "Not scored (not scored)".
+    """
+    _patch_surface(monkeypatch, [_single_epoch_summary()])
+    spy = _SequenceSpy(
+        [
+            {
+                "ok": True,
+                "pass_id": "p1",
+                "scope": "sample",
+                "sample_id": "s1",
+                "epoch": 1,
+                "running": False,
+                "interrupted": "the pass was cancelled (attempt superseded)",
+                "result": {
+                    "counts": {},
+                    "samples": [],
+                    "metrics": None,
+                    "interim": True,
+                },
+            }
+        ]
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
+    result = cli_runner().invoke(
+        ctl_command,
+        ["sample", "score", "aaa111", "s1", "--status", "--no-wait", "--no-terse"],
+    )
+    assert result.exit_code == 0, result.output
+    assert "Not scored — no result row was produced." in result.output
+    assert "(not scored)" not in result.output
+    assert "pass interrupted" in result.output
+
+
+def test_sample_score_status_rejects_dry_run() -> None:
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "score", "aaa111", "s1", "--status", "--dry-run"]
+    )
+    assert result.exit_code == 2
+    assert "--status" in result.stderr and "--dry-run" in result.stderr
+
+
+def test_sample_score_blocked_by_other_pass_reports_noop(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A running pass with a different scope is reported, never joined."""
+    _patch_surface(monkeypatch, [_single_epoch_summary()])
+    spy = _RequestSpy(
+        {
+            "ok": True,
+            "changed": False,
+            "dry_run": False,
+            "pass_id": "task-pass",
+            "scope": "task",
+            "reason": "a scoring pass is already running for this task",
+            "progress": {"scored": 1, "failed": 0, "unscored": 0, "total": 3},
+        }
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "score", "aaa111", "s1", "--no-terse"]
+    )
+    assert result.exit_code == 0, result.output
+    # exactly one request: the blocked start is not followed by polling
+    assert spy.paths == ["/evals/eval_aaa111/sample/score"]
+    assert "already running" in result.output
+    assert "was not scored" in result.output
+    assert "inspect ctl task score --status" in result.output
+
+    # the terse line carries the not-scored hint too (scripted loops read it)
+    terse = cli_runner().invoke(
+        ctl_command, ["sample", "score", "aaa111", "s1", "--terse"]
+    )
+    assert terse.exit_code == 0, terse.output
+    assert "was not scored" in terse.output
+
+
+def test_sample_score_blocked_json_target_names_requested_sample(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A blocked start's envelope target is the requested sample, not the blocker's."""
+    _patch_surface(monkeypatch, [_single_epoch_summary()])
+    spy = _RequestSpy(
+        {
+            "ok": True,
+            "changed": False,
+            "dry_run": False,
+            "pass_id": "other-pass",
+            "scope": "sample",
+            "sample_id": "other-sample",
+            "epoch": 2,
+            "reason": (
+                "a sample-scoped scoring pass (sample other-sample, epoch 2) "
+                "is already running for this task"
+            ),
+            "progress": {"scored": 0, "failed": 0, "unscored": 0, "total": 1},
+        }
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "score", "aaa111", "s1", "--json"]
+    )
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.stdout)
+    assert payload["applied"] is False
+    assert payload["target"]["sample_id"] == "s1"
+    assert payload["target"]["epoch"] == 1
+
+
+def test_task_score_blocked_by_sample_pass_reports_noop(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`task score` never joins a sample-scoped pass (one sample, no metrics)."""
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    spy = _RequestSpy(
+        {
+            "ok": True,
+            "changed": False,
+            "dry_run": False,
+            "pass_id": "sample-pass",
+            "scope": "sample",
+            "sample_id": "s7",
+            "epoch": 2,
+            "reason": (
+                "a sample-scoped scoring pass (sample s7, epoch 2) is "
+                "already running for this task"
+            ),
+            "progress": {"scored": 0, "failed": 0, "unscored": 0, "total": 1},
+        }
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
+    result = cli_runner().invoke(ctl_command, ["task", "score", "--no-terse"])
+    assert result.exit_code == 0, result.output
+    # exactly one request — no join, no polling of someone else's pass
+    assert spy.paths == ["/tasks/aaa111/score"]
+    assert "sample-scoped" in result.output and "s7" in result.output
+    assert "joined" not in result.output
+
+
+def test_task_score_status_labels_sample_scoped_pass(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A sample-scoped pass is labeled, not rendered as a task-wide result."""
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    spy = _SequenceSpy(
+        [
+            {
+                "ok": True,
+                "pass_id": "sample-pass",
+                "scope": "sample",
+                "sample_id": "s7",
+                "epoch": 2,
+                "running": False,
+                "progress": {"scored": 1, "failed": 0, "unscored": 0, "total": 1},
+                "result": {
+                    "counts": {},
+                    "samples": [
+                        {
+                            "sample_id": "s7",
+                            "epoch": 2,
+                            "disposition": "in_flight",
+                            "outcome": "scored",
+                            "scores": {"match": 1.0},
+                        }
+                    ],
+                    "metrics": None,
+                    "interim": True,
+                },
+            }
+        ]
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
+    result = cli_runner().invoke(
+        ctl_command, ["task", "score", "--status", "--no-terse"]
+    )
+    assert result.exit_code == 0, result.output
+    assert "sample-scoped pass" in result.output
+    assert "s7" in result.output
+
+
+def test_sample_score_joins_own_running_pass(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A repeat for the same sample joins its running pass and polls it."""
+    _patch_surface(monkeypatch, [_single_epoch_summary()])
+    monkeypatch.setattr("inspect_ai._cli.ctl._sample._SAMPLE_SCORE_POLL_INTERVAL", 0)
+    joined = {
+        "ok": True,
+        "changed": False,
+        "dry_run": False,
+        "pass_id": "p1",
+        "scope": "sample",
+        "sample_id": "s1",
+        "epoch": 1,
+        "reason": "a scoring pass is already running for this task",
+        "progress": {"scored": 0, "failed": 0, "unscored": 0, "total": 1},
+    }
+    final = {
+        "ok": True,
+        "pass_id": "p1",
+        "scope": "sample",
+        "sample_id": "s1",
+        "epoch": 1,
+        "running": False,
+        "progress": {"scored": 1, "failed": 0, "unscored": 0, "total": 1},
+        "result": {
+            "counts": {},
+            "samples": [
+                {
+                    "sample_id": "s1",
+                    "epoch": 1,
+                    "disposition": "in_flight",
+                    "outcome": "scored",
+                    "scores": {"match": 1.0},
+                    "held_seconds": 1.5,
+                }
+            ],
+            "metrics": None,
+            "interim": True,
+        },
+    }
+    spy = _SequenceSpy([joined, final])
+    monkeypatch.setattr("inspect_ai._cli.ctl._http._request_json", spy)
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "score", "aaa111", "s1", "--no-terse"]
+    )
+    assert result.exit_code == 0, result.output
+    assert "joined already-running pass p1" in result.output
+    assert "Interim score recorded — match=1.0" in result.output
 
 
 def test_sample_cancel_cancel_action_sent(

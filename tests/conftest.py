@@ -173,9 +173,9 @@ def caplog(caplog: pytest.LogCaptureFixture) -> Iterator[pytest.LogCaptureFixtur
 
 @pytest.fixture(autouse=True)
 def fast_retry_waits(request):
-    """Zero out model-generate and chat-API retry backoff during tests.
+    """Zero out model-generate and provider retry backoff during tests.
 
-    Both retry paths default to ``wait_exponential_jitter(initial=3, ...)`` /
+    These retry paths default to ``wait_exponential_jitter(initial=3, ...)`` /
     ``wait_exponential_jitter()``, so any test that exercises a retry waits a
     real 3s + 6s + ... per attempt. The backoff *duration* is never the thing
     under test, so we replace the module-level ``wait_exponential_jitter`` with
@@ -188,6 +188,7 @@ def fast_retry_waits(request):
 
     from tenacity.wait import wait_none
 
+    import inspect_ai.model._providers.openai_responses as openai_responses
     import inspect_ai.model._providers.util.chatapi as chatapi
     import inspect_ai.model._retry as model_retry
 
@@ -197,6 +198,7 @@ def fast_retry_waits(request):
     with pytest.MonkeyPatch.context() as mp:
         mp.setattr(model_retry, "wait_exponential_jitter", no_wait)
         mp.setattr(chatapi, "wait_exponential_jitter", no_wait)
+        mp.setattr(openai_responses, "wait_exponential_jitter", no_wait)
         yield
 
 
@@ -682,11 +684,13 @@ def pytest_collection_modifyitems(config, items):
     # Auto-apply a 5-minute per-attempt timeout to every async test, then
     # flaky_retry(max_retries=3) for tests that hit external services (model
     # providers or Docker). The timeout is wrapped first so it sits inside the
-    # retry — each attempt gets its own fresh budget.
+    # retry — each attempt gets its own fresh budget. The item is passed so the
+    # retry can honor xfail markers, including ones added during fixture setup
+    # (as the sandbox self-check suite does): expected failures run once, and a
+    # flaky pass on a retry can't turn into a hard XPASS(strict) failure.
     from test_helpers.utils import flaky_retry, with_timeout
 
     _timeout = with_timeout(300)
-    _retry = flaky_retry(max_retries=3)
     for item in items:
         fn = item.obj
         if inspect.iscoroutinefunction(fn) and not getattr(
@@ -696,7 +700,7 @@ def pytest_collection_modifyitems(config, items):
         if getattr(fn, "_needs_flaky_retry", False) and not getattr(
             fn, "_flaky_retry", False
         ):
-            fn = _retry(fn)
+            fn = flaky_retry(max_retries=3, item=item)(fn)
         item.obj = fn
 
 

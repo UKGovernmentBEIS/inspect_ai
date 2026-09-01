@@ -69,7 +69,7 @@ def _rearm_pytest_timeout() -> None:
         pass
 
 
-def flaky_retry(max_retries: int) -> Callable[[F], F]:
+def flaky_retry(max_retries: int, item: pytest.Item | None = None) -> Callable[[F], F]:
     """
     Decorator to retry flaky tests up to max_retries times.
 
@@ -88,10 +88,18 @@ def flaky_retry(max_retries: int) -> Callable[[F], F]:
 
     Args:
         max_retries: Maximum number of retry attempts
+        item: The collected pytest item, when known (conftest's auto-wrap
+            passes it). A test whose item carries an ``xfail`` marker -- even
+            one added during fixture setup -- fails without retrying: the
+            failure is expected, and a flaky pass on a retry would surface as
+            a hard ``XPASS(strict)`` failure.
 
     Returns:
         Decorated test function that retries on failure
     """
+
+    def expected_to_fail() -> bool:
+        return item is not None and item.get_closest_marker("xfail") is not None
 
     def decorator(func: F) -> F:
         if asyncio.iscoroutinefunction(func):
@@ -108,7 +116,7 @@ def flaky_retry(max_retries: int) -> Callable[[F], F]:
                         raise
                     except (Exception, OutcomeException) as e:
                         last_exception = e
-                        if attempt < max_retries:
+                        if attempt < max_retries and not expected_to_fail():
                             _rearm_pytest_timeout()
                             continue
                         raise last_exception
@@ -128,7 +136,7 @@ def flaky_retry(max_retries: int) -> Callable[[F], F]:
                     raise
                 except (Exception, OutcomeException) as e:
                     last_exception = e
-                    if attempt < max_retries:
+                    if attempt < max_retries and not expected_to_fail():
                         _rearm_pytest_timeout()
                         continue
                     raise last_exception
@@ -403,9 +411,9 @@ def skip_if_github_action(func):
     return skip_if_env_var("GITHUB_ACTIONS", exists=True)(func)
 
 
-def skip_if_no_docker(func):
+def is_docker_installed() -> bool:
     try:
-        is_docker_installed = (
+        return (
             subprocess.run(
                 ["docker", "--version"],
                 check=False,
@@ -415,11 +423,13 @@ def skip_if_no_docker(func):
             == 0
         )
     except FileNotFoundError:
-        is_docker_installed = False
+        return False
 
+
+def skip_if_no_docker(func):
     func._needs_flaky_retry = True
     return pytest.mark.skipif(
-        not is_docker_installed, reason="Test doesn't work without Docker installed."
+        not is_docker_installed(), reason="Test doesn't work without Docker installed."
     )(func)
 
 
