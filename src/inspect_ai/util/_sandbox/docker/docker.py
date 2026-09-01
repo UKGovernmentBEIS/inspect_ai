@@ -13,6 +13,7 @@ from typing import Literal, NamedTuple, Union, overload
 
 from typing_extensions import override
 
+from inspect_ai._util.cpu import effective_cpu_count
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.util._subprocess import ExecResult, subprocess
 
@@ -76,8 +77,10 @@ class DockerSandboxEnvironment(SandboxEnvironment):
 
     @classmethod
     def default_concurrency(cls) -> int | None:
-        count = os.cpu_count() or 1
-        return 2 * count
+        # `effective_cpu_count()` rather than `os.cpu_count()`: an eval running
+        # inside a CPU-limited container would otherwise size its sandbox
+        # concurrency off the host's processors and oversubscribe its own quota
+        return 2 * effective_cpu_count()
 
     @classmethod
     async def task_init(

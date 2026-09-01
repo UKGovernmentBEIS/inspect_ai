@@ -1193,16 +1193,20 @@ def responses_reasoning_from_reasoning(
     if not content.redacted and content.summary:
         summary_params.append(SummaryParam(type="summary_text", text=content.summary))
 
-    return ResponseReasoningItemParam(
+    param = ResponseReasoningItemParam(  # type: ignore[typeddict-item]
         type="reasoning",
-        # OpenAI returns 'None' when store=False even though the schema requires the id
-        id=content.signature,  # type: ignore[typeddict-item]
         # Responses API rejects non-empty content on reasoning input items
         # (array_above_max_length); reasoning replays via encrypted_content.
         content=[],
         summary=summary_params,
         encrypted_content=encrypted_content,
     )
+    # OpenAI returns 'None' when store=False even though the schema requires the
+    # id. Omit the key entirely rather than sending an explicit null, which some
+    # backends (e.g. vLLM) reject.
+    if content.signature is not None:
+        param["id"] = content.signature
+    return param
 
 
 mcp_tool_adapter = TypeAdapter(list[McpListToolsToolParam])
@@ -1487,18 +1491,18 @@ def _openai_input_items_from_chat_message_assistant(
     def flush_pending_context_text() -> None:
         nonlocal pending_response_output_id, pending_response_phase
         if len(pending_response_output) > 0:
-            msg_param = ResponseOutputMessageParam(
+            msg_param = ResponseOutputMessageParam(  # type: ignore[typeddict-item]
                 type="message",
                 role="assistant",
-                # this actually can be `None`, and it will in fact be `None` when the
-                # assistant message is synthesized by the scaffold as opposed to being
-                # replayed from the model
-                # Is it okay to dynamically generate this here? We need this in
-                # order to read this back into the equivalent BaseModel for the bridge
-                id=pending_response_output_id,  # type: ignore[typeddict-item]
                 content=pending_response_output.copy(),
                 status="completed",
             )
+            # the id will be `None` when the assistant message is synthesized by
+            # the scaffold as opposed to being replayed from the model. Omit the
+            # key entirely rather than sending an explicit null, which some
+            # backends (e.g. vLLM) reject.
+            if pending_response_output_id is not None:
+                msg_param["id"] = pending_response_output_id
             if pending_response_phase is not None:
                 msg_param["phase"] = pending_response_phase  # type: ignore[typeddict-item]
             items.append(msg_param)
