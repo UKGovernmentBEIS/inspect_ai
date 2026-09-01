@@ -96,6 +96,22 @@ def test_user_and_assistant_message():
     assert log.samples[0].messages[1].text == ASSISTANT_MESSAGE
 
 
+def test_chain_of_thought_template_with_braces():
+    custom_cot = """{prompt}
+
+Reason step-by-step. Return output in JSON format: {{"answer": "value"}}."""
+
+    task = Task(
+        dataset=[Sample(input="Solve this problem", target="done")],
+        solver=[chain_of_thought(template=custom_cot), generate()],
+    )
+    log = eval(task, model="mockllm/model")[0]
+    assert log.samples
+    message = log.samples[0].messages[0].text
+    assert "Solve this problem" in message
+    assert '{"answer": "value"}' in message
+
+
 def test_chain_of_thought_resource(tmp_path):
     template_file = tmp_path / "cot.txt"
     template_file.write_text("Reason carefully:\n{prompt}\nANSWER: 42")
