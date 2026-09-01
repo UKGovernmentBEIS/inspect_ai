@@ -727,12 +727,16 @@ def test_majority_reducer_votes_do_not_alias_reduced_scores() -> None:
     # The recorded votes are an audit trail, so mutating one must not reach
     # back into the score it came from (and vice versa).
     scores = [Score(value={"a": 1}), Score(value={"a": 1}), Score(value={"a": 2})]
-    votes = majority_reducer(scores).metadata["panel"]["votes"]  # type: ignore[index]
+    reduced = majority_reducer(scores)
+    assert reduced.metadata is not None
+    votes = reduced.metadata["panel"]["votes"]
 
     votes[0]["a"] = 999
     assert scores[0].value == {"a": 1}
 
-    scores[1].value["a"] = 999  # type: ignore[index]
+    score_value = scores[1].value
+    assert isinstance(score_value, dict)
+    score_value["a"] = 999
     assert votes[1] == {"a": 1}
 
 
