@@ -5,6 +5,7 @@ import anyio
 from pydantic import JsonValue
 
 from inspect_ai._util.json import to_json_str_safe
+from inspect_ai._util.logger import warn_once
 from inspect_ai.model._call_tools import get_tools_info
 from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
 from inspect_ai.tool._tools._web_search._web_search import WebSearchProviders
@@ -190,6 +191,11 @@ def call_tool(
         if bridge.tool_approval_required() and not bridge.consume_tool_execution_grant(
             server, tool, arguments
         ):
+            warn_once(
+                logger,
+                f"Denied host tool call '{server}/{tool}': no approved "
+                "execution grant matched it.",
+            )
             raise PermissionError(
                 f"Host tool call '{server}/{tool}' was not approved for execution"
             )

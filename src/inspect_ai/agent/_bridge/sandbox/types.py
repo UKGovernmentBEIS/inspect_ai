@@ -3,6 +3,7 @@ from logging import getLogger
 from typing import TYPE_CHECKING, Any, NamedTuple, NoReturn, Sequence
 
 import anyio
+from pydantic_core import to_jsonable_python
 
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.logger import warn_once
@@ -83,28 +84,34 @@ class SandboxAgentBridge(AgentBridge):
     def register_tool_execution_grants(self, calls: Sequence[ToolCall]) -> None:
         """Add one-shot host-tool grants from an approved response.
 
-        Each grant is identity-scoped to the approved call's model-facing function
-        name plus its arguments and consumed once; `consume_tool_execution_grant`
-        resolves which bridged tool a name denotes. It is not scoped to the turn
-        or time it was approved: a grant persists for the bridge's (sample's)
-        lifetime until consumed (or evicted, with a warning, once
-        `_MAX_TOOL_EXECUTION_GRANTS` unconsumed grants accumulate), so an approved
-        call the scaffold never executes stays consumable later. That only ever
-        re-authorizes the same action the approver already approved (same function
-        name and arguments), never a different one.
-
-        Matching is by name: the approval API carries no execution target, so an
-        approved call to a scaffold-local tool that happens to share a bridged
-        tool's name also mints a host grant — still bounded to the exact
-        approver-reviewed arguments. Calls whose names cannot denote any bridged
-        tool are not stored, so the bounded store holds only grants an execution
-        could consume.
+        Each grant binds the exact bridged (server, tool) the approved call's
+        model-facing function name denotes plus the approved arguments
+        (JSON-normalized, since the scaffold re-sends them as parsed JSON), and
+        is consumed once. A name that denotes more than one bridged tool is
+        ambiguous — no grant is registered (fail closed, with a warning). A
+        grant is not scoped to the turn it was approved in: it persists until
+        consumed (or evicted, with a warning, once `_MAX_TOOL_EXECUTION_GRANTS`
+        unconsumed grants accumulate), but only ever re-authorizes the exact
+        approved action. The approval API carries no execution target, so an
+        approved scaffold-local call whose name denotes a bridged tool also
+        mints a grant for it — still bounded to the approved arguments.
         """
         if not self.tool_approval_required():
             return
 
         for call in calls:
-            if not _denotes_bridged_tool(self.bridged_tools, call.function):
+            targets = _resolve_bridged_tools(self.bridged_tools, call.function)
+            if not targets:
+                continue
+            if len(targets) > 1:
+                warn_once(
+                    logger,
+                    f"Approved tool call '{call.function}' denotes more than "
+                    "one bridged tool; no execution grant registered (the "
+                    "call will be denied). Use unique tool names across "
+                    "bridged servers, or a qualified name "
+                    "('mcp__<server>__<tool>').",
+                )
                 continue
             if len(self._tool_execution_grants) == self._tool_execution_grants.maxlen:
                 warn_once(
@@ -114,32 +121,33 @@ class SandboxAgentBridge(AgentBridge):
                     "unconsumed grant. An approved-but-never-executed call "
                     "that old can no longer be executed.",
                 )
+            server, tool = targets[0]
             self._tool_execution_grants.append(
                 _ToolExecutionGrant(
-                    function=call.function, arguments=dict(call.arguments)
+                    server=server,
+                    tool=tool,
+                    arguments=to_jsonable_python(dict(call.arguments), fallback=str),
                 )
             )
 
     def consume_tool_execution_grant(
         self, server: str, tool: str, arguments: dict[str, Any]
     ) -> bool:
-        """Consume one grant matching this execution, if present.
+        """Consume one grant binding this exact (server, tool), if present.
 
-        The requested (server, tool) is authoritative here, so the grant may have
-        been registered under any of the names a scaffold could have declared it
-        as (see `_candidate_functions`). Arguments match structurally (`==`): key
-        order and int/float numeric equality (`5 == 5.0`) don't matter, so a
-        scaffold's JSON round-trip cannot turn an approved call into a denial;
-        any other difference is denied.
+        Arguments match by JSON semantics (`_json_equal`): key order and
+        int/float numeric equality (`5 == 5.0`) don't matter, so a scaffold's
+        JSON round-trip cannot turn an approved call into a denial; any other
+        difference (including bool vs number) is denied.
         """
-        for function in _candidate_functions(server, tool):
-            try:
-                self._tool_execution_grants.remove(
-                    _ToolExecutionGrant(function=function, arguments=arguments)
-                )
+        for index, grant in enumerate(self._tool_execution_grants):
+            if (
+                grant.server == server
+                and grant.tool == tool
+                and _json_equal(grant.arguments, arguments)
+            ):
+                del self._tool_execution_grants[index]
                 return True
-            except ValueError:
-                continue
         return False
 
     def tool_approval_required(self) -> bool:
@@ -169,13 +177,16 @@ class SandboxAgentBridge(AgentBridge):
 
 
 class _ToolExecutionGrant(NamedTuple):
-    """Identity of one approved host tool execution: name plus arguments."""
+    """Identity of one approved host tool execution."""
 
-    function: str
-    """The approved call's model-facing function name, stored as the model used it."""
+    server: str
+    """Bridged server the grant is bound to."""
+
+    tool: str
+    """Tool name within the bridged server."""
 
     arguments: dict[str, Any]
-    """The approved arguments, matched structurally (`==`)."""
+    """The approved arguments, JSON-normalized and matched via `_json_equal`."""
 
 
 def _candidate_functions(server: str, tool: str) -> tuple[str, str, str]:
@@ -190,12 +201,26 @@ def _candidate_functions(server: str, tool: str) -> tuple[str, str, str]:
     return (tool, f"mcp__{server}__{tool}", f"{server}__{tool}")
 
 
-def _denotes_bridged_tool(
+def _resolve_bridged_tools(
     bridged_tools: dict[str, dict[str, Tool]], function: str
-) -> bool:
-    """Whether an approved call's function name could denote some bridged tool."""
-    return any(
-        function in _candidate_functions(server, tool)
+) -> list[tuple[str, str]]:
+    """Every bridged (server, tool) a call's function name could denote."""
+    return [
+        (server, tool)
         for server, tools in bridged_tools.items()
         for tool in tools
-    )
+        if function in _candidate_functions(server, tool)
+    ]
+
+
+def _json_equal(a: Any, b: Any) -> bool:
+    """Equality by JSON semantics: 5 == 5.0, but True != 1 (unlike Python `==`)."""
+    if isinstance(a, bool) or isinstance(b, bool):
+        return isinstance(a, bool) and isinstance(b, bool) and a == b
+    if isinstance(a, int | float) and isinstance(b, int | float):
+        return a == b
+    if isinstance(a, dict) and isinstance(b, dict):
+        return a.keys() == b.keys() and all(_json_equal(v, b[k]) for k, v in a.items())
+    if isinstance(a, list) and isinstance(b, list):
+        return len(a) == len(b) and all(_json_equal(x, y) for x, y in zip(a, b))
+    return type(a) is type(b) and bool(a == b)
