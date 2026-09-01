@@ -17,7 +17,7 @@ from inspect_ai.approval._policy import ApprovalPolicyConfig, ApproverPolicyConf
 from inspect_ai.dataset import Sample
 from inspect_ai.event._approval import ApprovalEvent
 from inspect_ai.log._log import EvalLog
-from inspect_ai.model import ChatMessage, ModelOutput, get_model
+from inspect_ai.model import ChatMessage, Model, ModelOutput, get_model
 from inspect_ai.scorer import match
 from inspect_ai.solver import generate, use_tools
 from inspect_ai.tool._tool import tool
@@ -49,25 +49,22 @@ class ApprovalEval(NamedTuple):
     task: Task
 
 
-def eval_with_approval(
-    policy: str | ApprovalPolicy | list[ApprovalPolicy] | None = None,
-    task_policy: str | ApprovalPolicy | list[ApprovalPolicy] | None = None,
-) -> ApprovalEval:
-    if policy is not None:
-        if isinstance(policy, str):
-            policy = (Path(__file__).parent / policy).as_posix()
+def resolve_policy(
+    policy: str | ApprovalPolicy | list[ApprovalPolicy] | None,
+) -> str | list[ApprovalPolicy] | None:
+    if policy is None:
+        return None
 
-        policy = policy if isinstance(policy, list | str) else [policy]
+    if isinstance(policy, str):
+        return (Path(__file__).parent / policy).as_posix()
 
-    if task_policy is not None:
-        if isinstance(task_policy, str):
-            task_policy = (Path(__file__).parent / task_policy).as_posix()
+    return policy if isinstance(policy, list) else [policy]
 
-        task_policy = (
-            task_policy if isinstance(task_policy, list | str) else [task_policy]
-        )
 
-    model = get_model(
+def approval_model() -> Model:
+    # mockllm consumes custom_outputs as a one-shot iterator, so don't memoize
+    # (tests which run two evals need a fresh model for each)
+    return get_model(
         "mockllm/model",
         custom_outputs=[
             ModelOutput.for_tool_call(
@@ -77,16 +74,30 @@ def eval_with_approval(
             ),
             ModelOutput.from_content("mockllm/model", content="2"),
         ],
+        memoize=False,
     )
 
-    task = Task(
+
+def approval_task(
+    task_policy: str | ApprovalPolicy | list[ApprovalPolicy] | None = None,
+) -> Task:
+    return Task(
         dataset=[Sample(input="What is 1 + 1?", target="2")],
         solver=[use_tools(addition()), generate()],
         scorer=match(numeric=True),
-        approval=task_policy,
+        approval=resolve_policy(task_policy),
     )
 
-    return ApprovalEval(eval(task, model=model, approval=policy)[0], task)
+
+def eval_with_approval(
+    policy: str | ApprovalPolicy | list[ApprovalPolicy] | None = None,
+    task_policy: str | ApprovalPolicy | list[ApprovalPolicy] | None = None,
+) -> ApprovalEval:
+    task = approval_task(task_policy)
+
+    return ApprovalEval(
+        eval(task, model=approval_model(), approval=resolve_policy(policy))[0], task
+    )
 
 
 def check_approval(
@@ -185,9 +196,23 @@ def test_eval_approval_takes_precedence_in_config():
         policy=reject_all_policy, task_policy=approve_all_policy
     )
     assert result.log.eval.config.approval == reject_all_config
-    assert result.task.approval == [reject_all_policy]
+    # the merge runs against a copy, so the caller's task keeps its own policy
+    assert result.task.approval == [approve_all_policy]
     approval = find_approval(result.log)
     assert approval and approval.decision == "reject"
+
+
+def test_eval_approval_not_leaked_to_reused_task():
+    task = approval_task()
+
+    first = eval(task, model=approval_model(), approval=[reject_all_policy])[0]
+    assert first.eval.config.approval == reject_all_config
+    first_approval = find_approval(first)
+    assert first_approval and first_approval.decision == "reject"
+
+    second = eval(task, model=approval_model())[0]
+    assert second.eval.config.approval is None
+    assert find_approval(second) is None
 
 
 def test_no_approval_recorded_in_config():
