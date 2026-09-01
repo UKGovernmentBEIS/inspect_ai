@@ -101,9 +101,7 @@ class EvalCommand(SectionedCommand):
 
 MAX_SAMPLES_HELP = "Maximum number of samples to run in parallel (default is running all samples in parallel)"
 MAX_TASKS_HELP = "Maximum number of tasks to run in parallel (default is 1 for eval and 10 for eval-set)"
-MAX_SUBPROCESSES_HELP = (
-    "Maximum number of subprocesses to run in parallel (default is os.cpu_count())"
-)
+MAX_SUBPROCESSES_HELP = "Maximum number of subprocesses to run in parallel (default is the number of processors available to the eval)"
 MAX_SANDBOXES_HELP = "Maximum number of sandboxes (per-provider) to run in parallel."
 NO_SANDBOX_CLEANUP_HELP = "Do not cleanup sandbox environments after task completes"
 SANDBOX_PREBUILT_HELP = "Treat sandbox images as prebuilt (skip builds and fail at startup when an image is missing)"
