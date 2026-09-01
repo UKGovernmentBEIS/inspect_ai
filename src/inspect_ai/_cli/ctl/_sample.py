@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any, NamedTuple, cast
 
 import click
 
+from inspect_ai._control.cancel import SAMPLE_ALREADY_FINISHED_REASON
 from inspect_ai._control.state import DEFAULT_SAMPLE_LIST_LIMIT, SAMPLE_STATUSES
 
 # Patch seam: tests monkeypatch functions on their defining module
@@ -579,13 +580,17 @@ def sample_cancel_command(
     as_json: bool,
     terse: bool | None,
 ) -> None:
-    """Cancel one running sample.
+    """Cancel one sample.
 
-    The sample is resolved per `--action`; the rest of the task is
-    unaffected. Idempotent — cancelling a sample that has already finished
-    is a clean no-op. EPOCH defaults to 1 but is required whenever the
-    task runs more than one epoch (a defaulted epoch would silently cancel
-    a different attempt).
+    A running sample is resolved per `--action`; the rest of the task is
+    unaffected. `--action cancel` also works on a sample that hasn't
+    started: it withdraws a queued re-run's pending requeue (the prior
+    terminal record stands) and cancels a never-started sample before it
+    starts (removed from the queue, absent from the final log). Idempotent —
+    cancelling a sample that has already finished (or was already cancelled
+    before start) is a clean no-op. EPOCH defaults to 1 but is required
+    whenever the task runs more than one epoch (a defaulted epoch would
+    silently cancel a different attempt).
     """
     _run_sample_cancel(
         task,
@@ -958,22 +963,42 @@ def _run_sample_cancel(
         "cancel": "recorded as cancelled",
     }[action]
 
+    # the queued rows (cancel-before-start / un-requeue — see
+    # design/ctl/queued-sample-cancel.md) report what actually happened via
+    # `reason`; "it will be scored/cancelled" would misdescribe a sample that
+    # never runs, so the reason wins when the server sends one
     def changed_message(label: str, result: dict[str, Any]) -> str:
+        reason = result.get("reason")
+        if reason:
+            reason = _sanitize_line(str(reason))
+            if dry_run:
+                return f"Would cancel {label} — {reason}."
+            return f"Cancelled {label} — {reason}."
         if dry_run:
             return f"Would cancel {label} — it would be {outcome}."
         return f"Cancel requested for {label} — it will be {outcome}."
 
     def noop_message(label: str, result: dict[str, Any]) -> str:
+        reason = result.get("reason")
+        if reason and reason != SAMPLE_ALREADY_FINISHED_REASON:
+            return f"Nothing to do — {label}: {_sanitize_line(str(reason))}."
         status = result.get("status")
         suffix = f" (status: {_sanitize_line(str(status))})" if status else ""
         return f"Nothing to do — {label} has already finished{suffix}."
 
     def terse_changed(result: dict[str, Any]) -> str:
+        reason = result.get("reason")
+        if reason:
+            reason = _sanitize_line(str(reason))
+            return f"dry-run — {reason}" if dry_run else reason
         if dry_run:
             return f"dry-run — would be {outcome}"
         return f"requested — will be {outcome}"
 
     def terse_noop(result: dict[str, Any]) -> str:
+        reason = result.get("reason")
+        if reason and reason != SAMPLE_ALREADY_FINISHED_REASON:
+            return f"no-op — {_sanitize_line(str(reason))}"
         status = result.get("status")
         suffix = f" (status: {_sanitize_line(str(status))})" if status else ""
         return f"no-op — already finished{suffix}"
@@ -1101,11 +1126,34 @@ def _requeue_resume_clause(result: dict[str, Any]) -> str:
 def _requeue_changed_message(
     label: str, result: dict[str, Any], *, dry_run: bool
 ) -> str:
-    """The human line for an accepted (or would-be-accepted) requeue."""
+    """The human line for an accepted (or would-be-accepted) requeue.
+
+    The un-cancel row reports what actually happened via `reason` — its
+    parked coroutine keeps its place at the queue, so the resume clause
+    ("re-run from the back of the sample queue") would misdescribe it; the
+    reason wins when the server sends one.
+    """
+    reason = result.get("reason")
+    if reason:
+        reason = _sanitize_line(str(reason))
+        if dry_run:
+            return f"Would requeue {label} — {reason}."
+        return f"Requeue accepted for {label} — {reason}."
     resume = _requeue_resume_clause(result)
     if dry_run:
         return f"Would requeue {label} — it would {resume}."
     return f"Requeue accepted for {label} — it will {resume}."
+
+
+def _requeue_changed_terse(result: dict[str, Any], *, dry_run: bool) -> str:
+    """The terse outcome for an accepted requeue (same reason-wins rule)."""
+    reason = result.get("reason")
+    if reason:
+        reason = _sanitize_line(str(reason))
+        return f"dry-run — {reason}" if dry_run else reason
+    if dry_run:
+        return f"dry-run — would {_requeue_resume_clause(result)}"
+    return f"accepted — will {_requeue_resume_clause(result)}"
 
 
 @_envelope_failures
@@ -1127,9 +1175,7 @@ def _run_sample_requeue(
         return f"Nothing to do — {reason}."
 
     def terse_changed(result: dict[str, Any]) -> str:
-        if dry_run:
-            return f"dry-run — would {_requeue_resume_clause(result)}"
-        return f"accepted — will {_requeue_resume_clause(result)}"
+        return _requeue_changed_terse(result, dry_run=dry_run)
 
     def terse_noop(result: dict[str, Any]) -> str:
         return f"no-op — {result.get('reason') or 'already in that state'}"
@@ -1345,11 +1391,7 @@ def _requeue_pairs(
                 _echo(f"Rejected {label} — {message}")
         elif (entry.get("detail") or {}).get("changed"):
             if use_terse:
-                terse_outcome = (
-                    f"dry-run — would {_requeue_resume_clause(entry['detail'])}"
-                    if dry_run
-                    else f"accepted — will {_requeue_resume_clause(entry['detail'])}"
-                )
+                terse_outcome = _requeue_changed_terse(entry["detail"], dry_run=dry_run)
                 _echo(_terse_line("requeue", label, terse_outcome))
             else:
                 _echo(_requeue_changed_message(label, entry["detail"], dry_run=dry_run))

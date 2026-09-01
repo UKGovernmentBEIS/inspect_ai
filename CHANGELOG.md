@@ -1,4 +1,10 @@
 ## Unreleased
+
+- Scorer: `pattern()` now falls back to the full regex match when the pattern contains no explicit capture groups (previously such patterns always scored INCORRECT). (#4828)
+- Bugfix: Bump the `fsspec` upper bound from `<=2025.9.0` to `<=2026.6.0` to align with the current `huggingface/datasets` cap. (#4761)
+- Concurrency: `max_sandboxes` and `max_subprocesses` now default off the processors the eval may actually use, so an eval in a CPU-limited container no longer oversubscribes its quota.
+- Tools: The `grep` tool now supports extended regex via a new `extended_regexp` option (patterns remain basic regex by default).
+- Agent Bridge: Bridged Anthropic requests now preserve `system` block boundaries, so instruction blocks are no longer silently discarded by the API.
 - Anthropic: A single assistant turn that interleaves thinking with client tool calls now replays in its original order, so subsequent requests no longer fail with "thinking ... blocks in the latest assistant message cannot be modified".
 - OpenAI: Chat Completions usage now preserves prompt-cache read and write tokens for accurate cache-aware costing.
 - Scoring: `model_graded_qa`/`model_graded_fact` no longer score a malformed multi-character verdict such as `GRADE: CI` as correct; such verdicts now leave the sample unscored with `grade_parse_failure` recorded.
@@ -10,13 +16,20 @@
 - Eval Set: `eval_set()` now defaults `log_dir` to `INSPECT_LOG_DIR` or `./logs`, as `eval()` does, rather than requiring it.
 - Eval Set: An external runner driving `eval_set()` can now override any argument that does not change task identity, rather than only five.
 - Eval Set: An eval set driven by an external runner now honors the `INSPECT_EVAL_*` environment variables with the same meanings `inspect eval-set` gives them.
+- Eval Set: Eval set selections now support specifying scanners.
 - Control Channel: `inspect ctl config --max-samples` now works for tasks using adaptive connections — an integer pins sample concurrency, and `clear` resumes adaptive tracking.
 - Eval logs: Header-only `.eval` log uploads to S3 now appear in `inspect trace` output.
+- Bugfix: Sustained rate limiting no longer pins the adaptive connection limit after a single reduction; it keeps adapting up and down as conditions change.
 - Eval Log: Resolving a log's attachments no longer discards model call payloads, which previously became unreadable when attachments were resolved.
 - Eval Log: Fixed trio evals crashing with `ValueError: seek of closed file` when writing a `.eval` log smaller than 8MB to S3.
 - Inspect CTL: New `inspect ctl sample score` interim-scores a single running sample's work-so-far on demand (briefly held while scored; the sample keeps running).
 - Score: `inspect score` now reports samples that errored or were stopped early, so a re-scored partial run is no longer displayed as if it were complete.
 - Agent bridge: Anthropic responses now report thinking tokens in `usage.output_tokens_details`, so bridged clients can distinguish a reasoning response from a plain one.
+- Eval Log: Buffer manifest segment entries are now `TypedDict`s rather than pydantic models, cutting manifest parse time and GC pressure on the sync thread for runs with many segments.
+- Eval Log: Buffer manifests are no longer written with indentation, which accounted for ~41% of their bytes on every `log_shared` sync.
+- OpenAI: Responses API requests now omit the `id` key on synthesized message and reasoning items rather than sending an explicit null, which backends like vLLM reject.
+- Hooks: Fixed hooks published by extension packages silently not loading when another hook was already registered at startup.
+- Control Channel: `inspect ctl sample cancel --action cancel` now works on samples that haven't started — cancelling a never-started sample before it runs and withdrawing (un-requeuing) a queued re-run so its prior outcome stands.
 
 ## 0.3.261 (30 August 2026)
 
@@ -91,6 +104,7 @@
 - Mistral: Requests are no longer capped at the SDK's flat 5s timeout, which cut off generations that took longer.
 - Hugging Face: Chat templates that use dict methods (e.g. Gemma's `message.get(...)`) no longer fail with a Jinja `UndefinedError`.
 - Sandbox: When remote exec polling exhausts its retries, the error now names the sandbox's actual failure instead of an opaque tenacity RetryError.
+- Fixed a sandbox service (including the sandbox agent bridge) permanently ceasing to answer requests after one slow request, which previously required destroying the sandbox to recover.
 
 ## 0.3.260 (21 August 2026)
 
