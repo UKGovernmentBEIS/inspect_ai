@@ -279,13 +279,17 @@ def generate_config_from_anthropic(json_data: dict[str, Any]) -> GenerateConfig:
                 # non-string one escapes as a raw `ValidationError` -- the
                 # status-less failure `client_json_schema` exists to prevent.
                 # Route it to the same 400 the real API answers.
-                name = output_format.get("name") or "response"
-                if not isinstance(name, str):
+                # Type-check before applying the default so a falsy
+                # non-string (`0`, `false`) is rejected like any other
+                # non-string rather than silently becoming "response".
+                name = output_format.get("name", None)
+                if name is not None and not isinstance(name, str):
                     raise BridgePolicyError(
                         "invalid response schema in bridged request "
                         "(output_config.format.name: input should be a valid "
                         f"string, got {type(name).__name__})"
                     )
+                name = name or "response"
                 config.response_schema = ResponseSchema(
                     name=name,
                     # NOTE: Inspect's `JSONSchema` does not model every keyword
