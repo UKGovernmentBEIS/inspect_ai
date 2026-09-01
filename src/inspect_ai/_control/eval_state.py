@@ -335,18 +335,24 @@ class EvalState:
     it) rather than ``cancelled`` (terminal — no retry coming)."""
 
     retry_pending: bool = False
-    """Whether this attempt finished with an error and a retry has been queued.
+    """Whether this attempt is ending with an error and a retry will follow.
 
-    Stamped by :func:`mark_eval_retry_pending` at the eval-set's retry
-    decision point, so directives that would otherwise read a stamped
-    :attr:`completed_at` as "task finished" (eg. task cancel) can answer
-    honestly during the window between attempts — the retry registers its
-    own :class:`EvalState` only when it actually starts, and until then
-    this errored attempt is the task's latest. Cleared only by
-    :func:`abandon_task_retry` (a task drain/cancel abandoning the queued
-    retry, so the task reads terminal the moment the directive returns);
-    otherwise never — once the retry starts, :func:`latest_eval_for_task`
-    resolves to its fresh state and this one is no longer consulted."""
+    Stamped by :func:`mark_eval_retry_pending` — first by the task runner
+    the moment it decides the attempt's terminal status (before the final
+    log write, which on a remote log dir takes seconds), then again by the
+    eval-set's retry decision point — so directives that would otherwise
+    read a stamped :attr:`completed_at` as "task finished" (eg. task cancel)
+    can answer honestly for the whole window between attempts: from the
+    last sample's terminal record, through the final log write, until the
+    retry registers its own :class:`EvalState` when it actually starts
+    (until then this errored attempt is the task's latest). Cleared by
+    :func:`abandon_task_retry` (a task drain/cancel abandoning the retry, so
+    the task reads terminal the moment the directive returns) or by
+    :func:`clear_eval_retry_pending` when the dispatcher decides *not* to
+    retry after all (a cancel stamp superseded the pre-marked retry while
+    the log was being written); otherwise never — once the retry starts,
+    :func:`latest_eval_for_task` resolves to its fresh state and this one is
+    no longer consulted."""
 
     total_tokens: int = 0
     """Cumulative model tokens used by this eval's terminal samples.
@@ -824,19 +830,45 @@ def latest_eval_for_task(task_id: str) -> "EvalState | None":
 
 
 def mark_eval_retry_pending(eval_id: str) -> None:
-    """Record that a retry of this (errored, finished) attempt has been queued.
+    """Record that a retry of this (errored) attempt will be / has been queued.
 
-    Called by the eval-set runner at the point it decides to re-queue a
-    failed task — after the attempt's ``finalize_eval`` (which stamped
-    ``completed_at``) and before the retry attempt starts (which registers
-    a fresh :class:`EvalState`). See :attr:`EvalState.retry_pending` for
-    why the window between those two events needs the flag. No-ops if the
+    Called twice per retried attempt, idempotently: by the task runner the
+    moment it decides the attempt's terminal status is an error the eval-set
+    will retry (before the final log write — ``completed_at`` is typically
+    already stamped by the last sample's terminal record, and without the
+    flag a task cancel/drain landing during the log write would read the
+    attempt as "task finished" while the retry then dispatched anyway), and
+    by the eval-set runner at the point it actually re-queues the task. The
+    flag stands until the retry attempt starts (which registers a fresh
+    :class:`EvalState`), is cleared by :func:`abandon_task_retry`, or is
+    unwound by :func:`clear_eval_retry_pending` when the runner decides not
+    to retry after all. See :attr:`EvalState.retry_pending`. No-ops if the
     eval isn't registered.
     """
     with _lock:
         state = _eval_states.get(eval_id)
         if state is not None:
             state.retry_pending = True
+
+
+def clear_eval_retry_pending(eval_id: str) -> None:
+    """Unwind a pre-marked retry the dispatcher decided not to queue.
+
+    The task runner marks :attr:`EvalState.retry_pending` as soon as it
+    decides an error status with retry budget remaining; the dispatcher owns
+    the final decision and consults the cancel stamp last (a cancel landing
+    while the log was being written — reachable when ``completed_at`` was
+    not yet stamped, e.g. a SampleSource-driven task or a task-level
+    exception — supersedes the retry). When no retry follows, the flag must
+    not stand: the task would otherwise read as between attempts forever
+    (listed as active, requeue rejected as "between attempts", a repeat
+    cancel claiming to abandon a retry that was never coming). No-ops if the
+    eval isn't registered.
+    """
+    with _lock:
+        state = _eval_states.get(eval_id)
+        if state is not None:
+            state.retry_pending = False
 
 
 # Tasks whose queued/requested eval-set retry has been abandoned by a task

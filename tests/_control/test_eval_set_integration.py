@@ -3317,6 +3317,88 @@ def test_ctl_task_cancel_between_attempts_abandons_retry(
     assert holder_log.status == "success"
 
 
+def test_ctl_task_cancel_during_final_log_write_abandons_retry(
+    short_data_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A cancel landing while the errored attempt finishes abandons its retry.
+
+    ``completed_at`` is stamped by the last sample's terminal record, but the
+    dispatcher only flags ``retry_pending`` after the attempt's whole
+    ``finish_task_log`` — so a cancel in between used to read "task already
+    finished" and the retry dispatched anyway. The task runner now flags the
+    pending retry as it decides the error status, ahead of the log write. The
+    cancel is issued from inside that write (the runner's ``_finish_task_log``
+    is wrapped — on the eval loop, as a control-server route would run): it
+    must be told the retry is abandoned, and the retry must never run.
+    """
+    import inspect_ai._eval.task.run as task_run_module
+    from inspect_ai._control.cancel import cancel_task
+    from inspect_ai._control.eval_state import get_eval_state
+
+    fail = {"calls": 0}
+    observed: dict[str, Any] = {}
+    original_finish = task_run_module._finish_task_log
+
+    async def cancelling_finish(*args: Any, **kwargs: Any) -> Any:
+        logger = kwargs["logger"]
+        if kwargs["status"] == "error" and not observed:
+            state = get_eval_state(logger.eval.eval_id)
+            assert state is not None
+            observed["before"] = {
+                "completed_at_stamped": state.completed_at is not None,
+                "retry_pending": state.retry_pending,
+            }
+            observed["result"] = cancel_task(state.task_id)
+            observed["repeat"] = cancel_task(state.task_id)
+        return await original_finish(*args, **kwargs)
+
+    monkeypatch.setattr(task_run_module, "_finish_task_log", cancelling_finish)
+
+    @solver
+    def always_fail() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            fail["calls"] += 1
+            raise RuntimeError("synthetic failure")
+
+        return solve
+
+    @task
+    def task_flaky() -> Task:
+        return Task(
+            dataset=[Sample(input="x", target="y")],
+            solver=[always_fail()],
+            name="task_flaky",
+        )
+
+    log_dir = str(short_data_dir / "logs")
+    Path(log_dir).mkdir()
+
+    success, logs = eval_set(
+        tasks=[task_flaky()],
+        log_dir=log_dir,
+        model="mockllm/model",
+        retry_attempts=2,
+        retry_wait=0.05,
+        retry_immediate=True,
+    )
+
+    assert observed, "the errored attempt's final log write was never observed"
+    # the cancel landed inside the window: all samples terminal, retry flagged
+    # by the runner ahead of the dispatcher's decision
+    assert observed["before"] == {"completed_at_stamped": True, "retry_pending": True}
+    result = observed["result"]
+    assert result is not None and result["ok"] is True
+    assert result["changed"] is True and result["retry_abandoned"] is True
+    repeat = observed["repeat"]
+    assert repeat is not None and repeat["changed"] is False
+    assert repeat["reason"] == "pending retry already abandoned"
+
+    # the retry never ran: one attempt, ending with its error log
+    assert fail["calls"] == 1
+    assert not success
+    assert len(logs) == 1 and logs[0].status == "error"
+
+
 # --- config --max-tasks: live dispatch-limit retune -------------------------
 
 

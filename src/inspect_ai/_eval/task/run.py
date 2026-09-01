@@ -15,6 +15,7 @@ from typing_extensions import Unpack
 
 from inspect_ai._control.eval_state import (
     finalize_eval,
+    mark_eval_retry_pending,
     record_sample_cancelled,
     record_sample_completed,
     record_sample_errored,
@@ -852,6 +853,23 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
             "error",
             "drain",
         )
+        # An error status the eval-set will retry (budget remaining, and
+        # neither an abort nor a graceful resolution — the dispatcher retries
+        # exactly on a natural error or a "retry" stamp): flag the retry as
+        # pending *before* the log write. completed_at is typically already
+        # stamped (the last sample's terminal record), so without the flag a
+        # task cancel/drain landing during this write — seconds on a remote
+        # log dir — would answer "task already finished" while the retry then
+        # dispatched anyway. The dispatcher re-marks at its own decision and
+        # unwinds the flag if a stamp landing here supersedes the retry (see
+        # clear_eval_retry_pending).
+        if (
+            status == "error"
+            and task_cancel is not None
+            and task_cancel.can_retry
+            and task_cancel.cancel_type in (None, "retry")
+        ):
+            mark_eval_retry_pending(logger.eval.eval_id)
         return await _finish_task_log(
             logger=logger,
             sample_source=options.sample_source,

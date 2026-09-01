@@ -338,6 +338,35 @@ def test_mark_eval_retry_pending_unregistered_is_noop() -> None:
     mark_eval_retry_pending("nope")  # must not raise
 
 
+def test_clear_eval_retry_pending_unwinds_pre_mark() -> None:
+    """The dispatcher unwinds a runner pre-mark when no retry follows.
+
+    The task runner flags ``retry_pending`` as soon as it decides an error
+    status the eval-set would retry (before its log write); when a cancel
+    stamp landing in that window supersedes the retry, the dispatcher clears
+    the flag — otherwise the task would read as between attempts forever
+    (listed active, requeue rejected, a repeat cancel claiming to abandon a
+    retry that was never coming).
+    """
+    from inspect_ai._control.eval_state import clear_eval_retry_pending
+
+    handle = _FakeTaskCancel(can_retry=True)
+    register_eval("e1", 1, task_id="t1", will_retry=True, task_cancel=handle)
+    record_sample_errored("e1")
+    mark_eval_retry_pending("e1")  # the runner's pre-mark ...
+    clear_eval_retry_pending("e1")  # ... unwound: the dispatcher won't retry
+    state = get_eval_state("e1")
+    assert state is not None and state.retry_pending is False
+
+    result = cancel_task("t1")
+    assert result is not None
+    assert result["ok"] is True and result["changed"] is False
+    assert result["reason"] == "task already finished"
+    assert not task_retry_abandoned("t1")
+
+    clear_eval_retry_pending("nope")  # unregistered: must not raise
+
+
 def test_cancel_task_running_without_handle_rejected() -> None:
     # a running (not finished) state with no cancel handle can't be cancelled
     register_eval("e1", 5, task_id="t1")

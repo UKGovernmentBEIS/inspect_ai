@@ -23,6 +23,7 @@ from anyio.abc import TaskGroup
 from typing_extensions import Unpack
 
 from inspect_ai._control.eval_state import (
+    clear_eval_retry_pending,
     mark_eval_retry_pending,
     task_retry_abandoned,
 )
@@ -831,7 +832,9 @@ async def run_task_retry_attempts(
                         # EvalState, this errored attempt is the task's latest —
                         # flag it so task-keyed directives don't read its
                         # completed_at as "task finished" (see EvalState
-                        # .retry_pending)
+                        # .retry_pending). The task runner already flagged it
+                        # when it decided the error status (ahead of its log
+                        # write); this is the confirming re-mark.
                         mark_eval_retry_pending(result.eval.eval_id)
 
                         # build sample_source from the failed log so completed
@@ -873,6 +876,12 @@ async def run_task_retry_attempts(
                             ),
                             retries_remaining=item.retries_remaining - 1,
                         )
+                    elif result is not None:
+                        # no retry follows — unwind the runner's pre-mark, which
+                        # a cancel stamp landing during the log write may have
+                        # superseded (an abandoned retry was already cleared by
+                        # the directive; this is a no-op then)
+                        clear_eval_retry_pending(result.eval.eval_id)
 
                     # finalize atomically (no awaits below) so the dispatcher sees
                     # a consistent (in_flight, pending) snapshot

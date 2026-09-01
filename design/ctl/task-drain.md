@@ -351,6 +351,29 @@ idempotent no-op (`changed: false`, with the registry consulted so the
 detail can say "pending retry already abandoned" rather than "task already
 finished") instead of re-reporting `changed: true` for one abandonment.
 
+`retry_pending` must also be set *early enough*. `completed_at` is stamped
+when the attempt's last sample records terminal, but the dispatcher's
+`mark_eval_retry_pending` runs only after `_run_task` returns — after the
+attempt's whole `finish_task_log` (the final log write, the retry-history
+carry-forward, the task-end hook, telemetry), seconds on a remote log dir.
+Left to the dispatcher alone, a cancel/drain landing in that stretch would
+find `completed_at` set, `retry_pending` false and the registry unstamped,
+answer "task already finished", and the retry would dispatch anyway — the
+one place the operator's intent was still dropped. So the task runner
+flags `retry_pending` itself the moment it decides the attempt's terminal
+status is an error the eval-set will retry (budget remaining, and neither an
+abort nor a graceful stamp — exactly the dispatcher's retry predicate),
+before the log write; the dispatcher's later mark is the confirming
+repeat. A stamp that supersedes the retry after the runner's pre-mark (a
+cancel landing while the log is written on an attempt whose `completed_at`
+is not yet set — a SampleSource-driven task, or a task-level exception —
+takes the running-task path and stamps the handle, which the dispatcher
+reads as a user cancel) is unwound by the dispatcher clearing the flag when
+it decides not to retry, so a task never reads as between attempts with no
+retry coming. The residual window is the last sample's own post-record
+bookkeeping (metrics and early-stopping hooks) and the task group's exit —
+in-process work, no remote I/O.
+
 One fact shapes the consume sites: the retry item is built *eagerly* —
 `options.logger.reinit()` runs at retry-item construction in the
 dispatcher, before the item is queued — so a queued `PendingTask` already
@@ -591,7 +614,7 @@ and the attempt-start self-check raises a dedicated
 `register_eval`) which `_run_task` maps to the `TaskRunResult.abandoned`
 sentinel.
 
-Implementation review surfaced two gaps the sketch missed; both are closed:
+Implementation review surfaced three gaps the sketch missed; all are closed:
 
 - **"Honored for the life of the run" needs an in-process registry, not
   just the logged-samples count.** With `retry_immediate=False`, eval-set's
@@ -622,3 +645,14 @@ Implementation review surfaced two gaps the sketch missed; both are closed:
   abandon path discards via `TaskLogger.discard`, which drops the
   recorder's in-memory entry (otherwise leaked for the rest of the run)
   and removes a destination file the abandoned attempt itself flushed.
+- **The between-attempts flag is set by the task runner, not only the
+  dispatcher.** `completed_at` lands with the last sample's terminal record,
+  but the dispatcher's `retry_pending` mark came only after the attempt's
+  whole `finish_task_log` — so a cancel/drain during the errored attempt's
+  final log write read "task already finished" and the retry then
+  dispatched (the pre-existing 409's successor wart). The runner now flags
+  `retry_pending` as it decides the error status, ahead of the log write,
+  and the dispatcher unwinds the flag when a stamp superseding the retry
+  lands in that window (see "Tasks between attempts", Mechanics). Pinned by
+  an end-to-end test that cancels from inside the errored attempt's final
+  log write.

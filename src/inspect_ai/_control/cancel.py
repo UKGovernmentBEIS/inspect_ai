@@ -71,7 +71,11 @@ pending retry (the task ends with its last attempt's error log — exactly the
 shape an exhausted retry budget produces), while score/error stay a
 rejection (there are no samples for a resolution to apply to). The same
 abandonment applies when the attempt has *requested* a retry and is still
-tearing down (a pending ``"retry"`` stamp with retry budget remaining).
+tearing down (a pending ``"retry"`` stamp with retry budget remaining), and
+while an errored attempt is still writing its final log: the task runner
+flags ``retry_pending`` the moment it decides an error status the eval-set
+will retry, so there is no window in which a cancel reads the attempt as
+"task already finished" and the retry then dispatches anyway.
 """
 
 from __future__ import annotations
