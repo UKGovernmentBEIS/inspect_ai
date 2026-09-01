@@ -1,4 +1,6 @@
 import contextvars
+import dataclasses
+import json
 from typing import Any, NoReturn, Sequence
 from unittest.mock import patch
 
@@ -1225,6 +1227,36 @@ def test_condense_model_call_extending_request_replaces_the_lineage_it_consumes(
 
     slots = tr._call_walk_cache._slots
     assert sorted(len(s.messages) for s in slots) == [3, 4]
+
+
+def test_condense_model_call_abandoned_lineage_bytes_are_released() -> None:
+    """CallWalkCache copy of the CallPoolIndex byte-retention test.
+
+    Two lineages, both well under the slot cap, so random eviction never
+    fires: only staleness eviction can release the abandoned one. Asserted
+    in both directions so it cannot pass by dropping everything.
+    """
+    from inspect_ai.log._condense import _CALL_WALK_MAX_IDLE
+
+    tr = Transcript(bounded=True, resident_tail=10, log_model_api=True)
+    sentinel = "SENTINEL" + "x" * 200_000
+    live = "LIVE" + "y" * 150
+
+    def call(payload: str) -> ModelCall:
+        return ModelCall.create(
+            {"model": "m", "messages": [{"role": "user", "content": payload}]}, None
+        )
+
+    tr._condense_model_call(call(sentinel))  # abandoned after this call
+    for _ in range(_CALL_WALK_MAX_IDLE + 2):
+        tr._condense_model_call(call(live))
+
+    retained = json.dumps(
+        [dataclasses.asdict(slot) for slot in tr._call_walk_cache._slots]
+    )
+    assert sentinel not in retained
+    assert live in retained
+    assert len(retained) < len(sentinel)
 
 
 def test_condense_model_call_matches_fresh_walk() -> None:

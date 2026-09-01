@@ -466,6 +466,24 @@ full-walk cost — never worse.
 """
 
 
+_CALL_WALK_MAX_IDLE: Final = 4 * _CALL_WALK_SLOTS
+"""Prefix scans a lineage may go unmatched before it is dropped.
+
+Retention is only a problem for *abandoned* lineages — a compaction cycle,
+or a fork that never resumes. A live lineage is re-matched every turn, and
+its content is kept alive by the condensed event anyway; an abandoned one
+is pinned by nothing else and nothing else reclaims it.
+
+The value is a heuristic, not a measured threshold. The floor it has to
+clear is the interleave depth the slots exist for: `_CALL_WALK_SLOTS`
+lineages taken round-robin touch each one every 8 scans, so 4x that leaves
+headroom for bursty interleaving before a live lineage is dropped. The
+ceiling is what a wrong guess costs: a parked stream that resumes after
+its slot aged out pays exactly one full re-walk and then re-establishes a
+lineage, which is the pre-cache cost for that single call.
+"""
+
+
 class _WalkedCallMessage(NamedTuple):
     """One cached wire message: cache-owned snapshots plus what walking created.
 
@@ -490,6 +508,8 @@ class _CallWalkSlot:
 
     key: CallMessageKey
     messages: list[_WalkedCallMessage]
+    last_used: int
+    """Scan counter value when this lineage was last created or matched."""
 
 
 class CallWalkCache:
@@ -508,6 +528,11 @@ class CallWalkCache:
     each other's cached tails, re-walking the divergent tail on every call.
     An unmatched request is appended, evicting a random lineage at capacity.
 
+    A lineage nothing has matched in ``_CALL_WALK_MAX_IDLE`` prefix scans is
+    dropped at the next append: only abandoned lineages (a compaction cycle, a fork
+    that never resumes) hold content nothing else owns, and nothing else
+    reclaims them. Dropping one costs at most a re-walk.
+
     Ties in match length break toward a fully consumed lineage, so a request
     repeating a strict prefix of a longer lineage replaces the slot it created
     last time instead of appending an identical sibling on every repeat.
@@ -515,6 +540,8 @@ class CallWalkCache:
 
     def __init__(self) -> None:
         self._slots: list[_CallWalkSlot] = []
+        # monotonic count of prefix scans, for staleness eviction
+        self._calls = 0
         # Seeded for reproducibility; eviction choice affects performance
         # only, never output content.
         self._evict_rng = random.Random(0)
@@ -549,6 +576,7 @@ class CallWalkCache:
         if msg_key is None or not isinstance(msgs, list) or not msgs:
             return walk_model_call(call, events_attachment_fn(attachments), context)
 
+        self._calls += 1
         best_slot: _CallWalkSlot | None = None
         best_len = 0
         best_full = False
@@ -571,6 +599,10 @@ class CallWalkCache:
                 # one and fork a duplicate slot.
                 if full and n == len(msgs):
                     break
+        # stamp the slot the scan SELECTED, not every slot it visited: the
+        # early exit above means "visited" is not a usage signal
+        if best_slot is not None:
+            best_slot.last_used = self._calls
 
         walked_msgs: list[JsonValue] = []
         slot_messages: list[_WalkedCallMessage] = []
@@ -602,6 +634,13 @@ class CallWalkCache:
         )
         new_request[msg_key] = walked_msgs
 
+        # Staleness eviction (see _CALL_WALK_MAX_IDLE), before the capacity
+        # rules so it can make room instead of evicting at random. `best_slot`
+        # is never dropped here: the scan above stamped it with the current
+        # self._calls, so its idle age is 0.
+        self._slots = [
+            s for s in self._slots if self._calls - s.last_used <= _CALL_WALK_MAX_IDLE
+        ]
         # see class docstring: replace only on full consumption, else append
         # as a sibling lineage
         if best_slot is not None and best_full:
@@ -609,7 +648,9 @@ class CallWalkCache:
         elif len(self._slots) >= _CALL_WALK_SLOTS:
             # random, not LRU (see _CALL_WALK_SLOTS)
             del self._slots[self._evict_rng.randrange(len(self._slots))]
-        self._slots.append(_CallWalkSlot(key=msg_key, messages=slot_messages))
+        self._slots.append(
+            _CallWalkSlot(key=msg_key, messages=slot_messages, last_used=self._calls)
+        )
 
         return call.model_copy(
             update={

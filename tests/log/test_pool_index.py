@@ -1,4 +1,6 @@
+import dataclasses
 import gc
+import json
 import weakref
 from collections.abc import Callable, Sequence
 
@@ -347,6 +349,30 @@ def test_call_pool_index_caps_slots_and_keeps_matching_beyond_cap() -> None:
         1 for i in range(n) if _prefix(index, [{"content": f"lineage-{i}"}]) == [i]
     )
     assert hits == _CALL_PREV_SLOTS
+
+
+def test_call_pool_index_abandoned_lineage_bytes_are_released() -> None:
+    """Bytes, not slot counts: an abandoned lineage's payload stops being retained.
+
+    Two lineages, both well under the slot cap, so random eviction never
+    fires: only staleness eviction can release the abandoned one. Asserted
+    in both directions so it cannot pass by dropping everything.
+    """
+    from inspect_ai.event._pool_index import _CALL_PREV_MAX_IDLE
+
+    index = CallPoolIndex()
+    sentinel = "SENTINEL" + "x" * 200_000
+    live = "LIVE" + "y" * 100
+
+    index.set_prev([{"content": sentinel}], [0])  # abandoned after this call
+    live_msgs: list[JsonValue] = [{"content": live}]
+    for _ in range(_CALL_PREV_MAX_IDLE + 2):
+        index.set_prev(live_msgs, [1], match=index.match_prefix(live_msgs))
+
+    retained = json.dumps([dataclasses.asdict(prev) for prev in index._prevs])
+    assert sentinel not in retained
+    assert live in retained
+    assert len(retained) < len(sentinel)
 
 
 def test_call_pool_index_restore_drops_all_slots() -> None:

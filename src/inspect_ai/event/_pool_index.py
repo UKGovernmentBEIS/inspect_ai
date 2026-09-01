@@ -9,7 +9,8 @@ in each event rather than the full conversation history:
   hits for the entire shared history without any serialization.
 - ``CallPoolIndex`` exploits the append-mostly structure of provider wire
   requests: several recent request lineages are retained (up to
-  ``_CALL_PREV_SLOTS``, evicted at random past that) and each new request
+  ``_CALL_PREV_SLOTS``, evicted at random past that, and dropped once
+  unmatched for ``_CALL_PREV_MAX_IDLE`` prefix scans) and each new request
   takes the best prefix match among them; only the divergent suffix is
   hashed. A request that fully consumes the lineage it matched replaces it;
   a partial match forks off as a sibling lineage, so concurrently
@@ -256,6 +257,24 @@ lineage.
 """
 
 
+_CALL_PREV_MAX_IDLE: Final = 4 * _CALL_PREV_SLOTS
+"""Prefix scans a lineage may go unmatched before it is dropped.
+
+Retention is only a problem for *abandoned* lineages — a compaction cycle,
+or a fork that never resumes. A live lineage is re-matched every turn, and
+its content is kept alive by the condensed event anyway; an abandoned one
+is pinned by nothing else and nothing else reclaims it.
+
+The value is a heuristic, not a measured threshold. The floor it has to
+clear is the interleave depth the slots exist for: ``_CALL_PREV_SLOTS``
+lineages taken round-robin touch each one every 8 scans, so 4x that leaves
+headroom for bursty interleaving before a live lineage is dropped. The
+ceiling is what a wrong guess costs: a parked stream that resumes after its
+slot aged out pays exactly one full re-hash of its history and then
+re-establishes a lineage, which is the pre-index cost for that single call.
+"""
+
+
 # identity comparison: lineages are unique objects, never compared by value
 @dataclasses.dataclass(eq=False)
 class _PrevRequest:
@@ -263,6 +282,8 @@ class _PrevRequest:
 
     msgs: list[JsonValue]
     indices: list[int]
+    last_used: int
+    """Scan counter value when this lineage was last created or matched."""
 
 
 class PrefixMatch(NamedTuple):
@@ -294,6 +315,11 @@ class CallPoolIndex:
     re-serialize the prefix every event, reintroducing the O(N^2) hashing
     this index removed.
 
+    A lineage nothing has matched in ``_CALL_PREV_MAX_IDLE`` prefix scans
+    is dropped at the next append: only abandoned lineages (a compaction cycle,
+    a fork that never resumes) hold content nothing else owns, and nothing
+    else reclaims them. Dropping one costs at most a re-walk.
+
     Eviction beyond ``_CALL_PREV_SLOTS`` is random, not LRU: N interleaved
     streams accessed round-robin make LRU evict exactly the lineage each
     stream needs next, so at cap+1 lineages every lineage misses and
@@ -313,6 +339,8 @@ class CallPoolIndex:
         self._hash_index: dict[str, int] = {}
         # retained previous-request lineages
         self._prevs: list[_PrevRequest] = []
+        # monotonic count of prefix scans, for staleness eviction
+        self._calls = 0
         # undo log of hashes added (for mark/restore)
         self._added_hashes: list[str] = []
         # Seeded for reproducibility; eviction choice affects performance
@@ -344,6 +372,7 @@ class CallPoolIndex:
             (empty indices and no lineage if nothing matched). Hand the whole
             result to the following ``set_prev`` for the same ``msgs``.
         """
+        self._calls += 1
         best = PrefixMatch(indices=())
         best_full = False
         # newest lineage first: a request usually extends the one it condensed
@@ -363,6 +392,10 @@ class CallPoolIndex:
                 # one and fork a duplicate slot.
                 if full and prefix_len == len(msgs):
                     break
+        # stamp the slot the scan SELECTED, not every slot it visited: the
+        # early exit above means "visited" is not a usage signal
+        if best.slot is not None:
+            best.slot.last_used = self._calls
         return best
 
     def get_by_hash(self, hash_value: str) -> int | None:
@@ -407,7 +440,8 @@ class CallPoolIndex:
         and appends the new entry as a sibling lineage instead, since a
         partial match means the two lineages diverged from a shared prefix
         and replacing would merge them. With no match the entry is appended.
-        An append at cap first evicts a random existing lineage (see class
+        An append first drops any lineage unmatched for
+        ``_CALL_PREV_MAX_IDLE`` prefix scans, then, still at cap, evicts a random existing lineage (see class
         docstring: LRU is pathological here).
 
         Args:
@@ -428,7 +462,15 @@ class CallPoolIndex:
         entry = _PrevRequest(
             msgs=carried + [copy.deepcopy(m) for m in msgs[prefix_len:]],
             indices=list(indices),
+            last_used=self._calls,
         )
+        # Staleness eviction (see _CALL_PREV_MAX_IDLE), before the capacity
+        # rules so it can make room instead of evicting at random. `prev` is
+        # never dropped here: match_prefix stamped it with the current
+        # self._calls, so its idle age is 0.
+        self._prevs = [
+            p for p in self._prevs if self._calls - p.last_used <= _CALL_PREV_MAX_IDLE
+        ]
         # see docstring: replace only when the match fully consumed the
         # lineage, else keep it and append a sibling
         if prev is not None and prefix_len == len(prev.msgs):
