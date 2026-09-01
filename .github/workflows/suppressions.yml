@@ -1,0 +1,49 @@
+# Suppression ledger gate — see .github/scripts/check_suppressions.py and
+# the "Suppression gate" section in AGENTS.md. Enforcement only: it runs
+# fine with the read-only token fork PRs get. The PR delta comment is
+# posted by suppressions-comment.yml (pull_request_target), which needs a
+# write token — keep the two concerns in their separate workflows.
+name: Suppressions
+
+on:
+  push:
+    branches:
+      - main
+      - "release/**"
+  pull_request:
+    branches:
+      - main
+      - "release/**"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  suppressions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # setup-python rather than the runner's system python: Ubuntu 24.04
+      # marks system python externally-managed, so `pip install` there fails.
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      # The gate is stdlib-only by design: no dependency install needed.
+      - name: Check suppressions ledger
+        run: python3 .github/scripts/check_suppressions.py
+
+      # --noconftest / addopts="": the gate test is self-contained; skip
+      # tests/conftest.py (imports boto3/moto) and the xdist addopts so a
+      # bare pytest install suffices.
+      - name: Test the gate script
+        run: |
+          python3 -m pip install --quiet pytest
+          python3 -m pytest --noconftest -o addopts="" -q tests/test_check_suppressions.py
+
