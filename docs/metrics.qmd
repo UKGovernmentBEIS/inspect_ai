@@ -382,7 +382,7 @@ Inspect includes several built in reducers which are summarised below.
 : {tbl-colwidths="\[30,70\]"}
 
 ::: callout-note
-The built in reducers will compute a reduced `value` for the score and populate the fields `answer` and `explanation` only if their value is equal across all epochs. The `metadata` field will be reduced to the value of `metadata` in the first epoch (`majority` additionally records the individual votes under a `panel` key). If your custom metrics function needs differing behavior for reducing fields, you should also implement your own custom reducer and merge or preserve fields in some way.
+The built in reducers will compute a reduced `value` for the score and populate the fields `answer` and `explanation` only if their value is equal across all epochs. The `metadata` field will always be reduced to the value of `metadata` in the first epoch. If your custom metrics function needs differing behavior for reducing fields, you should also implement your own custom reducer and merge or preserve fields in some way.
 :::
 
 ### Custom Reducers

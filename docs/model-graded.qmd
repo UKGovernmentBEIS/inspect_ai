@@ -29,7 +29,7 @@ Model selection follows this precedence:
 
 1. If `model` is provided, it is used (if a list is provided, each model grades independently and the grades are combined by `reducer`).
 
-2. Else if `model_role` is provided (default: `"grader"`), the model bound to that role (via `eval(..., model_roles={...})` or `--model-role grader=...`) is used (if a list of models is bound to the role, each model grades independently and the final grade is by majority vote, just as when a list is passed for `model`). Pass `ModelRole("grader", required=True)` (from `inspect_ai.model`) to raise an error when the role is not bound instead of falling back to the model being evaluated.
+2. Else if `model_role` is provided (default: `"grader"`), the model bound to that role (via `eval(..., model_roles={...})` or `--model-role grader=...`) is used (a list of models bound to the role is combined by `reducer`, as when a list is passed for `model`). Pass `ModelRole("grader", required=True)` (from `inspect_ai.model`) to raise an error when the role is not bound instead of falling back to the model being evaluated.
 
 3. Else the model currently being evaluated is used.
 
@@ -161,7 +161,7 @@ model_graded_qa(
 
 The implementation of multiple grader models uses the `multi_scorer()` function with the `"majority"` reducer, which you can also use in your own scorers (see [Multiple Scorers](multiple-scorers.qmd)).
 
-A grade wins only if more than half of the panel returns it. A grader whose response has no parseable grade withholds its vote without lowering that threshold, so a panel that loses a member at runtime returns an unscored sample rather than a grade decided by the order of `model`. The individual votes are recorded in the score's `metadata` under `panel`. Pass `reducer="mode"` to restore the previous behaviour, where the most common grade wins and ties are broken by list order:
+A grade wins only when more than half of the panel returns it; a grader with no parseable grade withholds its vote without lowering that threshold, so a diminished panel yields an unscored sample rather than a grade decided by list order. Individual votes are recorded in the score's `metadata` under `panel`. Pass `reducer="mode"` for the previous plurality behaviour:
 
 ``` python
 model_graded_qa(model=[...], reducer="mode")
