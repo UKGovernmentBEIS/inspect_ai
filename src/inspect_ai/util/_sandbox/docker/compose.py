@@ -10,6 +10,7 @@ import anyio
 import yaml
 from pydantic import BaseModel
 
+from inspect_ai._util.cpu import effective_cpu_count
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.trace import trace_message
 from inspect_ai.util._concurrency import concurrency as concurrency_manager
@@ -365,7 +366,9 @@ async def compose_command(
 
     # set a concurrency limit for docker CLI invocations.
     # this should help with running more containers in parallel while avoiding hangs on some systems
-    DEFAULT_CLI_CONCURRENCY = max((os.cpu_count() or 1) * 2, 4)
+    # (sized off the processors this process may use, not the host's — see
+    # `effective_cpu_count`)
+    DEFAULT_CLI_CONCURRENCY = max(effective_cpu_count() * 2, 4)
     docker_cli_concurrency = int(
         os.environ.get("INSPECT_DOCKER_CLI_CONCURRENCY", DEFAULT_CLI_CONCURRENCY)
     )
