@@ -5,6 +5,7 @@ import pytest
 from anthropic import NOT_GIVEN as ANTHROPIC_NOT_GIVEN
 from anthropic import AsyncAnthropic
 from anthropic.types import ToolChoiceAnyParam
+from anthropic.types.beta import BetaUsage
 from google import genai
 from openai import NOT_GIVEN, AsyncOpenAI, BaseModel
 from openai.types.chat import ChatCompletion
@@ -27,6 +28,7 @@ from inspect_ai.model._openai import (
     messages_to_openai,
     openai_chat_tools,
 )
+from inspect_ai.model._openai_convert import model_output_from_openai
 from inspect_ai.model._openai_responses import _tool_param_for_tool_info
 from inspect_ai.model._prompt import user_prompt
 from inspect_ai.scorer import includes
@@ -85,6 +87,25 @@ def completions_agent(tools: bool) -> Agent:
                 state.messages.append(message)
                 state.output = ModelOutput.from_message(message)
                 return state
+
+    return execute
+
+
+@agent
+def raw_response_completions_agent() -> Agent:
+    async def execute(state: AgentState) -> AgentState:
+        from openai._legacy_response import LegacyAPIResponse
+
+        async with agent_bridge(state) as bridge:
+            async with AsyncOpenAI(api_key="inspect") as client:
+                raw = await client.chat.completions.with_raw_response.create(
+                    model="inspect",
+                    messages=await messages_to_openai(state.messages),
+                )
+                assert isinstance(raw, LegacyAPIResponse)
+                completion = raw.parse()
+                bridge.state.output = await model_output_from_openai(completion)
+        return bridge.state
 
     return execute
 
@@ -522,6 +543,31 @@ def anthropic_code_execution_agent() -> Agent:
 
 
 @agent
+def anthropic_beta_usage_agent() -> Agent:
+    async def execute(state: AgentState) -> AgentState:
+        async with agent_bridge(state) as bridge:
+            async with AsyncAnthropic() as client:
+                message = await client.beta.messages.create(
+                    model="inspect",
+                    max_tokens=1024,
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": user_prompt(state.messages).text,
+                        }
+                    ],
+                )
+                # beta endpoints must yield BetaUsage: clients reading beta-only
+                # fields (pydantic-ai reads usage.iterations) fail on plain Usage
+                assert isinstance(message.usage, BetaUsage)
+                assert message.usage.iterations is None
+
+            return bridge.state
+
+    return execute
+
+
+@agent
 def anthropic_computer_agent() -> Agent:
     async def execute(state: AgentState) -> AgentState:
         async with agent_bridge(state) as bridge:
@@ -818,6 +864,16 @@ def test_bridge_filter_config():
 def test_bridged_agent_completions():
     log_json = eval_bridged_task("openai/gpt-4o", agent=completions_agent(False))
     check_openai_log_json(log_json, tools=False)
+
+
+def test_bridged_completions_with_raw_response():
+    log = eval(bridged_task(raw_response_completions_agent()), model="mockllm/model")[0]
+    assert log.status == "success"
+
+
+def test_bridged_anthropic_beta_usage():
+    log = eval(bridged_task(anthropic_beta_usage_agent()), model="mockllm/model")[0]
+    assert log.status == "success"
 
 
 @skip_if_no_openai

@@ -5,7 +5,7 @@ Backs ``GET /evals/<id>/sample/events`` (and ``inspect ctl sample events``): a
 ``Transcript`` while running, and once terminal from the recorder's
 sample, the realtime buffer (via the eval's events provider — the
 streaming-completion path retains an event-less recorder sample), or the
-on-disk log (see ``_logged_source``).
+on-disk log (see ``_resolve_logged_source``).
 
 The cursor is an opaque token = ``(source nonce, absolute event offset)``.
 The offset indexes the *unfiltered* event sequence; type / time filters are
@@ -38,7 +38,7 @@ from typing import TYPE_CHECKING, Any, NamedTuple
 
 from inspect_ai._control.terminal_cache import (
     TerminalSourceCache,
-    invalidate_terminal_sources,
+    resolve_sample_source,
 )
 
 if TYPE_CHECKING:
@@ -59,8 +59,9 @@ EventsFetch = Callable[[int, int], "Sequence[Event]"]
 class EventsSource(NamedTuple):
     """One resolvable source of a sample's transcript events.
 
-    Produced by ``_running_source`` (live transcript) and ``_logged_source``
-    (recorder / buffer / on-disk log); consumed by ``sample_events``.
+    Produced by ``_running_source`` (live transcript) and
+    ``_resolve_logged_source`` (recorder / buffer / on-disk log); consumed by
+    ``sample_events``.
     """
 
     nonce: str
@@ -176,15 +177,12 @@ async def sample_events(
         until: Optional upper bound (unix ts).
         limit: Max events scanned per page.
     """
-    source = _running_source(eval_id, sample_id, epoch)
-    if source is not None:
-        # a running attempt (a retry) supersedes any cached terminal source
-        # for this sample — drop it (from every projection's cache, not just
-        # this endpoint's) so the attempt's own terminal source is resolved
-        # fresh once it finishes (see terminal_cache)
-        invalidate_terminal_sources((eval_id, sample_id, epoch))
-    else:
-        source = await _logged_source(eval_id, sample_id, epoch)
+    source = await resolve_sample_source(
+        (eval_id, sample_id, epoch),
+        running=lambda: _running_source(eval_id, sample_id, epoch),
+        cache=_terminal_sources,
+        resolve_terminal=lambda: _resolve_logged_source(eval_id, sample_id, epoch),
+    )
     if source is None:
         return None
 
@@ -301,22 +299,6 @@ def _running_source(eval_id: str, sample_id: str, epoch: int) -> EventsSource | 
         fetch=history.events_from,
         total=history.event_count,
         done=s.completed is not None,
-    )
-
-
-async def _logged_source(
-    eval_id: str, sample_id: str, epoch: int
-) -> EventsSource | None:
-    """The terminal source for a sample, resolved through the short-TTL cache.
-
-    A terminal attempt's transcript is immutable, so the resolved source is
-    reused across the paginating / polling requests that dominate this
-    endpoint's traffic instead of re-paying the full-sample parse per request
-    (see ``_terminal_sources`` and ``TerminalSourceCache.get_or_resolve``).
-    """
-    return await _terminal_sources.get_or_resolve(
-        (eval_id, sample_id, epoch),
-        lambda: _resolve_logged_source(eval_id, sample_id, epoch),
     )
 
 
@@ -504,6 +486,11 @@ def _project(event: "Event", *, content: bool, full: bool) -> dict[str, Any]:
         if content:
             out["error"] = error
     elif et == "tool":
+        # the tool-call id (== the assistant message's ToolCall.id) is what
+        # `sample cancel-tool-call --tool-call-id` targets; metadata tier —
+        # it is a model/provider-generated token, but the messages projection
+        # already exposes ids ungated, so the trust precedent stands
+        out["id"] = getattr(event, "id", None)
         out["function"] = getattr(event, "function", None)
         tool_error = getattr(event, "error", None)
         out["has_error"] = tool_error is not None

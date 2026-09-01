@@ -13,6 +13,7 @@ from typing import Literal, NamedTuple, Union, overload
 
 from typing_extensions import override
 
+from inspect_ai._util.cpu import effective_cpu_count
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.util._subprocess import ExecResult, subprocess
 
@@ -24,6 +25,7 @@ from ..environment import (
     SandboxEnvironment,
     SandboxEnvironmentConfigType,
     SandboxUnavailableError,
+    sandbox_prebuilt,
 )
 from ..limits import (
     SandboxEnvironmentLimits,
@@ -39,6 +41,7 @@ from .cleanup import (
     project_startup,
 )
 from .compose import (
+    PREBUILT_IMAGES_ERROR_PREFIX,
     compose_build,
     compose_check_running,
     compose_cleanup_images,
@@ -48,11 +51,12 @@ from .compose import (
     compose_pull,
     compose_services,
     compose_up,
+    compose_verify_prebuilt_images,
     docker_image_exists_locally,
 )
 from .diagnostics import sandbox_unavailable_diagnostics, service_dead
 from .failure import InjectedWrapper, classify_exec_failure
-from .internal import build_internal_image, is_internal_image
+from .internal import build_internal_image, is_internal_image, is_internal_image_built
 from .prereqs import validate_prereqs
 from .util import ComposeProject, task_project_name
 
@@ -73,8 +77,10 @@ class DockerSandboxEnvironment(SandboxEnvironment):
 
     @classmethod
     def default_concurrency(cls) -> int | None:
-        count = os.cpu_count() or 1
-        return 2 * count
+        # `effective_cpu_count()` rather than `os.cpu_count()`: an eval running
+        # inside a CPU-limited container would otherwise size its sandbox
+        # concurrency off the host's processors and oversubscribe its own quota
+        return 2 * effective_cpu_count()
 
     @classmethod
     async def task_init(
@@ -95,13 +101,18 @@ class DockerSandboxEnvironment(SandboxEnvironment):
             # record auto compose
             project_record_auto_compose(project)
 
-            # build containers which are out of date
-            await compose_build(project)
-
-            # cleanup images created during build
-            await compose_cleanup_images(project, timeout=300)
-
             services = await compose_services(project)
+
+            prebuilt = sandbox_prebuilt()
+            if prebuilt:
+                await compose_verify_prebuilt_images(project, services)
+            else:
+                # build containers which are out of date
+                await compose_build(project)
+
+                # cleanup images created during build
+                await compose_cleanup_images(project, timeout=300)
+
             for name, service in services.items():
                 # if the service has an explicit container_name then
                 # error (as this won't work w/ epochs > 1)
@@ -114,12 +125,15 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                 # build internal images
                 image = service.get("image", None)
                 if image and is_internal_image(image):
-                    await build_internal_image(image)
+                    if not prebuilt:
+                        await build_internal_image(image)
+                    elif not await is_internal_image_built(image):
+                        raise PrerequisiteError(
+                            PREBUILT_IMAGES_ERROR_PREFIX
+                            + f"the internal image '{image}' is not present in the Docker image store."
+                        )
                 # pull any remote images
-                elif (
-                    service.get("build", None) is None
-                    and service.get("x-local", None) is None
-                ):
+                elif service.get("build", None) is None and not service.get("x-local"):
                     # skip the pull if the image is already available locally
                     # (avoids noisy errors for images loaded via 'docker load')
                     if image and await docker_image_exists_locally(image):
@@ -128,6 +142,11 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                     pull_result = await compose_pull(name, project)
                     if not pull_result.success:
                         image = service.get("image", "(unknown)")
+                        if prebuilt:
+                            raise PrerequisiteError(
+                                PREBUILT_IMAGES_ERROR_PREFIX
+                                + f"the image '{image}' for service '{name}' is not present in the Docker image store and could not be pulled."
+                            )
                         logger.error(
                             f"Failed to pull docker image '{image}' from remote registry. If this is a locally built image add 'x-local: true' to the the service definition to prevent this error."
                         )

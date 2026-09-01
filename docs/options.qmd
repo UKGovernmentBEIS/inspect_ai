@@ -137,8 +137,8 @@ For a complete matrix of which task, solver, and runtime settings can be configu
 | `--max-connections` | Maximum number of concurrent connections to Model provider (defaults to 10) |
 | `--max-samples` | Maximum number of samples to run in parallel (default is `--max-connections`; retunable mid-run via [`inspect ctl config`](control-channel.qmd#configuration)) |
 | `--max-dataset-memory` | Maximum MB of dataset sample data to hold in memory per task. When exceeded, samples are paged to disk. |
-| `--max-subprocesses` | Maximum number of subprocesses to run in parallel (default is `os.cpu_count()`) |
-| `--max-sandboxes` | Maximum number of sandboxes (per-provider) to run in parallel (default is `2 * os.cpu_count()`; retunable mid-run via [`inspect ctl config`](control-channel.qmd#configuration)) |
+| `--max-subprocesses` | Maximum number of subprocesses to run in parallel (default is the number of processors available to the eval) |
+| `--max-sandboxes` | Maximum number of sandboxes (per-provider) to run in parallel (default is twice the number of processors available to the eval, which under a container CPU limit is that limit rather than the host's processor count; retunable mid-run via [`inspect ctl config`](control-channel.qmd#configuration)) |
 | `--max-tasks` | Maximum number of tasks to run in parallel (default is 1) |
 
 ## Errors and Limits
@@ -183,6 +183,7 @@ For a complete matrix of which task, solver, and runtime settings can be configu
 |--------------------------|----------------------------------------------|
 | `--sandbox` | Sandbox environment type (with optional config file). e.g. 'docker' or 'docker:compose.yml' |
 | `--no-sandbox-cleanup` | Do not cleanup sandbox environments after task completes |
+| `--sandbox-prebuilt` | Treat sandbox images as prebuilt (skip builds and fail at task startup when an image is missing) |
 
 ## Debugging
 

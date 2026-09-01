@@ -6,7 +6,7 @@ https://platform.claude.com/docs/en/build-with-claude/mid-conversation-system-me
 from typing import Any
 
 import pytest
-from test_helpers.utils import skip_if_no_anthropic
+from test_helpers.utils import setenv_if_unset, skip_if_no_anthropic
 
 from inspect_ai._util.content import Content, ContentText, ContentToolUse
 from inspect_ai.model import (
@@ -290,11 +290,9 @@ async def test_reminder_kept_after_tool_result_followed_by_assistant_4_7() -> No
 async def test_mid_conv_reminder_used_for_bedrock_4_8() -> None:
     # Bedrock has no mid-conv support even on 4.8, so it uses the reminder
     # fallback rather than native role="system" turns.
-    import os
-
-    os.environ.setdefault("AWS_REGION", "us-east-1")
-    os.environ.setdefault("AWS_ACCESS_KEY_ID", "fake")
-    os.environ.setdefault("AWS_SECRET_ACCESS_KEY", "fake")
+    setenv_if_unset("AWS_REGION", "us-east-1")
+    setenv_if_unset("AWS_ACCESS_KEY_ID", "fake")
+    setenv_if_unset("AWS_SECRET_ACCESS_KEY", "fake")
 
     api = AnthropicAPI(model_name="bedrock/claude-opus-4-8", api_key="test-key")
     input: list[ChatMessage] = [
@@ -311,13 +309,11 @@ async def test_mid_conv_reminder_used_for_bedrock_4_8() -> None:
 
 
 def test_supports_mid_conv_off_for_bedrock_and_vertex_4_8() -> None:
-    import os
-
-    os.environ.setdefault("AWS_REGION", "us-east-1")
-    os.environ.setdefault("AWS_ACCESS_KEY_ID", "fake")
-    os.environ.setdefault("AWS_SECRET_ACCESS_KEY", "fake")
-    os.environ.setdefault("ANTHROPIC_VERTEX_PROJECT_ID", "fake")
-    os.environ.setdefault("ANTHROPIC_VERTEX_REGION", "us-east5")
+    setenv_if_unset("AWS_REGION", "us-east-1")
+    setenv_if_unset("AWS_ACCESS_KEY_ID", "fake")
+    setenv_if_unset("AWS_SECRET_ACCESS_KEY", "fake")
+    setenv_if_unset("ANTHROPIC_VERTEX_PROJECT_ID", "fake")
+    setenv_if_unset("ANTHROPIC_VERTEX_REGION", "us-east5")
 
     bedrock_api = AnthropicAPI(model_name="bedrock/claude-opus-4-8", api_key="test-key")
     vertex_api = AnthropicAPI(model_name="vertex/claude-opus-4-8", api_key="test-key")

@@ -7,12 +7,10 @@ from collections.abc import Callable, Iterator
 from typing import Any, Literal, TextIO, cast
 
 import click
-import yaml
 from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
-    TypeAdapter,
     ValidationError,
     field_validator,
 )
@@ -25,7 +23,7 @@ from inspect_ai._eval.handoff import (
     set_ctl_pointer_armed,
     set_launch_handoff_listener,
 )
-from inspect_ai._util.config import resolve_args
+from inspect_ai._util.config import parse_cli_args, resolve_args
 from inspect_ai._util.constants import (
     ALL_LOG_LEVELS,
     DEFAULT_BATCH_SIZE,
@@ -38,24 +36,25 @@ from inspect_ai._util.constants import (
 )
 from inspect_ai._util.error import PrerequisiteError, SilentException
 from inspect_ai._util.file import filesystem
+
+# re-exported: a command's locals are still the common way in, and the
+# normalisation they go through is now shared with `eval_set_env`
+from inspect_ai._util.generate_config_args import (
+    _parse_adaptive_connections_cli,
+    config_from_locals,
+)
 from inspect_ai._util.samples import parse_sample_id, parse_samples_limit
 from inspect_ai.log._file import log_file_info
 from inspect_ai.log._log import EvalConfig, EvalLog
-from inspect_ai.model import GenerateConfig, GenerateConfigArgs, Model, get_model
-from inspect_ai.model._cache import CachePolicy
+from inspect_ai.model import GenerateConfig, GenerateConfigArgs, Model
 from inspect_ai.model._generate_config import (  # noqa: F811
-    BatchConfig,
-    ImageOutput,
-    OutputModality,
     ResponseSchema,
 )
-from inspect_ai.model._model_config import ModelConfig
+from inspect_ai.model._model_config import ModelConfig, model_config_to_model
 from inspect_ai.scorer._reducer import create_reducers
 from inspect_ai.solver._solver import SolverSpec
-from inspect_ai.util import AdaptiveConcurrency
 from inspect_ai.util._checkpoint.parse_cli import parse_checkpoint
 from inspect_ai.util._limit import TokenLimit
-from inspect_ai.util._resource import resource
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 
 from .common import (
@@ -70,7 +69,6 @@ from .util import (
     int_bool_or_str_flag_callback,
     int_bool_or_str_retry_flag_callback,
     int_or_bool_flag_callback,
-    parse_cli_args,
     parse_cli_config,
     parse_model_role_cli_args,
     parse_model_spec_cli_args,
@@ -103,11 +101,10 @@ class EvalCommand(SectionedCommand):
 
 MAX_SAMPLES_HELP = "Maximum number of samples to run in parallel (default is running all samples in parallel)"
 MAX_TASKS_HELP = "Maximum number of tasks to run in parallel (default is 1 for eval and 10 for eval-set)"
-MAX_SUBPROCESSES_HELP = (
-    "Maximum number of subprocesses to run in parallel (default is os.cpu_count())"
-)
+MAX_SUBPROCESSES_HELP = "Maximum number of subprocesses to run in parallel (default is the number of processors available to the eval)"
 MAX_SANDBOXES_HELP = "Maximum number of sandboxes (per-provider) to run in parallel."
 NO_SANDBOX_CLEANUP_HELP = "Do not cleanup sandbox environments after task completes"
+SANDBOX_PREBUILT_HELP = "Treat sandbox images as prebuilt (skip builds and fail at startup when an image is missing)"
 FAIL_ON_ERROR_HELP = "Threshold of sample errors to tolerage (by default, evals fail when any error occurs). Value between 0 to 1 to set a proportion; value greater than 1 to set a count."
 NO_LOG_SAMPLES_HELP = "Do not include samples in the log file."
 NO_LOG_REALTIME_HELP = (
@@ -256,7 +253,9 @@ def scanner_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         envvar="INSPECT_EVAL_SCAN_MODEL_ROLE",
         help=(
             "Named scanner-side model role with model name or YAML/JSON config "
-            "(e.g. --scan-model-role grader=mockllm/model)."
+            "(e.g. --scan-model-role grader=mockllm/model). Bind multiple models "
+            "to a role with a comma-separated list of names or a YAML/JSON list "
+            "of configs."
         ),
     )
     @click.option(
@@ -315,7 +314,7 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         multiple=True,
         type=str,
         envvar="INSPECT_EVAL_MODEL_ROLE",
-        help='Named model role with model name or YAML/JSON config, e.g. --model-role critic=openai/gpt-4o or --model-role grader="{model: mockllm/model, temperature: 0.5}"',
+        help='Named model role with model name or YAML/JSON config, e.g. --model-role critic=openai/gpt-4o or --model-role grader="{model: mockllm/model, temperature: 0.5}". Bind multiple models to a role with a comma-separated list of names or a YAML/JSON list of configs, e.g. --model-role grader=openai/gpt-4o,google/gemini-2.0-flash',
     )
     @click.option(
         "-T",
@@ -418,6 +417,13 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         is_flag=True,
         help=NO_SANDBOX_CLEANUP_HELP,
         envvar="INSPECT_EVAL_NO_SANDBOX_CLEANUP",
+    )
+    @click.option(
+        "--sandbox-prebuilt",
+        type=bool,
+        is_flag=True,
+        help=SANDBOX_PREBUILT_HELP,
+        envvar="INSPECT_EVAL_SANDBOX_PREBUILT",
     )
     @click.option(
         "--checkpoint",
@@ -1099,6 +1105,7 @@ def _eval_command_impl(
     notification: bool | str | None,
     sandbox: str | None,
     no_sandbox_cleanup: bool | None,
+    sandbox_prebuilt: bool | None,
     checkpoint: str | None,
     acp_server: bool | int | str | None,
     ctl_server: bool | str | None,
@@ -1230,6 +1237,7 @@ def _eval_command_impl(
         notification=notification,
         sandbox=sandbox,
         no_sandbox_cleanup=no_sandbox_cleanup,
+        sandbox_prebuilt=sandbox_prebuilt,
         checkpoint=checkpoint,
         epochs=epochs,
         epochs_reducer=epochs_reducer,
@@ -1398,6 +1406,7 @@ def eval_set_command(
     metadata: tuple[str, ...] | None,
     sandbox: str | None,
     no_sandbox_cleanup: bool | None,
+    sandbox_prebuilt: bool | None,
     checkpoint: str | None,
     acp_server: bool | int | str | None,
     ctl_server: bool | str | None,
@@ -1549,6 +1558,7 @@ def eval_set_command(
             notification=notification,
             sandbox=sandbox,
             no_sandbox_cleanup=no_sandbox_cleanup,
+            sandbox_prebuilt=sandbox_prebuilt,
             checkpoint=checkpoint,
             epochs=epochs,
             epochs_reducer=epochs_reducer,
@@ -1619,7 +1629,9 @@ class RunConfigInput(BaseModel):
 
     task: str | TaskInput | None = None
     model: str | ModelConfig | None = None
-    model_roles: dict[str, ModelConfig] = Field(default_factory=dict)
+    model_roles: dict[str, ModelConfig | list[ModelConfig]] = Field(
+        default_factory=dict
+    )
     generate_config: GenerateConfig = Field(default_factory=GenerateConfig)
     eval_config: EvalConfig = Field(default_factory=EvalConfig)
     solver: str | SolverInput | None = None
@@ -1679,9 +1691,9 @@ class RunConfigInput(BaseModel):
         # Model roles
         if self.model_roles:
             params["model_roles"] = {
-                role: get_model(
-                    mc.model, config=mc.config, base_url=mc.base_url, **mc.args
-                )
+                role: [model_config_to_model(m) for m in mc]
+                if isinstance(mc, list)
+                else model_config_to_model(mc)
                 for role, mc in self.model_roles.items()
             }
 
@@ -1866,6 +1878,7 @@ def eval_exec(
     notification: bool | str | None,
     sandbox: str | None,
     no_sandbox_cleanup: bool | None,
+    sandbox_prebuilt: bool | None,
     checkpoint: str | None,
     acp_server: bool | int | str | None,
     ctl_server: bool | str | None,
@@ -2019,6 +2032,7 @@ def eval_exec(
 
     # resolve negating options
     sandbox_cleanup = False if no_sandbox_cleanup else None
+    sandbox_prebuilt = True if sandbox_prebuilt else None
     log_samples = False if no_log_samples else None
     log_realtime = False if no_log_realtime else None
     log_images = False if log_images is False else None
@@ -2044,6 +2058,7 @@ def eval_exec(
             notification=notification,
             sandbox=parse_sandbox(sandbox),
             sandbox_cleanup=sandbox_cleanup,
+            sandbox_prebuilt=sandbox_prebuilt,
             checkpoint=parse_checkpoint(checkpoint),
             log_level=log_level,
             log_level_transcript=log_level_transcript,
@@ -2267,158 +2282,6 @@ def _stdout_owned_for_json() -> Iterator[TextIO]:
             os.dup2(saved_stdout.fileno(), stdout_fd)
 
 
-def _parse_adaptive_connections_cli(
-    value: str | None,
-) -> bool | int | AdaptiveConcurrency | None:
-    """Parse a CLI string into an adaptive_connections value.
-
-    Accepts: None (passthrough), bool keywords ("true"/"yes" / "false"/"no",
-    case-insensitive), a bare integer N (shorthand for
-    `AdaptiveConcurrency(max=N)`), or a min-max / min-start-max shorthand
-    like "4-80" / "4-20-80" delegated to AdaptiveConcurrency's parser.
-    Raises `click.BadParameter` on invalid input so the CLI surfaces a
-    clean usage message instead of a raw pydantic ValidationError.
-
-    Note: `"1"`/`"0"` are treated as the integer-max shorthand, not as
-    bool aliases. Users who want explicit on/off should pass `true`/`false`.
-    """
-    if value is None:
-        return None
-    v = value.strip().lower()
-    if v in ("true", "yes"):
-        return True
-    if v in ("false", "no"):
-        return False
-    # Bare integer → max shorthand.
-    if v.isdigit():
-        return int(v)
-    try:
-        return AdaptiveConcurrency.model_validate(value)
-    except Exception as ex:
-        raise click.BadParameter(
-            f"{value!r} is not a valid value. Expected `true`, `false`, an "
-            f"integer max (e.g. `200`), or bounds shorthand like `4-80` "
-            f"or `4-20-80`.",
-            param_hint="--adaptive-connections",
-        ) from ex
-
-
-def config_from_locals(locals: dict[str, Any]) -> GenerateConfigArgs:
-    # start with config file if specified
-    adapter = TypeAdapter(GenerateConfigArgs)
-    run_config_file = locals.get("run_config")
-    generate_config_file = locals.pop("generate_config", None)
-    if run_config_file and generate_config_file:
-        raise PrerequisiteError("--run-config cannot be used with --generate-config.")
-    if generate_config_file:
-        # read file
-        generate_config = resolve_args(generate_config_file)
-
-        # validate all the fields are valid
-        extra_keys = generate_config.keys() - GenerateConfigArgs.__annotations__.keys()
-        if extra_keys:
-            raise PrerequisiteError(
-                f"Unexpected GenerateConfig fields in {generate_config_file}: {extra_keys}"
-            )
-
-        # create base config
-        base_config = adapter.validate_python(generate_config, strict=True)
-    else:
-        base_config = GenerateConfigArgs()
-
-    # build generate config
-    config_keys = list(GenerateConfigArgs.__mutable_keys__)  # type: ignore
-    config = GenerateConfigArgs(**base_config)
-    for key, value in locals.items():
-        if key in config_keys and value is not None:
-            if key == "stop_seqs":
-                value = value.split(",")
-            if key == "fallback_models":
-                value = [m.strip() for m in value.split(",")]
-            if key == "logprobs" and value is False:
-                value = None
-            if key == "logit_bias" and value is not None:
-                value = parse_logit_bias(value)
-            if key == "cache_prompt":
-                if value.lower() == "true":
-                    value = True
-                elif value.lower() == "false":
-                    value = False
-            if key == "parallel_tool_calls":
-                if value is not False:
-                    value = None
-            if key == "internal_tools":
-                if value is not False:
-                    value = None
-            if key == "response_schema":
-                if value is not None:
-                    value = ResponseSchema.model_validate_json(value)
-            if key == "cache":
-                match value:
-                    case str():
-                        policy = CachePolicy.from_string(value)
-                        if policy is not None:
-                            value = policy
-                        else:
-                            value = CachePolicy.model_validate(resolve_args(value))
-                    case int():
-                        value = CachePolicy(expiry=f"{value}D")
-
-            if key == "batch":
-                match value:
-                    case str():
-                        value = BatchConfig.model_validate(resolve_args(value))
-
-            if key == "adaptive_connections" and isinstance(value, str):
-                value = _parse_adaptive_connections_cli(value)
-
-            if key == "modalities":
-                value = parse_modalities(value)
-
-            config[key] = value  # type: ignore
-    return config
-
-
-def parse_modalities(value: str) -> list[Any]:
-    """Parse modalities from comma-separated names or YAML/JSON file."""
-    # Check if it's a file path
-    fs = filesystem(value)
-    if fs.exists(value):
-        content = resource(value, type="file")
-        is_json = content.strip().startswith("[") or content.strip().startswith("{")
-        config = json.loads(content) if is_json else yaml.safe_load(content)
-        if not isinstance(config, list):
-            raise PrerequisiteError(
-                f"Modalities config file must contain a list, got: {type(config).__name__}"
-            )
-        result: list[OutputModality] = []
-        for item in config:
-            if isinstance(item, str):
-                result.append(item)  # type: ignore[arg-type]
-            elif isinstance(item, dict):
-                result.append(ImageOutput.model_validate(item))
-            else:
-                raise PrerequisiteError(f"Invalid modality item: {item}")
-        return result
-    else:
-        # Check if it looks like a file path that doesn't exist
-        if "/" in value or "\\" in value or value.endswith((".json", ".yaml", ".yml")):
-            raise PrerequisiteError(f"Modalities file not found: {value}")
-        # Comma-separated literal names (e.g. "image" or "image,audio")
-        tokens = [m.strip() for m in value.split(",")]
-        return [t for t in tokens if t]  # type: ignore[misc]
-
-
-def parse_logit_bias(logit_bias: str | None) -> dict[int, float] | None:
-    logit_biases = parse_cli_args(logit_bias.split(",")) if logit_bias else None
-    if logit_biases:
-        return dict(
-            zip([int(key) for key in logit_biases.keys()], logit_biases.values())
-        )
-    else:
-        return None
-
-
 def parse_comma_separated(value: str | None) -> list[str] | None:
     if value is not None:
         return value.split(",")
@@ -2468,6 +2331,12 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     type=bool,
     is_flag=True,
     help=NO_SANDBOX_CLEANUP_HELP,
+)
+@click.option(
+    "--sandbox-prebuilt",
+    type=bool,
+    is_flag=True,
+    help=SANDBOX_PREBUILT_HELP,
 )
 @click.option(
     "--trace",
@@ -2671,6 +2540,7 @@ def eval_retry_command(
     max_subprocesses: int | None,
     max_sandboxes: int | None,
     no_sandbox_cleanup: bool | None,
+    sandbox_prebuilt: bool | None,
     trace: bool | None,
     fail_on_error: bool | float | None,
     no_fail_on_error: bool | None,
@@ -2736,6 +2606,7 @@ def eval_retry_command(
 
         # resolve negating options
         sandbox_cleanup = False if no_sandbox_cleanup else None
+        sandbox_prebuilt = True if sandbox_prebuilt else None
         log_samples = False if no_log_samples else None
         log_realtime = False if no_log_realtime else None
         log_images = False if log_images is False else None
@@ -2816,6 +2687,7 @@ def eval_retry_command(
                 max_subprocesses=max_subprocesses,
                 max_sandboxes=max_sandboxes,
                 sandbox_cleanup=sandbox_cleanup,
+                sandbox_prebuilt=sandbox_prebuilt,
                 trace=trace,
                 fail_on_error=fail_on_error,
                 continue_on_fail=continue_on_fail,

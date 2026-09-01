@@ -25,6 +25,7 @@
 - Eval Log: Flushing buffered samples to an `.eval` log now yields between samples, so a large flush no longer stalls in-flight samples and control-channel requests for the whole batch.
 - ACP: Emit an `inspect/turn_state` extension notification (`started` / `ended` / `cancelled`) from the agent turn boundary so ACP clients have an exact "agent working" signal.
 - Inspect CTL: Terminal escape sequences and control characters in agent-generated text are now sanitized in `inspect ctl` human-readable output, preventing spoofing of the operator's terminal.
+- DeepSeek: structured output (`response_schema`) no longer fails with a 400 — it now uses DeepSeek's JSON mode, warning that the schema must be described in the prompt.
 - Control Channel: New `--now` flag on `inspect ctl task|model|process pause` additionally holds in-flight samples at their next model call until resume, with held-sample counts reported in `inspect ctl task list`.
 - Control Channel: `inspect ctl config` no longer version-gates individual knobs — current eval processes reject unsupported knobs atomically server-side, and only processes predating strict config validation are refused as a whole.
 - Fixed sandbox tools (`text_editor`, `bash_session`) failing to install in non-root sandboxes (e.g. Kubernetes pods with `runAsNonRoot`).
@@ -37,6 +38,7 @@
 - Mistral: Provider-generated images remain available when replayed in subsequent conversation turns.
 - Eval Log: A retry attempt killed before it finishes reusing the prior log's completed samples no longer causes the next retry to re-run (and eventually lose) those samples.
 - Docs: Clarify that the sandbox `exec()` output limit is enforced by front-truncating the output streams rather than by raising `OutputLimitExceededError` (which remains the behaviour for `read_file()`). (#4778)
+- Agent Bridge: A bridged client that sends the eval model's concrete id instead of `inspect` (claude_code sends e.g. `claude-fable-5`) now resolves to the eval's own `Model` instance rather than a second one built by `get_model()`, whose memoization key includes the config. Previously such a client got a distinct instance, and since the eval's `GenerateConfig` is only applied to the active model, eval-level options such as `fallback_models` were silently dropped before the provider request. Aliases, model roles, and any other model the client names are unaffected.
 
 ## 0.3.259 (16 August 2026)
 
@@ -64,6 +66,8 @@
 - Datasets (breaking): A ragged CSV row now raises `ValueError` naming the file and line, instead of `AttributeError` or a silent load. (#4546)
 - Multiple Choice: Answers listing choices with an Oxford or trailing comma (e.g. `ANSWER: A, B, and C`) are now scored correctly instead of as no answer.
 - Bugfix: MCP sandbox sessions are now cached per tool-source instance and cleared on close, so one instance's sessions and tool lists no longer leak into another's.
+- Agent Bridge: The OpenAI Agents SDK, LangChain, and pydantic-ai examples now run as documented against OpenAI, Anthropic, and Google models.
+- Agent Bridge: Anthropic beta endpoint requests now return beta usage, so clients reading beta-only usage fields (e.g. pydantic-ai) no longer fail with `AttributeError`.
 - Bugfix: Recovered eval logs now report reasoning tokens and total cost in their top-level usage summary, which previously showed both as null.
 
 ## 0.3.258 (11 August 2026)
@@ -905,7 +909,6 @@
 - Anthropic: Use request level "auto" caching mode for improved prompt caching.
 - vLLM: Allow vLLM provider to restart after close().
 - Schemas: Remove old json-schema-to-typescript codegen in favor of new pipeline.
-- Schemas: Fix OpenAPI schema genreation for samples/reductions (give them independent field serializers to preserve types).
 - Schemas: Fix OpenAPI schema generation for samples/reductions (give them independent field serializers to preserve types).
 - Inspect View: Use FastAPI server when `fastapi` and `uvicorn` packages are available.
 - Inspect View: Transcript viewing improvements for complex transcripts (timeline + other fixes)

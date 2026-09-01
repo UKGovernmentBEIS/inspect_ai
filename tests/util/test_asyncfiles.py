@@ -10,12 +10,14 @@ import pytest
 from anyio import EndOfStream
 from botocore.exceptions import ClientError
 
-from inspect_ai._util._async import run_coroutine, tg_collect
+from inspect_ai._util._async import current_async_backend, run_coroutine, tg_collect
 from inspect_ai._util.asyncfiles import (
     AsyncFilesystem,
     _current_async_fs,
     _RetiredClient,
     get_async_filesystem,
+    s3_bucket_and_key,
+    s3_write_file_streaming,
 )
 
 S3_BUCKET = "s3://test-bucket"
@@ -389,19 +391,80 @@ async def test_write_file_streaming_local():
             assert f.read() == large_data
 
 
-def test_write_file_streaming_s3(mock_s3: None) -> None:
+async def test_write_file_streaming_s3(
+    mock_s3: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Test AsyncFilesystem.write_file_streaming with mock S3."""
+    if current_async_backend() == "trio":
+
+        def reject_transfer_manager_factory(*args: Any, **kwargs: Any) -> None:
+            raise AssertionError("Trio S3 uploads must not auto-select the CRT manager")
+
+        monkeypatch.setattr(
+            "boto3.s3.transfer.create_transfer_manager",
+            reject_transfer_manager_factory,
+        )
+
     test_data = b"\xab" * (10 * 1024 * 1024)  # 10MB, exceeds 8MB multipart threshold
     s3_path = f"{S3_BUCKET}/streaming_test/file.bin"
 
-    async def run() -> None:
-        source = io.BytesIO(test_data)
-        async with AsyncFilesystem() as fs:
-            await fs.write_file_streaming(s3_path, source)
-            result = await fs.read_file(s3_path)
-            assert result == test_data
+    source = io.BytesIO(test_data)
+    async with AsyncFilesystem() as fs:
+        etag = await fs.write_file_streaming(s3_path, source)
+        assert not source.closed
+        result = await fs.read_file(s3_path)
+        assert result == test_data
+        assert etag == (await fs.info(s3_path)).etag
+        assert etag is not None and "-" in etag
+        # sub-threshold (non-multipart) uploads must leave the source
+        # open on the asyncio path too
+        small = io.BytesIO(b"small payload")
+        await fs.write_file_streaming(f"{s3_path}.small", small)
+        assert not small.closed
 
-    asyncio.run(run())
+
+def test_write_file_streaming_s3_small_upload_leaves_source_open(
+    mock_s3: None,
+) -> None:
+    """A sub-multipart-threshold sync upload must not close the source.
+
+    s3transfer's non-multipart PUT closes the fileobj it is handed, and the
+    EvalRecorder reuses its temp file after every flush (trio evals take this
+    sync boto3 path), so the upload must shield the source from closing.
+    """
+    test_data = b"small eval log " * 1024  # well below the 8MB multipart threshold
+    bucket, key = s3_bucket_and_key(f"{S3_BUCKET}/streaming_test/small.eval")
+
+    source = io.BytesIO(test_data)
+    s3 = AsyncFilesystem().s3_client()
+    s3_write_file_streaming(s3, bucket, key, source)
+
+    assert not source.closed
+    source.seek(0)
+    assert source.read() == test_data
+    assert s3.get_object(Bucket=bucket, Key=key)["Body"].read() == test_data
+
+
+async def test_write_file_streaming_s3_sync_backend_source_reusable(
+    mock_s3: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The sync (trio) write path leaves a sub-8MB source open for re-flush."""
+    monkeypatch.setattr(
+        "inspect_ai._util.asyncfiles.current_async_backend", lambda: "trio"
+    )
+
+    test_data = b"small eval log " * 1024
+    s3_path = f"{S3_BUCKET}/streaming_test/small_sync.eval"
+
+    source = io.BytesIO(test_data)
+    async with AsyncFilesystem() as fs:
+        await fs.write_file_streaming(s3_path, source)
+        assert not source.closed
+        # a recorder flushes the same stream repeatedly; a second write works
+        source.seek(0)
+        await fs.write_file_streaming(s3_path, source)
+        assert not source.closed
+        assert await fs.read_file(s3_path) == test_data
 
 
 class _RetryingUploadClient:

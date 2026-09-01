@@ -47,6 +47,7 @@ logger = getLogger(__name__)
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
+    from inspect_ai._control.scoring import TaskScoring
     from inspect_ai._display.core.display import TaskCancel
     from inspect_ai._eval.task.scheduler import SampleRequeue
     from inspect_ai.log._config_update import ConfigUpdate
@@ -236,6 +237,15 @@ class EvalState:
     starts (the scheduler it closes over doesn't exist at
     :func:`register_eval` time); ``None`` for reused/synthetic evals, and
     detached alongside :attr:`live` when a retry supersedes the attempt."""
+
+    task_scoring: "TaskScoring | None" = None
+    """The running attempt's interim-scoring capability — the task's scorers
+    and scoring inputs as resolved at eval start, published for the control
+    channel's ``task score`` directive (see :mod:`inspect_ai._control.scoring`
+    and ``design/ctl/interim-scoring.md``). Set by :func:`set_task_scoring`
+    from the task runner; ``None`` for reused/synthetic evals (nothing is
+    running, so there is nothing to score in-process), and detached alongside
+    :attr:`live` when a retry supersedes the attempt."""
 
     deferred_sample_stats: DeferredStatsProvider | None = None
     """Lazy accessor for a reused eval's summaries-derived stats
@@ -626,8 +636,24 @@ def record_sample_cancelled(
             _maybe_mark_finished(state)
 
 
+def _requeue_bucket(
+    prior_status: Literal["error", "cancelled"],
+) -> Literal["errored", "cancelled"]:
+    """The counter bucket a requeueable prior status bumped at its recording.
+
+    The single source for both directions — the requeue accept's decrement
+    (:func:`record_sample_requeued`) and the un-requeue's restore
+    (:func:`record_sample_unrequeued`) — so the mapping can't drift and
+    restore a different bucket than was decremented.
+    """
+    return "errored" if prior_status == "error" else "cancelled"
+
+
 def record_sample_requeued(
-    eval_id: str, prior_status: Literal["error", "cancelled"]
+    eval_id: str,
+    prior_status: Literal["error", "cancelled"],
+    *,
+    op: str = "requeue",
 ) -> None:
     """Re-open a terminal sample's slot when a requeue is accepted.
 
@@ -639,28 +665,52 @@ def record_sample_requeued(
     re-run torn down before recording). Cumulative usage
     (``total_tokens`` / ``total_messages``) is *not* rolled back — the
     prior attempt's spend was real. Called synchronously in the requeue
-    accept path (see ``design/ctl/sample-requeue.md``). Silently no-ops if
-    the eval isn't registered.
+    accept path (see ``design/ctl/sample-requeue.md``) and, with
+    ``op="un-cancel"``, in the requeue resolver's withdrawal of a
+    cancel-before-start (``design/ctl/queued-sample-cancel.md`` — the same
+    decrement, re-opening the ``cancelled`` slot). Silently no-ops if the
+    eval isn't registered.
 
     Guarded against decrementing a bucket below zero: that would mean the
-    caller's message-based classification of the prior record diverged from
-    the bucket its terminal recording actually bumped, so fail loudly (a
-    warning naming the divergence) rather than corrupting the counters.
+    caller's classification of the prior outcome diverged from the bucket
+    its recording actually bumped, so fail loudly (a warning naming the
+    diverging operation, ``op``) rather than corrupting the counters.
     """
     with _lock:
         state = _eval_states.get(eval_id)
         if state is not None:
-            bucket = "errored" if prior_status == "error" else "cancelled"
+            bucket = _requeue_bucket(prior_status)
             count = getattr(state, bucket)
             if count <= 0:
                 logger.warning(
-                    f"requeue accepted a prior with status '{prior_status}' "
+                    f"{op} accepted for a prior with status '{prior_status}' "
                     f"but the eval's {bucket} count is {count} (eval "
                     f"{eval_id}) — classification/bucket divergence; not "
                     "decremented"
                 )
             else:
                 setattr(state, bucket, count - 1)
+
+
+def record_sample_unrequeued(
+    eval_id: str, prior_status: Literal["error", "cancelled"]
+) -> None:
+    """Re-close a sample's slot when its accepted requeue is withdrawn.
+
+    The increment inverse of :func:`record_sample_requeued`: an un-requeue
+    (``design/ctl/queued-sample-cancel.md``) withdraws the pending re-run and
+    the prior terminal record stands again, so its bucket is restored —
+    including :func:`_maybe_mark_finished`, so an eval whose withdrawn re-run
+    was the last outstanding work finishes as the discarded run drains.
+    ``prior_status`` is remembered from the requeue accept, never
+    re-classified. Silently no-ops if the eval isn't registered.
+    """
+    with _lock:
+        state = _eval_states.get(eval_id)
+        if state is not None:
+            bucket = _requeue_bucket(prior_status)
+            setattr(state, bucket, getattr(state, bucket) + 1)
+            _maybe_mark_finished(state)
 
 
 def set_sample_requeue(eval_id: str, handle: "SampleRequeue | None") -> None:
@@ -674,6 +724,20 @@ def set_sample_requeue(eval_id: str, handle: "SampleRequeue | None") -> None:
         state = _eval_states.get(eval_id)
         if state is not None:
             state.sample_requeue = handle
+
+
+def set_task_scoring(eval_id: str, handle: "TaskScoring | None") -> None:
+    """Register the running attempt's interim-scoring capability.
+
+    Called by ``task_run`` alongside registration, with the task's scorers
+    and scoring inputs as resolved at eval start (the interim-scoring pass
+    uses the task's own scorers — a control-channel non-goal to override
+    them mid-flight). Silently no-ops if the eval isn't registered.
+    """
+    with _lock:
+        state = _eval_states.get(eval_id)
+        if state is not None:
+            state.task_scoring = handle
 
 
 def record_samples_added(
@@ -778,7 +842,13 @@ def detach_eval_live(eval_id: str) -> None:
 
     The attempt-scoped :attr:`sample_requeue` handle is detached here too: a
     requeue aimed at a superseded attempt's ``eval_id`` must be rejected, not
-    mutate a dead attempt's scheduler.
+    mutate a dead attempt's scheduler. Likewise :attr:`task_scoring` — a
+    scoring pass aimed at a superseded attempt must not run against a dead
+    attempt's recorder (the retry attempt registers a fresh handle) — and a
+    scoring pass already *running* against this attempt is cancelled: left
+    alone it would keep presenting itself as the task's current pass and,
+    via the one-pass-per-task guard, block ``ctl task score`` against the
+    new attempt until it drained.
 
     No-ops if the eval isn't registered.
     """
@@ -787,6 +857,11 @@ def detach_eval_live(eval_id: str) -> None:
         if state is not None:
             state.live = None
             state.sample_requeue = None
+            state.task_scoring = None
+    if state is not None and state.task_id:
+        from inspect_ai._control.scoring import cancel_score_pass
+
+        cancel_score_pass(state.task_id, eval_id)
 
 
 def invalidate_log_sample_summaries(eval_id: str) -> None:
@@ -908,18 +983,24 @@ def reset_run_registries() -> None:
     here, not at the call sites.
     """
     from inspect_ai._control.config_record import reset_process_config_updates
+    from inspect_ai._control.max_tasks import reset_max_tasks_override
     from inspect_ai._control.pause import (
         reset_process_pause,
         reset_task_pause_gates,
     )
+    from inspect_ai._control.scoring import reset_score_passes
     from inspect_ai.model._generate_overrides import (
         reset_generate_config_overrides,
     )
+    from inspect_ai.model._throughput import init_model_throughput
     from inspect_ai.util._limit_overrides import reset_sample_limit_overrides
 
     clear_all_eval_states()
     reset_generate_config_overrides()
+    reset_max_tasks_override()
     reset_sample_limit_overrides()
     reset_process_config_updates()
     reset_task_pause_gates()
+    init_model_throughput()
     reset_process_pause()
+    reset_score_passes()

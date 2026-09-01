@@ -754,9 +754,11 @@ def check_log(log: EvalLog, color="purple", check_model_roles=False) -> None:
     assert log.eval.task_args["color"] == color
     assert log.eval.model_args["foo"] == "bar"
     if log.eval.model_roles and check_model_roles:
-        assert log.eval.model_roles["grader"].config.temperature == 0.5
-        assert log.eval.model_roles["grader"].config.max_tokens == 1000
-        assert log.eval.model_roles["grader"].model == "mockllm/model"
+        grader = log.eval.model_roles["grader"]
+        assert not isinstance(grader, list)
+        assert grader.config.temperature == 0.5
+        assert grader.config.max_tokens == 1000
+        assert grader.model == "mockllm/model"
     if log.eval.solver_args:
         assert log.eval.solver_args["shape"] == "square"
 

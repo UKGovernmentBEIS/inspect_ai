@@ -10,12 +10,14 @@ import anyio
 import yaml
 from pydantic import BaseModel
 
+from inspect_ai._util.cpu import effective_cpu_count
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.trace import trace_message
 from inspect_ai.util._concurrency import concurrency as concurrency_manager
 from inspect_ai.util._display import display_type, display_type_plain
 from inspect_ai.util._subprocess import ExecResult, subprocess
 
+from .config import is_auto_compose_file
 from .prereqs import (
     DOCKER_COMPOSE_REQUIRED_VERSION_PULL_POLICY,
     validate_docker_compose,
@@ -185,6 +187,49 @@ async def compose_pull(
     )
 
 
+PREBUILT_IMAGES_ERROR_PREFIX = (
+    "Sandbox images are expected to be prebuilt (sandbox_prebuilt is set) but "
+)
+
+
+async def compose_verify_prebuilt_images(
+    project: ComposeProject, services: dict[str, ComposeService]
+) -> None:
+    unnamed: list[str] = []
+    missing: list[str] = []
+    for name, service in services.items():
+        if "build" not in service and not service.get("x-local"):
+            continue
+        image = service.get("image")
+        if not image:
+            unnamed.append(name)
+        elif not await docker_image_exists_locally(image):
+            missing.append(f"{name} ({image})")
+    problems: list[str] = []
+    if unnamed:
+        if project.config is not None and is_auto_compose_file(project.config):
+            problems.append(
+                "the task's sandbox config does not name an 'image' under which a "
+                "prebuilt image can be located. Name one via an 'image' key in a "
+                "compose.yaml, or via 'image' on the sandbox's ComposeService"
+            )
+        else:
+            problems.append(
+                "no prebuilt image can be located for these services because they have a 'build' "
+                "section but no 'image' key. Add an explicit 'image' name to the compose file and "
+                f"provide the image under that name: {', '.join(unnamed)}"
+            )
+    if missing:
+        problems.append(
+            "these services' images are not present in the Docker image store: "
+            f"{', '.join(missing)}"
+        )
+    if problems:
+        raise PrerequisiteError(
+            PREBUILT_IMAGES_ERROR_PREFIX + ". Additionally, ".join(problems)
+        )
+
+
 async def docker_image_exists_locally(image: str) -> bool:
     """Check whether a docker image is already present in the local daemon."""
     result = await subprocess(
@@ -321,7 +366,9 @@ async def compose_command(
 
     # set a concurrency limit for docker CLI invocations.
     # this should help with running more containers in parallel while avoiding hangs on some systems
-    DEFAULT_CLI_CONCURRENCY = max((os.cpu_count() or 1) * 2, 4)
+    # (sized off the processors this process may use, not the host's — see
+    # `effective_cpu_count`)
+    DEFAULT_CLI_CONCURRENCY = max(effective_cpu_count() * 2, 4)
     docker_cli_concurrency = int(
         os.environ.get("INSPECT_DOCKER_CLI_CONCURRENCY", DEFAULT_CLI_CONCURRENCY)
     )

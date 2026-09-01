@@ -180,6 +180,7 @@ from .util import (
     resolve_generate_config,
     resolve_inspect_model,
     validate_bridge_media,
+    validate_client_config,
     withheld_bridge_tool,
 )
 
@@ -298,6 +299,7 @@ async def inspect_responses_api_request_impl(
     config = generate_config_from_openai_responses(json_data)
     if not bridge.forward_generation_config:
         clear_generation_params(config)
+    validate_client_config(config)
     config.extra_headers = headers
     if config.system_message:
         messages.insert(0, ChatMessageSystem(content=config.system_message))
@@ -687,6 +689,14 @@ def generate_config_from_openai_responses(json_data: dict[str, Any]) -> Generate
                     strict=format.get("strict", None),
                 )
 
+        # `text.verbosity` has a GenerateConfig slot and the provider already
+        # sends it (`params["text"]["verbosity"]`), but nothing read it off the
+        # request, so a client asking for terse output silently got the model
+        # default.
+        verbosity = text.get("verbosity", None)
+        if verbosity is not None:
+            config.verbosity = verbosity
+
     # extra_body params (i.e. passthrough for native responses)
     extra_body: dict[str, Any] = {}
     for field in responses_extra_body_fields():
@@ -1027,10 +1037,11 @@ def messages_from_responses_input(
             else:
                 messages.append(ChatMessageSystem(content=content))
         elif is_function_call_output(item):
+            call_id = item.get("call_id")
             messages.append(
                 ChatMessageTool(
-                    tool_call_id=item["call_id"],
-                    function=function_calls_by_id.get(item["call_id"]),
+                    tool_call_id=call_id,
+                    function=function_calls_by_id.get(call_id) if call_id else None,
                     content=_tool_content_from_openai_tool_output(item["output"]),
                 )
             )
