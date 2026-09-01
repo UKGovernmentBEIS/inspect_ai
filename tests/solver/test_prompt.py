@@ -105,8 +105,23 @@ def test_chain_of_thought_resource(tmp_path):
         solver=[chain_of_thought(str(template_file)), generate()],
     )
     log = eval(task, model="mockllm/model")[0]
-    assert log.samples
     assert (
         "Reason carefully:\nWhat is 20 + 22?\nANSWER: 42"
+        in log.samples[0].messages[0].text
+    )
+
+
+def test_chain_of_thought_with_braces():
+    custom_template = (
+        "{prompt}\nReason step by step. Return JSON with {custom_field} key."
+    )
+    task = Task(
+        dataset=[Sample(input="Solve problem", target="42")],
+        solver=[chain_of_thought(custom_template), generate()],
+    )
+    log = eval(task, model="mockllm/model")[0]
+    assert log.samples
+    assert (
+        "Solve problem\nReason step by step. Return JSON with {custom_field} key."
         in log.samples[0].messages[0].text
     )
