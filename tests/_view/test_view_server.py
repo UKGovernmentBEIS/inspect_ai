@@ -2111,6 +2111,53 @@ def test_api_log_edit_s3_returns_new_etag(mock_s3: None, tmp_path: Path) -> None
         client.close()
 
 
+def test_api_log_edit_returns_atomic_write_etag_during_race(
+    mock_s3: None, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The edit response must identify its write, not a later S3 object."""
+    from inspect_ai.log._recorders import eval as eval_recorder
+
+    s3_log = "s3://test-bucket/2025-01-01T00-00-00+00-00_etag_race.eval"
+    _write_eval_log_to_s3(s3_log)
+    original_put = eval_recorder._s3_put_object
+    later_etag = None
+
+    async def racing_put(async_fs, bucket, key, body, etag):
+        nonlocal later_etag
+        write_etag = await original_put(async_fs, bucket, key, body, etag)
+        if etag is not None:
+            client = await async_fs.s3_client_async()
+            response = await client.put_object(
+                Bucket=bucket, Key=key, Body=b"concurrent writer"
+            )
+            later_etag = str(response["ETag"]).strip('"')
+        return write_etag
+
+    monkeypatch.setattr(eval_recorder, "_s3_put_object", racing_put)
+
+    client = ViewTestClient(tmp_path)
+    try:
+        read_resp = client.request("GET", f"/logs/{s3_log}")
+        read_resp.raise_for_status()
+        edit_resp = client.frontend_request(
+            "POST",
+            f"/log-edit/{s3_log}",
+            headers={"If-Match": read_resp.headers["etag"]},
+            json={
+                "edits": [
+                    {"type": "tags", "tags_add": ["writer_a"], "tags_remove": []}
+                ],
+                "provenance": {"author": "alice"},
+            },
+        )
+
+        edit_resp.raise_for_status()
+        assert later_etag is not None
+        assert edit_resp.headers["etag"] != later_etag
+    finally:
+        client.close()
+
+
 def test_api_log_edit_s3_stale_if_match_returns_412(
     mock_s3: None, tmp_path: Path
 ) -> None:

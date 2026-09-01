@@ -7,12 +7,14 @@ from os import PathLike
 from typing import IO, Any, Literal, cast
 
 from anthropic.types import (
+    BrowserStateBlockParam,
     ContentBlock,
     ContentBlockParam,
     DocumentBlockParam,
     ImageBlockParam,
     Message,
     MessageParam,
+    OutputTokensDetails,
     SearchResultBlockParam,
     TextBlockParam,
     ToolChoiceParam,
@@ -24,8 +26,10 @@ from anthropic.types import (
 from anthropic.types import StopReason as AnthropicStopReason
 from anthropic.types.beta import (
     BetaMessage,
+    BetaOutputTokensDetails,
     BetaRequestMCPServerToolConfigurationParam,
     BetaRequestMCPServerURLDefinitionParam,
+    BetaUsage,
 )
 from shortuuid import uuid
 
@@ -138,14 +142,24 @@ async def inspect_anthropic_api_request_impl(
     await validate_bridge_media(bridge, messages)
     debug_log("INSPECT MESSAGES", messages)
 
-    # extract generate config (hoist instructions into system_message)
+    # extract generate config (hoist instructions into system messages)
     config = generate_config_from_anthropic(json_data)
     if not bridge.forward_generation_config:
         clear_generation_params(config)
     config.extra_headers = headers
-    if config.system_message is not None:
-        messages.insert(0, ChatMessageSystem(content=config.system_message))
-        config.system_message = None
+    # Hoist the request's `system` value into leading system messages, ONE PER
+    # ANTHROPIC BLOCK. Block boundaries are load-bearing: the API consumes a
+    # system block whose text begins with an `x-anthropic-*-header:` line as
+    # request metadata, so concatenating blocks can prepend such a header to a
+    # real instruction block and the API then discards the whole block --
+    # silently dropping the instructions. Observed with Claude Code's auto-mode
+    # security classifier, which sends `system` as
+    # [billing-header, monitor-prompt, session-context]: flattened, the 106k-char
+    # prompt billed only 253 input tokens (i.e. never arrived), leaving the
+    # classifier with no instructions and no verdict grammar.
+    system_texts = anthropic_system_to_texts(json_data.get("system"))
+    for offset, system_text in enumerate(system_texts):
+        messages.insert(offset, ChatMessageSystem(content=system_text))
 
     # try to maintain id stability
     apply_message_ids(bridge, messages)
@@ -174,7 +188,7 @@ async def inspect_anthropic_api_request_impl(
         role="assistant",
         stop_reason=anthropic_stop_reason(output.stop_reason),
         type="message",
-        usage=anthropic_usage(output.usage or ModelUsage()),
+        usage=anthropic_usage(output.usage or ModelUsage(), beta=beta),
     )
     debug_log("SCAFFOLD RESPONSE", message)
 
@@ -189,23 +203,37 @@ def debug_log(caption: str, o: Any) -> None:
     pass
 
 
-def anthropic_system_to_text(value: Any) -> str:
-    """Flatten an Anthropic ``system`` value (``str`` or ``list[TextBlockParam]``) to text."""
+def anthropic_system_to_texts(value: Any) -> list[str]:
+    """Split an Anthropic ``system`` value into one text per block.
+
+    ``system`` is either a plain string or a list of ``TextBlockParam``. Callers
+    that turn these into Inspect system messages must preserve one entry per
+    block rather than concatenating: the Anthropic API treats a system block
+    beginning with an ``x-anthropic-*-header:`` line as request metadata and
+    drops that block, so gluing a header block onto an instruction block causes
+    the instructions to be discarded server-side.
+
+    Empty blocks are omitted (they carry no instructions and would otherwise
+    become empty system messages).
+    """
+    if value is None:
+        return []
     if isinstance(value, str):
-        return value
-    return "\n\n".join(
-        str(b.get("text", ""))
-        for b in value
-        if isinstance(b, dict) and b.get("type") == "text"
-    )
+        return [value] if value else []
+    texts: list[str] = []
+    for block in value:
+        if not isinstance(block, dict) or block.get("type") != "text":
+            continue
+        text = str(block.get("text", ""))
+        if text:
+            texts.append(text)
+    return texts
 
 
 def generate_config_from_anthropic(json_data: dict[str, Any]) -> GenerateConfig:
     config = GenerateConfig()
     config.max_tokens = json_data.get("max_tokens", None)
     config.stop_seqs = json_data.get("stop_sequences", None) or None
-    if (system := json_data.get("system")) is not None:
-        config.system_message = anthropic_system_to_text(system)
     config.temperature = json_data.get("temperature", None)
     config.top_k = json_data.get("top_k", None)
     config.top_p = json_data.get("top_p", None)
@@ -481,8 +509,9 @@ async def messages_from_anthropic_input(
                 flush_pending_user_content()
 
         elif param["role"] == "system":
-            messages.append(
-                ChatMessageSystem(content=anthropic_system_to_text(param["content"]))
+            messages.extend(
+                ChatMessageSystem(content=text)
+                for text in anthropic_system_to_texts(param["content"])
             )
 
         else:
@@ -496,7 +525,8 @@ def content_block_to_content(
     | ImageBlockParam
     | DocumentBlockParam
     | SearchResultBlockParam
-    | ToolReferenceBlockParam,
+    | ToolReferenceBlockParam
+    | BrowserStateBlockParam,
 ) -> Content:
     if block["type"] == "text":
         text = block["text"]
@@ -519,8 +549,12 @@ def content_block_to_content(
                     data=data,
                 )
             )
-        else:
+        elif block["source"]["type"] == "url":
             return ContentImage(image=block["source"]["url"])
+        else:
+            raise RuntimeError(
+                f"Unsupported image source type: {block['source']['type']}"
+            )
     elif block["type"] == "document":
         source = block["source"]
         if source["type"] == "text":
@@ -543,8 +577,10 @@ def content_block_to_content(
                 return ContentText(text=c)
             else:
                 return content_block_to_content(list(c)[0])
+        else:
+            raise RuntimeError(f"Unsupported document source type: {source['type']}")
     else:
-        raise RuntimeError(f"Unsupported content block type: {type(block)}")
+        raise RuntimeError(f"Unsupported content block type: {block['type']}")
 
 
 def base_64_data(data: str | IO[bytes] | PathLike[str]) -> str:
@@ -572,10 +608,32 @@ def anthropic_stop_reason(stop_reason: StopReason) -> AnthropicStopReason:
             return "end_turn"
 
 
-def anthropic_usage(usage: ModelUsage) -> Usage:
-    return Usage(
-        input_tokens=usage.input_tokens,
-        output_tokens=usage.output_tokens,
-        cache_creation_input_tokens=usage.input_tokens_cache_write,
-        cache_read_input_tokens=usage.input_tokens_cache_read,
-    )
+def anthropic_usage(usage: ModelUsage, beta: bool = False) -> Usage | BetaUsage:
+    """Convert inspect-level usage to the Anthropic usage type matching the endpoint.
+
+    Beta requests must carry `BetaUsage`: clients reading beta-only fields
+    (e.g. pydantic-ai reads `usage.iterations`) fail on a plain `Usage`.
+    """
+    reasoning_tokens = usage.reasoning_tokens
+    if beta:
+        return BetaUsage(
+            input_tokens=usage.input_tokens,
+            output_tokens=usage.output_tokens,
+            cache_creation_input_tokens=usage.input_tokens_cache_write,
+            cache_read_input_tokens=usage.input_tokens_cache_read,
+            output_tokens_details=BetaOutputTokensDetails(
+                thinking_tokens=reasoning_tokens
+            )
+            if reasoning_tokens is not None
+            else None,
+        )
+    else:
+        return Usage(
+            input_tokens=usage.input_tokens,
+            output_tokens=usage.output_tokens,
+            cache_creation_input_tokens=usage.input_tokens_cache_write,
+            cache_read_input_tokens=usage.input_tokens_cache_read,
+            output_tokens_details=OutputTokensDetails(thinking_tokens=reasoning_tokens)
+            if reasoning_tokens is not None
+            else None,
+        )

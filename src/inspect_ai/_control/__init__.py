@@ -10,30 +10,37 @@ external clients (the `inspect ctl` CLI, TUIs, agents). See
 # were launched with, so a newer CLI can be pointed at an older process —
 # rare, but possible when the CLI is upgraded mid-eval. The server advertises
 # this single channel-wide integer (in its discovery file and on each
-# `/tasks` row); the CLI's legacy `_KNOB_SINCE` gates (see
-# `inspect_ai._cli.ctl`) compare against it before sending a mutation. A
-# server that predates this field implicitly reports version 0.
+# `/tasks` row); a server that predates the field implicitly reports
+# version 0.
 #
-# What needs a bump (and what doesn't), per kind of change:
+# Skew handling needs NO bump for the routine kinds of change — both halves
+# interrogate the actual server rather than a version table:
 #
 # - New MUTATION PARAM (a knob, or an action-style param on a POST route):
-#   no bump, no CLI gate. Every server in the field is strict (version >= 3):
-#   it rejects unknown query params on any non-GET route with a 400
-#   (`_control/strict.py`), so a mutation an older server can't honor fails
-#   loudly instead of silently no-opping. Pre-strict (version < 3) servers —
-#   whose mutation handlers silently ignored unknown params — are considered
-#   aged out (eval processes are short-lived). The remaining `_KNOB_SINCE`
-#   entries (`max_subprocesses` since 1, `key` since 2) predate strict
-#   mutations and retire with issue #67.
-# - New ENDPOINT: no bump. An older server answers a missing route with
-#   FastAPI's stock `{"detail": "Not Found"}` 404, which the CLI tells apart
-#   from a handler's `{"error": ...}` entity-not-found 404 — pass
+#   a strict server (version >= 3) rejects unknown query params on any
+#   non-GET route with a 400 (`_control/strict.py`), atomically — so a
+#   mutation an older server can't honor fails loudly before anything is
+#   applied, instead of silently no-opping. Pre-strict (< 3) stragglers get
+#   a single tableless floor instead: the CLI refuses any knob mutation
+#   against a process advertising < 3 (`_STRICT_SINCE` in
+#   `inspect_ai._cli.ctl`), which replaced the retired per-knob
+#   `_KNOB_SINCE` pre-flight gate (issue #67).
+# - New ENDPOINT: an older server answers a missing route with FastAPI's
+#   stock `{"detail": "Not Found"}` 404, which the CLI tells apart from a
+#   handler's `{"error": ...}` entity-not-found 404 — pass
 #   `not_found_missing_route` to `_request_json` and the skew is reported
 #   definitively with no version bookkeeping (and accurately even against
 #   servers that predate version reporting). Handler 404s must carry the
 #   `{"error": ...}` body for this to hold — see the convention comment in
 #   `server.py`.
 # - Purely additive response fields the CLI already null-guards: no bump.
+#
+# What still warrants a bump: a change the CLI must *adapt its own behavior*
+# to, where failing loudly is the wrong outcome. The one live example is
+# version 5's defaulted provenance author — a param the user never typed
+# must not 400 their retune on an older strict server, so the CLI includes
+# it only when the server advertises support (`_PROVENANCE_SINCE` in
+# `inspect_ai._cli.ctl`). Bump the constant in the same PR as such a change.
 #
 # Version history:
 #   0 — initial channel (tolerant servers: mutation handlers silently ignore
@@ -52,7 +59,7 @@ external clients (the `inspect ctl` CLI, TUIs, agents). See
 #       never typed — a defaulted param must not 400 every config mutation
 #       against an older server, so the CLI includes it only when the
 #       server advertises >= 5 (an explicit --author/--reason against an
-#       older server hard-errors before sending, like the legacy knob gates).
+#       older server hard-errors before sending).
 #   6 — metadata-only default on the sample content reads: the per-sample
 #       events / messages / error-detail endpoints (and the samples
 #       listing's error message) withhold agent-controlled free text unless
@@ -66,4 +73,8 @@ external clients (the `inspect ctl` CLI, TUIs, agents). See
 #       `sample show` truthiness-checked the error dict, so a withheld error
 #       (`{}`) on a zero-retries sample prints "(no errors)" under an `error`
 #       status line. Cosmetic only, and unfixable for already-shipped CLIs.
-CONTROL_API_VERSION: int = 6
+#   7 — max_tasks knob: the task dispatchers' live override (`--max-tasks`
+#       on `ctl config`) and its `max_tasks` entry in the process config
+#       view. No CLI gate — the view key is presence-read, and a set against
+#       an older strict server is rejected atomically (version 3).
+CONTROL_API_VERSION: int = 7

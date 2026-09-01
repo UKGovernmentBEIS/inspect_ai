@@ -46,11 +46,20 @@ from inspect_ai.model._providers.google import (
     GoogleGenAIAPI,
     _malformed_function_message,
     _malformed_function_retry,
+    _report_stream_part_delta,
     completion_choice_from_candidate,
     content,
 )
 from inspect_ai.model._providers.util import OAUTH_PLACEHOLDER_API_KEY
 from inspect_ai.model._providers.util.hooks import HttpHooks
+from inspect_ai.model._stream import (
+    ModelStreamObserver,
+    StreamEvent,
+    StreamReasoningEvent,
+    StreamTextEvent,
+    StreamToolCallEvent,
+    model_stream_observer,
+)
 from inspect_ai.scorer import includes
 from inspect_ai.solver import use_tools
 from inspect_ai.tool import (
@@ -963,6 +972,73 @@ async def test_google_count_tokens_single_tool_result() -> None:
     # This should not raise - we're testing token counting for individual messages
     token_count = await model.api.count_tokens([tool_msg])
     assert token_count > 0
+
+
+async def _collect_part_deltas(part: Part) -> list[StreamEvent]:
+    """Run _report_stream_part_delta under an observer, returning its deltas."""
+    events: list[StreamEvent] = []
+
+    async def collect(event: StreamEvent) -> None:
+        events.append(event)
+
+    observer = ModelStreamObserver(model="google/test", on_stream=collect)
+    with model_stream_observer(observer):
+        await _report_stream_part_delta(part)
+    return events
+
+
+async def test_report_stream_part_delta_text() -> None:
+    events = await _collect_part_deltas(Part(text="hello"))
+    assert events == [StreamTextEvent(text="hello")]
+
+
+async def test_report_stream_part_delta_thought() -> None:
+    events = await _collect_part_deltas(Part(text="thinking", thought=True))
+    assert events == [StreamReasoningEvent(reasoning="thinking")]
+
+
+async def test_report_stream_part_delta_function_call() -> None:
+    events = await _collect_part_deltas(
+        Part(function_call=FunctionCall(id="c1", name="add", args={"x": 1}))
+    )
+    assert events == [
+        StreamToolCallEvent(id="c1", function="add", arguments='{"x": 1}')
+    ]
+
+
+async def test_report_stream_part_delta_function_call_without_args() -> None:
+    events = await _collect_part_deltas(Part(function_call=FunctionCall(name="ping")))
+    assert events == [StreamToolCallEvent(id=None, function="ping", arguments="")]
+
+
+async def test_report_stream_part_delta_other_parts_report_nothing() -> None:
+    # empty text and non-content parts produce no delta (the progress
+    # heartbeat comes from the per-chunk report, not from here)
+    assert await _collect_part_deltas(Part()) == []
+    assert await _collect_part_deltas(Part(text="")) == []
+    assert await _collect_part_deltas(Part(text="", thought=True)) == []
+
+
+async def test_report_stream_part_delta_gated_without_on_stream(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Without an on_stream consumer no delta is constructed or reported.
+
+    Explicit streaming=true callers stream without asking for stream events,
+    so delta construction (on_stream support code) must not run for them.
+    """
+    import inspect_ai.model._providers.google as google_module
+
+    async def fail(delta: object) -> None:
+        raise AssertionError("delta reported without an on_stream consumer")
+
+    monkeypatch.setattr(google_module, "report_model_stream_delta", fail)
+    observer = ModelStreamObserver(model="google/test", on_stream=None)
+    with model_stream_observer(observer):
+        await _report_stream_part_delta(Part(text="hello"))
+        await _report_stream_part_delta(
+            Part(function_call=FunctionCall(id="c1", name="add", args={"x": 1}))
+        )
 
 
 @skip_if_no_google

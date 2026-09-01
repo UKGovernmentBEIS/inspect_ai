@@ -36,7 +36,13 @@ from ._triggers import (
     TokenInterval,
     TurnInterval,
 )
-from .config import CheckpointConfig
+from .config import (
+    ArchiveSnapshots,
+    CheckpointConfig,
+    ResticSnapshots,
+    SandboxSnapshotConfig,
+    SnapshotStrategyConfig,
+)
 
 _DURATION_RE = re.compile(r"^\s*(\d+(?:\.\d+)?)\s*([smhd])\s*$", re.IGNORECASE)
 _DURATION_UNITS_S: dict[str, float] = {
@@ -149,12 +155,43 @@ _TriggerModel = Annotated[
 ]
 
 
+class _SandboxSnapshotModel(BaseModel):
+    """One sandbox's snapshot config: capture paths + strategy.
+
+    The mapping form of a ``sandbox_paths`` value (the alternative to a
+    bare path list, which gets the default strategy).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    paths: list[str] | None = None
+    """Absolute paths to capture. Omitted = the sandbox default user's
+    home directory; an empty list opts the sandbox out."""
+
+    strategy: Literal["restic-incremental", "archive"] | None = None
+    """Omitted = no opinion — the strategy inherits from a
+    lower-priority layer's selection for this sandbox (matching a bare
+    path-list value), falling back to the default (restic)."""
+
+    def to_dataclass(self) -> SandboxSnapshotConfig:
+        strategy: SnapshotStrategyConfig | None
+        if self.strategy == "archive":
+            strategy = ArchiveSnapshots()
+        elif self.strategy == "restic-incremental":
+            strategy = ResticSnapshots()
+        else:
+            strategy = None
+        return SandboxSnapshotConfig(paths=self.paths, strategy=strategy)
+
+
 class _CheckpointConfigModel(BaseModel):
     """Pydantic mirror of :class:`CheckpointConfig` for YAML/JSON loading.
 
-    Two fields differ from the real dataclass:
+    Fields that differ from the real dataclass:
     - ``trigger`` accepts a discriminated dict (``{"type": "turn", "every": 5}``)
       or the literal ``"manual"``, and translates to a strategy instance.
+    - ``sandbox_paths`` mapping values accept a strategy *name* and
+      translate to the strategy config dataclasses.
     - All other fields validate directly against their dataclass counterparts.
     """
 
@@ -162,7 +199,9 @@ class _CheckpointConfigModel(BaseModel):
 
     trigger: _TriggerModel | Literal["manual"]
     checkpoints_location: str | None = None
-    sandbox_paths: dict[str, list[str]] = Field(default_factory=dict)
+    sandbox_paths: dict[str, list[str] | _SandboxSnapshotModel] = Field(
+        default_factory=dict
+    )
     max_consecutive_failures: int | None = None
     retention: Literal["delete", "retain"] = "delete"
 
@@ -170,7 +209,12 @@ class _CheckpointConfigModel(BaseModel):
         return CheckpointConfig(
             trigger=_trigger_model_to_strategy(self.trigger),
             checkpoints_location=self.checkpoints_location,
-            sandbox_paths=self.sandbox_paths,
+            sandbox_paths={
+                name: value.to_dataclass()
+                if isinstance(value, _SandboxSnapshotModel)
+                else value
+                for name, value in self.sandbox_paths.items()
+            },
             max_consecutive_failures=self.max_consecutive_failures,
             retention=self.retention,
         )

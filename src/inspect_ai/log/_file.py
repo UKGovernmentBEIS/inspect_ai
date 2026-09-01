@@ -22,7 +22,7 @@ from pydantic import (
 from inspect_ai._util._async import current_async_backend, run_coroutine, tg_collect
 from inspect_ai._util.async_zip import AsyncZipReader
 from inspect_ai._util.asyncfiles import AsyncFilesystem, get_async_filesystem
-from inspect_ai._util.azure import azure_warning_hint, should_suppress_azure_error
+from inspect_ai._util.azure import AzureAuthError, is_azure_listing_auth_error
 from inspect_ai._util.constants import ALL_LOG_FORMATS, EVAL_LOG_FORMAT
 from inspect_ai._util.dateutil import UtcDatetimeStr
 from inspect_ai._util.error import EvalError
@@ -37,6 +37,7 @@ from inspect_ai.log._condense import resolve_sample_attachments
 from inspect_ai.log._log import EvalSampleSummary
 from inspect_ai.log._resolve import rebind_sample_timelines, resolve_sample_events_data
 
+from ._headline import headline_metric
 from ._log import EvalLog, EvalMetric, EvalSample, EvalStatus
 from ._recorders import (
     recorder_type_for_bytes,
@@ -70,6 +71,13 @@ class EvalLogInfo(BaseModel):
 
     suffix: str | None
     """Log file suffix (e.g. "-scored")"""
+
+
+class WriteEvalLogResult(BaseModel):
+    """Result of writing an evaluation log."""
+
+    etag: str | None
+    """ETag of the written S3 object, or None for non-S3 locations."""
 
 
 class LogOverview(BaseModel):
@@ -255,28 +263,27 @@ async def _list_eval_logs_async(
         try:
             exists = fs.exists(log_dir)
         except Exception as ex:  # noqa: BLE001
-            if should_suppress_azure_error(log_dir, ex):
-                logger.warning(azure_warning_hint(log_dir, ex))
-                exists = True
-            else:
-                raise
+            if is_azure_listing_auth_error(log_dir, ex):
+                # An auth failure is not an empty directory: surface it with
+                # remediation guidance instead of silently reporting no logs.
+                raise AzureAuthError(log_dir, ex) from ex
+            raise
         if not exists:
             return []
         logs = fs.ls(log_dir, recursive=recursive)
         return await log_files_from_ls_async(logs, formats, descending)
     elif fs.is_async():
         async with async_filesystem(log_dir, fs_options=fs_options) as async_fs:
-            # Attempt existence check with robust handling for Azure-style auth issues.
             try:
                 exists = await async_fs._exists(log_dir)
             except Exception as ex:  # noqa: BLE001
-                if should_suppress_azure_error(log_dir, ex):
-                    logger.warning(azure_warning_hint(log_dir, ex))
-                    exists = True
-                else:
-                    # TODO: Add S3 login error catching, as well as any other remote file system of interest
-                    # Re-raise non-auth related issues
-                    raise
+                if is_azure_listing_auth_error(log_dir, ex):
+                    # An auth failure is not an empty directory: surface it with
+                    # remediation guidance instead of silently reporting no logs.
+                    raise AzureAuthError(log_dir, ex) from ex
+                # TODO: Add S3 login error catching, as well as any other remote file system of interest
+                # Re-raise non-auth related issues
+                raise
 
             if exists:
                 # prevent caching of listings
@@ -396,7 +403,7 @@ def write_eval_log(
     format: Literal["eval", "json", "auto"] = "auto",
     if_match_etag: str | None = None,
     header_only: bool = False,
-) -> None:
+) -> WriteEvalLogResult:
     """Write an evaluation log.
 
     Args:
@@ -409,6 +416,10 @@ def write_eval_log(
        header_only (bool): If True, only write the header to the log file.
           For .eval files, this appends the header to the existing zip
           without rewriting samples. Defaults to False.
+
+    Returns:
+       WriteEvalLogResult containing the post-write S3 ETag (its `etag`
+       is None for non-S3 locations).
 
     Raises:
        WriteConflictError: If if_match_etag is provided and doesn't match
@@ -422,7 +433,7 @@ def write_eval_log(
 
     # will use s3fs and is not called from main inspect solver/scorer/tool/sandbox
     # flow, so force the use of asyncio
-    run_coroutine(
+    return run_coroutine(
         write_eval_log_async(
             log, location, format, if_match_etag, header_only=header_only
         )
@@ -435,7 +446,7 @@ async def write_eval_log_async(
     format: Literal["eval", "json", "auto"] = "auto",
     if_match_etag: str | None = None,
     header_only: bool = False,
-) -> None:
+) -> WriteEvalLogResult:
     """Write an evaluation log.
 
     Args:
@@ -448,6 +459,10 @@ async def write_eval_log_async(
        header_only (bool): If True, only write the header to the log file.
           For .eval files, this appends the header to the existing zip
           without rewriting samples. Defaults to False.
+
+    Returns:
+       WriteEvalLogResult containing the post-write S3 ETag (its `etag`
+       is None for non-S3 locations).
     """
     # resolve location
     if location is None:
@@ -472,9 +487,12 @@ async def write_eval_log_async(
         recorder_type = recorder_type_for_location(location)
     else:
         recorder_type = recorder_type_for_format(format)
-    await recorder_type.write_log(location, log, if_match_etag, header_only=header_only)
+    etag = await recorder_type.write_log(
+        location, log, if_match_etag, header_only=header_only
+    )
 
     logger.debug(f"Writing eval log to {location} completed")
+    return WriteEvalLogResult(etag=etag)
 
 
 def write_log_dir_manifest(
@@ -1088,7 +1106,7 @@ def read_eval_log_samples(
 def manifest_eval_log_name(info: EvalLogInfo, log_dir: str, sep: str) -> str:
     # ensure that log dir has a trailing seperator
     if not log_dir.endswith(sep):
-        log_dir = f"{log_dir}/"
+        log_dir = f"{log_dir}{sep}"
 
     # slice off log_dir from the front
     log = info.name.replace(log_dir, "")
@@ -1304,16 +1322,18 @@ def write_log_listing(
 def to_overview(header: EvalLog) -> LogOverview:
     """Convert an EvalLog header to a thinned overview."""
     # Get the primary metric if it exists
-    primary_metric: EvalMetric | None = None
-    if (
-        header.results is not None
-        and header.results.scores
-        and (first_scorer := header.results.scores[0]).metrics
-    ):
-        primary_metric = next(iter(first_scorer.metrics.values()))
+    resolved_headline = headline_metric(header)
+    primary_metric: EvalMetric | None = (
+        resolved_headline.metric if resolved_headline else None
+    )
 
+    # a role bound to a list of models is shown as comma-separated names
+    # (LogOverview keeps a flat string per role)
     model_roles = (
-        {role: cfg.model for role, cfg in header.eval.model_roles.items()}
+        {
+            role: ",".join(mc.model for mc in (cfg if isinstance(cfg, list) else [cfg]))
+            for role, cfg in header.eval.model_roles.items()
+        }
         if header.eval.model_roles
         else None
     )
