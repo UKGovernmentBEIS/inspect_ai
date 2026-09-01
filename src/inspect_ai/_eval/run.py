@@ -817,6 +817,14 @@ async def run_task_retry_attempts(
                         log.info(
                             f"Task '{options.task.name}' was cancelled with abort requested"
                         )
+                    elif run.cancel_type == "drain":
+                        # drain interrupts nothing (in-flight samples finished
+                        # naturally, queued ones were abandoned) — a user
+                        # cancel like abort, so never retried
+                        log.info(
+                            f"Task '{options.task.name}' was drained — in-flight "
+                            "samples finished naturally, queued samples abandoned"
+                        )
                     elif run.cancel_type is not None:
                         # a graceful cancel resolution (score/error) — a user
                         # cancel like abort, so never retried even when the
