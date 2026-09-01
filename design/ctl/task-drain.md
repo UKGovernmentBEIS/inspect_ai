@@ -661,6 +661,11 @@ Implementation review surfaced three gaps the sketch missed; all are closed:
   dispatched (the pre-existing 409's successor wart). The runner now flags
   `retry_pending` as it decides the error status, ahead of the log write,
   and the dispatcher unwinds the flag when a stamp superseding the retry
-  lands in that window (see "Tasks between attempts", Mechanics). Pinned by
-  an end-to-end test that cancels from inside the errored attempt's final
-  log write.
+  lands in that window (see "Tasks between attempts", Mechanics). The
+  pre-mark is skipped for a retry the registry already records as
+  abandoned — a cancel/drain that landed on the pending `"retry"` stamp
+  while the attempt was still tearing down cleared the flag, and re-marking
+  it would have the read surface report the task as between attempts (a
+  requeue rejected as "a retry is queued") for the length of the log write.
+  Pinned by end-to-end tests that cancel from inside the errored attempt's
+  final log write and from just before it.

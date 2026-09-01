@@ -907,8 +907,10 @@ async def run_task_retry_attempts(
                     elif result is not None:
                         # no retry follows — unwind the runner's pre-mark, which
                         # a cancel stamp landing during the log write may have
-                        # superseded (an abandoned retry was already cleared by
-                        # the directive; this is a no-op then)
+                        # superseded (a retry abandoned before the pre-mark was
+                        # never marked, and one abandoned during the log write
+                        # was already cleared by the directive; this is a no-op
+                        # then)
                         clear_eval_retry_pending(result.eval.eval_id)
 
                     # finalize atomically (no awaits below) so the dispatcher sees

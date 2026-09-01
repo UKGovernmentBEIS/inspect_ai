@@ -3472,6 +3472,93 @@ def test_ctl_task_cancel_during_final_log_write_abandons_retry(
     assert len(logs) == 1 and logs[0].status == "error"
 
 
+def test_ctl_task_cancel_before_final_log_write_stays_abandoned(
+    short_data_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A retry abandoned while the attempt tears down is not re-flagged pending.
+
+    The attempt requests a re-run (a ``"retry"`` stamp with budget remaining)
+    and a cancel lands before it reaches its final log write: the directive
+    abandons the retry and clears ``retry_pending``. The runner's pre-mark
+    ahead of the log write must not set the flag again — for the length of
+    the write (seconds on a remote log dir) the read surface would report
+    the task as between attempts, with a retry queued that the operator had
+    just abandoned.
+    """
+    import anyio
+
+    import inspect_ai._eval.task.run as task_run_module
+    from inspect_ai._control.cancel import cancel_task
+    from inspect_ai._control.eval_state import get_eval_state
+
+    fail = {"calls": 0}
+    observed: dict[str, Any] = {}
+    original_finish = task_run_module._finish_task_log
+
+    async def observing_finish(*args: Any, **kwargs: Any) -> Any:
+        logger = kwargs["logger"]
+        if kwargs["status"] == "error" and "during_write" not in observed:
+            state = get_eval_state(logger.eval.eval_id)
+            assert state is not None
+            observed["during_write"] = {
+                "retry_pending": state.retry_pending,
+                "will_retry": state.will_retry,
+            }
+        return await original_finish(*args, **kwargs)
+
+    monkeypatch.setattr(task_run_module, "_finish_task_log", observing_finish)
+
+    @solver
+    def request_retry_then_cancel() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            fail["calls"] += 1
+            me = next(s for s in get_eval_states() if s.task == "task_flaky")
+            assert me.task_cancel is not None
+            # the attempt requests its own re-run (as the TUI's retry action
+            # does) and the operator's cancel lands before it has torn down
+            me.task_cancel.cancel_task("retry")
+            observed["result"] = cancel_task(me.task_id)
+            # the retry stamp cancelled the task's scope; deliver it here
+            await anyio.sleep(10)
+            return state
+
+        return solve
+
+    @task
+    def task_flaky() -> Task:
+        return Task(
+            dataset=[Sample(input="x", target="y")],
+            solver=[request_retry_then_cancel()],
+            name="task_flaky",
+        )
+
+    log_dir = str(short_data_dir / "logs")
+    Path(log_dir).mkdir()
+
+    success, logs = eval_set(
+        tasks=[task_flaky()],
+        log_dir=log_dir,
+        model="mockllm/model",
+        retry_attempts=2,
+        retry_wait=0.05,
+        retry_immediate=True,
+    )
+
+    result = observed.get("result")
+    assert result is not None and result["ok"] is True
+    assert result["changed"] is True and result["retry_abandoned"] is True
+    # the errored attempt's log write saw the abandonment stand
+    assert observed.get("during_write") == {
+        "retry_pending": False,
+        "will_retry": False,
+    }
+
+    # the retry never ran: one attempt, ending with its error log
+    assert fail["calls"] == 1
+    assert not success
+    assert len(logs) == 1 and logs[0].status == "error"
+
+
 # --- config --max-tasks: live dispatch-limit retune -------------------------
 
 

@@ -875,12 +875,17 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
         # log dir — would answer "task already finished" while the retry then
         # dispatched anyway. The dispatcher re-marks at its own decision and
         # unwinds the flag if a stamp landing here supersedes the retry (see
-        # clear_eval_retry_pending).
+        # clear_eval_retry_pending). Skipped when the retry is already
+        # abandoned: a drain/cancel landing on a pending "retry" stamp while
+        # the attempt tears down abandons the retry (clearing the flag) before
+        # this runs, and re-marking would have the read surface report the
+        # task as between attempts for the length of the log write.
         if (
             status == "error"
             and task_cancel is not None
             and task_cancel.can_retry
             and task_cancel.cancel_type in (None, "retry")
+            and not task_retry_abandoned(logger.eval.task_id)
         ):
             mark_eval_retry_pending(logger.eval.eval_id)
         return await _finish_task_log(

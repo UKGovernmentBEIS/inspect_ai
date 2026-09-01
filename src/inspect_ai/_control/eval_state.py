@@ -838,7 +838,10 @@ def mark_eval_retry_pending(eval_id: str) -> None:
     already stamped by the last sample's terminal record, and without the
     flag a task cancel/drain landing during the log write would read the
     attempt as "task finished" while the retry then dispatched anyway), and
-    by the eval-set runner at the point it actually re-queues the task. The
+    by the eval-set runner at the point it actually re-queues the task.
+    Neither marks a retry the registry already records as abandoned (see
+    :func:`abandon_task_retry`) — re-marking would read the task as between
+    attempts for a retry that will never dispatch. The
     flag stands until the retry attempt starts (which registers a fresh
     :class:`EvalState`), is cleared by :func:`abandon_task_retry`, or is
     unwound by :func:`clear_eval_retry_pending` when the runner decides not
