@@ -6,6 +6,7 @@ import pytest
 from test_helpers.task_logger import TaskLoggerShim
 
 from inspect_ai._eval.task.run import log_sample
+from inspect_ai._util.error import EvalError
 from inspect_ai.event import (
     InfoEvent,
     ModelEvent,
@@ -29,6 +30,7 @@ from inspect_ai.log._recorders.eval import EvalRecorder
 from inspect_ai.log._recorders.json import JSONRecorder
 from inspect_ai.log._recorders.types import SampleEvent
 from inspect_ai.model import ChatMessageUser, GenerateConfig, ModelOutput
+from inspect_ai.scorer import Score
 
 
 def _model(uuid: str, content: str) -> ModelEvent:
@@ -471,35 +473,87 @@ async def test_log_sample_degrades_gracefully_when_serialization_fails(
     # raise out of log_sample (which would tear down the whole eval after the
     # fail_on_error decision): it is logged with content stripped and the
     # failure recorded as the sample's error
-    deep: dict[str, object] = {"a": 1}
-    for _ in range(1000):
-        deep = {"a": deep}
     sample = _sample().model_copy(
         update={
             "messages": [ChatMessageUser(content="hello")],
-            "store": {"deep": deep},
+            "store": {"deep": _deep_dict(1000)},
+            "scores": {"match": Score(value="C")},
         }
     )
     recorder, spec = await _start_eval_recorder(tmp_path)
-    logger = TaskLoggerShim(None)
-    logger.recorder = recorder
-    logger.eval = spec
-    logger.flush_buffer = 1
-    logger.flush_pending = []
-    logger._samples_completed = 0
+    logger = _fallback_logger(recorder, spec)
 
     logged = await log_sample(sample, logger, log_images=True, from_memory=True)
     await _finish_eval(recorder, spec)
 
     assert logged.store == {}
     assert logged.messages == []
+    # the scores serialize on their own, so they are kept: the headline
+    # results were computed from them and must agree with the sample record
+    assert logged.scores == {"match": Score(value="C")}
     assert logged.error is not None
+    assert logged.error.message.startswith(
+        "Sample content (messages, output, events, store, metadata) was removed"
+    )
 
     log = await read_eval_log_async(str(tmp_path / "streaming.eval"))
     assert log.samples is not None and len(log.samples) == 1
     assert log.samples[0].id == "sample"
     assert log.samples[0].store == {}
+    assert log.samples[0].scores is not None
+    assert log.samples[0].scores["match"].value == "C"
     assert log.samples[0].error is not None
+
+
+@pytest.mark.anyio
+async def test_log_sample_fallback_drops_unserializable_scores_and_records_it(
+    tmp_path,
+) -> None:
+    # when the scores themselves defeat serialization they are stripped too,
+    # and a sample that already carries an error keeps it, with the content
+    # removal appended so the empty record is explained in the log itself
+    sample = _sample().model_copy(
+        update={
+            "messages": [ChatMessageUser(content="hello")],
+            "scores": {"match": Score(value="C", metadata={"deep": _deep_dict(1000)})},
+            "error": EvalError(
+                message="solver failed", traceback="", traceback_ansi=""
+            ),
+        }
+    )
+    recorder, spec = await _start_eval_recorder(tmp_path)
+    logger = _fallback_logger(recorder, spec)
+
+    logged = await log_sample(sample, logger, log_images=True, from_memory=True)
+    await _finish_eval(recorder, spec)
+
+    assert logged.scores is None
+    assert logged.error is not None
+    assert logged.error.message.startswith("solver failed")
+    assert "metadata, scores) was removed" in logged.error.message
+
+    log = await read_eval_log_async(str(tmp_path / "streaming.eval"))
+    assert log.samples is not None and len(log.samples) == 1
+    assert log.samples[0].scores is None
+    assert log.samples[0].error is not None
+    assert log.samples[0].error.message == logged.error.message
+
+
+def _deep_dict(depth: int) -> dict[str, object]:
+    deep: dict[str, object] = {"a": 1}
+    for _ in range(depth):
+        deep = {"a": deep}
+    return deep
+
+
+def _fallback_logger(recorder: EvalRecorder, spec: EvalSpec) -> TaskLoggerShim:
+    logger = TaskLoggerShim(None)
+    logger.recorder = recorder
+    logger.eval = spec
+    logger.flush_buffer = 1
+    logger.flush_pending = []
+    logger._samples_completed = 0
+    return logger
 
 
 @pytest.mark.anyio
@@ -522,12 +576,7 @@ async def test_log_sample_reraises_recorder_write_errors(tmp_path, monkeypatch) 
         raise OSError("simulated transient write failure")
 
     monkeypatch.setattr(recorder, "log_sample", failing_log_sample)
-    logger = TaskLoggerShim(None)
-    logger.recorder = recorder
-    logger.eval = spec
-    logger.flush_buffer = 1
-    logger.flush_pending = []
-    logger._samples_completed = 0
+    logger = _fallback_logger(recorder, spec)
 
     with pytest.raises(OSError):
         await log_sample(sample, logger, log_images=True, from_memory=True)

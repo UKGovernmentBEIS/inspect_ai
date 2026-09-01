@@ -82,6 +82,7 @@ from inspect_ai.log import (
 from inspect_ai.log._condense import (
     SampleSerializationError,
     condense_sample,
+    is_log_serializable,
     resolve_events_attachments,
 )
 from inspect_ai.log._file import (
@@ -3212,16 +3213,20 @@ def sample_serialization_fallback(eval_sample: EvalSample, ex: Exception) -> Eva
 
     Used when condensing/serializing the full sample for logging fails.
     Framework-generated scalar fields (ids, timing, usage, limits) are
-    retained; the sample content that may have defeated serialization
-    (messages, output, events, store, metadata, scores) is removed, and the
-    failure is recorded as the sample's error (unless it already has one).
+    retained, and so are the scores whenever the stripped record still
+    serializes with them: the headline results were already computed from
+    them, so dropping them would leave the sample's record disagreeing with
+    `log.results`. The remaining content that may have defeated serialization
+    (messages, output, events, store, metadata) is removed. The removal is
+    always recorded in the sample's error — appended to the existing error's
+    message when the sample already has one — so a reader of the log can tell
+    why the record is empty.
     """
-    return eval_sample.model_copy(
+    stripped = eval_sample.model_copy(
         update=dict(
             metadata={},
             messages=[],
             output=ModelOutput(model=eval_sample.output.model),
-            scores=None,
             store={},
             events=[],
             events_data=None,
@@ -3232,9 +3237,25 @@ def sample_serialization_fallback(eval_sample: EvalSample, ex: Exception) -> Eva
             ]
             if eval_sample.error_retries is not None
             else None,
-            error=eval_sample.error or eval_error(ex, type(ex), ex, ex.__traceback__),
         )
     )
+    removed = ["messages", "output", "events", "store", "metadata"]
+    if stripped.scores is not None and not is_log_serializable(stripped):
+        stripped = stripped.model_copy(update=dict(scores=None))
+        removed.append("scores")
+    note = (
+        f"Sample content ({', '.join(removed)}) was removed from the eval log "
+        f"because it could not be serialized: {ex}"
+    )
+    if eval_sample.error is not None:
+        error = eval_sample.error.model_copy(
+            update=dict(message=f"{eval_sample.error.message}\n\n{note}")
+        )
+    else:
+        error = eval_error(ex, type(ex), ex, ex.__traceback__).model_copy(
+            update=dict(message=note)
+        )
+    return stripped.model_copy(update=dict(error=error))
 
 
 async def _resume_if_checkpointed(

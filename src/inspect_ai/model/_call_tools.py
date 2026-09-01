@@ -643,6 +643,13 @@ async def call_tool(
     if call.parse_error:
         raise await record_tool_parsing_error(call.parse_error)
 
+    # providers that deliver arguments as an already-parsed dict never go
+    # through parse_tool_call, so the nesting bound is enforced here as well
+    if _exceeds_max_depth(call.arguments):
+        raise await record_tool_parsing_error(
+            f"Error parsing tool call arguments: {_max_depth_parse_error()}"
+        )
+
     # find the tool
     tool_def = next((tool for tool in tools if tool.name == call.function), None)
     if tool_def is None:
@@ -1208,11 +1215,16 @@ def tool_parse_error_message(arguments: str | None, ex: Exception) -> str:
 MAX_TOOL_CALL_ARGUMENTS_DEPTH = 100
 """Maximum nesting depth accepted for model-emitted tool call arguments.
 
-Deeper structures are rejected with a `ToolCall.parse_error` (echoed back to
+Deeper structures are rejected with a tool parsing error (echoed back to
 the model) rather than admitted: downstream consumers of arguments only
 tolerate bounded nesting (pydantic-core validates and serializes to a hard
 depth limit of ~255, and log condensation walks values recursively), so
 unbounded depth would crash sample logging rather than the sample itself.
+
+Enforced in `parse_tool_call` for providers that deliver arguments as a
+string (recorded as `ToolCall.parse_error`) and again in `call_tool` for
+every provider, including those that construct `ToolCall` from an
+already-parsed dict and so never reach `parse_tool_call`.
 """
 
 

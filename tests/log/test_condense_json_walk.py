@@ -1,3 +1,5 @@
+from typing import Any, Callable
+
 import pytest
 from pydantic import JsonValue
 
@@ -14,7 +16,8 @@ from inspect_ai.log._condense import (
     walk_json_value,
     walk_tool_call,
 )
-from inspect_ai.log._log import EvalSample
+from inspect_ai.log._file import eval_log_json
+from inspect_ai.log._log import EvalConfig, EvalDataset, EvalLog, EvalSample, EvalSpec
 from inspect_ai.model import ChatMessageAssistant
 from inspect_ai.tool._tool_call import ToolCall, ToolCallContent
 
@@ -196,6 +199,45 @@ def test_condense_sample_rejects_unserializable_frozenset_depth() -> None:
 
     with pytest.raises(SampleSerializationError):
         condense_sample(sample)
+
+
+def _serializes(serialize: Callable[[Any], bytes], value: Any) -> bool:
+    try:
+        serialize(value)
+        return True
+    except Exception:
+        return False
+
+
+def test_condense_sample_rejects_content_only_json_log_cannot_write() -> None:
+    # the .json recorder writes the whole EvalLog at finish, nesting each sample
+    # two containers deeper (EvalLog -> samples -> sample) than the .eval
+    # recorder, which writes the sample at the JSON root. A sample that
+    # serializes alone can therefore still lose the entire log with
+    # --log-format json; the guard must reject those too, and must keep
+    # accepting whatever the deeper writer can in fact write
+    spec = EvalSpec(
+        created="2026-05-18T00:00:00+00:00",
+        task="condense_test",
+        model="mockllm/model",
+        dataset=EvalDataset(),
+        config=EvalConfig(),
+    )
+    gap_depths: list[int] = []
+    for depth in range(MAX_SAMPLE_DUMP_DEPTH - 5, MAX_SAMPLE_DUMP_DEPTH + 5):
+        sample = _sample_with_nested_store(depth)
+        alone = _serializes(to_json_safe, sample)
+        in_log = _serializes(eval_log_json, EvalLog(eval=spec, samples=[sample]))
+        if in_log:
+            assert condense_sample(sample).store == sample.store
+        else:
+            with pytest.raises(SampleSerializationError):
+                condense_sample(sample)
+            if alone:
+                gap_depths.append(depth)
+    # the sweep must actually cover the .eval/.json gap for the test to mean
+    # anything: on pydantic-core 2.46 it spans two depths
+    assert gap_depths
 
 
 def test_condense_sample_keeps_deep_but_serializable_content() -> None:

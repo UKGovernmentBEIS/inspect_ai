@@ -244,14 +244,18 @@ def expand_events(
     return result
 
 
-def _is_log_serializable(sample: EvalSample) -> bool:
-    """Whether the log writer can actually serialize this sample.
+def is_log_serializable(sample: EvalSample) -> bool:
+    """Whether every log writer can actually serialize this sample.
 
-    Uses the same serialization the recorder performs when it writes a
-    buffered sample, so the answer matches what will happen at flush time.
+    Uses the recorders' own serialization, probed at the deepest position a
+    writer places the sample: the `.eval` recorder writes it at the JSON root,
+    but the `.json` recorder writes the whole `EvalLog`, nesting each sample
+    two containers deeper (`EvalLog` -> `samples` list -> sample). The two
+    wrapper lists reproduce that nesting, so a sample accepted here cannot
+    fail later at flush time in either format.
     """
     try:
-        to_json_safe(sample, indent=None)
+        to_json_safe([[sample]], indent=None)
         return True
     except Exception:
         return False
@@ -382,12 +386,12 @@ def condense_sample(sample: EvalSample, log_images: bool = True) -> EvalSample:
     # `log_sample` in _eval/task/run.py, which handles this error by logging a
     # stripped record). Failing here keeps the failure attributable to one
     # sample. The depth test only selects candidates: rejection is confirmed by
-    # the writer's own serialization, so content pydantic can in fact write is
-    # never rejected (offline paths — convert, recover, log rewrite — call this
-    # on already-logged samples and must not start failing on them).
+    # the writers' own serialization, so content every log format can in fact
+    # write is never rejected (offline paths — convert, recover, log rewrite —
+    # call this on already-logged samples and must not start failing on them).
     if exceeds_max_depth(
         dumped_sample, MAX_SAMPLE_DUMP_DEPTH
-    ) and not _is_log_serializable(condensed_sample):
+    ) and not is_log_serializable(condensed_sample):
         raise SampleSerializationError(
             f"Sample content (id: {sample.id}, epoch: {sample.epoch}) is nested "
             "too deeply to be serialized to the eval log."
