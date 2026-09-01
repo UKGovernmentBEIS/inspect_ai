@@ -398,6 +398,18 @@ def test_exceeds_max_depth_reexpands_shared_node_reached_deeper():
         assert not exceeds_max_depth(value, 7)
 
 
+def test_exceeds_max_depth_traverses_frozensets():
+    # pydantic-core serializes frozensets recursively, so a deep frozenset
+    # chain must count toward depth — otherwise it slips past the
+    # condense-time guard and fails at flush-time serialization instead
+    deep: frozenset[object] = frozenset(["leaf"])
+    for _ in range(300):
+        deep = frozenset([deep])
+
+    assert exceeds_max_depth(deep, 250)
+    assert not exceeds_max_depth(frozenset([frozenset(["leaf"])]), 2)
+
+
 def test_exceeds_max_depth_terminates_on_cycles():
     cyclic: dict[str, object] = {}
     cyclic["self"] = cyclic

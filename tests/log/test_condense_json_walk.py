@@ -183,6 +183,21 @@ def test_condense_sample_rejects_unserializable_depth() -> None:
         condense_sample(_sample_with_nested_store(1000))
 
 
+def test_condense_sample_rejects_unserializable_frozenset_depth() -> None:
+    # pydantic-core serializes frozensets recursively but the python-mode dump
+    # leaves them as-is, so the depth guard must traverse them too — otherwise
+    # a deep frozenset chain slips past condensation and detonates at flush
+    deep: frozenset[object] = frozenset(["leaf"])
+    for _ in range(1000):
+        deep = frozenset([deep])
+    sample = EvalSample(
+        id="sample", epoch=1, input="question", target="answer", store={"deep": deep}
+    )
+
+    with pytest.raises(SampleSerializationError):
+        condense_sample(sample)
+
+
 def test_condense_sample_keeps_deep_but_serializable_content() -> None:
     # the depth check only selects candidates for the serialization check —
     # content nested past it that pydantic can still write must be logged

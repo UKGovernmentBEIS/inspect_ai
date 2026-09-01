@@ -117,7 +117,7 @@ def attachment_refs_from_value(value: object) -> set[str]:
         if isinstance(current, str):
             if current.startswith(ATTACHMENT_PROTOCOL):
                 refs.add(current.removeprefix(ATTACHMENT_PROTOCOL))
-        elif isinstance(current, (dict, list, tuple, set)):
+        elif isinstance(current, (dict, list, tuple, set, frozenset)):
             if id(current) in visited:
                 continue
             visited.add(id(current))

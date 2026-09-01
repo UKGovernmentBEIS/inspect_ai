@@ -53,7 +53,7 @@ def exceeds_max_depth(value: object, max_depth: int) -> bool:
         current, depth = stack.pop()
         if isinstance(current, dict):
             children: Iterable[object] = current.values()
-        elif isinstance(current, (list, tuple, set)):
+        elif isinstance(current, (list, tuple, set, frozenset)):
             children = current
         elif isinstance(current, BaseModel):
             children = current.__dict__.values()
