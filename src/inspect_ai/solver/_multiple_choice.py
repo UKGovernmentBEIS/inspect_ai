@@ -96,7 +96,7 @@ def parse_answers(state: TaskState, multiple_correct: bool) -> set[str]:
     # The CoT templates instruct the model to put the answer on the LAST line,
     # so if there are multiple matching lines we take the last one.
     matches = re.findall(
-        r"(?i)^ANSWER\s*:\s*([A-Za-z\d ,]+)\s*(?:$|\n|\.)",
+        r"(?i)^ANSWER\s*:\s*([A-Za-z\d ,$*()]+)\s*(?:$|\n|\.)",
         state.output.completion,
         flags=re.MULTILINE,
     )
@@ -105,7 +105,7 @@ def parse_answers(state: TaskState, multiple_correct: bool) -> set[str]:
     # version for backward compatibility
     if not matches:
         matches = re.findall(
-            r"(?i)ANSWER\s*:\s*([A-Za-z\d ,]+)(?:[^\w]|\n|$|\.)",
+            r"(?i)ANSWER\s*:\s*([A-Za-z\d ,$*()]+)(?:[^\w]|\n|$|\.)",
             state.output.completion,
         )
 
@@ -119,6 +119,10 @@ def parse_answers(state: TaskState, multiple_correct: bool) -> set[str]:
     matched = matched.strip()
     matched = matched.rstrip(".")
     matched = matched.upper()
+
+    # Strip common markdown / LaTeX decoration characters around answer letters
+    # (e.g. $B$, **B**, (B))
+    matched = re.sub(r"[\$\*\(\)]", "", matched).strip()
 
     allowed_options = set(answer_character(i) for i in range(len(state.choices)))
 
