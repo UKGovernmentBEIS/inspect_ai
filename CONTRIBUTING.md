@@ -1,39 +1,34 @@
 # Contributing to Inspect AI
 
-Thanks for your interest in contributing to Inspect! We regularly accept contributions from the community and we're glad you want to help. To keep review capacity focused on work the project has agreed it wants, contributions follow a tiered policy. Please read this section first.
+Thanks for your interest in contributing to Inspect! We regularly accept contributions from the community and we're glad you want to help. To keep review capacity focused on work the project has agreed it wants, contributions run through an issue-first policy. Please read this section first.
 
 ## How contributions work
 
-Your path depends on your history with the project:
+There are two paths:
 
 - **Qualified contributors**: maintainers and individuals recorded (by
   account id) in [`.github/qualified.yml`](.github/qualified.yml) — may open
   PRs directly.
 
-- **Established contributors**: anyone with at least one merged non-trivial
-  PR in this repository (trivial documentation fixes don't count toward this)
-  — may open PRs directly, subject to a limit of 4 open PRs at a time.
-  One caveat: an issue you filed yourself doesn't establish demand. A PR
-  addressing your own issue needs that issue labeled `accepted` first, just
-  as for new contributors — self-reported problems get maintainer sign-off
-  before code, self-*discovered* fixes for problems others have reported
-  don't need it.
-- **New contributors**: if you haven't had a PR merged here yet, start from an
-  issue a maintainer has labeled `accepted` before writing code. PRs from new
-  contributors that aren't linked to an accepted issue are closed
-  automatically, with a comment explaining the available paths.
-  **Exception:** trivial documentation fixes (typos, broken links) are always
-  welcome directly.
+- **Everyone else**: start from an issue a maintainer has labeled `accepted`
+  before writing code, and reference it from your PR (`Fixes #NNN`). This
+  applies regardless of your contribution history here, and regardless of
+  who filed the issue — what matters is that a maintainer has accepted it.
+  PRs that aren't linked to an accepted issue are closed automatically, with
+  a comment explaining the available paths; if a linked issue is later
+  accepted, reopen the PR and it will pass.
+  **Exception:** trivial documentation fixes (typos, broken links — docs
+  files only, under 25 changed lines) are always welcome directly.
 
-Whatever your tier, a non-draft PR inactive for 60 days is closed with an
-invitation to reopen. And whatever your tier, check for an existing open PR
+Whatever your path, a non-draft PR inactive for 60 days is closed with an
+invitation to reopen. And whatever your path, check for an existing open PR
 addressing the same problem before opening yours: duplicates are closed in
 favor of the earlier PR unless a maintainer has asked for an alternative.
 
 Issues a maintainer has labeled `deferred` are decisions not to prioritize
-that work right now. PRs against a deferred issue are closed automatically,
-whatever your tier — comment on the issue with new evidence or demand if you
-think it should be revisited.
+that work right now. PRs against a deferred issue are closed automatically —
+comment on the issue with new evidence or demand if you think it should be
+revisited.
 
 **Why:** like most open-source projects, we now receive a large volume of
 unrequested, often agent-generated PRs. Reviewing a PR is time-consuming;
@@ -41,7 +36,7 @@ agreeing on a direction in an issue first is much easier. This policy spends
 our review time on work we've agreed we want and spares you writing code we
 can't merge.
 
-## Proposing work (new contributors)
+## Proposing work
 
 1. **Search existing issues and open PRs** to avoid duplicates.
 2. **Open an issue** describing the problem, the motivation, and (optionally)
@@ -65,7 +60,7 @@ listing.
 
 ## Using AI tools
 
-AI-assisted contributions are welcome from every tier — we use these tools
+AI-assisted contributions are welcome on both paths — we use these tools
 ourselves. The requirements:
 
 - You must understand, and be able to explain and defend, every line you
@@ -149,7 +144,9 @@ that isn't a judgment of you or your work.
 
 Qualified status is earned through a sustained record. As a rule of thumb, being added to the qualified list requires several
 months of PRs that mostly merge (~75%+) as well as responsive engagement in review.
-Maintainers periodically add such contributors to our list of qualified contributors.
+That record is built through the issue-first path above — accepted issues,
+then PRs that reference them. Maintainers periodically add such contributors
+to our list of qualified contributors.
 
 ## Thanks so much!
 

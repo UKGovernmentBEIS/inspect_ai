@@ -14,6 +14,25 @@ from inspect_ai.model._chat_message import (
 logger = getLogger(__name__)
 
 
+def sample_cache_affinity_key() -> str | None:
+    """The running sample's id, for a provider's prompt cache affinity key.
+
+    Several providers accept a caller-supplied id -- a header or a request
+    field, named differently by each -- which they use to route requests
+    sharing a prefix to the same replica, so a later turn can hit the cache an
+    earlier one populated. A sample is Inspect's unit of conversation: every
+    turn of its agent loop shares a growing prefix, so pinning them together
+    is what makes the cache hit.
+
+    Returns None outside a running sample, where there is no conversation to
+    key on and requests should be load balanced as before.
+    """
+    from inspect_ai.log._samples import sample_active
+
+    active = sample_active()
+    return active.sample_uuid if active is not None else None
+
+
 def model_base_url(base_url: str | None, env_vars: str | list[str]) -> str | None:
     if base_url:
         return base_url

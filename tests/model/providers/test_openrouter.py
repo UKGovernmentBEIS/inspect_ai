@@ -510,3 +510,33 @@ async def test_messages_to_openai_replays_reasoning_content_for_deepseek_v4() ->
     payload = converted[0]
     assert payload["reasoning_content"] == "considered options"  # type: ignore[typeddict-item]
     assert "reasoning_details" in payload
+
+
+# -- Prompt cache sticky routing (x-session-id) --------------------------------
+
+
+def test_openrouter_session_id_header_for_active_sample(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The sample's id keeps its turns on the provider holding the warm cache."""
+    import inspect_ai.model._providers.openrouter as openrouter_module
+    from inspect_ai.model._providers.openrouter import SESSION_ID_HEADER
+
+    monkeypatch.setattr(
+        openrouter_module, "sample_cache_affinity_key", lambda: "sample-uuid-1"
+    )
+    api = _make_api("anthropic/claude-sonnet-4-5")
+
+    assert api.request_headers(GenerateConfig()) == {SESSION_ID_HEADER: "sample-uuid-1"}
+
+
+def test_openrouter_session_id_omitted_without_active_sample(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Outside a sample there is no conversation to pin, so no header."""
+    import inspect_ai.model._providers.openrouter as openrouter_module
+
+    monkeypatch.setattr(openrouter_module, "sample_cache_affinity_key", lambda: None)
+    api = _make_api("anthropic/claude-sonnet-4-5")
+
+    assert api.request_headers(GenerateConfig()) == {}
