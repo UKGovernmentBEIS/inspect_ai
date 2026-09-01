@@ -33,6 +33,7 @@ description: Task scoring and metrics.
 ### stderr
 ### bootstrap_stderr
 ### ci
+### ci_wilson
 ### perplexity_per_token
 ### perplexity_per_seq
 ### krippendorff_alpha
@@ -46,6 +47,7 @@ description: Task scoring and metrics.
 ### mean_score
 ### median_score
 ### mode_score
+### majority_score
 ### collect_score
 
 ## Types

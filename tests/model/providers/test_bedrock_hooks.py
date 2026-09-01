@@ -241,10 +241,10 @@ def test_retry_after_deadline_decays_across_sdk_backoff() -> None:
     """Retry-After is reported as *remaining* time, not the original duration.
 
     If the response says Retry-After: 30, then 30s of SDK-internal backoff
-    elapses, the next retry should report ~0 remaining (not 30 again — that
-    would double-count, the controller would extend its cooldown by another
-    30s for a total of 60s wait). Reproduce by manually advancing the
-    recorded deadline backwards.
+    elapses, the next retry should report ~0 remaining (not 30 again — the
+    hint would no longer reflect how long the server actually asked us to
+    wait from now). Reproduce by manually advancing the recorded deadline
+    backwards.
     """
     import time
 
