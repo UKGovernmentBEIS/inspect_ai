@@ -15,6 +15,12 @@ Two mechanisms narrow what a process may use, and they compose:
 - A **CPU quota** (``--cpus``, ``--cpu-quota``, Kubernetes' ``limits.cpu``,
   systemd's ``CPUQuota=``) caps the CPU time the cgroup may accumulate per
   period without pinning anything. Only the cgroup filesystem reports it.
+
+Finding the quota means finding the hierarchy that enforces it, and that is a
+question for the mount table rather than for directory names: a cgroup v1
+hierarchy may be mounted anywhere under any name, cgroup v2 is a single
+hierarchy that may equally be mounted anywhere, and a directory called ``cpu``
+under a v2 mount is an ordinary child cgroup whose quota binds somebody else.
 """
 
 from __future__ import annotations
@@ -22,17 +28,32 @@ from __future__ import annotations
 import os
 import sys
 from collections.abc import Iterator
-from functools import lru_cache
 from pathlib import Path
+from typing import NamedTuple
 
 CGROUP_ROOT = Path("/sys/fs/cgroup")
-"""Where the cgroup filesystem is mounted (patched by tests)."""
+"""Conventional cgroup mount point, consulted only when the mount table is silent."""
 
 PROC_SELF_CGROUP = Path("/proc/self/cgroup")
-"""Which cgroup this process is in, relative to the hierarchy root."""
+"""Which cgroup this process is in, relative to its hierarchy's root."""
+
+PROC_SELF_MOUNTINFO = Path("/proc/self/mountinfo")
+"""Mount table: where each cgroup hierarchy is mounted, and which version it is."""
 
 
-@lru_cache(maxsize=1)
+class CgroupHierarchy(NamedTuple):
+    """A mounted cgroup hierarchy that carries the `cpu` controller."""
+
+    version: int
+    """1 for a per-controller hierarchy, 2 for the unified one."""
+
+    mountpoint: Path
+    """Where the hierarchy is mounted in this process's mount namespace."""
+
+    mount_root: str
+    """The hierarchy path `mountpoint` exposes, `/` for the hierarchy entire."""
+
+
 def effective_cpu_count() -> int:
     """Processors this process may actually use (never less than one).
 
@@ -40,6 +61,12 @@ def effective_cpu_count() -> int:
     cgroup CPU quota in force, neither of which `os.cpu_count()` reports. A
     fractional quota rounds *down*: the number is used to size concurrency, and
     half a processor does not run another unit of work.
+
+    Deliberately not memoized. Both inputs are live kernel state that changes
+    under a running process (`docker update --cpus`, a Kubernetes in-place
+    resize, `taskset -p`), and a value frozen at first call would answer for
+    every later eval in the process. Each call is a few small reads of `/proc`
+    and `/sys`, against call sites that size a limiter or spawn a process.
     """
     count = float(_available_cpus())
     quota = cgroup_cpu_quota()
@@ -49,7 +76,7 @@ def effective_cpu_count() -> int:
 
 
 def cgroup_cpu_quota(
-    root: Path | None = None, proc: Path | None = None
+    root: Path | None = None, proc: Path | None = None, mounts: Path | None = None
 ) -> float | None:
     """Processors the cgroup this process belongs to may use.
 
@@ -57,16 +84,26 @@ def cgroup_cpu_quota(
     and on any platform without a cgroup filesystem.
 
     Args:
-      root: Where the cgroup filesystem is mounted (defaults to `CGROUP_ROOT`).
+      root: Cgroup mount point to fall back on when `mounts` names no cgroup
+        mount at all (defaults to `CGROUP_ROOT`).
       proc: File naming this process's own cgroup (defaults to `PROC_SELF_CGROUP`).
+      mounts: Mount table to resolve the hierarchy from (defaults to
+        `PROC_SELF_MOUNTINFO`).
     """
+    hierarchy = _cpu_hierarchy(
+        PROC_SELF_MOUNTINFO if mounts is None else mounts,
+        CGROUP_ROOT if root is None else root,
+    )
+    if hierarchy is None:
+        return None
+
+    relative = _own_cgroup(
+        PROC_SELF_CGROUP if proc is None else proc, hierarchy.version
+    )
     quotas = [
         quota
-        for directory in _cgroup_dirs(
-            CGROUP_ROOT if root is None else root,
-            _own_cgroup(PROC_SELF_CGROUP if proc is None else proc),
-        )
-        if (quota := _quota_at(directory)) is not None
+        for directory in _cgroup_dirs(hierarchy, relative)
+        if (quota := _quota_at(directory, hierarchy.version)) is not None
     ]
     # every cgroup on the path to this one binds, so the tightest one wins
     return min(quotas) if quotas else None
@@ -82,30 +119,102 @@ def _available_cpus() -> int:
     return os.cpu_count() or 1
 
 
-def _cgroup_dirs(root: Path, relative: str) -> Iterator[Path]:
+def _cpu_hierarchy(mounts: Path, root: Path) -> CgroupHierarchy | None:
+    """The mounted hierarchy whose files state this process's CPU quota.
+
+    A controller lives on exactly one hierarchy, so a v1 mount carrying `cpu`
+    settles it: the unified hierarchy alongside it (a "hybrid" system mounts
+    both) does not have the controller and has nothing to say about CPU.
+    """
+    unified: CgroupHierarchy | None = None
+    for line in (_read(mounts) or "").splitlines():
+        hierarchy = _cgroup_mount(line)
+        if hierarchy is None:
+            continue
+        if hierarchy.version == 1:
+            return hierarchy
+        unified = unified or hierarchy
+    return unified or _hierarchy_at(root)
+
+
+def _cgroup_mount(line: str) -> CgroupHierarchy | None:
+    """The cgroup hierarchy one `/proc/self/mountinfo` line mounts, if any.
+
+    Fields are `id parent major:minor root mountpoint options...` up to a `-`
+    separator, then `fstype source super-options` — `cgroup2` for the unified
+    hierarchy, `cgroup` plus a `cpu` super-option for the v1 controller.
+    """
+    fields = line.split()
+    try:
+        separator = fields.index("-", 6)
+    except ValueError:
+        return None
+    if len(fields) < separator + 4:
+        return None
+    mount_root, mountpoint = _unescape(fields[3]), Path(_unescape(fields[4]))
+    fstype, options = fields[separator + 1], fields[separator + 3]
+    if fstype == "cgroup2":
+        return CgroupHierarchy(2, mountpoint, mount_root)
+    if fstype == "cgroup" and "cpu" in options.split(","):
+        return CgroupHierarchy(1, mountpoint, mount_root)
+    return None
+
+
+def _hierarchy_at(root: Path) -> CgroupHierarchy | None:
+    """Which hierarchy is mounted at `root`, when the mount table is unavailable.
+
+    Version first, name second, so that a v2 child cgroup named `cpu` is never
+    mistaken for the v1 controller directory of the same name: `cgroup.controllers`
+    marks a v2 cgroup, and `cpu.max` marks one that a container namespace has put
+    at the root of the filesystem.
+    """
+    if (root / "cgroup.controllers").exists() or (root / "cpu.max").exists():
+        return CgroupHierarchy(2, root, "/")
+    for child in _children(root):
+        # v1 comounts controllers under a directory naming all of them
+        if "cpu" in child.name.split(","):
+            return CgroupHierarchy(1, child, "/")
+    if (root / "cpu.cfs_quota_us").exists():
+        return CgroupHierarchy(1, root, "/")
+    return None
+
+
+def _cgroup_dirs(hierarchy: CgroupHierarchy, relative: str) -> Iterator[Path]:
     """Directories that might state a CPU quota for this process.
 
     Inside a container the container's own cgroup is mounted at the root of the
-    cgroup filesystem — under `root` itself on cgroup v2, under the `cpu`
-    controller on v1 — so `root` is usually where the limit is. When the host's
+    hierarchy, so the mount point is usually where the limit is. When the host's
     hierarchy is visible instead (a pod on a cluster that shares the host's
     cgroup namespace, a systemd unit with a `CPUQuota=`), the limit is on the
     nested directory `/proc/self/cgroup` names, or on one of its ancestors.
     """
+    parts = _within_mount(hierarchy.mount_root, relative)
+    for depth in range(len(parts), -1, -1):
+        yield hierarchy.mountpoint.joinpath(*parts[:depth])
+
+
+def _within_mount(mount_root: str, relative: str) -> list[str]:
+    """`relative` rewritten against the mount point that exposes `mount_root`.
+
+    A hierarchy is not always mounted at its own root: a runtime that hands a
+    container its own cgroup mounts that subtree, and the path
+    `/proc/self/cgroup` reports is still the one the subtree is rooted at.
+    """
+    prefix = [part for part in mount_root.split("/") if part]
     parts = [part for part in relative.split("/") if part]
-    branches = ["/".join(parts[:depth]) for depth in range(len(parts), -1, -1)]
-    for base in (root, root / "cpu", root / "cpu,cpuacct"):
-        for branch in branches:
-            yield base / branch
+    if not prefix:
+        return parts
+    # not below the mount root means this cgroup is not visible here at all,
+    # leaving the mount point itself as the only directory worth reading
+    return parts[len(prefix) :] if parts[: len(prefix)] == prefix else []
 
 
-def _quota_at(directory: Path) -> float | None:
+def _quota_at(directory: Path, version: int) -> float | None:
     """The CPU quota one cgroup directory states, in processors."""
-    # cgroup v2 puts both halves in one file, and spells "uncapped" as the
-    # literal `max` in place of the quota
-    unified = _read(directory / "cpu.max")
-    if unified is not None:
-        fields = unified.split()
+    if version == 2:
+        # cgroup v2 puts both halves in one file, and spells "uncapped" as the
+        # literal `max` in place of the quota
+        fields = (_read(directory / "cpu.max") or "").split()
         return _ratio(fields[0], fields[1]) if len(fields) == 2 else None
 
     # cgroup v1 uses two files, and spells "uncapped" as a quota of -1
@@ -114,8 +223,8 @@ def _quota_at(directory: Path) -> float | None:
     return None if quota is None or period is None else _ratio(quota, period)
 
 
-def _own_cgroup(proc: Path) -> str:
-    """This process's cgroup path, relative to the hierarchy root.
+def _own_cgroup(proc: Path, version: int) -> str:
+    """This process's cgroup path, relative to its hierarchy's root.
 
     `/proc/self/cgroup` carries one line per hierarchy: `0::<path>` for the
     unified (v2) hierarchy, and `<id>:<controllers>:<path>` for each v1
@@ -126,17 +235,15 @@ def _own_cgroup(proc: Path) -> str:
     text = _read(proc)
     if text is None:
         return ""
-    unified = ""
     for line in text.splitlines():
         fields = line.split(":", 2)
         if len(fields) != 3:
             continue
         hierarchy, controllers, path = fields
-        if "cpu" in controllers.split(","):
+        ours = hierarchy == "0" if version == 2 else "cpu" in controllers.split(",")
+        if ours:
             return path.strip("/")
-        if hierarchy == "0":
-            unified = path.strip("/")
-    return unified
+    return ""
 
 
 def _ratio(quota: str, period: str) -> float | None:
@@ -145,6 +252,27 @@ def _ratio(quota: str, period: str) -> float | None:
     except ValueError:
         return None
     return limit / interval if limit > 0 and interval > 0 else None
+
+
+def _unescape(field: str) -> str:
+    # mountinfo octal-escapes the characters that would otherwise end a field,
+    # the escape for backslash itself last so its payload is not re-read
+    for escape, character in (
+        ("\\040", " "),
+        ("\\011", "\t"),
+        ("\\012", "\n"),
+        ("\\134", "\\"),
+    ):
+        field = field.replace(escape, character)
+    return field
+
+
+def _children(directory: Path) -> list[Path]:
+    # sorted so that a hierarchy mounted twice resolves the same way each time
+    try:
+        return sorted(child for child in directory.iterdir() if child.is_dir())
+    except OSError:
+        return []
 
 
 def _read(path: Path) -> str | None:
