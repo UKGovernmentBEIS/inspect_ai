@@ -409,7 +409,10 @@ def resolve_sample_attachments(
     """Resolve content attachments (typically images) in sample.
 
     Take 'attachment://*` references and resolve them to their
-    underlying content, then remove the 'attachments' field.
+    underlying content, then remove the 'attachments' entries that are no
+    longer referenced. "core" leaves `ModelEvent.call` condensed, so the
+    attachments its references still point at are retained; "full" resolves
+    everything and clears the field.
 
     Args:
        sample (EvalSample): Eval sample with attachments.
@@ -478,7 +481,7 @@ def resolve_sample_attachments(
         else None
     )
 
-    return sample.model_copy(
+    resolved_sample = sample.model_copy(
         update={
             "input": walk_input(sample.input, content_fn, context),
             "messages": walk_chat_messages(sample.messages, content_fn, context),
@@ -486,6 +489,28 @@ def resolve_sample_attachments(
             "error_retries": resolved_error_retries,
             "attachments": {},
             "events_data": None,
+        }
+    )
+
+    # "full" resolves every reference, so nothing can still point at the map.
+    if resolve_attachments != "core" or not sample.attachments:
+        return resolved_sample
+
+    # "core" leaves ModelEvent.call condensed, so its attachment:// refs
+    # survive into the resolved sample. Retain what they point at (the same
+    # liveness pass condense_sample runs) or they become unresolvable.
+    referenced_attachments = attachment_refs_from_value(
+        resolved_sample.model_dump(mode="python", exclude={"attachments"})
+    )
+    if not referenced_attachments:
+        return resolved_sample
+    return resolved_sample.model_copy(
+        update={
+            "attachments": {
+                hash: value
+                for hash, value in sample.attachments.items()
+                if hash in referenced_attachments
+            }
         }
     )
 

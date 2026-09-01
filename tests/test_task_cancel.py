@@ -576,9 +576,20 @@ def test_external_interrupt_with_pending_resolution_logs_cancelled(
 
         return solve
 
+    eval_returned = threading.Event()
+
     def send_sigint() -> None:
+        # a single SIGINT can be silently lost: the KeyboardInterrupt it
+        # raises lands at an arbitrary bytecode boundary in the main thread,
+        # and if that happens to be inside a context that swallows exceptions
+        # (e.g. a weakref finalizer callback reports it as "unraisable" and
+        # drops it) the eval never sees it. Resend until the eval unwinds —
+        # the interval is generous so a delivered interrupt has ample time to
+        # finalize the log and return before another could land mid-write.
         time.sleep(1)
-        os.kill(os.getpid(), signal.SIGINT)
+        while not eval_returned.is_set():
+            os.kill(os.getpid(), signal.SIGINT)
+            eval_returned.wait(3)
 
     sigint_thread = threading.Thread(target=send_sigint, daemon=True)
     sigint_thread.start()
@@ -596,6 +607,8 @@ def test_external_interrupt_with_pending_resolution_logs_cancelled(
         )
     except KeyboardInterrupt:
         pass
+    finally:
+        eval_returned.set()
     sigint_thread.join(timeout=5)
 
     log_files = list_eval_logs(str(tmp_path))

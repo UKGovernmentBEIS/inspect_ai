@@ -5,6 +5,8 @@ from typing import Any
 
 import anyio
 from openai import (
+    APIConnectionError,
+    APIError,
     APIStatusError,
     AsyncAzureOpenAI,
     AsyncOpenAI,
@@ -29,13 +31,13 @@ from openai.types.responses import (
 )
 from tenacity import (
     retry,
-    retry_if_exception,
+    retry_if_exception_type,
     stop_after_attempt,
     stop_after_delay,
     wait_exponential_jitter,
 )
 
-from inspect_ai._util.httpx import httpx_should_retry, log_httpx_retry_attempt
+from inspect_ai._util.httpx import log_httpx_retry_attempt
 from inspect_ai._util.logger import warn_once
 from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.model._generate_config import has_image_output
@@ -51,6 +53,7 @@ from .._model_output import ModelOutput, ModelUsage
 from .._openai import (
     OpenAIResponseError,
     openai_handle_bad_request,
+    openai_handle_stream_error,
     openai_media_filter,
 )
 from .._openai_responses import (
@@ -68,6 +71,7 @@ from .._stream import (
     StreamReasoningEvent,
     StreamTextEvent,
     StreamToolCallEvent,
+    model_stream_requested,
     report_model_stream_delta,
     report_model_stream_progress,
     report_model_stream_start,
@@ -207,23 +211,12 @@ async def generate_responses(
         if background:
             model_response = await wait_for_background_response(client, model_response)
 
-        # check for error
+        # check for error (recognized block codes, including invalid_prompt,
+        # convert to model output in the handler below)
         if model_response.error is not None:
-            # check for content filter
-            if model_response.error.code == "invalid_prompt":
-                model_call.set_error(
-                    as_error_response(model_response.error),
-                    http_hooks.end_request(request_id),
-                )
-                return ModelOutput.from_content(
-                    model=model_name,
-                    content=model_response.error.message,
-                    stop_reason="content_filter",
-                ), model_call
-            else:
-                raise OpenAIResponseError(
-                    code=model_response.error.code, message=model_response.error.message
-                )
+            raise OpenAIResponseError(
+                code=model_response.error.code, message=model_response.error.message
+            )
 
         # save response for model_call
         _fix_function_tool_parameters(model_response)
@@ -258,6 +251,21 @@ async def generate_responses(
             return handle_bad_request(e), model_call
         else:
             return openai_handle_bad_request(model_name, e), model_call
+    except (APIError, OpenAIResponseError) as e:
+        # intentionally also catches the terminal `model_response.error` raise
+        # above, so recognized block codes convert on every path (streaming,
+        # non-streaming, background, batch); unrecognized codes return None
+        # and re-raise with their retry classification intact
+        output = openai_handle_stream_error(model_name, e)
+        if output is None:
+            raise
+        error_body = (
+            e.body if isinstance(e, APIError) else dict(code=e.code, message=e.message)
+        )
+        model_call.set_error(
+            as_error_response(error_body), http_hooks.end_request(request_id)
+        )
+        return output, model_call
 
 
 async def _generate_responses_stream(
@@ -268,7 +276,8 @@ async def _generate_responses_stream(
     `request` must already carry `stream=True` (injected before the ModelCall
     snapshot so the logged request matches the wire request). Content deltas
     are reported by kind (text / reasoning / tool-call argument fragments,
-    attributed to their call via the announcing output_item event); usage
+    attributed to their call via the announcing output_item event) and only
+    when an on_stream consumer is present (bare heartbeats otherwise); usage
     arrives only on the terminal event, so intermediate chunks report bare
     heartbeats. Returns the complete `Response` carried by the terminal
     event, so downstream response handling matches the non-streaming path.
@@ -283,7 +292,28 @@ async def _generate_responses_stream(
     # (error events raise below; cancellation can land mid-iteration)
     async with stream:
         async for event in stream:
-            if isinstance(event, ResponseTextDeltaEvent):
+            if isinstance(
+                event,
+                (ResponseCompletedEvent, ResponseIncompleteEvent, ResponseFailedEvent),
+            ):
+                # failed/incomplete responses flow through the same error
+                # handling as their non-streaming equivalents
+                # (model_response.error checks)
+                model_response = event.response
+                report_model_stream_progress(
+                    event.response.usage.output_tokens
+                    if event.response.usage is not None
+                    else None
+                )
+            elif isinstance(event, ResponseErrorEvent):
+                raise OpenAIResponseError(
+                    code=event.code or "server_error", message=event.message
+                )
+            elif not model_stream_requested():
+                # content deltas are gated on an on_stream consumer (see
+                # report_model_stream_delta); heartbeat only
+                report_model_stream_progress()
+            elif isinstance(event, ResponseTextDeltaEvent):
                 await report_model_stream_delta(StreamTextEvent(text=event.delta))
             elif isinstance(
                 event,
@@ -308,23 +338,6 @@ async def _generate_responses_stream(
                         arguments=event.delta,
                     )
                 )
-            elif isinstance(
-                event,
-                (ResponseCompletedEvent, ResponseIncompleteEvent, ResponseFailedEvent),
-            ):
-                # failed/incomplete responses flow through the same error
-                # handling as their non-streaming equivalents
-                # (model_response.error checks)
-                model_response = event.response
-                report_model_stream_progress(
-                    event.response.usage.output_tokens
-                    if event.response.usage is not None
-                    else None
-                )
-            elif isinstance(event, ResponseErrorEvent):
-                raise OpenAIResponseError(
-                    code=event.code or "server_error", message=event.message
-                )
             else:
                 report_model_stream_progress()
     if model_response is None:
@@ -347,7 +360,8 @@ async def wait_for_background_response(
     @retry(
         wait=wait_exponential_jitter(),
         stop=stop_after_attempt(5) | stop_after_delay(60),
-        retry=retry_if_exception(httpx_should_retry),
+        retry=retry_if_exception_type(APIConnectionError),
+        reraise=True,
         before_sleep=log_httpx_retry_attempt(
             f"background polling: {model_response.model}"
         ),

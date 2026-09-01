@@ -157,7 +157,7 @@ def _create_filestore_fixture(
     # Write manifest
     summary = _make_summary(id=sample_id, epoch=epoch, completed=completed)
     manifest = Manifest(
-        samples=[SampleManifest(summary=summary, segments=[s.id for s in segments])],
+        samples=[SampleManifest(summary=summary, segments=[s["id"] for s in segments])],
         segments=segments,
     )
     manifest_path = os.path.join(buffer_dir, "manifest.json")
@@ -1142,7 +1142,9 @@ async def test_streaming_recovery_handles_many_attachments() -> None:
             summary = _make_summary(id="sample1", epoch=1, completed=True)
             manifest = Manifest(
                 samples=[
-                    SampleManifest(summary=summary, segments=[s.id for s in segments])
+                    SampleManifest(
+                        summary=summary, segments=[s["id"] for s in segments]
+                    )
                 ],
                 segments=segments,
             )
