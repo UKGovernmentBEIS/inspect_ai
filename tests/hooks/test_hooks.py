@@ -632,6 +632,30 @@ def test_entry_point_hooks_load_when_a_hook_is_already_registered(
     assert entry_point_hook_name in loaded_names
 
 
+def test_required_entry_point_hook_not_reported_missing_when_a_hook_is_already_registered(
+    mock_hooks: MockHooks,
+) -> None:
+    # The loud symptom of the same bug: with the entry-point hook hidden,
+    # INSPECT_REQUIRED_HOOKS verification raised a PrerequisiteError naming a
+    # hook that was in fact installed.
+    entry_point_hook_name = "test_hooks_entry_point_required"
+    entry_point = _FakeEntryPoint("test_hooks_package_required", entry_point_hook_name)
+
+    clear_entry_points_state()
+    try:
+        with patch(
+            "inspect_ai._util.entrypoints.entry_points", return_value=[entry_point]
+        ):
+            with environ_var("INSPECT_REQUIRED_HOOKS", entry_point_hook_name):
+                loaded = _load_registry_hooks()
+    finally:
+        _registry.pop(f"hooks:{entry_point_hook_name}", None)
+        clear_entry_points_state()
+        ensure_entry_points()
+
+    assert entry_point_hook_name in {registry_info(hook).name for hook in loaded}
+
+
 def test_required_hooks_when_all_installed(
     monkeypatch: pytest.MonkeyPatch, mock_hooks: MockHooks, hooks_2: MockHooks
 ) -> None:
