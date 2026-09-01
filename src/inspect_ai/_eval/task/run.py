@@ -15,6 +15,7 @@ from typing_extensions import Unpack
 
 from inspect_ai._control.eval_state import (
     finalize_eval,
+    get_eval_state,
     mark_eval_retry_pending,
     record_sample_cancelled,
     record_sample_completed,
@@ -838,21 +839,33 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
         accidentally thread a stale or divergent value.
         """
         # When a graceful cancel/drain abandoned queued samples, record how
-        # many samples this log actually contains so eval-set's run-vs-reuse
-        # completeness check can see the shortfall (results.total_samples
-        # records the planned count, so a drained success log would otherwise
-        # read complete and the remainder would silently never re-run).
-        # Deliberately scoped to the graceful resolutions: other legitimately
-        # fewer-samples success logs (e.g. early stopping) must keep reading
-        # complete. Not gated on log_samples: a drained `--no-log-samples`
-        # log holds no samples at all, so it records 0 and a later eval-set
-        # re-runs the task in full (nothing in it can seed a resume) rather
-        # than reusing it as complete with the abandoned remainder never run.
+        # many samples this attempt actually resolved so eval-set's
+        # run-vs-reuse completeness check can see the shortfall
+        # (results.total_samples records the planned count, so a drained
+        # success log would otherwise read complete and the remainder would
+        # silently never re-run). Deliberately scoped to the graceful
+        # resolutions: other legitimately fewer-samples success logs (e.g.
+        # early stopping) must keep reading complete. With sample logging on
+        # the count is what the log holds (the samples a resume can reuse);
+        # with it off the log holds nothing, so the count comes from the
+        # attempt's terminal counters instead — a drain that landed after the
+        # last sample was dispatched resolved every planned sample and its log
+        # must keep reading complete rather than re-running the whole task.
         record_logged_samples = task_cancel is not None and task_cancel.cancel_type in (
             "score",
             "error",
             "drain",
         )
+        resolved_unlogged_samples: int | None = None
+        if record_logged_samples and not log_samples:
+            state = get_eval_state(logger.eval.eval_id)
+            # completed + errored, not total - cancelled: the queued-abandon
+            # and materialization-window cancels are recorded per sample, but
+            # any sample still unaccounted for is folded into `cancelled` only
+            # by the finalize_eval in the finally below, after this write
+            resolved_unlogged_samples = (
+                state.completed + state.errored if state is not None else 0
+            )
         # An error status the eval-set will retry (budget remaining, and
         # neither an abort nor a graceful resolution — the dispatcher retries
         # exactly on a natural error or a "retry" stamp): flag the retry as
@@ -882,6 +895,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
             reductions=reductions,
             error=error,
             record_logged_samples=record_logged_samples,
+            resolved_unlogged_samples=resolved_unlogged_samples,
         )
 
     # handle sample errors (raise as required). use total_samples (sliced
@@ -3744,8 +3758,15 @@ async def _finish_task_log(
     reductions: list[EvalSampleReductions] | None = None,
     error: EvalError | None = None,
     record_logged_samples: bool = False,
+    resolved_unlogged_samples: int | None = None,
 ) -> EvalLog:
     """Finish the task log, preserving retry history first on non-success.
+
+    ``record_logged_samples`` stamps ``results.logged_samples`` (the count
+    eval-set's completeness check prefers over the planned total) from the
+    logger's distinct-sample count — or, when sample logging is off and the
+    logger therefore saw no samples, from ``resolved_unlogged_samples``, the
+    attempt's resolved count per its terminal counters.
 
     The single finish chokepoint for ``task_run``'s terminal branches: any
     non-success finish is (or may be) a teardown that left planned samples
@@ -3771,5 +3792,9 @@ async def _finish_task_log(
     # planned total_samples. Read after the carry-forward above so re-logged
     # samples are counted.
     if results is not None and record_logged_samples:
-        results.logged_samples = logger.samples_logged
+        results.logged_samples = (
+            logger.samples_logged
+            if resolved_unlogged_samples is None
+            else resolved_unlogged_samples
+        )
     return await logger.log_finish(status, stats, results, reductions, error)

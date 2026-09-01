@@ -593,12 +593,18 @@ the sketch above; the semantics are as designed.
   therefore excludes cancellation-classified samples, using the same
   classifier as the read/requeue surfaces; a requeued re-run superseding a
   cancelled record counts again.
-- **A drained `log_samples=False` log records `logged_samples = 0`.** The
-  stamp is not gated on sample logging: such a log holds no samples, so 0
-  is the honest count, and a later eval-set re-invocation re-runs the task
-  in full (nothing in the log can seed a resume). The alternative — leaving
-  the field unset — would reuse the log as complete and silently never run
-  the abandoned remainder.
+- **A drained `log_samples=False` log stamps the count from the attempt's
+  terminal counters.** The stamp is not gated on sample logging — leaving
+  the field unset would reuse the log as complete and silently never run
+  the abandoned remainder — but the logger's count is 0 for such a task
+  (the sample runner never logs), and stamping 0 would make a drain that
+  landed after the last sample was dispatched (nothing abandoned, every
+  planned sample resolved) re-run the whole task on the next eval-set
+  invocation. So with sample logging off the stamp is
+  `EvalState.completed + errored` (cancellation-resolved samples excluded,
+  matching `samples_logged`): a log with an abandoned remainder still reads
+  incomplete and is re-run in full (nothing in it can seed a partial
+  resume), while a fully-resolved one keeps reading complete.
 - **Interim scoring is not superseded by a drain.** The scoring pass's
   between-samples "attempt no longer current" check treats a stamped
   `"score"`/`"error"` (already resolving the in-flight samples) and

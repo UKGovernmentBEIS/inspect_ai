@@ -3070,11 +3070,13 @@ def test_ctl_task_drain_finishes_in_flight_and_abandons_queued(
 
 
 def test_ctl_task_drain_no_log_samples_reads_incomplete(short_data_dir: Path) -> None:
-    """A drained `log_samples=False` log records zero logged samples.
+    """A drained `log_samples=False` log records the resolved-sample count.
 
-    Nothing in such a log can seed a resume, so the honest classification is
-    "incomplete": a later `eval_set` re-invocation re-runs the task in full
-    rather than reusing it as complete with the abandoned remainder never run.
+    The logger saw no samples, so the stamp comes from the attempt's terminal
+    counters (one resolved, two abandoned). Nothing in such a log can seed a
+    partial resume, so the honest classification is "incomplete": a later
+    `eval_set` re-invocation re-runs the task in full rather than reusing it
+    as complete with the abandoned remainder never run.
     """
     from inspect_ai._control.cancel import drain_task
     from inspect_ai.log import read_eval_log
@@ -3117,7 +3119,7 @@ def test_ctl_task_drain_no_log_samples_reads_incomplete(short_data_dir: Path) ->
     assert not drained.samples
     assert drained.results is not None
     assert drained.results.total_samples == 3
-    assert drained.results.logged_samples == 0
+    assert drained.results.logged_samples == 1
 
     # re-invoking on the same log_dir re-runs the whole task (no drain this
     # time: all three samples complete, and the stamp is absent)
@@ -3134,6 +3136,77 @@ def test_ctl_task_drain_no_log_samples_reads_incomplete(short_data_dir: Path) ->
     assert rerun.results is not None
     assert rerun.results.completed_samples == 3
     assert rerun.results.logged_samples is None
+
+
+def test_ctl_task_drain_no_log_samples_nothing_abandoned_reads_complete(
+    short_data_dir: Path,
+) -> None:
+    """A `log_samples=False` drain that abandons nothing leaves a complete log.
+
+    With every sample already dispatched when the drain lands (`queued: 0`),
+    all planned samples resolve — the stamp derived from the terminal counters
+    says so, and a later `eval_set` re-invocation reuses the log rather than
+    re-running the task (the logger's own count would have been 0 here).
+    """
+    from inspect_ai._control.cancel import drain_task
+    from inspect_ai.log import read_eval_log
+
+    @task
+    def drain_late_unlogged_task() -> Task:
+        return Task(
+            dataset=[Sample(id=i, input="x", target="y") for i in (1, 2, 3)],
+            solver=[gate()],
+            name="drain_late_unlogged_task",
+        )
+
+    log_dir = str(short_data_dir / "logs")
+    Path(log_dir).mkdir()
+
+    async def ready() -> bool:
+        evals = await current_eval_summaries(0.0)
+        if not evals:
+            return False
+        samples = evals[0]["samples"]
+        return samples["in_flight"] == 3 and samples["queued"] == 0
+
+    async def capture() -> dict:
+        entry = (await current_eval_summaries(0.0))[0]
+        return {"result": drain_task(entry["task_id"])}
+
+    with probe(ready, capture) as p:
+        success, logs = eval_set(
+            tasks=[drain_late_unlogged_task()],
+            log_dir=log_dir,
+            model="mockllm/model",
+            max_samples=3,
+            log_samples=False,
+        )
+
+    assert p.result is not None, "three-in-flight/none-queued never observed"
+    assert p.result["result"]["changed"] is True
+    assert p.result["result"]["queued"] == 0
+    assert success and len(logs) == 1 and logs[0].status == "success"
+    drained = read_eval_log(logs[0].location)
+    assert not drained.samples
+    assert drained.results is not None
+    assert drained.results.total_samples == 3
+    assert drained.results.completed_samples == 3
+    assert drained.results.logged_samples == 3
+
+    # complete: a re-invocation on the same log_dir reuses the log as-is
+    success2, logs2 = eval_set(
+        tasks=[drain_late_unlogged_task()],
+        log_dir=log_dir,
+        model="mockllm/model",
+        max_samples=3,
+        log_samples=False,
+    )
+    assert success2 and len(logs2) == 1
+    # (a reused log's location comes back as a file:// URI)
+    assert (
+        Path(logs2[0].location.removeprefix("file://")).name
+        == Path(drained.location).name
+    )
 
 
 def test_ctl_task_drain_honored_across_outer_retry_pass(short_data_dir: Path) -> None:
