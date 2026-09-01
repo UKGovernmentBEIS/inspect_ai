@@ -27,6 +27,7 @@ import inspect_ai.log
 import inspect_ai.log._recorders.buffer.filestore
 import inspect_ai.model
 from inspect_ai._util.asyncfiles import AsyncFilesystem
+from inspect_ai._util.azure import AzureAuthError
 from inspect_ai._util.event_loop_monitor import event_loop_monitor
 from inspect_ai._util.json import to_json_safe
 from inspect_ai._view import fastapi_server
@@ -1104,19 +1105,48 @@ def _patch_flat_filesystem(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(common, "filesystem", fake_filesystem)
 
 
-async def test_read_eval_set_info_async_suppresses_azure_auth_error(
+class _AzureAuthErrorFilesystem:
+    async def exists(self, filename: str) -> bool:
+        raise Exception("Server failed to authenticate the request")
+
+
+async def test_read_eval_set_info_async_raises_azure_auth_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_flat_filesystem(monkeypatch)
 
-    class AzureAuthErrorFilesystem:
-        async def exists(self, filename: str) -> bool:
-            raise Exception("Server failed to authenticate the request")
+    with pytest.raises(AzureAuthError, match="Azure storage authentication failed"):
+        await read_eval_set_info_async(
+            "az://container/logs", cast(AsyncFilesystem, _AzureAuthErrorFilesystem())
+        )
 
-    result = await read_eval_set_info_async(
-        "az://container/logs", cast(AsyncFilesystem, AzureAuthErrorFilesystem())
-    )
-    assert result is None
+
+async def test_read_eval_set_info_async_azure_auth_error_keeps_cause(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_flat_filesystem(monkeypatch)
+
+    with pytest.raises(AzureAuthError) as exc_info:
+        await read_eval_set_info_async(
+            "az://container/logs", cast(AsyncFilesystem, _AzureAuthErrorFilesystem())
+        )
+
+    assert str(exc_info.value.__cause__) == "Server failed to authenticate the request"
+
+
+async def test_read_eval_set_info_async_ignores_azure_text_on_non_azure_path(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_flat_filesystem(monkeypatch)
+
+    with pytest.raises(Exception) as exc_info:
+        await read_eval_set_info_async(
+            "s3://bucket/logs", cast(AsyncFilesystem, _AzureAuthErrorFilesystem())
+        )
+
+    # the raw error propagates unchanged rather than being read as an Azure one
+    assert type(exc_info.value) is Exception
+    assert str(exc_info.value) == "Server failed to authenticate the request"
 
 
 async def test_read_eval_set_info_async_raises_non_auth_errors(

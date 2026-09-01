@@ -20,7 +20,7 @@ from s3fs.core import _error_wrapper, version_id_kw  # type: ignore
 from inspect_ai._eval.evalset import EvalSet
 from inspect_ai._util._async import tg_collect
 from inspect_ai._util.asyncfiles import _READ_FULLY_CHUNK_SIZE, AsyncFilesystem
-from inspect_ai._util.azure import is_azure_auth_error
+from inspect_ai._util.azure import AzureAuthError, is_azure_listing_auth_error
 from inspect_ai._util.constants import PKG_NAME
 from inspect_ai._util.file import default_fs_options, dirname, filesystem, size_in_mb
 from inspect_ai._view.azure import normalize_azure_listing_name
@@ -132,8 +132,9 @@ async def read_eval_set_info_async(
     Async counterpart to `read_eval_set_info`. Reads the manifest through
     `AsyncFilesystem` (riding the shared client) rather than bouncing sync fsspec
     through a threadpool — see the fsspec/`to_thread` warning in AGENTS.md.
-    Returns None when the manifest is absent, or (matching `read_eval_set_info`)
-    when the check/read fails with an Azure auth error.
+    Returns None when the manifest is absent. An Azure auth failure raises
+    `AzureAuthError`, matching how listing surfaces one; note that the sync
+    `read_eval_set_info` still degrades such a failure to None.
     """
     sep = filesystem(eval_set_dir).sep
     manifest = f"{eval_set_dir.rstrip('/').rstrip(sep)}{sep}eval-set.json"
@@ -142,8 +143,10 @@ async def read_eval_set_info_async(
             return None
         return EvalSet.model_validate_json(await afs.read_file(manifest))
     except Exception as ex:
-        if is_azure_auth_error(ex):
-            return None
+        # An auth failure is not a missing manifest: surface it with
+        # remediation guidance instead of reporting no eval set.
+        if is_azure_listing_auth_error(manifest, ex):
+            raise AzureAuthError(manifest, ex) from ex
         raise
 
 
