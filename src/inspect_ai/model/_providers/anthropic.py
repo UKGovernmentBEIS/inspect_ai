@@ -243,6 +243,14 @@ _FORCED_TOOL_CHOICE_WARNING = (
     "(tool_choice 'any' or a specific tool returns a 400 error); using "
     "tool_choice 'auto' instead."
 )
+_THINKING_DROPPED_WARNING = (
+    "anthropic model '{model}' dropped replayed thinking block(s) from the "
+    "request (reason: {reason}): earlier conversation content (system prompt, "
+    "tools, or messages) changed after the blocks were produced, so their "
+    "reasoning is no longer visible to the model. Per-request details are "
+    "recorded in the model output metadata under "
+    "extra_body.input_transformations."
+)
 _MID_CONV_SYSTEM_HOISTED_WARNING = (
     "anthropic: {count} mid-conversation system message(s) were repositioned "
     "to the top-level system field because their placement violated the API "
@@ -3584,6 +3592,24 @@ async def model_output_from_message(
     metadata: dict[str, Any] | None = (
         {"extra_body": dict(extra_body)} if extra_body else None
     )
+
+    # thinking block binding (Fable/Mythos 5.1): with the thinking-binding
+    # beta, replayed thinking blocks the server dropped (e.g. after a history
+    # edit) are reported via input_transformations. Warn so callers know
+    # reasoning context was lost; the raw entries (including the message path
+    # of each dropped block) are captured under metadata["extra_body"] above.
+    for transformation in extra_body.get("input_transformations") or []:
+        if (
+            isinstance(transformation, dict)
+            and transformation.get("type") == "thinking_dropped"
+        ):
+            warn_once(
+                logger,
+                _THINKING_DROPPED_WARNING.format(
+                    model=message.model,
+                    reason=transformation.get("reason", "unspecified"),
+                ),
+            )
 
     # server-side refusal fallback: record a typed ModelFallback so log
     # analysis can detect a fallback without parsing assistant content. the

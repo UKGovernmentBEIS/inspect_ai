@@ -1697,6 +1697,120 @@ async def test_anthropic_forced_tool_choice_request_wiring(
     assert captured["tool_choice"]["type"] == expected_type
 
 
+def _message_with_transformations(transformations: list[dict[str, Any]]) -> Any:
+    """Build an SDK Message carrying the input_transformations response field.
+
+    The SDK doesn't model the field (it arrives via extra="allow"), so
+    validate it from a dict — the same way it lands when parsed off the wire.
+    """
+    from anthropic.types import Message
+
+    return Message.model_validate(
+        {
+            "id": "msg_test",
+            "content": [{"type": "text", "text": "hello"}],
+            "model": "claude-fable-5-1",
+            "role": "assistant",
+            "stop_reason": "end_turn",
+            "stop_sequence": None,
+            "type": "message",
+            "usage": {"input_tokens": 10, "output_tokens": 5},
+            "input_transformations": transformations,
+        }
+    )
+
+
+@pytest.mark.anyio
+async def test_anthropic_thinking_dropped_warning(
+    _warn_once_messages: list[str],
+) -> None:
+    """A reported thinking_dropped transformation warns and lands in metadata."""
+    from inspect_ai.model._providers.anthropic import model_output_from_message
+
+    transformations = [
+        {
+            "type": "thinking_dropped",
+            "path": "messages.1.content.0",
+            "reason": "prefix_binding_mismatch",
+        }
+    ]
+    output, _pause = await model_output_from_message(
+        client=None,
+        model=None,
+        message=_message_with_transformations(transformations),
+        tools=[],
+    )
+    assert any(
+        "dropped replayed thinking block" in m
+        and "claude-fable-5-1" in m
+        and "prefix_binding_mismatch" in m
+        for m in _warn_once_messages
+    )
+    assert output.metadata is not None
+    assert output.metadata["extra_body"]["input_transformations"] == transformations
+
+
+@pytest.mark.anyio
+async def test_anthropic_no_thinking_dropped_warning_when_empty(
+    _warn_once_messages: list[str],
+) -> None:
+    """An empty input_transformations list (nothing dropped) emits no warning."""
+    from inspect_ai.model._providers.anthropic import model_output_from_message
+
+    await model_output_from_message(
+        client=None,
+        model=None,
+        message=_message_with_transformations([]),
+        tools=[],
+    )
+    assert not any("dropped replayed thinking block" in m for m in _warn_once_messages)
+
+
+@pytest.mark.anyio
+@skip_if_no_anthropic
+async def test_anthropic_fable_5_1_thinking_drop_reported_live(
+    _warn_once_messages: list[str],
+) -> None:
+    """A history edit before a replayed 5.1 thinking block drops (not 400s) and warns.
+
+    Turn 1 produces a thinking block; turn 2 replays it under an edited system
+    prompt. Without the drop_block opt-in this request would fail with 400
+    "The block is bound to a different conversation" (on accounts subject to
+    binding enforcement); with it, the request succeeds, the API reports the
+    drop via input_transformations, and inspect surfaces a warning.
+    """
+    from inspect_ai.model import ChatMessageSystem as SystemMsg
+
+    model = get_model(
+        "anthropic/claude-fable-5-1",
+        config=GenerateConfig(reasoning_effort="high", max_tokens=8192),
+    )
+    prompt = "Find all real solutions of 3*x^3 - 5*x = 1 to 3 decimal places."
+    first = await model.generate(
+        input=[
+            SystemMsg(content="You are a terse assistant. SYSTEM VERSION A."),
+            ChatMessageUser(content=prompt),
+        ]
+    )
+    content = first.choices[0].message.content
+    assert isinstance(content, list)
+    assert any(c.type == "reasoning" for c in content), "turn 1 produced no reasoning"
+
+    second = await model.generate(
+        input=[
+            SystemMsg(content="You are a terse assistant. SYSTEM VERSION B (edited)."),
+            ChatMessageUser(content=prompt),
+            first.choices[0].message,
+            ChatMessageUser(content="Now add 9 to the largest solution."),
+        ]
+    )
+    assert len(second.completion) >= 1
+    assert second.metadata is not None
+    transformations = second.metadata["extra_body"]["input_transformations"]
+    assert any(t.get("type") == "thinking_dropped" for t in transformations)
+    assert any("dropped replayed thinking block" in m for m in _warn_once_messages)
+
+
 @pytest.mark.anyio
 @skip_if_no_anthropic
 async def test_anthropic_fable_5_1_generate_live() -> None:

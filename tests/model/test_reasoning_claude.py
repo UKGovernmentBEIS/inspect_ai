@@ -80,11 +80,13 @@ async def test_reasoning_claude_fable_5_1():
     # reasoning_tokens budget, so drive thinking via reasoning_effort only. It
     # defaults thinking.display to 'omitted' while Inspect requests
     # 'summarized', so a non-empty summarized reasoning block must come back —
-    # and reasoning must not leak into the visible response text.
+    # and reasoning must not leak into the visible response text. Use "high"
+    # effort: at "low", 5.1 often answers a problem this size directly without
+    # emitting a thinking block (verified live 2026-09-01).
     model = get_model("anthropic/claude-fable-5-1")
     output = await model.generate(
         "Solve 3*x^3-5*x=1",
-        config=GenerateConfig(reasoning_effort="low", max_tokens=8192),
+        config=GenerateConfig(reasoning_effort="high", max_tokens=8192),
     )
     assert "<think>" not in output.completion
     content = output.choices[0].message.content
