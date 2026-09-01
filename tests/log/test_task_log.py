@@ -1,6 +1,7 @@
 import types
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any, cast
 from unittest.mock import patch
 
@@ -18,6 +19,7 @@ from inspect_ai._eval.task.log import (
     resolve_task_distribution,
 )
 from inspect_ai._util.background import background_task_group, set_background_task_group
+from inspect_ai._util.error import EvalError
 from inspect_ai._util.git import GitContext
 from inspect_ai._util.package import DirectUrl, VcsInfo
 from inspect_ai.dataset import Sample
@@ -34,6 +36,7 @@ from inspect_ai.log._log import (
 )
 from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
 from inspect_ai.log._recorders.eval import EvalRecorder
+from inspect_ai.log._recorders.json import JSONRecorder
 from inspect_ai.log._recorders.recorder import Recorder
 from inspect_ai.model import get_model
 
@@ -279,6 +282,64 @@ async def test_task_logger_forwards_full_metadata_to_buffer() -> None:
     )
 
     assert buffer_db.completed_metadata == [metadata]
+
+
+@pytest.mark.anyio
+async def test_task_logger_samples_logged_counts_distinct_samples() -> None:
+    # a re-log of the same (id, epoch) — a requeued sample's re-run — replaces
+    # the sample's log entry rather than adding one, so it must not inflate
+    # samples_logged (consumed by eval-set's completeness check: an inflated
+    # count could classify a drained log complete and silently drop the
+    # abandoned remainder)
+    logger = _flush_logger(flush_buffer=10)
+
+    await logger.complete_sample(_sample(), flush=False)
+    assert logger.samples_logged == 1
+    await logger.complete_sample(_sample(), flush=False)
+    assert logger.samples_logged == 1
+
+    other_epoch = EvalSample(id="sample", epoch=2, input="question", target="answer")
+    await logger.complete_sample(other_epoch, flush=False)
+    assert logger.samples_logged == 2
+
+
+@pytest.mark.anyio
+async def test_task_logger_samples_logged_excludes_cancelled_samples() -> None:
+    # a cancellation-resolved sample (operator `sample cancel`, or a drain
+    # landing while the sample materialized) is in the log but is not a
+    # resolution — counting it toward samples_logged could classify a drained
+    # log complete and silently drop those samples from a later eval-set
+    # re-invocation. A re-log of the same key (a requeue's re-run superseding
+    # the cancelled record) counts again.
+    logger = _flush_logger(flush_buffer=10)
+
+    cancelled = _sample().model_copy(
+        update={
+            "error": EvalError(
+                message="CancelledError('cancelled by operator')",
+                traceback="",
+                traceback_ansi="",
+            )
+        }
+    )
+    await logger.complete_sample(cancelled, flush=False)
+    assert logger.samples_logged == 0
+
+    errored = _sample().model_copy(
+        update={
+            "error": EvalError(
+                message="RuntimeError('boom')", traceback="", traceback_ansi=""
+            )
+        }
+    )
+    await logger.complete_sample(
+        errored.model_copy(update={"id": "sample-2"}), flush=False
+    )
+    assert logger.samples_logged == 1
+
+    # requeued re-run supersedes the cancelled record
+    await logger.complete_sample(_sample(), flush=False)
+    assert logger.samples_logged == 2
 
 
 @pytest.mark.parametrize(
@@ -1311,3 +1372,135 @@ def test_falls_back_to_cwd_git_context_when_no_package_revision():
     assert log.eval.revision is not None
     assert log.eval.revision.origin == "https://github.com/some/cwd-repo"
     assert log.eval.revision.dirty is True
+
+
+# ---------------------------------------------------------------------------
+# log_discard: an abandoned retry attempt's never-finished log
+# (design/ctl/task-drain.md "Tasks between attempts")
+# ---------------------------------------------------------------------------
+
+
+async def test_eval_recorder_log_discard_removes_flushed_destination(
+    tmp_path: Path,
+) -> None:
+    # a zero-seed retry attempt has no destination hold, so log_start flushes
+    # a `started` header — discarding the abandoned attempt must remove it,
+    # or the end-of-run retry-cleanup sweep would prefer it (by mtime) over
+    # the errored prior attempt's log and delete the wrong file
+    spec = _eval_spec()
+    recorder = EvalRecorder(str(tmp_path))
+    location = await recorder.log_init(spec)
+    await recorder.log_start(spec, EvalPlan())
+    await recorder.flush(spec)
+    assert Path(location).exists()
+
+    await recorder.log_discard(spec)
+    assert not Path(location).exists()
+    assert recorder.data == {}
+    # a repeat discard is a no-op
+    await recorder.log_discard(spec)
+
+
+async def test_eval_recorder_log_discard_without_flush_drops_tracking_only(
+    tmp_path: Path,
+) -> None:
+    # the common abandon paths (dispatch-pick drop, held retry attempts)
+    # never wrote the destination: discard just drops the in-memory entry
+    spec = _eval_spec()
+    recorder = EvalRecorder(str(tmp_path))
+    location = await recorder.log_init(spec)
+    await recorder.log_start(spec, EvalPlan())
+
+    await recorder.log_discard(spec)
+    assert not Path(location).exists()
+    assert recorder.data == {}
+
+
+async def test_eval_recorder_log_discard_preserves_seeded_destination(
+    tmp_path: Path,
+) -> None:
+    # a log re-initialized from an existing file (re-logging into an existing
+    # log) doesn't own the destination — discard must leave it in place even
+    # after a flush
+    spec = _eval_spec()
+    recorder = EvalRecorder(str(tmp_path))
+    location = await recorder.log_init(spec)
+    await recorder.log_start(spec, EvalPlan())
+    await recorder.log_finish(spec, "success", EvalStats(), None, None)
+    assert Path(location).exists()
+
+    await recorder.log_init(spec, location)
+    await recorder.flush(spec)
+    await recorder.log_discard(spec)
+    assert Path(location).exists()
+
+
+async def test_json_recorder_log_discard_removes_flushed_destination(
+    tmp_path: Path,
+) -> None:
+    spec = _eval_spec()
+    recorder = JSONRecorder(str(tmp_path))
+    location = await recorder.log_init(spec)
+    await recorder.log_start(spec, EvalPlan())
+    await recorder.flush(spec)
+    assert Path(location).exists()
+
+    await recorder.log_discard(spec)
+    assert not Path(location).exists()
+    assert recorder.data == {}
+
+
+async def test_json_recorder_log_discard_without_flush_drops_tracking_only(
+    tmp_path: Path,
+) -> None:
+    spec = _eval_spec()
+    recorder = JSONRecorder(str(tmp_path))
+    location = await recorder.log_init(spec)
+
+    await recorder.log_discard(spec)
+    assert not Path(location).exists()
+    assert recorder.data == {}
+
+
+async def test_task_logger_discard_drops_recorder_entry_and_flushed_file(
+    tmp_path: Path,
+) -> None:
+    # TaskLogger.discard composes cleanup (buffer db + flush timer) with the
+    # recorder-level log_discard — the abandoned-retry finalize in _eval/run.py
+    spec = _eval_spec()
+    recorder = EvalRecorder(str(tmp_path))
+    logger = TaskLoggerShim(_FlushBufferDB())
+    logger.recorder = cast(Recorder, recorder)
+    logger.eval = spec
+    location = await recorder.log_init(spec)
+    await logger.log_start(EvalPlan())
+    assert Path(location).exists()
+
+    await logger.discard()
+    assert not Path(location).exists()
+    assert recorder.data == {}
+
+
+async def test_task_logger_discard_contains_recorder_failures() -> None:
+    # discard's callers run inside the dispatcher task group: a storage error
+    # from the destination removal must be logged, not raised — an escaping
+    # exception would cancel every in-flight task in the run
+    class _FailingDiscardRecorder:
+        async def log_discard(self, eval: EvalSpec) -> None:
+            raise OSError("simulated transient storage failure")
+
+    logger = TaskLoggerShim(_FlushBufferDB())
+    logger.recorder = cast(Recorder, _FailingDiscardRecorder())
+    logger.eval = _eval_spec()
+    logger._location = "test.eval"
+
+    # assert on the module logger directly rather than via caplog: an eval
+    # run in an earlier test reconfigures inspect's logging, which stops
+    # records propagating to caplog's root-level handler
+    with patch.object(task_log_module.logger, "warning") as warning:
+        await logger.discard()
+
+    assert any(
+        "Error discarding abandoned log entry" in str(call.args[0])
+        for call in warning.call_args_list
+    )
