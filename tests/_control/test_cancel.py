@@ -9,6 +9,7 @@ the server routes that wrap them (``POST /tasks/<id>/cancel``,
 ``POST /evals/<id>/sample/cancel-tool-call``).
 """
 
+from collections.abc import Callable
 from types import SimpleNamespace
 from typing import Any, Literal, cast
 
@@ -20,6 +21,7 @@ from test_helpers.live_eval_data import FakeLiveEvalData
 from inspect_ai import Task, eval_async
 from inspect_ai._control.cancel import (
     CancelSampleResult,
+    CancelTaskResult,
     TaskCancelAction,
     cancel_sample,
     cancel_task,
@@ -781,6 +783,47 @@ def test_drain_task_between_attempts_abandons_pending_retry() -> None:
     assert repeat is not None and repeat["ok"] is True
     assert repeat["changed"] is False
     assert repeat["reason"] == "pending retry already abandoned"
+
+
+@pytest.mark.parametrize("directive", [cancel_task, drain_task])
+def test_task_directive_retry_pending_before_completed_at_abandons_retry(
+    directive: Callable[[str], CancelTaskResult | None],
+) -> None:
+    """The runner's pre-mark is honored even while ``completed_at`` is unset.
+
+    The task runner flags ``retry_pending`` before the errored attempt's
+    final log write; for a SampleSource-driven task or a task-level
+    exception ``completed_at`` is still ``None`` during that write. A
+    drain/cancel landing there must take the retry-abandon branch (handle
+    untouched, no graceful-resolution bookkeeping) rather than the
+    running-task path, and a repeat must read the abandonment, not stamp
+    the handle.
+    """
+    handle = _FakeTaskCancel(can_retry=True)
+    register_eval("e1", 5, task_id="t1", will_retry=True, task_cancel=handle)
+    mark_eval_retry_pending("e1")  # the runner's pre-mark, log write in flight
+
+    # score/error keep their between-attempts rejection in this window too
+    rejected = cancel_task("t1", action="score")
+    assert rejected is not None and rejected["ok"] is False
+    assert "between attempts" in rejected["error"]
+    assert handle.fired == []
+
+    result = directive("t1")
+    assert result is not None and result["ok"] is True
+    assert result["changed"] is True and result.get("retry_abandoned") is True
+    assert handle.fired == []  # the tearing-down attempt is untouched
+    assert task_retry_abandoned("t1")
+    assert not task_gracefully_resolved("t1")
+    state = get_eval_state("e1")
+    assert state is not None
+    assert state.retry_pending is False and state.will_retry is False
+
+    repeat = directive("t1")
+    assert repeat is not None and repeat["ok"] is True
+    assert repeat["changed"] is False
+    assert repeat["reason"] == "pending retry already abandoned"
+    assert handle.fired == []
 
 
 def test_drain_task_pending_retry_abandons_requested_retry() -> None:

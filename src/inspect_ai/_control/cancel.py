@@ -287,16 +287,25 @@ def _task_cancel_directive(
         # drain reports the other half of the split too: queued samples are
         # what a drain abandons
         result["queued"] = state.queued(len(in_flight))
-    if state.completed_at is not None:
-        # consulted before the finished no-op so a repeat lands on the honest
-        # reason: the registry stamp, not the pending state, marks the
-        # abandonment as already applied
-        if task_retry_abandoned(state.task_id):
-            return {
-                **result,
-                "changed": False,
-                "reason": "pending retry already abandoned",
-            }
+    # the registry is consulted first so a repeat of *any* stamp after an
+    # abandonment lands on the honest reason rather than "task already
+    # finished" — or, while the abandoned attempt is still tearing down or
+    # writing its final log, the running-task path below (a score/error
+    # would otherwise imply a retry is still coming)
+    if task_retry_abandoned(state.task_id):
+        return {
+            **result,
+            "changed": False,
+            "reason": "pending retry already abandoned",
+        }
+    # retry_pending is consulted ahead of completed_at: the task runner
+    # pre-marks it before the errored attempt's final log write, during which
+    # completed_at is still unset for a SampleSource-driven task or a
+    # task-level exception. A drain/cancel landing there must read as the
+    # retry-abandon it is — the running-task path below would stamp the
+    # handle, record a graceful resolution for a task ending in an error log,
+    # and narrate queued samples abandoning and the task completing.
+    if state.completed_at is not None or state.retry_pending:
         if state.retry_pending:
             if stamp in ("score", "error"):
                 return {
@@ -335,15 +344,6 @@ def _task_cancel_directive(
         # would silently drop it and the retry would dispatch the whole task
         # fresh. The tearing-down attempt itself is untouched (its scope has
         # already fired; there is nothing further to interrupt or overwrite).
-        # The registry is consulted first so a repeat of *any* stamp after the
-        # abandonment lands on the honest reason (a score/error would
-        # otherwise imply a retry is still coming).
-        if task_retry_abandoned(state.task_id):
-            return {
-                **result,
-                "changed": False,
-                "reason": "pending retry already abandoned",
-            }
         if stamp in ("score", "error"):
             return {
                 **result,

@@ -364,15 +364,17 @@ flags `retry_pending` itself the moment it decides the attempt's terminal
 status is an error the eval-set will retry (budget remaining, and neither an
 abort nor a graceful stamp — exactly the dispatcher's retry predicate),
 before the log write; the dispatcher's later mark is the confirming
-repeat. A stamp that supersedes the retry after the runner's pre-mark (a
-cancel landing while the log is written on an attempt whose `completed_at`
-is not yet set — a SampleSource-driven task, or a task-level exception —
-takes the running-task path and stamps the handle, which the dispatcher
-reads as a user cancel) is unwound by the dispatcher clearing the flag when
-it decides not to retry, so a task never reads as between attempts with no
-retry coming. The residual window is the last sample's own post-record
-bookkeeping (metrics and early-stopping hooks) and the task group's exit —
-in-process work, no remote I/O.
+repeat. The directive consults `retry_pending` *ahead of* `completed_at`:
+during the final log write `completed_at` is still unset for a
+SampleSource-driven task or a task-level exception, and a drain/cancel
+landing there must take the retry-abandon branch (handle untouched, no
+graceful-resolution bookkeeping for a task ending in an error log, the
+"pending retry is abandoned" message) rather than the running-task path.
+The dispatcher still clears the flag whenever it decides not to retry, as
+a backstop so a task never reads as between attempts with no retry coming.
+The residual window is the last sample's own post-record bookkeeping
+(metrics and early-stopping hooks) and the task group's exit — in-process
+work, no remote I/O.
 
 One fact shapes the consume sites: the retry item is built *eagerly* —
 `options.logger.reinit()` runs at retry-item construction in the

@@ -856,14 +856,14 @@ def clear_eval_retry_pending(eval_id: str) -> None:
 
     The task runner marks :attr:`EvalState.retry_pending` as soon as it
     decides an error status with retry budget remaining; the dispatcher owns
-    the final decision and consults the cancel stamp last (a cancel landing
-    while the log was being written — reachable when ``completed_at`` was
-    not yet stamped, e.g. a SampleSource-driven task or a task-level
-    exception — supersedes the retry). When no retry follows, the flag must
-    not stand: the task would otherwise read as between attempts forever
-    (listed as active, requeue rejected as "between attempts", a repeat
-    cancel claiming to abandon a retry that was never coming). No-ops if the
-    eval isn't registered.
+    the final decision. A drain/cancel landing during the log write takes
+    the retry-abandon branch and clears the flag itself (see
+    :func:`abandon_task_retry`), so this is the backstop for any other way
+    the dispatcher's retry predicate can come out false: the flag must not
+    stand when no retry follows, or the task would read as between attempts
+    forever (listed as active, requeue rejected as "between attempts", a
+    repeat cancel claiming to abandon a retry that was never coming). No-ops
+    if the eval isn't registered.
     """
     with _lock:
         state = _eval_states.get(eval_id)
