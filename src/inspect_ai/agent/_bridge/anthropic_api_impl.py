@@ -467,7 +467,16 @@ def tool_choice_from_anthropic_tool_choice(
         case "none":
             return "none"
         case "tool":
-            return ToolFunction(name=tool_choice["name"])
+            # `ToolFunction` is an unvalidated dataclass, so a non-string name
+            # would serialize into the `ModelEvent` and fail transcript
+            # read-back (and a missing one raised a status-less `KeyError`).
+            name = tool_choice.get("name", None)
+            if not isinstance(name, str):
+                raise BridgePolicyError(
+                    "invalid request field in bridged request (tool_choice.name: "
+                    f"input should be a string, got {type(name).__name__})"
+                )
+            return ToolFunction(name=name)
         case invalid:
             # A missing or unknown `type` previously fell through silently
             # (or raised a status-less `KeyError`); answer the 400 the real

@@ -190,10 +190,10 @@ def generate_config_from_google(generation_config: Any) -> GenerateConfig:
     config.top_logprobs = generation_config.get("logprobs")
 
     # structured output: responseJsonSchema is standard JSON Schema; responseSchema
-    # is Gemini's OpenAPI-style Schema (uppercase types) which we normalize. The
-    # dropped-keyword warning stays off for responseSchema: its dialect keywords
-    # (`nullable`, `propertyOrdering`, ...) were never modelled, so the JSON
-    # Schema-phrased warning would misread routine Gemini requests as degraded.
+    # is Gemini's OpenAPI-style Schema (uppercase types) which we normalize. For
+    # responseSchema the dropped-keyword warning skips the dialect's own keywords
+    # (they were never modelled, so warning would misread routine Gemini requests
+    # as degraded) but still fires for shared constraints like `minItems`.
     if json_schema := generation_config.get("responseJsonSchema"):
         config.response_schema = ResponseSchema(
             name="response",
@@ -207,7 +207,7 @@ def generate_config_from_google(generation_config: Any) -> GenerateConfig:
             json_schema=client_json_schema(
                 _google_schema_to_json_schema(openapi_schema),
                 "responseSchema",
-                warn_dropped=False,
+                dialect_keywords=_GEMINI_SCHEMA_KEYWORDS,
             ),
         )
 
@@ -761,6 +761,13 @@ def _convert_google_enums(obj: Any) -> Any:
     elif hasattr(obj, "value"):  # Enum-like object
         return str(obj.value).lower()
     return obj
+
+
+# keywords specific to Gemini's OpenAPI-style Schema dialect (as opposed to
+# constraints it shares with JSON Schema, like `minItems`, whose loss should
+# still be warned about). `example` is the dialect's singular counterpart of
+# JSON Schema's `examples`.
+_GEMINI_SCHEMA_KEYWORDS = frozenset({"nullable", "propertyOrdering", "example"})
 
 
 def _google_schema_to_json_schema(schema: Any) -> Any:

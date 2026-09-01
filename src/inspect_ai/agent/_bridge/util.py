@@ -202,7 +202,7 @@ def _unmodelled_schema_keywords(schema: Any) -> set[str]:
 
 
 def client_json_schema(
-    schema: Any, dialect_field: str, *, warn_dropped: bool = True
+    schema: Any, dialect_field: str, *, dialect_keywords: frozenset[str] = frozenset()
 ) -> JSONSchema:
     """Parse a client-supplied JSON Schema, answering 400 rather than escaping.
 
@@ -225,12 +225,14 @@ def client_json_schema(
     warning is what makes it diagnosable, since the client otherwise just sees a
     response that fails its own validation.
 
-    Pass `warn_dropped=False` when the input is not standard JSON Schema (e.g.
-    Gemini's OpenAPI-style `responseSchema`): its dialect-specific keywords were
-    never modelled, so a JSON Schema-phrased warning would misread routine
-    requests as degraded.
+    Pass `dialect_keywords` when the input is not standard JSON Schema (e.g.
+    Gemini's OpenAPI-style `responseSchema`): keywords native to that dialect
+    appear on routine requests, so a JSON Schema-phrased warning about them
+    would misread the request as degraded. Keywords outside the set still warn
+    -- a dropped constraint the dialect shares with JSON Schema (e.g.
+    `minItems`) weakens the request just as much there.
     """
-    if warn_dropped and (dropped := _unmodelled_schema_keywords(schema)):
+    if dropped := _unmodelled_schema_keywords(schema) - dialect_keywords:
         warn_once(
             logger,
             f"The bridged request's {dialect_field} uses JSON Schema keywords "

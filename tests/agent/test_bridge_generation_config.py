@@ -616,6 +616,40 @@ def test_anthropic_unknown_tool_choice_type_rejected(tool_choice: dict[str, Any]
     assert provider_error_payload(ex.value)["status"] == 400
 
 
+@pytest.mark.parametrize(
+    "tool_choice",
+    [{"type": "tool"}, {"type": "tool", "name": 5}],
+)
+def test_anthropic_tool_choice_tool_requires_string_name(tool_choice: dict[str, Any]):
+    """`tool_choice.type: "tool"` with a missing or non-string `name` answers 400.
+
+    A missing `name` previously raised a status-less `KeyError`, and a
+    non-string one was accepted into the unvalidated `ToolFunction` dataclass --
+    serializing into the `ModelEvent` and failing transcript read-back, the
+    failure `validate_client_config` cannot backstop since `tool_choice` is not
+    on `GenerateConfig`.
+    """
+    from inspect_ai.agent._bridge.anthropic_api_impl import (
+        tool_choice_from_anthropic_tool_choice,
+    )
+
+    with pytest.raises(BridgePolicyError) as ex:
+        tool_choice_from_anthropic_tool_choice(tool_choice)
+    assert "tool_choice.name" in str(ex.value)
+    assert provider_error_payload(ex.value)["status"] == 400
+
+
+def test_anthropic_tool_choice_tool_with_valid_name():
+    from inspect_ai.agent._bridge.anthropic_api_impl import (
+        tool_choice_from_anthropic_tool_choice,
+    )
+    from inspect_ai.tool._tool_choice import ToolFunction
+
+    assert tool_choice_from_anthropic_tool_choice(
+        {"type": "tool", "name": "grep"}
+    ) == ToolFunction(name="grep")
+
+
 def test_google_generation_config_fields_the_provider_sends_are_all_read():
     """Every `generationConfig` field the Google provider sends must be read.
 
@@ -1034,7 +1068,9 @@ def test_google_openapi_schema_does_not_warn_on_gemini_keywords(_warn_once_messa
         {
             "responseSchema": {
                 "type": "OBJECT",
-                "properties": {"name": {"type": "STRING", "nullable": True}},
+                "properties": {
+                    "name": {"type": "STRING", "nullable": True, "example": "Ada"}
+                },
                 "propertyOrdering": ["name"],
             }
         }
@@ -1042,6 +1078,29 @@ def test_google_openapi_schema_does_not_warn_on_gemini_keywords(_warn_once_messa
     assert config.response_schema is not None
     assert config.response_schema.json_schema.type == "object"
     assert _warn_once_messages == []
+
+
+def test_google_openapi_schema_still_warns_on_shared_constraints(_warn_once_messages):
+    """Constraints Gemini's dialect shares with JSON Schema still warn when dropped.
+
+    `minItems`/`maxItems` are valid Gemini OpenAPI-style Schema keywords that
+    Inspect does not model, so dropping them genuinely weakens the request --
+    the dialect-keyword allowance must not silence that.
+    """
+    config = generate_config_from_google(
+        {
+            "responseSchema": {
+                "type": "ARRAY",
+                "items": {"type": "STRING", "nullable": True},
+                "minItems": 1,
+            }
+        }
+    )
+    assert config.response_schema is not None
+    assert len(_warn_once_messages) == 1
+    assert "responseSchema" in _warn_once_messages[0]
+    assert "minItems" in _warn_once_messages[0]
+    assert "nullable" not in _warn_once_messages[0]
 
 
 def test_google_json_schema_still_warns_on_dropped_keywords(_warn_once_messages):
